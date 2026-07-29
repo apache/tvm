@@ -452,6 +452,47 @@ def test_tmem_datapath_layout_D_row_to_lane_mapping():
         )
 
 
+def test_tmem_datapath_layout_B_col_split_mapping():
+    """Layout B splits N/2 columns across each 64-lane half."""
+    n_cols = 128
+    n_half = n_cols // 2
+    layout = tmem_datapath_layout("B", 64, n_cols)
+
+    for row in [0, 1, 31, 63]:
+        for col in [0, 1, n_half - 1, n_half, n_half + 1, n_cols - 1]:
+            axis_values = layout.apply(row, col, shape=[64, n_cols])
+            assert int(axis_values["TLane"]) == row + 64 * (col // n_half)
+            assert int(axis_values["TCol"]) == col % n_half
+
+
+def test_tcgen05_atom_layout_32x32b_datapath_B_mapping():
+    """The Layout B register image mirrors TLane/TCol as tid_in_wg/m."""
+    n_cols = 128
+    n_half = n_cols // 2
+    layout = tcgen05_atom_layout("32x32b", (64, n_cols), "float32")
+
+    for row in [0, 1, 31, 63]:
+        for col in [0, 1, n_half - 1, n_half, n_half + 1, n_cols - 1]:
+            axis_values = layout.apply(row, col, shape=[64, n_cols])
+            assert int(axis_values["tid_in_wg"]) == row + 64 * (col // n_half)
+            assert int(axis_values["m"]) == col % n_half
+
+
+def test_datapath_B_layout_factories_reject_invalid_inputs():
+    with pytest.raises(ValueError, match="expects rows=64"):
+        tmem_datapath_layout("B", 128, 32)
+    with pytest.raises(ValueError, match="expects even cols"):
+        tmem_datapath_layout("B", 64, 31)
+    with pytest.raises(ValueError, match="sub_slab must be 0"):
+        tmem_datapath_layout("B", 64, 32, sub_slab=1)
+    with pytest.raises(ValueError, match="fp32-only"):
+        tcgen05_atom_layout("32x32b", (64, 32), "float16")
+    with pytest.raises(ValueError, match="expects even N"):
+        tcgen05_atom_layout("32x32b", (64, 31), "float32")
+    with pytest.raises(ValueError, match="PTX Table 49"):
+        tcgen05_atom_layout("32x32b", (64, 6), "float32")
+
+
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("shape,rep", [("16x256b", 4), ("16x128b", 4), ("16x64b", 8)])
@@ -612,6 +653,169 @@ def test_layout_F_rejects_incompatible_atoms(atom_kind, frag_rows):
         mod = tvm.IRModule({"main": kernel})
         with pytest.raises((ValueError, RuntimeError), match="datapath"):
             tvm.compile(mod, target=target, tir_pipeline="tirx")
+
+
+def test_layout_B_rejects_16xnb_fragment():
+    """Layout B must not silently take the ordinary M=64 .16x*b path."""
+    n_cols = 128
+    tmem_layout = tmem_datapath_layout("B", 64, n_cols)
+    wrong_layout = tcgen05_atom_layout("16x256b", (64, n_cols), "float32")
+
+    @T.prim_func
+    def kernel() -> None:
+        T.device_entry()
+        T.cta_id([1])
+        T.warpgroup_id([1])
+        T.warp_id_in_wg([4])
+        T.lane_id([32])
+        tmem_addr = T.alloc_shared([1], "uint32")
+        tmem = T.decl_buffer(
+            (64, n_cols),
+            "float32",
+            scope="tmem",
+            allocated_addr=tmem_addr[0],
+            layout=tmem_layout,
+        )
+        frag = T.alloc_local((n_cols // 2,), "float32")
+        frag_view = frag.view(64, n_cols, layout=wrong_layout)
+        Tx.wg.copy_async(frag_view[:, :], tmem[:, :])
+
+    target = tvm.target.Target("cuda")
+    with target:
+        with pytest.raises((ValueError, RuntimeError), match="datapath B"):
+            tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+
+
+def test_layout_B_rejects_partial_column_copy():
+    """A logical B column slice is not one contiguous physical tcol interval."""
+    n_cols = 64
+
+    @T.prim_func
+    def kernel() -> None:
+        T.device_entry()
+        T.cta_id([1])
+        T.warpgroup_id([1])
+        T.warp_id_in_wg([4])
+        T.lane_id([32])
+        tmem_addr = T.alloc_shared([1], "uint32")
+        tmem = T.decl_buffer(
+            (64, n_cols),
+            "float32",
+            scope="tmem",
+            allocated_addr=tmem_addr[0],
+            layout=tmem_datapath_layout("B", 64, n_cols),
+        )
+        frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, n_cols), "float32")
+        Tx.wg.copy_async(frag[:, : n_cols // 2], tmem[:, : n_cols // 2])
+
+    target = tvm.target.Target("cuda")
+    with target:
+        with pytest.raises((ValueError, RuntimeError), match=r"full \(64, N\)"):
+            tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+
+
+@pytest.mark.parametrize("direction", ["ld", "st"])
+def test_datapath_B_codegen(direction):
+    """Both directions emit one physical .32x32b.x32 instruction."""
+    n_cols = 64
+
+    @T.prim_func
+    def kernel() -> None:
+        T.device_entry()
+        T.cta_id([1])
+        T.warpgroup_id([1])
+        T.warp_id_in_wg([4])
+        T.lane_id([32])
+        tmem_addr = T.alloc_shared([1], "uint32")
+        tmem = T.decl_buffer(
+            (64, n_cols),
+            "float32",
+            scope="tmem",
+            allocated_addr=tmem_addr[0] + 32,
+            layout=tmem_datapath_layout("B", 64, n_cols),
+        )
+        frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, n_cols), "float32")
+        if direction == "ld":
+            Tx.wg.copy_async(frag[:, :], tmem[:, :])
+        else:
+            Tx.wg.copy_async(tmem[:, :], frag[:, :])
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+    source = mod.mod.imports[0].inspect_source()
+    assert f"tcgen05.{direction}" in source
+    assert "32x32b.x32" in source
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+@pytest.mark.parametrize("n_cols", [32, 64, 128, 256])
+@pytest.mark.parametrize("col_offset", [0, 32])
+def test_datapath_B_ld_st_roundtrip(n_cols, col_offset):
+    """Layout B store/load preserves every register, including a nonzero base."""
+    n_half = n_cols // 2
+    tmem_cols = _next_pow2(max(32, col_offset + n_half))
+
+    @T.prim_func
+    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, (128, n_half), "float32")
+        B = T.match_buffer(B_ptr, (128, n_half), "float32")
+        T.device_entry()
+        warp_id = T.warp_id([4])
+        T.cta_id([1])
+        wg_id = T.warpgroup_id([1])
+        T.warp_id_in_wg([4])
+        T.lane_id([32])
+        tid = T.thread_id_in_wg([128])
+        tmem_addr = T.alloc_shared([1], "uint32")
+
+        if wg_id == 0:
+            if warp_id == 0:
+                T.ptx.tcgen05.alloc(T.address_of(tmem_addr), n_cols=tmem_cols, cta_group=1)
+            T.tvm_storage_sync("shared")
+            tmem = T.decl_buffer(
+                (64, n_cols),
+                "float32",
+                scope="tmem",
+                allocated_addr=tmem_addr[0] + col_offset,
+                layout=tmem_datapath_layout("B", 64, n_cols),
+            )
+
+            frag_in = T.alloc_tcgen05_ldst_frag("32x32b", (64, n_cols), "float32")
+            frag_in_local = frag_in.local()
+            for i in range(n_half):
+                frag_in_local[i] = A[tid, i]
+            T.cuda.cta_sync()
+            Tx.wg.copy_async(tmem[:, :], frag_in[:, :])
+            T.ptx.tcgen05.wait.st()
+            T.cuda.cta_sync()
+
+            frag_out = T.alloc_tcgen05_ldst_frag("32x32b", (64, n_cols), "float32")
+            Tx.wg.copy_async(frag_out[:, :], tmem[:, :])
+            T.ptx.tcgen05.wait.ld()
+            T.cuda.cta_sync()
+            frag_out_local = frag_out.local()
+            for i in range(n_half):
+                B[tid, i] = frag_out_local[i]
+
+            if warp_id == 0:
+                T.ptx.tcgen05.relinquish_alloc_permit(cta_group=1)
+                T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=tmem_cols, cta_group=1)
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+        source_np = tvm.testing.generate_random_array("float32", (128, n_half))
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            source = tvm.runtime.tensor(source_np, dev)
+            result = tvm.runtime.tensor(np.zeros((128, n_half), dtype="float32"), dev)
+            mod(source, result)
+            np.testing.assert_array_equal(result.numpy(), source_np)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def _run_load_test(shape: str, rep: int, dtype: str):
