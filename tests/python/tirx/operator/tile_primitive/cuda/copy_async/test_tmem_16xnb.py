@@ -41,6 +41,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.backend.cuda.lang.alloc_pool import _default_tmem_layout
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.testing import env
@@ -362,26 +363,42 @@ def _next_pow2(x: int) -> int:
 # even if the row→lane formula doesn't match PTX's actual behavior. This
 # test bypasses compilation and checks the layout's ``apply`` method
 # directly against ``_frag_row_to_tmem_lane`` for every M=64 logical row.
-def test_tmem_datapath_layout_F_row_to_lane_mapping():
+@pytest.mark.parametrize("sub_slab", [0, 1])
+def test_tmem_datapath_layout_F_row_to_lane_mapping(sub_slab):
     """Layout F: every logical row r ∈ [0, 64) must land at physical TMEM
-    lane ``(r // 16) * 32 + (r % 16)`` — the canonical scatter that the
-    ``.16x*b`` M=64 PTX accesses (warp i on lanes ``i * 32 .. i * 32 + 15``).
+    lane ``(r // 16) * 32 + sub_slab * 16 + (r % 16)``. The default lower
+    sub-slab is the canonical M=64 scatter; sub-slab 1 is its upper-half view.
     """
     cols = 32
-    layout = tmem_datapath_layout("F", 64, cols)
+    layout = tmem_datapath_layout("F", 64, cols, sub_slab=sub_slab)
     for r in range(64):
         for c in [0, 1, 7, 16, 31]:
             # Use ``apply(coord, shape=[64, cols])`` so (r, c) gets flattened
             # row-major before SplitCoord into the shard iters.
             axis_values = layout.apply(r, c, shape=[64, cols])
-            expected_lane = (r // 16) * 32 + (r % 16)
+            expected_lane = (r // 16) * 32 + sub_slab * 16 + (r % 16)
             assert int(axis_values["TLane"]) == expected_lane, (
                 f"(r={r}, c={c}) mapped to TLane {int(axis_values['TLane'])}, "
-                f"expected {expected_lane} (= (r//16)*32 + (r%16))"
+                f"expected {expected_lane} "
+                f"(= (r//16)*32 + {sub_slab}*16 + (r%16))"
             )
             assert int(axis_values["TCol"]) == c, (
                 f"(r={r}, c={c}) mapped to TCol {int(axis_values['TCol'])}, expected {c}"
             )
+
+
+def test_tmem_datapath_layout_rejects_invalid_sub_slab():
+    with pytest.raises(ValueError, match="sub_slab must be 0 or 1"):
+        tmem_datapath_layout("F", 64, 8, sub_slab=2)
+    with pytest.raises(ValueError, match="already spans both sub-slabs"):
+        tmem_datapath_layout("D", 128, 8, sub_slab=1)
+
+
+def test_default_tmem_layout_M128_matches_datapath_D():
+    """The default accumulator layout and named Layout D must not drift."""
+    tvm.ir.assert_structural_equal(
+        _default_tmem_layout(128, 32), tmem_datapath_layout("D", 128, 32)
+    )
 
 
 @pytest.mark.parametrize("shape", ["16x64b", "16x128b", "16x256b"])
@@ -433,6 +450,113 @@ def test_tmem_datapath_layout_D_row_to_lane_mapping():
         assert int(axis_values["TLane"]) == r, (
             f"r={r} mapped to TLane {int(axis_values['TLane'])}, expected {r}"
         )
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+@pytest.mark.parametrize("shape,rep", [("16x256b", 4), ("16x128b", 4), ("16x64b", 8)])
+def test_tcgen05_16xnb_sub_slab_view_read(shape, rep):
+    """F sub-slab views split a known-correct M=128 read into low/high halves."""
+    dtype = "float32"
+    cols = _COL_FACTOR_FP32[shape] * rep
+    regs128 = _REGS_FACTOR[shape] * rep * 2
+    regs64 = _REGS_FACTOR[shape] * rep
+    tmem_cols = max(32, _next_pow2(cols))
+    atom128 = tcgen05_atom_layout(shape, (128, cols), dtype)
+    atom64 = tcgen05_atom_layout(shape, (64, cols), dtype)
+    layout_d = tmem_datapath_layout("D", 128, tmem_cols)
+    layout_f0 = tmem_datapath_layout("F", 64, tmem_cols, sub_slab=0)
+    layout_f1 = tmem_datapath_layout("F", 64, tmem_cols, sub_slab=1)
+
+    @T.prim_func
+    def kernel(A_ptr: T.handle, B128_ptr: T.handle, B0_ptr: T.handle, B1_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, (128, regs128), dtype)
+        B128 = T.match_buffer(B128_ptr, (128, regs128), dtype)
+        B0 = T.match_buffer(B0_ptr, (128, regs64), dtype)
+        B1 = T.match_buffer(B1_ptr, (128, regs64), dtype)
+        T.device_entry()
+        warp_id = T.warp_id([4])
+        T.cta_id([2])
+        wg_id = T.warpgroup_id([1])
+        T.warp_id_in_wg([4])
+        T.lane_id([32])
+        tid = T.thread_id([128])
+        tmem_addr = T.alloc_shared([1], "uint32")
+        if wg_id == 0:
+            if warp_id == 0:
+                T.ptx.tcgen05.alloc(T.address_of(tmem_addr), n_cols=tmem_cols, cta_group=1)
+            T.tvm_storage_sync("shared")
+            tmem_d = T.decl_buffer(
+                (128, tmem_cols),
+                dtype,
+                scope="tmem",
+                allocated_addr=tmem_addr[0],
+                layout=layout_d,
+            )
+            tmem_f0 = T.decl_buffer(
+                (64, tmem_cols),
+                dtype,
+                scope="tmem",
+                allocated_addr=tmem_addr[0],
+                layout=layout_f0,
+            )
+            tmem_f1 = T.decl_buffer(
+                (64, tmem_cols),
+                dtype,
+                scope="tmem",
+                allocated_addr=tmem_addr[0],
+                layout=layout_f1,
+            )
+            source = T.alloc_local((regs128,), dtype)
+            for i in range(regs128):
+                source[i] = A[tid, i]
+            T.cuda.cta_sync()
+            Tx.wg.copy_async(tmem_d[0:128, 0:cols], source.view(128, cols, layout=atom128))
+            T.ptx.tcgen05.wait.st()
+            T.cuda.cta_sync()
+
+            full = T.alloc_local((regs128,), dtype)
+            Tx.wg.copy_async(full.view(128, cols, layout=atom128), tmem_d[0:128, 0:cols])
+            T.ptx.tcgen05.wait.ld()
+            T.cuda.cta_sync()
+            for i in range(regs128):
+                B128[tid, i] = full[i]
+
+            lower = T.alloc_local((regs64,), dtype)
+            Tx.wg.copy_async(lower.view(64, cols, layout=atom64), tmem_f0[0:64, 0:cols])
+            T.ptx.tcgen05.wait.ld()
+            T.cuda.cta_sync()
+            for i in range(regs64):
+                B0[tid, i] = lower[i]
+
+            upper = T.alloc_local((regs64,), dtype)
+            Tx.wg.copy_async(upper.view(64, cols, layout=atom64), tmem_f1[0:64, 0:cols])
+            T.ptx.tcgen05.wait.ld()
+            T.cuda.cta_sync()
+            for i in range(regs64):
+                B1[tid, i] = upper[i]
+
+            if warp_id == 0:
+                T.ptx.tcgen05.relinquish_alloc_permit(cta_group=1)
+                T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=tmem_cols, cta_group=1)
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+        source_np = tvm.testing.generate_random_array(dtype, (128, regs128))
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            source_dev = tvm.runtime.tensor(source_np, dev)
+            full_dev = tvm.runtime.tensor(np.zeros((128, regs128), dtype), dev)
+            lower_dev = tvm.runtime.tensor(np.zeros((128, regs64), dtype), dev)
+            upper_dev = tvm.runtime.tensor(np.zeros((128, regs64), dtype), dev)
+            mod(source_dev, full_dev, lower_dev, upper_dev)
+            full_np = full_dev.numpy()
+            np.testing.assert_array_equal(lower_dev.numpy(), full_np[:, :regs64])
+            np.testing.assert_array_equal(upper_dev.numpy(), full_np[:, regs64:])
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # Negative tests: the datapath/atom pairing matrix in ``tcgen05_ldst.py``
