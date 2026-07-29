@@ -22,9 +22,45 @@
 #include <tvm/ir/module.h>
 #include <tvm/script/ir_builder/base.h>
 
+#include <utility>
+
 namespace tvm {
 namespace script {
 namespace ir_builder {
+
+namespace {
+
+bool PositionLessEqual(int lhs_line, int lhs_column, int rhs_line, int rhs_column) {
+  return lhs_line < rhs_line || (lhs_line == rhs_line && lhs_column <= rhs_column);
+}
+
+bool Contains(const Span& outer, const Span& inner) {
+  if (!outer.defined() || !inner.defined() || outer.as<SequentialSpanNode>() ||
+      inner.as<SequentialSpanNode>() || !outer->source_name.same_as(inner->source_name)) {
+    return false;
+  }
+  return PositionLessEqual(outer->line, outer->column, inner->line, inner->column) &&
+         PositionLessEqual(inner->end_line, inner->end_column, outer->end_line, outer->end_column);
+}
+
+void AppendNormalizedSpan(const Span& span, std::vector<Span>* normalized) {
+  if (!span.defined()) {
+    return;
+  }
+  if (const auto* sequential = span.as<SequentialSpanNode>()) {
+    for (const Span& nested : sequential->spans) {
+      AppendNormalizedSpan(nested, normalized);
+    }
+    return;
+  }
+  if (!normalized->empty() && Contains(normalized->back(), span)) {
+    normalized->back() = span;
+  } else {
+    normalized->push_back(span);
+  }
+}
+
+}  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRBuilderFrameNode::RegisterReflection();
@@ -54,7 +90,49 @@ IRBuilder::IRBuilder() {
   ffi::ObjectPtr<IRBuilderNode> n = ffi::make_object<IRBuilderNode>();
   n->frames.clear();
   n->result = std::nullopt;
+  n->source_spans.clear();
   data_ = n;
+}
+
+void IRBuilderNode::PushSourceSpan(Span span) {
+  TVM_FFI_CHECK(span.defined(), ValueError) << "ValueError: Cannot push an undefined source span";
+  source_spans.push_back(std::move(span));
+}
+
+void IRBuilderNode::PopSourceSpan() {
+  TVM_FFI_CHECK(!source_spans.empty(), ValueError)
+      << "ValueError: No source span exists in the builder scope";
+  source_spans.pop_back();
+}
+
+Span IRBuilderNode::GetCurrentSourceSpan() const {
+  std::vector<Span> normalized;
+  normalized.reserve(source_spans.size());
+  for (const Span& span : source_spans) {
+    AppendNormalizedSpan(span, &normalized);
+  }
+  if (normalized.empty()) {
+    return Span();
+  }
+  if (normalized.size() == 1) {
+    return normalized[0];
+  }
+  ffi::Array<Span> spans;
+  spans.reserve(normalized.size());
+  for (const Span& span : normalized) {
+    spans.push_back(span);
+  }
+  return SequentialSpan(std::move(spans));
+}
+
+ffi::ObjectRef IRBuilderNode::SetCurrentSourceSpan(ffi::ObjectRef obj) const {
+  Span span = GetCurrentSourceSpan();
+  if (span.defined()) {
+    if (const auto* expr = obj.as<ExprNode>(); expr != nullptr && !expr->span.defined()) {
+      expr->span = std::move(span);
+    }
+  }
+  return obj;
 }
 
 std::vector<IRBuilder>* ThreadLocalBuilderStack() {
@@ -66,6 +144,9 @@ void IRBuilder::EnterWithScope() {
   IRBuilderNode* n = this->get();
   TVM_FFI_CHECK(n->frames.empty(), ValueError)
       << "ValueError: There are frame(s) left in the builder: " << n->frames.size()
+      << ". Please use a fresh new builder every time building IRs";
+  TVM_FFI_CHECK(n->source_spans.empty(), ValueError)
+      << "ValueError: There are source span(s) left in the builder: " << n->source_spans.size()
       << ". Please use a fresh new builder every time building IRs";
   n->result = std::nullopt;
   std::vector<IRBuilder>* stack = ThreadLocalBuilderStack();
@@ -118,6 +199,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.IRBuilderCurrent", IRBuilder::Current)
       .def("script.ir_builder.IRBuilderIsInScope", IRBuilder::IsInScope)
       .def_method("script.ir_builder.IRBuilderGet", &IRBuilderNode::Get<ffi::ObjectRef>)
+      .def_method("script.ir_builder.IRBuilderPushSourceSpan", &IRBuilderNode::PushSourceSpan)
+      .def_method("script.ir_builder.IRBuilderPopSourceSpan", &IRBuilderNode::PopSourceSpan)
+      .def_method("script.ir_builder.IRBuilderSetCurrentSourceSpan",
+                  &IRBuilderNode::SetCurrentSourceSpan)
       .def("script.ir_builder.IRBuilderName", IRBuilder::Name<ffi::ObjectRef>);
 }
 

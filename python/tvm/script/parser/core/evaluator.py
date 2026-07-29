@@ -144,6 +144,8 @@ class ExprEvaluator:
         name : doc.Name
             The doc AST name node with intermediate name for intermediate result.
         """
+        if self.parser is not None:
+            value = self.parser.annotate_current_source_span(value)
         name = f"__tvm_tmp_value_{self.new_value_count}"
         self.new_value_count += 1
         self.value_table[name] = value
@@ -171,6 +173,18 @@ class ExprEvaluator:
         res : Any
             The evaluation result.
         """
+        if isinstance(node, list):
+            return [self._visit(n) for n in node]
+        if isinstance(node, tuple):
+            return tuple(self._visit(n) for n in node)
+        assert isinstance(node, doc.AST)
+        if self.parser is None:
+            return self._visit_node(node)
+        with self.parser.with_source_span(node):
+            return self._visit_node(node)
+
+    def _visit_node(self, node: doc.AST) -> Any:
+        """Evaluate one AST node while its source span is active."""
         args = []
         if (
             isinstance(node, doc.Call)
@@ -208,11 +222,6 @@ class ExprEvaluator:
                             s.upper.lineno,
                             s.upper.end_col_offset + 2,
                         )
-        if isinstance(node, list):
-            return [self._visit(n) for n in node]
-        if isinstance(node, tuple):
-            return tuple(self._visit(n) for n in node)
-        assert isinstance(node, doc.AST)
         if isinstance(node, doc.Name):
             if node.id not in self.value_table and not _get_builtin_or_none(node.id):
                 raise ParserError(node, f"Undefined variable: {node.id}")
