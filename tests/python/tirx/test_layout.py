@@ -1655,6 +1655,17 @@ def test_slice():
     case_compose_slice_2d()
 
 
+def test_cuda_copy_extract_swizzle_tile_simplifies_constant_region_extents():
+    from tvm.tirx.cuda.operator.tile_primitive.copy._common import _extract_tile
+
+    zero = tvm.tirx.Mul(tvm.tirx.IntImm("int32", 0), tvm.tirx.IntImm("int32", 64))
+    end = tvm.tirx.Add(zero, tvm.tirx.IntImm("int32", 64))
+
+    tile = _extract_tile(SwizzleLayout(3, 3, 3), [(zero, end)])
+
+    assert [int(it.extent) for it in tile.shard] == [64]
+
+
 def test_apply_to_shape():
     """``apply_to_shape`` should give per-shard coord, preferring per-dim
     split when the input shape aligns with the layout's grouping."""
