@@ -25,7 +25,7 @@ import tvm
 import tvm.runtime
 import tvm.testing
 from tvm import tirx
-from tvm.ir.base import assert_structural_equal
+from tvm.ir.base import SourceName, Span, assert_structural_equal
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tirx as T
 
@@ -49,6 +49,18 @@ def test_ir_builder_tir_primfunc_base():
 
     # Check if the generated ir is expected
     assert_structural_equal(prim_func_actual, prim_func_expected, map_free_vars=True)
+
+
+def test_ir_builder_source_span_applies_to_emitted_stmt():
+    span = Span(SourceName("builder_test.py"), 7, 7, 5, 18)
+    with IRBuilder() as ib:
+        with T.prim_func(s_tir=True):
+            with ib.with_source_span(span):
+                T.evaluate(1)
+
+    actual = ib.get().body.span
+    assert actual.source_name.name == "builder_test.py"
+    assert (actual.line, actual.column, actual.end_line, actual.end_column) == (7, 5, 7, 18)
 
 
 def test_ir_builder_tir_primfunc_complete():
