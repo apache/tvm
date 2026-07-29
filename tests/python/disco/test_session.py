@@ -74,7 +74,12 @@ class SocketSessionTester:
         def start_server():
             try:
                 self.sess = di.SocketSession(
-                    num_nodes, num_workers_per_node, num_groups, server_host, server_port, build_ring
+                    num_nodes,
+                    num_workers_per_node,
+                    num_groups,
+                    server_host,
+                    server_port,
+                    build_ring,
                 )
             except Exception as exc:  # pylint: disable=broad-except
                 server_exc.append(exc)
