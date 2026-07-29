@@ -29,6 +29,7 @@ from tvm.error import DiagnosticError
 from tvm.ir import GlobalVar
 from tvm.runtime import Object
 
+from ...ir_builder import IRBuilder
 from . import dispatch, doc
 from .diagnostics import Diagnostics, Source
 from .evaluator import eval_assign, eval_expr
@@ -503,6 +504,25 @@ class Parser(doc.NodeVisitor):
 
         return _deferred(pop_source)
 
+    @contextmanager
+    def with_source_span(self, node: doc.AST):
+        """Make ``node``'s source range active while constructing its IR."""
+        if (
+            not IRBuilder.is_in_scope()
+            or getattr(node, "lineno", None) is None
+            or getattr(node, "col_offset", None) is None
+        ):
+            yield
+            return
+        with IRBuilder.current().with_source_span(self.diag.source.to_span(node)):
+            yield
+
+    def annotate_current_source_span(self, value: Any) -> Any:
+        """Attach the active parser span to an expression result, when applicable."""
+        if isinstance(value, Object) and IRBuilder.is_in_scope():
+            return IRBuilder.current()._set_current_source_span(value)  # pylint: disable=protected-access
+        return value
+
     def eval_expr(
         self,
         node: doc.Expression | doc.expr,
@@ -667,7 +687,8 @@ class Parser(doc.NodeVisitor):
         if func is None:
             raise NotImplementedError(f"Visitor of AST node is not implemented: {name}")
         try:
-            func(node)
+            with self.with_source_span(node):
+                func(node)
         except Exception as err:  # pylint: disable=broad-except
             self.report_error(node, err)
 

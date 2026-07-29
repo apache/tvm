@@ -17,6 +17,7 @@
 """A generic IRBuilder across the TVM stack"""
 
 from collections.abc import Callable
+from contextlib import contextmanager
 from typing import Any
 
 from tvm_ffi import register_object as _register_object
@@ -160,6 +161,34 @@ class IRBuilder(_Object):
     def get(self) -> _Object:
         """Get the constructed IR."""
         return _ffi_api.IRBuilderGet(self)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+    @contextmanager
+    def with_source_span(self, span):
+        """Attach ``span`` to IR nodes constructed in the nested scope.
+
+        Nested scopes are retained as a ``SequentialSpan`` when they describe
+        distinct source ranges, such as a TVMScript inline expansion.
+
+        Parameters
+        ----------
+        span : tvm.ir.Span
+            The frontend source range active in the nested scope.
+        """
+        _ffi_api.IRBuilderPushSourceSpan(  # type: ignore[attr-defined] # pylint: disable=no-member
+            self, span
+        )
+        try:
+            yield
+        finally:
+            _ffi_api.IRBuilderPopSourceSpan(  # type: ignore[attr-defined] # pylint: disable=no-member
+                self
+            )
+
+    def _set_current_source_span(self, value):
+        """Attach the active source span to an expression without one."""
+        return _ffi_api.IRBuilderSetCurrentSourceSpan(  # type: ignore[attr-defined] # pylint: disable=no-member
+            self, value
+        )
 
     @staticmethod
     def name(s: str, v: Any) -> Any:
