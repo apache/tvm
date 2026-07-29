@@ -34,6 +34,8 @@ namespace tirx {
  */
 class TilePrimitiveCallNode : public StmtNode {
  public:
+  explicit TilePrimitiveCallNode(ffi::UnsafeInit tag) : op(tag) {}
+
   TilePrimitiveCallNode(tvm::Op op, ffi::Array<ffi::Any> args,
                         ffi::Map<ffi::String, Buffer> workspace,
                         ffi::Map<ffi::String, ffi::Any> config, ffi::Optional<ffi::String> dispatch,
