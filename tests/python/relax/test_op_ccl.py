@@ -29,6 +29,7 @@ def test_op_correctness():
     assert relax.op.ccl.allreduce(x).op == Op.get("relax.ccl.allreduce")
     assert relax.op.ccl.broadcast_from_worker0(x).op == Op.get("relax.ccl.broadcast_from_worker0")
     assert relax.op.ccl.allgather(x, 2).op == Op.get("relax.ccl.allgather")
+    assert relax.op.ccl.gather_to_worker0(x, 2).op == Op.get("relax.ccl.gather_to_worker0")
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.Type):
@@ -253,6 +254,66 @@ def test_scatter_from_worker0_infer_ty_more_input_dtype():
     _check_inference(
         bb, relax.op.ccl.scatter_from_worker0(x2, 2), relax.TensorType((1, 3), "int64")
     )
+
+
+# gather_to_worker0 concatenates each worker's shard along axis 0, so its inferred type matches
+# allgather's; only worker-0 actually holds the result at runtime.
+def test_gather_to_worker0_infer_ty():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=3))
+    x2 = relax.Var("x", R.Tensor("float32", ndim=-1))
+    x3 = relax.Var("x", R.Tensor((2, 3)))
+    x4 = relax.Var("x", R.Tensor())
+    x5 = relax.Var("x", R.Tensor((3, 4)))
+
+    _check_inference(bb, relax.op.ccl.gather_to_worker0(x0, 2), relax.TensorType((4, 3), "float32"))
+    _check_inference(
+        bb, relax.op.ccl.gather_to_worker0(x1, 2), relax.TensorType(dtype="float32", ndim=3)
+    )
+    _check_inference(bb, relax.op.ccl.gather_to_worker0(x2, 2), relax.TensorType(dtype="float32"))
+    _check_inference(
+        bb, relax.op.ccl.gather_to_worker0(x3, 2), relax.TensorType((4, 3), dtype=None)
+    )
+    _check_inference(bb, relax.op.ccl.gather_to_worker0(x4, 2), relax.TensorType(dtype=None))
+    _check_inference(
+        bb, relax.op.ccl.gather_to_worker0(x5, 2), relax.TensorType((6, 4), dtype=None)
+    )
+
+
+def test_gather_to_worker0_infer_ty_shape_symbolic():
+    bb = relax.BlockBuilder()
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
+    x0 = relax.Var("x", R.Tensor((m, n), "float32"))
+    x1 = relax.Var("x", R.Tensor((4, n), "float32"))
+
+    _check_inference(
+        bb, relax.op.ccl.gather_to_worker0(x0, 2), relax.TensorType((m * 2, n), "float32")
+    )
+    _check_inference(bb, relax.op.ccl.gather_to_worker0(x1, 2), relax.TensorType((8, n), "float32"))
+
+
+def test_gather_to_worker0_infer_ty_shape_var():
+    bb = relax.BlockBuilder()
+    s0 = relax.Var("s", relax.ShapeType(ndim=2))
+    s1 = relax.Var("s", relax.ShapeType())
+    x0 = relax.Var("x", relax.TensorType(s0, "float32"))
+    x1 = relax.Var("x", relax.TensorType(s1, "float32"))
+
+    _check_inference(bb, relax.op.ccl.gather_to_worker0(x0, 2), relax.TensorType(s0, "float32"))
+    _check_inference(bb, relax.op.ccl.gather_to_worker0(x1, 2), relax.TensorType(s1, "float32"))
+
+
+def test_gather_to_worker0_infer_ty_more_input_dtype():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3), "float64"))
+    x1 = relax.Var("x", R.Tensor((2, 3), "int8"))
+    x2 = relax.Var("x", R.Tensor((2, 3), "int64"))
+
+    _check_inference(bb, relax.op.ccl.gather_to_worker0(x0, 2), relax.TensorType((4, 3), "float64"))
+    _check_inference(bb, relax.op.ccl.gather_to_worker0(x1, 2), relax.TensorType((4, 3), "int8"))
+    _check_inference(bb, relax.op.ccl.gather_to_worker0(x2, 2), relax.TensorType((4, 3), "int64"))
 
 
 if __name__ == "__main__":
