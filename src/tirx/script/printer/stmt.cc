@@ -620,7 +620,9 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
     // First pass prefers a parent whose layout matches structurally, so the
     // sugar prints as a bare reshape instead of restating the layout.
     if (require_same_layout && !same_layout) return std::nullopt;
-    if (!same_layout) {
+    // Default layouts are shape-specific objects, but a default-to-default
+    // reshape is still represented by view(*shape) without an explicit layout.
+    if (!same_layout && !(child_is_default && parent_is_default)) {
       // Buffer.view(..., layout=None) means "inherit the parent layout", so it
       // cannot reconstruct a layout-less child from a laid-out parent.
       if (!child->layout.has_value()) return std::nullopt;
