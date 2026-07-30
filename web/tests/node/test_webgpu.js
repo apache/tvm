@@ -32,14 +32,27 @@ global.GPUShaderStage = {
   COMPUTE: 1,
 };
 
-function createMockDevice() {
+function createDeferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+function createMockDevice({
+  mapAsync = () => Promise.resolve(),
+  onSubmittedWorkDone = () => Promise.resolve(),
+} = {}) {
   const events = [];
   const encoders = [];
 
   const queue = {
     submit: jest.fn(() => events.push("submit")),
     writeBuffer: jest.fn(() => events.push("writeBuffer")),
-    onSubmittedWorkDone: jest.fn(() => Promise.resolve()),
+    onSubmittedWorkDone: jest.fn(onSubmittedWorkDone),
   };
 
   const device = {
@@ -76,7 +89,7 @@ function createMockDevice() {
       return {
         size: descriptor.size,
         destroy: jest.fn(() => events.push("destroy")),
-        mapAsync: jest.fn(() => Promise.resolve()),
+        mapAsync: jest.fn(mapAsync),
         getMappedRange: jest.fn(() => mappedData),
         unmap: jest.fn(),
       };
@@ -94,8 +107,8 @@ function createMockDevice() {
   return { device, queue, events, encoders };
 }
 
-function createContext() {
-  const gpu = createMockDevice();
+function createContext(deviceOptions) {
+  const gpu = createMockDevice(deviceOptions);
   const memory = {
     storeRawBytes: jest.fn(),
   };
@@ -202,4 +215,116 @@ test("buffer deallocation flushes pending copies before destroy", () => {
 
   expect(queue.submit).toHaveBeenCalledTimes(1);
   expect(events).toEqual(["copy", "finish", "submit", "destroy"]);
+});
+
+test("drawing flushes pending copies first", () => {
+  const { context, queue, events, source, destination } = createContext();
+  const copyWithinGPU = context.getDeviceAPI("deviceCopyWithinGPU");
+  const canvasRenderManager = {
+    draw: jest.fn(() => events.push("draw")),
+  };
+  context.canvasRenderManager = canvasRenderManager;
+
+  copyWithinGPU(source, 0, destination, 0, 16);
+  context.drawImageFromBuffer(destination, 2, 2);
+
+  expect(queue.submit).toHaveBeenCalledTimes(1);
+  expect(canvasRenderManager.draw).toHaveBeenCalledTimes(1);
+  expect(events).toEqual(["copy", "finish", "submit", "draw"]);
+});
+
+test("sync awaits a readback and a later batched GPU copy", async () => {
+  const readback = createDeferred();
+  const queueDone = createDeferred();
+  const {
+    context,
+    queue,
+    memory,
+    source,
+    destination,
+  } = createContext({
+    mapAsync: () => readback.promise,
+    onSubmittedWorkDone: () => queueDone.promise,
+  });
+  const copyFromGPU = context.getDeviceAPI("deviceCopyFromGPU");
+  const copyWithinGPU = context.getDeviceAPI("deviceCopyWithinGPU");
+
+  copyFromGPU(source, 0, 128, 16);
+  copyWithinGPU(source, 0, destination, 0, 16);
+
+  let syncResolved = false;
+  const syncPromise = context.sync().then(() => {
+    syncResolved = true;
+  });
+
+  expect(queue.submit).toHaveBeenCalledTimes(2);
+  expect(queue.onSubmittedWorkDone).toHaveBeenCalledTimes(1);
+
+  queueDone.resolve();
+  await Promise.resolve();
+  expect(syncResolved).toBe(false);
+  expect(memory.storeRawBytes).not.toHaveBeenCalled();
+
+  readback.resolve();
+  await syncPromise;
+
+  expect(memory.storeRawBytes).toHaveBeenCalledTimes(1);
+  expect(memory.storeRawBytes.mock.calls[0][0]).toBe(128);
+  expect(memory.storeRawBytes.mock.calls[0][1]).toHaveLength(16);
+});
+
+test("a host write after a readback makes sync wait for the queue", async () => {
+  const queueDone = createDeferred();
+  const {
+    context,
+    queue,
+    memory,
+    source,
+    destination,
+  } = createContext({
+    onSubmittedWorkDone: () => queueDone.promise,
+  });
+  const copyFromGPU = context.getDeviceAPI("deviceCopyFromGPU");
+
+  copyFromGPU(source, 0, 128, 16);
+  context.copyRawBytesToBuffer(
+    new Uint8Array([1, 2, 3, 4]),
+    destination,
+    0,
+    4
+  );
+
+  let syncResolved = false;
+  const syncPromise = context.sync().then(() => {
+    syncResolved = true;
+  });
+  expect(queue.onSubmittedWorkDone).toHaveBeenCalledTimes(1);
+
+  await Promise.resolve();
+  expect(syncResolved).toBe(false);
+
+  queueDone.resolve();
+  await syncPromise;
+
+  expect(memory.storeRawBytes).toHaveBeenCalledTimes(1);
+});
+
+test("sync propagates a pending readback failure", async () => {
+  const readError = new Error("mapAsync failed");
+  const {
+    context,
+    queue,
+    source,
+    destination,
+  } = createContext({
+    mapAsync: () => Promise.reject(readError),
+  });
+  const copyFromGPU = context.getDeviceAPI("deviceCopyFromGPU");
+  const copyWithinGPU = context.getDeviceAPI("deviceCopyWithinGPU");
+
+  copyFromGPU(source, 0, 128, 16);
+  copyWithinGPU(source, 0, destination, 0, 16);
+
+  await expect(context.sync()).rejects.toBe(readError);
+  expect(queue.onSubmittedWorkDone).toHaveBeenCalledTimes(1);
 });

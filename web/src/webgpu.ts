@@ -419,12 +419,10 @@ export class WebGPUContext {
   // Pool of MAP_READ staging buffers to avoid per-copy create/destroy overhead
   private readStagingBufferPool: Array<{ buffer: GPUBuffer; size: number }> = [];
   private maxReadStagingBuffers = 4;
-  // Pending mapAsync promise from the last GPU→CPU copy.
-  // Used in sync() as a fast path: if the last queue operation was a
-  // GPU→CPU copy, awaiting its mapAsync is sufficient (no need for
-  // the heavier onSubmittedWorkDone). Reset to null after any non-copy
-  // queue submission so we fall back to onSubmittedWorkDone.
+  // Pending GPU→CPU copies, including storing the mapped data in WASM memory.
   private pendingGPUToCPUCopy: Promise<void> | null = null;
+  // Whether a pending GPU→CPU copy is still the last queue operation.
+  private pendingGPUToCPUCopyIsQueueTail = false;
   // Batched command encoding: accumulate compute passes and GPU copies in a
   // single encoder, and submit only on flush to reduce JS-native transition overhead.
   private pendingEncoder: GPUCommandEncoder | null = null;
@@ -462,6 +460,7 @@ export class WebGPUContext {
    * - GPU→CPU readback (deviceCopyFromGPU)
    * - CPU→GPU writes (deviceCopyToGPU, copyRawBytesToBuffer)
    * - Buffer deallocation (deviceFreeDataSpace)
+   * - Canvas drawing (drawImageFromBuffer)
    * - Queue sync (sync)
    */
   flushCommands(): void {
@@ -469,9 +468,7 @@ export class WebGPUContext {
       this.device.queue.submit([this.pendingEncoder.finish()]);
       this.pendingEncoder = null;
       this.pendingDispatchCount = 0;
-      // A command submission is now the last queue operation, so the
-      // GPU→CPU copy fast path in sync() is no longer valid.
-      this.pendingGPUToCPUCopy = null;
+      this.pendingGPUToCPUCopyIsQueueTail = false;
     }
   }
 
@@ -501,14 +498,22 @@ export class WebGPUContext {
    * Wait for all pending GPU tasks to complete
    */
   async sync(): Promise<void> {
-    // Flush any batched compute passes before waiting on the queue.
     this.flushCommands();
-    if (this.pendingGPUToCPUCopy) {
-      const p = this.pendingGPUToCPUCopy;
-      this.pendingGPUToCPUCopy = null;
-      await p;
+
+    const pendingRead = this.pendingGPUToCPUCopy;
+    const pendingReadIsQueueTail = this.pendingGPUToCPUCopyIsQueueTail;
+    this.pendingGPUToCPUCopy = null;
+    this.pendingGPUToCPUCopyIsQueueTail = false;
+
+    if (pendingRead && pendingReadIsQueueTail) {
+      await pendingRead;
     } else {
-      await this.device.queue.onSubmittedWorkDone();
+      const queueDone = this.device.queue.onSubmittedWorkDone();
+      if (pendingRead) {
+        await Promise.all([pendingRead, queueDone]);
+      } else {
+        await queueDone;
+      }
     }
   }
 
@@ -532,7 +537,9 @@ export class WebGPUContext {
     if (this.canvasRenderManager == undefined) {
       throw Error("Do not have a canvas context, call bindCanvas first");
     }
+    this.flushCommands();
     this.canvasRenderManager.draw(this.gpuBufferFromPtr(ptr), height, width);
+    this.pendingGPUToCPUCopyIsQueueTail = false;
   }
 
   /**
@@ -558,12 +565,16 @@ export class WebGPUContext {
       0,
       nbytes
     );
+    this.pendingGPUToCPUCopyIsQueueTail = false;
   }
   /**
    * Clear canvas
    */
   clearCanvas() {
-    this.canvasRenderManager?.clear();
+    if (this.canvasRenderManager) {
+      this.canvasRenderManager.clear();
+      this.pendingGPUToCPUCopyIsQueueTail = false;
+    }
   }
 
   /**
@@ -960,6 +971,7 @@ export class WebGPUContext {
       0,
       nbytes
     );
+    this.pendingGPUToCPUCopyIsQueueTail = false;
   }
 
   /**
@@ -1028,6 +1040,7 @@ export class WebGPUContext {
     this.pendingGPUToCPUCopy = this.pendingGPUToCPUCopy
       ? this.pendingGPUToCPUCopy.then(() => readPromise)
       : readPromise;
+    this.pendingGPUToCPUCopyIsQueueTail = true;
   }
 
   private deviceCopyWithinGPU(

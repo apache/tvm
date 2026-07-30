@@ -21,6 +21,7 @@ module.exports = {
 
   transform: {
     "^.+\\.ts$": "<rootDir>/tests/typescript_transformer.cjs",
+    "^.+\\.js$": "babel-jest",
   },
 
   testMatch: [
