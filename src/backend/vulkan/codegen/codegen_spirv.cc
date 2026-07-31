@@ -57,6 +57,17 @@ const StringImmNode* AsStringImmNode(const Expr& expr) {
   return node;
 }
 
+const VarNode* AsBufferVarNode(const Expr& expr) {
+  if (const auto* var = expr.as<VarNode>()) {
+    return var;
+  }
+  if (const auto* call = expr.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    return call->args[0].as<VarNode>();
+  }
+  return nullptr;
+}
+
 }  // namespace
 
 CodeGenSPIRV::CodeGenSPIRV(Target target) : spirv_support_(target) {}
@@ -320,7 +331,10 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const LetNode* op) {
 }
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
-  if (op->op.same_as(builtin::call_spirv_pure_glsl450())) {
+  if (op->op.same_as(builtin::buffer_data())) {
+    TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
+    return MakeValue(op->args[0]);
+  } else if (op->op.same_as(builtin::call_spirv_pure_glsl450())) {
     TVM_FFI_ICHECK_GE(op->args.size(), 2U);
     uint32_t inst_id = static_cast<uint32_t>(op->args[0].as<IntImmNode>()->value);
     std::vector<spirv::Value> values;
@@ -431,7 +445,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
 
   if (op->op.same_as(tvm_fill_fragment_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 6U);
-    const VarNode* buffer_node = op->args[0].as<VarNode>();
+    const VarNode* buffer_node = AsBufferVarNode(op->args[0]);
     TVM_FFI_ICHECK(buffer_node && fragment_info_.count(buffer_node));
     PrimType ele_dtype = GetElementDataType(buffer_node);
     TVM_FFI_ICHECK(ele_dtype.MatchesCode(DLDataTypeCode::kDLFloat))
@@ -451,7 +465,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
 
   } else if (op->op.same_as(tvm_load_matrix_sync_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
-    const VarNode* buffer_node = op->args[0].as<VarNode>();
+    const VarNode* buffer_node = AsBufferVarNode(op->args[0]);
     TVM_FFI_ICHECK(buffer_node && fragment_info_.count(buffer_node));
     spirv::SType& fragment_type = fragment_info_[buffer_node].stype;
     PrimExpr dst_index = op->args[4].as_or_throw<PrimExpr>();
@@ -473,10 +487,12 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     builder_->MakeInst(spv::OpStore, dst_ptr, loaded, spv::MemoryAccessMaskNone);
     return spirv::Value();
   } else if (op->op.same_as(tvm_mma_sync_op)) {
-    const VarNode* buffer_d = op->args[0].as<VarNode>();
-    const VarNode* buffer_a = op->args[2].as<VarNode>();
-    const VarNode* buffer_b = op->args[4].as<VarNode>();
-    const VarNode* buffer_c = op->args[6].as<VarNode>();
+    const VarNode* buffer_d = AsBufferVarNode(op->args[0]);
+    const VarNode* buffer_a = AsBufferVarNode(op->args[2]);
+    const VarNode* buffer_b = AsBufferVarNode(op->args[4]);
+    const VarNode* buffer_c = AsBufferVarNode(op->args[6]);
+    TVM_FFI_ICHECK(buffer_d && buffer_a && buffer_b && buffer_c)
+        << "Cooperative matrix operands must be buffer variables";
     PrimExpr index_d = op->args[1].as_or_throw<PrimExpr>();
     PrimExpr index_a = op->args[3].as_or_throw<PrimExpr>();
     PrimExpr index_b = op->args[5].as_or_throw<PrimExpr>();
@@ -511,7 +527,8 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     return spirv::Value();
   } else if (op->op.same_as(tvm_store_matrix_sync_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
-    const VarNode* buffer_node = op->args[0].as<VarNode>();
+    const VarNode* buffer_node = AsBufferVarNode(op->args[0]);
+    TVM_FFI_ICHECK(buffer_node && fragment_info_.count(buffer_node));
     PrimExpr index = op->args[4].as_or_throw<PrimExpr>();
     int stride = static_cast<int>(AsIntImmNode(op->args[6])->value);
     auto type_int = builder_->GetSType(PrimType::Int(32));
@@ -533,7 +550,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     return spirv::Value();
   } else if (op->op.same_as(builtin::address_of())) {
     const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
-    Var buffer_var = load->buffer->data;
+    Var buffer_var = load->buffer.var();
     const VarNode* buffer_node = buffer_var.get();
     PrimExpr index = load->indices[0];
     PrimType ele_dtype = GetElementDataType(buffer_node);
@@ -578,7 +595,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const BroadcastNode* op) {
 spirv::Value CodeGenSPIRV::VisitExpr_(const BufferLoadNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
   TVM_FFI_ICHECK(!op->predicate.has_value()) << "Predicated buffer load is not supported.";
-  Var buffer_var = op->buffer->data;
+  Var buffer_var = op->buffer.var();
   PrimExpr prim_index = op->indices[0];
 
   PrimType desired_read_type = op->ty.as_or_throw<PrimType>();
@@ -665,7 +682,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const ShuffleNode* op) {
 void CodeGenSPIRV::VisitStmt_(const BufferStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
   TVM_FFI_ICHECK(!op->predicate.has_value()) << "Predicated buffer store is not supported.";
-  Var buffer_var = op->buffer->data;
+  Var buffer_var = op->buffer.var();
   PrimExpr prim_index = op->indices[0];
 
   auto it = storage_info_.find(buffer_var.get());
@@ -839,12 +856,12 @@ void CodeGenSPIRV::VisitStmt_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
 
   spirv::Value buf;
-  const std::string scope = GetPtrStorageScope(op->buffer->data);
+  const std::string scope = GetPtrStorageScope(op->buffer.var());
   auto storage_scope = runtime::StorageScope::Create(scope);
   spirv::SType etype = builder_->GetSType(op->buffer->dtype);
   runtime::StorageRank rank = storage_scope.rank;
   spv::StorageClass storage_class;
-  const VarNode* var_node = op->buffer->data.get();
+  const VarNode* var_node = op->buffer.get();
 
   switch (rank) {
     case runtime::StorageRank::kWMMAMatrixA:
@@ -881,11 +898,11 @@ void CodeGenSPIRV::VisitStmt_(const AllocBufferNode* op) {
       TVM_FFI_THROW(InternalError) << "Can only allocate shared or local memory inside kernel";
   }
 
-  builder_->SetName(buf, op->buffer->name);
+  builder_->SetName(buf, op->buffer.name());
 
   StorageInfo& info = storage_info_[var_node];
   TVM_FFI_ICHECK(!info.element_type_known);
-  info.SetContentType(op->buffer->dtype, op->buffer->name);
+  info.SetContentType(op->buffer->dtype, op->buffer.name());
 
   TVM_FFI_ICHECK(!var_map_.count(var_node));
   var_map_[var_node] = buf;
@@ -895,7 +912,35 @@ void CodeGenSPIRV::VisitStmt_(const AllocBufferNode* op) {
 }
 
 void CodeGenSPIRV::VisitStmt_(const DeclBufferNode* op) {
-  // DeclBuffer is a flat statement with no body — nothing to emit.
+  const VarNode* buffer_var = op->buffer.get();
+  TVM_FFI_ICHECK(!var_map_.count(buffer_var))
+      << "Buffer variable " << op->buffer.name() << " is already defined";
+  TVM_FFI_ICHECK(!storage_info_.count(buffer_var))
+      << "Storage metadata for buffer variable " << op->buffer.name() << " is already defined";
+
+  spirv::Value data = MakeValue(op->data);
+
+  PrimType declared_storage_type = op->buffer->dtype;
+  if (declared_storage_type == PrimType::Bool()) {
+    declared_storage_type = boolean_storage_type_.WithLanes(declared_storage_type.lanes());
+  }
+
+  const VarNode* source = AsBufferVarNode(op->data);
+
+  StorageInfo info;
+  if (source) {
+    auto it = storage_info_.find(source);
+    if (it != storage_info_.end()) {
+      info = it->second;
+      info.name_hint = op->buffer.name();
+    }
+  }
+  if (!info.element_type_known) {
+    info.SetContentType(declared_storage_type, op->buffer.name());
+  }
+
+  var_map_[buffer_var] = data;
+  storage_info_[buffer_var] = std::move(info);
 }
 
 void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {

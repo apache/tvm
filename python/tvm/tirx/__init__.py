@@ -26,7 +26,16 @@ tvm.script.register_dialect("tirx", "tvm.tirx.script")
 from tvm.ir import Expr
 from tvm.runtime import const
 
-from .buffer import Buffer, decl_buffer, DataProducer
+from .buffer import (
+    Buffer,
+    BufferAccessKind,
+    BufferType,
+    DataProducer,
+    buffer_data,
+    buffer_data_pointer_type,
+    decl_buffer,
+    is_buffer_var,
+)
 from .expr import convert
 from .expr import Var, Reduce, FloatImm, IntImm, StringImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod

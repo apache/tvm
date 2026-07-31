@@ -47,8 +47,8 @@ def transpose_schedule(
     dst_f = T.Var("dst_F", "int32")
     b_var = T.Var("B", "int32")
     extend_b = T.Var("extend_B", "int32")
-    p_size = src_region.buffer.layout.size("P")
-    lhs_f_size = dst_region.buffer.layout.size("P")
+    p_size = src_region.buffer.ty.layout.size("P")
+    lhs_f_size = dst_region.buffer.ty.layout.size("P")
     rhs_f_size = p_size
     inst_gen.bind_inst_iter(
         src_region, lhs_f, inst_repr_src.size, inst_repr_src.stride, is_free_dim=True
@@ -90,7 +90,10 @@ def transpose_schedule(
             "Identity tensor must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateBufferAlloc first."  # noqa: E501
         )
         identity_tensor = T.buffer(
-            (p_size, rhs_f_size), src_region.buffer.dtype, scope="trn.sbuf", buffer_name="identity"
+            (p_size, rhs_f_size),
+            src_region.buffer.ty.dtype,
+            scope="trn.sbuf",
+            buffer_name="identity",
         )
         sctx.add_alloc_buffer(identity_tensor)
 
@@ -158,7 +161,7 @@ def transpose_schedule(
     else:
         acc_psum = op.workspace["acc_psum"]
         check_workspace_buffer(acc_psum, (p_size, largest_psum_per_bank), "trn.psum")
-        max_psum_slots = acc_psum.shape[0]
+        max_psum_slots = acc_psum.ty.shape[0]
 
     # fmt: off
     @T.prim_func
@@ -198,14 +201,14 @@ def copy_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     # Check for valid buffer configurations
     valid_config = all(
         [
-            src.layout and dst.layout,
+            src.ty.layout and dst.ty.layout,
             src.scope() in ["global", "trn.sbuf", "trn.psum"],
             dst.scope() in ["global", "trn.sbuf", "trn.psum"],
             src.scope() != "global" or dst.scope() != "global",
-            (src.scope() == "global" and isinstance(src.layout, T.TileLayout))
-            or (src.scope() in ["trn.sbuf", "trn.psum"] and is_trainium_layout(src.layout)),
-            (dst.scope() == "global" and isinstance(dst.layout, T.TileLayout))
-            or (dst.scope() in ["trn.sbuf", "trn.psum"] and is_trainium_layout(dst.layout)),
+            (src.scope() == "global" and isinstance(src.ty.layout, T.TileLayout))
+            or (src.scope() in ["trn.sbuf", "trn.psum"] and is_trainium_layout(src.ty.layout)),
+            (dst.scope() == "global" and isinstance(dst.ty.layout, T.TileLayout))
+            or (dst.scope() in ["trn.sbuf", "trn.psum"] and is_trainium_layout(dst.ty.layout)),
         ]
     )
 
@@ -233,7 +236,7 @@ def copy_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     if not inst_gen.check_partition_dim_match(src_region, dst_region):
         return transpose_schedule(op, inst_gen, sctx)
 
-    if is_trainium_layout(src.layout):
+    if is_trainium_layout(src.ty.layout):
         inst = inst_gen.find_max_inst_size_from_one_region(src_region)
         inst = inst_gen.fit_inst_tile_to_region(inst, dst_region)
         src_to_dst = True
@@ -262,7 +265,7 @@ def copy_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
         from_region, _to_region = src_region, dst_region
     else:
         from_region, _to_region = dst_region, src_region
-    p_size = from_region.buffer.layout.size("P")
+    p_size = from_region.buffer.ty.layout.size("P")
     inst_gen.bind_inst_iter(from_region, p_var, p_size, 1, is_free_dim=False)
     inst_gen.bind_inst_iter(from_region, f_var, inst.size, inst.stride, is_free_dim=True)
     b_extent = inst_gen.fill_in_block_dim(from_region, b_var)

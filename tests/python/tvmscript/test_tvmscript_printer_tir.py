@@ -90,7 +90,7 @@ def main(a: T.handle, B: T.Buffer((256, 256), "float32")):
     )
 
 
-def test_prim_func_no_sugar_shared_buffer_data():
+def test_prim_func_buffer_data_argument_is_scope_hint():
     a = tirx.Var("a", "handle")
     b = tirx.Var("b", "handle")
     buffer_data = tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A").data
@@ -114,9 +114,7 @@ def test_prim_func_no_sugar_shared_buffer_data():
 # from tvm.tirx.layout import Axis
 
 @T.prim_func(s_tir=True)
-def main(a: T.handle, b: T.handle):
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (256, 256), data=A.data)
+def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
     T.evaluate(0)
 """,
     )

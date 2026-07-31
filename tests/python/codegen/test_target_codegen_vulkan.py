@@ -572,19 +572,32 @@ def test_cooperative_matrix(out_dtype):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
 def test_codegen_decl_buffer():
-    """The codegen should accept DeclBuffer nodes in its input"""
+    """DeclBuffer aliases should retain their backing storage metadata."""
 
     @I.ir_module(s_tir=True)
-    class Module:
+    class AllocationBacked:
         @T.prim_func(s_tir=True)
         def kernel():
             T.func_attr({"calling_conv": 2, "global_symbol": "kernel", "tirx.noalias": True})
             A = T.alloc_buffer((256,), dtype="float32", scope="local")
             A_buf = T.decl_buffer([256], dtype="float32", scope="local", data=A.data)
+            A_buf[0] = T.float32(1)
+            T.evaluate(A_buf[0])
 
     target = tvm.target.Target("vulkan")
     vulkan_codegen = tvm.get_global_func("target.build.vulkan")
-    vulkan_codegen(Module, target)
+    vulkan_codegen(AllocationBacked, target)
+
+    @I.ir_module(s_tir=True)
+    class ParameterBacked:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((1,), "float32"), B: T.Buffer((1,), "float32")):
+            A_buf = T.decl_buffer([1], dtype="float32", data=A.data)
+            B_buf = T.decl_buffer([1], dtype="float32", data=B.data)
+            for tx in T.thread_binding(1, thread="threadIdx.x"):
+                B_buf[tx] = A_buf[tx]
+
+    tvm.compile(ParameterBacked, target=target)
 
 
 @pytest.mark.gpu

@@ -34,38 +34,48 @@
 
 #include <tuple>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "../../arith/ir_mutator_with_analyzer.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tirx {
 
 class LayoutApplier : public arith::IRMutatorWithAnalyzer {
  public:
-  static std::pair<Stmt, ffi::Map<Var, Buffer>> Flatten(
-      const Stmt& stmt, const ffi::Map<tirx::Var, Buffer> buffer_map, const Target& target) {
+  static std::pair<Stmt, ffi::Map<Var, BufferVar>> Flatten(
+      const Stmt& stmt, const ffi::Array<Var>& params,
+      const ffi::Map<tirx::Var, BufferVar> buffer_map, const Target& target) {
     arith::Analyzer ana;
     LayoutApplier storage_lower(ana, target);
-    std::unordered_map<Var, Buffer> new_buffer_map;
-    std::vector<Buffer> param_flattened_buffers;
+    for (const Var& param : params) {
+      if (param->ty.as<BufferTypeNode>()) {
+        storage_lower.buffer_aliases_.Set(param, param);
+      }
+    }
+    std::unordered_map<Var, BufferVar> new_buffer_map;
+    std::vector<std::pair<BufferVar, BufferVar>> param_flattened_buffers;
     for (const auto& kv : buffer_map) {
+      storage_lower.buffer_aliases_.Set(kv.second.var(), kv.second.var());
       if (kv.second->layout.has_value()) {
-        param_flattened_buffers.push_back(storage_lower.GetFlattenedBuffer(kv.second));
-        Buffer buffer = kv.second;
-        auto* writer = buffer.CopyOnWrite();
-        writer->layout = std::nullopt;
+        BufferVar flattened = storage_lower.GetFlattenedBuffer(kv.second);
+        auto type = CopyBufferType(kv.second);
+        type->layout = std::nullopt;
+        BufferVar buffer = RebuildBufferVar(kv.second, std::move(type));
+        param_flattened_buffers.emplace_back(flattened, buffer);
         new_buffer_map[kv.first] = buffer;
       } else {
         new_buffer_map[kv.first] = kv.second;
       }
     }
     auto new_stmt = storage_lower(stmt);
-    for (const auto& buf : param_flattened_buffers) {
-      new_stmt = SeqStmt::Flatten(DeclBuffer(buf), std::move(new_stmt));
+    for (const auto& [buf, source] : param_flattened_buffers) {
+      new_stmt = SeqStmt::Flatten(DeclBuffer(buf, source.data()), std::move(new_stmt));
     }
-    return std::make_pair(new_stmt, ffi::Map<Var, Buffer>(new_buffer_map));
+    return std::make_pair(new_stmt, ffi::Map<Var, BufferVar>(new_buffer_map));
   }
 
  protected:
@@ -79,7 +89,7 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
     if (any == nullptr) {
       return any;
     }
-    if (auto buffer = any.as<Buffer>()) {
+    if (auto buffer = any.as<BufferVar>()) {
       return GetFlattenedBuffer(buffer.value());
     } else if (auto prim_expr = any.as<PrimExpr>()) {
       return VisitPrimExpr(prim_expr.value());
@@ -89,8 +99,31 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
     return any;
   }
 
+  Expr VisitExpr_(const VarNode* op) final {
+    Var var = ffi::GetRef<Var>(op);
+    if (auto it = var_remap_.find(var); it != var_remap_.end()) {
+      return it->second;
+    }
+    return IRMutatorWithAnalyzer::VisitExpr_(op);
+  }
+
+  Expr VisitExpr_(const CallNode* op) final {
+    if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
+      if (auto var = op->args[0].as<Var>();
+          var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
+        Var root = buffer_aliases_.Get(var.value()).value_or(var.value());
+        if (auto it = var_remap_.find(root); it != var_remap_.end()) {
+          root = it->second;
+        }
+        return BufferVar(root).data();
+      }
+    }
+    return IRMutatorWithAnalyzer::VisitExpr_(op);
+  }
+
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    auto mutate = [this](Buffer buf) {
+    buffer_aliases_.Set(op->buffer.var(), op->buffer.var());
+    auto mutate = [this](BufferVar buf) {
       if (target_->kind->name == "trn" && !buf->layout.has_value()) {
         return buf;
       }
@@ -106,23 +139,23 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
+    RegisterBufferAlias(op->buffer, op->data);
+    Expr data = VisitExpr(op->data);
     auto buffer = GetFlattenedBuffer(op->buffer);
-    if (buffer.same_as(op->buffer)) {
+    if (buffer.same_as(op->buffer) && data.same_as(op->data)) {
       return ffi::GetRef<Stmt>(op);
     }
-    auto n = CopyOnWrite(op);
-    n->buffer = buffer;
-    return Stmt(n);
+    return DeclBuffer(buffer, std::move(data), op->span);
   }
 
-  Buffer GetFlattenedBuffer(Buffer buf, bool is_alloc = false) {
-    auto it = buffer_remap_.find(buf);
-    if (it != buffer_remap_.end()) {
-      return it->second;
+  BufferVar GetFlattenedBuffer(BufferVar buf, bool is_alloc = false) {
+    auto it = var_remap_.find(buf.var());
+    if (it != var_remap_.end()) {
+      return BufferVar(it->second);
     }
     auto trn_layout = buf->layout.as<TileLayoutNode>();
-    Buffer flattened;
-    tirx::BufferNode* writer;
+    BufferVar flattened;
+    ffi::ObjectPtr<BufferTypeNode> type;
     if (trn_layout && trn_layout->IsTrainium()) {
       ffi::Array<PrimExpr> new_shape =
           buf.scope() == "trn.psum" ? ffi::Array<PrimExpr>{trn_layout->GetSpan(ffi::String("Bank")),
@@ -131,9 +164,9 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
                                     : ffi::Array<PrimExpr>{trn_layout->GetSize(ffi::String("P")),
                                                            trn_layout->GetSpan(ffi::String("F"))};
       flattened = buf;
-      writer = flattened.CopyOnWrite();
-      writer->shape = new_shape;
-      writer->strides = {};
+      type = CopyBufferType(flattened);
+      type->shape = new_shape;
+      type->strides = {};
     } else if (is_alloc) {
       if (auto tile_layout = buf->layout.as<TileLayoutNode>();
           tile_layout && tile_layout->HasThreadAxis()) {
@@ -156,25 +189,29 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
           }
         }
         flattened = buf;
-        writer = flattened.CopyOnWrite();
-        writer->shape = {ana->Simplify(mem_span)};
-        writer->strides = {};
+        type = CopyBufferType(flattened);
+        type->shape = {ana->Simplify(mem_span)};
+        type->strides = {};
       } else {
         flattened = buf.GetFlattenedBuffer();
-        writer = flattened.CopyOnWrite();
+        type = CopyBufferType(flattened);
       }
     } else {
       flattened = buf.GetFlattenedBuffer();
-      writer = flattened.CopyOnWrite();
+      type = CopyBufferType(flattened);
     }
     // canonicalize shape
-    for (size_t i = 0; i < flattened->shape.size(); ++i) {
-      writer->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
+    for (size_t i = 0; i < type->shape.size(); ++i) {
+      type->shape.Set(i, analyzer_->canonical_simplify(type->shape[i]));
     }
-    writer->layout = std::nullopt;
-    writer->elem_offset = StmtExprMutator::VisitPrimExpr(buf->elem_offset);
+    type->layout = std::nullopt;
+    type->elem_offset = StmtExprMutator::VisitPrimExpr(buf->elem_offset);
+    if (ffi::StructuralEqual()(buf.type(), BufferType(type))) {
+      return buf;
+    }
+    flattened = RebuildBufferVar(flattened, std::move(type));
 
-    buffer_remap_[buf] = flattened;
+    var_remap_[buf.var()] = flattened.var();
     return flattened;
   }
 
@@ -202,7 +239,7 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
     }
   }
 
-  ffi::Array<PrimExpr> GetSimplifiedElemOffset(const Buffer& buffer,
+  ffi::Array<PrimExpr> GetSimplifiedElemOffset(const BufferVar& buffer,
                                                const ffi::Array<PrimExpr>& indices) {
     if (buffer->layout.has_value()) {
       auto tile_layout = buffer->layout.value().as<TileLayoutNode>();
@@ -242,15 +279,35 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
       return node;
     }
     auto flattened_indices = GetSimplifiedElemOffset(node->buffer, node->indices);
-    Buffer flattened_buffer = GetFlattenedBuffer(node->buffer);
+    BufferVar flattened_buffer = GetFlattenedBuffer(node->buffer);
     auto writer = node.CopyOnWrite();
     writer->buffer = flattened_buffer;
     writer->indices = flattened_indices;
     return node;
   }
 
-  /*! \brief Map of buffers being remapped. */
-  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
+  /*! \brief Map of variables being remapped, including buffer variables. */
+  std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap_;
+
+ private:
+  void RegisterBufferAlias(BufferVar buffer, const Expr& data) {
+    Var root = buffer.var();
+    if (const auto* call = data.as<CallNode>();
+        call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+      if (auto source = call->args[0].as<Var>();
+          source.has_value() && source.value()->ty.as<BufferTypeNode>()) {
+        auto source_root = buffer_aliases_.Get(source.value());
+        TVM_FFI_ICHECK(source_root.has_value())
+            << "Buffer alias source " << source.value()->name
+            << " must be registered before its DeclBuffer alias";
+        root = source_root.value();
+      }
+    }
+    buffer_aliases_.Set(buffer.var(), root);
+  }
+
+  /*! \brief Physical roots of buffer aliases, flattened at each declaration. */
+  ffi::Map<Var, Var> buffer_aliases_;
   const Target& target_;
 };
 
@@ -259,6 +316,14 @@ class BufferOffsetRemover : public StmtExprMutator {
   static Stmt Remove(const Stmt& stmt) { return BufferOffsetRemover()(stmt); }
 
  private:
+  Expr VisitExpr_(const VarNode* op) final {
+    Var var = ffi::GetRef<Var>(op);
+    if (auto it = var_remap_.find(var); it != var_remap_.end()) {
+      return it->second;
+    }
+    return StmtExprMutator::VisitExpr_(op);
+  }
+
   Expr VisitExpr_(const CallNode* call) final {
     if (call->op.same_as(tirx::builtin::buffer_offset())) {
       auto buffer_load = call->args[0].as_or_throw<BufferLoad>();
@@ -270,17 +335,18 @@ class BufferOffsetRemover : public StmtExprMutator {
 
   Stmt VisitStmt_(const DeclBufferNode* op) {
     auto buffer = op->buffer;
+    Expr data = VisitExpr(op->data);
     auto elem_offset = this->VisitPrimExpr(buffer->elem_offset);
-    if (elem_offset.same_as(buffer->elem_offset)) {
-      return StmtExprMutator::VisitStmt_(op);
-    } else {
-      auto n_buffer = buffer.CopyOnWrite();
-      n_buffer->elem_offset = std::move(elem_offset);
-      buffer_remap_[op->buffer] = buffer;
-      auto n = CopyOnWrite(op);
-      n->buffer = ffi::GetRef<Buffer>(n_buffer);
-      return Stmt(n);
+    if (!elem_offset.same_as(buffer->elem_offset)) {
+      auto type = CopyBufferType(buffer);
+      type->elem_offset = std::move(elem_offset);
+      buffer = RebuildBufferVar(buffer, std::move(type));
+      var_remap_[op->buffer.var()] = buffer.var();
     }
+    if (buffer.same_as(op->buffer) && data.same_as(op->data)) {
+      return ffi::GetRef<Stmt>(op);
+    }
+    return DeclBuffer(buffer, std::move(data), op->span);
   }
 
   using StmtExprMutator::VisitExpr_;
@@ -301,16 +367,16 @@ class BufferOffsetRemover : public StmtExprMutator {
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     TVM_FFI_ICHECK(node->buffer.defined());
-    auto it = buffer_remap_.find(node->buffer);
-    if (it != buffer_remap_.end()) {
+    auto it = var_remap_.find(node->buffer.var());
+    if (it != var_remap_.end()) {
       auto writer = node.CopyOnWrite();
-      writer->buffer = it->second;
+      writer->buffer = BufferVar(it->second);
       return node;
     }
     return node;
   }
 
-  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
+  std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap_;
 };
 
 namespace {
@@ -329,7 +395,8 @@ Pass LowerTIRxCleanup() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     Target target = ResolveTarget(f);
     auto* n = f.CopyOnWrite();
-    std::tie(n->body, n->buffer_map) = LayoutApplier::Flatten(n->body, n->buffer_map, target);
+    std::tie(n->body, n->buffer_map) =
+        LayoutApplier::Flatten(n->body, n->params, n->buffer_map, target);
     n->body = BufferOffsetRemover::Remove(n->body);
     return f;
   };

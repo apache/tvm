@@ -70,9 +70,9 @@ bool MatchPrimType(const Type& type, F f) {
 // populate the buffer_remap and var_remap accordingly.
 class ComputeLegalizePlanner : public StmtExprVisitor {
  public:
-  ComputeLegalizePlanner(
-      std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap,
-      std::unordered_map<Var, Var>* var_remap, PrimType promote_dtype)
+  ComputeLegalizePlanner(std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash,
+                                            ffi::ObjectPtrEqual>* buffer_remap,
+                         std::unordered_map<Var, Var>* var_remap, PrimType promote_dtype)
       : buffer_remap_(buffer_remap), var_remap_(var_remap), promote_dtype_(promote_dtype) {}
 
   // run planning to populate buffer remap and var remap.
@@ -86,13 +86,13 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
         var_remap_->erase(it);
       }
     }
-    ffi::Array<Buffer> drop_buffers;
+    ffi::Array<BufferVar> drop_buffers;
     for (auto kv : *buffer_remap_) {
-      if (opaque_var_access_.count(kv.first->data)) {
+      if (opaque_var_access_.count(kv.first.var())) {
         drop_buffers.push_back(kv.first);
       }
     }
-    for (Buffer buffer : drop_buffers) {
+    for (BufferVar buffer : drop_buffers) {
       auto it = buffer_remap_->find(buffer);
       TVM_FFI_ICHECK(it != buffer_remap_->end());
       buffer_remap_->erase(it);
@@ -115,12 +115,10 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
     // remap all intermediate constant buffer to promote data types (fp16/fp32)
     if (MatchType(op->buffer->dtype)) {
       PrimType dtype = promote_dtype_.WithLanes(op->buffer->dtype.lanes());
-      ffi::String storage_scope = "global";
-      if (auto* ptr_type = op->buffer->data->ty.as<PointerTypeNode>()) {
-        storage_scope = ptr_type->storage_scope;
-      }
-      Var buffer_var = Var(op->buffer->data->name, PointerType(dtype, storage_scope));
-      (*var_remap_)[op->buffer->data] = buffer_var;
+      auto type = CopyBufferType(op->buffer);
+      type->dtype = dtype;
+      BufferVar buffer_var = RebuildBufferVar(op->buffer, std::move(type));
+      (*var_remap_)[op->buffer.var()] = buffer_var.var();
     }
     return StmtExprVisitor::VisitStmt_(op);
   }
@@ -128,6 +126,15 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   void VisitStmt_(const DeclBufferNode* op) final {
     StmtExprVisitor::VisitStmt_(op);
     this->PopulateBufferRemap(op->buffer);
+  }
+
+  void VisitExpr_(const CallNode* op) final {
+    if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
+      if (auto buffer = op->args[0].as<Var>()) {
+        opaque_var_access_.insert(buffer.value());
+      }
+    }
+    StmtExprVisitor::VisitExpr_(op);
   }
 
   void VisitExpr_(const VarNode* op) final {
@@ -139,17 +146,15 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   }
 
  private:
-  void PopulateBufferRemap(Buffer buf) {
-    auto var_it = var_remap_->find(buf->data);
+  void PopulateBufferRemap(BufferVar buf) {
+    auto var_it = var_remap_->find(buf.var());
     if (var_it == var_remap_->end()) return;
 
-    Buffer new_buffer(var_it->second, promote_dtype_.WithLanes(buf->dtype.lanes()), buf->shape,
-                      buf->strides, buf->elem_offset, buf->name, buf->data_alignment,
-                      buf->offset_factor, buf->span, buf->layout, buf->allocated_addr);
+    BufferVar new_buffer(var_it->second);
     (*buffer_remap_)[buf] = new_buffer;
   }
 
-  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap_;
+  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap_;
   std::unordered_map<Var, Var>* var_remap_;
   std::unordered_set<Var> opaque_var_access_;
   PrimType promote_dtype_;
@@ -157,9 +162,10 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
 
 class BF16ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
-  explicit BF16ComputeLegalizePlanner(
-      std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap,
-      std::unordered_map<Var, Var>* var_remap, PrimType promote_dtype)
+  explicit BF16ComputeLegalizePlanner(std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash,
+                                                         ffi::ObjectPtrEqual>* buffer_remap,
+                                      std::unordered_map<Var, Var>* var_remap,
+                                      PrimType promote_dtype)
       : ComputeLegalizePlanner(buffer_remap, var_remap, promote_dtype) {}
   bool MatchType(const Type& type) const {
     return MatchPrimType(type, [](const PrimType& prim_type) { return IsBFloat16Type(prim_type); });
@@ -168,9 +174,10 @@ class BF16ComputeLegalizePlanner : public ComputeLegalizePlanner {
 
 class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
-  explicit FP8ComputeLegalizePlanner(
-      std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap,
-      std::unordered_map<Var, Var>* var_remap, PrimType promote_dtype)
+  explicit FP8ComputeLegalizePlanner(std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash,
+                                                        ffi::ObjectPtrEqual>* buffer_remap,
+                                     std::unordered_map<Var, Var>* var_remap,
+                                     PrimType promote_dtype)
       : ComputeLegalizePlanner(buffer_remap, var_remap, promote_dtype) {}
   bool MatchType(const Type& type) const {
     return MatchPrimType(type, [](const PrimType& prim_type) { return IsFloat8Type(prim_type); });
@@ -363,7 +370,7 @@ class ComputeLegalizer : public StmtExprMutator {
       predicate = this->VisitPrimExpr(op->predicate.value());
     }
 
-    Buffer new_buf = GetRemappedBuffer(op->buffer);
+    BufferVar new_buf = GetRemappedBuffer(op->buffer);
 
     if (value.same_as(op->value) && indices.same_as(op->indices) &&
         predicate.same_as(op->predicate) && new_buf.same_as(op->buffer)) {
@@ -388,7 +395,7 @@ class ComputeLegalizer : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
-    if (auto buffer = op->node.as<Buffer>()) {
+    if (auto buffer = op->node.as<BufferVar>()) {
       auto it = buffer_remap_.find(buffer.value());
       if (it != buffer_remap_.end()) {
         return AttrStmt(it->second, op->attr_key, op->value, op->body);
@@ -440,22 +447,19 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    Stmt ret = StmtExprMutator::VisitStmt_(op);
-    op = ret.as<DeclBufferNode>();
-
-    Buffer new_buf = GetRemappedBuffer(op->buffer);
-    if (new_buf.same_as(op->buffer)) {
-      return ret;
-    } else {
-      return DeclBuffer(new_buf);
+    Expr data = VisitExpr(op->data);
+    BufferVar new_buf = GetRemappedBuffer(op->buffer);
+    if (new_buf.same_as(op->buffer) && data.same_as(op->data)) {
+      return ffi::GetRef<Stmt>(op);
     }
+    return DeclBuffer(new_buf, std::move(data), op->span);
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AllocBufferNode>();
 
-    Buffer new_buf = GetRemappedBuffer(op->buffer);
+    BufferVar new_buf = GetRemappedBuffer(op->buffer);
     if (new_buf.same_as(op->buffer)) {
       return ret;
     } else {
@@ -469,7 +473,7 @@ class ComputeLegalizer : public StmtExprMutator {
     PrimExpr ret = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
     op = ret.as<BufferLoadNode>();
 
-    Buffer new_buf = GetRemappedBuffer(op->buffer);
+    BufferVar new_buf = GetRemappedBuffer(op->buffer);
     if (new_buf.same_as(op->buffer)) {
       return ret;
     } else {
@@ -505,7 +509,7 @@ class ComputeLegalizer : public StmtExprMutator {
     return DTypeConversion(value, dtype);
   }
 
-  Buffer GetRemappedBuffer(Buffer buf) {
+  BufferVar GetRemappedBuffer(BufferVar buf) {
     auto buf_it = buffer_remap_.find(buf);
     if (buf_it != buffer_remap_.end()) {
       return buf_it->second;
@@ -515,7 +519,7 @@ class ComputeLegalizer : public StmtExprMutator {
 
  protected:
   PrimType promote_dtype_;
-  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
+  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
   std::unordered_map<Var, Var> var_remap_;
 };
 
@@ -572,21 +576,17 @@ class StorageLegalizer : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Buffer buf = GetRemappedBuffer(op->buffer);
+    BufferVar buf = GetRemappedBuffer(op->buffer, /*allow_definition=*/true);
     // in a rare case the buffer didn't get remapped
     // because the original var is not bfloat*
     // force remap here
     if (MatchType(buf->dtype)) {
       PrimType new_dtype = GetStorageUIntDType(buf->dtype);
-      ffi::String storage_scope = "global";
-      if (auto* ptr_type = buf->data->ty.as<PointerTypeNode>()) {
-        storage_scope = ptr_type->storage_scope;
-      }
-      Var new_data = Var(buf->data->name, PointerType(new_dtype, storage_scope));
-      var_remap_[buf->data] = new_data;
-      buf = Buffer(new_data, new_dtype, buf->shape, buf->strides, buf->elem_offset, buf->name,
-                   buf->data_alignment, buf->offset_factor, buf->span, buf->layout,
-                   buf->allocated_addr);
+      auto type = CopyBufferType(buf);
+      type->dtype = new_dtype;
+      BufferVar new_buf = RebuildBufferVar(buf, std::move(type));
+      var_remap_[buf.var()] = new_buf.var();
+      buf = std::move(new_buf);
       buffer_remap_[op->buffer] = buf;
     }
     if (buf.same_as(op->buffer)) {
@@ -599,21 +599,23 @@ class StorageLegalizer : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    Buffer buf = GetRemappedBuffer(op->buffer);
+    BufferVar buf = GetRemappedBuffer(op->buffer, /*allow_definition=*/true);
+    Expr data = VisitExpr(op->data);
     // in a rare case the buffer didn't get remapped
     // because the original var is not bfloat*
     // force remap here
     if (MatchType(buf->dtype)) {
-      buf = Buffer(buf->data, GetStorageUIntDType(buf->dtype), buf->shape, buf->strides,
-                   buf->elem_offset, buf->name, buf->data_alignment, buf->offset_factor, buf->span,
-                   buf->layout, buf->allocated_addr);
+      PrimType new_dtype = GetStorageUIntDType(buf->dtype);
+      auto type = CopyBufferType(buf);
+      type->dtype = new_dtype;
+      buf = RebuildBufferVar(buf, std::move(type));
+      var_remap_[op->buffer.var()] = buf.var();
       buffer_remap_[op->buffer] = buf;
     }
-    if (buf.same_as(op->buffer)) {
+    if (buf.same_as(op->buffer) && data.same_as(op->data)) {
       return ffi::GetRef<Stmt>(op);
-    } else {
-      return DeclBuffer(buf, op->span);
     }
+    return DeclBuffer(buf, std::move(data), op->span);
   }
 
   Expr VisitExpr_(const LetNode* op) final {
@@ -641,7 +643,7 @@ class StorageLegalizer : public StmtExprMutator {
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     PrimExpr value = this->ChangeToUInt(VisitPrimExpr(op->value));
-    Buffer new_buf = GetRemappedBuffer(op->buffer);
+    BufferVar new_buf = GetRemappedBuffer(op->buffer);
     auto indices = op->indices.Map([this](PrimExpr expr) { return this->VisitPrimExpr(expr); });
     ffi::Optional<PrimExpr> predicate = std::nullopt;
     if (op->predicate.has_value()) {
@@ -662,7 +664,7 @@ class StorageLegalizer : public StmtExprMutator {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
 
-    if (auto buffer = op->node.as<Buffer>()) {
+    if (auto buffer = op->node.as<BufferVar>()) {
       auto it = buffer_remap_.find(buffer.value());
       if (it != buffer_remap_.end()) {
         return AttrStmt(it->second, op->attr_key, op->value, op->body);
@@ -679,7 +681,7 @@ class StorageLegalizer : public StmtExprMutator {
   Expr VisitExpr_(const BufferLoadNode* op) final {
     PrimExpr ret = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
     op = ret.as<BufferLoadNode>();
-    Buffer new_buf = GetRemappedBuffer(op->buffer);
+    BufferVar new_buf = GetRemappedBuffer(op->buffer);
     if (new_buf.same_as(op->buffer)) {
       return ret;
     } else {
@@ -755,19 +757,16 @@ class StorageLegalizer : public StmtExprMutator {
     return var;
   }
 
-  Buffer GetRemappedBuffer(Buffer buf) {
+  BufferVar GetRemappedBuffer(BufferVar buf, bool allow_definition = false) {
     auto buf_it = buffer_remap_.find(buf);
     if (buf_it != buffer_remap_.end()) {
       return buf_it->second;
     }
-    Buffer new_buf = buf;
-    auto var_it = var_remap_.find(buf->data);
+    BufferVar new_buf = buf;
+    auto var_it = var_remap_.find(buf.var());
     if (var_it != var_remap_.end()) {
-      PrimType dtype = MatchType(buf->dtype) ? GetStorageUIntDType(buf->dtype) : buf->dtype;
-      new_buf = Buffer(var_it->second, dtype, buf->shape, buf->strides, buf->elem_offset, buf->name,
-                       buf->data_alignment, buf->offset_factor, buf->span, buf->layout,
-                       buf->allocated_addr);
-    } else {
+      new_buf = BufferVar(var_it->second);
+    } else if (!allow_definition) {
       TVM_FFI_ICHECK(!MatchType(buf->dtype)) << "Cannot find var remap for " << buf;
     }
 
@@ -776,7 +775,7 @@ class StorageLegalizer : public StmtExprMutator {
     return new_buf;
   }
 
-  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
+  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
   std::unordered_map<Var, Var> var_remap_;
 };
 

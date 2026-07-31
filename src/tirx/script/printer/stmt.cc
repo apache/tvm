@@ -176,7 +176,8 @@ TVM_SCRIPT_REPR(tirx::TilePrimitiveCallNode, ReprPrintTIR);
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::Evaluate>("", [](tirx::Evaluate eval, AccessPath p, IRDocsifier d) -> Doc {
       ExprDoc value = d->AsDoc<ExprDoc>(eval->value, p->Attr("value"));
-      if (eval->value->IsInstance<CallNode>()) {
+      const auto* call = eval->value.as<CallNode>();
+      if (call && !call->op.same_as(tirx::builtin::buffer_data())) {
         return ExprStmtDoc(value);
       }
       return ExprStmtDoc(TIR(d, "evaluate")->Call({value}));
@@ -251,23 +252,32 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 namespace {
 
 /*!
- * \brief Find all parent buffers that share the same data pointer with the given child buffer.
+ * \brief Find the parent buffer named by a child's explicit data projection.
  * \param child The child buffer.
+ * \param data The child's explicit source pointer, if any.
  * \param d The IRDocsifier.
  * \return A list of candidate parent buffers.
  */
-std::vector<tirx::Buffer> FindParentBuffers(const tirx::Buffer& child, const IRDocsifier& d) {
-  std::vector<tirx::Buffer> results;
-  for (const auto& [obj, info] : d->obj2info) {
-    if (const auto* buf = obj.as<tirx::BufferNode>()) {
-      tirx::Buffer parent = ffi::GetRef<tirx::Buffer>(buf);
-      if (parent.same_as(child)) continue;
-      if (parent->data.same_as(child->data)) {
-        results.push_back(parent);
-      }
-    }
+std::vector<tirx::BufferVar> FindParentBuffers(const tirx::BufferVar& child,
+                                               const ffi::Optional<Expr>& data,
+                                               const IRDocsifier& d) {
+  if (!data.has_value()) {
+    return {};
   }
-  return results;
+  const auto* call = data.value().as<CallNode>();
+  if (call == nullptr || !call->op.same_as(tirx::builtin::buffer_data()) ||
+      call->args.size() != 1) {
+    return {};
+  }
+  auto parent_var = call->args[0].as<tirx::Var>();
+  if (!parent_var.has_value() || !parent_var.value()->ty.as<tirx::BufferTypeNode>()) {
+    return {};
+  }
+  tirx::BufferVar parent(parent_var.value());
+  if (parent.same_as(child) || !d->GetVarDoc(parent).has_value()) {
+    return {};
+  }
+  return {parent};
 }
 
 /*!
@@ -284,9 +294,9 @@ bool IsDefaultLayout(const ffi::Optional<tirx::Layout>& layout, const ffi::Array
  *
  * Returns std::nullopt if no sugar pattern matches.
  */
-ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::Buffer& child, const AccessPath& p,
-                                                    const IRDocsifier& d,
-                                                    const tirx::Buffer& parent) {
+ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child,
+                                                    const AccessPath& p, const IRDocsifier& d,
+                                                    const tirx::BufferVar& parent) {
   ffi::Optional<ExprDoc> parent_doc = d->GetVarDoc(parent);
   if (!parent_doc.has_value()) return std::nullopt;
   ExprDoc pdoc = parent_doc.value();
@@ -659,9 +669,9 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::Buffer& child, c
 /*!
  * \brief Try to produce a DeclBuffer sugar expression, trying all parent buffer candidates.
  */
-ffi::Optional<ExprDoc> TryDeclBufferSugar(const tirx::Buffer& child, const AccessPath& p,
-                                          const IRDocsifier& d) {
-  auto parents = FindParentBuffers(child, d);
+ffi::Optional<ExprDoc> TryDeclBufferSugar(const tirx::BufferVar& child, const AccessPath& p,
+                                          const ffi::Optional<Expr>& data, const IRDocsifier& d) {
+  auto parents = FindParentBuffers(child, data, d);
   for (const auto& parent : parents) {
     if (auto sugar = TryDeclBufferSugarWithParent(child, p, d, parent)) {
       return sugar;
@@ -674,20 +684,13 @@ Doc DeclBufferDoc(tirx::DeclBuffer stmt, AccessPath p, IRDocsifier d,
                   BufferVarDefinition var_definitions) {
   // Try sugar detection when syntax_sugar is enabled
   if (d->cfg->syntax_sugar) {
-    if (auto sugar = TryDeclBufferSugar(stmt->buffer, p, d)) {
+    if (auto sugar = TryDeclBufferSugar(stmt->buffer, p, stmt->data, d)) {
       ExprDoc lhs = DefineBuffer(stmt->buffer, d->frames.back(), d);
-      // Define data pointer inline if needed
-      if (!d->IsVarDefined(stmt->buffer->data)) {
-        tirx::Buffer buf = stmt->buffer;
-        d->Define(stmt->buffer->data, d->frames.back(), [d, buf, p]() {
-          return d->AsDoc<ExprDoc>(buf, p->Attr("buffer"))->Attr("data");
-        });
-      }
       return AssignDoc(lhs, sugar.value(), std::nullopt);
     }
   }
   ExprDoc rhs = BufferDecl(stmt->buffer, "decl_buffer", {}, p->Attr("buffer"), d->frames.back(), d,
-                           var_definitions);
+                           var_definitions, stmt->data);
   ExprDoc lhs = DefineBuffer(stmt->buffer, d->frames.back(), d);
   return AssignDoc(lhs, rhs, std::nullopt);
 }
@@ -703,11 +706,6 @@ namespace {
 Doc AllocBufferDoc(tirx::AllocBuffer stmt, AccessPath p, IRDocsifier d) {
   if (d->cfg->syntax_sugar && stmt->buffer.IsScalar(true)) {
     ExprDoc lhs = DefineBuffer(stmt->buffer, d->frames.back(), d);
-    if (!d->IsVarDefined(stmt->buffer->data)) {
-      tirx::Buffer buf = stmt->buffer;
-      d->Define(stmt->buffer->data, d->frames.back(),
-                [d, buf, p]() { return d->AsDoc<ExprDoc>(buf, p->Attr("buffer"))->Attr("data"); });
-    }
     ExprDoc type_ann = TIR(d, DType2Str(stmt->buffer->dtype->dtype));
     return AssignDoc(lhs, std::nullopt, type_ann);
   }

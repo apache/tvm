@@ -1143,6 +1143,22 @@ def test_debug_symbol_for_float64():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_debug_symbol_for_buffer_var():
+    """BufferVars use their physical data pointer type in LLVM debug info."""
+
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+            C = T.alloc_buffer((16,), "float32")
+            for i in T.parallel(16):
+                C[i] = A[i]
+                B[i] = C[i]
+
+    tvm.compile(Module, target="llvm")
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_subroutine_call():
     @I.ir_module(s_tir=True)
     class Module:
@@ -1240,6 +1256,22 @@ def test_invalid_volatile_masked_buffer_load():
             B = T.match_buffer(b, [4])
             A = T.alloc_buffer((4,), annotations={"tirx.volatile": True})
             B[0:4] = A.vload([T.Ramp(0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
+
+    err_msg = "The masked load intrinsic does not support declaring load as volatile."
+    with pytest.raises(RuntimeError, match=err_msg):
+        with tvm.target.Target("llvm"):
+            tvm.compile(Module)
+
+
+def test_invalid_volatile_masked_decl_buffer_load():
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(b: T.handle):
+            B = T.match_buffer(b, [4])
+            A = T.alloc_buffer((4,), annotations={"tirx.volatile": True})
+            A_alias = T.decl_buffer((4,), data=A.data)
+            B[0:4] = A_alias.vload([T.Ramp(0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
 
     err_msg = "The masked load intrinsic does not support declaring load as volatile."
     with pytest.raises(RuntimeError, match=err_msg):

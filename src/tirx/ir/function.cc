@@ -80,7 +80,7 @@ tvm::Type InferType(const PrimFunc& prim_func) {
 
 // Get the function type of a PrimFunc
 PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type,
-                   ffi::Map<tirx::Var, Buffer> buffer_map, DictAttrs attrs, Span span) {
+                   ffi::Map<tirx::Var, BufferVar> buffer_map, DictAttrs attrs, Span span) {
   if (ret_type.IsMissing()) {
     ret_type = VoidType();
   }
@@ -165,7 +165,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("tirx.PrimFunc",
            [](ffi::Array<tirx::Var> params, Stmt body, Type ret_type,
-              ffi::Map<tirx::Var, Buffer> buffer_map, DictAttrs attrs,
+              ffi::Map<tirx::Var, BufferVar> buffer_map, DictAttrs attrs,
               Span span) { return PrimFunc(params, body, ret_type, buffer_map, attrs, span); })
       .def("tirx.TensorIntrin",
            [](PrimFunc desc_func, PrimFunc intrin_func) {

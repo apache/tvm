@@ -234,7 +234,7 @@ def test_tir_op_mma_store():
         16,
         buffer.access_ptr("w"),
         buffer_w.data,
-        buffer_w.elem_offset,
+        buffer_w.ty.elem_offset,
         x,
     )
     assert expr.op.name == "tirx.mma_store"
@@ -242,7 +242,7 @@ def test_tir_op_mma_store():
 
 def test_tir_op_mma_fill():
     buffer_w = tirx.decl_buffer([16, 8], dtype="int32", scope="warp", offset_factor=1)
-    expr = _cuda_op.mma_fill("int32", 8, buffer_w.data, buffer_w.elem_offset)
+    expr = _cuda_op.mma_fill("int32", 8, buffer_w.data, buffer_w.ty.elem_offset)
     assert expr.op.name == "tirx.mma_fill"
 
 
@@ -274,7 +274,8 @@ def test_op_ptx_cp_async():
     expr = _cuda_op.ptx_cp_async_legacy("float16", inner_dst, 3, inner_src, 5, 16)
     for access_ptr, expected_offset in zip(expr.args[:2], [5, 9]):
         assert access_ptr.op.name == "tirx.tvm_access_ptr"
-        assert isinstance(access_ptr.args[1], tirx.Var)
+        assert access_ptr.args[1].op.name == "tirx.buffer_data"
+        assert isinstance(access_ptr.args[1].args[0], tirx.Var)
         simplified_offset = tvm.arith.Analyzer().simplify(access_ptr.args[2])
         assert int(simplified_offset) == expected_offset
 

@@ -85,6 +85,13 @@ class CodeGenSourceBase {
    */
   std::string AllocVarID(const tirx::VarNode* v);
   /*!
+   * \brief Allocate a variable name using an explicit diagnostic hint.
+   * \param v The variable.
+   * \param name_hint The name hint.
+   * \return the variable name.
+   */
+  std::string AllocVarID(const tirx::VarNode* v, std::string name_hint);
+  /*!
    * \brief Get a variable name.
    * \param v The variable.
    * \return the variable name.

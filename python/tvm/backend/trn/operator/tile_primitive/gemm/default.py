@@ -55,12 +55,14 @@ def get_pf_dim_from_buffer_region(
     # Find non-unit dimensions
     non_unit_dims = [
         i
-        for i in range(len(buffer_region.buffer.shape))
+        for i in range(len(buffer_region.buffer.ty.shape))
         if not analyzer.can_prove_equal(buffer_region.region[i].extent, 1)
     ]
     assert len(non_unit_dims) == 2, "Only 2D matrix is supported for gemm"
 
-    layout, seps = normalize_and_group(buffer_region.buffer.layout, buffer_region.buffer.shape)
+    layout, seps = normalize_and_group(
+        buffer_region.buffer.ty.layout, buffer_region.buffer.ty.shape
+    )
     # Determine partition and free dimensions based on operator kind
     if operator_kind == OperatorKind.A:
         p_dim, f_dim = non_unit_dims[1], non_unit_dims[0]
@@ -144,19 +146,19 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     # Validate buffer properties
     assert all(
         [
-            A.layout and B.layout and C.layout,
-            A.dtype == B.dtype,
+            A.ty.layout and B.ty.layout and C.ty.layout,
+            A.ty.dtype == B.ty.dtype,
             A.scope() == "trn.sbuf" and B.scope() == "trn.sbuf",
             C.scope() == "trn.psum" or C.scope() == "trn.sbuf",
-            is_trainium_layout(A.layout),
-            is_trainium_layout(B.layout),
-            is_trainium_layout(C.layout),
-            A.layout.size("P") == B.layout.size("P"),
+            is_trainium_layout(A.ty.layout),
+            is_trainium_layout(B.ty.layout),
+            is_trainium_layout(C.ty.layout),
+            A.ty.layout.size("P") == B.ty.layout.size("P"),
         ]
     ), "Invalid buffer layout and scope"
 
-    p_size = A.layout.size("P")
-    assert p_size == B.layout.size("P"), "Partition size mismatch"
+    p_size = A.ty.layout.size("P")
+    assert p_size == B.ty.layout.size("P"), "Partition size mismatch"
 
     # Get partition and free dimensions
     lhs_p_dim, lhs_f_dim = get_pf_dim_from_buffer_region(
@@ -206,12 +208,12 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     reduction_b = T.Var("reduction_b", "int32")
     lhs_b = T.Var("lhs_b", "int32")
     rhs_b = T.Var("rhs_b", "int32")
-    lhs_f_size = C.layout.size("P")
+    lhs_f_size = C.ty.layout.size("P")
     inst_gen.bind_inst_iter(
         B_buffer_region, rhs_f, inst_repr.size, inst_repr.stride, is_free_dim=True
     )
     inst_gen.bind_inst_iter(C_buffer_region, lhs_f, lhs_f_size, 1, is_free_dim=False)
-    inst_gen.bind_inst_iter(A_buffer_region, p, A.layout.size("P"), 1, is_free_dim=False)
+    inst_gen.bind_inst_iter(A_buffer_region, p, A.ty.layout.size("P"), 1, is_free_dim=False)
     reduction_b_extent = inst_gen.fill_in_block_dim(A_buffer_region, reduction_b, [lhs_p_dim])
     lhs_b_extent = inst_gen.fill_in_block_dim(A_buffer_region, lhs_b, [lhs_f_dim])
     rhs_b_extent = inst_gen.fill_in_block_dim(B_buffer_region, rhs_b, [rhs_f_dim])
@@ -266,7 +268,7 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     else:
         acc_psum = op.workspace["acc_psum"]
         check_workspace_buffer(acc_psum, (p_size, largest_psum_per_bank), "trn.psum")
-        max_psum_slots = acc_psum.shape[0]
+        max_psum_slots = acc_psum.ty.shape[0]
 
     @T.prim_func
     def impl_C_sbuf():

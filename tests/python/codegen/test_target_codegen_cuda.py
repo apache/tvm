@@ -1015,16 +1015,16 @@ def test_cuda_tensormap():
         for blockIdx in T.thread_binding(1, thread="blockIdx.x"):
             for threadIdx in T.thread_binding(128, thread="threadIdx.x"):
                 if threadIdx == 0:
-                    A[0, 0] = T.reinterpret("float64", A_map)
+                    A[0, 0] = T.Cast("float32", T.address_of(A_map))
     # fmt: on
 
     mod = tvm.IRModule({"main": main})
     mod = tvm.compile(mod, target="cuda")
     assert (
         """
-extern "C" __global__ void __launch_bounds__(128) main_kernel(const __grid_constant__ CUtensorMap A_map, float* __restrict__ A_ptr) {
+extern "C" __global__ void __launch_bounds__(128) main_kernel(float* __restrict__ A_ptr, const __grid_constant__ CUtensorMap A_map) {
   if (((int)threadIdx.x) == 0) {
-    A_ptr[0] = ((float)(*(double *)(&(A_map))));
+    A_ptr[0] = ((float)((unsigned long long)(&(A_map))));
   }
 }""".strip()
         in mod.mod.imports[0].inspect_source()

@@ -254,7 +254,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
  private:
   class BufferRefRewriter : public StmtExprMutator {
    public:
-    static Stmt Rewrite(const Stmt& stmt, const Buffer& src, const Buffer& dst) {
+    static Stmt Rewrite(const Stmt& stmt, const BufferVar& src, const BufferVar& dst) {
       if (src.same_as(dst)) {
         return stmt;
       }
@@ -262,25 +262,25 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     }
 
    private:
-    BufferRefRewriter(Buffer src, Buffer dst) : src_(std::move(src)), dst_(std::move(dst)) {}
+    BufferRefRewriter(BufferVar src, BufferVar dst) : src_(std::move(src)), dst_(std::move(dst)) {}
 
-    Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) final {
-      Buffer new_buffer = StmtExprMutator::VisitBufferDef(buffer, alloc_data);
+    BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) final {
+      BufferVar new_buffer = StmtExprMutator::VisitBufferDef(buffer, alloc_data);
       if (new_buffer.same_as(src_)) {
         return dst_;
       }
       return new_buffer;
     }
 
-    Buffer VisitBufferUse(const Buffer& buffer) final {
+    BufferVar VisitBufferUse(const BufferVar& buffer) final {
       if (buffer.same_as(src_)) {
         return dst_;
       }
       return StmtExprMutator::VisitBufferUse(buffer);
     }
 
-    Buffer src_;
-    Buffer dst_;
+    BufferVar src_;
+    BufferVar dst_;
   };
 
   class KernelReplacePointSearcher : public StmtExprMutator {
@@ -478,7 +478,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Buffer old_buffer = op->buffer;
+    BufferVar old_buffer = op->buffer;
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<AllocBufferNode>();
     TVM_FFI_ICHECK(op);
@@ -489,7 +489,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    Buffer old_buffer = op->buffer;
+    BufferVar old_buffer = op->buffer;
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<DeclBufferNode>();
     TVM_FFI_ICHECK(op);
@@ -559,7 +559,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     TVM_FFI_ICHECK(res.defined()) << "TIRx dispatcher did not return a PrimFunc";
     // Implementation found, handle callbacks
     if (auto bufs = sctx->callbacks.Get(tirx::callback::kPrivateAlloc)) {
-      auto buf_list = bufs.value().as<Array<Buffer>>().value();
+      auto buf_list = bufs.value().as<Array<BufferVar>>().value();
       alloc_buffers_.insert(alloc_buffers_.end(), buf_list.begin(), buf_list.end());
     }
     if (auto stmts = sctx->callbacks.Get(tirx::callback::kDeviceInitStmt)) {
@@ -571,7 +571,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       host_init_stmts_.insert(host_init_stmts_.end(), stmt_list.begin(), stmt_list.end());
     }
     if (auto mapping = sctx->callbacks.Get(tirx::callback::kPostBufferDefStmt)) {
-      auto map = mapping.value().as_or_throw<ffi::Map<Buffer, Array<Stmt>>>();
+      auto map = mapping.value().as_or_throw<ffi::Map<BufferVar, Array<Stmt>>>();
       for (const auto& [buffer, stmts] : map) {
         auto& vec = post_buffer_def_stmts_[buffer];
         vec.insert(vec.end(), stmts.begin(), stmts.end());
@@ -1431,10 +1431,10 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   std::vector<std::vector<ScopeIdDef>> scope_id_defs_at_level_;
   std::vector<ExecContext> ctx_stack_;
   std::unordered_map<ffi::String, IterVar> launch_params_;
-  std::vector<Buffer> alloc_buffers_;
+  std::vector<BufferVar> alloc_buffers_;
   std::vector<Stmt> device_init_stmts_;
   std::vector<Stmt> host_init_stmts_;
-  std::unordered_map<Buffer, std::vector<Stmt>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<BufferVar, std::vector<Stmt>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       post_buffer_def_stmts_;
   ffi::Map<ffi::String, ffi::ObjectRef> shared_state_;
   std::vector<std::pair<std::string, int64_t>> cluster_cta_axis_extents_;
@@ -1442,10 +1442,10 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   bool is_first_block_{true};
   bool is_first_thread_attr_{true};
 
-  bool AppendPostBufferDefStmts(std::vector<Stmt>* seq, const Buffer& old_buffer,
-                                const Buffer& new_buffer) {
+  bool AppendPostBufferDefStmts(std::vector<Stmt>* seq, const BufferVar& old_buffer,
+                                const BufferVar& new_buffer) {
     auto append_with_remap = [this, seq, &new_buffer](auto it) -> bool {
-      Buffer src = it->first;
+      BufferVar src = it->first;
       for (const auto& stmt : it->second) {
         Stmt remapped = BufferRefRewriter::Rewrite(stmt, src, new_buffer);
         seq->push_back(KernelReplacePointSearcher::Seek(remapped, Evaluate(0)));
