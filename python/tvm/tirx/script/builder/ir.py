@@ -1807,7 +1807,7 @@ def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
 
     Sizes the per-thread storage, allocates ``local`` scope memory, and returns
     a 2-D view of shape ``tensor_shape`` with a matching ``tcgen05_atom_layout``.
-    Pass the result to ``Tx.copy_async`` (with a ``(128, W)``-shaped TMEM
+    Pass the result to ``Tx.wg.copy_async`` (with a matching TMEM
     buffer) to trigger the corresponding dispatch path.
 
     Parameters
@@ -1819,7 +1819,8 @@ def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
         per-shape per-lane register decomposition).
     tensor_shape : tuple[int, int]
         Logical fragment shape ``(frag_rows, K)`` in element units. ``frag_rows``
-        is ``128`` for ``.32x32b`` and ``64`` for the ``.16x*b`` shapes.
+        is ``128`` for ``.32x32b`` and ``64`` for the ``.16x*b`` shapes. The
+        fp32 Layout B readback image also uses ``("32x32b", (64, N))``.
     dtype : str
         ``"float32"``, ``"float16"``, or ``"bfloat16"``.
 
@@ -1833,11 +1834,16 @@ def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
     --------
     M=128 readback (existing dispatch):
         ``frag = T.alloc_tcgen05_ldst_frag("32x32b", (128, 64), "float32")``
-        ``Tx.copy_async(frag[:, :], tmem[:, 0:64])``
+        ``Tx.wg.copy_async(frag[:, :], tmem[:, 0:64])``
 
     M=64 readback (.16x64b dispatch):
         ``frag = T.alloc_tcgen05_ldst_frag("16x64b", (64, 64), "float32")``
-        ``Tx.copy_async(frag[:, :], tmem[0:64, 0:64])``
+        ``Tx.wg.copy_async(frag[:, :], tmem[0:64, 0:64])``
+
+    Datapath B readback (cta_group=2, per-CTA M=64):
+        ``C = tmem_pool.alloc((64, 128), "float32", datapath="B")``
+        ``frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, 128), "float32")``
+        ``Tx.wg.copy_async(frag[:, :], C[:, :])``
     """
     from tvm.tirx.layout import tcgen05_atom_layout  # local import to avoid cycle
 

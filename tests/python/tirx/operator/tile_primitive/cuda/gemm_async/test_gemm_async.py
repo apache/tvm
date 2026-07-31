@@ -39,7 +39,14 @@ from tvm.tirx.cuda.operator.tile_primitive.tma_utils import (
     mma_atom_shape,
     mma_shared_layout,
 )
-from tvm.tirx.layout import S, TCol, TileLayout, TLane, tcgen05_atom_layout
+from tvm.tirx.layout import (
+    S,
+    TCol,
+    TileLayout,
+    TLane,
+    tcgen05_atom_layout,
+    tmem_datapath_layout,
+)
 from tvm.tirx.layout import tid_in_wg as axis_tid_in_wg
 
 # ---------------------------------------------------------------------------
@@ -483,7 +490,7 @@ def test_gemm_tcgen05_cta_group_2(task):
         tma_mbar = T.alloc_shared([1], "uint64")
         mma_mbar = T.alloc_shared([1], "uint64")
 
-        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64")))] = T.reinterpret("handle", T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
+        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64"), "shared"))] = T.reinterpret(PointerType(PrimType("uint64"), "shared"), T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
         tma_mbar_cta_0 = T.decl_buffer([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
@@ -615,7 +622,7 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
         tma_mbar = T.alloc_shared([1], "uint64")
         mma_mbar = T.alloc_shared([1], "uint64")
 
-        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64")))] = T.reinterpret("handle", T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
+        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64"), "shared"))] = T.reinterpret(PointerType(PrimType("uint64"), "shared"), T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
         tma_mbar_cta_0 = T.decl_buffer([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
@@ -692,6 +699,134 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
             np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
 
         tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+def test_gemm_tcgen05_cta_group_2_datapath_b_readback():
+    """A cta_group=2 GEMM writes and reads a first-class datapath B buffer."""
+    m_per_cta = 64
+    n_logical = 128
+    n_per_cta = n_logical // 2
+    k = 64
+    input_dtype = "float32"
+    a_dtype = "float16"
+    b_dtype = "float16"
+    c_dtype = "float32"
+
+    a_shape = (m_per_cta, k)
+    b_shape = (n_per_cta, k)
+    c_shape = (m_per_cta * 2, n_logical)
+    a_layout = mma_shared_layout(a_dtype, 3, a_shape)
+    b_layout = mma_shared_layout(b_dtype, 3, b_shape)
+
+    # fmt: off
+    @T.prim_func
+    def gemm_async(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, (m_per_cta * 2, k), input_dtype)
+        B = T.match_buffer(B_ptr, (n_logical, k), input_dtype)
+        C = T.match_buffer(C_ptr, c_shape, c_dtype)
+
+        T.device_entry()
+        warp_id = T.warp_id([4])
+        cbx, cby = T.cta_id_in_cluster([2, 1])
+        T.cta_id([2])
+        wg_id = T.warpgroup_id([1])
+        tid = T.thread_id_in_wg([128])
+
+        A_smem = T.alloc_buffer(a_shape, a_dtype, scope="shared", layout=a_layout)
+        B_smem = T.alloc_buffer(b_shape, b_dtype, scope="shared", layout=b_layout)
+        tmem_addr = T.alloc_shared([1], "uint32")
+        mma_mbar = T.alloc_shared([1], "uint64")
+
+        if tid == 0:
+            T.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
+        if warp_id == 0:
+            T.ptx.tcgen05.alloc(T.address_of(tmem_addr), n_cols=n_per_cta, cta_group=2)
+        T.ptx.fence.mbarrier_init()
+        T.cuda.cta_sync()
+
+        tmem = T.decl_buffer(
+            (m_per_cta, n_logical),
+            c_dtype,
+            scope="tmem",
+            allocated_addr=tmem_addr[0],
+            layout=tmem_datapath_layout("B", m_per_cta, n_logical),
+        )
+
+        # Use ordinary shared-memory stores here so this test is independent
+        # of the TMA/remote-mbarrier path exercised by the older Layout B test.
+        for i in range(m_per_cta * k // 128):
+            A_smem[(tid + i * 128) // k, (tid + i * 128) % k] = T.Cast(a_dtype, A[
+                cbx * m_per_cta + (tid + i * 128) // k, (tid + i * 128) % k
+            ])
+        for i in range(n_per_cta * k // 128):
+            B_smem[(tid + i * 128) // k, (tid + i * 128) % k] = T.Cast(b_dtype, B[
+                cbx * n_per_cta + (tid + i * 128) // k, (tid + i * 128) % k
+            ])
+        T.cuda.cta_sync()
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cluster_sync()
+
+        if cbx == 0:
+            T.ptx.tcgen05.fence.after_thread_sync()
+            T.cuda.cta_sync()
+            if tid == 0:
+                Tx.gemm_async(
+                    tmem[:, :],
+                    A_smem[:, :],
+                    B_smem[:, :],
+                    dispatch="tcgen05",
+                    cta_group=2,
+                )
+                T.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=2, cta_mask=3)
+
+        T.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
+        T.ptx.tcgen05.fence.after_thread_sync()
+        T.cuda.cta_sync()
+
+        frag = T.alloc_tcgen05_ldst_frag(
+            "32x32b", (m_per_cta, n_logical), c_dtype
+        )
+        if wg_id == 0:
+            Tx.wg.copy_async(frag[:, :], tmem[:, :])
+            T.ptx.tcgen05.wait.ld()
+        T.cuda.cta_sync()
+
+        frag_local = frag.local()
+        for i in range(n_per_cta):
+            C[
+                cbx * m_per_cta + tid % m_per_cta,
+                (tid // m_per_cta) * n_per_cta + i,
+            ] = frag_local[i]
+        T.cuda.cta_sync()
+
+        if warp_id == 0:
+            T.ptx.tcgen05.relinquish_alloc_permit(cta_group=2)
+            T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=n_per_cta, cta_group=2)
+        # fmt: on
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.compile(
+            tvm.IRModule({"main": gemm_async}), target=target, tir_pipeline="tirx"
+        )
+
+    np.random.seed(0)
+    a_np = np.random.randn(m_per_cta * 2, k).astype(input_dtype)
+    b_np = np.random.randn(n_logical, k).astype(input_dtype)
+    c_np = np.zeros(c_shape, dtype=c_dtype)
+    c_ref = a_np.astype(a_dtype).astype(np.float32) @ b_np.astype(b_dtype).astype(np.float32).T
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        a_tvm = tvm.runtime.tensor(a_np, dev)
+        b_tvm = tvm.runtime.tensor(b_np, dev)
+        c_tvm = tvm.runtime.tensor(c_np, dev)
+        mod["main"](a_tvm, b_tvm, c_tvm)
+        np.testing.assert_allclose(c_tvm.numpy(), c_ref, atol=1e-3, rtol=1e-3)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -992,7 +1127,7 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
         descSFA = T.alloc_buffer((1,), "uint64", scope="local")
         descSFB = T.alloc_buffer((1,), "uint64", scope="local")
 
-        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64")))] = T.reinterpret("handle", T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
+        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64"), "shared"))] = T.reinterpret(PointerType(PrimType("uint64"), "shared"), T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
         tma_mbar_cta_0 = T.decl_buffer([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
@@ -1374,7 +1509,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
         descSFA = T.alloc_buffer((1,), "uint64", scope="local")
         descSFB = T.alloc_buffer((1,), "uint64", scope="local")
 
-        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64")))] = T.reinterpret("handle", T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
+        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64"), "shared"))] = T.reinterpret(PointerType(PrimType("uint64"), "shared"), T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
         tma_mbar_cta_0 = T.decl_buffer([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
