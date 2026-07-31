@@ -44,7 +44,7 @@ from tvm.target import Target
 
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-from tvm.tirx import Buffer, BufferRegion, Expr, IndexMap, type_annotation
+from tvm.tirx import Buffer, BufferRegion, Expr, IndexMap, is_buffer_var, type_annotation
 from tvm.tirx import _ffi_api as _tirx_ffi_api
 from tvm.tirx import op as _tir_op
 from tvm.tirx.exec_scope import ExecScope, ScopeIdDef, Var
@@ -516,7 +516,7 @@ def match_buffer(
     """
     if shape is None:
         if isinstance(param, BufferRegion):
-            dtype = param.buffer.dtype
+            dtype = param.buffer.ty.dtype
             shape = [region.extent for region in param.region]
         else:
             raise ValueError("Shape must be specified when binding input param")
@@ -1885,10 +1885,10 @@ def alloc_cast_frag(src, dtype):
     Buffer
         Fresh ``local`` frag, ``src.shape`` shaped, ``src.layout``, dtype-cast.
     """
-    rows, cols = src.shape
+    rows, cols = src.ty.shape
     per_thread_elems = (rows * cols) // 128
     flat = alloc_local((per_thread_elems,), dtype)
-    return flat.view(rows, cols, layout=src.layout)
+    return flat.view(rows, cols, layout=src.ty.layout)
 
 
 if TYPE_CHECKING:
@@ -1992,7 +1992,7 @@ else:
 def alloc_scalar(dtype: str = "float32", scope: str = "global") -> BufferLoad:
     """Allocate a zero-dimensional buffer (scalar)."""
     buf = alloc_buffer(shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]))
-    assert isinstance(buf, Buffer)
+    assert is_buffer_var(buf)
     scalar = buf[0]
     if _current_meta_construction_scope() is not None:
         return scalar
@@ -2012,7 +2012,7 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> Buffe
         offset_factor=0,
         layout=TileLayout(S[1]),
     )
-    assert isinstance(buf, Buffer)
+    assert is_buffer_var(buf)
     scalar = buf[0]
     if _current_meta_construction_scope() is not None:
         return scalar
@@ -2048,7 +2048,7 @@ def _meta_resource_for_value(value: Any) -> Any | None:
         return value.scalar.buffer
     if isinstance(value, BufferLoad):
         return value.buffer
-    if isinstance(value, Buffer):
+    if is_buffer_var(value):
         return value
     return None
 
@@ -2298,7 +2298,7 @@ def buffer_store(
                 expr_indices.append(ramp(index.start, step, lanes))
         else:
             expr_indices.append(index)
-    if isinstance(value, bool) and buffer.dtype == "bool":
+    if isinstance(value, bool) and buffer.ty.dtype == "bool":
         value = IntImm("bool", value)
     return _ffi_api.BufferStore(  # type: ignore[attr-defined] # pylint: disable=no-member
         buffer, value, expr_indices, predicate
@@ -2919,19 +2919,19 @@ class WebGPUNamespace:
 
     @staticmethod
     def subgroup_shuffle(var, lane):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle", var, lane)
 
     @staticmethod
     def subgroup_shuffle_up(var, delta):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle_up", var, delta)
 
     @staticmethod
     def subgroup_shuffle_down(var, delta):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle_down", var, delta)
 

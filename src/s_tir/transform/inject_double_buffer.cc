@@ -36,6 +36,21 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
+namespace {
+
+ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
+  if (auto var = data.as<Var>()) {
+    return var;
+  }
+  if (const auto* call = data.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    return call->args[0].as<Var>();
+  }
+  return std::nullopt;
+}
+
+}  // namespace
+
 struct InjectDoubleBufferConfigNode : public ffi::Object {
   int split_loop;
 
@@ -64,7 +79,9 @@ class DoubleBufferDetector : public StmtExprVisitor {
  public:
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == s_tir::attr::double_buffer_scope) {
-      touched_.insert(op->node.as<VarNode>());
+      if (auto buffer = GetBufferDataVar(op->node)) {
+        touched_.insert(buffer.value().get());
+      }
       StmtExprVisitor::VisitStmt_(op);
     } else {
       StmtExprVisitor::VisitStmt_(op);
@@ -114,7 +131,7 @@ class DoubleBufferInjector : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    const VarNode* buf = op->buffer->data.get();
+    const VarNode* buf = op->buffer.get();
     auto it = dbuffer_info_.find(buf);
     if (it != dbuffer_info_.end()) {
       StorageEntry& entry = it->second;
@@ -201,7 +218,7 @@ class DoubleBufferInjector : public StmtExprMutator {
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
 
-    auto it = dbuffer_info_.find(node->buffer->data.get());
+    auto it = dbuffer_info_.find(node->buffer.get());
     if (it != dbuffer_info_.end()) {
       const StorageEntry& e = it->second;
       TVM_FFI_ICHECK(in_double_buffer_scope_);
@@ -221,7 +238,7 @@ class DoubleBufferInjector : public StmtExprMutator {
   Expr VisitExpr_(const BufferLoadNode* op) final {
     auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
 
-    auto it = dbuffer_info_.find(node->buffer->data.get());
+    auto it = dbuffer_info_.find(node->buffer.get());
     if (it != dbuffer_info_.end()) {
       const StorageEntry& e = it->second;
       TVM_FFI_ICHECK(e.switch_read_var.defined());
@@ -237,7 +254,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     return node;
   }
 
-  Buffer GetRemappedBuffer(Buffer buf, PrimExpr stride) {
+  BufferVar GetRemappedBuffer(BufferVar buf, PrimExpr stride) {
     auto key = buf.get();
     auto it = buf_remap_.find(key);
     if (it != buf_remap_.end()) {
@@ -254,7 +271,9 @@ class DoubleBufferInjector : public StmtExprMutator {
 
     // Stride gives the distance between the two halves of the
     // double-buffer, not the stride of the buffer's index.
-    buf.CopyOnWrite()->shape = {buf->shape[0] + stride};
+    auto type = CopyBufferType(buf);
+    type->shape = {buf->shape[0] + stride};
+    buf = RebuildBufferVar(buf, std::move(type));
 
     buf_remap_[key] = buf;
     return buf;
@@ -267,7 +286,7 @@ class DoubleBufferInjector : public StmtExprMutator {
 
  private:
   Stmt MakeProducer(const AttrStmtNode* op) {
-    const Var buffer = op->node.as_or_throw<Var>();
+    const Var buffer = GetBufferDataVar(op->node).value();
     TVM_FFI_ICHECK_NE(loop_nest_.size(), 0U) << "Double buffer scope must be inside a loop";
     auto it = dbuffer_info_.find(buffer.get());
     if (it == dbuffer_info_.end()) {
@@ -292,7 +311,8 @@ class DoubleBufferInjector : public StmtExprMutator {
     vmap[e.loop->loop_var.get()] = loop_shift;
     vmap[e.switch_write_var.get()] = indexmod(loop_shift, two);
     body = Substitute(body, vmap);
-    body = AttrStmt(buffer, s_tir::attr::double_buffer_write, 1, body);
+    body = AttrStmt(GetRemappedBuffer(BufferVar(buffer), e.stride).data(),
+                    s_tir::attr::double_buffer_write, 1, body);
     body = IfThenElse(loop_shift < e.loop->extent, body);
     return body;
   }
@@ -321,8 +341,8 @@ class DoubleBufferInjector : public StmtExprMutator {
   std::unordered_map<const ForNode*, std::vector<Stmt>> loop_pre_;
   // The allocation size of the buffer
   std::unordered_map<const VarNode*, StorageEntry> dbuffer_info_;
-  // The updated Buffer objects
-  std::unordered_map<const BufferNode*, Buffer> buf_remap_;
+  // The updated BufferVar objects
+  std::unordered_map<const VarNode*, BufferVar> buf_remap_;
   // Pending double-buffer AllocBuffer nodes (deferred from flat AllocBuffer visit)
   std::unordered_map<const VarNode*, AllocBuffer> pending_dbuffer_allocs_;
 };

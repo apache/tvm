@@ -102,8 +102,8 @@ inline ExprDoc DefineVar(const tirx::Var& var, const Frame& frame, const IRDocsi
  * \param d The IRDocsifier
  * \return The IdDoc corresponding to the buffer
  */
-inline IdDoc DefineBuffer(const tirx::Buffer& buffer, const Frame& frame, const IRDocsifier& d) {
-  return d->Define(buffer, frame, buffer->name.empty() ? "buffer" : buffer->name);
+inline IdDoc DefineBuffer(const tirx::BufferVar& buffer, const Frame& frame, const IRDocsifier& d) {
+  return d->Define(buffer, frame, buffer.name().empty() ? "buffer" : buffer.name());
 }
 
 /*!
@@ -116,7 +116,7 @@ inline IdDoc DefineBuffer(const tirx::Buffer& buffer, const Frame& frame, const 
 inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, const IRDocsifier& d) {
   if (const auto* seq_stmt = stmt.as<tirx::SeqStmtNode>()) {
     ffi::Array<tirx::Stmt> body = seq_stmt->seq;
-    auto value_refs_buffer = [](const PrimExpr& value, const tirx::Buffer& buffer) {
+    auto value_refs_buffer = [](const PrimExpr& value, const tirx::BufferVar& buffer) {
       bool found = false;
       tirx::PostOrderVisit(value, [&](const ffi::ObjectRef& node) {
         if (const auto* load = node.as<tirx::BufferLoadNode>()) {
@@ -259,7 +259,7 @@ inline ffi::Optional<Frame> FindLowestVarDef(const ffi::ObjectRef& var, const IR
 inline std::string ReprPrintTIR(const ffi::ObjectRef& obj, const PrinterConfig& cfg) {
   IRDocsifier d(cfg);
   d->SetCommonPrefix(obj, [](const ffi::ObjectRef& obj) {
-    return obj->IsInstance<tirx::VarNode>() || obj->IsInstance<tirx::BufferNode>();
+    return obj->IsInstance<tirx::VarNode>() || obj->IsInstance<tirx::BufferTypeNode>();
   });
   With<TIRFrame> f(d, ffi::ObjectRef{nullptr});
   (*f)->AddDispatchToken(d, "tirx");
@@ -303,9 +303,10 @@ enum class BufferVarDefinition {
  *     the buffer.
  * \return The ExprDoc corresponding to the buffer declaration
  */
-ExprDoc BufferDecl(const tirx::Buffer& buffer, const ffi::String& method,
+ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
                    const ffi::Array<ExprDoc>& args, const AccessPath& p, const Frame& frame,
-                   const IRDocsifier& d, BufferVarDefinition var_definitions);
+                   const IRDocsifier& d, BufferVarDefinition var_definitions,
+                   ffi::Optional<Expr> data = std::nullopt);
 
 /*!
  * \brief Declare and define a buffer as annotation
@@ -315,7 +316,7 @@ ExprDoc BufferDecl(const tirx::Buffer& buffer, const ffi::String& method,
  * \param d The IRDocsifier
  * \return The ExprDoc corresponding to the buffer declaration
  */
-ExprDoc BufferAttn(const tirx::Buffer& buffer, const AccessPath& p, const Frame& frame,
+ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
                    const IRDocsifier& d);
 
 /*!
@@ -345,27 +346,27 @@ class OccurrenceCounter : public tirx::StmtExprVisitor {
   }
 
   void VisitStmt_(const tirx::BufferStoreNode* op) final {
-    VisitBuffer(op->buffer.get());
+    VisitBuffer(op->buffer);
     tirx::StmtExprVisitor::VisitStmt_(op);
   }
 
   void VisitExpr_(const tirx::BufferLoadNode* op) final {
-    VisitBuffer(op->buffer.get());
+    VisitBuffer(op->buffer);
     tirx::StmtExprVisitor::VisitExpr_(op);
   }
 
   void VisitStmt_(const tirx::AllocBufferNode* op) final {
-    VisitBuffer(op->buffer.get());
+    VisitBuffer(op->buffer);
     tirx::StmtExprVisitor::VisitStmt_(op);
   }
 
   void VisitStmt_(const tirx::DeclBufferNode* op) final {
-    VisitBuffer(op->buffer.get());
+    VisitBuffer(op->buffer);
     tirx::StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitBuffer(const tirx::BufferNode* buffer) {
-    VisitExpr(buffer->data);
+  void VisitBuffer(const tirx::BufferVar& buffer) {
+    VisitExpr(buffer.var());
     for (const PrimExpr& shape_i : buffer->shape) {
       VisitExpr(shape_i);
     }

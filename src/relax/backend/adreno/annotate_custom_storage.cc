@@ -231,7 +231,7 @@
  * - Fusion
  * - FoldVDeviceScopeChange: There existed some ToVDevice copies from texture to buffer
  *   This pass removes the copes and updates producer scope to global.
- * - SpecializePrimFuncBasedOnCallSite: Finally we updates the Buffer Var maps according to
+ * - SpecializePrimFuncBasedOnCallSite: Finally we update the buffer maps according to
  *   VDevice scopes.
  *
  */
@@ -256,7 +256,7 @@ namespace relax {
 namespace backend {
 namespace adreno {
 
-using tvm::tirx::Buffer;
+using tvm::tirx::BufferVar;
 
 static ffi::Array<PrimExpr> GetShapeFromTensorType(const TensorType& tensor_ty) {
   auto shape = tensor_ty->GetShape();

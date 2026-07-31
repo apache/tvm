@@ -76,12 +76,14 @@ def test_prim_func_buffer_map():
         AccessPath.root()
         .attr("buffer_map")
         .map_item(func1.params[1])
+        .attr("ty")
         .attr("shape")
         .array_item(1)
         .attr("value"),
         AccessPath.root()
         .attr("buffer_map")
         .map_item(func2.params[1])
+        .attr("ty")
         .attr("shape")
         .array_item(1)
         .attr("value"),
@@ -139,8 +141,20 @@ def test_allocate():
     assert _error_message(ve.value) == _expected_result(
         func1,
         func2,
-        AccessPath.root().attr("body").attr("buffer").attr("shape").array_item(0).attr("value"),
-        AccessPath.root().attr("body").attr("buffer").attr("shape").array_item(0).attr("value"),
+        AccessPath.root()
+        .attr("body")
+        .attr("buffer")
+        .attr("ty")
+        .attr("shape")
+        .array_item(0)
+        .attr("value"),
+        AccessPath.root()
+        .attr("body")
+        .attr("buffer")
+        .attr("ty")
+        .attr("shape")
+        .array_item(0)
+        .attr("value"),
     )
 
 

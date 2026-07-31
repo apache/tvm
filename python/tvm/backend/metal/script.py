@@ -19,7 +19,7 @@
 from __future__ import annotations
 
 from tvm.backend.metal import op as _metal_op
-from tvm.tirx import Buffer
+from tvm.tirx import is_buffer_var
 from tvm.tirx import op as _tir_op
 from tvm.tirx.script.builder.ir import _op_wrapper
 
@@ -35,19 +35,19 @@ class MetalNamespace:
 
     @staticmethod
     def simd_shuffle(var, lane):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.metal.simd_shuffle", var, lane)
 
     @staticmethod
     def simd_shuffle_up(var, delta):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.metal.simd_shuffle_up", var, delta)
 
     @staticmethod
     def simd_shuffle_down(var, delta):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.metal.simd_shuffle_down", var, delta)
 

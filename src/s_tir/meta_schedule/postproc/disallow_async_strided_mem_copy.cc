@@ -77,10 +77,10 @@ struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
         }
 
         // get store buffer; assert it exists and is contiguous given it uses a single index
-        auto bufferstore = bufferstorenode->buffer.as<BufferNode>();
+        auto bufferstore = bufferstorenode->buffer.as<BufferTypeNode>();
 
         // get load buffer; assert it exists and is contiguous given it uses a single index
-        auto bufferload = bufferloadnode->buffer.as<BufferNode>();
+        auto bufferload = bufferloadnode->buffer.as<BufferTypeNode>();
 
         if (!bufferstore || !bufferload) {
           StmtExprVisitor::VisitStmt_(attrStmt);

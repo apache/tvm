@@ -158,7 +158,7 @@ class BufferInfo:
         )
         vbuf_extent = int(self.shape[-1]) & ~(int(self.shape[-1]) - 1)
 
-        return min(vlp_extent, vbuf_extent, vbits // self.buf_region.buffer.dtype.dtype.bits)
+        return min(vlp_extent, vbuf_extent, vbits // self.buf_region.buffer.dtype.bits)
 
     def __str__(self) -> str:
         return f"BufferInfo({self.buf_region})"

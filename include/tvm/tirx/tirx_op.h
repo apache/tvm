@@ -51,7 +51,7 @@ constexpr const char* kDeviceInitStmt = "device_init_stmt";
  */
 constexpr const char* kHostInitStmt = "host_init_stmt";
 /*! \brief Statements to be inserted after a specific buffer's definition (DeclBuffer/AllocBuffer).
- *  Stored as Map<Buffer, ffi::Array<Stmt>>.
+ *  Stored as Map<BufferVar, ffi::Array<Stmt>>.
  */
 constexpr const char* kPostBufferDefStmt = "post_buffer_def_stmt";
 }  // namespace callback
@@ -106,13 +106,13 @@ class DispatchContextNode : public ffi::Object {
   }
 
   /*! \brief Add a buffer to be allocated in the kernel. */
-  void AddAllocBuffer(Buffer buffer);
+  void AddAllocBuffer(BufferVar buffer);
 
   /*! \brief Add an initialization statement to be inserted. */
   void AddInitStmt(Stmt stmt, bool host = false);
 
   /*! \brief Add a statement to be inserted after a buffer's definition. */
-  void AddPostBufferDefStmt(Buffer buffer, Stmt stmt);
+  void AddPostBufferDefStmt(BufferVar buffer, Stmt stmt);
 
   /*! \brief Set a value in the shared state cache. */
   void SharedStateSet(ffi::String key, ffi::ObjectRef value);
@@ -171,7 +171,7 @@ TVM_DLL const Op& fill();
 /*!
  * \brief See pesudo code below:
  *
- * Tx.gemm(Buffer A, Buffer B, Buffer C, Buffer D, PrimExpr alpha, PrimExpr beta)
+ * Tx.gemm(BufferVar A, BufferVar B, BufferVar C, BufferVar D, PrimExpr alpha, PrimExpr beta)
  */
 TVM_DLL const Op& gemm();
 

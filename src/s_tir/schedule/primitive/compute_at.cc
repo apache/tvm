@@ -366,14 +366,14 @@ void RelaxBufferRegions(const ffi::Map<Var, PrimExpr>& binding,
                         const ffi::Array<BufferRegion>& buffer_regions,
                         const StmtSRef& relax_path_low_inclusive,
                         const StmtSRef& relax_path_high_exclusive,
-                        std::unordered_map<const BufferNode*, std::vector<NDIntSet>>* relaxed) {
+                        std::unordered_map<const VarNode*, std::vector<NDIntSet>>* relaxed) {
   runtime::StorageScope global_scope{runtime::StorageRank::kGlobal, ""};
   // We cache the variable domains
   runtime::StorageRank previous_rank = runtime::StorageRank::kGlobal;
   ffi::Optional<ffi::Map<Var, arith::IntSet>> var_dom = std::nullopt;
   // Enumerate every buffer region
   for (const BufferRegion& buffer_region : buffer_regions) {
-    const Buffer& buffer = buffer_region->buffer;
+    const BufferVar& buffer = buffer_region->buffer;
     const ffi::Array<Range>& region = buffer_region->region;
     // Skip the buffer regions we are not interested in
     auto it = relaxed->find(buffer.get());
@@ -485,14 +485,14 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
  * \param iter_doms The result iteration domains to be updated
  */
 void UpdateBlockVarDomainDimwise(
-    const BufferNode* buffer, const NDIntSet& provided_region, const NDIntSet& required_region,
+    const VarNode* buffer, const NDIntSet& provided_region, const NDIntSet& required_region,
     arith::AnalyzerObj* analyzer,
     std::unordered_map<const VarNode*, BlockVarDomainInfo>* iter_doms) {
-  size_t ndim = buffer->shape.size();
+  size_t ndim = GetBufferVar(buffer)->shape.size();
   for (size_t i = 0; i < ndim; ++i) {
     arith::IntSet provided = provided_region[i];
     arith::IntSet required = required_region[i];
-    PrimExpr dim_max = max(buffer->shape[i] - 1, 0);
+    PrimExpr dim_max = max(GetBufferVar(buffer)->shape[i] - 1, 0);
     arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
 
     if (provided.CanProveSinglePoint(analyzer_ref) && is_const_int(provided.min())) {
@@ -551,7 +551,7 @@ ffi::Map<Var, arith::IntSet> InverseAffineIterMap(const ffi::Array<arith::IterSu
  * \param iter_doms The result iteration domains to be updated
  * \returns bool. Denotes whether update success
  */
-bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const ffi::Array<IterVar>& iter_vars,
+bool UpdateBlockVarDomainAffine(const VarNode* buffer, const ffi::Array<IterVar>& iter_vars,
                                 const NDIntSet& provided_region, const NDIntSet& required_region,
                                 arith::AnalyzerObj* analyzer,
                                 std::unordered_map<const VarNode*, BlockVarDomainInfo>* iter_doms) {
@@ -565,7 +565,7 @@ bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const ffi::Array<IterV
   for (const IterVar& iter_var : iter_vars) {
     dom_map.Set(iter_var->var, iter_var->dom);
   }
-  size_t ndim = buffer->shape.size();
+  size_t ndim = GetBufferVar(buffer)->shape.size();
   ffi::Array<PrimExpr> provide_indices;
   provide_indices.reserve(ndim);
   for (size_t i = 0; i < ndim; ++i) {
@@ -579,8 +579,8 @@ bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const ffi::Array<IterV
   // calculate backward mapping (required region point -> block vars)
   NDIntSet required_bound;
   for (size_t i = 0; i < ndim; ++i) {
-    required_bound.push_back(
-        arith::IntSet::Interval(IntImm(buffer->shape[i].ty(), 0), max(buffer->shape[i] - 1, 0)));
+    required_bound.push_back(arith::IntSet::Interval(IntImm(GetBufferVar(buffer)->shape[i].ty(), 0),
+                                                     max(GetBufferVar(buffer)->shape[i] - 1, 0)));
   }
   ffi::Map<Var, arith::IntSet> var_dom =
       InverseAffineIterMap(res->indices, required_region, analyzer);
@@ -605,8 +605,8 @@ bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const ffi::Array<IterV
  */
 std::vector<BlockVarDomainInfo> CalculateBlockVarDomain(
     const ffi::Array<IterVar>& iter_vars,
-    std::unordered_map<const BufferNode*, std::vector<NDIntSet>> provided_regions,
-    std::unordered_map<const BufferNode*, std::vector<NDIntSet>> required_regions,
+    std::unordered_map<const VarNode*, std::vector<NDIntSet>> provided_regions,
+    std::unordered_map<const VarNode*, std::vector<NDIntSet>> required_regions,
     arith::AnalyzerObj* analyzer) {
   int n_iters = iter_vars.size();
   // Step 1. Construct the mapping from block var to their iteration domain (initialized to empty)
@@ -617,7 +617,7 @@ std::vector<BlockVarDomainInfo> CalculateBlockVarDomain(
   }
   // Step 2. For each buffer, update the domain according to the provided and required regions
   for (const auto& kv : provided_regions) {
-    const BufferNode* buffer = kv.first;
+    const VarNode* buffer = kv.first;
     const std::vector<NDIntSet>& many_provided_regions = kv.second;
     // Calculate `provided_region` and `required_region`
     auto it = required_regions.find(buffer);
@@ -626,8 +626,8 @@ std::vector<BlockVarDomainInfo> CalculateBlockVarDomain(
     }
     NDIntSet required_region = support::NDIntSetUnion(it->second);
     NDIntSet provided_region = support::NDIntSetUnion(many_provided_regions);
-    TVM_FFI_ICHECK_EQ(provided_region.size(), buffer->shape.size());
-    TVM_FFI_ICHECK_EQ(required_region.size(), buffer->shape.size());
+    TVM_FFI_ICHECK_EQ(provided_region.size(), GetBufferVar(buffer)->shape.size());
+    TVM_FFI_ICHECK_EQ(required_region.size(), GetBufferVar(buffer)->shape.size());
     // Try update iter var domains with current required and provided region pair.
     if (!UpdateBlockVarDomainAffine(buffer, iter_vars, provided_region, required_region, analyzer,
                                     &iter_doms)) {
@@ -669,14 +669,14 @@ void CalculateProvidedRequiredRegions(
     const SBlockNode* block, const StmtSRef& loop_sref,
     std::unordered_map<const SBlockNode*, const SBlockRealizeNode*> block2realize,
     ffi::Array<StmtSRef> producer_srefs, ffi::Array<StmtSRef> consumer_srefs,
-    std::unordered_map<const BufferNode*, std::vector<NDIntSet>>* provided_regions,
-    std::unordered_map<const BufferNode*, std::vector<NDIntSet>>* required_regions) {
+    std::unordered_map<const VarNode*, std::vector<NDIntSet>>* provided_regions,
+    std::unordered_map<const VarNode*, std::vector<NDIntSet>>* required_regions) {
   // Step 1. Calculate the region provided by a single execution instance of `block`
   const ffi::Array<BufferRegion>& provided_buffers = is_compute_at ? block->writes : block->reads;
   provided_regions->reserve(provided_buffers.size());
   required_regions->reserve(provided_buffers.size());
   for (const BufferRegion& provided_buffer_region : provided_buffers) {
-    const BufferNode* buffer = provided_buffer_region->buffer.get();
+    const VarNode* buffer = provided_buffer_region->buffer.get();
     const ffi::Array<Range>& region = provided_buffer_region->region;
     (*provided_regions)[buffer].push_back(support::NDIntSetFromRegion(region));
     (*required_regions)[buffer].clear();
@@ -739,8 +739,8 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
   // Here is the definition of `provide` and `require`:
   // - In compute-at, `provide` means `produce`, and `require` means `consume`
   // - In reverse-compute-at, `provide` means `consume`, and `require` means `produce`
-  std::unordered_map<const BufferNode*, std::vector<NDIntSet>> provided_regions;
-  std::unordered_map<const BufferNode*, std::vector<NDIntSet>> required_regions;
+  std::unordered_map<const VarNode*, std::vector<NDIntSet>> provided_regions;
+  std::unordered_map<const VarNode*, std::vector<NDIntSet>> required_regions;
   CalculateProvidedRequiredRegions<is_compute_at>(
       /*block=*/block, /*loop_sref=*/loop_sref, /*block2realize=*/std::move(block2realize),
       /*producer_srefs=*/std::move(producer_srefs),

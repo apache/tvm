@@ -49,7 +49,9 @@ using ForVec = std::vector<const ForNode*>;
  * \tparam V The value type
  */
 template <class V>
-using ForBufferMap = std::unordered_map<const ForNode*, std::unordered_map<const BufferNode*, V>>;
+using ForBufferMap =
+    std::unordered_map<const ForNode*,
+                       std::unordered_map<BufferVar, V, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>>;
 
 /*! \brief Given x, compute log2(|x| + 1) */
 inline double slog(double x) { return x >= 0 ? std::log2(x + 1) : std::log2(-x + 1); }
@@ -62,7 +64,7 @@ namespace utils {
  * \param analyzer The analyzer
  * \return The shape of the buffer
  */
-std::vector<int64_t> GetBufferShape(const Buffer& buffer, arith::AnalyzerObj* analyzer) {
+std::vector<int64_t> GetBufferShape(const BufferVar& buffer, arith::AnalyzerObj* analyzer) {
   int ndim = buffer->shape.size();
   std::vector<int64_t> result;
   result.reserve(ndim);
@@ -655,9 +657,9 @@ struct Feature {
     kUnknownRW = 3,
   };
   enum class ReuseType : int {
-    /*! Buffer reuse because accessed on each iteration of a loop */
+    /*! BufferVar reuse because accessed on each iteration of a loop */
     kLoopMultipleRead = 0,
-    /*! Buffer reuse because it is serially accessed */
+    /*! BufferVar reuse because it is serially accessed */
     kSerialMultipleReadWrite = 1,
     /*! No buffer reuse */
     kNoReuse = 2,
@@ -665,14 +667,15 @@ struct Feature {
 
   struct SubFeature {
     /*! \brief The buffer this feature is for */
-    const BufferNode* buffer = nullptr;
+    BufferVar buffer;
     /*! \brief The access type of the buffer */
     AccessType access_type = AccessType::kUnknownRW;
     /*! \brief A list of multi-dimensonal indices used to access the buffer */
     std::vector<MultiIndex> multi_indices = {};
     // Access information
     /*! \brief loop_accessed_numel[i][...] means the number of elements accessed by loops[i] */
-    std::vector<std::unordered_map<const BufferNode*, int64_t>> loop_accessed_numel = {};
+    std::vector<std::unordered_map<BufferVar, int64_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>>
+        loop_accessed_numel = {};
     /*! \brief The shape of the data access */
     IntVec access_shape;
     /*! \brief The bytes that are continuously accessed */
@@ -750,9 +753,9 @@ struct Feature {
 
     void SetFeature(const LoopNest& loop_nest, int64_t cache_line_bytes);
 
-    explicit SubFeature(const BufferNode* buffer, AccessType access_type,
+    explicit SubFeature(BufferVar buffer, AccessType access_type,
                         std::vector<MultiIndex> multi_indices, int n_loops)
-        : buffer(buffer),
+        : buffer(std::move(buffer)),
           access_type(access_type),
           multi_indices(multi_indices),
           loop_accessed_numel(n_loops) {}
@@ -788,15 +791,15 @@ void Feature::Init(const BufferStoreNode* store, int n_loops) {
     AccessType access_type = AccessType::kUnknownRW;
     std::vector<MultiIndex> multi_indices;
   };
-  std::unordered_map<const BufferNode*, Info> buffer_info;
+  std::unordered_map<BufferVar, Info, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_info;
   {
-    Info& info = buffer_info[store->buffer.get()];
+    Info& info = buffer_info[store->buffer];
     info.access_type = AccessType::kWrite;
     info.multi_indices.push_back({store->indices.begin(), store->indices.end()});
   }
   PostOrderVisit(store->value, [&buffer_info](const ffi::ObjectRef& obj) -> void {
     if (const BufferLoadNode* load = obj.as<BufferLoadNode>()) {
-      const BufferNode* buffer = load->buffer.get();
+      BufferVar buffer = load->buffer;
       Info& info = buffer_info[buffer];
       switch (info.access_type) {
         case AccessType::kRead:
@@ -850,7 +853,7 @@ void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
                    /*allow_override=*/true);
     int64_t& touched_bytes = (*for_touched_bytes)[i] = 0;
     for (SubFeature& feature : sub_features) {
-      const BufferNode* buffer = feature.buffer;
+      BufferVar buffer = feature.buffer;
       // Note: `feature.access_shape` for `i == 0` is the only one preserved,
       // while others are discarded
       int64_t numel;
@@ -867,9 +870,9 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::AnalyzerOb
   int n_loops = loop_nest.loops.size();
   const std::vector<const ForNode*>& loops = loop_nest.loops;
   // For each buffer, we find the loop stride on it
-  const BufferNode* buffer = this->buffer;
-  int ndim = this->buffer->shape.size();
-  IntVec buffer_shape = utils::GetBufferShape(ffi::GetRef<Buffer>(buffer), analyzer);
+  BufferVar buffer = this->buffer;
+  int ndim = buffer->shape.size();
+  IntVec buffer_shape = utils::GetBufferShape(buffer, analyzer);
   // Calculate the buffer's stride from its shape
   IntVec buffer_stride(ndim);
   if (ndim >= 1) {
@@ -913,7 +916,7 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::AnalyzerOb
 
 void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_touch_bytes,
                                    const ForBufferMap<IntVec>& buffer_touched_under_loop) {
-  const BufferNode* buffer = this->buffer;
+  BufferVar buffer = this->buffer;
   // Step 3.1. Collect all `Var`s that appears in the buffer region
   std::unordered_set<const VarNode*> region_vars;
   for (const MultiIndex& multi_index : this->multi_indices) {
@@ -955,7 +958,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
         reuse_dis_bytes = top_loop_touch_bytes;
       } else {
         for (const auto& iter : buffer_touched_under_loop.at(loops[i + 1])) {
-          const BufferNode* buffer = iter.first;
+          BufferVar buffer = iter.first;
           const IntVec& numels = iter.second;
           int64_t numel = std::accumulate(numels.begin(), numels.end(), int64_t(0));
           reuse_dis_bytes += numel * static_cast<int64_t>(buffer->dtype.StorageBytes());
@@ -975,7 +978,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
       reuse_dis_iter = *std::min_element(touched.begin(), touched.end());
       reuse_dis_bytes = 0.0;
       for (const auto& iter : buffer_touched_under_loop.at(loop)) {
-        const BufferNode* buffer = iter.first;
+        BufferVar buffer = iter.first;
         const IntVec& numels = iter.second;
         int64_t numel = std::accumulate(numels.begin(), numels.end(), int64_t(0));
         reuse_dis_bytes += numel * static_cast<int64_t>(buffer->dtype.StorageBytes());
@@ -1048,7 +1051,7 @@ Feature::Feature(const BufferStoreNode* store, const LoopNest& loop_nest, int64_
     if (a.bytes != b.bytes) {
       return a.bytes > b.bytes;
     }
-    return a.buffer->name < b.buffer->name;
+    return a.buffer.name() < b.buffer.name();
   });
 }
 
@@ -1160,7 +1163,8 @@ struct Feature {
 
   Feature() = default;
 
-  explicit Feature(const LoopNest& loop_nest, const Buffer& buffer, arith::AnalyzerObj* analyzer) {
+  explicit Feature(const LoopNest& loop_nest, const BufferVar& buffer,
+                   arith::AnalyzerObj* analyzer) {
     std::vector<int64_t> shape = utils::GetBufferShape(buffer, analyzer);
     int64_t numel = 1;
     for (int64_t x : shape) {
@@ -1262,7 +1266,7 @@ struct Feature {
 
 /*! \brief The feature extracted */
 struct Feature {
-  const BufferNode* buffer = nullptr;
+  const VarNode* buffer = nullptr;
   int buffer_order = -1;
   std::unique_ptr<group1::Feature> group1 = nullptr;
   std::unique_ptr<group2::Feature> group2 = nullptr;
@@ -1320,7 +1324,7 @@ class PerStoreFeatureCollector : private StmtVisitor {
     if (store->value->IsInstance<IntImmNode>() || store->value->IsInstance<FloatImmNode>()) {
       return;
     }
-    const BufferNode* buffer = store->buffer.get();
+    const VarNode* buffer = store->buffer.get();
     Feature& feature = buffer_features_[buffer];
     if (feature.buffer == nullptr) {
       feature.buffer = buffer;
@@ -1338,12 +1342,12 @@ class PerStoreFeatureCollector : private StmtVisitor {
 
   void VisitStmt_(const SBlockNode* block) final {
     StmtVisitor::VisitStmt_(block);
-    for (const Buffer& buffer : block->alloc_buffers) {
+    for (const BufferVar& buffer : block->alloc_buffers) {
       HandleBufferAlloc(buffer);
     }
   }
 
-  void HandleBufferAlloc(const Buffer& buffer) {
+  void HandleBufferAlloc(const BufferVar& buffer) {
     Feature& feature = buffer_features_[buffer.get()];
     feature.group4 = std::make_unique<group4::Feature>(loop_nest_, buffer, analyzer_.get());
   }
@@ -1361,7 +1365,7 @@ class PerStoreFeatureCollector : private StmtVisitor {
   LoopNest loop_nest_ = {};
   IntVec for_touched_bytes_ = {};
   ForBufferMap<IntVec> buffer_touched_under_loop_ = {};
-  std::unordered_map<const BufferNode*, Feature> buffer_features_ = {};
+  std::unordered_map<const VarNode*, Feature> buffer_features_ = {};
 };
 
 }  // namespace s_tir

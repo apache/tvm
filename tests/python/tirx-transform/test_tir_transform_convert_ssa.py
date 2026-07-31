@@ -545,14 +545,19 @@ def test_reused_loop_var_in_decl_buffer_elem_offset():
         elem_offset=loop_var * 128,
         scope="shared.dyn",
     )
+    buffer_data = tirx.Var("buffer_data", buffer.data.ty)
     loop = tirx.For(
         loop_var,
         0,
         128,
         tirx.ForKind.SERIAL,
-        tirx.DeclBuffer(buffer, tirx.Evaluate(tirx.BufferLoad(buffer, [0]))),
+        tirx.DeclBuffer(
+            buffer,
+            tirx.Evaluate(tirx.BufferLoad(buffer, [0])),
+            data=buffer_data,
+        ),
     )
-    func = tirx.PrimFunc([buffer.data], tirx.SeqStmt([loop, loop, loop]))
+    func = tirx.PrimFunc([buffer_data], tirx.SeqStmt([loop, loop, loop]))
 
     after = tvm.tirx.transform.ConvertSSA()(tvm.IRModule.from_expr(func))
 

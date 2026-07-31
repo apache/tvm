@@ -65,17 +65,30 @@ void StmtVisitor::VisitStmt_(const BreakNode* op) {}
 
 void StmtVisitor::VisitStmt_(const ContinueNode* op) {}
 
-void StmtVisitor::VisitBufferDef(const Buffer& buffer, bool alloc_data) {
+void StmtVisitor::VisitBufferDef(const BufferVar& buffer, bool alloc_data) {
   for (const auto& e : buffer->shape) this->VisitExpr(e);
   for (const auto& e : buffer->strides) this->VisitExpr(e);
   this->VisitExpr(buffer->elem_offset);
+  for (const auto& e : buffer->allocated_addr) this->VisitExpr(e);
+  if (buffer->layout.has_value()) {
+    const auto* layout = buffer->layout.value().as<TileLayoutNode>();
+    if (layout == nullptr) return;
+    for (const Iter& iter : layout->shard) {
+      this->VisitExpr(iter->extent);
+      this->VisitExpr(iter->stride);
+    }
+    for (const Iter& iter : layout->replica) {
+      this->VisitExpr(iter->extent);
+      this->VisitExpr(iter->stride);
+    }
+  }
 }
 
 // Default VisitBufferUse is empty: buffer fields (shape, strides, elem_offset)
 // are visited at the definition site (VisitBufferDef) and should not be
 // re-visited at each use site, as the use site may be in a different scope
 // where the buffer's shape variables are not defined.
-void StmtVisitor::VisitBufferUse(const Buffer& buffer) {}
+void StmtVisitor::VisitBufferUse(const BufferVar& buffer) {}
 
 void StmtExprVisitor::VisitExpr_(const BufferLoadNode* op) {
   this->VisitBufferUse(op->buffer);
@@ -87,6 +100,7 @@ void StmtVisitor::VisitStmt_(const AllocBufferNode* op) {
 }
 
 void StmtVisitor::VisitStmt_(const DeclBufferNode* op) {
+  this->VisitExpr(op->data);
   this->VisitBufferDef(op->buffer, /*alloc_data=*/false);
 }
 
@@ -129,7 +143,7 @@ void StmtVisitor::VisitStmt_(const SBlockNode* op) {
     this->VisitExpr(iter_var->dom->extent);
   });
   VisitArray(op->alloc_buffers,
-             [this](const Buffer& buf) { this->VisitBufferDef(buf, /*alloc_data=*/true); });
+             [this](const BufferVar& buf) { this->VisitBufferDef(buf, /*alloc_data=*/true); });
   VisitArray(op->reads, fvisit_buffer_region);
   VisitArray(op->writes, fvisit_buffer_region);
   VisitArray(op->match_buffers,
@@ -257,7 +271,7 @@ class StmtMutator::Internal {
 
   static ffi::Array<BufferRegion> Mutate(StmtMutator* self, const ffi::Array<BufferRegion>& arr) {
     auto fmutate = [self](const BufferRegion& buffer_region) {
-      Buffer new_buf = self->VisitBufferUse(buffer_region->buffer);
+      BufferVar new_buf = self->VisitBufferUse(buffer_region->buffer);
       ffi::Array<Range> region = Mutate(self, buffer_region->region);
       if (new_buf.same_as(buffer_region->buffer) && region.same_as(buffer_region->region)) {
         return buffer_region;
@@ -271,8 +285,8 @@ class StmtMutator::Internal {
   static ffi::Array<MatchBufferRegion> Mutate(StmtMutator* self,
                                               const ffi::Array<MatchBufferRegion>& arr) {
     auto fmutate = [self](const MatchBufferRegion& match_buffer_region) {
-      Buffer new_buf = self->VisitBufferDef(match_buffer_region->buffer, /*alloc_data=*/true);
-      Buffer new_source_buf = self->VisitBufferUse(match_buffer_region->source->buffer);
+      BufferVar new_buf = self->VisitBufferDef(match_buffer_region->buffer, /*alloc_data=*/true);
+      BufferVar new_source_buf = self->VisitBufferUse(match_buffer_region->source->buffer);
       ffi::Array<Range> region = Mutate(self, match_buffer_region->source->region);
       if (new_buf.same_as(match_buffer_region->buffer) &&
           new_source_buf.same_as(match_buffer_region->source->buffer) &&
@@ -361,7 +375,7 @@ Stmt StmtMutator::VisitStmt_(const BreakNode* op) { return ffi::GetRef<Stmt>(op)
 
 Stmt StmtMutator::VisitStmt_(const ContinueNode* op) { return ffi::GetRef<Stmt>(op); }
 
-Buffer StmtMutator::VisitBufferDef(const Buffer& buffer, bool alloc_data) {
+BufferVar StmtMutator::VisitBufferDef(const BufferVar& buffer, bool alloc_data) {
   if (auto it = buffer_remap_.find(buffer); it != buffer_remap_.end()) {
     return (*it).second;
   }
@@ -372,6 +386,8 @@ Buffer StmtMutator::VisitBufferDef(const Buffer& buffer, bool alloc_data) {
   auto shape = buffer->shape.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
   auto strides = buffer->strides.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
   PrimExpr elem_offset = this->VisitPrimExpr(buffer->elem_offset);
+  auto allocated_addr =
+      buffer->allocated_addr.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
 
   // Visit the layout's per-iter extent/stride PrimExprs too: they share dtype
   // semantics with the shape, e.g. ``IndexDataTypeRewriter`` (int32 -> int64)
@@ -399,30 +415,35 @@ Buffer StmtMutator::VisitBufferDef(const Buffer& buffer, bool alloc_data) {
   }
 
   if (shape.same_as(buffer->shape) && strides.same_as(buffer->strides) &&
-      elem_offset.same_as(buffer->elem_offset) && !layout_changed) {
+      elem_offset.same_as(buffer->elem_offset) && allocated_addr.same_as(buffer->allocated_addr) &&
+      !layout_changed) {
     return buffer;
   }
-  Buffer new_buf = buffer;
-  auto* n = new_buf.CopyOnWrite();
-  n->shape = std::move(shape);
-  n->strides = std::move(strides);
-  n->elem_offset = std::move(elem_offset);
-  if (layout_changed) {
-    n->layout = std::move(new_layout);
-  }
+  BufferType new_type(buffer->storage_scope, buffer->dtype, std::move(shape), std::move(strides),
+                      std::move(elem_offset), buffer->data_alignment, buffer->offset_factor,
+                      std::move(new_layout), std::move(allocated_addr), buffer->span);
+  BufferVar new_buf(buffer.name(), std::move(new_type), buffer.span());
   buffer_remap_.Set(buffer, new_buf);
   return new_buf;
 }
 
-Buffer StmtMutator::VisitBufferUse(const Buffer& buffer) {
+BufferVar StmtMutator::VisitBufferUse(const BufferVar& buffer) {
   if (auto it = buffer_remap_.find(buffer); it != buffer_remap_.end()) {
     return (*it).second;
   }
   return buffer;
 }
 
+Expr StmtExprMutator::VisitExpr_(const VarNode* op) {
+  Var var = ffi::GetRef<Var>(op);
+  if (var->ty.as<BufferTypeNode>()) {
+    return VisitBufferUse(BufferVar(var)).var();
+  }
+  return var;
+}
+
 Expr StmtExprMutator::VisitExpr_(const BufferLoadNode* op) {
-  Buffer new_buf = this->VisitBufferUse(op->buffer);
+  BufferVar new_buf = this->VisitBufferUse(op->buffer);
   PrimExpr expr = ExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
   op = expr.as<BufferLoadNode>();
   TVM_FFI_ICHECK(op != nullptr);
@@ -435,7 +456,7 @@ Expr StmtExprMutator::VisitExpr_(const BufferLoadNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const AllocBufferNode* op) {
-  Buffer new_buf = this->VisitBufferDef(op->buffer, /*alloc_data=*/true);
+  BufferVar new_buf = this->VisitBufferDef(op->buffer, /*alloc_data=*/true);
 
   if (new_buf.same_as(op->buffer)) {
     return ffi::GetRef<Stmt>(op);
@@ -447,12 +468,14 @@ Stmt StmtMutator::VisitStmt_(const AllocBufferNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const DeclBufferNode* op) {
-  Buffer new_buf = this->VisitBufferDef(op->buffer, /*alloc_data=*/false);
+  Expr data = this->VisitExpr(op->data);
+  BufferVar new_buf = this->VisitBufferDef(op->buffer, /*alloc_data=*/false);
 
-  if (new_buf.same_as(op->buffer)) {
+  if (new_buf.same_as(op->buffer) && data.same_as(op->data)) {
     return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
+    n->data = std::move(data);
     n->buffer = std::move(new_buf);
     return Stmt(n);
   }
@@ -478,7 +501,7 @@ Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const BufferStoreNode* op) {
-  Buffer new_buf = this->VisitBufferUse(op->buffer);
+  BufferVar new_buf = this->VisitBufferUse(op->buffer);
   PrimExpr value = this->VisitPrimExpr(op->value);
   ffi::Array<PrimExpr> indices = Internal::Mutate(this, op->indices);
 
@@ -579,9 +602,9 @@ Stmt StmtMutator::VisitStmt_(const EvaluateNode* op) {
 
 Stmt StmtMutator::VisitStmt_(const SBlockNode* op) {
   ffi::Array<IterVar> iter_vars = Internal::Mutate(this, op->iter_vars);
-  ffi::Array<Buffer> alloc_buffers = Internal::MutateArray(
+  ffi::Array<BufferVar> alloc_buffers = Internal::MutateArray(
       this, op->alloc_buffers,
-      [this](const Buffer& buf) { return this->VisitBufferDef(buf, /*alloc_data=*/true); });
+      [this](const BufferVar& buf) { return this->VisitBufferDef(buf, /*alloc_data=*/true); });
   ffi::Array<BufferRegion> reads = Internal::Mutate(this, op->reads);
   ffi::Array<BufferRegion> writes = Internal::Mutate(this, op->writes);
   ffi::Array<MatchBufferRegion> match_buffers = Internal::Mutate(this, op->match_buffers);
@@ -705,8 +728,8 @@ class IRApplyVisit : public StmtExprVisitor {
     f_(node);
   }
 
-  void VisitBufferDef(const Buffer& buffer, bool alloc_data) override {}
-  void VisitBufferUse(const Buffer& buffer) override {}
+  void VisitBufferDef(const BufferVar& buffer, bool alloc_data) override {}
+  void VisitBufferUse(const BufferVar& buffer) override {}
 
  private:
   std::function<void(const ffi::ObjectRef&)> f_;
@@ -795,24 +818,33 @@ class IRSubstitute : public StmtExprMutator {
       }
       return ret.value();
     }
-    return var;
+    return StmtExprMutator::VisitExpr_(op);
   }
 
-  // Override VisitBufferDef to also remap buffer->data (the backing allocation var).
-  // The base class only visits shape/strides/elem_offset.
-  Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) final {
-    Buffer new_buf = StmtExprMutator::VisitBufferDef(buffer, alloc_data);
-    // Additionally handle data var substitution (base does not visit data).
-    Expr new_data_expr = VisitExpr(new_buf->data);
-    auto new_data = new_data_expr.as<Var>();
-    TVM_FFI_ICHECK(new_data) << "Buffer " << new_buf << " uses backing allocation " << new_buf->data
-                             << ", which was substituted into the expression " << new_data_expr
-                             << " and the backing allocation must be a tirx::Var";
-    Var data = new_data.value();
-    if (!data.same_as(new_buf->data)) {
-      auto* n = new_buf.CopyOnWrite();
-      n->data = std::move(data);
+  // Buffer variables share the ordinary Var identity model.  A caller-provided
+  // substitution may therefore replace the definition with another checked
+  // BufferVar; metadata-only rewrites are handled by the base implementation.
+  BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) final {
+    BufferVar new_buf = StmtExprMutator::VisitBufferDef(buffer, alloc_data);
+    if (auto mapped = vmap_(new_buf.var())) {
+      auto mapped_var = mapped.value().as<Var>();
+      TVM_FFI_ICHECK(mapped_var && mapped_var.value()->ty.as<BufferTypeNode>())
+          << "BufferVar " << new_buf << " was substituted into " << mapped.value()
+          << ", which is not a Var with BufferType";
+      new_buf = BufferVar(mapped_var.value());
       buffer_remap_.Set(buffer, new_buf);
+    }
+    return new_buf;
+  }
+
+  BufferVar VisitBufferUse(const BufferVar& buffer) final {
+    BufferVar new_buf = StmtExprMutator::VisitBufferUse(buffer);
+    if (auto mapped = vmap_(new_buf.var())) {
+      auto mapped_var = mapped.value().as<Var>();
+      TVM_FFI_ICHECK(mapped_var && mapped_var.value()->ty.as<BufferTypeNode>())
+          << "BufferVar " << new_buf << " was substituted into " << mapped.value()
+          << ", which is not a Var with BufferType";
+      new_buf = BufferVar(mapped_var.value());
     }
     return new_buf;
   }
@@ -898,7 +930,7 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
     if (ret.has_value()) {
       return ret.value();
     }
-    return var;
+    return StmtExprMutator::VisitExpr_(op);
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {

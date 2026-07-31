@@ -167,13 +167,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
     }
   }
 
-  void EnterDef(const Buffer& buffer, AccessPath path) override {
-    // A buffer definition implicitly defines its data Var when that Var has no
-    // prior definition (e.g., tmem buffers where DeclBuffer auto-creates data).
-    if (currently_defined_.find(buffer->data) == currently_defined_.end() &&
-        previously_defined_.find(buffer->data) == previously_defined_.end()) {
-      currently_defined_.insert({buffer->data, path->Attr("data")});
-    }
+  void EnterDef(const BufferVar& buffer, AccessPath path) override {
     Verifier::EnterDef(buffer, path);
   }
 
@@ -269,13 +263,13 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier> {
     previously_defined_.clear();
   }
 
-  void EnterDef(const Buffer& buffer, AccessPath path) override {
+  void EnterDef(const BufferVar& buffer, AccessPath path) override {
     // Call the base class to visit buffer's internal vars (shape, strides, etc.)
     Verifier::EnterDef(buffer, path);
     currently_defined_.insert({buffer, path});
   }
 
-  void ExitDef(const Buffer& buffer, AccessPath path) override {
+  void ExitDef(const BufferVar& buffer, AccessPath path) override {
     auto active_def = currently_defined_.find(buffer);
     if (active_def != currently_defined_.end()) {
       currently_defined_.erase(active_def);
@@ -283,30 +277,30 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier> {
     previously_defined_.insert({buffer, path});
   }
 
-  void VisitBufferUse(const Buffer& buffer, AccessPath path) override {
+  void VisitBufferUse(const BufferVar& buffer, AccessPath path) override {
     bool is_declared = currently_defined_.count(buffer);
     bool was_declared = previously_defined_.count(buffer);
 
     if (was_declared && !is_declared) {
-      // Buffer was previously declared but is now out of scope — always an error.
+      // BufferVar was previously declared but is now out of scope — always an error.
       auto prev_def = previously_defined_.find(buffer);
-      Verify(false) << "TIR is ill-formed: buffer " << buffer->name << " is used at " << path
+      Verify(false) << "TIR is ill-formed: buffer " << buffer.name() << " is used at " << path
                     << " but its declaration is no longer in-scope. "
                     << "It was declared at " << prev_def->second << ".";
     } else if (!is_declared && !was_declared) {
-      // Buffer was never declared — error.
-      Verify(false) << "TIR is ill-formed: buffer " << buffer->name << " is used at " << path
+      // BufferVar was never declared — error.
+      Verify(false) << "TIR is ill-formed: buffer " << buffer.name() << " is used at " << path
                     << " without a prior DeclBuffer or other declaration.";
     }
-    // Buffer fields are visited at definition site (EnterDef), not here.
+    // BufferVar fields are visited at definition site (EnterDef), not here.
     Verifier::VisitBufferUse(buffer, path);
   }
 
   // Buffers defined in the currently-visited scope.
-  std::unordered_map<Buffer, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<BufferVar, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       currently_defined_;
   // Buffers that were previously defined and are now out of scope.
-  std::unordered_map<Buffer, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<BufferVar, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       previously_defined_;
 };
 

@@ -107,7 +107,8 @@ class CodeGenHexagon final : public CodeGenCPU {
 
   bool IsQHLFunction(const std::string& func);
 
-  llvm::Value* VectorLookupLoad(Buffer buffer, PrimType buffer_type, ffi::Array<PrimExpr> indices);
+  llvm::Value* VectorLookupLoad(BufferVar buffer, PrimType buffer_type,
+                                ffi::Array<PrimExpr> indices);
   llvm::Value* Intrinsic(llvm::Intrinsic::ID, llvm::ArrayRef<llvm::Value*> args);
   std::vector<std::string> fqhl_list_ = {
       "tvm_vect_qhmath_hvx_cos_ahf",     "tvm_vect_qhmath_hvx_tanh_ahf",
@@ -199,12 +200,10 @@ llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, ffi::String global_
 }
 
 llvm::Value* CodeGenHexagon::VisitExpr_(const BufferLoadNode* op) {
-  if (!op->buffer.same_as(op->buffer->data)) {
-    // Check if we can generate a vector lookup.
-    if (!op->indices[0].as<RampNode>()) {
-      if (auto* vlut = VectorLookupLoad(op->buffer, op->ty.as_or_throw<PrimType>(), op->indices)) {
-        return vlut;
-      }
+  // Check if we can generate a vector lookup.
+  if (!op->indices[0].as<RampNode>()) {
+    if (auto* vlut = VectorLookupLoad(op->buffer, op->ty.as_or_throw<PrimType>(), op->indices)) {
+      return vlut;
     }
   }
   return CodeGenCPU::VisitExpr_(op);
@@ -327,7 +326,7 @@ llvm::Value* CodeGenHexagon::Intrinsic(llvm::Intrinsic::ID IntID,
   return builder_->CreateCall(intf_callee, conv_args);
 }
 
-llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, PrimType buffer_type,
+llvm::Value* CodeGenHexagon::VectorLookupLoad(BufferVar buffer, PrimType buffer_type,
                                               ffi::Array<PrimExpr> indices) {
   PrimExpr index = indices[0];
   PrimType index_ty = index.ty();

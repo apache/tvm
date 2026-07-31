@@ -35,13 +35,13 @@ using namespace tvm::tirx;
 
 std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref) {
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  const BufferNode* write_buffer = block->writes[0]->buffer.get();
+  const VarNode* write_buffer = block->writes[0]->buffer.get();
   int n = block->reads.size();
   std::vector<int> results(n, -1);
   for (int i = 0; i < n; ++i) {
-    const BufferNode* read_buffer = block->reads[i]->buffer.get();
+    const VarNode* read_buffer = block->reads[i]->buffer.get();
     if (read_buffer != write_buffer) {
-      results[i] = read_buffer->shape.size();
+      results[i] = GetBufferVar(read_buffer)->shape.size();
     }
   }
   return results;

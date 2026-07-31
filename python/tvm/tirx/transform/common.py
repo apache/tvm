@@ -38,7 +38,8 @@ from tvm.tirx.stmt_functor import StmtExprMutator, StmtMutator
 class BufferReplacer(StmtExprMutator):
     """
     Replace buffer with another buffer.
-    Also replace the data of the buffer with another var.
+    Buffer values are ordinary Vars, so the same mapping also rewrites
+    ``buffer_data`` projections.
     """
 
     def __init__(
@@ -49,7 +50,7 @@ class BufferReplacer(StmtExprMutator):
         self.var_map = var_map if var_map is not None else {}
         self.buffer_attr_var_mutated = False
         for old_buffer, new_buffer in self.buffer_map.items():
-            self.var_map[old_buffer.data] = new_buffer.data
+            self.var_map[old_buffer] = new_buffer
 
     def mutate_buffer(self, buffer: Buffer):
         if buffer in self.buffer_map:
@@ -59,55 +60,57 @@ class BufferReplacer(StmtExprMutator):
         # unrelated buffers can be spuriously cloned and introduce alias buffers.
         prev_mutated = self.buffer_attr_var_mutated
         self.buffer_attr_var_mutated = False
-        new_data = self.visit_expr(buffer.data)
-        new_shape = [self.visit_expr(expr) for expr in buffer.shape]
-        new_strides = [self.visit_expr(expr) for expr in buffer.strides]
+        new_shape = [self.visit_expr(expr) for expr in buffer.ty.shape]
+        new_strides = [self.visit_expr(expr) for expr in buffer.ty.strides]
         new_elem_offset = (
-            self.visit_expr(buffer.elem_offset) if buffer.elem_offset is not None else None
+            self.visit_expr(buffer.ty.elem_offset) if buffer.ty.elem_offset is not None else None
         )
-        if isinstance(buffer.layout, TileLayout):
+        if isinstance(buffer.ty.layout, TileLayout):
             new_shard = []
             new_replicate = []
-            for iter in buffer.layout.shard:
+            for iter in buffer.ty.layout.shard:
                 new_iter = Iter(
                     self.visit_expr(iter.extent), self.visit_expr(iter.stride), iter.axis
                 )
                 new_shard.append(new_iter)
-            for iter in buffer.layout.replica:
+            for iter in buffer.ty.layout.replica:
                 new_iter = Iter(
                     self.visit_expr(iter.extent), self.visit_expr(iter.stride), iter.axis
                 )
                 new_replicate.append(new_iter)
             new_layout = TileLayout.from_iters(
-                new_shard, new_replicate, offset=buffer.layout.offset
+                new_shard, new_replicate, offset=buffer.ty.layout.offset
             )
         else:
-            new_layout = buffer.layout
+            new_layout = buffer.ty.layout
+        new_allocated_addr = [self.visit_expr(expr) for expr in buffer.ty.allocated_addr]
         buffer_attr_mutated = self.buffer_attr_var_mutated
         self.buffer_attr_var_mutated = prev_mutated or buffer_attr_mutated
         if not buffer_attr_mutated:
             return None
         new_buffer = decl_buffer(
             new_shape,
-            buffer.dtype,
+            buffer.ty.dtype,
             buffer.name,
-            new_data,
+            None,
             new_strides,
             new_elem_offset,
             buffer.scope(),
-            buffer.data_alignment,
-            buffer.offset_factor,
+            buffer.ty.data_alignment,
+            buffer.ty.offset_factor,
             layout=new_layout,
         )
+        if new_allocated_addr:
+            new_buffer = new_buffer.with_allocated_addr(new_allocated_addr)
         self.buffer_map[buffer] = new_buffer
+        self.var_map[buffer] = new_buffer
         return new_buffer
 
     def visit_var_(self, op: Var):
-        op = super().visit_var_(op)
         if op in self.var_map:
             self.buffer_attr_var_mutated = True
             return self.var_map[op]
-        return op
+        return super().visit_var_(op)
 
     def visit_buffer_load_(self, op: BufferLoad):
         new_buffer = self.mutate_buffer(op.buffer)
@@ -132,9 +135,13 @@ class BufferReplacer(StmtExprMutator):
 
     def visit_decl_buffer_(self, op: DeclBuffer):
         new_buffer = self.mutate_buffer(op.buffer)
-        op = super().visit_decl_buffer_(op)
-        if new_buffer is not None:
-            return DeclBuffer(new_buffer, op.span)
+        data = self.visit_expr(op.data)
+        if new_buffer is not None or data is not op.data:
+            return DeclBuffer(
+                new_buffer if new_buffer is not None else op.buffer,
+                data=data,
+                span=op.span,
+            )
         return op
 
     def visit_array_prim_expr_(self, op: list[Expr]):

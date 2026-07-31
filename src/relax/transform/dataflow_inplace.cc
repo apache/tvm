@@ -763,10 +763,10 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
 
 // Replace buffers in a PrimFunc according to the mapping.
 tirx::Stmt RemapBuffers(const tirx::Stmt& stmt,
-                        const ffi::Map<tirx::Buffer, tirx::Buffer>& buffer_map) {
+                        const ffi::Map<tirx::BufferVar, tirx::BufferVar>& buffer_map) {
   class BufferMapper : public tirx::StmtExprMutator {
    public:
-    explicit BufferMapper(const ffi::Map<tirx::Buffer, tirx::Buffer>& buffer_map)
+    explicit BufferMapper(const ffi::Map<tirx::BufferVar, tirx::BufferVar>& buffer_map)
         : buffer_map_(buffer_map) {}
 
     tirx::Stmt Remap(const tirx::Stmt& stmt) { return VisitStmt(stmt); }
@@ -804,7 +804,7 @@ tirx::Stmt RemapBuffers(const tirx::Stmt& stmt,
       auto* node_cow = node.CopyOnWrite();
       // need the lambdas because class methods are not first-class (how ironic)
       node_cow->alloc_buffers =
-          node->alloc_buffers.Map([this](const tirx::Buffer& b) { return AttemptRemap(b); });
+          node->alloc_buffers.Map([this](const tirx::BufferVar& b) { return AttemptRemap(b); });
       node_cow->reads =
           node->reads.Map([this](const tirx::BufferRegion& br) { return VisitBufferRegion(br); });
       node_cow->writes =
@@ -815,7 +815,7 @@ tirx::Stmt RemapBuffers(const tirx::Stmt& stmt,
     }
 
    private:
-    tirx::Buffer AttemptRemap(const tirx::Buffer& buffer) {
+    tirx::BufferVar AttemptRemap(const tirx::BufferVar& buffer) {
       if (buffer_map_.count(buffer)) {
         return buffer_map_.at(buffer);
       }
@@ -834,7 +834,7 @@ tirx::Stmt RemapBuffers(const tirx::Stmt& stmt,
       return region;
     }
 
-    const ffi::Map<tirx::Buffer, tirx::Buffer>& buffer_map_;
+    const ffi::Map<tirx::BufferVar, tirx::BufferVar>& buffer_map_;
   };
 
   BufferMapper mapper(buffer_map);
@@ -957,7 +957,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     // 2. For each output var, replace its instances with the corresponding inplace index var
     // 3. Do the same for the *buffer vars* corresponding to the output vars
     // 4. Remove the output vars from the param list and buffer map
-    ffi::Map<tirx::Buffer, tirx::Buffer> buffer_subst_map;
+    ffi::Map<tirx::BufferVar, tirx::BufferVar> buffer_subst_map;
     ffi::Map<tirx::Var, tirx::Var> var_subst_map;
     for (size_t i = 0; i < num_outs; i++) {
       // we will substitute output i with the corresponding param indicated by inplace indices
@@ -968,7 +968,7 @@ class ModuleInplaceTransformer : public ExprMutator {
       // also do the same with the buffer vars
       auto output_buffer = old_primfunc->buffer_map.at(output_var);
       auto inplace_buffer = old_primfunc->buffer_map.at(inplace_var);
-      var_subst_map.Set(output_buffer->data, inplace_buffer->data);
+      var_subst_map.Set(output_buffer.var(), inplace_buffer.var());
       buffer_subst_map.Set(output_buffer, inplace_buffer);
     }
 

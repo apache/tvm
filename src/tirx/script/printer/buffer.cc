@@ -26,9 +26,10 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath& buffer_p,
+ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::BufferVar buffer, const AccessPath& buffer_p,
                                            const Frame& frame, const IRDocsifier& d,
-                                           BufferVarDefinition var_definitions) {
+                                           BufferVarDefinition var_definitions,
+                                           ffi::Optional<Expr> data = std::nullopt) {
   using tvm::tirx::Var;
   using tvm::tirx::VarNode;
   ffi::Map<ffi::String, ExprDoc> kwargs;
@@ -45,7 +46,9 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
     });
   };
   update_use_count(buffer->elem_offset);
-  update_use_count(buffer->data);
+  if (data.has_value()) {
+    update_use_count(data.value());
+  }
   for (const PrimExpr& e : buffer->strides) {
     update_use_count(e);
   }
@@ -98,23 +101,21 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   }
   // Step 3. Handle `buffer.data`
   // For tmem scope, DeclBuffer does not accept `data` (it auto-creates the data var).
-  bool is_tmem_scope = false;
-  if (auto* ptr_type = buffer->data->ty.as<PointerTypeNode>()) {
-    is_tmem_scope = (ptr_type->storage_scope == "tmem");
-  }
+  bool is_tmem_scope = buffer.scope() == "tmem";
   bool is_inline_data = false;
-  if (!is_tmem_scope) {
-    if (is_new_var(buffer->data)) {
+  if (!is_tmem_scope && data.has_value()) {
+    Expr source = data.value();
+    if (is_new_var(source)) {
       if (var_definitions >= BufferVarDefinition::DataPointer) {
-        is_inline_data = try_inline_def(buffer->data, buffer_p->Attr("data"), [=]() {
+        is_inline_data = try_inline_def(source, buffer_p->Attr("data"), [=]() {
           return d->AsDoc<ExprDoc>(buffer, buffer_p)->Attr("data");
         });
       } else {
-        add_out_of_line_var_def(buffer->data, buffer_p->Attr("data"));
+        add_out_of_line_var_def(source.as_or_throw<Var>(), buffer_p->Attr("data"));
       }
     }
     if (!is_inline_data) {
-      kwargs.Set("data", d->AsDoc<ExprDoc>(buffer->data, buffer_p->Attr("data")));
+      kwargs.Set("data", d->AsDoc<ExprDoc>(source, buffer_p->Attr("data")));
     }
   }
   // Step 4. Handle `buffer.strides`
@@ -206,7 +207,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
       // Unwrap single-element array: DeclBuffer expects Optional<PrimExpr>, not Array.
       // For BufferLoad from scalar buffers, we must explicitly print buf[idx] because
       // the scalar shorthand (which drops the index) produces just the variable name,
-      // and the parser resolves that to a Buffer object rather than a PrimExpr value.
+      // and the parser resolves that to a BufferVar object rather than a PrimExpr value.
       PrimExpr addr = buffer->allocated_addr[0];
       AccessPath addr_p = buffer_p->Attr("allocated_addr")->ArrayItem(0);
       if (const auto* bl = addr.as<tirx::BufferLoadNode>()) {
@@ -215,7 +216,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
         // Get the variable name bound to this buffer.
         ffi::Optional<ExprDoc> buf_var = d->GetVarDoc(bl->buffer);
         TVM_FFI_ICHECK(buf_var.has_value())
-            << "Buffer in allocated_addr is not defined: " << bl->buffer;
+            << "BufferVar in allocated_addr is not defined: " << bl->buffer;
         // Build var[indices] explicitly instead of going through the default BufferLoad
         // printer, which would use the scalar shorthand and drop the index.
         int n_idx = bl->indices.size();
@@ -262,11 +263,12 @@ ExprDoc BufferCall(const ExprDoc& prefix, const ffi::Map<ffi::String, ExprDoc>& 
   return prefix->Call(args, kwargs_keys, kwargs_values);
 }
 
-ExprDoc BufferDecl(const tirx::Buffer& buffer, const ffi::String& method,
+ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
                    const ffi::Array<ExprDoc>& args, const AccessPath& p, const Frame& frame,
-                   const IRDocsifier& d, BufferVarDefinition var_definitions) {
+                   const IRDocsifier& d, BufferVarDefinition var_definitions,
+                   ffi::Optional<Expr> data) {
   auto prefix = TIR(d, method);
-  auto attrs = BufferAttrs(buffer, p, frame, d, var_definitions);
+  auto attrs = BufferAttrs(buffer, p, frame, d, var_definitions, data);
   if (method == "alloc_buffer") {
     if (buffer.IsScalar()) {
       // The buffer can be allocated by the alloc_scalar function
@@ -303,15 +305,17 @@ ExprDoc BufferDecl(const tirx::Buffer& buffer, const ffi::String& method,
       auto dtype = d->AsDoc<ExprDoc>(buffer->dtype, p->Attr("dtype"));
       auto scope = d->AsDoc<ExprDoc>(buffer.scope(), p->Attr("scope"));
       auto elem_offset = d->AsDoc<ExprDoc>(buffer->elem_offset, p->Attr("elem_offset"));
-      auto data = d->AsDoc<ExprDoc>(buffer->data, p->Attr("data"));
       attrs = ffi::Map<ffi::String, ExprDoc>(
-          {{"dtype", dtype}, {"scope", scope}, {"elem_offset", elem_offset}, {"data", data}});
+          {{"dtype", dtype}, {"scope", scope}, {"elem_offset", elem_offset}});
+      if (data.has_value()) {
+        attrs.Set("data", d->AsDoc<ExprDoc>(data.value(), p->Attr("data")));
+      }
     }
   }
   return BufferCall(prefix, attrs, args);
 }
 
-ExprDoc BufferAttn(const tirx::Buffer& buffer, const AccessPath& p, const Frame& frame,
+ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
                    const IRDocsifier& d) {
   ffi::Map<ffi::String, ExprDoc> attrs =
       BufferAttrs(buffer, p, frame, d, BufferVarDefinition::DataPointer);
@@ -430,27 +434,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
           return buffer[BufferIndices(load->indices, p->Attr("indices"), d)];
         });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
-    .set_dispatch<tirx::Buffer>("", [](tirx::Buffer buffer, AccessPath p, IRDocsifier d) -> Doc {
-      if (!d->IsVarDefined(buffer)) {
-        if (ffi::Optional<Frame> opt_f = FindLowestVarDef(buffer, d)) {
-          ExprDoc lhs = DefineBuffer(buffer, opt_f.value(), d);
-          ExprDoc rhs = BufferDecl(buffer, "Buffer", {}, p, opt_f.value(), d,
-                                   BufferVarDefinition::DataPointer);
-          opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
-        }
-      }
-      if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(buffer)) {
-        // special case for scalar buffer
-        if (buffer.IsScalar()) {
-          return doc.value()->Attr("buffer");
-        }
-        return doc.value();
-      }
-      TVM_FFI_THROW(IndexError) << "Buffer is not defined in the environment: " << buffer;
-      TVM_FFI_UNREACHABLE();
-    });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::Axis>("", [](tirx::Axis axis, AccessPath p, IRDocsifier d) -> Doc {
@@ -599,7 +582,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_SCRIPT_REPR(tirx::BufferRegionNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::BufferLoadNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::BufferStoreNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::BufferNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tirx::BufferTypeNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::IterNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::TileLayoutNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::ComposeLayoutNode, ReprPrintTIR);

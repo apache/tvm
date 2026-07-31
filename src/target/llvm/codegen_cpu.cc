@@ -573,7 +573,8 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     llvm::Argument* v = &(*it);
     const Var& var = vargs[idx];
     var_map_[var.get()] = v;
-    if (var->ty.as<PointerTypeNode>() && !alias_var_set_.count(var.get())) {
+    if ((var->ty.as<PointerTypeNode>() || var->ty.as<BufferTypeNode>()) &&
+        !alias_var_set_.count(var.get())) {
       // set non alias.
       fcompute->addParamAttr(idx, llvm::Attribute::NoAlias);
       // always not inline compute function to make the code structure clean
@@ -591,16 +592,22 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   }
 
   function_ = fcompute;
+  ffi::Array<Type> debug_param_types = vargs.Map([](const Var& var) -> Type {
+    if (const auto* buffer_type = var->ty.as<BufferTypeNode>()) {
+      // Compute-scope captures use their physical LLVM pointer values.
+      return buffer_type->DataPointerType();
+    }
+    return var->ty;
+  });
   di_subprogram_ =
-      CreateDebugFunction(MakeStringRef(value->value),
-                          vargs.Map([](const Var& var) { return var->ty; }), PrimType::Int(32));
+      CreateDebugFunction(MakeStringRef(value->value), debug_param_types, PrimType::Int(32));
   auto* compute_entry = llvm::BasicBlock::Create(*ctx, "entry", function_);
   builder_->SetInsertPoint(compute_entry);
   this->VisitStmt(op->body);
   builder_->CreateRet(ConstInt32(0));
   builder_->SetInsertPoint(compute_call_end);
 
-  AddDebugInformation(fcompute, vargs.Map([](const Var& var) { return var->ty; }));
+  AddDebugInformation(fcompute, debug_param_types);
 }
 
 CodeGenLLVM::TypedPointer CodeGenCPU::PackClosureData(const ffi::Array<Var>& vfields,

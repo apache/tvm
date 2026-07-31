@@ -22,7 +22,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
-from tvm.tirx import Buffer
+from tvm.tirx import BufferAccessKind
 
 
 def test_buffer():
@@ -32,9 +32,64 @@ def test_buffer():
     Ab = tvm.tirx.decl_buffer((m, n), "float32")
     Bb = tvm.tirx.decl_buffer((n, l), "float32")
 
-    assert isinstance(Ab, tvm.tirx.Buffer)
-    assert Ab.dtype == tvm.ir.PrimType("float32")
-    assert tuple(Ab.shape) == (m, n)
+    assert type(Ab) is tvm.ir.Var
+    assert tvm.tirx.is_buffer_var(Ab)
+    assert isinstance(Ab.ty, tvm.tirx.BufferType)
+    assert Ab.ty.dtype == tvm.ir.PrimType("float32")
+    assert tuple(Ab.ty.shape) == (m, n)
+    assert not tvm.tirx.is_buffer_var(m)
+
+
+def test_buffer_compatibility_alias_and_global_var_properties():
+    scalar = tvm.ir.Var("scalar", tvm.ir.PrimType("int32"))
+    buffer = tvm.tirx.decl_buffer((8,), "float32")
+
+    assert tvm.tirx.Buffer is tvm.ir.Var
+    assert isinstance(scalar, tvm.tirx.Buffer)
+    assert not tvm.tirx.is_buffer_var(scalar)
+    assert tvm.tirx.is_buffer_var(buffer)
+
+    assert tuple(buffer.shape) == (8,)
+    assert buffer.dtype == tvm.DataType("float32")
+    assert buffer.data.args[0].same_as(buffer)
+
+    for name in ("shape", "dtype", "data"):
+        assert not hasattr(scalar, name)
+        with pytest.raises(AttributeError, match="only available on a Var with BufferType"):
+            getattr(scalar, name)
+
+
+def test_buffer_data_is_typed_projection():
+    buffer = tvm.tirx.decl_buffer((8,), "bool", scope="shared")
+
+    assert buffer.ty.dtype == tvm.ir.PrimType("bool")
+    assert tvm.tirx.buffer_data_pointer_type(buffer) == tvm.ir.PointerType(
+        tvm.ir.PrimType("bool"), "shared"
+    )
+    assert buffer.data.op.name == "tirx.buffer_data"
+    assert buffer.data.args[0].same_as(buffer)
+    assert buffer.data.ty == tvm.tirx.buffer_data_pointer_type(buffer)
+
+
+def test_buffer_pointer_type_derived_from_dtype_and_scope():
+    data = tvm.ir.Var("storage", tvm.ir.PointerType(tvm.ir.PrimType("uint8"), "local"))
+    buffer = tvm.tirx.decl_buffer((8,), "float16", data=data)
+
+    assert buffer.ty.dtype == tvm.ir.PrimType("float16")
+    assert buffer.ty.storage_scope == "local"
+    assert buffer.data.ty == tvm.ir.PointerType(tvm.ir.PrimType("float16"), "local")
+
+
+def test_decl_buffer_requires_physical_data_binding():
+    buffer = tvm.tirx.decl_buffer((8,), "float32")
+    data = tvm.tirx.Var("data", buffer.data.ty)
+
+    with pytest.raises(TypeError, match="requires a physical data binding"):
+        tvm.tirx.DeclBuffer(buffer)
+
+    decl = tvm.tirx.DeclBuffer(buffer, data=data)
+    assert decl.buffer.same_as(buffer)
+    assert decl.data.same_as(data)
 
 
 def test_buffer_access_ptr():
@@ -44,9 +99,9 @@ def test_buffer_access_ptr():
     aptr = Ab.access_ptr("rw")
     assert isinstance(aptr.ty, tvm.ir.PointerType)
     assert aptr.ty.element_type == tvm.ir.PrimType("void")
-    tvm.ir.assert_structural_equal(aptr.args[3], Ab.strides[0] * m)
-    assert aptr.args[0].ty == Ab.dtype
-    assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
+    tvm.ir.assert_structural_equal(aptr.args[3], Ab.ty.strides[0] * m)
+    assert aptr.args[0].ty == Ab.ty.dtype
+    assert aptr.args[4].value == BufferAccessKind.READ | BufferAccessKind.WRITE
     typed_ptr = Ab.access_ptr("r", ptr_type="uint8")
     assert typed_ptr.ty == tvm.ir.PointerType(tvm.ir.PrimType("uint8"))
     shared = tvm.tirx.decl_buffer((m, n), "float32", scope="shared")
@@ -55,7 +110,7 @@ def test_buffer_access_ptr():
         tvm.ir.PrimType("uint8"), "shared"
     )
     aptr = Ab.access_ptr("w")
-    assert aptr.args[4].value == Buffer.WRITE
+    assert aptr.args[4].value == BufferAccessKind.WRITE
 
 
 def test_buffer_access_ptr_offset():
@@ -64,16 +119,16 @@ def test_buffer_access_ptr_offset():
     Ab = tvm.tirx.decl_buffer((m, n), "float32")
     aptr = Ab.access_ptr("rw", offset=100)
     tvm.testing.assert_prim_expr_equal(aptr.args[2], 100)
-    assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
+    assert aptr.args[4].value == BufferAccessKind.READ | BufferAccessKind.WRITE
     v = tvm.tirx.Var("int32", "int32")
     aptr = Ab.access_ptr("rw", offset=100 + 100 + v)
     tvm.testing.assert_prim_expr_equal(aptr.args[2], 200 + v)
-    assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
+    assert aptr.args[4].value == BufferAccessKind.READ | BufferAccessKind.WRITE
     aptr = Ab.access_ptr("rw", offset=tvm.tirx.call_extern("int32", "test_call", 100 + 100 + v))
     tvm.testing.assert_prim_expr_equal(
         aptr.args[2], tvm.tirx.call_extern("int32", "test_call", 200 + v)
     )
-    assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
+    assert aptr.args[4].value == BufferAccessKind.READ | BufferAccessKind.WRITE
 
 
 def test_buffer_access_ptr_extent():
@@ -86,7 +141,7 @@ def test_buffer_access_ptr_extent():
     tvm.ir.assert_structural_equal(aptr.args[3], m * n - 100)
     Ab = tvm.tirx.decl_buffer((m, n), "float32", strides=[n + 1, 1])
     aptr = Ab.access_ptr("rw", offset=100)
-    tvm.ir.assert_structural_equal(aptr.args[3], Ab.strides[0] * m - 100)
+    tvm.ir.assert_structural_equal(aptr.args[3], Ab.ty.strides[0] * m - 100)
 
     # Test extent from input params
     aptr = Ab.access_ptr("rw", extent=200)
@@ -191,8 +246,13 @@ def test_buffer_flatten():
     """A buffer should flatten to a 1-d shape"""
     buf = tvm.tirx.decl_buffer([16, 32])
     flat = buf.get_flattened_buffer()
-    assert buf.data.same_as(flat.data)
-    tvm.ir.assert_structural_equal(flat.shape, [T.int32(16 * 32)])
+    # A metadata-changing rewrite creates a fresh typed Var.  The physical
+    # pointer is always derived from that Var instead of being stored as a
+    # second buffer identity.
+    assert not buf.same_as(flat)
+    assert flat.data.args[0].same_as(flat)
+    assert flat.data.op.name == "tirx.buffer_data"
+    tvm.ir.assert_structural_equal(flat.ty.shape, [T.int32(16 * 32)])
 
 
 def test_buffer_flatten_preserves_identity():

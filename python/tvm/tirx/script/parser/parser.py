@@ -29,7 +29,7 @@ from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.base import IRBuilderFrame as Frame
 from tvm.script.parser._core import Parser, dispatch, doc
 from tvm.script.parser.core.doc import from_doc
-from tvm.tirx import Buffer, IterVar, Layout
+from tvm.tirx import Buffer, IterVar, Layout, buffer_data, is_buffer_var
 from tvm.tirx.script import builder as T
 from tvm.tirx.script.builder.ir import name_meta_class_value
 from tvm.tirx.stmt import BufferRegion
@@ -50,44 +50,44 @@ def slice_buffer_from_region(br: BufferRegion) -> Buffer:
     region = br.region
     new_shape = [r.extent for r in region]
     sliced_layout = None
-    if buf.layout is not None:
+    if buf.ty.layout is not None:
         range_pairs = [(r.min, r.min + r.extent) for r in region]
-        sliced_layout = buf.layout.slice(list(buf.shape), range_pairs)
+        sliced_layout = buf.ty.layout.slice(list(buf.ty.shape), range_pairs)
     if sliced_layout is not None:
         return T.decl_buffer(
             new_shape,
-            buf.dtype,
-            buf.data,
-            buf.strides,
-            buf.elem_offset,
+            buf.ty.dtype,
+            buffer_data(buf),
+            buf.ty.strides,
+            buf.ty.elem_offset,
             None,
-            buf.scope(),
-            buf.data_alignment,
-            buf.offset_factor,
+            buf.ty.storage_scope,
+            buf.ty.data_alignment,
+            buf.ty.offset_factor,
             sliced_layout,
         )
     # Fallback: compute elem_offset for default/no layout
     strides = []
-    for i in range(len(buf.shape)):
+    for i in range(len(buf.ty.shape)):
         stride = functools.reduce(
-            lambda x, y: x * y, buf.shape[i + 1 :], tvm.tirx.const(1, "int32")
+            lambda x, y: x * y, buf.ty.shape[i + 1 :], tvm.tirx.const(1, "int32")
         )
         strides.append(stride)
     offset = tvm.tirx.const(0, "int32")
     for i, r in enumerate(region):
         offset = offset + r.min * strides[i]
-    new_elem_offset = buf.elem_offset + offset
+    new_elem_offset = buf.ty.elem_offset + offset
     return T.decl_buffer(
         new_shape,
-        buf.dtype,
-        buf.data,
-        buf.strides,
+        buf.ty.dtype,
+        buffer_data(buf),
+        buf.ty.strides,
         new_elem_offset,
         None,
-        buf.scope(),
-        buf.data_alignment,
-        buf.offset_factor,
-        buf.layout,
+        buf.ty.storage_scope,
+        buf.ty.data_alignment,
+        buf.ty.offset_factor,
+        buf.ty.layout,
     )
 
 
@@ -119,7 +119,7 @@ def bind_with_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> 
         for i, v in enumerate(value):
             bind_with_value(self, node, f"{var_name}_{i}", v)
         return value
-    elif isinstance(value, Buffer | tvm.ir.Var):
+    elif isinstance(value, tvm.ir.Var):
         IRBuilder.name(var_name, value)
         return value
     else:
@@ -211,8 +211,10 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         res = value.__enter__()
         IRBuilder.name(var_name, res)
         return res
-    elif isinstance(value, Buffer | IterVar | Layout) or (
-        isinstance(value, tvm.ir.Var) and not self.var_table.exist(value)
+    elif (
+        is_buffer_var(value)
+        or isinstance(value, IterVar | Layout)
+        or (isinstance(value, tvm.ir.Var) and not self.var_table.exist(value))
     ):
         IRBuilder.name(var_name, value)
         return value
@@ -416,12 +418,12 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         # that genuine errors (e.g. wrong shape, bad store) are not swallowed.
         # Only TypeError from FFI type mismatch (e.g. rhs is a meta_var, not
         # a Expr or auto-convertible scalar) triggers fallthrough.
-        if isinstance(lhs_value, T.scalar_wrapper | T.BufferLoad | tvm.tirx.Buffer):
+        if isinstance(lhs_value, T.scalar_wrapper | T.BufferLoad) or is_buffer_var(lhs_value):
             if isinstance(lhs_value, T.scalar_wrapper):
                 buffer = lhs_value.scalar.buffer
             else:
                 buffer = lhs_value.buffer if isinstance(lhs_value, T.BufferLoad) else lhs_value
-            if len(buffer.shape) == 1 and bool(buffer.shape[0] == 1):
+            if len(buffer.ty.shape) == 1 and bool(buffer.ty.shape[0] == 1):
                 # only 1-dim buffer with shape (1,) can be assigned directly
                 # Note that shape can be a Expr, so we only judge by
                 # bool(shape[0] == 1) rather than int(shape[0]) == 1.
@@ -496,12 +498,12 @@ def visit_aug_assign(self: Parser, node: doc.AugAssign) -> None:
             lhs_value = self.eval_expr(lhs_copy)
         except Exception:  # pylint: disable=broad-except
             pass
-        if isinstance(lhs_value, T.scalar_wrapper | T.BufferLoad | tvm.tirx.Buffer):
+        if isinstance(lhs_value, T.scalar_wrapper | T.BufferLoad) or is_buffer_var(lhs_value):
             if isinstance(lhs_value, T.scalar_wrapper):
                 buffer = lhs_value.scalar.buffer
             else:
                 buffer = lhs_value.buffer if isinstance(lhs_value, T.BufferLoad) else lhs_value
-            if len(buffer.shape) == 1 and bool(buffer.shape[0] == 1):
+            if len(buffer.ty.shape) == 1 and bool(buffer.ty.shape[0] == 1):
                 try:
                     T.buffer_store(buffer, rhs, [0])
                     return
@@ -769,7 +771,7 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
         pass
     elif isinstance(res, tvm.tirx.stmt.BufferStore):
         T.buffer_store(res.buffer, res.value, res.indices, res.predicate)
-    elif isinstance(res, tvm.tirx.Buffer):
+    elif is_buffer_var(res):
         # ``T.match_buffer(...)`` used as a bare statement (no LHS) — the
         # buffer object is discarded; the underlying side effect (the
         # match_buffer node) has already been emitted into the frame.

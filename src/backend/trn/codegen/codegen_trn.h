@@ -80,9 +80,11 @@ class CodeGenTrainium final : public CodeGenC {
   Target target_;
   NKIInstructionCtx ctx_;
   std::unordered_map<std::string, std::string> opcode_map_;
-  std::unordered_map<Buffer, std::string, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_idmap_;
+  std::unordered_map<BufferVar, std::string, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_idmap_;
+  std::unordered_map<BufferVar, const VarNode*, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      buffer_data_varmap_;
   std::unordered_map<const VarNode*, std::string> data_buffer_idmap_;
-  std::unordered_map<const VarNode*, Buffer> data_decl_buffer_map_;
+  std::unordered_map<const VarNode*, BufferVar> data_decl_buffer_map_;
   bool is_outermost_loop_ = true;
 };
 }  // namespace codegen

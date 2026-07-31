@@ -1429,7 +1429,7 @@ int ExtractInt(const ffi::PackedArgs& args, int index) {
   }
 }
 
-PrimExpr PrintOpPacked(Var data, DLDataType dtype, bool is_string, bool is_scalar, int dim_num,
+PrimExpr PrintOpPacked(Expr data, DLDataType dtype, bool is_string, bool is_scalar, int dim_num,
                        ffi::Array<PrimExpr> shape) {
   PrimType value_ty(dtype);
   PrimType u32_ty = PrimType::UInt(32);
@@ -1449,7 +1449,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tirx.print_buffer", [](ffi::PackedArgs args, ffi::Any* ret) {
     // Expected arguments:
-    // args[0]: buffer_var (Var)
+    // args[0]: buffer data expression
     // args[1]: dtype (DLDataType)
     // args[2]: is_string (bool or IntImm)
     // args[3]: is_scalar (bool or IntImm)
@@ -1458,7 +1458,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
     TVM_FFI_ICHECK_GE(args.size(), 5) << "print_buffer expects at least 5 arguments";
 
-    Var buffer_var = args[0].cast<Var>();
+    Expr buffer_data = args[0].cast<Expr>();
     DLDataType dtype = args[1].cast<DLDataType>();
     bool is_string = ExtractBool(args, 2);
     bool is_scalar = ExtractBool(args, 3);
@@ -1469,7 +1469,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       shape.push_back(args[i].cast<PrimExpr>());
     }
 
-    *ret = PrintOpPacked(buffer_var, dtype, is_string, is_scalar, dim_num, shape);
+    *ret = PrintOpPacked(buffer_data, dtype, is_string, is_scalar, dim_num, shape);
   });
 }
 

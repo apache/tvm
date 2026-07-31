@@ -51,7 +51,7 @@ Stmt FuseNestLoops(Stmt body) {
     if (auto replacement = subst_map.Get(v)) {
       return replacement.value();
     }
-    return v.as_or_throw<PrimExpr>();
+    return std::nullopt;
   };
   PrimExpr fused_extent = 1;
   for (int i = 0; i < n; i++) {

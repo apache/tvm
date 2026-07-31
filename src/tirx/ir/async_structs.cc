@@ -36,7 +36,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /*************************** Pipeline ***************************/
 
 Pipeline::Pipeline(ExecScope thread_scope, size_t depth, bool separate_pc, ffi::String name_hint,
-                   ffi::Map<ffi::String, Buffer> workspace,
+                   ffi::Map<ffi::String, BufferVar> workspace,
                    ffi::Map<ffi::String, ffi::Any> schedule_config) {
   auto n = ffi::make_object<PipelineNode>();
   n->thread_scope = std::move(thread_scope);
@@ -51,9 +51,9 @@ Pipeline::Pipeline(ExecScope thread_scope, size_t depth, bool separate_pc, ffi::
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tirx.Pipeline",
-      [](ExecScope thread_scope, size_t depth, bool separate_pc, ffi::String name_hint,
-         ffi::Map<ffi::String, Buffer> workspace, ffi::Map<ffi::String, ffi::Any> schedule_config) {
+      "tirx.Pipeline", [](ExecScope thread_scope, size_t depth, bool separate_pc,
+                          ffi::String name_hint, ffi::Map<ffi::String, BufferVar> workspace,
+                          ffi::Map<ffi::String, ffi::Any> schedule_config) {
         return Pipeline(thread_scope, depth, separate_pc, name_hint, workspace, schedule_config);
       });
 }
@@ -61,7 +61,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /*************************** CopyPipeline ***************************/
 
 CopyPipeline::CopyPipeline(ExecScope thread_scope, size_t depth, bool separate_pc,
-                           ffi::String name_hint, ffi::Map<ffi::String, Buffer> workspace,
+                           ffi::String name_hint, ffi::Map<ffi::String, BufferVar> workspace,
                            ffi::Map<ffi::String, ffi::Any> schedule_config) {
   auto n = ffi::make_object<CopyPipelineNode>();
   n->thread_scope = std::move(thread_scope);
@@ -77,7 +77,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.CopyPipeline", [](ExecScope thread_scope, size_t depth,
                                                 bool separate_pc, ffi::String name_hint,
-                                                ffi::Map<ffi::String, Buffer> workspace,
+                                                ffi::Map<ffi::String, BufferVar> workspace,
                                                 ffi::Map<ffi::String, ffi::Any> schedule_config) {
     return CopyPipeline(thread_scope, depth, separate_pc, name_hint, workspace, schedule_config);
   });

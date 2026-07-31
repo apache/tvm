@@ -38,11 +38,11 @@ namespace tirx {
 /*! \brief Generate surrounding loops automatically */
 class ScriptCompleter : public StmtMutator {
  public:
-  explicit ScriptCompleter(ffi::Map<Var, Buffer>* buffer_var_map, bool s_tir = false)
+  explicit ScriptCompleter(ffi::Map<Var, BufferVar>* buffer_var_map, bool s_tir = false)
       : buffer_var_map_(buffer_var_map), s_tir_(s_tir) {}
 
  private:
-  ffi::Map<Var, Buffer>* buffer_var_map_;
+  ffi::Map<Var, BufferVar>* buffer_var_map_;
   Stmt VisitStmt_(const SBlockRealizeNode* op) final {
     for (const PrimExpr& value : op->iter_values) {
       PrimType value_ty = value.ty();
@@ -55,11 +55,11 @@ class ScriptCompleter : public StmtMutator {
   Stmt VisitStmt_(const SBlockNode* op) final {
     // Buffers allocated in the block can be accessed by its body.
     for (const auto& alloc_buffer : op->alloc_buffers) {
-      buffer_var_map_->Set(alloc_buffer->data, alloc_buffer);
+      buffer_var_map_->Set(alloc_buffer.var(), alloc_buffer);
     }
     for (const auto& match_buffer : op->match_buffers) {
-      const Buffer& target_buffer = match_buffer->buffer;
-      buffer_var_map_->Set(target_buffer->data, target_buffer);
+      const BufferVar& target_buffer = match_buffer->buffer;
+      buffer_var_map_->Set(target_buffer.var(), target_buffer);
     }
 
     bool is_root_block = this->is_root_block_;
@@ -69,11 +69,11 @@ class ScriptCompleter : public StmtMutator {
 
     // Remove buffers allocated inside block to detect its access region
     for (const auto& alloc_buffer : op->alloc_buffers) {
-      buffer_var_map_->erase(alloc_buffer->data);
+      buffer_var_map_->erase(alloc_buffer.var());
     }
     for (const auto& match_buffer : op->match_buffers) {
-      const Buffer& target_buffer = match_buffer->buffer;
-      buffer_var_map_->erase(target_buffer->data);
+      const BufferVar& target_buffer = match_buffer->buffer;
+      buffer_var_map_->erase(target_buffer.var());
     }
     // Get access detection mask
     // 0 for provided region, 1 and 3 for need detect read, 2 and 3 for need detect write
@@ -106,16 +106,16 @@ class ScriptCompleter : public StmtMutator {
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     // AllocBuffer is flat: register buffer for subsequent siblings
-    if (!buffer_var_map_->count(op->buffer->data)) {
-      buffer_var_map_->Set(op->buffer->data, op->buffer);
+    if (!buffer_var_map_->count(op->buffer.var())) {
+      buffer_var_map_->Set(op->buffer.var(), op->buffer);
     }
     return StmtMutator::VisitStmt_(op);
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
     // DeclBuffer is flat: register buffer for subsequent siblings
-    if (!buffer_var_map_->count(op->buffer->data)) {
-      buffer_var_map_->Set(op->buffer->data, op->buffer);
+    if (!buffer_var_map_->count(op->buffer.var())) {
+      buffer_var_map_->Set(op->buffer.var(), op->buffer);
     }
     return StmtMutator::VisitStmt_(op);
   }
@@ -124,14 +124,14 @@ class ScriptCompleter : public StmtMutator {
   bool s_tir_ = false;
 };
 
-PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<Buffer>& root_allocates, bool s_tir) {
-  ffi::Map<Var, Buffer> buffer_var_map;
+PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocates, bool s_tir) {
+  ffi::Map<Var, BufferVar> buffer_var_map;
   for (const auto& pair : func->buffer_map) {
-    const Buffer& buffer = pair.second;
-    buffer_var_map.Set(buffer->data, buffer);
+    const BufferVar& buffer = pair.second;
+    buffer_var_map.Set(buffer.var(), buffer);
   }
   for (const auto& alloc : root_allocates) {
-    buffer_var_map.Set(alloc->data, alloc);
+    buffer_var_map.Set(alloc.var(), alloc);
   }
 
   Stmt res = func->body;

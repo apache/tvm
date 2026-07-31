@@ -39,13 +39,14 @@ using s_tir::ReplaceBuffer;
 
 class DistBufferReplacer : public StmtExprMutator {
  public:
-  static Stmt BufferReplace(Stmt stmt, ffi::Map<Buffer, Buffer> buffer_map) {
+  static Stmt BufferReplace(Stmt stmt, ffi::Map<BufferVar, BufferVar> buffer_map) {
     DistBufferReplacer replacer(buffer_map);
     return replacer(stmt);
   }
 
  private:
-  explicit DistBufferReplacer(ffi::Map<Buffer, Buffer> buffer_map) : buffer_map_(buffer_map) {}
+  explicit DistBufferReplacer(ffi::Map<BufferVar, BufferVar> buffer_map)
+      : buffer_map_(buffer_map) {}
 
   Stmt VisitStmt_(const BufferStoreNode* _store) final {
     BufferStore store = StmtExprMutator::VisitStmt_(_store).as_or_throw<BufferStore>();
@@ -76,7 +77,7 @@ class DistBufferReplacer : public StmtExprMutator {
     return SBlock(new_block);
   }
 
-  ffi::Map<Buffer, Buffer> buffer_map_;
+  ffi::Map<BufferVar, BufferVar> buffer_map_;
 };
 
 class DistSBlockInfoCollector : public StmtExprVisitor {
@@ -136,10 +137,10 @@ class DistSBlockInfoCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  Buffer reduce_buffer_;
+  BufferVar reduce_buffer_;
 
  public:
-  std::unordered_map<Buffer, ffi::Array<ffi::Array<PrimExpr>>, ffi::ObjectPtrHash,
+  std::unordered_map<BufferVar, ffi::Array<ffi::Array<PrimExpr>>, ffi::ObjectPtrHash,
                      ffi::ObjectPtrEqual>
       buffer_access_indices;
   std::string reduce_kind;
@@ -155,10 +156,10 @@ class DistributedBufferCompactor : StmtExprMutator {
       const std::vector<ShardingSpec>& sharding_specs, PrimFunc prim_func) {
     prim_func = s_tir::RenewDefs(prim_func);
     DistributedBufferCompactor compactor(sharding_specs, prim_func);
-    ffi::Map<Var, Buffer> new_func_buffer_map;
-    ffi::Map<Buffer, Buffer> replace_buffer_map;
+    ffi::Map<Var, BufferVar> new_func_buffer_map;
+    ffi::Map<BufferVar, BufferVar> replace_buffer_map;
     for (const auto& pr : prim_func->buffer_map) {
-      Buffer shard_buffer = compactor.ShardBuffer(pr.second);
+      BufferVar shard_buffer = compactor.ShardBuffer(pr.second);
       new_func_buffer_map.Set(pr.first, shard_buffer);
       if (!shard_buffer.same_as(pr.second)) {
         replace_buffer_map.Set(pr.second, shard_buffer);
@@ -186,7 +187,7 @@ class DistributedBufferCompactor : StmtExprMutator {
       if (!prim_func->buffer_map.count(param_var)) {
         continue;
       }
-      Buffer param_buffer = prim_func->buffer_map[param_var];
+      BufferVar param_buffer = prim_func->buffer_map[param_var];
       ShardingSpec spec = sharding_specs_[j++];
 
       for (int mesh_dim = 0; mesh_dim < static_cast<int>(spec.first->shape.size()); mesh_dim++) {
@@ -205,9 +206,9 @@ class DistributedBufferCompactor : StmtExprMutator {
 
   ffi::Array<IterVar> ShardIterVar(
       SBlock block,
-      const std::unordered_map<Buffer, ffi::Array<ffi::Array<PrimExpr>>, ffi::ObjectPtrHash,
+      const std::unordered_map<BufferVar, ffi::Array<ffi::Array<PrimExpr>>, ffi::ObjectPtrHash,
                                ffi::ObjectPtrEqual>& buffer_access_indices) {
-    std::vector<Buffer> buffers;
+    std::vector<BufferVar> buffers;
     for (const auto& read : block->reads) {
       buffers.push_back(read->buffer);
     }
@@ -257,7 +258,7 @@ class DistributedBufferCompactor : StmtExprMutator {
     return new_iter_vars;
   }
 
-  Buffer ShardBuffer(Buffer buffer) {
+  BufferVar ShardBuffer(BufferVar buffer) {
     if (buffer_shards_.count(buffer) == 0) {
       return buffer;
     }
@@ -270,9 +271,10 @@ class DistributedBufferCompactor : StmtExprMutator {
         shape.push_back(buffer->shape[i]);
       }
     }
-    ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
-    new_buffer->shape = shape;
-    return Buffer(new_buffer);
+    BufferType new_type(buffer->storage_scope, buffer->dtype, std::move(shape), buffer->strides,
+                        buffer->elem_offset, buffer->data_alignment, buffer->offset_factor,
+                        buffer->layout, buffer->allocated_addr);
+    return BufferVar(buffer.name(), std::move(new_type), buffer.span());
   }
 
   Stmt VisitStmt_(const SBlockNode* op) final {
@@ -280,10 +282,10 @@ class DistributedBufferCompactor : StmtExprMutator {
     DistSBlockInfoCollector collector;
     collector(block);
     ffi::Array<IterVar> new_iter_vars = ShardIterVar(block, collector.buffer_access_indices);
-    ffi::Array<Buffer> new_alloc_buffers;
-    ffi::Map<Buffer, Buffer> buffer_map;
-    for (const Buffer& buffer : block->alloc_buffers) {
-      Buffer sharded_buffer = ShardBuffer(buffer);
+    ffi::Array<BufferVar> new_alloc_buffers;
+    ffi::Map<BufferVar, BufferVar> buffer_map;
+    for (const BufferVar& buffer : block->alloc_buffers) {
+      BufferVar sharded_buffer = ShardBuffer(buffer);
       if (!sharded_buffer.same_as(buffer)) {
         buffer_map.Set(buffer, sharded_buffer);
       }
@@ -344,10 +346,10 @@ class DistributedBufferCompactor : StmtExprMutator {
 
   std::unordered_map<Var, int> iter_var_shards_;
   std::unordered_map<Var, int> loop_var_shards_;
-  ffi::Array<Buffer> allocated_buffer_under_root;
+  ffi::Array<BufferVar> allocated_buffer_under_root;
   BufferAxisGraphExtractor extractor_;
   std::vector<ShardingSpec> sharding_specs_;
-  std::unordered_map<Buffer, DimShard, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_shards_;
+  std::unordered_map<BufferVar, DimShard, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_shards_;
   std::string add_allreduce_kind_;
 };
 

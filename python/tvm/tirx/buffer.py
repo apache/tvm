@@ -17,19 +17,52 @@
 """Abstraction for array data structures."""
 
 import functools
+from enum import IntEnum
 from numbers import Integral
 
 import tvm_ffi
 
 import tvm
-from tvm.ir import PointerType, PrimType, Range
-from tvm.runtime import Object, Scriptable, convert
+from tvm.ir import PointerType, PrimType, Range, Type
+from tvm.runtime import Object, convert
 
 from . import _ffi_api
 
 
-@tvm_ffi.register_object("tirx.Buffer")
-class Buffer(Object, Scriptable):
+@tvm_ffi.register_object("tirx.BufferType")
+class BufferType(Type):
+    """The structural type carried by an ordinary buffer variable."""
+
+    dtype: PrimType
+    storage_scope: str
+    shape: list
+    strides: list
+    elem_offset: tvm.ir.Expr
+    data_alignment: int
+    offset_factor: int
+    layout: object | None
+    allocated_addr: list
+
+
+def is_buffer_var(value) -> bool:
+    """Return whether ``value`` is an ordinary Var carrying BufferType.
+
+    Use this predicate instead of ``isinstance(value, Buffer)``.  ``Buffer`` is
+    a source-compatibility alias for :class:`tvm.ir.Var` and therefore does not
+    discriminate buffer variables from scalar or pointer variables.
+    """
+
+    return isinstance(value, tvm.ir.Var) and isinstance(value.ty, BufferType)
+
+
+class BufferAccessKind(IntEnum):
+    """Buffer access modes accepted by :func:`buffer_access_ptr`."""
+
+    READ = 1
+    WRITE = 2
+
+
+class _BufferMethods:
     """Symbolic data buffer in TVM.
 
     Buffer provide a way to represent data layout
@@ -42,9 +75,6 @@ class Buffer(Object, Scriptable):
     --------
     decl_buffer : Declare a buffer
     """
-
-    READ = 1
-    WRITE = 2
 
     def access_ptr(self, access_mask, ptr_type="handle", content_lanes=1, offset=0, extent=None):
         """Get an access pointer to the head of buffer.
@@ -80,7 +110,7 @@ class Buffer(Object, Scriptable):
           # Get access ptr for read
           buffer.access_ptr("r")
           # Get access ptr for read/write with bitmask
-          buffer.access_ptr(Buffer.READ | Buffer.WRITE)
+          buffer.access_ptr(BufferAccessKind.READ | BufferAccessKind.WRITE)
           # Get access ptr for read/write with str flag
           buffer.access_ptr("rw")
           # Get access ptr for read with offset
@@ -92,9 +122,9 @@ class Buffer(Object, Scriptable):
             mask = 0
             for value in access_mask:
                 if value == "r":
-                    mask = mask | Buffer.READ
+                    mask = mask | BufferAccessKind.READ
                 elif value == "w":
-                    mask = mask | Buffer.WRITE
+                    mask = mask | BufferAccessKind.WRITE
                 else:
                     raise ValueError(f"Unknown access_mask {access_mask}")
             access_mask = mask
@@ -139,7 +169,7 @@ class Buffer(Object, Scriptable):
             The corresponding load expression.
         """
         begin = (begin,) if isinstance(begin, int) or tvm.ir.is_prim_expr(begin) else begin
-        dtype = dtype if dtype else self.dtype
+        dtype = dtype if dtype else self.ty.dtype
         return _ffi_api.BufferVLoad(self, begin, dtype, predicate)  # type: ignore
 
     def vstore(self, begin, value, predicate=None):
@@ -193,10 +223,6 @@ class Buffer(Object, Scriptable):
         """Return a new buffer with the dtype."""
         return _ffi_api.BufferWithDtype(self, dtype)  # type: ignore
 
-    def with_data(self, data):
-        """Return a new buffer with the data."""
-        return _ffi_api.BufferWithData(self, data)  # type: ignore
-
     def offset_of(self, indices):
         """Determine the offset of the provided indices in the flattened buffer.
 
@@ -217,7 +243,7 @@ class Buffer(Object, Scriptable):
     @property
     def byte_offset(self):
         """Get the byte offset of the buffer."""
-        return self.elem_offset * tvm.DataType(self.dtype).bits // 8
+        return self.ty.elem_offset * tvm.DataType(self.ty.dtype).bits // 8
 
     def elem_offset_of(self, indices, inner=True):
         """Get the element offset of the buffer at the given indices.
@@ -239,7 +265,7 @@ class Buffer(Object, Scriptable):
         """
         if inner:
             return _ffi_api.BufferOffsetOfp(self, indices)
-        return self.elem_offset + _ffi_api.BufferOffsetOfp(self, indices)
+        return self.ty.elem_offset + _ffi_api.BufferOffsetOfp(self, indices)
 
     def byte_offset_of(self, indices, inner=True):
         """Get the byte offset of the buffer at the given indices.
@@ -259,7 +285,7 @@ class Buffer(Object, Scriptable):
         offset: Expr
             The byte offset of the buffer at the given indices.
         """
-        return self.elem_offset_of(indices, inner) * tvm.DataType(self.dtype).bits // 8
+        return self.elem_offset_of(indices, inner) * tvm.DataType(self.ty.dtype).bits // 8
 
     def is_scalar(self, alloc_or_decl=True):
         """Check if the buffer is a scalar.
@@ -281,8 +307,9 @@ class Buffer(Object, Scriptable):
 
         Note that the bufferload inside requires LowerTIPp pass to apply the layout to get the physical indices.
         """  # noqa: E501
-        assert len(indices) == len(self.shape), (
-            f"The number of indices {indices} does not match the shape of the buffer {self.shape}"
+        assert len(indices) == len(self.ty.shape), (
+            f"The number of indices {indices} does not match "
+            f"the shape of the buffer {self.ty.shape}"
         )
         return tvm.tirx.address_of(self[tuple(indices)])
 
@@ -302,7 +329,7 @@ class Buffer(Object, Scriptable):
         def _infer_shape(shape):
             shape = list(shape)
             if -1 in shape and shape.count(-1) == 1:
-                size = functools.reduce(lambda x, y: x * y, self.shape)
+                size = functools.reduce(lambda x, y: x * y, self.ty.shape)
                 n_size = functools.reduce(lambda x, y: x * y, [s for s in shape if s != -1], 1)
                 shape[shape.index(-1)] = size // n_size
             else:
@@ -310,13 +337,13 @@ class Buffer(Object, Scriptable):
                 # are fully concrete: a Expr `==` returns an `EQ` node, not
                 # a Python bool, and `assert <Expr>` raises (no __bool__).
                 if all(isinstance(s, int) for s in shape) and all(
-                    isinstance(s, int) for s in self.shape
+                    isinstance(s, int) for s in self.ty.shape
                 ):
                     assert functools.reduce(lambda x, y: x * y, shape) == functools.reduce(
-                        lambda x, y: x * y, self.shape
+                        lambda x, y: x * y, self.ty.shape
                     ), (
                         "The shape of the buffer "
-                        + str(self.shape)
+                        + str(self.ty.shape)
                         + " and the new shape "
                         + str(shape)
                         + " are not compatible"
@@ -325,31 +352,31 @@ class Buffer(Object, Scriptable):
 
         if len(args) == 1 and isinstance(args[0], str | tvm.DataType) and not kwargs:
             cast_dtype = tvm.DataType(args[0])
-            cur_dtype = tvm.DataType(self.dtype)
+            cur_dtype = tvm.DataType(self.ty.dtype)
             if cast_dtype.bits > cur_dtype.bits:
                 # cast up
                 assert cast_dtype.bits % cur_dtype.bits == 0
                 ratio = cast_dtype.bits // cur_dtype.bits
-                layout = self.layout.pack(ratio)
-                shape = [s for s in self.shape[:-1]] + [self.shape[-1] // ratio]
-                new_elem_offset = self.elem_offset // ratio
+                layout = self.ty.layout.pack(ratio)
+                shape = [s for s in self.ty.shape[:-1]] + [self.ty.shape[-1] // ratio]
+                new_elem_offset = self.ty.elem_offset // ratio
             else:
                 # cast down
                 assert cur_dtype.bits % cast_dtype.bits == 0
                 ratio = cur_dtype.bits // cast_dtype.bits
-                layout = self.layout.unpack(ratio)
-                shape = [s for s in self.shape[:-1]] + [self.shape[-1] * ratio]
-                new_elem_offset = self.elem_offset * ratio
+                layout = self.ty.layout.unpack(ratio)
+                shape = [s for s in self.ty.shape[:-1]] + [self.ty.shape[-1] * ratio]
+                new_elem_offset = self.ty.elem_offset * ratio
             return tvm.tirx.script.builder.decl_buffer(
                 shape,
                 cast_dtype,
-                self.data,
-                self.strides,
+                buffer_data(self),
+                self.ty.strides,
                 new_elem_offset,
                 None,
-                self.scope(),
-                self.data_alignment,
-                self.offset_factor,
+                self.ty.storage_scope,
+                self.ty.data_alignment,
+                self.ty.offset_factor,
                 layout,
             )
         else:
@@ -373,15 +400,15 @@ class Buffer(Object, Scriptable):
 
             return tvm.tirx.script.builder.decl_buffer(
                 shape,
-                self.dtype,
-                self.data,
-                self.strides,
-                self.elem_offset,
+                self.ty.dtype,
+                buffer_data(self),
+                self.ty.strides,
+                self.ty.elem_offset,
                 None,
-                self.scope(),
-                self.data_alignment,
-                self.offset_factor,
-                self.layout if layout is None else layout,
+                self.ty.storage_scope,
+                self.ty.data_alignment,
+                self.ty.offset_factor,
+                self.ty.layout if layout is None else layout,
             )
 
     def local(self, *shape, layout=None) -> "Buffer":
@@ -406,22 +433,22 @@ class Buffer(Object, Scriptable):
             The corresponding local buffer.
         """
         if not shape:
-            local_layout = self.layout.storage()
+            local_layout = self.ty.layout.storage()
             total = functools.reduce(
                 lambda x, y: x * y, [it.extent for it in local_layout.shard], 1
             )
             shape = (total,)
         return tvm.tirx.script.builder.decl_buffer(
             shape,
-            self.dtype,
-            self.data,
-            self.strides,
-            self.elem_offset,
+            self.ty.dtype,
+            buffer_data(self),
+            self.ty.strides,
+            self.ty.elem_offset,
             None,
-            self.scope(),
-            self.data_alignment,
-            self.offset_factor,
-            self.layout.storage() if layout is None else layout,
+            self.ty.storage_scope,
+            self.ty.data_alignment,
+            self.ty.offset_factor,
+            self.ty.layout.storage() if layout is None else layout,
         )
 
     def permute(self, *dims) -> "Buffer":
@@ -437,7 +464,7 @@ class Buffer(Object, Scriptable):
         permuted : DeclBufferFrame
             The buffer with permuted dimensions.
         """
-        new_shape = [self.shape[d] for d in dims]
+        new_shape = [self.ty.shape[d] for d in dims]
         # Permute *logical* dims, not the layout's fine-grained shard iters: a
         # tcgen05/atom layout maps several shard iters to each logical axis, so
         # group by the current shape first and permute whole groups. ``group``
@@ -445,22 +472,25 @@ class Buffer(Object, Scriptable):
         # plus seps over *that* layout — permute the regrouped one, not
         # ``self.layout``. For a simple layout (one shard iter per axis) this
         # reduces to ``permute_dims(dims)``.
-        grouped, seps = self.layout.group(list(self.shape))
+        grouped, seps = self.ty.layout.group(list(self.ty.shape))
         new_layout = grouped.permute_by_groups(seps, list(dims))
         return tvm.tirx.script.builder.decl_buffer(
             new_shape,
-            self.dtype,
-            self.data,
-            self.strides,
-            self.elem_offset,
+            self.ty.dtype,
+            buffer_data(self),
+            self.ty.strides,
+            self.ty.elem_offset,
             None,
-            self.scope(),
-            self.data_alignment,
-            self.offset_factor,
+            self.ty.storage_scope,
+            self.ty.data_alignment,
+            self.ty.offset_factor,
             new_layout,
         )
 
     def __getitem__(self, indices):
+        if not is_buffer_var(self):
+            return _ORIGINAL_VAR_GETITEM(self, indices)
+
         from ..arith import Analyzer  # pylint: disable=import-outside-toplevel
         from .expr import BufferLoad, Ramp  # pylint: disable=import-outside-toplevel
         from .stmt import BufferRegion  # pylint: disable=import-outside-toplevel
@@ -471,14 +501,14 @@ class Buffer(Object, Scriptable):
         has_step = any(
             isinstance(i, slice) and (i.step is not None and i.step != 1) for i in indices
         )
-        has_implicit_slice = len(indices) < len(self.shape)
+        has_implicit_slice = len(indices) < len(self.ty.shape)
         analyzer = Analyzer()
         if (has_slice and not has_step) or has_implicit_slice:
             region = []
             for i, index in enumerate(indices):
                 if isinstance(index, slice):
                     start = 0 if index.start is None else index.start
-                    stop = self.shape[i] if index.stop is None else index.stop
+                    stop = self.ty.shape[i] if index.stop is None else index.stop
                     region.append(Range.from_min_extent(start, analyzer.simplify(stop - start)))
                 else:
                     region.append(
@@ -488,15 +518,15 @@ class Buffer(Object, Scriptable):
                         )
                     )
             if has_implicit_slice:
-                for i in range(len(indices), len(self.shape)):
-                    region.append(Range.from_min_extent(0, self.shape[i]))
+                for i in range(len(indices), len(self.ty.shape)):
+                    region.append(Range.from_min_extent(0, self.ty.shape[i]))
             return BufferRegion(self, region)
         else:
             expr_indices = []
             for i, index in enumerate(indices):
                 if isinstance(index, slice):
                     start = 0 if index.start is None else index.start
-                    stop = self.shape[i] if index.stop is None else index.stop
+                    stop = self.ty.shape[i] if index.stop is None else index.stop
                     step = 1 if index.step is None else index.step
                     # We should ensure the dtype of start is the same with that of step.
                     if tvm.ir.is_prim_expr(start) and isinstance(step, int):
@@ -538,23 +568,105 @@ def decl_buffer(
     if offset_factor != 0 and elem_offset is None:
         shape_ty = shape[0].ty if shape and tvm.ir.is_prim_expr(shape[0]) else "int32"
         elem_offset = Var(f"{name}_elem_offset", shape_ty)
-    if data is None:
-        # Bool is represented as uint1 in the IR, but stored as int8
-        storage_type = dtype if isinstance(dtype, PrimType) else PrimType(dtype)
-        storage_type = PrimType("int8") if storage_type.dtype == "bool" else storage_type
-        data = Var(name, PointerType(storage_type, scope), span)
-    return _ffi_api.Buffer(  # type: ignore
-        data,
+    storage_scope = scope
+    if data is not None:
+        if not isinstance(data, tvm.ir.Expr) or not isinstance(data.ty, PointerType):
+            raise TypeError("Buffer data must be an Expr with PointerType")
+        if not isinstance(data.ty.element_type, PrimType):
+            raise TypeError("Buffer data must point to a primitive type")
+        storage_scope = data.ty.storage_scope
+    buffer_type = _ffi_api.BufferType(  # type: ignore
+        storage_scope,
         dtype,
         shape,
         strides,
         elem_offset,
-        name,
         data_alignment,
         offset_factor,
-        span,
         layout,
+        (),
+        span,
     )
+    return _ffi_api.BufferVar(name, buffer_type, span)  # type: ignore
+
+
+def buffer_data(buffer):
+    """Project the physical pointer associated with a buffer variable."""
+
+    if not is_buffer_var(buffer):
+        raise TypeError("buffer_data expects a Var with BufferType")
+    return _ffi_api.BufferData(buffer)
+
+
+def buffer_data_pointer_type(buffer):
+    """Return the pointer type produced by :func:`buffer_data`."""
+
+    if not is_buffer_var(buffer):
+        raise TypeError("buffer_data_pointer_type expects a Var with BufferType")
+    return _ffi_api.BufferDataPointerType(buffer)
+
+
+# Buffer values intentionally retain runtime type key ``ir.Var``.  Importing
+# ``tvm.tirx`` therefore augments ``tvm.ir.Var`` process-wide with the legacy
+# buffer operation and metadata surface.  Non-buffer Vars reject the metadata
+# properties with AttributeError, preserving correct ``hasattr`` behavior.
+_ORIGINAL_VAR_GETITEM = tvm.ir.Var.__getitem__
+for _name, _value in _BufferMethods.__dict__.items():
+    if _name.startswith("__") and _name != "__getitem__":
+        continue
+    if callable(_value) or isinstance(_value, property):
+        setattr(tvm.ir.Var, _name, _value)
+
+
+def _buffer_type_field(name):
+    def getter(value):
+        if not is_buffer_var(value):
+            raise AttributeError(f"{name} is only available on a Var with BufferType")
+        return getattr(value.ty, name)
+
+    return property(getter)
+
+
+# Preserve Buffer's public metadata surface while keeping BufferType as the
+# single source of truth.
+for _name in (
+    "shape",
+    "strides",
+    "elem_offset",
+    "data_alignment",
+    "offset_factor",
+    "layout",
+    "allocated_addr",
+):
+    setattr(tvm.ir.Var, _name, _buffer_type_field(_name))
+
+
+def _buffer_dtype_property(value):
+    if not is_buffer_var(value):
+        raise AttributeError("dtype is only available on a Var with BufferType")
+    # Preserve the pre-migration Python Buffer surface.  BufferType stores a
+    # PrimType, while Python callers historically receive its runtime DataType.
+    return value.ty.dtype.dtype
+
+
+tvm.ir.Var.dtype = property(_buffer_dtype_property)
+
+
+# Keep the established ``A.data`` TVMScript surface as syntax sugar.  Compiler
+# and builder code calls ``buffer_data(A)`` directly.
+def _buffer_data_property(value):
+    if not is_buffer_var(value):
+        raise AttributeError("data is only available on a Var with BufferType")
+    return buffer_data(value)
+
+
+tvm.ir.Var.data = property(_buffer_data_property)
+
+# Source compatibility for annotations and imports only.  There is no
+# ``tirx.Buffer`` runtime object; constructors return ``tvm.ir.Var``.  In
+# particular, ``isinstance(value, Buffer)`` matches every Var.  Runtime checks
+# must use ``is_buffer_var(value)``.
+Buffer = tvm.ir.Var
 
 
 @tvm_ffi.register_object("tirx.DataProducer")

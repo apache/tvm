@@ -106,11 +106,14 @@ def test_ptx_map_shared_rank_pointer_bind_codegen():
         # fmt: on
 
     binds = []
+    decl_buffers = []
     loads = []
 
     def collect(node):
         if isinstance(node, tvm.tirx.Bind):
             binds.append(node)
+        elif isinstance(node, tvm.tirx.DeclBuffer):
+            decl_buffers.append(node)
         elif isinstance(node, tvm.tirx.BufferLoad):
             loads.append(node)
 
@@ -120,11 +123,14 @@ def test_ptx_map_shared_rank_pointer_bind_codegen():
     assert binds[0].var.ty.storage_scope == "shared"
     assert binds[0].value.ty.storage_scope == "shared"
     assert_structural_equal(binds[0].var.ty, binds[0].value.ty)
-    assert any(load.buffer.data.same_as(binds[0].var) for load in loads)
+    assert len(decl_buffers) == 1
+    assert decl_buffers[0].data.same_as(binds[0].var)
+    assert any(load.buffer.same_as(decl_buffers[0].buffer) for load in loads)
 
     assert_structural_equal(main, tvm.script.from_source(main.script()))
     src = _get_source(main)
-    assert "uint64_t* remote_mbar_ptr" in src
+    assert "uint64_t* remote_ptr" in src
+    assert "A_ptr[0] = remote_ptr[0]" in src
     assert "tvm_builtin_ptx_mapa_u64" in src
 
 

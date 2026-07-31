@@ -30,7 +30,7 @@ from tvm.ir.type import TensorMapType
 from tvm.runtime import const
 
 from . import _ffi_api
-from .buffer import Buffer
+from .buffer import Buffer, buffer_data, is_buffer_var
 from .expr import BufferLoad, CommReducer, ExprOp, ExprWithOp, IntImm, Var
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
@@ -81,27 +81,27 @@ def _pack_buffer(buf, span=None):
     """Build intrinsics that packs the buffer."""
     shape = Call(
         "tirx.tvm_stack_make_shape",
-        buf.shape,
+        buf.ty.shape,
         span=span,
         ret_ty=PointerType(tvm.ir.PrimType("int64")),
     )
     strides = (
         Call(
             "tirx.tvm_stack_make_shape",
-            buf.strides,
+            buf.ty.strides,
             span=span,
             ret_ty=PointerType(tvm.ir.PrimType("int64")),
         )
-        if buf.strides
+        if buf.ty.strides
         else 0
     )
     pack_args = [
-        buf.data,
+        buffer_data(buf),
         shape,
         strides,
-        len(buf.shape),
-        const(0, dtype=buf.dtype),
-        buf.elem_offset,
+        len(buf.ty.shape),
+        const(0, dtype=buf.ty.dtype),
+        buf.ty.elem_offset,
     ]
     return Call(Op.get("tirx.tvm_stack_make_array"), pack_args, span=span, ret_ty="handle")
 
@@ -131,7 +131,7 @@ def call_packed_lowered(*args, span=None):
     --------
     te.extern : Create tensor with extern function call.
     """
-    call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
+    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
     return Call(Op.get("tirx.tvm_call_packed_lowered"), call_args, span=span, ret_ty="int32")
 
 
@@ -157,7 +157,7 @@ def call_cpacked_lowered(*args, span=None):
     --------
     te.extern : Create tensor with extern function call.
     """
-    call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
+    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
     return Call(Op.get("tirx.tvm_call_cpacked_lowered"), call_args, span=span, ret_ty="int32")
 
 
@@ -188,7 +188,7 @@ def call_packed(*args, span=None):
     --------
     te.extern : Create tensor with extern function call.
     """
-    call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
+    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
     return Call(Op.get("tirx.tvm_call_packed"), call_args, span=span, ret_ty="int32")
 
 
@@ -215,7 +215,7 @@ def call_cpacked(*args, span=None):
     --------
     te.extern : Create tensor with extern function call.
     """
-    call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
+    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
     return Call(Op.get("tirx.tvm_call_cpacked"), call_args, span=span, ret_ty="int32")
 
 
@@ -662,9 +662,7 @@ def _is_tensormap_var(obj: Var) -> bool:
 
 def _buffer_element_pointer_type(buffer: Buffer) -> PointerType:
     """Return a pointer to ``buffer`` elements in the buffer's storage scope."""
-    data_ty = buffer.data.ty
-    storage_scope = data_ty.storage_scope if isinstance(data_ty, PointerType) else "global"
-    return PointerType(buffer.dtype, storage_scope)
+    return PointerType(buffer.ty.dtype, buffer.ty.storage_scope)
 
 
 def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Expr:
@@ -683,8 +681,8 @@ def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Expr
     call : Expr
         The call expression.
     """
-    if isinstance(obj, Buffer):
-        n_dim = len(obj.shape)
+    if is_buffer_var(obj):
+        n_dim = len(obj.ty.shape)
         buffer_load = BufferLoad(obj, [0] * n_dim)
         return Call(
             "tirx.address_of",
@@ -1286,7 +1284,7 @@ def trace(args, trace_action="tvm.default_trace_action"):
     """
     if not isinstance(args, list):
         raise Exception("tvm.tirx.trace consumes the args as list type")
-    call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
+    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
     call_args.insert(0, tvm.tirx.StringImm(trace_action))
     tracing_value = args[-1]
     ret_ty = tracing_value.ty if isinstance(tracing_value, Expr) else tracing_value.dtype

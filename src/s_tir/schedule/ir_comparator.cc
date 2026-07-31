@@ -480,22 +480,31 @@ bool TensorizeComparator::CompareAnnotationMap(const ffi::Map<ffi::String, ffi::
   return true;
 }
 
-bool TensorizeComparator::CompareBuffer(const Buffer& lhs, const Buffer& rhs) {
+bool TensorizeComparator::CompareBuffer(const BufferVar& lhs, const BufferVar& rhs) {
   if (lhs.same_as(rhs)) return true;
   auto it = rhs_buffer_map_.find(rhs);
   bool equal;
   if (it != rhs_buffer_map_.end()) {
     equal = (*it).second.same_as(lhs);
   } else {
-    // Remap both buffer itself and buffer data, skip buffer shape
-    equal =
-        DefEqual(lhs->data, rhs->data) && lhs->dtype == rhs->dtype && lhs.scope() == rhs.scope();
+    // Remap the buffer variable definition without recursively comparing its
+    // BufferType.  Tensorization intentionally matches a region of a larger
+    // workload buffer against the intrinsic's smaller descriptor buffer.
+    auto data_it = equal_map_.find(lhs.var());
+    if (data_it != equal_map_.end()) {
+      equal = data_it->second.same_as(rhs.var());
+    } else {
+      equal = lhs->dtype == rhs->dtype && lhs.scope() == rhs.scope();
+      if (equal) {
+        equal_map_[lhs.var()] = rhs.var();
+      }
+    }
     if (equal) {
       rhs_buffer_map_[rhs] = lhs;
     } else {
       if (assert_mode_) {
         std::ostringstream os;
-        os << "CompareBuffer buffer mismatch. data: " << lhs->data << " vs " << rhs->data
+        os << "CompareBuffer buffer mismatch: " << lhs << " vs " << rhs
            << ", dtypes: " << lhs->dtype << " vs " << rhs->dtype << ", scope(): " << lhs.scope()
            << " vs " << rhs.scope();
         EmitError(os.str());
@@ -581,7 +590,7 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
       if (!lhs_analyzer_->CanProveEqual(indices_base[i], lhs->region[i]->min)) {
         if (assert_mode_) {
           std::ostringstream os;
-          os << "Buffer base index consistency check failed due to unequal index base: "
+          os << "BufferVar base index consistency check failed due to unequal index base: "
                 "indices_base[i]="
              << indices_base[i] << " vs lhs->region[i]->min=" << lhs->region[i]->min;
           EmitError(os.str());
@@ -734,29 +743,25 @@ bool AutoTensorizeComparator::VisitStmt_(const SBlockNode* op, const Stmt& other
   return VisitStmt(op->body, rhs->body);
 }
 
-bool AutoTensorizeComparator::CompareBuffer(const Buffer& lhs, const Buffer& rhs) {
+bool AutoTensorizeComparator::CompareBuffer(const BufferVar& lhs, const BufferVar& rhs) {
   if (lhs.same_as(rhs)) return true;
   auto it = rhs_buffer_map_.find(rhs);
   bool equal;
   if (it != rhs_buffer_map_.end()) {
     equal = (*it).second.same_as(lhs);
   } else {
-    // Remap both buffer itself and buffer data, skipping buffer shape and storage scope.  Auto
-    // tensorization inserts the cache stages that move workload buffers into an intrinsic's
-    // required scope, while the pointer element type must still agree.
-    auto data_it = equal_map_.find(lhs->data);
+    // Remap the buffer itself, skipping buffer shape and storage scope.  Auto
+    // tensorization inserts the cache stages that move workload buffers into
+    // an intrinsic's required scope, while the element dtype must still agree.
+    auto data_it = equal_map_.find(lhs.var());
     if (data_it != equal_map_.end()) {
-      equal = data_it->second.same_as(rhs->data);
+      equal = data_it->second.same_as(rhs.var());
     } else {
-      const auto* lhs_ptr = lhs->data->ty.as<PointerTypeNode>();
-      const auto* rhs_ptr = rhs->data->ty.as<PointerTypeNode>();
-      equal = lhs_ptr && rhs_ptr &&
-              ffi::StructuralEqual()(lhs_ptr->element_type, rhs_ptr->element_type);
+      equal = lhs->dtype == rhs->dtype;
       if (equal) {
-        equal_map_[lhs->data] = rhs->data;
+        equal_map_[lhs.var()] = rhs.var();
       }
     }
-    equal = equal && lhs->dtype == rhs->dtype;
     if (equal) {
       rhs_buffer_map_[rhs] = lhs;
       lhs_buffer_map_[lhs] = rhs;

@@ -54,11 +54,11 @@ def try_find_inst_unary(
     # Validate buffer layouts and scopes
     valid_layout_scope = all(
         [
-            src.layout and dst.layout,
+            src.ty.layout and dst.ty.layout,
             src.scope() in ("trn.sbuf", "trn.psum"),
             dst.scope() == "trn.sbuf",
-            is_trainium_layout(src.layout),
-            is_trainium_layout(dst.layout),
+            is_trainium_layout(src.ty.layout),
+            is_trainium_layout(dst.ty.layout),
         ]
     )
 
@@ -136,7 +136,7 @@ def generate_unary_func(
 ):
     """Generate a function that implements a unary operation."""
     # Prepare parameters
-    p_size = dst_buffer_region.buffer.layout.size("P")
+    p_size = dst_buffer_region.buffer.ty.layout.size("P")
 
     # Apply instruction size limits if specified
     inst_size_limit = config.get("max_inst_size", 512)
@@ -159,7 +159,7 @@ def generate_unary_func(
     # Handle bias tensor
     if isinstance(bias, FloatImm | float):
         bias_buffer = get_const_bias_tensor(
-            bias, (p_size, inst_repr.size), dst.dtype, workspace, sctx
+            bias, (p_size, inst_repr.size), dst.ty.dtype, workspace, sctx
         )
     elif isinstance(bias, BufferRegion):
         bias_buffer = bias.buffer

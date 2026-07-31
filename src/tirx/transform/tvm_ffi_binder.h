@@ -100,7 +100,7 @@ class TVMFFIABIBuilder {
     std::vector<Stmt> init_nest;
     /*! \brief Validation checks (all AssertStmts). */
     std::vector<Stmt> asserts;
-    /*! \brief Buffer declarations for buffer_map entries. */
+    /*! \brief BufferVar declarations for buffer_map entries. */
     std::vector<Stmt> decl_buffers;
   };
 
@@ -119,7 +119,7 @@ class TVMFFIABIBuilder {
    * \param device_id The device id variable (may be defined during buffer binding).
    */
   TVMFFIABIBuilder(const ffi::String& func_name, const ffi::Array<Var>& params,
-                   const ffi::Map<Var, Buffer>& buffer_map, const Var& v_packed_args,
+                   const ffi::Map<Var, BufferVar>& buffer_map, const Var& v_packed_args,
                    const Var& v_num_packed_args, const PrimExpr& device_type,
                    const PrimExpr& device_id);
 
@@ -263,7 +263,7 @@ class TVMFFIABIBuilder {
                  const ffi::reflection::AccessPath& base_path);
 
   /*!
-   * \brief Buffer-to-buffer bind with ffi::reflection::AccessPath.
+   * \brief BufferVar-to-buffer bind with ffi::reflection::AccessPath.
    *
    * Binds data, elem_offset, shape, and strides of \p arg against \p value,
    * emitting assertions for any mismatches.
@@ -273,8 +273,8 @@ class TVMFFIABIBuilder {
    * \param base_path Base ffi::reflection::AccessPath for the buffer parameter.
    * \param fuzzy_match If true, allow value to have more dimensions than arg.
    */
-  void BindBuffer(const Buffer& arg, const Buffer& value, ffi::reflection::AccessPath base_path,
-                  bool fuzzy_match);
+  void BindBuffer(const BufferVar& arg, const BufferVar& value,
+                  ffi::reflection::AccessPath base_path, bool fuzzy_match);
 
   /*!
    * \brief DLTensor bind: ndim/dtype/shape/strides/data/device assertions.
@@ -286,7 +286,7 @@ class TVMFFIABIBuilder {
    * \param arg_name Human-readable name for error messages.
    * \param base_path Base ffi::reflection::AccessPath for the tensor parameter.
    */
-  void DecodeParamDLTensor(const Buffer& buffer, const PrimExpr& device_type,
+  Expr DecodeParamDLTensor(const BufferVar& buffer, const PrimExpr& device_type,
                            const PrimExpr& device_id, const Var& handle,
                            const std::string& arg_name, ffi::reflection::AccessPath base_path);
 
@@ -321,7 +321,7 @@ class TVMFFIABIBuilder {
    * \param v_strides_is_null Expression checking if strides pointer is NULL.
    * \param param_path ffi::reflection::AccessPath for the tensor parameter.
    */
-  void BindCompactStrides(const Buffer& buffer, const Var& strides_ptr,
+  void BindCompactStrides(const BufferVar& buffer, const Var& strides_ptr,
                           const PrimExpr& v_strides_is_null,
                           const ffi::reflection::AccessPath& param_path);
 
@@ -334,7 +334,7 @@ class TVMFFIABIBuilder {
    * \param v_strides_is_null Expression checking if strides pointer is NULL.
    * \param param_path ffi::reflection::AccessPath for the tensor parameter.
    */
-  void BindRegularStrides(const Buffer& buffer, const Var& strides_ptr, const Var& shape_ptr,
+  void BindRegularStrides(const BufferVar& buffer, const Var& strides_ptr, const Var& shape_ptr,
                           const PrimExpr& v_strides_is_null,
                           const ffi::reflection::AccessPath& param_path);
 
@@ -391,7 +391,7 @@ class TVMFFIABIBuilder {
   std::vector<Stmt> init_nest_;
   /*! \brief Validation checks: all AssertStmts. */
   std::vector<Stmt> asserts_;
-  /*! \brief Buffer declarations for buffer_map entries. */
+  /*! \brief BufferVar declarations for buffer_map entries. */
   std::vector<Stmt> decl_buffers_;
   /*! \brief Deferred constant-expression assertions for display-var substitution. */
   std::vector<PendingConstAssert> pending_const_asserts_;
@@ -406,7 +406,7 @@ class TVMFFIABIBuilder {
   /*! \brief The function parameters. */
   ffi::Array<Var> params_;
   /*! \brief The buffer map from parameters to buffers. */
-  ffi::Map<Var, Buffer> buffer_map_;
+  ffi::Map<Var, BufferVar> buffer_map_;
   /*! \brief The packed args variable. */
   Var v_packed_args_;
   /*! \brief The expected device type expression. */

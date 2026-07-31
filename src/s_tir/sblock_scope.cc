@@ -82,8 +82,8 @@ SBlockScope::SBlockScope() { data_ = ffi::make_object<SBlockScopeNode>(); }
 
 SBlockScope::SBlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
   ffi::ObjectPtr<SBlockScopeNode> n = ffi::make_object<SBlockScopeNode>();
-  SMap<Buffer, ffi::Array<StmtSRef>> buffer_readers;
-  SMap<Buffer, ffi::Array<StmtSRef>>& buffer_writers = n->buffer_writers;
+  SMap<BufferVar, ffi::Array<StmtSRef>> buffer_readers;
+  SMap<BufferVar, ffi::Array<StmtSRef>>& buffer_writers = n->buffer_writers;
   for (const StmtSRef& child_block_sref : child_block_srefs) {
     const SBlockNode* child_block = TVM_SREF_TO_SBLOCK(child_block_sref);
     // Step 1. Update `buffer_readers` and `buffer_writers` for each buffer

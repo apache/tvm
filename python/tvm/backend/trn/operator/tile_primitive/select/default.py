@@ -62,10 +62,10 @@ def select_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
 
     # Validate buffer layout and scope
     buffer_conditions = [
-        dst.buffer.layout and true_value.buffer.layout,
+        dst.buffer.ty.layout and true_value.buffer.ty.layout,
         dst.buffer.scope() == "trn.sbuf" and true_value.buffer.scope() == "trn.sbuf",
-        is_trainium_layout(true_value.buffer.layout),
-        is_trainium_layout(dst.buffer.layout),
+        is_trainium_layout(true_value.buffer.ty.layout),
+        is_trainium_layout(dst.buffer.ty.layout),
     ]
 
     if not all(buffer_conditions):
@@ -98,7 +98,7 @@ def select_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     p_var = T.Var("p", "int32")
     b_var = T.Var("b", "int32")
     f_var = T.Var("f", "int32")
-    p_size = dst.buffer.layout.size("P")
+    p_size = dst.buffer.ty.layout.size("P")
     inst_gen.bind_inst_iter(dst, f_var, inst_repr.size, inst_repr.stride, True)
     inst_gen.bind_inst_iter(dst, p_var, p_size, 1, False)
     b_extent = inst_gen.fill_in_block_dim(dst, b_var)

@@ -33,7 +33,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { TilePrimitiveCallNode::RegisterReflection(); }
 
 // TilePrimitiveCall
 TilePrimitiveCall::TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
-                                     ffi::Map<ffi::String, Buffer> workspace,
+                                     ffi::Map<ffi::String, BufferVar> workspace,
                                      ffi::Map<ffi::String, ffi::Any> config,
                                      ffi::Optional<ffi::String> dispatch, ExecScope scope) {
   TVM_FFI_CHECK(op.defined(), ValueError) << "TilePrimitiveCall expects a defined operator";
@@ -50,7 +50,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "tirx.TilePrimitiveCall",
-      [](tvm::Op op, ffi::Array<ffi::Any> args, ffi::Map<ffi::String, Buffer> workspace,
+      [](tvm::Op op, ffi::Array<ffi::Any> args, ffi::Map<ffi::String, BufferVar> workspace,
          ffi::Map<ffi::String, ffi::Any> config, ffi::Optional<ffi::String> dispatch,
          ExecScope scope) {
         return TilePrimitiveCall(op, args, workspace, config, dispatch, scope);

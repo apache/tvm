@@ -38,6 +38,21 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
+namespace {
+
+ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
+  if (auto var = data.as<Var>()) {
+    return var;
+  }
+  if (const auto* call = data.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    return call->args[0].as<Var>();
+  }
+  return std::nullopt;
+}
+
+}  // namespace
+
 // If expression is touched by var.
 class ExprTouched final : public StmtExprVisitor {
  public:
@@ -55,15 +70,15 @@ class ExprTouched final : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt(n);
   }
   void VisitExpr_(const BufferLoadNode* op) final {
-    HandleUseVar(op->buffer->data.get());
+    HandleUseVar(op->buffer.get());
     StmtExprVisitor::VisitExpr_(op);
   }
   void VisitExpr_(const VarNode* op) final { HandleUseVar(op); }
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
       const auto* rw_mask = op->args[4].as<IntImmNode>();
-      const VarNode* buffer_var = op->args[1].as<VarNode>();
-      if (buffer_var == nullptr) {
+      auto buffer = GetBufferDataVar(op->args[1]);
+      if (!buffer.has_value()) {
         // Nested access pointers are valid pointer expressions.  Visit the
         // inner pointer and this access's offset instead of assuming a raw
         // buffer Var at every level.
@@ -71,6 +86,7 @@ class ExprTouched final : public StmtExprVisitor {
         this->VisitExpr(op->args[2].as_or_throw<PrimExpr>());
         return;
       }
+      const VarNode* buffer_var = buffer.value().get();
       TVM_FFI_ICHECK(rw_mask);
       // read
       if (rw_mask->value & 1) {
@@ -119,7 +135,7 @@ class VarTouchedAnalysis : public StmtVisitor {
     for (const auto& index : op->indices) {
       tc(index);
     }
-    Record(op->buffer->data.get(), tc);
+    Record(op->buffer.get(), tc);
   }
   void VisitStmt_(const ForNode* op) final {
     ExprTouched tc(touched_var_, false);
@@ -141,7 +157,7 @@ class VarTouchedAnalysis : public StmtVisitor {
     for (size_t i = 0; i < op->buffer->shape.size(); ++i) {
       tc(op->buffer->shape[i]);
     }
-    Record(op->buffer->data.get(), tc);
+    Record(op->buffer.get(), tc);
     StmtVisitor::VisitStmt_(op);
   }
   void Record(const VarNode* var, const ExprTouched& tc) {
@@ -212,7 +228,8 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   }
   // Variable
   Expr VisitExpr_(const VarNode* op) final {
-    TVM_FFI_ICHECK(!alloc_remap_.count(op)) << "Buffer address may get rewritten in virtual thread";
+    TVM_FFI_ICHECK(!alloc_remap_.count(op))
+        << "BufferVar address may get rewritten in virtual thread";
     if (touched_var_.count(op)) {
       visit_touched_var_ = true;
     }
@@ -223,22 +240,33 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   }
   // Expression.
   Expr VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::tvm_access_ptr())) {
-      TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
-      PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
-      const VarNode* buffer = op->args[1].as<VarNode>();
-      if (buffer == nullptr) {
+    if (op->op.same_as(builtin::buffer_data())) {
+      auto buffer = GetBufferDataVar(ffi::GetRef<Call>(op)).value();
+      auto it = alloc_remap_.find(buffer.get());
+      if (it == alloc_remap_.end()) {
         return StmtExprMutator::VisitExpr_(op);
       }
-      auto it = alloc_remap_.find(buffer);
+      visit_touched_var_ = true;
+      return GetRemappedBuffer(BufferVar(buffer), it->second).data();
+    } else if (op->op.same_as(builtin::tvm_access_ptr())) {
+      TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
+      PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
+      auto buffer = GetBufferDataVar(op->args[1]);
+      if (!buffer.has_value()) {
+        return StmtExprMutator::VisitExpr_(op);
+      }
+      auto it = alloc_remap_.find(buffer.value().get());
       if (it == alloc_remap_.end()) return StmtExprMutator::VisitExpr_(op);
       visit_touched_var_ = true;
       PrimExpr offset = this->VisitPrimExpr(op->args[2].as_or_throw<PrimExpr>());
       PrimExpr extent = this->VisitPrimExpr(op->args[3].as_or_throw<PrimExpr>());
       PrimExpr stride = it->second / MakeConst(offset.ty(), dtype.lanes());
       offset = RewriteIndex(offset, stride);
+      Expr data = buffer.value()->ty.as<BufferTypeNode>()
+                      ? GetRemappedBuffer(BufferVar(buffer.value()), it->second).data()
+                      : op->args[1];
 
-      return Call(op->ty, op->op, {op->args[0], op->args[1], offset, extent, op->args[4]});
+      return Call(op->ty, op->op, {op->args[0], data, offset, extent, op->args[4]});
     } else if (op->op.same_as(builtin::tvm_context_id())) {
       return allow_share_ ? Expr(ffi::GetRef<Call>(op)) : Expr(var_);
     } else {
@@ -263,11 +291,11 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
 
   template <typename Node>
   Node VisitBufferAccess(Node node) {
-    if (touched_var_.count(node->buffer->data.get())) {
+    if (touched_var_.count(node->buffer.get())) {
       visit_touched_var_ = true;
     }
 
-    auto it = alloc_remap_.find(node->buffer->data.get());
+    auto it = alloc_remap_.find(node->buffer.get());
     if (it != alloc_remap_.end()) {
       TVM_FFI_ICHECK_EQ(node->indices.size(), 1)
           << "InjectVirtualThread expects rewritten allocations to be flat memory.";
@@ -279,19 +307,20 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     return node;
   }
 
-  Buffer GetRemappedBuffer(Buffer buf, PrimExpr alloc_extent) {
-    auto key = buf.get();
-    auto it = buf_remap_.find(key);
+  BufferVar GetRemappedBuffer(BufferVar buf, PrimExpr alloc_extent) {
+    auto it = buf_remap_.find(buf);
     if (it != buf_remap_.end()) {
       return it->second;
     }
+    BufferVar original = buf;
 
     TVM_FFI_ICHECK_EQ(buf->shape.size(), 1)
         << "Expected buffers being rewritten to already be flattened.";
-    auto writer = buf.CopyOnWrite();
+    auto writer = CopyBufferType(buf);
     writer->shape = {buf->shape[0] * alloc_extent};
+    buf = RebuildBufferVar(buf, std::move(writer));
 
-    buf_remap_[key] = buf;
+    buf_remap_[original] = buf;
     return buf;
   }
 
@@ -440,19 +469,21 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
 
     visit_touched_var_ = false;
 
-    if (touched_var_.count(op->buffer->data.get()) || !allow_share_) {
+    if (touched_var_.count(op->buffer.get()) || !allow_share_) {
       TVM_FFI_ICHECK_EQ(shape.size(), 1)
           << "InjectVirtualThread expects rewritten allocations to be flat memory.";
       PrimExpr stride = shape[0];
       shape = {stride * num_threads_};
-      alloc_remap_[op->buffer->data.get()] = stride;
+      alloc_remap_[op->buffer.get()] = stride;
     }
 
     if (shape.same_as(op->buffer->shape)) {
       return ffi::GetRef<Stmt>(op);
     } else {
-      Buffer new_buffer = op->buffer;
-      new_buffer.CopyOnWrite()->shape = shape;
+      auto type = CopyBufferType(op->buffer);
+      type->shape = shape;
+      BufferVar new_buffer = RebuildBufferVar(op->buffer, std::move(type));
+      buf_remap_[op->buffer] = new_buffer;
       return AllocBuffer(new_buffer, op->annotations);
     }
   }
@@ -520,7 +551,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
    * the allocated buffer size, then modifying the indices at which
    * each virtual thread accesses the buffer.
    */
-  std::unordered_map<const BufferNode*, Buffer> buf_remap_;
+  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buf_remap_;
 };
 
 class VirtualThreadInjector : public arith::IRMutatorWithAnalyzer {

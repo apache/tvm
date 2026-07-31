@@ -745,10 +745,10 @@ void BufferLoadNode::LegalizeDType() {
   }
 }
 
-BufferLoad::BufferLoad(Buffer buffer, ffi::Array<PrimExpr> indices,
+BufferLoad::BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices,
                        ffi::Optional<PrimExpr> predicate, Span span) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
-      << "Buffer " << buffer->name << " is " << buffer->shape.size()
+      << "BufferVar " << buffer.name() << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
       << "-dimensional indices provided.";
 
@@ -784,7 +784,7 @@ BufferLoad::BufferLoad(Buffer buffer, ffi::Array<PrimExpr> indices,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.BufferLoad", [](Buffer buffer, ffi::Array<PrimExpr> indices,
+  refl::GlobalDef().def("tirx.BufferLoad", [](BufferVar buffer, ffi::Array<PrimExpr> indices,
                                               ffi::Optional<PrimExpr> predicate, Span span) {
     return BufferLoad(buffer, indices, predicate, span);
   });

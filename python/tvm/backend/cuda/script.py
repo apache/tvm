@@ -22,7 +22,7 @@ from collections.abc import Callable
 from typing import Any
 
 from tvm.backend.cuda import op as _cuda_op
-from tvm.tirx import Buffer
+from tvm.tirx import is_buffer_var
 from tvm.tirx import op as _tir_op
 from tvm.tirx.script.builder.ir import _dtype_forward, _op_wrapper
 
@@ -30,7 +30,7 @@ from tvm.tirx.script.builder.ir import _dtype_forward, _op_wrapper
 
 
 def _ptx_ldg32(reg, guard, addr, local_addr):
-    if isinstance(addr, Buffer):
+    if is_buffer_var(addr):
         addr = addr[0]
     return _tir_op.call_intrin(reg.ty, "tirx.ptx.ldg32", reg, guard, addr, local_addr)
 
@@ -485,25 +485,25 @@ class CUDANamespace:
 
     @staticmethod
     def _shfl_sync(mask, var, lane, width):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_sync", mask, var, lane, width)
 
     @staticmethod
     def _shfl_up_sync(mask, var, delta, width):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_up_sync", mask, var, delta, width)
 
     @staticmethod
     def _shfl_down_sync(mask, var, delta, width):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_down_sync", mask, var, delta, width)
 
     @staticmethod
     def _shfl_xor_sync(mask, var, lane_mask, width):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_xor_sync", mask, var, lane_mask, width)
 
