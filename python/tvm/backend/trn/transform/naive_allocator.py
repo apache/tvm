@@ -25,7 +25,7 @@ from tvm.tirx.transform.function_pass import prim_func_pass
 
 
 def is_const_shape(buffer: Buffer) -> bool:
-    for i in buffer.shape:
+    for i in buffer.ty.shape:
         if not isinstance(i, IntImm):
             return False
     return True
@@ -33,21 +33,21 @@ def is_const_shape(buffer: Buffer) -> bool:
 
 def get_buffer_size(buffer: Buffer) -> int:
     if buffer.scope() == "trn.sbuf":
-        if buffer.layout is None:
+        if buffer.ty.layout is None:
             # the first dimension is partition size
-            num_elem = functools.reduce(lambda x, y: x * y, buffer.shape[1:])
+            num_elem = functools.reduce(lambda x, y: x * y, buffer.ty.shape[1:])
         else:
-            par_size = buffer.layout.size("P")
-            num_elem = functools.reduce(lambda x, y: x * y, buffer.shape) // par_size
+            par_size = buffer.ty.layout.size("P")
+            num_elem = functools.reduce(lambda x, y: x * y, buffer.ty.shape) // par_size
     elif buffer.scope().startswith("shared"):
-        num_elem = functools.reduce(lambda x, y: x * y, buffer.shape)
+        num_elem = functools.reduce(lambda x, y: x * y, buffer.ty.shape)
     else:
         return None
     if not is_const_shape(buffer):
         raise ValueError(
             f"Buffer {buffer.name} has non-constant shape. Do not know how to allocate it."
         )
-    return int(num_elem * buffer.dtype.dtype.itemsize)
+    return int(num_elem * buffer.ty.dtype.dtype.itemsize)
 
 
 class AllocInfoCollector(StmtVisitor):
@@ -58,12 +58,14 @@ class AllocInfoCollector(StmtVisitor):
     def visit_alloc_buffer_(self, op: AllocBuffer):
         super().visit_alloc_buffer_(op)
         buffer = op.buffer
-        if len(buffer.allocated_addr) == 0:
+        if len(buffer.ty.allocated_addr) == 0:
             return op
         buffer_size = get_buffer_size(buffer)
         if buffer_size is None:
             return op
-        self.alloc_pool_start = max(self.alloc_pool_start, buffer.allocated_addr[-1] + buffer_size)
+        self.alloc_pool_start = max(
+            self.alloc_pool_start, buffer.ty.allocated_addr[-1] + buffer_size
+        )
 
 
 class AllocMutator(BufferReplacer):
@@ -75,11 +77,12 @@ class AllocMutator(BufferReplacer):
         changed = False
         buffer = op.buffer
         buffer_size = get_buffer_size(buffer)
-        if len(buffer.allocated_addr) > 0 or buffer_size is None:
+        if len(buffer.ty.allocated_addr) > 0 or buffer_size is None:
             pass
         else:
             new_buffer = buffer.with_allocated_addr([self.alloc_offset])
             self.buffer_map[buffer] = new_buffer
+            self.var_map[buffer] = new_buffer
             changed = True
             self.alloc_offset += buffer_size
 

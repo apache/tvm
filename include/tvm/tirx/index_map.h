@@ -21,7 +21,7 @@
  * \file tvm/tirx/index_map.h
  * \brief Defines a remapping of buffer indices
  *
- * For use with tvm::tirx::Buffer.
+ * For use with TIR buffers.
  */
 #ifndef TVM_TIR_INDEX_MAP_H_
 #define TVM_TIR_INDEX_MAP_H_
@@ -46,7 +46,7 @@ namespace tirx {
  * \brief Defines a mapping between two representations of indices
  * into a buffer.
  *
- * This is primarily used for layout transformations of Buffer
+ * This is primarily used for layout transformations of buffers
  * objects.
  */
 class IndexMapNode : public ffi::Object {

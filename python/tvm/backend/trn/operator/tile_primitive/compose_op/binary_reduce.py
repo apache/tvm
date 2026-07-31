@@ -42,7 +42,7 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
     analyzer = init_analyzer(sctx)
 
     # Normalize negative axes
-    reduce_axes = [i if i >= 0 else len(binary_output.buffer.shape) + i for i in reduce_axes]
+    reduce_axes = [i if i >= 0 else len(binary_output.buffer.ty.shape) + i for i in reduce_axes]
 
     # Find instruction patterns
     inst_gen = InstructionGenerator(
@@ -77,7 +77,7 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
     f_var = T.Var("F", "int32")
     reduction_b_var = T.Var("rB", "int32")
     spatial_b_var = T.Var("sB", "int32")
-    p_size = binary_output.buffer.layout.size("P")
+    p_size = binary_output.buffer.ty.layout.size("P")
     inst_gen.bind_inst_iter(binary_output, p_var, p_size, 1, False)
     inst_gen.bind_inst_iter(binary_output, f_var, inst_repr.size, inst_repr.stride, True)
     reduction_b_extent = inst_gen.fill_in_block_dim(binary_output, reduction_b_var, reduce_axes)

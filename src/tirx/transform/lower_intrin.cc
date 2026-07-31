@@ -42,7 +42,13 @@
 namespace tvm {
 namespace tirx {
 
-static Expr LowerAccessPtr(const CallNode* call) {
+struct AccessPtrBufferAlias {
+  BufferVar buffer;
+  Expr data;
+};
+
+static Expr LowerAccessPtr(const CallNode* call,
+                           std::vector<AccessPtrBufferAlias>* buffer_aliases) {
   TVM_FFI_ICHECK_EQ(call->args.size(), 5U);
   PrimType dtype = call->args[0].as_or_throw<PrimExpr>().ty();
   PrimExpr offset = call->args[2].as_or_throw<PrimExpr>();
@@ -66,18 +72,54 @@ static Expr LowerAccessPtr(const CallNode* call) {
     buffer = inner->args[1];
   }
 
+  const auto* buffer_data = buffer.as<CallNode>();
+  if (buffer_data && buffer_data->op.same_as(builtin::buffer_data())) {
+    TVM_FFI_ICHECK_EQ(buffer_data->args.size(), 1U);
+    buffer = buffer_data->args[0];
+  }
+
   const auto* buffer_node = buffer.as<VarNode>();
   TVM_FFI_ICHECK(buffer_node)
       << "tvm_access_ptr expects a buffer Var or nested tvm_access_ptr as args[1], but got "
       << buffer;
   Var buffer_var = ffi::GetRef<Var>(buffer_node);
+  PrimExpr scalar_extent = offset + IntImm(offset.ty(), 1);
   if (dtype.lanes() != 1) {
     PrimType offset_ty = offset.ty();
     offset = offset * IntImm(offset_ty, dtype.lanes());
+    scalar_extent = offset + IntImm(offset_ty, dtype.lanes());
     offset = Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
   }
-  Buffer dummy_buf(buffer_var, dtype.WithLanes(1), {offset + 1}, {}, 0, buffer_var->name, 0, 0);
-  BufferLoad buf_load(dummy_buf, {offset});
+
+  PrimType scalar_dtype = dtype.WithLanes(1);
+  BufferVar access_buffer{nullptr};
+  ffi::String storage_scope;
+  Expr access_data;
+  if (buffer_var->ty.as<BufferTypeNode>()) {
+    BufferVar source_buffer(buffer_var);
+    if (source_buffer->dtype == scalar_dtype && source_buffer->shape.size() == 1) {
+      access_buffer = source_buffer;
+    } else {
+      TVM_FFI_ICHECK_EQ(source_buffer->dtype.WithLanes(1), scalar_dtype)
+          << "tvm_access_ptr element type must match the source buffer";
+      storage_scope = source_buffer.scope();
+      access_data = source_buffer.data();
+    }
+  } else {
+    auto pointer_type = buffer_var->ty.as_or_throw<PointerType>();
+    storage_scope = pointer_type->storage_scope;
+    access_data = buffer_var;
+  }
+
+  if (!access_buffer.defined()) {
+    // BufferVar identity includes its immutable BufferType.  Bind an explicit
+    // scalar physical view instead of retyping a vector, padded, or packed source.
+    access_buffer =
+        BufferVar(buffer_var->name + "_access",
+                  BufferType(storage_scope, scalar_dtype, {scalar_extent}, {}, 0, 0, 0));
+    buffer_aliases->push_back({access_buffer, access_data});
+  }
+  BufferLoad buf_load(access_buffer, {offset});
   return Call(call->ty, builtin::address_of(), {buf_load});
 }
 
@@ -120,9 +162,20 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       }
   }
 
+  Stmt VisitStmt(const Stmt& stmt) final {
+    size_t alias_begin = access_ptr_buffer_aliases_.size();
+    Stmt result = IRMutatorWithAnalyzer::VisitStmt(stmt);
+    for (size_t i = access_ptr_buffer_aliases_.size(); i > alias_begin; --i) {
+      const auto& alias = access_ptr_buffer_aliases_[i - 1];
+      result = SeqStmt::Flatten(DeclBuffer(alias.buffer, alias.data), std::move(result));
+    }
+    access_ptr_buffer_aliases_.resize(alias_begin);
+    return result;
+  }
+
   Expr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
-      return this->VisitExpr(LowerAccessPtr(op));
+      return this->VisitExpr(LowerAccessPtr(op, &access_ptr_buffer_aliases_));
     }
     if (auto* ptr_op = op->op.as<OpNode>()) {
       Op op_ref = ffi::GetRef<Op>(ptr_op);
@@ -413,6 +466,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   }
 
   std::vector<OpAttrMap<FLowerGeneral>> attr_maps_;
+  std::vector<AccessPtrBufferAlias> access_ptr_buffer_aliases_;
   FLowerGeneral fma_{nullptr};
   bool support_bitwise_op_{true};
 };

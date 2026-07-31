@@ -137,8 +137,8 @@ class InstructionGenerator:
         return buffer_region
 
     def _get_sub_layout(self, buffer_region: BufferRegion):
-        layout = buffer_region.buffer.layout
-        layout, seps = normalize_and_group(layout, buffer_region.buffer.shape)
+        layout = buffer_region.buffer.ty.layout
+        layout, seps = normalize_and_group(layout, buffer_region.buffer.ty.shape)
         tiled_range_infos_per_dim = []
         new_shard = []
         new_seps = [0]
@@ -367,7 +367,7 @@ class InstructionGenerator:
         # fixme: be cautious of the min of buffer region. This implementation is not correct.
         #        we need to first take a view of sub-layout (keep strides, but reduce the extent
         #        then we analyze the relationship between data iter of sub-layout
-        dims = dims or list(range(len(buffer_region.buffer.shape)))
+        dims = dims or list(range(len(buffer_region.buffer.ty.shape)))
         layout = self.split_layout_views[buffer_region]
         shards = layout.shard
         self._normalize_bind_iters()
@@ -714,7 +714,9 @@ class InstructionGenerator:
         indexed_selected_iters = [(i, iters[i]) for i in inst_repr.selected_data_iter_ids]
         indexed_selected_iters = sorted(indexed_selected_iters, key=lambda x: x[1].stride)
         iter_idx_to_dim = {
-            seps[j]: i for i in range(len(region.buffer.shape)) for j in range(seps[i], seps[i + 1])
+            seps[j]: i
+            for i in range(len(region.buffer.ty.shape))
+            for j in range(seps[i], seps[i + 1])
         }
         last_dim = None
         inst_size = 1

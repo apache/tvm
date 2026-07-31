@@ -220,9 +220,9 @@ class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
                                 PrimExpr rhs,
                                 std::ostream& os);  // NOLINT(*)
   // print vector load
-  virtual std::string GetVecLoad(const PrimType& t, const BufferNode* buffer, PrimExpr base);
+  virtual std::string GetVecLoad(const PrimType& t, const VarNode* buffer, PrimExpr base);
   // print vector store
-  virtual void PrintVecStore(const BufferNode* buffer, const PrimType& t, PrimExpr base,
+  virtual void PrintVecStore(const VarNode* buffer, const PrimType& t, PrimExpr base,
                              const std::string& value);  // NOLINT(*)
   // print load of single element
   virtual void PrintVecElemLoad(const std::string& vec, const PrimType& t, int i,
@@ -250,7 +250,7 @@ class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
   // Print reference to struct location
   std::string GetStructRef(const Type& t, const Expr& buffer, const PrimExpr& index, int kind);
   // Print reference to a buffer as type t in index.
-  virtual std::string GetBufferRef(const PrimType& t, const BufferNode* buffer, PrimExpr index);
+  virtual std::string GetBufferRef(const PrimType& t, const VarNode* buffer, PrimExpr index);
 
   /*!
    * \brief Handle volatile loads.

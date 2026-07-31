@@ -45,11 +45,17 @@ def _helper_source(src: str, helper_name: str) -> str:
 
 def test_vector_access_ptr_preserves_packed_offset(monkeypatch):
     buffer = tvm.tirx.decl_buffer((8,), "int4x4", name="A")
+    data = tvm.tirx.Var("A_data", tvm.tirx.buffer_data_pointer_type(buffer))
     access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)
-    body = tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr))
+    body = tvm.tirx.SeqStmt(
+        [
+            tvm.tirx.DeclBuffer(buffer, data=data),
+            tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr)),
+        ]
+    )
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
     func = (
-        tvm.tirx.PrimFunc([buffer.data], body)
+        tvm.tirx.PrimFunc([data], body)
         .with_attr("global_symbol", "main")
         .with_attr("target", target)
     )

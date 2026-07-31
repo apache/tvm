@@ -279,7 +279,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
       << "In PrimFunc " << name_hint << " variables " << undefined
       << " are used, but are not passed in as API arguments";
 
-  func_ptr->buffer_map = ffi::Map<Var, Buffer>();
+  func_ptr->buffer_map = ffi::Map<Var, BufferVar>();
   func_ptr->ret_type = PrimType::Int(32);
 
   // return the function.

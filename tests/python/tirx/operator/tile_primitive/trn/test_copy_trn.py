@@ -172,7 +172,7 @@ def test_copy_in_a_loop_2():
         _A_flat = T.decl_buffer((262144,), data=A.data, layout=None)
         A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
         A_sbuf_view = T.decl_buffer((128, 2048), data=A_sbuf.data, scope="trn.sbuf", layout=None)
-        A_view = T.decl_buffer((262144,), data=A.data, layout=None)
+        A_view = T.decl_buffer((262144,), data=_A_flat.data, layout=None)
         for i, b_loop in T.grid(4, 1):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim": "P"}):
@@ -337,13 +337,13 @@ def test_copy_different_shape():
         T.func_attr({"global_symbol": "copy"})
         A_sbuf = T.alloc_buffer((128, 256), scope="trn.sbuf")
         B_sbuf = T.alloc_buffer((128, 16), scope="trn.sbuf")
-        _B_sbuf_view = T.decl_buffer((128, 16), data=B_sbuf.data, scope="trn.sbuf", layout=None)
+        B_sbuf_view = T.decl_buffer((128, 16), data=B_sbuf.data, scope="trn.sbuf", layout=None)
         for b_loop in T.serial(0, 4):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(0, 4, annotations={"nki_dim": "F"}):
                     T.nki.tensor_copy(
-                        B_sbuf[p_loop, b_loop * 4 + f_loop],
+                        B_sbuf_view[p_loop, b_loop * 4 + f_loop],
                         A_sbuf[p_loop, b_loop * 64 + f_loop],
                     )
 

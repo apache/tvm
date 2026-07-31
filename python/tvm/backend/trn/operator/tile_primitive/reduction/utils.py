@@ -40,7 +40,7 @@ def generate_intermediate_buffer(
     Returns:
         Tuple[Optional[buffer], int]: The intermediate buffer and reduction factor size.
     """
-    intermediate_shape = [dst_buffer_region.buffer.layout.size("P"), rfactor_size]
+    intermediate_shape = [dst_buffer_region.buffer.ty.layout.size("P"), rfactor_size]
 
     if "partial_reduce" in workspace:
         intermediate_buffer = workspace["partial_reduce"]
@@ -51,7 +51,7 @@ def generate_intermediate_buffer(
         )
         intermediate_buffer = T.buffer(
             intermediate_shape,
-            dtype=dst_buffer_region.buffer.dtype,
+            dtype=dst_buffer_region.buffer.ty.dtype,
             scope="trn.sbuf",
             buffer_name="partial_reduce",
         )
@@ -85,18 +85,18 @@ def reduction_trn(
     # Extract buffers
     dst = dst_buffer_region.buffer
     src = src_buffer_region.buffer
-    axes = [i if i >= 0 else len(src.shape) + i for i in axes]
+    axes = [i if i >= 0 else len(src.ty.shape) + i for i in axes]
     dim_map = get_reduction_dim_map(src_buffer_region, dst_buffer_region, axes, analyzer)
 
     # Layout validation
     assert all(
         [
-            src.layout and dst.layout,
+            src.ty.layout and dst.ty.layout,
             src.scope() == "trn.sbuf" or src.scope() == "trn.psum",
             dst.scope() == "trn.sbuf",
-            is_trainium_layout(src.layout),
-            is_trainium_layout(dst.layout),
-            src.layout.size("P") == dst.layout.size("P"),
+            is_trainium_layout(src.ty.layout),
+            is_trainium_layout(dst.ty.layout),
+            src.ty.layout.size("P") == dst.ty.layout.size("P"),
         ]
     ), "Invalid layout"
 
@@ -109,7 +109,7 @@ def reduction_trn(
     assert analyzer.can_prove(inst_repr.size > 1), "Instruction size must be greater than 1"
 
     # Get partition size and extents
-    p_size = src.layout.size("P")
+    p_size = src.ty.layout.size("P")
     f_var = T.Var("F", "int32")
     p_var = T.Var("P", "int32")
     spatial_b_var = T.Var("sB", "int32")

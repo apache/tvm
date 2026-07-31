@@ -167,7 +167,7 @@ class LoopUnroller : public StmtExprMutator {
 
   Expr VisitExpr_(const BufferLoadNode* op) final {
     if (unroll_local_access_) {
-      auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer->data));
+      auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
       if (storage_scope.rank == runtime::StorageRank::kLocal ||
           storage_scope.rank == runtime::StorageRank::kWarp) {
         VarLocalAccessMarker marker(&var_touched_local_);
@@ -182,7 +182,7 @@ class LoopUnroller : public StmtExprMutator {
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     ++step_count_;
     if (unroll_local_access_) {
-      auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer->data));
+      auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
       if (storage_scope.rank == runtime::StorageRank::kLocal ||
           storage_scope.rank == runtime::StorageRank::kWarp) {
         VarLocalAccessMarker marker(&var_touched_local_);
