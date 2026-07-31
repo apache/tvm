@@ -16,15 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+const ts = require("typescript");
+
 module.exports = {
-  testEnvironment: "node",
-
-  transform: {
-    "^.+\\.ts$": "<rootDir>/tests/typescript_transformer.cjs",
-    "^.+\\.js$": "babel-jest",
+  process(sourceText, sourcePath) {
+    return {
+      code: ts.transpileModule(sourceText, {
+        compilerOptions: {
+          module: ts.ModuleKind.CommonJS,
+          target: ts.ScriptTarget.ES2018,
+        },
+        fileName: sourcePath,
+      }).outputText,
+    };
   },
-
-  testMatch: [
-     "**/tests/node/*.js"
-  ],
 };
