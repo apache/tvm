@@ -269,6 +269,7 @@ TMEM datapath layouts
     accum = tmem_datapath_layout("D", 128, cols)
     lower = tmem_datapath_layout("F", 64, cols, sub_slab=0)
     upper = tmem_datapath_layout("F", 64, cols, sub_slab=1)
+    paired = tmem_datapath_layout("B", 64, cols)
 
 Layout D maps logical row ``r`` directly to ``TLane = r`` and spans both
 16-lane halves of every warp's 32-lane TMEM partition. Layout F maps its 64
@@ -286,6 +287,32 @@ upper-half aliases of the same 128-row Layout D allocation. The
 ``tcgen05_ldst`` copy dispatch recognizes the layout and emits the matching
 ``row=0`` or ``row=16`` instruction. Layout D already occupies both halves,
 so a nonzero ``sub_slab`` is rejected.
+
+Layout B is the per-CTA accumulator placement for an M=64
+``tcgen05.mma.cta_group::2`` operation. PTX describes the two-CTA operation
+as M=128, while each CTA owns a logical ``(64, N)`` tile. Its columns split
+across the two 64-lane halves:
+
+.. math::
+
+   \mathrm{TLane}
+   = r + 64\left\lfloor\frac{c}{N/2}\right\rfloor,
+   \qquad
+   \mathrm{TCol} = c \bmod (N/2).
+
+Thus the tile occupies all 128 lanes and ``N/2`` tensor-memory columns, the
+same physical footprint as Layout D ``(128, N/2)``. ``N`` must be even and
+Layout B does not accept ``sub_slab``. Its register image uses the existing
+fragment API:
+
+.. code-block:: python
+
+    frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
+    Tx.wg.copy_async(frag[:, :], paired_accumulator[:, :])
+    T.ptx.tcgen05.wait.ld()
+
+The logical ``(64, N)`` fragment is one physical ``.32x32b`` transfer over
+all 128 lanes; each thread owns ``N/2`` contiguous fp32 registers.
 
 Beyond GPU registers
 ~~~~~~~~~~~~~~~~~~~~~~

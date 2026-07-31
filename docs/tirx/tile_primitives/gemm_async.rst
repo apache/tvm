@@ -57,9 +57,9 @@ A single predicate — single-thread or warp scope:
        ``float8_e4m3fn`` / ``float4_e2m1fn`` with ``SFA`` / ``SFB`` scale factors in
        tmem; accumulator always ``float32``
    * - shape
-     - ``M ∈ {64, 128}`` (×2 for cta_group=2); ``N`` divisible by 8 (cta_group=1) or
-       16 (cta_group=2); ``K`` divisible by ``MMA_K`` = 16 (f16/bf16) / 32 (fp8) /
-       64 (fp4)
+     - per-CTA ``M ∈ {64, 128}``; ``N`` divisible by 8 (cta_group=1) or 16
+       (cta_group=2); ``K`` divisible by ``MMA_K`` = 16 (f16/bf16) / 32 (fp8) /
+       64 (fp4). With cta_group=2, the CTA pair covers twice the per-CTA M
    * - cta_group
      - ``1`` (one CTA) or ``2`` (two CTAs split the operand)
 
@@ -126,6 +126,39 @@ instruction descriptor is encoded at runtime. As with the other async ops, the
 dispatch emits **no** completion — the caller's ``tcgen05.commit`` + mbarrier wait
 close it.
 
+Accumulator datapaths and readback
+----------------------------------
+
+The accumulator layout must match the MMA's row placement:
+
+* Layout D is the M=128 identity placement.
+* Layout F is the single-CTA M=64 scattered placement.
+* Layout B is the per-CTA M=64 placement for ``cta_group=2``. Its logical
+  N columns split across physical lane halves 0–63 and 64–127, so it
+  occupies all 128 lanes and ``N/2`` tensor-memory columns.
+
+Allocate and read a Layout B result as follows:
+
+.. code-block:: python
+
+    accumulator = tmem_pool.alloc((64, N), "float32", datapath="B")
+    Tx.gemm_async(
+        accumulator[:, :],
+        A_smem[:, :],
+        B_smem[:, :],
+        dispatch="tcgen05",
+        cta_group=2,
+    )
+
+    frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
+    Tx.wg.copy_async(frag[:, :], accumulator[:, :])
+    T.ptx.tcgen05.wait.ld()
+
+The fragment is a logical ``(64, N)`` view of one physical
+``.32x32b`` transfer over all 128 lanes. The gemm write-side layout and
+the allocation/readback layout are produced by the same
+``tmem_datapath_layout("B", 64, N)`` factory.
+
 Generated TIRx IR
 -----------------
 
@@ -167,7 +200,8 @@ How inputs change the algorithm
        addresses and a runtime-encoded instruction descriptor
    * - cta_group
      - ``1`` → one CTA, ``M ∈ {64, 128}``; ``2`` → two CTAs split the operand,
-       ``M ∈ {128, 256}`` and half the per-CTA N
+       each with per-CTA ``M ∈ {64, 128}`` and half the B rows. The
+       per-CTA M=64 output uses Layout B
    * - M / N / K extents
      - set the ``(mi, ni, ki)`` unrolled loop counts; K iterations accumulate into
        the same tmem accumulator

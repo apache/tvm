@@ -59,10 +59,12 @@ lowering:
      - ``(tmem, local)`` or ``(local, tmem)`` — exactly one side is tensor memory
    * - register layout
      - matched against a ``tcgen05_atom_layout`` (``.16x64b`` / ``.16x128b`` /
-       ``.16x256b``) for the fast path; otherwise the ``.32x32b`` fallback
+       ``.16x256b``) for the fast path; otherwise the ``.32x32b`` fallback.
+       Layout B uses the special ``.32x32b`` logical ``(64, N)`` image
    * - tmem datapath
-     - classified ``D`` (M=128 identity) or ``F`` (M=64 scattered); an F layout
-       also selects the lower or upper 16-lane sub-slab of each warp partition
+     - classified ``D`` (M=128 identity), ``F`` (M=64 scattered), or ``B``
+       (per-CTA M=64, ``cta_group=2`` column split); an F layout also selects
+       the lower or upper 16-lane sub-slab of each warp partition
 
 Demonstration program
 ----------------------
@@ -128,6 +130,10 @@ fragment spans two 16-row slabs, so the warps issue the atom twice
            shape=shape, num=num_eff,
            row=(sub_slab + slab) * 16, col=col_off_32b)
 
+Layout B is routed before the ordinary atom matching. Its logical
+``(64, N)`` fragment is emitted as one physical ``.32x32b.x{N/2}``
+instruction over all 128 lanes.
+
 The dispatch emits **no** wait — the caller issues ``tcgen05.wait.ld()`` /
 ``wait.st()`` (as in the demo).
 
@@ -165,6 +171,36 @@ Selecting the upper F sub-slab
 The lower view emits ``row=0`` and the upper view emits ``row=16`` for
 ``.16x64b``, ``.16x128b``, and ``.16x256b`` atoms. Layout D has 128 rows and
 already spans both sub-slabs, so it only accepts ``sub_slab=0``.
+
+Layout B readback
+-----------------
+
+Layout B is produced by an M=64-per-CTA ``tcgen05.mma`` with
+``cta_group=2``. Its logical ``(64, N)`` columns are split into two
+``N/2`` halves: the low half uses physical TMEM lanes 0–63, and the high
+half uses lanes 64–127. It therefore occupies all 128 lanes and ``N/2``
+``TCol`` values.
+
+Use the public allocation and fragment APIs together:
+
+.. code-block:: python
+
+    accumulator = tmem_pool.alloc((64, N), "float32", datapath="B")
+    frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
+
+    Tx.wg.copy_async(frag[:, :], accumulator[:, :])
+    T.ptx.tcgen05.wait.ld()
+
+    # The inverse direction emits tcgen05.st with the same physical image.
+    Tx.wg.copy_async(accumulator[:, :], frag[:, :])
+    T.ptx.tcgen05.wait.st()
+
+This is a single ``tcgen05.{ld,st}.32x32b.x{N/2}`` issue. ``N`` must be
+even, ``N/2`` must be a valid PTX ``num``, and the fragment is fp32-only.
+The first implementation intentionally requires the full logical
+``(64, N)`` region: a partial logical-column slice is not contiguous after
+the two-way lane split. A conventional ``.16x*b`` fragment is rejected with
+an actionable error.
 
 Generated TIRx IR
 -----------------
@@ -207,7 +243,9 @@ How inputs change the algorithm
    * - direction
      - ``tmem → local`` → ``tcgen05.ld``; ``local → tmem`` → ``tcgen05.st`` (same
        shape/num logic)
-   * - datapath D vs F
+   * - datapath D vs F vs B
      - ``D`` (M=128) covers all 128 rows; an M=128 ``.16x*b`` copy issues two slabs
        (``row = 0`` / ``row = 16``). ``F`` (M=64) scatters rows to lanes and
-       its layout selects one issue at ``row = 0`` or ``row = 16``
+       its layout selects one issue at ``row = 0`` or ``row = 16``. ``B``
+       (per-CTA M=64, ``cta_group=2``) splits N across two 64-lane halves and
+       emits one logical-64-row ``.32x32b`` image

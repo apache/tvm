@@ -776,8 +776,10 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     # the full row range, the slice layout structurally matches Layout F over
     # (M=64, N) — assert against that base instead of the Layout D identity.
     if is_2x2:
-        N_half = N // 2
-        base = TileLayout(S[(M, 2, N_half) : (1 @ TLane, 64 @ TLane, 1 @ TCol)])
+        # Layout B (per-CTA M=64, .cta_group::2 "2x2"). Single-source the
+        # write layout with allocation and readback so the two sides cannot
+        # drift.
+        base = tmem_datapath_layout("B", M, N)
     elif (
         M == 64
         and int(C_buffer.shape[0]) == 64

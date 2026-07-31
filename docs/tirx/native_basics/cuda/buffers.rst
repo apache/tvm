@@ -379,7 +379,7 @@ tensor as a view at a column offset, and one warp frees it at the end:
         T.ptx.tcgen05.relinquish_alloc_permit(cta_group=cta_group)
         T.ptx.tcgen05.dealloc(addr, n_cols=512, cta_group=cta_group)
 
-You manage the column offsets and the ``tmem_layout`` (a datapath D/F layout)
+You manage the column offsets and the ``tmem_layout`` (a datapath D/F/B layout)
 yourself. This is exactly the sequence the pool below emits.
 
 Pool
@@ -393,7 +393,9 @@ bump-allocation, and the datapath layout:
     tmem_addr = pool.alloc((1,), "uint32")          # pool = the kernel's smem pool
     tmem_pool = T.TMEMPool(pool, total_cols=512, cta_group=cta_group,
                            tmem_addr=tmem_addr)
-    acc = tmem_pool.alloc((CTA_M, 512), "float32")  # allocated_addr set for you
+    # Choose the layout required by the instruction that consumes the buffer:
+    acc = tmem_pool.alloc((CTA_M, 512), "float32")  # Layout D when CTA_M=128
+    # acc = tmem_pool.alloc((64, N), "float32", datapath="B")  # cta_group=2
     tmem_pool.commit()                               # emits tcgen05.alloc (one warp)
     # ... use acc ...
     tmem_pool.dealloc()                              # emits tcgen05.dealloc (one warp)

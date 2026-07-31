@@ -323,7 +323,8 @@ class TMEMPool:
             Explicit ``TileLayout``. Mutually exclusive with ``datapath``.
         datapath : str | None
             Optional tcgen05 datapath letter (``"D"`` for M=128 full datapath,
-            ``"F"`` for M=64 non-``.ws`` scattered). When provided, the buffer's
+            ``"F"`` for M=64 non-``.ws`` scattered, or ``"B"`` for per-CTA
+            M=64 ``.cta_group::2`` "2x2"). When provided, the buffer's
             layout is derived from ``tmem_datapath_layout(datapath, *shape)``
             so the row index reflects the *physical* TMEM lane occupation
             (PTX ISA §9.7.16.10.5). The downstream ``.16x*b`` / ``.32x32b``
