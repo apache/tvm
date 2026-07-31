@@ -18,9 +18,9 @@
 """PTX cp.async / cp.async.bulk / cp.async.bulk.tensor intrinsics.
 
 Each PTX form table entry is registered as one ``device_intrinsic``.
-User-facing wrappers in ``tvm.tirx.op`` keep their v1 signatures;
-``register_codegen`` dispatchers below decode the (cp_size, fill_mode,
-predicate) / (dim, cta_mask, tile_mode) arguments to pick the right form.
+User-facing wrappers in ``tvm.tirx.op`` expose separate PTX instruction
+families; ``register_codegen`` dispatchers below decode attrs such as
+``load_mode`` / ``cta_group`` / ``multicast`` to pick the right form variant.
 Bodies are hand-written ``asm volatile(...)`` strings.  The file is grouped
 as cp.async, cp.async.bulk.tensor, cp.async.bulk non-TMA, and CUDA
 compatibility helpers.
@@ -57,6 +57,35 @@ device_intrinsic(
     n_attrs=1,
     helper_name=lambda n: f"tvm_builtin_ptx_cp_async_wait_group_{int(n)}",
     body=lambda n: f'    asm volatile("cp.async.wait_group {int(n)};");',
+)
+
+_CP_ASYNC_MBARRIER_ARRIVE_SPACES = ("shared", "shared::cta")
+
+
+def _cp_async_mbarrier_arrive_parts(*args):
+    noinc = _bool_attr(args[-2])
+    space = parse_str(args[-1])
+    assert space in _CP_ASYNC_MBARRIER_ARRIVE_SPACES, (
+        f"invalid cp.async.mbarrier.arrive space {space!r}, "
+        f"expected one of {_CP_ASYNC_MBARRIER_ARRIVE_SPACES}"
+    )
+    noinc_suffix = ".noinc" if noinc else ""
+    noinc_name = "_noinc" if noinc else ""
+    space_name = "_" + _safe(space)
+    return (
+        f"tvm_builtin_ptx_cp_async_mbarrier_arrive{noinc_name}{space_name}",
+        "    unsigned int barrier_addr = __cvta_generic_to_shared(barrier);\n"
+        f'    asm volatile("cp.async.mbarrier.arrive{noinc_suffix}.{space}.b64 [%0];"\n'
+        '                 :: "r"(barrier_addr) : "memory");',
+    )
+
+
+device_intrinsic(
+    "ptx_cp_async_mbarrier_arrive",
+    n_attrs=2,
+    helper_name=lambda *a: _cp_async_mbarrier_arrive_parts(*a)[0],
+    c_signature="(void* barrier)",
+    body=lambda *a: _cp_async_mbarrier_arrive_parts(*a)[1],
 )
 
 
@@ -421,41 +450,158 @@ def _coord_sig(n):
     return ", ".join(f"int coord{i}" for i in range(n))
 
 
+def _ptx_shared_u32_addr_decl(var_name, ptr_name, ptx_reg_name):
+    return (
+        f"    unsigned int {var_name};\n"
+        "    asm volatile(\n"
+        '        "{\\n\\t"\n'
+        f'        ".reg .u64 {ptx_reg_name};\\n\\t"\n'
+        f'        "cvta.to.shared.u64 {ptx_reg_name}, %1;\\n\\t"\n'
+        f'        "cvt.u32.u64 %0, {ptx_reg_name};\\n\\t"\n'
+        '        "}\\n"\n'
+        f'        : "=r"({var_name}) : "l"({ptr_name}));\n'
+    )
+
+
+def _g2s_cta_mbar_addr_decl(mbar_is_shared_addr):
+    if mbar_is_shared_addr:
+        # The caller passed the final uint32 mbarrier operand and owns any
+        # architecture-specific address masking before this helper is called.
+        return ""
+    return _ptx_shared_u32_addr_decl("mbar_addr", "mbar", "mbar_addr64")
+
+
+def _g2s_cluster_mbar_addr_decl(mbar_is_shared_addr):
+    if mbar_is_shared_addr:
+        # The caller passed the final uint32 mbarrier operand and owns any
+        # architecture-specific address masking before this helper is called.
+        return ""
+    return "    unsigned int mbar_addr = __cvta_generic_to_shared(mbar);\n"
+
+
+def _tensor_tile_modifier(tile_mode):
+    assert tile_mode in _TILE_MODE_CHOICES, (
+        f"invalid cp.async.bulk.tensor load_mode {tile_mode!r}, "
+        f"expected one of {_TILE_MODE_CHOICES}"
+    )
+    return ".tile::gather4" if tile_mode == "tile_gather4" else ""
+
+
+def _g2s_cta_body(instr, coord_count, has_cache, mbar_is_shared_addr):
+    coord_start = 4 if has_cache else 3
+    coord_tpl = _coord_template(coord_count, coord_start)
+    cache_slot = ", %3" if has_cache else ""
+    cache_arg = ',\n          "l"(cache_policy)' if has_cache else ""
+    return (
+        f"{_ptx_shared_u32_addr_decl('dst_addr', 'dst', 'smem_addr64')}"
+        f"{_g2s_cta_mbar_addr_decl(mbar_is_shared_addr)}"
+        "    asm volatile(\n"
+        f'        "{instr} [%0], [%1, {coord_tpl}], [%2]{cache_slot};"\n'
+        "        :\n"
+        f'        : "r"(dst_addr), "l"(tensormap_addr), "r"(mbar_addr){cache_arg},\n'
+        f"          {_coord_constraints(coord_count)}\n"
+        '        : "memory"\n'
+        "    );"
+    )
+
+
+def _g2s_cluster_body(
+    instr,
+    coord_count,
+    coord_tpl,
+    mbar_is_shared_addr,
+    mask_arg,
+    mask_slot,
+    cache_arg,
+    cache_slot,
+):
+    return (
+        "    unsigned int dst_addr = __cvta_generic_to_shared(dst);\n"
+        f"{_g2s_cluster_mbar_addr_decl(mbar_is_shared_addr)}"
+        "    asm volatile(\n"
+        f'        "{instr} [%0], [%1, {coord_tpl}], [%2]{mask_slot}{cache_slot};"\n'
+        "        :\n"
+        f'        : "r"(dst_addr), "l"(tensormap_addr), "r"(mbar_addr){mask_arg}{cache_arg},\n'
+        f"          {_coord_constraints(coord_count)}\n"
+        '        : "memory"\n'
+        "    );"
+    )
+
+
+# PTX cp.async.bulk.tensor global -> shared::cta; this registration supports
+# tile/tile::gather4 load modes.
+def _g2s_cta_parts(*args):
+    attrs = args[-5:]
+    dim = int(attrs[0])
+    cta_group = int(attrs[1])
+    has_cache = _bool_attr(attrs[2])
+    tile_mode = parse_str(attrs[3])
+    mbar_is_shared_addr = _bool_attr(attrs[4])
+    coord_count = 5 if tile_mode == "tile_gather4" else dim
+    mbar_type = "unsigned int mbar_addr" if mbar_is_shared_addr else "void* mbar"
+    sig = (
+        f"(void* dst, {mbar_type}, unsigned long long tensormap_addr, "
+        "unsigned long long cache_policy"
+        + (", " + _coord_sig(coord_count) if coord_count else "")
+        + ")"
+    )
+    name = (
+        f"ptx_cp_async_bulk_tensor_g2s_cta_{tile_mode}_{dim}d"
+        f"{'_cache_hint' if has_cache else ''}{'_mbar_addr' if mbar_is_shared_addr else ''}"
+    )
+    tile_modifier = _tensor_tile_modifier(tile_mode)
+    cta_group_str = _resolve_cta_group_str(cta_group)
+    cache_inst = ".L2::cache_hint" if has_cache else ""
+    instr = (
+        f"cp.async.bulk.tensor.{dim}d.shared::cta.global{tile_modifier}"
+        f".mbarrier::complete_tx::bytes{cta_group_str}{cache_inst}"
+    )
+    return name, sig, _g2s_cta_body(instr, coord_count, has_cache, mbar_is_shared_addr)
+
+
+device_intrinsic(
+    "_ptx_cp_async_bulk_tensor_g2s_cta",
+    n_attrs=5,
+    helper_name=lambda *a: _g2s_cta_parts(*a)[0],
+    c_signature=lambda *a: _g2s_cta_parts(*a)[1],
+    body=lambda *a: _g2s_cta_parts(*a)[2],
+)
+
+
 # PTX cp.async.bulk.tensor global -> shared::cluster form:
 #   cp.async.bulk.tensor.dim.dst.src{.load_mode}.completion_mechanism
 #       {.multicast}{.cta_group}{.level::cache_hint}
-#       [dstMem], [tensorMap, tensorCoords], [mbar]{, im2colInfo}
-#       {, ctaMask} {, cache-policy}
+#       [dstMem], [tensorMap, tensorCoords], [mbar]{, ctaMask} {, cache-policy}
 #   .dst = {.shared::cluster}; .src = {.global}
 #   .completion_mechanism = {.mbarrier::complete_tx::bytes}
 #   .multicast = {.multicast::cluster}
 #   .cta_group = {.cta_group::1, .cta_group::2}
 #   .load_mode = {.tile, .tile::gather4, .im2col, .im2col::w, .im2col::w::128}
 #   .level::cache_hint = {.L2::cache_hint}
-# This registration supports tile/tile::gather4 modes; ctaMask is only used
+# This registration supports tile/tile::gather4 modes. ctaMask is only used
 # when the optional ``.multicast::cluster`` modifier is enabled.
-def _g2cluster_parts(*args):
+def _g2s_cluster_parts(*args):
     attrs = args[-6:]
     dim = int(attrs[0])
     cta_group = int(attrs[1])
     has_cache = _bool_attr(attrs[2])
     tile_mode = parse_str(attrs[3])
-    bar_is_addr = _bool_attr(attrs[4])
+    mbar_is_shared_addr = _bool_attr(attrs[4])
     multicast = _bool_attr(attrs[5])
     coord_count = 5 if tile_mode == "tile_gather4" else dim
-    bar_type = "unsigned int bar_addr" if bar_is_addr else "void* bar"
+    mbar_type = "unsigned int mbar_addr" if mbar_is_shared_addr else "void* mbar"
     sig = (
-        f"(void* dst, {bar_type}, unsigned long long tensormap_addr, "
+        f"(void* dst, {mbar_type}, unsigned long long tensormap_addr, "
         "uint16_t cta_mask, unsigned long long cache_policy"
         + (", " + _coord_sig(coord_count) if coord_count else "")
         + ")"
     )
     name = (
-        f"ptx_cp_async_bulk_tensor_g2cluster_{tile_mode}_{dim}d"
+        f"ptx_cp_async_bulk_tensor_g2s_cluster_{tile_mode}_{dim}d"
         f"{'_multicast' if multicast else ''}"
-        f"{'_cache_hint' if has_cache else ''}{'_bar_addr' if bar_is_addr else ''}"
+        f"{'_cache_hint' if has_cache else ''}{'_mbar_addr' if mbar_is_shared_addr else ''}"
     )
-    tile_modifier = ".tile::gather4" if tile_mode == "tile_gather4" else ""
+    tile_modifier = _tensor_tile_modifier(tile_mode)
     cta_group_str = _resolve_cta_group_str(cta_group)
     multicast_inst = ".multicast::cluster" if multicast else ""
     cache_inst = ".L2::cache_hint" if has_cache else ""
@@ -470,29 +616,28 @@ def _g2cluster_parts(*args):
         f".mbarrier::complete_tx::bytes{multicast_inst}"
         f"{cta_group_str}{cache_inst}"
     )
-    bar_addr_decl = (
-        "" if bar_is_addr else "    unsigned int bar_addr = __cvta_generic_to_shared(bar);\n"
+    return (
+        name,
+        sig,
+        _g2s_cluster_body(
+            instr,
+            coord_count,
+            coord_tpl,
+            mbar_is_shared_addr,
+            mask_arg,
+            mask_slot,
+            cache_arg,
+            cache_slot,
+        ),
     )
-    body = (
-        "    unsigned int dst_addr = __cvta_generic_to_shared(dst);\n"
-        f"{bar_addr_decl}"
-        "    asm volatile(\n"
-        f'        "{instr} [%0], [%1, {coord_tpl}], [%2]{mask_slot}{cache_slot};"\n'
-        "        :\n"
-        f'        : "r"(dst_addr), "l"(tensormap_addr), "r"(bar_addr){mask_arg}{cache_arg},\n'
-        f"          {_coord_constraints(coord_count)}\n"
-        '        : "memory"\n'
-        "    );"
-    )
-    return name, sig, body
 
 
 device_intrinsic(
-    "ptx_cp_async_bulk_tensor_g2cluster",
+    "_ptx_cp_async_bulk_tensor_g2s_cluster",
     n_attrs=6,
-    helper_name=lambda *a: _g2cluster_parts(*a)[0],
-    c_signature=lambda *a: _g2cluster_parts(*a)[1],
-    body=lambda *a: _g2cluster_parts(*a)[2],
+    helper_name=lambda *a: _g2s_cluster_parts(*a)[0],
+    c_signature=lambda *a: _g2s_cluster_parts(*a)[1],
+    body=lambda *a: _g2s_cluster_parts(*a)[2],
 )
 
 
@@ -559,10 +704,7 @@ def _prefetch_parts(*args):
         + (", " + _coord_sig(dim) if dim else "")
         + ")"
     )
-    name = (
-        f"ptx_cp_async_bulk_tensor_global_to_cluster_prefetch_{dim}d"
-        f"{'_cache_hint' if has_cache else ''}"
-    )
+    name = f"ptx_cp_async_bulk_tensor_prefetch_{dim}d{'_cache_hint' if has_cache else ''}"
     cache_inst = ".L2::cache_hint" if has_cache else ""
     cache_arg = ', "l"(cache_policy)' if has_cache else ""
     cache_slot = ", %1" if has_cache else ""
@@ -644,48 +786,55 @@ device_intrinsic(
 )
 
 
-# User-facing dispatchers for tensor global -> shared::cluster.  The same
-# backend root handles the optional ``.multicast::cluster`` modifier.
-
-
-def _g2c_dispatch(dim, dst_ptr, bar, tensormap, *args, tile_mode):
-    cta_mask, cta_group, cache_policy, has_cache, *rest = args
-    coord_count = 5 if tile_mode == "tile_gather4" else int(dim)
-    if len(rest) == coord_count + 1:
-        bar_is_addr = _bool_attr(rest[0])
-        coords = rest[1:]
-    else:
-        bar_is_addr = False
-        coords = rest
-    is_unicast = isinstance(cta_mask, tvm.tirx.IntImm) and bin(int(cta_mask)).count("1") <= 1
-    cg = int(cta_group)
-    op = "tirx.ptx_cp_async_bulk_tensor_g2cluster"
-    call_args = [
-        dst_ptr,
-        bar,
-        tensormap,
-        cta_mask,
-        cache_policy,
-        *coords,
-        int(dim),
-        cg,
-        has_cache,
-        tile_mode,
-        bar_is_addr,
-        int(not is_unicast),
-    ]
-    result = CODEGEN_REGISTRY[op](call_args)
+@register_codegen("ptx_cp_async_bulk_tensor_g2s_cta")
+def codegen_g2s_cta(dim, dst_ptr, mbar, tensormap, *args):
+    cta_group, cache_policy, has_cache, tile_mode, mbar_is_shared_addr, *coords = args
+    result = CODEGEN_REGISTRY["tirx._ptx_cp_async_bulk_tensor_g2s_cta"](
+        [
+            dst_ptr,
+            mbar,
+            tensormap,
+            cache_policy,
+            *coords,
+            int(dim),
+            int(cta_group),
+            has_cache,
+            tile_mode,
+            mbar_is_shared_addr,
+        ]
+    )
     return result[0] if isinstance(result, tuple) else result
 
 
-@register_codegen("ptx_cp_async_bulk_tensor_global_to_cluster")
-def codegen_g2c(dim, dst_ptr, bar, tensormap, *args):
-    return _g2c_dispatch(dim, dst_ptr, bar, tensormap, *args, tile_mode="tile")
-
-
-@register_codegen("ptx_cp_async_bulk_tensor_tile_gather4_global_to_cluster")
-def codegen_g2c_gather4(dim, dst_ptr, bar, tensormap, *args):
-    return _g2c_dispatch(dim, dst_ptr, bar, tensormap, *args, tile_mode="tile_gather4")
+@register_codegen("ptx_cp_async_bulk_tensor_g2s_cluster")
+def codegen_g2s_cluster(dim, dst_ptr, mbar, tensormap, *args):
+    (
+        cta_mask,
+        cta_group,
+        cache_policy,
+        has_cache,
+        tile_mode,
+        mbar_is_shared_addr,
+        multicast,
+        *coords,
+    ) = args
+    result = CODEGEN_REGISTRY["tirx._ptx_cp_async_bulk_tensor_g2s_cluster"](
+        [
+            dst_ptr,
+            mbar,
+            tensormap,
+            cta_mask,
+            cache_policy,
+            *coords,
+            int(dim),
+            int(cta_group),
+            has_cache,
+            tile_mode,
+            mbar_is_shared_addr,
+            multicast,
+        ]
+    )
+    return result[0] if isinstance(result, tuple) else result
 
 
 @register_codegen("ptx_cp_async_bulk_tensor_shared_to_global")
@@ -697,7 +846,7 @@ def codegen_s2g(dim, src_ptr, tensormap, *args):
     return result[0] if isinstance(result, tuple) else result
 
 
-@register_codegen("ptx_cp_async_bulk_tensor_global_to_cluster_prefetch")
+@register_codegen("ptx_cp_async_bulk_tensor_prefetch")
 def codegen_prefetch(dim, tensormap, *args):
     cache_policy, has_cache, *coords = args
     result = CODEGEN_REGISTRY["tirx.ptx_cp_async_bulk_tensor_prefetch"](
@@ -731,7 +880,8 @@ def _ptx_cp_async_bulk_wait_group_parts(n, read):
     read_b = bool(int(read)) if hasattr(read, "value") else bool(read)
     return (
         f"ptx_cp_async_bulk_wait_group{'_read' if read_b else ''}_{n}",
-        f'    asm volatile("cp.async.bulk.wait_group{".read" if read_b else ""} {n};");',
+        f'    asm volatile("cp.async.bulk.wait_group{".read" if read_b else ""} {n};" '
+        '::: "memory");',
     )
 
 

@@ -294,7 +294,8 @@ namespace attr {
  *      [arg1, arg2, ..., arg_n,
  *       work_size_1, work_size_2, ... work_size_m, dyn_shmem_size])
  *
- * Here n = len(arg), m = len(work_size) = len(launch_params)-1.
+ * Flag-only launch tags do not add packed operands.  The dynamic shared-memory
+ * operand is present only when its value-bearing tag is listed.
  *
  * The list of kernel launch params indicates which additional
  * parameters will be provided to the ffi::Function by the calling
@@ -320,12 +321,14 @@ namespace attr {
  *
  * - tvm::runtime::launch_param::kUseDynamicSharedMemoryTag
  *
- *   The size of the shared memory that may be allocated internally by
- *   the kernel.  For example, exposed as the
- *   CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES attribute in
- *   CUDA.
+ *   The dynamic shared-memory byte count passed for this launch.
  *
  *   Defined as "tirx.use_dyn_shared_memory".
+ *
+ * - tvm::runtime::launch_param::kUseProgramaticDependentLaunch
+ * - tvm::runtime::launch_param::kUseCooperativeLaunch
+ *
+ *   Flag-only launch attributes.  These tags add no packed operand.
  *
  * \sa tvm::CallingConv::kDeviceKernelLaunch
  */
@@ -337,6 +340,14 @@ constexpr const char* kKernelLaunchParams = "tirx.kernel_launch_params";
  * Type: IntImm
  */
 constexpr const char* kLaunchBoundsMinBlocksPerSM = "tirx.launch_bounds_min_blocks_per_sm";
+
+/*!
+ * \brief CUDA launch bound maximum CTAs per cluster.
+ *
+ * Type: IntImm
+ */
+constexpr const char* kLaunchBoundsMaxBlocksPerCluster =
+    "tirx.launch_bounds_max_blocks_per_cluster";
 
 /*!
  * \brief Whether to set noalias rule on the function arguments.

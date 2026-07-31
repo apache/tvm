@@ -89,10 +89,16 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
  public:
   Stmt Extract(Stmt stmt) {
     min_blocks_per_sm_.reset();
-    return operator()(std::move(stmt));
+    max_blocks_per_cluster_.reset();
+    Stmt result = operator()(std::move(stmt));
+    TVM_FFI_ICHECK(!max_blocks_per_cluster_.has_value() || min_blocks_per_sm_.has_value())
+        << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " requires "
+        << tirx::attr::kLaunchBoundsMinBlocksPerSM;
+    return result;
   }
 
   std::optional<int64_t> min_blocks_per_sm() const { return min_blocks_per_sm_; }
+  std::optional<int64_t> max_blocks_per_cluster() const { return max_blocks_per_cluster_; }
 
  private:
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -108,11 +114,24 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
       }
       min_blocks_per_sm_ = min_blocks_per_sm->value;
       return VisitStmt(op->body);
+    } else if (op->attr_key == tirx::attr::kLaunchBoundsMaxBlocksPerCluster) {
+      const auto* max_blocks_per_cluster = op->value.as<IntImmNode>();
+      TVM_FFI_ICHECK(max_blocks_per_cluster)
+          << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " expects an integer value";
+      TVM_FFI_ICHECK_GT(max_blocks_per_cluster->value, 0)
+          << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " must be positive";
+      if (max_blocks_per_cluster_.has_value()) {
+        TVM_FFI_ICHECK_EQ(max_blocks_per_cluster_.value(), max_blocks_per_cluster->value)
+            << "Conflicting " << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " values";
+      }
+      max_blocks_per_cluster_ = max_blocks_per_cluster->value;
+      return VisitStmt(op->body);
     }
     return StmtMutator::VisitStmt_(op);
   }
 
   std::optional<int64_t> min_blocks_per_sm_;
+  std::optional<int64_t> max_blocks_per_cluster_;
 };
 
 class HostDeviceSplitter : public StmtMutator {
@@ -222,9 +241,20 @@ class HostDeviceSplitter : public StmtMutator {
     if (is_stir) {
       device_func = WithAttr(std::move(device_func), tvm::attr::kSTir, true);
     }
-    if (device_target->kind->name == "cuda" && launch_bounds_attr.min_blocks_per_sm().has_value()) {
-      device_func = WithAttr(std::move(device_func), tirx::attr::kLaunchBoundsMinBlocksPerSM,
-                             launch_bounds_attr.min_blocks_per_sm().value());
+    if (auto launch_params =
+            cur_func_->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams)) {
+      device_func =
+          WithAttr(std::move(device_func), tirx::attr::kKernelLaunchParams, launch_params.value());
+    }
+    if (device_target->kind->name == "cuda") {
+      if (launch_bounds_attr.min_blocks_per_sm().has_value()) {
+        device_func = WithAttr(std::move(device_func), tirx::attr::kLaunchBoundsMinBlocksPerSM,
+                               launch_bounds_attr.min_blocks_per_sm().value());
+      }
+      if (launch_bounds_attr.max_blocks_per_cluster().has_value()) {
+        device_func = WithAttr(std::move(device_func), tirx::attr::kLaunchBoundsMaxBlocksPerCluster,
+                               launch_bounds_attr.max_blocks_per_cluster().value());
+      }
     }
     auto num_inputs = cur_func_->GetAttr<int64_t>(tvm::attr::kNumInputs);
     if (num_inputs.has_value()) {
@@ -303,8 +333,25 @@ class DeviceInfoCollector : public StmtVisitor {
     collector.info_.target = func->GetAttr<Target>(tvm::attr::kTarget).value().WithoutHost();
     collector.info_.params = func->params;
 
+    if (auto requested = func->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams)) {
+      for (const ffi::String& tag : requested.value()) {
+        if (tag == tvm::runtime::launch_param::kUseProgramaticDependentLaunch) {
+          collector.use_programmatic_dependent_launch_ = true;
+        } else if (tag == tvm::runtime::launch_param::kUseCooperativeLaunch) {
+          collector.use_cooperative_launch_ = true;
+        }
+      }
+    }
+
     collector(func->body);
 
+    if (collector.use_programmatic_dependent_launch_) {
+      collector.info_.launch_params.push_back(
+          tvm::runtime::launch_param::kUseProgramaticDependentLaunch);
+    }
+    if (collector.use_cooperative_launch_) {
+      collector.info_.launch_params.push_back(tvm::runtime::launch_param::kUseCooperativeLaunch);
+    }
     // The dynamic shared memory is required to be the last of the
     // kernel launch parameters.
     if (collector.dyn_shmem_size) {
@@ -315,8 +362,13 @@ class DeviceInfoCollector : public StmtVisitor {
     collector.info_.global_symbol =
         func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
 
-    collector.info_.launch_args = collector.info_.launch_params.Map(
-        [&](const auto& param) { return collector.GetArgument(param); });
+    for (const ffi::String& param : collector.info_.launch_params) {
+      if (param == tvm::runtime::launch_param::kUseProgramaticDependentLaunch ||
+          param == tvm::runtime::launch_param::kUseCooperativeLaunch) {
+        continue;
+      }
+      collector.info_.launch_args.push_back(collector.GetArgument(param));
+    }
 
     return collector.info_;
   }
@@ -412,24 +464,31 @@ class DeviceInfoCollector : public StmtVisitor {
   ffi::Map<ffi::String, PrimExpr> thread_extent;
   // The amount of dynamic shared memory used.
   ffi::Optional<PrimExpr> dyn_shmem_size{std::nullopt};
+  // Flag-only launch attributes requested by the original PrimFunc.
+  bool use_programmatic_dependent_launch_{false};
+  bool use_cooperative_launch_{false};
   // Accumulated Bind definitions for inlining into extent/size expressions.
   ffi::Map<Var, PrimExpr> bind_map_;
 };
 
 class ReturnRemover : public StmtExprMutator {
  public:
-  static Stmt Apply(const Stmt& stmt) {
-    ReturnRemover mutator;
+  static Stmt Apply(const Stmt& stmt, bool remove) {
+    ReturnRemover mutator(remove);
     return mutator(stmt);
   }
 
  private:
+  explicit ReturnRemover(bool remove) : remove_(remove) {}
+
   Stmt VisitStmt_(const ReturnNode* op) override {
     auto as_int = op->value.as<IntImmNode>();
     TVM_FFI_ICHECK(as_int && as_int->value == 0)
         << "Device kernel may only contain a successful return, return 0";
-    return Evaluate(0);
+    return remove_ ? Evaluate(0) : ffi::GetRef<Stmt>(op);
   }
+
+  bool remove_;
 };
 
 class GlobalVarCallCollector : public StmtExprVisitor {
@@ -516,7 +575,9 @@ class DeviceKernelMutator : public StmtExprMutator {
       {
         auto write_ptr = func.CopyOnWrite();
         write_ptr->ret_type = VoidType();
-        write_ptr->body = ReturnRemover::Apply(write_ptr->body);
+        Target target = func->GetAttr<Target>(tvm::attr::kTarget).value();
+        bool preserve_early_returns = target->kind->name == "cuda";
+        write_ptr->body = ReturnRemover::Apply(write_ptr->body, !preserve_early_returns);
       }
 
       func = WithAttrs(std::move(func),

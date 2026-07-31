@@ -51,7 +51,7 @@ from tvm.tirx.cuda.operator.tile_primitive.permute_layout.warp_xor_swizzle impor
     _check_bijection,
     _choose_xor_k,
 )
-from tvm.tirx.layout import S, SwizzleLayout, TileLayout
+from tvm.tirx.layout import S, TileLayout
 
 # ---------------------------------------------------------------------------
 # Algorithm-only tests (no CUDA needed).
@@ -374,12 +374,18 @@ def test_reject_shape_mismatch():
 
 
 def test_reject_swizzle_layout():
-    """ComposeLayout(SwizzleLayout, TileLayout) is not supported by the warp variant."""
+    """A swizzled ComposeLayout tile is not supported by the warp variant."""
     from tvm.tirx.layout import ComposeLayout
 
     inner = TileLayout(S[(4, 32) : (32, 1)])
-    sw = SwizzleLayout(per_element=2, swizzle_len=2, atom_len=4)
-    swizzled = ComposeLayout(sw, inner)
+    sw = ComposeLayout(2, 2, 4, TileLayout(S[(256,)]))
+    swizzled = ComposeLayout(
+        sw.per_element,
+        sw.swizzle_len,
+        sw.atom_len,
+        inner,
+        sw.swizzle_inner,
+    )
     plain = TileLayout(S[(4, 32) : (1, 4)])
 
     # fmt: off

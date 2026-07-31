@@ -248,14 +248,30 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
       return;
     }
     auto min_blocks_per_sm = f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMinBlocksPerSM);
+    auto max_blocks_per_cluster = f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMaxBlocksPerCluster);
     if (min_blocks_per_sm.has_value()) {
       TVM_FFI_ICHECK_GT(min_blocks_per_sm.value(), 0);
-      os << " __launch_bounds__(" << threadIdx_ext_int->value << ", " << min_blocks_per_sm.value()
-         << ")";
+      os << " __launch_bounds__(" << threadIdx_ext_int->value << ", " << min_blocks_per_sm.value();
+      if (max_blocks_per_cluster.has_value()) {
+        TVM_FFI_ICHECK_GT(max_blocks_per_cluster.value(), 0);
+        os << ", " << max_blocks_per_cluster.value();
+      }
+      os << ")";
     } else {
+      TVM_FFI_ICHECK(!max_blocks_per_cluster.has_value())
+          << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " requires "
+          << tirx::attr::kLaunchBoundsMinBlocksPerSM;
       os << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
     }
   }
+}
+
+void CodeGenCUDA::VisitStmt_(const ReturnNode* op) {
+  const auto* value = op->value.as<IntImmNode>();
+  TVM_FFI_ICHECK(value && value->value == 0)
+      << "CUDA device kernel may only contain a successful early return, return 0";
+  PrintIndent();
+  stream << "return;\n";
 }
 
 std::string CodeGenCUDA::Finish() {
@@ -277,6 +293,15 @@ std::string CodeGenCUDA::Finish() {
 }
 
 void CodeGenCUDA::VisitStmt_(const tirx::ForNode* op) {
+  // Materialize the loop bounds before emitting an unroll pragma.  PrintExpr
+  // may introduce temporaries (for example, for a Select expression).  CUDA
+  // requires #pragma unroll to immediately precede the loop it controls; if
+  // those declarations are printed between the pragma and the for statement,
+  // nvcc is free to unroll the loop despite disable_unroll.
+  std::string begin_str = PrintExpr(op->min);
+  PrimExpr end = is_zero(op->min) ? op->extent : arith::Analyzer()->Simplify(op->min + op->extent);
+  std::string end_str = PrintExpr(end);
+  std::string step_str = op->step.has_value() ? PrintExpr(*op->step) : "";
   if (op->annotations.count("disable_unroll")) {
     PrintIndent();
     stream << "#pragma unroll 1\n";
@@ -284,10 +309,28 @@ void CodeGenCUDA::VisitStmt_(const tirx::ForNode* op) {
     PrintIndent();
     stream << "#pragma unroll\n";
   }
-  CodeGenC::VisitStmt_(op);
+  PrintIndent();
+  std::string vid = AllocVarID(op->loop_var.get());
+  stream << "for (";
+  PrintType(op->loop_var.ty(), stream);
+  stream << ' ' << vid << " = " << begin_str << "; " << vid << " < " << end_str << "; ";
+  if (step_str.empty()) {
+    stream << "++" << vid;
+  } else {
+    stream << vid << " += " << step_str;
+  }
+  stream << ") {\n";
+  int for_scope = BeginScope();
+  PrintStmt(op->body);
+  this->EndScope(for_scope);
+  PrintIndent();
+  stream << "}\n";
 }
 
 void CodeGenCUDA::VisitStmt_(const WhileNode* op) {
+  PrintIndent();
+  // Match CodeGenC: dynamic-trip-count loops must not be unrolled.
+  stream << "#pragma unroll 1\n";
   PrintIndent();
   stream << "while (1) {\n";
   int while_scope = BeginScope();
@@ -980,7 +1023,6 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
   static const Op& mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
   static const Op& mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
   static const Op& ptx_cp_async_bulk_op = Op::Get("tirx.ptx.cp_async_bulk");
-  static const Op& ptx_cp_async_mbarrier_arrive_op = Op::Get("tirx.ptx.cp_async_mbarrier_arrive");
   static const Op& ptx_ldg32_op = Op::Get("tirx.ptx.ldg32");
   static const Op& cuda_func_call_op = Op::Get("tirx.cuda.func_call");
 
@@ -1289,16 +1331,6 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string barrier_arr = barrier_name_ + "_" + std::to_string(barrier_arr_id);
     std::string barrier = barrier_arr + "[" + std::to_string(barrier_id) + "]";
     this->stream << PrintCpAsyncBulkAsm(dst, dst_offset, src, src_offset, size, barrier);
-  } else if (IsOp(op, ptx_cp_async_mbarrier_arrive_op, "tirx.ptx.cp_async_mbarrier_arrive")) {
-    codegen_tags_.insert("cast_smem_ptr_to_int");
-    int barrier_arr_id = op->args[0].as_or_throw<IntImm>()->value;
-    int barrier_id = op->args[1].as_or_throw<IntImm>()->value;
-    auto it = barrier_count_.find(barrier_arr_id);
-    TVM_FFI_ICHECK(it != barrier_count_.end()) << "Barrier array does not exist";
-    TVM_FFI_ICHECK(barrier_id < it->second) << "Barrier id out of bounds";
-    std::string barrier_arr = barrier_name_ + "_" + std::to_string(barrier_arr_id);
-    std::string barrier = barrier_arr + "[" + std::to_string(barrier_id) + "]";
-    this->stream << PrintCpAsyncBarrierAsm(barrier);
   } else if (IsOp(op, ptx_ldg32_op, "tirx.ptx.ldg32")) {
     /*
     asm volatile (
@@ -1331,6 +1363,22 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
            << guard << ")\n";
     stream << ");\n";
   } else if (op->op.same_as(builtin::reinterpret())) {
+    // Compile-time pointer reinterpret of a literal (e.g. a tcgen05 descriptor
+    // template encoded at address 0): emit C++-style reinterpret_cast<T*>(...)
+    // to match the encoded template. Runtime pointer reinterprets fall through
+    // to CodeGenC, which emits the C-style (T*)... cast.
+    if (op->ty.as<PointerTypeNode>() && op->args[0].as<IntImmNode>()) {
+      os << "reinterpret_cast<";
+      if (const auto* pt = op->ty.as<PointerTypeNode>()) {
+        if (const auto* et = pt->element_type.as<PrimTypeNode>()) {
+          this->PrintType(ffi::GetRef<PrimType>(et), os);
+        } else {
+          os << "void";
+        }
+      }
+      os << "*>(" << PrintExpr(op->args[0]) << ")";
+      return;
+    }
     auto tgt_prim_type = op->ty.as<PrimType>();
     auto src_prim_type = op->args[0]->ty.as<PrimType>();
 

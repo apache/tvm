@@ -18,8 +18,8 @@
 """Tests for the priority=0 ``copy/fallback`` dispatch — scalar single-thread
 emit picked when every higher-priority variant rejects.
 
-The cases here are *intentionally* shaped so ``gmem_smem`` rejects (region
-element count doesn't divide ``thread_cnt``) and ``reg`` / ``ld_stmatrix`` /
+The cases here are *intentionally* shaped so the ``vec_auto`` global ↔ shared
+path rejects (region element count doesn't divide ``thread_cnt``) and register / ``ld_stmatrix`` /
 ... don't apply (scope pair mismatch). The dispatcher should land on
 fallback, the emit should pick one active thread, and the round-trip
 ``A_gmem → A_smem → B_gmem`` should match.
@@ -42,7 +42,7 @@ from tvm.tirx.layout import S, TileLayout
 
 
 def _round_trip_shapes_and_threads():
-    """Cases where ``gmem_smem`` rejects on ``n_elements % thread_cnt``.
+    """Cases where the vec_auto global ↔ shared path rejects on ``n_elements % thread_cnt``.
 
     Per task: ``(scope, n_threads, shape, why_fallback)``. ``shape`` is small
     enough that scalar emit is fine, and chosen so the higher-priority
@@ -168,7 +168,7 @@ def test_fallback_round_trip(scope, n_threads, shape, why):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_fallback_thread_scope():
-    """``T.thread()`` — single thread, no gate. Either ``gmem_smem`` picks
+    """``T.thread()`` — single thread, no gate. Either the vec_auto path picks
     it up (n_elements % 1 == 0) or ``fallback`` does — both end up emitting
     a sensible single-thread copy. We only check the round trip is correct,
     not which variant fired."""

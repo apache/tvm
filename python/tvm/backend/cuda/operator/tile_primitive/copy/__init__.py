@@ -16,12 +16,13 @@
 # under the License.
 
 from .fallback import *
-from .gmem_smem import *
 from .ld_stmatrix import *
-from .reg import *
 from .utils import (
     _is_valid_copy,
-    _is_valid_smem_tmem_copy,
     _scope_allowed,
     _single_thread_exec,
 )
+from .vec_auto import *
+from .vec_auto_gmem_smem import *
+from .vec_auto_reg import *
+from .vec_forced import *

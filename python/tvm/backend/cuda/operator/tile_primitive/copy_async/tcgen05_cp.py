@@ -15,35 +15,86 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""smem->tmem dispatch via tcgen05.cp.32x128b.warpx4.
+"""smem->tmem dispatch via ``tcgen05.cp`` — generic planner for all PTX shapes.
 
 ``tcgen05.cp`` is inherently async; this dispatch emits the cp loop only and
 leaves completion signaling (``tcgen05.commit`` against a barrier) to the
 caller. Callers who want sync semantics should issue ``tcgen05.commit``
 themselves after the copy.
 
+Routing
+-------
+- ``shape=`` config: forces that shape (see ``_CP_SHAPE_MULTICASTS`` below;
+  atom rows/bits are parsed from the shape name itself).
+- No ``shape`` config: the shape is inferred from the buffer layouts — each
+  candidate (widest atom first) is planned until one validates. Bare warpx4
+  copies resolve to ``32x128b.warpx4`` exactly as the historical dispatch.
+
+Descriptor fields are always derived from the layouts.
+
+Shape table (PTX ISA 8.8 §9.7.16.9.2)
+-------------------------------------
+Each ``tcgen05.cp`` shape is ``rows x bits-per-row``; some shapes REQUIRE a
+multicast qualifier. Multicast replicates the copied data across warp lane
+slabs of the destination TMEM:
+
+===========  ==========================  ======================  ==============
+shape        multicast                   t lane pattern          t replica
+===========  ==========================  ======================  ==============
+128x256b     (none)                      (128, 1@TLane)          —
+4x256b       (none)                      (4, 32@TLane)           —
+128x128b     (none)                      (128, 1@TLane)          —
+64x128b      warpx2::02_13 (required)    (64, 1@TLane)           (2, 64@TLane)
+64x128b      warpx2::01_23 (required)    (2,32):(64,1)@TLane     (2, 32@TLane)
+32x128b      warpx4 (required)           (32, 1@TLane)           (4, 32@TLane)
+===========  ==========================  ======================  ==============
+
+The ``warpx2`` row→lane mappings follow PTX ISA 8.8 p675 ("each warp in the
+warp pair receives half of the data", pairs 02_13 = {0,2},{1,3} and 01_23 =
+{0,1},{2,3}): the two warps of a pair mirror each other and the pairs split
+the 64 rows in listed order. For 02_13 this is exactly the Layout E / B
+datapath organization (Figures 213/207, §9.7.16.10.5: M 0-31 in warp-ranks 0
+and 2, M 32-63 in warp-ranks 1 and 3). ``4x256b`` writes one row per
+warp-quadrant datapath (lanes 0/32/64/96). All row→lane mappings and replica
+structures are verified bit-exactly on B200 hardware by the round-trip tests
+in ``test_tcgen05_cp.py``.
+
 Algorithm
 ---------
-Given ``Tx.copy_async(t_region, s_region)`` where t is in tmem (with
-R[4:32@TLane] indicating warpx4 broadcast), and s is in shared memory:
+Given ``Tx.copy_async(t_region, s_region)`` where t is in tmem (declared with
+the replica pattern of the requested (shape, multicast)), and s is in shared
+memory:
 
 A. Slice + canonicalize both layouts at the given regions.
-B. Verify ``t.replica == [4:32@TLane]`` (warpx4 router).
+B. Verify ``t.replica`` matches the shape table entry (empty for
+   non-multicast shapes).
 C. Compute permutation that puts TLane first, then TCol stride-descending;
    apply to t.permute_dims and to s via group + permute_by_groups.
 D. Canonicalize again.
 E. Isolate broadcast: split-by-stride-zero on both t and s; their split
    sequences must match (same distinct prefix prods + broadcast extents).
    Drop stride-0 iters → ``t_iso`` and ``s_iso``.
-F. Group both into ``(32, middle, elem_per_128b)``. Validate:
-   - t_lane = (32, 1@TLane)
-   - t_col = (elem_per_128b, 1@TCol)
-   - s_col = (elem_per_128b, 1)
-   - s_lane refines into (4, 8) on m axis with strides (SDO_stride, atom_K_stride)
-   - atom_K_byte ∈ {16, 32, 64, 128} → swizzle_mode 0..3
-   - swizzle_mode matches s_buf.layout's SwizzleLayout (if any)
+F. Split each side's iters into three segments by grouping the flattened
+   element space as ``atom_rows x n_mid x elem_per_atom``
+   (``elem_per_atom = atom_bits / dtype_bits``). ``*_lane`` covers exactly one
+   instruction's rows (product == atom_rows); ``*_col`` = one instruction's
+   own columns; ``*_middle`` = everything between — the outer columns (which
+   instruction) and, when the region has more rows than one atom (e.g. 4x256b
+   tiling each warp's first 16 rows: the M=64 Layout-F scatter), the extra row
+   iters, stepped through the taddr lane half-word. ``t_*`` = tmem side,
+   ``s_*`` = smem side.
+   Validate:
+   - t_lane (row → TMEM lane) matches the shape table lane pattern (above)
+   - t_col: one row's elements land in contiguous TMEM columns
+   - s_col: one row = contiguous 16B units in smem; for 256b atoms the two
+     units may sit at a non-contiguous stride when unswizzled (→ LDO field)
+   - s_lane: rows sit in smem as (atom_rows/8, 8) groups with strides
+     (SDO_stride, atom_K_stride); 4x256b is a single 4-row group (SDO=0)
+   - atom_K_byte ∈ {16, 32, 64, 128} → swizzle_mode 0..3, which must match
+     s_buf.layout's swizzle (if any)
 G. Alignment checks:
-   - t_iso TCol offset ≡ 0 (mod 32-bit)
+   - t_iso TCol offset ≡ 0 (mod 128-bit)
+   - t_iso TLane offset folds into the taddr lane half-word
    - s_iso m offset ≡ 0 (mod 16B for sw=0; mod atom_size for sw>0)
    - middle iter strides 16B-aligned
 H. middle 1-1 correspondence (simple-mode): t_middle and s_middle have same
@@ -51,7 +102,7 @@ H. middle 1-1 correspondence (simple-mode): t_middle and s_middle have same
 I. Emit:
    - SmemDescriptor encoded once at SMEM base (hoisted via post_buffer_def_stmt).
    - Loop over middle iters; each cp uses ``desc.add_16B_offset(init + loop)``
-     and writes to ``tmem_addr + t_col0 + Σ i_j * t_step_j``.
+     and writes to ``tmem_addr + t_addr_off + Σ i_j * t_step_j``.
 """
 
 import functools
@@ -62,12 +113,111 @@ from tvm.arith import Analyzer
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.tirx import Buffer, PrimFunc
-from tvm.tirx.layout import ComposeLayout, SwizzleLayout, TCol, TileLayout, TLane
+from tvm.tirx.layout import ComposeLayout, TCol, TileLayout, TLane
 from tvm.tirx.layout import m as m_axis
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.stmt import AllocBuffer, Evaluate, SeqStmt, TilePrimitiveCall
+from tvm.tirx.stmt import AllocBuffer, Evaluate, SeqStmt
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
-from ..copy import _is_valid_smem_tmem_copy, _single_thread_exec
+from ..copy import _single_thread_exec
+
+# Allowed .multicast qualifiers per shape (PTX ISA 8.8 §9.7.16.9.2): "" = none,
+# 64x128b needs an explicit warpx2 pick.
+_CP_SHAPE_MULTICASTS = {
+    "128x256b": ("",),
+    "4x256b": ("",),
+    "128x128b": ("",),
+    "64x128b": ("warpx2::02_13", "warpx2::01_23"),
+    "32x128b": ("warpx4",),
+}
+
+
+def _shape_dims(shape):
+    """(atom_rows, atom_bits) parsed from the PTX shape name "<rows>x<bits>b"."""
+    rows, bits = shape.split("x")
+    return int(rows), int(bits[:-1])
+
+
+# Inference order for bare copies: widest atom first (a 256b source also fits
+# 128b at 2x instructions); other candidates are mutually exclusive.
+_CP_SHAPE_CANDIDATES = (
+    ("128x256b", ""),
+    ("4x256b", ""),
+    ("128x128b", ""),
+    ("64x128b", "warpx2::02_13"),
+    ("64x128b", "warpx2::01_23"),
+    ("32x128b", "warpx4"),
+)
+
+
+def _cp_lane_replica_pattern(shape: str, multicast: str):
+    """Expected (t_lane pattern, t.replica pattern) for a (shape, multicast).
+
+    Both are lists of ``(extent, stride)`` on the TLane axis. The replica
+    strides are the warp-slab offsets that receive multicast copies; the lane
+    pattern is the row → lane mapping of one copy.
+
+    Multicast semantics (PTX ISA 8.8 §9.7.16.9.2, p675): for warpx2 the data
+    is "multicasted into warp pairs and each warp in the warp pair receives
+    half of the data" — the two warps OF a pair MIRROR each other (hold the
+    same half), and the pairs split the 64 rows in listed order:
+
+    - ``warpx2::02_13`` (pairs {0,2}, {1,3}): rows 0-31 to warps 0/2, rows
+      32-63 to warps 1/3. One copy occupies lanes 0-63 in row order (warp0 +
+      warp1), replicated at lane offset +64 (warp2 + warp3) → lane
+      (64, 1@TLane), replica (2, 64@TLane). This is exactly the Layout E /
+      Layout B datapath organization (PTX ISA 8.8 Figures 213 and 207:
+      M 0-31 in warp-ranks 0 and 2, M 32-63 in warp-ranks 1 and 3).
+    - ``warpx2::01_23`` (pairs {0,1}, {2,3}): rows 0-31 to warps 0/1, rows
+      32-63 to warps 2/3 → one copy at lanes 0-31 (rows 0-31) + lanes 64-95
+      (rows 32-63), replicated at +32 → lane (2, 32):(64, 1)@TLane, replica
+      (2, 32@TLane).
+
+    ``4x256b`` writes one row per warp-quadrant datapath: rows 0..3 land at
+    lanes 0, 32, 64, 96 → lane (4, 32@TLane), no replica.
+
+    All mappings are verified bit-exactly on B200 hardware by the round-trip
+    tests in ``test_tcgen05_cp.py``.
+    """
+    rows, _ = _shape_dims(shape)
+    if multicast == "":
+        if rows == 4:
+            return [(4, 32)], []
+        return [(rows, 1)], []
+    if multicast == "warpx4":
+        return [(32, 1)], [(4, 32)]
+    if multicast == "warpx2::02_13":
+        return [(64, 1)], [(2, 64)]
+    if multicast == "warpx2::01_23":
+        return [(2, 64), (32, 1)], [(2, 32)]
+    raise ValueError(f"unknown tcgen05.cp multicast {multicast!r}")
+
+
+def _resolve_cp_shape(op_call: TilePrimitiveCall):
+    """Resolve (shape, multicast) from an explicit ``shape=`` config."""
+    shape = str(op_call.config["shape"])
+    multicast = op_call.config.get("multicast")
+    allowed = _CP_SHAPE_MULTICASTS.get(shape)
+    if allowed is None:
+        raise ValueError(
+            f"unknown tcgen05.cp shape {shape!r}; expected one of {sorted(_CP_SHAPE_MULTICASTS)}"
+        )
+    if multicast is None:
+        if len(allowed) == 1:
+            multicast = allowed[0]
+        else:
+            raise ValueError(
+                f"tcgen05.cp shape {shape!r} requires an explicit multicast config; "
+                f"choose one of {list(allowed)}"
+            )
+    else:
+        multicast = str(multicast)
+        if multicast not in allowed:
+            raise ValueError(
+                f"illegal multicast {multicast!r} for tcgen05.cp shape {shape!r}; "
+                f"allowed: {list(allowed)}"
+            )
+    return shape, multicast
 
 
 # -----------------------------------------------------------------------------
@@ -162,53 +312,80 @@ def _align_middles(t_middle, s_middle):
 # -----------------------------------------------------------------------------
 # Plan (state object)
 # -----------------------------------------------------------------------------
-def _build_plan(op_call: TilePrimitiveCall, sctx: DispatchContext):
+def _build_plan(op_call: TilePrimitiveCall):
     """Run A..H and return a dispatch plan.
 
     Plan fields:
       - s_buf, t_buf
       - dtype, dtype_bits
-      - elem_per_128b, elem_per_32b
+      - shape, multicast (PTX qualifier strings)
+      - elem_per_atom, elem_per_32b
       - SmemSwizzleMode (int)
-      - SDO_field, atom_K_byte
+      - LDO_field, SDO_field, atom_K_byte
       - middle_iters: list of (extent, s_step_16B, t_step_32bcol)
       - init_off_16B (Expr)
-      - t_col0 (Expr, TMEM 32-bit col offset for cp's first call)
+      - t_addr_off (Expr, taddr offset of the first cp: 32-bit col
+        offset plus the region row offset in the lane half-word)
     """
     op_call = TilePrimitiveCall.downcast(op_call)
+    if op_call.config.get("shape") is not None:
+        shape, multicast = _resolve_cp_shape(op_call)
+        return _plan_for_shape(op_call, shape, multicast)
+    # No shape config: infer from the buffer layouts.
+    multicast_cfg = op_call.config.get("multicast")
+    errors = []
+    for shape, multicast in _CP_SHAPE_CANDIDATES:
+        if multicast_cfg is not None and str(multicast_cfg) != multicast:
+            continue
+        try:
+            return _plan_for_shape(op_call, shape, multicast)
+        except ValueError as err:
+            errors.append(f"{shape}{('.' + multicast) if multicast else ''}: {err}")
+    raise ValueError(
+        "no tcgen05.cp shape fits the given layouts; candidates rejected:\n  " + "\n  ".join(errors)
+    )
+
+
+def _plan_for_shape(op_call: TilePrimitiveCall, shape: str, multicast: str):
+    """Run A..I for one (shape, multicast); raises ValueError on any mismatch."""
     dst_region, src_region = op_call.args[:2]
     s_buf: Buffer = src_region.buffer
     t_buf: Buffer = dst_region.buffer
     dtype = s_buf.dtype
     dtype_bits = DataType(dtype).bits
-    elem_per_128b = 128 // dtype_bits
+    elem_per_128b = 128 // dtype_bits  # elements per 16B descriptor unit
     elem_per_32b = 32 // dtype_bits
+    atom_rows, atom_bits = _shape_dims(shape)
+    elem_per_atom = atom_bits // dtype_bits  # per-lane elements per cp
 
     # C: slice + canonicalize.
     s_region = [(r.min, r.min + r.extent) for r in src_region.region]
     t_region = [(r.min, r.min + r.extent) for r in dst_region.region]
-    s = s_buf.layout.slice(list(s_buf.shape), s_region).canonicalize()
+    s_sliced = s_buf.layout.slice(list(s_buf.shape), s_region)
+    s = s_sliced.canonicalize()
     t = t_buf.layout.slice(list(t_buf.shape), t_region).canonicalize()
 
-    # If s is ComposeLayout (SwizzleLayout∘TileLayout), peel off the swizzle
-    # for stride analysis; record swizzle_len for cross-check.
+    # If s is ComposeLayout (swizzle over a tile), peel off the swizzle for
+    # stride analysis; record the swizzle object for cross-checks.
     s_swizzle_mode_from_layout = 0
+    s_swizzle_obj = None
     if isinstance(s, ComposeLayout):
-        s_swizzle_mode_from_layout = int(s.swizzle.swizzle_len)
+        s_swizzle_obj = s
+        s_swizzle_mode_from_layout = int(s.swizzle_len)
         s = s.tile_layout
-    elif isinstance(s, SwizzleLayout):
-        raise ValueError("s slice produced bare SwizzleLayout (unexpected)")
 
-    # B: warpx4 router check.
+    # B: replica router check per (shape, multicast).
+    lane_pattern, replica_pattern = _cp_lane_replica_pattern(shape, multicast)
     rep = t.replica
-    if not (
-        len(rep) == 1
-        and int(rep[0].extent) == 4
-        and int(rep[0].stride) == 32
-        and rep[0].axis == TLane
-    ):
+    rep_ok = len(rep) == len(replica_pattern) and all(
+        int(r.extent) == e and int(r.stride) == st and r.axis == TLane
+        for r, (e, st) in zip(rep, replica_pattern)
+    )
+    if not rep_ok:
         raise ValueError(
-            f"warpx4 router fail: t.replica = "
+            f"replica mismatch for tcgen05.cp {shape}"
+            f"{('.' + multicast) if multicast else ''}: expected "
+            f"{[f'({e}, {st}@TLane)' for e, st in replica_pattern]}, got t.replica = "
             f"{[(int(r.extent), int(r.stride), str(r.axis)) for r in rep]}"
         )
 
@@ -227,13 +404,20 @@ def _build_plan(op_call: TilePrimitiveCall, sctx: DispatchContext):
     s_iso = TileLayout.from_iters(keep_s, list(s_p.replica), dict(s_p.offset))
     t_iso = TileLayout.from_iters(keep_t, list(t_p.replica), dict(t_p.offset))
 
-    # F: group into (32, middle, elem_per_128b).
+    # F: group into (atom_rows, middle, elem_per_atom).
     def shard_prod(lay):
         return functools.reduce(operator.mul, [int(it.extent) for it in lay.shard], 1)
 
-    n_lane, n_col = 32, elem_per_128b
-    n_mid_t = shard_prod(t_iso) // (n_lane * n_col)
-    n_mid_s = shard_prod(s_iso) // (n_lane * n_col)
+    n_lane, n_col = atom_rows, elem_per_atom
+    atom_elems = n_lane * n_col
+    for side, total in (("t", shard_prod(t_iso)), ("s", shard_prod(s_iso))):
+        if total < atom_elems or total % atom_elems:
+            raise ValueError(
+                f"{side} region ({total} elems) is not a multiple of one "
+                f"{shape} atom ({n_lane}x{n_col} elems)"
+            )
+    n_mid_t = shard_prod(t_iso) // atom_elems
+    n_mid_s = shard_prod(s_iso) // atom_elems
     t_grp, t_seps = t_iso.group([n_lane, n_mid_t, n_col])
     s_grp2, s_seps = s_iso.group([n_lane, n_mid_s, n_col])
     t_seps = list(t_seps)
@@ -255,34 +439,49 @@ def _build_plan(op_call: TilePrimitiveCall, sctx: DispatchContext):
     t_middle, s_middle = _align_middles(t_middle, s_middle)
 
     # F.1: lane / col validation.
-    if len(t_lane) != 1:
-        raise ValueError(f"t_lane must canonicalize to single iter, got {t_lane}")
+    if len(t_lane) != len(lane_pattern) or not all(
+        int(li.extent) == e and int(li.stride) == st and li.axis == TLane
+        for li, (e, st) in zip(t_lane, lane_pattern)
+    ):
+        raise ValueError(
+            f"t_lane for tcgen05.cp {shape}{('.' + multicast) if multicast else ''} "
+            f"must canonicalize to {[f'({e}, {st}@TLane)' for e, st in lane_pattern]}, "
+            f"got {t_lane}"
+        )
     if len(t_col) != 1:
         raise ValueError(f"t_col must canonicalize to single iter, got {t_col}")
-    if len(s_col) != 1:
-        raise ValueError(f"s_col must canonicalize to single iter, got {s_col}")
-    li = t_lane[0]
-    if not (int(li.extent) == 32 and int(li.stride) == 1 and li.axis == TLane):
-        raise ValueError(f"t_lane must be (32, 1@TLane), got {li}")
     ci = t_col[0]
-    if not (int(ci.extent) == elem_per_128b and int(ci.stride) == 1 and ci.axis == TCol):
-        raise ValueError(f"t_col must be ({elem_per_128b}, 1@TCol), got {ci}")
-    sci = s_col[0]
-    if not (int(sci.extent) == elem_per_128b and int(sci.stride) == 1):
-        raise ValueError(f"s_col must be ({elem_per_128b}, 1, m), got {sci}")
+    if not (int(ci.extent) == elem_per_atom and int(ci.stride) == 1 and ci.axis == TCol):
+        raise ValueError(f"t_col must be ({elem_per_atom}, 1@TCol), got {ci}")
 
-    # F.2: s_lane → group (4, 8) → (SDO_stride, atom_K_stride)
+    # F.2: s_lane → (atom_rows/8, 8) groups: atom_K = row stride within an 8-row
+    # core matrix, SDO = stride between 8-row groups (single group: SDO 0).
     s_lane_layout = TileLayout.from_iters(s_lane, [], {})
-    s_lane_grp, s_lane_seps = s_lane_layout.group([4, 8])
-    s_lane_seps = list(s_lane_seps)
-    blk_4 = list(s_lane_grp.shard[s_lane_seps[0] : s_lane_seps[1]])
-    blk_8 = list(s_lane_grp.shard[s_lane_seps[1] : s_lane_seps[2]])
-    if len(blk_4) != 1 or len(blk_8) != 1:
-        raise ValueError(
-            f"s_lane must group into single iter per block: blk_4={blk_4}, blk_8={blk_8}"
-        )
-    SDO_byte = int(blk_4[0].stride) * dtype_bits // 8
-    atom_K_byte = int(blk_8[0].stride) * dtype_bits // 8
+    rows_per_group = min(atom_rows, 8)
+    n_row_groups = atom_rows // rows_per_group
+    if n_row_groups == 1:
+        blk_rows = list(_canon_segment(s_lane))
+        if len(blk_rows) != 1:
+            raise ValueError(f"s_lane must canonicalize to a single row iter, got {blk_rows}")
+        SDO_byte = 0
+        atom_K_byte = int(blk_rows[0].stride) * dtype_bits // 8
+    else:
+        s_lane_grp, s_lane_seps = s_lane_layout.group([n_row_groups, rows_per_group])
+        s_lane_seps = list(s_lane_seps)
+        blk_grp = list(s_lane_grp.shard[s_lane_seps[0] : s_lane_seps[1]])
+        blk_8 = list(s_lane_grp.shard[s_lane_seps[1] : s_lane_seps[2]])
+        if len(blk_grp) != 1 or len(blk_8) != 1:
+            raise ValueError(
+                f"s_lane must group into single iter per ({n_row_groups}, {rows_per_group}) "
+                f"block: blk_{n_row_groups}={blk_grp}, blk_8={blk_8}"
+            )
+        SDO_byte = int(blk_grp[0].stride) * dtype_bits // 8
+        atom_K_byte = int(blk_8[0].stride) * dtype_bits // 8
+        if SDO_byte % 16 != 0:
+            raise ValueError(
+                f"s_lane row-group stride {SDO_byte}B not 16B-aligned "
+                "(descriptor SBO is encoded in 16B units)"
+            )
     sw_candidates = {16: 0, 32: 1, 64: 2, 128: 3}
     if atom_K_byte not in sw_candidates:
         raise ValueError(f"atom_K_byte {atom_K_byte} not in {{16,32,64,128}}")
@@ -293,18 +492,100 @@ def _build_plan(op_call: TilePrimitiveCall, sctx: DispatchContext):
             f"{s_swizzle_mode_from_layout} but atom_K_byte={atom_K_byte} "
             f"implies sw={derived_sw}"
         )
+    if s_swizzle_obj is not None:
+        # The descriptor's address permutation assumes the canonical mma atom
+        # family (128-bit atoms of 8 rows); other per_element/atom_len mis-plans.
+        expected_per_element = (128 // dtype_bits).bit_length() - 1
+        if (
+            int(s_swizzle_obj.per_element) != expected_per_element
+            or int(s_swizzle_obj.atom_len) != 3
+        ):
+            raise ValueError(
+                "swizzle family mismatch: expected canonical mma atom "
+                f"ComposeLayout(per_element={expected_per_element}, "
+                f"swizzle_len={derived_sw}, atom_len=3); got "
+                f"per_element={int(s_swizzle_obj.per_element)}, "
+                f"atom_len={int(s_swizzle_obj.atom_len)}"
+            )
+        # The hardware walk is the swizzle_inner=True permutation; inner=False
+        # would be mis-copied. sw==0: both directions identity, don't-care.
+        if int(s_swizzle_obj.swizzle_len) > 0 and not bool(s_swizzle_obj.swizzle_inner):
+            raise ValueError(
+                "swizzle direction mismatch: the tcgen05.cp smem descriptor "
+                "implements the swizzle_inner=True address permutation "
+                "(x ^ ((x & outer_mask) >> atom_len)); got a ComposeLayout "
+                f"with swizzle_inner=False (per_element="
+                f"{int(s_swizzle_obj.per_element)}, swizzle_len="
+                f"{int(s_swizzle_obj.swizzle_len)}, atom_len="
+                f"{int(s_swizzle_obj.atom_len)}), whose mirrored permutation "
+                "would be silently mis-copied"
+            )
+
+    # F.3: s_col = one cp's per-lane columns. 128b: one 16B unit (LDO=0). 256b:
+    # two 16B units — adjacent when swizzled (LBO=1), else stride in LDO field.
+    if atom_bits == 128:
+        if len(s_col) != 1:
+            raise ValueError(f"s_col must canonicalize to single iter, got {s_col}")
+        sci = s_col[0]
+        if not (int(sci.extent) == elem_per_128b and int(sci.stride) == 1):
+            raise ValueError(f"s_col must be ({elem_per_128b}, 1, m), got {sci}")
+        LDO_field = 0
+    else:
+        s_col_layout = TileLayout.from_iters(s_col, [], {})
+        s_col_grp, s_col_seps = s_col_layout.group([2, elem_per_128b])
+        s_col_seps = list(s_col_seps)
+        blk_u = list(s_col_grp.shard[s_col_seps[0] : s_col_seps[1]])
+        blk_e = list(s_col_grp.shard[s_col_seps[1] : s_col_seps[2]])
+        if len(blk_u) != 1 or len(blk_e) != 1:
+            raise ValueError(
+                f"s_col must group into (2, {elem_per_128b}) 16B units: "
+                f"units={blk_u}, elems={blk_e}"
+            )
+        if not (int(blk_e[0].extent) == elem_per_128b and int(blk_e[0].stride) == 1):
+            raise ValueError(f"s_col 16B unit must be ({elem_per_128b}, 1, m), got {blk_e[0]}")
+        ldo_byte = int(blk_u[0].stride) * dtype_bits // 8
+        if ldo_byte % 16 != 0:
+            raise ValueError(f"s_col unit stride {ldo_byte}B not 16B-aligned")
+        if derived_sw == 0:
+            LDO_field = ldo_byte // 16
+        else:
+            if ldo_byte != 16:
+                raise ValueError(
+                    f"swizzled {atom_bits}b atom requires the two 16B units "
+                    f"adjacent in the linear layout, got stride {ldo_byte}B"
+                )
+            LDO_field = 1  # ignored by hardware for swizzled layouts (assumed 1)
 
     analyzer = Analyzer()
 
     # G: alignments.
-    # G.1: t_iso TCol offset ≡ 0 (mod 32-bit element count).
+    # G.1: tcgen05.cp taddr is 128-bit aligned. The layout offset is in
+    # element units, so require four complete 32-bit TMEM cells.
     t_col_offset_expr = 0
     for ax, val in t_iso.offset.items():
         if ax == TCol:
             t_col_offset_expr = val
             break
-    if not analyzer.can_prove_equal(t_col_offset_expr % elem_per_32b, 0):
-        raise ValueError(f"t TCol offset {t_col_offset_expr} not provably 32b-aligned")
+    elem_per_128b_tmem = 4 * elem_per_32b
+    if not analyzer.can_prove_equal(t_col_offset_expr % elem_per_128b_tmem, 0):
+        raise ValueError(f"t TCol offset {t_col_offset_expr} not provably 128b-aligned")
+
+    # G.1b: a region row offset folds into the taddr lane half-word ([31:16]).
+    # The full lane footprint must still fit the 128-lane space.
+    t_lane_offset_expr = 0
+    for ax, val in t_iso.offset.items():
+        if ax == TLane:
+            t_lane_offset_expr = val
+            break
+    lane_span = 1
+    for it in list(t_p.shard) + list(t_p.replica):
+        if it.axis == TLane:
+            lane_span += (int(it.extent) - 1) * int(it.stride)
+    if not analyzer.can_prove(t_lane_offset_expr + lane_span <= 128):
+        raise ValueError(
+            f"t TLane offset {t_lane_offset_expr} overflows the 128-lane space "
+            f"(footprint spans {lane_span} lanes)"
+        )
 
     # G.2: s_iso m offset alignment.
     s_m_offset_expr = 0
@@ -339,30 +620,46 @@ def _build_plan(op_call: TilePrimitiveCall, sctx: DispatchContext):
         n = int(ti.extent)
         if n == 1:
             continue
-        if ti.axis != TCol:
-            raise ValueError(f"middle[{i}] t axis must be TCol, got {ti.axis}")
+        if ti.axis == TCol:
+            if int(ti.stride) % elem_per_32b != 0:
+                raise ValueError(
+                    f"t_middle[{i}] stride {int(ti.stride)} elems not 32b-aligned "
+                    f"(need multiple of {elem_per_32b})"
+                )
+            t_step = int(ti.stride) // elem_per_32b
+        elif ti.axis == TLane:
+            # Lane-tiled atoms (e.g. 4x256b filling each warp's first 16 rows
+            # — the M=64 Layout-F scatter): step the taddr lane half-word.
+            t_step = int(ti.stride) << 16
+        else:
+            raise ValueError(f"middle[{i}] t axis must be TCol or TLane, got {ti.axis}")
         s_stride_byte = int(si.stride) * dtype_bits // 8
         if s_stride_byte % 16 != 0:
             raise ValueError(f"s_middle[{i}] stride {s_stride_byte}B not 16B-aligned")
-        middle_iters.append((n, s_stride_byte // 16, int(ti.stride) // elem_per_32b))
+        middle_iters.append((n, s_stride_byte // 16, t_step))
 
     SDO_field = SDO_byte // 16
     init_off_16B = s_m_offset_expr * dtype_bits // 8 // 16
-    t_col0 = t_col_offset_expr // elem_per_32b
+    t_addr_off = t_col_offset_expr // elem_per_32b
+    if not (isinstance(t_lane_offset_expr, int) and t_lane_offset_expr == 0):
+        t_addr_off = t_addr_off + t_lane_offset_expr * 65536
 
     return {
         "s_buf": s_buf,
         "t_buf": t_buf,
         "dtype": dtype,
         "dtype_bits": dtype_bits,
-        "elem_per_128b": elem_per_128b,
+        "shape": shape,
+        "multicast": multicast,
+        "elem_per_atom": elem_per_atom,
         "elem_per_32b": elem_per_32b,
         "swizzle_mode": derived_sw,
+        "LDO_field": LDO_field,
         "SDO_field": SDO_field,
         "atom_K_byte": atom_K_byte,
         "middle_iters": middle_iters,
         "init_off_16B": init_off_16B,
-        "t_col0": t_col0,
+        "t_addr_off": t_addr_off,
     }
 
 
@@ -401,23 +698,50 @@ def _desc_set_addr(desc_val, addr_ptr):
     return T.bitwise_or(T.bitwise_and(desc_val, T.bitwise_not(T.uint64(0x3FFF))), start_addr)
 
 
+def _validate_smem_tmem_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
+    """Memory-scope envelope only; shape resolution/inference and the detailed
+    layout validation raise readable ValueErrors in ``_build_plan``."""
+    dst_region, src_region = op_call.args[:2]
+    src: Buffer = src_region.buffer
+    dst: Buffer = dst_region.buffer
+    return (
+        src.scope().startswith("shared")
+        and dst.scope() == "tmem"
+        and src.layout is not None
+        and dst.layout is not None
+        # Byte reinterpret is legal (nvfp4 stages sf as uint8, reads fp8); a
+        # true width change needs decompress, rejected in copy_smem_tmem_impl.
+        and DataType(src.dtype).bits == DataType(dst.dtype).bits
+        and dst.allocated_addr is not None
+    )
+
+
 # -----------------------------------------------------------------------------
 # Core impl: emits the cp loop given a plan + cp config. Async only — caller
 # is responsible for issuing ``tcgen05.commit`` against a barrier if they
 # need synchronization.
 # -----------------------------------------------------------------------------
 def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
-    plan = _build_plan(op_call, sctx)
+    if op_call.config.get("decompress"):
+        # fp4/fp6->fp8 in-flight decompression needs dtype-pair plan derivation
+        # the planner can't lower; reject loudly rather than copy undecompressed.
+        raise ValueError("tcgen05.cp planner does not support decompress")
+    # NOTE: descriptor templates use base_offset=0, so the smem buffer base must
+    # align to the swizzle period (8 * atom_K bytes); align=1024 discharges this.
+    plan = _build_plan(op_call)
     s_buf = plan["s_buf"]
     t_buf = plan["t_buf"]
+    shape = plan["shape"]
+    multicast = plan["multicast"]
     SDO_field = plan["SDO_field"]
     sw = plan["swizzle_mode"]
     middle_iters = plan["middle_iters"]
     init_off_16B = plan["init_off_16B"]
-    t_col0 = plan["t_col0"]
+    t_addr_off = plan["t_addr_off"]
 
-    # cp ignores LDO for data; non-zero LDO bloats the addr-patch codegen.
-    LDO_field = 0
+    # 128b atoms never read the descriptor LDO (single 16B unit per lane):
+    # keep the legacy LDO=0 encoding. 256b atoms carry the derived field.
+    LDO_field = plan["LDO_field"]
 
     cta_group = op_call.config.get("cta_group", 1)
 
@@ -429,9 +753,8 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
         addr = T.ptr_byte_offset(s_buf.ptr_to([0] * s_rank), off_16B * 16, s_buf.dtype)
         return _desc_set_addr(desc_buf[0], addr)
 
-    # Flatten the N-D middle iteration into a single T.unroll. Each iteration's
-    # per-dim index is (flat // stride) % extent, summed into the t/s offsets.
-    # Works uniformly for n_mid ∈ {0, 1, 2, ...}; total == 1 (no middle dims) is
+    # Flatten the N-D middle loop into one T.unroll: per-dim index is
+    # (flat // div) % extent, summed into the t/s offsets. total == 1 is
     # special-cased to avoid a degenerate T.unroll(1).
     total = functools.reduce(operator.mul, [n for n, _, _ in middle_iters], 1)
 
@@ -440,9 +763,9 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
         @T.prim_func(check_well_formed=False)
         def impl():
             T.ptx.tcgen05.cp(
-                t_addr[0] + t_col0,
+                t_addr[0] + t_addr_off,
                 _cp_desc(init_off_16B),
-                shape="32x128b", cta_group=cta_group, multicast="warpx4",
+                shape=shape, cta_group=cta_group, multicast=multicast,
             )
     else:
         def compute_offsets(flat):
@@ -461,9 +784,9 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
             for flat in T.unroll(total):
                 t_off, s_off = T.meta_var(compute_offsets(flat))
                 T.ptx.tcgen05.cp(
-                    t_addr[0] + t_col0 + t_off,
+                    t_addr[0] + t_addr_off + t_off,
                     _cp_desc(init_off_16B + s_off),
-                    shape="32x128b", cta_group=cta_group, multicast="warpx4",
+                    shape=shape, cta_group=cta_group, multicast=multicast,
                 )
     # fmt: on
 
@@ -477,7 +800,7 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
     variant="smem->tmem",
     priority=10,
     when=[
-        predicate("validate_smem_tmem_copy", _is_valid_smem_tmem_copy),
+        predicate("validate_smem_tmem_copy", _validate_smem_tmem_copy),
         predicate("exec_scope", _single_thread_exec),
     ],
 )

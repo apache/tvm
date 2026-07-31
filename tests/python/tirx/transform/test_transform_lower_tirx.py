@@ -510,7 +510,10 @@ def test_lower_layout():
         T.lane_id([32])
         tid = T.thread_id([128])
         A_smem = T.alloc_buffer(
-            [128, 32], dtype="float16", scope="shared", layout=T.SwizzleLayout(3, 3, 3)
+            [128, 32],
+            dtype="float16",
+            scope="shared",
+            layout=T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(512,)])),
         )
         thread_col = T.meta_var(4)
         thread_row = T.meta_var(32)
@@ -972,6 +975,27 @@ def test_lower_exec_context_selector_filter_for_elect_sync():
     assert len(seen) == 3
     assert any("T.selector(lane_id, T.ptx.elect_sync())" in item for item in seen)
     assert any("T.selector(lane_id, T.ptx.elect_sync() != T.uint32(0))" in item for item in seen)
+
+
+def test_lower_cleanup_accepts_bool_elect_sync_else_path():
+    @T.prim_func(private=True)
+    def before(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (32,), "int32", scope="global")
+        T.device_entry()
+        T.cta_id([1])
+        T.warp_id([1])
+        lane_id = T.lane_id([32])
+        if T.ptx.elect_sync() != T.uint32(0):
+            A[lane_id] = 1
+        else:
+            A[lane_id] = 0
+
+    with tvm.target.Target("cuda"):
+        lowered = LowerTIRx()(tvm.IRModule({"main": before}))
+
+    script = lowered.script(extra_config={"tirx.prefix": "T"})
+    assert "T.ptx.elect_sync() != T.uint32(0)" in script
+    assert "else:" in script
 
 
 def test_lower_exec_context_scope_guard_mixes_structural_and_selector():

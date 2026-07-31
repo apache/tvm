@@ -34,11 +34,12 @@ from tvm.script import tirx as T
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx import Var as _TirVar
 from tvm.tirx.expr import IntImm as _IntImm
-from tvm.tirx.layout import ComposeLayout, S, SwizzleLayout, TileLayout
+from tvm.tirx.layout import TileLayout
 from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
+from ..layout_utils import strip_swizzle_to_tile
 from ._common import _alignment_ok, copy_ptx_form, copy_ptx_ld_return_type
 from ._swizzle_iter import (
     emit_fallback_offset,
@@ -51,20 +52,8 @@ from .utils import _is_valid_copy, _scope_allowed
 
 
 def _extract_tile(layout, region):
-    """Strip swizzle off ``layout`` so we can perm/group it as a TileLayout.
-
-    ``region`` is the per-axis ``(start, end)`` pair list — we only consume
-    its extents when ``layout`` is a bare ``SwizzleLayout`` (rebuilding a
-    trivial TileLayout for it). Plain ``TileLayout`` / ``ComposeLayout``
-    don't need the extent, so symbolic regions are fine for them.
-    """
-    if isinstance(layout, ComposeLayout):
-        return layout.tile_layout
-    if isinstance(layout, SwizzleLayout):
-        # TODO: keep swizzle info around for later (addressing in emit).
-        extents = [int(end - start) for (start, end) in region]
-        return TileLayout(S[tuple(extents)])
-    return layout
+    """Strip swizzle off ``layout`` so it can be perm/grouped as a TileLayout."""
+    return strip_swizzle_to_tile(layout, lambda: [int(end - start) for (start, end) in region])
 
 
 _REG_PAIRS = [

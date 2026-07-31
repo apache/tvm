@@ -25,6 +25,6 @@ from .ops import *
 # Dispatch infrastructure. Per-backend schedule registrations are loaded via
 # ``tvm.backend.load(<name>)``.
 from .dispatcher import fail, list_registered_schedules, predicate, register_dispatch
-from .registry import DispatchContext
+from ...tile_primitive import DispatchContext
 
 __all__ = ["DispatchContext", "fail", "list_registered_schedules", "predicate", "register_dispatch"]

@@ -33,7 +33,25 @@ def _get_source(func: tvm.tirx.PrimFunc) -> str:
     return src, mod
 
 
-def _assert_remote_mbarrier_ir(func, arrive_op_name, cta_arg_index):
+def _remote_operand_index(call):
+    """Index of the ``remote`` operand in a tirx mbarrier arrive call.
+
+    Both arrive ops pack their optional operands positionally and record which
+    ones are present in trailing int flags, so the remote operand's index moves
+    with what the caller actually passed:
+
+    - ``mbarrier_arrive``: ``[bar, count?, remote?, pred?]`` followed by
+      ``sem, scope, space, has_count, has_remote, has_pred``.
+    - ``mbarrier_arrive_expect_tx``: ``[bar, byte_count, remote?, pred?]``
+      followed by ``sem, scope, space, has_remote, has_pred`` (``byte_count``
+      is mandatory, so the index is fixed).
+    """
+    if call.op.name == "tirx.ptx.mbarrier_arrive":
+        return 1 + int(call.args[-3])
+    return 2
+
+
+def _assert_remote_mbarrier_ir(func, arrive_op_name):
     bindings = []
     buffers = []
     mapa_calls = []
@@ -62,7 +80,9 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, cta_arg_index):
     assert buffers[0].scope() == "shared"
     for arrive in arrive_calls:
         tvm.ir.assert_structural_equal(arrive.args[0], mapa_calls[0].args[0])
-        tvm.ir.assert_structural_equal(arrive.args[cta_arg_index], mapa_calls[0].args[1])
+        tvm.ir.assert_structural_equal(
+            arrive.args[_remote_operand_index(arrive)], mapa_calls[0].args[1]
+        )
 
 
 @pytest.mark.gpu
@@ -141,12 +161,14 @@ def test_mbarrier_remote_view_codegen():
         remote_bar.arrive(0, count=2)
     # fmt: on
 
-    _assert_remote_mbarrier_ir(test_remote_view, "tirx.ptx.mbarrier_arrive", 1)
+    _assert_remote_mbarrier_ir(test_remote_view, "tirx.ptx.mbarrier_arrive")
     with tvm.target.Target("cuda"):
         src, _ = _get_source(test_remote_view)
         assert "tvm_builtin_ptx_mapa_u64" in src
-        assert "tvm_builtin_ptx_mbarrier_arrive_remote" in src
-        assert "tvm_builtin_ptx_mbarrier_arrive_remote_count" in src
+        # The emitted helper name spells out the full attribute set it was
+        # specialized for: <space>_<count?>_<remote>_<pred>.
+        assert "tvm_builtin_ptx_mbarrier_arrive_shared_cluster_remote_pred" in src
+        assert "tvm_builtin_ptx_mbarrier_arrive_shared_cluster_count_remote_pred" in src
         assert "mbarrier.arrive.shared::cluster.b64" in src
         assert 'asm volatile("mbarrier.arrive.shared.b64' not in src
 
@@ -170,10 +192,10 @@ def test_tma_mbarrier_remote_view_codegen():
         remote_bar.arrive(0, tx_count=128)
     # fmt: on
 
-    _assert_remote_mbarrier_ir(test_remote_view, "tirx.ptx.mbarrier_arrive_expect_tx", 2)
+    _assert_remote_mbarrier_ir(test_remote_view, "tirx.ptx.mbarrier_arrive_expect_tx")
     with tvm.target.Target("cuda"):
         src, _ = _get_source(test_remote_view)
-        assert "tvm_builtin_ptx_mbarrier_arrive_expect_tx_remote" in src
+        assert "tvm_builtin_ptx_mbarrier_arrive_expect_tx_shared_cluster_remote_pred" in src
         assert "mbarrier.arrive.expect_tx.shared::cluster.b64" in src
         assert 'asm volatile("mbarrier.arrive.expect_tx.shared.b64' not in src
 
@@ -205,7 +227,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
             bar.remote_view(0).wait(0, 0)
         # fmt: on
 
-    with pytest.raises(tvm.error.DiagnosticError, match="cannot also specify cta_id"):
+    with pytest.raises(tvm.error.DiagnosticError, match="cannot also specify remote"):
         # fmt: off
         @T.prim_func
         def ambiguous_mbarrier_arrive():
@@ -214,10 +236,10 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
             T.thread_id([128])
             pool = T.SMEMPool()
             bar = MBarrier(pool, 1)
-            bar.remote_view(0).arrive(0, cta_id=1)
+            bar.remote_view(0).arrive(0, remote=1)
         # fmt: on
 
-    with pytest.raises(tvm.error.DiagnosticError, match="cannot also specify cta_id"):
+    with pytest.raises(tvm.error.DiagnosticError, match="cannot also specify remote"):
         # fmt: off
         @T.prim_func
         def ambiguous_tma_arrive():
@@ -226,7 +248,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
             T.thread_id([128])
             pool = T.SMEMPool()
             bar = TMABar(pool, 1)
-            bar.remote_view(0).arrive(0, tx_count=128, cta_id=1)
+            bar.remote_view(0).arrive(0, tx_count=128, remote=1)
         # fmt: on
 
     with pytest.raises(
@@ -440,34 +462,16 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
         B_layout = T.TileLayout(T.S[(N, K // 8, 8) : (8, N * 8, 1)])
         ldo, sdo = 128, 8
     elif SWIZZLE == 1:
-        A_layout = T.ComposeLayout(
-            T.SwizzleLayout(3, 1, 3, swizzle_inner=True),
-            T.TileLayout(T.S[(M, K // 16, 16) : (16, M * 16, 1)]),
-        )
-        B_layout = T.ComposeLayout(
-            T.SwizzleLayout(3, 1, 3, swizzle_inner=True),
-            T.TileLayout(T.S[(N, K // 16, 16) : (16, N * 16, 1)]),
-        )
+        A_layout = T.ComposeLayout(3, 1, 3, T.TileLayout(T.S[(M, K // 16, 16) : (16, M * 16, 1)]))
+        B_layout = T.ComposeLayout(3, 1, 3, T.TileLayout(T.S[(N, K // 16, 16) : (16, N * 16, 1)]))
         ldo, sdo = 256, 16
     elif SWIZZLE == 2:
-        A_layout = T.ComposeLayout(
-            T.SwizzleLayout(3, 2, 3, swizzle_inner=True),
-            T.TileLayout(T.S[(M, K // 32, 32) : (32, M * 32, 1)]),
-        )
-        B_layout = T.ComposeLayout(
-            T.SwizzleLayout(3, 2, 3, swizzle_inner=True),
-            T.TileLayout(T.S[(N, K // 32, 32) : (32, N * 32, 1)]),
-        )
+        A_layout = T.ComposeLayout(3, 2, 3, T.TileLayout(T.S[(M, K // 32, 32) : (32, M * 32, 1)]))
+        B_layout = T.ComposeLayout(3, 2, 3, T.TileLayout(T.S[(N, K // 32, 32) : (32, N * 32, 1)]))
         ldo, sdo = 512, 32
     elif SWIZZLE == 3:
-        A_layout = T.ComposeLayout(
-            T.SwizzleLayout(3, 3, 3, swizzle_inner=True),
-            T.TileLayout(T.S[(M, 1, 64) : (64, M * 64, 1)]),
-        )
-        B_layout = T.ComposeLayout(
-            T.SwizzleLayout(3, 3, 3, swizzle_inner=True),
-            T.TileLayout(T.S[(N, 1, 64) : (64, N * 64, 1)]),
-        )
+        A_layout = T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(M, 1, 64) : (64, M * 64, 1)]))
+        B_layout = T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(N, 1, 64) : (64, N * 64, 1)]))
         ldo, sdo = 1, 64
     else:
         raise ValueError(f"Invalid swizzle: {SWIZZLE}")
@@ -563,6 +567,47 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
         np.testing.assert_allclose(C.numpy(), ref.numpy(), rtol=1e-3, atol=1e-2)
 
     tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+def test_tcgen05_mma_pred_codegen():
+    # fmt: off
+    @T.prim_func
+    def test_mma_pred():
+        T.device_entry()
+        T.thread_id([1])
+        tmem_addr = T.alloc_buffer((1,), "uint32", scope="local")
+        desc_a = T.alloc_buffer((1,), "uint64", scope="local")
+        desc_b = T.alloc_buffer((1,), "uint64", scope="local")
+        desc_i = T.alloc_buffer((1,), "uint32", scope="local")
+        pred = T.alloc_buffer((1,), "uint32", scope="local")
+
+        tmem_addr[0] = T.uint32(0)
+        desc_a[0] = T.uint64(0)
+        desc_b[0] = T.uint64(0)
+        desc_i[0] = T.uint32(0)
+        pred[0] = T.uint32(1)
+        T.ptx.tcgen05.mma(
+            tmem_addr[0],
+            desc_a[0],
+            desc_b[0],
+            desc_i[0],
+            d_dtype="float32",
+            a_dtype="float16",
+            b_dtype="float16",
+            use_a_tmem=False,
+            cta_group=1,
+            pred=pred[0],
+        )
+    # fmt: on
+
+    target = tvm.target.Target("cuda")
+    with target:
+        src, _ = _get_source(test_mma_pred)
+        assert "ptx_tcgen05_mma_cta_1_kind_f16_SS_pred" in src
+        assert "setp.ne.b32 p_issue" in src
+        assert "@p_issue tcgen05.mma.cta_group::1.kind::f16" in src
 
 
 if __name__ == "__main__":

@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 from tvm.tirx import BufferRegion
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..common import match_scope
 

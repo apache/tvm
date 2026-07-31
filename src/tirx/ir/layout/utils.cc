@@ -41,16 +41,6 @@ PrimExpr FlattenCoord(const Array<PrimExpr>& coord, const Array<PrimExpr>& shape
       [&shape, i = 0](PrimExpr acc, const PrimExpr& c) mutable { return acc * shape[i++] + c; });
 }
 
-TileLayout IdentityTileLayout(const ffi::Array<PrimExpr>& shape) {
-  if (shape.empty()) {
-    // Degenerate identity: no shard dims.
-    return TileLayout({}, {}, {});
-  }
-  PrimExpr extent = std::accumulate(shape.begin() + 1, shape.end(), shape[0],
-                                    [](PrimExpr a, PrimExpr b) { return a * b; });
-  return TileLayout({Iter(extent, 1, Axis::Get("m"))}, {}, {});
-}
-
 ffi::Map<ffi::String, PrimExpr> BuildSpanMap(const TileLayout& layout) {
   ffi::Map<ffi::String, PrimExpr> span_map;
   for (const auto& iter : layout->shard) {
@@ -85,6 +75,15 @@ std::vector<PrimExpr> GetDefaultStrides(const ffi::Array<PrimExpr>& data, PrimEx
 bool AxisMatchesFilter(const Axis& axis, const ffi::Optional<ffi::String>& axis_name) {
   return (!axis_name.has_value() && axis->IsMemoryAxis()) ||
          (axis_name.has_value() && axis->name == axis_name.value());
+}
+
+TileLayout IdentityTileLayout(const ffi::Array<PrimExpr>& shape) {
+  if (shape.empty()) {
+    return TileLayout({}, {}, {});
+  }
+  PrimExpr extent = std::accumulate(shape.begin() + 1, shape.end(), shape[0],
+                                    [](PrimExpr a, PrimExpr b) { return a * b; });
+  return TileLayout({Iter(extent, 1, Axis::Get("m"))}, {}, {});
 }
 
 }  // namespace tirx

@@ -22,7 +22,9 @@ layout helpers other variants (e.g. ``dsmem.py``) still import.
 """
 
 from tvm.arith import Analyzer
-from tvm.tirx.layout import ComposeLayout, Layout, S, SwizzleLayout, TileLayout
+from tvm.tirx.layout import Layout, TileLayout
+
+from ..layout_utils import strip_swizzle_to_tile
 
 
 def find_contiguous_region(layout: TileLayout) -> tuple:
@@ -71,8 +73,4 @@ def find_contiguous_region(layout: TileLayout) -> tuple:
 def to_tile_layout(layout: Layout, shape: list[int]) -> TileLayout:
     """Normalize any layout kind to a TileLayout for pointer arithmetic."""
 
-    if isinstance(layout, ComposeLayout):
-        return layout.tile_layout
-    if isinstance(layout, SwizzleLayout):
-        return TileLayout(S[tuple(shape)])
-    return layout
+    return strip_swizzle_to_tile(layout, lambda: shape)

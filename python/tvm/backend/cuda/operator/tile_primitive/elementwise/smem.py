@@ -17,7 +17,7 @@
 
 """Elementwise dispatch when all operands live in ``shared*``.
 
-Mirrors ``cuda/copy/gmem_smem.py``: no operand carries a per-thread partition,
+Mirrors ``cuda/copy/vec_auto_gmem_smem.py``: no operand carries a per-thread partition,
 so partition is *synthesized* from ``sctx.intra`` (``thread_cnt = ∏ intra``).
 Each thread takes ``ceildiv(total, vec_chunk * thread_cnt)`` strided chunks.
 

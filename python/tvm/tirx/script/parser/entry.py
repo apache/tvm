@@ -16,6 +16,7 @@
 # under the License.
 """The entry point of TVM parser for tirx."""
 
+import ast
 import inspect
 from collections.abc import Callable
 from typing import Any
@@ -212,7 +213,7 @@ setattr(inline, "dispatch_token", "tir.inline")
 
 
 class TIRJit:
-    """Top-level kernel decorator with constexpr params + ``.specialize()``.
+    """Top-level kernel decorator with compile-time ``.specialize()`` params.
 
     Parses the function body lazily: parsing is deferred until ``.specialize()``
     supplies concrete values for the params annotated as ``T.constexpr``. The
@@ -240,7 +241,7 @@ class TIRJit:
         # Resolved closure vars (computed once; the function itself is the
         # capture point, so this never changes between specializations).
         self._closure_vars: dict[str, Any] = utils.inspect_function_capture(func)
-        # Detect which params are marked T.constexpr. With PEP 563
+        # Detect which params are marked T.constexpr or T.Optional. With PEP 563
         # (``from __future__ import annotations``), each annotation is a
         # string; we eval them one-by-one so a constexpr probe is not
         # blocked by sibling annotations that reference yet-undefined names
@@ -250,8 +251,10 @@ class TIRJit:
         sig = inspect.signature(func)
         constexpr_names: set[str] = set()
         constexpr_defaults: dict[str, Any] = {}
+        optional_names: set[str] = set()
         for name, param in sig.parameters.items():
-            ann = raw_anns.get(name)
+            raw_ann = raw_anns.get(name)
+            ann = raw_ann
             if isinstance(ann, str):
                 try:
                     ann = eval(ann, eval_globals)  # pylint: disable=eval-used
@@ -261,19 +264,23 @@ class TIRJit:
                 constexpr_names.add(name)
                 if param.default is not inspect.Parameter.empty:
                     constexpr_defaults[name] = param.default
+            if isinstance(ann, _OptionalAnnotation) or _is_explicit_optional_annotation(raw_ann):
+                optional_names.add(name)
         self.constexpr_names: frozenset[str] = frozenset(constexpr_names)
         self.constexpr_defaults: dict[str, Any] = constexpr_defaults
+        self.optional_names: frozenset[str] = frozenset(optional_names)
         self._cache: dict[tuple, PrimFunc] = {}
 
-    def specialize(self, **constexpr_kwargs) -> PrimFunc:
-        """Build a concrete PrimFunc by binding the constexpr params.
+    def specialize(self, **specialization_kwargs) -> PrimFunc:
+        """Build a PrimFunc by binding constexprs and absent optional params.
 
         Parameters
         ----------
-        **constexpr_kwargs
-            One value per ``T.constexpr``-annotated parameter. All such
-            parameters must be supplied; passing names that are not
-            constexpr-annotated is an error.
+        **specialization_kwargs
+            One value per ``T.constexpr``-annotated parameter.  A
+            ``T.Optional`` parameter may additionally be supplied as ``None``
+            to remove it from the resulting PrimFunc ABI.  Omitting an
+            optional parameter keeps it as a normal runtime parameter.
 
         Returns
         -------
@@ -281,13 +288,29 @@ class TIRJit:
             A concrete TIRx PrimFunc, identical in type to the output of
             ``@T.prim_func``.
         """
-        extra = constexpr_kwargs.keys() - self.constexpr_names
+        specializable_names = self.constexpr_names | self.optional_names
+        extra = specialization_kwargs.keys() - specializable_names
         if extra:
             raise TypeError(
                 f"{self.func.__name__}.specialize() got unexpected arg(s): "
-                f"{sorted(extra)} (constexpr params are: {sorted(self.constexpr_names)})"
+                f"{sorted(extra)} (specializable params are: {sorted(specializable_names)})"
             )
-        effective = {**self.constexpr_defaults, **constexpr_kwargs}
+        invalid_optional = {
+            name: specialization_kwargs[name]
+            for name in self.optional_names & specialization_kwargs.keys()
+            if specialization_kwargs[name] is not None
+        }
+        if invalid_optional:
+            raise TypeError(
+                f"{self.func.__name__}.specialize(): T.Optional parameters only accept None; "
+                f"pass actual tensors when calling the compiled kernel (got: {invalid_optional!r})"
+            )
+
+        supplied_constexprs = {
+            name: specialization_kwargs[name]
+            for name in self.constexpr_names & specialization_kwargs.keys()
+        }
+        effective = {**self.constexpr_defaults, **supplied_constexprs}
         missing = self.constexpr_names - effective.keys()
         if missing:
             raise TypeError(
@@ -295,8 +318,9 @@ class TIRJit:
                 f"(no default provided): {sorted(missing)}"
             )
 
+        absent_params = {name: None for name in self.optional_names & specialization_kwargs.keys()}
         try:
-            cache_key = tuple(sorted(effective.items()))
+            cache_key = (tuple(sorted(effective.items())), tuple(sorted(absent_params)))
             cached = self._cache.get(cache_key)
         except TypeError as err:
             raise TypeError(
@@ -312,6 +336,7 @@ class TIRJit:
             extra_vars,
             check_well_formed=self.check_well_formed,
             s_tir=self.is_stir,
+            absent_params=absent_params,
         )
         setattr(prim_func, "__name__", self.func.__name__)
         self._cache[cache_key] = prim_func
@@ -328,8 +353,9 @@ def jit(
     """Decorator: capture the kernel and defer parsing until ``.specialize()``.
 
     Use ``@T.jit`` (instead of ``@T.prim_func``) when the kernel takes
-    compile-time parameters annotated with ``T.constexpr``. The resulting
-    object exposes ``.specialize(**constexpr_kwargs)``, which returns a
+    compile-time parameters annotated with ``T.constexpr`` or runtime
+    parameters that may be removed with ``T.Optional``. The resulting object
+    exposes ``.specialize(**specialization_kwargs)``, which returns a
     ``tvm.tirx.PrimFunc``.
 
     Example::
@@ -346,6 +372,14 @@ def jit(
             ...
 
         kernel = add.specialize(N=1024)  # returns a PrimFunc
+
+        @T.jit
+        def guarded(optional: T.Optional(T.handle), out: T.handle):
+            if optional is not None:
+                ...
+
+        present = guarded.specialize()
+        absent = guarded.specialize(optional=None)
     """
 
     def decorator_wrapper(func: Callable) -> TIRJit:
@@ -511,6 +545,38 @@ class _ConstexprProxy:
         return self
 
 
+class _OptionalAnnotation:
+    """Wrapper around the runtime annotation of an optional JIT parameter."""
+
+    def __init__(self, annotation: Any) -> None:
+        self.annotation = annotation
+
+
+class _OptionalProxy:
+    """Construct an explicit ``T.Optional(...)`` JIT parameter annotation."""
+
+    def __call__(self, annotation: Any) -> _OptionalAnnotation:
+        return _OptionalAnnotation(annotation)
+
+
+def _is_explicit_optional_annotation(annotation: Any) -> bool:
+    """Recognize deferred ``T.Optional(...)`` without accepting typing unions."""
+
+    if not isinstance(annotation, str):
+        return False
+    try:
+        node = ast.parse(annotation, mode="eval").body
+    except SyntaxError:
+        return False
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    return (isinstance(func, ast.Attribute) and func.attr == "Optional") or (
+        isinstance(func, ast.Name) and func.id == "Optional"
+    )
+
+
 Buffer = BufferProxy()  # pylint: disable=invalid-name
 Ptr = PtrProxy()  # pylint: disable=invalid-name
 constexpr = _ConstexprProxy()  # pylint: disable=invalid-name
+Optional = _OptionalProxy()  # pylint: disable=invalid-name

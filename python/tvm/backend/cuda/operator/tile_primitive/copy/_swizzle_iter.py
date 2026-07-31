@@ -18,7 +18,7 @@
 """Generic swizzle-aware iter pattern for CUDA copy dispatches.
 
 When the per-thread outer-iter loop satisfies (C1)+(C2) below for a
-``SwizzleLayout(per_element=p, swizzle_len=sw, atom_len=at,
+``ComposeLayout(per_element=p, swizzle_len=sw, atom_len=at,
 swizzle_inner=True)`` on the SMEM side, the swizzled physical address
 at unrolled iter ``k`` reduces to
 
@@ -71,7 +71,7 @@ import tvm
 from tvm import arith
 from tvm.script import tirx as T
 from tvm.tirx.expr import IntImm as _IntImm
-from tvm.tirx.layout import ComposeLayout, SwizzleLayout
+from tvm.tirx.layout import ComposeLayout, S, TileLayout
 
 
 @dataclass
@@ -114,7 +114,7 @@ class SwizzlePattern:
     degenerate case (no outer iter, just base_off).
     """
 
-    swizzle: SwizzleLayout
+    swizzle: ComposeLayout
     bit_positions: list[int]
     iter_strides_elems: list[int]
     outer_iters: "list[_BitIter | _LinearIter]"
@@ -124,16 +124,20 @@ class SwizzlePattern:
         return len(self.bit_positions)
 
 
-def get_swizzle(layout) -> SwizzleLayout | None:
-    """Return the SwizzleLayout from ``layout`` if present, else ``None``.
+def get_swizzle(layout) -> ComposeLayout | None:
+    """Return a bare-swizzle view of ``layout`` if it is swizzled, else ``None``.
 
-    Accepts ``ComposeLayout(SwizzleLayout, TileLayout)`` (the common case
-    when a TileLayout is wrapped by a swizzle), or a bare ``SwizzleLayout``.
+    The result carries the swizzle params and an identity tile over the swizzle
+    period, so ``.apply()`` reproduces the bare swizzle XOR and
+    ``.per_element`` / ``.swizzle_len`` / ``.atom_len`` / ``.swizzle_inner``
+    read the params directly.
     """
     if isinstance(layout, ComposeLayout):
-        return layout.swizzle
-    if isinstance(layout, SwizzleLayout):
-        return layout
+        p = int(layout.per_element)
+        sw = int(layout.swizzle_len)
+        at = int(layout.atom_len)
+        period = 1 << (p + sw + at)
+        return ComposeLayout(p, sw, at, TileLayout(S[(period,)]), bool(layout.swizzle_inner))
     return None
 
 
@@ -142,7 +146,7 @@ def _is_pow2(n: int) -> bool:
 
 
 def try_recognize(
-    swizzle: SwizzleLayout,
+    swizzle: ComposeLayout,
     iter_extents: list[int],
     iter_strides: list[int],
     s_off_template,
@@ -152,7 +156,7 @@ def try_recognize(
 
     ``iter_extents`` / ``iter_strides``: the outer-iter list on the S side
     (excluding T iter and vec iter), in outermost-first order matching
-    ``s_p.shard[:-2]`` (or the atom-derived analog in ``reg.py``).
+    ``s_p.shard[:-2]`` (or the atom-derived analog in ``vec_auto_reg.py``).
     Strides are in element units.
 
     Each outer iter with ``extent=2^k`` and ``stride=s`` is conceptually
@@ -248,18 +252,23 @@ def try_recognize(
     # free lane / warp placeholders in s_off_template — ``can_prove_equal``
     # returns False if the analyzer can't discharge the equality
     # universally, conservatively forcing a fallback.
+    #
+    # These are compile-time SMEM-offset proofs (values stay far below
+    # 2**32), so unsigned index terms are analyzed in the no-overflow
+    # domain; every uint expression admitted is logged once by the analyzer.
     analyzer = arith.Analyzer()
     if var_bounds:
         for var, rng in var_bounds.items():
             analyzer.bind(var, rng)
-    for bj in bj_set:
-        divisor = C * (1 << bj)
-        check = tvm.tirx.floormod(
-            tvm.tirx.floordiv(s_off_template, _IntImm("int32", divisor)),
-            _IntImm("int32", 2),
-        )
-        if not analyzer.can_prove_equal(check, _IntImm("int32", 0)):
-            return None
+    with arith.allow_uint_as_index():
+        for bj in bj_set:
+            divisor = C * (1 << bj)
+            check = tvm.tirx.floormod(
+                tvm.tirx.floordiv(s_off_template, _IntImm(s_off_template.expr_ty().dtype, divisor)),
+                _IntImm(s_off_template.expr_ty().dtype, 2),
+            )
+            if not analyzer.can_prove_equal(check, _IntImm(s_off_template.expr_ty().dtype, 0)):
+                return None
 
     return SwizzlePattern(
         swizzle=swizzle,
@@ -394,7 +403,7 @@ def emit_iter_offset(pattern: SwizzlePattern, signed_strides, base_off, k):
     return off
 
 
-def emit_fallback_offset(swizzle: SwizzleLayout, s_off_resolved, ds_k):
+def emit_fallback_offset(swizzle: ComposeLayout, s_off_resolved, ds_k):
     """Slow but always-correct path: full ``swizzle.apply(s_off + ds_k)``
     per iter. Use when ``try_recognize`` returns ``None``.
 

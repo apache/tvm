@@ -29,7 +29,7 @@ from tvm.tirx.operator.tile_primitive import (
     predicate,
     register_dispatch,
 )
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..common import validate_copy_op
 from ..exec_scope_utils import single_thread

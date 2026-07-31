@@ -324,14 +324,17 @@ scratchpad (partition ``P`` and free ``F`` axes), or NVIDIA Blackwell tensor
 memory with native 2D addressing (``TLane`` × ``TCol``). The demo includes
 presets for each.
 
-SwizzleLayout, ComposeLayout
-----------------------------
+ComposeLayout (swizzled tile)
+-----------------------------
 
 Some layouts also need a *swizzle*: a non-linear, XOR-based permutation of the
 linear memory address. It is not expressible as a strided ``TileLayout`` (which
-is affine), so TIRx represents it as a separate ``SwizzleLayout`` composed with
-the tile layout: ``ComposeLayout(swizzle, tile)``. The tile layout produces a
-linear memory address; the swizzle then permutes that address.
+is affine), so TIRx folds it into a ``ComposeLayout``: alongside a
+``tile_layout``, a ``ComposeLayout`` carries four swizzle parameters
+(``per_element``, ``swizzle_len``, ``atom_len``, ``swizzle_inner``). The tile
+layout produces a linear memory address; the swizzle then permutes that address.
+A *bare* swizzle (no meaningful tile) is a ``ComposeLayout`` over a trivial
+identity ``TileLayout`` covering one swizzle period.
 
 Why swizzle
 ~~~~~~~~~~~
@@ -351,10 +354,11 @@ conflict. Swizzle scatters those accesses across banks.
 The transform
 ~~~~~~~~~~~~~
 
-A ``SwizzleLayout`` has three integer parameters — ``per_element`` (M),
+The swizzle has three integer parameters — ``per_element`` (M),
 ``swizzle_len`` (B), and ``atom_len`` (S) — and maps a linear element address
 ``m`` as follows (keeping the low ``M`` bits untouched and XOR-ing a higher bit
-group down into a lower one):
+group down into a lower one; this is the ``swizzle_inner=True`` direction, and
+``swizzle_inner=False`` mirrors the XOR):
 
 .. math::
 
@@ -380,7 +384,7 @@ mode** (the 32B / 64B / 128B shared-memory swizzle widths):
    S = 3 .
 
 For example ``float16`` (16-bit) gives ``M = bitlen(8) - 1 = 3``; with 128B
-swizzle that is ``Swizzle(M=3, B=3, S=3)``. ``M`` keeps a 16-byte (128-bit)
+swizzle that is swizzle ``(M=3, B=3, S=3)``. ``M`` keeps a 16-byte (128-bit)
 contiguous run unswizzled, matching the minimum vector access.
 
 Bank and line of an element
@@ -400,7 +404,7 @@ swizzled element address ``a = addr(m)`` lands in
 Worked example: 128B swizzle, ``float16``, ``(8, 64)`` tile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-With ``Swizzle(3,3,3)`` over ``m = 64i + j`` the address simplifies to
+With the swizzle ``(3,3,3)`` over ``m = 64i + j`` the address simplifies to
 
 .. math::
 

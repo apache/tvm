@@ -542,23 +542,19 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
     .set_dispatch<tirx::ComposeLayout>(
         "", [](tirx::ComposeLayout layout, AccessPath p, IRDocsifier d) -> Doc {
-          auto layoutA = d->AsDoc<ExprDoc>(layout->swizzle, p->Attr("swizzle"));
-          auto layoutB = d->AsDoc<ExprDoc>(layout->tile_layout, p->Attr("tile_layout"));
-          return TIRx(d, "ComposeLayout")->Call({layoutA, layoutB}, {}, {});
-        });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
-    .set_dispatch<tirx::SwizzleLayout>(
-        "", [](tirx::SwizzleLayout layout, AccessPath p, IRDocsifier d) -> Doc {
-          return TIRx(d, "SwizzleLayout")
-              ->Call(
-                  {
-                      LiteralDoc::Int(layout->per_element, p->Attr("per_element")),
-                      LiteralDoc::Int(layout->swizzle_len, p->Attr("swizzle_len")),
-                      LiteralDoc::Int(layout->atom_len, p->Attr("atom_len")),
-                  },
-                  {"swizzle_inner"},
-                  {LiteralDoc::Boolean(layout->swizzle_inner, p->Attr("swizzle_inner"))});
+          auto per_element = LiteralDoc::Int(layout->per_element, p->Attr("per_element"));
+          auto swizzle_len = LiteralDoc::Int(layout->swizzle_len, p->Attr("swizzle_len"));
+          auto atom_len = LiteralDoc::Int(layout->atom_len, p->Attr("atom_len"));
+          auto tile_doc = d->AsDoc<ExprDoc>(layout->tile_layout, p->Attr("tile_layout"));
+          ffi::Array<ffi::String> kwargs_keys;
+          ffi::Array<ExprDoc> kwargs_values;
+          if (!layout->swizzle_inner) {
+            kwargs_keys.push_back("swizzle_inner");
+            kwargs_values.push_back(
+                LiteralDoc::Boolean(layout->swizzle_inner, p->Attr("swizzle_inner")));
+          }
+          return TIRx(d, "ComposeLayout")
+              ->Call({per_element, swizzle_len, atom_len, tile_doc}, kwargs_keys, kwargs_values);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -586,7 +582,6 @@ TVM_SCRIPT_REPR(tirx::BufferTypeNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::IterNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::TileLayoutNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::ComposeLayoutNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::SwizzleLayoutNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::MatchBufferRegionNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::ProducerLoadNode, ReprPrintTIR);
 

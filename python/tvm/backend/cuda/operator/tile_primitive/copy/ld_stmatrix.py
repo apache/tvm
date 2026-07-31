@@ -32,15 +32,15 @@ from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.layout import S, TileLayout
 from tvm.tirx.operator.tile_primitive.dispatcher import fail, predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ._common import (  # noqa: F401  (_carve_tail reserved for future variants)
     _carve_tail,
     _extract_tile,
 )
 from ._swizzle_iter import emit_init, emit_iter_offset, get_swizzle, try_recognize
-from .reg import _all_threads_active, _ptr_off
 from .utils import _is_valid_copy, _scope_allowed
+from .vec_auto_reg import _all_threads_active, _ptr_off
 
 _REG_SMEM_PAIRS = [
     ("local", "shared*"),
@@ -107,10 +107,8 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     # TileLayout. The ComposeLayout doesn't have ``.replica`` / ``.shard``,
     # so we must peel *before* the structural checks below. Capture the
     # swizzle separately for use at emit time.
-    # NB: read swizzle from the *buffer* layout, not the post-canon ``s``.
-    # When the underlying tile is trivial, ``ComposeLayoutNode::Canonicalize``
-    # returns a bare ``SwizzleLayout``; isinstance(s, ComposeLayout) is then
-    # False and we'd miss the swizzle here.
+    # NB: read swizzle from the *buffer* layout, not the post-canon ``s`` --
+    # the buffer layout is the reliable source for the swizzle params.
     s_swizzle = get_swizzle(s_buf.layout)
     if s_swizzle is not None and s_swizzle.per_element < 3:
         # ldmatrix/stmatrix .b16 reads/writes 8 fp16 = 128b per lane in one

@@ -405,6 +405,38 @@ def test_thread_extent_region_extracted_as_device_kernel():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+def test_cuda_launch_preserves_flag_metadata():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(16, "float32")):
+            T.func_attr(
+                {
+                    "target": T.target("cuda", host="llvm"),
+                    "tirx.kernel_launch_params": [
+                        "threadIdx.x",
+                        "tirx.use_programtic_dependent_launch",
+                    ],
+                }
+            )
+            T.attr(T.target("cuda"), "target", 0)
+            tx = T.launch_thread("threadIdx.x", 16)
+            A[tx] = 0.0
+
+    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    kernel = after["main_kernel"]
+    assert list(kernel.attrs["tirx.kernel_launch_params"]) == [
+        "threadIdx.x",
+        "tirx.use_programtic_dependent_launch",
+    ]
+
+    launch = after["main"].body.value
+    assert isinstance(launch, tvm.ir.Call)
+    # Programmatic launch is flag-only and therefore adds no packed operand.
+    assert len(launch.args) == 3
+    assert int(launch.args[-1]) == 16
+
+
 def test_device_scope_region_extracted_as_device_kernel():
     """A bare device_scope is annotated and extracted as a device kernel."""
 

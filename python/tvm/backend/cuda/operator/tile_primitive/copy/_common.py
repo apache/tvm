@@ -26,8 +26,10 @@ to call, allowed vec widths). All the layout/partition logic lives here.
 """
 
 from tvm import arith
-from tvm.tirx.layout import ComposeLayout, Iter, S, SwizzleLayout, TileLayout
+from tvm.tirx.layout import ComposeLayout, Iter, TileLayout
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
+
+from ..layout_utils import strip_swizzle_to_tile
 
 
 def _alignment_ok(vec_len: int, terms) -> bool:
@@ -317,16 +319,13 @@ def _vec_len_candidates(elem_bits: int, allowed_bits: tuple | None = None) -> li
 
 def _extract_tile(layout, region):
     """Strip swizzle so we can perm/group as a TileLayout."""
-    if isinstance(layout, ComposeLayout):
-        return layout.tile_layout
-    if isinstance(layout, SwizzleLayout):
-        # Region bounds may be constant-valued but remain as unfolded
-        # expressions after substitution. Simplify before converting to a
-        # Python integer; genuinely symbolic tile extents still raise.
-        analyzer = arith.Analyzer()
-        extents = [int(analyzer.simplify(end - start)) for (start, end) in region]
-        return TileLayout(S[tuple(extents)])
-    return layout
+    # Region bounds may be constant-valued but remain as unfolded expressions
+    # after substitution. Simplify before converting to a Python integer;
+    # genuinely symbolic extents fall back inside ``strip_swizzle_to_tile``.
+    analyzer = arith.Analyzer()
+    return strip_swizzle_to_tile(
+        layout, lambda: [int(analyzer.simplify(end - start)) for (start, end) in region]
+    )
 
 
 def _sort_by_stride_desc(layout: TileLayout) -> TileLayout:
@@ -414,14 +413,12 @@ def align_layouts_gs(
     """
     g = g_layout.slice(list(g_shape), g_region)
     s = s_layout.slice(list(s_shape), s_region)
-    # Detect a SwizzleLayout on the S side BEFORE _extract_tile strips it.
+    # Detect a swizzle on the S side BEFORE _extract_tile strips it.
     # vec_len must fit inside one swizzle chunk (C = 2^per_element elements);
     # otherwise the vec ld/st crosses a swizzle XOR boundary and hits the
     # wrong physical bytes mid-vec.
     s_swizzle_chunk_elems = None
     if isinstance(s_layout, ComposeLayout):
-        s_swizzle_chunk_elems = 1 << int(s_layout.swizzle.per_element)
-    elif isinstance(s_layout, SwizzleLayout):
         s_swizzle_chunk_elems = 1 << int(s_layout.per_element)
     g = _extract_tile(g, g_region)
     s = _extract_tile(s, s_region)
@@ -547,6 +544,7 @@ def _outer_offsets(outer_iters_s, outer_iters_g, flat_idx):
 def copy_ptx_form(num_bytes: int) -> tuple[str, str]:
     """Map copy width (bytes) to PTX ``(vec, ptx_type)`` for ``T.ptx.ld`` / ``T.ptx.st``."""
     return {
+        32: ("v8", "u32"),
         16: ("v4", "u32"),
         8: ("v2", "u32"),
         4: ("", "u32"),

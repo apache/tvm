@@ -451,7 +451,7 @@ def test_unary_op_shared_with_bias_scale(input, op_type, bias_type, src_dtype, d
 )
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-@pytest.mark.parametrize("op_type", ["reciprocal", "exp", "exp2"])
+@pytest.mark.parametrize("op_type", ["reciprocal", "exp", "exp2", "log2"])
 @pytest.mark.parametrize(
     "src_dtype,dst_dtype", [("float16", "float16"), ("float32", "float16"), ("float32", "bfloat16")]
 )
@@ -510,6 +510,8 @@ def test_unary_op_local(input, op_type, src_dtype, dst_dtype):
             Tx.warp.exp(res_view, acc_view)
         elif op_type == "exp2":
             Tx.warp.exp2(res_view, acc_view)
+        elif op_type == "log2":
+            Tx.warp.log2(res_view, acc_view)
 
             # write res into B
         for i in T.serial(NUM_COL // 8):
@@ -539,6 +541,8 @@ def test_unary_op_local(input, op_type, src_dtype, dst_dtype):
             B_ref = np.exp(A_np).astype(dst_dtype)
         elif op_type == "exp2":
             B_ref = np.exp2(A_np).astype(dst_dtype)
+        elif op_type == "log2":
+            B_ref = np.log2(A_np).astype(dst_dtype)
         else:
             raise ValueError(f"op_type={op_type} is not supported")
 

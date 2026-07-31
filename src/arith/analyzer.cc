@@ -337,6 +337,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](Analyzer analyzer, const PrimExpr& expr, int strength) {
              return analyzer->CanProve(expr, static_cast<ProofStrength>(strength));
            })
+      .def("arith.EnterAllowUintAsIndex", []() { ++arith::uint_as_index::g_depth; })
+      .def("arith.ExitAllowUintAsIndex",
+           []() {
+             TVM_FFI_ICHECK(arith::uint_as_index::g_depth > 0)
+                 << "ExitAllowUintAsIndex without a matching Enter";
+             --arith::uint_as_index::g_depth;
+           })
+      .def("arith.GetAllowUintAsIndex", []() { return arith::uint_as_index::Enabled(); })
       .def("arith.AnalyzerSetMaximumRewriteSteps",
            [](Analyzer analyzer, int64_t maximum) {
              analyzer->rewrite_simplify.SetMaximumRewriteSteps(maximum);
