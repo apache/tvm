@@ -62,7 +62,7 @@ import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.testing import env
-from tvm.tirx.cuda.operator.tile_primitive.tma_utils import SwizzleMode, mma_shared_layout
+from tvm.tirx.cuda.tile_primitive.tma_utils import SwizzleMode, mma_shared_layout
 from tvm.tirx.layout import ComposeLayout, R, S, TCol, TileLayout, TLane
 
 # Multicast replica lane offsets: (extent, stride) pairs on TLane. These are

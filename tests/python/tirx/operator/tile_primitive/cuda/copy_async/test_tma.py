@@ -31,7 +31,7 @@ from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 from tvm.tirx import IntImm, StringImm, Var
-from tvm.tirx.cuda.operator.tile_primitive.copy_async.tma import (
+from tvm.tirx.cuda.tile_primitive.copy_async.tma import (
     AutoIssueAxis,
     IssueCoord,
     ProofStatus,
@@ -46,7 +46,7 @@ from tvm.tirx.cuda.operator.tile_primitive.copy_async.tma import (
     copy_tma_explicit_impl,
     validate_tensor_map_spec,
 )
-from tvm.tirx.cuda.operator.tile_primitive.tma_utils import (
+from tvm.tirx.cuda.tile_primitive.tma_utils import (
     mma_atom_layout,
     mma_atom_shape,
     mma_shared_layout,

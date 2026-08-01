@@ -32,7 +32,7 @@ from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 from tvm.tirx import IntImm, Var
-from tvm.tirx.cuda.operator.tile_primitive.copy_async.dsmem import copy_dsmem_impl
+from tvm.tirx.cuda.tile_primitive.copy_async.dsmem import copy_dsmem_impl
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
 from tvm.tirx.operator.tile_primitive.dispatcher import DispatchFail

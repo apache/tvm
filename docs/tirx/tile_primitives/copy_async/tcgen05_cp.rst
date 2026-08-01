@@ -24,7 +24,7 @@ memory** (Blackwell ``tmem``) through a generic planner covering every
 descriptor fields (ldo/sdo/swizzle) and the cp issue sequence are derived from
 the two buffer layouts. The dispatch issues only the copy; the caller signals
 completion with ``tcgen05.commit``. Source:
-``python/tvm/backend/cuda/operator/tile_primitive/copy_async/tcgen05_cp.py``.
+``python/tvm/backend/cuda/tile_primitive/copy_async/tcgen05_cp.py``.
 
 Shape selection
 ---------------

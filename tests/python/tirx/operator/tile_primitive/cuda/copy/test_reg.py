@@ -732,7 +732,7 @@ _TCGEN05_D_SLICE = (slice(0, 64), slice(0, 64))
 
 
 def _tcgen05_d_epilogue_layouts():
-    from tvm.tirx.cuda.operator.tile_primitive.tma_utils import mma_shared_layout
+    from tvm.tirx.cuda.tile_primitive.tma_utils import mma_shared_layout
     from tvm.tirx.layout import tcgen05_atom_layout
 
     m, n = _TCGEN05_D_SHAPE
@@ -743,7 +743,7 @@ def _tcgen05_d_epilogue_layouts():
 
 def _build_tcgen05_d_epilogue_deposit():
     """``Tx.wg.copy(smem[slice], d_reg[slice])``: R (tcgen05 atom) → S (128B swizzle)."""
-    from tvm.tirx.cuda.operator.tile_primitive.tma_utils import mma_shared_layout
+    from tvm.tirx.cuda.tile_primitive.tma_utils import mma_shared_layout
     from tvm.tirx.layout import tcgen05_atom_layout
 
     m, n = _TCGEN05_D_SHAPE
@@ -781,7 +781,7 @@ def test_reg_copy_tcgen05_d_epilogue_deposit_layout_pairing():
     ``d_reg``: ``(64,64)`` fp32 ``tcgen05_atom_layout("16x256b", ...)``.
     ``smem_cd_mma``: ``(64,64)`` fp32 ``mma_shared_layout(..., swizzle=128B)``.
     """
-    from tvm.backend.cuda.operator.tile_primitive.copy.vec_auto_reg import (
+    from tvm.backend.cuda.tile_primitive.copy.vec_auto_reg import (
         _split_thread_loop,
         align_layouts_raw,
     )
@@ -853,7 +853,7 @@ def _tcgen05_16x256b_row_col(tid_wg: T.int32, lane: T.int32, reg_idx: T.int32):
 
 def _build_tcgen05_d_epilogue_deposit_roundtrip():
     """Fill ``d_reg``, R→S deposit, S→R reload, dump via ``.local()`` to gmem."""
-    from tvm.tirx.cuda.operator.tile_primitive.tma_utils import mma_shared_layout
+    from tvm.tirx.cuda.tile_primitive.tma_utils import mma_shared_layout
     from tvm.tirx.layout import tcgen05_atom_layout
 
     m, n = _TCGEN05_D_SHAPE

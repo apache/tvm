@@ -23,7 +23,7 @@ The ``reg`` variant lowers an elementwise op (``sqrt``, ``exp``, ``add``,
 :doc:`../copy/reg` variant the partition is *induced* by the operands' register
 layout — the thread axes are dropped, leaving each thread its private bundle — and
 the op is applied to every register in that bundle. Source:
-``python/tvm/backend/cuda/operator/tile_primitive/elementwise/reg.py``.
+``python/tvm/backend/cuda/tile_primitive/elementwise/reg.py``.
 
 What it accepts
 ---------------
