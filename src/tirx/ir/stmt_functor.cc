@@ -179,14 +179,23 @@ void StmtVisitor::VisitStmt_(const ScopeIdDefStmtNode* op) {
 }
 
 void StmtVisitor::VisitStmt_(const tirx::TilePrimitiveCallNode* op) {
-  auto fvisit = [this](const ffi::Any& e) {
+  std::function<void(const ffi::Any&)> fvisit;
+  fvisit = [this, &fvisit](const ffi::Any& e) {
     if (e == nullptr) return;
     if (auto buffer_region = e.as<BufferRegion>()) {
-      return;
+      this->VisitBufferUse(buffer_region.value()->buffer);
+      for (const auto& range : buffer_region.value()->region) {
+        this->VisitExpr(range->min);
+        this->VisitExpr(range->extent);
+      }
+    } else if (auto var = e.as<Var>(); var && var.value()->ty.as<BufferTypeNode>()) {
+      this->VisitBufferUse(BufferVar(var.value()));
     } else if (auto expr = e.as<PrimExpr>()) {
       this->VisitExpr(expr.value());
     } else if (auto stmt = e.as<Stmt>()) {
       this->VisitStmt(stmt.value());
+    } else if (auto array = e.as<ffi::Array<ffi::Any>>()) {
+      for (const ffi::Any& item : array.value()) fvisit(item);
     }
   };
   VisitArray(op->args, fvisit);
@@ -677,14 +686,19 @@ Stmt StmtMutator::VisitStmt_(const ScopeIdDefStmtNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const tirx::TilePrimitiveCallNode* op) {
-  auto fmutate = [&](const ffi::Any& e) -> ffi::Any {
+  std::function<ffi::Any(const ffi::Any&)> fmutate;
+  fmutate = [&](const ffi::Any& e) -> ffi::Any {
     if (e == nullptr) return e;
     if (auto buffer_region = e.as<BufferRegion>()) {
       return Internal::Mutate(this, {buffer_region.value()})[0];
+    } else if (auto var = e.as<Var>(); var && var.value()->ty.as<BufferTypeNode>()) {
+      return this->VisitBufferUse(BufferVar(var.value()));
     } else if (auto expr = e.as<PrimExpr>()) {
       return this->VisitPrimExpr(expr.value());
     } else if (auto stmt = e.as<Stmt>()) {
       return this->VisitStmt(stmt.value());
+    } else if (auto array = e.as<ffi::Array<ffi::Any>>()) {
+      return Internal::MutateArray(this, array.value(), fmutate);
     }
     return e;
   };

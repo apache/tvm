@@ -370,7 +370,6 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
         BLOCK_SIZE = T.meta_var(self._BLOCK_SIZE)  # S * S
         FULL_BLOCK_TILES = T.meta_var(self._FULL_BLOCK_TILES)
         M_TILE_ROWS = T.meta_var(self._M_TILE_ROWS)
-        T.meta_var(self._N_TILE_COLS)
         RESIDUAL_N = T.meta_var(self._RESIDUAL_N)
         RESIDUAL_M = T.meta_var(self._RESIDUAL_M)
 
@@ -872,7 +871,7 @@ class _CLCWorker(ClusterPersistentScheduler2D):
         self._clc.sched_arr.full.wait(0, self._sa.phase)
         self._sa.advance()
         self._nxt = T.ptx.clc_query_cancel(T.address_of(self._clc.clc_handle[0]))
-        self._clc.sched_fin.empty.arrive(0, cta_id=0, pred=True)
+        self._clc.sched_fin.empty.arrive(0, remote=0, pred=True)
 
     @T.inline
     def consume_wg(self, wg_id, warp_id, lane_id):
@@ -882,7 +881,7 @@ class _CLCWorker(ClusterPersistentScheduler2D):
         self._nxt = T.ptx.clc_query_cancel(T.address_of(self._clc.clc_handle[0]))
         T.cuda.warpgroup_sync(wg_id + 1)
         if (warp_id == 0) & (lane_id == 0):
-            self._clc.sched_fin.empty.arrive(0, cta_id=0, pred=True)
+            self._clc.sched_fin.empty.arrive(0, remote=0, pred=True)
 
     @T.inline
     def advance_coords(self):
@@ -940,6 +939,6 @@ class ClusterLaunchControlScheduler:
                 self.sched_arr.full.wait(0, sa.phase)
                 sa.advance()
                 self._s_nxt = T.ptx.clc_query_cancel(T.address_of(self.clc_handle[0]))
-                self.sched_fin.empty.arrive(0, cta_id=0, pred=True)
+                self.sched_fin.empty.arrive(0, remote=0, pred=True)
                 if self._s_nxt == 0xFFFFFFFF:
                     self._s_done = 1

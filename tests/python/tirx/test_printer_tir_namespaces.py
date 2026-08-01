@@ -16,6 +16,8 @@
 # under the License.
 
 
+import pytest
+
 import tvm
 from tvm import tirx as tir
 from tvm.script import tirx as T
@@ -82,7 +84,14 @@ def test_printer_ptx_more():
         cuda_op.ptx_cp_async_bulk_wait_group(0, True),
         "T.ptx.cp_async.bulk.wait_group(0, T.bool(True))",
     )
-    _assert_print(cuda_op.ptx_cp_async_mbarrier_arrive(0), "T.ptx.cp_async.mbarrier.arrive(0)")
+    _assert_print(
+        cuda_op.ptx_cp_async_mbarrier_arrive(r),
+        'r = T.handle()\nT.ptx.cp_async.mbarrier.arrive(r, T.bool(False), "shared")',
+    )
+    _assert_print(
+        cuda_op.ptx_cp_async_mbarrier_arrive_noinc(r),
+        'r = T.handle()\nT.ptx.cp_async.mbarrier.arrive(r, T.bool(True), "shared::cta")',
+    )
     _assert_print(cuda_op.ptx_fence("acq_rel", "gpu"), 'T.ptx.fence("acq_rel", "gpu")')
     _assert_print(cuda_op.ptx_fence("sc", "cta"), 'T.ptx.fence("sc", "cta")')
     _assert_print(
@@ -101,10 +110,15 @@ def test_printer_ptx_more():
         "r = T.handle()\ns = T.handle()\nT.ptx.ld_global_acquire(r, s)",
     )
     _assert_print(
+        cuda_op.cuda_fdividef(1.0, 2.0),
+        "T.cuda.fdividef(T.float32(1.0), T.float32(2.0))",
+    )
+    _assert_print(
         cuda_op.ptx_map_shared_rank(r, 2), 'r = T.handle()\nT.ptx.mapa(r, 2, "", "u64", "uint64")'
     )
     _assert_print(cuda_op.ptx_bar_arrive(0, 128), "T.ptx.bar.arrive(0, 128)")
     _assert_print(cuda_op.ptx_bar_sync(0, 128), "T.ptx.bar.sync(0, 128)")
+    _assert_print(cuda_op.ptx_barrier_sync(0, 128), "T.ptx.barrier.sync(0, 128)")
     _assert_print(
         cuda_op.ptx_tcgen05_alloc(s, 64, 1), "s = T.handle()\nT.ptx.tcgen05.alloc(s, 64, 1)"
     )
@@ -168,6 +182,12 @@ def test_printer_ptx_more():
         "d = T.handle()\n"
         'T.ptx.tcgen05.cp(a, d, "64x128b", 1, "warpx2::02_13", "", 0, 0)',
     )
+    _assert_print(
+        cuda_op.ptx_tcgen05_cp(a, d, shape="128x128b", cta_group=2, decompress="b8x16.b6x16_p32"),
+        "a = T.handle()\n"
+        "d = T.handle()\n"
+        'T.ptx.tcgen05.cp(a, d, "128x128b", 2, "", "b8x16.b6x16_p32", 0, 0)',
+    )
     _assert_print(cuda_op.ptx_tcgen05_shift(a, 1), "a = T.handle()\nT.ptx.tcgen05.shift(a, 1)")
     _assert_print(
         cuda_op.ptx_tcgen05_ld(a, 0, shape="16x64b", num=1, row=0, col=0, pack=False),
@@ -187,15 +207,46 @@ def test_printer_ptx_more():
     )
 
 
+@pytest.mark.parametrize(
+    "kwargs,match",
+    [
+        ({"shape": "bad"}, "invalid shape"),
+        ({"shape": "128x256b", "multicast": "warpx4"}, "requires multicast=''"),
+        ({"shape": "64x128b"}, "requires multicast in warpx2"),
+        ({"shape": "64x128b", "multicast": "warpx4"}, "requires multicast in warpx2"),
+        ({"shape": "32x128b"}, "requires multicast='warpx4'"),
+        ({"shape": "32x128b", "multicast": "warpx2::02_13"}, "requires multicast='warpx4'"),
+        ({"shape": "128x128b", "decompress": "bad"}, "invalid decompress"),
+    ],
+)
+def test_ptx_tcgen05_cp_validation(kwargs, match):
+    a = tir.Var("a", "handle")
+    d = tir.Var("d", "handle")
+    with pytest.raises(ValueError, match=match):
+        cuda_op.ptx_tcgen05_cp(a, d, cta_group=1, **kwargs)
+
+
 def test_printer_ptx_mbarrier():
     bar = tir.Var("bar", "handle")
     _assert_print(
         cuda_op.ptx_mbarrier_init(bar, 32), "bar = T.handle()\nT.ptx.mbarrier.init(bar, 32)"
     )
-    _assert_print(cuda_op.ptx_mbarrier_arrive(bar), "bar = T.handle()\nT.ptx.mbarrier.arrive(bar)")
+    _assert_print(
+        cuda_op.ptx_mbarrier_arrive(bar),
+        'bar = T.handle()\nT.ptx.mbarrier.arrive(bar, "", "", "shared", 0, 0, 0)',
+    )
     _assert_print(
         cuda_op.ptx_mbarrier_arrive_expect_tx(bar, 128),
-        "bar = T.handle()\nT.ptx.mbarrier.arrive.expect_tx(bar, 128)",
+        'bar = T.handle()\nT.ptx.mbarrier.arrive.expect_tx(bar, 128, "", "", "shared", 0, 0)',
+    )
+    _assert_print(
+        cuda_op.ptx_mbarrier_arrive_no_complete(bar, 2),
+        'bar = T.handle()\nT.ptx.mbarrier.arrive.no_complete(bar, 2, "shared", 0)',
+    )
+    _assert_print(
+        cuda_op.ptx_mbarrier_complete_tx(bar, 128),
+        'bar = T.handle()\nT.ptx.mbarrier.complete_tx(bar, 128, "relaxed", '
+        '"cluster", "shared::cluster", 0, 0)',
     )
     _assert_print(
         cuda_op.ptx_mbarrier_try_wait(bar, 1), "bar = T.handle()\nT.ptx.mbarrier.try_wait(bar, 1)"
@@ -449,21 +500,22 @@ def test_printer_ptx_mma_and_wgmma():
 def test_printer_ptx_cp_async_tensor():
     tmap = tir.Var("tm", "handle")
     _assert_print(
-        cuda_op.ptx_cp_async_bulk_tensor_global_to_cluster(2, tmap, 0, tmap, 0, 1, "", 0, 1, ""),
+        cuda_op.ptx_cp_async_bulk_tensor_g2s_cluster(2, tmap, 0, tmap, 0, 1, "", 0, 1, ""),
         "tm = T.handle()\n"
-        'T.ptx.cp_async.bulk.tensor.g2c(2, tm, 0, tm, 0, 1, T.uint64(0), 0, 0, 1, "")',
+        "T.ptx.cp_async.bulk.tensor.g2s_cluster"
+        '(2, tm, 0, tm, 0, 1, T.uint64(0), 0, "tile", 0, 0, 0, 1, "")',
     )
     _assert_print(
-        cuda_op.ptx_cp_async_bulk_tensor_tile_gather4_global_to_cluster(
-            2, tmap, 0, tmap, 0, 1, "", 0, 1, ""
+        cuda_op.ptx_cp_async_bulk_tensor_g2s_cta(
+            2, tmap, 0, tmap, 1, "", 0, 1, 2, 3, 4, load_mode="tile_gather4"
         ),
         "tm = T.handle()\n"
-        "T.ptx.cp_async.bulk.tensor.g2c_tile_gather4"
-        '(2, tm, 0, tm, 0, 1, T.uint64(0), 0, 0, 1, "")',
+        "T.ptx.cp_async.bulk.tensor.g2s_cta"
+        '(2, tm, 0, tm, 1, T.uint64(0), 0, "tile_gather4", 0, 0, 1, 2, 3, 4)',
     )
     _assert_print(
-        cuda_op.ptx_cp_async_bulk_tensor_global_to_cluster_prefetch(2, tmap, "", 0, 0, ""),
-        'tm = T.handle()\nT.ptx.cp_async.bulk.tensor.g2c_prefetch(2, tm, T.uint64(0), 0, 0, 0, "")',
+        cuda_op.ptx_cp_async_bulk_tensor_prefetch(2, tmap, "", 0, 0, ""),
+        'tm = T.handle()\nT.ptx.cp_async.bulk.tensor.prefetch(2, tm, T.uint64(0), 0, 0, 0, "")',
     )
     _assert_print(
         cuda_op.ptx_cp_async_bulk_tensor_shared_to_global(2, 0, tmap, "", 0, 0, ""),

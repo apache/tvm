@@ -61,6 +61,7 @@ _C_TO_TVM_DTYPE = {
     "unsigned long long": "uint64",
     "long long": "int64",
     "unsigned short": "uint16",
+    "float2": "float32x2",
     "bool": "bool",
     "unsigned int": "uint32",
     "int": "int32",

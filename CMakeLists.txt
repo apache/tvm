@@ -340,6 +340,7 @@ tvm_file_glob(GLOB CODEGEN_SRCS
   src/target/canonicalizer/llvm/*.cc
   src/backend/cuda/codegen/*.cc
   src/backend/cuda/op/*.cc
+  src/backend/cuda/transforms/*.cc
   src/backend/hexagon/codegen/*.cc
   src/backend/metal/codegen/*.cc
   src/backend/metal/op/*.cc

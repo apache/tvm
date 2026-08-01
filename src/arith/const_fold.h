@@ -39,6 +39,33 @@ namespace tvm {
 namespace arith {
 
 /*!
+ * \brief Scoped opt-in flag for unsigned index analysis (allow_u32).
+ *
+ * Unsigned arithmetic wraps modulo 2^bits, so most index rewrite rules are
+ * unsound for it in general. When the caller can guarantee values never
+ * approach the type limit (e.g. compile-time layout proofs over SMEM
+ * offsets), enabling this flag activates a small set of otherwise-unsafe
+ * rewrite rules for unsigned operands (see the unsigned blocks in
+ * rewrite_simplify.cc). It is OFF by default; thread-local and nested-safe.
+ */
+namespace uint_as_index {
+
+inline thread_local int g_depth = 0;
+
+inline bool Enabled() { return g_depth > 0; }
+
+}  // namespace uint_as_index
+
+/*! \brief RAII guard enabling uint_as_index mode in the current scope. */
+class AllowUintAsIndexGuard {
+ public:
+  AllowUintAsIndexGuard() { ++uint_as_index::g_depth; }
+  ~AllowUintAsIndexGuard() { --uint_as_index::g_depth; }
+  AllowUintAsIndexGuard(const AllowUintAsIndexGuard&) = delete;
+  AllowUintAsIndexGuard& operator=(const AllowUintAsIndexGuard&) = delete;
+};
+
+/*!
  * \brief Try to run binary compute with constant folding.
  *
  * \param a The left operand.

@@ -90,7 +90,6 @@ from tvm.tirx.layout import (
     Layout,
     R,
     S,
-    SwizzleLayout,
     TileLayout,
     wg_local_layout,
 )
@@ -155,6 +154,9 @@ def _normalize_prim_type(dtype) -> ir.PrimType:
         ty = getattr(value, "ty", None)
         if isinstance(ty, ir.PrimType):
             return ty
+        type_annotation = getattr(value, "type_annotation", None)
+        if isinstance(type_annotation, ir.PrimType):
+            return type_annotation
     return ir.PrimType(dtype)
 
 
@@ -3525,7 +3527,6 @@ __all__ += [
     "R",
     "S",
     "ScopeIdDef",
-    "SwizzleLayout",
     "TensorMap",
     "TileLayout",
     "Var",

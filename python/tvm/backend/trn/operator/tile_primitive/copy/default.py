@@ -26,7 +26,7 @@ from tvm.tirx.operator.tile_primitive import (
     predicate,
     register_dispatch,
 )
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_ewise_dim_map

@@ -20,6 +20,7 @@
 
 import tvm
 from tvm import tirx
+from tvm.backend.cuda import transforms as cuda_transforms
 
 
 def default_tir_pipeline():
@@ -49,6 +50,7 @@ def default_tir_pipeline():
                 tirx.transform.VerifyMemory(),
                 tirx.transform.AnnotateEntryFunc(),
                 tirx.transform.SplitHostDevice(),
+                cuda_transforms.LowerIket(),
                 tirx.transform.MakePackedAPI(),
                 tirx.transform.FP8StorageLegalize(),
                 tirx.transform.BF16StorageLegalize(),
@@ -88,6 +90,7 @@ def tirx_pipeline():
                 tirx.transform.VerifyMemory(),
                 tirx.transform.AnnotateEntryFunc(),
                 tirx.transform.SplitHostDevice(),
+                cuda_transforms.LowerIket(),
                 tirx.transform.MakePackedAPI(),
                 tirx.transform.FP8StorageLegalize(),
                 tirx.transform.BF16StorageLegalize(),

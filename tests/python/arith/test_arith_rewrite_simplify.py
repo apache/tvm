@@ -758,6 +758,56 @@ def test_uint_floormod_const_fold():
     assert analyzer.can_prove_equal(expr, 0)
 
 
+class TestFloorModUnsigned(BaseCompare):
+    """Modular-analysis simplifications for unsigned operands (uint32/uint64).
+
+    Only sound when the divisor is a power of two (c2 | 2^bits): reducing
+    mod 2^bits does not change residues mod c2 in that case, so the
+    modular-decomposition rules carry over from the signed block.
+    """
+
+    x = tirx.Var("x", "uint32")
+    y = tirx.Var("y", "uint32")
+    z = tirx.Var("z", "int32")
+    test_case = tvm.testing.parameter(
+        TestCase(
+            flm(x * tirx.const(8, "uint32"), tirx.const(4, "uint32")), tirx.const(0, "uint32")
+        ),
+        TestCase(flm((z * 4).astype("uint32"), tirx.const(4, "uint32")), tirx.const(0, "uint32")),
+        TestCase(
+            flm(x * tirx.const(16, "uint32") + (z * 4).astype("uint32"), tirx.const(4, "uint32")),
+            tirx.const(0, "uint32"),
+        ),
+        TestCase(
+            flm(
+                x * tirx.const(32, "uint32") + y * tirx.const(8, "uint32"), tirx.const(8, "uint32")
+            ),
+            tirx.const(0, "uint32"),
+        ),
+        # Non-power-of-two divisor must NOT simplify (unsigned wraparound
+        # changes residues mod c2).
+        TestCase(
+            flm(x * tirx.const(16, "uint32") + (z * 4).astype("uint32"), tirx.const(12, "uint32")),
+            flm(x * tirx.const(16, "uint32") + (z * 4).astype("uint32"), tirx.const(12, "uint32")),
+        ),
+        # The pre-existing x * c1 % c2 -> 0 rule is pow2-guarded: c2=12 must
+        # not fold to 0 (e.g. x=2^29 wraps: uint32(x*12)=2^31, and 2^31 % 12 = 8).
+        TestCase(
+            flm(x * tirx.const(12, "uint32"), tirx.const(12, "uint32")),
+            flm(x * tirx.const(12, "uint32"), tirx.const(12, "uint32")),
+        ),
+        TestCase(
+            flm(x * tirx.const(8, "uint32"), tirx.const(8, "uint32")), tirx.const(0, "uint32")
+        ),
+        # Unsigned floordiv to zero by const bound.
+        TestCase(
+            tvm.tirx.floordiv(x, tirx.const(512, "uint32")),
+            tirx.const(0, "uint32"),
+            [x < 512],
+        ),
+    )
+
+
 class TestMinIndex(BaseCompare):
     x, y, z = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32"), tvm.tirx.Var("z", "int32")
     test_case = tvm.testing.parameter(
@@ -1329,3 +1379,36 @@ class TestCLZ(BaseCompare):
 
 if __name__ == "__main__":
     tvm.testing.main()
+
+
+def test_allow_uint_as_index():
+    """Opt-in no-overflow domain: unsigned index terms are not analyzed by
+    default; within allow_uint_as_index() the signed rule set applies and the
+    swizzle-style floordiv-quotient bit checks over uint32 offsets discharge."""
+    w = tirx.Var("w", "int32")
+    lane = tirx.Var("lane", "int32")
+    x = tirx.Var("x", "uint32")
+    analyzer = tvm.arith.Analyzer()
+    analyzer.bind(lane, tvm.ir.Range.from_min_extent(0, 32))
+    analyzer.bind(w, tvm.ir.Range.from_min_extent(0, 4))
+    s_off = (
+        (w * 1024 + lane // 8 * 8).astype("uint32")
+        + x * T.uint32(4096)
+        + (lane % 8 * 64).astype("uint32")
+    )
+    check = flm(fld(s_off, T.uint32(512)), T.uint32(2))
+    assert not analyzer.can_prove_equal(check, 0)
+    # a non-pow2 divisor never folds, inside or outside the mode... unless
+    # the flag is on: under the no-overflow assertion any c2 != 0 works.
+    np2 = flm(x * T.uint32(12), T.uint32(12))
+    assert not analyzer.can_prove_equal(np2, 0)
+    with tvm.arith.allow_uint_as_index():
+        assert analyzer.can_prove_equal(check, 0)
+        assert analyzer.can_prove_equal(flm(fld(s_off, T.uint32(32)), T.uint32(2)), 0)
+        assert analyzer.can_prove_equal(np2, 0)
+        # nested scopes compose
+        with tvm.arith.allow_uint_as_index():
+            assert analyzer.can_prove_equal(check, 0)
+        assert analyzer.can_prove_equal(check, 0)
+    # the mode is scoped: disabled again afterwards
+    assert not analyzer.can_prove_equal(check, 0)
