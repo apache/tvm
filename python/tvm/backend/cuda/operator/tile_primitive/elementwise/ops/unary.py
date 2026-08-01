@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Unary elementwise ops: zero / fill / reciprocal / sqrt / exp / exp2 / silu.
+"""Unary elementwise ops: zero / fill / reciprocal / sqrt / exp / exp2 / log2 / silu.
 
 All carry the same ``T.<unary>(dst, src[, bias, scale])`` shape (bias / scale
 optional; ``silu`` ignores bias/scale to preserve legacy behavior).
@@ -117,5 +117,6 @@ UNARY_OPS: dict[str, OpSpec] = {
     "sqrt": OpSpec("sqrt", _parse_unary, _with_bias_scale(T.sqrt), _check_unary_extras),
     "exp": OpSpec("exp", _parse_unary, _with_bias_scale(T.exp), _check_unary_extras),
     "exp2": OpSpec("exp2", _parse_unary, _with_bias_scale(T.exp2), _check_unary_extras),
+    "log2": OpSpec("log2", _parse_unary, _with_bias_scale(T.log2), _check_unary_extras),
     "silu": OpSpec("silu", _parse_unary, _compute_silu, _check_unary_extras),
 }

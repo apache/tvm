@@ -42,7 +42,7 @@ tvm.backend.cuda.op
 .. automodule:: tvm.backend.cuda.op
    :members:
    :imported-members:
-   :exclude-members: PrimExpr, Op, Call
+   :exclude-members: PrimExpr, Op, Call, PrimType, PointerType
 
 tvm.backend.cuda.script
 ***********************

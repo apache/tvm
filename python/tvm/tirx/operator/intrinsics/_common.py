@@ -29,6 +29,12 @@ FENCE_SEM = ("sc", "acq_rel")
 FENCE_SCOPE = ("cta", "cluster", "gpu", "sys")
 FENCE_PROXY_ASYNC_SPACE = ("", "global", "shared::cta", "shared::cluster")
 CLUSTER_BARRIER_SEM = ("", "release", "relaxed")
+MBARRIER_COMPLETE_TX_SEM = ("relaxed",)
+MBARRIER_COMPLETE_TX_SCOPE = ("cta", "cluster")
+MBARRIER_COMPLETE_TX_SPACE = ("shared", "shared::cta", "shared::cluster")
+MBARRIER_ARRIVE_SEM = ("", "release", "relaxed")
+MBARRIER_ARRIVE_SCOPE = ("", "cta", "cluster")
+MBARRIER_ARRIVE_SPACE = ("shared", "shared::cta", "shared::cluster")
 
 # CTA group (used by tcgen05 and TMA) -----------------------------------------
 TCGEN05_CTA_GROUP = (1, 2)

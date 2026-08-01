@@ -17,7 +17,7 @@
 
 """Elementwise dispatch when all operands live in ``local`` (registers).
 
-Mirrors ``cuda/copy/reg.py``: the partition is *induced* by the layout that
+Mirrors ``cuda/copy/vec_auto_reg.py``: the partition is *induced* by the layout that
 carries thread-axis info (the "anchor" operand). The region slice is absorbed
 into the sliced layout up front via ``align_operands_to_anchor`` — emit
 operates on a flat 1D per-thread view and indexes it with a scalar offset, so

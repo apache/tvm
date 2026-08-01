@@ -162,7 +162,7 @@ def test_hint_printer_roundtrip_with_attrs():
 def test_hint_keyword_arg_on_tx_op():
     """Tx.op(..., hint="msg") stores hint in TilePrimitiveCall.config."""
     from tvm.tirx.buffer import decl_buffer
-    from tvm.tirx.stmt import TilePrimitiveCall
+    from tvm.tirx.tile_primitive import TilePrimitiveCall
 
     A = decl_buffer((64, 64), "float32", scope="global")
     A_sm = decl_buffer((64, 64), "float32", scope="shared")

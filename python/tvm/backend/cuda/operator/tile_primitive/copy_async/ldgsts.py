@@ -19,7 +19,7 @@
 (SASS: ``LDGSTS``).
 
 Shares the partition / layout-alignment algorithm with
-``cuda/copy/gmem_smem.py`` (sync ``T.copy`` global ↔ shared); differs at
+``cuda/copy/vec_auto_gmem_smem.py`` (sync ``T.copy`` global ↔ shared); differs at
 emit time only:
 
 * direction: ``cp.async`` is global → shared only (hardware restriction).
@@ -27,6 +27,13 @@ emit time only:
   candidate set is restricted to ``{32, 64, 128}`` bits.
 * emit: ``T.evaluate(T.ptx.cp_async(dst, src, cp_size))`` instead of the
   synchronous ``T.cuda.copy_{vec_bits}b(dst, src)``.
+* config: ``prefetch_size``, ``predicate`` and ``fill_mode`` are forwarded to
+  ``T.ptx.cp_async``.  This covers predicated zero-fill loads such as FlashMLA
+  RoPE KV staging while preserving the same layout partitioner.
+* config: ``direct=True`` is an explicit thread-scope fast path for callers
+  that already selected a physically contiguous 4/8/16-byte slice.  It emits
+  one ``cp.async`` from the region starts and bypasses the synthesized
+  partitioner, matching hand-written per-thread copies.
 
 Note: ``cp.async`` does **not** sync at emit time — caller is responsible
 for ``commit_group`` / ``wait_group`` / ``cta_sync`` plumbing around the
@@ -43,7 +50,7 @@ from tvm.tirx.operator.tile_primitive.dispatcher import (
     register_dispatch,
 )
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..copy._common import (
     _TID_AXIS_FOR_SCOPE,
@@ -56,13 +63,21 @@ from ..copy._swizzle_iter import (
     get_swizzle,
     try_recognize,
 )
-from ..copy.reg import _all_threads_active, _axis_decl, _ptr_off
 from ..copy.utils import _is_valid_copy, _scope_allowed
+from ..copy.vec_auto_reg import _all_threads_active, _axis_decl, _ptr_off
 
 # cp.async is unidirectional: global → shared.
 _LDGSTS_PAIRS = [("global", "shared*")]
 # cp.async cp_size ∈ {4, 8, 16} bytes ⇒ vec_bits ∈ {32, 64, 128}.
 _LDGSTS_VEC_BITS = (128, 64, 32)
+
+
+def _config_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, _IntImm):
+        return bool(int(value.value))
+    return bool(value)
 
 
 def _divides_thread_cnt_ldgsts(
@@ -113,10 +128,49 @@ def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     g_buf, g_br = src, op_call.src
     s_buf, s_br = dst, op_call.dst
 
+    elem_bits = DataType(src.dtype).bits
+    prefetch_size = op_call.config.get("prefetch_size", -1)
+    predicate_expr = op_call.config.get("predicate", -1)
+    fill_mode = op_call.config.get("fill_mode", "")
+
+    if _config_bool(op_call.config.get("direct", False)):
+        if sctx.scope_kind != "thread":
+            raise ValueError("ldgsts direct=True is only valid in thread scope")
+        n_elements = 1
+        for r in s_br.region:
+            try:
+                n_elements *= int(r.extent)
+            except (TypeError, ValueError) as err:
+                raise ValueError(
+                    f"ldgsts direct=True requires constant extent, got {r.extent}"
+                ) from err
+        cp_size = n_elements * elem_bits // 8
+        if n_elements * elem_bits % 8 != 0 or cp_size not in (4, 8, 16):
+            raise ValueError(
+                f"ldgsts direct=True requires a 4/8/16-byte region, got {n_elements} "
+                f"elements of {elem_bits} bits"
+            )
+        s_start = [r.min for r in s_br.region]
+        g_start = [r.min for r in g_br.region]
+
+        @T.prim_func(check_well_formed=False)
+        def impl():
+            T.evaluate(
+                T.ptx.cp_async(
+                    s_buf.ptr_to(s_start),
+                    g_buf.ptr_to(g_start),
+                    cp_size,
+                    prefetch_size=prefetch_size,
+                    predicate=predicate_expr,
+                    fill_mode=fill_mode,
+                )
+            )
+
+        return impl
+
     g_region = [(r.min, r.min + r.extent) for r in g_br.region]
     s_region = [(r.min, r.min + r.extent) for r in s_br.region]
 
-    elem_bits = DataType(src.dtype).bits
     thread_cnt = _thread_cnt(sctx)
 
     with sctx.target:
@@ -257,7 +311,16 @@ def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
             s_off = _s_off(f, s_lin)
             s_ptr = _ptr_off(s_buf.ptr_to(s_zero), s_off)
             g_ptr = _ptr_off(g_buf.ptr_to(g_zero), g_lin)
-            T.evaluate(T.ptx.cp_async(s_ptr, g_ptr, cp_size))
+            T.evaluate(
+                T.ptx.cp_async(
+                    s_ptr,
+                    g_ptr,
+                    cp_size,
+                    prefetch_size=prefetch_size,
+                    predicate=predicate_expr,
+                    fill_mode=fill_mode,
+                )
+            )
         # cp.async is caller-synced — no cta_sync here (commit_group /
         # wait_group / cta_sync are the caller's responsibility).
     # fmt: on

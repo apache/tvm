@@ -53,7 +53,8 @@ from .stmt import BufferStore, AllocBuffer, AttrStmt, DeclBuffer
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
 from .stmt import BufferRegion, MatchBufferRegion, SBlock, SBlockRealize
-from .stmt import TilePrimitiveCall, ScopeIdDefStmt
+from .stmt import ScopeIdDefStmt
+from .tile_primitive import DispatchContext, LambdaExpr, TilePrimitiveCall
 
 from .function import PrimFunc, TensorIntrin, IndexMap
 
@@ -94,8 +95,7 @@ from .op import ignore_loop_partition
 
 # TIRX-specific imports (must come before subpackage imports to avoid circular imports)
 from .exec_scope import ExecScope, ScopeIdDef
-from .layout import TileLayout, Layout, SwizzleLayout, ComposeLayout
-from .predicate import Predicate
+from .layout import TileLayout, Layout, ComposeLayout
 from .expr_functor import ExprFunctor
 
 from . import transform

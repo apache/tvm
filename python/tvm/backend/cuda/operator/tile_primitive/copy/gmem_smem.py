@@ -36,7 +36,7 @@ from tvm.tirx.operator.tile_primitive.dispatcher import (
     register_dispatch,
 )
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ._common import (
     _TID_AXIS_FOR_SCOPE,
@@ -184,7 +184,7 @@ def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
     else:
         outer_iters_s = list(s_p.shard[:-1])
 
-    # SwizzleLayout on s_buf: try the closed-form signed-strides pattern
+    # Swizzle on s_buf: try the closed-form signed-strides pattern
     # (precomputed once per thread, then per-iter is a sum of register
     # adds); fall back to per-iter ``swizzle.apply`` (one full XOR +
     # decompose per iter). Closure picked at parse time so the TIRx parser

@@ -24,7 +24,7 @@
 
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
-#include <tvm/tirx/tirx_op.h>
+#include <tvm/tirx/tile_primitive.h>
 
 namespace tvm {
 namespace tirx {

@@ -116,16 +116,14 @@ def test_tir_op_type_annotation():
 
 def test_tir_op_tvm_access_ptr():
     buffer = tirx.decl_buffer((128), "float32")
-    expr = tirx.tvm_access_ptr("float32", buffer.data, 0, 1, 2)
-    assert expr.op.name == "tirx.tvm_access_ptr"
-    assert expr.ty == tvm.ir.PointerType(tvm.ir.PrimType("float32"))
-    offset_expr = tirx.ptr_byte_offset(buffer.data, 16, "uint8")
-    assert offset_expr.ty == tvm.ir.PointerType(tvm.ir.PrimType("uint8"))
-    prim_type = tvm.ir.PrimType("uint8")
-    typed_access_expr = tirx.tvm_access_ptr(prim_type, buffer.data, 0, 1, 2)
-    assert typed_access_expr.ty == tvm.ir.PointerType(prim_type)
-    typed_offset_expr = tirx.ptr_byte_offset(buffer.data, 16, prim_type)
-    assert typed_offset_expr.ty == tvm.ir.PointerType(prim_type)
+    for ptype in ("float32", tvm.ir.PrimType("float32")):
+        expr = tirx.tvm_access_ptr(ptype, buffer.data, 0, 1, 2)
+        assert expr.op.name == "tirx.tvm_access_ptr"
+        assert expr.ty == tvm.ir.PointerType(tvm.ir.PrimType("float32"))
+
+    for dtype in ("uint8", tvm.ir.PrimType("uint8")):
+        offset_expr = tirx.ptr_byte_offset(buffer.data, 16, dtype)
+        assert offset_expr.ty == tvm.ir.PointerType(tvm.ir.PrimType("uint8"))
 
 
 def test_tir_op_tvm_throw_last_error():

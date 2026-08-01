@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring
-"""Round-trip tests for the ``reg`` copy dispatch.
+"""Round-trip tests for the ``vec_auto`` register copy path.
 
 R = per-thread local (register). The dispatch handles round-trips between R
 and any non-R buffer (``shared*`` or ``global``); ``non_r_scope`` parametrize
@@ -274,7 +274,7 @@ def test_reg_roundtrip(scope, n_threads, k, dtype, non_r_scope):
 
 # ----------------------------------------------------------------------------
 # Migrated from test_copy_sync.py: sync G↔L copy via Tx.copy() (L = local =
-# per-thread register, so it dispatches to the reg variant).
+# per-thread register, so it dispatches to the vec_auto register path).
 # ----------------------------------------------------------------------------
 
 
@@ -338,6 +338,65 @@ def test_copy_g2l_l2g_vec_load(task, dtype):
         tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+# vec_auto reg path must honor cache="nc": a strided [4,4]:(16,1) global->reg
+# copy vectorizes to 4x 128b either way, but cache="nc" must emit ld.global.nc.
+
+
+@T.prim_func
+def _nc_strided_reg_copy(src_ptr: T.handle) -> None:
+    src = T.match_buffer(src_ptr, (1024,), "int32")
+    T.device_entry()
+    T.thread_id([128])
+    tid = T.thread_id_in_wg([128])
+    dst = T.alloc_local((4, 4), "int32")
+    if tid == 0:
+        # view as (blk, row, warp, j); pick warp=1 -> [4,4]:(16,1)
+        blk = src.view(1024 // 64, 4, 4, 4).sub[0, :, 1, :]
+        Tx.copy(dst[:, :], blk[:, :], cache="nc")
+        for i in T.unroll(4):
+            for j in T.unroll(4):
+                T.evaluate(dst[i, j])
+
+
+@T.prim_func
+def _plain_strided_reg_copy(src_ptr: T.handle) -> None:
+    src = T.match_buffer(src_ptr, (1024,), "int32")
+    T.device_entry()
+    T.thread_id([128])
+    tid = T.thread_id_in_wg([128])
+    dst = T.alloc_local((4, 4), "int32")
+    if tid == 0:
+        blk = src.view(1024 // 64, 4, 4, 4).sub[0, :, 1, :]
+        Tx.copy(dst[:, :], blk[:, :])
+        for i in T.unroll(4):
+            for j in T.unroll(4):
+                T.evaluate(dst[i, j])
+
+
+def test_vec_auto_reg_honors_cache_nc():
+    target = tvm.target.Target("cuda")
+
+    def _src(f):
+        with target:
+            mod = tvm.compile(tvm.IRModule({"main": f}), target=target, tir_pipeline="tirx")
+        return mod.mod.imports[0].inspect_source()
+
+    nc_src = _src(_nc_strided_reg_copy)
+    plain_src = _src(_plain_strided_reg_copy)
+
+    # cache="nc" -> vectorized 128b ld.global.nc; no cache -> plain 128b ld.
+    # Both must vectorize; only the cache qualifier differs.
+    assert "ld_global_nc_v4_u32" in nc_src, (
+        "vec_auto reg path must vectorize AND honor cache='nc' (emit "
+        "ld.global.nc.v4), got:\n"
+        + "\n".join(line for line in nc_src.splitlines() if "ld_" in line and "v4" in line)
+    )
+    assert "ld_plain_None_global_v4_u32" in plain_src, (
+        "no cache hint must vectorize to a plain 128b ld (ld.global.v4)"
+    )
+    assert "ld_global_nc_v4_u32" not in plain_src, "no cache hint must NOT be nc"
+
+
 @pytest.mark.gpu
 def test_reg_copy_wg_local_to_swizzled_shared_uses_swizzle_fastpath():
     """Regression: R→S copy where R has a ``wg_local_layout`` (thread iter
@@ -360,13 +419,13 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_swizzle_fastpath():
     ``tvm_builtin_pointer_offset`` swizzle XOR ends up recomputed every
     iteration. Loop must be ``T.unroll``.
     """
-    from tvm.tirx.layout import SwizzleLayout, wg_local_layout
+    from tvm.tirx.layout import ComposeLayout, wg_local_layout
 
     N_THREADS, EPI_N = 128, 64
     g_shape = (N_THREADS, EPI_N)
     g_layout = TileLayout(S[g_shape])
     # 128b swizzle on the SMEM side (per_element=3 ⇒ 8 fp16 atom width).
-    smem_layout = SwizzleLayout(per_element=3, swizzle_len=3, atom_len=3)
+    smem_layout = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
 
     @T.prim_func
     def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
@@ -412,11 +471,253 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_swizzle_fastpath():
     # such bit-select * signed-stride pattern.
     import re
 
-    bitsel_pattern = re.findall(r"& 1\) \* v_\d+\[", src)
+    bitsel_pattern = re.findall(r"& 1\) \* \w+\[", src)
     assert bitsel_pattern, (
         "fast-path bit-select pattern '& 1) * v_<n>[' not found; "
         "looks like emit_iter_offset's fast path didn't fire."
     )
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
+def test_ptx_st_from_src_f32_vector_preserves_values():
+    """The generic ``T.ptx.st(src=...)`` helper must preserve f32 values."""
+
+    @T.prim_func
+    def kernel(B_ptr: T.handle) -> None:
+        B = T.match_buffer(B_ptr, (4,), "float32")
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([1])
+        smem = T.alloc_buffer((4,), "float32", scope="shared")
+        reg = T.alloc_local((4,), "float32")
+        out = T.alloc_local((4,), "float32")
+        for i in range(4):
+            reg[i] = T.cast(i + 1, "float32")
+        T.ptx.st(smem.ptr_to([0]), src=reg.ptr_to([0]), space="shared", vec="v4", ptx_type="f32")
+        T.ptx.ld(smem.ptr_to([0]), "float32", "f32", dst=out.ptr_to([0]), space="shared", vec="v4")
+        for i in range(4):
+            B[i] = out[i]
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": kernel})
+        ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        src = ex.mod.imports[0].inspect_source()
+
+    assert "float4 src_" in src
+    assert "st.shared.v4.f32" in src
+
+    dev = tvm.cuda(0)
+    out = tvm.runtime.tensor(np.zeros((4,), dtype="float32"), dev)
+    ex(out)
+    np.testing.assert_equal(out.numpy(), np.array([1, 2, 3, 4], dtype="float32"))
+
+
+def test_copy_fallback_handles_scalar_regions():
+    @T.prim_func
+    def kernel(B_ptr: T.handle) -> None:
+        B = T.match_buffer(B_ptr, (1,), "float32")
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([1])
+        src = T.alloc_local((1,), "float32")
+        dst = T.alloc_local((4,), "float32")
+        src[0] = T.cast(7, "float32")
+        Tx.copy(dst[2:3], src[:])
+        B[0] = dst[2]
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": kernel})
+        ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        src = ex.mod.imports[0].inspect_source()
+
+    assert "dst_ptr[2] = src_ptr[0];" in src
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
+@pytest.mark.parametrize(
+    "variant,dtype,n_elements,expected_st,expected_ld",
+    [
+        ("vec_16b", "uint16", 1, "st.shared.u16", "ld.shared.u16"),
+        ("vec_32b", "uint32", 1, "st.shared.u32", "ld.shared.u32"),
+        ("vec_64b", "uint32", 2, "st.shared.v2.u32", "ld.shared.v2.u32"),
+        ("vec_128b", "uint32", 4, "st.shared.v4.u32", "ld.shared.v4.u32"),
+    ],
+)
+def test_copy_forced_vec_width_codegen(variant, dtype, n_elements, expected_st, expected_ld):
+    @T.prim_func
+    def kernel(B_ptr: T.handle) -> None:
+        B = T.match_buffer(B_ptr, (n_elements,), dtype)
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([1])
+        smem = T.alloc_buffer((n_elements,), dtype, scope="shared")
+        reg = T.alloc_local((n_elements,), dtype)
+        out = T.alloc_local((n_elements,), dtype)
+        for i in range(n_elements):
+            reg[i] = T.cast(i + 1, dtype)
+        Tx.copy(smem[:], reg[:], dispatch=variant)
+        T.cuda.cta_sync()
+        Tx.copy(out[:], smem[:], dispatch=variant)
+        for i in range(n_elements):
+            B[i] = out[i]
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": kernel})
+        ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        src = ex.mod.imports[0].inspect_source()
+
+    assert expected_st in src
+    assert expected_ld in src
+
+    dev = tvm.cuda(0)
+    np_dtype = tvm.testing.np_dtype_from_str(dtype)
+    out = tvm.runtime.tensor(np.zeros((n_elements,), dtype=np_dtype), dev)
+    ex(out)
+    np.testing.assert_equal(out.numpy(), np.arange(1, n_elements + 1, dtype=np_dtype))
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
+def test_copy_forced_vec_dynamic_swizzled_shared_uses_vector_ptx():
+    from tvm.tirx.layout import ComposeLayout
+
+    smem_layout = ComposeLayout(2, 3, 3, TileLayout(S[(64, 8, 32) : (32, 2048, 1)]))
+
+    @T.prim_func
+    def kernel(B_ptr: T.handle) -> None:
+        B = T.match_buffer(B_ptr, (128, 4), "float32")
+        T.device_entry()
+        T.cta_id([1])
+        tid = T.thread_id([128])
+        smem = T.alloc_buffer((64, 256), "float32", scope="shared", layout=smem_layout)
+        reg = T.alloc_local((4,), "float32")
+        out = T.alloc_local((4,), "float32")
+        for i in range(4):
+            reg[i] = T.cast(tid * 16 + i + 1, "float32")
+        row: T.let = tid % 64
+        col: T.let = (tid // 64) * 4
+        Tx.copy(smem[row, col : col + 4], reg[:], dispatch="vec_128b")
+        T.cuda.cta_sync()
+        Tx.copy(out[:], smem[row, col : col + 4], dispatch="vec_128b")
+        for i in range(4):
+            B[tid, i] = out[i]
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": kernel})
+        ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        src = ex.mod.imports[0].inspect_source()
+
+    assert "copy/fallback" not in src
+    assert "st.shared.v4.u32" in src
+    assert "ld.shared.v4.u32" in src
+
+    dev = tvm.cuda(0)
+    out = tvm.runtime.tensor(np.zeros((128, 4), dtype="float32"), dev)
+    ex(out)
+    expected = np.array([[tid * 16 + i + 1 for i in range(4)] for tid in range(128)], "float32")
+    np.testing.assert_equal(out.numpy(), expected)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
+def test_copy_explicit_vec_auto_uses_auto_family():
+    @T.prim_func
+    def kernel(B_ptr: T.handle) -> None:
+        B = T.match_buffer(B_ptr, (4,), "float32")
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([1])
+        smem = T.alloc_buffer((4,), "float32", scope="shared")
+        reg = T.alloc_buffer((4,), "float32", scope="local", layout=TileLayout(S[4]))
+        out = T.alloc_buffer((4,), "float32", scope="local", layout=TileLayout(S[4]))
+        for i in range(4):
+            reg[i] = T.cast(i + 1, "float32")
+        Tx.copy(smem[:], reg[:], dispatch="vec_auto")
+        T.cuda.cta_sync()
+        Tx.copy(out[:], smem[:], dispatch="vec_auto")
+        for i in range(4):
+            B[i] = out[i]
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": kernel})
+        ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        src = ex.mod.imports[0].inspect_source()
+
+    assert "tvm_builtin_copy_" not in src
+    assert "st.shared.v4.u32" in src
+    assert "ld.shared.v4.u32" in src
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
+@pytest.mark.parametrize("dispatch", ["reg", "gmem_smem"])
+def test_copy_old_dispatch_names_are_not_registered(dispatch):
+    @T.prim_func
+    def kernel(B_ptr: T.handle) -> None:
+        B = T.match_buffer(B_ptr, (4,), "float32")
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([1])
+        smem = T.alloc_buffer((4,), "float32", scope="shared")
+        reg = T.alloc_local((4,), "float32")
+        Tx.copy(smem[:], reg[:], dispatch=dispatch)
+        B[0] = T.cast(0, "float32")
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": kernel})
+        with pytest.raises(RuntimeError, match=f"no variant named '{dispatch}' is registered"):
+            tvm.compile(mod, target=target, tir_pipeline="tirx")
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
+def test_copy_forced_vec_rejects_size_mismatch():
+    @T.prim_func
+    def kernel(B_ptr: T.handle) -> None:
+        B = T.match_buffer(B_ptr, (4,), "float32")
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([1])
+        smem = T.alloc_buffer((4,), "float32", scope="shared")
+        reg = T.alloc_local((4,), "float32")
+        Tx.copy(smem[:], reg[:], dispatch="vec_64b")
+        B[0] = T.cast(0, "float32")
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": kernel})
+        with pytest.raises(RuntimeError, match="src region does not contain exactly 2 elements"):
+            tvm.compile(mod, target=target, tir_pipeline="tirx")
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
+def test_copy_forced_vec_rejects_non_thread_scope():
+    @T.prim_func
+    def kernel(B_ptr: T.handle) -> None:
+        B = T.match_buffer(B_ptr, (4,), "float32")
+        T.device_entry()
+        T.cta_id([1])
+        T.lane_id([32])
+        T.thread_id([32])
+        smem = T.alloc_buffer((4,), "float32", scope="shared")
+        reg = T.alloc_buffer((4,), "float32", scope="local", layout=TileLayout(S[4]))
+        Tx.warp.copy(smem[:], reg[:], dispatch="vec_128b")
+        B[0] = T.cast(0, "float32")
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": kernel})
+        with pytest.raises(RuntimeError, match="expected thread exec_scope"):
+            tvm.compile(mod, target=target, tir_pipeline="tirx")
 
 
 # --- tcgen05 D epilogue deposit (tf32_hc_prenorm_gemm) -----------------------
@@ -480,7 +781,7 @@ def test_reg_copy_tcgen05_d_epilogue_deposit_layout_pairing():
     ``d_reg``: ``(64,64)`` fp32 ``tcgen05_atom_layout("16x256b", ...)``.
     ``smem_cd_mma``: ``(64,64)`` fp32 ``mma_shared_layout(..., swizzle=128B)``.
     """
-    from tvm.backend.cuda.operator.tile_primitive.copy.reg import (
+    from tvm.backend.cuda.operator.tile_primitive.copy.vec_auto_reg import (
         _split_thread_loop,
         align_layouts_raw,
     )
@@ -525,8 +826,8 @@ def test_reg_copy_tcgen05_d_epilogue_deposit_codegen():
     ex = _compile_tcgen05_d_epilogue_deposit()
     src = ex.mod.imports[0].inspect_source()
 
-    assert "copy/fallback" not in src, "reg dispatch must not fall back to scalar copy"
-    assert "tvm_builtin_copy_" not in src, "reg dispatch should emit PTX ld/st only"
+    assert "copy/fallback" not in src, "vec_auto register path must not fall back to scalar copy"
+    assert "tvm_builtin_copy_" not in src, "vec_auto register path should emit PTX ld/st only"
     assert "tvm_builtin_ptx_st" in src
     assert "st.shared.v2.u32" in src, "fp32 vec=2 → 8B shared store per outer iter"
 

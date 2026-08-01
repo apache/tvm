@@ -30,7 +30,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   AxisNode::RegisterReflection();
   IterNode::RegisterReflection();
   TileLayoutNode::RegisterReflection();
-  SwizzleLayoutNode::RegisterReflection();
   ComposeLayoutNode::RegisterReflection();
 }
 

@@ -50,7 +50,7 @@ from tvm.tirx import BufferRegion, PrimFunc
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
 from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_dispatch
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..common import sm_version_ok
 from ..exec_scope_utils import exec_scope_ok

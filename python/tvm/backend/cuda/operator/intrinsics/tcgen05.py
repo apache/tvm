@@ -442,6 +442,21 @@ _TCGEN05_MMA_K = {
     "mxf4nvf4": (64, 128),
 }
 
+# Operand dtypes admitting a transposed (MN-major) SMEM read in dense
+# tcgen05.mma; shared with the gemm_async instruction-descriptor fold.
+_TCGEN05_MMA_TRANS_DTYPES = frozenset(
+    {
+        PTXDataType.FLOAT8_E4M3FN,
+        PTXDataType.FLOAT8_E4M3FNUZ,
+        PTXDataType.FLOAT8_E5M2,
+        PTXDataType.INT8,
+        PTXDataType.UINT8,
+        PTXDataType.FLOAT16,
+        PTXDataType.BFLOAT16,
+        PTXDataType.TENSOR_FLOAT32,
+    }
+)
+
 
 def _check_tcgen05_mma_matrix_shape(kind, cta_group, m, n, k, is_sparse):
     err = (
@@ -573,19 +588,9 @@ def codegen_ptx_tcgen05_encode_instr_descriptor(
     a_format = format_map[atype]
     b_format = format_map[btype]
 
-    valid_dtypes_for_trans = {
-        PTXDataType.FLOAT8_E4M3FN,
-        PTXDataType.FLOAT8_E4M3FNUZ,
-        PTXDataType.FLOAT8_E5M2,
-        PTXDataType.INT8,
-        PTXDataType.UINT8,
-        PTXDataType.FLOAT16,
-        PTXDataType.BFLOAT16,
-        PTXDataType.TENSOR_FLOAT32,
-    }
-    if trans_a and atype not in valid_dtypes_for_trans:
+    if trans_a and atype not in _TCGEN05_MMA_TRANS_DTYPES:
         raise ValueError(f"Invalid a_dtype for transpose: {a_dtype}")
-    if trans_b and btype not in valid_dtypes_for_trans:
+    if trans_b and btype not in _TCGEN05_MMA_TRANS_DTYPES:
         raise ValueError(f"Invalid b_dtype for transpose: {b_dtype}")
     if (neg_a or neg_b) and kind not in ["f16", "tf32", "f8f6f4"]:
         raise ValueError(f"Invalid kind for negate: {kind}")
@@ -732,7 +737,8 @@ def _mma_dense_parts(*args):
 
     Args layout: (d_tmem_addr, a_operand, b_desc[, sp_tmem_addr], i_desc,
                   enable_input_d, mask0..maskN-1[, pred],
-                  kind, sparse, use_a_tmem, cta_group, scale_input_d, has_pred)
+                  kind, sparse, use_a_tmem, cta_group, scale_input_d,
+                  weight_stationary)
     """
     attrs = args[-6:]
     kind = parse_str(attrs[0])
@@ -744,7 +750,7 @@ def _mma_dense_parts(*args):
     )
     cta_group = int(attrs[3])
     scale_input_d = int(attrs[4])
-    has_pred = bool(int(attrs[5]))
+    weight_stationary = bool(int(attrs[5]))
 
     if not 0 <= scale_input_d <= 15:
         raise ValueError(
@@ -754,8 +760,26 @@ def _mma_dense_parts(*args):
         raise ValueError(f"scale_input_d is only valid for kind 'f16' or 'tf32', not '{kind!r}'")
     if scale_input_d > 0 and kind == "i8":
         raise ValueError("Int form: scale_input_d not supported (only valid for f16/tf32)")
+    if weight_stationary and sparse:
+        raise ValueError("tcgen05.mma.ws sparse form is not supported by this intrinsic")
+    if weight_stationary and cta_group != 1:
+        raise ValueError("tcgen05.mma.ws is currently supported only for cta_group=1")
+    if weight_stationary and scale_input_d > 0:
+        raise ValueError("tcgen05.mma.ws does not support scale_input_d in this intrinsic")
 
     num_masks = 8 if cta_group == 2 else 4
+    operand_count = len(args) - len(attrs)
+    expected_operand_count = (6 if sparse else 5) + num_masks
+    if operand_count == expected_operand_count:
+        has_pred = False
+    elif operand_count == expected_operand_count + 1:
+        has_pred = True
+    else:
+        raise ValueError(
+            "The number of operands for ptx_tcgen05_mma is incorrect, expected "
+            f"{expected_operand_count} or {expected_operand_count + 1}, got {operand_count}."
+        )
+
     a_type = "uint32_t" if use_a_tmem else "uint64_t"
     a_constraint = "r" if use_a_tmem else "l"
 
@@ -773,6 +797,7 @@ def _mma_dense_parts(*args):
     name = (
         f"ptx_tcgen05_mma_cta_{cta_group}_kind_{kind}"
         f"{'_sp' if sparse else ''}{'_TS' if use_a_tmem else '_SS'}"
+        f"{'_ws' if weight_stationary else ''}"
         f"{('_' + str(scale_input_d)) if scale_input_d > 0 else ''}"
         f"{'_pred' if has_pred else ''}"
     )
@@ -805,13 +830,31 @@ def _mma_dense_parts(*args):
         asm_inputs.append('"r"(pred)')
     inputs_str = ", ".join(asm_inputs)
 
+    pred_prefix = "@p_issue " if has_pred else ""
+    pred_reg = ", p_issue" if has_pred else ""
+    pred_setp = f'        "setp.ne.b32 p_issue, %{pred_idx}, 0;\\n"\n' if has_pred else ""
+    if weight_stationary:
+        # Weight-stationary ABI takes the input-D predicate and a literal ``0``
+        # instead of the regular dense disable-output-lane mask vector.
+        instr = f"tcgen05.mma.ws.cta_group::{cta_group}.kind::{kind} [%0], {a_str}, %2, %3"
+        body = (
+            "    asm volatile(\n"
+            '        "{\\n"\n'
+            f'        ".reg .pred p{pred_reg};\\n"\n'
+            f'        "setp.ne.b32 p, %{p_idx}, 0;\\n"\n'
+            f"{pred_setp}"
+            f'        "{pred_prefix}{instr}, p, 0;\\n"\n'
+            '        "}\\n"\n'
+            "        :\n"
+            f"        : {inputs_str}\n"
+            "    );"
+        )
+        return name, sig, body
+
     instr = (
         f"tcgen05.mma{sparse_suffix}.cta_group::{cta_group}.kind::{kind}"
         f" [%0], {a_str}, %2, {sp_str}"
     )
-    pred_prefix = "@p_issue " if has_pred else ""
-    pred_reg = ", p_issue" if has_pred else ""
-    pred_setp = f'        "setp.ne.b32 p_issue, %{pred_idx}, 0;\\n"\n' if has_pred else ""
     body = (
         "    asm volatile(\n"
         '        "{\\n"\n'
@@ -851,6 +894,7 @@ def _dispatch_tcgen05_mma(
     cta_group,
     enable_input_d,
     scale_input_d,
+    weight_stationary,
     *disable_output_lane,
     pred=None,
     sparse=False,
@@ -889,7 +933,14 @@ def _dispatch_tcgen05_mma(
     if has_pred:
         operand_args.append(pred)
 
-    attr_args = [kind, sparse, use_a_tmem_b, cta_group_i, scale_input_d_i, int(has_pred)]
+    attr_args = [
+        kind,
+        sparse,
+        use_a_tmem_b,
+        cta_group_i,
+        scale_input_d_i,
+        int(weight_stationary),
+    ]
     return CODEGEN_REGISTRY[f"tirx.{op}"](operand_args + attr_args)
 
 
@@ -906,6 +957,7 @@ def codegen_ptx_tcgen05_mma(
     cta_group,
     enable_input_d,
     scale_input_d,
+    weight_stationary,
     *rest,
 ):
     # `rest` = disable_output_lane (4 or 8) + optional pred (1 extra).
@@ -929,6 +981,7 @@ def codegen_ptx_tcgen05_mma(
         cta_group,
         enable_input_d,
         scale_input_d,
+        weight_stationary,
         *disable_output_lane,
         pred=pred,
         sparse=False,
@@ -964,6 +1017,7 @@ def codegen_ptx_tcgen05_mma_sp(
         cta_group,
         enable_input_d,
         scale_input_d,
+        False,
         *disable_output_lane,
         sparse=True,
         sp_tmem_addr=sp_tmem_addr,

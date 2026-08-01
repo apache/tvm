@@ -29,7 +29,7 @@ from tvm.tirx.operator.tile_primitive import (
     predicate,
     register_dispatch,
 )
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 
 @dataclass(frozen=True)

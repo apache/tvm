@@ -17,7 +17,7 @@
 
 """Shared layout / vec-selection / emit helpers for ``reg.py`` and ``smem.py``.
 
-Borrows directly from ``cuda/copy/reg.py`` (induced partition) and
+Borrows directly from ``cuda/copy/vec_auto_reg.py`` (induced partition) and
 ``cuda/copy/_common.py`` (synthesized partition), extended to N operands.
 
 The dispatch split mirrors copy:
@@ -40,7 +40,7 @@ from ..common import get_indices, get_st_extent
 
 # Re-use copy's primitives (PR-640) — same algorithm, same scope_id machinery.
 from ..copy._common import _TID_AXIS_FOR_SCOPE, _extract_tile, _thread_cnt
-from ..copy.reg import _all_threads_active, _axis_decl, _compute_perm_r
+from ..copy.vec_auto_reg import _all_threads_active, _axis_decl, _compute_perm_r
 
 
 # -----------------------------------------------------------------------------

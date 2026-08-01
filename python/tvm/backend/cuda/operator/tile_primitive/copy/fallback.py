@@ -27,11 +27,11 @@ from tvm.tirx.operator.tile_primitive.dispatcher import (
     register_dispatch,
 )
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ._common import _TID_AXIS_FOR_SCOPE
-from .reg import _axis_decl
 from .utils import _is_valid_copy
+from .vec_auto_reg import _axis_decl
 
 
 def _region_st_extent(buffer_region):
@@ -74,6 +74,10 @@ def _emit_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFun
             for k, lv in enumerate(lvs):
                 coord[src_indices[k]] += lv
             return coord
+
+        if not copy_extents:
+            T.buffer_store(dst_buf, src_buf[tuple(src_st)], dst_st)
+            return
 
         with T.grid(*copy_extents) as lvs:
             T.buffer_store(dst_buf, src_buf[tuple(_src_coord(lvs))], _dst_coord(lvs))

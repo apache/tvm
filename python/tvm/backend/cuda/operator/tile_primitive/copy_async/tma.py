@@ -15,1288 +15,2276 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""copy_async dispatch variant: tma (unified algorithm).
+"""CUDA Tensor Memory Accelerator dispatches.
 
-One algorithm handles all global↔shared TMA copies, respecting the user's
-logical OOB spec through alignment conditions on the reshape. No more
-aggressive vs exact family split; ``oob`` only selects the hardware fill
-kind (0 = zero, 1 = NaN) in the cuTensorMap.
+``tma_auto`` derives the largest hardware-legal TMA box from the shared
+memory iteration order.  ``tma_explicit`` maps the user's global tensor,
+layout, and region directly to one TensorMap and one TMA instruction.
 
-Pipeline:
-
-L1  Canonicalize smem; group gmem by buffer shape and canonicalize within each group; split any
-    multi-iter gmem group into t separate iters (requires g_st, copy_ext
-    divisible by the inner-product u); slice smem by copy region; regroup
-    smem by the "copy shape with ext=1 dropped".
-L2  For each ext>1 gmem iter (paired with one smem shard sequence), choose
-    a contiguous chain prefix of selected smem shards (j from max to 0).
-    Cut the gmem axis into segments at each selected position; each segment
-    reduces to Case 1 (has selected → box>1 desc dim) or Case 2 (no
-    selected → box=1 desc dim). Segment 0 absorbs the G-vs-copy_ext slack
-    via a non-full copy_range; alignment requires g_st, G divisible by
-    u_{p_0}. Every unselected shard becomes an issue axis.
-L3  Stack desc dims across all gmem iters; nest issue axes as an unrolled
-    loop; validate hardware constraints (rank≤5, swizzle atom, unit inner
-    stride). Shrink j and retry on failure; bail out when j=0 fails.
-Emit Single unrolled loop over the flat mixed-radix decomposition; each
-    iter computes (smem offset, per-desc-dim tma coord) and emits one
-    cp_async_bulk_tensor. Host init emits one cuTensorMapEncodeTiled
-    (deduped by cache key).
+Both planners construct :class:`TensorMapSpec` in CUDA Driver API order:
+dimension zero is innermost and ``global_strides`` omits dimension zero.
+Validation, descriptor caching/encoding, prefetch, and PTX emission are
+shared after that boundary.
 """
 
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, replace
+from enum import Enum
+from itertools import pairwise
 
 import tvm
 from tvm.arith import Analyzer
 from tvm.script import tirx as T
-from tvm.tirx import Buffer, PrimFunc
-from tvm.tirx.layout import ComposeLayout, Layout, S, SwizzleLayout, TileLayout
+from tvm.tirx import Buffer, IntImm, PrimFunc, is_buffer_var
+from tvm.tirx.layout import Layout, TileLayout
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
     fail,
     predicate,
     register_dispatch,
 )
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
-from ..common import validate_copy_op
 from ..exec_scope_utils import single_thread
-from ..tma_utils import SwizzleMode, get_swizzle_mode_from_layout, tma_atom_shape
-
-# ==============================================================================
-# Data types
-# ==============================================================================
+from ..layout_utils import strip_swizzle_to_tile
+from ..tma_utils import SwizzleMode, get_swizzle_mode_from_layout
 
 
-@dataclass(frozen=True)
-class GmemIter:
-    """One gmem logical dim after multi-iter group splitting.
+class ProofStatus(Enum):
+    """Static proof result used by the shared TensorMap validator."""
 
-    ``shape`` and ``stride`` come from the grouped gmem layout for this
-    dim. ``copy_start`` / ``copy_ext`` carve out the user-requested
-    sub-range. ``copy_ext == 1`` collapses the iter into a trivial
-    coord-only descriptor dim (no smem shards, no issue axes).
-    """
-
-    shape: object
-    stride: object
-    copy_start: object
-    copy_ext: object
-
-    @property
-    def is_ext1(self) -> bool:
-        return Analyzer().can_prove_equal(self.copy_ext, 1)
+    PROVEN = "proven"
+    DISPROVEN = "disproven"
+    UNKNOWN = "unknown"
 
 
 @dataclass(frozen=True)
-class SmemShard:
-    """One canonicalized smem shard inside a group (after slice+regroup)."""
+class ValidationFinding:
+    """One named TensorMap validation rule."""
 
-    extent: object
-    smem_stride: object
-
-
-@dataclass
-class SmemGroup:
-    """Smem shards paired with a single ext>1 gmem iter, outer→inner.
-
-    After L1, each ext>1 gmem iter has a matching smem group whose shards'
-    extents multiply to the iter's ``copy_ext``.
-    """
-
-    shards: list  # list[SmemShard], outer→inner
-    bound_gmem_iter_idx: int
-
-
-@dataclass
-class Segment:
-    """One reshape segment produced by the chain-prefix cut.
-
-    ``local_shape * local_stride`` is the axis's gmem span; the
-    ``local_copy_range`` is where the user-requested slice lives on this
-    axis. A segment is "selected" when it ends with a chosen smem shard
-    (→ Case 1: box = selected extent); "trailing" otherwise (→ Case 2:
-    box = 1).
-    """
-
-    local_shape: object
-    local_stride: object
-    local_copy_start: object  # lo endpoint of local_copy_range
-    local_copy_extent: object  # width of local_copy_range
-    # ``selected_shard_extent`` is the extent of the selected smem shard at
-    # this segment's inner end (only meaningful when ``is_selected``).
-    is_selected: bool
-    selected_shard_extent: object
-    # Unselected shards within this segment become issue axes contributing
-    # to this segment's descriptor dim. Each entry is (extent, u_k) where
-    # u_k is the shard's gmem-units-per-step value divided by the
-    # segment's selected u (so coord_advance = u_k directly); see
-    # ``_segment_issue_contribs``.
-    unselected_contribs: list  # list[(extent, coord_advance, smem_stride)]
+    rule: str
+    status: ProofStatus
+    message: str
+    repairable: bool = False
 
 
 @dataclass(frozen=True)
-class DescDim:
-    """One cuTensorMap descriptor dim."""
+class TensorMapSpec:
+    """A complete TensorMap plus instruction contract in CUDA API order."""
 
-    shape: object
-    stride: object  # gmem stride (elements, not bytes)
-    box: object
-    coord_base: object
-
-
-@dataclass(frozen=True)
-class IssueAxis:
-    """One issue axis = one unselected smem shard becoming a loop iter.
-
-    Each iteration advances one desc dim's coord by ``coord_advance`` and
-    one smem region by ``smem_stride``. ``dim_idx`` is the index of the
-    owning desc dim in the final ``TmaPlan.dims`` list.
-    """
-
-    extent: object
-    dim_idx: int
-    coord_advance: object
-    smem_stride: object
-
-
-@dataclass(frozen=True)
-class TmaPlan:
-    """Final descriptor + loop plan."""
-
-    swizzle_mode: SwizzleMode
-    dims: list  # list[DescDim], in cuTensorMap outer→inner order
-    issue_axes: list  # list[IssueAxis], outer→inner nesting order
-    tensor_ptr: object
-    # Element size used by the cuTensorMap descriptor.  Defaults to the
-    # underlying buffer's dtype size; merge can promote this (e.g. uint8 →
-    # uint16) when adjacent contiguous dims would exceed boxDim≤256 in the
-    # native dtype.  Strides/extents/boxes in ``dims`` are in this unit.
-    elem_bytes: int = 1
-    elem_dtype: str = "uint8"
+    descriptor_dtype: str
+    descriptor_bits: int
+    effective_bytes: int
+    packed_kind: str | None
+    force_cu_dtype: int
+    base: object
+    base_key: str
+    descriptor_name: str
+    base_byte_offset: object
+    global_dims: tuple
+    global_strides: tuple
+    inner_stride: object
+    box_dims: tuple
+    element_strides: tuple
+    interleave: int
+    swizzle: int
+    l2_promotion: int
+    oob_fill: int
+    direction: str
+    load_mode: str
+    target_arch: str
+    coordinates: tuple
+    gather4: tuple
+    smem_buffer: Buffer
+    smem_start: tuple
+    smem_base_offset: object
+    mbar: object | None
+    mbar_is_shared_addr: bool
+    cta_group: int
+    cta_mask: object
+    cache_hint: object
+    cache_policy: object
+    use_tma_reduce: object | None
+    payload_bits: object
+    transaction_bits: object
 
     @property
     def rank(self) -> int:
-        return len(self.dims)
+        return len(self.global_dims)
 
     @property
-    def shape(self) -> list:
-        return [d.shape for d in self.dims]
+    def is_packed(self) -> bool:
+        return self.packed_kind is not None
 
-    @property
-    def box_dim(self) -> list:
-        return [d.box for d in self.dims]
 
-    @property
-    def g_strides(self) -> list:
-        return [d.stride for d in self.dims]
+@dataclass(frozen=True)
+class IssueCoord:
+    """One mixed-radix contribution from an auto issue axis."""
 
-    def flatten_total_extent(self) -> object:
-        total: object = 1
+    dim_idx: int
+    divisor: object
+    modulus: object
+
+
+@dataclass(frozen=True)
+class AutoIssueAxis:
+    """One unboxed shared-memory iterator lowered as an issue loop."""
+
+    extent: object
+    smem_stride: object
+    coords: tuple[IssueCoord, ...]
+
+
+@dataclass(frozen=True)
+class TMAPlan:
+    """A validated spec plus optional auto issue loops."""
+
+    spec: TensorMapSpec
+    issue_axes: tuple[AutoIssueAxis, ...] = ()
+    shared_layout: TileLayout | None = None
+
+    def issue_extent(self):
+        total = 1
         for axis in self.issue_axes:
             total = total * axis.extent
         return total
 
     def offsets_and_coords(self, loop_var):
-        """Decompose ``loop_var`` into (smem offset, per-dim coord vector).
+        """Return shared offset and CUDA-order coordinates for one issue."""
 
-        Axes are stored outer→inner. The innermost axis has cum=1; each
-        outer axis's cum is the product of inner axes' extents.
-        """
-        total = 1
-        cum_per_axis: list = [None] * len(self.issue_axes)
+        cumulative = 1
+        divisors = [None] * len(self.issue_axes)
         for idx in range(len(self.issue_axes) - 1, -1, -1):
-            cum_per_axis[idx] = total
-            total = total * self.issue_axes[idx].extent
+            divisors[idx] = cumulative
+            cumulative = cumulative * self.issue_axes[idx].extent
 
-        s_offset: object = 0
-        coords: list = [d.coord_base for d in self.dims]
-        for axis, cum in zip(self.issue_axes, cum_per_axis):
-            iter_val = tvm.tirx.floormod(tvm.tirx.floordiv(loop_var, cum), axis.extent)
-            s_offset = s_offset + iter_val * axis.smem_stride
-            coords[axis.dim_idx] = coords[axis.dim_idx] + iter_val * axis.coord_advance
-        return s_offset, coords
-
-
-# ==============================================================================
-# Common helpers
-# ==============================================================================
-
-
-def _to_tile_layout(layout: Layout, shape: list) -> TileLayout:
-    """Normalize the shared layout so pointer arithmetic always sees a TileLayout."""
-
-    if isinstance(layout, ComposeLayout):
-        return layout.tile_layout
-    if isinstance(layout, SwizzleLayout):
-        return TileLayout(S[tuple(shape)])
-    return layout
+        smem_offset = 0
+        coordinates = list(self.spec.coordinates)
+        for axis, flat_divisor in zip(self.issue_axes, divisors):
+            value = tvm.tirx.floormod(tvm.tirx.floordiv(loop_var, flat_divisor), axis.extent)
+            smem_offset = smem_offset + value * axis.smem_stride
+            for contribution in axis.coords:
+                digit = tvm.tirx.floormod(
+                    tvm.tirx.floordiv(value, contribution.divisor),
+                    contribution.modulus,
+                )
+                coordinates[contribution.dim_idx] = coordinates[contribution.dim_idx] + digit
+        return smem_offset, coordinates
 
 
-def _assert_memory_only(layout: TileLayout, label: str) -> None:
-    for shard in layout.shard:
-        if not shard.axis.is_memory():
+@dataclass(frozen=True)
+class _Gt:
+    """One global-layout iterator after the two grouping steps."""
+
+    extent: object
+    stride: object
+    smem_idx: int | None
+    copy_dim: int
+    global_dim: object
+    coordinate: object
+
+
+_COMMON_CONFIG = {
+    "cache_hint",
+    "cta_group",
+    "cta_mask",
+    "mbar",
+    "mbarrier_addr",
+    "oob",
+    "prefetch_tensormap",
+    "tensormap_l2_promotion",
+    "tma_dtype",
+    "use_tma_reduce",
+}
+_EXPLICIT_CONFIG = _COMMON_CONFIG | {"gather4", "src_selector"}
+_FLOAT_DTYPES = {"float16", "float32", "float64", "bfloat16"}
+_PROMOTE_DTYPE = {1: ("uint16", 16), 2: ("uint32", 32), 4: ("uint64", 64)}
+_REPAIRABLE_RULES = {
+    "rank",
+    "global_stride_alignment",
+    "box_dim",
+    "inner_box_bytes",
+}
+# These bounds depend only on runtime tensor arguments and are checked by
+# runtime.cuTensorMapEncodeTiled before the CUDA driver encodes the descriptor.
+_RUNTIME_VALIDATED_RULES = {"global_dim"}
+
+
+def _proof(predicate, analyzer: Analyzer) -> ProofStatus:
+    if isinstance(predicate, bool):
+        return ProofStatus.PROVEN if predicate else ProofStatus.DISPROVEN
+    if analyzer.can_prove(predicate):
+        return ProofStatus.PROVEN
+    if analyzer.can_prove(predicate == 0):
+        return ProofStatus.DISPROVEN
+    return ProofStatus.UNKNOWN
+
+
+def _proof_all(analyzer: Analyzer, *conditions) -> ProofStatus:
+    statuses = [_proof(condition, analyzer) for condition in conditions]
+    if ProofStatus.DISPROVEN in statuses:
+        return ProofStatus.DISPROVEN
+    if ProofStatus.UNKNOWN in statuses:
+        return ProofStatus.UNKNOWN
+    return ProofStatus.PROVEN
+
+
+def _proof_equal(lhs, rhs, analyzer: Analyzer) -> ProofStatus:
+    if analyzer.can_prove_equal(lhs, rhs):
+        return ProofStatus.PROVEN
+    return _proof(lhs == rhs, analyzer)
+
+
+def _require_proven(predicate, analyzer: Analyzer, stage: str, detail: str) -> None:
+    status = _proof(predicate, analyzer)
+    if status != ProofStatus.PROVEN:
+        _auto_fail(stage, f"{detail} ({status.value})")
+
+
+def _auto_fail(stage: str, detail: str):
+    fail(
+        f'tma_auto stage={stage}: {detail}; use dispatch="tma_explicit" '
+        "when the mapping or hardware legality is only known at runtime"
+    )
+
+
+def _to_tile_layout(layout: Layout, shape) -> TileLayout:
+    tile = strip_swizzle_to_tile(layout, lambda: list(shape))
+    if not isinstance(tile, TileLayout):
+        raise ValueError(f"expected TileLayout after removing swizzle, got {type(tile).__name__}")
+    return tile
+
+
+def _assert_plain_memory_layout(layout: TileLayout, label: str) -> None:
+    if layout.replica:
+        raise ValueError(f"{label} layout contains replica iterators")
+    for iterator in layout.shard:
+        if not iterator.axis.is_memory():
             raise ValueError(
-                f"TMA {label} layout must be pure memory; saw non-memory axis "
-                f"{shard.axis} in {layout}"
+                f"{label} layout must contain only memory iterators; got axis "
+                f"{iterator.axis.name!r}"
+            )
+    for axis, offset in layout.offset.items():
+        if not axis.is_memory() and not Analyzer().can_prove_equal(offset, 0):
+            raise ValueError(f"{label} layout has non-memory offset {axis.name}={offset}")
+
+
+def _layout_offset(layout: TileLayout):
+    value = 0
+    for axis, offset in layout.offset.items():
+        if axis.is_memory():
+            value = value + offset
+    return Analyzer().simplify(value)
+
+
+def _slice_layout(buffer: Buffer, starts, extents, label: str) -> tuple[TileLayout, TileLayout]:
+    tile = _to_tile_layout(buffer.layout, buffer.shape)
+    _assert_plain_memory_layout(tile, label)
+    region = [(start, start + extent) for start, extent in zip(starts, extents)]
+    sliced = tile.slice(list(buffer.shape), region)
+    if sliced is None:
+        raise ValueError(
+            f"{label} layout cannot be sliced at start={list(starts)}, extent={list(extents)}"
+        )
+    if not isinstance(sliced, TileLayout):
+        raise ValueError(f"{label} sliced layout is not a TileLayout")
+    _assert_plain_memory_layout(sliced, f"sliced {label}")
+    return tile, sliced
+
+
+def _slice_global_layout(buffer: Buffer, starts, extents) -> tuple[TileLayout, TileLayout]:
+    """Slice each logical global dimension without fusing across its boundary.
+
+    ``TileLayout.slice`` canonicalizes the complete layout before grouping it
+    by ``buffer.shape``.  For an unsigned dynamic shape, that can turn
+    ``(n * C, K)`` into a single wrapping ``uint32`` product, after which the
+    analyzer correctly refuses to prove the original dimension boundary.
+    Global TensorMap planning needs those semantic buffer boundaries, so group
+    the original memory layout first and slice each proven group separately.
+    """
+
+    analyzer = Analyzer()
+    tile = _to_tile_layout(buffer.layout, buffer.shape)
+    _assert_plain_memory_layout(tile, "global")
+    try:
+        grouped, separators = tile.group(list(buffer.shape))
+    except (TypeError, ValueError, tvm.error.InternalError) as error:
+        _auto_fail("global-slice", f"cannot group global layout by buffer shape: {error}")
+
+    sliced_shard = []
+    sliced_offset = dict(grouped.offset.items())
+    for dim, (start, extent) in enumerate(zip(starts, extents)):
+        group = TileLayout.from_iters(
+            grouped.shard[separators[dim] : separators[dim + 1]],
+        )
+        sliced = group.slice([buffer.shape[dim]], [(start, start + extent)])
+        if sliced is None or not isinstance(sliced, TileLayout):
+            _auto_fail(
+                "global-slice",
+                f"global dimension {dim} cannot be sliced at start={start}, extent={extent}",
+            )
+        sliced_shard.extend(sliced.shard)
+        for axis, value in sliced.offset.items():
+            sliced_offset[axis] = analyzer.simplify(sliced_offset.get(axis, 0) + value)
+
+    result = TileLayout.from_iters(sliced_shard, grouped.replica, sliced_offset)
+    _assert_plain_memory_layout(result, "sliced global")
+    return tile, result
+
+
+def _target_sm(arch: str) -> int:
+    match = re.search(r"sm_(\d+)", arch or "")
+    return int(match.group(1)) if match else 0
+
+
+def _normalize_l2_promotion(value) -> int:
+    if value is None:
+        return 2
+    if isinstance(value, IntImm):
+        value = int(value)
+    if isinstance(value, int):
+        if 0 <= value <= 3:
+            return value
+        fail("TensorMap L2 promotion integer must be in [0, 3]")
+    names = {
+        "none": 0,
+        "L2::none": 0,
+        "L2::64B": 1,
+        "L2::128B": 2,
+        "L2::256B": 3,
+    }
+    if value in names:
+        return names[value]
+    fail("TensorMap L2 promotion must be None, 0..3, 'none', 'L2::64B', 'L2::128B', or 'L2::256B'")
+
+
+def _normalize_oob(value) -> int:
+    if value is None or value == "zero":
+        return 0
+    if value == "nan":
+        return 1
+    fail(f"unsupported TensorMap oob={value!r}; expected None, 'zero', or 'nan'")
+
+
+def _normalize_cache_hint(cache_hint):
+    if cache_hint is None:
+        return "", None
+    if isinstance(cache_hint, str):
+        return cache_hint, None
+    if isinstance(cache_hint, tvm.tirx.Expr):
+        return "", cache_hint
+    fail(f"cache_hint must be a string or TIR expression, got {type(cache_hint).__name__}")
+
+
+def _dtype_contract(dtype, tma_dtype=None):
+    data_type = tvm.DataType(dtype)
+    name = str(data_type)
+    if data_type.lanes != 1:
+        fail(f"TensorMap descriptor dtype must have lanes=1, got {data_type}")
+
+    valid = {
+        "int8",
+        "int32",
+        "int64",
+        "uint8",
+        "uint16",
+        "uint32",
+        "uint64",
+        "float16",
+        "float32",
+        "float64",
+        "bfloat16",
+        "float8_e4m3fn",
+        "float8_e5m2",
+        "float4_e2m1fn",
+    }
+    if name not in valid:
+        fail(f"unsupported TensorMap descriptor dtype {name}")
+
+    force_cu_dtype = -1
+    if tma_dtype is not None:
+        if tma_dtype not in ("tf32", "tfloat32"):
+            fail("tma_dtype must be 'tf32' or 'tfloat32'")
+        if name != "float32":
+            fail(f"tma_dtype={tma_dtype!r} requires a float32 global buffer, got {name}")
+        force_cu_dtype = 11
+
+    bits = data_type.bits
+    packed_kind = "16u4_align16" if name == "float4_e2m1fn" else None
+    return name, bits, (bits + 7) // 8, packed_kind, force_cu_dtype
+
+
+def _elements_to_bytes(
+    elements, bits: int, analyzer: Analyzer, *, auto: bool, stage: str, label: str
+):
+    total_bits = analyzer.simplify(elements * bits)
+    divisible = _proof_equal(tvm.tirx.floormod(total_bits, 8), 0, analyzer)
+    if divisible == ProofStatus.DISPROVEN or (auto and divisible == ProofStatus.UNKNOWN):
+        message = f"{label}={elements} elements at {bits} bits is not provably byte aligned"
+        if auto:
+            _auto_fail(stage, message)
+        fail(f"tma_explicit stage={stage}: {message}")
+    return analyzer.simplify(tvm.tirx.floordiv(total_bits, 8))
+
+
+def _buffer_base(buffer: Buffer, *, auto: bool, stage: str):
+    analyzer = Analyzer()
+    layout = _to_tile_layout(buffer.layout, buffer.shape)
+    layout_offset = _layout_offset(layout)
+    element_offset = analyzer.simplify(buffer.elem_offset + layout_offset)
+    byte_offset = _elements_to_bytes(
+        element_offset,
+        tvm.DataType(buffer.dtype).bits,
+        analyzer,
+        auto=auto,
+        stage=stage,
+        label="view base offset",
+    )
+    base = tvm.tirx.handle_add_byte_offset(buffer.data, byte_offset)
+    return base, f"{hash(buffer.data)}:{base}", byte_offset
+
+
+def _finding(
+    findings: list[ValidationFinding],
+    rule: str,
+    status: ProofStatus,
+    message: str,
+    repairable: bool = False,
+):
+    findings.append(ValidationFinding(rule, status, message, repairable))
+
+
+def validate_tensor_map_spec(spec: TensorMapSpec) -> tuple[ValidationFinding, ...]:
+    """Validate one TensorMap using the static half of the runtime rule matrix."""
+
+    analyzer = Analyzer()
+    findings: list[ValidationFinding] = []
+    dtype_bits = {
+        "int8": 8,
+        "int32": 32,
+        "int64": 64,
+        "uint8": 8,
+        "uint16": 16,
+        "uint32": 32,
+        "uint64": 64,
+        "float16": 16,
+        "float32": 32,
+        "float64": 64,
+        "bfloat16": 16,
+        "float8_e4m3fn": 8,
+        "float8_e5m2": 8,
+        "float4_e2m1fn": 4,
+    }
+
+    rank_ok = _proof(1 <= spec.rank <= 5, analyzer)
+    _finding(
+        findings,
+        "rank",
+        rank_ok,
+        f"descriptor rank must be in [1, 5], got {spec.rank}",
+        repairable=True,
+    )
+
+    if spec.descriptor_dtype not in dtype_bits:
+        _finding(
+            findings,
+            "dtype",
+            ProofStatus.DISPROVEN,
+            f"unsupported descriptor dtype {spec.descriptor_dtype}",
+        )
+    else:
+        _finding(findings, "dtype", ProofStatus.PROVEN, "descriptor dtype is supported")
+        _finding(
+            findings,
+            "dtype_bits",
+            _proof(spec.descriptor_bits == dtype_bits[spec.descriptor_dtype], analyzer),
+            f"descriptor dtype {spec.descriptor_dtype} requires "
+            f"{dtype_bits[spec.descriptor_dtype]} bits, got {spec.descriptor_bits}",
+        )
+        _finding(
+            findings,
+            "effective_bytes",
+            _proof(spec.effective_bytes == (spec.descriptor_bits + 7) // 8, analyzer),
+            f"effective bytes {spec.effective_bytes} do not match "
+            f"{spec.descriptor_bits}-bit descriptor units",
+        )
+
+    expected_packed = "16u4_align16" if spec.descriptor_dtype == "float4_e2m1fn" else None
+    _finding(
+        findings,
+        "packed_kind",
+        _proof(spec.packed_kind == expected_packed, analyzer),
+        f"descriptor dtype {spec.descriptor_dtype} requires packed_kind={expected_packed!r}, "
+        f"got {spec.packed_kind!r}",
+    )
+    force_dtype_ok = spec.force_cu_dtype == -1 or (
+        spec.force_cu_dtype == 11
+        and spec.descriptor_dtype == "float32"
+        and spec.descriptor_bits == 32
+    )
+    _finding(
+        findings,
+        "forced_cuda_dtype",
+        _proof(force_dtype_ok, analyzer),
+        "forced CUDA dtype must be -1, or TFLOAT32 (11) for a float32 descriptor",
+    )
+
+    array_lengths_ok = (
+        len(spec.global_strides) == max(spec.rank - 1, 0)
+        and len(spec.box_dims) == spec.rank
+        and len(spec.element_strides) == spec.rank
+        and len(spec.coordinates) == spec.rank
+    )
+    _finding(
+        findings,
+        "array_lengths",
+        _proof(array_lengths_ok, analyzer),
+        "TensorMap arrays must contain rank global dimensions, boxes, element strides, "
+        "and coordinates, plus rank-1 byte strides",
+    )
+
+    required_alignment = 32 if spec.interleave == 2 or spec.packed_kind else 16
+    base_alignment = _proof_equal(
+        tvm.tirx.floormod(spec.base_byte_offset, required_alignment), 0, analyzer
+    )
+    _finding(
+        findings,
+        "global_base_alignment",
+        base_alignment,
+        f"view base byte offset {spec.base_byte_offset} must preserve "
+        f"{required_alignment}B global alignment",
+    )
+
+    for idx, dim in enumerate(spec.global_dims):
+        status = _proof_all(analyzer, dim > 0, dim <= (1 << 32))
+        _finding(
+            findings,
+            "global_dim",
+            status,
+            f"globalDim[{idx}]={dim} must be in (0, 2^32]",
+        )
+
+    for idx, stride in enumerate(spec.global_strides):
+        nonnegative = _proof(stride >= 0, analyzer)
+        _finding(
+            findings,
+            "global_stride_range",
+            nonnegative,
+            f"globalStrides[{idx}]={stride} must be non-negative",
+        )
+        bounded = _proof(stride < (1 << 40), analyzer)
+        _finding(
+            findings,
+            "global_stride_range",
+            bounded,
+            f"globalStrides[{idx}]={stride} must be less than 2^40",
+        )
+        alignment = 32 if spec.interleave == 2 or spec.packed_kind else 16
+        aligned = _proof_equal(tvm.tirx.floormod(stride, alignment), 0, analyzer)
+        _finding(
+            findings,
+            "global_stride_alignment",
+            aligned,
+            f"globalStrides[{idx}]={stride} must be a multiple of {alignment}B",
+            repairable=True,
+        )
+
+    inner_stride = _proof_equal(spec.inner_stride, 1, analyzer)
+    _finding(
+        findings,
+        "inner_stride",
+        inner_stride,
+        f"innermost global element stride must be 1, got {spec.inner_stride}",
+    )
+
+    for idx, box in enumerate(spec.box_dims):
+        status = _proof_all(analyzer, box >= 1, box <= 256)
+        _finding(
+            findings,
+            "box_dim",
+            status,
+            f"boxDim[{idx}]={box} must be in [1, 256]",
+            repairable=True,
+        )
+    for idx, stride in enumerate(spec.element_strides):
+        status = _proof_all(analyzer, stride >= 1, stride <= 8)
+        _finding(
+            findings,
+            "element_stride",
+            status,
+            f"elementStride[{idx}]={stride} must be in [1, 8]",
+        )
+    if spec.element_strides:
+        _finding(
+            findings,
+            "inner_stride",
+            _proof_equal(spec.element_strides[0], 1, analyzer),
+            f"innermost elementStride must be 1, got {spec.element_strides[0]}",
+        )
+
+    _finding(
+        findings,
+        "interleave",
+        _proof(spec.interleave in (0, 1, 2), analyzer),
+        f"interleave enum {spec.interleave} is invalid",
+    )
+    _finding(
+        findings,
+        "swizzle",
+        _proof(spec.swizzle in (0, 1, 2, 3), analyzer),
+        f"swizzle enum {spec.swizzle} is invalid",
+    )
+    _finding(
+        findings,
+        "l2_promotion",
+        _proof(spec.l2_promotion in (0, 1, 2, 3), analyzer),
+        f"L2 promotion enum {spec.l2_promotion} is invalid",
+    )
+    _finding(
+        findings,
+        "oob",
+        _proof(spec.oob_fill in (0, 1), analyzer),
+        f"OOB enum {spec.oob_fill} is invalid",
+    )
+
+    if spec.interleave != 0:
+        _finding(
+            findings,
+            "interleave_rank",
+            _proof(spec.rank >= 3, analyzer),
+            "interleaved TensorMaps require rank >= 3",
+        )
+    if spec.interleave == 2:
+        _finding(
+            findings,
+            "interleave_swizzle",
+            _proof(spec.swizzle == 1, analyzer),
+            "32B interleave requires the 32B swizzle mode",
+        )
+
+    if spec.box_dims and spec.interleave == 0 and not spec.is_packed:
+        inner_bytes = analyzer.simplify(spec.box_dims[0] * spec.effective_bytes)
+        _finding(
+            findings,
+            "inner_box_bytes",
+            _proof_equal(tvm.tirx.floormod(inner_bytes, 16), 0, analyzer),
+            f"innermost box is {inner_bytes}B; non-interleaved TensorMaps require a 16B multiple",
+            repairable=True,
+        )
+        atom_bytes = {1: 32, 2: 64, 3: 128}.get(spec.swizzle)
+        if atom_bytes is not None:
+            _finding(
+                findings,
+                "swizzle_inner_box",
+                _proof(inner_bytes <= atom_bytes, analyzer),
+                f"innermost box {inner_bytes}B exceeds the {atom_bytes}B swizzle atom",
             )
 
+    if spec.packed_kind == "16u4_align16" and spec.rank and spec.box_dims:
+        _finding(
+            findings,
+            "packed_shape",
+            _proof_equal(tvm.tirx.floormod(spec.global_dims[0], 128), 0, analyzer),
+            "packed 16U4 align16 requires globalDim[0] to be a multiple of 128",
+        )
+        _finding(
+            findings,
+            "packed_box",
+            _proof_equal(spec.box_dims[0], 128, analyzer),
+            "packed 16U4 align16 requires boxDim[0] == 128",
+        )
+        _finding(
+            findings,
+            "packed_swizzle",
+            _proof(spec.swizzle in (0, 3), analyzer),
+            "packed 16U4 align16 supports only NONE or 128B swizzle in this layout model",
+        )
+        _finding(
+            findings,
+            "packed_direction",
+            _proof(spec.direction == "g2s", analyzer),
+            "packed 16U4 align16 TensorMaps are load-only",
+        )
 
-def _normalize_oob_mode(dtype: str, oob_mode):
-    """Validate the user-visible ``oob`` contract flag.
+    if spec.oob_fill == 1:
+        floating = spec.descriptor_dtype in _FLOAT_DTYPES or spec.force_cu_dtype == 11
+        _finding(
+            findings,
+            "nan_oob_dtype",
+            _proof(floating and not spec.is_packed, analyzer),
+            "NaN OOB fill requires a non-packed floating-point descriptor",
+        )
 
-    ``None`` / ``"zero"`` → hardware fill kind 0.
-    ``"nan"`` → hardware fill kind 1 (floating-point only).
-    """
-    if oob_mode is None:
-        return None
-    if oob_mode not in ("zero", "nan"):
-        fail(f"Unsupported TMA oob mode: {oob_mode!r}. Expected None, 'zero', or 'nan'.")
-    if oob_mode == "nan" and dtype not in ("float16", "float32", "float64", "bfloat16"):
-        fail("TMA oob='nan' requires a floating-point dtype")
-    return oob_mode
+    if spec.direction not in ("g2s", "s2g"):
+        _finding(
+            findings,
+            "direction",
+            ProofStatus.DISPROVEN,
+            f"invalid TMA direction {spec.direction!r}",
+        )
+    if spec.load_mode == "tile_gather4":
+        _finding(
+            findings,
+            "gather4_rank",
+            _proof(spec.rank == 2, analyzer),
+            f"gather4 requires a rank-2 TensorMap, got rank {spec.rank}",
+        )
+        _finding(
+            findings,
+            "gather4_rows",
+            _proof(len(spec.gather4) == 4, analyzer),
+            f"gather4 requires exactly four row coordinates, got {len(spec.gather4)}",
+        )
+        _finding(
+            findings,
+            "gather4_box",
+            _proof_equal(spec.box_dims[1], 1, analyzer)
+            if spec.rank == 2 and len(spec.box_dims) == 2
+            else ProofStatus.DISPROVEN,
+            "gather4 public axis 0 must map to a hardware row box of one",
+        )
+        _finding(
+            findings,
+            "gather4_interleave",
+            _proof(spec.interleave == 0, analyzer),
+            "gather4 does not support interleaved TensorMaps",
+        )
+        _finding(
+            findings,
+            "target",
+            _proof(_target_sm(spec.target_arch) >= 100, analyzer),
+            f"gather4 requires SM100+, got {spec.target_arch!r}",
+        )
+    else:
+        _finding(
+            findings,
+            "coordinate_count",
+            _proof(len(spec.coordinates) == spec.rank, analyzer),
+            f"coordinate count {len(spec.coordinates)} must equal rank {spec.rank}",
+        )
+        _finding(
+            findings,
+            "target",
+            _proof(_target_sm(spec.target_arch) >= 90, analyzer),
+            f"TMA requires SM90+, got {spec.target_arch!r}",
+        )
+
+    _finding(
+        findings,
+        "cta_group",
+        _proof(spec.cta_group in (1, 2), analyzer),
+        f"cta_group must be 1 or 2, got {spec.cta_group}",
+    )
+    if spec.cta_group == 2:
+        _finding(
+            findings,
+            "target",
+            _proof(_target_sm(spec.target_arch) >= 100, analyzer),
+            f"cta_group=2 requires SM100+, got {spec.target_arch!r}",
+        )
+        _finding(
+            findings,
+            "mbarrier_address",
+            _proof(spec.mbar_is_shared_addr, analyzer),
+            "cta_group=2 requires a precomputed shared mbarrier address",
+        )
+    if spec.direction == "g2s":
+        _finding(
+            findings,
+            "mbar",
+            _proof(spec.mbar is not None, analyzer),
+            "global-to-shared TMA requires mbar",
+        )
+        _finding(
+            findings,
+            "reduce_direction",
+            _proof(spec.use_tma_reduce is None, analyzer),
+            "TMA reduction is only valid for shared-to-global",
+        )
+    else:
+        _finding(
+            findings,
+            "gather_direction",
+            _proof(spec.load_mode == "tile", analyzer),
+            "gather4 is only valid for global-to-shared",
+        )
+        _finding(
+            findings,
+            "cta_mask_direction",
+            _proof(
+                (isinstance(spec.cta_mask, int) and spec.cta_mask == 0)
+                or (isinstance(spec.cta_mask, IntImm) and int(spec.cta_mask) == 0),
+                analyzer,
+            ),
+            "cta_mask is only valid for global-to-shared",
+        )
+
+    return tuple(findings)
 
 
-def _oob_fill_kind(oob_mode) -> int:
-    if oob_mode is None or oob_mode == "zero":
-        return 0
-    if oob_mode == "nan":
-        return 1
-    raise ValueError(f"Unexpected oob mode: {oob_mode}")
+def _validation_failures(spec: TensorMapSpec, *, auto: bool):
+    findings = validate_tensor_map_spec(spec)
+    return [
+        finding
+        for finding in findings
+        if finding.status == ProofStatus.DISPROVEN
+        or (
+            auto
+            and finding.status == ProofStatus.UNKNOWN
+            and finding.rule not in _RUNTIME_VALIDATED_RULES
+        )
+    ]
 
 
-def _swizzle_inner_box_fits(dtype: str, swizzle_mode: SwizzleMode, inner_box) -> bool:
-    """Hardware check: innermost ``boxDim[0] * elementSize`` fits swizzle atom."""
-    if swizzle_mode == SwizzleMode.SWIZZLE_NONE:
-        return True
-    atom = tma_atom_shape(dtype, swizzle_mode)
-    return bool(Analyzer().can_prove(inner_box <= atom[-1]))
+def _raise_validation(stage: str, failures, *, auto: bool):
+    details = "; ".join(
+        f"{finding.rule}: {finding.message} [{finding.status.value}]" for finding in failures
+    )
+    if auto:
+        _auto_fail(stage, details)
+    fail(f"tma_explicit stage={stage}: {details}")
 
 
-def _divides(a, b, analyzer: Analyzer) -> bool:
-    """Return True when ``a`` divides ``b`` (``b % a == 0``)."""
-    return analyzer.can_prove_equal(tvm.tirx.floormod(b, a), 0)
+def _validate_explicit(spec: TensorMapSpec, stage: str) -> None:
+    failures = _validation_failures(spec, auto=False)
+    if failures:
+        _raise_validation(stage, failures, auto=False)
 
 
-def _simplify_with_var_ranges(exprs, var_ranges, sctx: DispatchContext):
-    """Simplify expressions under dispatch-context and loop-variable ranges."""
-    local_analyzer = Analyzer()
-    for var, value_range in sctx.var_range_map.items():
-        local_analyzer.bind(var, value_range)
+def _simplify_with_ranges(exprs, var_ranges, sctx: DispatchContext):
+    analyzer = Analyzer()
     for var, extent in var_ranges:
-        if tvm.ir.is_prim_var(var):
-            local_analyzer.bind(var, tvm.ir.Range.from_min_extent(0, extent))
-    return [local_analyzer.simplify(expr) for expr in exprs]
+        analyzer.bind(var, tvm.ir.Range.from_min_extent(0, extent))
+    for var, value in sctx.var_range_map.items():
+        if var not in [item[0] for item in var_ranges]:
+            analyzer.bind(var, value)
+    return [analyzer.simplify(expr) for expr in exprs]
 
 
-# ==============================================================================
-# L1: layout prerequisite analysis
-# ==============================================================================
+def _smem_iter_order(sliced: TileLayout):
+    analyzer = Analyzer()
+    active = [
+        idx
+        for idx, iterator in enumerate(sliced.shard)
+        if not analyzer.can_prove_equal(iterator.extent, 1)
+    ]
+    constant_strides = []
+    for idx in active:
+        stride = analyzer.simplify(sliced.shard[idx].stride)
+        if not isinstance(stride, IntImm):
+            _auto_fail(
+                "shared-chain",
+                f"shared iter {idx} stride={stride} is symbolic, so physical order is unknown",
+            )
+        constant_strides.append((int(stride), idx))
+    constant_strides.sort()
+    order = [idx for _, idx in constant_strides]
+    if not order:
+        _auto_fail("shared-chain", "copy region has no non-unit shared memory iterator")
+
+    previous = sliced.shard[order[0]]
+    _require_proven(
+        previous.stride == 1,
+        analyzer,
+        "shared-chain",
+        f"smallest shared stride must be 1, got {previous.stride}",
+    )
+    for position, idx in enumerate(order[1:], start=1):
+        current = sliced.shard[idx]
+        expected = analyzer.simplify(previous.stride * previous.extent)
+        _require_proven(
+            current.stride == expected,
+            analyzer,
+            "shared-chain",
+            f"shared iter {idx} at sorted position {position} has stride={current.stride}, "
+            f"expected {expected} after extent={previous.extent}",
+        )
+        previous = current
+    return order
 
 
-@dataclass
-class L1Result:
-    """Output of L1: all gmem iters (ext=1 and ext>1), paired smem groups."""
-
-    swizzle_mode: SwizzleMode
-    # All gmem iters in positional order (outer→inner across the splitted
-    # logical dims). Mix of ext=1 and ext>1.
-    gmem_iters: list  # list[GmemIter]
-    # One entry per ext>1 gmem iter, in the same order they appear in
-    # ``gmem_iters`` (but excluding ext=1 iters).
-    smem_groups: list  # list[SmemGroup]
+def _copy_region_parts(region):
+    return [item.min for item in region], [item.extent for item in region]
 
 
-def _gmem_layout(g_buf: Buffer) -> TileLayout:
+def _build_auto_gt(
+    g_buf: Buffer,
+    g_starts,
+    g_extents,
+    sliced_smem: TileLayout,
+    sctx: DispatchContext,
+):
+    analyzer = Analyzer()
+    for var, value in sctx.var_range_map.items():
+        analyzer.bind(var, value)
+    _, sliced_gmem = _slice_global_layout(g_buf, g_starts, g_extents)
+
+    smem_shape = tuple(iterator.extent for iterator in sliced_smem.shard)
+    if not smem_shape:
+        _auto_fail("group-global", "sliced shared layout has no iterators")
+    try:
+        grouped, (smem_sep, copy_sep) = sliced_gmem.group_many((smem_shape, tuple(g_extents)))
+    except (TypeError, ValueError, tvm.error.TVMError) as error:
+        _auto_fail(
+            "group-global",
+            f"cannot jointly group global layout by shared shape={smem_shape} "
+            f"and copy shape={tuple(g_extents)}: {error}",
+        )
+    _assert_plain_memory_layout(grouped, "grouped global")
+
+    shard_to_smem = {}
+    for smem_idx in range(len(smem_shape)):
+        for shard_idx in range(smem_sep[smem_idx], smem_sep[smem_idx + 1]):
+            shard_to_smem[shard_idx] = smem_idx
+
+    records = [None] * len(grouped.shard)
+    for copy_dim, (start_idx, end_idx) in enumerate(pairwise(copy_sep)):
+        iterators = list(grouped.shard[start_idx:end_idx])
+        product = 1
+        for iterator in iterators:
+            product = analyzer.simplify(product * iterator.extent)
+        _require_proven(
+            product == g_extents[copy_dim],
+            analyzer,
+            "copy-group",
+            f"group={copy_dim} iterator product={product} does not equal "
+            f"copy extent={g_extents[copy_dim]}",
+        )
+        if not iterators:
+            _auto_fail(
+                "copy-group",
+                f"group={copy_dim} start={g_starts[copy_dim]} "
+                f"extent={g_extents[copy_dim]} has no global iterator",
+            )
+
+        suffix_products = [None] * len(iterators)
+        suffix_product = 1
+        for local_idx in range(len(iterators) - 1, -1, -1):
+            suffix_products[local_idx] = suffix_product
+            suffix_product = analyzer.simplify(suffix_product * iterators[local_idx].extent)
+        inner_product = suffix_products[0]
+        _require_proven(
+            tvm.tirx.floormod(g_starts[copy_dim], inner_product) == 0,
+            analyzer,
+            "coordinate",
+            f"group={copy_dim} start={g_starts[copy_dim]} is not divisible by "
+            f"inner_product={inner_product}",
+        )
+        _require_proven(
+            tvm.tirx.floormod(g_buf.shape[copy_dim], inner_product) == 0,
+            analyzer,
+            "global-shape",
+            f"group={copy_dim} tensor extent={g_buf.shape[copy_dim]} is not divisible "
+            f"by inner_product={inner_product}",
+        )
+
+        for local_idx, iterator in enumerate(iterators):
+            shard_idx = start_idx + local_idx
+            smem_idx = shard_to_smem.get(shard_idx)
+            if analyzer.can_prove_equal(iterator.extent, 1):
+                # Unit copy dimensions remain real TensorMap dimensions, but
+                # they do not contribute shared-memory payload.
+                smem_idx = None
+            elif smem_idx is None:
+                _require_proven(
+                    iterator.extent == 1,
+                    analyzer,
+                    "coordinate-only-dim",
+                    f"global iterator={shard_idx} copy group={copy_dim} extent={iterator.extent} "
+                    "has no shared-memory iterator",
+                )
+            if local_idx == 0:
+                global_dim = analyzer.simplify(
+                    tvm.tirx.floordiv(g_buf.shape[copy_dim], inner_product)
+                )
+                coordinate = analyzer.simplify(tvm.tirx.floordiv(g_starts[copy_dim], inner_product))
+            else:
+                global_dim = iterator.extent
+                coordinate = 0
+            records[shard_idx] = _Gt(
+                extent=iterator.extent,
+                stride=iterator.stride,
+                smem_idx=smem_idx,
+                copy_dim=copy_dim,
+                global_dim=global_dim,
+                coordinate=coordinate,
+            )
+
+    if any(record is None for record in records):
+        _auto_fail("copy-group", "global iterator was not assigned to a copy-region dimension")
+    return tuple(records)
+
+
+def _auto_spec_for_prefix(
+    *,
+    op_call,
+    sctx,
+    direction,
+    s_buf,
+    g_buf,
+    s_starts,
+    smem_layout_offset,
+    sliced_smem,
+    smem_order,
+    gt_records,
+    prefix,
+    swizzle,
+    descriptor,
+    runtime,
+):
+    analyzer = Analyzer()
+    selected_smem = set(smem_order[:prefix])
+    gt_by_smem = {idx: [] for idx in range(len(sliced_smem.shard))}
+    detached_gt = []
+    for gt_idx, gt in enumerate(gt_records):
+        if gt.smem_idx is None:
+            detached_gt.append(gt_idx)
+        else:
+            gt_by_smem[gt.smem_idx].append((gt_idx, gt))
+
+    cuda_gt_indices = []
+    for smem_idx in smem_order:
+        cuda_gt_indices.extend(idx for idx, _ in reversed(gt_by_smem[smem_idx]))
+    unit_smem = [
+        idx
+        for idx, iterator in enumerate(sliced_smem.shard)
+        if analyzer.can_prove_equal(iterator.extent, 1)
+    ]
+    for smem_idx in unit_smem:
+        cuda_gt_indices.extend(idx for idx, _ in reversed(gt_by_smem[smem_idx]))
+    cuda_gt_indices.extend(detached_gt)
+    if len(cuda_gt_indices) != len(gt_records):
+        _auto_fail(
+            "descriptor-order",
+            "not every global iterator maps to shared data or a coordinate-only dimension",
+        )
+
+    gt_to_dim = {gt_idx: dim_idx for dim_idx, gt_idx in enumerate(cuda_gt_indices)}
+    ordered = [gt_records[idx] for idx in cuda_gt_indices]
+    global_dims = tuple(gt.global_dim for gt in ordered)
+    coordinates = tuple(gt.coordinate for gt in ordered)
+    box_dims = tuple(gt.extent if gt.smem_idx in selected_smem else 1 for gt in ordered)
+
+    descriptor_dtype, descriptor_bits, effective_bytes, packed_kind, force_cu_dtype = descriptor
+    full_byte_strides = [
+        _elements_to_bytes(
+            gt.stride,
+            descriptor_bits,
+            analyzer,
+            auto=True,
+            stage="descriptor-stride",
+            label=f"global stride for copy group {gt.copy_dim}",
+        )
+        for gt in ordered
+    ]
+    inner_stride = ordered[0].stride
+    global_strides = tuple(full_byte_strides[1:])
+
+    issue_axes = []
+    for smem_idx in smem_order[prefix:]:
+        iterator = sliced_smem.shard[smem_idx]
+        group = gt_by_smem[smem_idx]
+        group_product = 1
+        for _, gt in group:
+            group_product = analyzer.simplify(group_product * gt.extent)
+        _require_proven(
+            group_product == iterator.extent,
+            analyzer,
+            "issue-axis",
+            f"shared group={smem_idx} extent={iterator.extent} maps to "
+            f"global product={group_product}",
+        )
+        contributions = []
+        inner_product = 1
+        local = []
+        for gt_idx, gt in reversed(group):
+            local.append(
+                IssueCoord(
+                    dim_idx=gt_to_dim[gt_idx],
+                    divisor=inner_product,
+                    modulus=gt.extent,
+                )
+            )
+            inner_product = analyzer.simplify(inner_product * gt.extent)
+        contributions.extend(reversed(local))
+        issue_axes.append(
+            AutoIssueAxis(
+                extent=iterator.extent,
+                smem_stride=iterator.stride,
+                coords=tuple(contributions),
+            )
+        )
+
+    issue_count = 1
+    for axis in issue_axes:
+        issue_count = analyzer.simplify(issue_count * axis.extent)
+    box_elements = 1
+    for box in box_dims:
+        box_elements = analyzer.simplify(box_elements * box)
+    transaction_bits = analyzer.simplify(box_elements * descriptor_bits)
+    payload_bits = analyzer.simplify(transaction_bits * issue_count)
+
+    s_elements = 1
+    for iterator in sliced_smem.shard:
+        s_elements = analyzer.simplify(s_elements * iterator.extent)
+    expected_bits = analyzer.simplify(s_elements * tvm.DataType(s_buf.dtype).bits)
+    _require_proven(
+        payload_bits == expected_bits,
+        analyzer,
+        "byte-equivalence",
+        f"prefix={prefix} payload={payload_bits} bits, expected={expected_bits} bits",
+    )
+
+    base, base_key, base_byte_offset = _buffer_base(g_buf, auto=True, stage="global-base")
+    spec = TensorMapSpec(
+        descriptor_dtype=descriptor_dtype,
+        descriptor_bits=descriptor_bits,
+        effective_bytes=effective_bytes,
+        packed_kind=packed_kind,
+        force_cu_dtype=force_cu_dtype,
+        base=base,
+        base_key=base_key,
+        descriptor_name=g_buf.name,
+        base_byte_offset=base_byte_offset,
+        global_dims=global_dims,
+        global_strides=global_strides,
+        inner_stride=inner_stride,
+        box_dims=box_dims,
+        element_strides=(1,) * len(global_dims),
+        interleave=0,
+        swizzle=swizzle.value,
+        l2_promotion=runtime["l2_promotion"],
+        oob_fill=runtime["oob_fill"],
+        direction=direction,
+        load_mode="tile",
+        target_arch=sctx.target.arch,
+        coordinates=coordinates,
+        gather4=(),
+        smem_buffer=s_buf,
+        smem_start=tuple(s_starts),
+        smem_base_offset=analyzer.simplify(s_buf.elem_offset + smem_layout_offset),
+        mbar=runtime["mbar"],
+        mbar_is_shared_addr=runtime["mbar_is_shared_addr"],
+        cta_group=runtime["cta_group"],
+        cta_mask=runtime["cta_mask"],
+        cache_hint=runtime["cache_hint"],
+        cache_policy=runtime["cache_policy"],
+        use_tma_reduce=runtime["use_tma_reduce"],
+        payload_bits=payload_bits,
+        transaction_bits=transaction_bits,
+    )
+    return TMAPlan(
+        spec=spec,
+        issue_axes=tuple(issue_axes),
+        shared_layout=_to_tile_layout(s_buf.layout, s_buf.shape),
+    )
+
+
+def _validate_auto_shared_mapping(
+    plan: TMAPlan,
+    sliced_smem: TileLayout,
+    swizzle: SwizzleMode,
+    sctx: DispatchContext,
+) -> None:
+    """Prove that issue loops partition the sliced shared region exactly once."""
+
+    analyzer = Analyzer()
+    for var, value in sctx.var_range_map.items():
+        analyzer.bind(var, value)
+    spec = plan.spec
+    shared_bits = tvm.DataType(spec.smem_buffer.dtype).bits
+    start_elements = spec.smem_base_offset
+    start_bytes = _elements_to_bytes(
+        start_elements,
+        shared_bits,
+        analyzer,
+        auto=True,
+        stage="shared-pointer",
+        label="shared slice pointer",
+    )
+    atom_alignment = {0: 16, 1: 32, 2: 64, 3: 128}[swizzle.value]
+    _require_proven(
+        tvm.tirx.floormod(start_bytes, atom_alignment) == 0,
+        analyzer,
+        "shared-pointer",
+        f"shared slice offset={start_bytes}B must preserve {atom_alignment}B alignment",
+    )
+
+    transaction_elements = analyzer.simplify(tvm.tirx.floordiv(spec.transaction_bits, shared_bits))
+    _require_proven(
+        tvm.tirx.floormod(spec.transaction_bits, shared_bits) == 0,
+        analyzer,
+        "issue-coverage",
+        f"transaction={spec.transaction_bits} bits is not an integral number of "
+        f"{shared_bits}-bit shared elements",
+    )
+    covered = transaction_elements
+    for axis_idx, axis in enumerate(plan.issue_axes):
+        _require_proven(
+            axis.smem_stride == covered,
+            analyzer,
+            "issue-coverage",
+            f"issue axis={axis_idx} stride={axis.smem_stride} does not follow "
+            f"the covered prefix={covered}",
+        )
+        covered = analyzer.simplify(covered * axis.extent)
+
+    sliced_elements = 1
+    for iterator in sliced_smem.shard:
+        sliced_elements = analyzer.simplify(sliced_elements * iterator.extent)
+    _require_proven(
+        covered == sliced_elements,
+        analyzer,
+        "issue-coverage",
+        f"issue loops plus one box cover {covered} shared elements, "
+        f"but the sliced region contains {sliced_elements}",
+    )
+
+
+def _remap_issue_axes_after_remove(issue_axes, removed_idx):
+    remapped = []
+    for axis in issue_axes:
+        coords = []
+        for coord in axis.coords:
+            if coord.dim_idx == removed_idx:
+                raise ValueError("attempted to remove an issue-driven descriptor dimension")
+            coords.append(
+                replace(
+                    coord,
+                    dim_idx=coord.dim_idx - 1 if coord.dim_idx > removed_idx else coord.dim_idx,
+                )
+            )
+        remapped.append(replace(axis, coords=tuple(coords)))
+    return tuple(remapped)
+
+
+def _auto_inner_dimension_is_legal(spec, global_dim, box_dim, analyzer: Analyzer) -> bool:
+    """Check rules that can change when an auto dimension becomes innermost."""
+
+    if spec.interleave != 0:
+        return True
+    if spec.is_packed:
+        checks = (
+            _proof_equal(tvm.tirx.floormod(global_dim, 128), 0, analyzer),
+            _proof_equal(box_dim, 128, analyzer),
+        )
+    else:
+        inner_bytes = analyzer.simplify(box_dim * spec.effective_bytes)
+        checks = [_proof_equal(tvm.tirx.floormod(inner_bytes, 16), 0, analyzer)]
+        atom_bytes = {1: 32, 2: 64, 3: 128}.get(spec.swizzle)
+        if atom_bytes is not None:
+            checks.append(_proof(inner_bytes <= atom_bytes, analyzer))
+    return all(status == ProofStatus.PROVEN for status in checks)
+
+
+def _canonicalize_auto_plan(plan: TMAPlan) -> TMAPlan:
+    """Canonicalize auto-only TensorMap dimensions without changing byte addresses."""
+
+    analyzer = Analyzer()
+    current = plan
+    while True:
+        spec = current.spec
+        full_strides = [spec.effective_bytes * spec.inner_stride, *spec.global_strides]
+        issue_dims = {coord.dim_idx for axis in current.issue_axes for coord in axis.coords}
+
+        # A unit global dimension carries no address information for an
+        # in-bounds tma_auto copy.  Non-innermost units can always disappear;
+        # an innermost unit can disappear only when the next dimension already
+        # has the implicit innermost byte stride.
+        removed = False
+        if spec.rank > 1:
+            for dim_idx in range(spec.rank):
+                if dim_idx in issue_dims:
+                    continue
+                checks = (
+                    _proof_equal(spec.global_dims[dim_idx], 1, analyzer),
+                    _proof_equal(spec.box_dims[dim_idx], 1, analyzer),
+                    _proof_equal(spec.element_strides[dim_idx], 1, analyzer),
+                )
+                if any(status != ProofStatus.PROVEN for status in checks):
+                    continue
+                if dim_idx == 0:
+                    if _proof_equal(
+                        full_strides[1], full_strides[0], analyzer
+                    ) != ProofStatus.PROVEN or not _auto_inner_dimension_is_legal(
+                        spec,
+                        spec.global_dims[1],
+                        spec.box_dims[1],
+                        analyzer,
+                    ):
+                        continue
+
+                global_dims = list(spec.global_dims)
+                box_dims = list(spec.box_dims)
+                coordinates = list(spec.coordinates)
+                element_strides = list(spec.element_strides)
+                for values in (global_dims, box_dims, coordinates, element_strides):
+                    values.pop(dim_idx)
+                full_strides.pop(dim_idx)
+                current = replace(
+                    current,
+                    spec=replace(
+                        spec,
+                        global_dims=tuple(global_dims),
+                        global_strides=tuple(full_strides[1:]),
+                        box_dims=tuple(box_dims),
+                        coordinates=tuple(coordinates),
+                        element_strides=tuple(element_strides),
+                    ),
+                    issue_axes=_remap_issue_axes_after_remove(current.issue_axes, dim_idx),
+                )
+                removed = True
+                break
+        if removed:
+            continue
+
+        # Flatten an adjacent pair when the inner dimension is copied in full
+        # from coordinate zero and the outer byte stride follows it
+        # contiguously.  The outer dimension may have a partial box and a
+        # non-zero coordinate; both are scaled into the flattened dimension.
+        merged = False
+        promoted_for_merge = False
+        for inner_idx in range(spec.rank - 1):
+            outer_idx = inner_idx + 1
+            if inner_idx in issue_dims or outer_idx in issue_dims:
+                continue
+            merged_global_dim = analyzer.simplify(
+                spec.global_dims[inner_idx] * spec.global_dims[outer_idx]
+            )
+            merged_box_dim = analyzer.simplify(spec.box_dims[inner_idx] * spec.box_dims[outer_idx])
+            checks = (
+                _proof_equal(spec.box_dims[inner_idx], spec.global_dims[inner_idx], analyzer),
+                _proof_equal(spec.coordinates[inner_idx], 0, analyzer),
+                _proof_equal(
+                    full_strides[outer_idx],
+                    spec.global_dims[inner_idx] * full_strides[inner_idx],
+                    analyzer,
+                ),
+                _proof_equal(spec.element_strides[inner_idx], 1, analyzer),
+                _proof_equal(spec.element_strides[outer_idx], 1, analyzer),
+                _proof_all(analyzer, merged_global_dim > 0, merged_global_dim <= (1 << 32)),
+            )
+            if inner_idx == 0 and not _auto_inner_dimension_is_legal(
+                spec, merged_global_dim, merged_box_dim, analyzer
+            ):
+                continue
+            if any(status != ProofStatus.PROVEN for status in checks):
+                continue
+            box_status = _proof_all(analyzer, merged_box_dim >= 1, merged_box_dim <= 256)
+            if box_status != ProofStatus.PROVEN:
+                # Preserve the innermost contiguous-chain boundary.  Skipping a
+                # box-size-blocked inner merge and merging an outer pair instead
+                # changes the TensorMap tiling even though one byte-preserving
+                # descriptor-unit promotion may make this merge legal.
+                if (
+                    inner_idx == 0
+                    and spec.rank > 2
+                    and _proof(merged_box_dim > 256, analyzer) == ProofStatus.PROVEN
+                    and _proof_equal(
+                        spec.box_dims[outer_idx], spec.global_dims[outer_idx], analyzer
+                    )
+                    == ProofStatus.PROVEN
+                    and _proof_equal(spec.coordinates[outer_idx], 0, analyzer) == ProofStatus.PROVEN
+                ):
+                    promoted = _promote_auto_once(current)
+                    if promoted is not None:
+                        promoted_spec = promoted.spec
+                        promoted_global_dim = analyzer.simplify(
+                            promoted_spec.global_dims[0] * promoted_spec.global_dims[1]
+                        )
+                        promoted_box_dim = analyzer.simplify(
+                            promoted_spec.box_dims[0] * promoted_spec.box_dims[1]
+                        )
+                        if _proof_all(
+                            analyzer,
+                            promoted_box_dim >= 1,
+                            promoted_box_dim <= 256,
+                            promoted_global_dim > 0,
+                            promoted_global_dim <= (1 << 32),
+                        ) == ProofStatus.PROVEN and _auto_inner_dimension_is_legal(
+                            promoted_spec,
+                            promoted_global_dim,
+                            promoted_box_dim,
+                            analyzer,
+                        ):
+                            current = promoted
+                            promoted_for_merge = True
+                            break
+                continue
+
+            global_dims = list(spec.global_dims)
+            box_dims = list(spec.box_dims)
+            coordinates = list(spec.coordinates)
+            element_strides = list(spec.element_strides)
+            global_dims[inner_idx] = merged_global_dim
+            box_dims[inner_idx] = merged_box_dim
+            coordinates[inner_idx] = analyzer.simplify(
+                spec.coordinates[outer_idx] * spec.global_dims[inner_idx]
+            )
+            for values in (global_dims, box_dims, coordinates, element_strides):
+                values.pop(outer_idx)
+            full_strides.pop(outer_idx)
+            current = replace(
+                current,
+                spec=replace(
+                    spec,
+                    global_dims=tuple(global_dims),
+                    global_strides=tuple(full_strides[1:]),
+                    box_dims=tuple(box_dims),
+                    coordinates=tuple(coordinates),
+                    element_strides=tuple(element_strides),
+                ),
+                issue_axes=_remap_issue_axes_after_remove(current.issue_axes, outer_idx),
+            )
+            merged = True
+            break
+        if promoted_for_merge:
+            continue
+        if not merged:
+            return current
+
+
+def _promotion_allowed(plan: TMAPlan) -> bool:
+    spec = plan.spec
+    analyzer = Analyzer()
+    if spec.effective_bytes not in _PROMOTE_DTYPE:
+        return False
+    if spec.is_packed or spec.interleave != 0 or spec.oob_fill != 0:
+        return False
+    if spec.load_mode != "tile" or spec.use_tma_reduce is not None:
+        return False
+    if spec.force_cu_dtype >= 0:
+        return False
+    if _proof_equal(spec.inner_stride, 1, analyzer) != ProofStatus.PROVEN:
+        return False
+    if any(
+        _proof_equal(stride, 1, analyzer) != ProofStatus.PROVEN for stride in spec.element_strides
+    ):
+        return False
+    return not any(coord.dim_idx == 0 for axis in plan.issue_axes for coord in axis.coords)
+
+
+def _promote_auto_once(plan: TMAPlan) -> TMAPlan | None:
+    """Promote descriptor units while preserving every byte address."""
+
+    if not _promotion_allowed(plan):
+        return None
+    analyzer = Analyzer()
+    spec = plan.spec
+    new_dtype, new_bits = _PROMOTE_DTYPE[spec.effective_bytes]
+    for value, label in (
+        (spec.global_dims[0], "innermost global shape"),
+        (spec.box_dims[0], "innermost box"),
+        (spec.coordinates[0], "innermost coordinate"),
+    ):
+        if _proof_equal(tvm.tirx.floormod(value, 2), 0, analyzer) != ProofStatus.PROVEN:
+            return None
+    for stride in spec.global_strides:
+        if (
+            _proof_equal(tvm.tirx.floormod(stride, spec.effective_bytes * 2), 0, analyzer)
+            != ProofStatus.PROVEN
+        ):
+            return None
+
+    global_dims = list(spec.global_dims)
+    box_dims = list(spec.box_dims)
+    coordinates = list(spec.coordinates)
+    global_dims[0] = analyzer.simplify(tvm.tirx.floordiv(global_dims[0], 2))
+    box_dims[0] = analyzer.simplify(tvm.tirx.floordiv(box_dims[0], 2))
+    coordinates[0] = analyzer.simplify(tvm.tirx.floordiv(coordinates[0], 2))
+    new_spec = replace(
+        spec,
+        descriptor_dtype=new_dtype,
+        descriptor_bits=new_bits,
+        effective_bytes=new_bits // 8,
+        global_dims=tuple(global_dims),
+        box_dims=tuple(box_dims),
+        coordinates=tuple(coordinates),
+    )
+    transaction_bits = new_bits
+    for box in box_dims:
+        transaction_bits = analyzer.simplify(transaction_bits * box)
+    issue_count = 1
+    for axis in plan.issue_axes:
+        issue_count = analyzer.simplify(issue_count * axis.extent)
+    new_spec = replace(
+        new_spec,
+        transaction_bits=transaction_bits,
+        payload_bits=analyzer.simplify(transaction_bits * issue_count),
+    )
+    if _proof_equal(new_spec.payload_bits, spec.payload_bits, analyzer) != ProofStatus.PROVEN:
+        return None
+    return replace(plan, spec=new_spec)
+
+
+def _repair_auto_candidate(plan: TMAPlan):
+    candidate = plan
+    while True:
+        candidate = _canonicalize_auto_plan(candidate)
+        failures = _validation_failures(candidate.spec, auto=True)
+        if not failures:
+            return candidate, ()
+        if any(finding.rule not in _REPAIRABLE_RULES for finding in failures):
+            return None, failures
+
+        promoted = _promote_auto_once(candidate)
+        if promoted is None:
+            return None, failures
+        candidate = promoted
+
+
+def _runtime_config(op_call, sctx, direction: str, *, explicit: bool):
+    allowed = _EXPLICIT_CONFIG if explicit else _COMMON_CONFIG
+    unknown = sorted(set(op_call.config) - allowed)
+    if unknown:
+        fail(
+            f"dispatch={'tma_explicit' if explicit else 'tma_auto'} does not support "
+            f"config key(s) {unknown}"
+        )
+
+    if not explicit and op_call.config.get("oob") is not None:
+        fail('tma_auto does not support non-default oob; use dispatch="tma_explicit"')
+    if direction != "g2s" and op_call.config.get("oob") is not None:
+        fail("TensorMap oob is only valid for explicit global-to-shared copies")
+
+    cta_group = op_call.config.get("cta_group", 1)
+    if isinstance(cta_group, IntImm):
+        cta_group = int(cta_group)
+    if cta_group not in (1, 2):
+        fail(f"cta_group must be 1 or 2, got {cta_group}")
+
+    cta_mask = op_call.config.get("cta_mask", 0)
+    if isinstance(cta_mask, IntImm):
+        cta_mask_value = int(cta_mask)
+        if not 0 <= cta_mask_value <= 0xFFFF:
+            fail(f"cta_mask must fit uint16, got {cta_mask_value}")
+    elif isinstance(cta_mask, int):
+        if not 0 <= cta_mask <= 0xFFFF:
+            fail(f"cta_mask must fit uint16, got {cta_mask}")
+    elif not isinstance(cta_mask, tvm.tirx.Expr):
+        fail("cta_mask must be an integer or TIR expression")
+    mbar = op_call.config.get("mbar")
+    mbarrier_addr = op_call.config.get("mbarrier_addr", False)
+    if isinstance(mbarrier_addr, IntImm):
+        mbarrier_addr = bool(int(mbarrier_addr))
+    if not isinstance(mbarrier_addr, bool | tvm.tirx.Expr):
+        fail("mbarrier_addr must be bool or Expr")
+    if direction == "g2s":
+        if mbar is None:
+            fail("global-to-shared TMA requires mbar")
+    else:
+        if mbar is not None:
+            fail("mbar is only valid for global-to-shared TMA")
+        if mbarrier_addr not in (False, None):
+            fail("mbarrier_addr is only valid for global-to-shared TMA")
+        if not (
+            (isinstance(cta_mask, int) and cta_mask == 0)
+            or (isinstance(cta_mask, IntImm) and int(cta_mask) == 0)
+        ):
+            fail("cta_mask is only valid for global-to-shared TMA")
+
+    use_tma_reduce = op_call.config.get("use_tma_reduce")
+    if use_tma_reduce is not None:
+        if direction != "s2g":
+            fail("use_tma_reduce is only valid for shared-to-global TMA")
+        if use_tma_reduce not in ("add", "min", "max", "inc", "dec", "and", "or", "xor"):
+            fail(f"unsupported TMA reduce operation {use_tma_reduce!r}")
+
+    cache_hint, cache_policy = _normalize_cache_hint(op_call.config.get("cache_hint", ""))
+    return {
+        "cta_group": cta_group,
+        "cta_mask": cta_mask,
+        "mbar": mbar,
+        "mbarrier_addr": mbarrier_addr,
+        # A dynamic form selects between two equivalent address
+        # representations.  Normalize it once to the shared-address form so
+        # there remains exactly one TMA instruction.
+        "mbar_is_shared_addr": (
+            direction == "g2s"
+            and (
+                cta_group == 2 or mbarrier_addr is True or isinstance(mbarrier_addr, tvm.tirx.Expr)
+            )
+        ),
+        "use_tma_reduce": use_tma_reduce,
+        "cache_hint": cache_hint,
+        "cache_policy": cache_policy,
+        "l2_promotion": _normalize_l2_promotion(op_call.config.get("tensormap_l2_promotion")),
+        "oob_fill": _normalize_oob(op_call.config.get("oob")),
+        "prefetch": bool(op_call.config.get("prefetch_tensormap", False)),
+        "tma_dtype": op_call.config.get("tma_dtype"),
+        "target_arch": sctx.target.arch,
+    }
+
+
+def _copy_direction(op_call):
+    op_call = TilePrimitiveCall.downcast(op_call)
+    dst_region, src_region = op_call.dst, op_call.src
+    src_scope = src_region.buffer.scope()
+    dst_scope = dst_region.buffer.scope()
+    if src_scope == "global" and dst_scope.startswith("shared"):
+        return "g2s", dst_region, src_region
+    if src_scope.startswith("shared") and dst_scope == "global":
+        return "s2g", src_region, dst_region
+    fail(f"TMA requires global<->shared operands, got src={src_scope}, dst={dst_scope}")
+
+
+def _build_auto_plan(op_call: TilePrimitiveCall, sctx: DispatchContext) -> TMAPlan:
+    direction, shared_region, global_region = _copy_direction(op_call)
+    s_buf = shared_region.buffer
+    g_buf = global_region.buffer
+    if str(s_buf.dtype) != str(g_buf.dtype):
+        _auto_fail(
+            "dtype",
+            f"shared dtype={s_buf.dtype} and global dtype={g_buf.dtype} differ",
+        )
+    runtime = _runtime_config(op_call, sctx, direction, explicit=False)
+    if "gather4" in op_call.config or "src_selector" in op_call.config:
+        fail('gather4 and src_selector are only supported by dispatch="tma_explicit"')
+
+    s_starts, s_extents = _copy_region_parts(shared_region.region)
+    g_starts, g_extents = _copy_region_parts(global_region.region)
+    try:
+        swizzle = get_swizzle_mode_from_layout(s_buf.layout)
+    except ValueError as error:
+        _auto_fail("shared-swizzle", str(error))
+    if swizzle is None:
+        _auto_fail("shared-layout", f"cannot recognize shared swizzle in {s_buf.layout}")
+    try:
+        _, sliced_smem_with_offset = _slice_layout(s_buf, s_starts, s_extents, "shared")
+    except ValueError as error:
+        _auto_fail("shared-slice", str(error))
+    smem_layout_offset = _layout_offset(sliced_smem_with_offset)
+    sliced_smem = TileLayout.from_iters(
+        sliced_smem_with_offset.shard,
+        sliced_smem_with_offset.replica,
+        {},
+    ).canonicalize()
+    if not isinstance(sliced_smem, TileLayout):
+        _auto_fail(
+            "shared-canonicalize",
+            f"canonical sliced shared layout is not a TileLayout: {sliced_smem}",
+        )
+    _assert_plain_memory_layout(sliced_smem, "canonical sliced shared")
+    canonical_smem_shape = tuple(iterator.extent for iterator in sliced_smem.shard)
+    try:
+        sliced_smem, _ = sliced_smem.group_many((canonical_smem_shape, tuple(g_extents)))
+    except (TypeError, ValueError, tvm.error.TVMError) as error:
+        _auto_fail(
+            "group-shared",
+            f"cannot refine canonical shared shape={canonical_smem_shape} "
+            f"with copy shape={tuple(g_extents)}: {error}",
+        )
+    smem_order = _smem_iter_order(sliced_smem)
+    gt_records = _build_auto_gt(g_buf, g_starts, g_extents, sliced_smem, sctx)
+    descriptor = _dtype_contract(g_buf.dtype, runtime["tma_dtype"])
+
+    best = None
+    last_failures = ()
+    for prefix in range(1, len(smem_order) + 1):
+        raw = _auto_spec_for_prefix(
+            op_call=op_call,
+            sctx=sctx,
+            direction=direction,
+            s_buf=s_buf,
+            g_buf=g_buf,
+            s_starts=s_starts,
+            smem_layout_offset=smem_layout_offset,
+            sliced_smem=sliced_smem,
+            smem_order=smem_order,
+            gt_records=gt_records,
+            prefix=prefix,
+            swizzle=swizzle,
+            descriptor=descriptor,
+            runtime=runtime,
+        )
+        _validate_auto_shared_mapping(raw, sliced_smem, swizzle, sctx)
+        repaired, failures = _repair_auto_candidate(raw)
+        if repaired is None:
+            last_failures = failures
+            if best is not None:
+                break
+            continue
+        best = repaired
+
+    if best is None:
+        if last_failures:
+            _raise_validation("prefix-search", last_failures, auto=True)
+        _auto_fail("prefix-search", "no legal shared-memory prefix")
+    return best
+
+
+def _explicit_smem_layout(s_buf: Buffer, starts, extents, swizzle: SwizzleMode):
+    _, sliced = _slice_layout(s_buf, starts, extents, "shared")
+    # LayoutSlice preserves the layout's physical base and adds the selected
+    # region offset, so the sliced offset is already the complete layout-side
+    # contribution to the shared pointer.
+    offset = _layout_offset(sliced)
+    normalized = TileLayout.from_iters(sliced.shard, sliced.replica, {})
+    canonical = normalized.canonicalize()
+    if not canonical.is_trivial():
+        fail(
+            "tma_explicit stage=shared-layout: sliced shared layout must canonicalize "
+            f"to trivial after extracting its pointer offset; got {canonical}"
+        )
+    analyzer = Analyzer()
+    byte_offset = _elements_to_bytes(
+        s_buf.elem_offset + offset,
+        tvm.DataType(s_buf.dtype).bits,
+        analyzer,
+        auto=False,
+        stage="shared-layout",
+        label="shared pointer offset",
+    )
+    atom_alignment = {0: 16, 1: 32, 2: 64, 3: 128}[swizzle.value]
+    status = _proof_equal(tvm.tirx.floormod(byte_offset, atom_alignment), 0, analyzer)
+    if status == ProofStatus.DISPROVEN:
+        fail(
+            "tma_explicit stage=shared-layout: shared slice pointer offset "
+            f"{byte_offset}B violates {atom_alignment}B swizzle/base alignment"
+        )
+    return (
+        _to_tile_layout(s_buf.layout, s_buf.shape),
+        analyzer.simplify(s_buf.elem_offset + offset),
+    )
+
+
+def _direct_global_layout(g_buf: Buffer):
     layout = g_buf.layout
     if not isinstance(layout, TileLayout):
-        # cuTensorMap requires a plain memory layout on gmem side.
-        raise ValueError(f"TMA gmem layout must be a TileLayout; got {type(layout).__name__}")
+        fail(
+            "tma_explicit stage=global-layout: global Buffer/view layout must be "
+            f"TileLayout, got {type(layout).__name__}"
+        )
+    _assert_plain_memory_layout(layout, "explicit global")
+    if len(g_buf.shape) != len(layout.shard):
+        fail(
+            "tma_explicit stage=global-layout: tensor rank "
+            f"{len(g_buf.shape)} != memory-layout rank {len(layout.shard)}"
+        )
+    analyzer = Analyzer()
+    for dim, (shape, iterator) in enumerate(zip(g_buf.shape, layout.shard)):
+        status = _proof_equal(shape, iterator.extent, analyzer)
+        if status != ProofStatus.PROVEN:
+            fail(
+                "tma_explicit stage=global-layout: "
+                f"dim={dim} shape={shape} must provably equal layout extent="
+                f"{iterator.extent}; got {status.value}"
+            )
     return layout
 
 
-def _canonicalize_smem(s_buf: Buffer) -> TileLayout:
-    return _to_tile_layout(s_buf.layout, s_buf.shape).canonicalize()
-
-
-def _group_gmem_by_buffer_shape(gmem_raw: TileLayout, buffer_shape: list):
-    """Group raw gmem first; each group is canonicalized locally before splitting."""
-    try:
-        return gmem_raw.group(list(buffer_shape))
-    except Exception as err:
-        raise ValueError(f"Cannot group gmem layout by buffer shape: {err}") from err
-
-
-def _canonicalize_gmem_group_shards(shards: list, analyzer: Analyzer) -> list:
-    canon = TileLayout.from_iters(shards).canonicalize()
-    return [sh for sh in canon.shard if not analyzer.can_prove_equal(sh.extent, 1)]
-
-
-def _split_multi_iter_group(
-    grouped: TileLayout, separators: list, group_idx: int, copy_start, copy_ext, analyzer: Analyzer
+def _explicit_spec_for_gmem(
+    *,
+    g_buf,
+    s_buf,
+    s_starts,
+    g_starts,
+    g_extents,
+    swizzle,
+    runtime,
+    sctx,
+    gather4,
+    smem_base_offset,
 ):
-    """Handle a gmem group containing t ≥ 1 iters.
-
-    Returns a list of ``GmemIter`` for this group (outer→inner within the
-    group). For t=1 → one iter (direct passthrough). For t≥2 → requires
-    ``copy_start % u == 0`` and ``copy_ext % u == 0`` where
-    ``u = prod(x_1, ..., x_{t-1})`` (everything except the outermost iter
-    of this group); splits into t iters where the outermost carries the
-    partial copy range and the inner t-1 carry full ranges.
-    """
-    start = separators[group_idx]
-    end = separators[group_idx + 1]
-    raw_shards = _canonicalize_gmem_group_shards(grouped.shard[start:end], analyzer)
-    if not raw_shards:
-        # Degenerate extent-1 group (e.g. batch dim with size 1); emit a
-        # placeholder iter that's flagged ext=1 by copy_ext==1.
-        return [GmemIter(shape=1, stride=0, copy_start=copy_start, copy_ext=copy_ext)]
-
-    # Canonicalize ordering: outer→inner is the same order as in ``grouped``
-    # (TileLayout.group gives outer-first shards per group by construction).
-    # t = len(raw_shards).
-    if len(raw_shards) == 1:
-        sh = raw_shards[0]
-        return [
-            GmemIter(shape=sh.extent, stride=sh.stride, copy_start=copy_start, copy_ext=copy_ext)
-        ]
-
-    # Multi-iter group: require alignment.
-    u: object = 1
-    for sh in raw_shards[1:]:
-        u = u * sh.extent
-
-    if not _divides(u, copy_start, analyzer):
+    analyzer = Analyzer()
+    layout = _direct_global_layout(g_buf)
+    descriptor = _dtype_contract(g_buf.dtype, runtime["tma_dtype"])
+    descriptor_dtype, descriptor_bits, effective_bytes, packed_kind, force_cu_dtype = descriptor
+    strides_outer = [
+        _elements_to_bytes(
+            iterator.stride,
+            descriptor_bits,
+            analyzer,
+            auto=False,
+            stage="global-layout",
+            label=f"global layout stride dim={idx}",
+        )
+        for idx, iterator in enumerate(layout.shard)
+    ]
+    base, base_key, base_byte_offset = _buffer_base(g_buf, auto=False, stage="global-base")
+    global_dims = tuple(reversed(g_buf.shape))
+    box_dims = tuple(reversed(g_extents))
+    coordinates = tuple(reversed(g_starts))
+    full_strides = tuple(reversed(strides_outer))
+    inner_stride = layout.shard[-1].stride
+    if _proof_equal(inner_stride, 1, analyzer) != ProofStatus.PROVEN:
         fail(
-            f"TMA multi-iter gmem group requires copy_start % {u} == 0; got copy_start={copy_start}"
+            "tma_explicit stage=global-layout: the innermost memory stride must be "
+            f"provably one because CUDA omits it from globalStrides; got {inner_stride}"
         )
-    if not _divides(u, copy_ext, analyzer):
-        fail(f"TMA multi-iter gmem group requires copy_ext % {u} == 0; got copy_ext={copy_ext}")
+    transaction_bits = descriptor_bits
+    for box in box_dims:
+        transaction_bits = analyzer.simplify(transaction_bits * box)
+    if gather4:
+        transaction_bits = analyzer.simplify(transaction_bits * 4)
+    return TensorMapSpec(
+        descriptor_dtype=descriptor_dtype,
+        descriptor_bits=descriptor_bits,
+        effective_bytes=effective_bytes,
+        packed_kind=packed_kind,
+        force_cu_dtype=force_cu_dtype,
+        base=base,
+        base_key=base_key,
+        descriptor_name=g_buf.name,
+        base_byte_offset=base_byte_offset,
+        global_dims=global_dims,
+        global_strides=full_strides[1:],
+        inner_stride=inner_stride,
+        box_dims=box_dims,
+        element_strides=(1,) * len(global_dims),
+        interleave=0,
+        swizzle=swizzle.value,
+        l2_promotion=runtime["l2_promotion"],
+        oob_fill=runtime["oob_fill"],
+        direction="g2s" if runtime["mbar"] is not None else "s2g",
+        load_mode="tile_gather4" if gather4 else "tile",
+        target_arch=sctx.target.arch,
+        coordinates=coordinates,
+        gather4=tuple(gather4),
+        smem_buffer=s_buf,
+        smem_start=tuple(s_starts),
+        smem_base_offset=smem_base_offset,
+        mbar=runtime["mbar"],
+        mbar_is_shared_addr=runtime["mbar_is_shared_addr"],
+        cta_group=runtime["cta_group"],
+        cta_mask=runtime["cta_mask"],
+        cache_hint=runtime["cache_hint"],
+        cache_policy=runtime["cache_policy"],
+        use_tma_reduce=runtime["use_tma_reduce"],
+        payload_bits=transaction_bits,
+        transaction_bits=transaction_bits,
+    )
 
-    outer = raw_shards[0]
-    outer_start = analyzer.simplify(tvm.tirx.floordiv(copy_start, u))
-    outer_ext = analyzer.simplify(tvm.tirx.floordiv(copy_ext, u))
-    iters = [
-        GmemIter(
-            shape=outer.extent, stride=outer.stride, copy_start=outer_start, copy_ext=outer_ext
+
+def _normalize_gather4(value):
+    if value is None:
+        return ()
+    if not isinstance(value, list | tuple | tvm.ir.Array) or len(value) != 4:
+        fail("tma_explicit gather4 must contain exactly four row coordinates")
+    return tuple(value)
+
+
+def _validate_gather4_dst(s_buf: Buffer, s_starts, s_extents, spec: TensorMapSpec) -> None:
+    analyzer = Analyzer()
+    if len(s_extents) < 1:
+        fail("tma_explicit gather4 requires a non-scalar shared destination")
+    if _proof_equal(s_extents[0], 4, analyzer) != ProofStatus.PROVEN:
+        fail("tma_explicit gather4 requires public shared axis 0 to provably contain four rows")
+    _, sliced = _slice_layout(s_buf, s_starts, s_extents, "gather4 shared")
+    normalized = TileLayout.from_iters(sliced.shard, sliced.replica, {})
+    canonical = normalized.canonicalize()
+    if not canonical.is_trivial():
+        fail(f"tma_explicit gather4 destination is not four-row box-linear: {canonical}")
+    row_bits = spec.transaction_bits
+    if spec.gather4:
+        row_bits = analyzer.simplify(tvm.tirx.floordiv(row_bits, 4))
+    shared_bits = tvm.DataType(s_buf.dtype).bits
+    row_elements = analyzer.simplify(tvm.tirx.floordiv(row_bits, shared_bits))
+    grouped, sep = sliced.group(list(s_extents))
+    row_iters = grouped.shard[sep[0] : sep[1]]
+    if len(row_iters) != 1:
+        fail("tma_explicit gather4 destination row axis must map to one memory iterator")
+    row = row_iters[0]
+    if (
+        _proof_equal(row.extent, 4, analyzer) != ProofStatus.PROVEN
+        or _proof_equal(row.stride, row_elements, analyzer) != ProofStatus.PROVEN
+    ):
+        fail(
+            "tma_explicit gather4 destination rows are not box-linear at "
+            f"payload width {row_elements}; got extent={row.extent}, stride={row.stride}"
         )
-    ]
-    for sh in raw_shards[1:]:
-        iters.append(GmemIter(shape=sh.extent, stride=sh.stride, copy_start=0, copy_ext=sh.extent))
-    return iters
 
 
-def _slice_and_canonicalize_smem(
-    smem_canon: TileLayout, buffer_shape: list, s_st: list, s_ext: list
-) -> TileLayout:
-    region = [(st, st + ext) for st, ext in zip(s_st, s_ext)]
-    sliced = smem_canon.slice(list(buffer_shape), region)
-    if sliced is None:
-        raise ValueError("Cannot slice smem layout for TMA copy")
-    return sliced.canonicalize()
+def _normalize_src_selector(value):
+    if value is None:
+        return ()
+    if not isinstance(value, list | tuple | tvm.ir.Array):
+        fail("tma_explicit src_selector must be a list of (condition, global Buffer/view)")
+    result = []
+    for idx, item in enumerate(value):
+        if not isinstance(item, list | tuple | tvm.ir.Array) or len(item) != 2:
+            fail(f"tma_explicit src_selector[{idx}] must be a (condition, Buffer/view) pair")
+        condition, buffer = item
+        if not isinstance(condition, tvm.tirx.Expr):
+            fail(f"tma_explicit src_selector[{idx}] condition must be a TIR expression")
+        if not is_buffer_var(buffer):
+            fail(
+                f"tma_explicit src_selector[{idx}] candidate must be a global "
+                "Buffer/view, not a region"
+            )
+        if buffer.scope() != "global":
+            fail(
+                f"tma_explicit src_selector[{idx}] candidate scope must be global, "
+                f"got {buffer.scope()}"
+            )
+        result.append((condition, buffer))
+    return tuple(result)
 
 
-def _regroup_smem_by_extgt1_shape(sliced_smem: TileLayout, extgt1_shape: list) -> tuple:
-    """Group the sliced smem layout by the ext>1 copy shape."""
-    try:
-        return sliced_smem.group(list(extgt1_shape))
-    except Exception:
-        return None
-
-
-def _build_l1_result(
-    s_buf: Buffer, g_buf: Buffer, g_st: list, g_ext: list, s_st: list, s_ext: list
-) -> L1Result:
-    """Run the L1 pipeline. Raises ``ValueError`` or ``DispatchFail`` on
-    prerequisite violations; the caller treats these as bail-outs."""
-
+def _selector_compatibility(main: TensorMapSpec, candidate: TensorMapSpec, index: int):
     analyzer = Analyzer()
-
-    swizzle_mode = get_swizzle_mode_from_layout(s_buf.layout)
-    if swizzle_mode is None:
-        raise ValueError(f"Cannot determine swizzle mode from layout: {s_buf.layout}")
-
-    smem_canon = _canonicalize_smem(s_buf)
-    _assert_memory_only(smem_canon, "shared")
-    gmem_raw = _gmem_layout(g_buf)
-    _assert_memory_only(gmem_raw, "global")
-
-    # --- gmem: group by buffer shape, then split each group ---
-    grouped_g, sep_g = _group_gmem_by_buffer_shape(gmem_raw, g_buf.shape)
-
-    gmem_iters: list = []
-    # Track which gmem_iters correspond to each original buffer dim to
-    # later align with the copy region's extent!=1 dims.
-    per_group_iter_slices: list = []  # list of (start_idx, end_idx) in gmem_iters
-    for d in range(len(g_buf.shape)):
-        before = len(gmem_iters)
-        gmem_iters.extend(_split_multi_iter_group(grouped_g, sep_g, d, g_st[d], g_ext[d], analyzer))
-        per_group_iter_slices.append((before, len(gmem_iters)))
-
-    # --- smem: slice then regroup by "copy shape with ext=1 dropped" ---
-    sliced_smem = _slice_and_canonicalize_smem(smem_canon, s_buf.shape, s_st, s_ext)
-
-    # The post-split "copy shape" (per iter): for ext=1 iters, skip; for
-    # ext>1 iters, use copy_ext.
-    extgt1_iter_indices = [i for i, it in enumerate(gmem_iters) if not it.is_ext1]
-    extgt1_shape = [gmem_iters[i].copy_ext for i in extgt1_iter_indices]
-
-    if not extgt1_shape:
-        # Entire copy is ext=1 everywhere: single element. Emit one
-        # trivial DescDim per ext=1 iter at assembly time; no smem groups.
-        return L1Result(swizzle_mode=swizzle_mode, gmem_iters=gmem_iters, smem_groups=[])
-
-    regrouped = _regroup_smem_by_extgt1_shape(sliced_smem, extgt1_shape)
-    if regrouped is None:
-        raise ValueError(f"Cannot regroup smem layout by ext>1 copy shape {extgt1_shape}")
-    grouped_s, sep_s = regrouped
-
-    smem_groups: list = []
-    for logical_idx, iter_idx in enumerate(extgt1_iter_indices):
-        start = sep_s[logical_idx]
-        end = sep_s[logical_idx + 1]
-        shards = [
-            SmemShard(extent=sh.extent, smem_stride=sh.stride)
-            for sh in grouped_s.shard[start:end]
-            if not analyzer.can_prove_equal(sh.extent, 1)
-        ]
-        smem_groups.append(SmemGroup(shards=shards, bound_gmem_iter_idx=iter_idx))
-
-    return L1Result(swizzle_mode=swizzle_mode, gmem_iters=gmem_iters, smem_groups=smem_groups)
-
-
-# ==============================================================================
-# L2: segment algorithm
-# ==============================================================================
-
-
-def _find_contiguous_chain_prefix(smem_groups: list) -> list:
-    """Return the indices (flat, across groups) of the maximal stride-1
-    contiguous chain within the innermost smem group(s).
-
-    Returns a list of (group_idx, shard_idx_within_group) tuples, ordered
-    from inner to outer. Length of this list = max candidate j.
-    """
-    analyzer = Analyzer()
-    # Concatenate all shards across groups, innermost→outermost. The chain
-    # must start with stride 1 and each successive stride equals the product
-    # of prior extents.
-    flat = []
-    for gi, group in enumerate(smem_groups):
-        for si, sh in enumerate(group.shards):
-            flat.append((gi, si, sh))
-
-    if not flat:
-        return []
-
-    chain: list = []
-    consumed: set = set()
-    expected_stride: object = 1
-
-    while True:
-        for key, (gi, si, sh) in enumerate(flat):
-            if key in consumed:
-                continue
-            if analyzer.can_prove_equal(sh.smem_stride, expected_stride):
-                consumed.add(key)
-                chain.append((gi, si))
-                expected_stride = analyzer.simplify(expected_stride * sh.extent)
-                break
+    fields = (
+        ("descriptor dtype", main.descriptor_dtype, candidate.descriptor_dtype),
+        ("descriptor bits", main.descriptor_bits, candidate.descriptor_bits),
+        ("forced CUDA dtype", main.force_cu_dtype, candidate.force_cu_dtype),
+        ("rank", main.rank, candidate.rank),
+        ("box", main.box_dims, candidate.box_dims),
+        ("interleave", main.interleave, candidate.interleave),
+        ("swizzle", main.swizzle, candidate.swizzle),
+        ("load mode", main.load_mode, candidate.load_mode),
+        ("transaction bits", main.transaction_bits, candidate.transaction_bits),
+    )
+    for label, lhs, rhs in fields:
+        if isinstance(lhs, tuple):
+            equal = len(lhs) == len(rhs) and all(
+                _proof_equal(a, b, analyzer) == ProofStatus.PROVEN for a, b in zip(lhs, rhs)
+            )
+        elif isinstance(lhs, int | str):
+            equal = lhs == rhs
         else:
-            break
-
-    return chain
-
-
-def _distribute_selection(chain: list, smem_groups: list) -> dict:
-    """From a chain prefix (inner→outer), return a per-group mapping
-    ``group_idx -> sorted list of selected shard indices (outer→inner)``.
-
-    Only the first ``prefix_len`` chain entries are used; caller slices
-    ``chain[:prefix_len]`` before passing in.
-    """
-    per_group: dict = {}
-    for gi, si in chain:
-        per_group.setdefault(gi, []).append(si)
-    for gi in per_group:
-        per_group[gi].sort()
-    # Each selected position in the chain must be a contiguous prefix of
-    # the selected positions within that group (no gaps by construction of
-    # the chain walk). Caller relies on this for u_{p_0} arithmetic.
-    return per_group
-
-
-def _check_alignment(
-    gmem_iter: GmemIter, selected_positions: list, shards: list, analyzer: Analyzer
-) -> bool:
-    """Alignment: when j ≥ 1, ``u_{p_0} | G`` and ``u_{p_0} | copy_start``.
-
-    ``p_0`` is the outermost selected position; ``u_{p_0}`` is the product
-    of shard extents strictly inside ``p_0`` in the group's outer→inner
-    order.
-    """
-    if not selected_positions:
-        return True  # j=0: trivially ok
-
-    p0 = selected_positions[0]
-    u_p0: object = 1
-    for si in range(p0 + 1, len(shards)):
-        u_p0 = u_p0 * shards[si].extent
-    u_p0 = analyzer.simplify(u_p0)
-
-    if not _divides(u_p0, gmem_iter.shape, analyzer):
-        return False
-    if not _divides(u_p0, gmem_iter.copy_start, analyzer):
-        return False
-    return True
-
-
-def _build_segments(
-    gmem_iter: GmemIter, selected_positions: list, shards: list, analyzer: Analyzer
-) -> list:
-    """Cut the gmem axis into segments per the chain-prefix-selection rule.
-
-    Segments (outer→inner):
-      * Segment 0 (if j≥1): positions [0, p_0], extent G/u_{p_0},
-        stride s·u_{p_0}, copy_range [g_st/u_{p_0}, g_st/u_{p_0}+E_0).
-      * Segment i (i=1..j-1): positions [p_{i-1}+1, p_i], extent E_i,
-        stride s·u_{p_i}, copy_range [0, E_i).
-      * Trailing (if p_{j-1} < q-1): positions [p_{j-1}+1, q-1],
-        extent E_j, stride s·1, copy_range [0, E_j).
-      * j=0: single "trailing"-style segment covering the whole axis:
-        extent G, stride s, copy_range [copy_start, copy_start+copy_ext).
-    """
-    G = gmem_iter.shape
-    s = gmem_iter.stride
-    copy_start = gmem_iter.copy_start
-    copy_ext = gmem_iter.copy_ext
-    q = len(shards)
-
-    def _u_at(k: int) -> object:
-        """u_k = prod(shards[m].extent for m > k)."""
-        out: object = 1
-        for m in range(k + 1, q):
-            out = out * shards[m].extent
-        return analyzer.simplify(out)
-
-    # Helper: for a segment spanning positions [lo, hi] (inclusive), the
-    # unselected shards inside contribute issue axes on the segment's desc
-    # dim. Each contribution is (extent, coord_advance, smem_stride) where
-    # coord_advance (in the segment's desc coord units) = u_k / u_{hi}.
-    def _unselected_contribs(lo: int, hi: int) -> list:
-        u_hi = _u_at(hi)
-        out: list = []
-        for m in range(lo, hi + 1):
-            if m in selected_positions:
-                continue
-            u_m = _u_at(m)
-            coord_advance = (
-                analyzer.simplify(tvm.tirx.floordiv(u_m, u_hi))
-                if not analyzer.can_prove_equal(u_hi, 1)
-                else u_m
+            equal = _proof_equal(lhs, rhs, analyzer) == ProofStatus.PROVEN
+        if not equal:
+            fail(
+                f"tma_explicit src_selector[{index}] has incompatible {label}: "
+                f"main={lhs}, candidate={rhs}"
             )
-            out.append((shards[m].extent, coord_advance, shards[m].smem_stride))
-        return out
 
-    segments: list = []
 
-    if not selected_positions:
-        # Case 2 applied to entire axis. The "selected position" at the
-        # inner end is effectively q-1 with u=1, so unselected contribs
-        # keep their full u_m as coord_advance.
-        trailing_contribs = []
-        for m in range(q):
-            trailing_contribs.append((shards[m].extent, _u_at(m), shards[m].smem_stride))
-        segments.append(
-            Segment(
-                local_shape=G,
-                local_stride=s,
-                local_copy_start=copy_start,
-                local_copy_extent=copy_ext,
-                is_selected=False,
-                selected_shard_extent=1,
-                unselected_contribs=trailing_contribs,
-            )
-        )
-        return segments
+def _build_explicit_plan(op_call: TilePrimitiveCall, sctx: DispatchContext):
+    direction, shared_region, global_region = _copy_direction(op_call)
+    s_buf = shared_region.buffer
+    g_buf = global_region.buffer
+    runtime = _runtime_config(op_call, sctx, direction, explicit=True)
+    gather4 = _normalize_gather4(op_call.config.get("gather4"))
+    selectors = _normalize_src_selector(op_call.config.get("src_selector"))
+    if (gather4 or selectors) and direction != "g2s":
+        fail("tma_explicit gather4 and src_selector are only valid for global-to-shared")
+    if gather4 and len(g_buf.shape) != 2:
+        fail("tma_explicit gather4 requires a rank-2 global tensor")
 
-    j = len(selected_positions)
-    p_first = selected_positions[0]
-    p_last = selected_positions[-1]
+    s_starts, s_extents = _copy_region_parts(shared_region.region)
+    g_starts, g_extents = _copy_region_parts(global_region.region)
+    if gather4:
+        analyzer = Analyzer()
+        if _proof_equal(g_extents[0], 1, analyzer) == ProofStatus.DISPROVEN:
+            fail("tma_explicit gather4 global public axis 0 must describe one row")
+        if _proof_equal(s_extents[0], 4, analyzer) == ProofStatus.DISPROVEN:
+            fail("tma_explicit gather4 shared public axis 0 must describe four rows")
 
-    # Segment 0 (outermost selected segment: positions [0, p_0])
-    u_p0 = _u_at(p_first)
-    E0: object = 1
-    for m in range(0, p_first + 1):
-        E0 = E0 * shards[m].extent
-    E0 = analyzer.simplify(E0)
-
-    seg0_shape = analyzer.simplify(tvm.tirx.floordiv(G, u_p0))
-    seg0_stride = analyzer.simplify(s * u_p0)
-    seg0_copy_start = analyzer.simplify(tvm.tirx.floordiv(copy_start, u_p0))
-    segments.append(
-        Segment(
-            local_shape=seg0_shape,
-            local_stride=seg0_stride,
-            local_copy_start=seg0_copy_start,
-            local_copy_extent=E0,
-            is_selected=True,
-            selected_shard_extent=shards[p_first].extent,
-            unselected_contribs=_unselected_contribs(0, p_first),
-        )
+    try:
+        swizzle = get_swizzle_mode_from_layout(s_buf.layout)
+    except ValueError as error:
+        fail(f"tma_explicit stage=shared-swizzle: {error}")
+    if swizzle is None:
+        fail(f"tma_explicit cannot recognize shared swizzle in {s_buf.layout}")
+    shared_layout, smem_base_offset = _explicit_smem_layout(s_buf, s_starts, s_extents, swizzle)
+    main_spec = _explicit_spec_for_gmem(
+        g_buf=g_buf,
+        s_buf=s_buf,
+        s_starts=s_starts,
+        g_starts=g_starts,
+        g_extents=g_extents,
+        swizzle=swizzle,
+        runtime=runtime,
+        sctx=sctx,
+        gather4=gather4,
+        smem_base_offset=smem_base_offset,
     )
+    _validate_explicit(main_spec, "main-descriptor")
+    if gather4:
+        _validate_gather4_dst(s_buf, s_starts, s_extents, main_spec)
 
-    # Inner selected segments (i=1..j-1): positions [p_{i-1}+1, p_i]
-    for i in range(1, j):
-        lo = selected_positions[i - 1] + 1
-        hi = selected_positions[i]
-        Ei: object = 1
-        for m in range(lo, hi + 1):
-            Ei = Ei * shards[m].extent
-        Ei = analyzer.simplify(Ei)
-        u_pi = _u_at(hi)
-        segments.append(
-            Segment(
-                local_shape=Ei,
-                local_stride=analyzer.simplify(s * u_pi),
-                local_copy_start=0,
-                local_copy_extent=Ei,
-                is_selected=True,
-                selected_shard_extent=shards[hi].extent,
-                unselected_contribs=_unselected_contribs(lo, hi),
-            )
+    candidate_specs = []
+    for idx, (condition, candidate_buffer) in enumerate(selectors):
+        candidate = _explicit_spec_for_gmem(
+            g_buf=candidate_buffer,
+            s_buf=s_buf,
+            s_starts=s_starts,
+            g_starts=g_starts,
+            g_extents=g_extents,
+            swizzle=swizzle,
+            runtime=runtime,
+            sctx=sctx,
+            gather4=gather4,
+            smem_base_offset=smem_base_offset,
         )
-
-    # Trailing (if p_{j-1} < q-1): positions [p_{j-1}+1, q-1]
-    if p_last < q - 1:
-        Ej: object = 1
-        for m in range(p_last + 1, q):
-            Ej = Ej * shards[m].extent
-        Ej = analyzer.simplify(Ej)
-        # For trailing, every position is unselected; "selected u" at the
-        # inner end is u_{q-1} = 1, so coord_advance = u_m.
-        trailing_contribs = []
-        for m in range(p_last + 1, q):
-            trailing_contribs.append((shards[m].extent, _u_at(m), shards[m].smem_stride))
-        segments.append(
-            Segment(
-                local_shape=Ej,
-                local_stride=s,
-                local_copy_start=0,
-                local_copy_extent=Ej,
-                is_selected=False,
-                selected_shard_extent=1,
-                unselected_contribs=trailing_contribs,
-            )
-        )
-
-    return segments
-
-
-# ==============================================================================
-# L3: assembly + hardware constraint validation + shrink
-# ==============================================================================
-
-
-def _assemble_plan(
-    l1: L1Result, per_iter_selected: dict, chain: list, g_buf: Buffer, analyzer: Analyzer
-) -> TmaPlan:
-    """Build the final ``TmaPlan`` by stacking desc dims from all gmem iters.
-
-    Emission (natural) order:
-      * ext=1 gmem iters (in positional order) → one desc dim each (box=1).
-      * ext>1 gmem iters (in positional order): for each, segments in
-        outer→inner order produce desc dims; selected segments contribute
-        box>1 dims, trailing contributes a box=1 dim.
-
-    Then we **reorder** the desc dims so:
-      * All box=1 dims (ext=1 iters and trailing segments) come first, in
-        natural order.
-      * All box>1 dims (selected segments) come last, in the reverse of
-        the chain order — i.e. the outermost selected shard in the chain
-        walk becomes the outermost box>1 desc dim, and the innermost
-        selected shard (chain[0]) becomes the innermost desc dim. This
-        matches how the TMA hardware writes the tile into swizzled smem:
-        the innermost box dim (stride = 1 in gmem, ideally stride = 1 in
-        smem too) must align with the innermost smem atom axis.
-
-    Issue axes' ``dim_idx`` are remapped to the new positions.
-    """
-
-    dims_natural: list = []
-    origins: list = []  # parallel to dims_natural: 'ext1' | 'trailing' | ('selected', chain_idx)
-    issue_axes_natural: list = []
-
-    # --- First pass: ext=1 iters ---
-    for _, it in enumerate(l1.gmem_iters):
-        if not it.is_ext1:
-            continue
-        dims_natural.append(
-            DescDim(shape=it.shape, stride=it.stride, box=1, coord_base=it.copy_start)
-        )
-        origins.append("ext1")
-
-    # --- Second pass: ext>1 iters ---
-    for gi, group in enumerate(l1.smem_groups):
-        iter_idx = group.bound_gmem_iter_idx
-        gmem_iter = l1.gmem_iters[iter_idx]
-        shards = group.shards
-        selected_positions = per_iter_selected.get(gi, [])
-        segments = _build_segments(gmem_iter, selected_positions, shards, analyzer)
-
-        # For each selected position in this group, pre-compute its chain index.
-        selected_chain_idx: dict = {}
-        for p in selected_positions:
-            for ci, (cgi, csi) in enumerate(chain):
-                if cgi == gi and csi == p:
-                    selected_chain_idx[p] = ci
-                    break
-
-        for i_seg, seg in enumerate(segments):
-            dim_idx = len(dims_natural)
-            box = seg.selected_shard_extent if seg.is_selected else 1
-            dims_natural.append(
-                DescDim(
-                    shape=seg.local_shape,
-                    stride=seg.local_stride,
-                    box=box,
-                    coord_base=seg.local_copy_start,
-                )
-            )
-            if seg.is_selected:
-                # Selected segments are emitted in the same order as
-                # selected_positions (Segment 0 anchors p_0, etc.), so
-                # i_seg directly indexes selected_positions for selected
-                # segments. Trailing segments don't anchor any selection.
-                p_anchor = selected_positions[i_seg]
-                origins.append(("selected", selected_chain_idx[p_anchor]))
-            else:
-                origins.append("trailing")
-            # Segment's unselected shards become issue axes on this dim.
-            for extent, coord_advance, smem_stride in seg.unselected_contribs:
-                issue_axes_natural.append(
-                    IssueAxis(
-                        extent=extent,
-                        dim_idx=dim_idx,
-                        coord_advance=coord_advance,
-                        smem_stride=smem_stride,
-                    )
-                )
-
-    # --- Permute: box=1 first (natural order), box>1 last (chain DESC) ---
-    non_sel_indices = [
-        idx for idx, o in enumerate(origins) if not (isinstance(o, tuple) and o[0] == "selected")
-    ]
-    sel_entries = [
-        (idx, o[1]) for idx, o in enumerate(origins) if isinstance(o, tuple) and o[0] == "selected"
-    ]
-    sel_entries.sort(key=lambda x: -x[1])  # chain index descending = outer selected first
-    new_order = non_sel_indices + [idx for idx, _ in sel_entries]
-    old_to_new = {old: new for new, old in enumerate(new_order)}
-
-    dims = [dims_natural[old] for old in new_order]
-    issue_axes = [
-        IssueAxis(
-            extent=ax.extent,
-            dim_idx=old_to_new[ax.dim_idx],
-            coord_advance=ax.coord_advance,
-            smem_stride=ax.smem_stride,
-        )
-        for ax in issue_axes_natural
-    ]
-
-    elem_bytes = tvm.DataType(g_buf.dtype).bits // 8
-    plan = TmaPlan(
-        swizzle_mode=l1.swizzle_mode,
-        dims=dims,
-        issue_axes=issue_axes,
-        tensor_ptr=g_buf.data,
-        elem_bytes=elem_bytes,
-        elem_dtype=str(g_buf.dtype),
-    )
-    return _merge_contig_full_box_dims(plan, analyzer)
-
-
-def _plan_needs_alignment_fix(dims, elem_bytes, analyzer: Analyzer) -> bool:
-    """``True`` iff some non-innermost dim has a byte-stride that isn't a
-    multiple of 16. cuTensorMap rejects such descriptors; merge+promote is
-    the way out. If the plan already satisfies the constraint, leave it
-    alone — the natural shape is what kernels expect and what existing
-    codegen tests pin.
-    """
-    if len(dims) <= 1:
-        return False
-    for d in dims[:-1]:
-        byte_stride = analyzer.simplify(d.stride * elem_bytes)
-        if not analyzer.can_prove_equal(tvm.tirx.floormod(byte_stride, 16), 0):
-            return True
-    return False
-
-
-def _merge_contig_full_box_dims(plan: TmaPlan, analyzer: Analyzer) -> TmaPlan:
-    """Collapse adjacent fully-boxed dims that are physically contiguous.
-
-    Two adjacent dims ``outer`` (at i) and ``inner`` (at i+1) merge when ALL of:
-
-      1. Physically contiguous: ``outer.stride == inner.shape * inner.stride``.
-         Walking inner.shape elements at inner.stride lands exactly on the
-         next outer element, so the two dims jointly cover one stride-1 run.
-      2. Both fully boxed (``box == shape``).  A partial box is a strided
-         slice; flattening it would change which elements the descriptor
-         touches.
-      3. Runtime coord on each dim is provably 0.  The descriptor coord for
-         dim d at iteration t equals
-             d.coord_base + Σ(iter_val · ax.coord_advance for ax in issue_axes
-                              if ax.dim_idx == d)
-         For the merged dim's coord to be a constant 0 (matching the implicit
-         coord of the collapsed pair), both halves must satisfy:
-           * static term: ``coord_base == 0``,
-           * dynamic term: no ``IssueAxis`` binds this dim_idx.
-      4. Merged ``box <= 256`` (TMA hardware limit on boxDim).
-
-    Scan inner→outer (greedy from rank-2 down to 0) so the innermost stride
-    boundary is fixed first.
-
-    When a candidate pair is blocked solely by ``merged_box > 256`` and the
-    layout admits an element-type promotion (current ``elem_bytes < 8``,
-    innermost extent even, all non-innermost element-strides even, no
-    issue_axis on innermost), promote ``elem_bytes`` one step (x2), halve
-    the innermost extent/box and the non-innermost strides, and retry the
-    merge.  Promotion preserves byte-level semantics: byte-stride is
-    ``stride * elem_bytes`` and stays unchanged across promotion.
-
-    Repeats until no merges and no promotions are possible.  ``issue_axes``
-    dim indices are shifted to track removed dims; the innermost
-    ``coord_advance`` is also halved on each promotion (it's in element
-    units).
-    """
-    dims = list(plan.dims)
-    issue_axes = list(plan.issue_axes)
-    elem_bytes = plan.elem_bytes
-    elem_dtype = plan.elem_dtype
-
-    # Only attempt the merge+promote rewrite when the original plan
-    # already violates cuTensorMap's 16-byte non-innermost-stride rule.
-    # An aligned plan is left intact: descriptor shape matches the
-    # natural buffer layout, which is what users (and goldens) expect.
-    if not _plan_needs_alignment_fix(dims, elem_bytes, analyzer):
-        return plan
-
-    def has_issue_axis(idx):
-        return any(ax.dim_idx == idx for ax in issue_axes)
-
-    def shift_issue_axes_after_remove(axes, removed_i):
-        return [
-            IssueAxis(
-                extent=ax.extent,
-                dim_idx=ax.dim_idx if ax.dim_idx <= removed_i else ax.dim_idx - 1,
-                coord_advance=ax.coord_advance,
-                smem_stride=ax.smem_stride,
-            )
-            for ax in axes
-        ]
-
-    def try_merge_at(i, dims_, axes_):
-        outer, inner = dims_[i], dims_[i + 1]
-        if any(ax.dim_idx in (i, i + 1) for ax in axes_):
-            return None, None
-        if not analyzer.can_prove_equal(outer.coord_base, 0):
-            return None, None
-        if not analyzer.can_prove_equal(inner.coord_base, 0):
-            return None, None
-        if not analyzer.can_prove_equal(outer.box, outer.shape):
-            return None, None
-        if not analyzer.can_prove_equal(inner.box, inner.shape):
-            return None, None
-        if not analyzer.can_prove_equal(outer.stride, inner.shape * inner.stride):
-            return None, None
-        merged_box = analyzer.simplify(outer.box * inner.box)
-        if not analyzer.can_prove(merged_box <= 256):
-            # signal "blocked only by box>256" so caller can try promotion
-            return "blocked_box", merged_box
-        merged = DescDim(
-            shape=analyzer.simplify(outer.shape * inner.shape),
-            stride=inner.stride,
-            box=merged_box,
-            coord_base=0,
-        )
-        new_dims = [*dims_[:i], merged, *dims_[i + 2 :]]
-        new_axes = shift_issue_axes_after_remove(axes_, i)
-        return new_dims, new_axes
-
-    _PROMOTE_CHAIN = {1: ("uint16", 2), 2: ("uint32", 4), 4: ("uint64", 8)}
-
-    def try_promote(dims_, axes_, eb, edt):
-        if eb not in _PROMOTE_CHAIN:
-            return None
-        if not dims_:
-            return None
-        innermost_idx = len(dims_) - 1
-        if any(ax.dim_idx == innermost_idx for ax in axes_):
-            return None
-        inner = dims_[innermost_idx]
-        if not analyzer.can_prove_equal(inner.stride, 1):
-            return None
-        if not analyzer.can_prove_equal(tvm.tirx.floormod(inner.shape, 2), 0):
-            return None
-        for d in dims_[:-1]:
-            if not analyzer.can_prove_equal(tvm.tirx.floormod(d.stride, 2), 0):
-                return None
-        new_dtype, new_eb = _PROMOTE_CHAIN[eb]
-        new_dims = []
-        for j, d in enumerate(dims_):
-            if j == innermost_idx:
-                new_dims.append(
-                    DescDim(
-                        shape=analyzer.simplify(tvm.tirx.floordiv(d.shape, 2)),
-                        stride=d.stride,
-                        box=analyzer.simplify(tvm.tirx.floordiv(d.box, 2)),
-                        coord_base=analyzer.simplify(tvm.tirx.floordiv(d.coord_base, 2)),
-                    )
-                )
-            else:
-                new_dims.append(
-                    DescDim(
-                        shape=d.shape,
-                        stride=analyzer.simplify(tvm.tirx.floordiv(d.stride, 2)),
-                        box=d.box,
-                        coord_base=d.coord_base,
-                    )
-                )
-        new_axes = [
-            IssueAxis(
-                extent=ax.extent,
-                dim_idx=ax.dim_idx,
-                coord_advance=(
-                    analyzer.simplify(tvm.tirx.floordiv(ax.coord_advance, 2))
-                    if ax.dim_idx == innermost_idx
-                    else ax.coord_advance
-                ),
-                smem_stride=ax.smem_stride,
-            )
-            for ax in axes_
-        ]
-        return new_dims, new_axes, new_eb, new_dtype
-
-    while True:
-        # Greedy inner→outer merge sweep.
-        merged_any = False
-        blocked_by_box = False
-        for i in range(len(dims) - 2, -1, -1):
-            res, _info = try_merge_at(i, dims, issue_axes)
-            if res == "blocked_box":
-                blocked_by_box = True
-                continue
-            if res is not None:
-                dims, issue_axes = res, _info
-                merged_any = True
-                break
-        if merged_any:
-            continue
-        # Nothing merged this pass; try promotion if any pair was box-blocked.
-        if not blocked_by_box:
-            break
-        promoted = try_promote(dims, issue_axes, elem_bytes, elem_dtype)
-        if promoted is None:
-            break
-        dims, issue_axes, elem_bytes, elem_dtype = promoted
-
-    return TmaPlan(
-        swizzle_mode=plan.swizzle_mode,
-        dims=dims,
-        issue_axes=issue_axes,
-        tensor_ptr=plan.tensor_ptr,
-        elem_bytes=elem_bytes,
-        elem_dtype=elem_dtype,
+        _validate_explicit(candidate, f"src-selector[{idx}]")
+        _selector_compatibility(main_spec, candidate, idx)
+        candidate_specs.append((condition, candidate))
+    return (
+        TMAPlan(spec=main_spec, issue_axes=(), shared_layout=shared_layout),
+        tuple(candidate_specs),
     )
 
 
-def _validate_hw_constraints(plan: TmaPlan, dtype: str) -> tuple:
-    """Return ``(ok, reason)``. ``reason`` is the error string when ``ok`` is False."""
-    analyzer = Analyzer()
-
-    if plan.rank == 0:
-        return False, "TMA descriptor rank must be ≥ 1"
-    if plan.rank > 5:
-        return False, f"TMA descriptor rank {plan.rank} exceeds hardware limit of 5"
-
-    # Innermost dim stride must be 1 (unit stride).
-    inner = plan.dims[-1]
-    if not analyzer.can_prove_equal(inner.stride, 1):
-        return False, f"TMA innermost dim must have unit stride; got {inner.stride}"
-
-    # Innermost box times element size must fit the swizzle atom.
-    if not _swizzle_inner_box_fits(dtype, plan.swizzle_mode, inner.box):
-        return False, "TMA innermost box exceeds the swizzle atom size"
-
-    return True, ""
-
-
-def _build_plan_with_shrink(l1: L1Result, g_buf: Buffer, s_buf: Buffer) -> TmaPlan:
-    """Enumerate chain prefix length j from max down to 0, validate
-    alignment per gmem iter, build and validate the plan. Return the first
-    plan that passes everything. Raise when j=0 still fails.
-    """
-    analyzer = Analyzer()
-    chain = _find_contiguous_chain_prefix(l1.smem_groups)
-    max_j = len(chain)
-
-    # Empty-smem_groups case (all ext=1): the assembly still yields a
-    # valid plan (trivial desc dims).
-    if not l1.smem_groups:
-        plan = _assemble_plan(l1, {}, [], g_buf, analyzer)
-        ok, reason = _validate_hw_constraints(plan, s_buf.dtype)
-        if ok:
-            return plan
-        fail(f"TMA plan (no smem groups) failed hardware check: {reason}")
-
-    last_reason = "no valid plan"
-    for j in range(max_j, -1, -1):
-        per_iter_selected: dict = _distribute_selection(chain[:j], l1.smem_groups)
-
-        # Check alignment for each ext>1 iter.
-        aligned = True
-        for gi, group in enumerate(l1.smem_groups):
-            iter_idx = group.bound_gmem_iter_idx
-            sel = per_iter_selected.get(gi, [])
-            if not _check_alignment(l1.gmem_iters[iter_idx], sel, group.shards, analyzer):
-                aligned = False
-                last_reason = f"alignment fails for gmem iter {iter_idx} at j={j}"
-                break
-        if not aligned:
-            continue
-
-        plan = _assemble_plan(l1, per_iter_selected, chain[:j], g_buf, analyzer)
-        ok, reason = _validate_hw_constraints(plan, s_buf.dtype)
-        if ok:
-            return plan
-        last_reason = reason
-
-    fail(f"TMA plan: all chain prefix lengths rejected; last reason: {last_reason}")
-
-
-# ==============================================================================
-# Emit layer + entry point
-# ==============================================================================
-
-
-def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
-    """Lower global<->shared copy_async to TMA using the unified algorithm.
-
-    Emits a device-side unrolled loop over the flat issue-axis extent and
-    a host-side ``cuTensorMapEncodeTiled`` (deduped via cache key).
-    """
-    op_call = TilePrimitiveCall.downcast(op_call)
-    dst_buffer_region, src_buffer_region = op_call.dst, op_call.src
-    src: Buffer = src_buffer_region.buffer
-    dst: Buffer = dst_buffer_region.buffer
-
-    src_scope, dst_scope = src.scope(), dst.scope()
-    if src_scope == "global" and dst_scope.startswith("shared"):
-        direction = "g2s"
-        s_buf, g_buf = dst, src
-        shared_region, global_region = dst_buffer_region, src_buffer_region
-    elif src_scope.startswith("shared") and dst_scope == "global":
-        direction = "s2g"
-        s_buf, g_buf = src, dst
-        shared_region, global_region = src_buffer_region, dst_buffer_region
-    else:
-        raise ValueError(
-            f"Unsupported combination of src and dst scopes: src={src_scope} dst={dst_scope}"
-        )
-
-    g_st = [region.min for region in global_region.region]
-    g_ext = [region.extent for region in global_region.region]
-    s_st = [region.min for region in shared_region.region]
-    s_ext = [region.extent for region in shared_region.region]
-
-    oob_mode = _normalize_oob_mode(s_buf.dtype, op_call.config.get("oob", None))
-    oob_fill_kind = _oob_fill_kind(oob_mode)
-
-    # L1 → L2 → L3
-    l1 = _build_l1_result(s_buf, g_buf, g_st, g_ext, s_st, s_ext)
-    plan = _build_plan_with_shrink(l1, g_buf, s_buf)
-
-    # Optional descriptor dtype override. An fp32 buffer feeding a tf32 MMA should
-    # be loaded via a TFLOAT32 (== 11) descriptor so the TMA hardware RN-truncates
-    # fp32 -> tf32 ON LOAD (matching the MMA's operand precision and a torch
-    # allow_tf32 / DeepGEMM reference); leaving it as FLOAT32 loads full fp32 and
-    # the tf32 MMA then RZ-truncates, diverging by ~1 tf32 ULP. -1 = derive from
-    # the buffer dtype (the C++ ``runtime.cuTensorMapEncodeTiled`` default).
-    _TMA_DTYPE_TO_CU = {"tf32": 11, "tfloat32": 11}
-    _tma_dtype = op_call.config.get("tma_dtype", None)
-    if _tma_dtype is not None and _tma_dtype not in _TMA_DTYPE_TO_CU:
-        fail(f"Unsupported tma_dtype={_tma_dtype!r}; expected one of {sorted(_TMA_DTYPE_TO_CU)}")
-    if _tma_dtype is not None and plan.elem_dtype not in ("float32", "tfloat32"):
-        fail(f"tma_dtype={_tma_dtype!r} requires a float32 descriptor; got {plan.elem_dtype}")
-    force_cu_dtype = _TMA_DTYPE_TO_CU.get(_tma_dtype, -1)
-
-    # Direction / runtime-config bits that don't affect the plan itself.
-    cta_group = op_call.config.get("cta_group", None)
-    if cta_group is None:
-        cta_group = 1 if sctx.target.arch == "sm_100a" else -1
-
-    cta_mask = op_call.config.get("cta_mask", None)
-    if cta_mask is not None:
-        assert direction == "g2s", "cta_mask is only supported for global to shared copy"
-    else:
-        cta_mask = 0
-
-    if direction == "g2s":
-        mbar = op_call.config.get("mbar", None)
-        if mbar is None:
-            raise ValueError("mbar is not set in config")
-    use_tma_reduce = op_call.config.get("use_tma_reduce", None)
-
-    dtype_bytes = plan.elem_bytes
-    tma_global_strides = [stride * dtype_bytes for stride in plan.g_strides]
-    # cuTensorMap omits the last dim's stride (implicit element size).
-    tma_g_strides_for_map = tma_global_strides[:-1] if plan.rank > 1 else []
-    element_strides = [1] * plan.rank
-
-    flat_total_extent = plan.flatten_total_extent()
-
-    def compute_offsets_and_tma_coords(loop_var):
-        s_offset, coords = plan.offsets_and_coords(loop_var)
-        simplified = _simplify_with_var_ranges(
-            [s_offset, *coords], [(loop_var, flat_total_extent)], sctx
-        )
-        return simplified[0], reversed(simplified[1:])
-
-    def val_key(value) -> str:
-        return str(value)
-
-    tensormap_cache_key = (
-        f"tensormap:{hash(plan.tensor_ptr)}:{g_buf.dtype}:{val_key(plan.rank)}"
-        f":{tuple(val_key(v) for v in plan.shape)}"
-        f":{tuple(val_key(v) for v in tma_g_strides_for_map)}"
-        f":{tuple(val_key(v) for v in plan.box_dim)}"
-        f":{val_key(plan.swizzle_mode.value)}:{oob_fill_kind}:{force_cu_dtype}"
+def _descriptor_cache_key(spec: TensorMapSpec) -> str:
+    fields = (
+        spec.base_key,
+        spec.descriptor_dtype,
+        spec.descriptor_bits,
+        spec.force_cu_dtype,
+        spec.global_dims,
+        spec.global_strides,
+        spec.box_dims,
+        spec.element_strides,
+        spec.interleave,
+        spec.swizzle,
+        spec.l2_promotion,
+        spec.oob_fill,
     )
+    return "tensormap:" + ":".join(str(field) for field in fields)
 
-    cached_tensormap = sctx.cache_get(tensormap_cache_key)
-    if cached_tensormap is not None:
-        tensor_map = cached_tensormap
-        tensormap_is_cached = True
-    else:
-        tensor_map = T.Var(g_buf.data.name + "_tensormap", ty=T.handle("tensormap").ty)
-        tensormap_is_cached = False
+
+def _get_or_encode_descriptor(spec: TensorMapSpec, sctx: DispatchContext):
+    key = _descriptor_cache_key(spec)
+    cached = sctx.cache_get(key)
+    if cached is not None:
+        return cached, key
+
+    tensor_map = T.Var(f"{spec.descriptor_name}_tensormap", ty=T.handle("tensormap").ty)
 
     # fmt: off
     @T.prim_func(check_well_formed=False)
-    def impl():
-        for loop_vars in T.unroll(flat_total_extent):
-            s_offset, tma_coords = T.meta_var(compute_offsets_and_tma_coords(loop_vars))
-            s_buf_w_offset = T.decl_buffer(
-                s_buf.shape,
-                s_buf.dtype,
-                s_buf.data,
-                elem_offset=s_buf.elem_offset + s_offset,
-                scope=s_buf.scope(),
-                layout=_to_tile_layout(s_buf.layout, s_buf.shape),
-            )
-
-            if direction == "g2s":
-                T.ptx.cp_async.bulk.tensor.g2c(
-                    plan.rank,
-                    s_buf_w_offset.ptr_to(s_st),
-                    mbar,
-                    T.address_of(tensor_map),
-                    cta_mask,
-                    cta_group,
-                    op_call.config.get("cache_hint", ""),
-                    *tma_coords,
-                )
-            else:
-                if use_tma_reduce is None:
-                    T.ptx.cp_async.bulk.tensor.s2g(
-                        plan.rank,
-                        s_buf_w_offset.ptr_to(s_st),
-                        T.address_of(tensor_map),
-                        op_call.config.get("cache_hint", ""),
-                        *tma_coords,
-                    )
-                else:
-                    T.ptx.cp_async.bulk.tensor.s2g_reduce(
-                        plan.rank,
-                        s_buf_w_offset.ptr_to(s_st),
-                        T.address_of(tensor_map),
-                        op_call.config.get("cache_hint", ""),
-                        use_tma_reduce,
-                        *tma_coords,
-                    )
+    def create_tensor_map():
+        T.Bind(T.tvm_stack_alloca("tensormap", 1), var=tensor_map)
+        T.call_packed(
+            "runtime.cuTensorMapEncodeTiled",
+            tensor_map,
+            spec.descriptor_dtype,
+            spec.rank,
+            spec.base,
+            *spec.global_dims,
+            *spec.global_strides,
+            *spec.box_dims,
+            *spec.element_strides,
+            spec.interleave,
+            spec.swizzle,
+            spec.l2_promotion,
+            spec.oob_fill,
+            *([spec.force_cu_dtype] if spec.force_cu_dtype >= 0 else []),
+        )
+        T.tvm_kernel_replace_point()
     # fmt: on
 
-    if not tensormap_is_cached:
+    sctx.add_init_stmt(create_tensor_map.body, host=True)
+    sctx.cache_set(key, tensor_map)
+    return tensor_map, key
+
+
+def _prefetch_main_descriptor(tensor_map, key: str, sctx: DispatchContext) -> None:
+    cache_key = f"prefetch_tensormap:{key}"
+    if sctx.cache_get(cache_key) is not None:
+        return
+    if "warp_id_in_cta" not in sctx.launch_params:
+        fail("prefetch_tensormap requires warp_id_in_cta launch param")
+    warp_id = sctx.launch_params["warp_id_in_cta"].var
+
+    # fmt: off
+    @T.prim_func(check_well_formed=False)
+    def prefetch_tensor_map():
+        if warp_id == 0:
+            if T.ptx.elect_sync() != T.uint32(0):
+                T.ptx.prefetch_tensormap(T.address_of(tensor_map))
+        T.tvm_kernel_replace_point()
+    # fmt: on
+
+    sctx.add_init_stmt(prefetch_tensor_map.body)
+    sctx.cache_set(cache_key, tensor_map)
+
+
+def _selected_descriptor(main_map, candidate_maps):
+    if not candidate_maps:
+        return main_map, None, False
+    selected_expr = T.address_of(main_map)
+    for condition, candidate_map in reversed(candidate_maps):
+        selected_expr = tvm.tirx.Select(
+            condition,
+            T.address_of(candidate_map),
+            selected_expr,
+        )
+    selected = T.Var("selected_tensormap", "uint64")
+    return selected, tvm.tirx.Bind(selected, selected_expr), True
+
+
+def _emit_plan(
+    plan: TMAPlan,
+    tensor_map,
+    selector_bind,
+    tensor_map_is_address: bool,
+    sctx: DispatchContext,
+) -> PrimFunc:
+    spec = plan.spec
+    tensor_map_address = tensor_map if tensor_map_is_address else T.address_of(tensor_map)
+
+    def tma_coordinates(coordinates):
+        if spec.load_mode == "tile_gather4":
+            return [coordinates[0], *spec.gather4]
+        return list(coordinates)
+
+    def emit_at(shared_ptr, coordinates):
+        coords = tma_coordinates(coordinates)
+        if spec.direction == "g2s":
+            mbar_operand = (
+                T.cuda.cvta_generic_to_shared(spec.mbar) if spec.mbar_is_shared_addr else spec.mbar
+            )
+            T.evaluate(
+                T.ptx.cp_async.bulk.tensor.g2s_cluster(
+                    spec.rank,
+                    shared_ptr,
+                    mbar_operand,
+                    tensor_map_address,
+                    spec.cta_mask,
+                    spec.cta_group,
+                    spec.cache_hint,
+                    *coords,
+                    cache_policy=spec.cache_policy,
+                    load_mode=spec.load_mode,
+                    mbar_is_shared_addr=spec.mbar_is_shared_addr,
+                )
+            )
+        elif spec.use_tma_reduce is None:
+            T.evaluate(
+                T.ptx.cp_async.bulk.tensor.s2g(
+                    spec.rank,
+                    shared_ptr,
+                    tensor_map_address,
+                    spec.cache_hint,
+                    *coords,
+                    cache_policy=spec.cache_policy,
+                )
+            )
+        else:
+            T.evaluate(
+                T.ptx.cp_async.bulk.tensor.s2g_reduce(
+                    spec.rank,
+                    shared_ptr,
+                    tensor_map_address,
+                    spec.cache_hint,
+                    spec.use_tma_reduce,
+                    *coords,
+                    cache_policy=spec.cache_policy,
+                )
+            )
+
+    def shared_ptr(element_offset=0):
+        # Keep the sliced offset in the pointer index instead of the Buffer's
+        # elem_offset.  The latter is part of a flat DeclBuffer definition;
+        # after loop unrolling, CSE may otherwise lift an offset containing a
+        # locally bound coordinate above that coordinate's Bind statement.
+        smem_view = T.decl_buffer(
+            (1,),
+            spec.smem_buffer.dtype,
+            spec.smem_buffer.data,
+            elem_offset=0,
+            scope=spec.smem_buffer.scope(),
+        )
+        return smem_view.ptr_to([spec.smem_base_offset + element_offset])
+
+    if not plan.issue_axes:
         # fmt: off
         @T.prim_func(check_well_formed=False)
-        def create_tensor_map():
-            T.Bind(T.tvm_stack_alloca("tensormap", 1), var=tensor_map)
-            T.call_packed(
-                "runtime.cuTensorMapEncodeTiled",
-                tensor_map,
-                plan.elem_dtype,
-                plan.rank,
-                plan.tensor_ptr,
-                *reversed(plan.shape),
-                *reversed(tma_g_strides_for_map) if plan.rank > 1 else [],
-                *reversed(plan.box_dim),
-                *element_strides,
-                0,  # CU_TENSOR_MAP_INTERLEAVE_NONE
-                plan.swizzle_mode.value,
-                2,  # CU_TENSOR_MAP_L2_PROMOTION_L2_128B
-                oob_fill_kind,
-                # Append the dtype override ONLY when requested, so the default
-                # (derive-from-dtype) path emits a byte-identical encode call (the
-                # C++ wrapper treats the trailing arg as optional).
-                *([force_cu_dtype] if force_cu_dtype >= 0 else []),
-            )
-            T.tvm_kernel_replace_point()
+        def impl():
+            emit_at(shared_ptr(), spec.coordinates)
         # fmt: on
 
-        sctx.add_init_stmt(create_tensor_map.body, host=True)
-        sctx.cache_set(tensormap_cache_key, tensor_map)
+    else:
+        flat_extent = plan.issue_extent()
 
-    if bool(op_call.config.get("prefetch_tensormap", False)):
-        if "warp_id_in_cta" not in sctx.launch_params:
-            fail("tma prefetch_tensormap requires warp_id_in_cta launch param")
-        prefetch_cache_key = f"prefetch_tensormap:{tensormap_cache_key}"
-        if sctx.cache_get(prefetch_cache_key) is None:
-            warp_id_in_cta = sctx.launch_params["warp_id_in_cta"].var
+        # fmt: off
+        @T.prim_func(check_well_formed=False)
+        def impl():
+            for issue in T.unroll(flat_extent):
+                smem_offset, coordinates = T.meta_var(plan.offsets_and_coords(issue))
+                simplified = T.meta_var(
+                    _simplify_with_ranges(
+                        [smem_offset, *coordinates], [(issue, flat_extent)], sctx
+                    )
+                )
+                emit_at(
+                    shared_ptr(simplified[0]),
+                    simplified[1:],
+                )
+        # fmt: on
 
-            # fmt: off
-            @T.prim_func(check_well_formed=False)
-            def prefetch_tensor_map():
-                if warp_id_in_cta == 0:
-                    T.ptx.prefetch_tensormap(T.address_of(tensor_map))
-                T.tvm_kernel_replace_point()
-            # fmt: on
-
-            sctx.add_init_stmt(prefetch_tensor_map.body)
-            sctx.cache_set(prefetch_cache_key, tensor_map)
-
+    if selector_bind is not None:
+        body = tvm.tirx.SeqStmt([selector_bind, impl.body])
+        impl = PrimFunc([], body, ret_type=None, buffer_map={}).with_attr("global_symbol", "impl")
     return impl
 
 
-# Variant: copy_async/tma (priority=10). Applies at single-thread exec scope
-# on Hopper+ (SM90+) for global↔shared copies; DispatchFail otherwise.
+def copy_tma_auto_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+    """Lower one ``tma_auto`` call."""
+
+    plan = _build_auto_plan(op_call, sctx)
+    tensor_map, key = _get_or_encode_descriptor(plan.spec, sctx)
+    impl = _emit_plan(plan, tensor_map, None, False, sctx)
+    if bool(op_call.config.get("prefetch_tensormap", False)):
+        _prefetch_main_descriptor(tensor_map, key, sctx)
+    return impl
+
+
+def copy_tma_explicit_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+    """Lower one direct TensorMap and exactly one TMA instruction."""
+
+    plan, candidates = _build_explicit_plan(op_call, sctx)
+    main_map, main_key = _get_or_encode_descriptor(plan.spec, sctx)
+    candidate_maps = []
+    for condition, candidate_spec in candidates:
+        candidate_map, _ = _get_or_encode_descriptor(candidate_spec, sctx)
+        candidate_maps.append((condition, candidate_map))
+    selected_map, selector_bind, selected_is_address = _selected_descriptor(
+        main_map, candidate_maps
+    )
+    impl = _emit_plan(plan, selected_map, selector_bind, selected_is_address, sctx)
+    if bool(op_call.config.get("prefetch_tensormap", False)):
+        _prefetch_main_descriptor(main_map, main_key, sctx)
+    return impl
+
+
+def _validate_tma_copy_op(op_call: TilePrimitiveCall, _sctx: DispatchContext) -> bool:
+    dst_region, src_region = op_call.args[:2]
+    src = src_region.buffer
+    dst = dst_region.buffer
+    if src.layout is None or dst.layout is None:
+        return False
+    src_scope, dst_scope = src.scope(), dst.scope()
+    return (src_scope == "global" and dst_scope.startswith("shared")) or (
+        src_scope.startswith("shared") and dst_scope == "global"
+    )
+
+
+_COMMON_PREDICATES = [
+    predicate(
+        "validate_tma_copy_op",
+        lambda op, sctx: (_validate_tma_copy_op(op, sctx), "not a global<->shared TMA copy"),
+    ),
+    predicate(
+        "single_thread",
+        lambda op, sctx: (
+            single_thread(op, sctx),
+            f"unsupported exec_scope {sctx.exec_scope}, expected single thread",
+        ),
+    ),
+]
+
+
 @register_dispatch(
     "copy_async",
     "cuda",
-    variant="tma",
+    variant="tma_auto",
     priority=10,
-    when=[
-        predicate(
-            "validate_copy_op", lambda op, sctx: (validate_copy_op(op, sctx), "not a valid copy op")
-        ),
-        predicate(
-            "single_thread",
-            lambda op, sctx: (
-                single_thread(op, sctx),
-                f"unsupported exec_scope {sctx.exec_scope}, expected single thread",
-            ),
-        ),
-    ],
+    when=_COMMON_PREDICATES,
 )
-def copy_async_dispatch_tma(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
-    return copy_tma_impl(op, sctx)
+def copy_async_dispatch_tma_auto(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+    return copy_tma_auto_impl(op, sctx)
+
+
+@register_dispatch(
+    "copy_async",
+    "cuda",
+    variant="tma_explicit",
+    priority=10,
+    when=_COMMON_PREDICATES,
+)
+def copy_async_dispatch_tma_explicit(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+    return copy_tma_explicit_impl(op, sctx)

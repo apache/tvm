@@ -38,23 +38,81 @@ from ._schema import device_intrinsic
 from .registry import CODEGEN_REGISTRY, register_codegen
 from .utils import parse_str
 
+# __ldg — typed read-only cached load. Source is ``void*`` so callers may pass
+# a typed pointer or handle_add_byte_offset result; the helper casts per ``dtype``.
+_CUDA_LDG_CTYPES = {
+    "int8": "signed char",
+    "uint8": "unsigned char",
+    "int16": "short",
+    "uint16": "unsigned short",
+    "int32": "int",
+    "uint32": "unsigned int",
+    "int64": "long long",
+    "uint64": "unsigned long long",
+    "float16": "half",
+    "bfloat16": "nv_bfloat16",
+    "float32": "float",
+    "float64": "double",
+}
 
-# =============================================================================
-# __ldg — templated read-only cached load; ``T`` resolved at call time from
-# the ``dtype`` argument. Hand-written because the helper signature uses a
-# template parameter for both arg and return.
-# =============================================================================
+_CUDA_LDG_VECTOR_CTYPES = {
+    "int32": "int",
+    "uint32": "unsigned int",
+    "float32": "float",
+}
+_CUDA_LDG_VECTOR_BASES = {"int32": "int", "uint32": "uint", "float32": "float"}
+
+
+def _cuda_ldg_suffix(dtype: str) -> str:
+    return dtype.replace("float", "f").replace("uint", "u").replace("int", "i")
+
+
 @register_codegen("cuda_ldg")
-def codegen_cuda_ldg(addr, dtype):
-    dtype = DataType(parse_str(dtype))
-    func_name = "tvm_builtin_cuda_ldg"
-    source_code = f"""
-template <typename T>
-__forceinline__ __device__ T {func_name}(T* src) {{
-    return __ldg(src);
+def codegen_cuda_ldg(*args):
+    if len(args) == 2:
+        addr, dtype = args
+        dtype = str(DataType(parse_str(dtype)))
+        if dtype not in _CUDA_LDG_CTYPES:
+            raise ValueError(f"Unsupported CUDA __ldg dtype {dtype!r}")
+        c_type = _CUDA_LDG_CTYPES[dtype]
+        func_name = f"tvm_builtin_cuda_ldg_{_cuda_ldg_suffix(dtype)}"
+        source_code = f"""
+__forceinline__ __device__ {c_type} {func_name}(void* src) {{
+    return __ldg(reinterpret_cast<const {c_type}*>(src));
 }}
 """
-    return cuda_func_call(func_name, addr, source_code=source_code, return_type=dtype)
+        return cuda_func_call(func_name, addr, source_code=source_code, return_type=dtype)
+
+    if len(args) < 5:
+        raise ValueError(f"cuda_ldg expects 2 args or vector form, got {len(args)}")
+    *dsts, addr, dtype, vec, dst_count = args
+    dtype = str(DataType(parse_str(dtype)))
+    vec = parse_str(vec)
+    dst_count = _int_attr(dst_count)
+    vec_len = int(vec[1:]) if vec else 1
+    if dtype not in _CUDA_LDG_VECTOR_CTYPES:
+        raise ValueError(f"Unsupported vector CUDA __ldg dtype {dtype!r}")
+    if vec not in ("v2", "v4") or dst_count != vec_len or len(dsts) != vec_len:
+        raise ValueError(
+            f"vector CUDA __ldg expects dst_count=len(dsts)=vec_len for v2/v4, "
+            f"got vec={vec!r}, dst_count={dst_count}, len(dsts)={len(dsts)}"
+        )
+    c_type = _CUDA_LDG_VECTOR_CTYPES[dtype]
+    vec_type = f"{_CUDA_LDG_VECTOR_BASES[dtype]}{vec_len}"
+    members = ("x", "y", "z", "w")[:vec_len]
+    func_name = f"tvm_builtin_cuda_ldg_{_cuda_ldg_suffix(dtype)}_{vec}_to_dst{dst_count}"
+    params = ", ".join(f"void* dst{i}" for i in range(vec_len))
+    stores = "\n".join(
+        f"    *reinterpret_cast<{c_type}*>(dst{i}) = v.{member};"
+        for i, member in enumerate(members)
+    )
+    source_code = f"""
+__forceinline__ __device__ void {func_name}({params}, void* src) {{
+    {vec_type} v = __ldg(reinterpret_cast<const {vec_type}*>(src));
+{stores}
+}}
+"""
+    return cuda_func_call(func_name, *dsts, addr, source_code=source_code, return_type="void")
 
 
 # Shared PTX scalar type metadata (ld/st/red/atom).
@@ -85,6 +143,35 @@ _PTX_VEC_STORE_TYPE = {
     2: "unsigned short",
     1: "unsigned char",
 }
+_PTX_ST_SRC_CTYPES = {
+    "b8": "unsigned char",
+    "u8": "unsigned char",
+    "s8": "signed char",
+    "b16": "unsigned short",
+    "u16": "unsigned short",
+    "s16": "short",
+    "b32": "unsigned int",
+    "u32": "unsigned int",
+    "s32": "int",
+    "b64": "unsigned long long",
+    "u64": "unsigned long long",
+    "s64": "long long",
+    "f32": "float",
+    "f64": "double",
+}
+_PTX_ST_SRC_VECTOR_CTYPES = {
+    "b8": "uchar",
+    "u8": "uchar",
+    "s8": "char",
+    "b16": "ushort",
+    "u16": "ushort",
+    "s16": "short",
+    "b32": "uint",
+    "u32": "uint",
+    "s32": "int",
+    "f32": "float",
+    "f64": "double",
+}
 
 
 def _safe_attr(value):
@@ -113,6 +200,8 @@ def _type_info(ptx_type):
 # PTX ld forms (ISA table entries registered via ``ptx_ld`` and siblings):
 #   ld{.weak}{.ss}{.cop}{.level::cache_hint}{.level::prefetch_size}{.vec}.type  d, [a]{, cache-policy};
 #   ld{.weak}{.ss}{.level1::eviction_priority}{.level2::eviction_priority}{.level::cache_hint}{.level::prefetch_size}{.vec}.type  d, [a]{, cache-policy};
+#   ld.global{.cop}.nc{.level::cache_hint}{.level::prefetch_size}{.vec}.type  d, [a]{, cache-policy};
+#   ld.global.nc{.level1::eviction_priority}{.level2::eviction_priority}{.level::cache_hint}{.level::prefetch_size}{.vec}.type  d, [a]{, cache-policy};
 #   ld.volatile{.ss}{.level::prefetch_size}{.vec}.type  d, [a];
 #   ld.relaxed.scope{.ss}{.level1::eviction_priority}{.level2::eviction_priority}{.level::cache_hint}{.level::prefetch_size}{.vec}.type  d, [a]{, cache-policy};
 #   ld.acquire.scope{.ss}{.level1::eviction_priority}{.level2::eviction_priority}{.level::cache_hint}{.level::prefetch_size}{.vec}.type  d, [a]{, cache-policy};
@@ -123,6 +212,7 @@ _PTX_LD_SPACES = {"global", "shared", "shared::cta", "shared::cluster", "local"}
 _PTX_LD_VOLATILE_SPACES = _PTX_LD_SPACES | {"const"}
 _PTX_LD_WEAK_SPACES = _PTX_LD_SPACES | {"const", "param::entry", "param::func"}
 _PTX_LD_COPS = {"", "ca", "cg", "cs", "lu", "cv"}
+_PTX_LD_GLOBAL_NC_COPS = {"", "ca", "cg", "cs"}
 _PTX_VEC = {"", "v2", "v4", "v8"}
 _PTX_L1_EVICT = {
     "",
@@ -138,6 +228,10 @@ _PTX_PREFETCH = {"", "L2::64B", "L2::128B", "L2::256B"}
 
 def _bool_attr(value):
     return bool(int(value)) if hasattr(value, "value") else bool(value)
+
+
+def _int_attr(value):
+    return int(value.value) if hasattr(value, "value") else int(value)
 
 
 def _parse_ld_attrs(return_dtype, ptx_type, scope=None, space="global"):
@@ -189,6 +283,21 @@ def _ptx_level_suffix(has_cache, l1_evict, l2_evict, prefetch_size):
     return suffix
 
 
+def _ptx_global_nc_level_suffix(has_cache, l1_evict, l2_evict, prefetch_size):
+    suffix = ""
+    l1_evict = parse_str(l1_evict)
+    l2_evict = parse_str(l2_evict)
+    prefetch_size = parse_str(prefetch_size)
+    if l1_evict:
+        suffix += f".{l1_evict}"
+    if l2_evict:
+        suffix += f".{l2_evict}"
+    suffix += _cache_suffix("cache" if has_cache else "")
+    if prefetch_size:
+        suffix += f".{prefetch_size}"
+    return suffix
+
+
 def _ptx_shared_addr(space, ptr_name="address"):
     if parse_str(space).startswith("shared"):
         return (
@@ -198,21 +307,41 @@ def _ptx_shared_addr(space, ptr_name="address"):
     return "", f'"l"({ptr_name})'
 
 
-def _ptx_ld_vec_store(num_bytes, vec_len, ptx_type):
+def _ptx_addr_operand(space, ptr_name, raw_address):
+    if raw_address:
+        return "", f'"r"({ptr_name})'
+    return _ptx_shared_addr(space, ptr_name)
+
+
+def _is_raw_u32_address(address):
+    return str(address.ty) == "uint32"
+
+
+def _ptx_ld_signature(dst_count, vec_len, raw_address):
+    address_type = "unsigned int" if raw_address else "void*"
+    if dst_count == 1:
+        return f"(void* dst_ptr, {address_type} src_ptr, unsigned long long cache_policy)"
+    if dst_count == vec_len:
+        dst_params = ", ".join(f"void* dst{i}" for i in range(vec_len))
+        return f"({dst_params}, {address_type} src_ptr, unsigned long long cache_policy)"
+    raise ValueError(f"PTX ld dst count must be 1 or vec_len={vec_len}, got {dst_count}")
+
+
+def _ptx_ld_vec_store(num_bytes, vec_len, ptx_type, c_type, dst_count):
     if ptx_type == "u8" and vec_len == 1:
         return "    *reinterpret_cast<unsigned char*>(dst_ptr) = static_cast<unsigned char>(r0);"
-    store_type = _PTX_VEC_STORE_TYPE[num_bytes]
-    if vec_len > 1:
-        return (
-            f"    *reinterpret_cast<{store_type}*>(dst_ptr) = "
-            + "{"
-            + ", ".join(f"r{i}" for i in range(vec_len))
-            + "};"
+    if dst_count == vec_len and vec_len > 1:
+        return "\n".join(
+            f"    *reinterpret_cast<{c_type}*>(dst{i}) = r{i};" for i in range(vec_len)
         )
+    if vec_len > 1:
+        stores = "".join(f"    dst[{i}] = r{i};\n" for i in range(vec_len))
+        return f"    {c_type}* dst = reinterpret_cast<{c_type}*>(dst_ptr);\n{stores}".rstrip()
+    store_type = _PTX_VEC_STORE_TYPE[num_bytes]
     return f"    *reinterpret_cast<{store_type}*>(dst_ptr) = r0;"
 
 
-def _ptx_ld_form_parts(form, attr_args):
+def _ptx_ld_form_parts(form, attr_args, raw_address):
     if form == "weak":
         (
             return_dtype,
@@ -264,6 +393,19 @@ def _ptx_ld_form_parts(form, attr_args):
         return_dtype, sem, scope, space, ptx_type, to_dst = attr_args
         weak, cop, vec = False, "", ""
         has_cache_hint, l1_evict, l2_evict, prefetch_size = False, "", "", ""
+    elif form == "global_nc":
+        (
+            return_dtype,
+            cop,
+            vec,
+            ptx_type,
+            has_cache_hint,
+            to_dst,
+            l1_evict,
+            l2_evict,
+            prefetch_size,
+        ) = attr_args
+        sem, scope, weak, space = "", "", False, "global"
     else:
         raise ValueError(f"unknown ld form {form!r}")
 
@@ -280,8 +422,11 @@ def _ptx_ld_form_parts(form, attr_args):
     prefetch_size = parse_str(prefetch_size)
     weak = _bool_attr(weak)
     has_cache = _bool_attr(has_cache_hint)
-    to_dst = _bool_attr(to_dst)
-    if cop and cop not in _PTX_LD_COPS:
+    to_dst = _int_attr(to_dst)
+    if form == "global_nc":
+        if cop and cop not in _PTX_LD_GLOBAL_NC_COPS:
+            raise ValueError(f"Unsupported PTX ld.global.nc cache operation {cop!r}")
+    elif cop and cop not in _PTX_LD_COPS:
         raise ValueError(f"Unsupported PTX ld cache operation {cop!r}")
     if vec and vec not in _PTX_VEC:
         raise ValueError(f"Unsupported PTX ld vector modifier {vec!r}")
@@ -295,6 +440,10 @@ def _ptx_ld_form_parts(form, attr_args):
         if sem not in ("acquire", "relaxed") or scope != "sys" or space != "global":
             raise ValueError("ld.mmio requires sem in {acquire, relaxed}, scope=sys, space=global")
         prefix = f"ld.mmio.{sem}.{scope}"
+    elif form == "global_nc":
+        if cop and (l1_evict or l2_evict):
+            raise ValueError("ld.global.nc with cop cannot use l1_evict or l2_evict")
+        prefix = f"ld.global{_dot(cop)}.nc"
     elif form == "relaxed":
         if not scope:
             raise ValueError("ld.relaxed requires scope")
@@ -311,7 +460,11 @@ def _ptx_ld_form_parts(form, attr_args):
     else:
         _validate_ld_space(space, _PTX_LD_WEAK_SPACES)
         prefix = f"ld{'.weak' if weak else ''}{_dot(space)}{_dot(cop)}"
-    level = _ptx_level_suffix(has_cache, l1_evict, l2_evict, prefetch_size)
+    level = (
+        _ptx_global_nc_level_suffix(has_cache, l1_evict, l2_evict, prefetch_size)
+        if form == "global_nc"
+        else _ptx_level_suffix(has_cache, l1_evict, l2_evict, prefetch_size)
+    )
     vec_len = int(vec[1:]) if vec else 1
     if vec and not to_dst:
         raise ValueError("vector ld requires to_dst")
@@ -325,23 +478,32 @@ def _ptx_ld_form_parts(form, attr_args):
         else 4
     )
     num_bytes = vec_len * elem_bytes if vec else elem_bytes
-    name_parts = [
-        "tvm_builtin_ptx_ld",
-        form if form != "weak" else ("weak" if weak else "plain"),
-    ]
-    if sem:
-        name_parts.append(_safe_attr(sem))
-    if scope:
-        name_parts.append(_safe_attr(scope))
-    name_parts.extend(
-        [
-            _safe_attr(space),
+    if form == "global_nc":
+        name_parts = [
+            "tvm_builtin_ptx_ld_global_nc",
             _safe_attr(cop) if cop else "",
             _safe_attr(vec) if vec else "",
             ptx_type,
-            return_dtype if not to_dst else "to_dst",
+            return_dtype if not to_dst else ("to_dst" if to_dst == 1 else f"to_dst{to_dst}"),
         ]
-    )
+    else:
+        name_parts = [
+            "tvm_builtin_ptx_ld",
+            form if form != "weak" else ("weak" if weak else "plain"),
+        ]
+        if sem:
+            name_parts.append(_safe_attr(sem))
+        if scope:
+            name_parts.append(_safe_attr(scope))
+        name_parts.extend(
+            [
+                _safe_attr(space),
+                _safe_attr(cop) if cop else "",
+                _safe_attr(vec) if vec else "",
+                ptx_type,
+                return_dtype if not to_dst else ("to_dst" if to_dst == 1 else f"to_dst{to_dst}"),
+            ]
+        )
     if has_cache:
         name_parts.append("cache_hint")
     if l1_evict:
@@ -350,10 +512,16 @@ def _ptx_ld_form_parts(form, attr_args):
         name_parts.append(_safe_attr(l2_evict))
     if prefetch_size:
         name_parts.append(_safe_attr(prefetch_size))
+    if raw_address:
+        name_parts.append("raw_u32")
     name = "_".join(p for p in name_parts if p)
     cache_operand = ', "l"(cache_policy)' if has_cache else ""
-    addr_decl, addr_operand = _ptx_shared_addr(space, "src_ptr" if to_dst else "address")
+    addr_decl, addr_operand = _ptx_addr_operand(
+        space, "src_ptr" if to_dst else "address", raw_address
+    )
     if to_dst:
+        if to_dst not in (1, vec_len):
+            raise ValueError(f"PTX ld dst count must be 1 or vec_len={vec_len}, got {to_dst}")
         reg_decls = "".join(f"    {c_type} r{i};\n" for i in range(vec_len))
         if vec_len > 1:
             out_slot = "{" + ", ".join(f"%{i}" for i in range(vec_len)) + "}"
@@ -370,11 +538,11 @@ def _ptx_ld_form_parts(form, attr_args):
             f'    asm volatile("{instr} {out_slot}, [%{addr_idx}]{cache_slot};"\n'
             f"                 : {out_constraints}\n"
             f"                 : {addr_operand}{cache_operand});\n"
-            f"{_ptx_ld_vec_store(num_bytes, vec_len, ptx_type)}"
+            f"{_ptx_ld_vec_store(num_bytes, vec_len, ptx_type, c_type, to_dst)}"
         )
         return (
             name,
-            "(void* dst_ptr, void* src_ptr, unsigned long long cache_policy)",
+            _ptx_ld_signature(to_dst, vec_len, raw_address),
             "void",
             "",
             body,
@@ -389,15 +557,22 @@ def _ptx_ld_form_parts(form, attr_args):
         f"                 : {addr_operand}{cache_operand});\n"
         "    return ret;"
     )
+    address_type = "unsigned int" if raw_address else "void*"
     sig = (
-        "(void* address, unsigned long long cache_policy)" if form == "weak" else "(void* address)"
+        f"({address_type} address, unsigned long long cache_policy)"
+        if form in ("weak", "global_nc")
+        else f"({address_type} address)"
     )
     return name, sig, c_type, return_dtype, body
 
 
 def _register_ptx_ld(op_name, form, n_attrs):
     def _parts(*args):
-        return _ptx_ld_form_parts(form, args[-n_attrs:])
+        attrs = args[-n_attrs:]
+        forward = args[:-n_attrs]
+        # The weak ld form always forwards (..., address, cache_policy).
+        raw_address = form == "weak" and _is_raw_u32_address(forward[-2])
+        return _ptx_ld_form_parts(form, attrs, raw_address)
 
     device_intrinsic(
         op_name,
@@ -413,6 +588,7 @@ def _register_ptx_ld(op_name, form, n_attrs):
 
 
 _register_ptx_ld("ptx_ld", "weak", 11)
+_register_ptx_ld("ptx_ld_global_nc", "global_nc", 9)
 _register_ptx_ld("ptx_ld_relaxed", "relaxed", 10)
 _register_ptx_ld("ptx_ld_acquire", "acquire", 10)
 _register_ptx_ld("ptx_ld_volatile", "volatile", 6)
@@ -740,18 +916,28 @@ _PTX_ST_COPS = {"", "wb", "cg", "cs", "wt"}
 _PTX_ST_SPACES = {"global", "shared", "shared::cta", "shared::cluster", "local", "param::func"}
 
 
-def _ptx_st_load_src(num_bytes, vec_len, ptx_type, c_type):
-    if ptx_type == "u8" and vec_len == 1:
-        return "    unsigned int r0 = *reinterpret_cast<unsigned char*>(src_ptr);\n"
-    store_type = _PTX_VEC_STORE_TYPE[num_bytes]
+def _ptx_st_load_src(_num_bytes, vec_len, ptx_type, c_type):
+    src_c_type = _PTX_ST_SRC_CTYPES[ptx_type]
+
+    def _assign(dst, src):
+        if src_c_type == c_type:
+            return f"    {c_type} {dst} = {src};\n"
+        return f"    {c_type} {dst} = static_cast<{c_type}>({src});\n"
+
     if vec_len > 1:
-        return f"    {store_type} src_ = *reinterpret_cast<{store_type}*>(src_ptr);\n" + "".join(
-            f"    {c_type} r{i} = src_.{c};\n" for i, c in enumerate("xyzw"[:vec_len])
-        )
-    return f"    {c_type} r0 = *reinterpret_cast<{c_type}*>(src_ptr);\n"
+        vec_base = _PTX_ST_SRC_VECTOR_CTYPES.get(ptx_type)
+        if vec_base is not None and vec_len in (2, 3, 4):
+            vec_type = f"{vec_base}{vec_len}"
+            loads = "".join(_assign(f"r{i}", f"src_.{c}") for i, c in enumerate("xyzw"[:vec_len]))
+            return f"    {vec_type} src_ = *reinterpret_cast<{vec_type}*>(src_ptr);\n{loads}"
+
+        loads = "".join(_assign(f"r{i}", f"src[{i}]") for i in range(vec_len))
+        return f"    {src_c_type}* src = reinterpret_cast<{src_c_type}*>(src_ptr);\n{loads}"
+
+    return _assign("r0", f"*reinterpret_cast<{src_c_type}*>(src_ptr)")
 
 
-def _ptx_st_form_parts(form, attr_args, from_src):
+def _ptx_st_form_parts(form, attr_args, from_src, raw_address):
     if form == "weak":
         weak, space, cop, vec, ptx_type, has_cache_hint, l1_evict, l2_evict = attr_args
         sem, scope = "", ""
@@ -781,6 +967,45 @@ def _ptx_st_form_parts(form, attr_args, from_src):
     l2_evict = parse_str(l2_evict)
     weak = _bool_attr(weak)
     has_cache = _bool_attr(has_cache_hint)
+    ptx_type = parse_str(ptx_type)
+    if ptx_type == "b128":
+        # The b128 form mirrors the FlashMLA dequantization store exactly.
+        # Its source pointer materializes one scalar 128-bit register for the
+        # PTX ``q`` constraint.  Unlike generic scalar/vector stores, this is
+        # weak shared::cta only, accepts no cache policy, and deliberately
+        # omits a memory clobber to preserve the source dependency shape.
+        if not (
+            form == "weak"
+            and weak
+            and space == "shared::cta"
+            and not cop
+            and not vec
+            and from_src
+            and not has_cache
+            and not l1_evict
+            and not l2_evict
+        ):
+            raise ValueError(
+                "PTX st.b128 requires src=, weak=True, space='shared::cta', "
+                "and no cache/vector modifiers"
+            )
+        name = "tvm_builtin_ptx_st_weak_shared_cta_b128_from_src"
+        if raw_address:
+            name += "_raw_u32"
+        address_type = "unsigned int" if raw_address else "void*"
+        addr_decl, addr_operand = _ptx_addr_operand(space, "address", raw_address)
+        body = (
+            f"{addr_decl}"
+            "    unsigned __int128 value = *reinterpret_cast<unsigned __int128*>(src_ptr);\n"
+            '    asm volatile("st.weak.shared::cta.b128 [%0], %1;"\n'
+            "                 :\n"
+            f'                 : {addr_operand}, "q"(value));'
+        )
+        return (
+            name,
+            (f"({address_type} address, void* src_ptr, unsigned long long cache_policy)"),
+            body,
+        )
     ptx_type, c_type, constraint, _tvm_dtype = _type_info(ptx_type)
     if cop and cop not in _PTX_ST_COPS:
         raise ValueError(f"Unsupported PTX st cache operation {cop!r}")
@@ -834,12 +1059,15 @@ def _ptx_st_form_parts(form, attr_args, from_src):
     )
     if has_cache:
         name_parts.append("cache_hint")
+    if raw_address:
+        name_parts.append("raw_u32")
     name = "_".join(p for p in name_parts if p)
     values = f"{{{', '.join(f'%{i + 1}' for i in range(vec_len))}}}" if vec_len > 1 else "%1"
     value_constraints = "".join(f', "{constraint}"(value{i})' for i in range(vec_len))
     cache_slot = f", %{vec_len + 1}" if has_cache else ""
     cache_operand = ', "l"(cache_policy)' if has_cache else ""
-    addr_decl, addr_operand = _ptx_shared_addr(space, "address")
+    addr_decl, addr_operand = _ptx_addr_operand(space, "address", raw_address)
+    address_type = "unsigned int" if raw_address else "void*"
     if from_src:
         load_regs = _ptx_st_load_src(num_bytes, vec_len, ptx_type, c_type)
         if vec_len > 1:
@@ -855,9 +1083,9 @@ def _ptx_st_form_parts(form, attr_args, from_src):
             '                 : "memory");'
         )
         if use_cache_policy:
-            sig = "(void* address, void* src_ptr, unsigned long long cache_policy)"
+            sig = f"({address_type} address, void* src_ptr, unsigned long long cache_policy)"
         else:
-            sig = "(void* address, void* src_ptr)"
+            sig = f"({address_type} address, void* src_ptr)"
     else:
         body = (
             f"{addr_decl}"
@@ -867,22 +1095,23 @@ def _ptx_st_form_parts(form, attr_args, from_src):
             '                 : "memory");'
         )
         if form == "mmio":
-            sig = f"(void* address, {c_type} value0)"
+            sig = f"({address_type} address, {c_type} value0)"
         elif use_cache_policy:
             value_params = ", ".join(f"{c_type} value{i}" for i in range(vec_len))
-            sig = f"(void* address, {value_params}, unsigned long long cache_policy)"
+            sig = f"({address_type} address, {value_params}, unsigned long long cache_policy)"
         else:
             value_params = ", ".join(f"{c_type} value{i}" for i in range(vec_len))
-            sig = f"(void* address, {value_params})"
+            sig = f"({address_type} address, {value_params})"
     return name, sig, body
 
 
-def _register_ptx_st(op_name, form, n_attrs, *, with_cache_policy=True):
+def _register_ptx_st(op_name, form, n_attrs):
     def codegen(*args):
         from_src = _bool_attr(args[-1])
         st_attrs = args[-n_attrs:-1]
-        parts = _ptx_st_form_parts(form, st_attrs, from_src)
         forward = args[:-(n_attrs)]
+        raw_address = form == "weak" and _is_raw_u32_address(forward[0])
+        parts = _ptx_st_form_parts(form, st_attrs, from_src, raw_address)
         name, sig, body_str = parts
         source_code = f"\n__forceinline__ __device__ void {name}{sig} {{\n{body_str}\n}}\n"
         return cuda_func_call(name, *forward, source_code=source_code)

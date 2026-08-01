@@ -19,13 +19,13 @@
 import functools
 from collections.abc import Callable
 
+import tvm
 import tvm.tirx.operator as tirx_op
 from tvm.ir import Op
-from tvm.tirx import Buffer, BufferRegion, Expr, buffer_data, is_buffer_var
+from tvm.tirx import Buffer, BufferRegion, Expr, LambdaExpr, buffer_data, is_buffer_var
 from tvm.tirx.exec_scope import _SCOPE_KIND_TO_NAME, ExecScope
-from tvm.tirx.expr import FloatImm
-from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool, TMEMStages
-from tvm.tirx.predicate import Predicate
+from tvm.tirx.expr import FloatImm, IntImm
+from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool
 
 from . import _ffi_api, frame
 from .ir import decl_buffer, meta_class
@@ -489,6 +489,98 @@ def cast(
     )
 
 
+def _check_copy_regions_match(dst, src, config, name, dispatch=None):
+    """Enforce that plain copy operands cover identical regions.
+
+    A plain copy is elementwise between two regions over one shared logical
+    iteration space; after dropping extent-1 dims the two region shapes must
+    be identical (same rank, same extent per dim). Unit dims are pure
+    padding; any real reshape is the caller's job via Buffer views
+    (unflatten/select/...), never the copy's.
+
+    A region is buffer shape + slice: purely logical, independent of the
+    buffer's layout. The layout maps logical coords to physical addresses
+    (lanes, swizzle, broadcast) and is the right home for physical tiling;
+    baking that structure into a buffer's declared shape (e.g. declaring a
+    tmem tile ``(2, 32, C)`` instead of ``(64, C)`` with the lane split in
+    the layout) is what produces a spurious region mismatch. The fix is
+    always to declare the natural logical shape, never to exempt the copy.
+
+    TMA is byte-oriented rather than elementwise.  Its planners validate the
+    layout mapping, so the builder only proves equal payload bytes.  A
+    ``tma_explicit`` gather4 source describes one row while the instruction
+    transfers the four rows named by ``gather4``.
+    """
+    if dispatch in ("tma_auto", "tma_explicit"):
+        analyzer = None
+
+        def _payload_bits(region):
+            nonlocal analyzer
+            value = tvm.DataType(region.buffer.dtype).bits
+            for axis in region.region:
+                value = value * axis.extent
+            if analyzer is None:
+                from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
+
+                analyzer = Analyzer()
+            return analyzer.simplify(value)
+
+        dst_bits = _payload_bits(dst)
+        src_bits = _payload_bits(src)
+        gather4 = config.get("gather4")
+        if gather4 is not None:
+            if dispatch != "tma_explicit":
+                raise ValueError("copy_async: gather4 is only supported by dispatch='tma_explicit'")
+            if not isinstance(gather4, list | tuple | tvm.ir.Array) or len(gather4) != 4:
+                raise ValueError("copy_async: gather4 must contain exactly four row coordinates")
+            if len(src.region) != 2:
+                raise ValueError("copy_async: gather4 requires a rank-2 global source")
+            row_extent = src.region[0].extent
+            if not analyzer.can_prove_equal(row_extent, 1):
+                raise ValueError("copy_async: gather4 global axis 0 must describe exactly one row")
+            src_bits = analyzer.simplify(src_bits * 4)
+
+        if not analyzer.can_prove_equal(dst_bits, src_bits):
+            raise ValueError(
+                f"{name}: dst payload {dst_bits} bits != src payload {src_bits} bits; "
+                "TMA operands must transfer the same total number of bytes"
+            )
+        return
+
+    def _squeeze(region):
+        return [
+            r.extent for r in region if not (isinstance(r.extent, IntImm) and r.extent.value == 1)
+        ]
+
+    dst_extents = _squeeze(dst.region)
+    src_extents = _squeeze(src.region)
+
+    def _fail():
+        raise ValueError(
+            f"{name}: dst region shape {[str(e) for e in dst_extents]} != "
+            f"src region shape {[str(e) for e in src_extents]}; copy operands "
+            f"must cover identical regions - reshape via buffer views "
+            f"(unflatten/select/narrow/...) instead"
+        )
+
+    if len(dst_extents) != len(src_extents):
+        _fail()
+    analyzer = None
+    for d, s in zip(dst_extents, src_extents):
+        d_int = d.value if isinstance(d, IntImm) else None
+        s_int = s.value if isinstance(s, IntImm) else None
+        if d_int is not None and s_int is not None:
+            if d_int != s_int:
+                _fail()
+            continue
+        if analyzer is None:
+            from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
+
+            analyzer = Analyzer()
+        if not analyzer.can_prove_equal(d, s):
+            _fail()
+
+
 @ScopedOp
 def copy(
     dst: BufferRegion | Buffer,
@@ -516,6 +608,7 @@ def copy(
     config = kwargs or {}
     dst = _to_region(dst)
     src = _to_region(src)
+    _check_copy_regions_match(dst, src, config, "copy", dispatch)
     return f_insert(
         tirx_op.Copy(dst, src, workspace=workspace, config=config, dispatch=dispatch, scope=scope)
     )
@@ -535,6 +628,7 @@ def copy_async(
     config = kwargs or {}
     dst = _to_region(dst)
     src = _to_region(src)
+    _check_copy_regions_match(dst, src, config, "copy_async", dispatch)
     return f_insert(
         tirx_op.CopyAsync(
             dst, src, workspace=workspace, config=config, dispatch=dispatch, scope=scope
@@ -1180,6 +1274,46 @@ def exp2(
     )
 
 
+@ScopedOp
+def log2(
+    dst: BufferRegion | Buffer,
+    src: BufferRegion | Buffer | None = None,
+    bias: BufferRegion | Buffer | FloatImm | None = None,
+    scale: FloatImm | None = None,
+    workspace: dict[str, Buffer] | None = None,
+    dispatch: str | None = None,
+    scope: ExecScope | None = None,
+    **kwargs,
+):
+    """Compute base-2 logarithm of all elements in src and store to dst."""
+    # Expression-form overload: ``log2(value)`` returns the underlying expression.
+    from tvm import tirx as _tirx
+
+    if not _is_buffer_or_region(dst):
+        return _tirx.log2(dst)
+    if src is None:
+        src = dst
+    if workspace is None:
+        workspace = {}
+    config = kwargs or {}
+    dst = _to_region(dst)
+    src = _to_region(src)
+    if bias is not None and is_buffer_var(bias):
+        bias = _to_region(bias)
+    return f_insert(
+        tirx_op.Log2(
+            dst,
+            src,
+            bias,
+            scale,
+            workspace=workspace,
+            config=config,
+            dispatch=dispatch,
+            scope=scope,
+        )
+    )
+
+
 def compose_op(
     workspace: dict[str, Buffer] | None = None, dispatch: str | None = None, **kwargs
 ) -> frame.ComposeOpFrame:
@@ -1513,7 +1647,7 @@ def select(
     dst: BufferRegion | Buffer,
     true_value: BufferRegion | Buffer | FloatImm,
     false_value: BufferRegion | Buffer | FloatImm,
-    pred: Predicate | Callable[..., Expr],
+    pred: LambdaExpr | Callable[..., Expr],
     scope: ExecScope | None = None,
 ):
     """Select between two values based on a predicate.
@@ -1529,7 +1663,7 @@ def select(
     false_value : Union[BufferRegion, Buffer, FloatImm]
         The value to select if the predicate is false.
 
-    pred : Union[Predicate, Callable[..., Expr]]
+    pred : Union[LambdaExpr, Callable[..., Expr]]
         The predicate to evaluate. The callable should take the same number of arguments as the dimensions of the destination buffer.
     """  # noqa: E501
     dst = _to_region(dst)
@@ -1537,8 +1671,8 @@ def select(
         true_value = _to_region(true_value)
     if is_buffer_var(false_value):
         false_value = _to_region(false_value)
-    if not isinstance(pred, Predicate):
-        pred = Predicate(pred)
+    if not isinstance(pred, LambdaExpr):
+        pred = LambdaExpr(pred)
     return f_insert(tirx_op.Select(dst, true_value, false_value, pred, scope=scope))
 
 
@@ -1628,7 +1762,6 @@ __all__ = [
     "ScopeNamespace",
     "ScopedOp",
     "TMEMPool",
-    "TMEMStages",
     "add",
     "binary_chain",
     "binary_reduce",
@@ -1645,6 +1778,7 @@ __all__ = [
     "fma",
     "gemm",
     "gemm_async",
+    "log2",
     "max",
     "maximum",
     "memset",

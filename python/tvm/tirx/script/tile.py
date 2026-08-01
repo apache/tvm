@@ -44,7 +44,7 @@ def _validate_tile_call(op_name, args, kwargs):
     if op_name in {"cast", "max", "min", "permute_layout", "silu"}:
         src = _get_arg(args, kwargs, 1, "src")
         _require_buffer_arg(op_name, "src", src)
-    elif op_name in {"sqrt", "exp", "exp2", "reciprocal"}:
+    elif op_name in {"sqrt", "exp", "exp2", "log2", "reciprocal"}:
         src = _get_arg(args, kwargs, 1, "src")
         if src is not None:
             _require_buffer_arg(op_name, "src", src)
@@ -70,6 +70,7 @@ _SCOPED_TILE_OP_NAMES = [
     "copy_async",
     "exp",
     "exp2",
+    "log2",
     "fdiv",
     "fill",
     "fma",
@@ -96,6 +97,7 @@ _SCOPED_TILE_OP_NAMES = [
 for _op_name in _SCOPED_TILE_OP_NAMES:
     globals()[_op_name] = _tile_scoped_op(_op_name)
 
+
 cluster = _builder.ScopeNamespace("cluster", "cluster")
 cta = _builder.ScopeNamespace("cta", "cta")
 wg = _builder.ScopeNamespace("warpgroup", "wg")
@@ -104,6 +106,7 @@ warp = _builder.ScopeNamespace("warp", "warp")
 thread = _builder.ScopeNamespace("thread", "thread")
 
 compose_op = _builder.compose_op
+
 
 __all__ = [
     *_SCOPED_TILE_OP_NAMES,
