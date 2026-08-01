@@ -29,7 +29,7 @@ from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tirx as Tx_builder
 from tvm.tirx import Var
-from tvm.tirx.cuda.operator.tile_primitive.tma_utils import (
+from tvm.tirx.cuda.tile_primitive.tma_utils import (
     SwizzleMode,
     mma_shared_layout,
 )
@@ -1748,7 +1748,7 @@ def test_slice():
 
 
 def test_cuda_copy_extract_swizzle_tile_simplifies_constant_region_extents():
-    from tvm.tirx.cuda.operator.tile_primitive.copy._common import _extract_tile
+    from tvm.tirx.cuda.tile_primitive.copy._common import _extract_tile
 
     zero = tvm.tirx.Mul(tvm.tirx.IntImm("int32", 0), tvm.tirx.IntImm("int32", 64))
     end = tvm.tirx.Add(zero, tvm.tirx.IntImm("int32", 64))
