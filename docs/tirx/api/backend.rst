@@ -56,13 +56,13 @@ tvm.backend.cuda.intrinsics
 .. automodule:: tvm.backend.cuda.intrinsics
    :members:
    :imported-members:
+   :no-index:
    :exclude-members: PrimExpr, Op, Call
 
 tvm.backend.cuda.tile_primitive
 *******************************
 .. automodule:: tvm.backend.cuda.tile_primitive
    :members:
-   :imported-members:
    :exclude-members: PrimExpr, Op, Call
 
 tvm.backend.cuda.target_tags
