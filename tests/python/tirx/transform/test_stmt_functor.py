@@ -1183,6 +1183,49 @@ def test_op_call_config_mutated():
     )
 
 
+def test_op_call_pointer_config_visited_and_mutated():
+    """Pointer-valued config expressions participate in Python traversal."""
+
+    @T.prim_func
+    def copy_async(
+        A: T.Buffer((8,), "float16"),
+        B: T.Buffer((8,), "float16"),
+        mbar: T.Buffer((1,), "uint64"),
+    ):
+        Tx.copy_async(B[:], A[:], dispatch="tma_auto", mbar=T.address_of(mbar[0]))
+
+    op_call = copy_async.body
+    assert isinstance(op_call, tir.TilePrimitiveCall)
+    mbar_buffer = copy_async.buffer_map[copy_async.params[2]]
+
+    class LoadCollector(StmtExprVisitor):
+        def __init__(self):
+            super().__init__()
+            self.buffers = []
+
+        def visit_buffer_load_(self, op):
+            self.buffers.append(op.buffer)
+            return super().visit_buffer_load_(op)
+
+    collector = LoadCollector()
+    collector.visit_stmt(op_call)
+    assert any(buffer.same_as(mbar_buffer) for buffer in collector.buffers)
+
+    replacement = tir.decl_buffer((1,), "uint64", name="replacement")
+
+    class ReplaceMbarLoad(StmtExprMutator):
+        def visit_buffer_load_(self, op):
+            new_op = super().visit_buffer_load_(op)
+            if op.buffer.same_as(mbar_buffer):
+                return tir.BufferLoad(replacement, new_op.indices, new_op.predicate)
+            return new_op
+
+    updated = ReplaceMbarLoad().visit_stmt(op_call)
+    mbar_load = updated.config["mbar"].args[0]
+    assert isinstance(mbar_load, tir.BufferLoad)
+    assert mbar_load.buffer.same_as(replacement)
+
+
 def test_op_call_nested_config_visited_and_substituted():
     """Nested selector arrays participate in the core visitor and mutator."""
     from tvm.tirx.stmt_functor import post_order_visit, substitute
