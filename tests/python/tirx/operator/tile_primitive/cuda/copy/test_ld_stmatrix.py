@@ -488,7 +488,7 @@ def test_ldstmatrix_tcgen05_warpgroup_atom_emits_ldmatrix():
     ``GetScope`` would reject (which silently fell back to a scalar reg path).
     Compile-only (no GPU): asserts the instruction appears in generated source.
     """
-    from tvm.tirx.cuda.operator.tile_primitive.tma_utils import mma_shared_layout
+    from tvm.tirx.cuda.tile_primitive.tma_utils import mma_shared_layout
     from tvm.tirx.layout import tcgen05_atom_layout
 
     m, k = 64, 64

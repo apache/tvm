@@ -18,8 +18,8 @@
 
 import pytest
 
-from tvm.backend.cuda.operator.intrinsics.cvt import _CVT_FORMS, _cvt_form_parts
-from tvm.backend.cuda.operator.intrinsics.registry import CODEGEN_REGISTRY
+from tvm.backend.cuda.intrinsics.cvt import _CVT_FORMS, _cvt_form_parts
+from tvm.backend.cuda.intrinsics.registry import CODEGEN_REGISTRY
 
 # One concrete expansion for every syntax form in the PTX ``cvt`` grammar.
 # Args are register placeholders followed by the form-specific attrs.

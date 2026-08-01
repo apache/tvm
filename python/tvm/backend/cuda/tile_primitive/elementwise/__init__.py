@@ -30,7 +30,7 @@ PTX/CUDA intrinsics live in ``vec_emit/`` (``binary_f32x2`` / ``cast_vec2``
 from .register import *
 
 # Suppress submodule-attribute leakage. Without an explicit ``__all__`` here,
-# ``from tvm.backend.cuda.operator.tile_primitive.elementwise import *`` (run by
+# ``from tvm.backend.cuda.tile_primitive.elementwise import *`` (run by
 # tile_primitive/__init__.py) re-exports the implicit submodule attributes
 # (``ops``, ``reg``, ``smem``, ``vec_emit``) — and ``ops`` in particular
 # shadows the top-level ``tile_primitive/ops.py`` (BinaryReduce / UnaryReduce

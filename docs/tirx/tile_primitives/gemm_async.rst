@@ -25,7 +25,7 @@ memory**, and one elected thread launches the MMA, which runs asynchronously; th
 caller signals completion with ``tcgen05.commit`` against an mbarrier. It also
 supports **block-scaled** low precision (fp8 / fp4 with per-block scale factors
 ``SFA`` / ``SFB`` in tensor memory). Source:
-``python/tvm/backend/cuda/operator/tile_primitive/gemm_async/tcgen05.py``. (For the
+``python/tvm/backend/cuda/tile_primitive/gemm_async/tcgen05.py``. (For the
 synchronous warp-register path see :doc:`gemm`.)
 
 What it accepts
@@ -80,7 +80,7 @@ into a tmem accumulator, after TMA-loading A/B into shared (from
 .. code-block:: python
 
     from tvm.tirx.layout import S, TCol, TLane, TileLayout, tid_in_wg as axis_tid_in_wg
-    from tvm.tirx.cuda.operator.tile_primitive.tma_utils import mma_shared_layout
+    from tvm.tirx.cuda.tile_primitive.tma_utils import mma_shared_layout
 
     A_smem = T.alloc_buffer((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
     B_smem = T.alloc_buffer((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))

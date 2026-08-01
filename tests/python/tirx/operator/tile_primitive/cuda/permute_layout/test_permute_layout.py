@@ -46,7 +46,7 @@ from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 
 # Helpers exposed by the dispatcher module for direct algorithm tests.
-from tvm.tirx.cuda.operator.tile_primitive.permute_layout.warp_xor_swizzle import (
+from tvm.tirx.cuda.tile_primitive.permute_layout.warp_xor_swizzle import (
     _bank_free,
     _check_bijection,
     _choose_xor_k,

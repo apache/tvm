@@ -25,7 +25,7 @@ registers. One registration handles both directions — ``tmem → local`` lower
 ``tcgen05.ld``, ``local → tmem`` to ``tcgen05.st`` — and the dispatch picks the
 widest instruction shape the register layout matches. As with the other async
 variants, completion (``tcgen05.wait.ld`` / ``wait.st``) is the caller's. Source:
-``python/tvm/backend/cuda/operator/tile_primitive/copy_async/tcgen05_ldst.py``.
+``python/tvm/backend/cuda/tile_primitive/copy_async/tcgen05_ldst.py``.
 
 What it accepts
 ---------------

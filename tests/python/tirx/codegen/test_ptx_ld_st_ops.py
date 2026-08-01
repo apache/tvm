@@ -24,7 +24,7 @@ from tvm.ir import Op
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.testing import env
-from tvm.tirx.cuda.operator.tile_primitive.copy._common import (
+from tvm.tirx.cuda.tile_primitive.copy._common import (
     copy_ptx_form,
     copy_ptx_ld_return_type,
 )
