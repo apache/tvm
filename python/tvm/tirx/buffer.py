@@ -16,7 +16,6 @@
 # under the License.
 """Abstraction for array data structures."""
 
-import functools
 from enum import IntEnum
 from numbers import Integral
 
@@ -26,7 +25,9 @@ import tvm
 from tvm.ir import PointerType, PrimType, Range, Type
 from tvm.runtime import Object, convert
 
-from . import _ffi_api
+from . import _buffer_view, _ffi_api
+
+_REARRANGE_PATTERN_UNSET = object()
 
 
 @tvm_ffi.register_object("tirx.BufferType")
@@ -326,90 +327,7 @@ class _BufferMethods:
             The corresponding view buffer.
         """
 
-        def _infer_shape(shape):
-            shape = list(shape)
-            if -1 in shape and shape.count(-1) == 1:
-                size = functools.reduce(lambda x, y: x * y, self.ty.shape)
-                n_size = functools.reduce(lambda x, y: x * y, [s for s in shape if s != -1], 1)
-                shape[shape.index(-1)] = size // n_size
-            else:
-                # Only validate the shape product when both old and new shapes
-                # are fully concrete: a Expr `==` returns an `EQ` node, not
-                # a Python bool, and `assert <Expr>` raises (no __bool__).
-                if all(isinstance(s, int) for s in shape) and all(
-                    isinstance(s, int) for s in self.ty.shape
-                ):
-                    assert functools.reduce(lambda x, y: x * y, shape) == functools.reduce(
-                        lambda x, y: x * y, self.ty.shape
-                    ), (
-                        "The shape of the buffer "
-                        + str(self.ty.shape)
-                        + " and the new shape "
-                        + str(shape)
-                        + " are not compatible"
-                    )
-            return shape
-
-        if len(args) == 1 and isinstance(args[0], str | tvm.DataType) and not kwargs:
-            cast_dtype = tvm.DataType(args[0])
-            cur_dtype = tvm.DataType(self.ty.dtype)
-            if cast_dtype.bits > cur_dtype.bits:
-                # cast up
-                assert cast_dtype.bits % cur_dtype.bits == 0
-                ratio = cast_dtype.bits // cur_dtype.bits
-                layout = self.ty.layout.pack(ratio)
-                shape = [s for s in self.ty.shape[:-1]] + [self.ty.shape[-1] // ratio]
-                new_elem_offset = self.ty.elem_offset // ratio
-            else:
-                # cast down
-                assert cur_dtype.bits % cast_dtype.bits == 0
-                ratio = cur_dtype.bits // cast_dtype.bits
-                layout = self.ty.layout.unpack(ratio)
-                shape = [s for s in self.ty.shape[:-1]] + [self.ty.shape[-1] * ratio]
-                new_elem_offset = self.ty.elem_offset * ratio
-            return tvm.tirx.script.builder.decl_buffer(
-                shape,
-                cast_dtype,
-                buffer_data(self),
-                self.ty.strides,
-                new_elem_offset,
-                None,
-                self.ty.storage_scope,
-                self.ty.data_alignment,
-                self.ty.offset_factor,
-                layout,
-            )
-        else:
-            # --- Signature 1: view(*shape, **opts) ---
-            # Check if all positional args are integers/PrimExprs with dtype int32 or int64 (the shape)  # noqa: E501
-            shape = args
-            assert all(
-                isinstance(arg, int)
-                or (tvm.ir.is_prim_expr(arg) and arg.ty.dtype in ["int32", "int64"])
-                for arg in shape
-            ), "shape must be a list of integers or PrimExprs with dtype int32 or int64"
-            # Safely get optional keyword arguments
-            layout = kwargs.get("layout", None)
-            # Assert there are no other kwargs
-            assert set(kwargs.keys()).issubset({"layout"}), (
-                f"Unsupported kwargs for view: {set(kwargs.keys()) - {'layout'}}"
-            )
-
-            if layout is None:
-                shape = _infer_shape(shape)
-
-            return tvm.tirx.script.builder.decl_buffer(
-                shape,
-                self.ty.dtype,
-                buffer_data(self),
-                self.ty.strides,
-                self.ty.elem_offset,
-                None,
-                self.ty.storage_scope,
-                self.ty.data_alignment,
-                self.ty.offset_factor,
-                self.ty.layout if layout is None else layout,
-            )
+        return _buffer_view.view(self, *args, **kwargs)
 
     def local(self, *shape, layout=None) -> "Buffer":
         """Create a thread-local view of this buffer.
@@ -432,24 +350,7 @@ class _BufferMethods:
         local : DeclBufferFrame
             The corresponding local buffer.
         """
-        if not shape:
-            local_layout = self.ty.layout.storage()
-            total = functools.reduce(
-                lambda x, y: x * y, [it.extent for it in local_layout.shard], 1
-            )
-            shape = (total,)
-        return tvm.tirx.script.builder.decl_buffer(
-            shape,
-            self.ty.dtype,
-            buffer_data(self),
-            self.ty.strides,
-            self.ty.elem_offset,
-            None,
-            self.ty.storage_scope,
-            self.ty.data_alignment,
-            self.ty.offset_factor,
-            self.ty.layout.storage() if layout is None else layout,
-        )
+        return _buffer_view.local(self, *shape, layout=layout)
 
     def permute(self, *dims) -> "Buffer":
         """Permute the dimensions of the buffer.
@@ -464,28 +365,94 @@ class _BufferMethods:
         permuted : DeclBufferFrame
             The buffer with permuted dimensions.
         """
-        new_shape = [self.ty.shape[d] for d in dims]
-        # Permute *logical* dims, not the layout's fine-grained shard iters: a
-        # tcgen05/atom layout maps several shard iters to each logical axis, so
-        # group by the current shape first and permute whole groups. ``group``
-        # returns a regrouped layout (degenerate extent-1 iters folded away)
-        # plus seps over *that* layout — permute the regrouped one, not
-        # ``self.layout``. For a simple layout (one shard iter per axis) this
-        # reduces to ``permute_dims(dims)``.
-        grouped, seps = self.ty.layout.group(list(self.ty.shape))
-        new_layout = grouped.permute_by_groups(seps, list(dims))
-        return tvm.tirx.script.builder.decl_buffer(
-            new_shape,
-            self.ty.dtype,
-            buffer_data(self),
-            self.ty.strides,
-            self.ty.elem_offset,
-            None,
-            self.ty.storage_scope,
-            self.ty.data_alignment,
-            self.ty.offset_factor,
-            new_layout,
-        )
+        return _buffer_view.permute(self, *dims)
+
+    def rearrange(self, pattern: str = _REARRANGE_PATTERN_UNSET, /, **sizes) -> "Buffer":
+        """einops-style relayout in one line: ``buf.rearrange("b (2 r) -> 2 b r")``.
+
+        A pure reshape+permute+reshape over the SAME physical bytes, spelled as
+        an einops pattern. Lowers to ``view`` (split lhs groups) → ``permute``
+        (reorder to rhs atom order) → ``view`` (merge rhs groups), so it inherits
+        whatever the underlying axis machinery does: a plain (unswizzled) buffer
+        collapses to a flat layout, a swizzled buffer keeps its swizzle,
+        and a tmem buffer carries ``allocated_addr`` through. It therefore does
+        NOT flatten a swizzle atom — the same pattern on a swizzled SMEM buffer
+        vs an unswizzled TMEM buffer legitimately yields different physical
+        layouts (that is the point: rearrange acts on the operand, not a string).
+
+        ``pattern`` is ``"lhs -> rhs"``; each side is space-separated axis names,
+        with ``(a b)`` grouping a product axis. Every lhs group's product must
+        equal that input dim; at most one axis per group may be unknown (inferred
+        from the dim), the rest supplied via ``**sizes``. Cannot express a
+        replica (``R[...]``), a stride-fiction/padded view, or a reshape crossing
+        a swizzle-atom boundary — keep those as explicit ``view(layout=...)``.
+        """
+        if pattern is _REARRANGE_PATTERN_UNSET:
+            if "pattern" not in sizes:
+                raise TypeError("Buffer.rearrange() missing required argument: 'pattern'")
+            pattern = sizes.pop("pattern")
+        return _buffer_view.rearrange(self, pattern, **sizes)
+
+    @property
+    def sub(self) -> "_buffer_view.SubIndexer":
+        """Numpy-style view indexer: ``buf.sub[2, 4:8, ::4]``.
+
+        Unlike plain ``buf[...]`` (BufferLoad for scalar indices, extent-1
+        BufferRegion dims for tile-primitive operands), ``sub`` follows numpy
+        basic-indexing semantics as a *view constructor*: an integer index
+        removes the dim (``select``), ``a:b`` narrows it, and ``a::s`` takes
+        every s-th element (requires the extent divisible by ``s`` and
+        ``a < s``). Trailing dims are kept whole.
+        """
+        return _buffer_view.sub(self)
+
+    def tile(self, *specs) -> "_buffer_view.TileIndexer":
+        """Chunk a dim: split it into factors, pick a chunk, keep the rest.
+
+        Rank-preserving — the picked dim's remaining factors merge back into
+        that one dim, and every other dim is untouched, so N dims in gives N
+        dims out. Chunk multiple dims by chaining (dims never shift):
+        ``buf.tile(0, (nx, -1))[cx, :].tile(1, (-1, ny))[:, cy]``.
+
+        Call as ``tile(dim, factors)`` for one dim, or pass several
+        ``(dim, factors)`` specs as sugar for a chain. ``factors`` is the
+        tuple the dim splits into (row-major, like :meth:`unflatten`; one
+        ``-1`` inferred). The indexer takes one entry per factor: an ``int`` /
+        ``Expr`` **picks** it (fixing the chunk, dropping the axis, folding
+        its offset) and ``:`` **keeps** it. At least one factor per dim must be
+        picked — a pure keep-everything split is :meth:`unflatten`, not a
+        chunk::
+
+            # 64 rows split into (stripe, warp, row) = (-1, WARPS, 4); this
+            # warp's 16 interleaved rows (stripe x row merged):
+            buf.tile(1, (-1, WARPS, 4))[:, warp, :]
+
+            tile(d, (n, -1))[c, :]   # contiguous block c
+            tile(d, (-1, n))[:, c]   # round-robin chunk c
+
+        A picked index may be a dynamic Expr (e.g. a warp id); picking
+        several factors of one dim is allowed.
+        """
+        return _buffer_view.tile(self, *specs)
+
+    def chunk(self, spec) -> "_buffer_view.ChunkIndexer":
+        """Split dims into equal contiguous chunks and pick a chunk per dim —
+        **rank-preserving**. Index the result with ``[picks]``.
+
+        ``spec`` is a per-dim tuple (length = rank). Each entry is ``None``
+        (leave the dim) or a positive int ``n`` (split that dim, extent ``E``
+        with ``E % n == 0``, into ``n`` equal chunks of ``E // n``). Then
+        ``chunk(spec)[picks]`` takes one entry per dim: a chunked dim's pick is
+        the chunk index (int / Expr) and **narrows that dim** to the chunk's
+        ``[c*E//n : (c+1)*E//n)`` range — the dim is kept at ``E // n``, no
+        dimension is added; an unchunked dim's pick is a normal index (``:`` /
+        int / slice). The result is the *same BufferRegion* as the hand-written
+        slice — one line instead of the ``c*k : (c+1)*k`` arithmetic::
+
+            X[.., c * k : (c + 1) * k, ..]        # before (k = E // n)
+            X.chunk((None, .., n, ..))[.., c, ..]  # after (k inferred)
+        """
+        return _buffer_view.chunk(self, spec)
 
     def __getitem__(self, indices):
         if not is_buffer_var(self):

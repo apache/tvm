@@ -20,7 +20,7 @@
 from tvm.tirx import FloatImm, PrimFunc
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import MapOpType
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..common import init_analyzer
 from ..instruction_generator import InstructionGenerator

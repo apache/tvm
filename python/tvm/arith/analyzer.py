@@ -18,6 +18,7 @@
 """Arithmetic data structure and utility"""
 
 import enum
+from contextlib import contextmanager
 
 import tvm_ffi
 
@@ -527,3 +528,25 @@ class Analyzer(Object):
         """
         flags = Extension(flags).value
         _ffi_api.AnalyzerSetEnabledExtensions(self, flags)
+
+
+@contextmanager
+def allow_uint_as_index():
+    """Opt-in no-overflow domain for unsigned index arithmetic.
+
+    Within the scope, the analyzer treats uint32/uint64 scalars as index
+    types: it assumes their values never approach the type limit (no
+    wraparound), so the signed rewrite rule set (floordiv/floormod
+    decomposition, modular analysis) applies to them. Every unsigned
+    expression admitted under the assumption is logged once per process
+    (WARNING) so the assumption stays auditable.
+
+    Off by default. Intended for compile-time layout proofs (offsets that
+    provably stay small), NOT for runtime codegen semantics where unsigned
+    wraparound is real behavior.
+    """
+    _ffi_api.EnterAllowUintAsIndex()
+    try:
+        yield
+    finally:
+        _ffi_api.ExitAllowUintAsIndex()

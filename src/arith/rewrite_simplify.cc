@@ -1196,6 +1196,48 @@ Expr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
   if (op_ty.MatchesCode(DLDataTypeCode::kDLUInt) && (op_ty.bits() == 32 || op_ty.bits() == 64)) {
     TVM_TRY_REWRITE(floordiv(x, x), OneWithTypeLike(x));            // x / x -> 1  (x != 0)
     TVM_TRY_REWRITE_IF(floordiv(x, c1), x, c1.Eval()->value == 1);  // x / 1 -> x
+    // Unsigned x is always >= 0, so x / c2 == 0 when x < c2 is provable from
+    // the interval bound (const_int_bound is dtype-agnostic; CanProve's
+    // comparison machinery is signed-centric and can't be used here).
+    if (floordiv(x, c2).Match(ret) && c2.Eval()->value > 0) {
+      ConstIntBound x_bound = analyzer_->const_int_bound(x.Eval());
+      if (x_bound->min_value >= 0 && x_bound->max_value < c2.Eval()->value) {
+        return ZeroWithTypeLike(x).Eval();
+      }
+    }
+
+    // Enabled only under the caller's no-overflow assertion (uint_as_index):
+    // these floordiv identities are unsound in general for unsigned
+    // wraparound (the quotient's high bits are lost when x*c1 overflows), but
+    // are exact in the asserted no-overflow domain. Each application is
+    // logged for audit.
+    if (uint_as_index::Enabled()) {
+      if (floordiv(x * c1, c2).Match(ret) && c2.Eval()->value > 0 &&
+          c1.Eval()->value % c2.Eval()->value == 0) {
+        LOG(WARNING) << "arith: no-overflow floordiv rule on unsigned expr: " << ret;
+        return (x * floordiv(c1, c2)).Eval();
+      }
+      if (floordiv(x * c1 + y, c2).Match(ret) && c2.Eval()->value > 0 &&
+          c1.Eval()->value % c2.Eval()->value == 0) {
+        LOG(WARNING) << "arith: no-overflow floordiv rule on unsigned expr: " << ret;
+        return (x * floordiv(c1, c2) + floordiv(y, c2)).Eval();
+      }
+      if (floordiv(y + x * c1, c2).Match(ret) && c2.Eval()->value > 0 &&
+          c1.Eval()->value % c2.Eval()->value == 0) {
+        LOG(WARNING) << "arith: no-overflow floordiv rule on unsigned expr: " << ret;
+        return (x * floordiv(c1, c2) + floordiv(y, c2)).Eval();
+      }
+      if (floordiv(x * c1 + y + z, c2).Match(ret) && c2.Eval()->value > 0 &&
+          c1.Eval()->value % c2.Eval()->value == 0) {
+        LOG(WARNING) << "arith: no-overflow floordiv rule on unsigned expr: " << ret;
+        return (x * floordiv(c1, c2) + floordiv(y + z, c2)).Eval();
+      }
+      if (floordiv(y + x * c1 + z, c2).Match(ret) && c2.Eval()->value > 0 &&
+          c1.Eval()->value % c2.Eval()->value == 0) {
+        LOG(WARNING) << "arith: no-overflow floordiv rule on unsigned expr: " << ret;
+        return (x * floordiv(c1, c2) + floordiv(y + z, c2)).Eval();
+      }
+    }
   }
   return ret;
 }
@@ -1208,7 +1250,7 @@ Expr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<PrimExpr> lanes;
 
@@ -1322,12 +1364,52 @@ Expr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   // OVERFLOW-FREE identities are valid here.
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if (op_ty.MatchesCode(DLDataTypeCode::kDLUInt) && (op_ty.bits() == 32 || op_ty.bits() == 64)) {
+    const int64_t op_bits = op_ty.bits();
+    const auto is_pow2_le_bits = [op_bits](int64_t v) {
+      return v > 0 && (v & (v - 1)) == 0 &&
+             (op_bits < 64 ? v <= (int64_t{1} << op_bits) : v <= (int64_t{1} << 63));
+    };
     TVM_TRY_REWRITE(floormod(x, x), ZeroWithTypeLike(x));  // x % x -> 0  (x != 0)
     TVM_TRY_REWRITE_IF(floormod(x, c1), ZeroWithTypeLike(x),
                        c1.Eval()->value == 1);  // x % 1 -> 0
-    // Overflow-free: when c1 is a multiple of c2, x * c1 is too (in Z and mod 2^bits).
+    // When c1 is a multiple of c2, x * c1 is too — but the identity is only
+    // sound when c2 | 2^bits: otherwise the wraparound subtraction of
+    // k*2^bits changes residues mod c2. (No non-pow2 c2 occurs in practice;
+    // probed across the arith/copy/kernel test suites.)
     TVM_TRY_REWRITE_IF(floormod(x * c1, c2), ZeroWithTypeLike(x),
-                       c2.Eval()->value != 0 && c1.Eval()->value % c2.Eval()->value == 0);
+                       c2.Eval()->value != 0 && c1.Eval()->value % c2.Eval()->value == 0 &&
+                           is_pow2_le_bits(c2.Eval()->value));
+
+    // When c2 divides 2^bits, reducing mod 2^bits does not change residues
+    // mod c2, so modular analysis is sound for unsigned operands too.
+    if (floormod(x, c2).Match(ret) && is_pow2_le_bits(c2.Eval()->value)) {
+      const int64_t c2val = c2.Eval()->value;
+      // x = coeff * q + base stays congruent mod c2 when c2 | 2^bits, so
+      // the signed block's modular-analysis branch is valid here as well.
+      ModularSet mod = analyzer_->modular_set(x.Eval());
+      if (mod->coeff % c2val == 0) {
+        return floormod(mod->base, c2).Eval();
+      }
+    }
+
+    // Under the caller's no-overflow assertion (uint_as_index) the pow2
+    // restriction above disappears: without wraparound the residues are the
+    // plain integer ones, so these hold for any c2 != 0. Each application is
+    // logged for audit.
+    if (uint_as_index::Enabled()) {
+      if (floormod(x * c1, c2).Match(ret) && c2.Eval()->value != 0 &&
+          c1.Eval()->value % c2.Eval()->value == 0) {
+        LOG(WARNING) << "arith: no-overflow floormod rule on unsigned expr: " << ret;
+        return ZeroWithTypeLike(x).Eval();
+      }
+      if (floormod(x, c2).Match(ret) && c2.Eval()->value > 0) {
+        ModularSet mod = analyzer_->modular_set(x.Eval());
+        if (mod->coeff % c2.Eval()->value == 0) {
+          LOG(WARNING) << "arith: no-overflow floormod rule on unsigned expr: " << ret;
+          return floormod(mod->base, c2).Eval();
+        }
+      }
+    }
   }
   return ret;
 }

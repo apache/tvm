@@ -78,6 +78,7 @@ class CodeGenCUDA final : public CodeGenC {
   void VisitExpr_(const CallNode* op, std::ostream& os) final;
   void VisitExpr_(const CastNode* op, std::ostream& os) final;
   void VisitStmt_(const EvaluateNode* op) final;
+  void VisitStmt_(const ReturnNode* op) final;
   void VisitStmt_(const AllocBufferNode* op) final;
   void VisitStmt_(const AttrStmtNode* op) final;
 
@@ -107,6 +108,10 @@ class CodeGenCUDA final : public CodeGenC {
   // This is only semantics-preserving for effectively 1-D clusters where the
   // y/z cluster-CTA extents are both one.
   bool cluster_cta_x_is_linear_rank_{false};
+
+  // Whether the function being generated is a __global__ kernel entry
+  // (kDeviceKernelLaunch); __device__ subroutines return real values.
+  bool in_kernel_launch_{false};
 
   // Codegen tags
   std::unordered_set<std::string> codegen_tags_;

@@ -34,7 +34,6 @@ __all__ = [
     "TCGen05Bar",
     "TMABar",
     "TMEMPool",
-    "TMEMStages",
     "WarpRole",
     "WarpgroupRole",
 ]
@@ -54,7 +53,6 @@ _HELPER_MODULES = {
     "TCGen05Bar": ".pipeline",
     "TMABar": ".pipeline",
     "TMEMPool": ".alloc_pool",
-    "TMEMStages": ".alloc_pool",
     "WarpRole": ".warp_role",
     "WarpgroupRole": ".warp_role",
     "SmemDescriptor": ".smem_desc",

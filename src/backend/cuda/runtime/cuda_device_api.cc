@@ -486,6 +486,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     auto oob_fill_kind = static_cast<CUtensorMapFloatOOBfill>(args[arg_cnt++].cast<int>());
     int force_cu_dtype =
         (arg_cnt < static_cast<size_t>(args.size())) ? args[arg_cnt++].cast<int>() : -1;
+    TVM_FFI_ICHECK_GE(force_cu_dtype, -1)
+        << "force_cu_dtype must be -1 (derive from tensor_dtype) or a supported "
+           "CUtensorMapDataType value";
 
     TVM_FFI_ICHECK_EQ(tensor_dtype.lanes, 1)
         << "Expect tensor_dtype to have lanes=1, but get " << tensor_dtype;
@@ -583,6 +586,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     // bypass the dtype-derived mapping so the descriptor uses the requested
     // CUtensorMapDataType. Same byte size, different on-load rounding semantics.
     if (force_cu_dtype >= 0) {
+      TVM_FFI_ICHECK_EQ(force_cu_dtype, 11)
+          << "force_cu_dtype only supports CU_TENSOR_MAP_DATA_TYPE_TFLOAT32 (11)";
+      TVM_FFI_ICHECK(tensor_dtype.code == kDLFloat && tensor_dtype.bits == 32)
+          << "CU_TENSOR_MAP_DATA_TYPE_TFLOAT32 requires a scalar float32 tensor_dtype";
       cu_dtype = static_cast<CUtensorMapDataType>(force_cu_dtype);
     }
 
@@ -669,6 +676,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       TVM_FFI_ICHECK_GE(tensor_rank, 3U)
           << "tensorRank must be greater than or equal to 3 when interleave is not NONE";
     }
+    if (interleaved_kind == CU_TENSOR_MAP_INTERLEAVE_32B) {
+      TVM_FFI_ICHECK_EQ(swizzle_kind, CU_TENSOR_MAP_SWIZZLE_32B)
+          << "CU_TENSOR_MAP_INTERLEAVE_32B requires CU_TENSOR_MAP_SWIZZLE_32B";
+    }
+    TVM_FFI_ICHECK_EQ(element_strides[0], 1U)
+        << "elementStrides[0] must be one because tiled TMA does not support an "
+           "innermost element stride";
     if (interleaved_kind == CU_TENSOR_MAP_INTERLEAVE_32B || is_packed_align16) {
       TVM_FFI_ICHECK_EQ((reinterpret_cast<uint64_t>(tensor_ptr) & 0b11111), 0)
           << "globalAddress must be 32-byte aligned";
@@ -684,6 +698,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           << "globalDim[0] must be a multiple of 128 for packed 16U4/16U6 align16 formats";
       TVM_FFI_ICHECK_EQ(box_dim[0], 128U)
           << "boxDim[0] must be 128 for packed 16U4/16U6 align16 formats";
+    }
+    if (is_packed_16u4_align16) {
+      bool supported_swizzle =
+          swizzle_kind == CU_TENSOR_MAP_SWIZZLE_NONE || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B;
+#ifdef CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B
+      supported_swizzle = supported_swizzle || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B;
+#endif
+      TVM_FFI_ICHECK(supported_swizzle)
+          << "CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN16B supports only NONE, 128B, "
+             "or 128B_ATOM_32B swizzle";
     }
     if (is_packed_16u4_align8) {
       TVM_FFI_ICHECK_EQ(global_shape[0] % 2, 0)

@@ -22,7 +22,7 @@ from tvm.script import tirx as T
 from tvm.tirx import PrimFunc
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_reduction_dim_map

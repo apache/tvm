@@ -24,8 +24,7 @@
 
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
-#include <tvm/tirx/tirx_op.h>
-#include <tvm/tirx/var.h>
+#include <tvm/tirx/tile_primitive.h>
 
 namespace tvm {
 namespace tirx {
@@ -146,6 +145,7 @@ TIRX_DEFINE_TILE_OP(zero);
 TIRX_DEFINE_TILE_OP(sqrt);
 TIRX_DEFINE_TILE_OP(exp);
 TIRX_DEFINE_TILE_OP(exp2);
+TIRX_DEFINE_TILE_OP(log2);
 TIRX_DEFINE_TILE_OP(add);
 TIRX_DEFINE_TILE_OP(sub);
 TIRX_DEFINE_TILE_OP(mul);

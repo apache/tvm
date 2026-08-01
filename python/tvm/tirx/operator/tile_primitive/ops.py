@@ -19,7 +19,7 @@
 
 from tvm.ir import Op
 from tvm.tirx import Expr
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 
 def get_tirx_op(op_name: str):
@@ -398,6 +398,15 @@ class Exp2(UnaryOpWithBiasScale):
     """
 
     op = get_tirx_op("exp2")
+
+
+class Log2(UnaryOpWithBiasScale):
+    """Compute base-2 logarithm of all elements in src and store to dst.
+
+    If bias and scale are provided: dst = log2(src * scale + bias)
+    """
+
+    op = get_tirx_op("log2")
 
 
 class Select(BinaryOp):

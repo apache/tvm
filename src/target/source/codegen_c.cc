@@ -413,8 +413,6 @@ void CodeGenC::RegisterHandleType(const VarNode* buf_var, const PrimType& t) {
 
 void CodeGenC::RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* value) {
   if (value == nullptr) return;
-  auto* call = value->as<CallNode>();
-  if (call == nullptr || !call->op.same_as(builtin::ptr_byte_offset())) return;
   std::optional<PrimType> value_dtype = [&]() {
     if (auto prim_value = value->as<PrimExpr>()) {
       return tirx::GetPointerType(GetType(prim_value.value()));
@@ -422,8 +420,11 @@ void CodeGenC::RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* v
     return tirx::GetPointerType((*value)->ty);
   }();
   if (!value_dtype.has_value()) return;
+  auto* call = value->as<CallNode>();
+  if (call != nullptr && call->op.same_as(builtin::ptr_byte_offset())) {
+    pointer_offset_vars_.insert(var.get());
+  }
   RegisterHandleType(var.get(), value_dtype.value());
-  pointer_offset_vars_.insert(var.get());
 }
 
 void CodeGenC::PrintVecElemLoad(const std::string& vec, const PrimType& t, int i,
