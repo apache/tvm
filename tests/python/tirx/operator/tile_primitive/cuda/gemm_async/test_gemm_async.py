@@ -34,8 +34,8 @@ from tvm.ir.type import PointerType, PrimType
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.testing import env
-from tvm.tirx.cuda.operator.tile_primitive.gemm_async import sf_tmem_layout
-from tvm.tirx.cuda.operator.tile_primitive.tma_utils import (
+from tvm.tirx.cuda.tile_primitive.gemm_async import sf_tmem_layout
+from tvm.tirx.cuda.tile_primitive.tma_utils import (
     SwizzleMode,
     mma_atom_layout,
     mma_atom_shape,
@@ -2445,7 +2445,7 @@ def test_gemm_tcgen05_contiguous_kslice_partial_k(k_lo, k_hi):
     so the MMA accumulates exactly k in [lo, hi) -- enabling fine K-major split-K.
     Any MMA_K(16)-aligned [lo:hi] is supported.
     """
-    from tvm.tirx.cuda.operator.tile_primitive.tma_utils import SwizzleMode
+    from tvm.tirx.cuda.tile_primitive.tma_utils import SwizzleMode
 
     M, N, K_alloc = 128, 128, 64
     dtype = "float16"
@@ -3477,7 +3477,7 @@ def _make_gemm_tcgen05_call(
     (1@TLane, 1@TCol) layout.
     """
     from tvm.ir import Range
-    from tvm.tirx.cuda.operator.tile_primitive.gemm_async.tcgen05 import (
+    from tvm.tirx.cuda.tile_primitive.gemm_async.tcgen05 import (
         gemm_async_tcgen05_impl,
     )
     from tvm.tirx.exec_scope import ExecScope
@@ -3556,7 +3556,7 @@ def test_gemm_tcgen05_preserves_explicit_tmem_lane_bases():
 def test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases():
     """SFA/SFB row offsets must reach the encoded TMEM address operands."""
     from tvm.ir import Range
-    from tvm.tirx.cuda.operator.tile_primitive.gemm_async.tcgen05 import (
+    from tvm.tirx.cuda.tile_primitive.gemm_async.tcgen05 import (
         gemm_async_tcgen05_impl,
     )
     from tvm.tirx.exec_scope import ExecScope
