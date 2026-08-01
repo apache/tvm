@@ -712,7 +712,7 @@ def tmem_datapath_layout(datapath: str, rows: int, cols: int, sub_slab: int = 0)
             )
         if cols % 2 != 0:
             raise ValueError(
-                f"tmem_datapath_layout: datapath={datapath!r} requires even cols, got {cols}"
+                f"tmem_datapath_layout: datapath={datapath!r} expects even cols, got {cols}"
             )
         return TileLayout(S[(rows, 2, cols // 2) : (1 @ tlane, 64 @ tlane, 1 @ tcol)])
     # Layouts C (M=128 cta_group::2 sparse) and F (M=64 non-.ws): rows-per-CTA

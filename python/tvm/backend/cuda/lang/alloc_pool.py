@@ -40,12 +40,6 @@ def _get_ir():
     return _ir
 
 
-def _get_frame():
-    from tvm.tirx.script.builder import frame
-
-    return frame
-
-
 # ---------------------------------------------------------------------------
 # Shared utilities
 # ---------------------------------------------------------------------------
@@ -490,16 +484,16 @@ class SMEMPool:
         """
         if not self._owns_buffer:
             return
-        ir = _get_ir()
-        frame_mod = _get_frame()
         resolved = size if size is not None else self.max_offset
         assert resolved >= self.max_offset, (
             f"Specified smem size ({resolved}) is smaller than "
             f"the pool high-water mark ({self.max_offset})"
         )
-        attr_frame = ir.attr(self.ptr, "tirx.pool_max_bytes", resolved)
-        if isinstance(attr_frame, frame_mod.AttrFrame):
-            from functools import partial
+        import tvm.tirx
 
-            attr_frame.add_callback(partial(attr_frame.__exit__, None, None, None))
-            attr_frame.__enter__()
+        ir = _get_ir()
+        ir.add_to_parent(
+            tvm.tirx.AttrStmt(
+                0, "tirx.dyn_smem_bytes", tvm.tirx.IntImm("int64", resolved), tvm.tirx.Evaluate(0)
+            )
+        )

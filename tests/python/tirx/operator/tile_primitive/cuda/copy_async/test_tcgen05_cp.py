@@ -378,7 +378,7 @@ def test_cp_shape_config_routes_to_generic_planner():
     # Generic-planner signature: descriptor template encoded at address 0...
     assert "reinterpret_cast<void*>((uint64_t)0)" in src
     # ...and patched per cp via the 0x3FFF address-field mask.
-    assert src.count("cp_desc[0] &") == 4, f"expected 4 patched cps; src=\n{src}"
+    assert src.count("cp_desc_ptr[0] &") == 4, f"expected 4 patched cps; src=\n{src}"
 
 
 @pytest.mark.gpu
@@ -677,7 +677,7 @@ def test_cp_default_32x128b_instruction_sequence_unchanged():
         assert t_tok in cp_lines[i], f"cp[{i}] tmem col: want {t_tok!r} in {cp_lines[i]!r}"
         s_tok = f"+ {s_off}))"
         assert s_tok in cp_lines[i], f"cp[{i}] smem byte off: want {s_tok!r} in {cp_lines[i]!r}"
-        assert "cp_desc[0] &" in cp_lines[i] and "16383" in cp_lines[i], cp_lines[i]
+        assert "cp_desc_ptr[0] &" in cp_lines[i] and "16383" in cp_lines[i], cp_lines[i]
 
 
 # Negative tests: readable ValueErrors from the planner
@@ -1296,9 +1296,9 @@ def test_multi_cp_encodes_descriptor_once_and_patches_addr():
     # Descriptor encoded once (single matrix-descriptor encode call), then
     # reused with a per-cp 14-bit SMEM address patch (0x3FFF == 16383 mask).
     assert "16383" in src, "expected 14-bit SMEM address-field patch (0x3FFF mask)"
-    assert src.count("cp_desc[0] &") == 4, (
+    assert src.count("cp_desc_ptr[0] &") == 4, (
         f"expected 4 address-patched cp's reusing one cp_desc; got "
-        f"{src.count('cp_desc[0] &')}\nsrc=\n{src}"
+        f"{src.count('cp_desc_ptr[0] &')}\nsrc=\n{src}"
     )
 
 

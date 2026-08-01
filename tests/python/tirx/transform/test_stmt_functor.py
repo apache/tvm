@@ -1209,7 +1209,7 @@ def test_op_call_nested_config_visited_and_substituted():
     post_order_visit(selector.body, seen.append)
     assert any(isinstance(node, Var) and node.same_as(selector.params[-1]) for node in seen)
     undefined = tvm.tirx.analysis.undefined_vars(op_call)
-    assert any(var.same_as(original_b.data) for var in undefined)
+    assert any(var.same_as(original_b) for var in undefined)
 
     replacement = Var("replacement", "int32")
     updated = substitute(op_call, {selector.params[-1]: replacement})

@@ -1496,6 +1496,7 @@ def rank_change(A_ptr: T.handle):
     T.cta_id([1])
     tid = T.thread_id([1])
     dyn = T.alloc_buffer((65,), "uint64", scope="shared.dyn")
+    T.attr({"tirx.dyn_smem_bytes": 65 * 8})
     A_smem = T.decl_buffer((64,), "float16", dyn.data, layout=T.TileLayout(T.S[64]))
     mbar = T.decl_buffer((1,), "uint64", dyn.data, elem_offset=16)
     if tid == 0:
@@ -1522,6 +1523,7 @@ def selector_gather(
     T.cta_id([1])
     tid = T.thread_id([128])
     dyn = T.alloc_buffer((520,), "uint64", scope="shared.dyn")
+    T.attr({"tirx.dyn_smem_bytes": 520 * 8})
     A_smem = T.decl_buffer(
         (4, 64), "bfloat16", dyn.data, layout=T.TileLayout(T.S[4, 64])
     )
@@ -1636,7 +1638,7 @@ def test_prefetch_only_main_selector_descriptor():
     lowered = _lower_module(func)
     collector = _PrefetchCollector()
     collector.visit_stmt(lowered["main"].body)
-    assert collector.names == ["A_ptr_tensormap"]
+    assert collector.names == ["A_tensormap"]
 
 
 def _build_sparse_decode_qo_tma_regression():
@@ -1684,6 +1686,7 @@ def _build_sparse_decode_qo_tma_regression():
         T.cta_id([1])
         tid = T.thread_id([128])
         dyn = T.alloc_buffer((shared_bytes + 8,), "uint8", scope="shared.dyn")
+        T.attr({"tirx.dyn_smem_bytes": shared_bytes + 8})
         q_smem = T.decl_buffer(
             (64, 512), "bfloat16", dyn.data, scope="shared.dyn", layout=q_layout
         )
@@ -1825,7 +1828,7 @@ def test_sparse_decode_absent_extra_map_has_no_dummy_descriptor_or_select():
     assert selects.nodes == []
     prefetches = _PrefetchCollector()
     prefetches.visit_stmt(lowered["main"].body)
-    assert prefetches.names == ["A_ptr_tensormap"]
+    assert prefetches.names == ["A_tensormap"]
 
 
 @pytest.mark.parametrize(
@@ -1959,6 +1962,7 @@ def _build_selector_gather_gpu_kernel(dtype="float16"):
         T.cta_id([1])
         tid = T.thread_id([128])
         dyn = T.alloc_buffer((shared_bytes + 64,), "uint8", scope="shared.dyn")
+        T.attr({"tirx.dyn_smem_bytes": shared_bytes + 64})
         A_smem = T.decl_buffer(
             (4, cols), dtype, dyn.data, layout=T.TileLayout(T.S[4, cols])
         )

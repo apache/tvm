@@ -109,6 +109,10 @@ class CodeGenCUDA final : public CodeGenC {
   // y/z cluster-CTA extents are both one.
   bool cluster_cta_x_is_linear_rank_{false};
 
+  // Whether the function being generated is a __global__ kernel entry
+  // (kDeviceKernelLaunch); __device__ subroutines return real values.
+  bool in_kernel_launch_{false};
+
   // Codegen tags
   std::unordered_set<std::string> codegen_tags_;
 

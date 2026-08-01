@@ -1560,7 +1560,7 @@ def test_buffer_permute_compose_layout_ir():
     a_buf = bufs["A"]
     b_buf = bufs["B"]
 
-    assert b_buf.data.same_as(a_buf.data)
+    assert_structural_equal(_collect_buffer_sources(func)["B"], a_buf.data)
     assert [int(s) for s in b_buf.shape] == [4, 4, 4, 64]
     expected = tvm.tirx.layout.ComposeLayout(
         a_buf.layout.per_element,

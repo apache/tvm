@@ -555,8 +555,8 @@ def test_gmem_smem_swizzle_fast_path_fires_with_var_bounds():
         ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
-    bitsel = re.findall(r"& 1\) \* v_\d+\[", src)
-    v_decls = re.findall(r"alignas\(\d+\) int v_\d+\[(\d+)\]", src)
+    bitsel = re.findall(r"& 1\) \* \w+\[", src)
+    v_decls = re.findall(r"alignas\(\d+\) int \w+\[(\d+)\]", src)
     assert bitsel, (
         "expected fast-path ``(bit & 1) * v_<n>[i]`` adds; if missing, "
         "var_bounds wiring may have regressed"

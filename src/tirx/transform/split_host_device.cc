@@ -352,8 +352,20 @@ class DeviceInfoCollector : public StmtVisitor {
     if (collector.use_cooperative_launch_) {
       collector.info_.launch_params.push_back(tvm::runtime::launch_param::kUseCooperativeLaunch);
     }
-    // The dynamic shared memory is required to be the last of the
-    // kernel launch parameters.
+    // The dynamic shared memory is required to be the last of the kernel
+    // launch parameters. An explicit tirx.dyn_smem_bytes declaration wins;
+    // otherwise fall back to the size inferred from the allocation extent.
+    // A zero-extent allocation is a pool-style extern placeholder, so having
+    // neither a declaration nor a usable extent is an authoring error.
+    if (!collector.dyn_shmem_size.has_value() && collector.inferred_shmem_size_.has_value()) {
+      const auto* inferred = collector.inferred_shmem_size_.value().as<IntImmNode>();
+      TVM_FFI_ICHECK(!(inferred && inferred->value == 0))
+          << "PrimFunc " << gvar->name_hint
+          << " allocates dynamic shared memory with a placeholder extent but does not declare "
+             "its size; annotate the kernel with tirx.dyn_smem_bytes (SMEMPool.commit() emits "
+             "it).";
+      collector.dyn_shmem_size = collector.inferred_shmem_size_;
+    }
     if (collector.dyn_shmem_size) {
       collector.info_.launch_params.push_back(
           tvm::runtime::launch_param::kUseDynamicSharedMemoryTag);
@@ -378,7 +390,7 @@ class DeviceInfoCollector : public StmtVisitor {
     if (launch_param == tvm::runtime::launch_param::kUseDynamicSharedMemoryTag) {
       TVM_FFI_ICHECK(dyn_shmem_size.has_value())
           << "Compute kernel requires launch parameter \"" << launch_param
-          << "\", but PrimFunc did not contain AllocBuffer node with shared dynamic scope.";
+          << "\", but PrimFunc did not declare tirx.dyn_smem_bytes.";
       return dyn_shmem_size.value();
     }
 
@@ -407,6 +419,15 @@ class DeviceInfoCollector : public StmtVisitor {
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
+    if (op->attr_key == "tirx.dyn_smem_bytes") {
+      // Kernel-level declaration of the dynamic shared memory launch size.
+      // The backing shared.dyn allocation is an extern placeholder; this
+      // attribute is the single source of truth for the launch parameter.
+      TVM_FFI_ICHECK(!dyn_shmem_size.has_value())
+          << "Only one tirx.dyn_smem_bytes declaration is allowed per kernel.";
+      TVM_FFI_ICHECK(op->value.as<IntImmNode>()) << "tirx.dyn_smem_bytes must be an IntImm";
+      dyn_shmem_size = op->value;
+    }
     if (op->attr_key == attr::thread_extent) {
       ffi::String thread_tag;
       if (auto iv = op->node.as<IterVar>()) {
@@ -437,21 +458,24 @@ class DeviceInfoCollector : public StmtVisitor {
   void VisitStmt_(const AllocBufferNode* op) final {
     auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
-      TVM_FFI_ICHECK(!dyn_shmem_size.has_value())
+      TVM_FFI_ICHECK(!saw_dyn_shared_alloc_)
           << "Only one dynamic shared memory allocation is allowed.";
-      TVM_FFI_ICHECK_GT(op->buffer->shape.size(), 0);
+      saw_dyn_shared_alloc_ = true;
 
+      // Fallback launch size inferred from the allocation extent, used when
+      // no tirx.dyn_smem_bytes declaration is present (e.g. s_tir schedules
+      // allocate shared.dyn with a concrete extent). A zero extent is a
+      // pool-style extern placeholder and carries no size information.
+      TVM_FFI_ICHECK_GT(op->buffer->shape.size(), 0);
       PrimExpr dyn_size = IntImm::Int32(1);
       for (const auto& extent : op->buffer->shape) {
         dyn_size *= extent;
       }
       dyn_size *= IntImm::Int64(static_cast<int64_t>(op->buffer->dtype.StorageBytes()));
-
-      // Inline any locally-bound variables (e.g. from CSE).
       if (bind_map_.size()) {
         dyn_size = Substitute(dyn_size, bind_map_);
       }
-      dyn_shmem_size = dyn_size;
+      inferred_shmem_size_ = dyn_size;
     }
     StmtVisitor::VisitStmt_(op);
   }
@@ -464,6 +488,11 @@ class DeviceInfoCollector : public StmtVisitor {
   ffi::Map<ffi::String, PrimExpr> thread_extent;
   // The amount of dynamic shared memory used.
   ffi::Optional<PrimExpr> dyn_shmem_size{std::nullopt};
+  // Whether a shared.dyn allocation was seen.
+  bool saw_dyn_shared_alloc_{false};
+  // Launch size inferred from the allocation extent (fallback when no
+  // tirx.dyn_smem_bytes declaration is present).
+  ffi::Optional<PrimExpr> inferred_shmem_size_{std::nullopt};
   // Flag-only launch attributes requested by the original PrimFunc.
   bool use_programmatic_dependent_launch_{false};
   bool use_cooperative_launch_{false};
@@ -578,6 +607,17 @@ class DeviceKernelMutator : public StmtExprMutator {
         Target target = func->GetAttr<Target>(tvm::attr::kTarget).value();
         bool preserve_early_returns = target->kind->name == "cuda";
         write_ptr->body = ReturnRemover::Apply(write_ptr->body, !preserve_early_returns);
+        // The dyn-smem size declaration was consumed by DeviceInfoCollector;
+        // it has no meaning inside the kernel body.
+        class StripDynSmemAttr : public StmtMutator {
+          Stmt VisitStmt_(const AttrStmtNode* op) final {
+            if (op->attr_key == "tirx.dyn_smem_bytes") {
+              return VisitStmt(op->body);
+            }
+            return StmtMutator::VisitStmt_(op);
+          }
+        };
+        write_ptr->body = StripDynSmemAttr()(std::move(write_ptr->body));
       }
 
       func = WithAttrs(std::move(func),

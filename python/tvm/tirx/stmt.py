@@ -938,3 +938,9 @@ def stmt_list(stmt: Stmt) -> list[Stmt]:
             res += stmt_list(x)
         return res
     return [stmt]
+
+
+# Source-compatibility re-export: TilePrimitiveCall lives in tile_primitive.py
+# after the tile-primitive module merge. Imported last to avoid a cycle with
+# tile_primitive's own ``from .stmt import Stmt``.
+from .tile_primitive import TilePrimitiveCall  # noqa: E402,F401  isort: skip

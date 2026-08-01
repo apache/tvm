@@ -453,10 +453,10 @@ def test_ldstmatrix_swizzle_multi_iter_pow2():
     assert "ldmatrix.sync.aligned.m8n8.x4.shared.b16" in src
 
     # Fast-path fingerprint: 3-slot signed_strides + bit-select uses.
-    assert re.search(r"alignas\(\d+\) int v_\d+\[3\]", src), (
+    assert re.search(r"alignas\(\d+\) int \w+\[3\]", src), (
         "expected 3-slot signed_strides buffer for bjs [7, 6, 2]"
     )
-    bitsel = re.findall(r"& 1\) \* v_\d+\[", src)
+    bitsel = re.findall(r"& 1\) \* \w+\[", src)
     assert bitsel, "fast-path bit-select pattern '& 1) * v_<n>[' missing"
 
     n_elem = 1
@@ -529,10 +529,10 @@ def test_ldstmatrix_swizzle_multi_iter_linear():
     assert "ldmatrix.sync.aligned.m8n8.x4.shared.b16" in src
 
     # Fast-path fingerprint: 1-slot signed_strides (just the inner BitIter).
-    assert re.search(r"alignas\(\d+\) int v_\d+\[1\]", src), (
+    assert re.search(r"alignas\(\d+\) int \w+\[1\]", src), (
         "expected 1-slot signed_strides buffer (only the inner Case-1.A bj=2)"
     )
-    bitsel = re.findall(r"& 1\) \* v_\d+\[", src)
+    bitsel = re.findall(r"& 1\) \* \w+\[", src)
     assert bitsel, "fast-path bit-select pattern missing"
 
     n_elem = 1

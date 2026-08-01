@@ -471,7 +471,7 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_swizzle_fastpath():
     # such bit-select * signed-stride pattern.
     import re
 
-    bitsel_pattern = re.findall(r"& 1\) \* v_\d+\[", src)
+    bitsel_pattern = re.findall(r"& 1\) \* \w+\[", src)
     assert bitsel_pattern, (
         "fast-path bit-select pattern '& 1) * v_<n>[' not found; "
         "looks like emit_iter_offset's fast path didn't fire."

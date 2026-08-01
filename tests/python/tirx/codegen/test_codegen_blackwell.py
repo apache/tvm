@@ -60,8 +60,11 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name):
     def visit(node):
         if isinstance(node, tvm.tirx.Bind) and node.var.name == "remote_mbar_ptr":
             bindings.append(node)
-        if isinstance(node, tvm.tirx.DeclBuffer) and node.buffer.data.name == "remote_mbar_ptr":
-            buffers.append(node.buffer)
+        if (
+            isinstance(node, tvm.tirx.DeclBuffer)
+            and getattr(node.data, "name", None) == "remote_mbar_ptr"
+        ):
+            buffers.append(node)
         if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.ptx.mapa":
             mapa_calls.append(node)
         if isinstance(node, tvm.ir.Call) and node.op.name == arrive_op_name:
@@ -77,7 +80,7 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name):
     assert bindings[0].value.ty.storage_scope == "shared"
     assert buffers[0].data.same_as(bindings[0].var)
     assert buffers[0].data.ty.storage_scope == "shared"
-    assert buffers[0].scope() == "shared"
+    assert buffers[0].buffer.scope() == "shared"
     for arrive in arrive_calls:
         tvm.ir.assert_structural_equal(arrive.args[0], mapa_calls[0].args[0])
         tvm.ir.assert_structural_equal(
@@ -516,8 +519,8 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
             T.ptx.mbarrier.init(bar.data, 1)
             T.ptx.tcgen05.encode_instr_descriptor(descI.data, d_dtype=d_type, a_dtype=a_type, b_dtype=b_type, M=M, N=N, K=MMA_K, trans_a=False, trans_b=False, n_cta_groups=cta_group)  # noqa: E501
             for k in range(K // MMA_K):
-                T.ptx.tcgen05.encode_matrix_descriptor(descA.data, A_smem.access_ptr("r", offset=A_smem.elem_offset_of([0, k * MMA_K])), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
-                T.ptx.tcgen05.encode_matrix_descriptor(descB.data, B_smem.access_ptr("r", offset=B_smem.elem_offset_of([0, k * MMA_K])), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
+                T.ptx.tcgen05.encode_matrix_descriptor(descA.data, A_smem.ptr_to([0, k * MMA_K]), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
+                T.ptx.tcgen05.encode_matrix_descriptor(descB.data, B_smem.ptr_to([0, k * MMA_K]), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
                 if k == 0:
                     T.ptx.tcgen05.mma(tmem_addr, descA[0], descB[0], descI[0], d_dtype=d_type, a_dtype=a_type, b_dtype=b_type, use_a_tmem=False, cta_group=cta_group, enable_input_d=0)  # noqa: E501
                 else:

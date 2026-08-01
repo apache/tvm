@@ -182,6 +182,7 @@ void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const
                                          std::ostream& os) {
   CallingConv calling_conv =
       func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
+  in_kernel_launch_ = (calling_conv == CallingConv::kDeviceKernelLaunch);
   if (calling_conv == CallingConv::kDeviceKernelLaunch) {
     os << "extern \"C\" __global__ ";
   } else if (calling_conv == CallingConv::kDefault) {
@@ -267,6 +268,11 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
 }
 
 void CodeGenCUDA::VisitStmt_(const ReturnNode* op) {
+  if (!in_kernel_launch_) {
+    // __device__ subroutines return real values.
+    CodeGenC::VisitStmt_(op);
+    return;
+  }
   const auto* value = op->value.as<IntImmNode>();
   TVM_FFI_ICHECK(value && value->value == 0)
       << "CUDA device kernel may only contain a successful early return, return 0";

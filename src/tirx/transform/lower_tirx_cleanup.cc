@@ -111,7 +111,11 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
-        Var root = buffer_aliases_.Get(var.value()).value_or(var.value());
+        auto root_opt = buffer_aliases_.Get(var.value());
+        TVM_FFI_ICHECK(root_opt.has_value())
+            << "buffer_data projects " << var.value()->name << ", which has no visible definition "
+            << "(AllocBuffer/DeclBuffer/PrimFunc parameter) at this point";
+        Var root = root_opt.value();
         if (auto it = var_remap_.find(root); it != var_remap_.end()) {
           root = it->second;
         }
@@ -200,9 +204,14 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
       flattened = buf.GetFlattenedBuffer();
       type = CopyBufferType(flattened);
     }
-    // canonicalize shape
+    // Remap variables the pass has already rebuilt (a shape may load from
+    // another local buffer), then canonicalize.
     for (size_t i = 0; i < type->shape.size(); ++i) {
-      type->shape.Set(i, analyzer_->canonical_simplify(type->shape[i]));
+      type->shape.Set(
+          i, analyzer_->canonical_simplify(StmtExprMutator::VisitPrimExpr(type->shape[i])));
+    }
+    for (size_t i = 0; i < type->strides.size(); ++i) {
+      type->strides.Set(i, StmtExprMutator::VisitPrimExpr(type->strides[i]));
     }
     type->layout = std::nullopt;
     type->elem_offset = StmtExprMutator::VisitPrimExpr(buf->elem_offset);

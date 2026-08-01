@@ -32,6 +32,7 @@ import pytest
 import tvm
 from tvm.backend.cuda import transforms as cuda_transforms
 from tvm.script import tirx as T
+from tvm.testing import env
 from tvm.tirx.cuda.iket import IketProfiler
 
 TARGET = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
@@ -474,6 +475,7 @@ def test_declaration_module_and_architecture_boundaries():
         _compile(serial_a, target=tvm.target.Target({"kind": "cuda", "arch": "sm_80"}))
 
 
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_multi_kernel_module_has_no_tvm_control_plane():
     executable = IketProfiler().compile(
         tvm.IRModule(
