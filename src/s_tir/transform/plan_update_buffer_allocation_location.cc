@@ -56,7 +56,7 @@ class BufferAllocateOrderCollector : public StmtExprVisitor {
  public:
   static ffi::Array<BufferVar> Collect(const PrimFunc& func) {
     BufferAllocateOrderCollector collector;
-    for (const auto& kv : func->buffer_map) {
+    for (const auto& kv : tirx::BufferParamMap(func->params)) {
       collector.buffer_alloc_recorder_.push_back(kv.second);
     }
     collector(func->body);
@@ -114,7 +114,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     collector(func->body);
     managed_allocations_ = collector.managed_allocations;
 
-    for (const auto& kv : func->buffer_map) {
+    for (const auto& kv : tirx::BufferParamMap(func->params)) {
       const BufferVar& buffer = kv.second;
       arg_buffer_vars.emplace(buffer.get());
       buffer_data_to_buffer_.Set(buffer.var(), buffer);

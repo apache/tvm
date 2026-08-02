@@ -77,28 +77,22 @@ void TIRVisitorWithPath::Visit(const IRModule& mod, AccessPath path) {
 }
 
 void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
-  // The implicit definitions from a PrimFunc::buffer_map are pretty
-  // weird.  They only apply if no previous definition of that
-  // variable has occurred.  Therefore, to ensure that we only avoid
-  // duplicate calls to VisitVarDef, these semantics need to be
-  // checked.
+  // BufferType metadata may introduce symbolic dimensions.  Define those
+  // symbols before entering the buffer parameter itself.
   std::vector<std::variant<DefContext<Var>, DefContext<BufferVar>>> context;
 
   auto ppath = path->Attr("params");
   for (size_t i = 0; i < func->params.size(); i++) {
     const Var& param = func->params[i];
-    if (param->ty.as<BufferTypeNode>()) {
-      context.push_back(WithDef(BufferVar(param), ppath->ArrayItem(i)));
-    } else {
+    if (!param->ty.as<BufferTypeNode>()) {
       context.push_back(WithDef(param, ppath->ArrayItem(i)));
     }
   }
 
-  auto buffer_map_path = path->Attr("buffer_map");
   for (size_t i = 0; i < func->params.size(); i++) {
-    if (auto opt = func->buffer_map.Get(func->params[i])) {
+    if (auto opt = AsBufferVar(func->params[i])) {
       auto buf = opt.value();
-      auto buf_path = buffer_map_path->MapItem(ppath->ArrayItem(i));
+      auto buf_path = ppath->ArrayItem(i)->Attr("ty");
 
       for (auto& def : WithMatchBufferDefs(buf, buf_path)) {
         context.push_back(std::move(def));
@@ -109,9 +103,8 @@ void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
   // Only after all the implicit definitions have been visited can we
   // visit the buffer definition itself.
   for (size_t i = 0; i < func->params.size(); i++) {
-    if (auto opt = func->buffer_map.Get(func->params[i])) {
-      auto buf_path = buffer_map_path->MapItem(ppath->ArrayItem(i));
-      context.push_back(WithDef(opt.value(), buf_path));
+    if (auto opt = AsBufferVar(func->params[i])) {
+      context.push_back(WithDef(opt.value(), ppath->ArrayItem(i)));
     }
   }
 

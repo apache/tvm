@@ -557,6 +557,14 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
   ffi::reflection::AccessPath param_path =
       ffi::reflection::AccessPath::Root()->Extend(AccessStep::ArrayItem(param_index));
 
+  if (buffer_map_.count(param)) {
+    Var handle(param->name + ".handle", PointerType::VoidPointerTy());
+    Expr handle_value = DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());
+    BindPointer(handle, handle_value, param_path, true);
+    buffer_handles_.emplace(param.get(), handle);
+    return;
+  }
+
   if (param->ty.as<PointerTypeNode>()) {
     Expr handle_value = DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());
     Expr pointer_value = Call(param->ty, builtin::reinterpret(), {handle_value});
@@ -599,10 +607,11 @@ void TVMFFIABIBuilder::DecodeAllParams() {
     Var param = params_[i];
     if (buffer_map_.count(param)) {
       BufferVar buffer = buffer_map_[param];
+      Var handle = buffer_handles_.at(param.get());
       ffi::reflection::AccessPath param_path = ffi::reflection::AccessPath::Root()
                                                    ->Extend(AccessStep::ArrayItem(i))
                                                    ->Attr(ffi::String(buffer.name()));
-      Expr data = DecodeParamDLTensor(buffer, device_type_, device_id_, param,
+      Expr data = DecodeParamDLTensor(buffer, device_type_, device_id_, handle,
                                       func_name_ + "." + param->name, param_path);
       decl_buffers_.push_back(DeclBuffer(buffer, data));
     }

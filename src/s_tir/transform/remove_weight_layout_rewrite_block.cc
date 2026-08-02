@@ -126,16 +126,22 @@ class WeightLayoutRewriteBlockRemover : public StmtMutator {
 
     PrimFuncNode* n = f_.CopyOnWrite();
 
-    ffi::Map<tirx::Var, BufferVar> buffer_map;
-    for (const auto& [param, buffer] : f_->buffer_map) {
+    ffi::Array<tirx::Var> params;
+    for (const tirx::Var& param : f_->params) {
+      auto opt_buffer = tirx::AsBufferVar(param);
+      if (!opt_buffer.has_value()) {
+        params.push_back(param);
+        continue;
+      }
+      BufferVar buffer = opt_buffer.value();
       auto it = buf_map.find(buffer);
       if (it != buf_map.end()) {
-        buffer_map.Set(param, (*it).second);
+        params.push_back((*it).second.var());
       } else {
-        buffer_map.Set(param, buffer);
+        params.push_back(param);
       }
     }
-    n->buffer_map = std::move(buffer_map);
+    n->params = std::move(params);
     return f_;
   }
 };

@@ -96,7 +96,7 @@ ffi::Array<ArgInfo> ArgInfo::FromPrimFunc(const tirx::PrimFunc& func) {
   ffi::Array<ArgInfo> result;
   result.reserve(func->params.size());
   for (const tirx::Var& arg : func->params) {
-    if (ffi::Optional<tirx::BufferVar> _buffer = func->buffer_map.Get(arg)) {
+    if (ffi::Optional<tirx::BufferVar> _buffer = tirx::BufferParamMap(func->params).Get(arg)) {
       tirx::BufferVar buffer = _buffer.value();
       result.push_back(TensorInfo(/*dtype=*/buffer->dtype->dtype,
                                   /*shape=*/AsVector<PrimExpr, int64_t>(buffer->shape)));

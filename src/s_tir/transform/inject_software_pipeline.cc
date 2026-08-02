@@ -1065,7 +1065,7 @@ class PipelineInjector : private StmtExprMutator {
   static Stmt Inject(const PrimFunc& func) {
     auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     PipelineInjector injector(global_symbol);
-    for (const auto& kv : func->buffer_map) {
+    for (const auto& kv : tirx::BufferParamMap(func->params)) {
       const BufferVar& buffer = kv.second;
       injector.buffer_data_to_buffer_.Set(buffer.var(), buffer);
     }

@@ -38,12 +38,26 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 namespace {
+ffi::Array<Var> NormalizeBufferParams(ffi::Array<Var> params,
+                                      const ffi::Map<Var, BufferVar>& buffer_map) {
+  ffi::Array<Var> normalized;
+  normalized.reserve(params.size());
+  for (const Var& param : params) {
+    if (auto buffer = buffer_map.Get(param)) {
+      normalized.push_back(buffer.value().var());
+    } else {
+      normalized.push_back(param);
+    }
+  }
+  return normalized;
+}
+
 tvm::Type InferType(const PrimFunc& prim_func) {
   ffi::Array<tvm::Type> params;
   for (const auto& param : prim_func->params) {
     tvm::Type param_ty = [&]() -> tvm::Type {
-      if (auto opt_buf = prim_func->buffer_map.Get(param)) {
-        auto buf = opt_buf.value();
+      if (param->ty.as<BufferTypeNode>()) {
+        BufferVar buf(param);
         relax::ShapeExpr shape(
             buf->shape.Map([](PrimExpr dim) { return cast(PrimType::Int(64), dim); }));
         return relax::TensorType(shape, buf->dtype);
@@ -79,8 +93,8 @@ tvm::Type InferType(const PrimFunc& prim_func) {
 }  // namespace
 
 // Get the function type of a PrimFunc
-PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type,
-                   ffi::Map<tirx::Var, BufferVar> buffer_map, DictAttrs attrs, Span span) {
+PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type, DictAttrs attrs,
+                   Span span) {
   if (ret_type.IsMissing()) {
     ret_type = VoidType();
   }
@@ -89,7 +103,6 @@ PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type,
   n->params = std::move(params);
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);
-  n->buffer_map = std::move(buffer_map);
   n->attrs = std::move(attrs);
   n->ty = relax::FuncType::OpaqueFunc();
   n->span = std::move(span);
@@ -97,6 +110,11 @@ PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type,
 
   (*this)->ty = InferType(*this);
 }
+
+PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type,
+                   ffi::Map<tirx::Var, BufferVar> buffer_map, DictAttrs attrs, Span span)
+    : PrimFunc(NormalizeBufferParams(std::move(params), buffer_map), std::move(body),
+               std::move(ret_type), std::move(attrs), std::move(span)) {}
 
 FuncType PrimFuncNode::func_type_annotation() const {
   ffi::Array<Type> param_types;
@@ -121,7 +139,9 @@ TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
   TVM_FFI_CHECK_EQ(desc->params.size(), impl->params.size(), ValueError)
       << "The number of parameters of the description and the implementation of the "
          "tensor intrinsic doesn't match.";
-  auto is_handle = [](const Var& param) { return param->ty.as<PointerTypeNode>() != nullptr; };
+  auto is_handle = [](const Var& param) {
+    return param->ty.as<PointerTypeNode>() != nullptr || param->ty.as<BufferTypeNode>() != nullptr;
+  };
   for (size_t i = 0; i < desc->params.size(); i++) {
     TVM_FFI_CHECK(is_handle(desc->params[i]), ValueError)
         << "Parameters of the description of the "
@@ -130,8 +150,6 @@ TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
         << "Parameters of the implementation of "
            "the tensor intrinsic should be handle only.";
   }
-  TVM_FFI_ICHECK_EQ(desc->buffer_map.size(), impl->buffer_map.size());
-
   ffi::ObjectPtr<TensorIntrinNode> n = ffi::make_object<TensorIntrinNode>();
   n->desc = std::move(desc);
   n->impl = std::move(impl);
@@ -164,9 +182,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tirx.PrimFunc",
-           [](ffi::Array<tirx::Var> params, Stmt body, Type ret_type,
-              ffi::Map<tirx::Var, BufferVar> buffer_map, DictAttrs attrs,
-              Span span) { return PrimFunc(params, body, ret_type, buffer_map, attrs, span); })
+           [](ffi::Array<tirx::Var> params, Stmt body, Type ret_type, DictAttrs attrs, Span span) {
+             return PrimFunc(params, body, ret_type, attrs, span);
+           })
       .def("tirx.TensorIntrin",
            [](PrimFunc desc_func, PrimFunc intrin_func) {
              return TensorIntrin(desc_func, intrin_func);

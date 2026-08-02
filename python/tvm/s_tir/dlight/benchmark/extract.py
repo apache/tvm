@@ -180,7 +180,9 @@ def extract_func_info_from_prim_func(
     func_args = []
     dym_var = {}
     for param in func.params:
-        buffer = func.buffer_map[param]
+        if not tvm.tirx.is_buffer_var(param):
+            continue
+        buffer = param
         shape = []
         for dim in buffer.shape:
             if isinstance(dim, tvm.tirx.IntImm):

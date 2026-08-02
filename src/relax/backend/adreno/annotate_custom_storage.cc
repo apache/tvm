@@ -231,8 +231,8 @@
  * - Fusion
  * - FoldVDeviceScopeChange: There existed some ToVDevice copies from texture to buffer
  *   This pass removes the copes and updates producer scope to global.
- * - SpecializePrimFuncBasedOnCallSite: Finally we update the buffer maps according to
- *   VDevice scopes.
+ * - SpecializePrimFuncBasedOnCallSite: Finally we update the buffer parameter annotations
+ *   according to VDevice scopes.
  *
  */
 

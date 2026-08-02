@@ -527,10 +527,11 @@ def check_well_formed(obj: IRModule | Function, check_ty: bool = True) -> bool:
 
 
 def _get_prim_func_default_dtype(func: PrimFunc):
-    """Detect default index dtype from function buffer map"""
-    for _, v in func.buffer_map.items():
-        for value in v.shape:
-            return value.ty
+    """Detect default index dtype from BufferType-annotated parameters."""
+    for param in func.params:
+        if tirx.is_buffer_var(param):
+            for value in param.shape:
+                return value.ty
     return "int64"
 
 

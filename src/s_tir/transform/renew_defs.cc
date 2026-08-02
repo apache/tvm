@@ -48,15 +48,16 @@ class RenewDefMutator : public StmtExprMutator {
  public:
   static PrimFunc Transform(const PrimFunc& func) {
     RenewDefMutator generator;
-    // Redefine params
-    ffi::Array<Var> params;
+    // Redefine scalar parameters first, because they may occur in a buffer
+    // parameter's type annotation.
     for (const auto& param : func->params) {
-      params.push_back(generator.ReDefineVar(param));
+      if (!tirx::AsBufferVar(param)) {
+        generator.ReDefineVar(param);
+      }
     }
     for (const auto& param : func->params) {
-      auto it = func->buffer_map.find(param);
-      if (it != func->buffer_map.end()) {
-        const BufferVar& buffer = (*it).second;
+      if (auto opt_buffer = tirx::AsBufferVar(param)) {
+        const BufferVar& buffer = opt_buffer.value();
         for (const PrimExpr& e : buffer->shape) {
           if (auto var = e.as<PrimVar>()) {
             if (generator.remap_.count(var.value()) == 0) {
@@ -66,22 +67,20 @@ class RenewDefMutator : public StmtExprMutator {
         }
       }
     }
-    // Redefine buffers in order
+    // Redefine buffer parameters in order, preserving the original signature.
     // TODO(Siyuan Feng): checking var is used after define
-    ffi::Map<tirx::Var, BufferVar> buffer_map;
+    ffi::Array<Var> params;
     for (const auto& param : func->params) {
-      auto it = func->buffer_map.find(param);
-      if (it != func->buffer_map.end()) {
-        const BufferVar& buffer = (*it).second;
-        Var new_param = generator.VisitExpr(param).as_or_throw<Var>();
-        BufferVar new_buffer = generator.DefineBuffer(buffer);
-        buffer_map.Set(new_param, new_buffer);
+      if (auto opt_buffer = tirx::AsBufferVar(param)) {
+        params.push_back(generator.DefineBuffer(opt_buffer.value()));
+      } else {
+        params.push_back(generator.VisitExpr(param).as_or_throw<Var>());
       }
     }
     // Visit body
     Stmt body = generator(func->body);
     // Recreate function
-    return PrimFunc(params, body, func->ret_type, buffer_map, func->attrs, func->span);
+    return PrimFunc(params, body, func->ret_type, func->attrs, func->span);
   }
 
  private:

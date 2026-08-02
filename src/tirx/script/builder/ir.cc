@@ -90,11 +90,7 @@ Var Arg(ffi::String name, Var var) {
 BufferVar Arg(ffi::String name, BufferVar buffer) {
   PrimFuncFrame frame = FindPrimFuncFrame("T.Arg");
   details::Namer::Name(buffer, name);
-  // A buffer parameter is an opaque ABI handle.  The buffer's data pointer
-  // carries the exact pointee type used within the function body.
-  Var handle(buffer.name() + "_handle", PointerType::VoidPointerTy());
-  frame->args.push_back(handle);
-  frame->buffer_map.Set(handle, buffer);
+  frame->args.push_back(buffer.var());
   return buffer;
 }
 

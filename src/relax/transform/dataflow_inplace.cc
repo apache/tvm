@@ -966,8 +966,8 @@ class ModuleInplaceTransformer : public ExprMutator {
       var_subst_map.Set(output_var, inplace_var);
 
       // also do the same with the buffer vars
-      auto output_buffer = old_primfunc->buffer_map.at(output_var);
-      auto inplace_buffer = old_primfunc->buffer_map.at(inplace_var);
+      auto output_buffer = tirx::BufferParamMap(old_primfunc->params).at(output_var);
+      auto inplace_buffer = tirx::BufferParamMap(old_primfunc->params).at(inplace_var);
       var_subst_map.Set(output_buffer.var(), inplace_buffer.var());
       buffer_subst_map.Set(output_buffer, inplace_buffer);
     }
@@ -983,7 +983,7 @@ class ModuleInplaceTransformer : public ExprMutator {
                                 });
 
     // remove the now-unused outputs from the buffer map
-    auto new_buffer_map = old_primfunc->buffer_map;
+    auto new_buffer_map = tirx::BufferParamMap(old_primfunc->params);
     for (size_t i = 0; i < num_outs; i++) {
       new_buffer_map.erase(old_primfunc->params[num_params - num_outs + i]);
     }

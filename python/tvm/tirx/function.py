@@ -50,9 +50,6 @@ class PrimFunc(BaseFunc, Scriptable):
     ret_type: tvm.ir.Type
         The return type annotation of the function.
 
-    buffer_map : Map[tvm.tirx.Var, tvm.tirx.Buffer]
-        The buffer binding map.
-
     attrs: Optional[tvm.Attrs]
         Attributes of the function, can be None
 
@@ -73,11 +70,9 @@ class PrimFunc(BaseFunc, Scriptable):
         for x in params:
             x = tvm.runtime.convert(x) if not isinstance(x, Object) else x
             if is_buffer_var(x):
-                var = Var(x.name, ty="handle")
-                param_list.append(var)
-                buffer_map[var] = x
-            elif isinstance(x, Var):
                 param_list.append(x)
+            elif isinstance(x, Var):
+                param_list.append(buffer_map.get(x, x))
             else:
                 raise TypeError("params can only contain Var or Buffer")
 
@@ -89,7 +84,6 @@ class PrimFunc(BaseFunc, Scriptable):
             param_list,
             body,
             ret_type,
-            buffer_map,
             attrs,
             span,
         )  # type: ignore
@@ -113,10 +107,9 @@ class PrimFunc(BaseFunc, Scriptable):
         return PrimFunc(
             self.params,
             new_body,
-            self.ret_type,
-            self.buffer_map,
-            self.attrs,
-            span,
+            ret_type=self.ret_type,
+            attrs=self.attrs,
+            span=span,
         )
 
     def specialize(self, param_map: Mapping[Var, Expr | Buffer]):

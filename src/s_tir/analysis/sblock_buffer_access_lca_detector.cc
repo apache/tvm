@@ -45,7 +45,7 @@ class LCADetector : public StmtExprVisitor {
  public:
   static ffi::Map<BufferVar, ffi::Optional<Stmt>> Detect(const PrimFunc& func) {
     LCADetector detector;
-    for (const auto& kv : func->buffer_map) {
+    for (const auto& kv : tirx::BufferParamMap(func->params)) {
       const BufferVar& buffer = kv.second;
       detector.buffer_var_map_.emplace(buffer.get(), buffer.get());
     }

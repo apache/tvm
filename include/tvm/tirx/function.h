@@ -38,6 +38,25 @@
 namespace tvm {
 namespace tirx {
 
+/*! \brief Return a checked buffer view when a parameter carries BufferType. */
+inline ffi::Optional<BufferVar> AsBufferVar(const Var& var) {
+  if (var->ty.as<BufferTypeNode>()) {
+    return BufferVar(var);
+  }
+  return std::nullopt;
+}
+
+/*! \brief Derive a keyed view of buffer parameters from their BufferType annotations. */
+inline ffi::Map<Var, BufferVar> BufferParamMap(const ffi::Array<Var>& params) {
+  ffi::Map<Var, BufferVar> result;
+  for (const Var& param : params) {
+    if (auto buffer = AsBufferVar(param)) {
+      result.Set(param, buffer.value());
+    }
+  }
+  return result;
+}
+
 /*!
  * \brief Primitive functions that contains TIR statements.
  *
@@ -52,52 +71,6 @@ class PrimFuncNode : public BaseFuncNode {
   ffi::Array<tirx::Var> params;
   /*! \brief The return type of the function. */
   Type ret_type = Type::Missing();
-  /*!
-   * \brief Maps some parameters to specific buffer data structures.
-   *
-   *  buffer_map provides a way to express data structure's field and shape
-   *  constraints. The provided information is used in the program analysis
-   *  and the code generation.
-   *
-   *  - It defines the vars in the buffer (m, n) in the cases below when
-   *    they appears in the buffer_map for the first time.
-   *  - When a var appears multiple times, they translate into runtime
-   *    assertion to check the field constraint.
-   *
-   *  \code
-   *
-   *   # The corresponding fields of f are as follows
-   *   #
-   *   # - f.params = [a, b]
-   *   # - f.buffer_map = {a: A, b: B}
-   *   # - A = decl_buffer(shape=[m, n])
-   *   # - B = decl_buffer(shape=[m, n])
-   *
-   *   def f(a, b):
-   *       m, n = var(), var()
-   *       A = bind_buffer(a, shape=[m, n])
-   *       B = bind_buffer(b, shape=[m, n])
-   *       # body
-   *
-   *  \endcode
-   *
-   *  buffer_map is a sugar to express:
-   *  - Parameter unpacking: e.g. I can load a.shape[0] to get value of m
-   *  - Constraint checking: a.shape[0] must equal b.shape[0] because they
-   *    both corresponds to m.
-
-   *  While we could have express parameter unpacking and constraint using
-   *  normal statements, making buffer_map as first class citizen of PrimFunc
-   *  will make program analysis much easier.
-   *
-   *  Prior to buffer flattening, which is performed FlattenBuffer for
-   *  TIR-based schedules, these buffer objects are used directly in
-   *  the body of the function.  After buffer flattening, these buffer
-   *  objects remain unflattened for use in argument validation, but
-   *  all usage in the body of the function is done through a
-   *  flattened alias of the buffer.
-   */
-  ffi::Map<tirx::Var, BufferVar> buffer_map;
   /*! \brief The body of the function */
   tirx::Stmt body;
 
@@ -106,8 +79,6 @@ class PrimFuncNode : public BaseFuncNode {
     refl::ObjectDef<PrimFuncNode>()
         .def_ro("params", &PrimFuncNode::params, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("ret_type", &PrimFuncNode::ret_type)
-        .def_ro("buffer_map", &PrimFuncNode::buffer_map,
-                refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("body", &PrimFuncNode::body);
     refl::TypeAttrDef<PrimFuncNode>()
         .def("__s_equal__", &PrimFuncNode::SEqual)
@@ -122,7 +93,6 @@ class PrimFuncNode : public BaseFuncNode {
     return equal(attrs, other->attrs, false, "attrs") &&
            equal(params, other->params, true, "params") &&
            equal(ret_type, other->ret_type, false, "ret_type") &&
-           equal(buffer_map, other->buffer_map, true, "buffer_map") &&
            equal(body, other->body, false, "body");
   }
 
@@ -131,7 +101,6 @@ class PrimFuncNode : public BaseFuncNode {
     hash_value = hash(attrs, hash_value, false);
     hash_value = hash(params, hash_value, true);
     hash_value = hash(ret_type, hash_value, false);
-    hash_value = hash(buffer_map, hash_value, true);
     hash_value = hash(body, hash_value, false);
     return hash_value;
   }
@@ -163,18 +132,17 @@ class PrimFunc : public BaseFunc {
    *
    * \param ret_type The return type of the function.
    *
-   * \param buffer_map The buffer map for parameter buffer unpacking.
-   * This contains buffer objects as they appear in the body of the
-   * PrimFunc.  (e.g. a buffer of shape ``[1024]`` originally
-   * generated as a tensor of shape ``[32, 32]``)
-   *
    * \param attrs Additional function attributes.
    *
    * \param span The location of this object in the source code.
    */
   TVM_DLL PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type = VoidType(),
-                   ffi::Map<tirx::Var, BufferVar> buffer_map = ffi::Map<tirx::Var, BufferVar>(),
                    DictAttrs attrs = DictAttrs(), Span span = Span());
+
+  /*! \brief Compatibility constructor that folds legacy buffer bindings into params. */
+  TVM_DLL PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type,
+                   ffi::Map<tirx::Var, BufferVar> buffer_map, DictAttrs attrs = DictAttrs(),
+                   Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimFunc, BaseFunc, PrimFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimFuncNode);

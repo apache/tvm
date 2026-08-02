@@ -1314,7 +1314,7 @@ void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
     sref = sref->parent;
   }
   const PrimFuncNode* f = GetRootPrimFunc(state->mod, sref->stmt, nullptr);
-  for (const auto& kv : f->buffer_map) {
+  for (const auto& kv : tirx::BufferParamMap(f->params)) {
     const BufferVar& buffer = kv.second;
     for (const PrimExpr& e : buffer->shape) {
       analyzer->MarkGlobalNonNegValue(e);

@@ -277,7 +277,9 @@ def test_opaque_access_with_tvm_access_ptr():
 
 def test_decl_buffer_alias_is_not_an_opaque_access():
     block = decl_buffer_alias_func.body.block
-    buffer_var_map = {buf: buf for buf in decl_buffer_alias_func.buffer_map.values()}
+    buffer_var_map = {
+        buf: buf for buf in decl_buffer_alias_func.params if tvm.tirx.is_buffer_var(buf)
+    }
 
     reads, writes, opaque = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
     tvm.ir.assert_structural_equal(block.reads, reads)
@@ -401,7 +403,7 @@ def test_buffer_access_with_let_binding():
                 output[vi, vs] = storage[seq_id, history_id, vs]
 
     block = func.body.block.body.body.body.block
-    buffer_var_map = {buf: buf for buf in func.buffer_map.values()}
+    buffer_var_map = {buf: buf for buf in func.params if tvm.tirx.is_buffer_var(buf)}
     ret = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
     tvm.ir.assert_structural_equal(block.reads, ret[0])
     tvm.ir.assert_structural_equal(block.writes, ret[1])
@@ -427,7 +429,7 @@ def test_buffer_access_with_nested_let_binding():
                 C[vi, vs1] = A[vi1, vs2] + B[vi2, vs3]
 
     block = func.body.block.body.body.body.block
-    buffer_var_map = {buf: buf for buf in func.buffer_map.values()}
+    buffer_var_map = {buf: buf for buf in func.params if tvm.tirx.is_buffer_var(buf)}
     ret = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
     tvm.ir.assert_structural_equal(block.reads, ret[0])
     tvm.ir.assert_structural_equal(block.writes, ret[1])

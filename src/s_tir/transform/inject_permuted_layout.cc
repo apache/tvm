@@ -70,8 +70,9 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
  private:
   explicit PermutedLayoutInjector(PrimFunc func, const Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer) {
-    buffer_map_.insert(func->buffer_map.begin(), func->buffer_map.end());
-    for (const auto& [_, buffer] : func->buffer_map) {
+    auto param_buffers = tirx::BufferParamMap(func->params);
+    buffer_map_.insert(param_buffers.begin(), param_buffers.end());
+    for (const auto& [_, buffer] : param_buffers) {
       buffer_map_.insert({buffer.var(), buffer});
     }
   }

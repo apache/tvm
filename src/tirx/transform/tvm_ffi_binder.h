@@ -407,6 +407,8 @@ class TVMFFIABIBuilder {
   ffi::Array<Var> params_;
   /*! \brief The buffer map from parameters to buffers. */
   ffi::Map<Var, BufferVar> buffer_map_;
+  /*! \brief Raw packed-ABI handles decoded for buffer-typed parameters. */
+  std::unordered_map<const VarNode*, Var> buffer_handles_;
   /*! \brief The packed args variable. */
   Var v_packed_args_;
   /*! \brief The expected device type expression. */

@@ -62,15 +62,12 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
 
     // Step 2: Create the params for the new PrimFunc
     ffi::Array<Var> params;
-    ffi::Map<Var, BufferVar> buffer_map;
 
     for (const auto& info : rewrite_infos_) {
-      params.push_back(Var(info.pre_rewrite_buffer.name(), PointerType::VoidPointerTy()));
-      buffer_map.Set(params.back(), info.pre_rewrite_buffer);
+      params.push_back(info.pre_rewrite_buffer.var());
     }
     for (const auto& info : rewrite_infos_) {
-      params.push_back(Var(info.post_rewrite_buffer.name(), PointerType::VoidPointerTy()));
-      buffer_map.Set(params.back(), info.post_rewrite_buffer);
+      params.push_back(info.post_rewrite_buffer.var());
     }
 
     // Step 3: Create the body for the new PrimFunc
@@ -94,7 +91,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
       }
     }
     DictAttrs attrs(dict);
-    PrimFunc func = PrimFunc(params, body, VoidType(), buffer_map, attrs);
+    PrimFunc func = PrimFunc(params, body, VoidType(), attrs);
 
     return s_tir::RenewDefs(func);
   }
@@ -102,11 +99,10 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
   PrimFunc create_compute_func() const {
     // Step 1: Create the params for the new PrimFunc
     ffi::Array<Var> params = original_func_->params;
-    ffi::Map<Var, BufferVar> buffer_map = original_func_->buffer_map;
     for (const auto& info : rewrite_infos_) {
       const Var& param = params[info.buffer_index];
-      TVM_FFI_ICHECK(buffer_map[param] == info.pre_rewrite_buffer);
-      buffer_map.Set(param, info.post_rewrite_buffer);
+      TVM_FFI_ICHECK(tirx::AsBufferVar(param).value() == info.pre_rewrite_buffer);
+      params.Set(info.buffer_index, info.post_rewrite_buffer.var());
     }
 
     // Step 2: Create the body for the new PrimFunc
@@ -140,7 +136,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
       }
     }
     DictAttrs attrs(dict);
-    PrimFunc func = PrimFunc(original_func_->params, body, VoidType(), buffer_map, attrs);
+    PrimFunc func = PrimFunc(params, body, VoidType(), attrs);
 
     return s_tir::RenewDefs(func);
   }
@@ -193,7 +189,8 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
       const BufferVar& preproc_buffer = op->reads[0]->buffer;
       int buffer_index = -1;
       for (size_t i = 0; i < original_func_->params.size(); ++i) {
-        const BufferVar& buffer = original_func_->buffer_map[original_func_->params[i]];
+        const BufferVar& buffer =
+            tirx::BufferParamMap(original_func_->params)[original_func_->params[i]];
         if (buffer == preproc_buffer) {
           buffer_index = i;
           break;

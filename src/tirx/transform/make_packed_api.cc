@@ -230,8 +230,9 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   IntImm device_type(PrimType::Int(32), target_device_type);
 
   // Create TVMFFIABIBuilder and decode all packed args
-  TVMFFIABIBuilder binder(name_hint, func_ptr->params, func_ptr->buffer_map, v_packed_args,
-                          v_num_packed_args, device_type, device_id.as_or_throw<PrimExpr>());
+  TVMFFIABIBuilder binder(name_hint, func_ptr->params, BufferParamMap(func_ptr->params),
+                          v_packed_args, v_num_packed_args, device_type,
+                          device_id.as_or_throw<PrimExpr>());
   binder.DecodeAllParams();
 
   auto result = binder.Finalize();
@@ -279,7 +280,6 @@ PrimFunc MakePackedAPI(PrimFunc func) {
       << "In PrimFunc " << name_hint << " variables " << undefined
       << " are used, but are not passed in as API arguments";
 
-  func_ptr->buffer_map = ffi::Map<Var, BufferVar>();
   func_ptr->ret_type = PrimType::Int(32);
 
   // return the function.

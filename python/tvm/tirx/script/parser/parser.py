@@ -651,15 +651,39 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                 # - kwarg: arg | None
                 # - defaults: list[expr]
                 # - posonlyargs: list[arg]
+                # Buffer annotations may refer to scalar parameters that occur
+                # later in the signature.  Predeclare any independently
+                # evaluable scalar/pointer parameters so those forward
+                # references resolve without changing ABI parameter order.
+                evaluated_annotations = {}
+                for arg in node.args.args:
+                    if arg.annotation is None:
+                        continue
+                    try:
+                        ann = self.eval_expr(arg.annotation)
+                        if isinstance(ann, _OptionalAnnotation) or ann is _constexpr_sentinel:
+                            evaluated_annotations[arg.arg] = ann
+                            continue
+                        if callable(ann) and not isinstance(ann, Expr):
+                            ann = ann()
+                    except Exception:  # pylint: disable=broad-except
+                        continue
+                    evaluated_annotations[arg.arg] = ann
+                    if isinstance(ann, tvm.tirx.Var) and not is_buffer_var(ann):
+                        self.var_table.add(arg.arg, ann)
+
                 for arg in node.args.args:
                     if arg.annotation is None:
                         self.report_error(arg, "Type annotation required for function parameters.")
-                    try:
-                        ann = self.eval_expr(arg.annotation)
-                    except Exception:  # pylint: disable=broad-except
-                        ann = func_annotation.get(arg.arg, None)
-                        if ann is None:
-                            raise
+                    if arg.arg in evaluated_annotations:
+                        ann = evaluated_annotations[arg.arg]
+                    else:
+                        try:
+                            ann = self.eval_expr(arg.annotation)
+                        except Exception:  # pylint: disable=broad-except
+                            ann = func_annotation.get(arg.arg, None)
+                            if ann is None:
+                                raise
                     if isinstance(ann, _OptionalAnnotation):
                         if not _is_jit_function(node):
                             self.report_error(

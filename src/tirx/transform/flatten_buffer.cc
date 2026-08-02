@@ -62,20 +62,19 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   static PrimFunc Flatten(PrimFunc func) {
     arith::Analyzer ana;
     auto pass = BufferFlattener(ana);
-    pass.MarkBufferMapShapes(func);
-    for (const auto& [param, buffer] : func->buffer_map) {
+    pass.MarkBufferParamShapes(func);
+    for (const auto& [param, buffer] : tirx::BufferParamMap(func->params)) {
       pass.extern_buffers_.insert(buffer);
       pass.Define(buffer);
     }
     auto body = pass.VisitStmt(func->body);
 
-    // The buffers in func->buffer_map are deliberately left
-    // unflattened, as they are used for validation of user-provided
-    // arguments.  The flattened buffers used in the updated
-    // function body alias the argument buffers.
+    // Buffer parameters are deliberately left unflattened, as they are used
+    // for validation of user-provided arguments.  The flattened buffers used
+    // in the updated function body alias the argument buffers.
     for (size_t i = func->params.size(); i > 0; i--) {
       auto handle = func->params[i - 1];
-      if (auto opt = func->buffer_map.Get(handle)) {
+      if (auto opt = tirx::BufferParamMap(func->params).Get(handle)) {
         auto old_buf = opt.value();
         if (pass.buffers_used_.count(old_buf)) {
           auto new_buf = pass.Lookup(old_buf).flattened;

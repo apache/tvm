@@ -133,7 +133,7 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
   PrimFunc Process(PrimFunc func) {
     for (int i = 0, n = func->params.size(); i < n; ++i) {
       if (auto v = func->params[i].as<Var>()) {
-        if (ffi::Optional<BufferVar> buffer = func->buffer_map.Get(v.value())) {
+        if (ffi::Optional<BufferVar> buffer = tirx::BufferParamMap(func->params).Get(v.value())) {
           buffer2index_[buffer.value()] = i;
         }
       }
@@ -753,19 +753,15 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
 PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<te::Tensor>& arg_list,
                                      const ffi::Array<Stmt>& root_stmts, CreateFuncInfo* info) {
   ffi::Array<Var> parameters;
-  ffi::Map<Var, BufferVar> buffer_map;
   for (const te::Tensor& tensor : arg_list) {
     auto it = info->tensor2buffers.find(tensor);
     TVM_FFI_ICHECK(it != info->tensor2buffers.end());
-    Var arg("var_" + tensor->GetNameHint(), PointerType::VoidPointerTy());
-    parameters.push_back(arg);
-    buffer_map.Set(arg, it->second);
+    parameters.push_back(it->second.var());
   }
   PrimFunc func = WithAttrs(
       PrimFunc(/*params=*/std::move(parameters),
                /*body=*/SeqStmt::Flatten(root_stmts),
-               /*ret_type=*/VoidType(),
-               /*buffer_map=*/std::move(buffer_map)),
+               /*ret_type=*/VoidType()),
       {{"global_symbol", ffi::String("main")}, {"tirx.noalias", true}, {tvm::attr::kSTir, true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
@@ -819,15 +815,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_tir_var_list,
                                      const ffi::Array<Stmt>& root_stmts, CreateFuncInfo* info) {
   ffi::Array<Var> parameters;
-  ffi::Map<Var, BufferVar> buffer_map;
   for (const ffi::ObjectRef& arg : arg_tir_var_list) {
     if (auto opt_tensor = arg.as<te::Tensor>()) {
       te::Tensor tensor = opt_tensor.value();
       auto it = info->tensor2buffers.find(tensor);
       TVM_FFI_ICHECK(it != info->tensor2buffers.end());
-      Var param("var_" + tensor->GetNameHint(), PointerType::VoidPointerTy());
-      parameters.push_back(param);
-      buffer_map.Set(param, it->second);
+      parameters.push_back(it->second.var());
     } else if (auto var = arg.as<tirx::PrimVar>()) {
       parameters.push_back(var.value());
     }
@@ -835,8 +828,7 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_tir_v
   PrimFunc func = WithAttrs(
       PrimFunc(/*params=*/std::move(parameters),
                /*body=*/SeqStmt::Flatten(root_stmts),
-               /*ret_type=*/VoidType(),
-               /*buffer_map=*/std::move(buffer_map)),
+               /*ret_type=*/VoidType()),
       {{"global_symbol", ffi::String("main")}, {"tirx.noalias", true}, {tvm::attr::kSTir, true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());

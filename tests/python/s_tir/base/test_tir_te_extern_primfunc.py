@@ -192,7 +192,9 @@ class TestPrimFuncs:
         ir_mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
         prim_func = ir_mod["main"]
 
-        buf_name_map = {buf.name: buf for buf in func.buffer_map.values()}
+        buf_name_map = {
+            param.name: param for param in func.params if tvm.tirx.is_buffer_var(param)
+        }
         input_tensors = [te.placeholder(buf_name_map[name].shape) for name in params]
         output = te.extern_primfunc(input_tensors, prim_func)
         rt_prim_func = te.create_prim_func(tensors_from_extern_op(output, prim_func))
@@ -219,8 +221,8 @@ def tensors_from_extern_op(extern, func):
     buffer_to_tensor = {**input_binds, **output_binds}
     ordered_tensors = []
     for var in func.params:
-        buf = func.buffer_map[var]
-        ordered_tensors.append(buffer_to_tensor[buf])
+        if tvm.tirx.is_buffer_var(var):
+            ordered_tensors.append(buffer_to_tensor[var])
     return ordered_tensors
 
 

@@ -159,7 +159,8 @@ PrimFunc TextureFlattenHandler(PrimFunc func) {
   auto fptr = func.CopyOnWrite();
   IRVisitorWithAnalyzer bound_analyzer;
   bound_analyzer(fptr->body);
-  fptr->body = TextureFlattener(fptr->buffer_map, &bound_analyzer)(std::move(fptr->body));
+  fptr->body =
+      TextureFlattener(tirx::BufferParamMap(fptr->params), &bound_analyzer)(std::move(fptr->body));
   return func;
 }
 

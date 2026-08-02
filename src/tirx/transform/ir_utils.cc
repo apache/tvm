@@ -110,7 +110,7 @@ class IRConvertSSA final : public StmtExprMutator {
       for (const auto& var : func->params) {
         defined_params.insert(var.get());
       }
-      for (const auto& [var, buffer] : func->buffer_map) {
+      for (const auto& [var, buffer] : tirx::BufferParamMap(func->params)) {
         static_cast<void>(var);  // gcc 7.x bug, https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
         auto check_expr = [&](const PrimExpr& expr) {
           auto* var_ptr = expr.as<VarNode>();
@@ -134,27 +134,23 @@ class IRConvertSSA final : public StmtExprMutator {
       }
     }
 
-    // Update the buffer map, based on the redefined parameters
+    // Update the buffer parameters, based on the redefined parameters
+    bool buffer_params_changed = false;
     auto buffer_map = [&]() {
       ffi::Map<Var, BufferVar> buffer_map;
       bool made_change = false;
-      for (const auto& [var, buffer] : func->buffer_map) {
+      for (const auto& [var, buffer] : tirx::BufferParamMap(func->params)) {
         auto new_var = GetRemappedVar(var);
-        if (defined_.count(buffer.get())) {
-          Var new_buffer_var = MakeNewVar(buffer.var());
-          PushVarRemap(buffer.var(), new_buffer_var);
-        } else {
-          defined_.insert(buffer.get());
-        }
         auto new_buf = GetRemappedBuffer(buffer);
 
         made_change = made_change || !var.same_as(new_var) || !buffer.same_as(new_buf);
         buffer_map.Set(new_var, new_buf);
       }
       if (made_change) {
+        buffer_params_changed = true;
         return buffer_map;
       } else {
-        return func->buffer_map;
+        return tirx::BufferParamMap(func->params);
       }
     }();
 
@@ -183,10 +179,19 @@ class IRConvertSSA final : public StmtExprMutator {
 
     auto body = VisitStmt(func->body);
 
+    if (buffer_params_changed) {
+      params = params.Map([&](const Var& param) -> Var {
+        if (auto buffer = buffer_map.Get(param)) {
+          return buffer.value().var();
+        }
+        return param;
+      });
+    }
+
     // If anything changed, update the returned function
-    if (!params.same_as(func->params) || !buffer_map.same_as(func->buffer_map) ||
-        !attrs.same_as(func->attrs) || !body.same_as(func->body)) {
-      func = PrimFunc(params, body, func->ret_type, buffer_map, attrs);
+    if (!params.same_as(func->params) || buffer_params_changed || !attrs.same_as(func->attrs) ||
+        !body.same_as(func->body)) {
+      func = PrimFunc(params, body, func->ret_type, attrs);
     }
 
     // Pop function-scope remaps in reverse order

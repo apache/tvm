@@ -33,16 +33,12 @@ def _assert_print(obj, expected):
 
 
 def test_prim_func():
-    a = tirx.Var("a", "handle")
-    b = tirx.Var("b", "handle")
+    A = tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A")
+    B = tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B")
     func = (
         tirx.PrimFunc(
-            params=[a, b],
+            params=[A, B],
             ret_type=None,
-            buffer_map={
-                a: tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
-                b: tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
-            },
             body=tirx.Evaluate(0),
         )
         .with_attr("global_symbol", "main")
@@ -60,18 +56,14 @@ def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32"))
     )
 
 
-def test_prim_func_no_sugar_inlined_buffer():
-    a = tirx.Var("a", "handle")
-    b = tirx.Var("b", "handle")
+def test_prim_func_buffer_data_use():
+    A = tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A")
+    B = tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B")
     func = (
         tirx.PrimFunc(
-            params=[a, b],
+            params=[A, B],
             ret_type=None,
-            buffer_map={
-                a: tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
-                b: tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
-            },
-            body=tirx.Evaluate(a),
+            body=tirx.Evaluate(A.data),
         )
         .with_attr("global_symbol", "main")
         .with_attr("s_tir", True)
@@ -83,25 +75,20 @@ def test_prim_func_no_sugar_inlined_buffer():
 # from tvm.tirx.layout import Axis
 
 @T.prim_func(s_tir=True)
-def main(a: T.handle, B: T.Buffer((256, 256), "float32")):
-    A = T.match_buffer(a, (128, 128))
-    T.evaluate(a)
+def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+    T.evaluate(A.data)
 """,
     )
 
 
 def test_prim_func_buffer_data_argument_is_scope_hint():
-    a = tirx.Var("a", "handle")
-    b = tirx.Var("b", "handle")
     buffer_data = tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A").data
+    A = tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A", data=buffer_data)
+    B = tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B", data=buffer_data)
     func = (
         tirx.PrimFunc(
-            params=[a, b],
+            params=[A, B],
             ret_type=None,
-            buffer_map={
-                a: tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A", data=buffer_data),
-                b: tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B", data=buffer_data),
-            },
             body=tirx.Evaluate(0),
         )
         .with_attr("global_symbol", "main")
@@ -823,15 +810,11 @@ def main():
 def test_private_primfunc():
     from tvm.script import tirx as T
 
-    a = tirx.Var("a", "handle")
-    b = tirx.Var("b", "handle")
+    A = tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A")
+    B = tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B")
     func = tirx.PrimFunc(
-        params=[a, b],
+        params=[A, B],
         ret_type=None,
-        buffer_map={
-            a: tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
-            b: tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
-        },
         body=tirx.Evaluate(0),
     ).with_attr("s_tir", True)
     _assert_print(
@@ -984,25 +967,24 @@ def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32"))
 def test_predicated_buffer_load_store():
     a = tirx.Var("a", "handle")
     b = tirx.Var("b", "handle")
-    buffer_map = {
+    buffers = {
         a: tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
         b: tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
     }
     buffer_load = tirx.BufferLoad(
-        buffer=buffer_map[b],
+        buffer=buffers[b],
         indices=[0, tirx.Ramp(0, 4, 4)],
         predicate=tirx.Broadcast(tirx.IntImm("bool", 0), 4),
     )
     body = tirx.BufferStore(
-        buffer=buffer_map[a],
+        buffer=buffers[a],
         value=buffer_load,
         indices=[0, tirx.Ramp(0, 2, 4)],
         predicate=tirx.Broadcast(tirx.IntImm("bool", 0), 4),
     )
     func = tirx.PrimFunc(
-        params=[a, b],
+        params=[buffers[a], buffers[b]],
         ret_type=None,
-        buffer_map=buffer_map,
         body=body,
     ).with_attr("s_tir", True)
 

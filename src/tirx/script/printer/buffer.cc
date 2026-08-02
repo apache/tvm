@@ -318,11 +318,11 @@ ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
 ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
                    const IRDocsifier& d) {
   ffi::Map<ffi::String, ExprDoc> attrs =
-      BufferAttrs(buffer, p, frame, d, BufferVarDefinition::DataPointer);
-  ExprDoc shape = attrs.Get("shape").value();
-  ExprDoc dtype =
-      attrs.Get("dtype").value_or(LiteralDoc::DataType(buffer->dtype->dtype, p->Attr("dtype")));
-  return TIR(d, "Buffer")->Call({shape, dtype}, {}, {});
+      BufferAttrs(buffer, p, frame, d, BufferVarDefinition::MatchBuffer);
+  if (!attrs.count("dtype")) {
+    attrs.Set("dtype", LiteralDoc::DataType(buffer->dtype->dtype, p->Attr("dtype")));
+  }
+  return BufferCall(TIR(d, "Buffer"), attrs, {});
 }
 
 ffi::Array<Doc> BufferIndices(const ffi::Array<PrimExpr>& indices, const AccessPath& p,

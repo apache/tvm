@@ -404,8 +404,18 @@ Pass LowerTIRxCleanup() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     Target target = ResolveTarget(f);
     auto* n = f.CopyOnWrite();
-    std::tie(n->body, n->buffer_map) =
-        LayoutApplier::Flatten(n->body, n->params, n->buffer_map, target);
+    auto [body, buffer_map] =
+        LayoutApplier::Flatten(n->body, n->params, BufferParamMap(n->params), target);
+    ffi::Array<Var> params;
+    for (const Var& param : n->params) {
+      if (auto buffer = buffer_map.Get(param)) {
+        params.push_back(buffer.value().var());
+      } else {
+        params.push_back(param);
+      }
+    }
+    n->body = std::move(body);
+    n->params = std::move(params);
     n->body = BufferOffsetRemover::Remove(n->body);
     return f;
   };

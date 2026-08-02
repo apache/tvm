@@ -346,7 +346,18 @@ namespace transform {
 Pass LowerTrainiumLayout() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    std::tie(n->body, n->buffer_map) = TrainiumLayoutApplier::Lower(n->body, n->buffer_map);
+    auto [body, buffer_map] =
+        TrainiumLayoutApplier::Lower(n->body, tirx::BufferParamMap(n->params));
+    ffi::Array<Var> params;
+    for (const Var& param : n->params) {
+      if (auto buffer = buffer_map.Get(param)) {
+        params.push_back(buffer.value().var());
+      } else {
+        params.push_back(param);
+      }
+    }
+    n->body = std::move(body);
+    n->params = std::move(params);
     n->body = TrainiumBufferOffsetRemover::Remove(n->body);
     return f;
   };

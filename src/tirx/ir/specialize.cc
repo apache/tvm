@@ -31,6 +31,7 @@
 #include <tvm/tirx/stmt_functor.h>
 
 #include <functional>
+#include <unordered_set>
 
 #include "../transform/ir_utils.h"
 #include "functor_common.h"
@@ -78,10 +79,27 @@ class PrimFuncSpecializer : public StmtExprMutator {
 
   static PrimFunc Specialize(PrimFunc f, const VarMap& var_map) {
     PrimFuncSpecializer specializer(var_map);
+    for (const Var& param : f->params) {
+      auto buffer = tirx::AsBufferVar(param);
+      auto replacement = var_map.find(param);
+      if (!buffer || replacement == var_map.end()) {
+        continue;
+      }
+      if (auto replacement_var = replacement->second.as<Var>()) {
+        if (auto replacement_buffer = tirx::AsBufferVar(replacement_var.value())) {
+          if (IsParam(f, replacement_var.value())) {
+            specializer.buffer_aliases_[buffer.value()] = replacement_buffer.value();
+          } else {
+            specializer.constrained_buffer_params_.insert(param.get());
+          }
+        }
+      }
+    }
+
     // Updating BufferVar map
     ffi::Map<Var, BufferVar> buffer_map;
     bool buffer_map_updated = false;
-    for (const auto& it : f->buffer_map) {
+    for (const auto& it : tirx::BufferParamMap(f->params)) {
       const Var& var = it.first;
       const BufferVar& buffer = it.second;
       BufferVar new_buffer = specializer.MutateBuffer(buffer);
@@ -92,13 +110,18 @@ class PrimFuncSpecializer : public StmtExprMutator {
       }
     }
 
-    // Updating parmeters
+    // Updating parameters
     ffi::Array<Var> params;
     bool param_updated = false;
     for (const auto& var : f->params) {
       // Remove parmeters which has been specialized.
-      if (var_map.find(var) == var_map.end()) {
-        params.push_back(var);
+      if (var_map.find(var) == var_map.end() ||
+          specializer.constrained_buffer_params_.count(var.get())) {
+        if (auto buffer = buffer_map.Get(var)) {
+          params.push_back(buffer.value().var());
+        } else {
+          params.push_back(var);
+        }
       } else {
         param_updated = true;
       }
@@ -108,7 +131,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
     Stmt body = specializer(f->body);
 
     if (param_updated || buffer_map_updated || !f->body.same_as(body)) {
-      return PrimFunc(params, body, f->ret_type, buffer_map, f->attrs, f->span);
+      return PrimFunc(params, body, f->ret_type, f->attrs, f->span);
     } else {
       return f;
     }
@@ -160,6 +183,9 @@ class PrimFuncSpecializer : public StmtExprMutator {
   BufferVar VisitBufferUse(const BufferVar& buffer) final { return GetNewBuffer(buffer); }
 
   Expr VisitExpr_(const VarNode* op) final {
+    if (constrained_buffer_params_.count(op)) {
+      return ffi::GetRef<Var>(op);
+    }
     auto it = var_map_.find(ffi::GetRef<Var>(op));
     if (it == var_map_.end()) {
       return ffi::GetRef<Var>(op);
@@ -189,6 +215,10 @@ class PrimFuncSpecializer : public StmtExprMutator {
 
  private:
   BufferVar MutateBuffer(const BufferVar& buffer) {
+    if (auto it = buffer_aliases_.find(buffer); it != buffer_aliases_.end()) {
+      return it->second;
+    }
+
     ffi::Optional<ffi::String> specialized_storage_scope;
     if (auto it = var_map_.find(buffer.var()); it != var_map_.end()) {
       if (const auto* new_var = it->second.as<VarNode>()) {
@@ -283,7 +313,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
         << "mutation must occur at the buffer's point of definition "
         << "(see discussion on https://github.com/apache/tvm/pull/14565 for more details).  "
         << "Please add a definition for this buffer, "
-        << "either in the PrimFunc's buffer_map, "
+        << "either as a BufferType-annotated PrimFunc parameter, "
         << "in a tirx::SBlock's alloc_buffer, "
         << "or in a DeclBuffer statement.";
 
@@ -307,6 +337,10 @@ class PrimFuncSpecializer : public StmtExprMutator {
   const VarMap& var_map_;
   /*! \brief map from old buffer to mutated buffer */
   std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_map_;
+  /*! \brief Direct aliases between buffer parameters. */
+  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_aliases_;
+  /*! \brief Buffer parameters constrained by a concrete, non-parameter buffer. */
+  std::unordered_set<const VarNode*> constrained_buffer_params_;
 };
 
 /*!
@@ -317,7 +351,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
  * \param var_map The var mapping to be updated.
  * \note This function will match target buffer's shape, strides and element_offset
  *   For example, we define a buffer in PrimFunc:
- *   A = T.match_buffer(a, [m, n])
+ *   A: T.Buffer([m, n])
  *
  *   Then we match it with a buffer B =  tirx.decl_buffer((8, 16))
  *
@@ -331,10 +365,10 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
   // preliminaries
   tirx::ExprDeepEqual equal;
 
-  auto it = func->buffer_map.find(param);
-  TVM_FFI_CHECK(it != func->buffer_map.end(), ValueError)
-      << "specialize expects param to be in PrimFunc's buffer_map";
-  const BufferVar& buf_to_specialize = (*it).second;
+  auto opt_buffer = tirx::AsBufferVar(param);
+  TVM_FFI_CHECK(opt_buffer, ValueError)
+      << "specialize expects param to have a BufferType annotation";
+  const BufferVar& buf_to_specialize = opt_buffer.value();
 
   // build var mapping using specific_buf's parameters
   auto build_var_mapping = [&](const Expr& new_expr, const Expr& old_expr) {
@@ -379,9 +413,8 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
     build_var_mapping(specific_buf->strides[i], buf_to_specialize->strides[i]);
   }
   build_var_mapping(specific_buf->elem_offset, buf_to_specialize->elem_offset);
-  // The buffer identity owns the pointer projection instead of storing a
-  // separate data Var.  Remap the typed Var itself so buffer_data uses retain
-  // the alias relationship established by specialization.
+  // The specializer distinguishes a concrete buffer constraint (which keeps
+  // the parameter) from another function parameter (which aliases it).
   build_var_mapping(specific_buf.var(), buf_to_specialize.var());
 
   // Check data_alignment and offset_factor.
@@ -407,9 +440,9 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Expr& 
   // check param is in PrimFunc's parameters
   TVM_FFI_CHECK(IsParam(func, param), ValueError)
       << "Specialize expects param to be in PrimFunc's params";
-  // specialize a param not in buffer_map
-  TVM_FFI_CHECK_EQ(func->buffer_map.count(param), 0, ValueError)
-      << "Specialize expects param to not be in PrimFunc's buffer_map";
+  // Specialize a scalar parameter rather than a buffer parameter.
+  TVM_FFI_CHECK(!tirx::AsBufferVar(param), ValueError)
+      << "Specialize expects param to not have a BufferType annotation";
   // build var mapping using specific_expr
   (*var_map)[param] = specific_expr;
 }

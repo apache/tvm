@@ -966,7 +966,8 @@ Pass LowerThreadAllreduce() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     TVM_FFI_ICHECK(target.has_value()) << "LowerThreadAllreduce: Require the target attribute";
     const TargetNode* target_node = target.as<TargetNode>();
-    ThreadAllreduceBuilder thread_all_reduce(target_node, f->params, f->buffer_map);
+    ThreadAllreduceBuilder thread_all_reduce(target_node, f->params,
+                                             tirx::BufferParamMap(f->params));
     n->body = thread_all_reduce(n->body);
     // Post-process: apply deferred remappings for flat IR
     DeferredRemapper remapper(thread_all_reduce.alloc_remap_, thread_all_reduce.var_remap_,

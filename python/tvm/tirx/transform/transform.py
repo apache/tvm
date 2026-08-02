@@ -248,10 +248,9 @@ def ConvertSSA():
 def MakePackedAPI():
     """Transform the PrimFuncs in the module to a packed func API.
 
-    Prior to this pass, the PrimFunc may have Buffer arguments defined
-    in the `PrimFuncNode::buffer_map`.  This pass consumes the
-    `buffer_map`, using it to generate arguments that implement
-    the packed based TVM FFI API.
+    Prior to this pass, the PrimFunc may have parameters annotated with
+    `BufferType`.  This pass consumes those annotations to generate
+    arguments that implement the packed based TVM FFI API.
 
     For static shapes, the `BufferType::shape`, `BufferType::strides`,
     and `BufferType::elem_offset` fields are used to

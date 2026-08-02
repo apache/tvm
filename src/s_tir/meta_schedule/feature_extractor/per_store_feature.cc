@@ -1288,7 +1288,7 @@ class PerStoreFeatureCollector : private StmtVisitor {
     for (const auto& kv : mod->functions) {
       if (const PrimFuncNode* func = kv.second.as<PrimFuncNode>()) {
         collector(func->body);
-        for (const auto& it : func->buffer_map) {
+        for (const auto& it : tirx::BufferParamMap(func->params)) {
           collector.HandleBufferAlloc(it.second);
         }
       }

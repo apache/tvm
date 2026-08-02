@@ -71,10 +71,6 @@ int CountVarOccurrence(const tirx::PrimFunc& f, const tirx::Var& v) {
   for (const tirx::Var& v : f->params) {
     counter.VisitVar(v);
   }
-  for (const auto& pair : f->buffer_map) {
-    counter.VisitVar(pair.first);
-    counter.VisitBuffer(pair.second);
-  }
   return counter.count;
 }
 
@@ -87,36 +83,27 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         return obj->IsInstance<tirx::VarNode>() || obj->IsInstance<tirx::BufferTypeNode>();
       });
       int n_args = func->params.size();
-      std::unordered_map<const tirx::VarNode*, int> buffer_data_counter;
-      for (const auto& pair : func->buffer_map) {
-        const tirx::VarNode* buffer_var = pair.second.get();
-        if (!buffer_data_counter.count(buffer_var)) {
-          buffer_data_counter.insert({buffer_var, 0});
-        }
-        ++buffer_data_counter.at(buffer_var);
-      }
       // Step 1. Handle `func->params`
       ffi::Array<AssignDoc> args;
       args.reserve(n_args);
-      std::unordered_set<const tirx::VarNode*> buffer_inlined;
+      std::unordered_map<const tirx::VarNode*, ExprDoc> scalar_param_docs;
+      for (const tirx::Var& param : func->params) {
+        if (!param->ty.as<tirx::BufferTypeNode>()) {
+          scalar_param_docs.emplace(param.get(), DefineVar(param, *f, d));
+        }
+      }
       for (int i = 0; i < n_args; ++i) {
         tirx::Var var = func->params[i];
         AccessPath var_p = p->Attr("params")->ArrayItem(i);
-        if (d->cfg->syntax_sugar && CountVarOccurrence(func, var) == 2 &&
-            func->buffer_map.count(var)) {
-          tirx::BufferVar buffer = func->buffer_map[var];
-          bool s_tir = func->attrs->dict.count(tvm::attr::kSTir);
-          if (IsSimpleBuffer(buffer, s_tir) && buffer_data_counter.at(buffer.get()) == 1) {
-            AccessPath buffer_p = p->Attr("buffer_map")->MapItem(var);
-            IdDoc lhs = DefineBuffer(buffer, *f, d);
-            ExprDoc annotation = BufferAttn(buffer, buffer_p, *f, d);
-            args.push_back(AssignDoc(lhs, std::nullopt, annotation));
-            buffer_inlined.insert(buffer.get());
-            continue;
-          }
+        if (var->ty.as<tirx::BufferTypeNode>()) {
+          tirx::BufferVar buffer(var);
+          IdDoc lhs = DefineBuffer(buffer, *f, d);
+          ExprDoc annotation = BufferAttn(buffer, var_p->Attr("ty"), *f, d);
+          args.push_back(AssignDoc(lhs, std::nullopt, annotation));
+          continue;
         }
         ExprDoc a = d->AsDoc<ExprDoc>(var->ty, var_p->Attr("ty"));
-        args.push_back(AssignDoc(DefineVar(var, *f, d), std::nullopt, a));
+        args.push_back(AssignDoc(scalar_param_docs.at(var.get()), std::nullopt, a));
       }
       // Step 2. Handle `func->attrs`
       if (!func->attrs->dict.empty()) {
@@ -147,23 +134,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                               ->Call({d->AsDoc<ExprDoc>(DictAttrs(new_attrs), p->Attr("attrs"))})));
         }
       }
-      // Step 3. Handle `func->buffer_map`
-      for (int i = 0; i < n_args; ++i) {
-        tirx::Var param = func->params[i];
-        if (func->buffer_map.count(param)) {
-          tirx::BufferVar buffer = func->buffer_map[param];
-          if (buffer_inlined.count(buffer.get())) {
-            continue;
-          }
-          ExprDoc param_doc = args[i]->lhs;
-          AccessPath buffer_p = p->Attr("buffer_map")->MapItem(param);
-          ExprDoc lhs = DefineBuffer(buffer, *f, d);
-          ExprDoc rhs = BufferDecl(buffer, "match_buffer", {param_doc}, buffer_p, *f, d,
-                                   BufferVarDefinition::MatchBuffer);
-          (*f)->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
-        }
-      }
-      // Step 4. Handle `func->body`
+      // Step 3. Handle `func->body`
       ffi::Optional<tirx::SBlock> implicit_root_block = [&]() -> ffi::Optional<tirx::SBlock> {
         const tirx::SBlockRealizeNode* root_block_realize =
             func->body.as<tirx::SBlockRealizeNode>();

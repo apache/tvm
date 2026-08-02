@@ -286,7 +286,7 @@ enum class BufferVarDefinition {
   // The data pointer is defined along with the buffer, along with any
   // buffer parameters (shape/stride/elem_offset) that have not
   // previously been defined.  For example,
-  // `BlockNode::match_buffers`, or the `PrimFuncNode::buffer_map`.
+  // `BlockNode::match_buffers`, or a BufferType-annotated PrimFunc parameter.
   MatchBuffer,
 };
 

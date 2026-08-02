@@ -465,7 +465,7 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
   void CollectVarMapping(const CallNode* call, const Expr& lhs_var, bool in_place) {
     GlobalVar gv = call->args[0].as_or_throw<GlobalVar>();
     tirx::PrimFunc prim_func_ = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
-    const auto& buffer_map = prim_func_->buffer_map;
+    const auto& buffer_map = tirx::BufferParamMap(prim_func_->params);
     const auto& tir_args = prim_func_->params;
 
     const auto& relax_args = call->args[1].as_or_throw<Tuple>()->fields;
@@ -626,8 +626,8 @@ class FusedTIRConstructor : public ExprVisitor {
     int out_idx = 0;
     for (size_t i = 0; i < buffers.size(); ++i) {
       // Do not add output vars for in-place inputs
-      // (i.e., already listed in the buffer map. This would result
-      // in duplicates in the buffer map otherwise)
+      // (i.e., already listed among the buffer parameters, which would
+      // otherwise result in duplicate parameters)
       if (auto it = buffer_to_idx.find(buffers[i]); it != buffer_to_idx.end()) {
         auto idx = (*it).second;
         TVM_FFI_ICHECK(!inplace_indices_.count(idx))
@@ -810,9 +810,9 @@ class FusedTIRConstructor : public ExprVisitor {
     for (size_t i = 0; i < call_args.size(); ++i) {
       const Expr& arg = call_args[i];
       const tirx::Var& param = func->params[i];
-      if (func->buffer_map.count(param)) {
+      if (auto buffer = tirx::AsBufferVar(param)) {
         arg_list.push_back(arg);
-        buffer_list.push_back(func->buffer_map.at(param));
+        buffer_list.push_back(buffer.value());
       } else {
         auto prim_arg = arg.as<PrimExpr>();
         TVM_FFI_CHECK(prim_arg.has_value(), TypeError)
@@ -826,20 +826,21 @@ class FusedTIRConstructor : public ExprVisitor {
     MapArgsToBuffer(arg_list, buffer_list);
   }
 
-  static ffi::Array<tirx::Var> GetPrimFuncOutputParams(const tirx::PrimFunc& func,
-                                                       const ffi::Array<int64_t>& output_indices) {
+  static ffi::Array<tirx::BufferVar> GetPrimFuncOutputParams(
+      const tirx::PrimFunc& func, const ffi::Array<int64_t>& output_indices) {
     size_t n = func->params.size();
     size_t output_size = output_indices.size();
     TVM_FFI_ICHECK_GE(n, output_size);
 
-    ffi::Array<tirx::Var> ret;
+    ffi::Array<tirx::BufferVar> ret;
     for (int64_t idx : output_indices) {
       int i = static_cast<int>(idx);
       const tirx::Var& param = func->params[static_cast<size_t>(i)];
-      TVM_FFI_ICHECK(param->ty.as<PointerTypeNode>())
-          << "The output params of a PrimFunc must be buffer handles, but parameter " << i
-          << " has type " << param->ty;
-      ret.push_back(param);
+      auto buffer = tirx::AsBufferVar(param);
+      TVM_FFI_ICHECK(buffer.has_value())
+          << "The output params of a PrimFunc must be buffers, but parameter " << i << " has type "
+          << param->ty;
+      ret.push_back(buffer.value());
     }
     return ret;
   }
@@ -871,10 +872,9 @@ class FusedTIRConstructor : public ExprVisitor {
       }
     }
 
-    ffi::Array<tirx::Var> output_params = GetPrimFuncOutputParams(func, output_idxs);
+    ffi::Array<tirx::BufferVar> output_params = GetPrimFuncOutputParams(func, output_idxs);
     for (size_t i = 0; i < output_size; ++i) {
-      const tirx::Var& param = output_params[i];
-      const tirx::BufferVar& buffer = func->buffer_map.at(param);
+      const tirx::BufferVar& buffer = output_params[i];
 
       // if this is an inplace output, do not do an intermediate allocation
       if (output_idxs[i] < num_inputs) {
@@ -988,8 +988,13 @@ class FusedTIRConstructor : public ExprVisitor {
     body = subst.Substitute(body);
     body = tirx::SBlock({}, {}, {}, "root", std::move(body), std::nullopt, alloc_buffers);
     body = tirx::SBlockRealize({}, IntImm::Bool(true), body.as_or_throw<tirx::SBlock>());
-    tirx::PrimFunc func(func_info_.params, body, VoidType(), func_info_.buffer_map,
-                        DictAttrs(attr_map));
+    ffi::Array<tirx::Var> params = func_info_.params.Map([&](const tirx::Var& param) {
+      if (auto buffer = func_info_.buffer_map.Get(param)) {
+        return buffer.value().var();
+      }
+      return param;
+    });
+    tirx::PrimFunc func(params, body, VoidType(), DictAttrs(attr_map));
     // Renew function defs to prevent using the same symbolic vars in different functions
     return s_tir::RenewDefs(func);
   }
@@ -1032,9 +1037,9 @@ class FusedTIRConstructor : public ExprVisitor {
      * function
      */
     ffi::Map<tirx::BufferVar, tirx::BufferVar> buffer_subst_map;
-    /*! \brief The `buffer_map` in the fused function*/
+    /*! \brief Buffer annotations keyed by their placeholder parameters. */
     ffi::Map<tirx::Var, tirx::BufferVar> buffer_map;
-    /*! \brief The output buffers in the function buffer_map*/
+    /*! \brief The output buffers among the function parameters. */
     std::unordered_set<const tirx::VarNode*> output_buffers;
     /*! \brief The name of the fused function */
     std::string global_name = "fused";

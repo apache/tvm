@@ -103,7 +103,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   /// Check if the value of a Variable comes from function argument.
   bool IsFromFunctionArgs(const VarNode* var) const {
     const VarNode* V = var;
-    for (auto kv : func_->buffer_map) {
+    for (auto kv : tirx::BufferParamMap(func_->params)) {
       if (V == kv.second.get()) return true;
     }
 

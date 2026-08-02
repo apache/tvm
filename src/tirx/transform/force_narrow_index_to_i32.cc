@@ -37,11 +37,10 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
  public:
   static PrimFunc RewriteDataType(PrimFunc func) {
     // Check if the integer parameter buffers have dtype other than int32.
-    for (auto it : func->buffer_map) {
+    for (auto it : tirx::BufferParamMap(func->params)) {
       if (it.second->dtype.MatchesCode(DLDataTypeCode::kDLInt) && it.second->dtype.bits() > 32) {
-        TVM_FFI_THROW(InternalError)
-            << "The buffer " << it.second << " in the function buffer map has dtype "
-            << it.second->dtype << ". The function is " << func;
+        TVM_FFI_THROW(InternalError) << "The buffer parameter " << it.second << " has dtype "
+                                     << it.second->dtype << ". The function is " << func;
       }
     }
 
