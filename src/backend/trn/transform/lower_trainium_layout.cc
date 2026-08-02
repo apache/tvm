@@ -55,29 +55,34 @@ static bool IsTrainiumLayout(const TileLayoutNode* layout) {
 
 class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
  public:
-  static std::pair<Stmt, ffi::Map<Var, BufferVar>> Lower(
-      const Stmt& stmt, const ffi::Map<tirx::Var, BufferVar> buffer_map) {
+  static std::pair<Stmt, ffi::Array<Var>> Lower(const Stmt& stmt, const ffi::Array<Var>& params) {
     arith::Analyzer ana;
     TrainiumLayoutApplier storage_lower(ana);
-    std::unordered_map<Var, BufferVar> new_buffer_map;
+    ffi::Array<Var> new_params;
+    new_params.reserve(params.size());
     std::vector<std::pair<BufferVar, BufferVar>> param_flattened_buffers;
-    for (const auto& kv : buffer_map) {
-      if (kv.second->layout.has_value()) {
-        BufferVar flattened = storage_lower.GetFlattenedBuffer(kv.second);
-        auto type = CopyBufferType(kv.second);
+    for (const Var& param : params) {
+      auto buffer = param.as<BufferVar>();
+      if (!buffer) {
+        new_params.push_back(param);
+        continue;
+      }
+      if (buffer.value()->layout.has_value()) {
+        BufferVar flattened = storage_lower.GetFlattenedBuffer(buffer.value());
+        auto type = CopyBufferType(buffer.value());
         type->layout = std::nullopt;
-        BufferVar buffer = RebuildBufferVar(kv.second, std::move(type));
-        param_flattened_buffers.emplace_back(flattened, buffer);
-        new_buffer_map[kv.first] = buffer;
+        BufferVar source = RebuildBufferVar(buffer.value(), std::move(type));
+        param_flattened_buffers.emplace_back(flattened, source);
+        new_params.push_back(source.var());
       } else {
-        new_buffer_map[kv.first] = kv.second;
+        new_params.push_back(buffer.value().var());
       }
     }
     auto new_stmt = storage_lower(stmt);
     for (const auto& [buf, source] : param_flattened_buffers) {
       new_stmt = SeqStmt::Flatten(DeclBuffer(buf, source.data()), std::move(new_stmt));
     }
-    return std::make_pair(new_stmt, ffi::Map<Var, BufferVar>(new_buffer_map));
+    return std::make_pair(new_stmt, new_params);
   }
 
  protected:
@@ -346,16 +351,7 @@ namespace transform {
 Pass LowerTrainiumLayout() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    auto [body, buffer_map] =
-        TrainiumLayoutApplier::Lower(n->body, tirx::BufferParamMap(n->params));
-    ffi::Array<Var> params;
-    for (const Var& param : n->params) {
-      if (auto buffer = buffer_map.Get(param)) {
-        params.push_back(buffer.value().var());
-      } else {
-        params.push_back(param);
-      }
-    }
+    auto [body, params] = TrainiumLayoutApplier::Lower(n->body, n->params);
     n->body = std::move(body);
     n->params = std::move(params);
     n->body = TrainiumBufferOffsetRemover::Remove(n->body);

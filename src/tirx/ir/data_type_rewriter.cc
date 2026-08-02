@@ -635,8 +635,10 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
   buffer_remap_.clear();
   ivmap_.clear();
   // start rewrite
-  for (const auto& [_, buffer] : tirx::BufferParamMap(func->params)) {
-    VisitBufferDef(buffer, /*alloc_data=*/true);
+  for (const Var& param : func->params) {
+    if (auto buffer = param.as<BufferVar>()) {
+      VisitBufferDef(buffer.value(), /*alloc_data=*/true);
+    }
   }
   // remap params
   bool is_enabled = true;

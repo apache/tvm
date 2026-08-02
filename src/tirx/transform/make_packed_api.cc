@@ -230,9 +230,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   IntImm device_type(PrimType::Int(32), target_device_type);
 
   // Create TVMFFIABIBuilder and decode all packed args
-  TVMFFIABIBuilder binder(name_hint, func_ptr->params, BufferParamMap(func_ptr->params),
-                          v_packed_args, v_num_packed_args, device_type,
-                          device_id.as_or_throw<PrimExpr>());
+  TVMFFIABIBuilder binder(name_hint, func_ptr->params, v_packed_args, v_num_packed_args,
+                          device_type, device_id.as_or_throw<PrimExpr>());
   binder.DecodeAllParams();
 
   auto result = binder.Finalize();

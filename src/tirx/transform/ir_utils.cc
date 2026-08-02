@@ -110,49 +110,42 @@ class IRConvertSSA final : public StmtExprMutator {
       for (const auto& var : func->params) {
         defined_params.insert(var.get());
       }
-      for (const auto& [var, buffer] : tirx::BufferParamMap(func->params)) {
-        static_cast<void>(var);  // gcc 7.x bug, https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
+      for (const Var& param : func->params) {
+        auto buffer = param.as<BufferVar>();
+        if (!buffer) continue;
         auto check_expr = [&](const PrimExpr& expr) {
           auto* var_ptr = expr.as<VarNode>();
           if (!var_ptr) return;
           if (defined_params.count(var_ptr)) return;
 
-          // Buffer_map shape vars use "match" semantics: first occurrence
+          // Buffer-parameter shape vars use "match" semantics: first occurrence
           // defines the var, subsequent occurrences (in other buffers) are
           // just consistent uses of the same var -- not redefinitions.
           if (!defined_.count(var_ptr)) {
             defined_.insert(var_ptr);
           }
         };
-        for (const auto& dim : buffer->shape) {
+        for (const auto& dim : buffer.value()->shape) {
           check_expr(dim);
         }
-        for (const auto& stride : buffer->strides) {
+        for (const auto& stride : buffer.value()->strides) {
           check_expr(stride);
         }
-        check_expr(buffer->elem_offset);
+        check_expr(buffer.value()->elem_offset);
       }
     }
 
     // Update the buffer parameters, based on the redefined parameters
     bool buffer_params_changed = false;
-    auto buffer_map = [&]() {
-      ffi::Map<Var, BufferVar> buffer_map;
-      bool made_change = false;
-      for (const auto& [var, buffer] : tirx::BufferParamMap(func->params)) {
-        auto new_var = GetRemappedVar(var);
-        auto new_buf = GetRemappedBuffer(buffer);
-
-        made_change = made_change || !var.same_as(new_var) || !buffer.same_as(new_buf);
-        buffer_map.Set(new_var, new_buf);
+    for (size_t i = 0; i < func->params.size(); ++i) {
+      if (auto buffer = func->params[i].as<BufferVar>()) {
+        BufferVar new_buffer = GetRemappedBuffer(buffer.value());
+        if (!new_buffer.same_as(buffer.value()) || !params[i].same_as(new_buffer)) {
+          buffer_params_changed = true;
+          params.Set(i, new_buffer.var());
+        }
       }
-      if (made_change) {
-        buffer_params_changed = true;
-        return buffer_map;
-      } else {
-        return tirx::BufferParamMap(func->params);
-      }
-    }();
+    }
 
     auto attrs = [&]() -> DictAttrs {
       ffi::Map<ffi::String, ffi::Any> dict;
@@ -178,15 +171,6 @@ class IRConvertSSA final : public StmtExprMutator {
     }();
 
     auto body = VisitStmt(func->body);
-
-    if (buffer_params_changed) {
-      params = params.Map([&](const Var& param) -> Var {
-        if (auto buffer = buffer_map.Get(param)) {
-          return buffer.value().var();
-        }
-        return param;
-      });
-    }
 
     // If anything changed, update the returned function
     if (!params.same_as(func->params) || buffer_params_changed || !attrs.same_as(func->attrs) ||

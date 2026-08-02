@@ -85,10 +85,17 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::BufferVar buffer, const AccessP
     for (int i = 0; i < n; ++i) {
       PrimExpr e = shape[i];
       AccessPath e_p = shape_p->ArrayItem(i);
+      bool contains_new_var = false;
+      tirx::PostOrderVisit(e, [&](const ffi::ObjectRef& obj) {
+        if (const auto* var = obj.as<VarNode>()) {
+          contains_new_var = contains_new_var || !d->IsVarDefined(ffi::GetRef<Var>(var));
+        }
+      });
       if (is_new_var(e)) {
         add_out_of_line_var_def(e.as_or_throw<Var>(), e_p);
       }
-      results.push_back(d->AsDoc<ExprDoc>(e, e_p));
+      ExprDoc result = d->AsDoc<ExprDoc>(e, e_p);
+      results.push_back(contains_new_var ? ExprStringDoc(result, e_p) : result);
     }
     kwargs.Set("shape", TupleDoc(results));
   }

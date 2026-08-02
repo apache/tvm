@@ -163,7 +163,13 @@ def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> A
         raise NotImplementedError
 
 
-def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
+def bind_assign_value(
+    self: Parser,
+    node: doc.expr,
+    var_name: str,
+    value: Any,
+    prim_var_declarations: dict[str, str] | None = None,
+) -> Any:
     """Value binding methods when parsing assign statement.
     e.g. binding vi, vj, vk with T.axis.remap("SSR", [i, j, k]), when parsing
         vi, vj, vk = T.axis.remap("SSR", [i, j, k]).
@@ -187,6 +193,27 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
     res : Any
         The bound value.
     """
+    if var_name in (prim_var_declarations or {}):
+        previous = self.var_table.get().get(var_name)
+        signature_prim_vars = getattr(self, "_signature_prim_vars", [])
+        if isinstance(previous, tvm.ir.Var) and any(
+            previous.same_as(var) for var in signature_prim_vars
+        ):
+            if not (
+                isinstance(previous, tvm.ir.Var)
+                and isinstance(previous.ty, PrimType)
+                and isinstance(value, tvm.ir.Var)
+                and isinstance(value.ty, PrimType)
+                and not is_buffer_var(previous)
+                and not is_buffer_var(value)
+            ):
+                self.report_error(node, f"{var_name} is already bound to a non-PrimVar value")
+            if previous.ty != value.ty:
+                self.report_error(
+                    node,
+                    f"Expected the same dtype for PrimVars but got {value.ty} vs {previous.ty}",
+                )
+            return previous
     if isinstance(value, T.scalar_wrapper):  # pylint: disable=protected-access
         # special case for scalar, name the buffer, but the var is used as BufferLoad
         assert isinstance(value.scalar, T.BufferLoad)
@@ -272,64 +299,103 @@ def _is_jit_function(node: doc.FunctionDef) -> bool:
     return False
 
 
-def _loaded_names(node: doc.expr) -> set[str]:
-    return {
-        child.id
-        for child in ast.walk(from_doc(node))
-        if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load)
-    }
+def _prim_var_declaration_dtype(node: doc.expr) -> str | None:
+    """Return the dtype of literal ``T.dtype()`` declaration syntax."""
+    if not (
+        isinstance(node, doc.Call)
+        and not node.args
+        and not node.keywords
+        and isinstance(node.func, doc.Attribute)
+        and isinstance(node.func.value, doc.Name)
+        and node.func.value.id == "T"
+    ):
+        return None
+    constructor = getattr(T, node.func.attr, None)
+    if not isinstance(constructor, T.DtypeConstructor) and constructor is not T.bool:
+        return None
+    return str(constructor().ty.dtype)
 
 
-def _stored_names(node: doc.expr) -> set[str]:
-    return {
-        child.id
-        for child in ast.walk(from_doc(node))
-        if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store)
-    }
+def _collect_prim_var_declarations(target: doc.expr, value: doc.expr) -> dict[str, str]:
+    """Pair assignment targets with literal PrimVar declaration dtypes."""
+    if isinstance(target, doc.Name):
+        dtype = _prim_var_declaration_dtype(value)
+        return {target.id: dtype} if dtype is not None else {}
+    if isinstance(target, doc.Tuple | doc.List) and isinstance(value, doc.Tuple | doc.List):
+        if len(target.elts) != len(value.elts):
+            return {}
+        declarations = {}
+        for lhs, rhs in zip(target.elts, value.elts):
+            declarations.update(_collect_prim_var_declarations(lhs, rhs))
+        return declarations
+    return {}
 
 
-def _bind_forward_signature_vars(self: Parser, node: doc.FunctionDef) -> list[doc.stmt]:
-    """Bind body-defined PrimVars referenced by the function signature.
+def _function_prim_var_declarations(node: doc.FunctionDef) -> dict[str, str]:
+    """Collect body declaration dtypes without evaluating or binding them."""
+    declarations = {}
+    for statement in node.body:
+        if isinstance(statement, doc.Assign) and len(statement.targets) == 1:
+            declarations.update(
+                _collect_prim_var_declarations(statement.targets[0], statement.value)
+            )
+    return declarations
 
-    Free symbolic dimensions are printed as ordinary top-level PrimVar
-    declarations in the function body, after their first textual use in a
-    buffer annotation.  Resolve exactly those declaration dependencies before
-    evaluating the signature, and leave all unrelated body statements in their
-    original order.
+
+def _eval_signature_annotation(
+    self: Parser, node: doc.expr, declaration_dtypes: dict[str, str]
+) -> Any:
+    """Evaluate string expressions in function-parameter buffer shapes.
+
+    String expressions are the sole exception to ordinary definition-before-use
+    ordering.  Their first occurrence creates any missing PrimVars, while a
+    later ``n = T.dtype()`` declaration reuses the same object.
     """
 
-    signature_names = set()
-    for arg in node.args.args:
-        if arg.annotation is not None:
-            signature_names.update(_loaded_names(arg.annotation))
-    if node.returns is not None:
-        signature_names.update(_loaded_names(node.returns))
+    class ShapeStringRewriter(ast.NodeTransformer):
+        def visit_Constant(self, constant):  # pylint: disable=invalid-name
+            if not isinstance(constant.value, str):
+                return constant
+            expression = ast.parse(constant.value, mode="eval").body
+            for child in ast.walk(expression):
+                if not isinstance(child, ast.Name) or not isinstance(child.ctx, ast.Load):
+                    continue
+                if child.id not in self_parser.var_table.get():
+                    var = tvm.tirx.Var(child.id, declaration_dtypes.get(child.id, "int64"))
+                    self_parser.var_table.add(child.id, var, allow_shadowing=False)
+                    signature_prim_vars = getattr(self_parser, "_signature_prim_vars", [])
+                    signature_prim_vars.append(var)
+                    self_parser._signature_prim_vars = signature_prim_vars
+            for child in ast.walk(expression):
+                ast.copy_location(child, constant)
+            return expression
 
-    remaining_body = []
-    for statement in node.body:
-        if (
-            not isinstance(statement, doc.Assign)
-            or len(statement.targets) != 1
-            or not (_stored_names(statement.targets[0]) & signature_names)
-        ):
-            remaining_body.append(statement)
-            continue
-        try:
-            value = self.eval_expr(statement.value)
-        except Exception:  # pylint: disable=broad-except
-            remaining_body.append(statement)
-            continue
-        values = value if isinstance(value, list | tuple) else [value]
-        if not all(
-            isinstance(item, tvm.ir.Var)
-            and isinstance(item.ty, PrimType)
-            and not is_buffer_var(item)
-            for item in values
-        ):
-            remaining_body.append(statement)
-            continue
-        self.eval_assign(target=statement.targets[0], source=value, bind_value=bind_assign_value)
-    return remaining_body
+    class BufferShapeRewriter(ast.NodeTransformer):
+        def visit_Call(self, call):  # pylint: disable=invalid-name
+            is_buffer = (
+                isinstance(call.func, ast.Attribute)
+                and call.func.attr == "Buffer"
+                and isinstance(call.func.value, ast.Name)
+                and call.func.value.id == "T"
+            )
+            if not is_buffer:
+                return self.generic_visit(call)
+            call.func = self.visit(call.func)
+            if call.args:
+                call.args[0] = ShapeStringRewriter().visit(call.args[0])
+                call.args[1:] = [self.visit(arg) for arg in call.args[1:]]
+            for keyword in call.keywords:
+                if keyword.arg == "shape":
+                    keyword.value = ShapeStringRewriter().visit(keyword.value)
+                else:
+                    keyword.value = self.visit(keyword.value)
+            return call
+
+    self_parser = self
+    python_node = from_doc(deepcopy(node))
+    python_node = BufferShapeRewriter().visit(python_node)
+    ast.fix_missing_locations(python_node)
+    return self.eval_expr(doc.to_doc(python_node))
 
 
 @dispatch.register(token="tirx", type_name="For")
@@ -506,7 +572,12 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
                 except TypeError:
                     pass  # rhs not compatible with buffer_store, fall through
         # otherwise
-        self.eval_assign(target=lhs, source=rhs, bind_value=bind_assign_value)
+        declarations = _collect_prim_var_declarations(lhs, node.value)
+        self.eval_assign(
+            target=lhs,
+            source=rhs,
+            bind_value=partial(bind_assign_value, prim_var_declarations=declarations),
+        )
 
 
 @dispatch.register(token="tirx", type_name="AugAssign")
@@ -696,14 +767,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         prim_func_ctx = T.prim_func(is_private=privacy, s_tir=s_tir, persistent=persistent)
         with prim_func_ctx:
             T.func_name(node.name)
-            remaining_body = _bind_forward_signature_vars(self, node)
-            if node.returns is not None:
-                ret_type = self.eval_expr(node.returns)
-                if callable(ret_type) and not isinstance(ret_type, Expr):
-                    ret_type = ret_type()
-                if isinstance(ret_type, Expr):
-                    ret_type = ret_type.ty
-                T.func_ret(ret_type)
+            declaration_dtypes = _function_prim_var_declarations(node)
             with self.with_dispatch_token("tirx"):
                 # TODO: handle different types of arguments:
                 # - vararg: arg | None
@@ -733,6 +797,14 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                     if isinstance(ann, tvm.tirx.Var) and not is_buffer_var(ann):
                         self.var_table.add(arg.arg, ann)
 
+                if node.returns is not None:
+                    ret_type = _eval_signature_annotation(self, node.returns, declaration_dtypes)
+                    if callable(ret_type) and not isinstance(ret_type, Expr):
+                        ret_type = ret_type()
+                    if isinstance(ret_type, Expr):
+                        ret_type = ret_type.ty
+                    T.func_ret(ret_type)
+
                 for arg in node.args.args:
                     if arg.annotation is None:
                         self.report_error(arg, "Type annotation required for function parameters.")
@@ -740,7 +812,9 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                         ann = evaluated_annotations[arg.arg]
                     else:
                         try:
-                            ann = self.eval_expr(arg.annotation)
+                            ann = _eval_signature_annotation(
+                                self, arg.annotation, declaration_dtypes
+                            )
                         except Exception:  # pylint: disable=broad-except
                             ann = func_annotation.get(arg.arg, None)
                             if ann is None:
@@ -774,7 +848,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                         continue
                     param = T.arg(arg.arg, ann)
                     self.var_table.add(arg.arg, param)
-                self.visit_body(remaining_body)
+                self.visit_body(node.body)
     self.function_annotations = supplied_annotation
 
 
@@ -1015,13 +1089,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
 
     ret_type = None
     with self.var_table.with_frame():
-        _bind_forward_signature_vars(self, node)
-        if node.returns is not None:
-            ret_type = self.eval_expr(node.returns)
-            if callable(ret_type) and not isinstance(ret_type, Expr):
-                ret_type = ret_type()
-            if isinstance(ret_type, Expr):
-                ret_type = ret_type.ty
+        declaration_dtypes = _function_prim_var_declarations(node)
 
         evaluated_annotations = {}
         for arg in node.args.args:
@@ -1037,6 +1105,13 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
             if isinstance(ann, tvm.tirx.Var) and not is_buffer_var(ann):
                 self.var_table.add(arg.arg, ann)
 
+        if node.returns is not None:
+            ret_type = _eval_signature_annotation(self, node.returns, declaration_dtypes)
+            if callable(ret_type) and not isinstance(ret_type, Expr):
+                ret_type = ret_type()
+            if isinstance(ret_type, Expr):
+                ret_type = ret_type.ty
+
         arg_annotations = []
         for arg in node.args.args:
             if arg.annotation is None:
@@ -1045,7 +1120,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
                 ann = evaluated_annotations[arg.arg]
             else:
                 try:
-                    ann = self.eval_expr(arg.annotation)
+                    ann = _eval_signature_annotation(self, arg.annotation, declaration_dtypes)
                     if callable(ann) and not isinstance(ann, Expr):
                         ann = ann()
                 except Exception:  # pylint: disable=broad-except

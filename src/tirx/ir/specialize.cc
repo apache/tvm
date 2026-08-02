@@ -96,32 +96,23 @@ class PrimFuncSpecializer : public StmtExprMutator {
       }
     }
 
-    // Updating BufferVar map
-    ffi::Map<Var, BufferVar> buffer_map;
-    bool buffer_map_updated = false;
-    for (const auto& it : tirx::BufferParamMap(f->params)) {
-      const Var& var = it.first;
-      const BufferVar& buffer = it.second;
-      BufferVar new_buffer = specializer.MutateBuffer(buffer);
-      buffer_map.Set(var, new_buffer);
-      if (!new_buffer.same_as(buffer)) {
-        buffer_map_updated = true;
-        specializer.buffer_map_[buffer] = new_buffer;
-      }
-    }
-
     // Updating parameters
     ffi::Array<Var> params;
     bool param_updated = false;
     for (const auto& var : f->params) {
+      Var new_var = var;
+      if (auto buffer = var.as<BufferVar>()) {
+        BufferVar new_buffer = specializer.MutateBuffer(buffer.value());
+        new_var = new_buffer.var();
+        if (!new_buffer.same_as(buffer.value())) {
+          param_updated = true;
+          specializer.buffer_map_[buffer.value()] = new_buffer;
+        }
+      }
       // Remove parmeters which has been specialized.
       if (var_map.find(var) == var_map.end() ||
           specializer.constrained_buffer_params_.count(var.get())) {
-        if (auto buffer = buffer_map.Get(var)) {
-          params.push_back(buffer.value().var());
-        } else {
-          params.push_back(var);
-        }
+        params.push_back(new_var);
       } else {
         param_updated = true;
       }
@@ -130,7 +121,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
     // Updating function body
     Stmt body = specializer(f->body);
 
-    if (param_updated || buffer_map_updated || !f->body.same_as(body)) {
+    if (param_updated || !f->body.same_as(body)) {
       return PrimFunc(params, body, f->ret_type, f->attrs, f->span);
     } else {
       return f;

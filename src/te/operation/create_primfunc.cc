@@ -132,10 +132,8 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
  public:
   PrimFunc Process(PrimFunc func) {
     for (int i = 0, n = func->params.size(); i < n; ++i) {
-      if (auto v = func->params[i].as<Var>()) {
-        if (ffi::Optional<BufferVar> buffer = tirx::BufferParamMap(func->params).Get(v.value())) {
-          buffer2index_[buffer.value()] = i;
-        }
+      if (auto buffer = func->params[i].as<BufferVar>()) {
+        buffer2index_[buffer.value()] = i;
       }
     }
     PrimFuncNode* f = func.CopyOnWrite();

@@ -93,8 +93,10 @@ class SSAVerifier final : public StmtExprVisitor {
       MarkDef(param, param);
     }
 
-    for (auto kv : tirx::BufferParamMap(func->params)) {
-      this->DefineBuffer(kv.second);
+    for (const Var& param : func->params) {
+      if (auto buffer = param.as<BufferVar>()) {
+        this->DefineBuffer(buffer.value());
+      }
     }
     this->VisitStmt(func->body);
   }

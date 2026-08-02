@@ -557,8 +557,10 @@ class FP8ComputeLegalizer : public ComputeLegalizer {
 class StorageLegalizer : public StmtExprMutator {
  public:
   PrimFunc Legalize(PrimFunc func) {
-    TVM_FFI_ICHECK_EQ(tirx::BufferParamMap(func->params).size(), 0)
-        << "This pass must be called after MakePackedAPI";
+    for (const Var& param : func->params) {
+      TVM_FFI_ICHECK(!param->ty.as<BufferTypeNode>())
+          << "This pass must be called after MakePackedAPI";
+    }
     auto* n = func.CopyOnWrite();
     n->params = n->params.Map([this](Var var) { return this->RemapVarDef(var); });
     n->body = this->VisitStmt(std::move(n->body));

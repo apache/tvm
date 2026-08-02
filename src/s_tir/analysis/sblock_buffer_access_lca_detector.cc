@@ -45,9 +45,10 @@ class LCADetector : public StmtExprVisitor {
  public:
   static ffi::Map<BufferVar, ffi::Optional<Stmt>> Detect(const PrimFunc& func) {
     LCADetector detector;
-    for (const auto& kv : tirx::BufferParamMap(func->params)) {
-      const BufferVar& buffer = kv.second;
-      detector.buffer_var_map_.emplace(buffer.get(), buffer.get());
+    for (const Var& param : func->params) {
+      if (auto buffer = param.as<BufferVar>()) {
+        detector.buffer_var_map_.emplace(buffer.value().get(), buffer.value().get());
+      }
     }
 
     // The root node must be explicitly present in the list of

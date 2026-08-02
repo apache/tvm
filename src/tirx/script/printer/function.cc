@@ -105,6 +105,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         ExprDoc a = d->AsDoc<ExprDoc>(var->ty, var_p->Attr("ty"));
         args.push_back(AssignDoc(scalar_param_docs.at(var.get()), std::nullopt, a));
       }
+      ffi::Optional<ExprDoc> ret_type = std::nullopt;
+      if (!func->ret_type.IsMissing()) {
+        const auto* as_tuple = func->ret_type.as<TupleTypeNode>();
+        if (!as_tuple || as_tuple->fields.size()) {
+          ret_type = d->AsDoc<ExprDoc>(func->ret_type, p->Attr("ret_type"));
+        }
+      }
       // Step 2. Handle `func->attrs`
       if (!func->attrs->dict.empty()) {
         // for global symbol, don't display it if it matches the func name
@@ -171,13 +178,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         AsDocBody(root_block->body, root_block_p->Attr("body"), f->get(), d);
       } else {
         AsDocBody(func->body, p->Attr("body"), f->get(), d);
-      }
-      ffi::Optional<ExprDoc> ret_type = std::nullopt;
-      if (!func->ret_type.IsMissing()) {
-        const auto* as_tuple = func->ret_type.as<TupleTypeNode>();
-        if (!as_tuple || as_tuple->fields.size()) {
-          ret_type = d->AsDoc<ExprDoc>(func->ret_type, p->Attr("ret_type"));
-        }
       }
       // Step 5. Determine if we need to display the private annotation in the decorator
       ExprDoc decorator = TIR(d, "prim_func");

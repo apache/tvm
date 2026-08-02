@@ -58,14 +58,10 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
 
 class ThreadAllreduceBuilder final : public StmtExprMutator {
  public:
-  explicit ThreadAllreduceBuilder(const TargetNode* target, const ffi::Array<Var>& params,
-                                  const ffi::Map<Var, BufferVar>& buffer_map)
+  explicit ThreadAllreduceBuilder(const TargetNode* target, const ffi::Array<Var>& params)
       : target_(target),
         warp_size_(target->GetAttr<int64_t>("thread_warp_size", 1).value()),
         max_num_threads_(target->GetAttr<int64_t>("max_num_threads", -1).value()) {
-    for (const auto& [_, buffer] : buffer_map) {
-      buffer_aliases_.Set(buffer.var(), buffer.var());
-    }
     for (const Var& param : params) {
       if (param->ty.as<BufferTypeNode>()) {
         buffer_aliases_.Set(param, param);
@@ -966,8 +962,7 @@ Pass LowerThreadAllreduce() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     TVM_FFI_ICHECK(target.has_value()) << "LowerThreadAllreduce: Require the target attribute";
     const TargetNode* target_node = target.as<TargetNode>();
-    ThreadAllreduceBuilder thread_all_reduce(target_node, f->params,
-                                             tirx::BufferParamMap(f->params));
+    ThreadAllreduceBuilder thread_all_reduce(target_node, f->params);
     n->body = thread_all_reduce(n->body);
     // Post-process: apply deferred remappings for flat IR
     DeferredRemapper remapper(thread_all_reduce.alloc_remap_, thread_all_reduce.var_remap_,

@@ -465,7 +465,6 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
   void CollectVarMapping(const CallNode* call, const Expr& lhs_var, bool in_place) {
     GlobalVar gv = call->args[0].as_or_throw<GlobalVar>();
     tirx::PrimFunc prim_func_ = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
-    const auto& buffer_map = tirx::BufferParamMap(prim_func_->params);
     const auto& tir_args = prim_func_->params;
 
     const auto& relax_args = call->args[1].as_or_throw<Tuple>()->fields;
@@ -504,7 +503,7 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
     };
     for (size_t i = 0; i < tir_args.size(); ++i) {
       const auto& tir_var = tir_args[i];
-      if (auto tir_buffer = buffer_map.Get(tir_var)) {
+      if (auto tir_buffer = tir_var.as<tirx::BufferVar>()) {
         if (i < num_inputs) {
           const auto& relax_var = relax_args[i];
           ValidateBufferCompatibility(tir_buffer.value(), relax_var);

@@ -115,8 +115,9 @@ bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
 
   // We do not currently support inlining of functions that accept
   // buffer arguments.
-  bool has_buffer_arguments = tirx::BufferParamMap(prim_func->params).size();
-  if (has_buffer_arguments) return false;
+  for (const Var& param : prim_func->params) {
+    if (param->ty.as<BufferTypeNode>()) return false;
+  }
 
   // We do not currently support inlining of schedulable TIR
   // functions.  To support this use case, repeated names in
@@ -228,10 +229,11 @@ class PrimFuncInliner : StmtExprMutator {
         << callee->params << "), but is called with " << args.size() << " arguments (" << args
         << ")";
 
-    TVM_FFI_ICHECK(tirx::BufferParamMap(callee->params).empty())
-        << "Inlining of PrimFuncs with buffer arguments is not yet supported, "
-        << "but callee " << gvar << " has BufferType-annotated parameters "
-        << tirx::BufferParamMap(callee->params);
+    for (const Var& param : callee->params) {
+      TVM_FFI_ICHECK(!param->ty.as<BufferTypeNode>())
+          << "Inlining of PrimFuncs with buffer arguments is not yet supported, "
+          << "but callee " << gvar << " has BufferType-annotated parameter " << param;
+    }
 
     ffi::Map<Var, ffi::Variant<tirx::BufferVar, tvm::Expr>> param_map;
     for (size_t i = 0; i < callee->params.size(); i++) {

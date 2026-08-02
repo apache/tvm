@@ -391,7 +391,11 @@ class TIRPatternMatcher {
     for (const TIRPattern& pattern : patterns_) {
       tirx::PrimFunc pattern_func = pattern;
       ffi::Array<Var> pattern_symbolic_vars;
-      int buffer_count = tirx::BufferParamMap(pattern_func->params).size();
+      int buffer_count = 0;
+      while (buffer_count < static_cast<int>(pattern_func->params.size()) &&
+             pattern_func->params[buffer_count]->ty.as<tirx::BufferTypeNode>()) {
+        ++buffer_count;
+      }
       for (int i = buffer_count; i < static_cast<int>(pattern_func->params.size()); i++) {
         pattern_symbolic_vars.push_back(pattern_func->params[i]);
       }
@@ -738,8 +742,7 @@ class SplitMutator : public ExprMutator {
     if (lib_func->IsInstance<tirx::PrimFuncNode>()) return ffi::GetRef<Call>(op);
     TVM_FFI_ICHECK(lib_func->IsInstance<ExternFuncNode>());
     builder_->UpdateFunction(gv, lib_func);
-    tirx::BufferVar intermediate_buffer =
-        tirx::BufferParamMap(func1->params).at(func1->params.back());
+    tirx::BufferVar intermediate_buffer = func1->params.back().as_or_throw<tirx::BufferVar>();
     PrimType dtype = intermediate_buffer->dtype;
     Call call1(Type::Missing(), call_dps_packed_, {lib_func, Tuple(args1)}, call->attrs,
                {TensorType(ShapeExpr(intermediate_buffer->shape), dtype)});

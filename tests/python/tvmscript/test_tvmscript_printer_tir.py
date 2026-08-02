@@ -56,6 +56,21 @@ def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32"))
     )
 
 
+def test_prim_func_symbolic_buffer_param_roundtrip():
+    n = tirx.Var("n", "int32")
+    A = tirx.decl_buffer(shape=[n + 1, n], dtype="float32", name="A", layout=None)
+    func = (
+        tirx.PrimFunc(params=[A], body=tirx.Evaluate(n))
+        .with_attr("global_symbol", "main")
+        .with_attr("s_tir", True)
+    )
+
+    source = func.script()
+    assert 'T.Buffer(("n + 1", n)' in source
+    assert source.index("n = T.int32()") < source.index("T.evaluate(n)")
+    tvm.ir.assert_structural_equal(tvm.script.from_source(source), func)
+
+
 def test_prim_func_buffer_data_use():
     A = tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A")
     B = tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B")

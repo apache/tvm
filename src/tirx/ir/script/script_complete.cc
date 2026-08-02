@@ -126,9 +126,10 @@ class ScriptCompleter : public StmtMutator {
 
 PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocates, bool s_tir) {
   ffi::Map<Var, BufferVar> buffer_var_map;
-  for (const auto& pair : tirx::BufferParamMap(func->params)) {
-    const BufferVar& buffer = pair.second;
-    buffer_var_map.Set(buffer.var(), buffer);
+  for (const Var& param : func->params) {
+    if (auto buffer = param.as<BufferVar>()) {
+      buffer_var_map.Set(buffer.value().var(), buffer.value());
+    }
   }
   for (const auto& alloc : root_allocates) {
     buffer_var_map.Set(alloc.var(), alloc);

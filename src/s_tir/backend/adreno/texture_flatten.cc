@@ -48,11 +48,12 @@ using runtime::IsTextureStorage;
 
 class TextureLoweringBase : public StmtExprMutator {
  public:
-  explicit TextureLoweringBase(const ffi::Map<Var, BufferVar>& extern_buffer_map,
-                               IRVisitorWithAnalyzer* bound_analyzer)
+  explicit TextureLoweringBase(const ffi::Array<Var>& params, IRVisitorWithAnalyzer* bound_analyzer)
       : bound_analyzer_{bound_analyzer} {
-    for (auto kv : extern_buffer_map) {
-      extern_buf_.insert(kv.second);
+    for (const Var& param : params) {
+      if (auto buffer = param.as<BufferVar>()) {
+        extern_buf_.insert(buffer.value());
+      }
     }
   }
 
@@ -84,9 +85,8 @@ class TextureLoweringBase : public StmtExprMutator {
 class TextureFlattener : public TextureLoweringBase {
  public:
   using StmtExprMutator::VisitStmt_;
-  explicit TextureFlattener(const ffi::Map<Var, BufferVar>& extern_buffer_map,
-                            IRVisitorWithAnalyzer* bound_analyzer)
-      : TextureLoweringBase(extern_buffer_map, bound_analyzer) {}
+  explicit TextureFlattener(const ffi::Array<Var>& params, IRVisitorWithAnalyzer* bound_analyzer)
+      : TextureLoweringBase(params, bound_analyzer) {}
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
@@ -159,8 +159,7 @@ PrimFunc TextureFlattenHandler(PrimFunc func) {
   auto fptr = func.CopyOnWrite();
   IRVisitorWithAnalyzer bound_analyzer;
   bound_analyzer(fptr->body);
-  fptr->body =
-      TextureFlattener(tirx::BufferParamMap(fptr->params), &bound_analyzer)(std::move(fptr->body));
+  fptr->body = TextureFlattener(fptr->params, &bound_analyzer)(std::move(fptr->body));
   return func;
 }
 

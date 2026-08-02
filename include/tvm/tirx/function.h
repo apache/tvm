@@ -38,17 +38,6 @@
 namespace tvm {
 namespace tirx {
 
-/*! \brief Derive a keyed view of buffer parameters from their BufferType annotations. */
-inline ffi::Map<Var, BufferVar> BufferParamMap(const ffi::Array<Var>& params) {
-  ffi::Map<Var, BufferVar> result;
-  for (const Var& param : params) {
-    if (auto buffer = param.as<BufferVar>()) {
-      result.Set(param, buffer.value());
-    }
-  }
-  return result;
-}
-
 /*!
  * \brief Primitive functions that contains TIR statements.
  *
