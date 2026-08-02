@@ -810,7 +810,7 @@ class FusedTIRConstructor : public ExprVisitor {
     for (size_t i = 0; i < call_args.size(); ++i) {
       const Expr& arg = call_args[i];
       const tirx::Var& param = func->params[i];
-      if (auto buffer = tirx::AsBufferVar(param)) {
+      if (auto buffer = param.as<tirx::BufferVar>()) {
         arg_list.push_back(arg);
         buffer_list.push_back(buffer.value());
       } else {
@@ -836,7 +836,7 @@ class FusedTIRConstructor : public ExprVisitor {
     for (int64_t idx : output_indices) {
       int i = static_cast<int>(idx);
       const tirx::Var& param = func->params[static_cast<size_t>(i)];
-      auto buffer = tirx::AsBufferVar(param);
+      auto buffer = param.as<tirx::BufferVar>();
       TVM_FFI_ICHECK(buffer.has_value())
           << "The output params of a PrimFunc must be buffers, but parameter " << i << " has type "
           << param->ty;

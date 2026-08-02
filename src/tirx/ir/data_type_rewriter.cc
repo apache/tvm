@@ -642,7 +642,7 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
   bool is_enabled = true;
   std::swap(is_enabled_, is_enabled);
   ffi::Array<Var> params = func->params.Map([this](Var param) {
-    if (auto buffer = AsBufferVar(param)) {
+    if (auto buffer = param.as<BufferVar>()) {
       return buffer_remap_.Get(buffer.value()).value_or(buffer.value()).var();
     }
     if (auto param_ty = param->ty.as<PrimType>();

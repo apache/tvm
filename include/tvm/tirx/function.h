@@ -38,19 +38,11 @@
 namespace tvm {
 namespace tirx {
 
-/*! \brief Return a checked buffer view when a parameter carries BufferType. */
-inline ffi::Optional<BufferVar> AsBufferVar(const Var& var) {
-  if (var->ty.as<BufferTypeNode>()) {
-    return BufferVar(var);
-  }
-  return std::nullopt;
-}
-
 /*! \brief Derive a keyed view of buffer parameters from their BufferType annotations. */
 inline ffi::Map<Var, BufferVar> BufferParamMap(const ffi::Array<Var>& params) {
   ffi::Map<Var, BufferVar> result;
   for (const Var& param : params) {
-    if (auto buffer = AsBufferVar(param)) {
+    if (auto buffer = param.as<BufferVar>()) {
       result.Set(param, buffer.value());
     }
   }

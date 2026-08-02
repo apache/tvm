@@ -51,12 +51,12 @@ class RenewDefMutator : public StmtExprMutator {
     // Redefine scalar parameters first, because they may occur in a buffer
     // parameter's type annotation.
     for (const auto& param : func->params) {
-      if (!tirx::AsBufferVar(param)) {
+      if (!param.as<BufferVar>()) {
         generator.ReDefineVar(param);
       }
     }
     for (const auto& param : func->params) {
-      if (auto opt_buffer = tirx::AsBufferVar(param)) {
+      if (auto opt_buffer = param.as<BufferVar>()) {
         const BufferVar& buffer = opt_buffer.value();
         for (const PrimExpr& e : buffer->shape) {
           if (auto var = e.as<PrimVar>()) {
@@ -71,7 +71,7 @@ class RenewDefMutator : public StmtExprMutator {
     // TODO(Siyuan Feng): checking var is used after define
     ffi::Array<Var> params;
     for (const auto& param : func->params) {
-      if (auto opt_buffer = tirx::AsBufferVar(param)) {
+      if (auto opt_buffer = param.as<BufferVar>()) {
         params.push_back(generator.DefineBuffer(opt_buffer.value()));
       } else {
         params.push_back(generator.VisitExpr(param).as_or_throw<Var>());

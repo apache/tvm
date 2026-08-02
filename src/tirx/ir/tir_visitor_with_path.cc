@@ -90,7 +90,7 @@ void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
   }
 
   for (size_t i = 0; i < func->params.size(); i++) {
-    if (auto opt = AsBufferVar(func->params[i])) {
+    if (auto opt = func->params[i].as<BufferVar>()) {
       auto buf = opt.value();
       auto buf_path = ppath->ArrayItem(i)->Attr("ty");
 
@@ -103,7 +103,7 @@ void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
   // Only after all the implicit definitions have been visited can we
   // visit the buffer definition itself.
   for (size_t i = 0; i < func->params.size(); i++) {
-    if (auto opt = AsBufferVar(func->params[i])) {
+    if (auto opt = func->params[i].as<BufferVar>()) {
       context.push_back(WithDef(opt.value(), ppath->ArrayItem(i)));
     }
   }

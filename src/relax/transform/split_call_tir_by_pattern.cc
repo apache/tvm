@@ -70,7 +70,7 @@ class ForMatcher : public TensorizeComparator {
     }
     // Get evaluated symbols, buffers from the pattern.
     for (const auto& arg : pattern_->params) {
-      if (auto buffer = tirx::AsBufferVar(arg)) {
+      if (auto buffer = arg.as<tirx::BufferVar>()) {
         auto itt = rhs_buffer_map_.find(buffer.value());
         TVM_FFI_ICHECK(itt != rhs_buffer_map_.end());
         evaluated_buffers.push_back(itt->second);
@@ -613,7 +613,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   for (const auto& buffer : func1_args) {
     TVM_FFI_ICHECK(partitioner.input1.find(buffer) != partitioner.input1.end());
     for (size_t i = 0; i < func->params.size(); i++) {
-      auto param_buffer = tirx::AsBufferVar(func->params[i]);
+      auto param_buffer = func->params[i].as<tirx::BufferVar>();
       if (param_buffer.has_value() && param_buffer.value().same_as(buffer)) {
         new_params1.push_back(func->params[i]);
         arg_partition1.push_back(i);
@@ -631,7 +631,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   new_params2.push_back(partitioner.intermediate_buffer.var());
   for (int i = 0; i < static_cast<int>(func->params.size()); i++) {
     Var param = func->params[i];
-    auto param_buffer = tirx::AsBufferVar(param);
+    auto param_buffer = param.as<tirx::BufferVar>();
     if (param_buffer.has_value() && partitioner.input2.count(param_buffer.value())) {
       new_params2.push_back(param);
       if (i != static_cast<int>(func->params.size()) - 1) {

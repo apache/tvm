@@ -80,13 +80,13 @@ class PrimFuncSpecializer : public StmtExprMutator {
   static PrimFunc Specialize(PrimFunc f, const VarMap& var_map) {
     PrimFuncSpecializer specializer(var_map);
     for (const Var& param : f->params) {
-      auto buffer = tirx::AsBufferVar(param);
+      auto buffer = param.as<BufferVar>();
       auto replacement = var_map.find(param);
       if (!buffer || replacement == var_map.end()) {
         continue;
       }
       if (auto replacement_var = replacement->second.as<Var>()) {
-        if (auto replacement_buffer = tirx::AsBufferVar(replacement_var.value())) {
+        if (auto replacement_buffer = replacement_var.value().as<BufferVar>()) {
           if (IsParam(f, replacement_var.value())) {
             specializer.buffer_aliases_[buffer.value()] = replacement_buffer.value();
           } else {
@@ -365,7 +365,7 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
   // preliminaries
   tirx::ExprDeepEqual equal;
 
-  auto opt_buffer = tirx::AsBufferVar(param);
+  auto opt_buffer = param.as<BufferVar>();
   TVM_FFI_CHECK(opt_buffer, ValueError)
       << "specialize expects param to have a BufferType annotation";
   const BufferVar& buf_to_specialize = opt_buffer.value();
@@ -441,7 +441,7 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Expr& 
   TVM_FFI_CHECK(IsParam(func, param), ValueError)
       << "Specialize expects param to be in PrimFunc's params";
   // Specialize a scalar parameter rather than a buffer parameter.
-  TVM_FFI_CHECK(!tirx::AsBufferVar(param), ValueError)
+  TVM_FFI_CHECK(!param.as<BufferVar>(), ValueError)
       << "Specialize expects param to not have a BufferType annotation";
   // build var mapping using specific_expr
   (*var_map)[param] = specific_expr;

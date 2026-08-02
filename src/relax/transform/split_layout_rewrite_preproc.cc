@@ -101,7 +101,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     ffi::Array<Var> params = original_func_->params;
     for (const auto& info : rewrite_infos_) {
       const Var& param = params[info.buffer_index];
-      TVM_FFI_ICHECK(tirx::AsBufferVar(param).value() == info.pre_rewrite_buffer);
+      TVM_FFI_ICHECK(param.as<tirx::BufferVar>().value() == info.pre_rewrite_buffer);
       params.Set(info.buffer_index, info.post_rewrite_buffer.var());
     }
 

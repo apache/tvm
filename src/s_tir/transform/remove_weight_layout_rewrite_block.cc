@@ -128,7 +128,7 @@ class WeightLayoutRewriteBlockRemover : public StmtMutator {
 
     ffi::Array<tirx::Var> params;
     for (const tirx::Var& param : f_->params) {
-      auto opt_buffer = tirx::AsBufferVar(param);
+      auto opt_buffer = param.as<BufferVar>();
       if (!opt_buffer.has_value()) {
         params.push_back(param);
         continue;
