@@ -272,6 +272,66 @@ def _is_jit_function(node: doc.FunctionDef) -> bool:
     return False
 
 
+def _loaded_names(node: doc.expr) -> set[str]:
+    return {
+        child.id
+        for child in ast.walk(from_doc(node))
+        if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load)
+    }
+
+
+def _stored_names(node: doc.expr) -> set[str]:
+    return {
+        child.id
+        for child in ast.walk(from_doc(node))
+        if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store)
+    }
+
+
+def _bind_forward_signature_vars(self: Parser, node: doc.FunctionDef) -> list[doc.stmt]:
+    """Bind body-defined PrimVars referenced by the function signature.
+
+    Free symbolic dimensions are printed as ordinary top-level PrimVar
+    declarations in the function body, after their first textual use in a
+    buffer annotation.  Resolve exactly those declaration dependencies before
+    evaluating the signature, and leave all unrelated body statements in their
+    original order.
+    """
+
+    signature_names = set()
+    for arg in node.args.args:
+        if arg.annotation is not None:
+            signature_names.update(_loaded_names(arg.annotation))
+    if node.returns is not None:
+        signature_names.update(_loaded_names(node.returns))
+
+    remaining_body = []
+    for statement in node.body:
+        if (
+            not isinstance(statement, doc.Assign)
+            or len(statement.targets) != 1
+            or not (_stored_names(statement.targets[0]) & signature_names)
+        ):
+            remaining_body.append(statement)
+            continue
+        try:
+            value = self.eval_expr(statement.value)
+        except Exception:  # pylint: disable=broad-except
+            remaining_body.append(statement)
+            continue
+        values = value if isinstance(value, list | tuple) else [value]
+        if not all(
+            isinstance(item, tvm.ir.Var)
+            and isinstance(item.ty, PrimType)
+            and not is_buffer_var(item)
+            for item in values
+        ):
+            remaining_body.append(statement)
+            continue
+        self.eval_assign(target=statement.targets[0], source=value, bind_value=bind_assign_value)
+    return remaining_body
+
+
 @dispatch.register(token="tirx", type_name="For")
 def visit_for(self: Parser, node: doc.For) -> None:
     """The for visiting method for tirx.
@@ -636,6 +696,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         prim_func_ctx = T.prim_func(is_private=privacy, s_tir=s_tir, persistent=persistent)
         with prim_func_ctx:
             T.func_name(node.name)
+            remaining_body = _bind_forward_signature_vars(self, node)
             if node.returns is not None:
                 ret_type = self.eval_expr(node.returns)
                 if callable(ret_type) and not isinstance(ret_type, Expr):
@@ -713,7 +774,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                         continue
                     param = T.arg(arg.arg, ann)
                     self.var_table.add(arg.arg, param)
-                self.visit_body(node.body)
+                self.visit_body(remaining_body)
     self.function_annotations = supplied_annotation
 
 
@@ -954,6 +1015,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
 
     ret_type = None
     with self.var_table.with_frame():
+        _bind_forward_signature_vars(self, node)
         if node.returns is not None:
             ret_type = self.eval_expr(node.returns)
             if callable(ret_type) and not isinstance(ret_type, Expr):
@@ -961,18 +1023,35 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
             if isinstance(ret_type, Expr):
                 ret_type = ret_type.ty
 
-        arg_annotations = []
+        evaluated_annotations = {}
         for arg in node.args.args:
             if arg.annotation is None:
-                self.report_error(arg, "Type annotation required for function parameters.")
+                continue
             try:
                 ann = self.eval_expr(arg.annotation)
                 if callable(ann) and not isinstance(ann, Expr):
                     ann = ann()
             except Exception:  # pylint: disable=broad-except
-                ann = func_annotation.get(arg.arg, None)
-                if ann is None:
-                    raise
+                continue
+            evaluated_annotations[arg.arg] = ann
+            if isinstance(ann, tvm.tirx.Var) and not is_buffer_var(ann):
+                self.var_table.add(arg.arg, ann)
+
+        arg_annotations = []
+        for arg in node.args.args:
+            if arg.annotation is None:
+                self.report_error(arg, "Type annotation required for function parameters.")
+            if arg.arg in evaluated_annotations:
+                ann = evaluated_annotations[arg.arg]
+            else:
+                try:
+                    ann = self.eval_expr(arg.annotation)
+                    if callable(ann) and not isinstance(ann, Expr):
+                        ann = ann()
+                except Exception:  # pylint: disable=broad-except
+                    ann = func_annotation.get(arg.arg, None)
+                    if ann is None:
+                        raise
 
             IRBuilder.name(arg.arg, ann)
             arg_annotations.append(ann)

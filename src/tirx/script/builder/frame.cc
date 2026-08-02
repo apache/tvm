@@ -117,8 +117,10 @@ void PrimFuncFrameNode::ExitWithScope() {
   tvm::tirx::Stmt body = AsStmt(stmts);
   STirBufferLayoutNormalizer normalizer;
   ffi::Array<tvm::tirx::Var> effective_args;
+  ffi::Map<tvm::tirx::Var, tvm::Expr> param_replacements;
   for (const tvm::tirx::Var& arg : args) {
     ffi::Optional<tvm::tirx::BufferVar> opt_buffer = buffer_map.Get(arg);
+    bool replaces_legacy_param = opt_buffer.has_value();
     if (!opt_buffer.has_value() && arg->ty.as<tvm::tirx::BufferTypeNode>()) {
       opt_buffer = tvm::tirx::BufferVar(arg);
     }
@@ -135,6 +137,13 @@ void PrimFuncFrameNode::ExitWithScope() {
       buffer = new_buffer;
     }
     effective_args.push_back(buffer.var());
+    if (replaces_legacy_param && !arg.same_as(buffer.var()) &&
+        !arg->ty.as<tvm::tirx::BufferTypeNode>()) {
+      tvm::Expr data = buffer.data();
+      param_replacements.Set(arg, ffi::StructuralEqual()(arg->ty, data->ty)
+                                      ? data
+                                      : tvm::reinterpret(arg->ty, std::move(data)));
+    }
   }
   if (!normalizer.Empty()) {
     body = normalizer(std::move(body));
@@ -143,6 +152,9 @@ void PrimFuncFrameNode::ExitWithScope() {
       new_root_alloc_buffers.push_back(normalizer.Lookup(buffer));
     }
     effective_root_alloc_buffers = std::move(new_root_alloc_buffers);
+  }
+  if (!param_replacements.empty()) {
+    body = tvm::tirx::Substitute(std::move(body), param_replacements);
   }
   tvm::tirx::PrimFunc func(
       /*params=*/effective_args,

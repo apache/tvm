@@ -71,6 +71,11 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
     BufferAxisGraphExtractor extractor;
     extractor(prim_func->body);
     ffi::Map<BufferVar, Var> inverse_buffer_map;
+    for (const Var& param : prim_func->params) {
+      if (param->ty.as<BufferTypeNode>()) {
+        inverse_buffer_map.Set(BufferVar(param), param);
+      }
+    }
     std::vector<std::vector<TIRVarAxis>> tir_var_axis_group_list;
     std::unordered_set<BufferAxis, BufferAxisHash> visited;
     for (const Var& param : prim_func->params) {
@@ -78,7 +83,6 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
         continue;
       }
       BufferVar buffer(param);
-      inverse_buffer_map.Set(buffer, param);
       for (int i = 0; i < static_cast<int>(buffer->shape.size()); i++) {
         if (extractor.buffer_axis_graph_.count({buffer, i})) {
           std::vector<BufferAxis> buffer_axis_group;

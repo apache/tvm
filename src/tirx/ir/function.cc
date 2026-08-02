@@ -28,6 +28,7 @@
 #include <tvm/s_tir/analysis.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace tirx {
@@ -50,6 +51,22 @@ ffi::Array<Var> NormalizeBufferParams(ffi::Array<Var> params,
     }
   }
   return normalized;
+}
+
+Stmt NormalizeBufferParamUses(Stmt body, const ffi::Map<Var, BufferVar>& buffer_map) {
+  if (!body.defined()) {
+    return body;
+  }
+  ffi::Map<Var, Expr> replacements;
+  for (const auto& [param, buffer] : buffer_map) {
+    if (!param.same_as(buffer.var()) && !param->ty.as<BufferTypeNode>()) {
+      Expr data = buffer.data();
+      replacements.Set(param, ffi::StructuralEqual()(param->ty, data->ty)
+                                  ? data
+                                  : tvm::reinterpret(param->ty, std::move(data)));
+    }
+  }
+  return replacements.empty() ? body : Substitute(std::move(body), replacements);
 }
 
 tvm::Type InferType(const PrimFunc& prim_func) {
@@ -113,8 +130,9 @@ PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type, DictA
 
 PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type,
                    ffi::Map<tirx::Var, BufferVar> buffer_map, DictAttrs attrs, Span span)
-    : PrimFunc(NormalizeBufferParams(std::move(params), buffer_map), std::move(body),
-               std::move(ret_type), std::move(attrs), std::move(span)) {}
+    : PrimFunc(NormalizeBufferParams(std::move(params), buffer_map),
+               NormalizeBufferParamUses(std::move(body), buffer_map), std::move(ret_type),
+               std::move(attrs), std::move(span)) {}
 
 FuncType PrimFuncNode::func_type_annotation() const {
   ffi::Array<Type> param_types;
