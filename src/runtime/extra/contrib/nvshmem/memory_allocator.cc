@@ -88,7 +88,9 @@ class NVSHMEMAllocator final : public PooledAllocator {
 };
 
 Tensor NVSHMEMEmpty(ffi::Shape shape, DLDataType dtype, ffi::Optional<Device> device) {
-  return NVSHMEMAllocator::Global()->Empty(shape, dtype, UseDefaultDeviceIfNone(device));
+  Device resolved_device =
+      device.has_value() ? device.value() : UseDefaultDeviceIfNone(std::nullopt);
+  return NVSHMEMAllocator::Global()->Empty(shape, dtype, resolved_device);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

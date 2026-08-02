@@ -230,6 +230,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
+  void VisitStmt_(const ReturnNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const AllocBufferNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
@@ -357,11 +358,12 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
    *       - Should return the generated expression.
    */
   void BufferAccessHelper(
-      Buffer buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
+      BufferVar buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
       PrimType value_dtype,
       std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                        llvm::Value* predicate, int alignment, bool is_volatile)>
           make_instruction);
+  const VarNode* GetBufferPhysicalRoot(const VarNode* buffer) const;
   // Initialize target
   virtual void InitTarget();
   // Add module startup function if needed.
@@ -547,6 +549,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
   std::unordered_map<const VarNode*, StorageInfo> alloc_storage_info_;
   // The definition of local variable.
   std::unordered_map<const VarNode*, llvm::Value*> var_map_;
+  // Canonical physical storage identity for DeclBuffer aliases.
+  std::unordered_map<const VarNode*, const VarNode*> buffer_physical_root_;
   // global strings
   std::unordered_map<std::string, llvm::Constant*> str_map_;
 

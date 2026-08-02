@@ -215,7 +215,9 @@ def test_bind_strided_slice():
 
     @R.function(private=True)
     def expected(A: R.Tensor(["M", 32])):
-        B = R.strided_slice(A, [1], [0], [8])
+        # Binding substitutes runtime primitive arguments without applying
+        # shape-only analyzer simplification to them.
+        B = R.strided_slice(A, [1], [0], [T.FloorDiv(T.int64(32), T.int64(4))])
         return B
 
     after = before.bind_symbolic_vars({"N": 32})

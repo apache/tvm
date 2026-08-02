@@ -130,7 +130,7 @@ def test_unary_in_a_loop(op_type):
                     if op_type == "reciprocal":
                         T.nki.reciprocal(B_sbuf_view[p_loop, i * 512 + f_loop], A_sbuf_view[p_loop, i * 1024 + f_loop])  # noqa: E501
                     elif op_type == "memset":
-                        T.nki.memset(B_sbuf[p_loop, i * 512 + f_loop], 0.0)
+                        T.nki.memset(B_sbuf_view[p_loop, i * 512 + f_loop], 0.0)
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": unary})

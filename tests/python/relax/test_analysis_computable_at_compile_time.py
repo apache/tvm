@@ -24,7 +24,7 @@ from tvm.script import tirx as T
 
 
 def _analyze_func(func: tvm.relax.Function) -> list[str]:
-    return [var.name_hint for var in tvm.relax.analysis.computable_at_compile_time(func)]
+    return [var.name for var in tvm.relax.analysis.computable_at_compile_time(func)]
 
 
 def test_no_num_input_attribute():

@@ -72,7 +72,7 @@ ffi::Array<Any> TranslateInputRVs(
     const ffi::Object* dst = it->second;
     TVM_FFI_CHECK(dst->IsInstance<VarNode>(), TypeError)
         << "Expect 'tirx.Var', but gets: " << dst->GetTypeKey();
-    return ffi::GetRef<Var>(static_cast<const VarNode*>(dst)).as_or_throw<PrimExpr>();
+    return ffi::GetRef<Var>(static_cast<const VarNode*>(dst));
   };
   auto f_subst_with_rv_map_prim = [&](const Var& var) -> ffi::Optional<PrimExpr> {
     if (auto replacement = f_subst_with_rv_map(var)) {
@@ -205,7 +205,7 @@ ffi::Array<Any> TranslateInputRVs(
       if (obj.as<IndexMapNode>()) {
         IndexMap index_map = obj.as_or_throw<IndexMap>();
         index_map = Substitute(index_map, [&named_rvs](const Var& var) -> ffi::Optional<PrimExpr> {
-          auto it = named_rvs.find(var->name_hint);
+          auto it = named_rvs.find(var->name);
           if (it != named_rvs.end()) {
             return it->second.as_or_throw<Var>().as_or_throw<PrimExpr>();
           }

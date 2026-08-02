@@ -53,7 +53,7 @@ from tvm.tirx.stmt_functor import pre_order_visit
 
 
 def _make_vars(*args: str) -> list[Var]:
-    return [Var(arg, dtype="int32") for arg in args]
+    return [Var(arg, ty="int32") for arg in args]
 
 
 def _make_loops(loop_vars: list[Var], extents: list[int]) -> list[For]:

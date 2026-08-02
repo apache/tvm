@@ -153,7 +153,10 @@ def test_bind_allow_override():
     ana.bind(x, tvm.ir.Range(0, 5), allow_override=True)
     assert ana.can_prove(x < 5)
 
-    with pytest.raises(RuntimeError, match="Trying to update var 'x' with a different const bound"):
+    with pytest.raises(
+        RuntimeError,
+        match=r"Trying to update var 'x' with a different const bound",
+    ):
         ana.bind(x, tvm.ir.Range(0, 3))
 
 

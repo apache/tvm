@@ -104,11 +104,11 @@ class BufferInfo:
             for expr in buf.region:
                 expr = expr.min
                 dim = None
-                if isinstance(expr, tirx.expr.Add) and isinstance(expr.b, tirx.expr.Var):
+                if isinstance(expr, tirx.expr.Add) and ir.is_prim_var(expr.b):
                     var_add = expr.b
                     if (
                         isinstance(expr, tirx.expr.Mul)
-                        and isinstance(expr.a, tirx.expr.Var)
+                        and ir.is_prim_var(expr.a)
                         and isinstance(expr.b, tirx.expr.IntImm)
                     ):
                         mul = expr.b
@@ -116,17 +116,17 @@ class BufferInfo:
                         dim = MergeIndex(var_mul, mul, var_add)
                 elif (
                     isinstance(expr, tirx.expr.FloorMod)
-                    and isinstance(expr.a, tirx.expr.Var)
+                    and ir.is_prim_var(expr.a)
                     and isinstance(expr.b, tirx.expr.IntImm)
                 ):
                     dim = RemIndex(expr.a, expr.b)
                 elif (
                     isinstance(expr, tirx.expr.FloorDiv)
-                    and isinstance(expr.a, tirx.expr.Var)
+                    and ir.is_prim_var(expr.a)
                     and isinstance(expr.b, tirx.expr.IntImm)
                 ):
                     dim = DivIndex(expr.a, expr.b)
-                elif isinstance(expr, tirx.expr.Var):
+                elif ir.is_prim_var(expr):
                     dim = Index(expr)
                 buf_index.append(dim)
             return buf_index
@@ -158,7 +158,7 @@ class BufferInfo:
         )
         vbuf_extent = int(self.shape[-1]) & ~(int(self.shape[-1]) - 1)
 
-        return min(vlp_extent, vbuf_extent, vbits // self.buf_region.buffer.dtype.dtype.bits)
+        return min(vlp_extent, vbuf_extent, vbits // self.buf_region.buffer.dtype.bits)
 
     def __str__(self) -> str:
         return f"BufferInfo({self.buf_region})"
@@ -420,7 +420,7 @@ def collect_vars_used_in_prim_expr(expr: tirx.Expr) -> set[tirx.Var]:
     tir_vars = set()
 
     def _collect_tir_var(expr):
-        if isinstance(expr, tirx.Var):
+        if ir.is_prim_var(expr):
             tir_vars.add(expr)
 
     tirx.stmt_functor.post_order_visit(expr, _collect_tir_var)

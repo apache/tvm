@@ -18,11 +18,10 @@
 # ruff: noqa: E741
 """ScatterND operator"""
 
-from tvm import DataTypeCode, te, tirx  # hide redefinition of min and max
+from tvm import DataTypeCode, ir, te, tirx  # hide redefinition of min and max
 from tvm.arith.analyzer import Analyzer
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tirx as T
-from tvm.tirx import expr
 
 
 def _verify_scatter_nd_inputs(data, indices, updates):
@@ -33,7 +32,7 @@ def _verify_scatter_nd_inputs(data, indices, updates):
         f"the length of the shape of the output ({len(data.shape)})."
     )
     for i in range(len(indices.shape) - 1):
-        if isinstance(indices.shape[i + 1], expr.Var) or isinstance(updates.shape[i], expr.Var):
+        if ir.is_prim_var(indices.shape[i + 1]) or ir.is_prim_var(updates.shape[i]):
             continue
 
         assert analyzer.can_prove_equal(indices.shape[i + 1], updates.shape[i]), (
@@ -42,7 +41,7 @@ def _verify_scatter_nd_inputs(data, indices, updates):
         )
     for i in range(mdim, len(data.shape)):
         data_ind = i - mdim + len(indices.shape) - 1
-        if isinstance(updates.shape[data_ind], expr.Var) or isinstance(data.shape[i], expr.Var):
+        if ir.is_prim_var(updates.shape[data_ind]) or ir.is_prim_var(data.shape[i]):
             continue
         assert updates.shape[data_ind] == data.shape[i], (
             f"Dimension of updates[{data_ind}] ({updates.shape[data_ind]}) must equal dimension "

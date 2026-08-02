@@ -49,13 +49,13 @@ class CodeGenOpenCL final : public CodeGenC {
   using CodeGenC::PrintType;
   void PrintType(const PrimType& t, std::ostream& os) final;  // NOLINT(*)
   void PrintType(const Type& type, std::ostream& os) final;   // NOLINT(*)
-  std::string GetVecLoad(const PrimType& t, const BufferNode* buffer, PrimExpr base) final;
-  void PrintVecStore(const BufferNode* buffer, const PrimType& t, PrimExpr base,
+  std::string GetVecLoad(const PrimType& t, const VarNode* buffer, PrimExpr base) final;
+  void PrintVecStore(const VarNode* buffer, const PrimType& t, PrimExpr base,
                      const std::string& value) final;  // NOLINT(*)
   void PrintVecElemLoadExpr(const PrimType& t, int i, const std::string& value,
                             std::ostream& os) final;  // NOLINT(*)
   // the address of load/store
-  void PrintVecAddr(const BufferNode* buffer, const PrimType& t, PrimExpr base,
+  void PrintVecAddr(const VarNode* buffer, const PrimType& t, PrimExpr base,
                     std::ostream& os);                       // NOLINT(*)
   void PrintRestrict(const Var& v, std::ostream& os) final;  // NOLINT(*)
   std::string CastFromTo(std::string value, const PrimType& from,

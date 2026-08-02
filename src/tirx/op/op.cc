@@ -31,6 +31,7 @@
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/var.h>
 
 #include <cmath>
 // Centralized header for constant folders.
@@ -136,13 +137,13 @@ Type GetType(const PrimExpr& expr) {
         return PointerType(address->ty.as_or_throw<PrimType>());
       }
 
-      if (auto* var = address_of->args[0].as<VarNode>()) {
-        if (auto* ptr = var->ty.as<PointerTypeNode>()) {
+      if (auto var = address_of->args[0].as<Var>()) {
+        if (auto* ptr = var.value()->ty.as<PointerTypeNode>()) {
           if (ptr->element_type.as<TensorMapTypeNode>()) {
             return PrimType::UInt(64);
           }
         }
-        return PointerType(var->ty.as_or_throw<PrimType>());
+        return PointerType(var.value()->ty.as_or_throw<PrimType>());
       }
 
       TVM_FFI_ICHECK(false)
@@ -287,19 +288,6 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
   }
 }
 
-PrimExpr ret(PrimExpr value, Span span) {
-  TVM_FFI_ICHECK(value.defined());
-  return Call(value.ty(), tirx::builtin::ret(), {value}, {}, {}, span).as_or_throw<PrimExpr>();
-}
-
-Expr ret(Expr value, Span span) {
-  TVM_FFI_ICHECK(value.defined());
-  if (auto prim_value = value.as<PrimExpr>()) {
-    return ret(prim_value.value(), span);
-  }
-  return Call(value->ty, tirx::builtin::ret(), {value}, {}, {}, span);
-}
-
 PrimExpr thread_return(Span span) {
   return Call(PrimType::Void(), tirx::builtin::thread_return(), {}, {}, {}, span)
       .as_or_throw<PrimExpr>();
@@ -318,7 +306,6 @@ PrimExpr break_loop(Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tirx.ret", [](Expr value, Span span) { return ret(value, span); })
       .def("tirx.thread_return", thread_return)
       .def("tirx.continue_loop", continue_loop)
       .def("tirx.break_loop", break_loop);
@@ -1442,7 +1429,7 @@ int ExtractInt(const ffi::PackedArgs& args, int index) {
   }
 }
 
-PrimExpr PrintOpPacked(Var data, DLDataType dtype, bool is_string, bool is_scalar, int dim_num,
+PrimExpr PrintOpPacked(Expr data, DLDataType dtype, bool is_string, bool is_scalar, int dim_num,
                        ffi::Array<PrimExpr> shape) {
   PrimType value_ty(dtype);
   PrimType u32_ty = PrimType::UInt(32);
@@ -1462,7 +1449,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tirx.print_buffer", [](ffi::PackedArgs args, ffi::Any* ret) {
     // Expected arguments:
-    // args[0]: buffer_var (Var)
+    // args[0]: buffer data expression
     // args[1]: dtype (DLDataType)
     // args[2]: is_string (bool or IntImm)
     // args[3]: is_scalar (bool or IntImm)
@@ -1471,7 +1458,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
     TVM_FFI_ICHECK_GE(args.size(), 5) << "print_buffer expects at least 5 arguments";
 
-    Var buffer_var = args[0].cast<Var>();
+    Expr buffer_data = args[0].cast<Expr>();
     DLDataType dtype = args[1].cast<DLDataType>();
     bool is_string = ExtractBool(args, 2);
     bool is_scalar = ExtractBool(args, 3);
@@ -1482,7 +1469,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       shape.push_back(args[i].cast<PrimExpr>());
     }
 
-    *ret = PrintOpPacked(buffer_var, dtype, is_string, is_scalar, dim_num, shape);
+    *ret = PrintOpPacked(buffer_data, dtype, is_string, is_scalar, dim_num, shape);
   });
 }
 

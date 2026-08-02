@@ -87,10 +87,10 @@ class TestingScope:
         self._bb = block_builder
         shape_vars = []
         for var in def_vars:
-            if isinstance(var, tvm.tirx.Var):
+            if isinstance(var, tvm.ir.Var):
                 shape_vars.append(var)
             else:
-                raise ValueError("def_vars only can take tirx.Var")
+                raise ValueError("def_vars can only contain Vars")
         # setup a dummy var so shape is in scope.
         sparam = rx.Var("sparam", rx.ShapeType(shape_vars))
         self._scope_params = [sparam]
@@ -361,13 +361,13 @@ class BlockBuilder(Object):
         """
 
         primfunc_name = kwargs.pop("primfunc_name_hint", None)
-        tir_func, call_args, output_ty, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+        tir_func, call_args, output_ty = gen_call_tir_inputs(func, *args, **kwargs)
 
         if not primfunc_name:
             primfunc_name = func.__name__
         gvar = self.add_func(tir_func, primfunc_name)
 
-        return call_tir(gvar, call_args, output_ty, tir_vars)
+        return call_tir(gvar, call_args, output_ty)
 
     def call_te_with_grad(
         self,
@@ -413,7 +413,7 @@ class BlockBuilder(Object):
         """
 
         primfunc_name = kwargs.pop("primfunc_name_hint", None)
-        tir_func, call_args, output_ty, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+        tir_func, call_args, output_ty = gen_call_tir_inputs(func, *args, **kwargs)
 
         if te_grad_kwargs is None:
             te_grad_kwargs = {}
@@ -422,9 +422,7 @@ class BlockBuilder(Object):
             primfunc_name = func.__name__
         gvar = self.add_func(tir_func, primfunc_name)
 
-        return call_tir_with_grad(
-            gvar, call_args, output_ty, te_grad_name, te_grad_kwargs, tir_vars
-        )
+        return call_tir_with_grad(gvar, call_args, output_ty, te_grad_name, te_grad_kwargs)
 
     def emit_te(self, func: Callable, *args: Any, **kwargs: Any) -> Var:
         """Emit a call node according to the te function.
@@ -541,7 +539,7 @@ class BlockBuilder(Object):
                 def rx_func(x: Tensor((n,), "float32"), y: Tensor(((n + 1),), "float32"))
                     -> Tensor(None, "float32", ndim=-1):
                     # block 0
-                    gv = relax.call_tir(te_func, (y,), R.Tensor((n + 1,), "float32"), (n,))
+                    gv = relax.call_tir(te_func, (y, n), R.Tensor((n + 1,), "float32"))
                     return gv
         """
         name_hint = kwargs.pop("name_hint", "")

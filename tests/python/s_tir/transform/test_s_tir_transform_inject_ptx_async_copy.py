@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, F401, F841
+# ruff: noqa: E501, F401
 
 import numpy as np
 import pytest
@@ -495,8 +495,8 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     16,
                                     16,
                                     16,
-                                    C.elem_offset // C_s0 // 16 * (C_s0 // 16)
-                                    + C.elem_offset % C_s0 // 16,
+                                    C.ty.elem_offset // C_s0 // 16 * (C_s0 // 16)
+                                    + C.ty.elem_offset % C_s0 // 16,
                                     T.float32(0),
                                 )
                         for k_0_0 in T.serial(
@@ -687,12 +687,12 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             16,
                                             16,
                                             16,
-                                            C.elem_offset // C_s0 // 16 * (C_s0 // 16)
-                                            + C.elem_offset % C_s0 // 16,
+                                            C.ty.elem_offset // C_s0 // 16 * (C_s0 // 16)
+                                            + C.ty.elem_offset % C_s0 // 16,
                                             T.tvm_access_ptr(
                                                 T.type_annotation("float16"),
                                                 A_1.data,
-                                                A_1.elem_offset,
+                                                A_1.ty.elem_offset,
                                                 A_s0 * 16,
                                                 1,
                                             ),
@@ -748,12 +748,12 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             16,
                                             16,
                                             16,
-                                            C.elem_offset // C_s0 // 16 * (C_s0 // 16)
-                                            + C.elem_offset % C_s0 // 16,
+                                            C.ty.elem_offset // C_s0 // 16 * (C_s0 // 16)
+                                            + C.ty.elem_offset % C_s0 // 16,
                                             T.tvm_access_ptr(
                                                 T.type_annotation("float16"),
                                                 A_1.data,
-                                                A_1.elem_offset,
+                                                A_1.ty.elem_offset,
                                                 A_s0 * 16,
                                                 1,
                                             ),
@@ -826,17 +826,17 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                         )
                                         T.tvm_mma_sync(
                                             C.data,
-                                            C.elem_offset // C_s0 // 16 * (C_s0 // 16)
-                                            + C.elem_offset % C_s0 // 16,
+                                            C.ty.elem_offset // C_s0 // 16 * (C_s0 // 16)
+                                            + C.ty.elem_offset % C_s0 // 16,
                                             A_1.data,
-                                            A_1.elem_offset // A_s0 // 16 * (A_s0 // 16)
-                                            + A_1.elem_offset % A_s0 // 16,
+                                            A_1.ty.elem_offset // A_s0 // 16 * (A_s0 // 16)
+                                            + A_1.ty.elem_offset % A_s0 // 16,
                                             B.data,
-                                            B.elem_offset // B_s0 // 16 * (B_s0 // 16)
-                                            + B.elem_offset % B_s0 // 16,
+                                            B.ty.elem_offset // B_s0 // 16 * (B_s0 // 16)
+                                            + B.ty.elem_offset % B_s0 // 16,
                                             C.data,
-                                            C.elem_offset // C_s0 // 16 * (C_s0 // 16)
-                                            + C.elem_offset % C_s0 // 16,
+                                            C.ty.elem_offset // C_s0 // 16 * (C_s0 // 16)
+                                            + C.ty.elem_offset % C_s0 // 16,
                                         )
                         for ax0_0, ax1_0 in T.grid(2, 2):
                             with T.sblock("Conv_reindex_wmma.accumulator_o"):
@@ -876,12 +876,12 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     16,
                                     16,
                                     16,
-                                    A_1.elem_offset // A_s0 // 16 * (A_s0 // 16)
-                                    + A_1.elem_offset % A_s0 // 16,
+                                    A_1.ty.elem_offset // A_s0 // 16 * (A_s0 // 16)
+                                    + A_1.ty.elem_offset % A_s0 // 16,
                                     T.tvm_access_ptr(
                                         T.type_annotation("float16"),
                                         C.data,
-                                        C.elem_offset,
+                                        C.ty.elem_offset,
                                         C_s0 * 16,
                                         2,
                                     ),
@@ -928,7 +928,7 @@ def test_multiplication_nodes_are_inlined():
                     "float16",
                     A_shared.data,
                     tx * T.int64(128) + cse_v1 * T.int64(8),
-                    A.data,
+                    A_flattened.data,
                     tx * T.int64(128) + cse_v1 * T.int64(8),
                     16,
                 )

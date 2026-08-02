@@ -440,28 +440,7 @@ class LogicalExpr(ExprWithOp):
     pass
 
 
-@tvm_ffi.register_object("tirx.Var")
-class Var(ExprWithOp):
-    """Symbolic variable.
-
-    Parameters
-    ----------
-    name : str
-        The name
-
-    dtype : Union[str, ir.Type]
-        The data type
-
-    span : Optional[Span]
-        The location of this expression in the source code.
-    """
-
-    name_hint: str
-
-    def __init__(self, name: str, dtype: str | ir.Type, span: Span | None = None) -> None:
-        if isinstance(dtype, str) and dtype == "handle":
-            dtype = ir.PointerType(ir.PrimType("void"))
-        self.__init_handle_by_constructor__(_ffi_api.Var, name, dtype, span)  # type: ignore
+Var = ir.Var
 
 
 @tvm_ffi.register_object("tirx.IterVar")
@@ -527,7 +506,7 @@ class IterVar(ExprOp, Object, Scriptable):
 
         name = var if var is not None else "iter"
         dtype = "int32" if dom is None else dom.extent.ty
-        var = Var(name, dtype=dtype, span=span) if not isinstance(var, Var) else var
+        var = Var(name, ty=dtype, span=span) if not isinstance(var, Var) else var
         if dom is not None:
             assert var.ty == dom.extent.ty, "IterVar's Var type must match its domain's extent type"
         self.__init_handle_by_constructor__(

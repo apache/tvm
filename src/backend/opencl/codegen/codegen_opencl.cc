@@ -37,6 +37,40 @@
 namespace tvm {
 namespace codegen {
 
+namespace {
+
+const VarNode* TryUnwrapTextureVar(const Expr& texture) {
+  if (const auto* var = texture.as<VarNode>()) {
+    return var;
+  }
+  if (const auto* call = texture.as<CallNode>(); call && call->op.same_as(builtin::buffer_data())) {
+    TVM_FFI_ICHECK_EQ(call->args.size(), 1U);
+    const auto* buffer = call->args[0].as<VarNode>();
+    TVM_FFI_ICHECK(buffer && buffer->ty.as<BufferTypeNode>())
+        << "buffer_data expects a Var with BufferType";
+    return buffer;
+  }
+  return nullptr;
+}
+
+struct TextureArgument {
+  const VarNode* var;
+  const PointerTypeNode* pointer_type;
+};
+
+TextureArgument UnwrapTextureArgument(const Expr& texture) {
+  const auto* var = TryUnwrapTextureVar(texture);
+  TVM_FFI_ICHECK(var)
+      << "Texture arguments must be a pointer Var or a buffer_data(BufferVar) projection";
+  const auto* pointer_type = texture->ty.as<PointerTypeNode>();
+  TVM_FFI_ICHECK(pointer_type) << "Texture arguments must have PointerType";
+  TVM_FFI_ICHECK(runtime::IsTextureStorage(std::string(pointer_type->storage_scope)))
+      << "Texture intrinsics only support texture buffers";
+  return {var, pointer_type};
+}
+
+}  // namespace
+
 class InferTextureAccess : public StmtExprVisitor {
  public:
   static constexpr const uint8_t kReadAccess = 1;
@@ -44,6 +78,7 @@ class InferTextureAccess : public StmtExprVisitor {
 
   InferTextureAccess() {}
   using StmtExprVisitor::VisitExpr_;
+  using StmtExprVisitor::VisitStmt_;
   std::unordered_map<const VarNode*, std::string> Infer(const Stmt& n) {
     StmtExprVisitor::VisitStmt(n);
     std::unordered_map<const VarNode*, std::string> storage_scope_qualifiers;
@@ -58,17 +93,29 @@ class InferTextureAccess : public StmtExprVisitor {
     }
     return storage_scope_qualifiers;
   }
+  void VisitStmt_(const DeclBufferNode* op) final {
+    if (const VarNode* source = TryUnwrapTextureVar(op->data)) {
+      auto it = buffer_data_map_.find(source);
+      buffer_data_map_[op->buffer.get()] = it == buffer_data_map_.end() ? source : it->second;
+    }
+    StmtExprVisitor::VisitStmt_(op);
+  }
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::texture2d_load())) {
-      var_access_map_[op->args[0].as<VarNode>()] |= kReadAccess;
+      const VarNode* texture = UnwrapTextureArgument(op->args[0]).var;
+      auto it = buffer_data_map_.find(texture);
+      var_access_map_[it == buffer_data_map_.end() ? texture : it->second] |= kReadAccess;
     } else if (op->op.same_as(builtin::texture2d_store())) {
-      var_access_map_[op->args[0].as<VarNode>()] |= kWriteAccess;
+      const VarNode* texture = UnwrapTextureArgument(op->args[0]).var;
+      auto it = buffer_data_map_.find(texture);
+      var_access_map_[it == buffer_data_map_.end() ? texture : it->second] |= kWriteAccess;
     }
     StmtExprVisitor::VisitExpr_(op);
   }
 
  private:
   std::unordered_map<const VarNode*, uint8_t> var_access_map_;
+  std::unordered_map<const VarNode*, const VarNode*> buffer_data_map_;
 };
 
 CodeGenOpenCL::CodeGenOpenCL() {
@@ -284,9 +331,9 @@ void CodeGenOpenCL::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*
   }
 }
 
-void CodeGenOpenCL::PrintVecAddr(const BufferNode* buffer, const PrimType& t, PrimExpr base,
+void CodeGenOpenCL::PrintVecAddr(const VarNode* buffer, const PrimType& t, PrimExpr base,
                                  std::ostream& os) {  // NOLINT(*)
-  const VarNode* buffer_var = buffer->data.get();
+  const VarNode* buffer_var = buffer;
   PrimType elem_type = t.WithLanes(1);
   if (!HandleTypeMatch(buffer_var, elem_type)) {
     os << '(';
@@ -300,7 +347,7 @@ void CodeGenOpenCL::PrintVecAddr(const BufferNode* buffer, const PrimType& t, Pr
   os << GetVarID(buffer_var) << " + ";
   PrintExpr(base, os);
 }
-std::string CodeGenOpenCL::GetVecLoad(const PrimType& t, const BufferNode* buffer, PrimExpr base) {
+std::string CodeGenOpenCL::GetVecLoad(const PrimType& t, const VarNode* buffer, PrimExpr base) {
   std::ostringstream os;
   os << "vload" << t.lanes() << "(0, ";
   PrintVecAddr(buffer, t, base, os);
@@ -308,7 +355,7 @@ std::string CodeGenOpenCL::GetVecLoad(const PrimType& t, const BufferNode* buffe
   return os.str();
 }
 
-void CodeGenOpenCL::PrintVecStore(const BufferNode* buffer, const PrimType& t, PrimExpr base,
+void CodeGenOpenCL::PrintVecStore(const VarNode* buffer, const PrimType& t, PrimExpr base,
                                   const std::string& value) {
   this->PrintIndent();
   stream << "vstore" << t.lanes() << "(" << value << ", 0, ";
@@ -407,7 +454,7 @@ void CodeGenOpenCL::VisitStmt_(const AllocBufferNode* op) {
     TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
     constant_size *= dim_imm->value;
   }
-  allocation_size_.insert({op->buffer->data.get(), constant_size * op->buffer->dtype.lanes()});
+  allocation_size_.insert({op->buffer.get(), constant_size * op->buffer->dtype.lanes()});
   CodeGenC::VisitStmt_(op);
 }
 
@@ -419,25 +466,22 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     TVM_FFI_ICHECK_EQ(load->indices.size(), 1)
         << "CodeGenOpenCL only supports flat memory allocations.";
     os << "((";
-    auto it = alloc_storage_scope_.find(load->buffer->data.get());
+    auto it = alloc_storage_scope_.find(load->buffer.get());
     if (it != alloc_storage_scope_.end()) {
       PrintStorageScope(it->second, os);
     }
     this->PrintType(load->ty.as_or_throw<PrimType>().WithLanes(1), os);
-    os << " *)" << this->GetVarID(load->buffer->data.get()) << " + ";
+    os << " *)" << this->GetVarID(load->buffer.get()) << " + ";
     this->PrintExpr(load->indices[0], os);
     os << ')';
   } else if (op->op.same_as(builtin::texture2d_store())) {
-    auto* ptr_type = op->args[0].as<VarNode>()->ty.as<PointerTypeNode>();
-    TVM_FFI_ICHECK(ptr_type != nullptr) << "Texture Var's must be of PointerType";
-    TVM_FFI_ICHECK(runtime::IsTextureStorage(std::string(ptr_type->storage_scope)))
-        << "builtin::texture2d_store() only supports storing to texture buffers";
+    TextureArgument texture = UnwrapTextureArgument(op->args[0]);
     const int channel_size = op->args[4].as_or_throw<IntImm>()->value;
     TVM_FFI_ICHECK(channel_size == 64 || channel_size == 128)
         << "Unsupported Channel Size: " << channel_size;
     PrimType channel_type(runtime::GetChannelType(channel_size));
 
-    PrimType buffer_type = ptr_type->element_type.as_or_throw<PrimType>();
+    PrimType buffer_type = texture.pointer_type->element_type.as_or_throw<PrimType>();
     std::stringstream ss;
     this->PrintExpr(op->args[5].as_or_throw<PrimExpr>(), ss);
     std::string value;
@@ -449,7 +493,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     } else {
       TVM_FFI_THROW(InternalError) << "Unsupported Channel Size: " << channel_size;
     }
-    this->PrintExpr(op->args[0], os);
+    os << this->GetVarID(texture.var);
     os << ", ";
     os << "(int4)(";
     this->PrintExpr(op->args[1].as_or_throw<PrimExpr>(), os);
@@ -465,6 +509,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     os << "(" << value << ")";
     os << ")";
   } else if (op->op.same_as(builtin::texture2d_load())) {
+    TextureArgument texture = UnwrapTextureArgument(op->args[0]);
     enable_compliant_texture_reads_ = true;
     std::stringstream ss;
     const int channel_size = op->args[4].as_or_throw<IntImm>()->value;
@@ -482,7 +527,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     } else {
       TVM_FFI_THROW(InternalError) << "Unsupported Channel Size: " << channel_size;
     }
-    this->PrintExpr(op->args[0], ss);
+    ss << this->GetVarID(texture.var);
     ss << ", ";
     ss << "image_sampler, ";
     ss << "((int4)(";

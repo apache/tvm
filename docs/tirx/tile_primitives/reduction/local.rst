@@ -23,7 +23,7 @@ source and destination are register** (``local``) buffers. At thread scope it is
 plain sequential reduction over each thread's own elements; at warp scope, if the
 destination layout carries a ``laneid`` replica, it also folds across lanes with a
 ``__shfl_xor`` tree. Source:
-``python/tvm/backend/cuda/operator/tile_primitive/reduction/local.py``.
+``python/tvm/backend/cuda/tile_primitive/reduction/local.py``.
 
 What it accepts
 ---------------

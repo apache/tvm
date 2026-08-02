@@ -149,12 +149,10 @@ inline uintptr_t hwio_at(const DLTensor& f, int y, int x, int i, int o) {
  * transform layout):
  *
  * For uint8_t type
- * lambda n, h, w, c: n, h//8, w//8, c//32, AXIS_SEPARATOR, h%8, w%8, c%32
+ * lambda n, h, w, c: n, h//8, w//8, c//32, h%8, w%8, c%32
  *
  * For uint16_t type
- * lambda n, h, w, c: n, h//8, w//4, c//32, AXIS_SEPARATOR, h%8, (w%4)//2, c%32, w%2
- *
- * where AXIS_SEPARATOR represents split up in the physical layout
+ * lambda n, h, w, c: n, h//8, w//4, c//32, h%8, (w%4)//2, c%32, w%2
  *
  * @param out Pre-allocated output memory pointer
  * @param inp_flat Flat input data pointer

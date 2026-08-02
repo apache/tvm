@@ -34,6 +34,10 @@ namespace tirx {
 std::pair<TileLayout, std::vector<int64_t>> Group(TileLayout layout,
                                                   const ffi::Array<PrimExpr>& shape);
 
+// Group a tile layout by the minimal common refinement of several logical shapes.
+std::pair<TileLayout, std::vector<std::vector<int64_t>>> GroupMany(
+    TileLayout layout, const ffi::Array<ffi::Array<PrimExpr>>& shapes);
+
 // Same as Group but returns std::nullopt instead of fatal-checking when the
 // layout cannot be regrouped by ``shape``.
 std::optional<std::pair<TileLayout, std::vector<int64_t>>> TryGroup(

@@ -27,7 +27,7 @@ using namespace tvm::tirx;
 
 class AnnotateRegionRewriter : public StmtExprMutator {
  public:
-  AnnotateRegionRewriter(Buffer buffer, int buffer_index, BufferRegion new_region,
+  AnnotateRegionRewriter(BufferVar buffer, int buffer_index, BufferRegion new_region,
                          BufferIndexType buffer_index_type)
       : buffer_(buffer),
         buffer_index_(buffer_index),
@@ -79,7 +79,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
   }
 
  private:
-  Buffer buffer_;
+  BufferVar buffer_;
   int buffer_index_;
   BufferRegion new_region_;
   BufferIndexType buffer_index_type_;
@@ -88,7 +88,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
 void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                           BufferIndexType buffer_index_type, const IndexMap& index_map) {
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  Buffer buffer =
+  BufferVar buffer =
       GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index, buffer_index_type);
 
   arith::Analyzer analyzer;
@@ -132,18 +132,29 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
 
   static ffi::String IndexMap2GenNewRangesLambda(const IndexMap& index_map) {
     std::ostringstream oss;
+    auto print_expr = [&oss](const PrimExpr& expr) {
+      if (auto var = expr.as<PrimVar>()) {
+        oss << var.value()->name;
+      } else {
+        oss << expr;
+      }
+    };
     oss << "lambda ";
     for (size_t i = 0; i < index_map->initial_indices.size(); ++i) {
       if (i != 0) oss << ", ";
-      oss << index_map->initial_indices[i];
+      oss << index_map->initial_indices[i]->name;
     }
     oss << ": [";
     for (size_t i = 0; i < index_map->final_indices.size(); i += 2) {
       if (i != 0) oss << ", ";
       if (index_map->final_indices[i].same_as(index_map->final_indices[i + 1])) {
-        oss << index_map->final_indices[i];
+        print_expr(index_map->final_indices[i]);
       } else {
-        oss << "(" << index_map->final_indices[i] << ", " << index_map->final_indices[i + 1] << ")";
+        oss << "(";
+        print_expr(index_map->final_indices[i]);
+        oss << ", ";
+        print_expr(index_map->final_indices[i + 1]);
+        oss << ")";
       }
     }
     oss << "]";

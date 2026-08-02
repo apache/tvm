@@ -91,12 +91,6 @@ std::string PrintCpAsyncBulkAsm(const std::string& shared_ptr,
                                 const std::string& global_elem_offset, const std::string& bytes,
                                 const std::string& barrier);
 
-/*!
- * \brief Print ptx async copy barrier using cp.async.mbarrier.arrive
- * \param barrier: The name of the barrier in shared memory.
- */
-std::string PrintCpAsyncBarrierAsm(const std::string& barrier);
-
 }  // namespace codegen
 }  // namespace tvm
 

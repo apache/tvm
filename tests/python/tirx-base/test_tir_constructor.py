@@ -37,7 +37,7 @@ class ReplaceVar(ExprMutator):
 
 
 def test_expr_constructor():
-    x = tvm.tirx.Var("xx", "float32")
+    x = tvm.tirx.Var(name="xx", ty="float32")
     assert isinstance(x, tvm.tirx.Var)
     assert x.name == "xx"
 
@@ -111,7 +111,8 @@ def test_expr_constructor():
     assert isinstance(x, tvm.tirx.BufferLoad)
     assert x.ty == tvm.ir.PrimType("float32")
     assert x.buffer == buffer
-    assert x.buffer.data == buffer_var
+    assert x.buffer.data.args[0].same_as(buffer)
+    assert x.buffer.data.ty == tvm.tirx.buffer_data_pointer_type(buffer)
     assert list(x.indices) == [1]
 
     x = tvm.tirx.Ramp(1, 2, 10)
@@ -228,7 +229,8 @@ def test_stmt_constructor():
     x = tvm.tirx.BufferStore(buffer, tvm.tirx.IntImm("bool", 1), [10])
     assert isinstance(x, tvm.tirx.BufferStore)
     assert x.buffer == buffer
-    assert x.buffer.data == buffer_var
+    assert x.buffer.data.args[0].same_as(buffer)
+    assert x.buffer.data.ty == tvm.tirx.buffer_data_pointer_type(buffer)
     assert list(x.indices) == [10]
     assert x.value.value == 1
 

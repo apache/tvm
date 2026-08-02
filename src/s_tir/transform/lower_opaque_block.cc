@@ -60,9 +60,9 @@ class OpaqueBlockLower : public StmtExprMutator {
     }
     // Step 3. Handle allocations in reverse order
     for (size_t i = new_block->alloc_buffers.size(); i > 0; --i) {
-      const Buffer& buffer = new_block->alloc_buffers[i - 1];
+      const BufferVar& buffer = new_block->alloc_buffers[i - 1];
       ffi::Map<ffi::String, ffi::Any> allocate_annotations;
-      auto it = storage_align_.find(buffer->data);
+      auto it = storage_align_.find(buffer.var());
       if (it != storage_align_.end()) {
         StorageAlignAnnotation allocate_aligns;
         for (auto tuple : it->second) {
@@ -80,7 +80,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
     HandleAnnotations(new_block->annotations, &pragma_attrs, /*is_block=*/true);
     for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {
-      body = AttrStmt(IntImm::Int32(0), it->first, it->second, std::move(body));
+      body = AttrStmt(0, it->first, it->second, std::move(body));
     }
     return body;
   }

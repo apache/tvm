@@ -131,11 +131,7 @@ class LayoutConvertMutator : public ExprMutator {
         auto index_map = LayoutIndexMap(from.LeafValue()->layout.ndim(), from.LeafValue()->layout,
                                         to.LeafValue()->layout);
         ffi::ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>();
-        ffi::Array<IntImm> axis_separator;
-        ffi::Array<IntImm> input_axis_separator;
         attrs->index_map = ffi::FromJSONGraph(ffi::ToJSONGraph(index_map)).as_or_throw<IndexMap>();
-        attrs->axis_separators = std::move(axis_separator);
-        attrs->input_axis_separators = std::move(input_axis_separator);
         const Op& layout_transform_op_ = Op::Get("relax.layout_transform");
         auto ret_expr =
             Call(Type::Missing(), layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});

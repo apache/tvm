@@ -748,7 +748,7 @@ def permute_dims(x: Tensor, axes: list[int] | None = None, name: str | None = No
         The transposed result.
     """
     if name is None:
-        x_name = getattr(getattr(x, "_expr", None), "name_hint", None)
+        x_name = getattr(getattr(x, "_expr", None), "name", None)
         if x_name is not None and "linear" in x_name:
             name = x_name.replace("linear", "matmul")
         else:
@@ -2069,15 +2069,17 @@ def tensor_ir_op(
     """
     from tvm import relax as rx  # pylint: disable=import-outside-toplevel
 
-    call_tir_args, tir_vars = [], []
+    call_tir_args = []
     if not isinstance(args, tuple | list):
         args = [args]
 
     for arg in args:
         if isinstance(arg, Tensor):
             call_tir_args.append(arg._expr)
-        elif isinstance(arg, rx.ShapeExpr) or tvm.ir.is_prim_expr(arg):
-            tir_vars.append(arg)
+        elif isinstance(arg, rx.ShapeExpr):
+            call_tir_args.extend(arg.values)
+        elif tvm.ir.is_prim_expr(arg):
+            call_tir_args.append(arg)
         else:
             raise TypeError(
                 "Unsupported type: tensor_ir_op args expect Tensor or ShapeExpr or Expr,"
@@ -2092,11 +2094,8 @@ def tensor_ir_op(
     bb = BlockBuilder.current()
     global_var = bb.add_func(func, name_hint)
 
-    if len(tir_vars) == 0:
-        tir_vars = None
-
     return wrap_nested(
-        bb.emit(rx.call_tir(global_var, call_tir_args, out_ty, tir_vars=tir_vars)),
+        bb.emit(rx.call_tir(global_var, call_tir_args, out_ty)),
         name=name_hint,
     )
 
@@ -2139,15 +2138,17 @@ def tensor_ir_inplace_op(
     """
     from tvm import relax as rx  # pylint: disable=import-outside-toplevel
 
-    call_tir_args, tir_vars = [], []
+    call_tir_args = []
     if not isinstance(args, tuple | list):
         args = [args]
 
     for arg in args:
         if isinstance(arg, Tensor):
             call_tir_args.append(arg._expr)
-        elif isinstance(arg, rx.ShapeExpr) or tvm.ir.is_prim_expr(arg):
-            tir_vars.append(arg)
+        elif isinstance(arg, rx.ShapeExpr):
+            call_tir_args.extend(arg.values)
+        elif tvm.ir.is_prim_expr(arg):
+            call_tir_args.append(arg)
         else:
             raise TypeError(
                 "Unsupported type: tensor_ir_inplace_op args expect Tensor or ShapeExpr or"
@@ -2163,7 +2164,7 @@ def tensor_ir_inplace_op(
     global_var = bb.add_func(func, name_hint)
 
     return wrap_nested(
-        bb.emit(rx.call_tir_inplace(global_var, call_tir_args, inplace_indices, out_ty, tir_vars)),
+        bb.emit(rx.call_tir_inplace(global_var, call_tir_args, inplace_indices, out_ty)),
         name=name_hint,
     )
 
@@ -2283,7 +2284,7 @@ def debug_func(
             *converted_args,
             ty_args=[rx.AnyType()],
         ),
-        name_hint=io.effect.name_hint,
+        name_hint=io.effect.name,
     )
 
 

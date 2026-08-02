@@ -131,9 +131,9 @@ class ScheduleCopier {
     return result;
   }
 
-  /*! \brief Copy SMap<Buffer, ffi::Array<StmtSRef>> */
-  SMap<Buffer, ffi::Array<StmtSRef>> Copy(const SMap<Buffer, ffi::Array<StmtSRef>>& map) {
-    SMap<Buffer, ffi::Array<StmtSRef>> result;
+  /*! \brief Copy SMap<BufferVar, ffi::Array<StmtSRef>> */
+  SMap<BufferVar, ffi::Array<StmtSRef>> Copy(const SMap<BufferVar, ffi::Array<StmtSRef>>& map) {
+    SMap<BufferVar, ffi::Array<StmtSRef>> result;
     result.reserve(map.size());
     for (const auto& kv : map) {
       result[kv.first] = Copy(kv.second);
@@ -1047,16 +1047,6 @@ void ConcreteScheduleNode::TransformBlockLayout(const SBlockRV& block_rv,
   s_tir::TransformBlockLayout(state_, this->GetSRef(block_rv), index_map);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("transform_block_layout", this->error_render_level_);
-}
-
-void ConcreteScheduleNode::SetAxisSeparator(const SBlockRV& block_rv, int buffer_index,
-                                            BufferIndexType buffer_index_type,
-                                            const ffi::Array<IntImm>& axis_separators) {
-  TVM_TIR_SCHEDULE_BEGIN();
-  s_tir::SetAxisSeparator(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type,
-                          axis_separators);
-  TVM_TIR_SCHEDULE_END("set-axis-separator", this->error_render_level_);
-  this->state_->DebugVerify();
 }
 
 /******** Schedule: Padding ********/

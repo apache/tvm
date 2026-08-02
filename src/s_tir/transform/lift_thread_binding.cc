@@ -62,7 +62,7 @@ FindLoopLCA(const Stmt& root) {
         iter_var = IterVar(Range::FromMinExtent(loop->min, loop->extent),  //
                            loop->loop_var
                                .as_or_throw<Var>()                   //
-                               .copy_with_name(thread_tag)           //
+                               .CopyWithName(thread_tag)             //
                                .as_or_throw<PrimVar>(),              //
                            loop->thread_binding.value()->iter_type,  //
                            thread_tag);

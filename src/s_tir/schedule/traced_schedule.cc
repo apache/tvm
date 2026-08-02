@@ -737,21 +737,6 @@ void TracedScheduleNode::TransformBlockLayout(const SBlockRV& block_rv, const In
                            /*outputs=*/{}));
 }
 
-void TracedScheduleNode::SetAxisSeparator(const SBlockRV& block_rv, int buffer_index,
-                                          BufferIndexType buffer_index_type,
-                                          const ffi::Array<IntImm>& axis_separators) {
-  ConcreteScheduleNode::SetAxisSeparator(block_rv, buffer_index, buffer_index_type,
-                                         axis_separators);
-  static const InstructionKind& kind = InstructionKind::Get("SetAxisSeparator");
-  trace_->Append(/*inst=*/Instruction(
-      /*kind=*/kind,
-      /*inputs=*/{block_rv},
-      /*attrs=*/
-      {IntImm::Int32(buffer_index), IntImm::Int32(static_cast<int>(buffer_index_type)),
-       axis_separators},
-      /*outputs=*/{}));
-}
-
 /******** Schedule: Padding ********/
 SBlockRV TracedScheduleNode::DecomposePadding(const SBlockRV& block_rv, const LoopRV& loop_rv) {
   SBlockRV new_block = ConcreteScheduleNode::DecomposePadding(block_rv, loop_rv);

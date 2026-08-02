@@ -17,7 +17,7 @@
 
 """SMEM matrix descriptor helper for tcgen05 / wgmma."""
 
-from tvm.backend.cuda.operator.tile_primitive.common import smem_desc_add_16B_offset
+from tvm.backend.cuda.tile_primitive.common import smem_desc_add_16B_offset
 from tvm.script import tirx as T
 
 

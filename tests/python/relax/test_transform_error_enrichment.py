@@ -52,8 +52,8 @@ def test_pass_error_renders_underlined_tvmscript():
     with pytest.raises(ValueError) as excinfo:
         relax.transform.Normalize()(mod)
     assert str(excinfo.value) == (
-        "Matmul requires the reduction length of the operands to be equal.  However, the LHS x "
-        "has shape R.shape([3, 4]), while the RHS y has shape R.shape([5, 6]).  The reduction "
+        "Matmul requires the reduction length of the operands to be equal.  However, the LHS "
+        "x has shape R.shape([3, 4]), while the RHS y has shape R.shape([5, 6]).  The reduction "
         "dimensions of T.int64(4) and T.int64(5) are not equal.\n\n"
         "Error in pass: Normalize\n"
         "Location (TVMScript):\n"

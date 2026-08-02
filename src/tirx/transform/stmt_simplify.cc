@@ -129,7 +129,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   //
   // Instead, we keep buffer definitions unchanged and rely on used_in_buffer_def_
   // to prevent inlining LetStmt vars that appear in buffer definitions.
-  Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) override { return buffer; }
+  BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) override { return buffer; }
 
   Expr VisitExpr(const Expr& expr) final {
     if (auto prim_expr = expr.as<PrimExpr>()) {
@@ -143,7 +143,8 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const ForNode* op) final {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
-    With<ConstraintContext> ctx2(analyzer_, op->loop_var < op->min + op->extent);
+    With<ConstraintContext> ctx2(analyzer_,
+                                 static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
     return Parent::VisitStmt_(op);
   }
 
@@ -210,8 +211,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const BufferStoreNode* op) override {
     BufferStore store = Parent::VisitStmt_(op).as_or_throw<BufferStore>();
     if (const BufferLoadNode* load = store->value.as<BufferLoadNode>()) {
-      if (load->buffer->data.same_as(store->buffer->data) &&
-          ArrayDeepEqual(load->indices, store->indices) &&
+      if (load->buffer.same_as(store->buffer) && ArrayDeepEqual(load->indices, store->indices) &&
           tirx::ExprDeepEqual()(load->buffer->elem_offset, store->buffer->elem_offset) &&
           ArrayDeepEqual(load->buffer->shape, store->buffer->shape) &&
           ArrayDeepEqual(load->buffer->strides, store->buffer->strides)) {

@@ -323,14 +323,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                           index_map, pad_value, assume_injective_transform);
            })
       .def_method("s_tir.schedule.ScheduleTransformBlockLayout",
-                  &ScheduleNode::TransformBlockLayout)
-      .def("s_tir.schedule.ScheduleSetAxisSeparator",
-           [](Schedule self, const SBlockRV& block_rv, int buffer_index, int buffer_index_type,
-              const ffi::Array<IntImm>& axis_separators) {
-             return self->SetAxisSeparator(block_rv, buffer_index,
-                                           static_cast<BufferIndexType>(buffer_index_type),
-                                           axis_separators);
-           });
+                  &ScheduleNode::TransformBlockLayout);
 }
 
 /******** (FFI) Padding decomposition ********/

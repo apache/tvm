@@ -30,6 +30,7 @@ def test_tensor_from_numpy():
     tensor_x = Tensor.from_const(x)
     assert tensor_x.shape == [1, 10]
     assert tensor_x.ndim == 2
+    assert isinstance(tensor_x.dtype, str)
     assert tensor_x.dtype == "float32"
     assert repr(tensor_x) == 'Tensor([1, 10], "float32")'
 

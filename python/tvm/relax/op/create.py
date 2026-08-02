@@ -245,7 +245,7 @@ def arange(
     start: PrimExprLike,
     end: PrimExprLike | None = None,
     step: PrimExprLike = 1,
-    dtype: str | DataType | None = None,
+    dtype: str | DataType | PrimType | None = None,
 ) -> Expr:
     """Construct a tensor with evenly spaced elements.
 
@@ -261,7 +261,7 @@ def arange(
     step : PrimExprLike
         The step size.
 
-    dtype : Optional[str | DataType]
+    dtype : Optional[str | DataType | PrimType]
         The data type of the created tensor.
 
     Returns
@@ -288,7 +288,7 @@ def arange(
     start = prim_value(start)
     end = prim_value(end)
     step = prim_value(step)
-    return _ffi_api.arange(start, end, step, dtype)  # type: ignore
+    return _ffi_api.arange(start, end, step, _raw_dtype(dtype))  # type: ignore
 
 
 def hamming_window(window_size, periodic, alpha, beta, dtype):

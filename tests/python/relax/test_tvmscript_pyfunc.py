@@ -209,6 +209,7 @@ class TestTVMScriptPyFunc:
 
                 assert isinstance(instance, BasePyModule), "Instance should be BasePyModule"
                 assert hasattr(instance, "pyfuncs"), "Instance should have pyfuncs"
+                assert "cuda" in str(instance.target)
 
                 x = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32, device="cuda")
                 result = instance.pytorch_processor(x)

@@ -93,11 +93,12 @@ static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
 }
 
 PresburgerSet::PresburgerSet(const PrimExpr& constraint) {
-  ffi::Array<Var> vars;
+  ffi::Array<PrimVar> vars;
   PostOrderVisit(constraint, [&vars](const ffi::ObjectRef& obj) {
-    if (const VarNode* new_var = obj.as<VarNode>()) {
-      auto var = ffi::GetRef<Var>(new_var);
-      if (!std::any_of(vars.begin(), vars.end(), [&var](const Var& v) { return v.same_as(var); })) {
+    if (auto prim_var = obj.as<PrimVar>()) {
+      PrimVar var = *prim_var;
+      if (!std::any_of(vars.begin(), vars.end(),
+                       [&var](const PrimVar& v) { return v.same_as(var); })) {
         vars.push_back(var);
       }
     }
@@ -113,12 +114,13 @@ PresburgerSet::PresburgerSet(const PrimExpr& constraint) {
 }
 
 PresburgerSet::PresburgerSet(const std::vector<IntegerRelation>& disjuncts,
-                             const ffi::Array<Var>& vars) {
+                             const ffi::Array<PrimVar>& vars) {
   auto node = ffi::make_object<PresburgerSetNode>(disjuncts, disjuncts[0].getSpace(), vars);
   data_ = std::move(node);
 }
 
-void PresburgerSetNode::UpdateConstraint(const PrimExpr& constraint, const ffi::Array<Var>& vars) {
+void PresburgerSetNode::UpdateConstraint(const PrimExpr& constraint,
+                                         const ffi::Array<PrimVar>& vars) {
   Analyzer analyzer;
   PrimExpr simplified_constraint = analyzer->Simplify(constraint, kSimplifyRewriteCanonicalRewrite);
   Update(simplified_constraint, this);

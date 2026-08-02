@@ -232,7 +232,7 @@ class PrimFuncInliner : StmtExprMutator {
         << "Inlining of PrimFuncs with buffer arguments is not yet supported, "
         << "but callee " << gvar << " has non-empty buffer map " << callee->buffer_map;
 
-    ffi::Map<Var, ffi::Variant<tirx::Buffer, tvm::Expr>> param_map;
+    ffi::Map<Var, ffi::Variant<tirx::BufferVar, tvm::Expr>> param_map;
     for (size_t i = 0; i < callee->params.size(); i++) {
       param_map.Set(callee->params[i], args[i]);
     }

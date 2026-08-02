@@ -24,7 +24,7 @@ fragments and the C/D accumulators **all live in registers** — the caller stag
 and B into register fragments first (typically via :doc:`copy/ldstmatrix`). The
 dispatch tiles M/N/K into ``m16n8k`` atoms and emits one ``mma`` per output tile,
 accumulating over K in place. Source:
-``python/tvm/backend/cuda/operator/tile_primitive/gemm/mma_m16n8k_.py``. (For the
+``python/tvm/backend/cuda/tile_primitive/gemm/mma_m16n8k_.py``. (For the
 Blackwell async tensor-core path see :doc:`gemm_async`.)
 
 What it accepts

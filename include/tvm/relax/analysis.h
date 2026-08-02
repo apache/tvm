@@ -137,15 +137,15 @@ TVM_DLL Type DeriveCallRetType(const FuncType& finfo, const Call& call, const Bl
  * However, at the level of function signature, only n, m are defined,
  * k is undefined here.
  *
- * When we call EraseToWellDefined(R.Tensor[(n + 1, k + 2)], fshape_var_map={n: n, m: m}),
+ * When we call EraseToWellDefined(R.Tensor[(n + 1, k + 2)], var_map={n: n, m: m}),
  * we will obtain R.Tensor(ndim=2), which is an erased info that does not depend
  * on k(which is undefined from parameter signature).
  *
- * However, if we call EraseToWellDefined(R.Tensor[(n + 1, m)], fshape_var_map={n: n, m: m}),
+ * However, if we call EraseToWellDefined(R.Tensor[(n + 1, m)], var_map={n: n, m: m}),
  * Then the return value will be R.Tensor[(n + 1, m)], because both n and m are defined.
  *
  * We can also make these var map to return a different expression.
- * For example, EraseToWellDefined(R.Tensor[(n + 1, m)], fshape_var_map={n: 2, m: m})
+ * For example, EraseToWellDefined(R.Tensor[(n + 1, m)], var_map={n: 2, m: m})
  * will give us R.Tensor[(3, m)], where n get replaced by 2.
  *
  * Use this function in the following scenarios:
@@ -153,63 +153,48 @@ TVM_DLL Type DeriveCallRetType(const FuncType& finfo, const Call& call, const Bl
  * - Decide the deduced return ty of a function that can be fully decided by params.
  *
  * \param info The type.
- * \param f_shape_var_map callback function to specify
- *        whether a symbolic shape var is defined and the value it maps to,
- *        return nullopt if var is undefined.
  * \param f_var_map callback function to specify
- *        whether a var is defined in the target scope and the value it maps to,
+ *        whether a Var is defined in the target scope and the value it maps to,
  *        return nullopt if var is undefined.
  *
  * \return the corresponding erased type.
  */
 TVM_DLL Type EraseToWellDefined(
-    const Type& info,
-    std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map = nullptr,
-    std::function<ffi::Optional<Expr>(const Var& var)> f_var_map = nullptr);
+    const Type& info, std::function<ffi::Optional<Expr>(const Var& var)> f_var_map = nullptr);
 /*!
  * \brief EraseToWellDefined overload using a caller-provided analyzer.
  * \param info The type.
- * \param f_shape_var_map callback function to specify
- *        whether a symbolic shape var is defined and the value it maps to,
- *        return nullopt if var is undefined.
  * \param f_var_map callback function to specify
- *        whether a var is defined in the target scope and the value it maps to,
+ *        whether a Var is defined in the target scope and the value it maps to,
  *        return nullopt if var is undefined.
  * \param ana Context analyzer to prove symbolic expression equality.
  * \return the corresponding erased type.
  */
-TVM_DLL Type EraseToWellDefined(
-    const Type& info, std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map,
-    std::function<ffi::Optional<Expr>(const Var& var)> f_var_map, const arith::Analyzer& ana);
+TVM_DLL Type EraseToWellDefined(const Type& info,
+                                std::function<ffi::Optional<Expr>(const Var& var)> f_var_map,
+                                const arith::Analyzer& ana);
 
 /*!
  * \brief EraseToWellDefined variant with map.
  * \param info The type.
- * \param shape_var_map map to specify
- *        whether a symbolic shape var is defined and the value it maps to,
- *        return nullopt if var is undefined.
  * \param var_map map to specify
- *        whether a var is defined in the target scope and the value it maps to,
+ *        whether a Var is defined in the target scope and the value it maps to,
  *        return nullopt if var is undefined.
  *
  * \return the corresponding erased type.
  */
-TVM_DLL Type EraseToWellDefined(const Type& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
-                                ffi::Map<Var, Expr> var_map);
+TVM_DLL Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map);
 /*!
  * \brief EraseToWellDefined map overload using a caller-provided analyzer.
  * \param info The type.
- * \param shape_var_map map to specify
- *        whether a symbolic shape var is defined and the value it maps to,
- *        return nullopt if var is undefined.
  * \param var_map map to specify
- *        whether a var is defined in the target scope and the value it maps to,
+ *        whether a Var is defined in the target scope and the value it maps to,
  *        return nullopt if var is undefined.
  * \param ana Context analyzer to prove symbolic expression equality.
  * \return the corresponding erased type.
  */
-TVM_DLL Type EraseToWellDefined(const Type& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
-                                ffi::Map<Var, Expr> var_map, const arith::Analyzer& ana);
+TVM_DLL Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map,
+                                const arith::Analyzer& ana);
 
 /*!
  * \brief Fine grained result of base check.

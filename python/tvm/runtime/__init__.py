@@ -33,7 +33,7 @@ from .module import Module
 from .executable import Executable
 
 # function exposures
-from ._tensor import device, cpu, cuda, opencl, vulkan, metal
+from ._tensor import device, device_from_target, cpu, cuda, opencl, vulkan, metal
 from ._tensor import vpi, rocm, ext_dev, from_dlpack
 from .module import load_module, enabled, system_lib, load_static_library, num_threads
 from .object_generic import const

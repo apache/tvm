@@ -43,6 +43,25 @@
 namespace tvm {
 namespace codegen {
 
+namespace {
+
+Var GetSimdgroupBufferVar(const Expr& data) {
+  if (const auto* var = data.as<VarNode>()) {
+    return ffi::GetRef<Var>(var);
+  }
+  if (const auto* call = data.as<CallNode>();
+      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+    const auto* buffer = call->args[0].as<VarNode>();
+    TVM_FFI_ICHECK(buffer && buffer->ty.as<BufferTypeNode>())
+        << "Metal simdgroup data operands expect buffer_data to project a BufferVar";
+    return ffi::GetRef<Var>(buffer);
+  }
+  TVM_FFI_THROW(InternalError)
+      << "Metal simdgroup data operands must be a Var or buffer_data(BufferVar), but got " << data;
+}
+
+}  // namespace
+
 void CodeGenMetal::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
   // analyze the data;
@@ -310,7 +329,7 @@ void CodeGenMetal::PrintStorageScope(const std::string& scope, std::ostream& os)
 
 void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
-  std::string vid = AllocVarID(op->buffer->data.get());
+  std::string vid = AllocVarID(op->buffer.get());
 
   this->PrintIndent();
   // Compute constant_size from buffer shape
@@ -322,8 +341,8 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
   }
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
-  auto scope = GetPtrStorageScope(op->buffer->data);
-  alloc_storage_scope_[op->buffer->data.get()] = scope;
+  auto scope = op->buffer.scope();
+  alloc_storage_scope_[op->buffer.get()] = scope;
   const PrimType& dtype = op->buffer->dtype;
   if (scope == "metal.simdgroup") {
     bool supported_simdgroup_dtype = dtype == PrimType::Float(16) || dtype == PrimType::Float(32) ||
@@ -337,7 +356,7 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
     std::ostringstream dtype_os;
     PrintType(dtype, dtype_os);
     std::string dtype_str = dtype_os.str();
-    simdgroup_dtype_[op->buffer->data.get()] = dtype_str;
+    simdgroup_dtype_[op->buffer.get()] = dtype_str;
     stream << "simdgroup_" << dtype_str << "8x8 " << vid << '[' << constant_size / 64 << "];\n";
   } else {
     PrintStorageScope(scope, stream);
@@ -345,9 +364,9 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
     stream << ' ' << vid << '[' << constant_size << "];\n";
   }
 
-  RegisterHandleType(op->buffer->data.get(), op->buffer->dtype);
+  RegisterHandleType(op->buffer.get(), op->buffer->dtype);
   if (op->annotations.count(tirx::attr::kVolatile)) {
-    MarkVolatile(op->buffer->data.get());
+    MarkVolatile(op->buffer.get());
   }
 }
 
@@ -388,7 +407,7 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
 
   if (op->op.same_as(make_filled_simdgroup_matrix_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 5);
-    Var var = op->args[0].as_or_throw<Var>();
+    Var var = GetSimdgroupBufferVar(op->args[0]);
     // Get the data type of the simdgroup matrix
     auto it = simdgroup_dtype_.find(var.get());
     TVM_FFI_ICHECK(it != simdgroup_dtype_.end())
@@ -401,25 +420,31 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
        << PrintExpr(op->args[2]) << ")";
   } else if (op->op.same_as(simdgroup_load_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 7);
+    Var var = GetSimdgroupBufferVar(op->args[0]);
     f_check_simdgroup_shape(op->args[4].as_or_throw<PrimExpr>(),
                             op->args[5].as_or_throw<PrimExpr>());
-    os << "simdgroup_load(" << PrintExpr(op->args[0]) << "[" << PrintExpr(op->args[1]) << "], "
+    os << "simdgroup_load(" << PrintExpr(var) << "[" << PrintExpr(op->args[1]) << "], "
        << PrintExpr(op->args[2]) << ", " << PrintExpr(op->args[3]) << ", 0, "
        << PrintExpr(op->args[6]) << ")";
   } else if (op->op.same_as(simdgroup_store_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 7);
+    Var var = GetSimdgroupBufferVar(op->args[0]);
     f_check_simdgroup_shape(op->args[4].as_or_throw<PrimExpr>(),
                             op->args[5].as_or_throw<PrimExpr>());
-    os << "simdgroup_store(" << PrintExpr(op->args[0]) << "[" << PrintExpr(op->args[1]) << "], "
+    os << "simdgroup_store(" << PrintExpr(var) << "[" << PrintExpr(op->args[1]) << "], "
        << PrintExpr(op->args[2]) << ", " << PrintExpr(op->args[3]) << ", 0, "
        << PrintExpr(op->args[6]) << ")";
   } else if (op->op.same_as(simdgroup_multiply_accumulate_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 8);
-    os << "simdgroup_multiply_accumulate("                                  //
-       << PrintExpr(op->args[0]) << "[" << PrintExpr(op->args[1]) << "], "  //
-       << PrintExpr(op->args[2]) << "[" << PrintExpr(op->args[3]) << "], "  //
-       << PrintExpr(op->args[4]) << "[" << PrintExpr(op->args[5]) << "], "  //
-       << PrintExpr(op->args[6]) << "[" << PrintExpr(op->args[7]) << "])";
+    Var d = GetSimdgroupBufferVar(op->args[0]);
+    Var a = GetSimdgroupBufferVar(op->args[2]);
+    Var b = GetSimdgroupBufferVar(op->args[4]);
+    Var c = GetSimdgroupBufferVar(op->args[6]);
+    os << "simdgroup_multiply_accumulate("                        //
+       << PrintExpr(d) << "[" << PrintExpr(op->args[1]) << "], "  //
+       << PrintExpr(a) << "[" << PrintExpr(op->args[3]) << "], "  //
+       << PrintExpr(b) << "[" << PrintExpr(op->args[5]) << "], "  //
+       << PrintExpr(c) << "[" << PrintExpr(op->args[7]) << "])";
   } else if (op->op.same_as(builtin::reinterpret())) {
     if (!op->ty.as<PrimTypeNode>() || !op->args[0]->ty.as<PrimTypeNode>()) {
       return CodeGenC::VisitExpr_(op, os);

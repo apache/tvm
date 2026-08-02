@@ -27,7 +27,7 @@
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/script/builder/frame.h>
-#include <tvm/tirx/tirx_stmt.h>
+#include <tvm/tirx/tile_primitive.h>
 
 namespace tvm {
 namespace script {
@@ -37,7 +37,7 @@ namespace tirx {
 using tvm::ffi::Tuple;
 using tvm::ffi::Variant;
 using tvm::runtime::Tensor;
-using tvm::tirx::Buffer;
+using tvm::tirx::BufferVar;
 using tvm::tirx::ExecScope;
 using tvm::tirx::Layout;
 using tvm::tirx::Var;
@@ -53,17 +53,13 @@ using tvm::tirx::Var;
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
  * \return The declared buffer.
  */
-Buffer BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                  ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                  ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                  int offset_factor, ffi::String buffer_type,
-                  ffi::Optional<ffi::Array<IntImm>> axis_separators,
-                  ffi::Optional<Layout> layout = std::nullopt,
-                  ffi::Array<PrimExpr> allocated_addr = {});
+BufferVar BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
+                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
+                     int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
+                     ffi::Array<PrimExpr> allocated_addr = {});
 
 /*!
  * \brief The primitive function statement.
@@ -85,7 +81,7 @@ Var Arg(ffi::String name, Var var);
  * \param buffer The buffer argument.
  * \return The buffer.
  */
-Buffer Arg(ffi::String name, Buffer buffer);
+BufferVar Arg(ffi::String name, BufferVar buffer);
 
 /*!
  * \brief The PrimFunc naming statement.
@@ -117,17 +113,13 @@ Type FuncRet(Type ret_type);
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
  * \return The matched buffer.
  */
-Buffer MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
-                   PrimType dtype = PrimType::Float(32), ffi::Optional<Var> data = std::nullopt,
-                   ffi::Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
-                   ffi::String storage_scope = "global", int align = -1, int offset_factor = 0,
-                   ffi::String buffer_type = "default",
-                   ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt,
-                   ffi::Optional<Layout> layout = std::nullopt);
+BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
+                      PrimType dtype = PrimType::Float(32), ffi::Optional<Expr> data = std::nullopt,
+                      ffi::Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
+                      ffi::String storage_scope = "global", int align = -1, int offset_factor = 0,
+                      ffi::Optional<Layout> layout = std::nullopt);
 
 /*!
  * \brief The block declaration statement.
@@ -189,20 +181,17 @@ void BlockAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
  * \param layout The layout of the buffer.
  * \param allocated_addr The allocated address of the buffer. Might be multi-dimensional.
  * \return The allocated buffer or the AllocBufferFrame if the function is called under
  * T.prim_func(tirx=True).
  */
-ffi::Variant<Buffer, AllocBufferFrame> SBlockAllocBuffer(
+ffi::Variant<BufferVar, AllocBufferFrame> SBlockAllocBuffer(
     ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
-    ffi::Optional<Var> data = std::nullopt, ffi::Array<PrimExpr> strides = {},
+    ffi::Optional<Expr> data = std::nullopt, ffi::Array<PrimExpr> strides = {},
     PrimExpr elem_offset = PrimExpr(), ffi::String storage_scope = "", int align = -1,
-    int offset_factor = 0, ffi::String buffer_type = "default",
-    ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt,
-    ffi::Optional<Layout> layout = std::nullopt, ffi::Array<PrimExpr> allocated_addr = {});
+    int offset_factor = 0, ffi::Optional<Layout> layout = std::nullopt,
+    ffi::Array<PrimExpr> allocated_addr = {});
 
 namespace axis {
 
@@ -368,6 +357,12 @@ AttrFrame DeviceEntry();
 WhileFrame While(PrimExpr condition);
 
 /*!
+ * \brief Create a return statement.
+ * \param value The value to return.
+ */
+void Return(Expr value);
+
+/*!
  * \brief Create a break statement.
  */
 void Break();
@@ -407,16 +402,13 @@ ElseFrame Else();
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
  * \param layout The layout of the buffer.
  * \return The declaration frame.
  */
 DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                           ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
+                           ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                            ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
-                           int align, int offset_factor, ffi::String buffer_type,
-                           ffi::Optional<ffi::Array<IntImm>> axis_separators,
+                           int align, int offset_factor,
                            ffi::Optional<Layout> layout = std::nullopt,
                            ffi::Optional<PrimExpr> allocated_addr = std::nullopt);
 
@@ -428,9 +420,9 @@ DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
  * \param annotations Optional annotations for the allocation.
  * \return The allocated buffer.
  */
-Buffer AllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
-                   ffi::String storage_scope = "global",
-                   ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
+BufferVar AllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
+                      ffi::String storage_scope = "global",
+                      ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
 
 /*!
  * \brief Launch a thread.
@@ -455,7 +447,7 @@ LaunchThreadFrame LaunchThread(ffi::String thread_tag, PrimExpr extent);
  * \param dispatch The optional dispatch variant name.
  * \return The result ComposeOpFrame.
  */
-ComposeOpFrame ComposeOp(ffi::Map<ffi::String, Buffer> workspace,
+ComposeOpFrame ComposeOp(ffi::Map<ffi::String, BufferVar> workspace,
                          ffi::Map<ffi::String, ffi::Any> config,
                          ffi::Optional<ffi::String> dispatch = std::nullopt);
 
@@ -475,7 +467,7 @@ Var EnvThread(ffi::String thread_tag, PrimType dtype = PrimType::Int(32));
  * \param predicate A vector mask of boolean values indicating which lanes of a vector are to be
  * stored. The number lanes of the mask must be equal to the number of lanes in value.
  */
-void BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
+void BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
                  ffi::Optional<PrimExpr> predicate);
 
 /*!

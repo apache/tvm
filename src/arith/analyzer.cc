@@ -107,8 +107,8 @@ void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
   //
   // We may consider enhance the sub analyzer to directly take
   // MarkPositiveVar so their bounds do not overlap
-  if (const auto* var_ptr = symbol.as<VarNode>()) {
-    Var var = ffi::GetRef<Var>(var_ptr);
+  if (auto prim_var = symbol.as<tirx::PrimVar>()) {
+    Var var = *prim_var;
     // skip non-index type, keep it to be compatible
     // with any_dim that do not represent any value
     if (!IsIndexTypedExpr(var.as_or_throw<PrimExpr>())) return;
@@ -337,6 +337,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](Analyzer analyzer, const PrimExpr& expr, int strength) {
              return analyzer->CanProve(expr, static_cast<ProofStrength>(strength));
            })
+      .def("arith.EnterAllowUintAsIndex", []() { ++arith::uint_as_index::g_depth; })
+      .def("arith.ExitAllowUintAsIndex",
+           []() {
+             TVM_FFI_ICHECK(arith::uint_as_index::g_depth > 0)
+                 << "ExitAllowUintAsIndex without a matching Enter";
+             --arith::uint_as_index::g_depth;
+           })
+      .def("arith.GetAllowUintAsIndex", []() { return arith::uint_as_index::Enabled(); })
       .def("arith.AnalyzerSetMaximumRewriteSteps",
            [](Analyzer analyzer, int64_t maximum) {
              analyzer->rewrite_simplify.SetMaximumRewriteSteps(maximum);

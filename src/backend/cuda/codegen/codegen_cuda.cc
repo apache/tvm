@@ -26,6 +26,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -181,6 +182,7 @@ void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const
                                          std::ostream& os) {
   CallingConv calling_conv =
       func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
+  in_kernel_launch_ = (calling_conv == CallingConv::kDeviceKernelLaunch);
   if (calling_conv == CallingConv::kDeviceKernelLaunch) {
     os << "extern \"C\" __global__ ";
   } else if (calling_conv == CallingConv::kDefault) {
@@ -197,22 +199,22 @@ class ThreadIdxExtractor : public tirx::StmtVisitor {
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == tirx::attr::thread_extent) {
       IterVar iv = op->node.as_or_throw<IterVar>();
-      if (iv->var->name_hint == "threadIdx.x" || iv->thread_tag == "threadIdx.x") {
+      if (iv->var->name == "threadIdx.x" || iv->thread_tag == "threadIdx.x") {
         threadIdx_x_ext = op->value;
       }
-      if (iv->var->name_hint == "threadIdx.y" || iv->thread_tag == "threadIdx.y") {
+      if (iv->var->name == "threadIdx.y" || iv->thread_tag == "threadIdx.y") {
         threadIdx_y_ext = op->value;
       }
-      if (iv->var->name_hint == "threadIdx.z" || iv->thread_tag == "threadIdx.z") {
+      if (iv->var->name == "threadIdx.z" || iv->thread_tag == "threadIdx.z") {
         threadIdx_z_ext = op->value;
       }
-      if (iv->var->name_hint == "clusterCtaIdx.x" || iv->thread_tag == "clusterCtaIdx.x") {
+      if (iv->var->name == "clusterCtaIdx.x" || iv->thread_tag == "clusterCtaIdx.x") {
         clusterCtaIdx_x_ext = op->value;
       }
-      if (iv->var->name_hint == "clusterCtaIdx.y" || iv->thread_tag == "clusterCtaIdx.y") {
+      if (iv->var->name == "clusterCtaIdx.y" || iv->thread_tag == "clusterCtaIdx.y") {
         clusterCtaIdx_y_ext = op->value;
       }
-      if (iv->var->name_hint == "clusterCtaIdx.z" || iv->thread_tag == "clusterCtaIdx.z") {
+      if (iv->var->name == "clusterCtaIdx.z" || iv->thread_tag == "clusterCtaIdx.z") {
         clusterCtaIdx_z_ext = op->value;
       }
     }
@@ -247,14 +249,35 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
       return;
     }
     auto min_blocks_per_sm = f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMinBlocksPerSM);
+    auto max_blocks_per_cluster = f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMaxBlocksPerCluster);
     if (min_blocks_per_sm.has_value()) {
       TVM_FFI_ICHECK_GT(min_blocks_per_sm.value(), 0);
-      os << " __launch_bounds__(" << threadIdx_ext_int->value << ", " << min_blocks_per_sm.value()
-         << ")";
+      os << " __launch_bounds__(" << threadIdx_ext_int->value << ", " << min_blocks_per_sm.value();
+      if (max_blocks_per_cluster.has_value()) {
+        TVM_FFI_ICHECK_GT(max_blocks_per_cluster.value(), 0);
+        os << ", " << max_blocks_per_cluster.value();
+      }
+      os << ")";
     } else {
+      TVM_FFI_ICHECK(!max_blocks_per_cluster.has_value())
+          << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " requires "
+          << tirx::attr::kLaunchBoundsMinBlocksPerSM;
       os << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
     }
   }
+}
+
+void CodeGenCUDA::VisitStmt_(const ReturnNode* op) {
+  if (!in_kernel_launch_) {
+    // __device__ subroutines return real values.
+    CodeGenC::VisitStmt_(op);
+    return;
+  }
+  const auto* value = op->value.as<IntImmNode>();
+  TVM_FFI_ICHECK(value && value->value == 0)
+      << "CUDA device kernel may only contain a successful early return, return 0";
+  PrintIndent();
+  stream << "return;\n";
 }
 
 std::string CodeGenCUDA::Finish() {
@@ -276,6 +299,15 @@ std::string CodeGenCUDA::Finish() {
 }
 
 void CodeGenCUDA::VisitStmt_(const tirx::ForNode* op) {
+  // Materialize the loop bounds before emitting an unroll pragma.  PrintExpr
+  // may introduce temporaries (for example, for a Select expression).  CUDA
+  // requires #pragma unroll to immediately precede the loop it controls; if
+  // those declarations are printed between the pragma and the for statement,
+  // nvcc is free to unroll the loop despite disable_unroll.
+  std::string begin_str = PrintExpr(op->min);
+  PrimExpr end = is_zero(op->min) ? op->extent : arith::Analyzer()->Simplify(op->min + op->extent);
+  std::string end_str = PrintExpr(end);
+  std::string step_str = op->step.has_value() ? PrintExpr(*op->step) : "";
   if (op->annotations.count("disable_unroll")) {
     PrintIndent();
     stream << "#pragma unroll 1\n";
@@ -283,10 +315,28 @@ void CodeGenCUDA::VisitStmt_(const tirx::ForNode* op) {
     PrintIndent();
     stream << "#pragma unroll\n";
   }
-  CodeGenC::VisitStmt_(op);
+  PrintIndent();
+  std::string vid = AllocVarID(op->loop_var.get());
+  stream << "for (";
+  PrintType(op->loop_var.ty(), stream);
+  stream << ' ' << vid << " = " << begin_str << "; " << vid << " < " << end_str << "; ";
+  if (step_str.empty()) {
+    stream << "++" << vid;
+  } else {
+    stream << vid << " += " << step_str;
+  }
+  stream << ") {\n";
+  int for_scope = BeginScope();
+  PrintStmt(op->body);
+  this->EndScope(for_scope);
+  PrintIndent();
+  stream << "}\n";
 }
 
 void CodeGenCUDA::VisitStmt_(const WhileNode* op) {
+  PrintIndent();
+  // Match CodeGenC: dynamic-trip-count loops must not be unrolled.
+  stream << "#pragma unroll 1\n";
   PrintIndent();
   stream << "while (1) {\n";
   int while_scope = BeginScope();
@@ -979,7 +1029,6 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
   static const Op& mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
   static const Op& mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
   static const Op& ptx_cp_async_bulk_op = Op::Get("tirx.ptx.cp_async_bulk");
-  static const Op& ptx_cp_async_mbarrier_arrive_op = Op::Get("tirx.ptx.cp_async_mbarrier_arrive");
   static const Op& ptx_ldg32_op = Op::Get("tirx.ptx.ldg32");
   static const Op& cuda_func_call_op = Op::Get("tirx.cuda.func_call");
 
@@ -1288,16 +1337,6 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string barrier_arr = barrier_name_ + "_" + std::to_string(barrier_arr_id);
     std::string barrier = barrier_arr + "[" + std::to_string(barrier_id) + "]";
     this->stream << PrintCpAsyncBulkAsm(dst, dst_offset, src, src_offset, size, barrier);
-  } else if (IsOp(op, ptx_cp_async_mbarrier_arrive_op, "tirx.ptx.cp_async_mbarrier_arrive")) {
-    codegen_tags_.insert("cast_smem_ptr_to_int");
-    int barrier_arr_id = op->args[0].as_or_throw<IntImm>()->value;
-    int barrier_id = op->args[1].as_or_throw<IntImm>()->value;
-    auto it = barrier_count_.find(barrier_arr_id);
-    TVM_FFI_ICHECK(it != barrier_count_.end()) << "Barrier array does not exist";
-    TVM_FFI_ICHECK(barrier_id < it->second) << "Barrier id out of bounds";
-    std::string barrier_arr = barrier_name_ + "_" + std::to_string(barrier_arr_id);
-    std::string barrier = barrier_arr + "[" + std::to_string(barrier_id) + "]";
-    this->stream << PrintCpAsyncBarrierAsm(barrier);
   } else if (IsOp(op, ptx_ldg32_op, "tirx.ptx.ldg32")) {
     /*
     asm volatile (
@@ -1316,7 +1355,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string guard = this->PrintExpr(op->args[1]);
     const BufferLoadNode* addr_buffer = op->args[2].as<BufferLoadNode>();
     std::string global_addr = this->PrintExpr(addr_buffer->indices[0]);
-    std::string global_buffer = this->PrintExpr(addr_buffer->buffer->data);
+    std::string global_buffer = this->PrintExpr(addr_buffer->buffer.data());
     std::string local_addr = this->PrintExpr(op->args[3]);
     this->stream << "asm volatile (\n";
     this->stream << "\"{.reg .pred p;\\n\"\n";
@@ -1330,6 +1369,22 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
            << guard << ")\n";
     stream << ");\n";
   } else if (op->op.same_as(builtin::reinterpret())) {
+    // Compile-time pointer reinterpret of a literal (e.g. a tcgen05 descriptor
+    // template encoded at address 0): emit C++-style reinterpret_cast<T*>(...)
+    // to match the encoded template. Runtime pointer reinterprets fall through
+    // to CodeGenC, which emits the C-style (T*)... cast.
+    if (op->ty.as<PointerTypeNode>() && op->args[0].as<IntImmNode>()) {
+      os << "reinterpret_cast<";
+      if (const auto* pt = op->ty.as<PointerTypeNode>()) {
+        if (const auto* et = pt->element_type.as<PrimTypeNode>()) {
+          this->PrintType(ffi::GetRef<PrimType>(et), os);
+        } else {
+          os << "void";
+        }
+      }
+      os << "*>(" << PrintExpr(op->args[0]) << ")";
+      return;
+    }
     auto tgt_prim_type = op->ty.as<PrimType>();
     auto src_prim_type = op->args[0]->ty.as<PrimType>();
 
@@ -1431,6 +1486,12 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
 
     Expr arg = op->args[0];
     const auto* var_node = arg.as<VarNode>();
+    if (const auto* call = arg.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      var_node = call->args[0].as<VarNode>();
+      TVM_FFI_ICHECK(var_node && var_node->ty.as<tirx::BufferTypeNode>())
+          << "print_buffer expects buffer_data to project a BufferVar";
+    }
     PrimType dtype_ty = op->ty.as_or_throw<PrimType>();
     bool is_string = op->args[2].as<IntImmNode>()->value;
     bool is_scalar = op->args[3].as<IntImmNode>()->value;
@@ -1578,15 +1639,15 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
 }
 
 void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == tirx::attr::fragment_shape) {
+  if (op->attr_key == s_tir::attr::fragment_shape) {
     const VarNode* buffer = op->node.as<VarNode>();
     const StringImmNode* shape_str = op->value.as<StringImmNode>();
     fragment_shapes[buffer] = shape_str->value;
-  } else if (op->attr_key == tirx::attr::fragment_layout) {
+  } else if (op->attr_key == s_tir::attr::fragment_layout) {
     const VarNode* buffer = op->node.as<VarNode>();
     const StringImmNode* layout_str = op->value.as<StringImmNode>();
     fragment_layouts[buffer] = layout_str->value;
-  } else if (op->attr_key == tirx::attr::async_commit_queue_scope) {
+  } else if (op->attr_key == s_tir::attr::async_commit_queue_scope) {
     const IntImmNode* queue_id = op->value.as<IntImmNode>();
     TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
         << "For CUDA, the index of an async queue must be 0.";
@@ -1598,7 +1659,7 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
     this->VisitExpr(commit_group, this->stream);
     this->stream << ";\n";
     return;
-  } else if (op->attr_key == tirx::attr::async_wait_queue_scope) {
+  } else if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
     auto wait_attrs = GetAsyncWaitAttributes(op);
     auto queue_id = wait_attrs.first.as<IntImmNode>();
     TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
@@ -1631,11 +1692,11 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
 
 void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
-  std::string vid = AllocVarID(op->buffer->data.get());
+  std::string vid = AllocVarID(op->buffer.get(), op->buffer.name() + "_ptr");
 
   this->PrintIndent();
-  std::string scope = GetPtrStorageScope(op->buffer->data);
-  const VarNode* buffer = op->buffer->data.as<VarNode>();
+  std::string scope = op->buffer.scope();
+  const VarNode* buffer = op->buffer.get();
   PrimType dtype = op->buffer->dtype;
 
   if (scope.find("wmma.") == 0) {
@@ -1695,9 +1756,9 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
     stream << ' ' << vid << '[' << constant_size << "];\n";
   }
 
-  RegisterHandleType(op->buffer->data.get(), dtype);
+  RegisterHandleType(op->buffer.get(), dtype);
   if (op->annotations.count(tirx::attr::kVolatile)) {
-    MarkVolatile(op->buffer->data.get());
+    MarkVolatile(op->buffer.get());
   }
 }
 
@@ -1994,7 +2055,7 @@ void CodeGenCUDA::PrintWmmaScope(const std::string& scope, const PrimType& t,
   std::stringstream type;
   PrintType(t, type);
   TVM_FFI_ICHECK(fragment_shapes.count(variable))
-      << "Cannot find shape of the wmma fragment " << variable->name_hint;
+      << "Cannot find shape of the wmma fragment " << variable->name;
   std::string shape_str = fragment_shapes.at(variable);
   if ((t.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && t.bits() < 8 &&
       t.lanes() == 1) {
@@ -2046,7 +2107,7 @@ int stoi(const std::string& str) {
 int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const VarNode* variable,
                                          int32_t size) {
   TVM_FFI_ICHECK(fragment_shapes.count(variable))
-      << "Cannot find shape of the wmma fragment " << variable->name_hint;
+      << "Cannot find shape of the wmma fragment " << variable->name;
   std::string shape_str = fragment_shapes.at(variable);
   std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, scope);
   if (dim.first * dim.second != 0)
@@ -2063,7 +2124,7 @@ void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const BufferLoad
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if ((op_ty.MatchesElementType(DLDataTypeCode::kDLFloat, 16) ||
        op_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) &&
-      IsVolatile(op->buffer->data.get())) {
+      IsVolatile(op->buffer.get())) {
     os << "(";
     PrintType(op_ty, os);
     os << ")(" << value << ")";

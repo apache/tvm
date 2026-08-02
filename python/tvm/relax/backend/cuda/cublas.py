@@ -133,8 +133,8 @@ def _check_matmul(context: PatternCheckContext) -> bool:
     # must be equal. If lhs is batched but rhs is not, we can use the regular GEMM by
     # flattening all batch axes into the M axis.
     return (
-        isinstance(lhs_batches, tvm.tirx.Var)
-        or isinstance(rhs_batches, tvm.tirx.Var)
+        isinstance(lhs_batches, tvm.ir.Var)
+        or isinstance(rhs_batches, tvm.ir.Var)
         or (analyzer.can_prove_equal(lhs_batches, rhs_batches))
         or (analyzer.can_prove(lhs_batches >= 1) and analyzer.can_prove(rhs_batches == 1))
     )

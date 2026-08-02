@@ -46,7 +46,7 @@ using namespace tvm::tirx;
 std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
                                                             arith::AnalyzerObj* analyzer) {
   ffi::Map<Var, arith::IntSet> loop_intervals;
-  ffi::Map<Var, Range> loop_ranges;
+  ffi::Map<PrimVar, Range> loop_ranges;
   PrimExpr total_loop_iterations = 1;
 
   // Walk through the loop nest, stopping at the first loop whose body

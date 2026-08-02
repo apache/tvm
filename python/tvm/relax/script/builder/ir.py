@@ -582,11 +582,11 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Call:
         A newly created call that calls into a tirx function.
     """
     primfunc_name_hint = kwargs.pop("primfunc_name_hint", None)
-    tir_func, call_args, out_ty, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+    tir_func, call_args, out_ty = gen_call_tir_inputs(func, *args, **kwargs)
     if not primfunc_name_hint:
         primfunc_name_hint = func.__name__
     gvar = decl_function(primfunc_name_hint, tir_func)  # type: ignore
-    return call_tir(gvar, call_args, out_ty, tir_vars)
+    return call_tir(gvar, call_args, out_ty)
 
 
 def emit_match_cast(value: Expr, ty: Type) -> Var:

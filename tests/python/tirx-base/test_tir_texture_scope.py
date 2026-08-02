@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401, F841
+# ruff: noqa: F401
 
 import pytest
 
@@ -22,7 +22,10 @@ import tvm
 import tvm.testing
 from tvm import tirx
 from tvm.ir.module import IRModule
+from tvm.s_tir.backend.adreno import pipeline as adreno_pipeline
 from tvm.script import tirx as T
+from tvm.tirx.build import split_host_device_mods
+from tvm.tirx.compilation_pipeline import finalize_device_passes
 
 
 def test_texture_scope():
@@ -56,8 +59,18 @@ def test_texture_scope():
     schedule_block(sch.get_sblock("B"))
     schedule_block(sch.get_sblock("C"))
 
-    target = tvm.target.Target("opencl")
-    mod = tvm.compile(sch.mod["main"], target=target)
+    target = tvm.target.Target({"kind": "opencl", "keys": ["adreno"]})
+    lowered = tirx.transform.BindTarget(target.with_host("c"))(sch.mod)
+    lowered = adreno_pipeline.default_tir_pipeline()(lowered)
+    _, device_mods = split_host_device_mods(lowered)
+    assert len(device_mods) == 1
+    device_target, device_mod = next(iter(device_mods.items()))
+    device_mod = finalize_device_passes()(device_mod)
+    source = tvm.get_global_func("target.build.opencl")(device_mod, device_target).inspect_source()
+    assert "__read_only image2d_array_t" in source
+    assert "__write_only image2d_array_t" in source
+    assert "READ_IMAGEF" in source
+    assert "write_imagef" in source
 
 
 if __name__ == "__main__":

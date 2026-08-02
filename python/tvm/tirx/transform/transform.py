@@ -253,20 +253,20 @@ def MakePackedAPI():
     `buffer_map`, using it to generate arguments that implement
     the packed based TVM FFI API.
 
-    For static shapes, the `BufferNode::shape`, `BufferNode::strides`,
-    and `BufferNode::elem_offset` member variables are used to
+    For static shapes, the `BufferType::shape`, `BufferType::strides`,
+    and `BufferType::elem_offset` fields are used to
     generate runtime checks on the corresponding member variables in
     the user-provided `DLTensor*` or `tvm.runtime.tensor` argument.  (e.g. A
     PrimFunc that accepts a buffer of shape `[16,32]` validates that
     the `DLTensor::shape` array is `[16,32]`.)
 
-    For dynamic Buffers, in which one or more of these `BufferNode` member
-    variables use `tirx.Var` that are not defined by other PrimFunc
+    For dynamic Buffers, in which one or more of these `BufferType` fields
+    use `tirx.Var` that are not defined by other PrimFunc
     parameters, these are instead used to define the variables based on
     the corresponding `DLTensor` members.  (e.g. A PrimFunc that accepts a
-    buffer of shape `[tirx.Var("n"), tirx.Var("m")]`, when passed a
-    `DLTensor` of shape `[16,32]`, will define `n = 16` and `n=32`, based
-    on the argument's shape.
+    buffer of shape `[tirx.Var("n", "int64"), tirx.Var("m", "int64")]`,
+    when passed a `DLTensor` of shape `[16, 32]`, will define `n = 16` and
+    `m = 32`, based on the argument's shape.
 
     Returns
     -------

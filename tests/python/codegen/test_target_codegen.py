@@ -117,6 +117,32 @@ def test_buffer_load_predicate_not_supported_gpu(target):
             tvm.compile(func)
 
 
+@pytest.mark.parametrize(
+    ("target", "qualifier"),
+    [("opencl", "__global "), ("metal", "device ")],
+)
+def test_decl_buffer_offset_preserves_storage_scope(target, qualifier):
+    @T.prim_func(s_tir=True)
+    def kernel(A_ptr: T.handle("float32", "global")):
+        T.func_attr(
+            {
+                "calling_conv": 2,
+                "global_symbol": "kernel",
+                "tirx.kernel_launch_params": [],
+                "tirx.noalias": True,
+            }
+        )
+        A = T.decl_buffer((8,), "float32", data=A_ptr)
+        B = T.decl_buffer((4,), "float32", data=T.address_of(A[4]))
+        B[0] = T.float32(1)
+
+    mod = tvm.IRModule({"kernel": kernel})
+    build = tvm.get_global_func(f"target.build.{target}")
+    source = build(mod, tvm.target.Target(target)).inspect_source()
+    assert f"{qualifier}float* B" in source
+    assert f"(({qualifier}float*)" in source
+
+
 @pytest.mark.parametrize("target", ["c", "llvm"])
 def test_codegen_loop_step(target):
     if target != "c" and not tvm.testing.device_enabled(target):
@@ -138,7 +164,7 @@ def test_codegen_loop_step(target):
     if target == "c":
         assert src.find("for (int32_t i = 3; i < 1024; i += 96)") >= 0
 
-    dev = tvm.device(target, 0)
+    dev = tvm.cpu()
     a_np = np.random.rand(1024).astype("float32")
     b_np = np.random.rand(1024).astype("float32")
     c_np = np.zeros(1024, dtype="float32")

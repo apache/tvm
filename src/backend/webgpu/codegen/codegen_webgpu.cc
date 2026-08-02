@@ -77,7 +77,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
 
   void VisitStmt_(const BufferStoreNode* op) final {
     StmtExprVisitor::VisitStmt_(op);
-    info_.write_access_set.insert(op->buffer->data);
+    info_.write_access_set.insert(op->buffer.var());
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
@@ -538,7 +538,7 @@ void CodeGenWebGPU::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  //
 
   PrimType value_ty = op->ty.as_or_throw<PrimType>();
   PrimExpr index = op->indices[0];
-  Var buffer_var = op->buffer->data;
+  Var buffer_var = op->buffer.var();
   const PrimType& element_ty = op->buffer->dtype;
 
   int lanes = value_ty.lanes();
@@ -611,7 +611,7 @@ void CodeGenWebGPU::VisitStmt_(const BufferStoreNode* op) {
   PrimType value_ty = op->value.ty();
   const PrimType& element_ty = op->buffer->dtype;
   PrimExpr index = op->indices[0];
-  Var buffer_var = op->buffer->data;
+  Var buffer_var = op->buffer.var();
 
   std::string buffer_vid = GetVarID(buffer_var.get());
 
@@ -667,7 +667,7 @@ void CodeGenWebGPU::VisitStmt_(const BufferStoreNode* op) {
 
 void CodeGenWebGPU::VisitStmt_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
-  std::string vid = AllocVarID(op->buffer->data.get());
+  std::string vid = AllocVarID(op->buffer.get());
   size_t constant_size = 1;
   for (const auto& dim : op->buffer->shape) {
     const IntImmNode* dim_imm = dim.as<IntImmNode>();
@@ -675,7 +675,7 @@ void CodeGenWebGPU::VisitStmt_(const AllocBufferNode* op) {
     constant_size *= dim_imm->value;
   }
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
-  auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer->data));
+  auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
 
   if (storage_scope.rank == runtime::StorageRank::kShared) {
     this->decl_stream << "var<workgroup> " << vid << " : array<";

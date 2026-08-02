@@ -44,11 +44,6 @@ TIR_DEFINE_BUILTIN_FUNC(reinterpret)
                                          static_cast<int64_t>(ScriptDtypePrintLocation::kFirst))
     .set_num_inputs(1);
 
-TIR_DEFINE_BUILTIN_FUNC(ret)
-    .set_attr<TCallEffectKind>("TCallEffectKind",
-                               static_cast<int64_t>(CallEffectKind::kControlJump))
-    .set_num_inputs(1);
-
 TIR_DEFINE_BUILTIN_FUNC(thread_return)
     .set_attr<TCallEffectKind>("TCallEffectKind",
                                static_cast<int64_t>(CallEffectKind::kControlJump))
@@ -391,6 +386,10 @@ TIR_DEFINE_BUILTIN_FUNC(ignore_loop_partition)
                                          static_cast<int64_t>(ScriptDtypePrintLocation::kNone));
 TIR_DEFINE_BUILTIN_FUNC(buffer_offset)
     .set_num_inputs(2)
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+TIR_DEFINE_BUILTIN_FUNC(buffer_data)
+    .set_num_inputs(1)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
 TIR_DEFINE_BUILTIN_FUNC(print_buffer)

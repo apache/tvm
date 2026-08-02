@@ -30,8 +30,8 @@ using namespace tvm::tirx;
 namespace {
 
 struct RollingBufferInfo {
-  Buffer old_buffer;
-  Buffer new_buffer;
+  BufferVar old_buffer;
+  BufferVar new_buffer;
   int rolling_axis;
   PrimExpr rolling_extent;
   std::vector<int> axis_overlaps;
@@ -108,7 +108,7 @@ class RollingBufferMatchError : public ScheduleError {
   }
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    os << "The target buffer " << buffer_region_->buffer->name << " with region "
+    os << "The target buffer " << buffer_region_->buffer.name() << " with region "
        << buffer_region_->region
        << " should have at least one dimension range that matches a rolling pattern "
           "such as hh.outer * stride + hh.inner. ";
@@ -126,7 +126,7 @@ class RollingBufferMatchError : public ScheduleError {
 
 class RollingBufferInsertionError : public ScheduleError {
  public:
-  RollingBufferInsertionError(IRModule mod, Buffer buffer, SBlock block)
+  RollingBufferInsertionError(IRModule mod, BufferVar buffer, SBlock block)
       : mod_(mod), buffer_(std::move(buffer)), block_(block) {}
   ffi::String FastErrorString() const final {
     return "ScheduleError: rolling_buffer injection is invalid, the lca of the access "
@@ -136,7 +136,7 @@ class RollingBufferInsertionError : public ScheduleError {
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "rolling_buffer injection is invalid. The block {0} should be tiled so that "
-       << "the lca of the access location of the target buffer " << buffer_->name
+       << "the lca of the access location of the target buffer " << buffer_.name()
        << " is a for loop. ";
     return os.str();
   }
@@ -145,7 +145,7 @@ class RollingBufferInsertionError : public ScheduleError {
 
  private:
   IRModule mod_;
-  Buffer buffer_;
+  BufferVar buffer_;
   SBlock block_;
 };
 
@@ -164,7 +164,7 @@ class RollingBufferInfoCollector {
 
  private:
   bool MatchRollingBuffer(const StmtSRef& block_sref, const BufferRegion& buffer_region) {
-    const Buffer& buffer = buffer_region->buffer;
+    const BufferVar& buffer = buffer_region->buffer;
     const Region& region = buffer_region->region;
 
     std::vector<ffi::Optional<Var>> bound_iter_vars;
@@ -238,8 +238,9 @@ class RollingBufferInfoCollector {
     }
     ffi::Array<PrimExpr> new_shape = buffer->shape;
     new_shape.Set(roll_axis, region[roll_axis]->extent);
-    Buffer new_buffer = buffer;
-    new_buffer.CopyOnWrite()->shape = new_shape;
+    auto new_buffer_type = CopyBufferType(buffer);
+    new_buffer_type->shape = new_shape;
+    BufferVar new_buffer = RebuildBufferVar(buffer, std::move(new_buffer_type));
 
     info_.old_buffer = buffer;
     info_.new_buffer = new_buffer;
@@ -277,7 +278,7 @@ class RollingBufferRewriter : public StmtExprMutator {
     (*old_access_regions).MutateByApply(fmutate);
   }
 
-  void RewriteBufferAccess(Buffer* buffer, ffi::Array<PrimExpr>* indices) const {
+  void RewriteBufferAccess(BufferVar* buffer, ffi::Array<PrimExpr>* indices) const {
     ffi::Array<PrimExpr> new_indices;
     new_indices.reserve(indices->size());
     // First modify the access indices to use modulo arithmetic
@@ -299,8 +300,8 @@ class RollingBufferRewriter : public StmtExprMutator {
     SBlock stmt = StmtExprMutator::VisitStmt_(block).as_or_throw<SBlock>();
     SBlockNode* n = stmt.CopyOnWrite();
     if (block == scope_sref_->stmt) {
-      ffi::Array<Buffer> new_alloc_buffers;
-      for (const Buffer& buffer : stmt->alloc_buffers) {
+      ffi::Array<BufferVar> new_alloc_buffers;
+      for (const BufferVar& buffer : stmt->alloc_buffers) {
         if (buffer != info_->old_buffer) {
           new_alloc_buffers.push_back(buffer);
         } else {
@@ -326,7 +327,8 @@ class RollingBufferRewriter : public StmtExprMutator {
           new_iter_vars.push_back(old_iter_var);
         }
       }
-      ffi::Map<Var, Buffer> buffer_data_to_buffer = {{info_->new_buffer->data, info_->new_buffer}};
+      ffi::Map<Var, BufferVar> buffer_data_to_buffer = {
+          {info_->new_buffer.var(), info_->new_buffer}};
       auto infered_access_regions = GetSBlockReadWriteRegion(stmt, buffer_data_to_buffer);
 
       n->iter_vars = std::move(new_iter_vars);

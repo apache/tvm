@@ -121,11 +121,11 @@ def get_constant(
     # Params is actually both the graph nodes and param dictionary, unpack them.
     graph_nodes, params = params
     # Convert if possible
-    if isinstance(var, relax.Var) and var.name_hint in params:
+    if isinstance(var, relax.Var) and var.name in params:
         # When converting a parameter to a constant, update references to it as well.
-        _, value = params[var.name_hint]
+        _, value = params[var.name]
         const_value = relax.const(value)
-        graph_nodes[var.name_hint] = const_value
+        graph_nodes[var.name] = const_value
         return const_value
     # Otherwise return variable.
     else:
@@ -583,8 +583,12 @@ class BinaryBase(OnnxOpConverter):
         """Base implementation for binary operations."""
         if cls.numpy_op is None or cls.relax_op is None:
             raise ValueError("Numpy and Relax operators must be defined for BinaryBase.")
-        if all([not isinstance(inp, tvm.ir.Call | relax.Var) for inp in inputs]):
-            has_prim_expr = any([tvm.ir.is_prim_expr(inp) for inp in inputs])
+        is_prim_var = [tvm.ir.is_prim_var(inp) for inp in inputs]
+        if all(
+            is_var or not isinstance(inp, tvm.ir.Call | tvm.ir.Var)
+            for inp, is_var in zip(inputs, is_prim_var)
+        ):
+            has_prim_expr = any(tvm.ir.is_prim_expr(inp) for inp in inputs)
             x = _to_numpy(inputs[0])
             y = _to_numpy(inputs[1])
             output = cls.numpy_op(x, y)  # pylint: disable=not-callable
@@ -640,11 +644,39 @@ class Div(BinaryBase):
     numpy_op = _np.divide
     relax_op = relax.op.divide
 
+    @staticmethod
+    def _as_scalar_prim_expr(expr, dtype):
+        if tvm.ir.is_prim_expr(expr):
+            return expr
+        if isinstance(expr, relax.Constant):
+            data = expr.data.numpy()
+            if data.size == 1:
+                return tirx.const(data.item(), dtype)
+        return None
+
+    @staticmethod
+    def _is_zero(expr):
+        if isinstance(expr, relax.Constant):
+            return bool(_np.any(expr.data.numpy() == 0))
+        if isinstance(expr, tirx.IntImm):
+            return int(expr.value) == 0
+        return False
+
     @classmethod
     def _impl_v7(cls, bb, inputs, attr, params):
         try:
-            lhs_code = DataType(inputs[0].ty.dtype.dtype).type_code
-            rhs_code = DataType(inputs[1].ty.dtype.dtype).type_code
+            lhs_dtype = (
+                str(getattr(inputs[0], "dtype", None) or inputs[0].ty)
+                if tvm.ir.is_prim_expr(inputs[0])
+                else inputs[0].ty.dtype.dtype
+            )
+            rhs_dtype = (
+                str(getattr(inputs[1], "dtype", None) or inputs[1].ty)
+                if tvm.ir.is_prim_expr(inputs[1])
+                else inputs[1].ty.dtype.dtype
+            )
+            lhs_code = DataType(lhs_dtype).type_code
+            rhs_code = DataType(rhs_dtype).type_code
         except (AttributeError, ValueError, TypeError, RuntimeError):
             return cls.base_impl(bb, inputs, attr, params)
 
@@ -653,8 +685,14 @@ class Div(BinaryBase):
         if not (lhs_is_integer and rhs_is_integer):
             return cls.base_impl(bb, inputs, attr, params)
 
-        if isinstance(inputs[1], relax.Constant) and bool(_np.any(inputs[1].data.numpy() == 0)):
+        if cls._is_zero(inputs[1]):
             raise ValueError("ONNX Div with integer inputs encountered divisor value 0.")
+
+        has_prim_expr = any(tvm.ir.is_prim_expr(inp) for inp in inputs)
+        lhs = cls._as_scalar_prim_expr(inputs[0], lhs_dtype)
+        rhs = cls._as_scalar_prim_expr(inputs[1], rhs_dtype)
+        if has_prim_expr and lhs is not None and rhs is not None:
+            return relax.prim_value(tirx.truncdiv(lhs, rhs))
 
         return cls.base_impl(bb, inputs, attr, params)
 
@@ -1170,8 +1208,8 @@ class Concat(OnnxOpConverter):
         # fast path; tensor fallback keeps the original Vars so runtime
         # weights aren't folded under keep_params_in_input=True.
         def resolve(x):
-            if isinstance(x, relax.Var) and x.name_hint in param_dict:
-                arr = param_dict[x.name_hint][1].numpy()
+            if isinstance(x, relax.Var) and x.name in param_dict:
+                arr = param_dict[x.name][1].numpy()
                 if arr.ndim == 1 and arr.dtype == _np.int64:
                     return relax.const(arr, "int64")
             return x
@@ -1295,17 +1333,22 @@ class Gather(OnnxOpConverter):
             output = _np.take(data.data.numpy(), indices.data.numpy(), axis=axis)
             return relax.const(output, output.dtype)
 
-        # If input is a shape expression, take a value from that shape and return it as a constant.
+        # If input is a shape expression, take a value from that shape. A 0-D
+        # scalar constant index resolves to one dimension that we return as a
+        # PrimValue to keep shape-specialized handling in downstream
+        # shape-construction patterns. Any other index materializes the shape as
+        # an int64 tensor and gathers from it at runtime, reusing the
+        # negative-index normalization below. ONNX Gather defines the output rank
+        # as q + r - 1 (q = rank of indices); since the shape is rank 1, a
+        # non-scalar index such as (1,) must keep its rank, so only a true
+        # 0-D index collapses to a scalar.
         if isinstance(data, relax.ShapeExpr):
-            assert isinstance(indices, relax.Constant), (
-                "Only constant indices supported for shape gather."
-            )
-            np_index = indices.data.numpy()
-            if len(np_index.shape) == 1:
-                np_index = np_index[0]
-            np_index = int(np_index)
-            shape_val = data[np_index]
-            return relax.prim_value(shape_val)
+            if isinstance(indices, relax.Constant) and indices.data.numpy().ndim == 0:
+                np_index = int(indices.data.numpy().item())
+                shape_val = data[np_index]
+                return relax.prim_value(shape_val)
+
+            data = bb.normalize(relax.op.shape_to_tensor(data))
 
         indices_dtype = indices.ty.dtype.dtype
         if not indices_dtype.startswith("uint"):
@@ -1586,7 +1629,7 @@ class Clip(OnnxOpConverter):
 
 
 class Shape(OnnxOpConverter):
-    """Converts an onnx Equal node into an equivalent Relax expression."""
+    """Converts an onnx Shape node into an equivalent Relax expression."""
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
@@ -1603,6 +1646,31 @@ class Shape(OnnxOpConverter):
             return data_shape
 
         return data_info.shape
+
+    @classmethod
+    def _impl_v15(cls, bb, inputs, attr, params):
+        shape = cls._impl_v13(bb, inputs, attr, params)
+        start = attr.get("start", 0)
+        end = attr.get("end")
+
+        if start == 0 and end is None:
+            return shape
+
+        if isinstance(shape, relax.ShapeExpr):
+            return relax.ShapeExpr(list(shape.values)[start:end])
+
+        shape_tensor = bb.normalize(relax.op.shape_to_tensor(shape))
+        sliced_shape = bb.normalize(
+            relax.op.strided_slice(
+                shape_tensor,
+                axes=[0],
+                begin=[start],
+                end=[end if end is not None else 2**63 - 1],
+                strides=[1],
+                assume_inbound=False,
+            )
+        )
+        return bb.normalize(relax.op.tensor_to_shape(sliced_shape))
 
 
 class Trilu(OnnxOpConverter):
@@ -2050,12 +2118,21 @@ class Squeeze(OnnxOpConverter):
     """Converts an onnx Squeeze node into an equivalent Relax expression."""
 
     @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        # Prior to opset 13, axes is provided as an attribute rather than an input.
+        axes = attr.get("axes", None)
+        return cls._squeeze(bb, inputs[0], axes)
+
+    @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         data = inputs[0]
         axis = get_constant(inputs[1], params)
         if isinstance(axis, relax.Constant):
             axis = tuple([int(x) for x in axis.data.numpy()])
+        return cls._squeeze(bb, data, axis)
 
+    @classmethod
+    def _squeeze(cls, bb, data, axis):
         # If data is constant, perform computation directly.
         if isinstance(data, relax.Constant):
             if isinstance(axis, tuple | type(None)):
@@ -2124,7 +2201,7 @@ class ConstantOfShape(OnnxOpConverter):
 
     @classmethod
     def _impl_v9(cls, bb, inputs, attr, params):
-        shape = inputs[0]
+        shape = get_constant(inputs[0], params)
         # ONNX spec: `value` is optional and defaults to a zero float32 scalar.
         # `get_numpy` requires a TensorProto, so dispatch on presence first.
         attr_value = attr.get("value")
@@ -2138,7 +2215,11 @@ class ConstantOfShape(OnnxOpConverter):
             shape = relax.ShapeExpr(list(shape.data.numpy()))
 
         # Special case where requested shape are constant
-        if len(shape) == 1 and all([isinstance(x, tirx.IntImm) for x in shape]):
+        if (
+            isinstance(shape, relax.ShapeExpr)
+            and len(shape) == 1
+            and all(isinstance(x, tirx.IntImm) for x in shape)
+        ):
             shape = [int(x) for x in shape]
             return relax.const(_np.full(shape, value, dtype), dtype)
 
@@ -3214,7 +3295,7 @@ class Attention(OnnxOpConverter):
 
         QKV = relax.op.matmul(input_emb, weight)
 
-        if bias:
+        if bias is not None:
             bias_shape = [val.value for val in bias.ty.shape.values]
             assert bias_shape[0] == weight_shape[1], (
                 "bias and weight should share the same hidden size sum"
@@ -3935,12 +4016,12 @@ class LpPool(OnnxOpConverter):
         dtype = inputs[0].ty.dtype
         p = attr.get("p", 2.0)
         reci_p = relax.const(1.0 / p, dtype=dtype)
-        # emit for get ty
-        data = bb.emit(relax.op.power(inputs[0], relax.const(p, dtype=dtype)))
+
+        data = bb.emit(relax.op.power(relax.op.abs(inputs[0]), relax.const(p, dtype=dtype)))
         attr.update({"count_include_pad": True})
         avg_pool = AveragePool._impl_v1(bb, [data], attr, params)
         kernels = attr["kernel_shape"]
-        out = avg_pool * relax.const(_np.prod(kernels).astype(dtype))
+        out = avg_pool * relax.const(_np.prod(kernels), dtype=dtype)
         return relax.op.power(out, reci_p)
 
 
@@ -4774,24 +4855,24 @@ class EmbedLayerNormalization(OnnxOpConverter):
 
         (batch_size, seq_len) = [dim.value for dim in input_ids.ty.shape]
 
-        if segment_ids:
-            assert segment_emb
+        if segment_ids is not None:
+            assert segment_emb is not None
 
         if pos_ids is None:
             pos_ids = relax.const([list(range(seq_len))] * batch_size, dtype="int64")
         word_vec = relax.op.take(word_emb, input_ids, axis=0)
-        if segment_ids:
+        if segment_ids is not None:
             segment_vec = relax.op.take(segment_emb, segment_ids, axis=0)
         pos_vec = relax.op.take(pos_emb, pos_ids, axis=0)
 
         vec_sum = relax.op.add(word_vec, pos_vec)
-        if segment_ids:
+        if segment_ids is not None:
             vec_sum = relax.op.add(vec_sum, segment_vec)
 
         ln = relax.op.nn.layer_norm(vec_sum, gamma, beta, axes=-1, epsilon=epsilon)
 
         mask_index = relax.const(_np.zeros((batch_size,), dtype="int64"))
-        if mask:
+        if mask is not None:
             # Caculate number of words per sentence.
             mask_index = relax.op.sum(mask, axis=1)
 
@@ -5258,7 +5339,7 @@ class NonMaxSuppression(OnnxOpConverter):
         elif max_output_boxes_per_class is not None and isinstance(
             max_output_boxes_per_class, relax.Var
         ):
-            var_name = max_output_boxes_per_class.name_hint
+            var_name = max_output_boxes_per_class.name
             if var_name in params[1]:
                 _, param_value = params[1][var_name]
                 max_output_boxes_per_class = int(param_value.numpy().item())
@@ -5270,7 +5351,7 @@ class NonMaxSuppression(OnnxOpConverter):
         if iou_threshold is not None and isinstance(iou_threshold, relax.Constant):
             iou_threshold = float(iou_threshold.data.numpy().item())
         elif iou_threshold is not None and isinstance(iou_threshold, relax.Var):
-            var_name = iou_threshold.name_hint
+            var_name = iou_threshold.name
             if var_name in params[1]:
                 _, param_value = params[1][var_name]
                 iou_threshold = float(param_value.numpy().item())
@@ -5282,7 +5363,7 @@ class NonMaxSuppression(OnnxOpConverter):
         if score_threshold is not None and isinstance(score_threshold, relax.Constant):
             score_threshold = float(score_threshold.data.numpy().item())
         elif score_threshold is not None and isinstance(score_threshold, relax.Var):
-            var_name = score_threshold.name_hint
+            var_name = score_threshold.name
             if var_name in params[1]:
                 _, param_value = params[1][var_name]
                 score_threshold = float(param_value.numpy().item())
@@ -5354,7 +5435,7 @@ class AllClassNMS(OnnxOpConverter):
         elif max_output_boxes_per_class is not None and isinstance(
             max_output_boxes_per_class, relax.Var
         ):
-            var_name = max_output_boxes_per_class.name_hint
+            var_name = max_output_boxes_per_class.name
             if var_name in params[1]:
                 _, param_value = params[1][var_name]
                 max_output_boxes_per_class = int(param_value.numpy().item())
@@ -5366,7 +5447,7 @@ class AllClassNMS(OnnxOpConverter):
         if iou_threshold is not None and isinstance(iou_threshold, relax.Constant):
             iou_threshold = float(iou_threshold.data.numpy().item())
         elif iou_threshold is not None and isinstance(iou_threshold, relax.Var):
-            var_name = iou_threshold.name_hint
+            var_name = iou_threshold.name
             if var_name in params[1]:
                 _, param_value = params[1][var_name]
                 iou_threshold = float(param_value.numpy().item())
@@ -5378,7 +5459,7 @@ class AllClassNMS(OnnxOpConverter):
         if score_threshold is not None and isinstance(score_threshold, relax.Constant):
             score_threshold = float(score_threshold.data.numpy().item())
         elif score_threshold is not None and isinstance(score_threshold, relax.Var):
-            var_name = score_threshold.name_hint
+            var_name = score_threshold.name
             if var_name in params[1]:
                 _, param_value = params[1][var_name]
                 score_threshold = float(param_value.numpy().item())
@@ -5857,7 +5938,7 @@ class ONNXGraphImporter:
 
     def _new_var(self, var_name: str, shape: list, dtype: str = "float32"):
         """Creates a new Relax variable."""
-        return relax.Var(name_hint=var_name, ty=relax.TensorType(shape=shape, dtype=dtype))
+        return relax.Var(name=var_name, ty=relax.TensorType(shape=shape, dtype=dtype))
 
     def _parse_graph_input(self, graph: onnx.onnx_ml_pb2.GraphProto):
         """Parse model inputs to Relax parameters."""
@@ -5973,9 +6054,6 @@ class ONNXGraphImporter:
                     raise ValueError(f"Node {node.name} cannot handle ShapeExpr inputs.")
             try:
                 op = self._convert_operator(op_name, inputs, attr, self.opset)
-                # Create type information for the new operator.
-                if isinstance(op, relax.Expr):
-                    op = self.bb.normalize(op)
             except Exception as err:  # pylint: disable=broad-exception-caught
                 print(f"Error converting operator {op_name}, with inputs: {inputs}")
                 raise err
@@ -6075,6 +6153,9 @@ class ONNXGraphImporter:
             sym = op_function(self.bb, inputs, attrs, [self._nodes, self._params])
         else:
             raise NotImplementedError(f"Operator {op_name} not implemented.")
+        # Create type information for the new operator.
+        if isinstance(sym, relax.Expr):
+            sym = self.bb.normalize(sym)
         return sym
 
     def _convert_subgraph(self, bb, graph):
@@ -6122,14 +6203,6 @@ class ONNXGraphImporter:
                     continue
 
                 op = self._convert_operator(op_name, inputs, attr, self.opset)
-                try:
-                    _ = op.ty
-                    has_ty = True
-                except tvm.error.InternalError:
-                    has_ty = False
-
-                if not has_ty:
-                    op = bb.normalize(op)
 
                 if not isinstance(op, relax.Tuple):
                     if isinstance(op.ty, relax.TupleType):

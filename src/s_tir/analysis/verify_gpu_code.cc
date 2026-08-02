@@ -107,7 +107,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
       const auto* extent = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(extent);
 
-      std::string name = var.get()->name_hint;
+      std::string name = var.get()->name;
       // record the number of threads in a block
       if (name == "threadIdx.x" || name == "threadIdx.y" || name == "threadIdx.z" ||
           name == "vthread") {
@@ -183,7 +183,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
   }
 
   void VisitStmt_(const ForNode* op) {
-    if (op->loop_var->name_hint == "vthread.s") {
+    if (op->loop_var->name == "vthread.s") {
       const auto* extent = op->extent.as<IntImmNode>();
       TVM_FFI_ICHECK(extent);
 

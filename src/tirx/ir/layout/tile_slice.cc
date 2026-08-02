@@ -151,6 +151,12 @@ ffi::Optional<Layout> TileLayoutNode::Slice(const Array<PrimExpr>& shape,
   auto [grouped_layout, seps] = Group(canon, shape);
   std::vector<Iter> new_shard;
   ffi::Map<Axis, PrimExpr> new_offset;
+  // The buffer layout may already be a statement-local view with a physical
+  // base offset (for example a non-zero TMEM row/column).  Group slicing adds
+  // the selected region's offset to that base; it must not replace it.
+  for (const auto& [axis, off] : grouped_layout->offset) {
+    new_offset.Set(axis, off);
+  }
   for (size_t i = 0; i < seps.size() - 1; ++i) {
     std::vector<Iter> shard(grouped_layout->shard.begin() + seps[i],
                             grouped_layout->shard.begin() + seps[i + 1]);

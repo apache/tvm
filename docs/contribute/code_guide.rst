@@ -140,7 +140,7 @@ If you want your test to run over a variety of targets, parametrize over ``targe
   def test_mytest(target):
       if not tvm.testing.device_enabled(target):
           pytest.skip(f"{target} not enabled")
-      dev = tvm.device(target)
+      dev = tvm.device_from_target(target)
       ...
 
 will run ``test_mytest`` with ``target="llvm"`` and ``target="cuda"``, skipping any target whose device is not present. If you only want to test against a single target, drop the parametrization and hardcode the target. Mark GPU tests with ``@pytest.mark.gpu`` so the CI can select them, and skip when the required feature is unavailable with ``@pytest.mark.skipif``. For example, CUDA tests use:

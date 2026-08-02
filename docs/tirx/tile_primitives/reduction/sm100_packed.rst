@@ -23,7 +23,7 @@ it pre-empts :doc:`local`) for a thread-scope reduction of a 1-D ``float32`` vec
 of at least 8 elements to a scalar. It uses the SM100 packed math instructions —
 ``add.f32x2`` for ``sum``, ``max3.f32`` / ``min3.f32`` for ``max`` / ``min`` —
 to fold two (or three) lanes of data per instruction. Source:
-``python/tvm/backend/cuda/operator/tile_primitive/reduction/sm100_packed.py``.
+``python/tvm/backend/cuda/tile_primitive/reduction/sm100_packed.py``.
 
 What it accepts
 ---------------

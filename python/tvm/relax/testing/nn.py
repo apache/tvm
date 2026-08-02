@@ -69,11 +69,11 @@ def emit_checkpoint(
     """
     bb = relax.BlockBuilder.current()
     args = [
-        bb.emit(start_checkpoint(v), v.name_hint + "_scp") if isinstance(v, relax.Var) else v
+        bb.emit(start_checkpoint(v), v.name + "_scp") if isinstance(v, relax.Var) else v
         for v in args
     ]
     kwargs = {
-        k: bb.emit(start_checkpoint(v), v.name_hint + "_scp") if isinstance(v, relax.Var) else v
+        k: bb.emit(start_checkpoint(v), v.name + "_scp") if isinstance(v, relax.Var) else v
         for k, v in kwargs.items()
     }
     result = func(*args, **kwargs)
@@ -83,11 +83,11 @@ def emit_checkpoint(
             if isinstance(v, relax.Expr):
                 if not isinstance(v, relax.Var):
                     v = bb.emit(v)
-                result[i] = bb.emit(end_checkpoint(v), v.name_hint + "_ecp")
+                result[i] = bb.emit(end_checkpoint(v), v.name + "_ecp")
     else:
         assert isinstance(result, relax.Expr)
         result_emit = bb.emit(result)
-        result = bb.emit(end_checkpoint(result_emit), result_emit.name_hint + "_ecp")
+        result = bb.emit(end_checkpoint(result_emit), result_emit.name + "_ecp")
 
     return result
 
@@ -279,7 +279,7 @@ def _unpack_params(value: object) -> list[relax.Var]:
 
 def init_params(mod: tvm.IRModule) -> list[tvm.runtime.Tensor]:
     """Utility function to initialize model's parameters."""
-    shape_dict = {v.name_hint: v.ty.shape for v in mod["main"].params}
+    shape_dict = {v.name: v.ty.shape for v in mod["main"].params}
     params = []
     for k, v in shape_dict.items():
         if k.startswith("data"):

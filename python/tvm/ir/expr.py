@@ -40,6 +40,11 @@ def is_prim_expr(value: object) -> bool:
     return isinstance(value, Expr) and isinstance(value.ty, tvm.ir.PrimType)
 
 
+def is_prim_var(value: object) -> bool:
+    """Return whether a value is an ordinary variable with a primitive type."""
+    return isinstance(value, Var) and type(value) is Var and is_prim_expr(value)
+
+
 @tvm_ffi.register_object("ir.GlobalVar")
 class GlobalVar(Expr):
     """A global variable in the IR.
@@ -90,51 +95,16 @@ class GlobalVar(Expr):
         raise RuntimeError(f"Do not know how to handle GlobalVar.__call__ for types {arg_types}")
 
 
-@tvm_ffi.register_object("ir.Call")
-class Call(Expr, Scriptable):
-    """Core function call node."""
+class _ExprWithOp(Expr, Scriptable):
+    """Common type-directed operator behavior for core expressions."""
 
     __hash__ = Expr.__hash__
-
-    op: Expr
-    args: list[Expr]
-    attrs: "tvm.ir.Attrs | None"
-    ty_args: list["tvm.ir.Type"]
-    span: Span | None
-
-    def __init__(
-        self,
-        op: Expr | str,
-        args: list[Expr] | tuple[Expr, ...],
-        attrs: "tvm.ir.Attrs | dict | None" = None,
-        ty_args: list["tvm.ir.Type"] | tuple["tvm.ir.Type", ...] | None = None,
-        span: Span | None = None,
-        ret_ty: "tvm.ir.Type | str | None" = None,
-    ) -> None:
-        # pylint: disable=import-outside-toplevel
-        from .attrs import DictAttrs
-        from .op import Op
-        from .type import PointerType, PrimType, Type
-
-        if isinstance(op, str):
-            op = Op.get(op)
-        if attrs is not None and isinstance(attrs, dict):
-            attrs = DictAttrs(attrs)
-        if ret_ty is None:
-            ret_ty = Type.missing()
-        if isinstance(ret_ty, str) and ret_ty == "handle":
-            ret_ty = PointerType(PrimType("void"))
-        elif ret_ty is not None and not isinstance(ret_ty, Type):
-            ret_ty = PrimType(ret_ty)
-        if ty_args is None:
-            ty_args = []
-        self.__init_handle_by_constructor__(_ffi_api.Call, ret_ty, op, args, attrs, ty_args, span)
 
     def expr_ty(self):
         """Return this expression's primitive result type."""
         if is_prim_expr(self):
             return self.ty
-        raise TypeError(f"Expected primitive-valued Call, but result type is {self.ty}")
+        raise TypeError(f"Expected a primitive-valued expression, but result type is {self.ty}")
 
     def __add__(self, other):
         if is_prim_expr(self):
@@ -343,7 +313,7 @@ class Call(Expr, Scriptable):
 
     def __call__(self, *args, attrs=None):
         if is_prim_expr(self):
-            raise TypeError("A primitive-valued Call cannot be called")
+            raise TypeError("A primitive-valued expression cannot be called")
         result = _tensor_expr_overload.__call__(self, *args, attrs=attrs)
         if result is NotImplemented:
             raise TypeError("Tensor expression overload __call__ is not registered")
@@ -351,11 +321,97 @@ class Call(Expr, Scriptable):
 
     def __getitem__(self, index):
         if is_prim_expr(self):
-            raise TypeError("A primitive-valued Call cannot be indexed")
+            raise TypeError("A primitive-valued expression cannot be indexed")
         result = _tensor_expr_overload.__getitem__(self, index)
         if result is NotImplemented:
             raise TypeError("Tensor expression overload __getitem__ is not registered")
         return result
+
+
+@tvm_ffi.register_object("ir.Call")
+class Call(_ExprWithOp):
+    """Core function call node."""
+
+    op: Expr
+    args: list[Expr]
+    attrs: "tvm.ir.Attrs | None"
+    ty_args: list["tvm.ir.Type"]
+    span: Span | None
+
+    def __init__(
+        self,
+        op: Expr | str,
+        args: list[Expr] | tuple[Expr, ...],
+        attrs: "tvm.ir.Attrs | dict | None" = None,
+        ty_args: list["tvm.ir.Type"] | tuple["tvm.ir.Type", ...] | None = None,
+        span: Span | None = None,
+        ret_ty: "tvm.ir.Type | str | None" = None,
+    ) -> None:
+        # pylint: disable=import-outside-toplevel
+        from .attrs import DictAttrs
+        from .op import Op
+        from .type import PointerType, PrimType, Type
+
+        if isinstance(op, str):
+            op = Op.get(op)
+        if attrs is not None and isinstance(attrs, dict):
+            attrs = DictAttrs(attrs)
+        if ret_ty is None:
+            ret_ty = Type.missing()
+        if isinstance(ret_ty, str) and ret_ty == "handle":
+            ret_ty = PointerType(PrimType("void"))
+        elif ret_ty is not None and not isinstance(ret_ty, Type):
+            ret_ty = PrimType(ret_ty)
+        if ty_args is None:
+            ty_args = []
+        self.__init_handle_by_constructor__(_ffi_api.Call, ret_ty, op, args, attrs, ty_args, span)
+
+
+@tvm_ffi.register_object("ir.Var")
+class Var(_ExprWithOp):
+    """A canonical local variable in the IR.
+
+    Parameters
+    ----------
+    name : str
+        The name of the variable.
+
+    ty : Optional[Type or str]
+        The exact type of the variable.  A string denotes a primitive dtype.
+
+    span : Optional[Span]
+        Span that points to the original source code.
+
+    """
+
+    name: str
+    span: Span | None
+
+    def __init__(
+        self,
+        name: str | None = None,
+        ty: "tvm.ir.Type | str | None" = None,
+        span: Span | None = None,
+        *,
+        name_hint: str | None = None,
+    ) -> None:
+        if name is None:
+            name = name_hint
+        elif name_hint is not None:
+            raise TypeError("Specify either name or name_hint, not both")
+        if not isinstance(name, str):
+            raise TypeError("name must be a str")
+
+        # pylint: disable=import-outside-toplevel
+        from .type import PointerType, PrimType, Type
+
+        if isinstance(ty, str):
+            ty = PointerType(PrimType("void")) if ty == "handle" else PrimType(ty)
+        elif ty is not None:
+            ty = tvm.runtime.convert(ty)
+            if not isinstance(ty, Type):
+                raise TypeError("ty must be a Type or primitive dtype string")
+        self.__init_handle_by_constructor__(_ffi_api.Var, name, ty, span)
 
 
 @tvm_ffi.register_object("ir.Range")

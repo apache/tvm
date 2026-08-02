@@ -42,15 +42,20 @@ namespace tirx {
  */
 class BlockReadWriteDetector : public StmtExprVisitor {
  public:
-  explicit BlockReadWriteDetector(const ffi::Map<Var, Buffer>& buffer_var_map)
-      : buffer_var_map_(buffer_var_map) {}
+  explicit BlockReadWriteDetector(const ffi::Map<Var, BufferVar>& buffer_var_map)
+      : buffer_var_map_(buffer_var_map) {
+    for (const auto& item : buffer_var_map) {
+      const BufferVar& buffer = item.second;
+      buffer_var_map_.Set(buffer.var(), buffer);
+    }
+  }
 
   /*! \brief Return read regions of the block */
   ffi::Array<BufferRegion> CollectReads(
-      const std::unordered_set<const BufferNode*>* excluded_buffers = nullptr);
+      const std::unordered_set<const VarNode*>* excluded_buffers = nullptr);
   /*! \brief Return write regions of the block */
   ffi::Array<BufferRegion> CollectWrites(
-      const std::unordered_set<const BufferNode*>* excluded_buffers = nullptr);
+      const std::unordered_set<const VarNode*>* excluded_buffers = nullptr);
   /*!
    * \brief Return opaque buffer regions of the block
    * \note The buffer accessed by load/store or call with buffer.data will
@@ -68,11 +73,11 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   /*! \brief Unresolved conditions within current scope. */
   std::vector<PrimExpr> pending_conditions_;
   /*! \brief The buffers that the current block reads */
-  std::vector<Buffer> read_buffers_;
+  std::vector<BufferVar> read_buffers_;
   /*! \brief The buffers that the current block writes */
-  std::vector<Buffer> writes_buffers_;
+  std::vector<BufferVar> writes_buffers_;
   /*! \brief The opaque buffer which is access by buffer.data */
-  std::vector<Buffer> opaque_buffers_;
+  std::vector<BufferVar> opaque_buffers_;
   /*! \brief The read regions of the current block */
   std::vector<std::vector<tvm::arith::IntSet>> read_regions_;
   /*! \brief The write regions of the current block */
@@ -80,7 +85,7 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   /*! \brief The opaque regions of the current block */
   std::vector<std::vector<tvm::arith::IntSet>> opaque_regions_;
   /*! \brief The outside buffer data mapping to its buffer */
-  ffi::Map<Var, Buffer> buffer_var_map_;
+  ffi::Map<Var, BufferVar> buffer_var_map_;
   /*! \brief The target buffer var mapping to its matching */
   std::unordered_map<const VarNode*, MatchBufferRegion> match_buffers_;
   /*! \brief let bindings inside the block */
@@ -95,14 +100,14 @@ class BlockReadWriteDetector : public StmtExprVisitor {
    * \param buffer The provided buffer
    * \param region The provided region
    */
-  void Update(std::vector<Buffer>* buffers, std::vector<std::vector<arith::IntSet>>* regions,
-              Buffer buffer, std::vector<arith::IntSet> region);
+  void Update(std::vector<BufferVar>* buffers, std::vector<std::vector<arith::IntSet>>* regions,
+              BufferVar buffer, std::vector<arith::IntSet> region);
 
   /*! \brief Helper function to collect access regions. */
   ffi::Array<BufferRegion> CollectRegions(
-      const std::vector<Buffer>& buffers,
+      const std::vector<BufferVar>& buffers,
       const std::vector<std::vector<tvm::arith::IntSet>>& regions,
-      const std::unordered_set<const BufferNode*>* excluded_buffers = nullptr);
+      const std::unordered_set<const VarNode*>* excluded_buffers = nullptr);
 
   /*! \brief Helper function to convert matched access region to source region. */
   std::vector<arith::IntSet> ConvertMatchedRegion(const MatchBufferRegion& match_buffer,
@@ -117,6 +122,7 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const SBlockRealizeNode* op) override;
+  void VisitStmt_(const DeclBufferNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const BindNode* op) override;
   void VisitExpr_(const BufferLoadNode* op) override;
@@ -129,8 +135,8 @@ void BlockReadWriteDetector::operator()(const Stmt& stmt) {
   TVM_FFI_ICHECK(block != nullptr)
       << "Only visiting Blocks is allowed, but got " << stmt->GetTypeKey();
   for (const MatchBufferRegion& match_buffer : block->match_buffers) {
-    const Var& target_var = match_buffer->buffer->data;
-    const Var& source_var = match_buffer->source->buffer->data;
+    const Var target_var = match_buffer->buffer.var();
+    const Var source_var = match_buffer->source->buffer.var();
     if (buffer_var_map_.find(source_var) != buffer_var_map_.end()) {
       match_buffers_[target_var.get()] = match_buffer;
       buffer_var_map_.Set(target_var, match_buffer->buffer);
@@ -140,12 +146,12 @@ void BlockReadWriteDetector::operator()(const Stmt& stmt) {
 }
 
 ffi::Array<BufferRegion> BlockReadWriteDetector::CollectReads(
-    const std::unordered_set<const BufferNode*>* excluded_buffers) {
+    const std::unordered_set<const VarNode*>* excluded_buffers) {
   return CollectRegions(read_buffers_, read_regions_, excluded_buffers);
 }
 
 ffi::Array<BufferRegion> BlockReadWriteDetector::CollectWrites(
-    const std::unordered_set<const BufferNode*>* excluded_buffers) {
+    const std::unordered_set<const VarNode*>* excluded_buffers) {
   return CollectRegions(writes_buffers_, write_regions_, excluded_buffers);
 }
 
@@ -190,6 +196,12 @@ void BlockReadWriteDetector::VisitStmt_(const IfThenElseNode* op) {
   }
 }
 
+void BlockReadWriteDetector::VisitStmt_(const DeclBufferNode* op) {
+  // A DeclBuffer data expression defines the alias source.  It is not an
+  // opaque buffer access by the containing block.
+  VisitBufferDef(op->buffer, /*alloc_data=*/false);
+}
+
 void BlockReadWriteDetector::VisitStmt_(const BindNode* op) {
   if (auto value = op->value.as<PrimExpr>()) {
     let_bindings_[op->var.get()] = value.value();
@@ -200,11 +212,15 @@ void BlockReadWriteDetector::VisitStmt_(const BindNode* op) {
 void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::tvm_access_ptr())) {
     const VarNode* buffer_var = op->args[1].as<VarNode>();
+    if (const auto* data = op->args[1].as<CallNode>();
+        data && data->op.same_as(builtin::buffer_data())) {
+      buffer_var = data->args[0].as<VarNode>();
+    }
     const IntImmNode* access_mask = op->args[4].as<IntImmNode>();
     if (buffer_var && access_mask) {
       auto it = buffer_var_map_.find(ffi::GetRef<Var>(buffer_var));
       if (it != buffer_var_map_.end()) {
-        const Buffer& buffer = (*it).second;
+        const BufferVar& buffer = (*it).second;
         const BufferRegion buffer_region = BufferRegion::FullRegion(buffer);
         const ffi::Array<Range>& region = buffer_region->region;
         std::vector<arith::IntSet> int_set;
@@ -288,7 +304,7 @@ void BlockReadWriteDetector::VisitStmt_(const SBlockRealizeNode* op) {
 
 std::vector<arith::IntSet> BlockReadWriteDetector::ConvertMatchedRegion(
     const MatchBufferRegion& match_buffer, const std::vector<arith::IntSet>& int_sets) const {
-  const Buffer& buffer = match_buffer->buffer;
+  const BufferVar& buffer = match_buffer->buffer;
 
   ffi::Array<Range> region;
   region.reserve(int_sets.size());
@@ -308,12 +324,12 @@ std::vector<arith::IntSet> BlockReadWriteDetector::ConvertMatchedRegion(
   return result;
 }
 
-void BlockReadWriteDetector::Update(std::vector<Buffer>* buffers,
-                                    std::vector<std::vector<arith::IntSet>>* regions, Buffer buffer,
-                                    std::vector<arith::IntSet> region) {
-  if (buffer_var_map_.find(buffer->data) == buffer_var_map_.end()) return;
+void BlockReadWriteDetector::Update(std::vector<BufferVar>* buffers,
+                                    std::vector<std::vector<arith::IntSet>>* regions,
+                                    BufferVar buffer, std::vector<arith::IntSet> region) {
+  if (buffer_var_map_.find(buffer.var()) == buffer_var_map_.end()) return;
   // Handle match_buffer remap
-  auto it = match_buffers_.find(buffer->data.get());
+  auto it = match_buffers_.find(buffer.get());
   if (it != match_buffers_.end()) {
     const MatchBufferRegion& match_buffer = it->second;
     buffer = match_buffer->source->buffer;
@@ -335,8 +351,9 @@ void BlockReadWriteDetector::Update(std::vector<Buffer>* buffers,
 }
 
 ffi::Array<BufferRegion> BlockReadWriteDetector::CollectRegions(
-    const std::vector<Buffer>& buffers, const std::vector<std::vector<tvm::arith::IntSet>>& regions,
-    const std::unordered_set<const BufferNode*>* excluded_buffers) {
+    const std::vector<BufferVar>& buffers,
+    const std::vector<std::vector<tvm::arith::IntSet>>& regions,
+    const std::unordered_set<const VarNode*>* excluded_buffers) {
   TVM_FFI_ICHECK_EQ(buffers.size(), regions.size());
   ffi::Array<BufferRegion> res;
   res.reserve(buffers.size());
@@ -364,7 +381,7 @@ ffi::Array<BufferRegion> BlockReadWriteDetector::CollectRegions(
 void BlockReadWriteDetector::UpdateOpaque(const Var& buffer_var) {
   auto it = buffer_var_map_.find(buffer_var);
   if (it != buffer_var_map_.end()) {
-    const Buffer& buffer = (*it).second;
+    const BufferVar& buffer = (*it).second;
     const BufferRegion buffer_region = BufferRegion::FullRegion(buffer);
     const ffi::Array<Range>& region = buffer_region->region;
     std::vector<arith::IntSet> int_set;
@@ -377,11 +394,11 @@ void BlockReadWriteDetector::UpdateOpaque(const Var& buffer_var) {
 }
 
 ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
-    const SBlock& block, const ffi::Map<Var, Buffer>& buffer_var_map) {
+    const SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map) {
   BlockReadWriteDetector detector(buffer_var_map);
   detector(block);
   ffi::Array<BufferRegion> writes = detector.CollectWrites();
-  std::unordered_set<const BufferNode*> excluded_buffers;
+  std::unordered_set<const VarNode*> excluded_buffers;
   // exclude write buffers from read regions for reductions if init block is defined.
   if (block->init.has_value()) {
     for (const BufferRegion& write_access : writes) {
@@ -394,11 +411,11 @@ ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
 }
 
 ffi::Array<ffi::Array<BufferRegion>> GetSBlockReadWriteRegion(
-    const SBlock& block, const ffi::Map<Var, Buffer>& buffer_var_map) {
+    const SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map) {
   BlockReadWriteDetector detector(buffer_var_map);
   detector(block);
   ffi::Array<BufferRegion> opaques = detector.CollectOpaques();
-  std::unordered_set<const BufferNode*> excluded_buffers;
+  std::unordered_set<const VarNode*> excluded_buffers;
   for (const BufferRegion& opaque_access : opaques) {
     excluded_buffers.insert(opaque_access->buffer.get());
   }

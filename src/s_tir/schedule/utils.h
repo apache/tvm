@@ -227,9 +227,9 @@ inline const int64_t* GetLoopIntExtent(const StmtSRef& loop_sref) {
  */
 inline ffi::Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr,
                                               ffi::Optional<IntImm>* constant) {
-  if (const auto* var = expr.as<VarNode>()) {
+  if (auto var = expr.as<PrimVar>()) {
     *constant = std::nullopt;
-    return ffi::GetRef<Var>(var);
+    return static_cast<Var>(var.value());
   }
   arith::PVar<Var> var;
   arith::PVar<IntImm> shift;

@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -116,10 +118,29 @@ def test_split_host_device_on_cpu():
                 }
             )
             T.evaluate(n)
-            T.ret(0)
+            return 0
 
     After = tvm.tirx.transform.SplitHostDevice()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_device_kernel_nonzero_return_is_rejected():
+    """A device kernel may only return the zero success code."""
+
+    device_target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm.target.Target(device_target, host="llvm")
+    body = tvm.tirx.AttrStmt(
+        device_target,
+        "target",
+        0,
+        tvm.tirx.Return(tvm.tirx.IntImm("int32", 1)),
+    )
+    func = tvm.tirx.PrimFunc([], body)
+    func = func.with_attr("global_symbol", "main")
+    func = func.with_attr("target", target)
+
+    with pytest.raises(tvm.error.InternalError, match="successful return"):
+        tvm.tirx.transform.SplitHostDevice()(tvm.IRModule({"main": func}))
 
 
 def test_split_host_device_without_func_host_attribute():
@@ -324,6 +345,28 @@ def test_symbolic_var_parameter():
     assert isinstance(after["main_kernel"].params[2], tvm.tirx.Var)
 
 
+def test_buffer_used_only_through_data_projection():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((16,), "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            with T.attr(T.target("cuda"), "target", 0):
+                T.evaluate(T.call_extern("consume", A.data, dtype="int32"))
+
+    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    kernel = after["main_kernel"]
+    declared_buffers = []
+
+    def collect(node):
+        if isinstance(node, tvm.tirx.DeclBuffer):
+            declared_buffers.append(node.buffer)
+
+    tvm.tirx.stmt_functor.post_order_visit(kernel.body, collect)
+    assert len(declared_buffers) == 1
+    assert not tvm.tirx.analysis.undefined_vars(kernel.body, kernel.params)
+
+
 def test_thread_extent_region_extracted_as_device_kernel():
     """A bare thread_extent is annotated and extracted as a device kernel."""
 
@@ -360,6 +403,38 @@ def test_thread_extent_region_extracted_as_device_kernel():
 
     After = tvm.tirx.transform.SplitHostDevice()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_cuda_launch_preserves_flag_metadata():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(16, "float32")):
+            T.func_attr(
+                {
+                    "target": T.target("cuda", host="llvm"),
+                    "tirx.kernel_launch_params": [
+                        "threadIdx.x",
+                        "tirx.use_programtic_dependent_launch",
+                    ],
+                }
+            )
+            T.attr(T.target("cuda"), "target", 0)
+            tx = T.launch_thread("threadIdx.x", 16)
+            A[tx] = 0.0
+
+    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    kernel = after["main_kernel"]
+    assert list(kernel.attrs["tirx.kernel_launch_params"]) == [
+        "threadIdx.x",
+        "tirx.use_programtic_dependent_launch",
+    ]
+
+    launch = after["main"].body.value
+    assert isinstance(launch, tvm.ir.Call)
+    # Programmatic launch is flag-only and therefore adds no packed operand.
+    assert len(launch.args) == 3
+    assert int(launch.args[-1]) == 16
 
 
 def test_device_scope_region_extracted_as_device_kernel():

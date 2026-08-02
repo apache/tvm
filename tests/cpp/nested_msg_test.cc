@@ -53,7 +53,7 @@ TensorType ScalarTensorType(PrimType dtype) {
 
 TEST(NestedMsg, Basic) {
   // start with no annotation
-  relax::Var x("x", std::nullopt), y("y", std::nullopt);
+  tvm::Var x("x", std::nullopt), y("y", std::nullopt);
 
   // constructor from array, T and nullopt.
   NestedMsg<relax::Expr> msg({x, std::nullopt, x});
@@ -105,7 +105,7 @@ TEST(NestedMsg, IntAndAny) {
 }
 
 TEST(NestedMsg, ForEachLeaf) {
-  relax::Var x("x", std::nullopt), y("y", std::nullopt);
+  tvm::Var x("x", std::nullopt), y("y", std::nullopt);
   NestedMsg<Expr> msg = {x, {x, y}, std::nullopt, {x, {x, y}}};
 
   int x_count = 0, y_count = 0;
@@ -119,8 +119,8 @@ TEST(NestedMsg, ForEachLeaf) {
 }
 
 TEST(NestedMsg, Equal) {
-  relax::Var x("x", std::nullopt), y("y", std::nullopt);
-  relax::Var z("z", std::nullopt);
+  tvm::Var x("x", std::nullopt), y("y", std::nullopt);
+  tvm::Var z("z", std::nullopt);
 
   auto fequal = [](Expr lhs, Expr rhs) { return lhs.same_as(rhs); };
 
@@ -156,9 +156,9 @@ TEST(NestedMsg, Equal) {
 }
 
 TEST(NestedMsg, MapAndDecompose) {
-  relax::Var x("x", PrimType::Int(16));
-  relax::Var y("y", PrimType::Int(32));
-  relax::Var z("z", PrimType::Int(64));
+  tvm::Var x("x", PrimType::Int(16));
+  tvm::Var y("y", PrimType::Int(32));
+  tvm::Var z("z", PrimType::Int(64));
 
   BlockBuilder bb = BlockBuilder::Create(std::nullopt);
   relax::Expr t0 = bb->Normalize(Tuple({x, y}));
@@ -215,7 +215,7 @@ TEST(NestedMsg, MapToNestedMsgByType) {
   auto sf0 = ScalarTensorType(PrimType::Float(32));
   auto sf1 = TupleType({sf0, sf0});
   auto sf2 = TupleType({sf0, sf0});
-  auto x = relax::Var("x", TupleType({sf1, sf2, sf0}));
+  auto x = tvm::Var("x", TupleType({sf1, sf2, sf0}));
 
   auto msg = MapToNestedMsgByType<Expr>(x, [](Expr value) { return value; });
 
@@ -241,7 +241,7 @@ TEST(NestedMsg, NestedMsgToExpr) {
   auto c1 = IntImm::Int32(1);
   auto c2 = IntImm::Int32(2);
 
-  relax::Var x("x", sf0), y("y", sf0), z("z", sf0);
+  tvm::Var x("x", sf0), y("y", sf0), z("z", sf0);
 
   NestedMsg<IntImm> msg = {c0, {c0, c1}, {c0, {c1, c2}}};
   auto expr = NestedMsgToExpr<IntImm>(msg, [&](ffi::Optional<IntImm> leaf) {
@@ -261,7 +261,7 @@ TEST(NestedMsg, NestedMsgToExpr) {
   EXPECT_TRUE(tvm::ffi::StructuralEqual()(expr, expected));
 
   // test simplified
-  relax::Var t("t", sf1);
+  tvm::Var t("t", sf1);
   NestedMsg<Expr> msg1 = {TupleGetItem(t, 0), TupleGetItem(t, 1)};
   auto expr1 = NestedMsgToExpr<Expr>(msg1, [](ffi::Optional<Expr> leaf) { return leaf.value(); });
   EXPECT_TRUE(tvm::ffi::StructuralEqual()(expr1, t));
@@ -318,7 +318,7 @@ TEST(NestedMsg, TransformTupleLeaf) {
   NInt msg2 = {c1, {c2, c0}, c2, {c1, {c2, c0}}};
 
   PrimType s = PrimType::Int(32);
-  relax::Var x("x", s), y("y", s), z("z", s);
+  tvm::Var x("x", s), y("y", s), z("z", s);
   BlockBuilder bb = BlockBuilder::Create(std::nullopt);
   Expr expr = bb->Normalize(Tuple({x, Tuple({x, x}), x, Tuple({x, Tuple({x, x})})}));
 

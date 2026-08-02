@@ -31,6 +31,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
+#include <tvm/relax/utils.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -39,30 +40,63 @@ namespace relax {
 namespace {
 
 class SymbolicVarCanonicalizer : public ExprMutator {
+  class RuntimePrimVarCollector;
+
  public:
+  static Expr Apply(Expr expr);
+
+  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final {
+    if (!canonicalize_shape_values_) return expr;
+    return CanonicalizeShapeValue(expr);
+  }
+
+  Expr VisitExpr_(const ShapeExprNode* op) final {
+    if (!canonicalize_shape_values_) return ffi::GetRef<Expr>(op);
+    ffi::Array<PrimExpr> values =
+        op->values.Map([this](const PrimExpr& value) { return CanonicalizeShapeValue(value); });
+    if (values.same_as(op->values)) {
+      return ffi::GetRef<Expr>(op);
+    }
+    return ShapeExpr(values, op->span);
+  }
+
   Expr VisitExpr_(const FunctionNode* func) override {
     auto cached = known_values_;
+    auto cached_runtime_uses = runtime_prim_var_uses_;
+    runtime_prim_var_uses_ = RuntimePrimVarCollector::Collect(func->body);
     auto output = ExprMutator::VisitExpr_(func);
     known_values_ = cached;
+    runtime_prim_var_uses_ = cached_runtime_uses;
     return output;
   }
 
   void VisitBinding_(const MatchCastNode* binding) override {
     auto tir_var_map =
         InferSymbolicVarMap({{binding->var, binding->value}}, builder_->GetAnalyzer());
-    for (const auto& [tir_var, prim_expr] : tir_var_map) {
-      if (auto it = known_values_.find(tir_var); it != known_values_.end()) {
+    bool has_runtime_use = false;
+    for (const auto& [var, value] : tir_var_map) {
+      if (var.same_as(binding->var)) continue;
+      auto tir_var = var.as<tirx::PrimVar>();
+      if (!tir_var) continue;
+      has_runtime_use = has_runtime_use || runtime_prim_var_uses_.count(*tir_var);
+      PrimExpr prim_expr = value.as_or_throw<PrimExpr>();
+      if (auto it = known_values_.find(tir_var.value()); it != known_values_.end()) {
         TVM_FFI_CHECK(!builder_->GetAnalyzer()->CanProve(it->second.expr != prim_expr), ValueError)
             << "MatchCast statements must be consistent.  "
             << "However, the definition of Relax variable " << it->second.source->var
-            << " implies that TIR variable " << tir_var << " is " << it->second.expr
+            << " implies that TIR variable " << tir_var.value() << " is " << it->second.expr
             << ", while the later definition of Relax variable " << binding->var
-            << " instead implies that TIR variable " << tir_var << " is " << prim_expr;
+            << " instead implies that TIR variable " << tir_var.value() << " is " << prim_expr;
       } else {
-        known_values_[tir_var] = KnownValue{prim_expr, ffi::GetRef<MatchCast>(binding)};
+        known_values_[tir_var.value()] = KnownValue{prim_expr, ffi::GetRef<MatchCast>(binding)};
       }
     }
+    // A MatchCast that defines a runtime-used symbolic variable cannot be folded away.
+    // Preserve its symbolic pattern while still canonicalizing downstream shape annotations.
+    bool cached = canonicalize_shape_values_;
+    canonicalize_shape_values_ = !has_runtime_use;
     ExprMutator::VisitBinding_(binding);
+    canonicalize_shape_values_ = cached;
   }
 
   Expr VisitExpr_(const IfNode* op) override {
@@ -115,41 +149,61 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     return If(guard, true_b, false_b, op->span);
   }
 
-  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) override {
-    if (known_values_.empty()) {
-      return expr;
-    }
-    PrimExpr output =
-        tirx::Substitute(expr, [this](const tirx::Var& var) -> ffi::Optional<tvm::Expr> {
-          if (auto it = known_values_.find(var); it != known_values_.end()) {
-            return tvm::Expr(it->second.expr);
-          } else {
-            return std::nullopt;
-          }
-        });
-    if (output.same_as(expr)) {
-      return expr;
-    }
-
-    output = builder_->GetAnalyzer()->Simplify(output);
-    return output;
-  }
-
-  Expr VisitExprFallback_(const ExprNode* op) final {
-    if (op->ty.as<PrimTypeNode>()) {
-      return VisitTypePrimExprField(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>());
-    }
-    return ExprMutator::VisitExprFallback_(op);
-  }
-
  private:
+  class RuntimePrimVarCollector : public ExprVisitor {
+   public:
+    static std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> Collect(
+        const Expr& expr) {
+      RuntimePrimVarCollector collector;
+      collector.VisitExpr(expr);
+      return collector.uses_;
+    }
+
+    void VisitExprDepTypeField(const Type&) final {}
+
+    void VisitExpr_(const ShapeExprNode*) final {}
+
+    void VisitExpr_(const VarNode* op) final {
+      Var var = ffi::GetRef<Var>(op);
+      if (auto prim_var = var.as<tirx::PrimVar>()) {
+        uses_.insert(*prim_var);
+      }
+    }
+
+   private:
+    std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> uses_;
+  };
+
+  PrimExpr CanonicalizeShapeValue(const PrimExpr& expr) {
+    PrimExpr output = tirx::Substitute(expr, [this](const Var& var) -> ffi::Optional<Expr> {
+      auto prim_var = var.as<tirx::PrimVar>();
+      if (!prim_var) return std::nullopt;
+      auto it = known_values_.find(*prim_var);
+      if (it == known_values_.end()) return std::nullopt;
+      return it->second.expr;
+    });
+    return output.same_as(expr) ? expr : builder_->GetAnalyzer()->Simplify(output);
+  }
+
   struct KnownValue {
     PrimExpr expr;
     MatchCast source;
   };
 
-  std::unordered_map<tirx::Var, KnownValue> known_values_;
+  std::unordered_map<tirx::Var, KnownValue, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> known_values_;
+  std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> runtime_prim_var_uses_;
+  bool canonicalize_shape_values_ = true;
 };
+
+Expr SymbolicVarCanonicalizer::Apply(Expr expr) {
+  SymbolicVarCanonicalizer mutator;
+  if (!expr->IsInstance<FunctionNode>()) {
+    // Dataflow rewriting canonicalizes a SeqExpr directly, without entering
+    // VisitExpr_(FunctionNode), so initialize the same runtime-use context.
+    mutator.runtime_prim_var_uses_ = RuntimePrimVarCollector::Collect(expr);
+  }
+  return mutator(std::move(expr));
+}
 
 struct CanonicalizationPlan {
   ffi::Map<Var, Var> replace_usage;
@@ -179,7 +233,7 @@ class CanonicalizePlanner : public ExprVisitor {
     // of trivial bindings, then we can replace it with a DataflowVar.
     for (auto var : visitor.defined_inside_dataflow_) {
       if (!var.as<DataflowVarNode>() && !visitor.used_outside_home_dataflow_.count(var)) {
-        DataflowVar new_var(var->name_hint, GetType(var));
+        DataflowVar new_var(var->name, GetType(var));
 
         plan.replace_binding.Set(var, new_var);
         plan.replace_usage.Set(var, new_var);
@@ -565,7 +619,9 @@ class BindingCanonicalizer : public ExprMutator {
 };
 }  // namespace
 
-Expr CanonicalizeTIRVariables(Expr expr) { return SymbolicVarCanonicalizer()(std::move(expr)); }
+Expr CanonicalizeTIRVariables(Expr expr) {
+  return SymbolicVarCanonicalizer::Apply(std::move(expr));
+}
 
 Expr CanonicalizeRelaxBindings(Expr expr) { return BindingCanonicalizer::Apply(std::move(expr)); }
 

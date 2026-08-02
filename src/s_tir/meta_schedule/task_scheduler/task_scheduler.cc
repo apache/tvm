@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/s_tir/analysis.h>
 
 #include "../utils.h"
@@ -78,9 +79,10 @@ void SendToRunner(TaskRecordNode* self, const Runner& runner) {
       ++n_build_errors;
       continue;
     }
-    inputs.push_back(RunnerInput(/*artifact_path=*/builder_result->artifact_path.value(),
-                                 /*device_type=*/target->kind->name,
-                                 /*args_info=*/candidate->args_info));
+    inputs.push_back(
+        RunnerInput(/*artifact_path=*/builder_result->artifact_path.value(),
+                    /*device_type=*/runtime::DLDeviceType2Str(target->GetTargetDeviceType()),
+                    /*args_info=*/candidate->args_info));
   }
   ffi::Array<RunnerFuture> futures = runner->Run(inputs);
   if (n_build_errors == 0) {

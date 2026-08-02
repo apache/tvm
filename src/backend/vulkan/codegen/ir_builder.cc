@@ -43,9 +43,12 @@ void IRBuilder::InitHeader() {
   TVM_FFI_ICHECK_EQ(header_.size(), 0U);
   header_.push_back(spv::MagicNumber);
 
-  // Target SPIR-V version 1.0.  Additional functionality will be
-  // enabled through extensions.
-  header_.push_back(0x10000);
+  // Preserve TVM's historical SPIR-V 1.0 output for targets below 1.4.
+  // SPIR-V 1.4 changed the OpEntryPoint interface contract, so newer
+  // explicitly requested targets must carry their actual version.
+  header_.push_back(spirv_support_.max_spirv_version >= 0x00010400
+                        ? spirv_support_.max_spirv_version
+                        : 0x00010000);
 
   // generator: set to 0, unknown
   header_.push_back(0U);
@@ -269,6 +272,7 @@ Value IRBuilder::BufferArgument(const SType& value_type, uint32_t descriptor_set
   Value val = NewValue(ptr_type, kStructArrayPtr);
 
   ib_.Begin(spv::OpVariable).AddSeq(ptr_type, val, storage_class).Commit(&global_);
+  entry_point_interface_.push_back(val);
 
   this->DecorateBufferArgument(val, descriptor_set, binding);
   return val;
@@ -307,6 +311,7 @@ Value IRBuilder::DeclareStorageVariable(const std::vector<SType>& value_types,
   SType ptr_type = GetPointerType(struct_type, storage_class);
   Value val = NewValue(ptr_type, kind);
   ib_.Begin(spv::OpVariable).AddSeq(ptr_type, val, storage_class).Commit(&global_);
+  entry_point_interface_.push_back(val);
   return val;
 }
 
@@ -349,6 +354,11 @@ void IRBuilder::CommitKernelFunction(const Value& func, const std::string& name)
   for (auto& it : built_in_tbl_) {
     ib_.Add(it.second);
   }
+  if (spirv_support_.max_spirv_version >= 0x00010400) {
+    for (const auto& variable : entry_point_interface_) {
+      ib_.Add(variable);
+    }
+  }
   ib_.Commit(&entry_);
 }
 
@@ -379,6 +389,7 @@ Value IRBuilder::Allocate(const SType& value_type, uint32_t num_elems,
     ib_.Begin(spv::OpVariable).AddSeq(ptr_type, val, storage_class).Commit(&func_header_);
   } else {
     ib_.Begin(spv::OpVariable).AddSeq(ptr_type, val, storage_class).Commit(&global_);
+    entry_point_interface_.push_back(val);
   }
   return val;
 }

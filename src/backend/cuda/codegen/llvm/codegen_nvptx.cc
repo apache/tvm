@@ -80,13 +80,13 @@ class CodeGenNVPTX : public CodeGenLLVM {
 
   void VisitStmt_(const AllocBufferNode* op) final {
     llvm::Value* buf = nullptr;
-    StorageInfo& info = alloc_storage_info_[op->buffer->data.get()];
+    StorageInfo& info = alloc_storage_info_[op->buffer.get()];
     // maximum necessary alignment in the NV devices
     if (info.alignment > 16) {
       info.alignment = 16;
     }
 
-    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer->data));
+    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer.var()));
     PrimType dtype = op->buffer->dtype;
 
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
@@ -122,10 +122,10 @@ class CodeGenNVPTX : public CodeGenLLVM {
 
     buf = builder_->CreatePointerCast(
         buf, llvmGetPointerTo(DTypeToLLVMType(dtype), buf->getType()->getPointerAddressSpace()));
-    TVM_FFI_ICHECK(!var_map_.count(op->buffer->data.get()));
-    var_map_[op->buffer->data.get()] = buf;
+    TVM_FFI_ICHECK(!var_map_.count(op->buffer.get()));
+    var_map_[op->buffer.get()] = buf;
     if (op->annotations.count(tirx::attr::kVolatile)) {
-      volatile_buf_.insert(op->buffer->data.get());
+      volatile_buf_.insert(op->buffer.get());
     }
   }
 

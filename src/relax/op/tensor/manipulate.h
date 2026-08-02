@@ -67,14 +67,9 @@ Expr flatten(Expr x);
  * \param index_map The transformation to apply.
  * \param pad_value The value used for padding if the transformation results in implicit padding. If
  * not specified, any value can be used.
- * \param axis_separators Array of values to differentiate between input axes
- * when generating flattened output axes.
- * \param input axis_separators Array of values for input buffer.
  * \return The transformed result.
  */
-Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimExpr> pad_value,
-                      ffi::Optional<ffi::Array<IntImm>> axis_separators,
-                      ffi::Optional<ffi::Array<IntImm>> input_axis_separators = std::nullopt);
+Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimExpr> pad_value);
 
 /*!
  * \brief Permutes the dimensions of an array.

@@ -1542,7 +1542,7 @@ def build_and_run(sch):
         c_np = np.dot(a_np.astype("float32"), b_np.astype("float32"))
 
         def run_and_check():
-            dev = tvm.device("cuda", 0)
+            dev = tvm.cuda(0)
             a = tvm.runtime.tensor(a_np, dev)
             b = tvm.runtime.tensor(b_np, dev)
             c = tvm.runtime.tensor(np.zeros((N, M), dtype="float32"), dev)

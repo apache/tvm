@@ -120,7 +120,7 @@ def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
         ex = tvm.compile(mod, target)
 
     def run_and_check():
-        dev = tvm.device(target, 0)
+        dev = tvm.device_from_target(target, 0)
         vm = relax.VirtualMachine(ex, dev)
         f = vm["main"]
         inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]

@@ -32,7 +32,7 @@ namespace s_tir {
 using namespace tvm::tirx;
 namespace transform {
 struct OOBLocation {
-  Buffer buf;
+  BufferVar buf;
   size_t dimension;
   ffi::ObjectRef index;
   arith::IntSet index_bounds;
@@ -47,7 +47,7 @@ class OOBError : public s_tir::ScheduleError {
   ffi::String DetailRenderTemplate() const final {
     std::stringstream s;
     for (const auto& oob : locations_) {
-      s << "Out of bounds memory access on buffer " << oob.buf->name << " dimension "
+      s << "Out of bounds memory access on buffer " << oob.buf.name() << " dimension "
         << oob.dimension << ".";
       s << " index " << oob.index << " with bounds [" << oob.index_bounds.min() << ", "
         << oob.index_bounds.max() << "] is outside the range [0, " << oob.shape_bounds.min()

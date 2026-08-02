@@ -22,29 +22,36 @@ namespace tvm {
 namespace tirx {
 
 /**************** ComposeLayout ****************/
-ComposeLayout::ComposeLayout(SwizzleLayout layout_A, TileLayout layout_B) {
+ComposeLayout::ComposeLayout(int per_element, int swizzle_len, int atom_len, TileLayout tile_layout,
+                             bool swizzle_inner) {
   auto n = ffi::make_object<ComposeLayoutNode>();
-  n->swizzle = layout_A;
-  n->tile_layout = layout_B;
+  n->per_element = per_element;
+  n->swizzle_len = swizzle_len;
+  n->atom_len = atom_len;
+  n->swizzle_inner = swizzle_inner;
+  n->tile_layout = std::move(tile_layout);
   TVM_FFI_ICHECK(n->VerifyWellFormed()) << "ValueError: The compose layout is not well-formed";
-
+  int swizzle_mask = (1 << swizzle_len) - 1;
+  n->inner_mask = swizzle_mask;
+  n->outer_mask = swizzle_mask << atom_len;
   data_ = std::move(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.ComposeLayout", [](SwizzleLayout layout_A, TileLayout layout_B) {
-    return ComposeLayout(layout_A, layout_B);
+  refl::GlobalDef().def("tirx.ComposeLayout", [](int per_element, int swizzle_len, int atom_len,
+                                                 TileLayout tile_layout, bool swizzle_inner) {
+    return ComposeLayout(per_element, swizzle_len, atom_len, tile_layout, swizzle_inner);
   });
 }
 
 bool ComposeLayoutNode::CompatibleWithShape(const Array<PrimExpr>& shape) const { return true; }
 
 bool ComposeLayoutNode::VerifyWellFormed() const {
-  if (!swizzle->VerifyWellFormed() || !tile_layout->VerifyWellFormed()) {
+  if (!(per_element >= 0 && swizzle_len >= 0 && atom_len >= swizzle_len)) {
     return false;
   }
-  return true;
+  return tile_layout->VerifyWellFormed();
 }
 
 PrimExpr ComposeLayoutNode::GetSize(ffi::Optional<ffi::String> axis_name) const {
@@ -68,32 +75,60 @@ ffi::Map<ffi::String, PrimExpr> ComposeLayoutNode::Apply(PrimExpr coord) const {
   auto res = tile_layout->Apply(coord);
   TVM_FFI_ICHECK(res.size() == 1 && res.find("m") != res.end());
   auto m = res["m"];
-  auto swizzle_res = swizzle->Apply(m);
-  TVM_FFI_ICHECK(swizzle_res.size() == 1 && swizzle_res.find("m") != swizzle_res.end());
-  return swizzle_res;
+  // Inline the swizzle XOR (formerly SwizzleLayoutNode::Apply): the swizzle
+  // operates on the tile-mapped coordinate ``m``.
+  auto f = [&](const PrimExpr& x) -> PrimExpr {
+    if (swizzle_inner) {
+      return x ^ ((x & outer_mask) >> atom_len);
+    } else {
+      return x ^ ((x & inner_mask) << atom_len);
+    }
+  };
+  auto base = 1 << per_element;
+  arith::Analyzer analyzer;
+  return {{"m", analyzer->Simplify((f(floordiv(m, base)) << per_element) + floormod(m, base))}};
 }
 
 Layout ComposeLayoutNode::Canonicalize() const {
   auto tile_normalized = tile_layout->Canonicalize().as<TileLayout>().value();
-  if (tile_normalized->IsTrivial()) {
-    return swizzle;
-  }
-  return ComposeLayout(swizzle, tile_normalized);
+  return ComposeLayout(per_element, swizzle_len, atom_len, tile_normalized, swizzle_inner);
 }
 
 Layout ComposeLayoutNode::Tile(const TileLayout& outer, const ffi::Array<PrimExpr>& outer_shape,
                                const ffi::Array<PrimExpr>& inner_shape) const {
-  // layout_B is first tiled with `outer`, then compose with layout_A.
-  auto tiled_B = tile_layout->Tile(outer, outer_shape, inner_shape).as<TileLayout>().value();
-  return ComposeLayout(swizzle, tiled_B);
+  // A bare swizzle (ComposeLayout with a trivial tile) carries only the swizzle
+  // period, not a tile matching `inner_shape`; substitute an identity tile over
+  // the inner product first, matching the former SwizzleLayoutNode::Tile.
+  TileLayout base = this->tile_layout;
+  if (base->IsTrivial()) {
+    base = IdentityTileLayout(inner_shape);
+  }
+  auto tiled_B = base->Tile(outer, outer_shape, inner_shape).as<TileLayout>().value();
+  return ComposeLayout(per_element, swizzle_len, atom_len, tiled_B, swizzle_inner);
 }
 
 ffi::Optional<TileLayout> ComposeLayoutNode::IsTileInner(
     const Layout& tile_layout, const ffi::Array<PrimExpr>& tiled_shape,
     const ffi::Array<PrimExpr>& inner_shape) const {
   if (auto comp = tile_layout.as<ComposeLayout>()) {
-    if (StructuralEqual()(comp.value()->swizzle, this->swizzle)) {
-      return this->tile_layout->IsTileInner(comp.value()->tile_layout, tiled_shape, inner_shape);
+    if (comp.value()->per_element == this->per_element &&
+        comp.value()->swizzle_len == this->swizzle_len &&
+        comp.value()->atom_len == this->atom_len &&
+        comp.value()->swizzle_inner == this->swizzle_inner) {
+      // A bare swizzle (ComposeLayout with a trivial tile) has no real tile to
+      // compare; its "tile" is the identity over the inner product, and a bare
+      // `tile_layout` argument contributes the identity over the tiled product.
+      // Substitute those identities so TileLayoutNode::IsTileInner sees the same
+      // inputs the former SwizzleLayoutNode::IsTileInner produced.
+      TileLayout this_tile = this->tile_layout;
+      if (this->tile_layout->IsTrivial()) {
+        this_tile = IdentityTileLayout(inner_shape);
+      }
+      TileLayout arg_tile = comp.value()->tile_layout;
+      if (comp.value()->tile_layout->IsTrivial()) {
+        arg_tile = IdentityTileLayout(tiled_shape);
+      }
+      return this_tile->IsTileInner(arg_tile, tiled_shape, inner_shape);
     }
   }
   return std::nullopt;
@@ -107,11 +142,17 @@ ffi::Optional<Layout> ComposeLayoutNode::IsTileOuter(
 
 ffi::Optional<Layout> ComposeLayoutNode::Slice(const ffi::Array<PrimExpr>& shape,
                                                const Region& region) const {
-  // Slice applies to the tile layout then compose with swizzle.
-  auto sliced_opt = tile_layout->Slice(shape, region);
+  // A bare swizzle (ComposeLayout with a trivial tile) carries only the swizzle
+  // period, not a tile matching `shape`; substitute an identity tile over the
+  // buffer shape first, matching the former SwizzleLayoutNode::Slice.
+  TileLayout base = this->tile_layout;
+  if (base->IsTrivial()) {
+    base = IdentityTileLayout(shape);
+  }
+  auto sliced_opt = base->Slice(shape, region);
   if (!sliced_opt.has_value()) return std::nullopt;
   auto sliced = sliced_opt.value().as<TileLayout>().value();
-  return ComposeLayout(swizzle, sliced);
+  return ComposeLayout(per_element, swizzle_len, atom_len, sliced, swizzle_inner);
 }
 
 }  // namespace tirx

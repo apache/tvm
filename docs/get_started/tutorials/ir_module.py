@@ -265,7 +265,7 @@ with tvm.target.Target("cuda"):
 # Now we can compile the IRModule on GPU, the similar way as we did on CPU.
 
 exec = tvm.compile(gpu_mod, target="cuda")
-dev = tvm.device("cuda", 0)
+dev = tvm.cuda(0)
 vm = relax.VirtualMachine(exec, dev)
 # Need to allocate data and params on GPU device
 data = tvm.runtime.tensor(raw_data, dev)

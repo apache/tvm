@@ -30,7 +30,7 @@ pytestmark = pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="
 
 def test_pass_tensor_to_function(exec_mode):
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     @R.function
     def relax_func(
@@ -65,7 +65,7 @@ def test_pass_tensor_to_function(exec_mode):
 
 def test_generate_tensor_in_function(exec_mode):
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     @R.function
     def relax_func(
@@ -94,7 +94,7 @@ def test_generate_tensor_in_function(exec_mode):
 
 def test_catch_exception_with_full_stack_trace(exec_mode):
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     @R.function
     def relax_func(

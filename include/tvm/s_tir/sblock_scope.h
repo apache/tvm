@@ -264,7 +264,7 @@ class SBlockScopeNode : public ffi::Object {
   std::unordered_map<StmtSRef, ffi::Array<Dependency>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       dst2deps;
   /*! \brief The mapping from the buffer to the blocks who write it */
-  std::unordered_map<Buffer, ffi::Array<StmtSRef>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<BufferVar, ffi::Array<StmtSRef>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       buffer_writers;
 
   static void RegisterReflection() {

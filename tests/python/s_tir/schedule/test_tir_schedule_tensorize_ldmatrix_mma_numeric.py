@@ -169,7 +169,7 @@ def run_test(
             c_np = np.dot(a_np.astype("float32"), b_np.astype("float32")).astype("int32")
 
     def run_and_check(measure=False):
-        dev = tvm.device("cuda", 0)
+        dev = tvm.cuda(0)
         a = tvm.runtime.tensor(a_np, dev)
         b = tvm.runtime.tensor(b_np, dev)
         c = tvm.runtime.tensor(np.zeros((M, N), dtype=out_dtype), dev)

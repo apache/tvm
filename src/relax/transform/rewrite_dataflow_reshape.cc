@@ -40,7 +40,7 @@ std::vector<size_t> GetUsedTensorArgIndices(const tirx::PrimFunc& fn, size_t num
   std::vector<size_t> indices;
   for (size_t i = 0; i < num_args; ++i) {
     if (auto buffer = fn->buffer_map.Get(fn->params[i])) {
-      auto buffer_var = buffer.value()->data;
+      auto buffer_var = buffer.value().var();
       if (tirx::UsesVar(fn->body,
                         [=](const tirx::VarNode* var) { return var == buffer_var.get(); })) {
         indices.push_back(i);

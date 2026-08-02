@@ -95,7 +95,14 @@ inline PrimExpr DivImpl(PrimExpr a, PrimExpr b, DivMode mode) {
  * \return whether value fits in dtype
  */
 bool CastIsSafe(PrimType dtype, PrimExpr value, AnalyzerObj* analyzer) {
-  if (!IsIndexType(dtype->dtype)) {
+  // uint32/64 is not an index dtype by default; the no-overflow assertion
+  // (uint_as_index) admits it for bounded non-negative upcast elimination.
+  const bool is_index_dtype =
+      IsIndexType(dtype->dtype) ||
+      (uint_as_index::Enabled() &&
+       dtype->dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLUInt) &&
+       (dtype->dtype.bits == 32 || dtype->dtype.bits == 64) && dtype->dtype.lanes == 1);
+  if (!is_index_dtype) {
     return false;
   }
   ConstIntBound bound = analyzer->const_int_bound(value);
@@ -1384,7 +1391,11 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const ReduceNode* op) {
 }
 
 Expr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
-  if (!IsIndexTypedExpr(op)) {
+  // The cast reasoning below is index-centric; for unsigned operands it runs
+  // only under the caller's no-overflow assertion (uint_as_index).
+  if (!IsIndexTypedExpr(op) &&
+      !(uint_as_index::Enabled() && op->ExprNode::ty.as<PrimTypeNode>()->dtype.code ==
+                                        static_cast<uint8_t>(DLDataTypeCode::kDLUInt))) {
     return Rewriter::VisitExpr_(op);
   }
   // normalize

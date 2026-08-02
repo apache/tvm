@@ -59,7 +59,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
     /*! \brief The thread index that access this entry */
     ffi::Array<IterVar> threads;
     /*! \brief The buffer variable, if any */
-    Var buffer = Var(ffi::ObjectPtr<VarNode>(nullptr));
+    Var buffer{ffi::UnsafeInit{}};
     /*! \brief The access data type */
     PrimType dtype = PrimType::Void();
     /*! \brief The touched access range
@@ -84,6 +84,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
   // override visitor pattern
   void VisitExpr_(const BufferLoadNode* op) final;
   void VisitStmt_(const BufferStoreNode* op) final;
+  void VisitStmt_(const DeclBufferNode* op) final;
   void VisitStmt_(const EvaluateNode* op) final;
   void VisitStmt_(const BindNode* op) final;
   void VisitStmt_(const AttrStmtNode* op) final;
@@ -124,6 +125,8 @@ class StorageAccessVisitor : public StmtExprVisitor {
    * \return The scope of the final buffer array.
    */
   StorageScope GetScope(Var buffer_var) const;
+  /*! \brief Resolve a logical buffer view to its physical storage root. */
+  Var ResolveBuffer(Var buffer_var) const;
   // access scope
   std::vector<std::vector<StmtEntry>> scope_;
 
@@ -140,6 +143,8 @@ class StorageAccessVisitor : public StmtExprVisitor {
   StmtEntry curr_stmt_;
   // The involving threads
   ffi::Array<IterVar> env_threads_;
+  // Physical storage root for each declared logical buffer view.
+  std::unordered_map<const VarNode*, Var> buffer_aliases_;
 };
 }  // namespace s_tir
 }  // namespace tvm

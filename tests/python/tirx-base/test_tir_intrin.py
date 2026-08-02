@@ -318,7 +318,7 @@ def test_clz(target, dtype):
     func = tvm.compile(sch.mod, target=target)
 
     def run_and_check():
-        dev = tvm.device(target.kind.name)
+        dev = tvm.device_from_target(target)
         n = 10
         highs = [10, 100, 1000, 10000, 100000, 1000000]
 
@@ -357,7 +357,6 @@ class Module:
             elem_offset=0,
             align=64,
             offset_factor=1,
-            buffer_type="auto",
         )
         B_1 = T.match_buffer(
             B,
@@ -366,7 +365,6 @@ class Module:
             elem_offset=0,
             align=64,
             offset_factor=1,
-            buffer_type="auto",
         )
         C_1 = T.match_buffer(
             C,
@@ -375,7 +373,6 @@ class Module:
             elem_offset=0,
             align=64,
             offset_factor=1,
-            buffer_type="auto",
         )
         d_1 = T.match_buffer(
             d,
@@ -384,7 +381,6 @@ class Module:
             elem_offset=0,
             align=64,
             offset_factor=1,
-            buffer_type="auto",
         )
         # body
         for i in T.serial(0, n):

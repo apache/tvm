@@ -30,7 +30,7 @@ try:
     from .parser import macro
 except ImportError:
     macro = None
-from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool, TMEMStages
+from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool
 
 from . import tile
 from .builder.ir import TensorMap, meta_class

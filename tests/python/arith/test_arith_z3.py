@@ -96,9 +96,10 @@ def test_z3_context_lifetime_outlives_worker_thread():
 # ---------------------------------------------------------------------------
 # Examples the native analyzer cannot prove but Z3 can.
 #
-# Each case asserts both that the native analyzers (kDefault, Z3 gated off)
+# Most cases assert both that the native analyzers (kDefault, Z3 gated off)
 # fail and that Z3 (kSymbolicBound) succeeds. This demonstrates the added value
-# of the Z3 backend and that it is correctly gated behind kSymbolicBound.
+# of the Z3 backend and that it is correctly gated behind kSymbolicBound. Cases
+# the native analyzer learns to prove remain here as Z3 translation regressions.
 # ---------------------------------------------------------------------------
 
 
@@ -155,7 +156,6 @@ def test_z3_nested_floor_division_collapse():
         tirx.all(a >= 0, a < 128),
         a // 128 == (a // 64 * 32 + a % 32 // 16 * 8) // 64,
     )
-    assert not analyzer.can_prove(expr)
     assert analyzer.can_prove(expr, SB)
 
 

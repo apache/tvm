@@ -70,7 +70,7 @@ class PaddingPatternMatchError : public ScheduleError {
 class PaddingInfoAnalyzer {
  public:
   static PaddingSBlockInfo CheckAndGetPaddingInfo(IRModule mod, const SBlockRealizeNode* realize,
-                                                  const ffi::Map<Var, Range>& dom_map,
+                                                  const ffi::Map<PrimVar, Range>& dom_map,
                                                   arith::AnalyzerObj* analyzer) {
     PaddingInfoAnalyzer padding_analyzer(analyzer);
     if (!padding_analyzer.MatchPadding(realize, dom_map)) {
@@ -83,7 +83,7 @@ class PaddingInfoAnalyzer {
   explicit PaddingInfoAnalyzer(arith::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
   /*! \brief Detect padding pattern and update result. */
-  bool MatchPadding(const SBlockRealizeNode* realize, const ffi::Map<Var, Range>& dom_map) {
+  bool MatchPadding(const SBlockRealizeNode* realize, const ffi::Map<PrimVar, Range>& dom_map) {
     // Step 1. Check match padding computation pattern.
     // A[...] = T.if_then_else(predicate, B[...], imm)
     SBlock block = realize->block;
@@ -160,7 +160,7 @@ class PaddingInfoAnalyzer {
 
   /*! \brief Return iteration region of block vars where the padding predicate evals to true. */
   ffi::Array<Range> EstimateInBoundRegion(const ffi::Array<PrimExpr>& iter_values,
-                                          const ffi::Map<Var, Range>& dom_map,
+                                          const ffi::Map<PrimVar, Range>& dom_map,
                                           const PrimExpr& in_bound_predicate) {
     ffi::Array<Range> region;
 
@@ -416,7 +416,7 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
   // Condition Checks and Information Collection
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   const SBlockRealizeNode* realize = GetSBlockRealize(self, block_sref).get();
-  ffi::Map<Var, Range> dom_map;
+  ffi::Map<PrimVar, Range> dom_map;
   arith::Analyzer analyzer;
 
   // Check 1. check the block is complete.

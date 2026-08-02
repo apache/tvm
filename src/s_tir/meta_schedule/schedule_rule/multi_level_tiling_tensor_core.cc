@@ -623,7 +623,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
     // Inline the reindex / padding block
     sch->ComputeInline(sch->GetProducers(cache_read)[0]);
     const tirx::SBlockNode* cache_read_block = sch->GetSRef(cache_read)->StmtAs<tirx::SBlockNode>();
-    tirx::Buffer cache_read_buffer =
+    tirx::BufferVar cache_read_buffer =
         s_tir::GetNthAccessBuffer(sch->state(), ffi::GetRef<tirx::SBlock>(cache_read_block), 0,
                                   s_tir::BufferIndexType::kWrite);
     const DLDataType dtype = cache_read_buffer->dtype->dtype;
@@ -798,9 +798,11 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   const tirx::IndexMap& index_map = mapping_info->mappings[0];
 
   // Find the correspondence between block iters and the iters in the index map.
-  std::unordered_map<tirx::Var, tirx::Var> lhs_to_index_map_src;
-  std::unordered_map<tirx::Var, PrimExpr> rhs_to_index_map_tgt;
-  std::unordered_set<tirx::Var> unmapped_index_map_src;
+  std::unordered_map<tirx::PrimVar, tirx::PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      lhs_to_index_map_src;
+  std::unordered_map<tirx::PrimVar, PrimExpr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      rhs_to_index_map_tgt;
+  std::unordered_set<tirx::PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> unmapped_index_map_src;
   TVM_FFI_ICHECK_EQ(mapping_info->lhs_iters.size(), index_map->initial_indices.size());
   for (int i = 0; i < static_cast<int>(mapping_info->lhs_iters.size()); ++i) {
     lhs_to_index_map_src[mapping_info->lhs_iters[i]->var] = index_map->initial_indices[i];
@@ -814,50 +816,44 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
                static_cast<int>(mapping_info->rhs_iters.size());
   TVM_FFI_ICHECK_GE(offset, 0);
   for (int i = 0; i < offset; ++i) {
-    const tirx::VarNode* var_ptr = index_map->final_indices[i].as<tirx::VarNode>();
-    TVM_FFI_ICHECK(var_ptr != nullptr);
-    unmapped_index_map_src.insert(ffi::GetRef<tirx::Var>(var_ptr));
+    auto var = index_map->final_indices[i].as<tirx::PrimVar>();
+    TVM_FFI_ICHECK(var.has_value());
+    unmapped_index_map_src.insert(var.value());
   }
   for (int i = offset; i < static_cast<int>(index_map->final_indices.size()); ++i) {
     rhs_to_index_map_tgt[mapping_info->rhs_iters[i - offset]->var] = index_map->final_indices[i];
   }
 
-  auto f_get_sub_index_map = [&](const tirx::Buffer& lhs_buffer,
+  auto f_get_sub_index_map = [&](const tirx::BufferVar& lhs_buffer,
                                  const ffi::Array<Range>& lhs_region) {
-    std::vector<tirx::Var> sub_index_map_src;
+    std::vector<tirx::PrimVar> sub_index_map_src;
     std::vector<PrimExpr> sub_index_map_tgt;
-    const tirx::Buffer& rhs_buffer = mapping_info->lhs_buffer_map[lhs_buffer];
+    const tirx::BufferVar& rhs_buffer = mapping_info->lhs_buffer_map[lhs_buffer];
     for (const Range& range : lhs_region) {
       TVM_FFI_ICHECK(tirx::is_one(range->extent));
-      const tirx::VarNode* var_ptr = range->min.as<tirx::VarNode>();
-      TVM_FFI_ICHECK(var_ptr != nullptr);
-      const tirx::Var& lhs_representer = lhs_to_index_map_src[ffi::GetRef<tirx::Var>(var_ptr)];
+      auto var = range->min.as<tirx::PrimVar>();
+      TVM_FFI_ICHECK(var.has_value());
+      const tirx::PrimVar& lhs_representer = lhs_to_index_map_src[var.value()];
       sub_index_map_src.push_back(lhs_representer);
       if (unmapped_index_map_src.count(lhs_representer)) {
-        sub_index_map_tgt.push_back(lhs_representer.as_or_throw<PrimExpr>());
+        sub_index_map_tgt.push_back(lhs_representer);
       }
     }
     for (size_t i = 0; i < mapping_info->rhs_buffer_indices[rhs_buffer].size(); ++i) {
-      const tirx::VarNode* var =
-          mapping_info->rhs_buffer_indices[rhs_buffer][i].as<tirx::VarNode>();
-      TVM_FFI_ICHECK(var != nullptr);
-      sub_index_map_tgt.push_back(rhs_to_index_map_tgt[ffi::GetRef<tirx::Var>(var)]);
+      auto var = mapping_info->rhs_buffer_indices[rhs_buffer][i].as<tirx::PrimVar>();
+      TVM_FFI_ICHECK(var.has_value());
+      sub_index_map_tgt.push_back(rhs_to_index_map_tgt[var.value()]);
     }
-    ffi::Array<tirx::PrimVar> prim_sub_index_map_src;
-    prim_sub_index_map_src.reserve(sub_index_map_src.size());
-    for (const tirx::Var& var : sub_index_map_src) {
-      prim_sub_index_map_src.push_back(var.as_or_throw<tirx::PrimVar>());
-    }
-    return tirx::IndexMap(prim_sub_index_map_src, sub_index_map_tgt);
+    return tirx::IndexMap(sub_index_map_src, sub_index_map_tgt);
   };
 
-  std::unordered_set<tirx::Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> visited_buffers;
+  std::unordered_set<tirx::BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> visited_buffers;
 
-  ffi::Map<tirx::Buffer, tirx::IndexMap> buffer_sub_index_map;  // cache of the sub index map
-                                                                // associated with each buffer
+  ffi::Map<tirx::BufferVar, tirx::IndexMap> buffer_sub_index_map;  // cache of the sub index map
+                                                                   // associated with each buffer
 
   auto f_transform_buffer_layout = [&](s_tir::BufferIndexType index_type, int buffer_index) {
-    const tirx::Buffer& lhs_buffer = s_tir::GetNthAccessBuffer(
+    const tirx::BufferVar& lhs_buffer = s_tir::GetNthAccessBuffer(
         state->sch->state(), block_before_reindex, buffer_index, index_type);
     if (visited_buffers.count(lhs_buffer)) {
       return;
@@ -883,7 +879,7 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   // Transform the layout of current block and reindex blocks
   auto f_transform_reindex_block_layout = [&](const SBlockRV& block_rv,
                                               s_tir::BufferIndexType buffer_type) {
-    tirx::Buffer buffer =
+    tirx::BufferVar buffer =
         s_tir::GetNthAccessBuffer(state->sch->state(), state->sch->Get(block_rv), 0, buffer_type);
     const auto& sub_index_map = buffer_sub_index_map.at(buffer);
     state->sch->TransformBlockLayout(block_rv, sub_index_map);

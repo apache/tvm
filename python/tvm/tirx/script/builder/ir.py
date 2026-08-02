@@ -39,11 +39,12 @@ from tvm.ir import register_op_attr as _register_op_attr
 from tvm.ir.base import deprecated
 from tvm.runtime import convert
 from tvm.script.ir_builder.base import IRBuilder
+from tvm.script.ir_builder.ir import meta_var
 from tvm.target import Target
 
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-from tvm.tirx import Buffer, BufferRegion, Expr, IndexMap, type_annotation
+from tvm.tirx import Buffer, BufferRegion, Expr, IndexMap, is_buffer_var, type_annotation
 from tvm.tirx import _ffi_api as _tirx_ffi_api
 from tvm.tirx import op as _tir_op
 from tvm.tirx.exec_scope import ExecScope, ScopeIdDef, Var
@@ -89,7 +90,6 @@ from tvm.tirx.layout import (
     Layout,
     R,
     S,
-    SwizzleLayout,
     TileLayout,
     wg_local_layout,
 )
@@ -154,6 +154,9 @@ def _normalize_prim_type(dtype) -> ir.PrimType:
         ty = getattr(value, "ty", None)
         if isinstance(ty, ir.PrimType):
             return ty
+        type_annotation = getattr(value, "type_annotation", None)
+        if isinstance(type_annotation, ir.PrimType):
+            return type_annotation
     return ir.PrimType(dtype)
 
 
@@ -285,8 +288,6 @@ def buffer(
     scope: str = "global",
     align: int = 0,
     offset_factor: int = 0,
-    buffer_type: str = "",
-    axis_separators: list[int] | None = None,
     layout: str | Layout | None = "default",
     allocated_addr: int | tuple[int, ...] | None = None,
     buffer_name: str = "",
@@ -319,12 +320,6 @@ def buffer(
     offset_factor : int
         The factor of elem_offset field.
 
-    buffer_type : str
-        The buffer type.
-
-    axis_separators : List[int]
-        The separators between input axes when generating flattened output axes.
-
     buffer_name : str
         The name of the buffer.
 
@@ -352,8 +347,6 @@ def buffer(
         scope,
         align,
         offset_factor,
-        buffer_type,
-        axis_separators,
         _get_layout(layout, shape, scope),
         allocated_addr,
     )
@@ -466,8 +459,6 @@ def match_buffer(
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
-    buffer_type: str = "default",
-    axis_separators: list[int] | None = None,
     layout: str | Layout | None = "default",
 ) -> Buffer:
     """The buffer match function.
@@ -517,12 +508,6 @@ def match_buffer(
     offset_factor : int
         The factor of elem_offset field.
 
-    buffer_type : str
-        The buffer type.
-
-    axis_separators : List[int]
-        The separators between input axes when generating flattened output axes.
-
     layout: Optional[Union[str, Layout]]
         The layout of the buffer.
 
@@ -533,7 +518,7 @@ def match_buffer(
     """
     if shape is None:
         if isinstance(param, BufferRegion):
-            dtype = param.buffer.dtype
+            dtype = param.buffer.ty.dtype
             shape = [region.extent for region in param.region]
         else:
             raise ValueError("Shape must be specified when binding input param")
@@ -553,8 +538,6 @@ def match_buffer(
         scope,
         align,
         offset_factor,
-        buffer_type,
-        axis_separators,
         _get_layout(layout, shape, scope),
     )
 
@@ -809,8 +792,6 @@ def alloc_buffer(
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
-    buffer_type: str = "default",
-    axis_separators: list[int] | None = None,
     layout: str | Layout | None = "default",
     allocated_addr: int | tuple[int, ...] | None = None,
     annotations: dict[str, Any] | None = None,
@@ -844,10 +825,6 @@ def alloc_buffer(
         Alignment requirement in bytes.
     offset_factor : int
         Offset factor.
-    buffer_type : str
-        Buffer type.
-    axis_separators : Optional[List[int]]
-        Optional axis separators.
     layout : Optional[Union[str, Layout]]
         Optional layout.
     allocated_addr : Optional[Union[int, Tuple[int, ...]]]
@@ -871,8 +848,6 @@ def alloc_buffer(
         scope=scope,
         align=align,
         offset_factor=offset_factor,
-        buffer_type=buffer_type,
-        axis_separators=axis_separators,
         layout=layout,
         allocated_addr=allocated_addr,
         buffer_name="",
@@ -929,8 +904,6 @@ def sblock_alloc_buffer(
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
-    buffer_type: str = "default",
-    axis_separators: list[int] | None = None,
     layout: str | Layout | None = "default",
     allocated_addr: int | tuple[int, ...] | None = None,
 ) -> Buffer:
@@ -954,11 +927,6 @@ def sblock_alloc_buffer(
         The alignment requirement of data pointer in bytes.
     offset_factor : int
         The factor of elem_offset field.
-    buffer_type : str
-        The buffer type.
-    axis_separators : List[int]
-        The separators between input axes when generating flattened output axes.
-
     layout: Optional[Union[str, Layout]]
         The layout of the buffer.
 
@@ -978,8 +946,6 @@ def sblock_alloc_buffer(
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:
         strides = []
-    if axis_separators is None:
-        axis_separators = []
     if allocated_addr is None:
         allocated_addr = []
     if not isinstance(allocated_addr, list | tuple):
@@ -993,8 +959,6 @@ def sblock_alloc_buffer(
         scope,
         align,
         offset_factor,
-        buffer_type,
-        axis_separators,
         _get_layout(layout, shape, scope),
         allocated_addr,
     )
@@ -1471,9 +1435,11 @@ def Bind(  # pylint: disable=invalid-name
         The bound variable.
     """
     if type_annotation is not None:
-        if callable(type_annotation):
+        # Canonical Vars are callable when they denote functions.  Here a Var is
+        # already a resolved type annotation, rather than a deferred annotation factory.
+        if callable(type_annotation) and not isinstance(type_annotation, Expr):
             type_annotation = type_annotation()
-        if isinstance(type_annotation, Var):
+        if isinstance(type_annotation, ir.Var):
             type_annotation = type_annotation.ty
     return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
@@ -1510,7 +1476,7 @@ class LetAnnotation:
     def as_var(self, rhs_dtype=None):
         """Resolve to a tir.Var."""
         if self.type_spec is not None:
-            if isinstance(self.type_spec, Var):
+            if isinstance(self.type_spec, ir.Var):
                 return self.type_spec  # Already a Var (e.g. T.handle(...))
             elif callable(self.type_spec):
                 return self.type_spec()  # e.g. T.int32() -> Var
@@ -1618,7 +1584,7 @@ def attr(
         with T.attr(node, key, value):
             ...
 
-    Usage 2 — dict sugar (node defaults to ``T.int32(0)``)::
+    Usage 2 — dict sugar (node defaults to ``0``)::
 
         with T.attr({"key1": value1, "key2": value2}):
             ...
@@ -1627,7 +1593,7 @@ def attr(
     ----------
     node_or_dict : Any
         If a dict, each key-value pair becomes an AttrStmt with
-        ``node=T.int32(0)``.  Otherwise the node to annotate.
+        ``node=0``.  Otherwise the node to annotate.
 
     attr_key : str, optional
         Attribute type key (required when ``node_or_dict`` is not a dict).
@@ -1645,11 +1611,7 @@ def attr(
         for k, v in node_or_dict.items():
             if isinstance(v, bool):
                 v = IntImm("bool", v)
-            frames.append(
-                _ffi_api.Attr(  # type: ignore[attr-defined]
-                    convert(IntImm("int32", 0)), k, convert(v)
-                )
-            )
+            frames.append(_ffi_api.Attr(0, k, convert(v)))  # type: ignore[attr-defined]
         if len(frames) == 1:
             return frames[0]
         return utils._FrameScope(frames)
@@ -1695,6 +1657,11 @@ def While(condition: Expr) -> frame.WhileFrame:  # pylint: disable=invalid-name
     if isinstance(condition, bool):
         condition = IntImm("bool", condition)
     return _ffi_api.While(condition)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def Return(value: Expr) -> None:  # pylint: disable=invalid-name
+    """Create a return node."""
+    return _ffi_api.Return(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def Break() -> None:  # pylint: disable=invalid-name
@@ -1758,8 +1725,6 @@ def decl_buffer(
     scope="global",
     align=0,
     offset_factor=0,
-    buffer_type="",
-    axis_separators=None,
     layout="default",
     allocated_addr=None,
 ) -> Buffer:
@@ -1797,12 +1762,6 @@ def decl_buffer(
     offset_factor : int
         The factor of elem_offset field.
 
-    buffer_type : str
-        The buffer type.
-
-    axis_separators : List[int]
-        The separators between input axes when generating flattened output axes.
-
     layout : Layout
         The layout of the buffer.
 
@@ -1827,8 +1786,6 @@ def decl_buffer(
         scope,
         align,
         offset_factor,
-        buffer_type,
-        axis_separators,
         _get_layout(layout, shape, scope),
         allocated_addr,
     )
@@ -1852,7 +1809,7 @@ def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
 
     Sizes the per-thread storage, allocates ``local`` scope memory, and returns
     a 2-D view of shape ``tensor_shape`` with a matching ``tcgen05_atom_layout``.
-    Pass the result to ``Tx.copy_async`` (with a ``(128, W)``-shaped TMEM
+    Pass the result to ``Tx.wg.copy_async`` (with a matching TMEM
     buffer) to trigger the corresponding dispatch path.
 
     Parameters
@@ -1864,7 +1821,8 @@ def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
         per-shape per-lane register decomposition).
     tensor_shape : tuple[int, int]
         Logical fragment shape ``(frag_rows, K)`` in element units. ``frag_rows``
-        is ``128`` for ``.32x32b`` and ``64`` for the ``.16x*b`` shapes.
+        is ``128`` for ``.32x32b`` and ``64`` for the ``.16x*b`` shapes. The
+        fp32 Layout B readback image also uses ``("32x32b", (64, N))``.
     dtype : str
         ``"float32"``, ``"float16"``, or ``"bfloat16"``.
 
@@ -1878,11 +1836,16 @@ def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
     --------
     M=128 readback (existing dispatch):
         ``frag = T.alloc_tcgen05_ldst_frag("32x32b", (128, 64), "float32")``
-        ``Tx.copy_async(frag[:, :], tmem[:, 0:64])``
+        ``Tx.wg.copy_async(frag[:, :], tmem[:, 0:64])``
 
     M=64 readback (.16x64b dispatch):
         ``frag = T.alloc_tcgen05_ldst_frag("16x64b", (64, 64), "float32")``
-        ``Tx.copy_async(frag[:, :], tmem[0:64, 0:64])``
+        ``Tx.wg.copy_async(frag[:, :], tmem[0:64, 0:64])``
+
+    Datapath B readback (cta_group=2, per-CTA M=64):
+        ``C = tmem_pool.alloc((64, 128), "float32", datapath="B")``
+        ``frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, 128), "float32")``
+        ``Tx.wg.copy_async(frag[:, :], C[:, :])``
     """
     from tvm.tirx.layout import tcgen05_atom_layout  # local import to avoid cycle
 
@@ -1924,10 +1887,10 @@ def alloc_cast_frag(src, dtype):
     Buffer
         Fresh ``local`` frag, ``src.shape`` shaped, ``src.layout``, dtype-cast.
     """
-    rows, cols = src.shape
+    rows, cols = src.ty.shape
     per_thread_elems = (rows * cols) // 128
     flat = alloc_local((per_thread_elems,), dtype)
-    return flat.view(rows, cols, layout=src.layout)
+    return flat.view(rows, cols, layout=src.ty.layout)
 
 
 if TYPE_CHECKING:
@@ -2031,7 +1994,7 @@ else:
 def alloc_scalar(dtype: str = "float32", scope: str = "global") -> BufferLoad:
     """Allocate a zero-dimensional buffer (scalar)."""
     buf = alloc_buffer(shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]))
-    assert isinstance(buf, Buffer)
+    assert is_buffer_var(buf)
     scalar = buf[0]
     if _current_meta_construction_scope() is not None:
         return scalar
@@ -2049,11 +2012,9 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> Buffe
         strides=None,
         align=-1,
         offset_factor=0,
-        buffer_type="default",
-        axis_separators=None,
         layout=TileLayout(S[1]),
     )
-    assert isinstance(buf, Buffer)
+    assert is_buffer_var(buf)
     scalar = buf[0]
     if _current_meta_construction_scope() is not None:
         return scalar
@@ -2089,7 +2050,7 @@ def _meta_resource_for_value(value: Any) -> Any | None:
         return value.scalar.buffer
     if isinstance(value, BufferLoad):
         return value.buffer
-    if isinstance(value, Buffer):
+    if is_buffer_var(value):
         return value
     return None
 
@@ -2123,7 +2084,7 @@ def _name_meta_value(
         IRBuilder.name(prefix, resource)
         named_resources.append(resource)
         return
-    if isinstance(value, Var | IterVar):
+    if isinstance(value, ir.Var | IterVar):
         if owned_resources is not None:
             return
         IRBuilder.name(prefix, value)
@@ -2339,7 +2300,7 @@ def buffer_store(
                 expr_indices.append(ramp(index.start, step, lanes))
         else:
             expr_indices.append(index)
-    if isinstance(value, bool) and buffer.dtype == "bool":
+    if isinstance(value, bool) and buffer.ty.dtype == "bool":
         value = IntImm("bool", value)
     return _ffi_api.BufferStore(  # type: ignore[attr-defined] # pylint: disable=no-member
         buffer, value, expr_indices, predicate
@@ -2872,13 +2833,7 @@ def Range(begin: Expr, end: Expr) -> ir.Range:  # pylint: disable=invalid-name
 
 
 if TYPE_CHECKING:
-    T = TypeVar("T")
     C = TypeVar("C")
-
-    # When type checking (and by extension, for linters like Pylint), treat
-    # meta_var as an identity function.
-    def meta_var(x: T) -> T:
-        return x
 
     def meta_class(cls: C) -> C:
         return cls
@@ -2924,25 +2879,6 @@ else:
         """
         return _install_meta_class(cls)
 
-    class meta_var:
-        """A meta variable used in TVMScript metaprogramming.
-
-        The value does not appear in the final TIR and only exists in the parser.
-
-        Parameters
-        ----------
-        value: Any
-            The meta variable.
-        """
-
-        def __init__(self, value: Any) -> None:
-            self.value = value
-
-        def __iter__(self):
-            # Return a generator that yields wrapped items.
-            return (meta_var(i) for i in self.value)
-
-
 # pylint: disable=invalid-name
 
 
@@ -2985,19 +2921,19 @@ class WebGPUNamespace:
 
     @staticmethod
     def subgroup_shuffle(var, lane):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle", var, lane)
 
     @staticmethod
     def subgroup_shuffle_up(var, delta):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle_up", var, delta)
 
     @staticmethod
     def subgroup_shuffle_down(var, delta):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle_down", var, delta)
 
@@ -3140,7 +3076,6 @@ popcount = _op_wrapper(_tir_op.popcount)
 pow = _op_wrapper(_tir_op.pow)  # pylint: disable=redefined-builtin
 q_multiply_shift = _op_wrapper(_tir_op.q_multiply_shift)
 q_multiply_shift_per_axis = _op_wrapper(_tir_op.q_multiply_shift_per_axis)
-ret = _op_wrapper(_tir_op.ret)
 continue_loop = _op_wrapper(_tir_op.continue_loop)
 break_loop = _op_wrapper(_tir_op.break_loop)
 round = _op_wrapper(_tir_op.round)  # pylint: disable=redefined-builtin
@@ -3379,6 +3314,7 @@ __all__ = [
     "attr",
     "hint",
     "While",
+    "Return",
     "Break",
     "Continue",
     "If",
@@ -3454,7 +3390,6 @@ __all__ = [
     "pow",
     "q_multiply_shift",
     "q_multiply_shift_per_axis",
-    "ret",
     "continue_loop",
     "break_loop",
     "reinterpret",
@@ -3592,7 +3527,6 @@ __all__ += [
     "R",
     "S",
     "ScopeIdDef",
-    "SwizzleLayout",
     "TensorMap",
     "TileLayout",
     "Var",

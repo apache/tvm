@@ -143,8 +143,8 @@ ScopeBlockLoopInfo GetScopeBlockLoopInfo(const SBlock& scope_block) {
           vars = &result.non_spatial_vars;
         }
         PostOrderVisit(iter_value, [vars](const ffi::ObjectRef& obj) {
-          if (const VarNode* var = obj.as<VarNode>()) {
-            vars->insert(var);
+          if (auto var = obj.as<PrimVar>()) {
+            vars->insert(var.value().get());
           }
         });
       }
@@ -181,7 +181,7 @@ void CheckSRefHigherOrEqual(const StmtSRef& sref_a, const StmtSRef& sref_b) {
  */
 bool IsDominantBlock(const ScheduleState& self, const StmtSRef& scope_root_sref,
                      const StmtSRef& block_sref) {
-  std::unordered_map<Buffer, ffi::Array<StmtSRef>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<BufferVar, ffi::Array<StmtSRef>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       buffer_writers;
   CheckSRefHigherOrEqual(scope_root_sref, block_sref);
   const SBlockNode* maybe_root_block = scope_root_sref->StmtAs<SBlockNode>();
@@ -234,7 +234,7 @@ int CheckCompleteBlockErrorCode(const ScheduleState& self, const StmtSRef& block
     return 2;
   }
   // Cond 3. No overlap between the buffers the block reads and writes
-  std::unordered_set<const BufferNode*> written_buffers;
+  std::unordered_set<const VarNode*> written_buffers;
   written_buffers.reserve(block->writes.size());
   for (const BufferRegion& write : block->writes) {
     written_buffers.insert(write->buffer.get());
@@ -484,9 +484,9 @@ bool IsOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
                    const StmtSRef& scope_root_sref) {
   const SBlockNode* scope_root = TVM_SREF_TO_SBLOCK(scope_root_sref);
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  std::unordered_set<const BufferNode*> scope_allocated;
+  std::unordered_set<const VarNode*> scope_allocated;
   scope_allocated.reserve(scope_root->alloc_buffers.size());
-  for (const Buffer& buffer : scope_root->alloc_buffers) {
+  for (const BufferVar& buffer : scope_root->alloc_buffers) {
     scope_allocated.insert(buffer.get());
   }
   for (const BufferRegion& buffer_region : block->writes) {
@@ -560,9 +560,13 @@ bool IsAffineBinding(const SBlockRealize& realize, const ffi::Map<Var, Range>& l
   if (loop_var_ranges.empty()) {
     return true;
   }
+  ffi::Map<PrimVar, Range> primitive_loop_var_ranges;
+  for (const auto& [var, range] : loop_var_ranges) {
+    primitive_loop_var_ranges.Set(var.as_or_throw<PrimVar>(), range);
+  }
   auto res = arith::DetectIterMap(
       /*indices=*/realize->iter_values,
-      /*input_iters=*/loop_var_ranges,
+      /*input_iters=*/primitive_loop_var_ranges,
       /*predicate=*/realize->predicate,
       /*check_level=*/arith::IterMapLevel::Surjective,
       /*analyzer=*/ffi::GetRef<arith::Analyzer>(analyzer),
@@ -1259,13 +1263,13 @@ BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& b
   return access_region[n];
 }
 
-Buffer GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
-                          BufferIndexType index_type) {
+BufferVar GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
+                             BufferIndexType index_type) {
   return GetNthAccessBufferRegion(self, block, n, index_type)->buffer;
 }
 
 std::pair<ffi::Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
-                                                               const Buffer& buffer) {
+                                                               const BufferVar& buffer) {
   // Climb up along the sref tree, and find the block where `buffer` is in alloc_buffers or
   // match_buffers.
   const StmtSRefNode* defining_site_sref = block_sref.get();
@@ -1277,7 +1281,7 @@ std::pair<ffi::Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& b
       continue;
     }
     // Try to find the buffer in `allloc_buffers`
-    for (const Buffer& alloc_buffer : block->alloc_buffers) {
+    for (const BufferVar& alloc_buffer : block->alloc_buffers) {
       if (buffer.same_as(alloc_buffer)) {
         return {ffi::GetRef<StmtSRef>(defining_site_sref), true};
       }
@@ -1311,7 +1315,7 @@ void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
   }
   const PrimFuncNode* f = GetRootPrimFunc(state->mod, sref->stmt, nullptr);
   for (const auto& kv : f->buffer_map) {
-    const Buffer& buffer = kv.second;
+    const BufferVar& buffer = kv.second;
     for (const PrimExpr& e : buffer->shape) {
       analyzer->MarkGlobalNonNegValue(e);
     }
@@ -1387,8 +1391,8 @@ AnalyzeReadWritePattern(const BufferRegion& read_region, const BufferRegion& wri
     if (as_const_int(dom->extent) == nullptr) {
       return kNotExist;
     }
-    if (const auto* v = dom->min.as<VarNode>()) {
-      var2idx.emplace(v, i);
+    if (auto var = dom->min.as<PrimVar>()) {
+      var2idx.emplace(var.value().get(), i);
     } else {
       return kNotExist;
     }
@@ -1524,7 +1528,7 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
       !IsTrivialBinding(self, block_sref)) {
     return false;
   }
-  const BufferNode* write_buffer = block->writes[0]->buffer.get();
+  const VarNode* write_buffer = block->writes[0]->buffer.get();
   // Step 1. Sort out spatial block variables. Skip the block iters of domain [0, 1), since such
   // block iters distracts the following check of the unused block iters.
   std::vector<const VarNode*> spatial_block_vars;
@@ -1541,10 +1545,10 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
   // Step 2. Enumerate each read region, check the number of block vars that are not used
   // to index the read region
   int total_unused_block_vars = 0;
-  std::unordered_set<const BufferNode*> read_buffers;
+  std::unordered_set<const VarNode*> read_buffers;
   read_buffers.reserve(block->reads.size());
   for (const BufferRegion& buffer_region : block->reads) {
-    const BufferNode* buffer = buffer_region->buffer.get();
+    const VarNode* buffer = buffer_region->buffer.get();
     const ffi::Array<Range>& regions = buffer_region->region;
     // Step 2.1. Duplication of read buffers are not allowed
     if (read_buffers.insert(buffer).second == false) {
@@ -1969,13 +1973,13 @@ class AutoTensorizeMappingProposer {
     using BufferMask = std::vector<bool>;
 
     // Step 1: Assign an index to each buffer in LHS and RHS
-    std::unordered_map<Buffer, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> rhs_buffer_index;
-    std::unordered_map<Buffer, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> lhs_buffer_index;
+    std::unordered_map<BufferVar, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> rhs_buffer_index;
+    std::unordered_map<BufferVar, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> lhs_buffer_index;
     {
       int i = 0;
       for (const auto& kv : extractor_->rhs_buffer_map_) {
-        const Buffer& rhs_buffer = kv.first;
-        const Buffer& lhs_buffer = kv.second;
+        const BufferVar& rhs_buffer = kv.first;
+        const BufferVar& lhs_buffer = kv.second;
         rhs_buffer_index[rhs_buffer] = i;
         lhs_buffer_index[lhs_buffer] = i;
         ++i;
@@ -1996,10 +2000,10 @@ class AutoTensorizeMappingProposer {
     };
 
     for (const auto& it : extractor_->rhs_buffer_indices_map_) {
-      const Buffer& rhs_buffer = it.first;
+      const BufferVar& rhs_buffer = it.first;
       for (const PrimExpr& rhs_index : it.second) {
-        if (const VarNode* var_node = rhs_index.as<VarNode>()) {
-          update_mask(var_node, &rhs_buffer_masks, rhs_buffer_index.at(rhs_buffer));
+        if (auto var = rhs_index.as<PrimVar>()) {
+          update_mask(var.value().get(), &rhs_buffer_masks, rhs_buffer_index.at(rhs_buffer));
         } else {
           TVM_FFI_THROW(ValueError)
               << "Buffer index " << rhs_index
@@ -2009,11 +2013,11 @@ class AutoTensorizeMappingProposer {
 
       auto lhs_buffer_it = extractor_->rhs_buffer_map_.find(rhs_buffer);
       TVM_FFI_ICHECK(lhs_buffer_it != extractor_->rhs_buffer_map_.end());
-      const Buffer& lhs_buffer = lhs_buffer_it->second;
+      const BufferVar& lhs_buffer = lhs_buffer_it->second;
       for (const PrimExpr& index : extractor_->lhs_buffer_indices_map_.at(lhs_buffer)) {
         PreOrderVisit(index, [&](const ffi::ObjectRef& obj) -> bool {
-          if (const VarNode* var = obj.as<VarNode>()) {
-            update_mask(var, &lhs_buffer_masks, lhs_buffer_index.at(lhs_buffer));
+          if (auto var = obj.as<PrimVar>()) {
+            update_mask(var.value().get(), &lhs_buffer_masks, lhs_buffer_index.at(lhs_buffer));
           }
           return true;
         });

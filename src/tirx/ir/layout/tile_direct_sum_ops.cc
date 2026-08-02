@@ -201,18 +201,38 @@ ffi::Optional<Layout> TileLayoutNode::IsDirectSumLeft(
 
 Layout ComposeLayoutNode::DirectSum(const TileLayout& left, const Array<PrimExpr>& left_shape,
                                     const Array<PrimExpr>& right_shape) const {
-  // Direct-sum applies to the tile layout then compose with swizzle.
-  auto right_sum = tile_layout->DirectSum(left, left_shape, right_shape).as<TileLayout>().value();
-  return ComposeLayout(swizzle, right_sum);
+  // A bare swizzle (ComposeLayout with a trivial tile) carries only the swizzle
+  // period, not a tile matching `right_shape`; substitute an identity tile over
+  // the right shape first, matching the former SwizzleLayoutNode::DirectSum.
+  TileLayout base = this->tile_layout;
+  if (base->IsTrivial()) {
+    base = IdentityTileLayout(right_shape);
+  }
+  auto right_sum = base->DirectSum(left, left_shape, right_shape).as<TileLayout>().value();
+  return ComposeLayout(per_element, swizzle_len, atom_len, right_sum, swizzle_inner);
 }
 
 ffi::Optional<TileLayout> ComposeLayoutNode::IsDirectSumRight(
     const Layout& sum_layout, const ffi::Array<PrimExpr>& interleaved_shape,
     const ffi::Array<PrimExpr>& right_shape) const {
   if (auto comp = sum_layout.as<ComposeLayout>()) {
-    if (StructuralEqual()(comp.value()->swizzle, this->swizzle)) {
-      return this->tile_layout->IsDirectSumRight(comp.value()->tile_layout, interleaved_shape,
-                                                 right_shape);
+    if (comp.value()->per_element == this->per_element &&
+        comp.value()->swizzle_len == this->swizzle_len &&
+        comp.value()->atom_len == this->atom_len &&
+        comp.value()->swizzle_inner == this->swizzle_inner) {
+      // A bare swizzle (ComposeLayout with a trivial tile) carries only the swizzle
+      // period; substitute identity tiles so TileLayoutNode::IsDirectSumRight sees
+      // the same inputs the forward DirectSum produced (and the former SwizzleLayout
+      // path intended), instead of grouping the period tile against the full shape.
+      TileLayout this_tile = this->tile_layout;
+      if (this->tile_layout->IsTrivial()) {
+        this_tile = IdentityTileLayout(right_shape);
+      }
+      TileLayout sum_tile = comp.value()->tile_layout;
+      if (comp.value()->tile_layout->IsTrivial()) {
+        sum_tile = IdentityTileLayout(interleaved_shape);
+      }
+      return this_tile->IsDirectSumRight(sum_tile, interleaved_shape, right_shape);
     }
   }
   return std::nullopt;
@@ -222,39 +242,23 @@ ffi::Optional<Layout> ComposeLayoutNode::IsDirectSumLeft(
     const Layout& sum_layout, const ffi::Array<PrimExpr>& interleaved_shape,
     const ffi::Array<PrimExpr>& left_shape) const {
   if (auto comp = sum_layout.as<ComposeLayout>()) {
-    if (StructuralEqual()(comp.value()->swizzle, this->swizzle)) {
-      return this->tile_layout->IsDirectSumLeft(comp.value()->tile_layout, interleaved_shape,
-                                                left_shape);
-    }
-  }
-  return std::nullopt;
-}
-
-Layout SwizzleLayoutNode::DirectSum(const TileLayout& left, const Array<PrimExpr>& left_shape,
-                                    const Array<PrimExpr>& right_shape) const {
-  // Compose(Swizzle, Identity(right_shape)) then direct-sum with left.
-  auto comp = ComposeLayout(ffi::GetRef<SwizzleLayout>(this), IdentityTileLayout(right_shape));
-  return comp->DirectSum(left, left_shape, right_shape);
-}
-
-ffi::Optional<TileLayout> SwizzleLayoutNode::IsDirectSumRight(
-    const Layout& sum_layout, const ffi::Array<PrimExpr>& interleaved_shape,
-    const ffi::Array<PrimExpr>& right_shape) const {
-  if (auto comp = sum_layout.as<ComposeLayout>()) {
-    if (StructuralEqual()(comp.value()->swizzle, ffi::GetRef<SwizzleLayout>(this))) {
-      return comp.value()->tile_layout->IsDirectSumRight(sum_layout, interleaved_shape,
-                                                         right_shape);
-    }
-  }
-  return std::nullopt;
-}
-
-ffi::Optional<Layout> SwizzleLayoutNode::IsDirectSumLeft(
-    const Layout& sum_layout, const ffi::Array<PrimExpr>& interleaved_shape,
-    const ffi::Array<PrimExpr>& left_shape) const {
-  if (auto comp = sum_layout.as<ComposeLayout>()) {
-    if (StructuralEqual()(comp.value()->swizzle, ffi::GetRef<SwizzleLayout>(this))) {
-      return comp.value()->tile_layout->IsDirectSumLeft(sum_layout, interleaved_shape, left_shape);
+    if (comp.value()->per_element == this->per_element &&
+        comp.value()->swizzle_len == this->swizzle_len &&
+        comp.value()->atom_len == this->atom_len &&
+        comp.value()->swizzle_inner == this->swizzle_inner) {
+      // A bare swizzle (ComposeLayout with a trivial tile) carries only the swizzle
+      // period; substitute identity tiles so TileLayoutNode::IsDirectSumLeft sees
+      // the same inputs the forward DirectSum produced (and the former SwizzleLayout
+      // path intended), instead of grouping the period tile against the full shape.
+      TileLayout this_tile = this->tile_layout;
+      if (this->tile_layout->IsTrivial()) {
+        this_tile = IdentityTileLayout(left_shape);
+      }
+      TileLayout sum_tile = comp.value()->tile_layout;
+      if (comp.value()->tile_layout->IsTrivial()) {
+        sum_tile = IdentityTileLayout(interleaved_shape);
+      }
+      return this_tile->IsDirectSumLeft(sum_tile, interleaved_shape, left_shape);
     }
   }
   return std::nullopt;

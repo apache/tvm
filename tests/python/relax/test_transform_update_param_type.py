@@ -43,7 +43,7 @@ class Base:
 
 class TestSimple(Base):
     def update_ty(self, var: relax.Var) -> relax.Type | None:
-        if var.name_hint == "weight":
+        if var.name == "weight":
             return relax.TensorType([64, 16], "float32")
 
     @I.ir_module

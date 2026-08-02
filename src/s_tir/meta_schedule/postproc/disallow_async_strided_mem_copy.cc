@@ -77,10 +77,10 @@ struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
         }
 
         // get store buffer; assert it exists and is contiguous given it uses a single index
-        auto bufferstore = bufferstorenode->buffer.as<BufferNode>();
+        auto bufferstore = bufferstorenode->buffer.as<BufferTypeNode>();
 
         // get load buffer; assert it exists and is contiguous given it uses a single index
-        auto bufferload = bufferloadnode->buffer.as<BufferNode>();
+        auto bufferload = bufferloadnode->buffer.as<BufferTypeNode>();
 
         if (!bufferstore || !bufferload) {
           StmtExprVisitor::VisitStmt_(attrStmt);
@@ -114,7 +114,7 @@ struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
   }
 
   bool found_ = false;
-  ffi::Map<Var, Range> input_iters = ffi::Map<Var, Range>();
+  ffi::Map<PrimVar, Range> input_iters = ffi::Map<PrimVar, Range>();
 };
 
 }  // namespace s_tir

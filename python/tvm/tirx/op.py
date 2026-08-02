@@ -24,13 +24,13 @@ from tvm_ffi import Array
 
 import tvm
 from tvm import tirx
-from tvm.ir import Call, Expr, Op, PointerType
+from tvm.ir import Call, Expr, Op, PointerType, PrimType
 from tvm.ir.base import Span
 from tvm.ir.type import TensorMapType
 from tvm.runtime import const
 
 from . import _ffi_api
-from .buffer import Buffer
+from .buffer import Buffer, buffer_data, is_buffer_var
 from .expr import BufferLoad, CommReducer, ExprOp, ExprWithOp, IntImm, Var
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
@@ -59,6 +59,8 @@ def _canonical_device_intrin_name(func_name: str) -> str:
 
 def _primexpr_ty(expr):
     """Return the runtime primitive type of an expression."""
+    if isinstance(expr, tvm.ir.PrimType):
+        return expr
     ty = getattr(expr, "ty", None)
     if isinstance(ty, tvm.ir.PrimType):
         return ty
@@ -79,27 +81,27 @@ def _pack_buffer(buf, span=None):
     """Build intrinsics that packs the buffer."""
     shape = Call(
         "tirx.tvm_stack_make_shape",
-        buf.shape,
+        buf.ty.shape,
         span=span,
         ret_ty=PointerType(tvm.ir.PrimType("int64")),
     )
     strides = (
         Call(
             "tirx.tvm_stack_make_shape",
-            buf.strides,
+            buf.ty.strides,
             span=span,
             ret_ty=PointerType(tvm.ir.PrimType("int64")),
         )
-        if buf.strides
+        if buf.ty.strides
         else 0
     )
     pack_args = [
-        buf.data,
+        buffer_data(buf),
         shape,
         strides,
-        len(buf.shape),
-        const(0, dtype=buf.dtype),
-        buf.elem_offset,
+        len(buf.ty.shape),
+        const(0, dtype=buf.ty.dtype),
+        buf.ty.elem_offset,
     ]
     return Call(Op.get("tirx.tvm_stack_make_array"), pack_args, span=span, ret_ty="handle")
 
@@ -129,7 +131,7 @@ def call_packed_lowered(*args, span=None):
     --------
     te.extern : Create tensor with extern function call.
     """
-    call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
+    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
     return Call(Op.get("tirx.tvm_call_packed_lowered"), call_args, span=span, ret_ty="int32")
 
 
@@ -155,7 +157,7 @@ def call_cpacked_lowered(*args, span=None):
     --------
     te.extern : Create tensor with extern function call.
     """
-    call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
+    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
     return Call(Op.get("tirx.tvm_call_cpacked_lowered"), call_args, span=span, ret_ty="int32")
 
 
@@ -186,7 +188,7 @@ def call_packed(*args, span=None):
     --------
     te.extern : Create tensor with extern function call.
     """
-    call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
+    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
     return Call(Op.get("tirx.tvm_call_packed"), call_args, span=span, ret_ty="int32")
 
 
@@ -213,7 +215,7 @@ def call_cpacked(*args, span=None):
     --------
     te.extern : Create tensor with extern function call.
     """
-    call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
+    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
     return Call(Op.get("tirx.tvm_call_cpacked"), call_args, span=span, ret_ty="int32")
 
 
@@ -658,6 +660,11 @@ def _is_tensormap_var(obj: Var) -> bool:
     return isinstance(obj.ty, PointerType) and isinstance(obj.ty.element_type, TensorMapType)
 
 
+def _buffer_element_pointer_type(buffer: Buffer) -> PointerType:
+    """Return a pointer to ``buffer`` elements in the buffer's storage scope."""
+    return PointerType(buffer.ty.dtype, buffer.ty.storage_scope)
+
+
 def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Expr:
     """Returns the address of a buffer element or addressable variable.
 
@@ -674,10 +681,15 @@ def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Expr
     call : Expr
         The call expression.
     """
-    if isinstance(obj, Buffer):
-        n_dim = len(obj.shape)
+    if is_buffer_var(obj):
+        n_dim = len(obj.ty.shape)
         buffer_load = BufferLoad(obj, [0] * n_dim)
-        return Call("tirx.address_of", [buffer_load], span=span, ret_ty=obj.data.ty)
+        return Call(
+            "tirx.address_of",
+            [buffer_load],
+            span=span,
+            ret_ty=_buffer_element_pointer_type(obj),
+        )
     elif isinstance(obj, Var):
         if _is_tensormap_var(obj):
             return call_intrin("uint64", "tirx.address_of", obj, span=span)
@@ -685,7 +697,12 @@ def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Expr
             raise TypeError(f"address_of expects a scalar or TensorMap Var, but got {obj.ty}")
         return Call("tirx.address_of", [obj], span=span, ret_ty=PointerType(obj.ty))
     elif isinstance(obj, BufferLoad):
-        return Call("tirx.address_of", [obj], span=span, ret_ty=obj.buffer.data.ty)
+        return Call(
+            "tirx.address_of",
+            [obj],
+            span=span,
+            ret_ty=_buffer_element_pointer_type(obj.buffer),
+        )
     else:
         raise ValueError(f"Invalid object type: {type(obj)}")
 
@@ -918,11 +935,11 @@ def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
 
     Parameters
     ----------
-    ptype : Expr or str
-        The data type of pointer. If a ``str``, it is wrapped via
-        :func:`type_annotation` so that the lowering rule (which reads
-        ``args[0].dtype()`` for the cast type) sees the intended dtype
-        instead of ``void`` from a raw StringImm.
+    ptype : Expr, PrimType, or str
+        The data type of pointer. If a ``PrimType`` or ``str``, it is wrapped
+        via :func:`type_annotation` so that the lowering rule (which reads
+        ``args[0].dtype()`` for the cast type) sees the intended dtype instead
+        of ``void`` from a raw StringImm.
 
     data : DType*
         The data of pointer.
@@ -941,7 +958,7 @@ def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
     call : Expr
         The call expression.
     """
-    if isinstance(ptype, str):
+    if isinstance(ptype, str | PrimType):
         ptype = type_annotation(ptype)
     data_type = getattr(data, "ty", None)
     storage_scope = data_type.storage_scope if isinstance(data_type, PointerType) else "global"
@@ -962,7 +979,7 @@ def ptr_byte_offset(data, byte_offset, dtype):
     ``byte_offset`` is always in bytes.  Use this when the source CUDA shape
     needs an explicitly typed local pointer derived from a byte-addressed base.
     """
-    if isinstance(dtype, str):
+    if isinstance(dtype, str | PrimType):
         dtype = type_annotation(dtype)
     data_type = getattr(data, "ty", None)
     storage_scope = data_type.storage_scope if isinstance(data_type, PointerType) else "global"
@@ -1182,27 +1199,6 @@ def dp4a(vec1, vec2, acc=0):
     return call_intrin("int32", "tirx.dp4a", vec1, vec2, acc)
 
 
-def ret(val, span=None):
-    """Create a tir return expression
-
-    Parameters
-    ----------
-    val : Expr
-        The returned tir expression, whose data type is int, float or void pointer.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    ret : Expr
-        The return expression
-    """
-    if not isinstance(val, Expr):
-        val = tirx.convert(val)
-    return Call(Op.get("tirx.ret"), [val], span=span, ret_ty=val.ty)
-
-
 def any(*args, span=None):
     """Create a new experssion of the union of all conditions in the arguments
 
@@ -1288,7 +1284,7 @@ def trace(args, trace_action="tvm.default_trace_action"):
     """
     if not isinstance(args, list):
         raise Exception("tvm.tirx.trace consumes the args as list type")
-    call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
+    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
     call_args.insert(0, tvm.tirx.StringImm(trace_action))
     tracing_value = args[-1]
     ret_ty = tracing_value.ty if isinstance(tracing_value, Expr) else tracing_value.dtype

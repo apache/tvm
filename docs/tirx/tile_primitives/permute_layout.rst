@@ -25,7 +25,7 @@ back under the destination layout, with a per-lane **XOR swizzle** on the iterat
 index chosen so that *both* the read and the write phase are shared-memory
 bank-conflict-free. A ``warp_sync`` separates the two phases so the op is safe even
 when source and destination alias. Source:
-``python/tvm/backend/cuda/operator/tile_primitive/permute_layout/warp_xor_swizzle.py``.
+``python/tvm/backend/cuda/tile_primitive/permute_layout/warp_xor_swizzle.py``.
 
 What it accepts
 ---------------

@@ -22,7 +22,7 @@ The ``fallback`` variant is the **priority-0 catch-all**: a scalar, single-threa
 copy that runs only when every faster variant (:doc:`gmem_smem`, :doc:`reg`,
 :doc:`ldstmatrix`) has declined. It always works — for any valid copy at any scope
 — and is intentionally slow, so it emits a ``UserWarning`` when chosen. Source:
-``python/tvm/backend/cuda/operator/tile_primitive/copy/fallback.py``.
+``python/tvm/backend/cuda/tile_primitive/copy/fallback.py``.
 
 What it accepts
 ---------------

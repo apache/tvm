@@ -26,6 +26,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
@@ -50,7 +51,7 @@ class BoundCollector : public StmtVisitor {
   BoundCollector() {}
 
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tirx::attr::buffer_bound) {
+    if (op->attr_key == s_tir::attr::buffer_bound) {
       const VarNode* key = op->node.as<VarNode>();
       const CallNode* container = op->value.as<CallNode>();
       if (key && container) {
@@ -71,8 +72,8 @@ class BoundChecker : public StmtExprMutator {
       : mem_to_shape_(mem_to_shape) {}
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    if (UpdateIsNeeded(op->buffer->data)) {
-      Update(op->buffer->data, op->buffer->shape, op->buffer->dtype);
+    if (UpdateIsNeeded(op->buffer.var())) {
+      Update(op->buffer.var(), op->buffer->shape, op->buffer->dtype);
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -90,8 +91,8 @@ class BoundChecker : public StmtExprMutator {
     unsafe_rewritten_ = false;
     StmtExprMutator::VisitStmt_(op);
     process_store_ = false;
-    if (CanInstrument(op->indices, op->buffer->data)) {
-      Collect(op->indices, op->buffer->data);
+    if (CanInstrument(op->indices, op->buffer.var())) {
+      Collect(op->indices, op->buffer.var());
     }
     // The collector should has at least one item.
     if (store_scope_bound_collector_.size()) {
@@ -108,8 +109,8 @@ class BoundChecker : public StmtExprMutator {
   }
 
   Expr VisitExpr_(const BufferLoadNode* op) final {
-    if (CanInstrument(op->indices, op->buffer->data)) {
-      Collect(op->indices, op->buffer->data);
+    if (CanInstrument(op->indices, op->buffer.var())) {
+      Collect(op->indices, op->buffer.var());
     }
     return StmtExprMutator::VisitExpr_(op);
   }

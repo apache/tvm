@@ -1901,6 +1901,15 @@ def test_thread_broadcast_rewrite_2():
     _check(thread_broadcast_2, lowered_thread_broadcast_2)
 
 
+def test_thread_broadcast_rewrite_2_full_pipeline():
+    target_host = "llvm" if tvm.runtime.enabled("llvm") else "c"
+    target = tvm.target.Target("cuda").with_host(target_host)
+    mod = tvm.IRModule.from_expr(thread_broadcast_2.with_attr("global_symbol", "main"))
+    mod = tvm.tirx.transform.BindTarget(target)(mod)
+    pipeline, _, _ = tvm.tirx.get_tir_pipeline("s_tir")
+    pipeline(mod)
+
+
 def test_no_thread_broadcast_rewrite():
     _check(no_thread_broadcast, lowered_no_thread_broadcast)
 

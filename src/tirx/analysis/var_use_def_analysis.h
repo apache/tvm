@@ -45,12 +45,12 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
   // be accessible to the users.
   bool visit_thread_extent_{true};
   ffi::Array<Var> undefined_;
-  ffi::Array<Buffer> undefined_buffers_;
+  ffi::Array<BufferVar> undefined_buffers_;
 
   std::unordered_map<const VarNode*, int> use_count_;
   std::unordered_map<const VarNode*, int> def_count_;
-  std::unordered_map<const BufferNode*, int> buffer_use_count_;
-  std::unordered_map<const BufferNode*, int> buffer_def_count_;
+  std::unordered_map<const VarNode*, int> buffer_use_count_;
+  std::unordered_map<const VarNode*, int> buffer_def_count_;
 
  private:
   ExprDeepEqual deep_equal_;
@@ -72,16 +72,14 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
   // Piggyback on base class VisitBufferDef/VisitBufferUse to handle buffer
   // def/use tracking. Base class calls these from AllocBuffer, DeclBuffer,
   // BufferStore, BufferLoad, and SBlock visitors.
-  void VisitBufferDef(const Buffer& buffer, bool alloc_data) final;
-  void VisitBufferUse(const Buffer& buffer) final;
+  void VisitBufferDef(const BufferVar& buffer, bool alloc_data) final;
+  void VisitBufferUse(const BufferVar& buffer) final;
 
   void HandleDef(const Var& v);
   void HandleUse(const Var& v);
 
-  void HandleDef(const Buffer& buf);
-  void HandleUse(const Buffer& buf);
-
-  void VisitBuffer(const Buffer& buffer);
+  void HandleDef(const BufferVar& buf);
+  void HandleUse(const BufferVar& buf);
 };
 
 }  // namespace tirx

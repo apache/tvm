@@ -62,7 +62,7 @@ def test_vthread():
 
     tvm.tirx.stmt_functor.post_order_visit(stmt.body, find_allocates)
     assert len(allocates) == 1
-    assert list(allocates[0].buffer.shape) == [B_expected_alloc]
+    assert list(allocates[0].buffer.ty.shape) == [B_expected_alloc]
 
 
 def test_vthread_extern():
@@ -112,7 +112,7 @@ def test_vthread_extern():
     tvm.tirx.stmt_functor.post_order_visit(stmt.body, find_allocates)
     assert len(allocates) == 3
     # Check that we have the expected extents (order may vary)
-    extents = sorted([int(a.buffer.shape[0]) for a in allocates])
+    extents = sorted([int(a.buffer.ty.shape[0]) for a in allocates])
     assert extents == sorted([A_expected_alloc, A_expected_alloc, C_expected_alloc])
 
 
@@ -167,16 +167,15 @@ def test_vthread_simplified():
         B = T.alloc_buffer((4,), "int32", scope="shared")
         B[0:4] = T.broadcast(vthread, 4)
 
-    @T.prim_func(check_well_formed=False, s_tir=True)
+    @T.prim_func(s_tir=True)
     def expected_func():
         B = T.alloc_buffer((16,), "int32", scope="shared")
-        B_1 = T.Buffer([16], "int32", data=B.data, scope="shared")
         # The indices for B should each be a single Ramp node, and
         # should not be the sum of a Ramp and Broadcast node.
-        B_1[T.Mul(0, 4) : T.Mul(0, 4) + 4] = T.broadcast(0, 4)
-        B_1[T.Mul(1, 4) : T.Mul(1, 4) + 4] = T.broadcast(1, 4)
-        B_1[T.Mul(2, 4) : T.Mul(2, 4) + 4] = T.broadcast(2, 4)
-        B_1[T.Mul(3, 4) : T.Mul(3, 4) + 4] = T.broadcast(3, 4)
+        B[T.Mul(0, 4) : T.Mul(0, 4) + 4] = T.broadcast(0, 4)
+        B[T.Mul(1, 4) : T.Mul(1, 4) + 4] = T.broadcast(1, 4)
+        B[T.Mul(2, 4) : T.Mul(2, 4) + 4] = T.broadcast(2, 4)
+        B[T.Mul(3, 4) : T.Mul(3, 4) + 4] = T.broadcast(3, 4)
 
     before_mod = tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
     after_mod = tvm.s_tir.transform.InjectVirtualThread()(before_mod)
@@ -210,8 +209,8 @@ def test_vthread_vectorized():
 
     tvm.tirx.stmt_functor.post_order_visit(after_func.body, visitor)
     assert allocate_node is not None
-    assert list(allocate_node.buffer.shape) == [4]
-    assert allocate_node.buffer.dtype == "int32x4"
+    assert list(allocate_node.buffer.ty.shape) == [4]
+    assert allocate_node.buffer.ty.dtype == "int32x4"
 
 
 if __name__ == "__main__":

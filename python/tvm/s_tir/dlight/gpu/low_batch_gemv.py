@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E741, F821
+# ruff: noqa: E741
 """A rule for low-batch GEMM / decode-GEMM using GEMV schedule."""
 
 from functools import reduce

@@ -911,11 +911,6 @@ def test_loop_aware_reducer_combiner():
     _check_workload(te_workload, tir_workload)
 
 
-@pytest.mark.xfail(
-    reason="const-int-bound fix (apache/tvm#19978) simplifies the adaptive "
-    "pool window extent; the expected IR below still encodes the old "
-    "(pre-fix) T.Select form and needs updating as a followup"
-)
 def test_adaptive_pooling_window():
     @T.prim_func(s_tir=True)
     def tir_workload(
@@ -926,11 +921,11 @@ def test_adaptive_pooling_window():
         # fmt: off
         adaptive_pool_sum = T.sblock_alloc_buffer((1, 1024, 12, 30))
         for ax0, ax1, ax2, ax3 in T.grid(1, 1024, 12, 30):
-            with T.sblock("adaptive_pool_sum_1"):
+            with T.sblock("adaptive_pool_sum_l1"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(x[v_ax0, v_ax1, v_ax2 * 16 // 12:v_ax2 * 16 // 12 + ((v_ax2 % 3 * 4 + 16) // 12 + 1), v_ax3 * 40 // 30:v_ax3 * 40 // 30 + ((v_ax3 % 3 * 10 + 40) // 30 + 1)])
                 T.writes(adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
-                for rv0, rv1 in T.grid((v_ax2 % 3 * 4 + 16) // 12 + 1, (v_ax3 % 3 * 10 + 40) // 30 + 1):
+                for rv0, rv1 in T.grid(T.Select((v_ax2 * 16 + 4) % 12 == 0, (v_ax2 * 16 + 16) // 12, (v_ax2 * 16 + 16) // 12 + 1) - v_ax2 * 16 // 12, T.Select((v_ax3 * 40 + 10) % 30 == 0, (v_ax3 * 40 + 40) // 30, (v_ax3 * 40 + 40) // 30 + 1) - v_ax3 * 40 // 30):
                     with T.sblock("adaptive_pool_sum"):
                         v_ax0_1 = T.axis.spatial((v_ax0, v_ax0 + 1), v_ax0)
                         v_ax1_1 = T.axis.spatial((v_ax1, v_ax1 + 1), v_ax1)
@@ -948,7 +943,7 @@ def test_adaptive_pooling_window():
                 T.reads(adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
                 T.writes(adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3])
                 T.sblock_attr({"schedule_rule": "meta_schedule.adaptive_pool_avg"})
-                adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / (T.Cast("float32", (v_ax2 % 3 * 4 + 16) // 12 + 1) * T.Cast("float32", (v_ax3 % 3 * 10 + 40) // 30 + 1))
+                adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / (T.Cast("float32", T.Select((v_ax2 * 16 + 4) % 12 == 0, (v_ax2 * 16 + 16) // 12, (v_ax2 * 16 + 16) // 12 + 1) - v_ax2 * 16 // 12) * T.Cast("float32", T.Select((v_ax3 * 40 + 10) % 30 == 0, (v_ax3 * 40 + 40) // 30, (v_ax3 * 40 + 40) // 30 + 1) - v_ax3 * 40 // 30))
         # fmt: on
 
     def te_workload():

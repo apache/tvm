@@ -37,21 +37,21 @@ import pytest
 
 import tvm
 from tvm.tirx import Var as _TirVar
-from tvm.tirx.cuda.operator.tile_primitive.copy._swizzle_iter import (
+from tvm.tirx.cuda.tile_primitive.copy._swizzle_iter import (
     get_swizzle,
     try_recognize,
 )
 from tvm.tirx.expr import IntImm as _IntImm
-from tvm.tirx.layout import ComposeLayout, S, SwizzleLayout, TileLayout
+from tvm.tirx.layout import ComposeLayout, S, TileLayout
 
 # ----------------------------------------------------------------------------
-# Pure-Python reference: SwizzleLayout's Apply, plus the proof's formula.
+# Pure-Python reference: the bare-swizzle ComposeLayout's Apply, plus the proof's formula.
 # Used as ground truth — both must agree for the proof to hold.
 # ----------------------------------------------------------------------------
 
 
 def py_swizzle_apply(M: int, p: int, sw: int, at: int) -> int:
-    """Pure-Python reimplementation of SwizzleLayoutNode::Apply (swizzle_inner=True):
+    """Pure-Python reimplementation of the swizzle Apply (swizzle_inner=True):
     phys = swz_q * C + (M mod C)
     q = M / C; swz_q = q XOR ((q & outer_mask) >> at)
     """
@@ -111,18 +111,29 @@ def py_outer_ds(k: int, iter_extents: list[int], iter_strides: list[int]) -> int
 
 
 def test_get_swizzle_extracts_from_compose():
-    sw = SwizzleLayout(3, 3, 3)
+    sw = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
     assert get_swizzle(sw) is not None
-    assert get_swizzle(ComposeLayout(sw, TileLayout(S[(64, 64)]))) is not None
+    assert (
+        get_swizzle(
+            ComposeLayout(
+                sw.per_element,
+                sw.swizzle_len,
+                sw.atom_len,
+                TileLayout(S[(64, 64)]),
+                sw.swizzle_inner,
+            )
+        )
+        is not None
+    )
     assert get_swizzle(TileLayout(S[(64, 64)])) is None
 
 
 def test_recognize_nvfp4_case():
-    """nvfp4's epilogue: SwizzleLayout(3,3,3), iter extents [2,2,2] strides
+    """nvfp4's epilogue: swizzle(3,3,3), iter extents [2,2,2] strides
     [8,16,32], M0 = tid * 64 (each thread starts at col 0 of one row;
     row_stride 64 = 8 chunks, ensures chunk bits of M0/C are zero for all
     iter bit positions)."""
-    sw = SwizzleLayout(3, 3, 3)
+    sw = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
     tid = _TirVar("tid", "int32")
     # M0 = tid * 64 → M0/C = tid * 8 → bits 0,1,2 are 0 (since multiplied by 8).
     M0 = tid * _IntImm("int32", 64)
@@ -136,7 +147,7 @@ def test_recognize_nvfp4_case():
 def test_recognize_binary_split():
     """A single outer iter with extent=4 stride=8 splits into two binary
     iters with strides 16 and 8 (outermost first, matching _flat_outer_coords)."""
-    sw = SwizzleLayout(3, 3, 3)
+    sw = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
     tid = _TirVar("tid", "int32")
     M0 = tid * _IntImm("int32", 64)
     pat = try_recognize(sw, [4], [8], M0)
@@ -147,10 +158,10 @@ def test_recognize_binary_split():
 
 
 def test_recognize_mid_bits():
-    """SwizzleLayout(p=4, sw=2, at=4): chunk bits [0,2), mid bits [2,4),
+    """swizzle(p=4, sw=2, at=4): chunk bits [0,2), mid bits [2,4),
     row bits [4,6). An iter at bj=2 lives in mid_bits → sigma is always +1
     (i.e., the recognizer accepts and the sign formula won't read row bits)."""
-    sw = SwizzleLayout(4, 2, 4)  # C=16, mid_bits cover bits 2..3
+    sw = ComposeLayout(4, 2, 4, TileLayout(S[(1024,)]))  # C=16, mid_bits cover bits 2..3
     tid = _TirVar("tid", "int32")
     # M0/C must have bit 2 == 0. Pick row_stride = 64 (= 4*C) so M0/C = tid*4
     # which has zeros at bit 0,1, and bit 2 is bit 0 of tid... hmm that varies.
@@ -167,7 +178,7 @@ def test_recognize_mid_bits():
 
 def test_reject_not_chunk_aligned():
     """Condition (a): stride must be a multiple of C."""
-    sw = SwizzleLayout(3, 3, 3)  # C=8
+    sw = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))  # C=8
     tid = _TirVar("tid", "int32")
     M0 = tid * _IntImm("int32", 64)
     # stride 4 is not a multiple of C=8 → reject.
@@ -177,7 +188,7 @@ def test_reject_not_chunk_aligned():
 def test_reject_carries_into_row_bits():
     """Condition (b): bj < at. A binary iter with stride C * 2^at lands at
     bj=at, which would change the row bits → reject."""
-    sw = SwizzleLayout(3, 3, 3)  # at=3, so max bj = 2
+    sw = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))  # at=3, so max bj = 2
     tid = _TirVar("tid", "int32")
     M0 = tid * _IntImm("int32", 64)
     # Strides 8,16,32 OK (bj=0,1,2); 64 → bj=3 → reject.
@@ -188,7 +199,7 @@ def test_reject_chunk_overlap():
     """Condition (c): (M0/C) must have 0 bits at all iter-bit positions per
     thread. If M0 = tid * 8 (so M0/C = tid), then bit 0 of M0/C is bit 0 of
     tid — analyzer can't prove this is 0 across all threads, so reject."""
-    sw = SwizzleLayout(3, 3, 3)  # C=8
+    sw = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))  # C=8
     tid = _TirVar("tid", "int32")
     # M0 = tid * C = tid * 8 → M0/C = tid → bit 0 NOT provably zero.
     M0 = tid * _IntImm("int32", 8)
@@ -198,7 +209,7 @@ def test_reject_chunk_overlap():
 def test_recognize_no_outer_iters():
     """Degenerate case: no outer iter at all. Recognizer returns a trivial
     pattern (empty bit_positions). Emit will use base_off alone."""
-    sw = SwizzleLayout(3, 3, 3)
+    sw = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
     tid = _TirVar("tid", "int32")
     M0 = tid * _IntImm("int32", 64)
     pat = try_recognize(sw, [], [], M0)
@@ -245,7 +256,7 @@ def test_formula_matches_apply_under_conditions(
     """For every (M0, k) sample, the signed-strides formula must equal
     py_swizzle_apply(M0 + ds_k). Sweeps multiple per-thread M0 values to
     catch any per-thread-sign bug (a constant-sign impl would fail here)."""
-    swizzle = SwizzleLayout(p, sw, at)
+    swizzle = ComposeLayout(p, sw, at, TileLayout(S[(1 << (p + sw + at),)]))
     tid = _TirVar("tid", "int32")
     M0_template = tid * _IntImm("int32", row_stride)
     pat = try_recognize(swizzle, iter_extents, iter_strides, M0_template)
@@ -312,13 +323,13 @@ def test_recognize_linear_iter_pure_case_1d():
     of the swizzle period 2^(p+at+sw) (pure Case 1.D, swizzle has no XOR
     effect). The iter is stored as a LinearIter (no bit decomposition).
     """
-    from tvm.tirx.cuda.operator.tile_primitive.copy._swizzle_iter import (
+    from tvm.tirx.cuda.tile_primitive.copy._swizzle_iter import (
         _BitIter,
         _LinearIter,
     )
 
     p, sw, at = 3, 3, 3
-    swizzle = SwizzleLayout(p, sw, at)
+    swizzle = ComposeLayout(p, sw, at, TileLayout(S[(1 << (p + sw + at),)]))
     period = 1 << (p + at + sw)  # 512
     # Outer iter (ext=3, stride=period) — non-pow2 but pure Case 1.D.
     # Inner iter (ext=2, stride=8) — pow2, Case 1.A (bj=0).
@@ -343,7 +354,7 @@ def test_reject_non_pow2_ext_not_case_1d():
     """Non-pow2 ext where stride is NOT in pure Case 1.D regime — reject.
     stride=64 = 2^(p+at) = one atom row, which is Case 1.C (in [at, at+sw))
     territory and the XOR depends on M0, so the linear path is unsafe."""
-    swizzle = SwizzleLayout(3, 3, 3)
+    swizzle = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
     pat = try_recognize(swizzle, [3], [64], _IntImm("int32", 0))
     assert pat is None
 
@@ -352,12 +363,12 @@ def test_emit_mixed_linear_bit_correctness():
     """Brute-force: for a mixed (LinearIter outer, BitIter inner) pattern,
     emit_iter_offset's prediction must equal the actual swizzle output for
     every (tid, k) — including the non-pow2 outer extent's coord 2."""
-    from tvm.tirx.cuda.operator.tile_primitive.copy._swizzle_iter import (
+    from tvm.tirx.cuda.tile_primitive.copy._swizzle_iter import (
         _LinearIter,
     )
 
     p, sw, at = 3, 3, 3
-    swizzle = SwizzleLayout(p, sw, at)
+    swizzle = ComposeLayout(p, sw, at, TileLayout(S[(1 << (p + sw + at),)]))
     period = 1 << (p + at + sw)  # 512
     iter_extents, iter_strides = [3, 2], [period, 8]
     tid = _TirVar("tid", "int32")
@@ -414,7 +425,7 @@ def test_fallback_path_when_recognizer_rejects():
     wrong answer on at least one (tid, k) sample. The fallback emit, by
     construction, delegates to swizzle.apply and is thus correct."""
     p, sw, at = 3, 3, 3
-    swizzle = SwizzleLayout(p, sw, at)
+    swizzle = ComposeLayout(p, sw, at, TileLayout(S[(1 << (p + sw + at),)]))
     tid = _TirVar("tid", "int32")
     M0_template = tid * _IntImm("int32", 8)  # (c) fails: bit 0 of M0/C = bit 0 of tid
     pat = try_recognize(swizzle, [2], [8], M0_template)

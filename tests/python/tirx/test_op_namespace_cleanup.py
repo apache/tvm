@@ -26,7 +26,7 @@ import tvm
 from tvm.ir import Op, assert_structural_equal
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 
 def _tile_calls(func):

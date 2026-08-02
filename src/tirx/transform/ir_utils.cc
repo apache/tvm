@@ -29,6 +29,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/analysis.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -135,15 +136,15 @@ class IRConvertSSA final : public StmtExprMutator {
 
     // Update the buffer map, based on the redefined parameters
     auto buffer_map = [&]() {
-      ffi::Map<Var, Buffer> buffer_map;
+      ffi::Map<Var, BufferVar> buffer_map;
       bool made_change = false;
       for (const auto& [var, buffer] : func->buffer_map) {
         auto new_var = GetRemappedVar(var);
-        if (defined_.count(buffer->data.get())) {
-          Var new_data = MakeNewVar(buffer->data);
-          PushVarRemap(buffer->data, new_data);
+        if (defined_.count(buffer.get())) {
+          Var new_buffer_var = MakeNewVar(buffer.var());
+          PushVarRemap(buffer.var(), new_buffer_var);
         } else {
-          defined_.insert(buffer->data.get());
+          defined_.insert(buffer.get());
         }
         auto new_buf = GetRemappedBuffer(buffer);
 
@@ -202,7 +203,7 @@ class IRConvertSSA final : public StmtExprMutator {
   // would create a conflicting second remap (into base buffer_remap_) when called
   // from the default DeclBuffer/AllocBuffer handlers, producing buffers with
   // undefined SSA-renamed variables.
-  Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) override { return buffer; }
+  BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) override { return buffer; }
 
   Expr VisitExpr_(const VarNode* op) final { return GetRemappedVar(ffi::GetRef<Var>(op)); }
   Expr VisitExpr_(const LetNode* op) final {
@@ -233,8 +234,15 @@ class IRConvertSSA final : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
+    Var v = op->buffer.var();
+    if (defined_.count(v.get())) {
+      Var new_var = MakeNewVar(v);
+      PushVarRemap(v, new_var);
+    } else {
+      defined_.insert(v.get());
+    }
     DeclBuffer decl = StmtExprMutator::VisitStmt_(op).as_or_throw<DeclBuffer>();
-    Buffer new_buffer = GetRemappedBuffer(decl->buffer);
+    BufferVar new_buffer = GetRemappedBuffer(decl->buffer);
     if (!new_buffer.same_as(decl->buffer)) {
       decl.CopyOnWrite()->buffer = std::move(new_buffer);
     }
@@ -277,7 +285,7 @@ class IRConvertSSA final : public StmtExprMutator {
 
   template <typename Node>
   Node VisitBufferAccess(Node node) {
-    Buffer new_buf = GetRemappedBuffer(node->buffer);
+    BufferVar new_buf = GetRemappedBuffer(node->buffer);
     if (!new_buf.same_as(node->buffer)) {
       auto writer = node.CopyOnWrite();
       writer->buffer = new_buf;
@@ -297,11 +305,11 @@ class IRConvertSSA final : public StmtExprMutator {
     }
   }
 
-  Buffer GetRemappedBuffer(Buffer buf) {
+  BufferVar GetRemappedBuffer(BufferVar buf) {
     // Determine the buffer var that should be in the updated buffer,
     // given the current scope.  If no redefines are present, then the
     // buffer var is unchanged.
-    Var new_buffer_var = GetRemappedVar(buf->data);
+    Var new_buffer_var = GetRemappedVar(buf.var());
     PrimExpr elem_offset = VisitPrimExpr(buf->elem_offset);
     auto visit_expr = [this](const PrimExpr& expr) { return VisitPrimExpr(expr); };
     ffi::Array<PrimExpr> shape = buf->shape.Map(visit_expr);
@@ -334,7 +342,7 @@ class IRConvertSSA final : public StmtExprMutator {
     }
 
     // If no mapping is required, return the original buffer.
-    if (new_buffer_var.same_as(buf->data) && elem_offset.same_as(buf->elem_offset) &&
+    if (new_buffer_var.same_as(buf.var()) && elem_offset.same_as(buf->elem_offset) &&
         shape.same_as(buf->shape) && strides.same_as(buf->strides) && !layout_changed) {
       return buf;
     }
@@ -342,25 +350,49 @@ class IRConvertSSA final : public StmtExprMutator {
     // If the current scope already has a mapping of this buffer, use
     // the mapped buffer.
     auto key = buf.get();
-    std::vector<Buffer>& buffers = buf_remap_[key];
-    if (buffers.size() && buffers.back()->data.same_as(new_buffer_var)) {
+    std::vector<BufferVar>& buffers = buf_remap_[key];
+    if (buffers.size() && buffers.back().same_as(new_buffer_var)) {
       return buffers.back();
+    }
+
+    // When only the buffer's identity changed, the remapped Var already has
+    // the desired BufferType.  Reuse that exact Var so the definition and all
+    // subsequent uses remain in SSA.
+    if (const auto* type = new_buffer_var->ty.as<BufferTypeNode>()) {
+      BufferVar candidate(new_buffer_var);
+      if (shape.same_as(type->shape) && strides.same_as(type->strides) &&
+          elem_offset.same_as(type->elem_offset) && !layout_changed) {
+        buffers.push_back(candidate);
+        return candidate;
+      }
     }
 
     // Otherwise, make and return a new buffer object that uses the
     // new buffer, pushing it onto the scoped stack of existing
     // buffers.  This will be popped when the new_buffer_var
     // redefinition is popped.
-    Buffer new_buf = buf;
-    {
-      auto write_ptr = new_buf.CopyOnWrite();
-      write_ptr->data = new_buffer_var;
-      write_ptr->shape = shape;
-      write_ptr->strides = strides;
-      write_ptr->elem_offset = elem_offset;
-      if (layout_changed) {
-        write_ptr->layout = std::move(new_layout);
-      }
+    auto type = CopyBufferType(buf);
+    type->shape = shape;
+    type->strides = strides;
+    type->elem_offset = elem_offset;
+    if (layout_changed) {
+      type->layout = std::move(new_layout);
+    }
+    BufferVar new_buf = RebuildBufferVar(buf, std::move(type), new_buffer_var->name);
+
+    // A BufferVar's metadata lives in its Var type.  If rewriting the
+    // metadata required a fresh Var, make it the active remap as well.  This
+    // keeps BufferLoad/BufferStore and ordinary Var uses (such as
+    // buffer_data) on the same identity.
+    auto it = var_remap_.find(buf.get());
+    if (it != var_remap_.end() && it->second.size() && it->second.back().same_as(new_buffer_var)) {
+      it->second.back() = new_buf.var();
+    } else if (auto function_it = function_scope_var_remap_.find(buf.get());
+               function_it != function_scope_var_remap_.end() &&
+               function_it->second.same_as(new_buffer_var)) {
+      function_it->second = new_buf.var();
+    } else {
+      PushVarRemap(buf.var(), new_buf.var());
     }
     buffers.push_back(new_buf);
     return new_buf;
@@ -418,25 +450,24 @@ class IRConvertSSA final : public StmtExprMutator {
     return scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::VisitStmt_(op); });
   }
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    const Var& v = op->buffer->data;
+    Var v = op->buffer.var();
     if (defined_.count(v.get())) {
       Var new_var = MakeNewVar(v);
       PushVarRemap(v, new_var);
-      Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      op = stmt.as<AllocBufferNode>();
-      // Use GetRemappedBuffer so that the AllocBuffer's buffer is the same
-      // object as the one used by BufferStore/BufferLoad in subsequent siblings.
-      Buffer new_buf = GetRemappedBuffer(op->buffer);
-      if (!new_buf.same_as(op->buffer)) {
-        auto node = stmt.as_or_throw<AllocBuffer>();
-        node.CopyOnWrite()->buffer = std::move(new_buf);
-        return node;
-      }
-      return stmt;
     } else {
       defined_.insert(v.get());
-      return StmtExprMutator::VisitStmt_(op);
     }
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    op = stmt.as<AllocBufferNode>();
+    // Use GetRemappedBuffer so that the AllocBuffer's buffer is the same
+    // object as the one used by BufferStore/BufferLoad in subsequent siblings.
+    BufferVar new_buf = GetRemappedBuffer(op->buffer);
+    if (!new_buf.same_as(op->buffer)) {
+      auto node = stmt.as_or_throw<AllocBuffer>();
+      node.CopyOnWrite()->buffer = std::move(new_buf);
+      return node;
+    }
+    return stmt;
   }
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (const IterVarNode* iter_var = op->node.as<IterVarNode>()) {
@@ -455,7 +486,7 @@ class IRConvertSSA final : public StmtExprMutator {
           it != function_scope_var_remap_.end()) {
         var = it->second;
       } else if (defined_.count(var.get())) {
-        Var new_var(var->name_hint, var->ty);
+        Var new_var(var->name, var->ty);
 
         function_scope_var_remap_.insert({var.get(), new_var});
         var = new_var;
@@ -526,8 +557,35 @@ class IRConvertSSA final : public StmtExprMutator {
     Var new_var;
   };
 
+  /*! \brief Check whether a buffer uses a variable in any remapped field. */
+  static bool BufferDependsOnVar(const BufferVar& buffer, const VarNode* var) {
+    if (buffer.get() == var) return true;
+
+    auto uses_var = [var](const PrimExpr& expr) {
+      return expr.defined() && UsesVar(expr, [var](const VarNode* node) { return node == var; });
+    };
+    if (uses_var(buffer->elem_offset)) return true;
+    for (const PrimExpr& dim : buffer->shape) {
+      if (uses_var(dim)) return true;
+    }
+    for (const PrimExpr& stride : buffer->strides) {
+      if (uses_var(stride)) return true;
+    }
+    if (buffer->layout.has_value()) {
+      if (const auto* tile_layout = buffer->layout.value().as<TileLayoutNode>()) {
+        for (const Iter& iter : tile_layout->shard) {
+          if (uses_var(iter->extent) || uses_var(iter->stride)) return true;
+        }
+        for (const Iter& iter : tile_layout->replica) {
+          if (uses_var(iter->extent) || uses_var(iter->stride)) return true;
+        }
+      }
+    }
+    return false;
+  }
+
   /*! \brief Create a new variable with the same name and type as the original. */
-  static Var MakeNewVar(const Var& old_var) { return Var(old_var->name_hint, old_var->ty); }
+  static Var MakeNewVar(const Var& old_var) { return Var(old_var->name, old_var->ty); }
 
   /*! \brief Push a variable remap to the current scope and the var_remap_ stack. */
   void PushVarRemap(const Var& old_var, const Var& new_var) {
@@ -541,8 +599,8 @@ class IRConvertSSA final : public StmtExprMutator {
   void PopVarRemap(const Var& old_var, const Var& new_var) {
     var_remap_[old_var.get()].pop_back();
     for (auto& kv : buf_remap_) {
-      std::vector<Buffer>& buffers = kv.second;
-      if (buffers.size() && (buffers.back()->data.get() == new_var.get())) {
+      std::vector<BufferVar>& buffers = kv.second;
+      if (buffers.size() && BufferDependsOnVar(buffers.back(), new_var.get())) {
         buffers.pop_back();
       }
     }
@@ -560,8 +618,8 @@ class IRConvertSSA final : public StmtExprMutator {
       auto& remap = current.back();
       var_remap_[remap.old_var.get()].pop_back();
       for (auto& kv : buf_remap_) {
-        std::vector<Buffer>& buffers = kv.second;
-        if (buffers.size() && (buffers.back()->data.get() == remap.new_var.get())) {
+        std::vector<BufferVar>& buffers = kv.second;
+        if (buffers.size() && BufferDependsOnVar(buffers.back(), remap.new_var.get())) {
           buffers.pop_back();
         }
       }
@@ -597,8 +655,8 @@ class IRConvertSSA final : public StmtExprMutator {
         auto& remap = remaps.back();
         parent->var_remap_[remap.old_var.get()].pop_back();
         for (auto& kv : parent->buf_remap_) {
-          std::vector<Buffer>& buffers = kv.second;
-          if (buffers.size() && (buffers.back()->data.get() == remap.new_var.get())) {
+          std::vector<BufferVar>& buffers = kv.second;
+          if (buffers.size() && BufferDependsOnVar(buffers.back(), remap.new_var.get())) {
             buffers.pop_back();
           }
         }
@@ -621,8 +679,8 @@ class IRConvertSSA final : public StmtExprMutator {
             auto& remap = remaps.back();
             parent->var_remap_[remap.old_var.get()].pop_back();
             for (auto& kv : parent->buf_remap_) {
-              std::vector<Buffer>& buffers = kv.second;
-              if (buffers.size() && (buffers.back()->data.get() == remap.new_var.get())) {
+              std::vector<BufferVar>& buffers = kv.second;
+              if (buffers.size() && BufferDependsOnVar(buffers.back(), remap.new_var.get())) {
                 buffers.pop_back();
               }
             }
@@ -639,7 +697,7 @@ class IRConvertSSA final : public StmtExprMutator {
 
   std::unordered_map<const VarNode*, std::vector<Var>> var_remap_;
   std::unordered_set<const VarNode*> defined_;
-  std::unordered_map<const BufferNode*, std::vector<Buffer>> buf_remap_;
+  std::unordered_map<const VarNode*, std::vector<BufferVar>> buf_remap_;
   std::unordered_map<const VarNode*, Var> function_scope_var_remap_;
   ScopeStack<ScopeLevel> scope_;
 };
@@ -647,12 +705,16 @@ class IRConvertSSA final : public StmtExprMutator {
 Stmt ConvertSSA(Stmt stmt) { return IRConvertSSA()(std::move(stmt)); }
 
 ffi::String GetPtrStorageScope(Var buffer_var) {
+  if (const auto* buffer_type = buffer_var->ty.as<BufferTypeNode>()) {
+    return buffer_type->storage_scope;
+  }
   const auto* ptr_type = buffer_var->ty.as<PointerTypeNode>();
-  TVM_FFI_ICHECK(ptr_type) << "The provided variable is not of pointer type";
+  TVM_FFI_ICHECK(ptr_type)
+      << "The provided variable is neither a pointer nor a buffer-typed variable";
   return ptr_type->storage_scope;
 }
 
-ffi::Array<PrimExpr> GetBufferAllocationShape(const Buffer& buffer) {
+ffi::Array<PrimExpr> GetBufferAllocationShape(const BufferVar& buffer) {
   ffi::Array<PrimExpr> alloc_shape = buffer->shape;
   if (buffer->strides.size()) {
     TVM_FFI_ICHECK_EQ(buffer->shape.size(), buffer->strides.size());
@@ -667,7 +729,7 @@ ffi::Array<PrimExpr> GetBufferAllocationShape(const Buffer& buffer) {
 
 ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
                                     const ffi::Array<PrimExpr>& indices) {
-  const Buffer& target = match_buffer->buffer;
+  const BufferVar& target = match_buffer->buffer;
   const BufferRegion& source = match_buffer->source;
   TVM_FFI_ICHECK_EQ(indices.size(), target->shape.size());
 
@@ -689,7 +751,7 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
 }
 
 Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region) {
-  const Buffer& target = match_buffer->buffer;
+  const BufferVar& target = match_buffer->buffer;
   const BufferRegion& source = match_buffer->source;
   TVM_FFI_ICHECK_EQ(region.size(), target->shape.size());
 
@@ -720,19 +782,19 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
     return std::nullopt;
   }
   ffi::Array<PrimExpr> equations;
-  ffi::Array<Var> vars;
+  ffi::Array<PrimVar> vars;
   std::function<void(const PrimExpr&)> fvisit = [&equations, &vars, &fvisit](const PrimExpr& e) {
     if (e->IsInstance<GENode>() || e->IsInstance<GTNode>() || e->IsInstance<LENode>() ||
         e->IsInstance<LTNode>() || e->IsInstance<EQNode>() || e->IsInstance<NENode>()) {
       bool is_simple = true;
-      std::vector<Var> cand_vars;
+      std::vector<PrimVar> cand_vars;
       PostOrderVisit(e, [&cand_vars, &is_simple, &e](const ffi::ObjectRef& obj) {
         if (obj.same_as(e)) {
           return;
         } else if (const VarNode* var = obj.as<VarNode>()) {
           PrimType var_ty = var->ty.as_or_throw<PrimType>();
           if (var_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
-            cand_vars.push_back(ffi::GetRef<Var>(var));
+            cand_vars.push_back(ffi::GetRef<Var>(var).as_or_throw<PrimVar>());
           }
         } else {
           is_simple &= obj->IsInstance<AddNode>() || obj->IsInstance<SubNode>() ||
@@ -741,9 +803,9 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
         }
       });
       if (is_simple && !cand_vars.empty()) {
-        for (const Var& new_var : cand_vars) {
+        for (const PrimVar& new_var : cand_vars) {
           if (!std::any_of(vars.begin(), vars.end(),
-                           [&new_var](const Var& v) { return v.same_as(new_var); })) {
+                           [&new_var](const PrimVar& v) { return v.same_as(new_var); })) {
             vars.push_back(new_var);
           }
         }
@@ -871,8 +933,8 @@ class StorageAlignCollector : public StmtVisitor {
       auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
       for (const auto& storage_align_tuple : storage_align_annotation) {
         int buffer_index = storage_align_tuple.get<0>();
-        const Buffer& buffer = op->writes[buffer_index]->buffer;
-        storage_align_[buffer->data].push_back(storage_align_tuple);
+        const BufferVar& buffer = op->writes[buffer_index]->buffer;
+        storage_align_[buffer.var()].push_back(storage_align_tuple);
       }
     }
     StmtVisitor::VisitStmt_(op);
@@ -888,7 +950,7 @@ class StorageAlignCollector : public StmtVisitor {
         // the first buffer idx info is meaningless for alloc
         // stmt and should set as negative intentionally.
         TVM_FFI_ICHECK_EQ(buffer_index, -1);
-        storage_align_[op->buffer->data].push_back(storage_align_tuple);
+        storage_align_[op->buffer.var()].push_back(storage_align_tuple);
       }
     }
     StmtVisitor::VisitStmt_(op);

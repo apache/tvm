@@ -42,18 +42,6 @@ def _nn_conv1d(bb: BlockBuilder, call: Call) -> Expr:
             "cannot be legalized by TOPI at this moment."
         )
         return call
-    if call.attrs.groups != 1:
-        data_layout = s_tir.slayout(call.attrs.data_layout)
-        kernel_layout = s_tir.slayout(call.attrs.kernel_layout)
-        ic = call.args[0].ty.shape.values[data_layout.index_of("C")]
-        oc = call.args[1].ty.shape.values[kernel_layout.index_of("O")]
-        if not isinstance(ic, tirx.IntImm) or not isinstance(oc, tirx.IntImm):
-            logging.info(
-                "Conv1D where number of groups is more than one and input or output "
-                "channel size is symbolic cannot be legalized by TOPI at this moment."
-            )
-            return call
-
     return bb.call_te(
         topi.nn.conv1d,
         data=call.args[0],
@@ -83,18 +71,6 @@ def _nn_conv2d(bb: BlockBuilder, call: Call) -> Expr:
             "cannot be legalized by TOPI at this moment."
         )
         return call
-    if call.attrs.groups != 1:
-        data_layout = s_tir.slayout(call.attrs.data_layout)
-        kernel_layout = s_tir.slayout(call.attrs.kernel_layout)
-        ic = call.args[0].ty.shape.values[data_layout.index_of("C")]
-        oc = call.args[1].ty.shape.values[kernel_layout.index_of("O")]
-        if not isinstance(ic, tirx.IntImm) or not isinstance(oc, tirx.IntImm):
-            logging.info(
-                "Conv2D where number of groups is more than one and input or output "
-                "channel size is symbolic cannot be legalized by TOPI at this moment."
-            )
-            return call
-
     return bb.call_te(
         topi.nn.conv,
         inp=call.args[0],
@@ -124,18 +100,6 @@ def _nn_conv3d(bb: BlockBuilder, call: Call) -> Expr:
             "cannot be legalized by TOPI at this moment."
         )
         return call
-    if call.attrs.groups != 1:
-        data_layout = s_tir.slayout(call.attrs.data_layout)
-        kernel_layout = s_tir.slayout(call.attrs.kernel_layout)
-        ic = call.args[0].ty.shape.values[data_layout.index_of("C")]
-        oc = call.args[1].ty.shape.values[kernel_layout.index_of("O")]
-        if not isinstance(ic, tirx.IntImm) or not isinstance(oc, tirx.IntImm):
-            logging.info(
-                "Conv3D where number of groups is more than one and input or output "
-                "channel size is symbolic cannot be legalized by TOPI at this moment."
-            )
-            return call
-
     return bb.call_te(
         topi.nn.conv,
         inp=call.args[0],

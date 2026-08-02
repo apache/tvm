@@ -64,11 +64,11 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
  public:
   BufferTouchedDomain(const Stmt& stmt) { operator()(stmt); }
 
-  std::unordered_map<const BufferNode*, BufferDomainAccess>& GetAccessedBufferRegions() {
+  std::unordered_map<const VarNode*, BufferDomainAccess>& GetAccessedBufferRegions() {
     return buffer_access_map_;
   }
 
-  Region FindUnion(const Buffer& buffer, bool consider_loads, bool consider_stores) {
+  Region FindUnion(const BufferVar& buffer, bool consider_loads, bool consider_stores) {
     Region ret;
     auto kv = buffer_access_map_.find(buffer.get());
     if (kv == buffer_access_map_.end()) {
@@ -130,17 +130,17 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
     }
   }
 
-  std::unordered_map<const BufferNode*, BufferDomainAccess> buffer_access_map_;
+  std::unordered_map<const VarNode*, BufferDomainAccess> buffer_access_map_;
 };
 
-Region DomainTouched(const Stmt& stmt, const Buffer& buffer, bool consider_loads,
+Region DomainTouched(const Stmt& stmt, const BufferVar& buffer, bool consider_loads,
                      bool consider_stores) {
   return BufferTouchedDomain(stmt).FindUnion(buffer, consider_loads, consider_stores);
 }
 
-ffi::Map<Buffer, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
+ffi::Map<BufferVar, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
   auto buffer_access_map = BufferTouchedDomain(func->body).GetAccessedBufferRegions();
-  ffi::Map<Buffer, ffi::Array<ffi::ObjectRef>> ret;
+  ffi::Map<BufferVar, ffi::Array<ffi::ObjectRef>> ret;
   auto& buffer_map = func->buffer_map;
   for (auto& var : func->params) {
     auto& buffer = buffer_map[var];

@@ -442,8 +442,8 @@ void SetTIRVarRangeConstraints(Function func, arith::AnalyzerObj* ana,
   }
   ffi::Array<tirx::Var> var_in_signature = TIRVarsInType(GetType(func));
   for (const tirx::Var& tir_var : var_in_signature) {
-    auto it_upper = var_upper_bound_attr.find(tir_var->name_hint);
-    auto it_lower = var_lower_bound_attr.find(tir_var->name_hint);
+    auto it_upper = var_upper_bound_attr.find(tir_var->name);
+    auto it_lower = var_lower_bound_attr.find(tir_var->name);
 
     // Only bind the variable to a range if an upper bound is explicitly provided.
     // Without an upper bound, memory planning cannot determine the required storage size,
@@ -457,7 +457,7 @@ void SetTIRVarRangeConstraints(Function func, arith::AnalyzerObj* ana,
       dom_map->Set(tir_var, arith::IntSet::FromRange(range));
     } else if (it_lower != var_lower_bound_attr.end() && it_lower->second->value >= 0) {
       ana->MarkGlobalNonNegValue(tir_var.as_or_throw<PrimExpr>());
-    } else if (non_negative_var_attr.count(tir_var->name_hint)) {
+    } else if (non_negative_var_attr.count(tir_var->name)) {
       ana->MarkGlobalNonNegValue(tir_var.as_or_throw<PrimExpr>());
     }
   }

@@ -136,7 +136,7 @@ def _check_conv2d(context: PatternCheckContext) -> bool:
 
     # Check if any dimensions are symbolic.
     for dim in data.ty.shape.values:
-        if isinstance(dim, tvm.tirx.Var):
+        if isinstance(dim, tvm.ir.Var):
             return False
 
     # pylint: disable=invalid-name

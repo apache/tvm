@@ -146,26 +146,26 @@ class Optimizer:
                 raise ValueError(f"Parameter {x} is not a Var")
             if not isinstance(x.ty, TensorType):
                 raise ValueError(
-                    f"Optimizers only support Tensor parameters, but parameter {x.name_hint} has "
+                    f"Optimizers only support Tensor parameters, but parameter {x.name} has "
                     f"type {x.ty}"
                 )
             data_type = tvm.DataType(x.ty.dtype.dtype)
             if data_type.type_code not in (tvm.DataTypeCode.BFLOAT, tvm.DataTypeCode.FLOAT):
                 raise ValueError(
                     f"Optimizers only support Tensor parameters of floating point dtype, but dtype "
-                    f"of {x.name_hint} is {x.ty.dtype}"
+                    f"of {x.name} is {x.ty.dtype}"
                 )
             if dtype is None:
                 dtype = x.ty.dtype
             else:
                 if dtype != x.ty.dtype:
                     raise ValueError(
-                        f"All parameters should have the same dtype, but parameter {x.name_hint} "
+                        f"All parameters should have the same dtype, but parameter {x.name} "
                         f"has dtype {x.ty.dtype}, which differs from the previous dtype "
                         f"{dtype}"
                     )
             if x in params_set:
-                raise ValueError(f"Parameter {x.name_hint} appears more than once")
+                raise ValueError(f"Parameter {x.name} appears more than once")
             params_set.add(x)
         self.param_list = params
         self.dtype = dtype
@@ -338,7 +338,7 @@ class SGD(Optimizer):
 
                 # computation logics
                 for i in range(len_param):
-                    name = self.param_list[i].name_hint
+                    name = self.param_list[i].name
                     p = builder.emit(TupleGetItem(param_var, i), name)
                     g = builder.emit(TupleGetItem(grad_var, i), name + "_grad")
                     if self.weight_decay:
@@ -490,7 +490,7 @@ class MomentumSGD(Optimizer):
 
                 # computation logics
                 for i in range(len_param):
-                    name = self.param_list[i].name_hint
+                    name = self.param_list[i].name
                     p = builder.emit(TupleGetItem(param_var, i), name)
                     g = builder.emit(TupleGetItem(grad_var, i), name + "_grad")
                     v = builder.emit(TupleGetItem(state_var, i + 1), name + "_v")
@@ -687,7 +687,7 @@ class Adam(Optimizer):
 
                 # computation logics
                 for i in range(len_param):
-                    name = self.param_list[i].name_hint
+                    name = self.param_list[i].name
                     p = builder.emit(TupleGetItem(param_var, i), name)
                     g = builder.emit(TupleGetItem(grad_var, i), name + "_grad")
                     m = builder.emit(TupleGetItem(state_var, i + 3), name + "_m")

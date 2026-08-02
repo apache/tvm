@@ -76,7 +76,7 @@ def test_elementwise_without_decl_buffer():
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             for i in T.serial(0, 16):
                 B_new_buf = T.alloc_buffer((1, 16), "float32")
-                B_new = T.Buffer([1, 16], "float32", data=B_new_buf.data)
+                B_new = T.decl_buffer([1, 16], "float32", data=B_new_buf.data)
                 for j in T.serial(0, 16):
                     B_new[0, j] = A[i, j] + 1.0
                 for j in T.serial(0, 16):
@@ -90,7 +90,7 @@ def test_elementwise_without_decl_buffer():
             C = T.decl_buffer(256, dtype="float32", data=input_C.data)
             for i in T.serial(0, 16):
                 B_new_buf = T.alloc_buffer((16,), "float32")
-                B_new = T.Buffer(16, "float32", data=B_new_buf.data)
+                B_new = T.decl_buffer(16, "float32", data=B_new_buf.data)
                 for j in T.serial(0, 16):
                     B_new[j] = A[((i * 16) + j)] + 1.0
                 for j in T.serial(0, 16):
@@ -363,74 +363,6 @@ def test_flatten_inside_block():
                 with T.sblock("block"):
                     T.reads(A[i * 32 + j])
                     T.evaluate(A[i * 32 + j])
-
-    After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
-
-
-def test_no_change_to_2d_physical_buffer():
-    """Flattening preserves axis separators."""
-
-    @I.ir_module(s_tir=True)
-    class Before:
-        @T.prim_func(s_tir=True)
-        def main():
-            A = T.sblock_alloc_buffer([32, 32], axis_separators=[1])
-            for i, j in T.grid(32, 32):
-                T.evaluate(A[i, j])
-
-    Expected = Before
-
-    After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
-
-
-def test_flatten_alloc_buffer_with_axis_separators():
-    """Flattening preserves axis separators"""
-
-    @I.ir_module(s_tir=True)
-    class Before:
-        @T.prim_func(s_tir=True)
-        def main():
-            A = T.sblock_alloc_buffer([2, 3, 5, 7, 11, 13], axis_separators=[3])
-            for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
-                T.evaluate(A[i0, i1, i2, i3, i4, i5])
-
-    @I.ir_module(s_tir=True)
-    class Expected:
-        @T.prim_func(s_tir=True)
-        def main():
-            A = T.sblock_alloc_buffer([30, 1001], axis_separators=[1])
-            for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
-                T.evaluate(A[i0 * 15 + i1 * 5 + i2, i3 * 143 + i4 * 13 + i5])
-
-    After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
-
-
-def test_flatten_decl_buffer_with_axis_separators():
-    """Flattening preserves axis separators
-
-    Like test_flatten_alloc_buffer_with_axis_separators, but the allocations
-    is done using Allocate/DeclBuffer, rather than through
-    BlockNode::alloc_buffers.
-    """
-
-    @I.ir_module(s_tir=True)
-    class Before:
-        @T.prim_func(s_tir=True)
-        def main():
-            A = T.decl_buffer([2, 3, 5, 7, 11, 13], axis_separators=[3])
-            for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
-                T.evaluate(A[i0, i1, i2, i3, i4, i5])
-
-    @I.ir_module(s_tir=True)
-    class Expected:
-        @T.prim_func(s_tir=True)
-        def main():
-            A = T.decl_buffer([30, 1001], axis_separators=[1])
-            for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
-                T.evaluate(A[i0 * 15 + i1 * 5 + i2, i3 * 143 + i4 * 13 + i5])
 
     After = _transform()(Before)
     tvm.ir.assert_structural_equal(After, Expected)

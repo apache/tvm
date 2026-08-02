@@ -39,27 +39,22 @@ SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
 }
 
 /******** Buffer Related ********/
-Buffer WithScope(const Buffer& buffer, const ffi::String& scope) {
-  ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
-  ffi::ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*buffer->data.get());
-  const auto* ptr_type = TVM_TYPE_AS(buffer->data->ty, PointerTypeNode);
-  new_var->ty = PointerType(ptr_type->element_type, scope);
-  new_buffer->data = Var(new_var->name_hint + "_" + scope, new_var->ty);
-  new_buffer->name = buffer->name + "_" + scope;
-  return Buffer(new_buffer);
+BufferVar WithScope(const BufferVar& buffer, const ffi::String& scope) {
+  BufferType new_type(scope, buffer->dtype, buffer->shape, buffer->strides, buffer->elem_offset,
+                      buffer->data_alignment, buffer->offset_factor, buffer->layout,
+                      buffer->allocated_addr);
+  return BufferVar(buffer.name() + "_" + scope, new_type, buffer.span());
 }
 
-Buffer WithDType(const Buffer& buffer, PrimType dtype) {
-  ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
-  new_buffer->dtype = dtype;
-  const auto* ptr_type = TVM_TYPE_AS(buffer->data->ty, PointerTypeNode);
-  new_buffer->data = Var(buffer->data->name_hint, PointerType(dtype, ptr_type->storage_scope));
-  new_buffer->name = buffer->name;
-  return Buffer(new_buffer);
+BufferVar WithDType(const BufferVar& buffer, PrimType dtype) {
+  BufferType new_type(buffer->storage_scope, dtype, buffer->shape, buffer->strides,
+                      buffer->elem_offset, buffer->data_alignment, buffer->offset_factor,
+                      buffer->layout, buffer->allocated_addr);
+  return BufferVar(buffer.name(), new_type, buffer.span());
 }
 
-ffi::Array<BufferRegion> ReplaceBuffer(ffi::Array<BufferRegion> regions, const Buffer& source,
-                                       const Buffer& target) {
+ffi::Array<BufferRegion> ReplaceBuffer(ffi::Array<BufferRegion> regions, const BufferVar& source,
+                                       const BufferVar& target) {
   regions.MutateByApply([&source, &target](BufferRegion region) -> BufferRegion {
     if (region->buffer.same_as(source)) {
       ffi::ObjectPtr<BufferRegionNode> n = ffi::make_object<BufferRegionNode>(*region.get());
@@ -72,7 +67,7 @@ ffi::Array<BufferRegion> ReplaceBuffer(ffi::Array<BufferRegion> regions, const B
 }
 
 ffi::Array<BufferRegion> ReplaceBuffer(ffi::Array<BufferRegion> regions,
-                                       const ffi::Map<Buffer, Buffer>& buffer_map) {
+                                       const ffi::Map<BufferVar, BufferVar>& buffer_map) {
   regions.MutateByApply([&buffer_map](BufferRegion region) -> BufferRegion {
     if (buffer_map.count(region->buffer)) {
       ffi::ObjectPtr<BufferRegionNode> n = ffi::make_object<BufferRegionNode>(*region.get());
@@ -85,7 +80,7 @@ ffi::Array<BufferRegion> ReplaceBuffer(ffi::Array<BufferRegion> regions,
 }
 
 ffi::Array<MatchBufferRegion> ReplaceBuffer(ffi::Array<MatchBufferRegion> match_buffers,
-                                            const Buffer& source, const Buffer& target) {
+                                            const BufferVar& source, const BufferVar& target) {
   match_buffers.MutateByApply(
       [&source, &target](MatchBufferRegion match_buffer) -> MatchBufferRegion {
         if (match_buffer->source->buffer.same_as(source)) {
@@ -100,7 +95,7 @@ ffi::Array<MatchBufferRegion> ReplaceBuffer(ffi::Array<MatchBufferRegion> match_
 }
 
 ffi::Array<BufferRegion> ReplaceBufferRegion(ffi::Array<BufferRegion> regions,
-                                             const Buffer& source_buffer,
+                                             const BufferVar& source_buffer,
                                              const BufferRegion& target) {
   regions.MutateByApply([&source_buffer, &target](const BufferRegion& region) -> BufferRegion {
     if (region->buffer.same_as(source_buffer)) {
@@ -112,7 +107,7 @@ ffi::Array<BufferRegion> ReplaceBufferRegion(ffi::Array<BufferRegion> regions,
 }
 
 ffi::Array<MatchBufferRegion> ReplaceBufferRegion(ffi::Array<MatchBufferRegion> match_buffers,
-                                                  const Buffer& source_buffer,
+                                                  const BufferVar& source_buffer,
                                                   const BufferRegion& target) {
   match_buffers.MutateByApply(
       [&source_buffer, &target](const MatchBufferRegion& match_buffer) -> MatchBufferRegion {
@@ -128,23 +123,23 @@ ffi::Array<MatchBufferRegion> ReplaceBufferRegion(ffi::Array<MatchBufferRegion> 
 }
 
 /******** ReplaceBufferMutator ********/
-ReplaceBufferMutator::ReplaceBufferMutator(const Buffer& old_buffer, Buffer new_buffer,
+ReplaceBufferMutator::ReplaceBufferMutator(const BufferVar& old_buffer, BufferVar new_buffer,
                                            ffi::Map<SBlock, SBlock>* block_sref_reuse)
     : block_sref_reuse_(block_sref_reuse) {
-  buffer_var_map_[old_buffer->data.get()] = std::move(new_buffer);
+  buffer_var_map_[old_buffer.get()] = std::move(new_buffer);
 }
 
-ReplaceBufferMutator::ReplaceBufferMutator(const ffi::Map<Buffer, Buffer>& buffer_map,
+ReplaceBufferMutator::ReplaceBufferMutator(const ffi::Map<BufferVar, BufferVar>& buffer_map,
                                            ffi::Map<SBlock, SBlock>* block_sref_reuse)
     : block_sref_reuse_(block_sref_reuse) {
   for (const auto& [old_buffer, new_buffer] : buffer_map) {
-    buffer_var_map_[old_buffer->data.get()] = new_buffer;
+    buffer_var_map_[old_buffer.get()] = new_buffer;
   }
 }
 
 Expr ReplaceBufferMutator::VisitExpr_(const VarNode* var) {
   auto it = buffer_var_map_.find(var);
-  return it != buffer_var_map_.end() ? it->second->data : ffi::GetRef<Var>(var);
+  return it != buffer_var_map_.end() ? it->second.var() : ffi::GetRef<Var>(var);
 }
 
 Stmt ReplaceBufferMutator::VisitStmt_(const BufferStoreNode* op) {
@@ -159,7 +154,7 @@ Expr ReplaceBufferMutator::VisitExpr_(const BufferLoadNode* op) {
 
 MatchBufferRegion ReplaceBufferMutator::VisitMatchBufferRegion(
     const MatchBufferRegion& match_buffer) {
-  auto it = buffer_var_map_.find(match_buffer->source->buffer->data.get());
+  auto it = buffer_var_map_.find(match_buffer->source->buffer.get());
   if (it != buffer_var_map_.end()) {
     return MatchBufferRegion(match_buffer->buffer,
                              BufferRegion(it->second, match_buffer->source->region));
@@ -187,8 +182,8 @@ Stmt ReplaceBufferMutator::VisitStmt_(const SBlockNode* block) {
       }
     });
 
-    Buffer buf = [&]() {
-      auto it = buffer_var_map_.find(buffer_region->buffer->data.get());
+    BufferVar buf = [&]() {
+      auto it = buffer_var_map_.find(buffer_region->buffer.get());
       if (it == buffer_var_map_.end()) {
         return buffer_region->buffer;
       } else {
@@ -202,8 +197,8 @@ Stmt ReplaceBufferMutator::VisitStmt_(const SBlockNode* block) {
       return BufferRegion(buf, region);
     }
   };
-  auto f_mutate_alloc_buffers = [this](const Buffer& buffer) {
-    auto it = buffer_var_map_.find(buffer->data.get());
+  auto f_mutate_alloc_buffers = [this](const BufferVar& buffer) {
+    auto it = buffer_var_map_.find(buffer.get());
     return it == buffer_var_map_.end() ? buffer : it->second;
   };
 
@@ -213,7 +208,7 @@ Stmt ReplaceBufferMutator::VisitStmt_(const SBlockNode* block) {
   ffi::Array<BufferRegion> reads = block->reads.Map(f_mutate_read_write_region);
   ffi::Array<BufferRegion> writes = block->writes.Map(f_mutate_read_write_region);
   // Step 3. Mutate `alloc_buffers` for the old buffer allocated in this block.
-  ffi::Array<Buffer> alloc_buffers = block->alloc_buffers.Map(f_mutate_alloc_buffers);
+  ffi::Array<BufferVar> alloc_buffers = block->alloc_buffers.Map(f_mutate_alloc_buffers);
   // Step 4. Recursively mutate the block.
   SBlock mutated_block = StmtMutator::VisitStmt_(block).as_or_throw<SBlock>();
 
@@ -523,13 +518,13 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
   for (const SBlockRV& block : leaf_blocks) {
     ffi::Array<IterVar> iters = sch->Get(block)->iter_vars;
     bool has_spatial_iter = false;
-    ffi::Array<Var> index_map_inputs;
+    ffi::Array<PrimVar> index_map_inputs;
     ffi::Array<PrimExpr> index_map_outputs;
     for (const IterVar& iter : sch->Get(block)->iter_vars) {
-      Var var = iter->var.CopyWithSuffix("");
+      PrimVar var = iter->var.CopyWithSuffix("");
       index_map_inputs.push_back(var);
       if (!is_one(iter->dom->extent)) {
-        index_map_outputs.push_back(var.as_or_throw<PrimExpr>());
+        index_map_outputs.push_back(var);
         if (iter->iter_type == IterVarType::kDataPar) {
           has_spatial_iter = true;
         }
@@ -539,9 +534,7 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
       index_map_outputs.insert(index_map_outputs.begin(), IntImm::Int64(0));
     }
     try {
-      sch->TransformBlockLayout(
-          block, IndexMap(index_map_inputs.Map([](Var var) { return var.as_or_throw<PrimVar>(); }),
-                          index_map_outputs));
+      sch->TransformBlockLayout(block, IndexMap(index_map_inputs, index_map_outputs));
     } catch (tvm::ffi::Error& e) {
       // Skip layout transformation when not transformable.
     }

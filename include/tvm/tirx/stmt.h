@@ -51,7 +51,8 @@ class StmtNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<StmtNode>().def_ro("span", &StmtNode::span);
+    refl::ObjectDef<StmtNode>().def_ro("span", &StmtNode::span,
+                                       refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
@@ -201,7 +202,7 @@ class AssertStmt : public Stmt {
 class BufferStoreNode : public StmtNode {
  public:
   /*! \brief The buffer variable. */
-  Buffer buffer;
+  BufferVar buffer;
   /*! \brief The value to be stored. */
   PrimExpr value;
   /*! \brief The indices location to be stored. */
@@ -212,7 +213,7 @@ class BufferStoreNode : public StmtNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BufferStoreNode>()
-        .def_ro("buffer", &BufferStoreNode::buffer)
+        .def_ro("buffer", &BufferStoreNode::buffer, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("value", &BufferStoreNode::value)
         .def_ro("indices", &BufferStoreNode::indices)
         .def_ro("predicate", &BufferStoreNode::predicate);
@@ -226,7 +227,7 @@ class BufferStoreNode : public StmtNode {
  */
 class BufferStore : public Stmt {
  public:
-  TVM_DLL explicit BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
+  TVM_DLL explicit BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
                                ffi::Optional<PrimExpr> predicate = std::nullopt,
                                Span span = Span());
 
@@ -238,11 +239,15 @@ class BufferStore : public Stmt {
 class DeclBufferNode : public StmtNode {
  public:
   /*! \brief The buffer being declared */
-  Buffer buffer;
+  BufferVar buffer;
+  /*! \brief Physical pointer expression backing the declaration. */
+  Expr data;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DeclBufferNode>().def_ro("buffer", &DeclBufferNode::buffer);
+    refl::ObjectDef<DeclBufferNode>()
+        .def_ro("buffer", &DeclBufferNode::buffer, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("data", &DeclBufferNode::data);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.DeclBuffer", DeclBufferNode, StmtNode);
 };
@@ -250,7 +255,7 @@ class DeclBufferNode : public StmtNode {
 /*! \brief Managed reference to DeclBufferNode */
 class DeclBuffer : public Stmt {
  public:
-  TVM_DLL DeclBuffer(Buffer buffer, Span span = Span());
+  TVM_DLL DeclBuffer(BufferVar buffer, Expr data, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DeclBuffer, Stmt, DeclBufferNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DeclBufferNode);
 };
@@ -259,7 +264,7 @@ class DeclBuffer : public Stmt {
 class AllocBufferNode : public StmtNode {
  public:
   /*! \brief The buffer being allocated and declared */
-  Buffer buffer;
+  BufferVar buffer;
   /*!
    * \brief Additional annotations about the allocation.
    *
@@ -282,7 +287,7 @@ class AllocBufferNode : public StmtNode {
 class AllocBuffer : public Stmt {
  public:
   TVM_DLL AllocBuffer(
-      Buffer buffer,
+      BufferVar buffer,
       ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
       Span span = Span());
   /*!
@@ -688,6 +693,34 @@ class While : public Stmt {
 };
 
 /*!
+ * \brief A return from the current function.
+ */
+class ReturnNode : public StmtNode {
+ public:
+  /*! \brief The value to return. */
+  Expr value;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ReturnNode>().def_ro("value", &ReturnNode::value);
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Return", ReturnNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to ReturnNode.
+ * \sa ReturnNode
+ */
+class Return : public Stmt {
+ public:
+  TVM_DLL explicit Return(Expr value, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Return, Stmt, ReturnNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ReturnNode);
+};
+
+/*!
  * \brief A Break in control flow.
  */
 class BreakNode : public StmtNode {
@@ -743,14 +776,14 @@ class Continue : public Stmt {
 class BufferRegionNode : public PrimExprConvertibleNode {
  public:
   /*! \brief The buffer of the buffer region. */
-  Buffer buffer;
+  BufferVar buffer;
   /*! \brief The region array of the buffer region. */
   ffi::Array<Range> region;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BufferRegionNode>()
-        .def_ro("buffer", &BufferRegionNode::buffer)
+        .def_ro("buffer", &BufferRegionNode::buffer, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("region", &BufferRegionNode::region);
   }
 
@@ -766,14 +799,14 @@ class BufferRegionNode : public PrimExprConvertibleNode {
  */
 class BufferRegion : public PrimExprConvertible {
  public:
-  TVM_DLL explicit BufferRegion(Buffer buffer, ffi::Array<Range> region);
+  TVM_DLL explicit BufferRegion(BufferVar buffer, ffi::Array<Range> region);
 
   /*!
    * \brief Create a BufferRegion which is full region of the given buffer.
    * \param buffer The buffer to generate full BufferRegion.
    * \return The BufferRegion which covers all region of the given buffer
    */
-  TVM_DLL static BufferRegion FullRegion(Buffer buffer);
+  TVM_DLL static BufferRegion FullRegion(BufferVar buffer);
 
   /*!
    * \brief Create a BufferRegion which is a single point of the given buffer.
@@ -781,7 +814,7 @@ class BufferRegion : public PrimExprConvertible {
    * \param indices The access point indices of the buffer
    * \return The BufferRegion which is the single point of the given buffer.
    */
-  TVM_DLL static BufferRegion FromPoint(Buffer buffer, ffi::Array<PrimExpr> indices);
+  TVM_DLL static BufferRegion FromPoint(BufferVar buffer, ffi::Array<PrimExpr> indices);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferRegion, PrimExprConvertible, BufferRegionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRegionNode);
@@ -799,14 +832,15 @@ class BufferRegion : public PrimExprConvertible {
 class MatchBufferRegionNode : public ffi::Object {
  public:
   /*! \brief The target buffer. */
-  Buffer buffer;
+  BufferVar buffer;
   /*! \brief The source buffer region. */
   BufferRegion source;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MatchBufferRegionNode>()
-        .def_ro("buffer", &MatchBufferRegionNode::buffer)
+        .def_ro("buffer", &MatchBufferRegionNode::buffer,
+                refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("source", &MatchBufferRegionNode::source);
   }
 
@@ -820,7 +854,7 @@ class MatchBufferRegionNode : public ffi::Object {
  */
 class MatchBufferRegion : public ffi::ObjectRef {
  public:
-  TVM_DLL explicit MatchBufferRegion(Buffer buffer, BufferRegion source);
+  TVM_DLL explicit MatchBufferRegion(BufferVar buffer, BufferRegion source);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchBufferRegion, ffi::ObjectRef,
                                              MatchBufferRegionNode);
@@ -859,7 +893,7 @@ class SBlockNode : public StmtNode {
   /*! \brief The name_hint of the block. */
   ffi::String name_hint;
   /*! \brief The buffer allocated in the block. */
-  ffi::Array<Buffer> alloc_buffers;
+  ffi::Array<BufferVar> alloc_buffers;
   /*! \brief The match buffer regions. */
   ffi::Array<MatchBufferRegion> match_buffers;
   /*! \brief The annotation of the block. */
@@ -882,7 +916,8 @@ class SBlockNode : public StmtNode {
         .def_ro("reads", &SBlockNode::reads)
         .def_ro("writes", &SBlockNode::writes)
         .def_ro("name_hint", &SBlockNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("alloc_buffers", &SBlockNode::alloc_buffers)
+        .def_ro("alloc_buffers", &SBlockNode::alloc_buffers,
+                refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("match_buffers", &SBlockNode::match_buffers)
         .def_ro("annotations", &SBlockNode::annotations)
         .def_ro("init", &SBlockNode::init)
@@ -901,13 +936,13 @@ class SBlock : public Stmt {
       ffi::Array<IterVar> iter_vars, ffi::Array<BufferRegion> reads,
       ffi::Array<BufferRegion> writes, ffi::String name_hint, Stmt body,
       ffi::Optional<Stmt> init = std::nullopt,
-      ffi::Array<Buffer> alloc_buffers = ffi::Array<Buffer>(),
+      ffi::Array<BufferVar> alloc_buffers = ffi::Array<BufferVar>(),
       ffi::Array<MatchBufferRegion> match_buffers = ffi::Array<MatchBufferRegion>(),
       ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
       Span span = Span());
 
   TVM_DLL explicit SBlock(ffi::String name_hint, Stmt body,
-                          ffi::Array<Buffer> alloc_buffers = ffi::Array<Buffer>(),
+                          ffi::Array<BufferVar> alloc_buffers = ffi::Array<BufferVar>(),
                           Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SBlock, Stmt, SBlockNode);
@@ -983,8 +1018,6 @@ class ScopeIdDefStmt : public Stmt {
 
 /*! \brief namespace of possible attributes in AttrStmt.attr_key */
 namespace attr {
-/*! \brief Mark stores/loads with their bounds. */
-constexpr const char* buffer_bound = "buffer_bound";
 /*!
  * \brief Mark the scope as when computation start to happen.
  *  This can hint some code generator to create a new function for compute.
@@ -1008,10 +1041,6 @@ constexpr const char* pragma_auto_unroll_max_step = "pragma_auto_unroll_max_step
 constexpr const char* pragma_import_c = "pragma_import_c";
 /*! \brief Import llvm source or file into the final code gen module */
 constexpr const char* pragma_import_llvm = "pragma_import_llvm";
-/*! \brief Mark region is guarded by the pragma extension */
-constexpr const char* pragma_scope_prefix = "pragma_";
-/*! \brief Try to modify the AST to support Tensor Core */
-constexpr const char* pragma_tensor_core = "pragma_tensor_core";
 /*! \brief Pragma: unroll explicit */
 constexpr const char* pragma_unroll_explicit = "pragma_unroll_explicit";
 /*! \brief Mark storage alignment requirement of buffers */
@@ -1020,238 +1049,11 @@ constexpr const char* storage_alignment = "storage_alignment";
 constexpr const char* thread_extent = "thread_extent";
 /*! \brief Annotation key on AllocBuffer marking the allocation as volatile. */
 constexpr const char* kVolatile = "tirx.volatile";
-/*!
- * \brief Marks the layout transforms to be used for a tensor.
- *
- * Only applies to a DataProducer, as it should be made part of the
- * PrimFunc attributes for TIR.
- */
-constexpr const char* layout_transforms = "layout_transforms";
-/*!
- * \brief Marks the physical axis separators
- *
- * Only applies to a DataProducer, as it should be made part of the
- * Buffer definition in a PrimFunc.  See `BufferNode::axis_separators`
- * for more details.
- */
-constexpr const char* axis_separators = "axis_separators";
-/*!
- * \brief Marks production of double buffer data
- */
-constexpr const char* double_buffer_scope = "double_buffer_scope";
-/*!
- * \brief Marks region used by double buffer write
- */
-constexpr const char* double_buffer_write = "double_buffer_write";
-/*! \brief Mark of scan update scope */
-constexpr const char* scan_update_scope = "scan_update_scope";
-/*! \brief Mark of scan init scope */
-constexpr const char* scan_init_scope = "scan_init_scope";
-/*!
- * \brief Mark alignment of buffer dimension
- *  stmt.node is Tensor
- *  stmt.value is tvm_tuple(dim, align, offset)
- *  This gives hint to require stride of dim to be k * align + offset.
- */
-constexpr const char* buffer_dim_align = "buffer_dim_align";
 /*! \brief Mark buffer initial addr alignment in bytes */
 constexpr const char* buffer_data_alignment = "buffer_data_alignment";
 /*! \brief Mark buffer allocated addr in bytes */
 constexpr const char* buffer_allocated_addr = "buffer_allocated_addr";
-/*!
- * \brief Bind the buffer specification to the region of the op
- *  When this scope occurs, the stmt.node is a ffi::Array<NodeRef> = [buffer, tensor]
- *  stmt.value is a tvm_tuple(min0, extent0, min1, extent1, ...).
- *  The scope represents that we need to bind the storage region of tensor to buffer.
- *  This will affect replacement of some variables inside the scope that
- *  corresponds to field of buffer to be the actual expressions of tensor during
- *  storage flattening phase.
- */
-constexpr const char* buffer_bind_scope = "buffer_bind_scope";
-// Pipeline related attributes
-/*! \brief channel read scope */
-constexpr const char* channel_read_scope = "channel_read_scope";
-/*! \brief Advance step of channel after end of scope */
-constexpr const char* channel_read_advance = "channel_read_advance";
-/*! \brief channel write scope */
-constexpr const char* channel_write_scope = "channel_write_scope";
-/*! \brief Advance step of channel after end of scope */
-constexpr const char* channel_write_advance = "channel_write_advance";
-/*! \brief pipeline stage scope, implies always execution */
-constexpr const char* pipeline_stage_scope = "pipeline_stage_scope";
-/*! \brief pipeline execution scope, implies the scope can be pipelined. */
-constexpr const char* pipeline_exec_scope = "pipeline_exec_scope";
-
-/*!
- * \brief Mark that the attached statement runs asynchronously.
- */
-constexpr const char* async_scope = "async_scope";
-
-/*!
- * \brief Annotations for invoking and synchronizing asynchronous operations.
-
- * Synchronization is done in terms of "queue": It is an abstract entity associated
- * with each asynchronous unit, and it tracks invocations and completions of asynchronous
- * operations in the FIFO order.
- *
- * Similarly to PTX instructions commit_group and wait_group, these annotations express
- * synchronization by "counting":
- *
- * async_commit_queue(i): Group one or more invocations of async operations in the given scope,
- * and "commit" (or push) them to the queue i. A group of operations committed together is
- * awaited as one chunk. Groups committed to the same queue complete in the FIFO order.
- *
- * async_wait_queue(i, N): Block until only N most recent committed groups are still in-flight at
- * the queue i. N does not have to be a constant, but some backends may require a constant count.
-*/
-constexpr const char* async_commit_queue_scope = "async_commit_queue_scope";
-constexpr const char* async_wait_queue_scope = "async_wait_queue_scope";
-constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
-
-/*!
- * \brief Mark that the shape of TensorCore fragment
- */
-constexpr const char* fragment_shape = "fragment_shape";
-
-/*!
- * \brief Mark that the layout of TensorCore fragment
- */
-constexpr const char* fragment_layout = "fragment_layout";
-
-/*!
- * \brief Mark that the kernel is hand threaded and doesn't need syncs inserted
- */
-constexpr const char* hand_threaded = "hand_threaded";
-
-/*!
- * \brief Mark whether the script-completer need to fill in missing access region
- *        during script parsing.
- * \note The result should be a integer mask with range [0, 4).
- *       if (mask & 1) the read region should be detected,
- *       if (mask & 2) the write region should be detected.
- */
-constexpr const char* script_parsing_detect_access = "tirx.script_parsing_detect_access";
-
-/*!
- * \brief Mark that the loop should be partitioned.
- */
-constexpr const char* pragma_loop_partition_hint = "pragma_loop_partition_hint";
-
-/*! \brief Mark the stage of a statement in the software pipeline */
-constexpr const char* software_pipeline_stage = "software_pipeline_stage";
-
-/*! \brief Mark the order of a statement in the software pipeline */
-constexpr const char* software_pipeline_order = "software_pipeline_order";
-
-/*! \brief List stages in the software pipeline that should run asynchronously
- * \note All statements in the provided stages are assumed to have asynchronous
- *       semantics (e.g. CUDA async global to shared memory copy).
- */
-constexpr const char* software_pipeline_async_stages = "software_pipeline_async_stages";
-
-/*! \brief Mark the buffers which is const access and can be transformed layout. */
-constexpr const char* layout_free_buffers = "layout_free_buffers";
-
-/*! \brief Mark the local stage for the shared memory access should be added. */
-constexpr const char* manifest_shared_memory_local_stage =
-    "tirx.manifest_shared_memory_local_stage";
-
-/*! \brief Mark the tiling structure of blocks that are applied by rule Multi-Level-Tiling */
-constexpr const char* meta_schedule_tiling_structure = "meta_schedule.tiling_structure";
-
-/*!
- * \brief Mark that the loop should be further skip and bound to environment threads to enable
- * cooperative fetching.
- */
-constexpr const char* meta_schedule_cooperative_fetch = "meta_schedule.cooperative_fetch";
-
-/*! \brief The allowed range of thread extent in thread bindings */
-constexpr const char* meta_schedule_thread_extent_low_inclusive =
-    "meta_schedule.thread_extent_low_inclusive";
-
-/*! \brief The allowed range of thread extent in thread bindings */
-constexpr const char* meta_schedule_thread_extent_high_inclusive =
-    "meta_schedule.thread_extent_high_inclusive";
-
-/*! \brief Mark the block whose producer needs to be applied by rule Random-Compute-Location */
-constexpr const char* meta_schedule_random_compute_producer =
-    "meta_schedule.random_compute_producer";
-
-/*! \brief Mark auto-parallel setting on the block. */
-constexpr const char* meta_schedule_parallel = "meta_schedule.parallel";
-
-/*! \brief Mark auto-vectorize setting on the block. */
-constexpr const char* meta_schedule_vectorize = "meta_schedule.vectorize";
-
-/*! \brief Mark auto-unroll setting on the block. */
-constexpr const char* meta_schedule_unroll_explicit = "meta_schedule.unroll_explicit";
-
-/*! \brief Mark auto-unroll setting on the block. */
-constexpr const char* meta_schedule_unroll_implicit = "meta_schedule.unroll_implicit";
-
-/*! \brief Mark that a block should be further rewritten using tensorization. */
-constexpr const char* meta_schedule_auto_tensorize = "meta_schedule.auto_tensorize";
-
-/*! \brief Mark that a block is a preprocessor block for layout rewrite. */
-constexpr const char* meta_schedule_layout_rewrite_preproc = "meta_schedule.layout_rewrite_preproc";
-/*!
- * \brief Mark that the init statement of a block should be further rewritten using tensorization.
- */
-constexpr const char* meta_schedule_auto_tensorize_init = "meta_schedule.auto_tensorize_init";
-
-/*!
- * \brief Mark that the block need to add predicate for block var bounds during lowering
- */
-constexpr const char* require_block_var_bound_predicate = "require_bound_predicate";
-
-/*! \brief Mark that tensor core is enabled in the PrimExpr */
-constexpr const char* meta_schedule_tensor_core_enabled = "meta_schedule.tensor_core_enabled";
-
-/*!
- * \brief Mark a block as generated by cache_read or cache_write block.
- * 0 means cache_read; 1 means cache_write.
- * \sa meta_schedule_cache_type_read
- * \sa meta_schedule_cache_type_write
- */
-constexpr const char* meta_schedule_cache_type = "meta_schedule.cache_type";
-
-/*! \sa meta_schedule_cache_type */
-constexpr const int meta_schedule_cache_type_read = 0;
-
-/*! \sa meta_schedule_cache_type */
-constexpr const int meta_schedule_cache_type_write = 1;
-
-/*! \brief Mark auto copy for memhammer */
-constexpr const char* auto_copy = "auto_copy";
-
-/*! \brief Mark local stage constraint on data copy */
-constexpr const char* local_stage = "local_stage";
-
-/*! \brief Mark vectorization length constraint on block */
-constexpr const char* vector_bytes = "vector_bytes";
-
-/*!
- * \brief Mark that a block is executed by a warp. This implies the extend of threadIdx.x is
- * warp size.
- */
-constexpr const char* warp_execution = "warp_execution";
-
-/*! \brief Mark that a block is disallowed in auto inline. */
-constexpr const char* meta_schedule_inline_rule = "meta_schedule.inline_rule";
-
-/*! \brief Mark that a block has an explicitly specified read region.
- * This is used to override the default read region inference in TIR.
- */
-constexpr const char* explicit_read_region = "explicit_read_region";
-
-/*! \brief Mark that a block has an explicitly specified write region.
- * This is used to override the default write region inference in TIR.
- */
-constexpr const char* explicit_write_region = "explicit_write_region";
 constexpr const char* tensorized_nki_instruction = "tensorized_nki_instruction";
-
-/*! \brief ,ark a ForNode represent an irregular loop of non-structural control flow edges. */
-constexpr const char* irregular_loop_mark = "irregular_loop_mark";
 
 /*!
  * \brief Mark the kernel as persistent.

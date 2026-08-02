@@ -567,6 +567,11 @@ def test_arange_infer_ty():
     _check_inference(bb, relax.op.arange(1.0, 10), relax.TensorType((9,), "float32"))
     _check_inference(bb, relax.op.arange(0, 20, 2.5), relax.TensorType((8,), "float32"))
     _check_inference(bb, relax.op.arange(1, 10, 2.3), relax.TensorType((4,), "float32"))
+    _check_inference(
+        bb,
+        relax.op.arange(0, 10, 1, tvm.ir.PrimType("float32")),
+        relax.TensorType((10,), "float32"),
+    )
 
 
 def test_arange_infer_ty_shape_var():

@@ -93,28 +93,50 @@ class MBarrier:
 
     def __init__(self, pool, depth, phase_offset=0, leader=None):
         self.buf = pool.alloc((depth,), "uint64", align=8)
+        self._local_buf = self.buf
+        self._remote_cta_id = None
         self.depth = depth
         self.phase_offset = phase_offset
         self.leader = leader if leader is not None else (T.cuda.thread_rank() == 0)
 
-    @T.inline
     def init(self, count):
+        if self._remote_cta_id is not None:
+            raise ValueError("MBarrier.remote_view() cannot be initialized")
+        self._init(count)
+
+    @T.inline
+    def _init(self, count):
         if self.leader:
             for i in T.unroll(self.depth):
                 T.ptx.mbarrier.init(self.buf.ptr_to([i]), count)
 
-    @T.inline
     def wait(self, stage, phase):
+        if self._remote_cta_id is not None:
+            raise ValueError("MBarrier.remote_view() cannot be waited on")
+        self._wait(stage, phase)
+
+    @T.inline
+    def _wait(self, stage, phase):
         # Blocks: ``mbarrier.try_wait`` loops internally until the phase flips,
         # so this returns only once the barrier has completed.
         T.ptx.mbarrier.try_wait(self.buf.ptr_to([stage]), phase ^ self.phase_offset)
 
+    def arrive(self, stage, remote=None, pred=None, count=None):
+        if self._remote_cta_id is not None:
+            if remote is not None:
+                raise ValueError("MBarrier.remote_view().arrive() cannot also specify remote")
+            remote = self._remote_cta_id
+            buf = self._local_buf
+        else:
+            buf = self.buf
+        self._arrive(buf.ptr_to([stage]), remote, pred, count)
+
     @T.inline
-    def arrive(self, stage, cta_id=None, pred=None, count=None):
+    def _arrive(self, bar, remote=None, pred=None, count=None):
         # Default: local-CTA arrive — emits the simple
         # ``mbarrier.arrive.shared.b64`` form. To arrive on a remote
         # CTA's mbarrier in a cluster kernel, callers must pass
-        # ``cta_id=`` explicitly (e.g. ``bar.arrive(stage, cta_id=0)``)
+        # ``remote=`` explicitly (e.g. ``bar.arrive(stage, remote=0)``)
         # or use ``MBarrier.remote_view(rank).arrive(stage)``. Defaulting
         # the cross-CTA path was both surprising (``bar.arrive(stage)``
         # silently ``mapa`` ed across the cluster) and a per-call cost
@@ -124,13 +146,11 @@ class MBarrier:
         # operand, i.e. ``mbarrier.arrive.shared::cluster.b64 _, [addr], count``.
         # When ``None`` the implicit count-of-1 form is emitted. Passing
         # ``count=1`` is semantically identical but spells the count explicitly.
-        if cta_id is None:
-            T.ptx.mbarrier.arrive(self.buf.ptr_to([stage]))
+        if remote is None:
+            T.ptx.mbarrier.arrive(bar)
         else:
             actual_pred = True if pred is None else pred
-            T.ptx.mbarrier.arrive(
-                self.buf.ptr_to([stage]), cta_id=cta_id, pred=actual_pred, count=count
-            )
+            T.ptx.mbarrier.arrive(bar, remote=remote, pred=actual_pred, count=count)
 
     def ptr_to(self, idx):
         return self.buf.ptr_to(idx)
@@ -138,19 +158,26 @@ class MBarrier:
     def remote_view(self, rank):
         """Create a view of this barrier mapped to another CTA's shared memory.
 
-        Arrive-only: the returned view is built with ``object.__new__`` and
-        never copies ``self.leader``, so calling ``.init()`` on it would fail.
-        Use it solely to ``arrive`` on a remote CTA's mbarrier.
+        The returned view retains the local barrier and target CTA so
+        ``arrive`` emits the cluster form. Its mapped buffer remains available
+        through ``ptr_to`` for operations that consume a remote shared-memory
+        pointer. ``init`` and ``wait`` are local-only and reject remote views.
         """
         from tvm.ir import PointerType, PrimType
         from tvm.tirx import Var as TIRVar
 
-        expr = T.reinterpret("handle", T.ptx.map_shared_rank(self.buf.ptr_to([0]), rank))
-        ptr = TIRVar("remote_mbar_ptr", PointerType(PrimType("uint64")))
+        if self._remote_cta_id is not None:
+            raise ValueError("MBarrier.remote_view() cannot be applied to a remote view")
+
+        ptr_ty = PointerType(PrimType("uint64"), "shared")
+        expr = T.reinterpret(ptr_ty, T.ptx.map_shared_rank(self.buf.ptr_to([0]), rank))
+        ptr = TIRVar("remote_mbar_ptr", ptr_ty)
         T.Bind(expr, var=ptr)
         buf = T.decl_buffer([self.depth], "uint64", data=ptr, scope="shared")
         remote = object.__new__(type(self))
         remote.buf = buf
+        remote._local_buf = self._local_buf
+        remote._remote_cta_id = rank
         remote.depth = self.depth
         remote.phase_offset = self.phase_offset
         return remote
@@ -163,22 +190,36 @@ class TMABar(MBarrier):
     (matching MBarrier.arrive defaults).
     """
 
+    def arrive(self, stage, tx_count=None, remote=None, pred=None):
+        if self._remote_cta_id is not None:
+            if remote is not None:
+                raise ValueError("TMABar.remote_view().arrive() cannot also specify remote")
+            remote = self._remote_cta_id
+            buf = self._local_buf
+        else:
+            buf = self.buf
+        self._arrive_tma(buf.ptr_to([stage]), tx_count, remote, pred)
+
     @T.inline
-    def arrive(self, stage, tx_count=None, cta_id=None, pred=None):
+    def _arrive_tma(self, bar, tx_count=None, remote=None, pred=None):
         # NOTE: this arrive() kwarg set intentionally differs from
         # MBarrier.arrive (hardware necessity, LSP-incompatible by design).
         # ``tx_count``: TMA byte count for ``mbarrier.arrive.expect_tx``.
-        # ``cta_id`` / ``pred``: forwarded to the underlying
+        # ``remote`` / ``pred``: forwarded to the underlying
         # ``mbarrier.arrive`` (cluster path) when set; otherwise the
         # arrive is local-CTA only. See ``MBarrier.arrive`` for the
         # full default-local rationale.
         if tx_count is not None:
-            T.ptx.mbarrier.arrive.expect_tx(self.buf.ptr_to([stage]), tx_count)
-        elif cta_id is None:
-            T.ptx.mbarrier.arrive(self.buf.ptr_to([stage]))
+            if remote is None:
+                T.ptx.mbarrier.arrive.expect_tx(bar, tx_count)
+            else:
+                actual_pred = True if pred is None else pred
+                T.ptx.mbarrier.arrive.expect_tx(bar, tx_count, remote=remote, pred=actual_pred)
+        elif remote is None:
+            T.ptx.mbarrier.arrive(bar)
         else:
             actual_pred = True if pred is None else pred
-            T.ptx.mbarrier.arrive(self.buf.ptr_to([stage]), cta_id=cta_id, pred=actual_pred)
+            T.ptx.mbarrier.arrive(bar, remote=remote, pred=actual_pred)
 
 
 class TCGen05Bar(MBarrier):

@@ -38,8 +38,9 @@ Two fundamental APIs create a buffer:
   it allocates, like ``alloc_buffer``.
 
 A buffer's ``data`` pointer is an immutable ``Var`` (``alloc_buffer`` defines it;
-``decl_buffer`` takes one). To back a buffer with a pointer *expression*, bind it
-first — see :doc:`data_types`.
+``decl_buffer`` takes one). To back a buffer with a pointer *expression*, assign
+it to a name first; the parser creates an immutable pointer binding. See
+:doc:`data_types`.
 
 Both share one descriptor; the parameters that matter most:
 
@@ -378,7 +379,7 @@ tensor as a view at a column offset, and one warp frees it at the end:
         T.ptx.tcgen05.relinquish_alloc_permit(cta_group=cta_group)
         T.ptx.tcgen05.dealloc(addr, n_cols=512, cta_group=cta_group)
 
-You manage the column offsets and the ``tmem_layout`` (a datapath D/F layout)
+You manage the column offsets and the ``tmem_layout`` (a datapath D/F/B layout)
 yourself. This is exactly the sequence the pool below emits.
 
 Pool
@@ -392,7 +393,9 @@ bump-allocation, and the datapath layout:
     tmem_addr = pool.alloc((1,), "uint32")          # pool = the kernel's smem pool
     tmem_pool = T.TMEMPool(pool, total_cols=512, cta_group=cta_group,
                            tmem_addr=tmem_addr)
-    acc = tmem_pool.alloc((CTA_M, 512), "float32")  # allocated_addr set for you
+    # Choose the layout required by the instruction that consumes the buffer:
+    acc = tmem_pool.alloc((CTA_M, 512), "float32")  # Layout D when CTA_M=128
+    # acc = tmem_pool.alloc((64, N), "float32", datapath="B")  # cta_group=2
     tmem_pool.commit()                               # emits tcgen05.alloc (one warp)
     # ... use acc ...
     tmem_pool.dealloc()                              # emits tcgen05.dealloc (one warp)
@@ -438,6 +441,11 @@ to an intrinsic or inline function; ``data`` is the base pointer:
 .. code-block:: c++
 
     B_ptr[tx] = ld(&A_ptr[tx]);          // ptr_to([tx]) -> &A_ptr[tx];  A.data -> A_ptr
+
+The pointer returned by ``ptr_to`` has the buffer's element type and storage
+scope. This remains true when the buffer is a typed view over a byte-addressed
+allocation pool; the pool's raw backing-pointer type does not leak through the
+element address.
 
 **Vectorized access — ``vload`` / ``vstore``.** Move several elements as one wide
 transfer (see also :doc:`data_types`):

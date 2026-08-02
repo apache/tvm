@@ -137,8 +137,8 @@ void NVSHMEMXCumoduleInit(void* cuModule) {
   }
 }
 
-void NVSHMEMBarrierAllOnStream(TVMStreamHandle stream) {
-  CUstream strm = static_cast<CUstream>(stream);
+void NVSHMEMBarrierAllOnStream(int64_t stream) {
+  CUstream strm = reinterpret_cast<CUstream>(stream);
   nvshmemx_barrier_all_on_stream(strm);
 }
 
@@ -154,7 +154,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         int device_id;
         TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
         TVMStreamHandle stream = TVMFFIEnvGetStream(kDLCUDA, device_id);
-        NVSHMEMBarrierAllOnStream(stream);
+        NVSHMEMBarrierAllOnStream(reinterpret_cast<int64_t>(stream));
       });
 }
 

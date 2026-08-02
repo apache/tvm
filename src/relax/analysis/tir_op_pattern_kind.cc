@@ -39,7 +39,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
  public:
   explicit PatternKindAnalyzer(const tirx::PrimFunc& func) {
     for (const tirx::Var& param : func->params) {
-      ffi::Optional<Buffer> param_buf = func->buffer_map.Get(param);
+      ffi::Optional<BufferVar> param_buf = func->buffer_map.Get(param);
       if (param_buf.has_value()) {
         param_buffers_.insert(param_buf.value());
       }
@@ -102,7 +102,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
       // while the order amount enums: kElemWise < kBroadcast < kInjective.
       // We can simply use `std::max` to detect these three patterns.
       // E.g Here is only one store node but two load nodes, like C[i, j] = A[i, j] + B[i]
-      // Buffer C and A are elemwise but C and B are broadcast. So the whole block follows
+      // BufferVar C and A are elemwise but C and B are broadcast. So the whole block follows
       // broadcast pattern.
       if (IsElemwisePattern(store, load)) {
         index_pair_pattern = std::max(index_pair_pattern, kElemWise);
@@ -228,8 +228,8 @@ class PatternKindAnalyzer : public StmtExprVisitor {
   static bool IsInjectivePattern(const BufferStore& store, const BufferLoad& load) {
     std::unordered_set<const tirx::VarNode*> vars;
     for (const PrimExpr& store_index : store->indices) {
-      if (const auto* v = store_index.as<tirx::VarNode>()) {
-        vars.insert(v);
+      if (auto var = store_index.as<tirx::PrimVar>()) {
+        vars.insert(var.value().get());
       } else {
         return false;
       }
@@ -253,17 +253,17 @@ class PatternKindAnalyzer : public StmtExprVisitor {
   static bool IsAllowReusePattern(const BufferStore& store, const BufferLoad& load) {
     std::unordered_set<const tirx::VarNode*> vars;
     for (const PrimExpr& index : store->indices) {
-      if (const auto* v = index.as<tirx::VarNode>()) {
-        vars.insert(v);
+      if (auto var = index.as<tirx::PrimVar>()) {
+        vars.insert(var.value().get());
       } else {
         return false;
       }
     }
     for (const PrimExpr& index : load->indices) {
       PreOrderVisit(index, [&](const ffi::ObjectRef& node) {
-        if (const auto* v = node.as<tirx::VarNode>()) {
-          if (vars.count(v)) {
-            vars.erase(v);
+        if (auto var = node.as<tirx::PrimVar>()) {
+          if (vars.count(var.value().get())) {
+            vars.erase(var.value().get());
           }
         }
         return true;
@@ -346,7 +346,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
   /*! \brief The result of op pattern. */
   OpPatternKind kind_ = kElemWise;
   /*! \brief The buffers from function params. I.e. the input and output buffers. */
-  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> param_buffers_;
+  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> param_buffers_;
 
  public:
   OpPatternKind GetResult() { return kind_; }
@@ -361,14 +361,14 @@ OpPatternKind AnalyzeOpPatternKind(const PrimFunc& func) {
 bool HasReshapePattern(const PrimFunc& func) {
   class ReshapeDetector : public StmtVisitor {
    public:
-    static bool Detect(const Buffer& src_buffer, const Buffer& dst_buffer, Stmt stmt) {
+    static bool Detect(const BufferVar& src_buffer, const BufferVar& dst_buffer, Stmt stmt) {
       ReshapeDetector detector(src_buffer, dst_buffer);
       detector(stmt);
       return detector.is_reshape_;
     }
 
    private:
-    explicit ReshapeDetector(const Buffer& src_buffer, const Buffer& dst_buffer)
+    explicit ReshapeDetector(const BufferVar& src_buffer, const BufferVar& dst_buffer)
         : is_reshape_(false), src_buffer_(src_buffer), dst_buffer_(dst_buffer) {}
 
     void VisitStmt_(const ForNode* loop) final {
@@ -408,7 +408,7 @@ bool HasReshapePattern(const PrimFunc& func) {
         return;
       }
 
-      ffi::Map<tirx::Var, Range> var_range;
+      ffi::Map<tirx::PrimVar, Range> var_range;
       for (const IterVar& v : block->iter_vars) {
         ana_->Bind(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
         var_range.Set(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
@@ -436,7 +436,8 @@ bool HasReshapePattern(const PrimFunc& func) {
       // This check requires at least one of the src/dst side is a trivial buffer
       // access (e.g., buf[ax0, ax1, ax2]).
 
-      auto f_calc_flattened_idx = [&](const Buffer& buffer, const ffi::Array<PrimExpr>& indices) {
+      auto f_calc_flattened_idx = [&](const BufferVar& buffer,
+                                      const ffi::Array<PrimExpr>& indices) {
         TVM_FFI_ICHECK_EQ(indices.size(), buffer->shape.size());
         int ndim = indices.size();
         PrimExpr idx = 0;
@@ -453,7 +454,7 @@ bool HasReshapePattern(const PrimFunc& func) {
             /*simplify_trivial_iterators=*/true)[0];
       };
 
-      auto f_is_trivial_indices = [block, this](const Buffer& buffer,
+      auto f_is_trivial_indices = [block, this](const BufferVar& buffer,
                                                 const ffi::Array<PrimExpr>& indices) {
         if (indices.size() != block->iter_vars.size()) {
           return false;
@@ -470,7 +471,7 @@ bool HasReshapePattern(const PrimFunc& func) {
       };
 
       ffi::Array<PrimExpr> nontrivial_indices{nullptr};
-      Buffer nontrivial_buffer{nullptr};
+      BufferVar nontrivial_buffer{nullptr};
       if (f_is_trivial_indices(dst_buffer_, buffer_store->indices)) {
         nontrivial_indices = buffer_load->indices;
         nontrivial_buffer = src_buffer_;
@@ -487,7 +488,7 @@ bool HasReshapePattern(const PrimFunc& func) {
       if (nontrivial_indices.defined() && !has_zero_extent) {
         PrimType dtype =
             !block->iter_vars.empty() ? block->iter_vars[0]->var.ty() : PrimType::Int(64);
-        tirx::Var fused_var("fused", dtype);
+        tirx::PrimVar fused_var("fused", dtype);
         ffi::Map<tirx::Var, PrimExpr> inverse_indices_map;
         PrimExpr stride = IntImm(dtype, /*value=*/1);
         for (int i = static_cast<int>(block->iter_vars.size()) - 1; i >= 0; --i) {
@@ -502,7 +503,7 @@ bool HasReshapePattern(const PrimFunc& func) {
         ffi::Array<PrimExpr> simplify_res = arith::IterMapSimplify(
             /*indices=*/{flattened_idx},
             /*input_iters=*/
-            ffi::Map<tirx::Var, Range>{{fused_var, Range(IntImm(dtype, /*value=*/0), stride)}},
+            ffi::Map<tirx::PrimVar, Range>{{fused_var, Range(IntImm(dtype, /*value=*/0), stride)}},
             /*input_pred=*/IntImm::Bool(true),
             /*check_level=*/arith::IterMapLevel::Surjective,
             /*analyzer=*/this->ana_,
@@ -527,12 +528,12 @@ bool HasReshapePattern(const PrimFunc& func) {
     }
 
     bool is_reshape_;
-    const Buffer& src_buffer_;
-    const Buffer& dst_buffer_;
+    const BufferVar& src_buffer_;
+    const BufferVar& dst_buffer_;
     arith::Analyzer ana_;
   };
 
-  ffi::Array<Buffer> buffer_args;
+  ffi::Array<BufferVar> buffer_args;
   for (const auto& param : func->params) {
     if (auto buffer = func->buffer_map.Get(param)) {
       buffer_args.push_back(buffer.value());
@@ -542,8 +543,8 @@ bool HasReshapePattern(const PrimFunc& func) {
   if (buffer_args.size() < 2) {
     return false;
   }
-  Buffer src_buffer = buffer_args.front();
-  Buffer dst_buffer = buffer_args.back();
+  BufferVar src_buffer = buffer_args.front();
+  BufferVar dst_buffer = buffer_args.back();
 
   // To detect the reshape pattern, we require each For to have
   // either another For or a BlockRealize as body.

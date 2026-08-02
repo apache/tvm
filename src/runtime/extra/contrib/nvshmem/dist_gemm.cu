@@ -22,7 +22,8 @@
 #include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/disco/disco_worker.h>
+#include <tvm/runtime/device_api.h>
+#include <tvm/runtime/tensor.h>
 
 namespace tvm {
 namespace runtime {
@@ -57,24 +58,28 @@ void copy_to_peer(void* dst, int dst_device, void* src, size_t size, TVMStreamHa
   cudaMemcpyAsync(remote_dst, src, size, cudaMemcpyDefault, CUstream(stream));
 }
 
+Device current_cuda_device() {
+  int device_id;
+  TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
+  return Device{DLDeviceType::kDLCUDA, device_id};
+}
+
 TVMStreamHandle stream_create() {
-  DiscoWorker* worker = ThreadLocalDiscoWorker::Get()->worker;
-  TVM_FFI_ICHECK(worker != nullptr) << "NVSHMEM stream creation failed: worker is not initialized";
-  cudaStream_t retval;
-  TVM_FFI_CHECK_CUDA_ERROR(cudaStreamCreateWithFlags(&retval, cudaStreamNonBlocking));
-  return static_cast<TVMStreamHandle>(retval);
+  Device device = current_cuda_device();
+  return DeviceAPI::Get(device)->CreateStream(device);
 }
 
 void stream_sync(TVMStreamHandle from_stream, TVMStreamHandle to_stream) {
-  DiscoWorker* worker = ThreadLocalDiscoWorker::Get()->worker;
-  TVM_FFI_ICHECK(worker != nullptr) << "NVSHMEM stream sync failed: worker is not initialized";
-  auto f_sync_stream = tvm::ffi::Function::GetGlobalRequired("runtime.Device_StreamSyncFromTo");
-  f_sync_stream(worker->default_device, reinterpret_cast<int64_t>(from_stream),
-                reinterpret_cast<int64_t>(to_stream));
+  Device device = current_cuda_device();
+  DeviceAPI::Get(device)->SyncStreamFromTo(device, from_stream, to_stream);
 }
 
-void set_streaming_policy(TVMStreamHandle stream, void* ptr, size_t size) {
-  cudaStream_t strm = static_cast<cudaStream_t>(stream);
+TVMStreamHandle stream_from_int(int64_t stream) {
+  return reinterpret_cast<TVMStreamHandle>(stream);
+}
+
+void set_streaming_policy(int64_t stream, void* ptr, size_t size) {
+  cudaStream_t strm = static_cast<cudaStream_t>(stream_from_int(stream));
   struct cudaAccessPolicyWindow accessPolicyWindow = {ptr, size, 0.0, cudaAccessPropertyStreaming,
                                                       cudaAccessPropertyStreaming};
   cudaStreamAttrValue streamAttrValue;
@@ -83,11 +88,10 @@ void set_streaming_policy(TVMStreamHandle stream, void* ptr, size_t size) {
 }
 
 void transfer_to_peers_reduce_scatter(Tensor semaphore, Tensor gemm_out, Tensor staging_buffer,
-                                      TVMStreamHandle stream, int32_t M, int32_t N, int32_t BLK_M,
+                                      int64_t stream_handle, int32_t M, int32_t N, int32_t BLK_M,
                                       int32_t BLK_N, int32_t WORLD_SIZE) {
-  DiscoWorker* worker = ThreadLocalDiscoWorker::Get()->worker;
-  TVM_FFI_ICHECK(worker != nullptr) << "NVSHMEM transfer to peer failed: worker is not initialized";
-  int my_rank = worker->worker_id;
+  TVMStreamHandle stream = stream_from_int(stream_handle);
+  int my_rank = nvshmem_my_pe();
   int LOCAL_M = M / WORLD_SIZE;
   for (int i = 0; i < WORLD_SIZE; i++) {
     int to_rank = (my_rank + i + 1) % WORLD_SIZE;
@@ -108,11 +112,10 @@ void transfer_to_peers_reduce_scatter(Tensor semaphore, Tensor gemm_out, Tensor 
   }
 }
 
-void transfer_to_peers_all_gather(Tensor semaphore, Tensor A, Tensor ag_out, TVMStreamHandle stream,
+void transfer_to_peers_all_gather(Tensor semaphore, Tensor A, Tensor ag_out, int64_t stream_handle,
                                   int32_t M, int32_t K, int32_t WORLD_SIZE) {
-  DiscoWorker* worker = ThreadLocalDiscoWorker::Get()->worker;
-  TVM_FFI_ICHECK(worker != nullptr) << "NVSHMEM transfer to peer failed: worker is not initialized";
-  int my_rank = worker->worker_id;
+  TVMStreamHandle stream = stream_from_int(stream_handle);
+  int my_rank = nvshmem_my_pe();
   int LOCAL_M = M / WORLD_SIZE;
   for (int i = 0; i < WORLD_SIZE; i++) {
     int to_rank = (my_rank + WORLD_SIZE - i - 1) % WORLD_SIZE;
@@ -132,10 +135,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("runtime.disco.stream_sync", stream_sync)
       .def("runtime.disco.transfer_to_peers_reduce_scatter", transfer_to_peers_reduce_scatter)
       .def("runtime.disco.transfer_to_peers_all_gather", transfer_to_peers_all_gather)
-      .def("runtime.disco.set_streaming_policy",
-           [](TVMStreamHandle stream, Tensor ptr, size_t size) {
-             set_streaming_policy(stream, ptr->data, size);
-           });
+      .def("runtime.disco.set_streaming_policy", [](int64_t stream, Tensor ptr, size_t size) {
+        set_streaming_policy(stream, ptr->data, size);
+      });
 }
 
 }  // namespace runtime

@@ -23,21 +23,87 @@ converter registered under the same name (the converters are keyed by
 out of the module and annotates them for the ``tensorrt`` codegen.
 """
 
-from collections.abc import Mapping
-
+from tvm import tirx
 from tvm.ir import IRModule
-from tvm.relax.dpl.pattern import DFPattern, is_op, wildcard
-from tvm.relax.transform import FuseOpsByPattern, MergeCompositeFunctions
+from tvm.relax.dpl.pattern import is_op, wildcard
+from tvm.relax.expr import ShapeExpr
+from tvm.relax.transform import (
+    FuseOpsByPattern,
+    MergeCompositeFunctions,
+    PatternCheckContext,
+)
 
-from ..pattern_registry import get_patterns_with_prefix, register_patterns
-
-Pattern = tuple[str, DFPattern, Mapping[str, DFPattern]]
+from ..pattern_registry import Pattern, get_patterns_with_prefix, register_patterns
 
 
 def _op_pattern(composite_name: str, op_name: str, num_args: int) -> Pattern:
     """A pattern matching a single op called with ``num_args`` wildcard arguments."""
     args = [wildcard() for _ in range(num_args)]
     return (composite_name, is_op(op_name)(*args), {})
+
+
+def _resize2d_pattern() -> Pattern:
+    """Match the subset of resize2d that the TensorRT converter implements exactly."""
+
+    data = wildcard()
+    size = wildcard()
+    root = is_op("relax.image.resize2d")(data, size)
+
+    def check(context: PatternCheckContext) -> bool:
+        data_expr = context.annotated_expr["data"]
+        size_expr = context.annotated_expr["size"]
+        resize = context.annotated_expr["root"]
+
+        # Follow an ANF binding when the static ShapeExpr was assigned to a variable.
+        while size_expr in context.matched_bindings:
+            size_expr = context.matched_bindings[size_expr]
+
+        if not isinstance(size_expr, ShapeExpr) or len(size_expr.values) != 2:
+            return False
+        if not all(isinstance(dim, tirx.IntImm) and dim.value > 0 for dim in size_expr.values):
+            return False
+
+        attrs = resize.attrs
+        if attrs.layout != "NCHW":
+            return False
+        if data_expr.ty.ndim != 4 or data_expr.ty.shape is None:
+            return False
+
+        # The runtime's DLPack-to-TensorRT dtype mapper supports only FP16/FP32.  TensorRT Resize
+        # itself preserves its input dtype, so a distinct Relax out_dtype is not supported here.
+        if data_expr.ty.dtype not in ("float16", "float32"):
+            return False
+        if resize.ty.dtype != data_expr.ty.dtype:
+            return False
+
+        if attrs.method not in ("nearest_neighbor", "linear", "cubic"):
+            return False
+        if attrs.coordinate_transformation_mode not in (
+            "asymmetric",
+            "align_corners",
+            "half_pixel",
+            "pytorch_half_pixel",
+        ):
+            return False
+
+        # Relax `round` uses ties-to-even, for which TensorRT has no ResizeRoundMode.  The other
+        # modes map exactly to TensorRT's FLOOR, CEIL, HALF_UP, and HALF_DOWN modes.
+        if attrs.method == "nearest_neighbor" and attrs.rounding_method not in (
+            "floor",
+            "ceil",
+            "round_prefer_ceil",
+            "round_prefer_floor",
+        ):
+            return False
+
+        return True
+
+    return (
+        "tensorrt.image.resize2d",
+        root,
+        {"data": data, "size": size, "root": root},
+        check,
+    )
 
 
 def _tensorrt_patterns() -> list[Pattern]:
@@ -47,6 +113,7 @@ def _tensorrt_patterns() -> list[Pattern]:
     for composite, op in [
         ("tensorrt.nn.relu", "relax.nn.relu"),
         ("tensorrt.sigmoid", "relax.sigmoid"),
+        ("tensorrt.nn.silu", "relax.nn.silu"),
         ("tensorrt.tanh", "relax.tanh"),
         ("tensorrt.exp", "relax.exp"),
         ("tensorrt.log", "relax.log"),
@@ -91,6 +158,9 @@ def _tensorrt_patterns() -> list[Pattern]:
         ("tensorrt.minimum", "relax.minimum"),
     ]:
         patterns.append(_op_pattern(composite, op, 2))
+
+    # image.resize2d (data + target-size shape argument).
+    patterns.append(_resize2d_pattern())
 
     # Convolutions and matmul (data + weight).
     for composite, op in [

@@ -49,7 +49,7 @@ def test_metal_inf_nan():
         fun = tvm.compile(Module, target=target)
 
         def run_and_check():
-            dev = tvm.device(target, 0)
+            dev = tvm.metal(0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
@@ -116,7 +116,7 @@ def test_metal_erf():
         fun = tvm.compile(Module, target=target)
 
         def run_and_check():
-            dev = tvm.device(target, 0)
+            dev = tvm.metal(0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
@@ -347,6 +347,41 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
 
     lib_path = str(tmp_path / "lib.so")
     host_lib.export_library(lib_path)
+
+
+def test_codegen_simdgroup_buffer_data():
+    """Simdgroup intrinsics should accept buffer_data projections."""
+
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def kernel():
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "kernel",
+                    "tirx.kernel_launch_params": [],
+                }
+            )
+            A = T.alloc_buffer((64,), "float16", scope="shared")
+            A_frag = T.alloc_buffer((64,), "float16", scope="metal.simdgroup")
+            B_frag = T.alloc_buffer((64,), "float16", scope="metal.simdgroup")
+            C_frag = T.alloc_buffer((64,), "float16", scope="metal.simdgroup")
+            T.metal.make_filled_simdgroup_matrix(C_frag.data, 0, T.float32(0), 8, 8)
+            T.metal.simdgroup_load(A_frag.data, 0, A.data, 8, 8, 8, T.bool(False))
+            T.metal.simdgroup_store(C_frag.data, 0, A.data, 8, 8, 8, T.bool(False))
+            T.metal.simdgroup_multiply_accumulate(
+                C_frag.data, 0, A_frag.data, 0, B_frag.data, 0, C_frag.data, 0
+            )
+
+    metal_codegen = tvm.get_global_func("target.build.metal")
+    module = metal_codegen(Module, tvm.target.Target("metal"))
+    source = module.inspect_source()
+
+    assert "make_filled_simdgroup_matrix<half, 8, 8>" in source
+    assert "simdgroup_load(" in source
+    assert "simdgroup_store(" in source
+    assert "simdgroup_multiply_accumulate(" in source
 
 
 if __name__ == "__main__":

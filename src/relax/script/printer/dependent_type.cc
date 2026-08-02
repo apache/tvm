@@ -45,8 +45,8 @@ ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifie
   bool func_var_mode = false;
   if (f != nullptr) {
     tirx::PostOrderVisit(e, [f, &func_var_mode](const ffi::ObjectRef& obj) -> void {
-      if (const auto* var = obj.as<tirx::VarNode>()) {
-        if (f->func_vars->count(var)) {
+      if (auto var = obj.as<tirx::PrimVar>()) {
+        if (f->func_vars->count(var.value().get())) {
           func_var_mode = true;
         }
       }

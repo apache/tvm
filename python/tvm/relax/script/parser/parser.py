@@ -20,10 +20,11 @@ import functools
 import numbers
 from typing import Any
 
+import numpy as np
 import tvm_ffi
 
 import tvm
-from tvm import relax, tirx
+from tvm import relax
 from tvm.ir import GlobalVar
 from tvm.relax import Expr, Type
 from tvm.relax.script import builder as R
@@ -32,9 +33,11 @@ from tvm.relax.utils import convert_to_expr
 from tvm.script.ir_builder import ir as I
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.parser._core import Parser, dispatch, doc
+from tvm.tirx.script import builder as T
 
 from .entry import (
     MatchCastPair,
+    PrimProxy,
     TypeProxy,
     _normalize_ty,
     _normalize_ty_proxy,
@@ -53,49 +56,54 @@ def bind_assign_value(
     var_name: str,
     value: Any,
     anno_ty: Type | None = None,
-    emit_prim_expr: bool = False,
+    symbolic_declarations: set[str] | None = None,
 ) -> Any:
     var_table = self.var_table.get()
 
-    if isinstance(value, tirx.Var):
+    # Primitive assignments emit Relax bindings by default, reversing the old default.
+    # Explicit I.meta_var values and literal T.dtype() declarations are the two
+    # parser-time exceptions.
+    if isinstance(value, I.meta_var):
+        return value.value
+
+    if tvm.ir.is_prim_var(value) and var_name in (symbolic_declarations or set()):
+        if anno_ty is not None and not tvm_ffi.structural_equal(anno_ty, value.ty):
+            self.report_error(
+                node,
+                f"Expected the declared symbolic variable to have type {anno_ty}, "
+                f"but got {value.ty}",
+            )
         if value.name and var_name != value.name:
             self.report_error(
                 node,
-                "Cannot define TIR variables with different names. The LHS of binding should "
-                "has the same name provided in RHS.",
+                "Cannot define PrimType values with different names. The LHS of binding "
+                "must have the same name provided in the RHS.",
             )
         if var_name in var_table:
             prev_value = var_table[var_name]
-            if not isinstance(prev_value, tirx.Var):
+            if not tvm.ir.is_prim_var(prev_value):
                 self.report_error(
                     node,
-                    "Cannot redefine a non-TIR-variable object to a TIR variable. Please "
-                    "define the TIR variable with another name.",
+                    "Cannot redefine a non-PrimType object to a PrimType value. Please "
+                    "define the PrimType value with another name.",
                 )
             if prev_value.ty != value.ty:
                 self.report_error(
                     node,
-                    f"Expected the same dtype for TIR vars but got {value.ty} vs {prev_value.ty}",
-                )
-            if not isinstance(value, type(prev_value)):
-                self.report_error(
-                    node,
-                    f"Expected the same IR type for TIR vars "
-                    f"but existing value {type(value)} is mismatched "
-                    f"to previous {type(prev_value)}",
+                    f"Expected the same dtype for PrimType values but got "
+                    f"{value.ty} vs {prev_value.ty}",
                 )
             value = prev_value
         IRBuilder.name(var_name, value)
         return value
 
-    if tvm.ir.is_prim_expr(value):
-        if not emit_prim_expr:
-            return value
-
     if isinstance(value, tuple):
         value = convert_to_expr(value)
-    if isinstance(value, numbers.Number):
-        value = R.const(value)
+    if isinstance(value, numbers.Number | np.bool_):
+        if isinstance(anno_ty, tvm.ir.PrimType):
+            value = relax.prim_value(value, dtype=anno_ty.dtype)
+        else:
+            value = R.const(value)
 
     if isinstance(value, relax.Expr):
         var = R.emit(value, anno_ty)
@@ -112,8 +120,46 @@ def bind_assign_value(
     return var
 
 
-def is_prim_value_call(node: doc.expr) -> bool:
-    return isinstance(node, doc.Call) and getattr(node.func, "attr", None) == "prim_value"
+def is_symbolic_var_declaration(node: doc.expr) -> bool:
+    """Return whether an expression is literal ``T.dtype()`` declaration syntax.
+
+    Detection is syntactic so declaration semantics do not depend on evaluating its RHS.
+    """
+    if not (
+        isinstance(node, doc.Call)
+        and not node.args
+        and not node.keywords
+        and isinstance(node.func, doc.Attribute)
+        and isinstance(node.func.value, doc.Name)
+        and node.func.value.id == "T"
+    ):
+        return False
+    constructor = getattr(T, node.func.attr, None)
+    return isinstance(constructor, T.DtypeConstructor) or constructor is T.bool
+
+
+def collect_symbolic_var_declaration_nodes(
+    target: doc.expr, value: doc.expr
+) -> dict[str, doc.expr]:
+    """Pair targets with literal ``T.dtype()`` declarations.
+
+    Declaration-vs-binding is per target, allowing tuple unpacking to mix both.
+    """
+    if isinstance(target, doc.Name):
+        return {target.id: value} if is_symbolic_var_declaration(value) else {}
+    if isinstance(target, doc.Tuple | doc.List) and isinstance(value, doc.Tuple | doc.List):
+        if len(target.elts) != len(value.elts):
+            return {}
+        declarations = {}
+        for lhs, rhs in zip(target.elts, value.elts):
+            declarations.update(collect_symbolic_var_declaration_nodes(lhs, rhs))
+        return declarations
+    return {}
+
+
+def collect_symbolic_var_declarations(target: doc.expr, value: doc.expr) -> set[str]:
+    """Collect assignment targets whose matching RHS is ``T.dtype()``."""
+    return set(collect_symbolic_var_declaration_nodes(target, value))
 
 
 def eval_ty_proxy(self: Parser, node: doc.expr) -> TypeProxy:
@@ -168,46 +214,61 @@ def is_recursive(node: doc.FunctionDef) -> bool:
 
 
 def collect_symbolic_var_from_prelude(
-    self: Parser, node: doc.FunctionDef, symbolic_vars: dict[str, tirx.Var]
-) -> dict[str, tirx.Var]:
+    self: Parser, node: doc.FunctionDef, symbolic_vars: dict[str, tvm.ir.Var]
+) -> dict[str, tvm.ir.Var]:
     prelude_vars = {}
     for stmt in node.body:
-        if isinstance(stmt, doc.Assign) and all(
-            isinstance(target, doc.Name) and target.id in symbolic_vars for target in stmt.targets
-        ):
-            values = self.eval_expr(stmt.value)
-
-            try:
-                iter(values)
-            except TypeError:
-                values = [values]
-
-            assert len(stmt.targets) == len(values)
-            for target, value in zip(stmt.targets, values):
-                name = target.id
-                prelude_vars[name] = value
+        if isinstance(stmt, doc.Assign) and len(stmt.targets) == 1:
+            declarations = collect_symbolic_var_declaration_nodes(stmt.targets[0], stmt.value)
+            for name, value_node in declarations.items():
+                if name not in symbolic_vars:
+                    continue
+                declared_var = self.eval_expr(value_node)
+                if tvm.ir.is_prim_var(declared_var) and declared_var.ty == symbolic_vars[name].ty:
+                    prelude_vars[name] = declared_var
 
     return {**symbolic_vars, **prelude_vars}
 
 
 def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> None:
-    # Collect symbolic vars from parameters
     symbolic_vars = {}
-    for arg in node.args.args:
-        if arg.annotation is None:
-            self.report_error(arg, "Type annotation is required for function parameters.")
-        param_ty_proxy = eval_ty_proxy(self, arg.annotation)
+    prim_params = set()
+    with self.var_table.with_frame():
+        for arg in node.args.args:
+            if arg.annotation is None:
+                self.report_error(arg, "Type annotation is required for function parameters.")
+            param_ty_proxy = eval_ty_proxy(self, arg.annotation)
 
-        for var_name in param_ty_proxy.get_symbolic_vars():
-            if var_name not in symbolic_vars:
-                symbolic_vars[var_name] = tirx.Var(var_name, "int64")
+            for var_name in param_ty_proxy.get_symbolic_vars():
+                if var_name not in prim_params and var_name not in symbolic_vars:
+                    symbolic_vars[var_name] = tvm.ir.Var(var_name, "int64")
 
-    # Update symbolic vars based on
+            if isinstance(param_ty_proxy, PrimProxy):
+                temp_param = tvm.ir.Var(arg.arg, param_ty_proxy.as_ty())
+                self.var_table.add(arg.arg, temp_param)
+                prim_params.add(arg.arg)
+
+    # Prelude declarations select each scope symbol's canonical Var object.
+    # Per-assignment declaration classification separately controls emission.
     symbolic_vars = collect_symbolic_var_from_prelude(self, node, symbolic_vars)
 
     # Define symbolic vars to the current var_table frame
     for var_name, var in symbolic_vars.items():
         self.var_table.add(var_name, var, allow_shadowing=False)
+
+
+def parse_function_params(self: Parser, node: doc.FunctionDef, param_factory) -> list[tvm.ir.Var]:
+    collect_symbolic_var_from_params(self, node)
+    params = []
+    for arg in node.args.args:
+        if arg.annotation is None:
+            self.report_error(arg, "Type annotation is required for function parameters.")
+        param_ty = eval_ty(self, arg.annotation, eval_str=True)
+        param = param_factory(arg.arg, param_ty)
+        self.var_table.add(arg.arg, param)
+        params.append(param)
+
+    return params
 
 
 @dispatch.register(token="relax", type_name="FunctionDef")
@@ -217,20 +278,16 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
 
     # reserve a var for local function
     func_val = self.var_table.get().get(node.name)
-    if not func_val and is_recursive(node):
-        collect_symbolic_var_from_params(self, node)
-        if node.returns is None:
-            ret_ty = relax.TupleType([])
-        else:
-            ret_ty = eval_ty(self, node.returns, eval_str=True)
-        params_ty = []
-        for arg in node.args.args:
-            if arg.annotation is None:
-                self.report_error(arg, "Type annotation is required for function parameters.")
-            param_ty = eval_ty(self, arg.annotation, eval_str=True)
-            params_ty.append(param_ty)
+    if func_val is None and is_recursive(node):
+        with self.var_table.with_frame():
+            provisional_params = parse_function_params(self, node, tvm.ir.Var)
+            if node.returns is None:
+                ret_ty = relax.TupleType([])
+            else:
+                ret_ty = eval_ty(self, node.returns, eval_str=True)
+        params_ty = [param.ty for param in provisional_params]
         # created a var for the local function, the same var could be used for recursive call
-        local_func_var = relax.Var(node.name, relax.FuncType(params_ty, ret_ty))
+        local_func_var = tvm.ir.Var(node.name, relax.FuncType(params_ty, ret_ty))
         self.var_table.add(node.name, local_func_var)
 
     purity = find_decorator_annotation(node, "pure")
@@ -242,13 +299,11 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         with self.with_dispatch_token("relax"):
             with R.function(is_pure=purity, is_private=privacy):
                 R.func_name(node.name)
-                collect_symbolic_var_from_params(self, node)
+                parse_function_params(self, node, R.arg)
 
                 if node.returns is not None:
                     ann_ty = eval_ty(self, node.returns, eval_str=True)
                     R.func_ret_ty(ann_ty)
-
-                self.visit(node.args)
 
                 for stmt in node.body:
                     if isinstance(stmt, doc.FunctionDef):
@@ -281,7 +336,7 @@ def find_decorator_annotation(node: doc.FunctionDef, annotation: str, default: b
 @dispatch.register(token="relax", type_name="tvm_declare_function")
 def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar:
     with self.var_table.with_frame():
-        collect_symbolic_var_from_params(self, node)
+        params = parse_function_params(self, node, tvm.ir.Var)
 
         if node.returns is None:
             # Use AnyType as unknown return type
@@ -289,13 +344,6 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
             ret_ty = relax.AnyType()
         else:
             ret_ty = eval_ty(self, node.returns, eval_str=True)
-        params = []
-        for arg in node.args.args:
-            if arg.annotation is None:
-                self.report_error(arg, "Type annotation is required for function parameters.")
-            param_ty = eval_ty(self, arg.annotation, eval_str=True)
-            params.append(relax.Var(arg.arg, param_ty))
-
     is_pure = find_decorator_annotation(node, "pure")
 
     func_signature = relax.Function.create_empty(params, ret_ty, is_pure=is_pure)
@@ -315,7 +363,7 @@ def post_visit_local_function(self: Parser, node: doc.Expr) -> None:
     ir_builder.__exit__(None, None, None)
     # reuse var if it is reserved
     reserved_var = self.var_table.get().get(node.name)
-    if reserved_var:
+    if reserved_var is not None:
         var = R.emit_var_binding(relax.VarBinding(reserved_var, result))
     else:
         var = R.emit(result)
@@ -377,7 +425,7 @@ def visit_with(self: Parser, node: doc.With) -> None:
     if isinstance(frame, BindingBlockFrame) and frame.is_dataflow:
         output_vars = frame.output_vars
         for var in output_vars:
-            self.var_table.add(var.name_hint, var, allow_shadowing=True)
+            self.var_table.add(var.name, var, allow_shadowing=True)
 
 
 @dispatch.register(token="relax", type_name="Assign")
@@ -391,7 +439,7 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         source=rhs,
         bind_value=functools.partial(
             bind_assign_value,
-            emit_prim_expr=is_prim_value_call(node.value),
+            symbolic_declarations=collect_symbolic_var_declarations(lhs, node.value),
         ),
         allow_shadowing=True,
     )
@@ -408,7 +456,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
         bind_value=functools.partial(
             bind_assign_value,
             anno_ty=anno_ty,
-            emit_prim_expr=is_prim_value_call(node.value),
+            symbolic_declarations=collect_symbolic_var_declarations(lhs, node.value),
         ),
         allow_shadowing=True,
     )

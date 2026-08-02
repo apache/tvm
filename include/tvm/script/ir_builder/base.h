@@ -161,6 +161,8 @@ class IRBuilderNode : public ffi::Object {
   ffi::Array<IRBuilderFrame> frames;
   /*! \brief The outcome of IR construction */
   ffi::Optional<ffi::ObjectRef> result;
+  /*! \brief Active frontend source spans, from outermost to innermost. */
+  std::vector<Span> source_spans;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -195,6 +197,14 @@ class IRBuilderNode : public ffi::Object {
    */
   template <typename TObjectRef>
   inline TObjectRef Get() const;
+  /*! \brief Push a frontend source span for IR constructed in the nested scope. */
+  void PushSourceSpan(Span span);
+  /*! \brief Pop the innermost frontend source span. */
+  void PopSourceSpan();
+  /*! \brief Return the normalized active source span, including expansion history. */
+  Span GetCurrentSourceSpan() const;
+  /*! \brief Attach the active source span to an expression that has no span yet. */
+  ffi::ObjectRef SetCurrentSourceSpan(ffi::ObjectRef obj) const;
 };
 
 /*!

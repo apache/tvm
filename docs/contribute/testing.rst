@@ -62,7 +62,7 @@ over ``target`` with ``@pytest.mark.parametrize``.  Tag each GPU target
 with ``pytest.mark.gpu`` so the CI routes it to a GPU node, skip a target
 that cannot run on the current machine with
 :py:func:`tvm.testing.device_enabled`, and obtain its device with
-``tvm.device(target)``.  The function is run once per target, the
+``tvm.device_from_target(target)``.  The function is run once per target, the
 success/failure of each is reported separately, and a target whose device
 is disabled in ``config.cmake`` or absent from the machine is reported as
 skipped.
@@ -76,7 +76,7 @@ skipped.
     def test_function(target):
         if not tvm.testing.device_enabled(target):
             pytest.skip(f"{target} not enabled")
-        dev = tvm.device(target)
+        dev = tvm.device_from_target(target)
         # Test code goes here
 
 For a test that only applies to a single target, omit the parametrization
@@ -91,7 +91,7 @@ for a GPU target):
     )
     def test_function():
         target = "cuda"
-        dev = tvm.device(target)
+        dev = tvm.cuda()
         # Test code goes here
 
 To exclude a target, leave it out of the parametrize list.  To mark a
@@ -113,7 +113,7 @@ as above:
     def test_function(target, impl):
         if not tvm.testing.device_enabled(target):
             pytest.skip(f"{target} not enabled")
-        dev = tvm.device(target)
+        dev = tvm.device_from_target(target)
         # Test code goes here
 
 

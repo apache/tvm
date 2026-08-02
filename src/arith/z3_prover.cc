@@ -267,7 +267,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     scope_stack_.back().push_back(Scope{Scope::BindValue, var, value});
     // we add the binding whenever the value is pure,
     // because non-pure parts are handling by creating free variables in VisitExpr
-    memo_.emplace(var, ConvertInt(value));
+    memo_.emplace(var.as_or_throw<PrimExpr>(), ConvertInt(value));
   }
 
   /// @brief Bind a variable to a range
@@ -279,7 +279,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     //    if the var is overrided later, we can just update the memo, and the old placeholder will
     //    be ignored
     auto var_expr = Create(var.get());
-    memo_.emplace(var, var_expr);
+    memo_.emplace(var.as_or_throw<PrimExpr>(), var_expr);
 
     // 2. Add constraint on the placeholder
     //    when min_expr >= max_expr, the range is empty, which is under undefined behavior
@@ -299,8 +299,9 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
         solver.add(var_expr < ctx->int_val(max_value));
       }
     } else {
+      PrimExpr prim_var = var.as_or_throw<PrimExpr>();
       solver.add(ConvertBool(range->extent <= 0 ||
-                             (range->min <= var && var < range->min + range->extent)));
+                             (range->min <= prim_var && prim_var < range->min + range->extent)));
     }
   }
 
@@ -435,7 +436,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     solver.push();
 
     // Convert the TVM variable to Z3 expression
-    z3::expr z3_var = VisitInt(var);
+    z3::expr z3_var = VisitInt(var.as_or_throw<PrimExpr>());
 
     int64_t count = 0;
     std::vector<int64_t> found_values;
@@ -596,7 +597,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
 
   z3::expr VisitExpr_(const LetNode* op) override {
     if (IsZ3SupportedExpr(op->var.get())) {
-      memo_.emplace(op->var, VisitInt(op->value));
+      memo_.emplace(op->var.as_or_throw<PrimExpr>(), VisitInt(op->value));
     }
     return VisitExpr(op->body);
   }
@@ -704,7 +705,9 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     } else if (op->op.same_as(tirx::builtin::if_then_else()) && op->args.size() == 3 &&
                IsZ3SupportedExpr(op->args[1].get()) && IsZ3SupportedExpr(op->args[2].get())) {
       // tir.if_then_else(cond, a, b) is a select-like ternary.
-      return z3::ite(VisitBool(op->args[0]), VisitInt(op->args[1]), VisitInt(op->args[2]));
+      return z3::ite(VisitBool(op->args[0].as_or_throw<PrimExpr>()),
+                     VisitInt(op->args[1].as_or_throw<PrimExpr>()),
+                     VisitInt(op->args[2].as_or_throw<PrimExpr>()));
     } else {
       // For other call nodes, create a free variable
       return Create(op);
@@ -719,9 +722,9 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
       TVM_FFI_UNREACHABLE();
     }
 
-    const PrimExpr& a = op->args[0];
-    const PrimExpr& b = op->args[1];
-    unsigned bit_width = std::max(op->args[0].ty().bits(), op->args[1].ty().bits());
+    PrimExpr a = op->args[0].as_or_throw<PrimExpr>();
+    PrimExpr b = op->args[1].as_or_throw<PrimExpr>();
+    unsigned bit_width = std::max(a.ty().bits(), b.ty().bits());
 
     if (IsZ3SupportedExpr(a.get()) && IsZ3SupportedExpr(b.get())) {
       return z3::bv2int(
@@ -738,7 +741,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
       TVM_FFI_UNREACHABLE();
     }
 
-    const PrimExpr& a = op->args[0];
+    PrimExpr a = op->args[0].as_or_throw<PrimExpr>();
 
     if (IsZ3SupportedExpr(a.get())) {
       // Cast integer to bit-vector, apply bitwise not, then cast back.
@@ -758,8 +761,8 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
       TVM_FFI_UNREACHABLE();
     }
 
-    const PrimExpr& a = op->args[0];
-    const PrimExpr& b = op->args[1];
+    PrimExpr a = op->args[0].as_or_throw<PrimExpr>();
+    PrimExpr b = op->args[1].as_or_throw<PrimExpr>();
 
     // Shift operations require integer types for both operands
     if (IsZ3SupportedExpr(a.get()) && IsZ3SupportedExpr(b.get())) {

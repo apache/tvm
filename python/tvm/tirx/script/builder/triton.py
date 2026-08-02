@@ -120,7 +120,6 @@ class TritonKernel(BaseKernel):
                 kernel_args.append(arg)
                 continue
             if isinstance(arg.ty, PointerType):
-                assert isinstance(arg, tirx.Var)
                 assert isinstance(arg.ty.element_type, PrimType)
                 elem_type = arg.ty.element_type.dtype
                 pointer_type = "*" + type_canonicalisation_dict[elem_type]

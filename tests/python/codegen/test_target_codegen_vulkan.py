@@ -108,7 +108,7 @@ def test_array_copy(target, dtype, fuzz_seed):
     a_np = np.random.uniform(size=(arr_size,)).astype(dtype)
 
     def run_and_check():
-        dev = tvm.device(target)
+        dev = tvm.device_from_target(target)
         a = tvm.runtime.empty((arr_size,), dtype, dev).copyfrom(a_np)
         tvm.testing.assert_allclose(a_np, a.numpy())
 
@@ -145,7 +145,7 @@ def test_array_vectorize_add(dtype):
     f = tvm.compile(Module, target=target)
 
     def run_and_check():
-        dev = tvm.device(target.kind.name)
+        dev = tvm.vulkan()
         a = tvm.runtime.empty((arr_size,), vec_dtype, dev).copyfrom(
             np.random.uniform(size=(arr_size, lanes))
         )
@@ -183,7 +183,7 @@ def test_vulkan_bool_load():
     ref = a_np.astype(np.int32)
 
     def run_and_check():
-        dev = tvm.device(target.kind.name)
+        dev = tvm.vulkan()
         a = tvm.runtime.tensor(a_np, dev)
         b = tvm.runtime.tensor(b_np, dev)
         f(a, b)
@@ -260,7 +260,7 @@ def test_vulkan_constant_passing(vulkan_parameter_impl, vulkan_parameter_dtype):
     scalars = np.array([1 for _ in range(num_int_params)]).astype(dtype)
 
     def run_and_check():
-        dev = tvm.device(target.kind.name)
+        dev = tvm.vulkan()
         a = tvm.runtime.tensor(np.random.uniform(size=n).astype(dtype), dev)
         b = tvm.runtime.tensor(np.zeros(n, dtype=dtype), dev)
         f_add(*scalars, a, b)
@@ -294,7 +294,7 @@ def test_vulkan_while_if():
     compiled_func = tvm.compile(mod, target=target)
 
     def run_and_check():
-        dev = tvm.device(target.kind.name)
+        dev = tvm.vulkan()
         for input_value, expected in [(5, [55]), (-5, [210])]:
             a = tvm.runtime.tensor(np.array([input_value], dtype=dtype), dev)
             b = tvm.runtime.tensor(np.zeros(n, dtype=dtype), dev)
@@ -332,7 +332,7 @@ def test_vulkan_local_threadidx():
     b_np = np.zeros((n,), dtype="int32")
 
     def run_and_check():
-        dev = tvm.device(target.kind.name)
+        dev = tvm.vulkan()
         a = tvm.runtime.tensor(a_np, dev)
         b = tvm.runtime.tensor(b_np, dev)
         func(a, b)
@@ -371,7 +371,7 @@ def test_vectorized_index_ramp():
     b_np = np.zeros(n, dtype="int32")
 
     def run_and_check():
-        dev = tvm.device(target["kind"])
+        dev = tvm.vulkan()
         a = tvm.runtime.tensor(a_np, dev)
         b = tvm.runtime.tensor(b_np, dev)
         f(a, b)
@@ -412,7 +412,7 @@ def test_vectorized_index_broadcast():
     b_np = np.zeros(n, dtype="int32")
 
     def run_and_check():
-        dev = tvm.device(target["kind"])
+        dev = tvm.vulkan()
         a = tvm.runtime.tensor(a_np, dev)
         b = tvm.runtime.tensor(b_np, dev)
         f(a, b)
@@ -457,7 +457,7 @@ def test_negative_operand_divmod():
     built = tvm.compile(func, target=target)
 
     def run_and_check():
-        dev = tvm.device(target["kind"])
+        dev = tvm.vulkan()
         a_dev = tvm.runtime.empty([N, 2], "int32", dev)
         built(a_dev)
         a = a_dev.numpy()
@@ -556,7 +556,7 @@ def test_cooperative_matrix(out_dtype):
         f = tvm.compile(Module, target=target)
 
         def run_and_check():
-            dev = tvm.device("vulkan", 0)
+            dev = tvm.vulkan(0)
             A = tvm.runtime.tensor(np.random.randn(M, K).astype("float16"), dev)
             B = tvm.runtime.tensor(np.random.randn(K, N).astype("float16"), dev)
             C = tvm.runtime.tensor(np.random.randn(M, N).astype(out_dtype), dev)
@@ -572,19 +572,32 @@ def test_cooperative_matrix(out_dtype):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
 def test_codegen_decl_buffer():
-    """The codegen should accept DeclBuffer nodes in its input"""
+    """DeclBuffer aliases should retain their backing storage metadata."""
 
     @I.ir_module(s_tir=True)
-    class Module:
+    class AllocationBacked:
         @T.prim_func(s_tir=True)
         def kernel():
             T.func_attr({"calling_conv": 2, "global_symbol": "kernel", "tirx.noalias": True})
             A = T.alloc_buffer((256,), dtype="float32", scope="local")
             A_buf = T.decl_buffer([256], dtype="float32", scope="local", data=A.data)
+            A_buf[0] = T.float32(1)
+            T.evaluate(A_buf[0])
 
     target = tvm.target.Target("vulkan")
     vulkan_codegen = tvm.get_global_func("target.build.vulkan")
-    vulkan_codegen(Module, target)
+    vulkan_codegen(AllocationBacked, target)
+
+    @I.ir_module(s_tir=True)
+    class ParameterBacked:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((1,), "float32"), B: T.Buffer((1,), "float32")):
+            A_buf = T.decl_buffer([1], dtype="float32", data=A.data)
+            B_buf = T.decl_buffer([1], dtype="float32", data=B.data)
+            for tx in T.thread_binding(1, thread="threadIdx.x"):
+                B_buf[tx] = A_buf[tx]
+
+    tvm.compile(ParameterBacked, target=target)
 
 
 @pytest.mark.gpu
@@ -656,7 +669,7 @@ def test_unary():
             data = np.random.uniform(0.1, 0.9, size=n)
 
         def run_and_check():
-            dev = tvm.device(target.kind.name, 0)
+            dev = tvm.vulkan(0)
             a = tvm.runtime.tensor(data.astype("float32"), dev)
             b = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
             func(a, b)

@@ -195,6 +195,23 @@ class ActivationOpConverter : public TensorRTOpConverter {
   }
 };
 
+class SiluOpConverter : public TensorRTOpConverter {
+ public:
+  explicit SiluOpConverter(std::string op_name)
+      : TensorRTOpConverter(std::move(op_name), {kTensor}) {}
+  ~SiluOpConverter() = default;
+
+  void Convert(TensorRTOpConverterParams* params) const {
+    auto input = params->inputs.at(0).tensor;
+    auto sigmoid_layer = params->network->addActivation(*input, nvinfer1::ActivationType::kSIGMOID);
+    TVM_FFI_ICHECK(sigmoid_layer != nullptr);
+    auto silu_layer = params->network->addElementWise(*input, *sigmoid_layer->getOutput(0),
+                                                      nvinfer1::ElementWiseOperation::kPROD);
+    TVM_FFI_ICHECK(silu_layer != nullptr);
+    params->outputs.push_back(silu_layer->getOutput(0));
+  }
+};
+
 class ElementWiseBinaryOpConverter : public TensorRTOpConverter {
  public:
   explicit ElementWiseBinaryOpConverter(std::string op_name)
@@ -1237,6 +1254,84 @@ class StridedSliceOpConverter : public TensorRTOpConverter {
 };
 #endif
 
+#if TRT_VERSION_GE(8, 0, 0)
+class Resize2DOpConverter : public TensorRTOpConverter {
+ public:
+  explicit Resize2DOpConverter(std::string op_name)
+      : TensorRTOpConverter(std::move(op_name), {kTensor}) {}
+  ~Resize2DOpConverter() = default;
+
+  void Convert(TensorRTOpConverterParams* params) const {
+    auto input = params->inputs.at(0).tensor;
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("layout"), "NCHW");
+    auto input_dims = TrtDimsToVector(input->getDimensions());
+    TVM_FFI_ICHECK_GE(input_dims.size(), 2);
+    // Relax resize2d takes the target (height, width) as a Shape argument (serialized as arg_size).
+    auto size = params->node.GetAttr<ffi::Array<int64_t>>("arg_size");
+    TVM_FFI_ICHECK_EQ(size.size(), 2);
+    const std::string method = params->node.GetAttr<ffi::String>("method");
+    const std::string coordinate_transformation_mode =
+        params->node.GetAttr<ffi::String>("coordinate_transformation_mode");
+    const std::string rounding_method = params->node.GetAttr<ffi::String>("rounding_method");
+
+    auto resize_layer = params->network->addResize(*input);
+    TVM_FFI_ICHECK(resize_layer != nullptr);
+
+    static const std::unordered_map<std::string, nvinfer1::InterpolationMode> method_map = {
+        {"nearest_neighbor", nvinfer1::InterpolationMode::kNEAREST},
+        {"linear", nvinfer1::InterpolationMode::kLINEAR},
+        {"cubic", nvinfer1::InterpolationMode::kCUBIC}};
+    auto method_it = method_map.find(method);
+    TVM_FFI_ICHECK(method_it != method_map.end()) << "Unsupported resize2d method " << method;
+    resize_layer->setResizeMode(method_it->second);
+
+    // pytorch_half_pixel matches half_pixel for output extents greater than one. Singleton output
+    // dimensions are handled by the selector below.
+    static const std::unordered_map<std::string, nvinfer1::ResizeCoordinateTransformation>
+        coordinate_transformation_map = {
+            {"asymmetric", nvinfer1::ResizeCoordinateTransformation::kASYMMETRIC},
+            {"align_corners", nvinfer1::ResizeCoordinateTransformation::kALIGN_CORNERS},
+            {"half_pixel", nvinfer1::ResizeCoordinateTransformation::kHALF_PIXEL},
+            {"pytorch_half_pixel", nvinfer1::ResizeCoordinateTransformation::kHALF_PIXEL}};
+    auto coordinate_transformation_it =
+        coordinate_transformation_map.find(coordinate_transformation_mode);
+    TVM_FFI_ICHECK(coordinate_transformation_it != coordinate_transformation_map.end())
+        << "Unsupported resize2d coordinate_transformation_mode " << coordinate_transformation_mode;
+    resize_layer->setCoordinateTransformation(coordinate_transformation_it->second);
+    if (coordinate_transformation_mode == "pytorch_half_pixel") {
+      // PyTorch maps an output dimension of size one to source coordinate zero, whereas the
+      // regular half-pixel formula selects the center of the input dimension.
+      resize_layer->setSelectorForSinglePixel(nvinfer1::ResizeSelector::kUPPER);
+    }
+
+    if (method == "nearest_neighbor") {
+      static const std::unordered_map<std::string, nvinfer1::ResizeRoundMode> rounding_map = {
+          {"floor", nvinfer1::ResizeRoundMode::kFLOOR},
+          {"ceil", nvinfer1::ResizeRoundMode::kCEIL},
+          {"round_prefer_ceil", nvinfer1::ResizeRoundMode::kHALF_UP},
+          {"round_prefer_floor", nvinfer1::ResizeRoundMode::kHALF_DOWN}};
+      auto rounding_it = rounding_map.find(rounding_method);
+      TVM_FFI_ICHECK(rounding_it != rounding_map.end())
+          << "Unsupported resize2d rounding_method " << rounding_method;
+      resize_layer->setNearestRounding(rounding_it->second);
+    }
+
+    if (method == "cubic") {
+      resize_layer->setCubicCoeff(static_cast<float>(params->node.GetAttr<double>("cubic_alpha")));
+      resize_layer->setExcludeOutside(
+          static_cast<bool>(params->node.GetAttr<int64_t>("cubic_exclude")));
+    }
+
+    std::vector<int> output_dims(input_dims.begin(), input_dims.end());
+    output_dims[output_dims.size() - 2] = static_cast<int>(size[0]);
+    output_dims[output_dims.size() - 1] = static_cast<int>(size[1]);
+    resize_layer->setOutputDimensions(VectorToTrtDims(output_dims));
+
+    params->outputs.push_back(resize_layer->getOutput(0));
+  }
+};
+#endif  // TRT_VERSION_GE(8, 0, 0)
+
 class AdaptivePoolingOpConverter : public TensorRTOpConverter {
  public:
   explicit AdaptivePoolingOpConverter(std::string op_name)
@@ -1291,6 +1386,7 @@ const std::unordered_map<std::string, std::unique_ptr<TensorRTOpConverter>>& Get
     all_converters.emplace_back(std::make_unique<ActivationOpConverter>("nn.relu"));
     all_converters.emplace_back(std::make_unique<ActivationOpConverter>("sigmoid"));
     all_converters.emplace_back(std::make_unique<ActivationOpConverter>("tanh"));
+    all_converters.emplace_back(std::make_unique<SiluOpConverter>("nn.silu"));
     all_converters.emplace_back(std::make_unique<BatchNormOpConverter>("nn.batch_norm"));
     all_converters.emplace_back(std::make_unique<LayerNormOpConverter>("nn.layer_norm"));
     all_converters.emplace_back(std::make_unique<SoftmaxOpConverter>("nn.softmax"));
@@ -1356,6 +1452,9 @@ const std::unordered_map<std::string, std::unique_ptr<TensorRTOpConverter>>& Get
 #if TRT_VERSION_GE(7, 0, 0)
     all_converters.emplace_back(std::make_unique<UnaryOpConverter>("erf"));
 #endif  // TRT_VERSION_GE(7, 0, 0)
+#if TRT_VERSION_GE(8, 0, 0)
+    all_converters.emplace_back(std::make_unique<Resize2DOpConverter>("image.resize2d"));
+#endif  // TRT_VERSION_GE(8, 0, 0)
     auto* map = new std::unordered_map<std::string, std::unique_ptr<TensorRTOpConverter>>();
     for (auto& converter : all_converters) {
       map->emplace("tensorrt." + converter->op_name, std::move(converter));

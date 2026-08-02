@@ -20,6 +20,8 @@
 /*
  * Tiling operations and helpers for TileLayout.
  */
+#include <algorithm>
+
 #include "tile_internal.h"
 
 namespace tvm {
@@ -71,6 +73,192 @@ std::pair<TileLayout, std::vector<int64_t>> Group(TileLayout layout,
   return {ffi::GetRef<TileLayout>(n), seps};
 }
 
+std::pair<TileLayout, std::vector<std::vector<int64_t>>> GroupMany(
+    TileLayout layout, const ffi::Array<ffi::Array<PrimExpr>>& shapes) {
+  struct BoundaryClass {
+    PrimExpr value;
+    std::vector<size_t> counts;
+  };
+
+  arith::Analyzer analyzer;
+  TVM_FFI_ICHECK(!shapes.empty()) << "group_many requires at least one shape";
+
+  std::vector<std::vector<PrimExpr>> boundary_sequences;
+  boundary_sequences.reserve(shapes.size() + 1);
+  for (size_t shape_idx = 0; shape_idx < shapes.size(); ++shape_idx) {
+    const auto& shape = shapes[shape_idx];
+    TVM_FFI_ICHECK(!shape.empty()) << "group_many shape " << shape_idx << " must not be empty";
+
+    std::vector<PrimExpr> boundaries{PrimExpr(1)};
+    PrimExpr product = 1;
+    for (size_t dim_idx = 0; dim_idx < shape.size(); ++dim_idx) {
+      PrimExpr previous = product;
+      product = analyzer->Simplify(product * shape[dim_idx]);
+      TVM_FFI_ICHECK(analyzer->CanProve(previous <= product))
+          << "group_many cannot prove cumulative boundary order for shape " << shape_idx
+          << " at dimension " << dim_idx << ": " << previous << " <= " << product;
+      TVM_FFI_ICHECK(analyzer->CanProveEqual(floormod(product, previous), 0))
+          << "group_many cannot prove cumulative boundary divisibility for shape " << shape_idx
+          << " at dimension " << dim_idx << ": " << previous << " divides " << product;
+      boundaries.push_back(product);
+    }
+    boundary_sequences.push_back(std::move(boundaries));
+  }
+
+  std::vector<PrimExpr> layout_boundaries{PrimExpr(1)};
+  PrimExpr layout_product = 1;
+  for (size_t iter_idx = 0; iter_idx < layout->shard.size(); ++iter_idx) {
+    PrimExpr previous = layout_product;
+    layout_product = analyzer->Simplify(layout_product * layout->shard[iter_idx]->extent);
+    TVM_FFI_ICHECK(analyzer->CanProve(previous <= layout_product))
+        << "group_many cannot prove cumulative boundary order for layout iter " << iter_idx << ": "
+        << previous << " <= " << layout_product;
+    TVM_FFI_ICHECK(analyzer->CanProveEqual(floormod(layout_product, previous), 0))
+        << "group_many cannot prove cumulative boundary divisibility for layout iter " << iter_idx
+        << ": " << previous << " divides " << layout_product;
+    layout_boundaries.push_back(layout_product);
+  }
+
+  const PrimExpr& total = boundary_sequences[0].back();
+  for (size_t shape_idx = 1; shape_idx < boundary_sequences.size(); ++shape_idx) {
+    TVM_FFI_ICHECK(analyzer->CanProveEqual(total, boundary_sequences[shape_idx].back()))
+        << "group_many cannot prove equal total products for shape 0 and shape " << shape_idx
+        << ": " << total << " vs " << boundary_sequences[shape_idx].back();
+  }
+  TVM_FFI_ICHECK(analyzer->CanProveEqual(total, layout_boundaries.back()))
+      << "group_many cannot prove that the layout and shapes have equal total products: "
+      << layout_boundaries.back() << " vs " << total;
+  boundary_sequences.push_back(std::move(layout_boundaries));
+
+  std::vector<BoundaryClass> classes;
+  for (size_t sequence_idx = 0; sequence_idx < boundary_sequences.size(); ++sequence_idx) {
+    for (const PrimExpr& boundary : boundary_sequences[sequence_idx]) {
+      size_t class_idx = classes.size();
+      for (size_t idx = 0; idx < classes.size(); ++idx) {
+        if (analyzer->CanProveEqual(boundary, classes[idx].value)) {
+          class_idx = idx;
+          break;
+        }
+      }
+
+      if (class_idx == classes.size()) {
+        size_t insert_at = classes.size();
+        for (size_t idx = 0; idx < classes.size(); ++idx) {
+          if (analyzer->CanProve(boundary < classes[idx].value)) {
+            insert_at = idx;
+            break;
+          }
+          TVM_FFI_ICHECK(analyzer->CanProve(classes[idx].value < boundary))
+              << "group_many cannot prove the order or equality of cumulative boundaries "
+              << boundary << " and " << classes[idx].value;
+        }
+        classes.insert(classes.begin() + insert_at,
+                       BoundaryClass{boundary, std::vector<size_t>(boundary_sequences.size(), 0)});
+        class_idx = insert_at;
+      }
+      classes[class_idx].counts[sequence_idx]++;
+    }
+  }
+
+  std::vector<size_t> class_starts;
+  std::vector<size_t> class_multiplicities;
+  std::vector<PrimExpr> common_boundaries;
+  class_starts.reserve(classes.size());
+  class_multiplicities.reserve(classes.size());
+  for (const BoundaryClass& boundary_class : classes) {
+    size_t multiplicity =
+        *std::max_element(boundary_class.counts.begin(), boundary_class.counts.end());
+    class_starts.push_back(common_boundaries.size());
+    class_multiplicities.push_back(multiplicity);
+    for (size_t idx = 0; idx < multiplicity; ++idx) {
+      common_boundaries.push_back(boundary_class.value);
+    }
+  }
+
+  std::vector<PrimExpr> refined_extents;
+  refined_extents.reserve(common_boundaries.size() - 1);
+  for (size_t idx = 1; idx < common_boundaries.size(); ++idx) {
+    const PrimExpr& previous = common_boundaries[idx - 1];
+    const PrimExpr& current = common_boundaries[idx];
+    TVM_FFI_ICHECK(analyzer->CanProve(previous <= current))
+        << "group_many cannot prove common boundary order: " << previous << " <= " << current;
+    TVM_FFI_ICHECK(analyzer->CanProveEqual(floormod(current, previous), 0))
+        << "group_many has incompatible cumulative boundaries: " << previous << " does not divide "
+        << current;
+    refined_extents.push_back(analyzer->Simplify(floordiv(current, previous)));
+  }
+
+  auto boundary_positions = [&](const std::vector<PrimExpr>& sequence,
+                                size_t sequence_idx) -> std::vector<size_t> {
+    std::vector<size_t> seen(classes.size(), 0);
+    std::vector<size_t> positions;
+    positions.reserve(sequence.size());
+    size_t previous_position = 0;
+    for (size_t boundary_idx = 0; boundary_idx < sequence.size(); ++boundary_idx) {
+      size_t class_idx = classes.size();
+      for (size_t idx = 0; idx < classes.size(); ++idx) {
+        if (analyzer->CanProveEqual(sequence[boundary_idx], classes[idx].value)) {
+          class_idx = idx;
+          break;
+        }
+      }
+      TVM_FFI_ICHECK(class_idx < classes.size())
+          << "group_many lost cumulative boundary " << sequence[boundary_idx];
+
+      size_t position = class_starts[class_idx] + seen[class_idx]++;
+      if (boundary_idx == 0) {
+        position = class_starts[class_idx];
+      }
+      if (boundary_idx + 1 == sequence.size()) {
+        position = class_starts[class_idx] + class_multiplicities[class_idx] - 1;
+      }
+      TVM_FFI_ICHECK(boundary_idx == 0 || position > previous_position)
+          << "group_many could not preserve repeated boundary " << sequence[boundary_idx]
+          << " for sequence " << sequence_idx;
+      previous_position = position;
+      positions.push_back(position);
+    }
+    TVM_FFI_ICHECK_EQ(positions.front(), 0);
+    TVM_FFI_ICHECK_EQ(positions.back(), common_boundaries.size() - 1);
+    return positions;
+  };
+
+  const auto& layout_sequence = boundary_sequences.back();
+  std::vector<size_t> layout_positions =
+      boundary_positions(layout_sequence, boundary_sequences.size() - 1);
+  std::vector<Iter> refined_shard;
+  refined_shard.reserve(refined_extents.size());
+  for (size_t iter_idx = 0; iter_idx < layout->shard.size(); ++iter_idx) {
+    size_t start = layout_positions[iter_idx];
+    size_t end = layout_positions[iter_idx + 1];
+    TVM_FFI_ICHECK_LT(start, end) << "group_many cannot preserve layout iter " << iter_idx;
+    TVM_FFI_ICHECK(analyzer->CanProveEqual(
+        common_boundaries[end], common_boundaries[start] * layout->shard[iter_idx]->extent))
+        << "group_many refinement changed layout iter " << iter_idx << " extent "
+        << layout->shard[iter_idx]->extent;
+    for (size_t position = start; position < end; ++position) {
+      PrimExpr inner_product =
+          analyzer->Simplify(floordiv(common_boundaries[end], common_boundaries[position + 1]));
+      refined_shard.push_back(
+          Iter(refined_extents[position],
+               analyzer->Simplify(layout->shard[iter_idx]->stride * inner_product),
+               layout->shard[iter_idx]->axis));
+    }
+  }
+
+  auto* n = layout.CopyOnWrite();
+  n->shard = refined_shard;
+  TileLayout grouped = ffi::GetRef<TileLayout>(n);
+
+  std::vector<std::vector<int64_t>> separators;
+  separators.reserve(shapes.size());
+  for (size_t shape_idx = 0; shape_idx < shapes.size(); ++shape_idx) {
+    std::vector<size_t> positions = boundary_positions(boundary_sequences[shape_idx], shape_idx);
+    separators.emplace_back(positions.begin(), positions.end());
+  }
+  return {grouped, separators};
+}
+
 std::optional<std::pair<TileLayout, std::vector<int64_t>>> TryGroup(
     TileLayout layout, const ffi::Array<PrimExpr>& shape) {
   // Same algorithm as Group but returns std::nullopt instead of ICHECK-failing
@@ -114,11 +302,23 @@ std::optional<std::pair<TileLayout, std::vector<int64_t>>> TryGroup(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "tirx.TileLayoutGroup", [](const TileLayout& layout, const Array<PrimExpr>& shape) {
-        auto [res, seps] = Group(layout, shape);
-        return Tuple<TileLayout, Array<int64_t>>{res, Array<int64_t>(seps.begin(), seps.end())};
-      });
+  refl::GlobalDef()
+      .def("tirx.TileLayoutGroup",
+           [](const TileLayout& layout, const Array<PrimExpr>& shape) {
+             auto [res, seps] = Group(layout, shape);
+             return Tuple<TileLayout, Array<int64_t>>{res,
+                                                      Array<int64_t>(seps.begin(), seps.end())};
+           })
+      .def("tirx.TileLayoutGroupMany",
+           [](const TileLayout& layout, const Array<Array<PrimExpr>>& shapes) {
+             auto [res, separators] = GroupMany(layout, shapes);
+             Array<Array<int64_t>> ffi_separators;
+             ffi_separators.reserve(separators.size());
+             for (const auto& seps : separators) {
+               ffi_separators.push_back(Array<int64_t>(seps.begin(), seps.end()));
+             }
+             return Tuple<TileLayout, Array<Array<int64_t>>>{res, ffi_separators};
+           });
 }
 
 Layout TileLayoutNode::Tile(const TileLayout& outer_in, const Array<PrimExpr>& outer_shape,
@@ -373,7 +573,9 @@ ffi::Optional<Layout> TileLayoutNode::IsTileOuter(const Layout& tile_layout,
     if (auto comp = tile_layout.as<ComposeLayout>()) {
       auto inner_layout = IsTileOuter(comp.value()->tile_layout, tiled_shape, outer_shape);
       if (!inner_layout) return std::nullopt;
-      return ComposeLayout(comp.value()->swizzle, inner_layout.value().as<TileLayout>().value());
+      return ComposeLayout(comp.value()->per_element, comp.value()->swizzle_len,
+                           comp.value()->atom_len, inner_layout.value().as<TileLayout>().value(),
+                           comp.value()->swizzle_inner);
     }
     return std::nullopt;
   }

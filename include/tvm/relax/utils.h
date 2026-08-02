@@ -43,18 +43,15 @@ namespace relax {
  * \param expr The input expression.
  * \param binds The variable to expression map that will be used to help the
  *        binding.
- * \param symbolic_var_map The map from symbolic var to the expr it binds to.
- *
  * \return The updated expression.
  */
-TVM_DLL Expr Bind(const Expr& expr, const tvm::ffi::Map<Var, Expr>& binds,
-                  const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map = {});
+TVM_DLL Expr Bind(const Expr& expr, const tvm::ffi::Map<Var, Expr>& binds);
 
 /*!
  * \brief Bind the symbolic variables to a Type. This is a helper function usually called by
  * other pass functions to help optimizations.
  */
-TVM_DLL Type Bind(const Type& ty, const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map);
+TVM_DLL Type Bind(const Type& ty, const tvm::ffi::Map<Var, Expr>& binds);
 
 /*!
  * \brief Infer a binding map for symbolic variables
@@ -71,10 +68,10 @@ TVM_DLL Type Bind(const Type& ty, const tvm::ffi::Map<tirx::Var, PrimExpr>& symb
  *
  * \param analyzer The analyzer to use for simplifications
  *
- * \return A map of TIR variables to TIR expressions
+ * \return The input binding map augmented with inferred symbolic bindings.
  */
-TVM_DLL tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
-    const tvm::ffi::Map<relax::Var, relax::Expr>& binds, const arith::Analyzer& analyzer);
+TVM_DLL tvm::ffi::Map<Var, Expr> InferSymbolicVarMap(
+    const tvm::ffi::Map<tvm::Var, relax::Expr>& binds, const arith::Analyzer& analyzer);
 
 /*!
  * \brief Check if the given Type is for a boolean scalar (tensor of rank 0 with a boolean
@@ -112,7 +109,8 @@ TVM_DLL bool IsLeafOrTuple(const Expr& expr);
 /*!
  * \brief Check if the given Call node is an impure operation. If the callee is a general
  * expression, this simply requires checking the purity field of the FuncType. If it is an Op,
- * then this checks the `fPurity` field.
+ * then this checks the Relax `FPurity` attribute, falling back to the TIR
+ * `TCallEffectKind` attribute for primitive operators.
  *
  * \param call The input call
  *

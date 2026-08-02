@@ -20,6 +20,7 @@
  * \file expr_functor.cc
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr_functor.h>
 
 #include "functor_common.h"
@@ -147,7 +148,16 @@ Expr ExprMutator::VisitExpr_(const CallNode* op) {
   if (args.same_as(op->args)) {
     return ffi::GetRef<Call>(op);
   } else {
-    return Call(op->ExprNode::ty, op->op, args, op->attrs, op->ty_args, op->span);
+    Type result_type = op->ExprNode::ty;
+    if (op->op.same_as(builtin::buffer_data())) {
+      TVM_FFI_ICHECK_EQ(args.size(), 1);
+      const auto* buffer_var = args[0].as<VarNode>();
+      TVM_FFI_ICHECK(buffer_var);
+      const auto* buffer_type = buffer_var->ty.as<BufferTypeNode>();
+      TVM_FFI_ICHECK(buffer_type);
+      result_type = buffer_type->DataPointerType();
+    }
+    return Call(result_type, op->op, args, op->attrs, op->ty_args, op->span);
   }
 }
 

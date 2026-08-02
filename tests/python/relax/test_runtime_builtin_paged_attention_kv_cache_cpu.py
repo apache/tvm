@@ -17,6 +17,7 @@
 # ruff: noqa: E501, E741
 import enum
 import itertools
+import json
 
 import numpy as np
 import pytest
@@ -88,6 +89,8 @@ fattention_rotary = None
 fcopy_single_page = None
 fcompact_copy = None
 
+_COMPILED_KERNEL_CACHE = {}
+
 
 def set_global_func(head_dim, dtype):
     global fclear, fadd_sequence, fremove_sequence, ffork_sequence, fenable_sliding_window_for_seq
@@ -121,33 +124,51 @@ def set_global_func(head_dim, dtype):
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
 
     target = tvm.target.Target.from_device(device)
-    builts = []
-    for tir_func in [
-        _kv_cache_transpose_append(num_kv_heads, head_dim, dtype),
-        _kv_cache_debug_get_kv(num_layers, num_kv_heads, head_dim, dtype),
-        _attention_prefill_cpu(num_kv_heads, num_qo_heads, head_dim, dtype, False, rope_scaling),
-        _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, dtype, False, rope_scaling),
-        _attention_prefill_cpu(num_kv_heads, num_qo_heads, head_dim, dtype, True, rope_scaling),
-        _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, dtype, True, rope_scaling),
-        _attention_prefill_ragged_cpu(
-            num_kv_heads, num_qo_heads, head_dim, head_dim, dtype, rope_scaling
-        ),
-        tree_attn_cpu(num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling),
-        tree_attn_with_paged_kv_cache_cpu(
-            num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling
-        ),
-        _merge_state_inplace_cpu(dtype),
-        llama_rope_with_position_map(
-            rope_theta, rope_scale, head_dim, num_qo_heads, num_kv_heads, dtype, rope_scaling
-        ),
-        _copy_single_page_cpu(num_kv_heads, page_size, head_dim, dtype),
-        _compact_kv_copy_cpu(num_kv_heads, head_dim, dtype),
-    ]:
-        mod = tvm.IRModule({"main": tir_func})
-        with target:
-            mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
-        f = tvm.tirx.build(mod["main"], target=target)
-        builts.append(f.main)
+    cache_key = (
+        str(target),
+        num_layers,
+        num_qo_heads,
+        num_kv_heads,
+        head_dim,
+        page_size,
+        dtype,
+        rope_scale,
+        rope_theta,
+        json.dumps(rope_scaling, sort_keys=True),
+    )
+    builts = _COMPILED_KERNEL_CACHE.get(cache_key)
+    if builts is None:
+        builts = []
+        for tir_func in [
+            _kv_cache_transpose_append(num_kv_heads, head_dim, dtype),
+            _kv_cache_debug_get_kv(num_layers, num_kv_heads, head_dim, dtype),
+            _attention_prefill_cpu(
+                num_kv_heads, num_qo_heads, head_dim, dtype, False, rope_scaling
+            ),
+            _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, dtype, False, rope_scaling),
+            _attention_prefill_cpu(num_kv_heads, num_qo_heads, head_dim, dtype, True, rope_scaling),
+            _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, dtype, True, rope_scaling),
+            _attention_prefill_ragged_cpu(
+                num_kv_heads, num_qo_heads, head_dim, head_dim, dtype, rope_scaling
+            ),
+            tree_attn_cpu(num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling),
+            tree_attn_with_paged_kv_cache_cpu(
+                num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling
+            ),
+            _merge_state_inplace_cpu(dtype),
+            llama_rope_with_position_map(
+                rope_theta, rope_scale, head_dim, num_qo_heads, num_kv_heads, dtype, rope_scaling
+            ),
+            _copy_single_page_cpu(num_kv_heads, page_size, head_dim, dtype),
+            _compact_kv_copy_cpu(num_kv_heads, head_dim, dtype),
+        ]:
+            mod = tvm.IRModule({"main": tir_func})
+            with target:
+                mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
+            f = tvm.tirx.build(mod["main"], target=target)
+            builts.append(f.main)
+        builts = tuple(builts)
+        _COMPILED_KERNEL_CACHE[cache_key] = builts
 
     (
         ftranspose_append,

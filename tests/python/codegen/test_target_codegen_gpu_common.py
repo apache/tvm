@@ -66,7 +66,7 @@ def test_int_intrin(target, dtype):
         f = tvm.compile(Module, target=target)
 
         def run_and_check():
-            dev = tvm.device(target["kind"] if isinstance(target, dict) else target)
+            dev = tvm.device_from_target(target)
             a = tvm.runtime.tensor(np.random.randint(0, 100000, size=n).astype(dtype), dev)
             b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(dtype), dev)
             f(a, b)

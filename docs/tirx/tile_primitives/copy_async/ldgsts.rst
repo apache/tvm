@@ -24,7 +24,7 @@ vectorized copy that the hardware completes in the background, so the warp can k
 computing while the load is in flight. It reuses the exact ``[outer, threads, vec]``
 partition of the synchronous :doc:`../copy/gmem_smem` variant; the differences are
 all in *what* is emitted and *when* it completes. Source:
-``python/tvm/backend/cuda/operator/tile_primitive/copy_async/ldgsts.py``.
+``python/tvm/backend/cuda/tile_primitive/copy_async/ldgsts.py``.
 
 What it accepts
 ---------------

@@ -75,6 +75,11 @@ class CodeGenCHost : public CodeGenC {
                                            const Type& ret_type) override;
   ffi::Array<ffi::String> GetFunctionNames() { return function_names_; }
 
+ protected:
+  // Plain C has no address-space qualifiers.  Buffer storage scopes still
+  // control allocation lowering, but are not part of emitted pointer types.
+  bool IsScopePartOfType() const final { return false; }
+
  private:
   std::string module_name_;
   /* \brief mapping global packed func to the unique name */

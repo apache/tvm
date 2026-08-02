@@ -659,8 +659,7 @@ def test_rewrite_static_reshape():
 #                 y = R.reshape(x, R.shape([N // 4, 4]))
 #                 z = R.call_tir(
 #                     cls.add,
-#                     (y, y),
-#                     tir_vars=[N],
+#                     (y, y, N),
 #                     out_ty=R.Tensor((N // 4, 4), dtype="float32"),
 #                 )
 #                 R.output(z)
@@ -670,8 +669,8 @@ def test_rewrite_static_reshape():
 #         def add(
 #             y1_handle: T.handle,
 #             y2_handle: T.handle,
-#             z_handle: T.handle,
 #             N: T.int64,
+#             z_handle: T.handle,
 #         ):
 
 #             y1 = T.match_buffer(y1_handle, [N // 4, 4], "float32")
@@ -724,8 +723,7 @@ def test_rewrite_dynamic_reshape():
                 y = R.reshape(x, R.shape([N * 4, T.int64(4)]))
                 z = R.call_tir(
                     cls.add,
-                    (y, y),
-                    tir_vars=[N],
+                    (y, y, N),
                     out_ty=R.Tensor((N * 4, 4), dtype="float32"),
                 )
                 R.output(z)
@@ -735,8 +733,8 @@ def test_rewrite_dynamic_reshape():
         def add(
             y1_handle: T.handle,
             y2_handle: T.handle,
-            z_handle: T.handle,
             N: T.int64,
+            z_handle: T.handle,
         ):
             y1 = T.match_buffer(y1_handle, [N * 4, T.int64(4)], "float32")
             y2 = T.match_buffer(y2_handle, [N * 4, T.int64(4)], "float32")

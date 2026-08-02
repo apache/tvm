@@ -881,11 +881,11 @@ def test_split_by_indices_n_section_divisible_symbolic():
         def main(dumb_param: R.Tensor(("n",)), x: R.Tensor(("m", "(n * 3)"), "float32")) -> R.Tuple(R.Tensor(("m", "((n * 3) // 3)"), "float32"), R.Tensor(("m", "((((n * 3) // 3) * 2) - ((n * 3) // 3))"), "float32"), R.Tensor(("m", "((n * 3) - (((n * 3) // 3) * 2))"), "float32")):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(Expected.split, (x,), [R.Tensor((m, ((n * 3 + 3 - 1) // 3)), "float32"), R.Tensor((m, ((((n * 3 + 3 - 1) // 3) * 2) - ((n * 3 + 3 - 1) // 3))), "float32"), R.Tensor((m, ((n * 3) - (((n * 3 + 3 - 1) // 3) * 2))), "float32")], tir_vars=R.shape([n]))
+            gv = R.call_tir(Expected.split, (x, n), [R.Tensor((m, ((n * 3 + 3 - 1) // 3)), "float32"), R.Tensor((m, ((((n * 3 + 3 - 1) // 3) * 2) - ((n * 3 + 3 - 1) // 3))), "float32"), R.Tensor((m, ((n * 3) - (((n * 3 + 3 - 1) // 3) * 2))), "float32")])
             return gv
 
         @T.prim_func(private=True, s_tir=True)
-        def split(var_rxplaceholder: T.handle, var_T_split_sections: T.handle, var_T_split_sections_1: T.handle, var_T_split_sections_2: T.handle, n: T.int64):
+        def split(var_rxplaceholder: T.handle, n: T.int64, var_T_split_sections: T.handle, var_T_split_sections_1: T.handle, var_T_split_sections_2: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n * T.int64(3)], dtype="float32")
@@ -1201,9 +1201,9 @@ def test_repeat_symbolic():
 
         @R.function
         def main(x: R.Tensor(("a", "b", "c"), dtype="float32")) -> R.Tensor(("2 * a", "b", "c"), dtype="float32"):
-            a = T.Var("a", "int64")
-            b = T.Var("b", "int64")
-            c = T.Var("c", "int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             gv = R.call_tir(Expected.repeat, (x,), out_ty=R.Tensor((2 * a, b, c), dtype="float32"))
             return gv
     # fmt: on
@@ -1273,9 +1273,9 @@ def test_tile_symbolic():
 
         @R.function
         def main(x: R.Tensor(("a", "b", "c"), dtype="float32")) -> R.Tensor((2, "a", "b * 2", "c * 3"), dtype="float32"):
-            a = T.Var("a", "int64")
-            b = T.Var("b", "int64")
-            c = T.Var("c", "int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             gv = R.call_tir(Expected.tile, (x,), out_ty=R.Tensor((2, a, b * 2, c * 3), dtype="float32"))
             return gv
     # fmt: on
@@ -1745,46 +1745,6 @@ def test_layout_transform_symbolic():
             b = T.int64()
             cls = Expected
             gv = R.call_tir(cls.te_layout_transform_with_pad, (x,), out_ty=R.Tensor((a, c, (b - b % -3) // 3, 3), dtype="float32"))
-            return gv
-    # fmt: on
-
-    mod = LegalizeOps()(LayoutTransform)
-    tvm.ir.assert_structural_equal(mod, Expected)
-
-
-def test_layout_transform_with_pad_axis_sep():
-    transformation = lambda a, b, c: (a, c, b // 3, b % 3)
-    pad_value = 2
-    axis_separator = [3]
-
-    # fmt: off
-    @I.ir_module(s_tir=True)
-    class LayoutTransform:
-        @R.function
-        def main(x: R.Tensor((10, 20, 30), "float32")):
-            gv = R.layout_transform(
-                x, index_map=transformation, pad_value=pad_value, axis_separators=axis_separator,
-            )
-            return gv
-
-    @I.ir_module(s_tir=True)
-    class Expected:
-        @T.prim_func(private=True, s_tir=True)
-        def te_layout_transform_with_pad_axis_separator(A: T.Buffer((T.int64(10), T.int64(20), T.int64(30)), "float32"), var_te_layout_transform_with_pad_axis_separator: T.handle):
-            T.func_attr({"tirx.noalias": True})
-            te_layout_transform_with_pad_axis_separator_1 = T.match_buffer(var_te_layout_transform_with_pad_axis_separator, (T.int64(10), T.int64(30), T.int64(7), T.int64(3)), axis_separators=[3])
-            # with T.sblock("root"):
-            for axis0, axis1, axis2, axis3 in T.grid(T.int64(10), T.int64(30), T.int64(7), T.int64(3)):
-                with T.sblock("te_layout_transform_with_pad_axis_separator"):
-                    v_axis0, v_axis1, v_axis2, v_axis3 = T.axis.remap("SSSS", [axis0, axis1, axis2, axis3])
-                    T.reads(A[v_axis0, v_axis2 * T.int64(3) + v_axis3, v_axis1])
-                    T.writes(te_layout_transform_with_pad_axis_separator_1[v_axis0, v_axis1, v_axis2, v_axis3])
-                    te_layout_transform_with_pad_axis_separator_1[v_axis0, v_axis1, v_axis2, v_axis3] = T.if_then_else(v_axis2 == T.int64(6) and v_axis3 == T.int64(2), T.float32(2), A[v_axis0, v_axis2 * T.int64(3) + v_axis3, v_axis1])
-
-        @R.function
-        def main(x: R.Tensor((10, 20, 30), dtype="float32")) -> R.Tensor((10, 30, 7, 3), dtype="float32"):
-            cls = Expected
-            gv = R.call_tir(cls.te_layout_transform_with_pad_axis_separator, (x,), out_ty=R.Tensor((10, 30, 7, 3), dtype="float32"))
             return gv
     # fmt: on
 

@@ -268,9 +268,37 @@ def test_async_copy():
     script = After["main"].script()
     # Verify merged allocation (512 bytes - A_sh and B_sh can be reused)
     assert '"uint8"' in script and '"shared.dyn"' in script and "(512,)" in script
-    # Verify cp_async uses the merged buffer
-    assert "buf_dyn_shmem" in script
-    assert "threadIdx_x * 4" in script
+    # Verify cp_async uses typed views of the merged byte allocation.  Its
+    # offsets remain in float32 elements and are scaled by the intrinsic
+    # lowering, rather than being pre-scaled as byte offsets here.
+    assert 'A_sh = buf_dyn_shmem.view("float32")' in script
+    assert 'B_sh = buf_dyn_shmem.view("float32")' in script
+    assert 'T.ptx.cp_async("float32", A_sh.data, threadIdx_x' in script
+    assert 'T.ptx.cp_async("float32", B_sh.data, threadIdx_x' in script
+
+
+def test_decl_buffer_alias_extends_allocation_lifetime():
+    """Access through a typed view keeps its source allocation live."""
+    transform = tvm.s_tir.transform.MergeSharedMemoryAllocations()
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(C: T.Buffer((128,), "float32")):
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
+            A_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
+            B_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
+            A_view = T.decl_buffer((128,), "float32", data=A_sh.data, scope="shared.dyn")
+            B_view = T.decl_buffer((128,), "float32", data=B_sh.data, scope="shared.dyn")
+            A_view[threadIdx_x] = T.float32(1)
+            B_view[threadIdx_x] = T.float32(2)
+            C[threadIdx_x] = A_view[threadIdx_x] + B_view[threadIdx_x]
+
+    After = transform(Before)
+    script = After["main"].script()
+    assert 'alloc_buffer((1024,), "uint8", scope="shared.dyn")' in script
+    assert "B_view[threadIdx_x + 128]" in script
+    assert "A_view[threadIdx_x]" in script
 
 
 def test_multi_thread_extent_blocks():

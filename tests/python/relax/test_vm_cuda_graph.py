@@ -16,6 +16,9 @@
 # under the License.
 # ruff: noqa: E501
 
+import ctypes
+import ctypes.util
+
 import numpy as np
 import pytest
 
@@ -170,6 +173,12 @@ def test_capture_error_is_recoverable():
 
     def run_and_check():
         dev = tvm.cuda()
+        cudart_path = ctypes.util.find_library("cudart")
+        assert cudart_path is not None, "Unable to locate the CUDA runtime library"
+        cudart = ctypes.CDLL(cudart_path)
+        cudart.cudaGetLastError.argtypes = []
+        cudart.cudaGetLastError.restype = ctypes.c_int
+        cudart.cudaGetLastError()
 
         @tvm.register_global_func("test_vm_cuda_graph.invalid_impl_for_cudagraph", override=True)
         def invalid_impl_for_cudagraph(arg_tensor):
@@ -185,6 +194,13 @@ def test_capture_error_is_recoverable():
 
         with pytest.raises(RuntimeError):
             vm["main"](arg)
+
+        # cudaGetLastError is host-thread-local, so query it in the same
+        # callback that triggered the invalid capture.
+        cuda_error = cudart.cudaGetLastError()
+        assert cuda_error == 0, (
+            f"CUDA error state was not cleared after failed graph capture: {cuda_error}"
+        )
 
     tvm.testing.run_with_gpu_lock(run_and_check)
 

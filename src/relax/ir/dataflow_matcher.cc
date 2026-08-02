@@ -462,8 +462,8 @@ PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
 
   auto sort_key = [](PrimExpr expr) -> ffi::String {
     if (const auto* equal = expr.as<tirx::EQNode>()) {
-      if (const auto* var = equal->a.as<tirx::VarNode>()) {
-        return var->name_hint;
+      if (auto var = equal->a.as<tirx::PrimVar>()) {
+        return var.value()->name;
       }
     }
     return "";
@@ -582,7 +582,7 @@ bool DFPatternMatcher::VisitDFPattern_(const VarPatternNode* op, const Expr& exp
   // We don't jump for var pattern, as there's no need to access its value to judge it.
   if (const auto* var_node = expr.as<VarNode>()) {
     // "" means any name.
-    return "" == op->name_hint() || op->name_hint() == var_node->name_hint;
+    return "" == op->name_hint() || op->name_hint() == var_node->name;
   }
   return false;
 }

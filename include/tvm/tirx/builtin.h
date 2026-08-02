@@ -42,10 +42,6 @@ namespace tirx {
 /*! \brief Collection of builtin intrinsics as ops */
 namespace builtin {
 /*!
- * \brief Return value.
- */
-TVM_DLL const Op& ret();
-/*!
  * \brief Return from a GPU thread.
  */
 TVM_DLL const Op& thread_return();
@@ -783,6 +779,15 @@ TVM_DLL const Op& ignore_loop_partition();
   The offset is determined by the layout of the buffer.
  */
 TVM_DLL const Op& buffer_offset();
+
+/*!
+ * \brief Project the physical pointer associated with a BufferVar definition.
+ *
+ * The result pointer type is derived from the BufferType dtype and storage
+ * scope of the sole BufferVar argument.  This operation is consumed by TIRx
+ * lowering and code generation.
+ */
+TVM_DLL const Op& buffer_data();
 
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {

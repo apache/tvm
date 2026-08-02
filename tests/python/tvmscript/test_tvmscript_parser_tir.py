@@ -27,14 +27,14 @@ from tvm.script.parser import tirx as T
 def test_tir_buffer_proxy():
     buffer_0 = T.Buffer((128, 128), "float32")
     assert (
-        isinstance(buffer_0, tirx.Buffer)
+        tirx.is_buffer_var(buffer_0)
         and list(buffer_0.shape) == [128, 128]
         and buffer_0.dtype == ir.PrimType("float32")
     )
 
     buffer_1 = T.Buffer((64, 64, 64), "int32")
     assert (
-        isinstance(buffer_1, tirx.Buffer)
+        tirx.is_buffer_var(buffer_1)
         and list(buffer_1.shape) == [64, 64, 64]
         and buffer_1.dtype == ir.PrimType("int32")
     )
@@ -407,7 +407,7 @@ def test_inferred_ty_with_prim_args():
 
     @T.prim_func(s_tir=True)
     def func(M: T.int32, N: T.int32) -> T.int32:
-        T.ret(M * N)
+        return M * N
 
     expected = tvm.relax.FuncType(
         [
@@ -425,7 +425,7 @@ def test_inferred_ty_with_buffer_args():
 
     @T.prim_func(s_tir=True)
     def func(A: T.Buffer([16, 16], "float32"), B: T.Buffer([256], "int32")) -> T.float32:
-        T.ret(T.float32(42.0))
+        return T.float32(42.0)
 
     expected = tvm.relax.FuncType(
         [
@@ -452,7 +452,7 @@ def test_inferred_ty_with_internal_allocation():
         for i, j in T.grid(16, 16):
             Sum[()] = Sum[()] + A[i, j]
 
-        T.ret(Sum[()])
+        return Sum[()]
 
     expected = tvm.relax.FuncType(
         [

@@ -31,7 +31,7 @@
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/tirx_stmt.h>
+#include <tvm/tirx/tile_primitive.h>
 
 #include <unordered_map>
 #include <utility>
@@ -90,6 +90,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const IfThenElseNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const ForNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const WhileNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const ReturnNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const BreakNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const ContinueNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AllocBufferNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
@@ -116,6 +117,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(IfThenElseNode);
     IR_STMT_FUNCTOR_DISPATCH(ForNode);
     IR_STMT_FUNCTOR_DISPATCH(WhileNode);
+    IR_STMT_FUNCTOR_DISPATCH(ReturnNode);
     IR_STMT_FUNCTOR_DISPATCH(BreakNode);
     IR_STMT_FUNCTOR_DISPATCH(ContinueNode);
     IR_STMT_FUNCTOR_DISPATCH(AllocBufferNode);
@@ -160,19 +162,20 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
    * \param alloc_data If true, the buffer's data pointer is a new allocation (AllocBuffer);
    *              if false, data references an existing variable (DeclBuffer).
    */
-  virtual void VisitBufferDef(const Buffer& buffer, bool alloc_data);
+  virtual void VisitBufferDef(const BufferVar& buffer, bool alloc_data);
   /*!
    * \brief Visit buffer at use site (BufferStore, BufferLoad, SBlock reads/writes).
    *  By default, this is a no-op, as buffer fields (shape, strides, elem_offset)
    *  are visited at their definition site.
    */
-  virtual void VisitBufferUse(const Buffer& buffer);
+  virtual void VisitBufferUse(const BufferVar& buffer);
   // statement visitor
   void VisitStmt_(const BindNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
+  void VisitStmt_(const ReturnNode* op) override;
   void VisitStmt_(const BreakNode* op) override;
   void VisitStmt_(const ContinueNode* op) override;
   void VisitStmt_(const AllocBufferNode* op) override;
@@ -207,7 +210,7 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
 
  protected:
   /*! \brief Map from old buffer to new buffer, populated by VisitBufferDef. */
-  ffi::Map<Buffer, Buffer> buffer_remap_;
+  ffi::Map<BufferVar, BufferVar> buffer_remap_;
   // We perform copy on write optimizations on the StmtMutator
   // so that an unique copy of parent can be mutated inplace
   // when some of its children changed.
@@ -279,20 +282,21 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
    *              if false, data references an existing variable (DeclBuffer).
    * \return The (possibly new) buffer.
    */
-  virtual Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data);
+  virtual BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data);
   /*!
    * \brief Visit buffer at use site (BufferStore, BufferLoad, SBlock reads/writes).
    *  By default, returns the remapped buffer from buffer_remap_ if exists, otherwise
-   *  returns the original buffer. Buffer fields are visited at their definition site.
+   *  returns the original buffer. BufferVar fields are visited at their definition site.
    * \return The (possibly remapped) buffer.
    */
-  virtual Buffer VisitBufferUse(const Buffer& buffer);
+  virtual BufferVar VisitBufferUse(const BufferVar& buffer);
   // statement visitor
   Stmt VisitStmt_(const BindNode* op) override;
   Stmt VisitStmt_(const AttrStmtNode* op) override;
   Stmt VisitStmt_(const IfThenElseNode* op) override;
   Stmt VisitStmt_(const ForNode* op) override;
   Stmt VisitStmt_(const WhileNode* op) override;
+  Stmt VisitStmt_(const ReturnNode* op) override;
   Stmt VisitStmt_(const BreakNode* op) override;
   Stmt VisitStmt_(const ContinueNode* op) override;
   Stmt VisitStmt_(const AllocBufferNode* op) override;
@@ -356,6 +360,7 @@ class TVM_DLL StmtExprMutator : public ExprMutator, public StmtMutator {
   using StmtMutator::VisitStmt;
 
   Expr VisitExpr(const Expr& e) override { return ExprMutator::VisitExpr(e); }
+  Expr VisitExpr_(const VarNode* op) override;
   Expr VisitExpr_(const BufferLoadNode* op) override;
 };
 
@@ -407,6 +412,17 @@ inline PrimExpr Substitute(PrimExpr expr, std::function<ffi::Optional<Expr>(cons
 }
 
 /*!
+ * \brief Substitute the vars specified by vmap.
+ * \param range The array of Stmt/PrimExpr to be substituted
+ * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
+ * \return The modified Range.
+ */
+inline Range Substitute(const Range& range,
+                        std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
+  return Range::FromMinExtent(Substitute(range->min, vmap), Substitute(range->extent, vmap));
+}
+
+/*!
  * \brief Substitute the var specified by vmap.
  * \param arr The array of Stmt/PrimExpr to be substituted
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
@@ -416,17 +432,6 @@ template <typename T>
 ffi::Array<T> Substitute(const ffi::Array<T>& arr,
                          std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
   return arr.Map([&vmap](const auto& elem) { return Substitute(elem, vmap); });
-}
-
-/*!
- * \brief Substitute the vars specified by vmap.
- * \param range The array of Stmt/PrimExpr to be substituted
- * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
- * \return The modified Range.
- */
-inline Range Substitute(const Range& range,
-                        std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
-  return Range::FromMinExtent(Substitute(range->min, vmap), Substitute(range->extent, vmap));
 }
 
 /*!

@@ -546,7 +546,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   std::vector<llvm::Type*> arg_types;
   for (Var v : vargs) {
     llvm::Value* value = MakeValue(v);
-    value->setName(v->name_hint.c_str());
+    value->setName(v->name.c_str());
     arg_values.push_back(value);
     arg_types.push_back(value->getType());
   }
@@ -561,7 +561,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   SetTargetAttributes(fcompute);
   for (auto it = fcompute->arg_begin(); it != fcompute->arg_end(); it++) {
     const Var& var = vargs[std::distance(fcompute->arg_begin(), it)];
-    it->setName(std::string(var->name_hint));
+    it->setName(std::string(var->name));
   }
 
   llvm::BasicBlock* compute_call_end = CheckCallSuccess(builder_->CreateCall(fcompute, arg_values));
@@ -573,7 +573,8 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     llvm::Argument* v = &(*it);
     const Var& var = vargs[idx];
     var_map_[var.get()] = v;
-    if (var->ty.as<PointerTypeNode>() && !alias_var_set_.count(var.get())) {
+    if ((var->ty.as<PointerTypeNode>() || var->ty.as<BufferTypeNode>()) &&
+        !alias_var_set_.count(var.get())) {
       // set non alias.
       fcompute->addParamAttr(idx, llvm::Attribute::NoAlias);
       // always not inline compute function to make the code structure clean
@@ -591,16 +592,22 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   }
 
   function_ = fcompute;
+  ffi::Array<Type> debug_param_types = vargs.Map([](const Var& var) -> Type {
+    if (const auto* buffer_type = var->ty.as<BufferTypeNode>()) {
+      // Compute-scope captures use their physical LLVM pointer values.
+      return buffer_type->DataPointerType();
+    }
+    return var->ty;
+  });
   di_subprogram_ =
-      CreateDebugFunction(MakeStringRef(value->value),
-                          vargs.Map([](const Var& var) { return var->ty; }), PrimType::Int(32));
+      CreateDebugFunction(MakeStringRef(value->value), debug_param_types, PrimType::Int(32));
   auto* compute_entry = llvm::BasicBlock::Create(*ctx, "entry", function_);
   builder_->SetInsertPoint(compute_entry);
   this->VisitStmt(op->body);
   builder_->CreateRet(ConstInt32(0));
   builder_->SetInsertPoint(compute_call_end);
 
-  AddDebugInformation(fcompute, vargs.Map([](const Var& var) { return var->ty; }));
+  AddDebugInformation(fcompute, debug_param_types);
 }
 
 CodeGenLLVM::TypedPointer CodeGenCPU::PackClosureData(const ffi::Array<Var>& vfields,
@@ -635,8 +642,7 @@ void CodeGenCPU::UnpackClosureData(TypedPointer cdata, const ffi::Array<Var>& vf
     llvm::Type* field_type = cdata.type->getStructElementType(i);
     llvm::Value* field_addr =
         builder_->CreateInBoundsGEP(cdata.type, cdata.addr, {ConstInt32(0), ConstInt32(i)});
-    llvm::Value* load =
-        builder_->CreateLoad(field_type, field_addr, std::string(vfields[i]->name_hint));
+    llvm::Value* load = builder_->CreateLoad(field_type, field_addr, std::string(vfields[i]->name));
     (*vmap)[vfields[i].get()] = load;
   }
 }
@@ -715,10 +721,10 @@ llvm::Function* CodeGenCPU::CreatePackedFuncInit(const std::string& fname) {
   llvm::IRBuilderBase::InsertPoint saved_ip = builder_->saveIP();
   llvm::Function* saved_function = function_;
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
+  // Internal linkage is sufficient and avoids an ORCJIT error on Mach-O.
   llvm::Function* init_func =
       llvm::Function::Create(ftype_tvm_ffi_handle_init_callback_, llvm::Function::InternalLinkage,
                              "__tvm_func_handle_init." + fname, module_.get());
-  init_func->setVisibility(llvm::GlobalValue::HiddenVisibility);
   SetTargetAttributes(init_func);
   function_ = init_func;
   builder_->SetInsertPoint(llvm::BasicBlock::Create(*ctx, "entry", init_func));
@@ -1190,7 +1196,7 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
     if (parallel_env_.penv == nullptr) {
       auto copy_node = For(ffi::make_object<ForNode>(*op));
       CreateParallelLaunch(copy_node, 0,
-                           std::string("loop_parallel_") + op->loop_var->name_hint.c_str());
+                           std::string("loop_parallel_") + op->loop_var->name.c_str());
     } else {
       // already in parallel env.
       TVM_FFI_ICHECK(parallel_env_.task_id.defined());

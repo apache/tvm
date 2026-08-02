@@ -911,16 +911,15 @@ def test_legalize_dynamic_begin_end():
             index = T.int64()
             return R.call_tir(
                 expected.strided_slice,
-                (A,),
+                (A, index),
                 out_ty=R.Tensor((1, 16), "float32"),
-                tir_vars=R.shape([index]),
             )
 
         @T.prim_func(private=True, s_tir=True)
         def strided_slice(
             A: T.Buffer((T.int64(16), T.int64(16))),
-            B: T.Buffer((T.int64(1), T.int64(16))),
             index: T.int64,
+            B: T.Buffer((T.int64(1), T.int64(16))),
         ):
             T.func_attr({"tirx.noalias": True})
             for iters in T.grid(*B.shape):
@@ -948,7 +947,7 @@ def test_legalize_dynamic_begin_inf_end():
     @I.ir_module(s_tir=True)
     class expected:
         @T.prim_func(private=True, s_tir=True)
-        def strided_slice(A: T.Buffer((T.int64(16), T.int64(16)), "float32"), var_T_dynamic_strided_slice_with_axes: T.handle, index: T.int64):
+        def strided_slice(A: T.Buffer((T.int64(16), T.int64(16)), "float32"), index: T.int64, var_T_dynamic_strided_slice_with_axes: T.handle):
             T.func_attr({"tirx.noalias": True})
             T_dynamic_strided_slice_with_axes = T.match_buffer(var_T_dynamic_strided_slice_with_axes, (T.max(T.int64(16) - T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(0)), T.int64(16)))
             # with T.sblock("root"):
@@ -963,7 +962,7 @@ def test_legalize_dynamic_begin_inf_end():
         def main(A: R.Tensor((16, 16), dtype="float32"), B: R.Shape(["index"])) -> R.Tensor(("T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0)", 16), dtype="float32"):
             index = T.int64()
             cls = expected
-            gv = R.call_tir(cls.strided_slice, (A,), out_ty=R.Tensor((T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0), 16), dtype="float32"), tir_vars=R.shape([index]))
+            gv = R.call_tir(cls.strided_slice, (A, index), out_ty=R.Tensor((T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0), 16), dtype="float32"))
             return gv
     # fmt: on
 

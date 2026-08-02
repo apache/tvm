@@ -49,6 +49,7 @@
 // relax setup
 #include "3rdparty/tvm-ffi/src/ffi/backtrace.cc"
 #include "3rdparty/tvm-ffi/src/ffi/container.cc"
+#include "3rdparty/tvm-ffi/src/ffi/custom_allocator.cc"
 #include "3rdparty/tvm-ffi/src/ffi/dtype.cc"
 #include "3rdparty/tvm-ffi/src/ffi/error.cc"
 #include "3rdparty/tvm-ffi/src/ffi/extra/env_c_api.cc"
@@ -59,6 +60,7 @@
 #include "3rdparty/tvm-ffi/src/ffi/extra/library_module_system_lib.cc"
 #include "3rdparty/tvm-ffi/src/ffi/extra/module.cc"
 #include "3rdparty/tvm-ffi/src/ffi/function.cc"
+#include "3rdparty/tvm-ffi/src/ffi/init_once.cc"
 #include "3rdparty/tvm-ffi/src/ffi/object.cc"
 #include "3rdparty/tvm-ffi/src/ffi/tensor.cc"
 #include "3rdparty/tvm-ffi/src/ffi/testing/testing.cc"

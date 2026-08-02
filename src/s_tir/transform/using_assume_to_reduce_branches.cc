@@ -45,7 +45,7 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
-#include <map>
+#include <unordered_map>
 
 #include "../../arith/constraint_extract.h"
 #include "../../arith/ir_mutator_with_analyzer.h"
@@ -135,8 +135,9 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   std::vector<PrimExpr> conditions_;
 
   // Storing all the buffer assumptions data in map
-  std::map<tirx::Buffer, assume_struct> map_buffer_assumption;
-  tirx::Buffer current_bufferstorenode_name;
+  std::unordered_map<tirx::BufferVar, assume_struct, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      map_buffer_assumption;
+  tirx::BufferVar current_bufferstorenode_name;
 
   struct InternalConstraintContext {
     /* This stuct appends the constraint passed to it in the conditions list.
@@ -190,7 +191,8 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     InternalConstraintContext */
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     InternalConstraintContext ctx1(this, op->loop_var >= op->min);
-    InternalConstraintContext ctx2(this, op->loop_var < op->min + op->extent);
+    InternalConstraintContext ctx2(this,
+                                   static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
     return Parent::VisitStmt_(op);
   }
 
@@ -349,7 +351,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
     auto has_side_effect = tirx::SideEffect(value) > tirx::CallEffectKind::kPure;
     TVM_FFI_ICHECK(!has_side_effect)
-        << "Buffer value in constraint must be pure expression, but was " << value;
+        << "BufferVar value in constraint must be pure expression, but was " << value;
     if (has_side_effect) {
       return;
     }
