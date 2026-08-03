@@ -52,6 +52,7 @@ import tvm
 from tvm.script import tirx as T
 
 _PROFILE_ENV = "TVM_IKET_OFFICIAL_PROFILE"
+_INJECTED_CHILD_ENABLE_ENV = "TVM_IKET_INJECTED_CHILD_ENABLE"
 _DEFAULT_PROFILE = "cutlass-4.6.0"
 _POSTPROCESS_CHOICES = frozenset(("perfetto", "json", "html", "none", "all"))
 _INJECTION_ENV_VARS = ("CUDA_INJECTION64_PATH", "SMODEL_INJECTION_CONFIG")
@@ -368,17 +369,28 @@ class _OfficialIketExecutable:
 class IketProfiler:
     """TIRx annotations compiled for NVIDIA's official IKET runtime."""
 
-    def mark(self, name: str):
-        T.evaluate(T.cuda.iket.mark(name))
+    def mark(self, name: str, payload=None):
+        if payload is None:
+            T.evaluate(T.cuda.iket.mark(name))
+        else:
+            T.evaluate(T.cuda.iket.mark(name, payload))
 
-    def range_start(self, name: str):
-        return T.cuda.iket.range_start(name)
+    def range_start(self, name: str, payload=None):
+        if payload is None:
+            return T.cuda.iket.range_start(name)
+        return T.cuda.iket.range_start(name, payload)
 
-    def range_end(self, token: tvm.tirx.Expr):
-        T.evaluate(T.cuda.iket.range_end(token))
+    def range_end(self, token: tvm.tirx.Expr, payload=None):
+        if payload is None:
+            T.evaluate(T.cuda.iket.range_end(token))
+        else:
+            T.evaluate(T.cuda.iket.range_end(token, payload))
 
-    def range_push(self, name: str):
-        T.evaluate(T.cuda.iket.range_push(name))
+    def range_push(self, name: str, payload=None):
+        if payload is None:
+            T.evaluate(T.cuda.iket.range_push(name))
+        else:
+            T.evaluate(T.cuda.iket.range_push(name, payload))
 
     def range_pop(self):
         T.evaluate(T.cuda.iket.range_pop())
@@ -455,6 +467,10 @@ def _child_environment(
             stacklevel=3,
         )
     child_env[_PROFILE_ENV] = profile_name
+    # LowerIket also requires the two run-iket injection variables before it
+    # honors this marker.  This enables ordinary TIRx JIT compilation only in
+    # children started by this locked profiling entry point.
+    child_env[_INJECTED_CHILD_ENABLE_ENV] = "1"
     return child_env
 
 

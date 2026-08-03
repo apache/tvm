@@ -149,6 +149,7 @@ def test_profile_forwards_cwd_environment_timeout_and_publishes(tmp_path, monkey
     assert captured["timeout"] == 12.5
     assert captured["env"]["IKET_TEST_ENV"] == "present"
     assert captured["env"]["TVM_IKET_OFFICIAL_PROFILE"] == "cutlass-4.6.0"
+    assert captured["env"]["TVM_IKET_INJECTED_CHILD_ENABLE"] == "1"
     assert os.environ["TVM_IKET_OFFICIAL_PROFILE"] == "inherited-profile"
     assert result.output_dir == target
     assert result.command == (sys.executable, "workload.py")

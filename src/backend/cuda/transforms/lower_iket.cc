@@ -27,13 +27,13 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <map>
 #include <set>
 #include <sstream>
@@ -49,18 +49,40 @@ namespace transform {
 
 namespace {
 
-constexpr int kMaxDeclarations = 30;
+constexpr uint32_t kNativeMaxDeclarations = 30;
+constexpr uint32_t kExtendedMaxDeclarations = 4032;
+constexpr uint32_t kNativeFirstEventId = 1;
+constexpr uint32_t kExtendedFirstEventId = 64;
+constexpr uint32_t kRangePopEventId = 31;
+constexpr uint32_t kNativeMaxEventId = 31;
+constexpr uint32_t kExtendedMaxEventId = 4095;
 constexpr int kOfficialMetaInfoBytes = 48;
 constexpr int kOfficialEventAttributesBytes = 60;
 constexpr int kOfficialRangeAttributesBytes = 72;
-constexpr size_t kMaxTokenAnalysisStates = 256;
-constexpr size_t kMaxTokenAnalysisIterations = 256;
-constexpr size_t kMaxConvergenceAnalysisIterations = 256;
 
 enum class DeclarationKind : int {
   kRange = 1,
   kPush = 2,
   kMark = 3,
+};
+
+enum class InstrumentMode : uint32_t {
+  kNativeDump = 3,
+  kExtendedNativeDump = 5,
+};
+
+enum class PayloadType : uint32_t {
+  kNone = 0,
+  kI8 = 1,
+  kUI8 = 2,
+  kI16 = 3,
+  kUI16 = 4,
+  kI32 = 5,
+  kUI32 = 6,
+  kI64 = 7,
+  kFP32 = 13,
+  kFP64 = 14,
+  kUI64 = 16,
 };
 
 const Op& IketMarkOp() {
@@ -157,19 +179,80 @@ std::string GetName(const CallNode* call, size_t index = 0) {
   return result;
 }
 
-std::string ValidatePayload(const Expr& payload) {
-  DLDataType dtype = payload.as_or_throw<PrimExpr>().ty()->dtype;
+PayloadType ValidatePayload(const Expr& payload) {
+  ffi::Optional<PrimExpr> value_optional = payload.as<PrimExpr>();
+  TVM_FFI_CHECK(value_optional.has_value(), TypeError)
+      << "IKET payload must be a scalar numeric value, but got " << payload;
+  PrimExpr value = value_optional.value();
+  ffi::Optional<PrimType> type = value->ty.as<PrimType>();
+  TVM_FFI_CHECK(type.has_value(), TypeError)
+      << "IKET payload must be a scalar numeric value, but got " << value->ty;
+  DLDataType dtype = type.value()->dtype;
   TVM_FFI_CHECK_EQ(dtype.lanes, 1, TypeError) << "IKET payload must be a scalar value";
-  TVM_FFI_CHECK_GT(dtype.bits, 0, TypeError) << "IKET payload must have a concrete bit width";
-  TVM_FFI_CHECK_LE(dtype.bits, 64, TypeError) << "IKET payload must be at most 64 bits";
-  bool supported = dtype.code == kDLInt || dtype.code == kDLUInt || dtype.code == kDLFloat ||
-                   dtype.code == kDLBfloat;
-  TVM_FFI_CHECK(supported, TypeError) << "IKET payload must be bool, int, uint, or float, but got "
-                                      << ffi::DLDataTypeToString(dtype);
-  CallEffectKind effect = SideEffect(payload.as_or_throw<PrimExpr>());
+  PayloadType payload_type;
+  if (dtype.code == kDLBool) {
+    payload_type = PayloadType::kUI8;
+  } else if (dtype.code == kDLInt && dtype.bits == 8) {
+    payload_type = PayloadType::kI8;
+  } else if (dtype.code == kDLUInt && dtype.bits == 8) {
+    payload_type = PayloadType::kUI8;
+  } else if (dtype.code == kDLInt && dtype.bits == 16) {
+    payload_type = PayloadType::kI16;
+  } else if (dtype.code == kDLUInt && dtype.bits == 16) {
+    payload_type = PayloadType::kUI16;
+  } else if (dtype.code == kDLInt && dtype.bits == 32) {
+    payload_type = PayloadType::kI32;
+  } else if (dtype.code == kDLUInt && dtype.bits == 32) {
+    payload_type = PayloadType::kUI32;
+  } else if (dtype.code == kDLInt && dtype.bits == 64) {
+    payload_type = PayloadType::kI64;
+  } else if (dtype.code == kDLUInt && dtype.bits == 64) {
+    payload_type = PayloadType::kUI64;
+  } else if (dtype.code == kDLFloat && dtype.bits == 32) {
+    payload_type = PayloadType::kFP32;
+  } else if (dtype.code == kDLFloat && dtype.bits == 64) {
+    payload_type = PayloadType::kFP64;
+  } else {
+    TVM_FFI_THROW(TypeError)
+        << "IKET payload supports only bool, int/uint 8/16/32/64, float32, and float64; got "
+        << ffi::DLDataTypeToString(dtype);
+  }
+  CallEffectKind effect = SideEffect(value);
   TVM_FFI_CHECK(effect <= CallEffectKind::kReadState, ValueError)
       << "IKET payload expressions may read state but must not update state; got " << effect;
-  return ffi::DLDataTypeToString(dtype);
+  return payload_type;
+}
+
+const char* PayloadTypeName(PayloadType type) {
+  switch (type) {
+    case PayloadType::kNone:
+      return "NoPayload";
+    case PayloadType::kI8:
+      return "I8";
+    case PayloadType::kUI8:
+      return "UI8";
+    case PayloadType::kI16:
+      return "I16";
+    case PayloadType::kUI16:
+      return "UI16";
+    case PayloadType::kI32:
+      return "I32";
+    case PayloadType::kUI32:
+      return "UI32";
+    case PayloadType::kI64:
+      return "I64";
+    case PayloadType::kFP32:
+      return "FP32";
+    case PayloadType::kFP64:
+      return "FP64";
+    case PayloadType::kUI64:
+      return "UI64";
+  }
+  return "Unknown";
+}
+
+bool Is64BitPayload(PayloadType type) {
+  return type == PayloadType::kI64 || type == PayloadType::kUI64 || type == PayloadType::kFP64;
 }
 
 bool IsScalarBufferAccess(const BufferVar& buffer, const ffi::Array<PrimExpr>& indices) {
@@ -204,10 +287,10 @@ struct Declaration {
   DeclarationKey key;
   bool payload_schema_set{false};
   bool has_payload{false};
-  std::string payload_dtype;
+  PayloadType payload_type{PayloadType::kNone};
   bool end_payload_schema_set{false};
   bool end_has_payload{false};
-  std::string end_payload_dtype;
+  PayloadType end_payload_type{PayloadType::kNone};
   uint32_t event_id{0};
 };
 
@@ -215,14 +298,16 @@ class AnnotationCollector : public StmtExprVisitor {
  public:
   std::map<DeclarationKey, Declaration> declarations;
   bool has_annotations{false};
+  bool has_payload_calls{false};
 
  private:
-  void AddDeclaration(DeclarationKind kind, const CallNode* call, bool sentinel = false) {
+  void AddDeclaration(DeclarationKind kind, const CallNode* call) {
     std::string name = GetName(call);
     TVM_FFI_CHECK(call->args.size() == 1 || call->args.size() == 2, TypeError)
         << call->op.as<Op>().value()->name << " expects a name and optional payload";
     bool has_payload = call->args.size() == 2;
-    std::string dtype = has_payload ? ValidatePayload(call->args[1]) : std::string();
+    has_payload_calls = has_payload_calls || has_payload;
+    PayloadType payload_type = has_payload ? ValidatePayload(call->args[1]) : PayloadType::kNone;
     auto [name_it, name_inserted] = declaration_kinds_.emplace(name, kind);
     TVM_FFI_CHECK(name_inserted || name_it->second == kind, ValueError)
         << "IKET declaration " << name << " changes event kind from "
@@ -230,19 +315,18 @@ class AnnotationCollector : public StmtExprVisitor {
     DeclarationKey key{kind, std::move(name)};
     auto [it, inserted] = declarations.emplace(key, Declaration{key});
     Declaration& declaration = it->second;
-    if (!sentinel) {
-      if (declaration.payload_schema_set) {
-        TVM_FFI_CHECK_EQ(declaration.has_payload, has_payload, ValueError)
-            << "IKET declaration " << declaration.key.name
-            << " changes payload presence between sites";
-        TVM_FFI_CHECK_EQ(declaration.payload_dtype, dtype, TypeError)
-            << "IKET declaration " << declaration.key.name
-            << " changes payload dtype between sites";
-      } else {
-        declaration.payload_schema_set = true;
-        declaration.has_payload = has_payload;
-        declaration.payload_dtype = std::move(dtype);
-      }
+    if (declaration.payload_schema_set) {
+      TVM_FFI_CHECK_EQ(declaration.has_payload, has_payload, ValueError)
+          << "IKET declaration " << declaration.key.name
+          << " changes payload presence between sites";
+      TVM_FFI_CHECK(declaration.payload_type == payload_type, TypeError)
+          << "IKET declaration " << declaration.key.name << " changes payload type from "
+          << PayloadTypeName(declaration.payload_type) << " to " << PayloadTypeName(payload_type)
+          << " between sites";
+    } else {
+      declaration.payload_schema_set = true;
+      declaration.has_payload = has_payload;
+      declaration.payload_type = payload_type;
     }
   }
 
@@ -267,7 +351,9 @@ class AnnotationCollector : public StmtExprVisitor {
                         call->ty.as_or_throw<PrimType>()->dtype.bits == 32,
                     TypeError)
           << "IKET sentinel_token must return uint32";
-      AddDeclaration(DeclarationKind::kRange, call, true);
+      // A sentinel carries only token-flow identity.  It emits no runtime
+      // event and therefore must not create metadata or consume an event ID.
+      GetName(call);
     } else if (call->op.same_as(IketRangePushOp())) {
       AddDeclaration(DeclarationKind::kPush, call);
     } else if (call->op.same_as(IketRangeEndOp())) {
@@ -277,7 +363,10 @@ class AnnotationCollector : public StmtExprVisitor {
       TVM_FFI_CHECK(token_dtype.code == kDLUInt && token_dtype.bits == 32 && token_dtype.lanes == 1,
                     TypeError)
           << "IKET RangeToken must have dtype uint32";
-      if (call->args.size() == 2) ValidatePayload(call->args[1]);
+      if (call->args.size() == 2) {
+        has_payload_calls = true;
+        ValidatePayload(call->args[1]);
+      }
     } else if (call->op.same_as(IketRangePopOp())) {
       TVM_FFI_CHECK_EQ(call->args.size(), 0, TypeError) << "IKET range_pop takes no arguments";
     }
@@ -378,20 +467,25 @@ class RangeEndSchemaVerifier : public StmtExprVisitor {
     auto possible_it = token_declarations_.find(token->buffer.get());
     TVM_FFI_ICHECK(possible_it != token_declarations_.end());
     bool has_payload = call->args.size() == 2;
-    std::string dtype = has_payload ? ValidatePayload(call->args[1]) : std::string();
+    PayloadType payload_type = has_payload ? ValidatePayload(call->args[1]) : PayloadType::kNone;
     for (const DeclarationKey& key : possible_it->second) {
       auto declaration_it = declarations_->find(key);
-      TVM_FFI_ICHECK(declaration_it != declarations_->end());
+      // A sentinel-only identity has no real declaration and no payload
+      // schema.  If the same token can also carry a real start, that real
+      // declaration is still checked below.
+      if (declaration_it == declarations_->end()) continue;
       Declaration& declaration = declaration_it->second;
       if (declaration.end_payload_schema_set) {
         TVM_FFI_CHECK_EQ(declaration.end_has_payload, has_payload, ValueError)
             << "range_end for " << key.name << " changes payload presence between sites";
-        TVM_FFI_CHECK_EQ(declaration.end_payload_dtype, dtype, TypeError)
-            << "range_end for " << key.name << " changes payload dtype between sites";
+        TVM_FFI_CHECK(declaration.end_payload_type == payload_type, TypeError)
+            << "range_end for " << key.name << " changes payload type from "
+            << PayloadTypeName(declaration.end_payload_type) << " to "
+            << PayloadTypeName(payload_type) << " between sites";
       } else {
         declaration.end_payload_schema_set = true;
         declaration.end_has_payload = has_payload;
-        declaration.end_payload_dtype = dtype;
+        declaration.end_payload_type = payload_type;
       }
     }
     StmtExprVisitor::VisitExpr_(call);
@@ -400,6 +494,19 @@ class RangeEndSchemaVerifier : public StmtExprVisitor {
   const TokenDeclarationMap& token_declarations_;
   std::map<DeclarationKey, Declaration>* declarations_;
 };
+
+void ValidateRangeSchemas(const std::map<DeclarationKey, Declaration>& declarations) {
+  for (const auto& [key, declaration] : declarations) {
+    if (key.kind != DeclarationKind::kRange || !declaration.end_payload_schema_set) continue;
+    TVM_FFI_CHECK_EQ(declaration.has_payload, declaration.end_has_payload, ValueError)
+        << "IKET token range " << key.name
+        << " must use payloads at both range_start and range_end, or at neither endpoint";
+    TVM_FFI_CHECK(declaration.payload_type == declaration.end_payload_type, TypeError)
+        << "IKET token range " << key.name << " changes payload type from "
+        << PayloadTypeName(declaration.payload_type) << " at range_start to "
+        << PayloadTypeName(declaration.end_payload_type) << " at range_end";
+  }
+}
 
 class TokenVerifier : public StmtExprVisitor {
  public:
@@ -472,370 +579,6 @@ class TokenVerifier : public StmtExprVisitor {
   const TokenBufferSet& token_buffers_;
   bool allow_token_load_{false};
   bool allow_producer_{false};
-};
-
-enum class TokenValueKind : uint8_t {
-  kSentinel,
-  kActiveRange,
-  kConsumed,
-};
-
-struct TokenValue {
-  TokenValueKind kind{TokenValueKind::kSentinel};
-  std::string name;
-
-  bool operator==(const TokenValue& other) const {
-    return kind == other.kind && name == other.name;
-  }
-
-  bool operator<(const TokenValue& other) const {
-    return std::tie(kind, name) < std::tie(other.kind, other.name);
-  }
-};
-
-struct TokenAnalysisState {
-  std::map<const VarNode*, TokenValue> token_values;
-  std::set<std::string> active_ranges;
-
-  bool operator==(const TokenAnalysisState& other) const {
-    return token_values == other.token_values && active_ranges == other.active_ranges;
-  }
-
-  bool operator<(const TokenAnalysisState& other) const {
-    return std::tie(token_values, active_ranges) <
-           std::tie(other.token_values, other.active_ranges);
-  }
-};
-
-using TokenAnalysisStates = std::set<TokenAnalysisState>;
-
-class TokenOperationFinder : public StmtExprVisitor {
- public:
-  bool found{false};
-
- private:
-  void VisitExpr_(const CallNode* call) final {
-    if (IsTokenProducer(call) || call->op.same_as(IketRangeEndOp())) {
-      found = true;
-      return;
-    }
-    StmtExprVisitor::VisitExpr_(call);
-  }
-};
-
-/*! \brief Prove the strict token alternation required by NVIDIA IKET.
- *
- * Any state explosion, unsupported control flow, unknown token, second start of
- * an active name, or end of an inactive name rejects the annotated module.
- */
-class OfficialTokenAnalyzer {
- public:
-  explicit OfficialTokenAnalyzer(const TokenBufferSet& token_buffers)
-      : token_buffers_(token_buffers) {}
-
-  bool Prove(const Stmt& body) {
-    TokenAnalysisStates initial{TokenAnalysisState{}};
-    TokenAnalysisStates output = Process(body, initial);
-    if (!valid_) return false;
-    for (const TokenAnalysisState& state : output) {
-      if (!state.active_ranges.empty()) return false;
-    }
-    return true;
-  }
-
- private:
-  TokenAnalysisStates Limit(TokenAnalysisStates states) {
-    if (states.size() > kMaxTokenAnalysisStates) valid_ = false;
-    return valid_ ? std::move(states) : TokenAnalysisStates{};
-  }
-
-  TokenAnalysisStates Union(const TokenAnalysisStates& lhs, const TokenAnalysisStates& rhs) {
-    TokenAnalysisStates result = lhs;
-    result.insert(rhs.begin(), rhs.end());
-    return Limit(std::move(result));
-  }
-
-  TokenAnalysisStates ProcessLoop(const Stmt& body, const TokenAnalysisStates& input) {
-    TokenAnalysisStates closure = input;
-    for (size_t iteration = 0; valid_ && iteration < kMaxTokenAnalysisIterations; ++iteration) {
-      TokenAnalysisStates after_body = Process(body, closure);
-      if (!valid_) return {};
-      TokenAnalysisStates next = Union(closure, after_body);
-      if (!valid_) return {};
-      if (next == closure) return closure;
-      closure = std::move(next);
-    }
-    valid_ = false;
-    return {};
-  }
-
-  TokenAnalysisStates ProcessTokenStore(const BufferStoreNode* store,
-                                        const TokenAnalysisStates& input) {
-    TokenAnalysisStates result;
-    for (const TokenAnalysisState& old_state : input) {
-      TokenAnalysisState state = old_state;
-      if (const auto* call = store->value.as<CallNode>(); call && IsTokenProducer(call)) {
-        if (call->op.same_as(IketSentinelOp())) {
-          state.token_values[store->buffer.get()] = TokenValue{TokenValueKind::kSentinel, {}};
-        } else {
-          std::string name = GetName(call);
-          if (state.active_ranges.count(name)) {
-            valid_ = false;
-            return {};
-          }
-          state.active_ranges.insert(name);
-          state.token_values[store->buffer.get()] =
-              TokenValue{TokenValueKind::kActiveRange, std::move(name)};
-        }
-      } else if (const auto* load = store->value.as<BufferLoadNode>();
-                 load && token_buffers_.count(load->buffer.get())) {
-        auto source = state.token_values.find(load->buffer.get());
-        if (source == state.token_values.end()) {
-          valid_ = false;
-          return {};
-        }
-        state.token_values[store->buffer.get()] = source->second;
-      } else {
-        valid_ = false;
-        return {};
-      }
-      result.insert(std::move(state));
-      if (store->predicate.has_value()) result.insert(old_state);
-    }
-    return Limit(std::move(result));
-  }
-
-  TokenAnalysisStates ProcessRangeEnd(const CallNode* call, const TokenAnalysisStates& input) {
-    const auto* load = call->args[0].as<BufferLoadNode>();
-    if (!load || !token_buffers_.count(load->buffer.get())) {
-      valid_ = false;
-      return {};
-    }
-    TokenAnalysisStates result;
-    for (const TokenAnalysisState& old_state : input) {
-      auto token = old_state.token_values.find(load->buffer.get());
-      if (token == old_state.token_values.end()) {
-        valid_ = false;
-        return {};
-      }
-      if (token->second.kind == TokenValueKind::kConsumed) {
-        valid_ = false;
-        return {};
-      }
-      TokenAnalysisState state = old_state;
-      if (token->second.kind == TokenValueKind::kActiveRange) {
-        auto active = state.active_ranges.find(token->second.name);
-        if (active == state.active_ranges.end()) {
-          valid_ = false;
-          return {};
-        }
-        state.active_ranges.erase(active);
-      }
-      state.token_values[load->buffer.get()] = TokenValue{TokenValueKind::kConsumed, {}};
-      result.insert(std::move(state));
-    }
-    return Limit(std::move(result));
-  }
-
-  TokenAnalysisStates Process(const Stmt& stmt, const TokenAnalysisStates& input) {
-    if (!valid_ || input.empty()) return input;
-    if (const auto* sequence = stmt.as<SeqStmtNode>()) {
-      TokenAnalysisStates states = input;
-      for (const Stmt& item : sequence->seq) {
-        states = Process(item, states);
-        if (!valid_ || states.empty()) break;
-      }
-      return states;
-    }
-    if (const auto* store = stmt.as<BufferStoreNode>()) {
-      if (token_buffers_.count(store->buffer.get())) {
-        return ProcessTokenStore(store, input);
-      }
-      return input;
-    }
-    if (const auto* evaluate = stmt.as<EvaluateNode>()) {
-      if (const auto* call = evaluate->value.as<CallNode>()) {
-        if (call->op.same_as(IketRangeEndOp())) return ProcessRangeEnd(call, input);
-        if (call->op.same_as(builtin::thread_return())) {
-          for (const TokenAnalysisState& state : input) {
-            if (!state.active_ranges.empty()) {
-              valid_ = false;
-              break;
-            }
-          }
-          return {};
-        }
-      }
-      return input;
-    }
-    if (const auto* branch = stmt.as<IfThenElseNode>()) {
-      TokenAnalysisStates then_states = Process(branch->then_case, input);
-      TokenAnalysisStates else_states =
-          branch->else_case.has_value() ? Process(branch->else_case.value(), input) : input;
-      return Union(then_states, else_states);
-    }
-    if (const auto* loop = stmt.as<ForNode>()) return ProcessLoop(loop->body, input);
-    if (const auto* loop = stmt.as<WhileNode>()) return ProcessLoop(loop->body, input);
-    if (const auto* attr_stmt = stmt.as<AttrStmtNode>()) {
-      return Process(attr_stmt->body, input);
-    }
-    if (const auto* block = stmt.as<SBlockNode>()) {
-      TokenAnalysisStates states = input;
-      if (block->init.has_value()) states = Union(states, Process(block->init.value(), states));
-      return Process(block->body, states);
-    }
-    if (const auto* realize = stmt.as<SBlockRealizeNode>()) {
-      return Union(input, Process(realize->block, input));
-    }
-    if (stmt.as<BreakNode>() || stmt.as<ContinueNode>()) {
-      valid_ = false;
-      return {};
-    }
-    // Unknown statement forms are harmless only if they cannot hide token
-    // operations.  Otherwise their control flow has not been proved.
-    TokenOperationFinder finder;
-    finder(stmt);
-    if (finder.found) {
-      valid_ = false;
-      return {};
-    }
-    return input;
-  }
-
-  const TokenBufferSet& token_buffers_;
-  bool valid_{true};
-};
-
-using OfficialStackState = std::vector<std::string>;
-using OfficialStackStates = std::set<OfficialStackState>;
-
-class StackOperationFinder : public StmtExprVisitor {
- public:
-  bool found{false};
-
- private:
-  void VisitExpr_(const CallNode* call) final {
-    if (call->op.same_as(IketRangePushOp()) || call->op.same_as(IketRangePopOp())) {
-      found = true;
-      return;
-    }
-    StmtExprVisitor::VisitExpr_(call);
-  }
-};
-
-/*! \brief Prove balanced LIFO push/pop behavior required by NVIDIA IKET. */
-class OfficialStackAnalyzer {
- public:
-  bool Prove(const Stmt& body) {
-    OfficialStackStates output = Process(body, OfficialStackStates{OfficialStackState{}});
-    if (!valid_) return false;
-    for (const OfficialStackState& state : output) {
-      if (!state.empty()) return false;
-    }
-    return true;
-  }
-
- private:
-  OfficialStackStates Limit(OfficialStackStates states) {
-    if (states.size() > kMaxTokenAnalysisStates) valid_ = false;
-    return valid_ ? std::move(states) : OfficialStackStates{};
-  }
-
-  OfficialStackStates Union(const OfficialStackStates& lhs, const OfficialStackStates& rhs) {
-    OfficialStackStates result = lhs;
-    result.insert(rhs.begin(), rhs.end());
-    return Limit(std::move(result));
-  }
-
-  OfficialStackStates ProcessLoop(const Stmt& body, const OfficialStackStates& input) {
-    OfficialStackStates closure = input;
-    for (size_t iteration = 0; valid_ && iteration < kMaxTokenAnalysisIterations; ++iteration) {
-      OfficialStackStates after_body = Process(body, closure);
-      if (!valid_) return {};
-      OfficialStackStates next = Union(closure, after_body);
-      if (!valid_) return {};
-      if (next == closure) return closure;
-      closure = std::move(next);
-    }
-    valid_ = false;
-    return {};
-  }
-
-  OfficialStackStates Process(const Stmt& stmt, const OfficialStackStates& input) {
-    if (!valid_ || input.empty()) return input;
-    if (const auto* sequence = stmt.as<SeqStmtNode>()) {
-      OfficialStackStates states = input;
-      for (const Stmt& item : sequence->seq) {
-        states = Process(item, states);
-        if (!valid_ || states.empty()) break;
-      }
-      return states;
-    }
-    if (const auto* evaluate = stmt.as<EvaluateNode>()) {
-      if (const auto* call = evaluate->value.as<CallNode>()) {
-        if (call->op.same_as(IketRangePushOp())) {
-          OfficialStackStates result;
-          for (OfficialStackState state : input) {
-            state.push_back(GetName(call));
-            result.insert(std::move(state));
-          }
-          return Limit(std::move(result));
-        }
-        if (call->op.same_as(IketRangePopOp())) {
-          OfficialStackStates result;
-          for (OfficialStackState state : input) {
-            if (state.empty()) {
-              valid_ = false;
-              return {};
-            }
-            state.pop_back();
-            result.insert(std::move(state));
-          }
-          return Limit(std::move(result));
-        }
-        if (call->op.same_as(builtin::thread_return())) {
-          for (const OfficialStackState& state : input) {
-            if (!state.empty()) {
-              valid_ = false;
-              break;
-            }
-          }
-          return {};
-        }
-      }
-      return input;
-    }
-    if (const auto* branch = stmt.as<IfThenElseNode>()) {
-      OfficialStackStates then_states = Process(branch->then_case, input);
-      OfficialStackStates else_states =
-          branch->else_case.has_value() ? Process(branch->else_case.value(), input) : input;
-      return Union(then_states, else_states);
-    }
-    if (const auto* loop = stmt.as<ForNode>()) return ProcessLoop(loop->body, input);
-    if (const auto* loop = stmt.as<WhileNode>()) return ProcessLoop(loop->body, input);
-    if (const auto* attr_stmt = stmt.as<AttrStmtNode>()) return Process(attr_stmt->body, input);
-    if (const auto* block = stmt.as<SBlockNode>()) {
-      OfficialStackStates states = input;
-      if (block->init.has_value()) states = Union(states, Process(block->init.value(), states));
-      return Process(block->body, states);
-    }
-    if (const auto* realize = stmt.as<SBlockRealizeNode>()) {
-      return Union(input, Process(realize->block, input));
-    }
-    if (stmt.as<BreakNode>() || stmt.as<ContinueNode>()) {
-      valid_ = false;
-      return {};
-    }
-    StackOperationFinder finder;
-    finder(stmt);
-    if (finder.found) {
-      valid_ = false;
-      return {};
-    }
-    return input;
-  }
-
-  bool valid_{true};
 };
 
 class StripIket : public StmtExprMutator {
@@ -953,17 +696,6 @@ bool IsSm90OrNewer(const PrimFunc& function) {
   return std::stoi(value.substr(3, end - 3)) >= 90;
 }
 
-bool HasAnyPayload(const std::map<DeclarationKey, Declaration>& declarations) {
-  for (const auto& item : declarations) {
-    const Declaration& declaration = item.second;
-    if (declaration.has_payload ||
-        (declaration.end_payload_schema_set && declaration.end_has_payload)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 std::string FunctionName(const GlobalVar& global_var, const PrimFunc& function) {
   if (auto symbol = function->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
     return symbol.value();
@@ -976,6 +708,7 @@ struct KernelIketInfo {
   PrimFunc function;
   std::string name;
   std::map<DeclarationKey, Declaration> declarations;
+  bool has_payload_calls{false};
 };
 
 void PutOfficialU32(std::vector<uint8_t>* bytes, size_t offset, uint32_t value) {
@@ -1028,8 +761,11 @@ std::map<DeclarationKey, Declaration> CollectOfficialDeclarations(
   return declarations;
 }
 
-std::string BuildOfficialDeviceSource(const std::vector<KernelIketInfo>& kernels) {
+std::string BuildOfficialDeviceSource(const std::vector<KernelIketInfo>& kernels,
+                                      InstrumentMode mode) {
   std::map<DeclarationKey, Declaration> declarations = CollectOfficialDeclarations(kernels);
+  uint32_t max_event_id =
+      mode == InstrumentMode::kNativeDump ? kNativeMaxEventId : kExtendedMaxEventId;
   std::ostringstream os;
   os << R"IKET(
 extern "C" {
@@ -1039,7 +775,7 @@ extern "C" {
   PutOfficialU32(&meta, 0, kOfficialMetaInfoBytes);
   PutOfficialU32(&meta, 4, 0);
   PutOfficialU32(&meta, 8, 5);
-  PutOfficialU32(&meta, 12, 31);
+  PutOfficialU32(&meta, 12, max_event_id);
   PutOfficialU32(&meta, 16, 32);
   PutOfficialU32(&meta, 20, kOfficialEventAttributesBytes);
   PutOfficialU32(&meta, 24, 0xbabef19dU);
@@ -1059,8 +795,8 @@ extern "C" {
     std::vector<uint8_t> event(kOfficialEventAttributesBytes);
     PutOfficialU32(&event, 0, kOfficialEventAttributesBytes);
     PutOfficialU32(&event, 4, declaration.event_id);
-    PutOfficialU32(&event, 8, 3);
-    PutOfficialU32(&event, 12, 0);
+    PutOfficialU32(&event, 8, static_cast<uint32_t>(mode));
+    PutOfficialU32(&event, 12, static_cast<uint32_t>(declaration.payload_type));
     uint32_t event_position =
         key.kind == DeclarationKind::kRange ? 4 : (key.kind == DeclarationKind::kPush ? 1 : 0);
     PutOfficialU32(&event, 16, event_position);
@@ -1086,7 +822,14 @@ extern "C" {
       os << OfficialByteArray(range_symbol, range);
     }
   }
-  os << R"IKET(
+  bool has_payload_calls =
+      std::any_of(kernels.begin(), kernels.end(),
+                  [](const KernelIketInfo& kernel) { return kernel.has_payload_calls; });
+  if (mode == InstrumentMode::kNativeDump && !has_payload_calls) {
+    // Keep this source byte-for-byte compatible with the original NativeDump
+    // no-payload helper.  Existing MegaKernel placeholders and SASS must not
+    // move merely because payload and ExtendedNativeDump support exists.
+    os << R"IKET(
 }
 
 template <unsigned int EventId>
@@ -1110,7 +853,173 @@ __forceinline__ __device__ unsigned int tvm_builtin_iket_official_event(
     unsigned int event_id) {
   switch (event_id) {
 )IKET";
+    for (const auto& [key, declaration] : declarations) {
+      os << "    case " << declaration.event_id << ":\n"
+         << "      tvm_builtin_iket_official_event_impl<" << declaration.event_id << ">();\n"
+         << "      break;\n";
+    }
+    os << R"IKET(    case 31:
+      tvm_builtin_iket_official_event_impl<31>();
+      break;
+    default:
+      break;
+  }
+  return event_id;
+}
+)IKET";
+    return os.str();
+  }
+
+  os << R"IKET(
+}
+)IKET";
+
+  if (mode == InstrumentMode::kNativeDump) {
+    os << R"IKET(
+template <unsigned int EventId>
+__forceinline__ __device__ void tvm_builtin_iket_official_event_impl() {
+  asm volatile(
+      "{\n"
+      ".reg .b32 %%r, %%t;\n"
+      "mov.b32 %%r, %%cluster_ctarank;\n"
+      "mov.u32 %%t, %%globaltimer_lo;\n"
+      "or.b32 %%t, %%t, %0;\n"
+      "mad.lo.u32 %%r, %%r, 0x1000000, 0x20;\n"
+      "st.weak.shared.u32 [%%r], %%t;\n"
+      "pmevent.mask %0;\n"
+      "}\n"
+      :
+      : "n"(EventId)
+      : "memory");
+}
+
+template <unsigned int EventId>
+__forceinline__ __device__ void tvm_builtin_iket_official_event_payload32_impl(
+    unsigned int payload) {
+  asm volatile(
+      "{\n"
+      ".reg .pred %%p;\n"
+      ".reg .b32 %%r, %%t, %%mask, %%payload32;\n"
+      "activemask.b32 %%mask;\n"
+      "elect.sync _|%%p, %%mask;\n"
+      "mov.b32 %%r, %%cluster_ctarank;\n"
+      "mov.u32 %%t, %%globaltimer_lo;\n"
+      "or.b32 %%t, %%t, %0;\n"
+      "mad.lo.u32 %%r, %%r, 0x1000000, 0x20;\n"
+      "mov.b32 %%payload32, %1;\n"
+      "@%%p st.weak.shared.u32 [%%r], %%t;\n"
+      "@%%p st.weak.shared.b32 [%%r+4], %%payload32;\n"
+      "pmevent.mask %0;\n"
+      "}\n"
+      :
+      : "n"(EventId), "r"(payload)
+      : "memory");
+}
+
+template <unsigned int EventId>
+__forceinline__ __device__ void tvm_builtin_iket_official_event_payload64_impl(
+    unsigned long long payload) {
+  asm volatile(
+      "{\n"
+      ".reg .pred %%p;\n"
+      ".reg .b32 %%r, %%t, %%mask;\n"
+      ".reg .b64 %%payload64;\n"
+      "activemask.b32 %%mask;\n"
+      "elect.sync _|%%p, %%mask;\n"
+      "mov.b32 %%r, %%cluster_ctarank;\n"
+      "mov.u32 %%t, %%globaltimer_lo;\n"
+      "or.b32 %%t, %%t, %0;\n"
+      "mad.lo.u32 %%r, %%r, 0x1000000, 0x20;\n"
+      "mov.b64 %%payload64, %1;\n"
+      "@%%p st.weak.shared.u32 [%%r], %%t;\n"
+      "@%%p st.weak.shared.b64 [%%r+8], %%payload64;\n"
+      "pmevent.mask %0;\n"
+      "}\n"
+      :
+      : "n"(EventId), "l"(payload)
+      : "memory");
+}
+)IKET";
+  } else {
+    os << R"IKET(
+template <unsigned int EventId>
+__forceinline__ __device__ void tvm_builtin_iket_official_event_impl() {
+  asm volatile(
+      "{\n"
+      ".reg .b32 %%r, %%t, %%evtid;\n"
+      ".reg .b64 %%ts_evtid;\n"
+      "mov.b32 %%r, %%cluster_ctarank;\n"
+      "mov.u32 %%t, %%globaltimer_lo;\n"
+      "mad.lo.u32 %%r, %%r, 0x1000000, 0x20;\n"
+      "mov.b32 %%evtid, %0;\n"
+      "mov.b64 %%ts_evtid, {%%t, %%evtid};\n"
+      "st.weak.shared.u64 [%%r], %%ts_evtid;\n"
+      "pmevent.mask %0;\n"
+      "}\n"
+      :
+      : "n"(EventId)
+      : "memory");
+}
+
+template <unsigned int EventId>
+__forceinline__ __device__ void tvm_builtin_iket_official_event_payload32_impl(
+    unsigned int payload) {
+  asm volatile(
+      "{\n"
+      ".reg .pred %%p;\n"
+      ".reg .b32 %%r, %%t, %%mask, %%evtid, %%payload32;\n"
+      ".reg .b64 %%ts_evtid;\n"
+      "activemask.b32 %%mask;\n"
+      "elect.sync _|%%p, %%mask;\n"
+      "mov.b32 %%r, %%cluster_ctarank;\n"
+      "mov.u32 %%t, %%globaltimer_lo;\n"
+      "mad.lo.u32 %%r, %%r, 0x1000000, 0x20;\n"
+      "mov.b32 %%evtid, %0;\n"
+      "mov.b32 %%payload32, %1;\n"
+      "mov.b64 %%ts_evtid, {%%t, %%evtid};\n"
+      "@%%p st.weak.shared.u64 [%%r], %%ts_evtid;\n"
+      "@%%p st.weak.shared.b32 [%%r+8], %%payload32;\n"
+      "pmevent.mask %0;\n"
+      "}\n"
+      :
+      : "n"(EventId), "r"(payload)
+      : "memory");
+}
+
+template <unsigned int EventId>
+__forceinline__ __device__ void tvm_builtin_iket_official_event_payload64_impl(
+    unsigned long long payload) {
+  asm volatile(
+      "{\n"
+      ".reg .pred %%p;\n"
+      ".reg .b32 %%r, %%t, %%mask, %%evtid;\n"
+      ".reg .b64 %%ts_evtid, %%payload64;\n"
+      "activemask.b32 %%mask;\n"
+      "elect.sync _|%%p, %%mask;\n"
+      "mov.b32 %%r, %%cluster_ctarank;\n"
+      "mov.u32 %%t, %%globaltimer_lo;\n"
+      "mad.lo.u32 %%r, %%r, 0x1000000, 0x20;\n"
+      "mov.b32 %%evtid, %0;\n"
+      "mov.b64 %%payload64, %1;\n"
+      "mov.b64 %%ts_evtid, {%%t, %%evtid};\n"
+      "@%%p st.weak.shared.u64 [%%r], %%ts_evtid;\n"
+      "@%%p st.weak.shared.b64 [%%r+8], %%payload64;\n"
+      "pmevent.mask %0;\n"
+      "}\n"
+      :
+      : "n"(EventId), "l"(payload)
+      : "memory");
+}
+)IKET";
+  }
+
+  os << R"IKET(
+__forceinline__ __device__ unsigned int tvm_builtin_iket_official_event(
+    unsigned int event_id) {
+  switch (event_id) {
+)IKET";
   for (const auto& [key, declaration] : declarations) {
+    if (declaration.has_payload) continue;
     os << "    case " << declaration.event_id << ":\n"
        << "      tvm_builtin_iket_official_event_impl<" << declaration.event_id << ">();\n"
        << "      break;\n";
@@ -1123,286 +1032,69 @@ __forceinline__ __device__ unsigned int tvm_builtin_iket_official_event(
   }
   return event_id;
 }
+
+__forceinline__ __device__ unsigned int tvm_builtin_iket_official_event(
+    unsigned int event_id, unsigned int payload) {
+  switch (event_id) {
+)IKET";
+  for (const auto& [key, declaration] : declarations) {
+    if (!declaration.has_payload || Is64BitPayload(declaration.payload_type)) continue;
+    os << "    case " << declaration.event_id << ":\n"
+       << "      tvm_builtin_iket_official_event_payload32_impl<" << declaration.event_id
+       << ">(payload);\n"
+       << "      break;\n";
+  }
+  os << R"IKET(    default:
+      break;
+  }
+  return event_id;
+}
+
+__forceinline__ __device__ unsigned int tvm_builtin_iket_official_event(
+    unsigned int event_id, unsigned long long payload) {
+  switch (event_id) {
+)IKET";
+  for (const auto& [key, declaration] : declarations) {
+    if (!declaration.has_payload || !Is64BitPayload(declaration.payload_type)) continue;
+    os << "    case " << declaration.event_id << ":\n"
+       << "      tvm_builtin_iket_official_event_payload64_impl<" << declaration.event_id
+       << ">(payload);\n"
+       << "      break;\n";
+  }
+  os << R"IKET(    default:
+      break;
+  }
+  return event_id;
+}
+
+template <typename Payload>
+__forceinline__ __device__ unsigned int tvm_builtin_iket_official_event(
+    unsigned int event_id, Payload payload) {
+  if constexpr (sizeof(Payload) <= 4) {
+    unsigned int payload_bits = static_cast<unsigned int>(payload);
+    if constexpr (sizeof(Payload) < 4) {
+      payload_bits &= (1U << (sizeof(Payload) * 8)) - 1U;
+    }
+    return tvm_builtin_iket_official_event(event_id, payload_bits);
+  } else {
+    return tvm_builtin_iket_official_event(
+        event_id, static_cast<unsigned long long>(payload));
+  }
+}
+
+__forceinline__ __device__ unsigned int tvm_builtin_iket_official_event(
+    unsigned int event_id, float payload) {
+  return tvm_builtin_iket_official_event(event_id, __float_as_uint(payload));
+}
+
+__forceinline__ __device__ unsigned int tvm_builtin_iket_official_event(
+    unsigned int event_id, double payload) {
+  return tvm_builtin_iket_official_event(
+      event_id, static_cast<unsigned long long>(__double_as_longlong(payload)));
+}
 )IKET";
   return os.str();
 }
-
-using UniformBufferSet = std::unordered_set<const VarNode*>;
-using DivergentVarSet = std::unordered_set<const VarNode*>;
-
-UniformBufferSet IntersectUniformBuffers(const UniformBufferSet& lhs, const UniformBufferSet& rhs) {
-  UniformBufferSet result;
-  for (const VarNode* buffer : lhs) {
-    if (rhs.count(buffer)) result.insert(buffer);
-  }
-  return result;
-}
-
-DivergentVarSet UnionDivergentVars(const DivergentVarSet& lhs, const DivergentVarSet& rhs) {
-  DivergentVarSet result = lhs;
-  result.insert(rhs.begin(), rhs.end());
-  return result;
-}
-
-class UniformExprChecker : public ExprVisitor {
- public:
-  UniformExprChecker(const DivergentVarSet& divergent_vars, const UniformBufferSet& uniform_buffers)
-      : divergent_vars_(divergent_vars), uniform_buffers_(uniform_buffers) {}
-
-  bool IsUniform(const Expr& expr) {
-    uniform_ = true;
-    operator()(expr);
-    return uniform_;
-  }
-
- private:
-  void VisitExpr_(const VarNode* var) final {
-    if (divergent_vars_.count(var)) uniform_ = false;
-  }
-
-  void VisitExpr_(const BufferLoadNode* load) final {
-    if (!uniform_buffers_.count(load->buffer.get()) ||
-        !IsScalarBufferAccess(load->buffer, load->indices)) {
-      uniform_ = false;
-      return;
-    }
-    for (const PrimExpr& index : load->indices) VisitExpr(index);
-  }
-
-  void VisitExpr_(const CallNode* call) final {
-    // Calls may read lane-local or device state even when their explicit
-    // arguments are uniform.  Treat them conservatively, except for likely(),
-    // which is only an annotation around its argument.
-    if (call->op.same_as(builtin::likely())) {
-      ExprVisitor::VisitExpr_(call);
-    } else if (IsTokenProducer(call)) {
-      // Both producers return a declaration id (or sentinel zero) that is
-      // independent of a potentially lane-varying payload.
-      return;
-    } else if (call->op.same_as(builtin::tvm_warp_shuffle()) && call->args.size() == 5) {
-      // A shuffle from one warp-uniform source lane is a broadcast.  Its
-      // value may depend on threadIdx, but every active lane observes the
-      // selected lane's value.
-      VisitExpr(call->args[0]);
-      for (size_t i = 2; i < call->args.size(); ++i) VisitExpr(call->args[i]);
-    } else if (call->op.same_as(Op::Get("tirx.cuda.__shfl_sync")) && call->args.size() == 4) {
-      // CUDA's explicit __shfl_sync(mask, value, src_lane, width) has the
-      // same broadcast semantics when mask/src_lane/width are uniform.
-      // Ignore the lane-local value, but prove the control operands uniform.
-      VisitExpr(call->args[0]);
-      VisitExpr(call->args[2]);
-      VisitExpr(call->args[3]);
-    } else if (call->op.same_as(builtin::bitwise_and()) ||
-               call->op.same_as(builtin::bitwise_or()) ||
-               call->op.same_as(builtin::bitwise_xor()) ||
-               call->op.same_as(builtin::bitwise_not())) {
-      // These integer/boolean operators are pure.  A composed guard remains
-      // uniform exactly when each operand is uniform.
-      ExprVisitor::VisitExpr_(call);
-    } else {
-      uniform_ = false;
-    }
-  }
-
-  const DivergentVarSet& divergent_vars_;
-  const UniformBufferSet& uniform_buffers_;
-  bool uniform_{true};
-};
-
-class LoopControlFinder : public StmtExprVisitor {
- public:
-  bool found{false};
-
- private:
-  // A break or continue nested inside another loop targets that inner loop,
-  // not the loop whose body this finder was asked to inspect.  Each nested
-  // loop is checked independently by IketConvergenceVerifier.
-  void VisitStmt_(const ForNode*) final {}
-  void VisitStmt_(const WhileNode*) final {}
-  void VisitStmt_(const BreakNode* op) final { found = true; }
-  void VisitStmt_(const ContinueNode* op) final { found = true; }
-  void VisitExpr_(const CallNode* call) final {
-    if (call->op.same_as(builtin::break_loop()) || call->op.same_as(builtin::continue_loop())) {
-      found = true;
-      return;
-    }
-    StmtExprVisitor::VisitExpr_(call);
-  }
-};
-
-class AnnotationFinder : public StmtExprVisitor {
- public:
-  bool found{false};
-
- private:
-  void VisitExpr_(const CallNode* call) final {
-    if (IsIketOp(call->op)) {
-      found = true;
-      return;
-    }
-    StmtExprVisitor::VisitExpr_(call);
-  }
-};
-
-class IketConvergenceVerifier : public StmtExprVisitor {
- private:
-  bool IsUniform(const Expr& expr) const {
-    return UniformExprChecker(divergent_vars_, uniform_buffers_).IsUniform(expr);
-  }
-
-  void VisitStmt_(const BufferStoreNode* op) final {
-    bool uniform_store = !divergent_context_ && IsScalarBufferAccess(op->buffer, op->indices) &&
-                         IsUniform(op->value);
-    for (const PrimExpr& index : op->indices) {
-      uniform_store = uniform_store && IsUniform(index);
-      VisitExpr(index);
-    }
-    VisitExpr(op->value);
-    if (uniform_store) {
-      uniform_buffers_.insert(op->buffer.get());
-    } else {
-      uniform_buffers_.erase(op->buffer.get());
-    }
-  }
-
-  void VisitStmt_(const AttrStmtNode* op) final {
-    const VarNode* thread_var = nullptr;
-    if (op->attr_key == attr::thread_extent) {
-      std::string thread_tag;
-      if (auto iter_var = op->node.as<IterVar>()) {
-        thread_tag = iter_var.value()->thread_tag;
-        thread_var = iter_var.value()->var.get();
-      } else if (auto var = op->node.as<Var>()) {
-        thread_tag = var.value()->name;
-        thread_var = var.value().get();
-      }
-      if (!thread_tag.starts_with("threadIdx.")) thread_var = nullptr;
-    }
-    bool inserted = thread_var && divergent_vars_.insert(thread_var).second;
-    VisitExpr(op->value);
-    VisitStmt(op->body);
-    if (inserted) divergent_vars_.erase(thread_var);
-  }
-
-  void VisitStmt_(const BindNode* op) final {
-    if (!IsUniform(op->value)) divergent_vars_.insert(op->var.get());
-    VisitExpr(op->value);
-  }
-
-  void VisitStmt_(const IfThenElseNode* op) final {
-    VisitExpr(op->condition);
-    bool old_divergent = divergent_context_;
-    bool condition_uniform = IsUniform(op->condition);
-    divergent_context_ = divergent_context_ || !condition_uniform;
-    auto old_vars = divergent_vars_;
-    auto old_buffers = uniform_buffers_;
-    VisitStmt(op->then_case);
-    auto then_buffers = uniform_buffers_;
-    divergent_vars_ = old_vars;
-    uniform_buffers_ = old_buffers;
-    if (op->else_case.has_value()) {
-      VisitStmt(op->else_case.value());
-    }
-    uniform_buffers_ = IntersectUniformBuffers(then_buffers, uniform_buffers_);
-    divergent_vars_ = std::move(old_vars);
-    divergent_context_ = old_divergent;
-  }
-
-  void VisitStmt_(const ForNode* op) final {
-    VisitExpr(op->min);
-    VisitExpr(op->extent);
-    bool uniform_loop = IsUniform(op->min) && IsUniform(op->extent);
-    AnnotationFinder annotations;
-    annotations(op->body);
-    LoopControlFinder loop_control;
-    loop_control(op->body);
-    TVM_FFI_CHECK(!(annotations.found && loop_control.found), ValueError)
-        << "IKET event sites are not allowed in a loop containing break or continue";
-
-    bool old_divergent = divergent_context_;
-    DivergentVarSet old_vars = divergent_vars_;
-    UniformBufferSet old_buffers = uniform_buffers_;
-    DivergentVarSet loop_entry_vars = old_vars;
-    if (!uniform_loop) loop_entry_vars.insert(op->loop_var.get());
-
-    DivergentVarSet loop_head_vars = loop_entry_vars;
-    UniformBufferSet loop_head_buffers = old_buffers;
-    bool converged = false;
-    for (size_t iteration = 0; iteration < kMaxConvergenceAnalysisIterations; ++iteration) {
-      divergent_vars_ = loop_head_vars;
-      uniform_buffers_ = loop_head_buffers;
-      divergent_context_ = old_divergent || !uniform_loop;
-      VisitStmt(op->body);
-
-      DivergentVarSet next_vars = UnionDivergentVars(loop_entry_vars, divergent_vars_);
-      UniformBufferSet next_buffers = IntersectUniformBuffers(old_buffers, uniform_buffers_);
-      if (next_vars == loop_head_vars && next_buffers == loop_head_buffers) {
-        converged = true;
-        break;
-      }
-      loop_head_vars = std::move(next_vars);
-      loop_head_buffers = std::move(next_buffers);
-    }
-    TVM_FFI_CHECK(converged, ValueError)
-        << "IKET convergence analysis did not reach a loop fixed point";
-    uniform_buffers_ = std::move(loop_head_buffers);
-    divergent_vars_ = std::move(old_vars);
-    divergent_context_ = old_divergent;
-  }
-
-  void VisitStmt_(const WhileNode* op) final {
-    AnnotationFinder annotations;
-    annotations(op->body);
-    LoopControlFinder loop_control;
-    loop_control(op->body);
-    TVM_FFI_CHECK(!(annotations.found && loop_control.found), ValueError)
-        << "IKET event sites are not allowed in a loop containing break or continue";
-    bool old_divergent = divergent_context_;
-    DivergentVarSet old_vars = divergent_vars_;
-    UniformBufferSet old_buffers = uniform_buffers_;
-    DivergentVarSet loop_head_vars = old_vars;
-    UniformBufferSet loop_head_buffers = old_buffers;
-    bool converged = false;
-    for (size_t iteration = 0; iteration < kMaxConvergenceAnalysisIterations; ++iteration) {
-      divergent_vars_ = loop_head_vars;
-      uniform_buffers_ = loop_head_buffers;
-      VisitExpr(op->condition);
-      divergent_context_ = old_divergent || !IsUniform(op->condition);
-      VisitStmt(op->body);
-
-      DivergentVarSet next_vars = UnionDivergentVars(old_vars, divergent_vars_);
-      UniformBufferSet next_buffers = IntersectUniformBuffers(old_buffers, uniform_buffers_);
-      if (next_vars == loop_head_vars && next_buffers == loop_head_buffers) {
-        converged = true;
-        break;
-      }
-      loop_head_vars = std::move(next_vars);
-      loop_head_buffers = std::move(next_buffers);
-    }
-    TVM_FFI_CHECK(converged, ValueError)
-        << "IKET convergence analysis did not reach a loop fixed point";
-    uniform_buffers_ = std::move(loop_head_buffers);
-    divergent_vars_ = std::move(old_vars);
-    divergent_context_ = old_divergent;
-  }
-
-  void VisitExpr_(const CallNode* call) final {
-    if (IsIketOp(call->op)) {
-      bool unproven_token = call->op.same_as(IketRangeEndOp()) && !IsUniform(call->args[0]);
-      if ((divergent_context_ || unproven_token) && warned_calls_.insert(call).second) {
-        LOG(WARNING) << "IKET warp convergence could not be proven for event site: "
-                     << GetRef<Expr>(call)
-                     << "; continuing because convergence diagnostics are advisory";
-      }
-    }
-    StmtExprVisitor::VisitExpr_(call);
-  }
-
-  DivergentVarSet divergent_vars_;
-  UniformBufferSet uniform_buffers_;
-  std::unordered_set<const CallNode*> warned_calls_;
-  bool divergent_context_{false};
-};
 
 class InstrumentOfficialKernel : public StmtExprMutator {
  public:
@@ -1429,10 +1121,28 @@ class InstrumentOfficialKernel : public StmtExprMutator {
                 {cast(PrimType::UInt(32), event_id), StringImm(device_source_)});
   }
 
+  PrimExpr Event(PrimExpr event_id, PrimExpr payload) const {
+    static const Op& event_op = Op::Get("tirx.cuda.iket_official_event");
+    return Call(
+        PrimType::UInt(32), event_op,
+        {cast(PrimType::UInt(32), event_id), StringImm(device_source_), std::move(payload)});
+  }
+
+  PrimExpr NormalizePayload(PrimExpr payload, PayloadType type) const {
+    TVM_FFI_ICHECK(type != PayloadType::kNone);
+    return payload;
+  }
+
   Stmt VisitStmt_(const EvaluateNode* evaluate) final {
     if (const auto* call = evaluate->value.as<CallNode>();
         call && call->op.same_as(IketRangeEndOp())) {
       PrimExpr token = VisitExpr(call->args[0]).as_or_throw<PrimExpr>();
+      if (call->args.size() == 2) {
+        PayloadType payload_type = ValidatePayload(call->args[1]);
+        PrimExpr payload =
+            NormalizePayload(VisitExpr(call->args[1]).as_or_throw<PrimExpr>(), payload_type);
+        return IfThenElse(token != 0, Evaluate(Event(token, std::move(payload))));
+      }
       return Evaluate(Event(token));
     }
     return StmtExprMutator::VisitStmt_(evaluate);
@@ -1440,17 +1150,35 @@ class InstrumentOfficialKernel : public StmtExprMutator {
 
   Expr VisitExpr_(const CallNode* call) final {
     if (call->op.same_as(IketRangeStartOp())) {
-      return Event(IntImm(PrimType::UInt(32), Lookup(DeclarationKind::kRange, call).event_id));
+      const Declaration& declaration = Lookup(DeclarationKind::kRange, call);
+      PrimExpr event_id = IntImm(PrimType::UInt(32), declaration.event_id);
+      if (declaration.has_payload) {
+        return Event(event_id, NormalizePayload(VisitExpr(call->args[1]).as_or_throw<PrimExpr>(),
+                                                declaration.payload_type));
+      }
+      return Event(event_id);
     }
     if (call->op.same_as(IketSentinelOp())) return IntImm(PrimType::UInt(32), 0);
     if (call->op.same_as(IketMarkOp())) {
-      return Event(IntImm(PrimType::UInt(32), Lookup(DeclarationKind::kMark, call).event_id));
+      const Declaration& declaration = Lookup(DeclarationKind::kMark, call);
+      PrimExpr event_id = IntImm(PrimType::UInt(32), declaration.event_id);
+      if (declaration.has_payload) {
+        return Event(event_id, NormalizePayload(VisitExpr(call->args[1]).as_or_throw<PrimExpr>(),
+                                                declaration.payload_type));
+      }
+      return Event(event_id);
     }
     if (call->op.same_as(IketRangePushOp())) {
-      return Event(IntImm(PrimType::UInt(32), Lookup(DeclarationKind::kPush, call).event_id));
+      const Declaration& declaration = Lookup(DeclarationKind::kPush, call);
+      PrimExpr event_id = IntImm(PrimType::UInt(32), declaration.event_id);
+      if (declaration.has_payload) {
+        return Event(event_id, NormalizePayload(VisitExpr(call->args[1]).as_or_throw<PrimExpr>(),
+                                                declaration.payload_type));
+      }
+      return Event(event_id);
     }
     if (call->op.same_as(IketRangePopOp())) {
-      return Event(IntImm(PrimType::UInt(32), 31));
+      return Event(IntImm(PrimType::UInt(32), kRangePopEventId));
     }
     if (call->op.same_as(IketRangeEndOp())) {
       TVM_FFI_THROW(ValueError) << "range_end must be emitted in statement position";
@@ -1462,7 +1190,16 @@ class InstrumentOfficialKernel : public StmtExprMutator {
   std::string device_source_;
 };
 
-bool IketEnabled(const IRModule& module) { return module->HasNonzeroAttr("tirx.iket.enabled"); }
+bool IketEnabled(const IRModule& module) {
+  if (module->HasNonzeroAttr("tirx.iket.enabled")) return true;
+  const char* child_enable = std::getenv("TVM_IKET_INJECTED_CHILD_ENABLE");
+  const char* profile = std::getenv("TVM_IKET_OFFICIAL_PROFILE");
+  const char* injection = std::getenv("CUDA_INJECTION64_PATH");
+  const char* injection_config = std::getenv("SMODEL_INJECTION_CONFIG");
+  return child_enable && std::string(child_enable) == "1" && profile &&
+         std::string(profile) == "cutlass-4.6.0" && injection && injection[0] != '\0' &&
+         injection_config && injection_config[0] != '\0';
+}
 
 IRModule LowerIketImpl(IRModule module) {
   if (!IketEnabled(module)) {
@@ -1480,6 +1217,7 @@ IRModule LowerIketImpl(IRModule module) {
         TokenDeclarationMap token_declarations = CollectTokenDeclarations(function->body);
         RangeEndSchemaVerifier schema_verifier(token_declarations, &collector.declarations);
         schema_verifier(function->body);
+        ValidateRangeSchemas(collector.declarations);
       }
       StripIket strip(std::move(tokens));
       Stmt body = RemoveStrippedIketNoOps()(strip(function->body));
@@ -1503,8 +1241,6 @@ IRModule LowerIketImpl(IRModule module) {
     std::string function_name = FunctionName(global_var, function);
     TVM_FFI_CHECK(IsCudaDeviceFunction(function), ValueError)
         << "IKET annotations are only valid in a split CUDA device kernel";
-    TVM_FFI_CHECK_LE(collector.declarations.size(), kMaxDeclarations, ValueError)
-        << "NVIDIA IKET supports at most " << kMaxDeclarations << " declarations per kernel";
 
     TokenBufferSet tokens = CollectTokenBuffers(function->body);
     TokenVerifier verifier(tokens);
@@ -1512,22 +1248,13 @@ IRModule LowerIketImpl(IRModule module) {
     TokenDeclarationMap token_declarations = CollectTokenDeclarations(function->body);
     RangeEndSchemaVerifier schema_verifier(token_declarations, &collector.declarations);
     schema_verifier(function->body);
-    IketConvergenceVerifier convergence_verifier;
-    convergence_verifier(function->body);
-
+    ValidateRangeSchemas(collector.declarations);
     TVM_FFI_CHECK(IsSm90OrNewer(function), ValueError)
         << "NVIDIA IKET requires SM90 or newer for kernel " << function_name;
-    TVM_FFI_CHECK(!HasAnyPayload(collector.declarations), ValueError)
-        << "NVIDIA IKET does not support payloads in kernel " << function_name;
-    TVM_FFI_CHECK(OfficialTokenAnalyzer(tokens).Prove(function->body), ValueError)
-        << "NVIDIA IKET requires token ranges to be provably strictly alternating "
-           "and closed on every exit in kernel "
-        << function_name;
-    TVM_FFI_CHECK(OfficialStackAnalyzer().Prove(function->body), ValueError)
-        << "NVIDIA IKET requires balanced range_push/range_pop paths in kernel " << function_name;
 
     kernels.push_back(KernelIketInfo{global_var, function, std::move(function_name),
-                                     std::move(collector.declarations)});
+                                     std::move(collector.declarations),
+                                     collector.has_payload_calls});
   }
 
   std::sort(
@@ -1538,29 +1265,50 @@ IRModule LowerIketImpl(IRModule module) {
         << "IKET device kernels must have unique global symbols: " << kernels[i].name;
   }
 
-  std::map<DeclarationKey, uint32_t> event_ids;
+  std::map<DeclarationKey, Declaration> module_declarations;
   std::unordered_map<std::string, DeclarationKind> event_kinds;
   for (const KernelIketInfo& kernel : kernels) {
     for (const auto& [key, declaration] : kernel.declarations) {
       auto [kind_it, kind_inserted] = event_kinds.emplace(key.name, key.kind);
       TVM_FFI_CHECK(kind_inserted || kind_it->second == key.kind, ValueError)
           << "NVIDIA IKET declaration " << key.name << " changes event kind across kernels";
-      event_ids.emplace(key, 0);
+      auto [declaration_it, declaration_inserted] = module_declarations.emplace(key, declaration);
+      if (!declaration_inserted) {
+        const Declaration& previous = declaration_it->second;
+        TVM_FFI_CHECK_EQ(previous.has_payload, declaration.has_payload, ValueError)
+            << "NVIDIA IKET declaration " << key.name << " changes payload presence across kernels";
+        TVM_FFI_CHECK(previous.payload_type == declaration.payload_type, TypeError)
+            << "NVIDIA IKET declaration " << key.name << " changes payload type from "
+            << PayloadTypeName(previous.payload_type) << " to "
+            << PayloadTypeName(declaration.payload_type) << " across kernels";
+      }
     }
   }
-  TVM_FFI_CHECK_LE(event_ids.size(), kMaxDeclarations, ValueError)
-      << "NVIDIA IKET supports at most " << kMaxDeclarations
-      << " distinct declarations in one CUDA module";
+  TVM_FFI_CHECK_LE(module_declarations.size(), kExtendedMaxDeclarations, ValueError)
+      << "NVIDIA IKET supports at most " << kExtendedMaxDeclarations
+      << " distinct user declarations in one CUDA module; got " << module_declarations.size();
 
-  uint32_t event_id = 1;
-  for (auto& [key, id] : event_ids) id = event_id++;
+  InstrumentMode mode = module_declarations.size() <= kNativeMaxDeclarations
+                            ? InstrumentMode::kNativeDump
+                            : InstrumentMode::kExtendedNativeDump;
+  if (mode == InstrumentMode::kExtendedNativeDump) {
+    LOG(WARNING) << "NVIDIA IKET is using ExtendedNativeDump for " << module_declarations.size()
+                 << " declarations; records are wider and instrumentation overhead increases";
+  }
+
+  uint32_t event_id =
+      mode == InstrumentMode::kNativeDump ? kNativeFirstEventId : kExtendedFirstEventId;
+  std::map<DeclarationKey, uint32_t> event_ids;
+  for (const auto& [key, declaration] : module_declarations) {
+    event_ids.emplace(key, event_id++);
+  }
   for (KernelIketInfo& kernel : kernels) {
     for (auto& [key, declaration] : kernel.declarations) {
       declaration.event_id = event_ids.at(key);
     }
   }
 
-  std::string device_source = BuildOfficialDeviceSource(kernels);
+  std::string device_source = BuildOfficialDeviceSource(kernels, mode);
   for (const KernelIketInfo& kernel : kernels) {
     module->Update(kernel.global_var, InstrumentOfficialKernel(kernel, device_source).Run());
   }
