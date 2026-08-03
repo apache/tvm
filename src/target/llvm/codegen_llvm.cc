@@ -93,6 +93,7 @@
 
 #include "../../arith/pattern_match.h"
 #include "../build_common.h"
+#include "../min_max_utils.h"
 #include "codegen_params.h"
 #include "llvm_instance.h"
 
@@ -1651,12 +1652,29 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const MinNode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   PrimType dtype(op->a.ty()->dtype);
-  llvm::Value* take_a = CreateLT(dtype, a, b);
-  if (dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
-    // Keep the ordered comparison so a NaN in b selects b, then explicitly
-    // select a when a is NaN.  This also retains the existing second-operand
-    // tie behavior, including for signed zero.
-    take_a = builder_->CreateOr(take_a, builder_->CreateFCmpUNO(a, a));
+  llvm::Value* take_a;
+  if (!dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
+    take_a = CreateLT(dtype, a, b);
+  } else {
+    ConstFloatKind a_kind = GetConstFloatKind(op->a);
+    ConstFloatKind b_kind = GetConstFloatKind(op->b);
+    if (a_kind == ConstFloatKind::kNaN) {
+      return a;
+    } else if (a_kind == ConstFloatKind::kNonNaN) {
+      // The ordered comparison already selects b if b is NaN.
+      take_a = CreateLT(dtype, a, b);
+    } else if (b_kind == ConstFloatKind::kNaN) {
+      take_a = builder_->CreateFCmpUNO(a, a);
+    } else if (b_kind == ConstFloatKind::kNonNaN) {
+      // With a known non-NaN rhs, an unordered comparison is true exactly
+      // when a < b or a is NaN.
+      take_a = builder_->CreateFCmpULT(a, b);
+    } else {
+      // Keep the ordered comparison so a NaN in b selects b, then explicitly
+      // select a when a is NaN.  This also retains the existing second-operand
+      // tie behavior, including for signed zero.
+      take_a = builder_->CreateOr(CreateLT(dtype, a, b), builder_->CreateFCmpUNO(a, a));
+    }
   }
   return builder_->CreateSelect(take_a, a, b);
 }
@@ -1665,12 +1683,29 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const MaxNode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   PrimType dtype(op->a.ty()->dtype);
-  llvm::Value* take_a = CreateGT(dtype, a, b);
-  if (dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
-    // Keep the ordered comparison so a NaN in b selects b, then explicitly
-    // select a when a is NaN.  This also retains the existing second-operand
-    // tie behavior, including for signed zero.
-    take_a = builder_->CreateOr(take_a, builder_->CreateFCmpUNO(a, a));
+  llvm::Value* take_a;
+  if (!dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
+    take_a = CreateGT(dtype, a, b);
+  } else {
+    ConstFloatKind a_kind = GetConstFloatKind(op->a);
+    ConstFloatKind b_kind = GetConstFloatKind(op->b);
+    if (a_kind == ConstFloatKind::kNaN) {
+      return a;
+    } else if (a_kind == ConstFloatKind::kNonNaN) {
+      // The ordered comparison already selects b if b is NaN.
+      take_a = CreateGT(dtype, a, b);
+    } else if (b_kind == ConstFloatKind::kNaN) {
+      take_a = builder_->CreateFCmpUNO(a, a);
+    } else if (b_kind == ConstFloatKind::kNonNaN) {
+      // With a known non-NaN rhs, an unordered comparison is true exactly
+      // when a > b or a is NaN.
+      take_a = builder_->CreateFCmpUGT(a, b);
+    } else {
+      // Keep the ordered comparison so a NaN in b selects b, then explicitly
+      // select a when a is NaN.  This also retains the existing second-operand
+      // tie behavior, including for signed zero.
+      take_a = builder_->CreateOr(CreateGT(dtype, a, b), builder_->CreateFCmpUNO(a, a));
+    }
   }
   return builder_->CreateSelect(take_a, a, b);
 }
