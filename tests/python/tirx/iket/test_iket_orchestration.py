@@ -132,7 +132,7 @@ def test_profile_forwards_cwd_environment_timeout_and_publishes(tmp_path, monkey
         result = iket.profile(
             (sys.executable, "workload.py"),
             output_dir=target,
-            profile_name="cutlass-4.6.1",
+            profile_name="cutlass-4.6.0",
             postprocess="all",
             clobber=False,
             cwd=cwd,
@@ -148,7 +148,7 @@ def test_profile_forwards_cwd_environment_timeout_and_publishes(tmp_path, monkey
     assert captured["cwd"] == cwd
     assert captured["timeout"] == 12.5
     assert captured["env"]["IKET_TEST_ENV"] == "present"
-    assert captured["env"]["TVM_IKET_OFFICIAL_PROFILE"] == "cutlass-4.6.1"
+    assert captured["env"]["TVM_IKET_OFFICIAL_PROFILE"] == "cutlass-4.6.0"
     assert os.environ["TVM_IKET_OFFICIAL_PROFILE"] == "inherited-profile"
     assert result.output_dir == target
     assert result.command == (sys.executable, "workload.py")

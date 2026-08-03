@@ -52,24 +52,25 @@ import tvm
 from tvm.script import tirx as T
 
 _PROFILE_ENV = "TVM_IKET_OFFICIAL_PROFILE"
-_DEFAULT_PROFILE = "cutlass-4.6.1"
+_DEFAULT_PROFILE = "cutlass-4.6.0"
 _POSTPROCESS_CHOICES = frozenset(("perfetto", "json", "html", "none", "all"))
 _INJECTION_ENV_VARS = ("CUDA_INJECTION64_PATH", "SMODEL_INJECTION_CONFIG")
 _OUTPUT_TAIL_LINES = 100
 _TERMINATION_GRACE_SECONDS = 5.0
 
-# Hashes are SHA-256 digests of files in the public 4.6.1 wheels.  Only
+# Hashes are SHA-256 digests of files in the public 4.6.0 wheels.  Only
 # ABI-independent runtime/compiler binaries are pinned so this profile works
 # with every Python version supported by that CUTLASS DSL release.
 _OFFICIAL_PROFILES = {
-    "cutlass-4.6.1": {
+    "cutlass-4.6.0": {
+        "nvrtc_version": (13, 2),
         "versions": {
-            "nvidia-cutlass-dsl": "4.6.1",
-            "nvidia-cutlass-dsl-libs-base": "4.6.1",
-            "nvidia-cutlass-dsl-libs-core": "4.6.1",
-            "nvidia-cutlass-dsl-libs-cu13": "4.6.1",
+            "nvidia-cutlass-dsl": "4.6.0",
+            "nvidia-cutlass-dsl-libs-base": "4.6.0",
+            "nvidia-cutlass-dsl-libs-core": "4.6.0",
+            "nvidia-cutlass-dsl-libs-cu13": "4.6.0",
             "nvidia-cuda-nvdisasm": "13.3.73",
-            "nvidia-cuda-nvrtc": "13.3.33",
+            "nvidia-cuda-nvrtc": "13.2.78",
         },
         "files": {
             "nvidia-cutlass-dsl-libs-base": {
@@ -92,10 +93,10 @@ _OFFICIAL_PROFILES = {
             },
             "nvidia-cuda-nvrtc": {
                 "nvidia/cu13/lib/libnvrtc.so.13": (
-                    "e51d197b3b0d2d9d850d29977423e6ac60661d429a59c440fc04e52b6fc6750a"
+                    "c673cf3b5099d83b98a388a2bb21e5d6f481be3c4bb956e2d74c39cb714d8c63"
                 ),
-                "nvidia/cu13/lib/libnvrtc-builtins.so.13.3": (
-                    "7394c640e5761d13d2bbcdbc4b4c5dbac7cb53cd5bc732d78f8a5cb38638e913"
+                "nvidia/cu13/lib/libnvrtc-builtins.so.13.2": (
+                    "6b1c571cc730d5fcfd57f322e1fa7e0e65de7454b2239ff6d552a09b82d47dbe"
                 ),
             },
         },
@@ -218,19 +219,23 @@ def _validate_run_iket_entrypoint() -> str:
         and item.value == "iket.cli.main:entrypoint"
         for item in entry_points
     ):
-        raise _profile_error("the run-iket entry point does not match CUTLASS DSL 4.6.1")
+        raise _profile_error("the run-iket entry point does not match the locked CUTLASS profile")
     return executable
 
 
-def _validate_nvrtc_13_3() -> None:
+def _validate_nvrtc_version(expected_version: tuple[int, int]) -> None:
+    expected_label = ".".join(str(part) for part in expected_version)
     try:
         from cuda.bindings import nvrtc
 
         error, major, minor = nvrtc.nvrtcVersion()
     except (ImportError, OSError, RuntimeError) as err:
-        raise _profile_error("CUDA NVRTC 13.3 is unavailable") from err
-    if int(error) != 0 or (int(major), int(minor)) != (13, 3):
-        raise _profile_error(f"CUDA NVRTC 13.3 is required, got {int(major)}.{int(minor)}")
+        raise _profile_error(f"CUDA NVRTC {expected_label} is unavailable") from err
+    actual_version = (int(major), int(minor))
+    if int(error) != 0 or actual_version != expected_version:
+        raise _profile_error(
+            f"CUDA NVRTC {expected_label} is required, got {actual_version[0]}.{actual_version[1]}"
+        )
 
 
 def _validate_official_installation(profile_name: str) -> str:
@@ -265,7 +270,7 @@ def _validate_official_installation(profile_name: str) -> str:
                 )
 
     executable = _validate_run_iket_entrypoint()
-    _validate_nvrtc_13_3()
+    _validate_nvrtc_version(profile_config["nvrtc_version"])
     return executable
 
 

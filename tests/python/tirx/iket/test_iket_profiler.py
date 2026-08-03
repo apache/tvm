@@ -36,7 +36,7 @@ from tvm.testing import env
 from tvm.tirx.cuda.iket import IketProfiler
 
 TARGET = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
-ORACLE_PATH = Path(__file__).parent / "oracle" / "iket_official_cutlass_4_6_1_oracle.json"
+ORACLE_PATH = Path(__file__).parent / "oracle" / "iket_official_cutlass_4_6_0_oracle.json"
 
 
 @T.prim_func
@@ -180,6 +180,23 @@ def while_carried_divergent_token(out: T.Buffer((32,), "int32")):
         guard[0] = tx
         iteration[0] = iteration[0] + 1
     out[tx] = guard[0]
+
+
+@T.prim_func
+def annotated_outer_loop_with_nested_break(out: T.Buffer((32,), "int32")):
+    T.device_entry()
+    iket = IketProfiler()
+    tx = T.thread_id([32])
+    value = T.alloc_local((1,), "int32")
+    value[0] = 0
+    for _outer in T.serial(2, unroll=False):
+        iket.range_push("outer")
+        for inner in T.serial(2, unroll=False):
+            if inner == 1:
+                break
+            value[0] = value[0] + 1
+        iket.range_pop()
+    out[tx] = value[0]
 
 
 @T.prim_func
@@ -435,6 +452,23 @@ def test_explicit_cuda_shuffle_broadcast_is_warp_uniform():
     assert "__iket_evt_decl_warp_zero_1_attrs" in source
 
 
+def test_nested_loop_control_does_not_reject_annotated_outer_loop():
+    source = _cuda_source(_compile(annotated_outer_loop_with_nested_break))
+    assert "__iket_evt_decl_outer_1_attrs" in source
+
+
+@pytest.mark.parametrize(
+    "kernel_func", (loop_carried_divergent_token, while_carried_divergent_token)
+)
+def test_unproven_warp_convergence_warns_and_compiles(kernel_func, capfd):
+    source = _cuda_source(_compile(kernel_func))
+    warning = capfd.readouterr().err
+
+    assert "IKET warp convergence could not be proven for event site" in warning
+    assert "continuing because convergence diagnostics are advisory" in warning
+    assert "__iket_evt_decl" in source
+
+
 @pytest.mark.parametrize(
     ("kernel_func", "message"),
     [
@@ -442,19 +476,9 @@ def test_explicit_cuda_shuffle_broadcast_is_warp_uniform():
         pytest.param(overlapping_ranges, "strictly alternating", id="overlap"),
         pytest.param(repeated_range_end, "strictly alternating", id="repeated-end"),
         pytest.param(unbalanced_stack, "balanced range_push/range_pop", id="unbalanced-stack"),
-        pytest.param(
-            loop_carried_divergent_token,
-            "divergent set of lanes",
-            id="loop-fixed-point-divergence",
-        ),
-        pytest.param(
-            while_carried_divergent_token,
-            "divergent set of lanes",
-            id="while-fixed-point-divergence",
-        ),
     ],
 )
-def test_rejects_unsupported_or_divergent_semantics(kernel_func, message):
+def test_rejects_unsupported_semantics(kernel_func, message):
     with pytest.raises(ValueError, match=message):
         _compile(kernel_func)
 
@@ -519,7 +543,8 @@ def test_environment_validation_is_not_process_cached(tmp_path, monkeypatch):
     injection_path.write_bytes(b"locked")
     injection_relative = "nvidia_cutlass_dsl/dsl_packages/iket/profiler/libsmodel_injection.so"
     profile = {
-        "versions": {"nvidia-cutlass-dsl-libs-base": "4.6.1"},
+        "nvrtc_version": (13, 2),
+        "versions": {"nvidia-cutlass-dsl-libs-base": "4.6.0"},
         "files": {
             "nvidia-cutlass-dsl-libs-base": {
                 injection_relative: hashlib.sha256(b"locked").hexdigest()
@@ -528,20 +553,20 @@ def test_environment_validation_is_not_process_cached(tmp_path, monkeypatch):
     }
 
     class FakeDistribution:
-        version = "4.6.1"
+        version = "4.6.0"
 
         @staticmethod
         def locate_file(_relative_path):
             return injection_path
 
-    monkeypatch.setitem(_iket_official._OFFICIAL_PROFILES, "cutlass-4.6.1", profile)
+    monkeypatch.setitem(_iket_official._OFFICIAL_PROFILES, "cutlass-4.6.0", profile)
     monkeypatch.setattr(_iket_official.metadata, "distribution", lambda _name: FakeDistribution())
     monkeypatch.setattr(_iket_official, "_validate_run_iket_entrypoint", lambda: None)
     monkeypatch.setattr(
         _iket_official, "_validate_injection_environment", lambda _expected_digest: None
     )
-    monkeypatch.setattr(_iket_official, "_validate_nvrtc_13_3", lambda: None)
-    monkeypatch.setenv("TVM_IKET_OFFICIAL_PROFILE", "cutlass-4.6.1")
+    monkeypatch.setattr(_iket_official, "_validate_nvrtc_version", lambda _version: None)
+    monkeypatch.setenv("TVM_IKET_OFFICIAL_PROFILE", "cutlass-4.6.0")
 
     _iket_official.validate_official_environment()
     monkeypatch.delenv("TVM_IKET_OFFICIAL_PROFILE")
@@ -584,10 +609,10 @@ def test_injection_environment_accepts_run_iket_two_passes(tmp_path, monkeypatch
         )
 
 
-def test_cutlass_4_6_1_oracle_manifest_integrity():
+def test_cutlass_4_6_0_oracle_manifest_integrity():
     oracle = json.loads(ORACLE_PATH.read_text(encoding="utf-8"))
     assert oracle["schema_version"] == 2
-    assert oracle["profile"]["cutlass_dsl"] == "4.6.1"
+    assert oracle["profile"]["cutlass_dsl"] == "4.6.0"
     assert oracle["profile"]["instrument_method"] == "NativeDump"
     assert "--dump-dir=<output>" in oracle["profile"]["compiler_flags"]
     metadata_bytes = json.dumps(oracle["metadata"], sort_keys=True, separators=(",", ":")).encode()

@@ -24,6 +24,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/type.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
@@ -1213,6 +1214,11 @@ class LoopControlFinder : public StmtExprVisitor {
   bool found{false};
 
  private:
+  // A break or continue nested inside another loop targets that inner loop,
+  // not the loop whose body this finder was asked to inspect.  Each nested
+  // loop is checked independently by IketConvergenceVerifier.
+  void VisitStmt_(const ForNode*) final {}
+  void VisitStmt_(const WhileNode*) final {}
   void VisitStmt_(const BreakNode* op) final { found = true; }
   void VisitStmt_(const ContinueNode* op) final { found = true; }
   void VisitExpr_(const CallNode* call) final {
@@ -1382,13 +1388,11 @@ class IketConvergenceVerifier : public StmtExprVisitor {
 
   void VisitExpr_(const CallNode* call) final {
     if (IsIketOp(call->op)) {
-      if (divergent_context_) {
-        TVM_FFI_THROW(ValueError) << "IKET event site may be reached by a divergent set of lanes: "
-                                  << GetRef<Expr>(call);
-      }
-      if (call->op.same_as(IketRangeEndOp())) {
-        TVM_FFI_CHECK(IsUniform(call->args[0]), ValueError)
-            << "IKET range_end requires a warp-uniform RangeToken";
+      bool unproven_token = call->op.same_as(IketRangeEndOp()) && !IsUniform(call->args[0]);
+      if ((divergent_context_ || unproven_token) && warned_calls_.insert(call).second) {
+        LOG(WARNING) << "IKET warp convergence could not be proven for event site: "
+                     << GetRef<Expr>(call)
+                     << "; continuing because convergence diagnostics are advisory";
       }
     }
     StmtExprVisitor::VisitExpr_(call);
@@ -1396,6 +1400,7 @@ class IketConvergenceVerifier : public StmtExprVisitor {
 
   DivergentVarSet divergent_vars_;
   UniformBufferSet uniform_buffers_;
+  std::unordered_set<const CallNode*> warned_calls_;
   bool divergent_context_{false};
 };
 

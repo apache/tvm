@@ -183,6 +183,7 @@ cscope*
 perf
 .bash_history
 *.json
+!tests/python/tirx/iket/oracle/iket_official_cutlass_4_6_0_oracle.json
 *.params
 *.ro
 *.onnx

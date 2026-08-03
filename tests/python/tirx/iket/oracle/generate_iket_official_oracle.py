@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Generate the normalized CUTLASS DSL 4.6.1 IKET oracle manifest.
+"""Generate the normalized CUTLASS DSL 4.6.0 IKET oracle manifest.
 
 This helper intentionally writes NVIDIA-generated binary artifacts only to the
 requested output directory.  The repository stores the normalized manifest,
