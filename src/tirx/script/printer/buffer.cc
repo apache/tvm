@@ -29,7 +29,8 @@ namespace printer {
 ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::BufferVar buffer, const AccessPath& buffer_p,
                                            const Frame& frame, const IRDocsifier& d,
                                            BufferVarDefinition var_definitions,
-                                           ffi::Optional<Expr> data = std::nullopt) {
+                                           ffi::Optional<Expr> data = std::nullopt,
+                                           bool stringify_undefined_shape = false) {
   using tvm::tirx::Var;
   using tvm::tirx::VarNode;
   ffi::Map<ffi::String, ExprDoc> kwargs;
@@ -95,7 +96,8 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::BufferVar buffer, const AccessP
         add_out_of_line_var_def(e.as_or_throw<Var>(), e_p);
       }
       ExprDoc result = d->AsDoc<ExprDoc>(e, e_p);
-      results.push_back(contains_new_var ? ExprStringDoc(result, e_p) : result);
+      results.push_back(stringify_undefined_shape && contains_new_var ? ExprStringDoc(result, e_p)
+                                                                      : result);
     }
     kwargs.Set("shape", TupleDoc(results));
   }
@@ -325,7 +327,7 @@ ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
 ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
                    const IRDocsifier& d) {
   ffi::Map<ffi::String, ExprDoc> attrs =
-      BufferAttrs(buffer, p, frame, d, BufferVarDefinition::MatchBuffer);
+      BufferAttrs(buffer, p, frame, d, BufferVarDefinition::MatchBuffer, std::nullopt, true);
   if (!attrs.count("dtype")) {
     attrs.Set("dtype", LiteralDoc::DataType(buffer->dtype->dtype, p->Attr("dtype")));
   }

@@ -71,6 +71,19 @@ def test_prim_func_symbolic_buffer_param_roundtrip():
     tvm.ir.assert_structural_equal(tvm.script.from_source(source), func)
 
 
+def test_prim_func_symbolic_alloc_buffer_roundtrip():
+    size = tirx.Var("size", "int32")
+    buf = tirx.decl_buffer(shape=[size], dtype="float32", name="buf", layout=None)
+    func = tirx.PrimFunc(
+        params=[],
+        body=tirx.SeqStmt([tirx.AllocBuffer(buf), tirx.Evaluate(tirx.BufferLoad(buf, [0]))]),
+    ).with_attr("s_tir", True)
+
+    source = func.script()
+    assert "T.alloc_buffer((size,))" in source
+    tvm.ir.assert_structural_equal(tvm.script.from_source(source, check_well_formed=False), func)
+
+
 def test_prim_func_buffer_data_use():
     A = tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A")
     B = tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B")
