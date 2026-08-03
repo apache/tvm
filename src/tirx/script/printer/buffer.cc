@@ -26,11 +26,11 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::BufferVar buffer, const AccessPath& buffer_p,
-                                           const Frame& frame, const IRDocsifier& d,
-                                           BufferVarDefinition var_definitions,
-                                           ffi::Optional<Expr> data = std::nullopt,
-                                           bool stringify_undefined_shape = false) {
+ffi::Map<ffi::String, ExprDoc> BufferAttrs(
+    tirx::BufferVar buffer, const AccessPath& buffer_p, const Frame& frame, const IRDocsifier& d,
+    BufferVarDefinition var_definitions, ffi::Optional<Expr> data = std::nullopt,
+    bool stringify_undefined_shape = false,
+    const std::unordered_set<const tirx::VarNode*>& stringify_shape_vars = {}) {
   using tvm::tirx::Var;
   using tvm::tirx::VarNode;
   ffi::Map<ffi::String, ExprDoc> kwargs;
@@ -89,7 +89,8 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::BufferVar buffer, const AccessP
       bool contains_new_var = false;
       tirx::PostOrderVisit(e, [&](const ffi::ObjectRef& obj) {
         if (const auto* var = obj.as<VarNode>()) {
-          contains_new_var = contains_new_var || !d->IsVarDefined(ffi::GetRef<Var>(var));
+          contains_new_var = contains_new_var || !d->IsVarDefined(ffi::GetRef<Var>(var)) ||
+                             stringify_shape_vars.count(var);
         }
       });
       if (is_new_var(e)) {
@@ -325,9 +326,11 @@ ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
 }
 
 ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
-                   const IRDocsifier& d) {
+                   const IRDocsifier& d,
+                   const std::unordered_set<const tirx::VarNode*>& stringify_shape_vars) {
   ffi::Map<ffi::String, ExprDoc> attrs =
-      BufferAttrs(buffer, p, frame, d, BufferVarDefinition::MatchBuffer, std::nullopt, true);
+      BufferAttrs(buffer, p, frame, d, BufferVarDefinition::MatchBuffer, std::nullopt, true,
+                  stringify_shape_vars);
   if (!attrs.count("dtype")) {
     attrs.Set("dtype", LiteralDoc::DataType(buffer->dtype->dtype, p->Attr("dtype")));
   }

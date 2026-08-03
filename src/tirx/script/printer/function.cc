@@ -87,9 +87,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       ffi::Array<AssignDoc> args;
       args.reserve(n_args);
       std::unordered_map<const tirx::VarNode*, ExprDoc> scalar_param_docs;
+      std::unordered_set<const tirx::VarNode*> pending_scalar_params;
       for (const tirx::Var& param : func->params) {
         if (!param->ty.as<tirx::BufferTypeNode>()) {
           scalar_param_docs.emplace(param.get(), DefineVar(param, *f, d));
+          pending_scalar_params.insert(param.get());
         }
       }
       for (int i = 0; i < n_args; ++i) {
@@ -97,13 +99,26 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         AccessPath var_p = p->Attr("params")->ArrayItem(i);
         if (var->ty.as<tirx::BufferTypeNode>()) {
           tirx::BufferVar buffer(var);
+          std::unordered_set<const tirx::VarNode*> stringify_shape_vars;
+          for (const PrimExpr& shape : buffer->shape) {
+            tirx::PostOrderVisit(shape, [&](const ffi::ObjectRef& obj) {
+              if (const auto* shape_var = obj.as<tirx::VarNode>();
+                  shape_var && pending_scalar_params.count(shape_var)) {
+                stringify_shape_vars.insert(shape_var);
+              }
+            });
+          }
           IdDoc lhs = DefineBuffer(buffer, *f, d);
-          ExprDoc annotation = BufferAttn(buffer, var_p->Attr("ty"), *f, d);
+          ExprDoc annotation = BufferAttn(buffer, var_p->Attr("ty"), *f, d, stringify_shape_vars);
           args.push_back(AssignDoc(lhs, std::nullopt, annotation));
+          for (const tirx::VarNode* shape_var : stringify_shape_vars) {
+            pending_scalar_params.erase(shape_var);
+          }
           continue;
         }
         ExprDoc a = d->AsDoc<ExprDoc>(var->ty, var_p->Attr("ty"));
         args.push_back(AssignDoc(scalar_param_docs.at(var.get()), std::nullopt, a));
+        pending_scalar_params.erase(var.get());
       }
       ffi::Optional<ExprDoc> ret_type = std::nullopt;
       if (!func->ret_type.IsMissing()) {

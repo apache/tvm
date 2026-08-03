@@ -35,6 +35,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -313,10 +314,12 @@ ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
  * \param p The object path
  * \param f The frame
  * \param d The IRDocsifier
+ * \param stringify_shape_vars Variables whose first shape use must be stringified
  * \return The ExprDoc corresponding to the buffer declaration
  */
 ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
-                   const IRDocsifier& d);
+                   const IRDocsifier& d,
+                   const std::unordered_set<const tirx::VarNode*>& stringify_shape_vars = {});
 
 /*!
  * \brief Print the creation of a Var
