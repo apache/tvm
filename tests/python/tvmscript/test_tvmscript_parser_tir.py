@@ -104,6 +104,43 @@ class Module:
     assert str(n.ty.dtype) == "int32"
 
 
+def test_tir_string_defined_symbol_preserves_later_prim_param_dtype():
+    func = tvm.script.from_source(
+        """
+@T.prim_func
+def main(A: T.Buffer(("n",), "float32"), n: T.int64):
+    T.evaluate(n)
+"""
+    )
+
+    A, n = func.params
+    assert A.ty.shape[0].same_as(n)
+    assert str(n.ty.dtype) == "int64"
+
+
+def test_tir_string_defined_symbol_does_not_take_dtype_from_body():
+    with pytest.raises(tvm.error.DiagnosticError):
+        tvm.script.from_source(
+            """
+@T.prim_func
+def main(A: T.Buffer(("n",), "float32")):
+    n = T.int64()
+    T.evaluate(n)
+"""
+        )
+
+
+def test_tir_direct_use_before_string_definition_is_undefined():
+    with pytest.raises(tvm.error.DiagnosticError):
+        tvm.script.from_source(
+            """
+@T.prim_func
+def main(A: T.Buffer((n, "n"), "float32")):
+    T.evaluate(0)
+"""
+        )
+
+
 @pytest.mark.parametrize(
     "source",
     [

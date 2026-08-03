@@ -168,7 +168,7 @@ def bind_assign_value(
     node: doc.expr,
     var_name: str,
     value: Any,
-    prim_var_declarations: dict[str, str] | None = None,
+    prim_var_declarations: set[str] | None = None,
 ) -> Any:
     """Value binding methods when parsing assign statement.
     e.g. binding vi, vj, vk with T.axis.remap("SSR", [i, j, k]), when parsing
@@ -193,7 +193,7 @@ def bind_assign_value(
     res : Any
         The bound value.
     """
-    if var_name in (prim_var_declarations or {}):
+    if var_name in (prim_var_declarations or set()):
         if _get_signature_prim_var(self, var_name) is not None:
             return _reuse_signature_prim_var(self, node, var_name, value)
     if isinstance(value, T.scalar_wrapper):  # pylint: disable=protected-access
@@ -281,8 +281,8 @@ def _is_jit_function(node: doc.FunctionDef) -> bool:
     return False
 
 
-def _prim_var_declaration_dtype(node: doc.expr) -> str | None:
-    """Return the dtype of literal ``T.dtype()`` declaration syntax."""
+def _is_prim_var_declaration(node: doc.expr) -> bool:
+    """Return whether an expression is literal ``T.dtype()`` declaration syntax."""
     if not (
         isinstance(node, doc.Call)
         and not node.args
@@ -291,11 +291,9 @@ def _prim_var_declaration_dtype(node: doc.expr) -> str | None:
         and isinstance(node.func.value, doc.Name)
         and node.func.value.id == "T"
     ):
-        return None
+        return False
     constructor = getattr(T, node.func.attr, None)
-    if not isinstance(constructor, T.DtypeConstructor) and constructor is not T.bool:
-        return None
-    return str(constructor().ty.dtype)
+    return isinstance(constructor, T.DtypeConstructor) or constructor is T.bool
 
 
 def _prim_var_annotation_dtype(node: doc.expr) -> str | None:
@@ -312,35 +310,28 @@ def _prim_var_annotation_dtype(node: doc.expr) -> str | None:
     return str(constructor().ty.dtype)
 
 
-def _collect_prim_var_declarations(target: doc.expr, value: doc.expr) -> dict[str, str]:
-    """Pair assignment targets with literal PrimVar declaration dtypes."""
+def _prim_var_declaration_names(target: doc.expr, value: doc.expr) -> set[str]:
+    """Return targets paired with literal ``T.dtype()`` declarations."""
     if isinstance(target, doc.Name):
-        dtype = _prim_var_declaration_dtype(value)
-        return {target.id: dtype} if dtype is not None else {}
+        return {target.id} if _is_prim_var_declaration(value) else set()
     if isinstance(target, doc.Tuple | doc.List) and isinstance(value, doc.Tuple | doc.List):
         if len(target.elts) != len(value.elts):
-            return {}
-        declarations = {}
+            return set()
+        declarations = set()
         for lhs, rhs in zip(target.elts, value.elts):
-            declarations.update(_collect_prim_var_declarations(lhs, rhs))
+            declarations.update(_prim_var_declaration_names(lhs, rhs))
         return declarations
-    return {}
+    return set()
 
 
-def _function_prim_var_declarations(node: doc.FunctionDef) -> dict[str, str]:
-    """Collect signature-related PrimVar dtypes without binding any values."""
-    declarations = {
+def _signature_prim_var_dtypes(node: doc.FunctionDef) -> dict[str, str]:
+    """Collect scalar parameter dtypes without inspecting the function body."""
+    return {
         arg.arg: dtype
         for arg in node.args.args
         if arg.annotation is not None
         if (dtype := _prim_var_annotation_dtype(arg.annotation)) is not None
     }
-    for statement in node.body:
-        if isinstance(statement, doc.Assign) and len(statement.targets) == 1:
-            declarations.update(
-                _collect_prim_var_declarations(statement.targets[0], statement.value)
-            )
-    return declarations
 
 
 @contextlib.contextmanager
@@ -392,7 +383,7 @@ def _reuse_signature_prim_var(self: Parser, node: doc.expr, var_name: str, value
 def _eval_signature_annotation(
     self: Parser,
     node: doc.expr,
-    declaration_dtypes: dict[str, str],
+    signature_dtypes: dict[str, str],
     *,
     define_missing: bool = True,
 ) -> Any:
@@ -404,6 +395,11 @@ def _eval_signature_annotation(
     """
 
     class ShapeStringRewriter(ast.NodeTransformer):
+        def visit_Name(self, name):  # pylint: disable=invalid-name
+            if isinstance(name.ctx, ast.Load) and name.id not in self_parser.var_table.get():
+                raise NameError(f"name '{name.id}' is not defined")
+            return name
+
         def visit_Constant(self, constant):  # pylint: disable=invalid-name
             if not isinstance(constant.value, str):
                 return constant
@@ -412,7 +408,9 @@ def _eval_signature_annotation(
                 if not isinstance(child, ast.Name) or not isinstance(child.ctx, ast.Load):
                     continue
                 if define_missing and child.id not in self_parser.var_table.get():
-                    var = tvm.tirx.Var(child.id, declaration_dtypes.get(child.id, "int64"))
+                    # TIR match-scope indices default to int32.  A later scalar
+                    # parameter keeps its explicitly declared dtype.
+                    var = tvm.tirx.Var(child.id, signature_dtypes.get(child.id, "int32"))
                     self_parser.var_table.add(child.id, var, allow_shadowing=False)
                     signature_prim_vars = getattr(self_parser, "_signature_prim_vars", [])
                     signature_prim_vars.append(var)
@@ -623,7 +621,7 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
                 except TypeError:
                     pass  # rhs not compatible with buffer_store, fall through
         # otherwise
-        declarations = _collect_prim_var_declarations(lhs, node.value)
+        declarations = _prim_var_declaration_names(lhs, node.value)
         self.eval_assign(
             target=lhs,
             source=rhs,
@@ -818,7 +816,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         prim_func_ctx = T.prim_func(is_private=privacy, s_tir=s_tir, persistent=persistent)
         with prim_func_ctx:
             T.func_name(node.name)
-            declaration_dtypes = _function_prim_var_declarations(node)
+            signature_dtypes = _signature_prim_var_dtypes(node)
             with self.with_dispatch_token("tirx"):
                 # TODO: handle different types of arguments:
                 # - vararg: arg | None
@@ -831,7 +829,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                     if arg.annotation is None:
                         self.report_error(arg, "Type annotation required for function parameters.")
                     try:
-                        ann = _eval_signature_annotation(self, arg.annotation, declaration_dtypes)
+                        ann = _eval_signature_annotation(self, arg.annotation, signature_dtypes)
                     except Exception:  # pylint: disable=broad-except
                         ann = func_annotation.get(arg.arg, None)
                         if ann is None:
@@ -869,7 +867,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
 
                 if node.returns is not None:
                     ret_type = _eval_signature_annotation(
-                        self, node.returns, declaration_dtypes, define_missing=False
+                        self, node.returns, signature_dtypes, define_missing=False
                     )
                     if callable(ret_type) and not isinstance(ret_type, Expr):
                         ret_type = ret_type()
@@ -1117,14 +1115,14 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
 
     ret_type = None
     with self.var_table.with_frame(), _signature_prim_var_scope(self):
-        declaration_dtypes = _function_prim_var_declarations(node)
+        signature_dtypes = _signature_prim_var_dtypes(node)
 
         arg_annotations = []
         for arg in node.args.args:
             if arg.annotation is None:
                 self.report_error(arg, "Type annotation required for function parameters.")
             try:
-                ann = _eval_signature_annotation(self, arg.annotation, declaration_dtypes)
+                ann = _eval_signature_annotation(self, arg.annotation, signature_dtypes)
                 if callable(ann) and not isinstance(ann, Expr):
                     ann = ann()
             except Exception:  # pylint: disable=broad-except
@@ -1139,7 +1137,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
 
         if node.returns is not None:
             ret_type = _eval_signature_annotation(
-                self, node.returns, declaration_dtypes, define_missing=False
+                self, node.returns, signature_dtypes, define_missing=False
             )
             if callable(ret_type) and not isinstance(ret_type, Expr):
                 ret_type = ret_type()
