@@ -365,6 +365,34 @@ def test_ptx_f32x2_value_codegen():
     assert "fma.rn.f32x2 %0, %1, %2, %3;" in src
 
 
+def test_ptx_neg_f32_codegen():
+    @T.prim_func
+    def main(A: T.Buffer((2,), "float32")):
+        T.device_entry()
+        tx = T.thread_id([32])
+        if tx == 0:
+            A[1] = T.ptx.neg_f32(A[0])
+
+    src, _ = _get_source(main)
+    assert "tvm_builtin_ptx_neg_f32" in src
+    assert "neg.f32 %0, %1;" in src
+    assert "neg.ftz.f32" not in src
+
+
+def test_ptx_sub_f16x2_value_codegen():
+    @T.prim_func
+    def main(A: T.Buffer((3,), "uint32")):
+        T.device_entry()
+        tx = T.thread_id([32])
+        if tx == 0:
+            A[2] = T.ptx.sub_f16x2(A[0], A[1])
+
+    src, _ = _get_source(main)
+    assert "unsigned int tvm_builtin_ptx_sub_f16x2" in src
+    assert "sub.f16x2 %0, %1, %2;" in src
+    assert "A_ptr[2] = tvm_builtin_ptx_sub_f16x2(A_ptr[0], A_ptr[1]);" in src
+
+
 @pytest.mark.skipif(
     not (env.has_cuda_compute(10, 0) and env.has_nvcc_version(13, 2)),
     reason="PTX 9.2 packed bf16 conversion requires sm_100 and CUDA 13.2",
@@ -577,6 +605,7 @@ def test_ptx_sync_and_clc_codegen():
             response = T.alloc_buffer((4,), "uint32", scope="shared", align=16)
             T.ptx.cp_async.mbarrier.arrive(bar.ptr_to([0]))
             T.ptx.cp_async.mbarrier.arrive.noinc(bar.ptr_to([0]))
+            T.ptx.mbarrier.try_wait(bar.ptr_to([0]), T.int32(0))
             T.ptx.mbarrier.complete_tx(bar.ptr_to([0]), T.uint32(16))
             T.ptx.mbarrier.complete_tx(
                 bar.ptr_to([1]), T.uint32(24), scope="cta", space="shared::cta"
@@ -603,6 +632,8 @@ def test_ptx_sync_and_clc_codegen():
     src = mod.mod.imports[0].inspect_source()
     assert "cp.async.mbarrier.arrive.shared.b64" in src
     assert "cp.async.mbarrier.arrive.noinc.shared::cta.b64" in src
+    assert "mbarrier.try_wait.parity.shared::cta.b64 P1, [%0], %1, 10000000;" in src
+    assert "unsigned int ticks =" not in src
     assert "tirx.ptx.cp_async_mbarrier_arrive_noinc" not in src
     assert "mbarrier.complete_tx.relaxed.cluster.shared::cluster.b64" in src
     assert "mbarrier.complete_tx.relaxed.cta.shared::cta.b64" in src

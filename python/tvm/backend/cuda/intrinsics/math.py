@@ -18,6 +18,7 @@
 """Math intrinsics.
 
 PTX side:
+* ``sub.f16x2`` — packed f16x2.
 * ``add{.rnd}{.ftz}.f32x2`` / ``sub`` / ``mul`` / ``fma`` — packed f32x2.
 * ``ex2.approx.ftz.f32`` / ``rcp.approx.ftz.f32`` — special functions.
 * ``max.f32`` / ``min.f32`` — 3-operand reduction form.
@@ -31,6 +32,30 @@ from tvm.backend.cuda.op import cuda_func_call
 from ._schema import device_intrinsic
 from .registry import register_codegen
 from .utils import parse_str, validate_power_of_two_range
+
+device_intrinsic(
+    "ptx_sub_f16x2",
+    c_signature="(unsigned int a, unsigned int b)",
+    return_type="unsigned int",
+    body=(
+        "    unsigned int result;\n"
+        '    asm volatile("sub.f16x2 %0, %1, %2;"\n'
+        '        : "=r"(result)\n'
+        '        : "r"(a), "r"(b));\n'
+        "    return result;"
+    ),
+)
+
+device_intrinsic(
+    "ptx_neg_f32",
+    c_signature="(float x)",
+    return_type="float",
+    body=(
+        "    float result;\n"
+        '    asm volatile("neg.f32 %0, %1;" : "=f"(result) : "f"(x));\n'
+        "    return result;"
+    ),
+)
 
 # =============================================================================
 # Packed f32x2 arithmetic — `add{.rnd}{.ftz}.f32x2 d, a, b ;` and friends.

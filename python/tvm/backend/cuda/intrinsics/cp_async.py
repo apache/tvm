@@ -63,6 +63,7 @@ _CP_ASYNC_MBARRIER_ARRIVE_SPACES = ("shared", "shared::cta")
 
 
 def _cp_async_mbarrier_arrive_parts(*args):
+    raw_address = str(args[0].ty) == "uint32"
     noinc = _bool_attr(args[-2])
     space = parse_str(args[-1])
     assert space in _CP_ASYNC_MBARRIER_ARRIVE_SPACES, (
@@ -72,11 +73,19 @@ def _cp_async_mbarrier_arrive_parts(*args):
     noinc_suffix = ".noinc" if noinc else ""
     noinc_name = "_noinc" if noinc else ""
     space_name = "_" + _safe(space)
+    address_decl = (
+        ""
+        if raw_address
+        else "    unsigned int barrier_addr = __cvta_generic_to_shared(barrier);\n"
+    )
+    barrier_addr = "barrier" if raw_address else "barrier_addr"
     return (
-        f"tvm_builtin_ptx_cp_async_mbarrier_arrive{noinc_name}{space_name}",
-        "    unsigned int barrier_addr = __cvta_generic_to_shared(barrier);\n"
-        f'    asm volatile("cp.async.mbarrier.arrive{noinc_suffix}.{space}.b64 [%0];"\n'
-        '                 :: "r"(barrier_addr) : "memory");',
+        f"tvm_builtin_ptx_cp_async_mbarrier_arrive{noinc_name}{space_name}"
+        f"{'_raw_u32' if raw_address else ''}",
+        f"({'unsigned int' if raw_address else 'void*'} barrier)",
+        address_decl
+        + f'    asm volatile("cp.async.mbarrier.arrive{noinc_suffix}.{space}.b64 [%0];"\n'
+        f'                 :: "r"({barrier_addr}) : "memory");',
     )
 
 
@@ -84,8 +93,8 @@ device_intrinsic(
     "ptx_cp_async_mbarrier_arrive",
     n_attrs=2,
     helper_name=lambda *a: _cp_async_mbarrier_arrive_parts(*a)[0],
-    c_signature="(void* barrier)",
-    body=lambda *a: _cp_async_mbarrier_arrive_parts(*a)[1],
+    c_signature=lambda *a: _cp_async_mbarrier_arrive_parts(*a)[1],
+    body=lambda *a: _cp_async_mbarrier_arrive_parts(*a)[2],
 )
 
 
@@ -118,6 +127,7 @@ def _make_form_parts(ca_or_cg, fixed_cp_size, extra):
 
     def _parts(*args):
         # Operand args (forwarded) come first, then attr args.
+        raw_address = str(args[0].ty) == "uint32"
         attr_args = args[-n_attrs:]
         has_cache = _bool_attr(attr_args[0])
         prefetch_size = parse_str(attr_args[1])
@@ -130,26 +140,32 @@ def _make_form_parts(ca_or_cg, fixed_cp_size, extra):
         name = (
             f"tvm_builtin_ptx_cp_async_{ca_or_cg}_{cp_size}"
             f"{name_cache}{name_prefetch}{extra_in_name}"
+            f"{'_raw_u32' if raw_address else ''}"
         )
+        dst_type = "unsigned int" if raw_address else "void*"
         sig = (
-            "(void* dst, void* src"
+            f"({dst_type} dst, void* src"
             + (f", int {extra}" if extra else "")
             + ", unsigned long long cache_policy)"
         )
+        address_decl = (
+            "" if raw_address else "    unsigned int dst_addr = __cvta_generic_to_shared(dst);\n"
+        )
+        address = "dst" if raw_address else "dst_addr"
         instr_base = f"cp.async.{ca_or_cg}.shared.global{modifier}"
         if extra is None:
             cache_arg = ", %2" if has_cache else ""
             body = (
-                "    unsigned int dst_addr = __cvta_generic_to_shared(dst);\n"
-                f'    asm volatile("{instr_base} [%0], [%1], {cp_size}{cache_arg};\\n"\n'
-                f'                 :: "r"(dst_addr), "l"(src){cache_operand} : "memory");'
+                address_decl
+                + f'    asm volatile("{instr_base} [%0], [%1], {cp_size}{cache_arg};\\n"\n'
+                f'                 :: "r"({address}), "l"(src){cache_operand} : "memory");'
             )
         else:
             cache_arg = ", %3" if has_cache else ""
             body = (
-                "    unsigned int dst_addr = __cvta_generic_to_shared(dst);\n"
-                f'    asm volatile("{instr_base} [%0], [%1], {cp_size}, %2{cache_arg};\\n"\n'
-                f'                 :: "r"(dst_addr), "l"(src), "r"({extra})'
+                address_decl
+                + f'    asm volatile("{instr_base} [%0], [%1], {cp_size}, %2{cache_arg};\\n"\n'
+                f'                 :: "r"({address}), "l"(src), "r"({extra})'
                 f'{cache_operand} : "memory");'
             )
         return name, sig, body
@@ -160,15 +176,10 @@ def _make_form_parts(ca_or_cg, fixed_cp_size, extra):
 def _register_nb_form(op_name, ca_or_cg, fixed_cp_size, extra):
     parts_fn, n_attrs = _make_form_parts(ca_or_cg, fixed_cp_size, extra)
     n_op = 3 if extra is not None else 2
-    sig_static = (
-        "(void* dst, void* src"
-        + (f", int {extra}" if extra else "")
-        + ", unsigned long long cache_policy)"
-    )
     device_intrinsic(
         f"ptx_cp_async_{op_name}",
         n_attrs=n_attrs,
-        c_signature=sig_static,  # static — depends on `extra` not on attrs
+        c_signature=lambda *a, fn=parts_fn: fn(*a)[1],
         helper_name=lambda *a, fn=parts_fn: fn(*a)[0],
         body=lambda *a, fn=parts_fn: fn(*a)[2],
     )
@@ -188,7 +199,7 @@ _register_nb_form("ca", "ca", fixed_cp_size=None, extra=None)
 _register_nb_form("cg", "cg", fixed_cp_size=16, extra=None)
 
 
-def _make_setp_at_p_helper(ca_or_cg, cp_size, has_cache, prefetch):
+def _make_setp_at_p_helper(ca_or_cg, cp_size, has_cache, prefetch, raw_address):
     """Wrapper convenience: ``setp+@p`` around a form 1/2 cp.async (predicate-
     gated skip with dst untouched on false). Not a PTX form — emitted directly
     here as a one-off helper rather than a separate device_intrinsic."""
@@ -200,22 +211,27 @@ def _make_setp_at_p_helper(ca_or_cg, cp_size, has_cache, prefetch):
         + ("_cache_hint" if has_cache else "")
         + (f"_prefetch_{prefetch}" if prefetch else "")
         + "_predicate"
+        + ("_raw_u32" if raw_address else "")
     )
+    dst_type = "unsigned int" if raw_address else "void*"
+    address_decl = (
+        "" if raw_address else "  unsigned int dst_addr = __cvta_generic_to_shared(dst);\n"
+    )
+    address = "dst" if raw_address else "dst_addr"
     body = (
-        "  unsigned int dst_addr = __cvta_generic_to_shared(dst);\n"
-        "  __asm__ __volatile__(\n"
+        address_decl + "  __asm__ __volatile__(\n"
         '    "{\\n"\n'
         '    " .reg .pred p;\\n"\n'
         '    " setp.eq.u32 p, %3, 1;\\n"\n'
         f'    " @p cp.async.{ca_or_cg}.shared.global{modifier}'
         f' [%0], [%1], %2{cache_arg};\\n"\n'
         '    "}\\n"\n'
-        f'    :: "r"(dst_addr), "l"(src), "n"({cp_size}), "r"(predicate){cache_operand}\n'
+        f'    :: "r"({address}), "l"(src), "n"({cp_size}), "r"(predicate){cache_operand}\n'
         "  );"
     )
     source_code = (
         f"\n__forceinline__ __device__ void {func_name}"
-        "(void* dst, void* src, int predicate, unsigned long long cache_policy) {\n"
+        f"({dst_type} dst, void* src, int predicate, unsigned long long cache_policy) {{\n"
         f"{body}\n"
         "}\n"
     )
@@ -397,7 +413,10 @@ def codegen_ptx_cp_async(*args):
         return result[0] if isinstance(result, tuple) else result
 
     if has_predicate:
-        func_name, source_code = _make_setp_at_p_helper(ca_or_cg, cp_size_v, has_cache, pref)
+        raw_address = str(dst_ptr.ty) == "uint32"
+        func_name, source_code = _make_setp_at_p_helper(
+            ca_or_cg, cp_size_v, has_cache, pref, raw_address
+        )
         return cuda_func_call(
             func_name, dst_ptr, src_ptr, predicate, cache_policy, source_code=source_code
         )
@@ -487,18 +506,22 @@ def _tensor_tile_modifier(tile_mode):
     return ".tile::gather4" if tile_mode == "tile_gather4" else ""
 
 
-def _g2s_cta_body(instr, coord_count, has_cache, mbar_is_shared_addr):
+def _g2s_cta_body(instr, coord_count, has_cache, mbar_is_shared_addr, dst_is_shared_addr):
     coord_start = 4 if has_cache else 3
     coord_tpl = _coord_template(coord_count, coord_start)
     cache_slot = ", %3" if has_cache else ""
     cache_arg = ',\n          "l"(cache_policy)' if has_cache else ""
+    dst_addr_decl = (
+        "" if dst_is_shared_addr else _ptx_shared_u32_addr_decl("dst_addr", "dst", "smem_addr64")
+    )
+    dst_addr = "dst" if dst_is_shared_addr else "dst_addr"
     return (
-        f"{_ptx_shared_u32_addr_decl('dst_addr', 'dst', 'smem_addr64')}"
+        f"{dst_addr_decl}"
         f"{_g2s_cta_mbar_addr_decl(mbar_is_shared_addr)}"
         "    asm volatile(\n"
         f'        "{instr} [%0], [%1, {coord_tpl}], [%2]{cache_slot};"\n'
         "        :\n"
-        f'        : "r"(dst_addr), "l"(tensormap_addr), "r"(mbar_addr){cache_arg},\n'
+        f'        : "r"({dst_addr}), "l"(tensormap_addr), "r"(mbar_addr){cache_arg},\n'
         f"          {_coord_constraints(coord_count)}\n"
         '        : "memory"\n'
         "    );"
@@ -531,6 +554,7 @@ def _g2s_cluster_body(
 # PTX cp.async.bulk.tensor global -> shared::cta; this registration supports
 # tile/tile::gather4 load modes.
 def _g2s_cta_parts(*args):
+    dst_is_shared_addr = str(args[0].ty) == "uint32"
     attrs = args[-5:]
     dim = int(attrs[0])
     cta_group = int(attrs[1])
@@ -539,8 +563,9 @@ def _g2s_cta_parts(*args):
     mbar_is_shared_addr = _bool_attr(attrs[4])
     coord_count = 5 if tile_mode == "tile_gather4" else dim
     mbar_type = "unsigned int mbar_addr" if mbar_is_shared_addr else "void* mbar"
+    dst_type = "unsigned int" if dst_is_shared_addr else "void*"
     sig = (
-        f"(void* dst, {mbar_type}, unsigned long long tensormap_addr, "
+        f"({dst_type} dst, {mbar_type}, unsigned long long tensormap_addr, "
         "unsigned long long cache_policy"
         + (", " + _coord_sig(coord_count) if coord_count else "")
         + ")"
@@ -548,6 +573,7 @@ def _g2s_cta_parts(*args):
     name = (
         f"ptx_cp_async_bulk_tensor_g2s_cta_{tile_mode}_{dim}d"
         f"{'_cache_hint' if has_cache else ''}{'_mbar_addr' if mbar_is_shared_addr else ''}"
+        f"{'_dst_addr' if dst_is_shared_addr else ''}"
     )
     tile_modifier = _tensor_tile_modifier(tile_mode)
     cta_group_str = _resolve_cta_group_str(cta_group)
@@ -556,7 +582,11 @@ def _g2s_cta_parts(*args):
         f"cp.async.bulk.tensor.{dim}d.shared::cta.global{tile_modifier}"
         f".mbarrier::complete_tx::bytes{cta_group_str}{cache_inst}"
     )
-    return name, sig, _g2s_cta_body(instr, coord_count, has_cache, mbar_is_shared_addr)
+    return (
+        name,
+        sig,
+        _g2s_cta_body(instr, coord_count, has_cache, mbar_is_shared_addr, dst_is_shared_addr),
+    )
 
 
 device_intrinsic(
@@ -651,27 +681,35 @@ device_intrinsic(
 #   .level::cache_hint = {.L2::cache_hint}
 # This registration supports tile mode; cache-policy is a real operand.
 def _s2g_parts(*args):
+    src_is_shared_addr = str(args[0].ty) == "uint32"
     attrs = args[-2:]
     dim = int(attrs[0])
     has_cache = _bool_attr(attrs[1])
+    src_type = "unsigned int" if src_is_shared_addr else "void*"
     sig = (
-        "(void* src, unsigned long long tensormap_addr, unsigned long long cache_policy"
+        f"({src_type} src, unsigned long long tensormap_addr, unsigned long long cache_policy"
         + (", " + _coord_sig(dim) if dim else "")
         + ")"
     )
-    name = f"ptx_cp_async_bulk_tensor_shared_to_global_{dim}d{'_cache_hint' if has_cache else ''}"
+    name = (
+        f"ptx_cp_async_bulk_tensor_shared_to_global_{dim}d"
+        f"{'_cache_hint' if has_cache else ''}{'_src_addr' if src_is_shared_addr else ''}"
+    )
     cache_inst = ".L2::cache_hint" if has_cache else ""
     cache_arg = ', "l"(cache_policy)' if has_cache else ""
     cache_slot = ", %2" if has_cache else ""
     coord_start = 3 if has_cache else 2
     coord_tpl = _coord_template(dim, coord_start)
     instr = f"cp.async.bulk.tensor.{dim}d.global.shared::cta.tile.bulk_group{cache_inst}"
+    address_decl = (
+        "" if src_is_shared_addr else "    unsigned int src_addr = __cvta_generic_to_shared(src);\n"
+    )
+    src_addr = "src" if src_is_shared_addr else "src_addr"
     body = (
-        "    unsigned int src_addr = __cvta_generic_to_shared(src);\n"
-        "    asm volatile(\n"
+        address_decl + "    asm volatile(\n"
         f'        "{instr} [%0, {coord_tpl}], [%1]{cache_slot};"\n'
         "        :\n"
-        f'        : "l"(tensormap_addr), "r"(src_addr){cache_arg},\n'
+        f'        : "l"(tensormap_addr), "r"({src_addr}){cache_arg},\n'
         f"          {_coord_constraints(dim)}\n"
         '        : "memory"\n'
         "    );"

@@ -285,6 +285,19 @@ def _check_mbarrier_arrive_attrs(sem, scope, space):
     return sem, scope, space
 
 
+def _mbarrier_address_parts(barrier):
+    """Return the CUDA parameter/address spelling for an mbarrier operand."""
+    raw_address = str(barrier.ty) == "uint32"
+    if raw_address:
+        return "unsigned int", "", "barrier", "_raw_u32"
+    return (
+        "void*",
+        "    unsigned int barrier_addr = __cvta_generic_to_shared(barrier);\n",
+        "barrier_addr",
+        "",
+    )
+
+
 def _ptx_mbarrier_arrive_parts(*args):
     sem, scope, space, has_count, has_remote, has_pred = args[-6:]
     sem, scope, space = _check_mbarrier_arrive_attrs(sem, scope, space)
@@ -294,6 +307,7 @@ def _ptx_mbarrier_arrive_parts(*args):
     if has_remote and space != "shared::cluster":
         raise ValueError("remote mbarrier.arrive requires space='shared::cluster'")
 
+    barrier_type, address_decl, barrier_addr, raw_suffix = _mbarrier_address_parts(args[0])
     name = "tvm_builtin_ptx_mbarrier_arrive"
     if sem:
         name += f"_{_safe_attr(sem)}_{_safe_attr(scope)}"
@@ -304,8 +318,9 @@ def _ptx_mbarrier_arrive_parts(*args):
         name += "_remote"
     if has_pred:
         name += "_pred"
+    name += raw_suffix
 
-    params = ["void* barrier"]
+    params = [f"{barrier_type} barrier"]
     arg_idx = 1
     if has_count:
         params.append("int count")
@@ -321,7 +336,7 @@ def _ptx_mbarrier_arrive_parts(*args):
 
     instr_suffix = f".{sem}.{scope}" if sem else ""
     instr = f"mbarrier.arrive{instr_suffix}.{space}.b64"
-    body = "    unsigned int barrier_addr = __cvta_generic_to_shared(barrier);\n"
+    body = address_decl
 
     if has_remote or has_pred:
         body += "    asm volatile(\n"
@@ -344,7 +359,7 @@ def _ptx_mbarrier_arrive_parts(*args):
         count_suffix = f", %{count_idx}" if has_count else ""
         body += f'        "{pred_prefix}{instr}  _, [{addr}]{count_suffix};\\n"\n'
         body += '        "}\\n"\n'
-        constraints = ['"r"(barrier_addr)']
+        constraints = [f'"r"({barrier_addr})']
         if has_count:
             constraints.append('"r"(count)')
         if has_remote:
@@ -354,7 +369,7 @@ def _ptx_mbarrier_arrive_parts(*args):
         body += f'        :: {", ".join(constraints)} : "memory");'
     else:
         count_suffix = ", %1" if has_count else ""
-        constraints = '"r"(barrier_addr)'
+        constraints = f'"r"({barrier_addr})'
         if has_count:
             constraints += ', "r"(count)'
         body += f'    asm volatile("{instr} _, [%0]{count_suffix};"\n'
@@ -452,6 +467,7 @@ def _ptx_mbarrier_arrive_expect_tx_parts(*args):
     if has_remote and space != "shared::cluster":
         raise ValueError("remote mbarrier.arrive.expect_tx requires space='shared::cluster'")
 
+    barrier_type, address_decl, barrier_addr, raw_suffix = _mbarrier_address_parts(args[0])
     name = "tvm_builtin_ptx_mbarrier_arrive_expect_tx"
     if sem:
         name += f"_{_safe_attr(sem)}_{_safe_attr(scope)}"
@@ -460,8 +476,9 @@ def _ptx_mbarrier_arrive_expect_tx_parts(*args):
         name += "_remote"
     if has_pred:
         name += "_pred"
+    name += raw_suffix
 
-    params = ["void* barrier", "int byte_count"]
+    params = [f"{barrier_type} barrier", "int byte_count"]
     arg_idx = 2
     if has_remote:
         params.append("int remote")
@@ -473,7 +490,7 @@ def _ptx_mbarrier_arrive_expect_tx_parts(*args):
 
     instr_suffix = f".{sem}.{scope}" if sem else ""
     instr = f"mbarrier.arrive.expect_tx{instr_suffix}.{space}.b64"
-    body = "    unsigned int barrier_addr = __cvta_generic_to_shared(barrier);\n"
+    body = address_decl
 
     if has_remote or has_pred:
         body += "    asm volatile(\n"
@@ -495,7 +512,7 @@ def _ptx_mbarrier_arrive_expect_tx_parts(*args):
         pred_prefix = "@p " if has_pred else ""
         body += f'        "{pred_prefix}{instr}  _, [{addr}], %1;\\n"\n'
         body += '        "}\\n"\n'
-        constraints = ['"r"(barrier_addr)', '"r"(byte_count)']
+        constraints = [f'"r"({barrier_addr})', '"r"(byte_count)']
         if has_remote:
             constraints.append('"r"(remote)')
         if has_pred:
@@ -503,7 +520,7 @@ def _ptx_mbarrier_arrive_expect_tx_parts(*args):
         body += f'        :: {", ".join(constraints)} : "memory");'
     else:
         body += f'    asm volatile("{instr} _, [%0], %1;"\n'
-        body += '                 :: "r"(barrier_addr), "r"(byte_count) : "memory");'
+        body += f'                 :: "r"({barrier_addr}), "r"(byte_count) : "memory");'
 
     return name, f"({', '.join(params)})", body
 
@@ -563,23 +580,32 @@ device_intrinsic(
 # label loop (TIRx convention; the magic ``ticks = 0x989680`` is the timeout
 # hint in ns).
 # =============================================================================
-device_intrinsic(
-    "ptx_mbarrier_try_wait",
-    c_signature="(void* barrier, int phase)",
-    body=(
-        "    unsigned int barrier_addr_int = __cvta_generic_to_shared(barrier);\n"
-        "    unsigned int ticks = 0x989680;\n"
-        "    asm volatile(\n"
+def _ptx_mbarrier_try_wait_parts(*args):
+    barrier_type, address_decl, barrier_addr, raw_suffix = _mbarrier_address_parts(args[0])
+    body = (
+        address_decl + "    asm volatile(\n"
         '        "{\\n"\n'
         '        ".reg .pred                P1;\\n"\n'
         '        "LAB_WAIT:\\n"\n'
-        '        "mbarrier.try_wait.parity.shared::cta.b64 P1, [%0], %1, %2;\\n"\n'
+        '        "mbarrier.try_wait.parity.shared::cta.b64 P1, [%0], %1, 10000000;\\n"\n'
         '        "@P1                       bra.uni DONE;\\n"\n'
         '        "bra.uni                   LAB_WAIT;\\n"\n'
         '        "DONE:\\n"\n'
         '        "}\\n"\n'
-        '        :: "r"(barrier_addr_int), "r"(phase), "r"(ticks) : "memory");'
-    ),
+        f'        :: "r"({barrier_addr}), "r"(phase) : "memory");'
+    )
+    return (
+        f"tvm_builtin_ptx_mbarrier_try_wait{raw_suffix}",
+        f"({barrier_type} barrier, int phase)",
+        body,
+    )
+
+
+device_intrinsic(
+    "ptx_mbarrier_try_wait",
+    helper_name=lambda *a: _ptx_mbarrier_try_wait_parts(*a)[0],
+    c_signature=lambda *a: _ptx_mbarrier_try_wait_parts(*a)[1],
+    body=lambda *a: _ptx_mbarrier_try_wait_parts(*a)[2],
 )
 
 

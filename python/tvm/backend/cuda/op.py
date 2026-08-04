@@ -3743,9 +3743,19 @@ def ptx_add_f64(d_addr, a, b, *, rounding="rn"):
     return _ptx_binary_arith("add", "f64", d_addr, a, b, rounding=rounding)
 
 
+def ptx_neg_f32(x):
+    """Return exact PTX ``neg.f32`` without the fast-math ``.ftz`` modifier."""
+    return call_intrin("float32", "tirx.ptx.neg_f32", x)
+
+
 def ptx_sub_f32(d_addr, a, b, *, rounding="rn", ftz=False, sat=False):
     """PTX ``sub{.rnd}{.ftz}{.sat}.f32 [d_addr], a, b`` — DPS form."""
     return _ptx_binary_arith("sub", "f32", d_addr, a, b, rounding=rounding, ftz=ftz, sat=sat)
+
+
+def ptx_sub_f16x2(a, b):
+    """Return packed PTX ``sub.f16x2`` bits for two packed ``uint32`` operands."""
+    return call_intrin("uint32", "tirx.ptx.sub_f16x2", a, b)
 
 
 def ptx_sub_f32x2(*args, rounding="rn", ftz=False, dps=True, return_dtype="uint64"):

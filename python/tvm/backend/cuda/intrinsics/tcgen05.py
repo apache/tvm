@@ -1262,27 +1262,41 @@ device_intrinsic(
         ': : "r"(bar_addr), "h"(cta_mask) : "memory");'
     ),
 )
+
+
 # Predicated variants — body wraps the commit in `{ setp + @p ... }` so the
 # instruction is still issued but its effect is masked by ``pred != 0`` at
 # PTX level (preserves single predicated SASS instruction, not a C branch).
-device_intrinsic(
-    "_ptx_tcgen05_commit_unicast_predicated",
-    n_attrs=1,
-    c_signature="(void* bar, uint32_t pred)",
-    helper_name=lambda bar_, pred_, cta_group: (
+def _tcgen05_commit_unicast_predicated_parts(bar, _pred, cta_group):
+    raw_address = str(bar.ty) == "uint32"
+    bar_type = "unsigned int" if raw_address else "void*"
+    address_decl = (
+        "" if raw_address else "    unsigned int bar_addr = __cvta_generic_to_shared(bar);\n"
+    )
+    bar_addr = "bar" if raw_address else "bar_addr"
+    name = (
         f"ptx_tcgen05_commit_cta_group_{int(cta_group)}_predicated"
-    ),
-    body=lambda bar_, pred_, cta_group: (
-        "    unsigned int bar_addr = __cvta_generic_to_shared(bar);\n"
-        "    asm volatile(\n"
+        f"{'_raw_u32' if raw_address else ''}"
+    )
+    body = (
+        address_decl + "    asm volatile(\n"
         '        "{\\n"\n'
         '        ".reg .pred p;\\n"\n'
         '        "setp.ne.b32 p, %1, 0;\\n"\n'
         f'        "@p tcgen05.commit.cta_group::{int(cta_group)}'
         '.mbarrier::arrive::one.shared::cluster.b64 [%0];\\n"\n'
         '        "}\\n"\n'
-        '        : : "r"(bar_addr), "r"(pred) : "memory");'
-    ),
+        f'        : : "r"({bar_addr}), "r"(pred) : "memory");'
+    )
+    return name, f"({bar_type} bar, uint32_t pred)", body
+
+
+device_intrinsic(
+    "_ptx_tcgen05_commit_unicast_predicated",
+    n_attrs=1,
+    c_signature=lambda *a: _tcgen05_commit_unicast_predicated_parts(*a)[1],
+    helper_name=lambda *a: _tcgen05_commit_unicast_predicated_parts(*a)[0],
+    body=lambda *a: _tcgen05_commit_unicast_predicated_parts(*a)[2],
 )
 device_intrinsic(
     "_ptx_tcgen05_commit_multicast_predicated",
