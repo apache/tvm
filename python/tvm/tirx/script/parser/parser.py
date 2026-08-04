@@ -194,8 +194,11 @@ def bind_assign_value(
         The bound value.
     """
     if var_name in (prim_var_declarations or set()):
-        if _get_signature_prim_var(self, var_name) is not None:
-            return _reuse_signature_prim_var(self, node, var_name, value)
+        # A quoted Buffer shape may have already created this PrimVar.  In that
+        # case ``n = T.int32()`` is match-like syntax: bind the Python name to
+        # the signature Var instead of emitting a second definition.
+        if _get_signature_match_var(self, var_name) is not None:
+            return _reuse_signature_match_var(self, node, var_name, value)
     if isinstance(value, T.scalar_wrapper):  # pylint: disable=protected-access
         # special case for scalar, name the buffer, but the var is used as BufferLoad
         assert isinstance(value.scalar, T.BufferLoad)
@@ -311,7 +314,11 @@ def _prim_var_annotation_dtype(node: doc.expr) -> str | None:
 
 
 def _prim_var_declaration_names(target: doc.expr, value: doc.expr) -> set[str]:
-    """Return targets paired with literal ``T.dtype()`` declarations."""
+    """Return targets paired with literal ``T.dtype()`` declarations.
+
+    This classifies only the assignment currently being visited.  In
+    particular, it is not a predeclaration pass over the function body.
+    """
     if isinstance(target, doc.Name):
         return {target.id} if _is_prim_var_declaration(value) else set()
     if isinstance(target, doc.Tuple | doc.List) and isinstance(value, doc.Tuple | doc.List):
@@ -335,33 +342,35 @@ def _signature_prim_var_dtypes(node: doc.FunctionDef) -> dict[str, str]:
 
 
 @contextlib.contextmanager
-def _signature_prim_var_scope(self: Parser):
-    """Track string-defined signature PrimVars within one function parse."""
-    previous = getattr(self, "_signature_prim_vars", None)
-    self._signature_prim_vars = []
+def _signature_match_var_scope(self: Parser):
+    """Track PrimVars introduced by Buffer-shape match expressions."""
+    previous = getattr(self, "_signature_match_vars", None)
+    self._signature_match_vars = {}
     try:
         yield
     finally:
         if previous is None:
-            del self._signature_prim_vars
+            del self._signature_match_vars
         else:
-            self._signature_prim_vars = previous
+            self._signature_match_vars = previous
 
 
-def _get_signature_prim_var(self: Parser, var_name: str) -> tvm.ir.Var | None:
-    """Return a string-defined PrimVar from the current function signature."""
-    previous = self.var_table.get().get(var_name)
-    signature_prim_vars = getattr(self, "_signature_prim_vars", [])
-    if isinstance(previous, tvm.ir.Var) and any(
-        previous.same_as(var) for var in signature_prim_vars
+def _get_signature_match_var(self: Parser, var_name: str) -> tvm.ir.Var | None:
+    """Return the active PrimVar created by a signature match expression."""
+    current = self.var_table.get().get(var_name)
+    match_var = getattr(self, "_signature_match_vars", {}).get(var_name)
+    if (
+        isinstance(current, tvm.ir.Var)
+        and isinstance(match_var, tvm.ir.Var)
+        and current.same_as(match_var)
     ):
-        return previous
+        return current
     return None
 
 
-def _reuse_signature_prim_var(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
-    """Reuse a PrimVar first defined by a string expression in this signature."""
-    previous = _get_signature_prim_var(self, var_name)
+def _reuse_signature_match_var(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
+    """Match a later scalar declaration to a signature-defined PrimVar."""
+    previous = _get_signature_match_var(self, var_name)
     if previous is None:
         return value
     if not (
@@ -387,15 +396,25 @@ def _eval_signature_annotation(
     *,
     define_missing: bool = True,
 ) -> Any:
-    """Evaluate string expressions in function-parameter buffer shapes.
+    """Evaluate a function annotation using Buffer-shape match semantics.
 
-    String expressions are the sole exception to ordinary definition-before-use
-    ordering.  Their first occurrence creates any missing PrimVars, while a
-    later ``n = T.dtype()`` declaration reuses the same object.
+    Function parameters are parsed from left to right.  An ordinary name in an
+    annotation is therefore a lookup and must already be bound.  A quoted
+    expression in ``T.Buffer``'s shape is the one exception: it is a match
+    scope, so its first occurrence creates every missing PrimVar before the
+    expression is evaluated.  Later dimensions and parameters reuse those
+    exact Var objects.
+
+    ``signature_dtypes`` comes only from scalar parameter annotations, never
+    from the function body.  It lets a match expression that precedes a scalar
+    parameter create the Var with that parameter's declared dtype.  Otherwise
+    TIR match variables default to int32.  Return annotations pass
+    ``define_missing=False`` and consequently cannot introduce variables.
     """
 
     class ShapeStringRewriter(ast.NodeTransformer):
         def visit_Name(self, name):  # pylint: disable=invalid-name
+            # Direct AST names follow normal definition-before-use ordering.
             if isinstance(name.ctx, ast.Load) and name.id not in self_parser.var_table.get():
                 raise NameError(f"name '{name.id}' is not defined")
             return name
@@ -403,6 +422,9 @@ def _eval_signature_annotation(
         def visit_Constant(self, constant):  # pylint: disable=invalid-name
             if not isinstance(constant.value, str):
                 return constant
+            # Replace the quoted expression with its AST.  Register its names
+            # first so evaluating the rewritten annotation resolves all uses to
+            # the canonical match-scope Vars.
             expression = ast.parse(constant.value, mode="eval").body
             for child in ast.walk(expression):
                 if not isinstance(child, ast.Name) or not isinstance(child.ctx, ast.Load):
@@ -412,9 +434,7 @@ def _eval_signature_annotation(
                     # parameter keeps its explicitly declared dtype.
                     var = tvm.tirx.Var(child.id, signature_dtypes.get(child.id, "int32"))
                     self_parser.var_table.add(child.id, var, allow_shadowing=False)
-                    signature_prim_vars = getattr(self_parser, "_signature_prim_vars", [])
-                    signature_prim_vars.append(var)
-                    self_parser._signature_prim_vars = signature_prim_vars
+                    self_parser._signature_match_vars[child.id] = var
             for child in ast.walk(expression):
                 ast.copy_location(child, constant)
             return expression
@@ -429,6 +449,8 @@ def _eval_signature_annotation(
             )
             if not is_buffer:
                 return self.generic_visit(call)
+            # Only Buffer.shape has match-scope semantics.  Dtype and other
+            # Buffer options remain ordinary expressions.
             call.func = self.visit(call.func)
             if call.args:
                 call.args[0] = ShapeStringRewriter().visit(call.args[0])
@@ -812,10 +834,11 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     s_tir = find_decorator_annotation(node, "s_tir", default=False)
     persistent = find_decorator_annotation(node, "persistent", default=False)
     self.function_annotations = None
-    with self.var_table.with_frame(), _signature_prim_var_scope(self):
+    with self.var_table.with_frame(), _signature_match_var_scope(self):
         prim_func_ctx = T.prim_func(is_private=privacy, s_tir=s_tir, persistent=persistent)
         with prim_func_ctx:
             T.func_name(node.name)
+            # This is a signature-only dtype index, not lookahead into the body.
             signature_dtypes = _signature_prim_var_dtypes(node)
             with self.with_dispatch_token("tirx"):
                 # TODO: handle different types of arguments:
@@ -861,7 +884,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                         # TIRJit.specialize() and lives in an outer var_table
                         # frame; do not register a runtime PrimFunc param.
                         continue
-                    ann = _reuse_signature_prim_var(self, arg.annotation, arg.arg, ann)
+                    ann = _reuse_signature_match_var(self, arg.annotation, arg.arg, ann)
                     param = T.arg(arg.arg, ann)
                     self.var_table.add(arg.arg, param)
 
@@ -1114,7 +1137,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
     func_annotation = supplied_annotation.get(node.name, {})
 
     ret_type = None
-    with self.var_table.with_frame(), _signature_prim_var_scope(self):
+    with self.var_table.with_frame(), _signature_match_var_scope(self):
         signature_dtypes = _signature_prim_var_dtypes(node)
 
         arg_annotations = []
@@ -1130,7 +1153,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
                 if ann is None:
                     raise
 
-            ann = _reuse_signature_prim_var(self, arg.annotation, arg.arg, ann)
+            ann = _reuse_signature_match_var(self, arg.annotation, arg.arg, ann)
             IRBuilder.name(arg.arg, ann)
             self.var_table.add(arg.arg, ann)
             arg_annotations.append(ann)

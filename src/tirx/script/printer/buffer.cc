@@ -36,6 +36,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
   ffi::Map<ffi::String, ExprDoc> kwargs;
   ffi::Array<ExprDoc> var_def_lhs;
   ffi::Array<ExprDoc> var_def_rhs;
+  std::unordered_set<const VarNode*> pending_stringify_shape_vars = stringify_shape_vars;
 
   // Step 0. Set up statistics
   std::unordered_map<const ffi::Object*, int> use_count;
@@ -87,10 +88,12 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
       PrimExpr e = shape[i];
       AccessPath e_p = shape_p->ArrayItem(i);
       bool contains_new_var = false;
+      std::unordered_set<const VarNode*> vars_in_shape;
       tirx::PostOrderVisit(e, [&](const ffi::ObjectRef& obj) {
         if (const auto* var = obj.as<VarNode>()) {
+          vars_in_shape.insert(var);
           contains_new_var = contains_new_var || !d->IsVarDefined(ffi::GetRef<Var>(var)) ||
-                             stringify_shape_vars.count(var);
+                             pending_stringify_shape_vars.count(var);
         }
       });
       if (is_new_var(e)) {
@@ -99,6 +102,11 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
       ExprDoc result = d->AsDoc<ExprDoc>(e, e_p);
       results.push_back(stringify_undefined_shape && contains_new_var ? ExprStringDoc(result, e_p)
                                                                       : result);
+      // A quoted shape expression defines every Var it contains.  Do not quote
+      // later dimensions merely because they reuse a Var introduced here.
+      for (const VarNode* var : vars_in_shape) {
+        pending_stringify_shape_vars.erase(var);
+      }
     }
     kwargs.Set("shape", TupleDoc(results));
   }

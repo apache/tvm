@@ -255,16 +255,27 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
         }
       }
     };
-    auto try_visit_implicit_var_def_array = [&try_visit_implicit_var_def](
-                                                const ffi::Array<PrimExpr>& arr,
-                                                ffi::reflection::AccessPath path) {
-      for (size_t i = 0; i < arr.size(); i++) {
-        try_visit_implicit_var_def(arr[i], path->ArrayItem(i));
-      }
-    };
 
-    try_visit_implicit_var_def_array(buf->shape, path->Attr("shape"));
-    try_visit_implicit_var_def_array(buf->strides, path->Attr("strides"));
+    // A Buffer shape is a match scope.  The first shape expression that
+    // contains an undefined Var defines it, even when the expression is
+    // compound (for example, `n + 1`).  Later expressions then see the same
+    // Var in `in_scope_definitions_` and reuse it.
+    auto shape_path = path->Attr("shape");
+    for (size_t i = 0; i < buf->shape.size(); i++) {
+      auto dim_path = shape_path->ArrayItem(i);
+      PostOrderVisit(buf->shape[i], [this, &context, &dim_path](const ffi::ObjectRef& obj) {
+        if (auto opt = obj.as<Var>()) {
+          if (auto var_def = WithDefIfUndefined(opt.value(), dim_path)) {
+            context.push_back(std::move(var_def).value());
+          }
+        }
+      });
+    }
+
+    auto strides_path = path->Attr("strides");
+    for (size_t i = 0; i < buf->strides.size(); i++) {
+      try_visit_implicit_var_def(buf->strides[i], strides_path->ArrayItem(i));
+    }
     try_visit_implicit_var_def(buf->elem_offset, path->Attr("elem_offset"));
 
     return context;

@@ -71,6 +71,21 @@ def test_prim_func_symbolic_buffer_param_roundtrip():
     tvm.ir.assert_structural_equal(tvm.script.from_source(source), func)
 
 
+def test_prim_func_compound_buffer_shape_first_use_roundtrip():
+    n = tirx.Var("n", "int32")
+    A = tirx.decl_buffer(shape=[tirx.max(n, 1)], dtype="float32", name="A", layout=None)
+    func = (
+        tirx.PrimFunc(params=[A], body=tirx.Evaluate(n))
+        .with_attr("global_symbol", "main")
+        .with_attr("s_tir", True)
+    )
+
+    source = func.script()
+    assert 'T.Buffer(("T.max(n, 1)",)' in source
+    assert source.index("n = T.int32()") < source.index("T.evaluate(n)")
+    tvm.ir.assert_structural_equal(tvm.script.from_source(source), func)
+
+
 def test_prim_func_symbolic_alloc_buffer_roundtrip():
     size = tirx.Var("size", "int32")
     buf = tirx.decl_buffer(shape=[size], dtype="float32", name="buf", layout=None)
