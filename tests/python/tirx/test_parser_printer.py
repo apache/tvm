@@ -1353,7 +1353,7 @@ def _collect_buffer_sources(func):
 
 
 def test_buffer_local_ir():
-    """Verify .local() auto-infer: shape from storage shard extents, layout, shared data."""
+    """Verify .local() infers the physical span and uses an identity layout."""
 
     # fmt: off
     @T.prim_func
@@ -1372,19 +1372,289 @@ def test_buffer_local_ir():
 
     # Shared data pointer
     assert_structural_equal(_collect_buffer_sources(func)["B_local"], b_buf.data)
-    # Shape: single dim matching storage shard total
+    # Shape: single dim matching the raw physical storage span
     assert len(b_local.ty.shape) == 1
     storage = b_buf.ty.layout.storage()
-    expected_total = 1
-    for it in storage.shard:
-        expected_total *= int(it.extent)
-    assert int(b_local.ty.shape[0]) == expected_total
-    # Layout: storage layout (parent layout with thread axes removed)
-    assert_structural_equal(b_local.ty.layout, storage)
+    assert int(b_local.ty.shape[0]) == int(storage.span())
+    # The inferred view uses physical storage order, not storage-iterator order.
+    assert b_local.ty.layout.is_trivial()
 
     # Round-trip
     code = func.script()
+    assert "B_local = B.local()" in code
     assert from_source(code).script() == code
+    assert_structural_equal(func, from_source(code))
+
+
+def test_buffer_local_physical_order():
+    """Both inferred and explicit shapes map a non-trivial fragment physically."""
+    from tvm.tirx.layout import tcgen05_atom_layout
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([32], dtype="float32", scope="local")
+        B = A.view(64, 64, layout=tcgen05_atom_layout("16x256b", (64, 64), "float32"))
+        B_flat = B.local()
+        B_2d = B.local(4, 8)
+        B_flat[2] = T.float32(1)
+        B_2d[0, 2] = T.float32(2)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    b_buf = bufs["B"]
+    b_flat = bufs["B_flat"]
+    b_2d = bufs["B_2d"]
+
+    # The parent storage view enumerates storage iters in a different order
+    # from their physical strides, so inheriting it would permute registers.
+    assert not b_buf.ty.layout.storage().is_trivial()
+
+    for local in [b_flat, b_2d]:
+        assert_structural_equal(_collect_buffer_sources(func)[local.name], b_buf.data)
+        assert local.ty.layout.is_trivial()
+    assert [int(dim) for dim in b_flat.ty.shape] == [32]
+    assert [int(dim) for dim in b_2d.ty.shape] == [4, 8]
+
+    # Index 2 in either row-major shape is the same physical register.
+    flat_offset = b_flat.ty.layout.apply(2, shape=list(b_flat.ty.shape))["m"]
+    reshaped_offset = b_2d.ty.layout.apply(0, 2, shape=list(b_2d.ty.shape))["m"]
+    assert int(flat_offset) == int(reshaped_offset) == 2
+
+    code = func.script()
+    assert "B_flat = B.local()" in code
+    assert "B_2d = B.local(4, 8)" in code
+    assert from_source(code).script() == code
+    assert_structural_equal(func, from_source(code))
+
+
+def test_buffer_local_layout_overrides_roundtrip():
+    """Storage and arbitrary mediated layouts remain explicit overrides."""
+    from tvm.tirx.layout import tcgen05_atom_layout
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([32], dtype="float32", scope="local")
+        B = A.view(64, 64, layout=tcgen05_atom_layout("16x256b", (64, 64), "float32"))
+        B_storage = B.local(layout=B.layout.storage())
+        # An explicit layout is an escape hatch and may describe a smaller
+        # mediated view than the parent's full per-thread storage.
+        B_custom = B.local(2, 4, layout=T.TileLayout(T.S[(2, 4) : (1, 2)]))
+        B_storage[0] = T.float32(1)
+        B_custom[0, 0] = T.float32(2)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    b_buf = bufs["B"]
+    b_storage = bufs["B_storage"]
+    b_custom = bufs["B_custom"]
+    assert_structural_equal(b_storage.ty.layout, b_buf.ty.layout.storage())
+    assert not b_storage.ty.layout.is_trivial()
+    assert not b_custom.ty.layout.is_trivial()
+
+    code = func.script()
+    storage_line = next(line for line in code.splitlines() if "B_storage =" in line)
+    custom_line = next(line for line in code.splitlines() if "B_custom =" in line)
+    assert ".local(layout=" in storage_line
+    assert ".local(2, 4, layout=" in custom_line
+    assert_structural_equal(func, from_source(code))
+    assert from_source(code).script() == code
+
+
+def test_buffer_local_explicit_layout_without_parent_layout():
+    """An explicit shape and layout do not inspect the parent's absent layout."""
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer((4,), dtype="float32", scope="local", layout=None)
+        B = A.local(4, layout=T.TileLayout(T.S[4]))
+        B[0] = T.float32(1)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    assert bufs["A"].ty.layout is None
+    assert bufs["B"].ty.layout.is_trivial()
+    code = func.script()
+    parsed = from_source(code)
+    assert_structural_equal(func, parsed)
+    assert parsed.script() == code
+
+
+def test_buffer_local_compose_layout_printer_roundtrip():
+    """Generic view sugar keeps a physical local view's identity layout."""
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer(
+            (8, 8),
+            dtype="float32",
+            scope="local",
+            layout=T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(8, 8)])),
+        )
+        B = A.local()
+        B[0] = T.float32(1)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    assert [int(dim) for dim in bufs["B"].ty.shape] == [64]
+    assert bufs["B"].ty.layout.is_trivial()
+    code = func.script()
+    local_line = next(line for line in code.splitlines() if "B =" in line)
+    assert ".view(64, layout=" in local_line
+    parsed = from_source(code)
+    assert_structural_equal(func, parsed)
+    assert parsed.script() == code
+
+
+def test_buffer_local_inference_without_parent_layout_has_clear_diagnostic():
+    """Shape inference requires a parent storage layout."""
+
+    with pytest.raises(tvm.error.DiagnosticError, match="parent buffer has layout=None"):
+        # fmt: off
+        @T.prim_func
+        def func() -> None:
+            T.device_entry()
+            A = T.alloc_buffer((4,), dtype="float32", scope="local", layout=None)
+            B = A.local(layout=T.TileLayout(T.S[4]))
+            B[0] = T.float32(1)
+            # fmt: on
+
+
+def test_buffer_local_physical_span_includes_gaps_and_offset():
+    """The raw local view includes every slot up to the storage span."""
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([6], dtype="float32", scope="local")
+        B = A.view(32, 2, layout=T.TileLayout(T.S[(32, 2) : (1 @ laneid, 2)] + 3))
+        B_flat = B.local()
+        B_2d = B.local(2, 3)
+        B_storage = B.local(2, layout=B.layout.storage())
+        B_flat[5] = T.float32(1)
+        B_2d[1, 2] = T.float32(2)
+        B_storage[1] = T.float32(3)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    b_buf = bufs["B"]
+    b_flat = bufs["B_flat"]
+    b_2d = bufs["B_2d"]
+    b_storage = bufs["B_storage"]
+    assert int(b_buf.ty.layout.storage().span()) == 6
+    assert int(b_buf.ty.layout.storage().size()) == 2
+    assert [int(dim) for dim in b_flat.ty.shape] == [6]
+    assert [int(dim) for dim in b_2d.ty.shape] == [2, 3]
+    assert [int(dim) for dim in b_storage.ty.shape] == [2]
+    for local in [b_flat, b_2d]:
+        assert local.ty.layout.is_trivial()
+    for i in range(6):
+        assert int(b_flat.ty.layout.apply(i, shape=list(b_flat.ty.shape))["m"]) == i
+    assert int(b_2d.ty.layout.apply(1, 2, shape=list(b_2d.ty.shape))["m"]) == 5
+    assert_structural_equal(b_storage.ty.layout, b_buf.ty.layout.storage())
+    assert int(b_storage.ty.layout.apply(0, shape=list(b_storage.ty.shape))["m"]) == 3
+    assert int(b_storage.ty.layout.apply(1, shape=list(b_storage.ty.shape))["m"]) == 5
+
+    code = func.script()
+    storage_line = next(line for line in code.splitlines() if "B_storage =" in line)
+    assert ".local(layout=" in storage_line
+    assert_structural_equal(func, from_source(code))
+    assert from_source(code).script() == code
+
+
+def test_buffer_local_printer_is_stable_with_multiple_aliases():
+    """Thread-layout parents win deterministically over sibling aliases."""
+    from tvm.tirx.layout import tcgen05_atom_layout
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([32], dtype="float32", scope="local")
+        B = A.view(64, 64, layout=tcgen05_atom_layout("16x256b", (64, 64), "float32"))
+        B_flat = B.local()
+        B_2d = B.local(4, 8)
+        B_storage = B.local(layout=B.layout.storage())
+        B_flat[0] = B_2d[0, 0] + B_storage[0]
+        # fmt: on
+
+    expected = func.script()
+    assert "B_flat = B.local()" in expected
+    assert "B_2d = B.local(4, 8)" in expected
+    storage_line = next(line for line in expected.splitlines() if "B_storage =" in line)
+    assert ".local(layout=" in storage_line
+    for _ in range(20):
+        parsed = from_source(expected)
+        assert parsed.script() == expected
+        assert_structural_equal(func, parsed)
+
+
+def test_buffer_local_printer_preserves_inherited_metadata():
+    """Local sugar falls back when it would discard Buffer metadata."""
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer(
+            [32, 2],
+            dtype="float32",
+            elem_offset=8,
+            scope="local",
+            layout=T.TileLayout(T.S[(32, 2) : (1 @ laneid, 2)]),
+        )
+        B_align = T.decl_buffer(
+            (2,),
+            dtype="float32",
+            data=A.data,
+            elem_offset=8,
+            scope="local",
+            align=128,
+        )
+        B_factor = T.decl_buffer(
+            (2,),
+            dtype="float32",
+            data=A.data,
+            elem_offset=8,
+            scope="local",
+            offset_factor=8,
+        )
+        B_align[0] = B_factor[0]
+        # fmt: on
+
+    code = func.script()
+    align_line = next(line for line in code.splitlines() if "B_align =" in line)
+    factor_line = next(line for line in code.splitlines() if "B_factor =" in line)
+    assert "T.decl_buffer" in align_line and "align=128" in align_line
+    assert "T.decl_buffer" in factor_line and "offset_factor=8" in factor_line
+    assert ".local(" not in align_line
+    assert ".local(" not in factor_line
+    parsed = from_source(code)
+    assert_structural_equal(func, parsed)
+    assert parsed.script() == code
+
+
+def test_buffer_local_rejects_shape_that_does_not_match_physical_span():
+    """An explicit local shape product must preserve the physical span."""
+
+    with pytest.raises(tvm.error.DiagnosticError, match="physical storage span 6 per thread"):
+        # fmt: off
+        @T.prim_func
+        def func() -> None:
+            T.device_entry()
+            A = T.alloc_buffer([6], dtype="float32", scope="local")
+            B = A.view(32, 2, layout=T.TileLayout(T.S[(32, 2) : (1 @ laneid, 2)] + 3))
+            B_local = B.local(2)
+            B_local[0] = T.float32(0)
+            # fmt: on
 
 
 def test_pointer_expression_assignment_uses_bind():

@@ -332,18 +332,31 @@ class _BufferMethods:
     def local(self, *shape, layout=None) -> "Buffer":
         """Create a thread-local view of this buffer.
 
+        By default, both the inferred and explicit-shape forms address the
+        raw physical storage span.  ``local()[k]`` is the k-th physical
+        storage element, including any gaps or layout offset, while
+        ``local(d0, d1, ...)`` is a row-major reshape of that same span.
+        Pass ``layout=`` to request a mediated view explicitly.  This is an
+        escape hatch whose shape is interpreted by the supplied layout.  When
+        that shape is explicit, the parent buffer does not need a layout.
+
         When called with no shape arguments, auto-infers a 1D shape from
-        the layout's non-thread component (i.e. ``layout.storage().shard``).
+        the span of the parent layout's non-thread component (i.e.
+        ``self.layout.storage().span()``).  The explicit-``layout=`` form
+        instead infers the parent layout's ``storage().size()`` for
+        compatibility.  Either inference requires the parent buffer to have a
+        layout.
 
         Parameters
         ----------
         shape : tuple of Expr
-            The shape of the local view for indexing. If omitted, a 1D
-            shape is computed automatically.
+            The shape of the local view for indexing.  Without ``layout=``,
+            its product must equal the per-thread physical storage span.
+            With an explicit layout, the shape is not constrained by the raw
+            span.  If omitted, a matching 1D shape is computed automatically.
 
         layout : optional
-            Override layout. If None, uses the storage layout
-            (parent layout with thread axes removed).
+            Override layout. If None, the default (identity) layout is used.
 
         Returns
         -------

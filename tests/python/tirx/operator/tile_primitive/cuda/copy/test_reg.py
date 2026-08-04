@@ -272,6 +272,55 @@ def test_reg_roundtrip(scope, n_threads, k, dtype, non_r_scope):
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
+def test_reg_roundtrip_gapped_permuted_storage():
+    """Forced reg dispatch addresses sparse register layouts by physical offset."""
+    shape = (32, 2, 2)
+    r_layout = TileLayout(S[shape : (1 @ laneid, 2, 4)])
+    storage = r_layout.storage()
+    assert int(storage.size()) == 4
+    assert int(storage.span()) == 7
+    assert [int(storage.apply(i, shape=[4])["m"]) for i in range(4)] == [0, 4, 2, 6]
+
+    # fmt: off
+    @T.prim_func
+    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, shape, "float32")
+        B = T.match_buffer(B_ptr, shape, "float32")
+
+        T.device_entry()
+        T.cta_id([1])
+        T.lane_id([32])
+        T.thread_id([32])
+        reg = T.alloc_buffer(shape, "float32", scope="local", layout=r_layout)
+        Tx.warp.copy(reg, A, dispatch="vec_auto")
+        Tx.warp.copy(B, reg, dispatch="vec_auto")
+        # fmt: on
+
+    target = tvm.target.Target("cuda")
+    with target:
+        compiled = tvm.compile(
+            tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx"
+        )
+    source = compiled.mod.imports[0].inspect_source()
+    assert "tvm_builtin_ptx_ld" in source
+    assert "tvm_builtin_ptx_st" in source
+
+    rng = np.random.default_rng(0)
+    A_np = rng.random(shape, dtype=np.float32)
+    B_np = np.zeros(shape, dtype=np.float32)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, dev)
+        B = tvm.runtime.tensor(B_np, dev)
+        compiled(A, B)
+        np.testing.assert_array_equal(B.numpy(), A_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
 # ----------------------------------------------------------------------------
 # Migrated from test_copy_sync.py: sync G↔L copy via Tx.copy() (L = local =
 # per-thread register, so it dispatches to the vec_auto register path).
