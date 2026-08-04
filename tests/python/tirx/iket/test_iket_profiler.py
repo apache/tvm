@@ -338,6 +338,13 @@ def _packaged_nvdisasm():
     return Path(distribution.locate_file("nvidia/cu13/bin/nvdisasm"))
 
 
+def _has_packaged_nvdisasm():
+    try:
+        return _packaged_nvdisasm().exists()
+    except metadata.PackageNotFoundError:
+        return False
+
+
 def _nvrtc_disassemble(source, tmp_path):
     from tvm.support.nvcc import compile_cuda
 
@@ -685,6 +692,9 @@ def test_extended_payload_compile_only_architectures(arch, capfd):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.skipif(
+    not _has_packaged_nvdisasm(), reason="need the pinned nvidia-cuda-nvdisasm distribution"
+)
 def test_native_and_extended_payload_placeholder_sass(monkeypatch, tmp_path):
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
     native_no_payload_source = _cuda_source(_compile(push_pop_kernel))
