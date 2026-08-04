@@ -40,4 +40,4 @@ uv pip install --upgrade \
     "six~=1.17" \
     "tornado~=6.4" \
     "ml_dtypes~=0.5" \
-    z3-static==4.16.0.post1
+    mlc-z3-static==4.16.0
