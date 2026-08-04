@@ -685,7 +685,8 @@ def test_extended_payload_compile_only_architectures(arch, capfd):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_native_and_extended_payload_placeholder_sass(tmp_path):
+def test_native_and_extended_payload_placeholder_sass(monkeypatch, tmp_path):
+    monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
     native_no_payload_source = _cuda_source(_compile(push_pop_kernel))
     native_no_payload_sass = _nvrtc_disassemble(
         native_no_payload_source, tmp_path / "native-no-payload"
