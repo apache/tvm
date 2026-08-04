@@ -683,6 +683,8 @@ def test_extended_payload_compile_only_architectures(arch, capfd):
     assert "elect.sync _|%%p, %%mask" in source
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_native_and_extended_payload_placeholder_sass(tmp_path):
     native_no_payload_source = _cuda_source(_compile(push_pop_kernel))
     native_no_payload_sass = _nvrtc_disassemble(
