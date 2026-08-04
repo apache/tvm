@@ -126,10 +126,28 @@ def view(buf: Buffer, *args, **kwargs) -> Buffer:
 def local(buf: Buffer, *shape, layout=None) -> Buffer:
     """Implement :meth:`Buffer.local`."""
     if not shape:
-        local_layout = buf.layout.storage()
-        total = functools.reduce(lambda x, y: x * y, [it.extent for it in local_layout.shard], 1)
-        shape = (total,)
-    return _redecl(buf, shape, buf.layout.storage() if layout is None else layout)
+        if buf.layout is None:
+            raise ValueError(
+                "Buffer.local cannot infer a shape because the parent buffer has layout=None; "
+                "pass an explicit shape together with layout=..."
+            )
+        storage_layout = buf.layout.storage()
+        local_extent = storage_layout.span() if layout is None else storage_layout.size()
+        shape = (local_extent,)
+    elif layout is None:
+        if buf.layout is None:
+            raise ValueError(
+                "Buffer.local without layout= cannot validate the physical storage span "
+                "because the parent buffer has layout=None; pass an explicit layout=..."
+            )
+        local_extent = buf.layout.storage().span()
+        shape_total = functools.reduce(lambda x, y: x * y, shape, 1)
+        if not tvm.arith.Analyzer().can_prove_equal(shape_total, local_extent):
+            raise ValueError(
+                f"Local view shape {shape} has {shape_total} elements, "
+                f"but the buffer has physical storage span {local_extent} per thread"
+            )
+    return _redecl(buf, shape, "default" if layout is None else layout)
 
 
 def permute(buf: Buffer, *dims) -> Buffer:
