@@ -31,7 +31,7 @@ from tvm.runtime import Object, Scriptable
 
 from ..runtime._tensor import Tensor
 from . import _ffi_api
-from .buffer import Buffer, is_buffer_var
+from .buffer import Buffer
 from .expr import Expr, Var
 
 
@@ -57,7 +57,7 @@ class PrimFunc(BaseFunc, Scriptable):
         The location of this itervar in the source code.
     """
 
-    def __init__(self, params, body, ret_type=None, buffer_map=None, attrs=None, span=None):
+    def __init__(self, params, body, ret_type=None, attrs=None, span=None):
         # Legacy compatibility: expand body-carrying leaf stmt wrappers
         # (e.g. DeclBuffer/AllocBuffer forms) into SeqStmt form.
         from .stmt import _normalize_legacy_stmt
@@ -66,15 +66,11 @@ class PrimFunc(BaseFunc, Scriptable):
         if ret_type is None:
             ret_type = tvm.ir.Type.missing()
         param_list = []
-        buffer_map = {} if buffer_map is None else buffer_map
         for x in params:
             x = tvm.runtime.convert(x) if not isinstance(x, Object) else x
-            if is_buffer_var(x):
-                param_list.append(x)
-            elif isinstance(x, Var):
-                param_list.append(buffer_map.get(x, x))
-            else:
+            if not isinstance(x, Var):
                 raise TypeError("params can only contain Var or Buffer")
+            param_list.append(x)
 
         if attrs is None:
             attrs = tvm.ir.make_node("ir.DictAttrs")

@@ -709,9 +709,6 @@ class VMShapeLowerMutator
     // construct a PrimFunc that compute the shape.
     ffi::Array<PrimExpr> buffer_shape{heap_size_};
     tirx::BufferVar buffer = tirx::decl_buffer(buffer_shape, PrimType(ShapeDType()), "H", "global");
-    tirx::Var heap("heap", PointerType::VoidPointerTy());
-    ffi::Map<tirx::Var, tirx::BufferVar> buffer_map;
-    buffer_map.Set(heap, buffer);
 
     ffi::Map<tirx::Var, PrimExpr> var_map;
     for (const auto& [expr, slot] : slot_map_) {
@@ -731,13 +728,13 @@ class VMShapeLowerMutator
     }
 
     tirx::Stmt body = tirx::SeqStmt::Flatten(seq);
-    ffi::Array<tirx::Var> params{heap};
+    ffi::Array<tirx::Var> params{buffer.var()};
     Type ret_type = VoidType();
 
     // TODO(relax-team): Consider attach the target attribute to
     // the shape_func to indicate that this is a host function
     // This could require us to attach target to the relax function here.
-    tirx::PrimFunc shape_func(params, body, ret_type, buffer_map);
+    tirx::PrimFunc shape_func(params, body, ret_type);
     shape_func = WithAttr(std::move(shape_func), tvm::attr::kSTir, true);
     if (!shape_func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget).has_value()) {
       // kTarget and kIsHostFunc are mutually exclusive

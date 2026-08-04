@@ -101,7 +101,7 @@ tirx::PrimFunc GetDLTensorField(tirx::builtin::TVMStructFieldKind field, PrimTyp
 
   DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host_func", true}});
 
-  tirx::PrimFunc func(ffi::Array<tirx::Var>{dlpack_handle}, body, field_ty, {}, attrs);
+  tirx::PrimFunc func(ffi::Array<tirx::Var>{dlpack_handle}, body, field_ty, attrs);
 
   FuncType ty({TensorType(std::nullopt, kUnknownNDim)}, field_ty);
   func->ty = ty;
@@ -286,7 +286,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
 
     DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host_func", true}});
 
-    tirx::PrimFunc func({dlpack_handle, axis}, body, field_ty, {}, attrs);
+    tirx::PrimFunc func({dlpack_handle, axis}, body, field_ty, attrs);
 
     FuncType ty({TensorType(std::nullopt, kUnknownNDim), axis->ty.as_or_throw<PrimType>()},
                 field_ty);

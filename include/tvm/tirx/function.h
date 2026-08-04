@@ -120,11 +120,6 @@ class PrimFunc : public BaseFunc {
   TVM_DLL PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type = VoidType(),
                    DictAttrs attrs = DictAttrs(), Span span = Span());
 
-  /*! \brief Compatibility constructor that folds legacy buffer bindings into params. */
-  TVM_DLL PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type,
-                   ffi::Map<tirx::Var, BufferVar> buffer_map, DictAttrs attrs = DictAttrs(),
-                   Span span = Span());
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimFunc, BaseFunc, PrimFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimFuncNode);
 };
