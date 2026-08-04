@@ -476,10 +476,6 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     vec_len = _choose_vec_len(elem_bits, atoms, r_p, s_p)
     vec_bits = vec_len * elem_bits
     outer = _split_atoms_for_vec(atoms, vec_len)
-    per_thread_r_total = 1
-    for it in r_iters:
-        per_thread_r_total *= int(it.extent)
-    per_thread_r_shape = [per_thread_r_total or 1]
 
     # Build the per-thread S offset outside the impl with placeholder Vars;
     # inside the impl, real scope_ids are declared and substituted in.
@@ -547,7 +543,9 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     def impl():
         s_off = _substitute_axes(s_off_template, placeholders, sctx)
         _setup_swizzle(s_off)
-        r_local = r_buf.local(*per_thread_r_shape)
+        # ``dr`` and ``r_off_base`` below are physical storage offsets, so use
+        # the raw-span local view rather than storage-iterator coordinates.
+        r_local = r_buf.local()
         # Keep a serial TIR loop and let ptxas unroll; explicit ``T.unroll``
         # replicates per-iter scratch arrays and pressures registers.
         for f in range(total_outer):

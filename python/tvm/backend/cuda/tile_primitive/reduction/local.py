@@ -137,8 +137,8 @@ def _gen_warp_shuffle_reduce(src, dst, reduce_width, local_elems, accum, op_type
     # fmt: off
     @T.prim_func(check_well_formed=False)
     def impl():
-        src_local = src.local(local_elems)
-        dst_local = dst.local(local_elems)
+        src_local = src.local(local_elems, layout=src.layout.storage())
+        dst_local = dst.local(local_elems, layout=dst.layout.storage())
         for k in T.serial(local_elems):
             if not is_same_buffer:
                 dst_local[k] = src_local[k]
@@ -357,8 +357,10 @@ def _emit_reduction_local_view(
     if need_save_accum:
         @T.prim_func(check_well_formed=False)
         def impl():
-            src_local = src.local(*src_local_shape)
-            dst_local = dst.local(*dst_local_shape)
+            # These dimensions are storage-iterator coordinates, so request
+            # the mediated layout explicitly.  Bare local() is physical-order.
+            src_local = src.local(*src_local_shape, layout=src.layout.storage())
+            dst_local = dst.local(*dst_local_shape, layout=dst.layout.storage())
             old_val = T.alloc_buffer([1], dtype, scope="local")
 
             for spa in T.serial(dst_local_total):
@@ -376,8 +378,10 @@ def _emit_reduction_local_view(
     else:
         @T.prim_func(check_well_formed=False)
         def impl():
-            src_local = src.local(*src_local_shape)
-            dst_local = dst.local(*dst_local_shape)
+            # These dimensions are storage-iterator coordinates, so request
+            # the mediated layout explicitly.  Bare local() is physical-order.
+            src_local = src.local(*src_local_shape, layout=src.layout.storage())
+            dst_local = dst.local(*dst_local_shape, layout=dst.layout.storage())
 
             for spa in T.serial(dst_local_total):
                 dst_idx = T.meta_var(get_indices(spa, dst_local_st, dst_local_ext))
