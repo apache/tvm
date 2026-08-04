@@ -27,25 +27,29 @@ if("${USE_Z3}" MATCHES "^[Aa][Uu][Tt][Oo]$")
   set(TVM_Z3_REQUIRED FALSE)
 endif()
 
-# Default lookup: the PIC static Z3 library shipped by the PyPI `z3-static`
+# Default lookup: the PIC static Z3 library shipped by the PyPI `mlc-z3-static`
 # package (headers + libz3.a + Z3 CMake package files). Linking it statically
 # keeps libtvm free of a runtime libz3 dependency. Users can override the
 # lookup by setting Z3_DIR/CMAKE_PREFIX_PATH to any Z3 installation (e.g. a
-# shared system Z3).
+# shared system Z3). The legacy `z3-static` package is still probed as a
+# fallback until environments migrate to `mlc-z3-static`.
 if(NOT Z3_DIR)
   find_package(Python3 COMPONENTS Interpreter QUIET)
   if(Python3_EXECUTABLE)
-    execute_process(
-      COMMAND
-        "${Python3_EXECUTABLE}" -m z3_static.config --cmake-dir
-      OUTPUT_VARIABLE Z3_STATIC_CMAKE_DIR
-      OUTPUT_STRIP_TRAILING_WHITESPACE
-      ERROR_QUIET
-      RESULT_VARIABLE Z3_STATIC_RESULT
-    )
-    if(Z3_STATIC_RESULT EQUAL 0 AND EXISTS "${Z3_STATIC_CMAKE_DIR}")
-      set(Z3_DIR "${Z3_STATIC_CMAKE_DIR}")
-    endif()
+    foreach(Z3_STATIC_CONFIG_MODULE mlc_z3_static.config z3_static.config)
+      execute_process(
+        COMMAND
+          "${Python3_EXECUTABLE}" -m ${Z3_STATIC_CONFIG_MODULE} --cmake-dir
+        OUTPUT_VARIABLE Z3_STATIC_CMAKE_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE Z3_STATIC_RESULT
+      )
+      if(Z3_STATIC_RESULT EQUAL 0 AND EXISTS "${Z3_STATIC_CMAKE_DIR}")
+        set(Z3_DIR "${Z3_STATIC_CMAKE_DIR}")
+        break()
+      endif()
+    endforeach()
   endif()
 endif()
 
@@ -81,7 +85,7 @@ else()
   if(TVM_Z3_REQUIRED)
     message(FATAL_ERROR
       "USE_Z3 is ON, but Z3 was not found. Install the static Z3 development "
-      "package with `pip install 'z3-static>=4.16.0.post1'`, or point "
+      "package with `pip install 'mlc-z3-static>=4.16.0'`, or point "
       "Z3_DIR/CMAKE_PREFIX_PATH at a Z3 installation.")
   endif()
   message(STATUS "Build without Z3 SMT solver support")
