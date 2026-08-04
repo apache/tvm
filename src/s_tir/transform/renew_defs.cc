@@ -59,11 +59,13 @@ class RenewDefMutator : public StmtExprMutator {
       if (auto opt_buffer = param.as<BufferVar>()) {
         const BufferVar& buffer = opt_buffer.value();
         for (const PrimExpr& e : buffer->shape) {
-          if (auto var = e.as<PrimVar>()) {
-            if (generator.remap_.count(var.value()) == 0) {
-              generator.ReDefineVar(var.value());
+          PostOrderVisit(e, [&generator](const ffi::ObjectRef& obj) {
+            if (auto var = obj.as<Var>()) {
+              if (generator.remap_.count(var.value()) == 0) {
+                generator.ReDefineVar(var.value());
+              }
             }
-          }
+          });
         }
       }
     }
@@ -183,7 +185,7 @@ class RenewDefMutator : public StmtExprMutator {
       }
     };
 
-    // shape is USED (references existing definitions like buffer_map shape vars),
+    // shape is USED (references existing definitions like buffer-parameter shape vars),
     // remap via VisitExpr to avoid creating spurious new var definitions
     auto visit_expr = [this](const PrimExpr& e) -> PrimExpr { return this->VisitPrimExpr(e); };
     ffi::Array<PrimExpr> shape = buffer->shape.Map(visit_expr);

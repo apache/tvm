@@ -225,6 +225,28 @@ def test_reused_buffer_parameter():
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_reused_compound_buffer_shape_var():
+    """De-duplicate implicit Vars nested in buffer parameter shapes."""
+    n = tirx.Var("n", "int32")
+    A = tirx.decl_buffer((tirx.max(n, 1),), layout=None)
+    func = tirx.PrimFunc([A], tirx.Evaluate(n))
+    before = tvm.IRModule(
+        {
+            "func_a": func.with_attr("global_symbol", "func_a"),
+            "func_b": func.with_attr("global_symbol", "func_b"),
+        }
+    )
+
+    after = tvm.tirx.transform.ConvertSSA()(before)
+    func_a = after["func_a"]
+    func_b = after["func_b"]
+    n_a = func_a.params[0].shape[0].a
+    n_b = func_b.params[0].shape[0].a
+    assert not n_a.same_as(n_b)
+    assert n_a.same_as(func_a.body.value)
+    assert n_b.same_as(func_b.body.value)
+
+
 def test_no_change_if_already_ssa():
     """A module that is already SSA should be unchanged"""
 

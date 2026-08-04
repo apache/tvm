@@ -19,6 +19,7 @@
 #include <tvm/runtime/device_api.h>  // For `kAllocAlignment`
 
 #include <algorithm>
+#include <utility>
 
 #include "./utils.h"
 
@@ -30,13 +31,12 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
     tirx::BufferVar buffer, const AccessPath& buffer_p, const Frame& frame, const IRDocsifier& d,
     BufferVarDefinition var_definitions, ffi::Optional<Expr> data = std::nullopt,
     bool stringify_undefined_shape = false,
-    const std::unordered_set<const tirx::VarNode*>& stringify_shape_vars = {}) {
+    std::unordered_set<tirx::Var> stringify_shape_vars = {}) {
   using tvm::tirx::Var;
   using tvm::tirx::VarNode;
   ffi::Map<ffi::String, ExprDoc> kwargs;
   ffi::Array<ExprDoc> var_def_lhs;
   ffi::Array<ExprDoc> var_def_rhs;
-  std::unordered_set<const VarNode*> pending_stringify_shape_vars = stringify_shape_vars;
 
   // Step 0. Set up statistics
   std::unordered_map<const ffi::Object*, int> use_count;
@@ -88,12 +88,13 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
       PrimExpr e = shape[i];
       AccessPath e_p = shape_p->ArrayItem(i);
       bool contains_new_var = false;
-      std::unordered_set<const VarNode*> vars_in_shape;
+      std::unordered_set<Var> vars_in_shape;
       tirx::PostOrderVisit(e, [&](const ffi::ObjectRef& obj) {
-        if (const auto* var = obj.as<VarNode>()) {
+        if (const auto* var_node = obj.as<VarNode>()) {
+          Var var = ffi::GetRef<Var>(var_node);
           vars_in_shape.insert(var);
-          contains_new_var = contains_new_var || !d->IsVarDefined(ffi::GetRef<Var>(var)) ||
-                             pending_stringify_shape_vars.count(var);
+          contains_new_var =
+              contains_new_var || !d->IsVarDefined(var) || stringify_shape_vars.count(var);
         }
       });
       if (is_new_var(e)) {
@@ -104,8 +105,8 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
                                                                       : result);
       // A quoted shape expression defines every Var it contains.  Do not quote
       // later dimensions merely because they reuse a Var introduced here.
-      for (const VarNode* var : vars_in_shape) {
-        pending_stringify_shape_vars.erase(var);
+      for (const Var& var : vars_in_shape) {
+        stringify_shape_vars.erase(var);
       }
     }
     kwargs.Set("shape", TupleDoc(results));
@@ -334,11 +335,10 @@ ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
 }
 
 ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
-                   const IRDocsifier& d,
-                   const std::unordered_set<const tirx::VarNode*>& stringify_shape_vars) {
+                   const IRDocsifier& d, std::unordered_set<tirx::Var> stringify_shape_vars) {
   ffi::Map<ffi::String, ExprDoc> attrs =
       BufferAttrs(buffer, p, frame, d, BufferVarDefinition::MatchBuffer, std::nullopt, true,
-                  stringify_shape_vars);
+                  std::move(stringify_shape_vars));
   if (!attrs.count("dtype")) {
     attrs.Set("dtype", LiteralDoc::DataType(buffer->dtype->dtype, p->Attr("dtype")));
   }

@@ -110,28 +110,34 @@ class IRConvertSSA final : public StmtExprMutator {
       for (const auto& var : func->params) {
         defined_params.insert(var.get());
       }
+      std::unordered_set<const VarNode*> defined_match_vars;
       for (const Var& param : func->params) {
         auto buffer = param.as<BufferVar>();
         if (!buffer) continue;
-        auto check_expr = [&](const PrimExpr& expr) {
-          auto* var_ptr = expr.as<VarNode>();
-          if (!var_ptr) return;
+        auto check_var = [&](const Var& var) {
+          const VarNode* var_ptr = var.get();
           if (defined_params.count(var_ptr)) return;
+          if (!defined_match_vars.insert(var_ptr).second) return;
 
           // Buffer-parameter shape vars use "match" semantics: first occurrence
           // defines the var, subsequent occurrences (in other buffers) are
           // just consistent uses of the same var -- not redefinitions.
-          if (!defined_.count(var_ptr)) {
+          if (defined_.count(var_ptr)) {
+            Var new_var = MakeNewVar(var);
+            PushVarRemap(var, new_var);
+          } else {
             defined_.insert(var_ptr);
           }
         };
         for (const auto& dim : buffer.value()->shape) {
-          check_expr(dim);
+          PostOrderVisit(dim, [&](const ffi::ObjectRef& obj) {
+            if (auto var = obj.as<Var>()) check_var(var.value());
+          });
         }
         for (const auto& stride : buffer.value()->strides) {
-          check_expr(stride);
+          if (auto var = stride.as<Var>()) check_var(var.value());
         }
-        check_expr(buffer.value()->elem_offset);
+        if (auto var = buffer.value()->elem_offset.as<Var>()) check_var(var.value());
       }
     }
 

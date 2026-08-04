@@ -186,6 +186,17 @@ def test_buffer_params():
     assert f1.params[1].shape[0] != f2.params[1].shape[0]
 
 
+def test_compound_buffer_param_shape_var():
+    n = tvm.tirx.Var("n", "int32")
+    A = tvm.tirx.decl_buffer((tvm.tirx.max(n, 1),), layout=None)
+    f1 = tvm.tirx.PrimFunc([A], tvm.tirx.Evaluate(n))
+    f2 = tvm.s_tir.renew_defs(f1)
+
+    tvm.ir.assert_structural_equal(f1, f2)
+    assert not f1.body.value.same_as(f2.body.value)
+    assert f2.params[0].shape[0].a.same_as(f2.body.value)
+
+
 def test_gather():
     @T.prim_func(private=True, s_tir=True)
     def take(

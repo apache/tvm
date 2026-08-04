@@ -16,63 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
+
+#include <utility>
 
 #include "./utils.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
-
-bool IsSimpleBuffer(const tirx::BufferVar& buf, bool s_tir) {
-  if (!buf->strides.empty()) {
-    return false;
-  }
-  for (const PrimExpr& shp_i : buf->shape) {
-    if (!tirx::UndefinedVars(shp_i).empty()) {
-      return false;
-    }
-  }
-  for (const PrimExpr& stride_i : buf->strides) {
-    if (!tirx::UndefinedVars(stride_i).empty()) {
-      return false;
-    }
-  }
-  if (!tirx::UndefinedVars(buf->elem_offset).empty()) {
-    return false;
-  } else if (buf->elem_offset->IsInstance<IntImmNode>()) {
-    IntImm elem_offset = buf->elem_offset.as_or_throw<IntImm>();
-    if (elem_offset->value != 0) {
-      return false;
-    }
-  }
-  if (s_tir) {
-    if (buf->layout.has_value() &&
-        !ffi::StructuralEqual()(buf->layout, tirx::TileLayoutNode::DefaultLayout(buf->shape))) {
-      return false;
-    }
-  } else {
-    if (!buf->layout.has_value() ||
-        !ffi::StructuralEqual()(buf->layout, tirx::TileLayoutNode::DefaultLayout(buf->shape))) {
-      return false;
-    }
-  }
-  if (!buf->allocated_addr.empty()) {
-    return false;
-  }
-  return buf.scope() == "global" && buf->data_alignment == runtime::kAllocAlignment &&
-         buf->offset_factor == 1;
-}
-
-int CountVarOccurrence(const tirx::PrimFunc& f, const tirx::Var& v) {
-  OccurrenceCounter counter(v.get());
-  counter(f->body);
-  for (const tirx::Var& v : f->params) {
-    counter.VisitVar(v);
-  }
-  return counter.count;
-}
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::PrimFunc>("", [](tirx::PrimFunc func, AccessPath p, IRDocsifier d) -> Doc {
@@ -91,7 +43,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       // a reference to a later scalar parameter.  `bound_signature_vars`
       // separately tracks source order: the first shape expression that sees
       // an unbound Var must be quoted because Buffer shapes are match scopes.
-      std::unordered_set<const tirx::VarNode*> bound_signature_vars;
+      std::unordered_set<tirx::Var> bound_signature_vars;
       for (const tirx::Var& param : func->params) {
         if (!param->ty.as<tirx::BufferTypeNode>()) {
           scalar_param_docs.emplace(param.get(), DefineVar(param, *f, d));
@@ -102,11 +54,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         AccessPath var_p = p->Attr("params")->ArrayItem(i);
         if (var->ty.as<tirx::BufferTypeNode>()) {
           tirx::BufferVar buffer(var);
-          std::unordered_set<const tirx::VarNode*> stringify_shape_vars;
-          std::unordered_set<const tirx::VarNode*> shape_vars;
+          std::unordered_set<tirx::Var> stringify_shape_vars;
+          std::unordered_set<tirx::Var> shape_vars;
           for (const PrimExpr& shape : buffer->shape) {
             tirx::PostOrderVisit(shape, [&](const ffi::ObjectRef& obj) {
-              if (const auto* shape_var = obj.as<tirx::VarNode>()) {
+              if (const auto* shape_var_node = obj.as<tirx::VarNode>()) {
+                tirx::Var shape_var = ffi::GetRef<tirx::Var>(shape_var_node);
                 shape_vars.insert(shape_var);
                 if (!bound_signature_vars.count(shape_var)) {
                   stringify_shape_vars.insert(shape_var);
@@ -115,16 +68,17 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             });
           }
           IdDoc lhs = DefineBuffer(buffer, *f, d);
-          ExprDoc annotation = BufferAttn(buffer, var_p->Attr("ty"), *f, d, stringify_shape_vars);
+          ExprDoc annotation =
+              BufferAttn(buffer, var_p->Attr("ty"), *f, d, std::move(stringify_shape_vars));
           args.push_back(AssignDoc(lhs, std::nullopt, annotation));
-          for (const tirx::VarNode* shape_var : shape_vars) {
+          for (const tirx::Var& shape_var : shape_vars) {
             bound_signature_vars.insert(shape_var);
           }
           continue;
         }
         ExprDoc a = d->AsDoc<ExprDoc>(var->ty, var_p->Attr("ty"));
         args.push_back(AssignDoc(scalar_param_docs.at(var.get()), std::nullopt, a));
-        bound_signature_vars.insert(var.get());
+        bound_signature_vars.insert(var);
       }
       ffi::Optional<ExprDoc> ret_type = std::nullopt;
       if (!func->ret_type.IsMissing()) {
