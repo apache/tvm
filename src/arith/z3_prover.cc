@@ -151,8 +151,42 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   /// @brief Z3 solver instance
   std::optional<z3::solver> solver;
 
-  /// @brief Memorize pure expressions
-  std::unordered_map<PrimExpr, z3::expr, StructuralHash, ExprDeepEqual> memo_;
+  /// @brief Memoized PrimExpr -> slot in z3_pool_. Holds no Z3 handles, so
+  /// its pointer-hashed bucket order cannot affect Z3 object lifetime.
+  std::unordered_map<PrimExpr, size_t, StructuralHash, ExprDeepEqual> memo_;
+
+  /// @brief Slots owning the memoized Z3 handles, plus a free-slot stack.
+  /// Handles are created and released only at fixed points of the execution
+  /// path (never in hash-bucket order), so Z3's AST-ID recycling -- and thus
+  /// solver behavior under rlimit -- stays deterministic across processes.
+  std::vector<std::optional<z3::expr>> z3_pool_;
+  std::vector<size_t> free_slots_;
+
+  void MemoPut(const PrimExpr& expr, const z3::expr& z3_expr) {
+    auto [it, inserted] = memo_.emplace(expr, 0);
+    if (!inserted) return;
+    if (free_slots_.empty()) {
+      it->second = z3_pool_.size();
+      z3_pool_.emplace_back(z3_expr);
+    } else {
+      it->second = free_slots_.back();
+      free_slots_.pop_back();
+      z3_pool_[it->second] = z3_expr;
+    }
+  }
+
+  void MemoErase(const PrimExpr& expr) {
+    auto it = memo_.find(expr);
+    if (it == memo_.end()) return;
+    z3_pool_[it->second].reset();
+    free_slots_.push_back(it->second);
+    memo_.erase(it);
+  }
+
+  const z3::expr* MemoGet(const PrimExpr& expr) const {
+    auto it = memo_.find(expr);
+    return it == memo_.end() ? nullptr : &*z3_pool_[it->second];
+  }
 
   /// @brief Namespace for variable naming
   Namespace ns;
@@ -228,7 +262,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     auto side_effect_exprs = std::move(side_effect_exprs_);
     side_effect_exprs_.clear();
     for (const auto& expr : side_effect_exprs) {
-      memo_.erase(expr);
+      MemoErase(expr);
     }
     return [this]() {
       solver->pop();
@@ -303,7 +337,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     scope_stack_.back().push_back(Scope{Scope::BindValue, var, value});
     // we add the binding whenever the value is pure,
     // because non-pure parts are handling by creating free variables in VisitExpr
-    memo_.emplace(var.as_or_throw<PrimExpr>(), ConvertInt(value));
+    MemoPut(var.as_or_throw<PrimExpr>(), ConvertInt(value));
   }
 
   /// @brief Bind a variable to a range
@@ -315,7 +349,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     //    if the var is overrided later, we can just update the memo, and the old placeholder will
     //    be ignored
     auto var_expr = Create(var.get());
-    memo_.emplace(var.as_or_throw<PrimExpr>(), var_expr);
+    MemoPut(var.as_or_throw<PrimExpr>(), var_expr);
 
     // 2. Add constraint on the placeholder
     //    when min_expr >= max_expr, the range is empty, which is under undefined behavior
@@ -344,16 +378,25 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   void CopyFrom(const Self& other_) {
     // Z3 handles cannot move between contexts. Destroy every handle owned by
     // this fresh clone before adopting the source Analyzer's context.
-    memo_.clear();
     solver.reset();
+    memo_.clear();
+    z3_pool_.clear();
+    free_slots_.clear();
     ctx = other_.ctx;
     solver.emplace(CreateSolver(*ctx));
 
     // Copy other objects. The source and destination now share one context, so
     // copying Z3 handles is valid and both provers retain its ownership.
     ns = other_.ns;
+    std::vector<std::pair<size_t, const PrimExpr*>> live;
+    live.reserve(other_.memo_.size());
     for (auto& item : other_.memo_) {
-      memo_.emplace(item.first, item.second);
+      live.emplace_back(item.second, &item.first);
+    }
+    std::sort(live.begin(), live.end(),
+              [](const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
+    for (auto [index, expr] : live) {
+      MemoPut(*expr, *other_.z3_pool_[index]);
     }
     for (auto a : other_.solver->assertions()) {
       solver->add(a);
@@ -508,7 +551,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
 
     // Clear any side effects from visiting the variable
     for (const auto& expr : side_effect_exprs_) {
-      memo_.erase(expr);
+      MemoErase(expr);
     }
     side_effect_exprs_.clear();
 
@@ -548,7 +591,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   z3::expr ConvertBool(const PrimExpr& e) {
     auto res = VisitBool(e);
     for (auto& expr : side_effect_exprs_) {
-      memo_.erase(expr);
+      MemoErase(expr);
     }
     side_effect_exprs_.clear();
     return res;
@@ -557,7 +600,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   z3::expr ConvertInt(const PrimExpr& e) {
     auto res = VisitInt(e);
     for (auto& expr : side_effect_exprs_) {
-      memo_.erase(expr);
+      MemoErase(expr);
     }
     side_effect_exprs_.clear();
     return res;
@@ -566,15 +609,15 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   /// @brief Visit expression with memoization
   z3::expr VisitExpr(const Expr& expr) override {
     PrimExpr e = expr.as_or_throw<PrimExpr>();
-    if (memo_.count(e)) {
-      return memo_.at(e);
+    if (const z3::expr* hit = MemoGet(e)) {
+      return *hit;
     }
     auto res = Base::VisitExpr(e);
     auto side_effect = SideEffect(e);
     if (side_effect <= CallEffectKind::kPure) {
-      memo_.emplace(e, res);
+      MemoPut(e, res);
     } else if (side_effect <= CallEffectKind::kReadState) {
-      memo_.emplace(e, res);
+      MemoPut(e, res);
       side_effect_exprs_.emplace_back(e);
     } else {
       side_effect_exprs_.emplace_back(e);
@@ -634,7 +677,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
 
   z3::expr VisitExpr_(const LetNode* op) override {
     if (IsZ3SupportedExpr(op->var.get())) {
-      memo_.emplace(op->var.as_or_throw<PrimExpr>(), VisitInt(op->value));
+      MemoPut(op->var.as_or_throw<PrimExpr>(), VisitInt(op->value));
     }
     return VisitExpr(op->body);
   }
