@@ -1641,7 +1641,11 @@ class Shape(OnnxOpConverter):
             return relax.ShapeExpr([data_info.ndim])
 
         # If no shape is defined in the type, it must be computed at runtime.
-        if not data_info.shape:
+        # A rank-0 tensor has a defined but empty shape, and an empty ShapeExpr
+        # is falsy, so compare against None instead of testing truthiness.
+        # Otherwise a scalar input takes the runtime path and downstream
+        # converters that match on relax.ShapeExpr see an opaque value.
+        if data_info.shape is None:
             data_shape = bb.normalize(relax.op.shape_of(inputs[0]))
             return data_shape
 
