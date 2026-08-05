@@ -65,23 +65,31 @@ tir = tirx
 ########################################################
 
 
-def cuda_iket_mark(name):
+def cuda_iket_mark(name, payload=None):
     """Create an NVIDIA IKET marker annotation."""
+    if payload is not None:
+        return call_intrin("", "tirx.cuda.iket_mark", name, payload)
     return call_intrin("", "tirx.cuda.iket_mark", name)
 
 
-def cuda_iket_range_start(name):
+def cuda_iket_range_start(name, payload=None):
     """Create an NVIDIA IKET token-range start annotation."""
+    if payload is not None:
+        return call_intrin("uint32", "tirx.cuda.iket_range_start", name, payload)
     return call_intrin("uint32", "tirx.cuda.iket_range_start", name)
 
 
-def cuda_iket_range_end(token):
+def cuda_iket_range_end(token, payload=None):
     """Create an NVIDIA IKET token-range end annotation."""
+    if payload is not None:
+        return call_intrin("", "tirx.cuda.iket_range_end", token, payload)
     return call_intrin("", "tirx.cuda.iket_range_end", token)
 
 
-def cuda_iket_range_push(name):
+def cuda_iket_range_push(name, payload=None):
     """Create an NVIDIA IKET stack-range push annotation."""
+    if payload is not None:
+        return call_intrin("", "tirx.cuda.iket_range_push", name, payload)
     return call_intrin("", "tirx.cuda.iket_range_push", name)
 
 
@@ -95,8 +103,12 @@ def cuda_iket_sentinel_token(name):
     return call_intrin("uint32", "tirx.cuda.iket_sentinel_token", name)
 
 
-def cuda_iket_official_event(event_id, source_code=""):
+def cuda_iket_official_event(event_id, source_code="", payload=None):
     """Create an NVIDIA IKET official range-end event."""
+    if payload is not None:
+        return call_intrin(
+            "uint32", "tirx.cuda.iket_official_event", event_id, source_code, payload
+        )
     return call_intrin("uint32", "tirx.cuda.iket_official_event", event_id, source_code)
 
 

@@ -50,6 +50,66 @@ def canonical_iket_workload(out: T.Buffer((32,), "int32")):
     out[tx] = tx + 1
 
 
+@T.prim_func
+def native_payload_workload(out: T.Buffer((32,), "int32")):
+    T.device_entry()
+    profiler = iket.IketProfiler()
+    tx = T.thread_id([32])
+    profiler.mark("lane_payload", tx + 100)
+    if tx >= 5:
+        profiler.mark("first_active_lane", tx)
+    profiler.mark("wide_payload", T.int64(tx) + T.int64(0x100000000))
+    profiler.mark("negative_payload", T.int32(-32))
+    profiler.mark("bool_true_payload", tx == 0)
+    profiler.mark("bool_false_payload", tx != 0)
+    profiler.mark("float32_payload", T.float32(-3.25))
+    profiler.mark("float64_payload", T.float64(6.5))
+    token = profiler.range_start("token_payload", tx + 200)
+    profiler.range_end(token, tx + 300)
+    profiler.range_push("stack_payload", tx + 400)
+    profiler.range_pop()
+    out[tx] = tx + 2
+
+
+@T.prim_func
+def extended_payload_workload(out: T.Buffer((32,), "int32")):
+    T.device_entry()
+    profiler = iket.IketProfiler()
+    tx = T.thread_id([32])
+    profiler.mark("extended_lane_payload", tx + 500)
+    profiler.mark("extended01")
+    profiler.mark("extended02")
+    profiler.mark("extended03")
+    profiler.mark("extended04")
+    profiler.mark("extended05")
+    profiler.mark("extended06")
+    profiler.mark("extended07")
+    profiler.mark("extended08")
+    profiler.mark("extended09")
+    profiler.mark("extended10")
+    profiler.mark("extended11")
+    profiler.mark("extended12")
+    profiler.mark("extended13")
+    profiler.mark("extended14")
+    profiler.mark("extended15")
+    profiler.mark("extended16")
+    profiler.mark("extended17")
+    profiler.mark("extended18")
+    profiler.mark("extended19")
+    profiler.mark("extended20")
+    profiler.mark("extended21")
+    profiler.mark("extended22")
+    profiler.mark("extended23")
+    profiler.mark("extended24")
+    profiler.mark("extended25")
+    profiler.mark("extended26")
+    profiler.mark("extended27")
+    profiler.mark("extended28")
+    profiler.mark("extended29")
+    profiler.mark("extended30")
+    out[tx] = tx + 3
+
+
 def _parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default="/tmp/tvm-iket-workload")
@@ -80,15 +140,24 @@ def _injection_tool_name():
 def _profile_workload(args):
     if args.fail_capture and _injection_tool_name() == "iket":
         raise RuntimeError("intentional capture-only IKET workload failure")
-    executable = iket.IketProfiler().compile(
-        canonical_iket_workload,
-        target=tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}),
-        tir_pipeline="tirx",
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    workloads = (
+        (canonical_iket_workload, 1),
+        (native_payload_workload, 2),
+        (extended_payload_workload, 3),
     )
-    out = tvm.runtime.empty((32,), "int32", device=tvm.cuda())
-    executable["canonical_iket_workload"](out)
+    outputs = []
+    for workload, offset in workloads:
+        # Plain JIT compilation is intentionally used here.  The validated
+        # run-iket child enables LowerIket automatically for these modules.
+        executable = tvm.compile(workload, target=target, tir_pipeline="tirx")
+        module = executable.jit()
+        out = tvm.runtime.empty((32,), "int32", device=tvm.cuda())
+        module.main(out)
+        outputs.append((out, offset))
     tvm.cuda().sync()
-    np.testing.assert_array_equal(out.numpy(), np.arange(32, dtype=np.int32) + 1)
+    for out, offset in outputs:
+        np.testing.assert_array_equal(out.numpy(), np.arange(32, dtype=np.int32) + offset)
 
 
 def main():

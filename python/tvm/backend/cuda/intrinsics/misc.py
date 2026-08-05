@@ -197,14 +197,15 @@ device_intrinsic(
 # Official IKET NativeDump placeholder.
 # =============================================================================
 @register_codegen("cuda_iket_official_event")
-def codegen_cuda_iket_official_event(event_id, source_code):
+def codegen_cuda_iket_official_event(event_id, source_code, payload=None):
     if isinstance(source_code, tvm.tirx.StringImm):
         source_code = source_code.value
     else:
         source_code = parse_str(source_code)
+    args = (event_id,) if payload is None else (event_id, payload)
     return cuda_func_call(
         "tvm_builtin_iket_official_event",
-        event_id,
+        *args,
         source_code=source_code,
         return_type="uint32",
     )
