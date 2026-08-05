@@ -1288,8 +1288,10 @@ class PerStoreFeatureCollector : private StmtVisitor {
     for (const auto& kv : mod->functions) {
       if (const PrimFuncNode* func = kv.second.as<PrimFuncNode>()) {
         collector(func->body);
-        for (const auto& it : func->buffer_map) {
-          collector.HandleBufferAlloc(it.second);
+        for (const Var& param : func->params) {
+          if (auto buffer = param.as<BufferVar>()) {
+            collector.HandleBufferAlloc(buffer.value());
+          }
         }
       }
     }

@@ -48,40 +48,41 @@ class RenewDefMutator : public StmtExprMutator {
  public:
   static PrimFunc Transform(const PrimFunc& func) {
     RenewDefMutator generator;
-    // Redefine params
-    ffi::Array<Var> params;
+    // Redefine scalar parameters first, because they may occur in a buffer
+    // parameter's type annotation.
     for (const auto& param : func->params) {
-      params.push_back(generator.ReDefineVar(param));
+      if (!param.as<BufferVar>()) {
+        generator.ReDefineVar(param);
+      }
     }
     for (const auto& param : func->params) {
-      auto it = func->buffer_map.find(param);
-      if (it != func->buffer_map.end()) {
-        const BufferVar& buffer = (*it).second;
+      if (auto opt_buffer = param.as<BufferVar>()) {
+        const BufferVar& buffer = opt_buffer.value();
         for (const PrimExpr& e : buffer->shape) {
-          if (auto var = e.as<PrimVar>()) {
-            if (generator.remap_.count(var.value()) == 0) {
-              generator.ReDefineVar(var.value());
+          PostOrderVisit(e, [&generator](const ffi::ObjectRef& obj) {
+            if (auto var = obj.as<Var>()) {
+              if (generator.remap_.count(var.value()) == 0) {
+                generator.ReDefineVar(var.value());
+              }
             }
-          }
+          });
         }
       }
     }
-    // Redefine buffers in order
+    // Redefine buffer parameters in order, preserving the original signature.
     // TODO(Siyuan Feng): checking var is used after define
-    ffi::Map<tirx::Var, BufferVar> buffer_map;
+    ffi::Array<Var> params;
     for (const auto& param : func->params) {
-      auto it = func->buffer_map.find(param);
-      if (it != func->buffer_map.end()) {
-        const BufferVar& buffer = (*it).second;
-        Var new_param = generator.VisitExpr(param).as_or_throw<Var>();
-        BufferVar new_buffer = generator.DefineBuffer(buffer);
-        buffer_map.Set(new_param, new_buffer);
+      if (auto opt_buffer = param.as<BufferVar>()) {
+        params.push_back(generator.DefineBuffer(opt_buffer.value()));
+      } else {
+        params.push_back(generator.VisitExpr(param).as_or_throw<Var>());
       }
     }
     // Visit body
     Stmt body = generator(func->body);
     // Recreate function
-    return PrimFunc(params, body, func->ret_type, buffer_map, func->attrs, func->span);
+    return PrimFunc(params, body, func->ret_type, func->attrs, func->span);
   }
 
  private:
@@ -184,7 +185,7 @@ class RenewDefMutator : public StmtExprMutator {
       }
     };
 
-    // shape is USED (references existing definitions like buffer_map shape vars),
+    // shape is USED (references existing definitions like buffer-parameter shape vars),
     // remap via VisitExpr to avoid creating spurious new var definitions
     auto visit_expr = [this](const PrimExpr& e) -> PrimExpr { return this->VisitPrimExpr(e); };
     ffi::Array<PrimExpr> shape = buffer->shape.Map(visit_expr);

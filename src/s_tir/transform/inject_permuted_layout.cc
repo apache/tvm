@@ -70,9 +70,10 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
  private:
   explicit PermutedLayoutInjector(PrimFunc func, const Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer) {
-    buffer_map_.insert(func->buffer_map.begin(), func->buffer_map.end());
-    for (const auto& [_, buffer] : func->buffer_map) {
-      buffer_map_.insert({buffer.var(), buffer});
+    for (const Var& param : func->params) {
+      if (auto buffer = param.as<BufferVar>()) {
+        buffer_map_.insert({buffer.value().var(), buffer.value()});
+      }
     }
   }
 

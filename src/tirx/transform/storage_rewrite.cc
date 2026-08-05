@@ -95,14 +95,10 @@ struct PrimTypeEqual {
 //
 class LinearAccessPatternFinder final : public StmtExprVisitor {
  public:
-  LinearAccessPatternFinder(const ffi::Array<Var>& params,
-                            const ffi::Map<Var, BufferVar>& buffer_map) {
-    for (const auto& [_, buffer] : buffer_map) {
-      buffer_aliases_.Set(buffer.var(), buffer.var());
-    }
+  explicit LinearAccessPatternFinder(const ffi::Array<Var>& params) {
     for (const Var& param : params) {
-      if (param->ty.as<BufferTypeNode>()) {
-        buffer_aliases_.Set(param, param);
+      if (auto buffer = param.as<BufferVar>()) {
+        buffer_aliases_.Set(buffer.value().var(), buffer.value().var());
       }
     }
   }
@@ -468,11 +464,11 @@ class StoragePlanRewriter : public StmtExprMutator {
   using StmtEntry = LinearAccessPatternFinder::StmtEntry;
   using AllocEntry = LinearAccessPatternFinder::AllocEntry;
 
-  Stmt Rewrite(Stmt stmt, const ffi::Array<Var>& params, const ffi::Map<Var, BufferVar>& buffer_map,
-               bool detect_inplace, bool enable_reuse, bool reuse_require_exact_matched_dtype) {
+  Stmt Rewrite(Stmt stmt, const ffi::Array<Var>& params, bool detect_inplace, bool enable_reuse,
+               bool reuse_require_exact_matched_dtype) {
     detect_inplace_ = detect_inplace;
     // plan the rewrite
-    LinearAccessPatternFinder finder(params, buffer_map);
+    LinearAccessPatternFinder finder(params);
     finder(stmt);
     this->LivenessAnalysis(finder.linear_seq_);
     this->PlanMemory(finder.linear_seq_, finder.alloc_info_, enable_reuse,
@@ -1185,8 +1181,8 @@ class StoragePlanRewriter : public StmtExprMutator {
  */
 struct BufferVarInfo {
   enum DeclarationLocation {
-    kPrimFuncParam = (1 << 0),
-    kPrimFuncBufferMap = (1 << 1),
+    kPrimFuncBufferParam = (1 << 0),
+    kPrimFuncPointerParam = (1 << 1),
     kAllocBufferNode = (1 << 2),
     kLetNode = (1 << 3),
     kDeclBufferNode = (1 << 4),
@@ -1201,8 +1197,8 @@ struct BufferVarInfo {
   /* The extent of the buffer.
    *
    * If multidimensional, the extent of the last dimension of the buffer.  If the
-   * size is unknown (e.g. pointer arguments to PrimFunc with no corresponding
-   * entry in buffer_map), then extent is zero.
+   * size is unknown (e.g. pointer arguments to PrimFunc without a BufferType
+   * annotation), then extent is zero.
    */
   PrimExpr extent;
 
@@ -1274,49 +1270,31 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
    *
    * @param params The parameters passed to a PrimFunc
    *
-   * @param buffer_map The buffer_map associated with a PrimFunc
-   *
    * @param allow_untyped_handles If a buffer or pointer variable is
    * missing a type annotation, assume that it has the same underlying
    * type as it is later accessed, with scalar element types.
    */
-  VectorTypeAccessChecker(const ffi::Array<tirx::Var>& params,
-                          const ffi::Map<Var, BufferVar>& buffer_map,
-                          bool allow_untyped_pointers = false,
+  VectorTypeAccessChecker(const ffi::Array<tirx::Var>& params, bool allow_untyped_pointers = false,
                           bool detect_scalar_read_patterns = true)
       : allow_untyped_pointers_(allow_untyped_pointers),
         detect_scalar_read_patterns_(detect_scalar_read_patterns) {
-    // If a parameter is in the buffer map, we want to track the
-    // version in the map.
-    for (auto it : buffer_map) {
-      BufferVar& buffer = it.second;
-      Var buffer_var = buffer.var();
-      buffer_aliases_.Set(buffer_var, buffer_var);
-      PrimType dtype = buffer->dtype;
-      PrimExpr extent = buffer->shape.size() ? buffer->shape[buffer->shape.size() - 1] : 0;
-      OnArrayDeclaration(buffer_var, dtype, extent, BufferVarInfo::kPrimFuncParam);
-    }
-
-    // If a pointer parameter isn't in the buffer map, then we want to
-    // track the parameter itself.
     for (Var buffer_var : params) {
-      if (auto buffer_type = buffer_var->ty.as<BufferType>()) {
-        BufferVar buffer(buffer_var);
+      if (auto buffer = buffer_var.as<BufferVar>()) {
         buffer_aliases_.Set(buffer_var, buffer_var);
-        PrimExpr extent =
-            buffer->shape.size() ? buffer->shape[buffer->shape.size() - 1] : PrimExpr(0);
-        OnArrayDeclaration(buffer_var, buffer->dtype, extent, BufferVarInfo::kPrimFuncParam);
+        PrimExpr extent = buffer.value()->shape.size()
+                              ? buffer.value()->shape[buffer.value()->shape.size() - 1]
+                              : PrimExpr(0);
+        OnArrayDeclaration(buffer_var, buffer.value()->dtype, extent,
+                           BufferVarInfo::kPrimFuncBufferParam);
         continue;
       }
       auto pointer_type = GetPointerType(buffer_var->ty);
-      if (pointer_type.has_value() && !pointer_type.value().IsVoid() &&
-          (buffer_map.count(buffer_var) == 0)) {
+      if (pointer_type.has_value() && !pointer_type.value().IsVoid()) {
         PrimType dtype = pointer_type.value();
         PrimExpr extent = 0;
-        OnArrayDeclaration(buffer_var, dtype, extent, BufferVarInfo::kPrimFuncBufferMap);
-      } else if (pointer_type.has_value() && allow_untyped_pointers_ &&
-                 (buffer_map.count(buffer_var) == 0)) {
-        OnArrayDeclaration(buffer_var, PrimType::Void(), 0, BufferVarInfo::kPrimFuncBufferMap);
+        OnArrayDeclaration(buffer_var, dtype, extent, BufferVarInfo::kPrimFuncPointerParam);
+      } else if (pointer_type.has_value() && allow_untyped_pointers_) {
+        OnArrayDeclaration(buffer_var, PrimType::Void(), 0, BufferVarInfo::kPrimFuncPointerParam);
       }
     }
   }
@@ -1578,11 +1556,11 @@ class VectorTypeRewriter : public StmtExprMutator {
    * @param checker The VectorTypeAccessChecker that has previously read out
    * information from the PrimFunc
    *
-   * @param rewrite_params Whether pointer-type parameters passed into the
-   * function should be rewritten from scalar types to vectorized types.
+   * @param rewrite_buffer_params Whether BufferType-annotated parameters should
+   * be rewritten from scalar element types to vectorized element types.
    *
-   * @param rewrite_buffer_map Whether buffers present in the buffer_map should
-   * have their data variable be rewritten from scalar types to vectorized types.
+   * @param rewrite_pointer_params Whether pointer-typed parameters should be
+   * rewritten from scalar types to vectorized types.
    *
    * @param rewrite_alloc_buffer_node Whether the buffer variable associated with
    * AllocBufferNodes should be rewritten from scalar types to vectorized types.
@@ -1594,17 +1572,17 @@ class VectorTypeRewriter : public StmtExprMutator {
    * should be re-written.
    */
   VectorTypeRewriter(const std::unordered_map<const VarNode*, BufferVarInfo>& info_map,
-                     const ffi::Map<Var, Var>& buffer_aliases, bool rewrite_params = true,
-                     bool rewrite_buffer_map = true, bool rewrite_alloc_buffer_node = true,
+                     const ffi::Map<Var, Var>& buffer_aliases, bool rewrite_buffer_params = true,
+                     bool rewrite_pointer_params = true, bool rewrite_alloc_buffer_node = true,
                      bool rewrite_indices = true, bool rewrite_let_node = true,
                      bool rewrite_scalar_read_to_vector_shuffle = true)
       : rewrite_indices_(rewrite_indices), buffer_aliases_(buffer_aliases) {
     int rewrite_mask = 0;
-    if (rewrite_params) {
-      rewrite_mask |= BufferVarInfo::kPrimFuncParam;
+    if (rewrite_buffer_params) {
+      rewrite_mask |= BufferVarInfo::kPrimFuncBufferParam;
     }
-    if (rewrite_buffer_map) {
-      rewrite_mask |= BufferVarInfo::kPrimFuncBufferMap;
+    if (rewrite_pointer_params) {
+      rewrite_mask |= BufferVarInfo::kPrimFuncPointerParam;
     }
     if (rewrite_alloc_buffer_node) {
       rewrite_mask |= BufferVarInfo::kAllocBufferNode;
@@ -1903,17 +1881,6 @@ class VectorTypeRewriter : public StmtExprMutator {
       }
     }
     n->params = new_params;
-
-    // Remap the BufferVar objects in PrimFunc::buffer_map so that the
-    // buffers use the new buffer variables
-    ffi::Map<Var, BufferVar> new_buffer_map;
-    for (const auto& pair : n->buffer_map) {
-      Var key = pair.first;
-      BufferVar old_buffer = pair.second;
-      BufferVar new_buffer = RemapBuffer(old_buffer);
-      new_buffer_map.Set(key, new_buffer);
-    }
-    n->buffer_map = new_buffer_map;
   }
 
  private:
@@ -1938,19 +1905,20 @@ class VectorTypeRewriter : public StmtExprMutator {
   arith::Analyzer analyzer_;
 };
 
-// Rewrite allocates, pointer parameters, and buffer map into vectorized versions
+// Rewrite allocates, pointer parameters, and buffer parameters into vectorized versions
 // if each access into a buffer is the same vector type.
 PrimFunc PointerValueTypeRewrite(PrimFunc f, bool allow_untyped_pointers = false,
-                                 bool rewrite_params = true, bool rewrite_buffer_map = true,
+                                 bool rewrite_buffer_params = true,
+                                 bool rewrite_pointer_params = true,
                                  bool rewrite_alloc_buffer_node = true, bool rewrite_indices = true,
                                  bool rewrite_let_node = true,
                                  bool rewrite_scalar_read_to_vector_shuffle = true) {
-  VectorTypeAccessChecker checker(f->params, f->buffer_map, allow_untyped_pointers,
+  VectorTypeAccessChecker checker(f->params, allow_untyped_pointers,
                                   rewrite_scalar_read_to_vector_shuffle);
   checker(f->body);
 
-  VectorTypeRewriter rewriter(checker.info_map_, checker.buffer_aliases_, rewrite_params,
-                              rewrite_buffer_map, rewrite_alloc_buffer_node, rewrite_indices,
+  VectorTypeRewriter rewriter(checker.info_map_, checker.buffer_aliases_, rewrite_buffer_params,
+                              rewrite_pointer_params, rewrite_alloc_buffer_node, rewrite_indices,
                               rewrite_let_node, rewrite_scalar_read_to_vector_shuffle);
   PrimFuncNode* n = f.CopyOnWrite();
   n->body = rewriter(std::move(n->body));
@@ -1980,8 +1948,8 @@ Pass StorageRewrite() {
       reuse_require_exact_matched_dtype = true;
     }
     auto* n = f.CopyOnWrite();
-    n->body = StoragePlanRewriter().Rewrite(std::move(n->body), n->params, n->buffer_map, true,
-                                            enable_reuse, reuse_require_exact_matched_dtype);
+    n->body = StoragePlanRewriter().Rewrite(std::move(n->body), n->params, true, enable_reuse,
+                                            reuse_require_exact_matched_dtype);
     // Parameters may not be rewritten, but internal allocations may.
     return PointerValueTypeRewrite(std::move(f), true, false, false, true, true, true, false);
   };

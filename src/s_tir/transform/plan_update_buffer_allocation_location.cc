@@ -56,8 +56,10 @@ class BufferAllocateOrderCollector : public StmtExprVisitor {
  public:
   static ffi::Array<BufferVar> Collect(const PrimFunc& func) {
     BufferAllocateOrderCollector collector;
-    for (const auto& kv : func->buffer_map) {
-      collector.buffer_alloc_recorder_.push_back(kv.second);
+    for (const Var& param : func->params) {
+      if (auto buffer = param.as<BufferVar>()) {
+        collector.buffer_alloc_recorder_.push_back(buffer.value());
+      }
     }
     collector(func->body);
     return std::move(collector.buffer_alloc_recorder_);
@@ -114,10 +116,11 @@ class BufferAllocationLocator : public StmtExprMutator {
     collector(func->body);
     managed_allocations_ = collector.managed_allocations;
 
-    for (const auto& kv : func->buffer_map) {
-      const BufferVar& buffer = kv.second;
-      arg_buffer_vars.emplace(buffer.get());
-      buffer_data_to_buffer_.Set(buffer.var(), buffer);
+    for (const Var& param : func->params) {
+      if (auto buffer = param.as<BufferVar>()) {
+        arg_buffer_vars.emplace(buffer.value().get());
+        buffer_data_to_buffer_.Set(buffer.value().var(), buffer.value());
+      }
     }
     // create buffers to be allocated at each stmts
     for (const auto& buffer : buffer_alloc_recorder) {

@@ -269,8 +269,10 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
     return it->second;
   }
 
-  TVM_FFI_ICHECK_EQ(func->buffer_map.size(), 0U)
-      << "Cannot codegen function with buffer_map, please lower them first";
+  for (const Var& param : func->params) {
+    TVM_FFI_ICHECK(!param->ty.as<tirx::BufferTypeNode>())
+        << "Cannot codegen BufferType-annotated parameter " << param << "; please lower it first";
+  }
 
   std::vector<llvm::Type*> param_types;
   is_restricted_ = func->HasNonzeroAttr(tirx::attr::kNoAlias);

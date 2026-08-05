@@ -48,7 +48,7 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
     arith::Analyzer ana;
     auto pass = TextureAllocInjector(ana);
     auto writer = func.CopyOnWrite();
-    pass.MarkBufferMapShapes(func);
+    pass.MarkBufferParamShapes(func);
     writer->body = pass.VisitStmt(func->body);
     return func;
   }

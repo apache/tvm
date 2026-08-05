@@ -357,7 +357,7 @@ void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tirx::
   ffi::Array<Expr> input_list = call->args[1].as_or_throw<Tuple>()->fields;
   input_list.push_back(output_var);
   for (int i = 0; i < static_cast<int>(input_list.size()); i++) {
-    if (func->buffer_map.count(func->params[i])) {
+    if (func->params[i]->ty.as<tirx::BufferTypeNode>()) {
       input_var_to_relax_expr.Set(func->params[i], input_list[i]);
     }
   }

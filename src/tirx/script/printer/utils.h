@@ -35,6 +35,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -286,7 +287,7 @@ enum class BufferVarDefinition {
   // The data pointer is defined along with the buffer, along with any
   // buffer parameters (shape/stride/elem_offset) that have not
   // previously been defined.  For example,
-  // `BlockNode::match_buffers`, or the `PrimFuncNode::buffer_map`.
+  // `BlockNode::match_buffers`, or a BufferType-annotated PrimFunc parameter.
   MatchBuffer,
 };
 
@@ -313,10 +314,12 @@ ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
  * \param p The object path
  * \param f The frame
  * \param d The IRDocsifier
+ * \param stringify_shape_vars Variables whose first shape use must be stringified.  The set is
+ *     passed by value so entries can be consumed as dimensions are emitted.
  * \return The ExprDoc corresponding to the buffer declaration
  */
 ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
-                   const IRDocsifier& d);
+                   const IRDocsifier& d, std::unordered_set<tirx::Var> stringify_shape_vars = {});
 
 /*!
  * \brief Print the creation of a Var
@@ -334,57 +337,6 @@ Used by the ``tirx.tile.select`` printer specialization. Defined in expr.cc.
 LambdaDoc PrintLambda(const ffi::ObjectRef& pred, const ffi::Array<tirx::Var>& vs,
                       const AccessPath& vs_p, const PrimExpr& p, const AccessPath& p_p,
                       const IRDocsifier& d);
-
-/*! \brief A Var occurrence counter visitor */
-class OccurrenceCounter : public tirx::StmtExprVisitor {
- public:
-  /*! \brief The occurrence counter */
-  int count = 0;
-  /*! \brief The Var to count occurrence */
-  const tirx::VarNode* v = nullptr;
-
-  void VisitVar(const tirx::Var& var) { VisitExpr(static_cast<const Expr&>(var)); }
-
-  void VisitExpr_(const tirx::VarNode* op) final {
-    if (op == v) {
-      ++count;
-    }
-    tirx::StmtExprVisitor::VisitExpr_(op);
-  }
-
-  void VisitStmt_(const tirx::BufferStoreNode* op) final {
-    VisitBuffer(op->buffer);
-    tirx::StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitExpr_(const tirx::BufferLoadNode* op) final {
-    VisitBuffer(op->buffer);
-    tirx::StmtExprVisitor::VisitExpr_(op);
-  }
-
-  void VisitStmt_(const tirx::AllocBufferNode* op) final {
-    VisitBuffer(op->buffer);
-    tirx::StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitStmt_(const tirx::DeclBufferNode* op) final {
-    VisitBuffer(op->buffer);
-    tirx::StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitBuffer(const tirx::BufferVar& buffer) {
-    VisitExpr(buffer.var());
-    for (const PrimExpr& shape_i : buffer->shape) {
-      VisitExpr(shape_i);
-    }
-    for (const PrimExpr& stride_i : buffer->strides) {
-      VisitExpr(stride_i);
-    }
-    VisitExpr(buffer->elem_offset);
-  }
-
-  explicit OccurrenceCounter(const tirx::VarNode* var) { v = var; }
-};
 
 #ifndef TVM_SCRIPT_REPR
 #define TVM_SCRIPT_REPR(ObjectType, Method) TVM_REGISTER_SCRIPT_AS_REPR(ObjectType, Method)

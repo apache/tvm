@@ -46,36 +46,36 @@ namespace tirx {
 
 class LayoutApplier : public arith::IRMutatorWithAnalyzer {
  public:
-  static std::pair<Stmt, ffi::Map<Var, BufferVar>> Flatten(
-      const Stmt& stmt, const ffi::Array<Var>& params,
-      const ffi::Map<tirx::Var, BufferVar> buffer_map, const Target& target) {
+  static std::pair<Stmt, ffi::Array<Var>> Flatten(const Stmt& stmt, const ffi::Array<Var>& params,
+                                                  const Target& target) {
     arith::Analyzer ana;
     LayoutApplier storage_lower(ana, target);
-    for (const Var& param : params) {
-      if (param->ty.as<BufferTypeNode>()) {
-        storage_lower.buffer_aliases_.Set(param, param);
-      }
-    }
-    std::unordered_map<Var, BufferVar> new_buffer_map;
+    ffi::Array<Var> new_params;
+    new_params.reserve(params.size());
     std::vector<std::pair<BufferVar, BufferVar>> param_flattened_buffers;
-    for (const auto& kv : buffer_map) {
-      storage_lower.buffer_aliases_.Set(kv.second.var(), kv.second.var());
-      if (kv.second->layout.has_value()) {
-        BufferVar flattened = storage_lower.GetFlattenedBuffer(kv.second);
-        auto type = CopyBufferType(kv.second);
+    for (const Var& param : params) {
+      auto buffer = param.as<BufferVar>();
+      if (!buffer) {
+        new_params.push_back(param);
+        continue;
+      }
+      storage_lower.buffer_aliases_.Set(buffer.value().var(), buffer.value().var());
+      if (buffer.value()->layout.has_value()) {
+        BufferVar flattened = storage_lower.GetFlattenedBuffer(buffer.value());
+        auto type = CopyBufferType(buffer.value());
         type->layout = std::nullopt;
-        BufferVar buffer = RebuildBufferVar(kv.second, std::move(type));
-        param_flattened_buffers.emplace_back(flattened, buffer);
-        new_buffer_map[kv.first] = buffer;
+        BufferVar source = RebuildBufferVar(buffer.value(), std::move(type));
+        param_flattened_buffers.emplace_back(flattened, source);
+        new_params.push_back(source.var());
       } else {
-        new_buffer_map[kv.first] = kv.second;
+        new_params.push_back(buffer.value().var());
       }
     }
     auto new_stmt = storage_lower(stmt);
     for (const auto& [buf, source] : param_flattened_buffers) {
       new_stmt = SeqStmt::Flatten(DeclBuffer(buf, source.data()), std::move(new_stmt));
     }
-    return std::make_pair(new_stmt, ffi::Map<Var, BufferVar>(new_buffer_map));
+    return std::make_pair(new_stmt, new_params);
   }
 
  protected:
@@ -404,8 +404,9 @@ Pass LowerTIRxCleanup() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     Target target = ResolveTarget(f);
     auto* n = f.CopyOnWrite();
-    std::tie(n->body, n->buffer_map) =
-        LayoutApplier::Flatten(n->body, n->params, n->buffer_map, target);
+    auto [body, params] = LayoutApplier::Flatten(n->body, n->params, target);
+    n->body = std::move(body);
+    n->params = std::move(params);
     n->body = BufferOffsetRemover::Remove(n->body);
     return f;
   };

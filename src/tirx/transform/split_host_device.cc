@@ -172,7 +172,7 @@ class HostDeviceSplitter : public StmtMutator {
       } else {
         std::unordered_map<Var, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> param_order;
         for (size_t i = 0; i < cur_func_->params.size(); ++i) {
-          param_order[cur_func_->buffer_map[cur_func_->params[i]].var()] = i;
+          param_order[cur_func_->params[i].as_or_throw<BufferVar>().var()] = i;
         }
         // sort by original order
         std::sort(params.begin(), params.end(),

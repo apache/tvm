@@ -141,9 +141,11 @@ Region DomainTouched(const Stmt& stmt, const BufferVar& buffer, bool consider_lo
 ffi::Map<BufferVar, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
   auto buffer_access_map = BufferTouchedDomain(func->body).GetAccessedBufferRegions();
   ffi::Map<BufferVar, ffi::Array<ffi::ObjectRef>> ret;
-  auto& buffer_map = func->buffer_map;
   for (auto& var : func->params) {
-    auto& buffer = buffer_map[var];
+    if (!var->ty.as<BufferTypeNode>()) {
+      continue;
+    }
+    BufferVar buffer(var);
     auto& access = buffer_access_map[buffer.get()];
     ffi::Array<ffi::Array<IntSet>> loads, stores, combined;
     for (std::vector<IntSet>& touch : std::get<LoadAccess>(access).set) {

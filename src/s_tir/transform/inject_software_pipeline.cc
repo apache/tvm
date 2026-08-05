@@ -1065,9 +1065,10 @@ class PipelineInjector : private StmtExprMutator {
   static Stmt Inject(const PrimFunc& func) {
     auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     PipelineInjector injector(global_symbol);
-    for (const auto& kv : func->buffer_map) {
-      const BufferVar& buffer = kv.second;
-      injector.buffer_data_to_buffer_.Set(buffer.var(), buffer);
+    for (const Var& param : func->params) {
+      if (auto buffer = param.as<BufferVar>()) {
+        injector.buffer_data_to_buffer_.Set(buffer.value().var(), buffer.value());
+      }
     }
     injector.fragment_info_ = GetTensorCoreFragmentInfo(func->body);
     return injector(func->body);

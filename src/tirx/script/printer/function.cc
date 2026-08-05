@@ -16,67 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
+
+#include <utility>
 
 #include "./utils.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
-
-bool IsSimpleBuffer(const tirx::BufferVar& buf, bool s_tir) {
-  if (!buf->strides.empty()) {
-    return false;
-  }
-  for (const PrimExpr& shp_i : buf->shape) {
-    if (!tirx::UndefinedVars(shp_i).empty()) {
-      return false;
-    }
-  }
-  for (const PrimExpr& stride_i : buf->strides) {
-    if (!tirx::UndefinedVars(stride_i).empty()) {
-      return false;
-    }
-  }
-  if (!tirx::UndefinedVars(buf->elem_offset).empty()) {
-    return false;
-  } else if (buf->elem_offset->IsInstance<IntImmNode>()) {
-    IntImm elem_offset = buf->elem_offset.as_or_throw<IntImm>();
-    if (elem_offset->value != 0) {
-      return false;
-    }
-  }
-  if (s_tir) {
-    if (buf->layout.has_value() &&
-        !ffi::StructuralEqual()(buf->layout, tirx::TileLayoutNode::DefaultLayout(buf->shape))) {
-      return false;
-    }
-  } else {
-    if (!buf->layout.has_value() ||
-        !ffi::StructuralEqual()(buf->layout, tirx::TileLayoutNode::DefaultLayout(buf->shape))) {
-      return false;
-    }
-  }
-  if (!buf->allocated_addr.empty()) {
-    return false;
-  }
-  return buf.scope() == "global" && buf->data_alignment == runtime::kAllocAlignment &&
-         buf->offset_factor == 1;
-}
-
-int CountVarOccurrence(const tirx::PrimFunc& f, const tirx::Var& v) {
-  OccurrenceCounter counter(v.get());
-  counter(f->body);
-  for (const tirx::Var& v : f->params) {
-    counter.VisitVar(v);
-  }
-  for (const auto& pair : f->buffer_map) {
-    counter.VisitVar(pair.first);
-    counter.VisitBuffer(pair.second);
-  }
-  return counter.count;
-}
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::PrimFunc>("", [](tirx::PrimFunc func, AccessPath p, IRDocsifier d) -> Doc {
@@ -87,36 +35,57 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         return obj->IsInstance<tirx::VarNode>() || obj->IsInstance<tirx::BufferTypeNode>();
       });
       int n_args = func->params.size();
-      std::unordered_map<const tirx::VarNode*, int> buffer_data_counter;
-      for (const auto& pair : func->buffer_map) {
-        const tirx::VarNode* buffer_var = pair.second.get();
-        if (!buffer_data_counter.count(buffer_var)) {
-          buffer_data_counter.insert({buffer_var, 0});
-        }
-        ++buffer_data_counter.at(buffer_var);
-      }
       // Step 1. Handle `func->params`
       ffi::Array<AssignDoc> args;
       args.reserve(n_args);
-      std::unordered_set<const tirx::VarNode*> buffer_inlined;
+      std::unordered_map<const tirx::VarNode*, ExprDoc> scalar_param_docs;
+      // Define scalar docs up front so a preceding Buffer parameter can render
+      // a reference to a later scalar parameter.  `bound_signature_vars`
+      // separately tracks source order: the first shape expression that sees
+      // an unbound Var must be quoted because Buffer shapes are match scopes.
+      std::unordered_set<tirx::Var> bound_signature_vars;
+      for (const tirx::Var& param : func->params) {
+        if (!param->ty.as<tirx::BufferTypeNode>()) {
+          scalar_param_docs.emplace(param.get(), DefineVar(param, *f, d));
+        }
+      }
       for (int i = 0; i < n_args; ++i) {
         tirx::Var var = func->params[i];
         AccessPath var_p = p->Attr("params")->ArrayItem(i);
-        if (d->cfg->syntax_sugar && CountVarOccurrence(func, var) == 2 &&
-            func->buffer_map.count(var)) {
-          tirx::BufferVar buffer = func->buffer_map[var];
-          bool s_tir = func->attrs->dict.count(tvm::attr::kSTir);
-          if (IsSimpleBuffer(buffer, s_tir) && buffer_data_counter.at(buffer.get()) == 1) {
-            AccessPath buffer_p = p->Attr("buffer_map")->MapItem(var);
-            IdDoc lhs = DefineBuffer(buffer, *f, d);
-            ExprDoc annotation = BufferAttn(buffer, buffer_p, *f, d);
-            args.push_back(AssignDoc(lhs, std::nullopt, annotation));
-            buffer_inlined.insert(buffer.get());
-            continue;
+        if (var->ty.as<tirx::BufferTypeNode>()) {
+          tirx::BufferVar buffer(var);
+          std::unordered_set<tirx::Var> stringify_shape_vars;
+          std::unordered_set<tirx::Var> shape_vars;
+          for (const PrimExpr& shape : buffer->shape) {
+            tirx::PostOrderVisit(shape, [&](const ffi::ObjectRef& obj) {
+              if (const auto* shape_var_node = obj.as<tirx::VarNode>()) {
+                tirx::Var shape_var = ffi::GetRef<tirx::Var>(shape_var_node);
+                shape_vars.insert(shape_var);
+                if (!bound_signature_vars.count(shape_var)) {
+                  stringify_shape_vars.insert(shape_var);
+                }
+              }
+            });
           }
+          IdDoc lhs = DefineBuffer(buffer, *f, d);
+          ExprDoc annotation =
+              BufferAttn(buffer, var_p->Attr("ty"), *f, d, std::move(stringify_shape_vars));
+          args.push_back(AssignDoc(lhs, std::nullopt, annotation));
+          for (const tirx::Var& shape_var : shape_vars) {
+            bound_signature_vars.insert(shape_var);
+          }
+          continue;
         }
         ExprDoc a = d->AsDoc<ExprDoc>(var->ty, var_p->Attr("ty"));
-        args.push_back(AssignDoc(DefineVar(var, *f, d), std::nullopt, a));
+        args.push_back(AssignDoc(scalar_param_docs.at(var.get()), std::nullopt, a));
+        bound_signature_vars.insert(var);
+      }
+      ffi::Optional<ExprDoc> ret_type = std::nullopt;
+      if (!func->ret_type.IsMissing()) {
+        const auto* as_tuple = func->ret_type.as<TupleTypeNode>();
+        if (!as_tuple || as_tuple->fields.size()) {
+          ret_type = d->AsDoc<ExprDoc>(func->ret_type, p->Attr("ret_type"));
+        }
       }
       // Step 2. Handle `func->attrs`
       if (!func->attrs->dict.empty()) {
@@ -147,23 +116,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                               ->Call({d->AsDoc<ExprDoc>(DictAttrs(new_attrs), p->Attr("attrs"))})));
         }
       }
-      // Step 3. Handle `func->buffer_map`
-      for (int i = 0; i < n_args; ++i) {
-        tirx::Var param = func->params[i];
-        if (func->buffer_map.count(param)) {
-          tirx::BufferVar buffer = func->buffer_map[param];
-          if (buffer_inlined.count(buffer.get())) {
-            continue;
-          }
-          ExprDoc param_doc = args[i]->lhs;
-          AccessPath buffer_p = p->Attr("buffer_map")->MapItem(param);
-          ExprDoc lhs = DefineBuffer(buffer, *f, d);
-          ExprDoc rhs = BufferDecl(buffer, "match_buffer", {param_doc}, buffer_p, *f, d,
-                                   BufferVarDefinition::MatchBuffer);
-          (*f)->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
-        }
-      }
-      // Step 4. Handle `func->body`
+      // Step 3. Handle `func->body`
       ffi::Optional<tirx::SBlock> implicit_root_block = [&]() -> ffi::Optional<tirx::SBlock> {
         const tirx::SBlockRealizeNode* root_block_realize =
             func->body.as<tirx::SBlockRealizeNode>();
@@ -200,13 +153,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         AsDocBody(root_block->body, root_block_p->Attr("body"), f->get(), d);
       } else {
         AsDocBody(func->body, p->Attr("body"), f->get(), d);
-      }
-      ffi::Optional<ExprDoc> ret_type = std::nullopt;
-      if (!func->ret_type.IsMissing()) {
-        const auto* as_tuple = func->ret_type.as<TupleTypeNode>();
-        if (!as_tuple || as_tuple->fields.size()) {
-          ret_type = d->AsDoc<ExprDoc>(func->ret_type, p->Attr("ret_type"));
-        }
       }
       // Step 5. Determine if we need to display the private annotation in the decorator
       ExprDoc decorator = TIR(d, "prim_func");

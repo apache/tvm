@@ -956,7 +956,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     //    var's buffers
     // 2. For each output var, replace its instances with the corresponding inplace index var
     // 3. Do the same for the *buffer vars* corresponding to the output vars
-    // 4. Remove the output vars from the param list and buffer map
+    // 4. Remove the output vars from the param list
     ffi::Map<tirx::BufferVar, tirx::BufferVar> buffer_subst_map;
     ffi::Map<tirx::Var, tirx::Var> var_subst_map;
     for (size_t i = 0; i < num_outs; i++) {
@@ -966,8 +966,8 @@ class ModuleInplaceTransformer : public ExprMutator {
       var_subst_map.Set(output_var, inplace_var);
 
       // also do the same with the buffer vars
-      auto output_buffer = old_primfunc->buffer_map.at(output_var);
-      auto inplace_buffer = old_primfunc->buffer_map.at(inplace_var);
+      auto output_buffer = output_var.as_or_throw<tirx::BufferVar>();
+      auto inplace_buffer = inplace_var.as_or_throw<tirx::BufferVar>();
       var_subst_map.Set(output_buffer.var(), inplace_buffer.var());
       buffer_subst_map.Set(output_buffer, inplace_buffer);
     }
@@ -982,19 +982,13 @@ class ModuleInplaceTransformer : public ExprMutator {
                                   return std::nullopt;
                                 });
 
-    // remove the now-unused outputs from the buffer map
-    auto new_buffer_map = old_primfunc->buffer_map;
-    for (size_t i = 0; i < num_outs; i++) {
-      new_buffer_map.erase(old_primfunc->params[num_params - num_outs + i]);
-    }
-
     // now get rid of the last num_outputs arguments
     // (couldn't do earlier or else it would have thrown off the indexing)
     ffi::Array<tirx::Var> new_params(old_primfunc->params.begin(),
                                      old_primfunc->params.begin() + (num_params - num_outs));
 
-    tirx::PrimFunc new_primfunc(new_params, new_body, old_primfunc->ret_type, new_buffer_map,
-                                old_primfunc->attrs, old_primfunc->span);
+    tirx::PrimFunc new_primfunc(new_params, new_body, old_primfunc->ret_type, old_primfunc->attrs,
+                                old_primfunc->span);
 
     // note: this might be a good time to get rid of the old legalized function, but we don't do it
     // now because later ops might need the same one. Instead, we will clean up at the end

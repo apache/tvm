@@ -1204,7 +1204,7 @@ def test_op_call_nested_config_visited_and_substituted():
 
     op_call = selector.body
     assert isinstance(op_call, tir.TilePrimitiveCall)
-    original_b = selector.buffer_map[selector.params[1]]
+    original_b = selector.params[1]
     seen = []
     post_order_visit(selector.body, seen.append)
     assert any(isinstance(node, Var) and node.same_as(selector.params[-1]) for node in seen)

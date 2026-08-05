@@ -39,7 +39,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
  public:
   explicit PatternKindAnalyzer(const tirx::PrimFunc& func) {
     for (const tirx::Var& param : func->params) {
-      ffi::Optional<BufferVar> param_buf = func->buffer_map.Get(param);
+      ffi::Optional<BufferVar> param_buf = param.as<BufferVar>();
       if (param_buf.has_value()) {
         param_buffers_.insert(param_buf.value());
       }
@@ -535,7 +535,7 @@ bool HasReshapePattern(const PrimFunc& func) {
 
   ffi::Array<BufferVar> buffer_args;
   for (const auto& param : func->params) {
-    if (auto buffer = func->buffer_map.Get(param)) {
+    if (auto buffer = param.as<BufferVar>()) {
       buffer_args.push_back(buffer.value());
     }
   }

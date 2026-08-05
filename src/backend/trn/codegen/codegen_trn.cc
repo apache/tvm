@@ -115,7 +115,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
       LOG(FATAL) << "Trainium codegen currently only support buffer arguments";
     };
     std::string vid = AllocVarID(v.get());
-    if (auto buffer = func->buffer_map.Get(v)) {
+    if (auto buffer = v.as<tirx::BufferVar>()) {
       var_idmap_[buffer.value().get()] = vid;
     }
     if (i >= static_cast<size_t>(num_inputs.value())) {

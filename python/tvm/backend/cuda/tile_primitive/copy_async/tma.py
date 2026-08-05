@@ -2208,7 +2208,7 @@ def _emit_plan(
 
     if selector_bind is not None:
         body = tvm.tirx.SeqStmt([selector_bind, impl.body])
-        impl = PrimFunc([], body, ret_type=None, buffer_map={}).with_attr("global_symbol", "impl")
+        impl = PrimFunc([], body, ret_type=None).with_attr("global_symbol", "impl")
     return impl
 
 
