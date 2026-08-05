@@ -247,7 +247,7 @@ def test_constexpr_specializes_nested_selector_condition():
     condition, candidate = op_call.config["src_selector"][0]
     assert isinstance(condition, tvm.tirx.LT)
     assert int(condition.b) == 4
-    assert candidate.same_as(specialized.buffer_map[specialized.params[1]])
+    assert candidate.same_as(specialized.params[1])
 
 
 def test_optional_param_present_and_absent_ir():
@@ -275,10 +275,10 @@ def test_optional_param_present_and_absent_ir():
     absent = kernel.specialize(a=None)
     assert_structural_equal(present, expected_present, map_free_vars=True)
     assert_structural_equal(absent, expected_absent, map_free_vars=True)
-    assert [param.name for param in present.params] == ["a", "out_h"]
-    assert [param.name for param in absent.params] == ["out_h"]
-    assert {param.name for param in present.buffer_map} == {"a", "out_h"}
-    assert {param.name for param in absent.buffer_map} == {"out_h"}
+    assert [param.name for param in present.params] == ["A", "out"]
+    assert [param.name for param in absent.params] == ["out"]
+    assert all(tvm.tirx.is_buffer_var(param) for param in present.params)
+    assert all(tvm.tirx.is_buffer_var(param) for param in absent.params)
 
 
 def test_optional_specialization_cache_includes_presence():
@@ -318,22 +318,22 @@ def test_multiple_optional_params_preserve_runtime_order():
             out[0] = out[0] + B[0]
 
     assert [param.name for param in kernel.specialize().params] == [
-        "first_h",
-        "a",
+        "first",
+        "A",
         "scale",
-        "b",
-        "out_h",
+        "B",
+        "out",
     ]
     assert [param.name for param in kernel.specialize(a=None).params] == [
-        "first_h",
+        "first",
         "scale",
-        "b",
-        "out_h",
+        "B",
+        "out",
     ]
     assert [param.name for param in kernel.specialize(a=None, b=None).params] == [
-        "first_h",
+        "first",
         "scale",
-        "out_h",
+        "out",
     ]
 
 
@@ -384,8 +384,8 @@ def test_compile_time_if_binding_uses_python_scope():
     absent = kernel.specialize(a=None)
     assert len(present.params) == 2
     assert len(absent.params) == 1
-    assert len(present.buffer_map) == 1
-    assert len(absent.buffer_map) == 1
+    assert sum(tvm.tirx.is_buffer_var(param) for param in present.params) == 1
+    assert sum(tvm.tirx.is_buffer_var(param) for param in absent.params) == 1
 
 
 def test_compile_time_bool_ops_and_if_expression_short_circuit():
@@ -402,7 +402,7 @@ def test_compile_time_bool_ops_and_if_expression_short_circuit():
         out[0] = 3 if a is None else fail_if_evaluated()
 
     absent = kernel.specialize(a=None)
-    assert [param.name for param in absent.params] == ["out_h"]
+    assert [param.name for param in absent.params] == ["out"]
 
 
 def test_runtime_tir_if_cannot_guard_absent_optional_param():

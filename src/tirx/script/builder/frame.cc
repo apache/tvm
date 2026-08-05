@@ -113,39 +113,53 @@ void PrimFuncFrameNode::ExitWithScope() {
   }
   // s_tir-mode normalization: drop stale default layouts (see comment on
   // STirBufferLayoutNormalizer above) and rewrite body references coherently.
-  ffi::Map<tvm::tirx::Var, tvm::tirx::BufferVar> effective_buffer_map = buffer_map;
   ffi::Array<tvm::tirx::BufferVar> effective_root_alloc_buffers = root_alloc_buffers;
   tvm::tirx::Stmt body = AsStmt(stmts);
-  if (s_tir) {
-    STirBufferLayoutNormalizer normalizer;
-    ffi::Map<tvm::tirx::Var, tvm::tirx::BufferVar> new_buffer_map;
-    for (const auto& kv : buffer_map) {
-      tvm::tirx::BufferVar buf = kv.second;
-      if (buf->layout.has_value()) {
-        ffi::ObjectPtr<tvm::tirx::BufferTypeNode> type = tvm::tirx::CopyBufferType(buf);
-        type->layout = std::nullopt;
-        tvm::tirx::BufferVar new_buf = tvm::tirx::RebuildBufferVar(buf, std::move(type));
-        normalizer.Register(buf, new_buf);
-        new_buffer_map.Set(kv.first, new_buf);
-      } else {
-        new_buffer_map.Set(kv.first, buf);
-      }
+  STirBufferLayoutNormalizer normalizer;
+  ffi::Array<tvm::tirx::Var> effective_args;
+  ffi::Map<tvm::tirx::Var, tvm::Expr> param_replacements;
+  for (const tvm::tirx::Var& arg : args) {
+    ffi::Optional<tvm::tirx::BufferVar> opt_buffer = buffer_map.Get(arg);
+    bool replaces_legacy_param = opt_buffer.has_value();
+    if (!opt_buffer.has_value() && arg->ty.as<tvm::tirx::BufferTypeNode>()) {
+      opt_buffer = tvm::tirx::BufferVar(arg);
     }
-    if (!normalizer.Empty()) {
-      body = normalizer(std::move(body));
-      ffi::Array<tvm::tirx::BufferVar> new_root_alloc_buffers;
-      for (const tvm::tirx::BufferVar& buf : root_alloc_buffers) {
-        new_root_alloc_buffers.push_back(normalizer.Lookup(buf));
-      }
-      effective_buffer_map = std::move(new_buffer_map);
-      effective_root_alloc_buffers = std::move(new_root_alloc_buffers);
+    if (!opt_buffer.has_value()) {
+      effective_args.push_back(arg);
+      continue;
+    }
+    tvm::tirx::BufferVar buffer = opt_buffer.value();
+    if (s_tir && buffer->layout.has_value()) {
+      ffi::ObjectPtr<tvm::tirx::BufferTypeNode> type = tvm::tirx::CopyBufferType(buffer);
+      type->layout = std::nullopt;
+      tvm::tirx::BufferVar new_buffer = tvm::tirx::RebuildBufferVar(buffer, std::move(type));
+      normalizer.Register(buffer, new_buffer);
+      buffer = new_buffer;
+    }
+    effective_args.push_back(buffer.var());
+    if (replaces_legacy_param && !arg.same_as(buffer.var()) &&
+        !arg->ty.as<tvm::tirx::BufferTypeNode>()) {
+      tvm::Expr data = buffer.data();
+      param_replacements.Set(arg, ffi::StructuralEqual()(arg->ty, data->ty)
+                                      ? data
+                                      : tvm::reinterpret(arg->ty, std::move(data)));
     }
   }
+  if (!normalizer.Empty()) {
+    body = normalizer(std::move(body));
+    ffi::Array<tvm::tirx::BufferVar> new_root_alloc_buffers;
+    for (const tvm::tirx::BufferVar& buffer : root_alloc_buffers) {
+      new_root_alloc_buffers.push_back(normalizer.Lookup(buffer));
+    }
+    effective_root_alloc_buffers = std::move(new_root_alloc_buffers);
+  }
+  if (!param_replacements.empty()) {
+    body = tvm::tirx::Substitute(std::move(body), param_replacements);
+  }
   tvm::tirx::PrimFunc func(
-      /*params=*/args,
+      /*params=*/effective_args,
       /*body=*/body,
       /*ret_type=*/ret_type.value_or(TupleType::Empty()),
-      /*buffer_map=*/effective_buffer_map,
       /*attrs=*/attrs.defined() ? DictAttrs(attrs) : DictAttrs(),
       /*span=*/tvm::Span());
   func = tvm::tirx::ScriptComplete(func, effective_root_alloc_buffers, s_tir);

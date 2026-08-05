@@ -44,12 +44,10 @@ using ffi::reflection::AccessStep;
 // ============================================================
 
 TVMFFIABIBuilder::TVMFFIABIBuilder(const ffi::String& func_name, const ffi::Array<Var>& params,
-                                   const ffi::Map<Var, BufferVar>& buffer_map,
                                    const Var& v_packed_args, const Var& v_num_packed_args,
                                    const PrimExpr& device_type, const PrimExpr& device_id)
     : func_name_(func_name),
       params_(params),
-      buffer_map_(buffer_map),
       v_packed_args_(v_packed_args),
       device_type_(device_type),
       device_id_(device_id) {
@@ -59,21 +57,20 @@ TVMFFIABIBuilder::TVMFFIABIBuilder(const ffi::String& func_name, const ffi::Arra
   for (size_t i = 0; i < params.size(); ++i) {
     if (i > 0) os << ", ";
     Var param = params[i];
-    if (buffer_map.count(param)) {
-      BufferVar buf = buffer_map[param];
-      std::string buf_name = buf.name();
+    if (auto buf = param.as<BufferVar>()) {
+      std::string buf_name = buf.value().name();
       os << buf_name << ": Tensor([";
-      for (size_t j = 0; j < buf->shape.size(); ++j) {
+      for (size_t j = 0; j < buf.value()->shape.size(); ++j) {
         if (j > 0) os << ", ";
         std::ostringstream shape_os;
-        if (auto var = buf->shape[j].as<PrimVar>()) {
+        if (auto var = buf.value()->shape[j].as<PrimVar>()) {
           shape_os << ((*var)->name.empty() ? "v" : (*var)->name.c_str());
         } else {
-          shape_os << buf->shape[j];
+          shape_os << buf.value()->shape[j];
         }
         os << shape_os.str();
       }
-      os << "], " << buf->dtype->dtype << ")";
+      os << "], " << buf.value()->dtype->dtype << ")";
       param_names_[static_cast<int>(i)] = buf_name;
     } else {
       os << param->name << ": ";
@@ -486,7 +483,7 @@ Expr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int par
 
 Expr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const PrimExpr& type_index) {
   // ── Type check: accept handle-like types ───────────────────
-  std::string expected_type = buffer_map_.count(params_[param_index]) ? "Tensor" : "pointer";
+  std::string expected_type = params_[param_index]->ty.as<BufferTypeNode>() ? "Tensor" : "pointer";
   EmitTypeIndexCheck(param_index,
                      type_index == ffi::TypeIndex::kTVMFFINone ||
                          type_index == ffi::TypeIndex::kTVMFFIOpaquePtr ||
@@ -557,6 +554,14 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
   ffi::reflection::AccessPath param_path =
       ffi::reflection::AccessPath::Root()->Extend(AccessStep::ArrayItem(param_index));
 
+  if (param->ty.as<BufferTypeNode>()) {
+    Var handle(param->name + ".handle", PointerType::VoidPointerTy());
+    Expr handle_value = DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());
+    BindPointer(handle, handle_value, param_path, true);
+    buffer_handles_.emplace(param.get(), handle);
+    return;
+  }
+
   if (param->ty.as<PointerTypeNode>()) {
     Expr handle_value = DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());
     Expr pointer_value = Call(param->ty, builtin::reinterpret(), {handle_value});
@@ -597,14 +602,14 @@ void TVMFFIABIBuilder::DecodeAllParams() {
   // Phase 2: Bind DLTensor buffers (shape, strides, dtype, device checks)
   for (int i = 0; i < num_args; ++i) {
     Var param = params_[i];
-    if (buffer_map_.count(param)) {
-      BufferVar buffer = buffer_map_[param];
+    if (auto buffer = param.as<BufferVar>()) {
+      Var handle = buffer_handles_.at(param.get());
       ffi::reflection::AccessPath param_path = ffi::reflection::AccessPath::Root()
                                                    ->Extend(AccessStep::ArrayItem(i))
-                                                   ->Attr(ffi::String(buffer.name()));
-      Expr data = DecodeParamDLTensor(buffer, device_type_, device_id_, param,
+                                                   ->Attr(ffi::String(buffer.value().name()));
+      Expr data = DecodeParamDLTensor(buffer.value(), device_type_, device_id_, handle,
                                       func_name_ + "." + param->name, param_path);
-      decl_buffers_.push_back(DeclBuffer(buffer, data));
+      decl_buffers_.push_back(DeclBuffer(buffer.value(), data));
     }
   }
 }

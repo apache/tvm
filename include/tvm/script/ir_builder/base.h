@@ -39,7 +39,7 @@ namespace ir_builder {
  *
  * \example
  *
- * The `T::MatchBuffer` below adds an element in `PrimFuncNode::buffer_map`:
+ * The `T::MatchBuffer` below annotates a PrimFunc parameter with BufferType:
  *
  * \code {.cpp}
  *

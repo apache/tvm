@@ -376,8 +376,8 @@ def test_sequential_redefinition_with_location():
     assert "was re-defined at" in error_msg
 
 
-def test_buffer_in_buffer_map_is_well_formed():
-    """Buffers defined via function parameter buffer_map are in scope for the body."""
+def test_buffer_param_is_well_formed():
+    """BufferType-annotated parameters are in scope for the body."""
 
     @T.prim_func(s_tir=True)
     def func(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
@@ -444,7 +444,7 @@ def test_error_undeclared_buffer_in_schedulable_tir():
     i = tvm.tirx.Var("i", "int32")
 
     # Create an undeclared buffer using an explicit data pointer that is NOT
-    # in the buffer_map and NOT wrapped with DeclBuffer.
+    # a function parameter and NOT wrapped with DeclBuffer.
     B_data = tvm.tirx.Var("B_data", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
     B = tvm.tirx.decl_buffer([n], "float32", name="B", data=B_data)
 
@@ -466,7 +466,7 @@ def test_error_undeclared_buffer_in_schedulable_tir():
     prim_func = tvm.tirx.PrimFunc(
         params=[A, B_data],
         body=tvm.tirx.For(i, 0, n, tvm.tirx.ForKind.SERIAL, block_realize),
-        # Note: B is NOT in buffer_map, so its declaration scope is only
+        # Note: B is NOT a function parameter, so its declaration scope is only
         # within a DeclBuffer node (which we intentionally omit here).
     )
 

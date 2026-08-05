@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring, missing-module-docstring
-# ruff: noqa: F401, F841
+# ruff: noqa: F401
 
 import pytest
 
@@ -194,7 +194,7 @@ def test_specialize_matmul():
 
 def test_specialize_elemwise():
     a, c = element_wise.params
-    C = element_wise.buffer_map[c]
+    C = c
     # fully specialized
     func = element_wise.specialize({a: tvm.tirx.decl_buffer((128, 64))})
     assert_structural_equal_ignore_global_symbol(func, element_wise_128_64)
@@ -280,17 +280,14 @@ def test_specialize_buffer_var_to_var():
         for i in range(256):
             B_flat[i] = A_flat[i] * 2.0
 
-    # well-formed checker complains about multiple nested definitions of B_flat
-    # since it appears in the buffer map twice
-    @T.prim_func(private=True, check_well_formed=False, s_tir=True)
-    def expected(A: T.Buffer([16, 16], "float32"), B_handle: T.handle):
-        B = T.match_buffer(B_handle, [16, 16], "float32", data=A.data)
+    @T.prim_func(private=True, s_tir=True)
+    def expected(A: T.Buffer([16, 16], "float32")):
         A_flat = T.decl_buffer([256], "float32", data=A.data)
         B_flat = T.decl_buffer([256], "float32", data=A.data)
         for i in range(256):
             B_flat[i] = A_flat[i] * 2.0
 
-    A = before.buffer_map[before.params[0]]
+    A = before.params[0]
     B_handle = before.params[1]
     param_map = {B_handle: A}
     after = before.specialize(param_map)

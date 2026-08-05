@@ -104,7 +104,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     analyzer->rewrite_simplify.SetEnabledExtensions(config->GetEnabledExtensions());
 
     StmtSimplifier simplifier(analyzer, config);
-    simplifier.MarkBufferMapShapes(func);
+    simplifier.MarkBufferParamShapes(func);
     func.CopyOnWrite()->body = simplifier(func->body);
     return func;
   }

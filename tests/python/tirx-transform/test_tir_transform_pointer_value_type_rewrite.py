@@ -157,7 +157,7 @@ def test_decl_buffer_alias_chain_uses_flat_root_map():
     After = transform(Before)
     assert tvm.tirx.analysis.verify_well_formed(After)
     func = After["main"]
-    assert next(iter(func.buffer_map.values())).ty.dtype == tvm.ir.PrimType("float32x4")
+    assert func.params[0].ty.dtype == tvm.ir.PrimType("float32x4")
 
     decl_buffers = []
     buffer_stores = []

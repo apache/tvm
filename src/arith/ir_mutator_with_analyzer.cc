@@ -153,10 +153,14 @@ void EnterConstraintFacts(WithGroup<ConstraintContext>* constraints, AnalyzerObj
 
 }  // namespace
 
-void IRMutatorWithAnalyzer::MarkBufferMapShapes(const tirx::PrimFunc& func) {
-  // Mark the all the symbolic buffer shape values in the buffer map as positive value.
-  for (auto kv : func->buffer_map) {
-    for (PrimExpr shape : kv.second->shape) {
+void IRMutatorWithAnalyzer::MarkBufferParamShapes(const tirx::PrimFunc& func) {
+  // Mark all symbolic buffer-parameter shape values as positive.
+  for (const tirx::Var& param : func->params) {
+    if (!param->ty.as<tirx::BufferTypeNode>()) {
+      continue;
+    }
+    tirx::BufferVar buffer(param);
+    for (PrimExpr shape : buffer->shape) {
       analyzer_->MarkGlobalNonNegValue(shape);
     }
   }
