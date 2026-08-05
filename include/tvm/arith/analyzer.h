@@ -595,6 +595,20 @@ class IntSetAnalyzer {
   Impl* impl_;
 };
 
+/*!
+ * \brief Enter a thread-local Z3 context scope.
+ *
+ * The outermost scope creates a fresh Z3 context. Nested scopes on the same
+ * thread reuse that context so all Analyzers created during one compilation
+ * can share it.
+ */
+TVM_DLL void EnterZ3ContextScope();
+
+/*!
+ * \brief Exit the current thread-local Z3 context scope.
+ */
+TVM_DLL void ExitZ3ContextScope();
+
 class Z3Prover {
  public:
   /*!
