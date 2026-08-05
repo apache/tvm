@@ -678,6 +678,34 @@ def test_z3_opaque_call_is_safe():
     assert not analyzer.can_prove(call > 0, SB)
 
 
+def test_z3_memo_pool_reuse_survives_clone():
+    analyzer = Analyzer()
+    _require_z3(analyzer)
+
+    # BufferLoad is read-state, so these expressions are memoized only for the
+    # duration of the query and then erased.  This leaves holes in the Z3 memo
+    # pool that subsequent pure expressions must be able to reuse safely.
+    buffer = tirx.decl_buffer((16,), "int32")
+    read_expr = tirx.all(*(buffer[i] >= 0 for i in range(16)))
+    assert not analyzer.can_prove(read_expr, SB)
+
+    a = tirx.Var("a", "int32")
+    b = tirx.Var("b", "int32")
+    c = tirx.Var("c", "int32")
+    analyzer.bind(a, tvm.ir.Range(1, 100000))
+    analyzer.bind(b, tvm.ir.Range(1, 100000))
+    analyzer.bind(c, tvm.ir.Range(1, 100000))
+    expr = ((b - a) // c) * c + a <= b
+    assert analyzer.can_prove(expr, SB)
+
+    # Cloning must replay only live memo entries in slot order, even when the
+    # source pool contains erased and reused slots.
+    cloned = analyzer.clone()
+    del analyzer
+    gc.collect()
+    assert cloned.can_prove(expr, SB)
+
+
 def test_z3_shift_overflow_is_not_proven():
     # Z3 models fixed-width shifts via bit-vectors, so it correctly refuses to
     # prove `x << n >= x` for an unbounded `x` (a large `x` overflows int32 and
