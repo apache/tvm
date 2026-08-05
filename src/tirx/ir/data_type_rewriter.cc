@@ -693,7 +693,7 @@ Expr IndexDataTypeNormalizer::VisitExpr_(const CastNode* op) {
   // has some other purpose, and we should not unwrap the cast.
   PrimType dtype = op->ty.as_or_throw<PrimType>();
   if (is_enabled_ && CanRewriteDType(dtype)) {
-    PrimExpr value = IndexDataTypeNormalizer::VisitPrimExpr(op->value);
+    PrimExpr value = this->VisitPrimExpr(op->value);
     return value.ty() == target_data_type_ ? value : Cast(target_data_type_, value);
   }
   return IndexDataTypeRewriter::VisitExpr_(op);
