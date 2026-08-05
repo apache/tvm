@@ -93,6 +93,30 @@ def test_z3_context_lifetime_outlives_worker_thread():
     gc.collect()
 
 
+def test_z3_context_scope_clone_lifetime():
+    _require_z3(Analyzer())
+
+    a = tirx.Var("a", "int32")
+    b = tirx.Var("b", "int32")
+    c = tirx.Var("c", "int32")
+    expr = ((b - a) // c) * c + a <= b
+
+    with tvm.arith.Z3ContextScope():
+        analyzer = Analyzer()
+        analyzer.bind(a, tvm.ir.Range(1, 100000))
+        analyzer.bind(b, tvm.ir.Range(1, 100000))
+        analyzer.bind(c, tvm.ir.Range(1, 100000))
+        assert analyzer.can_prove(expr, SB)
+
+    # Clone while a different scope is active. The clone must adopt the
+    # source Analyzer's context before copying any Z3 handles.
+    with tvm.arith.Z3ContextScope():
+        cloned = analyzer.clone()
+
+    del analyzer
+    assert cloned.can_prove(expr, SB)
+
+
 # ---------------------------------------------------------------------------
 # Examples the native analyzer cannot prove but Z3 can.
 #
