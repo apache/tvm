@@ -95,7 +95,48 @@ struct Namespace {
   }
 };
 
+struct Z3ContextState {
+  std::shared_ptr<z3::context> fallback_context;
+  std::shared_ptr<z3::context> scoped_context;
+  size_t scope_depth{0};
+};
+
+Z3ContextState& GetZ3ContextState() {
+  static thread_local Z3ContextState state;
+  return state;
+}
+
+std::shared_ptr<z3::context> GetCurrentZ3Context() {
+  auto& state = GetZ3ContextState();
+  if (state.scope_depth != 0) {
+    TVM_FFI_ICHECK(state.scoped_context != nullptr);
+    return state.scoped_context;
+  }
+  if (state.fallback_context == nullptr) {
+    state.fallback_context = std::make_shared<z3::context>();
+  }
+  return state.fallback_context;
+}
+
 }  // namespace
+
+void EnterZ3ContextScope() {
+  auto& state = GetZ3ContextState();
+  if (state.scope_depth == 0) {
+    state.scoped_context = std::make_shared<z3::context>();
+  }
+  ++state.scope_depth;
+}
+
+void ExitZ3ContextScope() {
+  auto& state = GetZ3ContextState();
+  TVM_FFI_ICHECK_GT(state.scope_depth, 0U)
+      << "ExitZ3ContextScope called without a matching EnterZ3ContextScope";
+  --state.scope_depth;
+  if (state.scope_depth == 0) {
+    state.scoped_context.reset();
+  }
+}
 
 class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
  public:
@@ -103,20 +144,49 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   using Self = Z3Prover::Impl;
 
   AnalyzerObj* analyzer;
-  // Keep a reference to the thread-local context for the whole lifetime of this
-  // prover. Schedules created on worker threads may be destroyed after the
-  // worker exits, so storing only a raw reference in z3::solver is not enough.
-  static std::shared_ptr<z3::context> GetThreadLocalContext() {
-    static thread_local std::shared_ptr<z3::context> local_ctx = std::make_shared<z3::context>();
-    return local_ctx;
-  }
-  std::shared_ptr<z3::context> ctx{GetThreadLocalContext()};
+  // Analyzers created in one compile scope share a context. Keeping the pointer
+  // on each prover also lets Analyzers and their clones outlive that scope.
+  std::shared_ptr<z3::context> ctx;
 
   /// @brief Z3 solver instance
-  z3::solver solver{*ctx};
+  std::optional<z3::solver> solver;
 
-  /// @brief Memorize pure expressions
-  std::unordered_map<PrimExpr, z3::expr, StructuralHash, ExprDeepEqual> memo_;
+  /// @brief Memoized PrimExpr -> slot in z3_pool_. Holds no Z3 handles, so
+  /// its pointer-hashed bucket order cannot affect Z3 object lifetime.
+  std::unordered_map<PrimExpr, size_t, StructuralHash, ExprDeepEqual> memo_;
+
+  /// @brief Slots owning the memoized Z3 handles, plus a free-slot stack.
+  /// Handles are created and released only at fixed points of the execution
+  /// path (never in hash-bucket order), so Z3's AST-ID recycling -- and thus
+  /// solver behavior under rlimit -- stays deterministic across processes.
+  std::vector<std::optional<z3::expr>> z3_pool_;
+  std::vector<size_t> free_slots_;
+
+  void MemoPut(const PrimExpr& expr, const z3::expr& z3_expr) {
+    auto [it, inserted] = memo_.emplace(expr, 0);
+    if (!inserted) return;
+    if (free_slots_.empty()) {
+      it->second = z3_pool_.size();
+      z3_pool_.emplace_back(z3_expr);
+    } else {
+      it->second = free_slots_.back();
+      free_slots_.pop_back();
+      z3_pool_[it->second] = z3_expr;
+    }
+  }
+
+  void MemoErase(const PrimExpr& expr) {
+    auto it = memo_.find(expr);
+    if (it == memo_.end()) return;
+    z3_pool_[it->second].reset();
+    free_slots_.push_back(it->second);
+    memo_.erase(it);
+  }
+
+  const z3::expr* MemoGet(const PrimExpr& expr) const {
+    auto it = memo_.find(expr);
+    return it == memo_.end() ? nullptr : &*z3_pool_[it->second];
+  }
 
   /// @brief Namespace for variable naming
   Namespace ns;
@@ -129,17 +199,17 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
 
   /// @brief Create a z3 solver with custom options
   static z3::solver CreateSolver(z3::context& ctx) {
-    z3::solver solver(ctx);
+    z3::solver result(ctx);
     // here we disable model generation to speed up the solving process
-    solver.set("model", false);
+    result.set("model", false);
     // ensure determinstic behavior
-    solver.set("random_seed", (unsigned)42);
-    return solver;
+    result.set("random_seed", (unsigned)42);
+    return result;
   }
 
-  Impl(AnalyzerObj* parent) : analyzer(parent) {
+  Impl(AnalyzerObj* parent)
+      : analyzer(parent), ctx(GetCurrentZ3Context()), solver(CreateSolver(*ctx)) {
     scope_stack_.push_back({});
-    solver = CreateSolver(*ctx);
     // use rlimit, not timeout to ensure deterministic behavior
     SetRLimit(10000U);
   }
@@ -155,11 +225,11 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     } else {
       z3::expr e = ctx->int_const(name.c_str());
       if (dtype.MatchesCode(DLDataTypeCode::kDLUInt) && dtype.bits() == 64) {
-        solver.add(ctx->int_val(0) <= e && e <= ctx->int_val((uint64_t)UINT64_MAX));
+        solver->add(ctx->int_val(0) <= e && e <= ctx->int_val((uint64_t)UINT64_MAX));
       } else {
         auto min_val = min_value(dtype).as_or_throw<IntImm>()->value;
         auto max_val = max_value(dtype).as_or_throw<IntImm>()->value;
-        solver.add(ctx->int_val(min_val) <= e && e <= ctx->int_val(max_val));
+        solver->add(ctx->int_val(min_val) <= e && e <= ctx->int_val(max_val));
       }
       return e;
     }
@@ -187,15 +257,15 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     scope_stack_.push_back({});
     scope_stack_.back().push_back(
         Scope{Scope::Constraint, Var(), PrimExpr(), PrimExpr(), PrimExpr(), constraint});
-    solver.push();
-    solver.add(VisitBool(constraint));
+    solver->push();
+    solver->add(VisitBool(constraint));
     auto side_effect_exprs = std::move(side_effect_exprs_);
     side_effect_exprs_.clear();
     for (const auto& expr : side_effect_exprs) {
-      memo_.erase(expr);
+      MemoErase(expr);
     }
     return [this]() {
-      solver.pop();
+      solver->pop();
       scope_stack_.pop_back();
     };
   }
@@ -252,7 +322,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
       if (!IsZ3SupportedExpr(expr.get())) return false;
       z3::expr_vector constr(*ctx);
       constr.push_back(!ConvertBool(expr));
-      auto result = solver.check(constr);
+      auto result = solver->check(constr);
       constr.pop_back();
       return result == z3::unsat;
     } catch (const z3::exception&) {
@@ -267,7 +337,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     scope_stack_.back().push_back(Scope{Scope::BindValue, var, value});
     // we add the binding whenever the value is pure,
     // because non-pure parts are handling by creating free variables in VisitExpr
-    memo_.emplace(var.as_or_throw<PrimExpr>(), ConvertInt(value));
+    MemoPut(var.as_or_throw<PrimExpr>(), ConvertInt(value));
   }
 
   /// @brief Bind a variable to a range
@@ -279,7 +349,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     //    if the var is overrided later, we can just update the memo, and the old placeholder will
     //    be ignored
     auto var_expr = Create(var.get());
-    memo_.emplace(var.as_or_throw<PrimExpr>(), var_expr);
+    MemoPut(var.as_or_throw<PrimExpr>(), var_expr);
 
     // 2. Add constraint on the placeholder
     //    when min_expr >= max_expr, the range is empty, which is under undefined behavior
@@ -295,49 +365,59 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
       int64_t extent_value = *tirx::as_const_int(range->extent);
       int64_t max_value = min_value + extent_value;
       if (min_value < max_value) {
-        solver.add(ctx->int_val(min_value) <= var_expr);
-        solver.add(var_expr < ctx->int_val(max_value));
+        solver->add(ctx->int_val(min_value) <= var_expr);
+        solver->add(var_expr < ctx->int_val(max_value));
       }
     } else {
       PrimExpr prim_var = var.as_or_throw<PrimExpr>();
-      solver.add(ConvertBool(range->extent <= 0 ||
-                             (range->min <= prim_var && prim_var < range->min + range->extent)));
+      solver->add(ConvertBool(range->extent <= 0 ||
+                              (range->min <= prim_var && prim_var < range->min + range->extent)));
     }
   }
 
   void CopyFrom(const Self& other_) {
-    // 1. create a new solver
-    //    because this->solver depends on this->ctx
-    //    we need to deconstruct the old solver, and create a new one depending on this->ctx
-    solver = CreateSolver(*ctx);
-    // 2. ctx is owned by this Impl and pins the underlying thread-local context for the lifetime
-    //    of solver and memoized expressions.
-    // 3. copy other objects
+    // Z3 handles cannot move between contexts. Destroy every handle owned by
+    // this fresh clone before adopting the source Analyzer's context.
+    solver.reset();
+    memo_.clear();
+    z3_pool_.clear();
+    free_slots_.clear();
+    ctx = other_.ctx;
+    solver.emplace(CreateSolver(*ctx));
+
+    // Copy other objects. The source and destination now share one context, so
+    // copying Z3 handles is valid and both provers retain its ownership.
     ns = other_.ns;
+    std::vector<std::pair<size_t, const PrimExpr*>> live;
+    live.reserve(other_.memo_.size());
     for (auto& item : other_.memo_) {
-      memo_.emplace(item.first, item.second);
+      live.emplace_back(item.second, &item.first);
     }
-    for (auto a : other_.solver.assertions()) {
-      solver.add(a);
+    std::sort(live.begin(), live.end(),
+              [](const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
+    for (auto [index, expr] : live) {
+      MemoPut(*expr, *other_.z3_pool_[index]);
     }
-    // 4. copy timeout options
-    //    but other solver options are not copied
+    for (auto a : other_.solver->assertions()) {
+      solver->add(a);
+    }
+    // Copy timeout options, but not other solver options.
     SetTimeoutMs(other_.timeout_ms);
     SetRLimit(other_.rlimit);
-    // 5. copy the scope stack, which containing comments for SMTLIB2 generation
+    // Copy the scope stack, which contains comments for SMTLIB2 generation.
     scope_stack_ = other_.scope_stack_;
   }
 
   /// @brief Set timeout in milliseconds
   void SetTimeoutMs(unsigned timeout_ms) {
     this->timeout_ms = timeout_ms;
-    solver.set("timeout", timeout_ms);
+    solver->set("timeout", timeout_ms);
   }
 
   /// @brief Set max steps
   void SetRLimit(unsigned rlimit) {
     this->rlimit = rlimit;
-    solver.set("rlimit", rlimit);
+    solver->set("rlimit", rlimit);
   }
 
   /// @brief Get the SMTLIB2 representation of the current solver state
@@ -345,7 +425,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     std::stringstream ss;
     ss << "(set-option :timeout " << timeout_ms << ")\n";
     AddScopeDebugMsg(ss);
-    ss << solver.to_smt2();
+    ss << solver->to_smt2();
     return ss.str();
   }
 
@@ -376,28 +456,28 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     ss << "(set-option :timeout " << timeout_ms << ")\n";
     AddScopeDebugMsg(ss);
     ss << "; Trying to prove: " << expr << "\n";
-    solver.push();
-    solver.add(!ConvertBool(expr));
-    ss << solver.to_smt2();
-    solver.pop();
+    solver->push();
+    solver->add(!ConvertBool(expr));
+    ss << solver->to_smt2();
+    solver->pop();
     return ss.str();
   }
 
   /// @brief Get the statistics of the solver
   ffi::String GetStats() {
     std::stringstream ss;
-    ss << solver.statistics();
+    ss << solver->statistics();
     return ss.str();
   }
 
   ffi::String GetModel(const PrimExpr& expr) {
-    solver.set("model", true);
-    solver.push();
-    solver.add(!ConvertBool(expr));
-    auto result = solver.check();
+    solver->set("model", true);
+    solver->push();
+    solver->add(!ConvertBool(expr));
+    auto result = solver->check();
     ffi::String model_str;
     if (result == z3::sat) {
-      z3::model m = solver.get_model();
+      z3::model m = solver->get_model();
       std::map<std::string, z3::expr> model_map;
       for (unsigned i = 0; i < m.size(); i++) {
         z3::func_decl d = m[i];
@@ -409,8 +489,8 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
       }
       model_str = ss.str();
     }
-    solver.pop();
-    solver.set("model", false);
+    solver->pop();
+    solver->set("model", false);
     return model_str;
   }
 
@@ -432,8 +512,8 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
       return -1;
     }
 
-    solver.set("model", true);
-    solver.push();
+    solver->set("model", true);
+    solver->push();
 
     // Convert the TVM variable to Z3 expression
     z3::expr z3_var = VisitInt(var.as_or_throw<PrimExpr>());
@@ -442,12 +522,12 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     std::vector<int64_t> found_values;
 
     while (count < max_count) {
-      auto result = solver.check();
+      auto result = solver->check();
       if (result != z3::sat) {
         break;  // No more solutions
       }
 
-      z3::model m = solver.get_model();
+      z3::model m = solver->get_model();
       z3::expr val_expr = m.eval(z3_var, true);
 
       // Extract the integer value from Z3 expression
@@ -463,15 +543,15 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
       count++;
 
       // Add blocking clause: var != val (exclude this solution)
-      solver.add(z3_var != ctx->int_val(val));
+      solver->add(z3_var != ctx->int_val(val));
     }
 
-    solver.pop();
-    solver.set("model", false);
+    solver->pop();
+    solver->set("model", false);
 
     // Clear any side effects from visiting the variable
     for (const auto& expr : side_effect_exprs_) {
-      memo_.erase(expr);
+      MemoErase(expr);
     }
     side_effect_exprs_.clear();
 
@@ -511,7 +591,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   z3::expr ConvertBool(const PrimExpr& e) {
     auto res = VisitBool(e);
     for (auto& expr : side_effect_exprs_) {
-      memo_.erase(expr);
+      MemoErase(expr);
     }
     side_effect_exprs_.clear();
     return res;
@@ -520,7 +600,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   z3::expr ConvertInt(const PrimExpr& e) {
     auto res = VisitInt(e);
     for (auto& expr : side_effect_exprs_) {
-      memo_.erase(expr);
+      MemoErase(expr);
     }
     side_effect_exprs_.clear();
     return res;
@@ -529,15 +609,15 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   /// @brief Visit expression with memoization
   z3::expr VisitExpr(const Expr& expr) override {
     PrimExpr e = expr.as_or_throw<PrimExpr>();
-    if (memo_.count(e)) {
-      return memo_.at(e);
+    if (const z3::expr* hit = MemoGet(e)) {
+      return *hit;
     }
     auto res = Base::VisitExpr(e);
     auto side_effect = SideEffect(e);
     if (side_effect <= CallEffectKind::kPure) {
-      memo_.emplace(e, res);
+      MemoPut(e, res);
     } else if (side_effect <= CallEffectKind::kReadState) {
-      memo_.emplace(e, res);
+      MemoPut(e, res);
       side_effect_exprs_.emplace_back(e);
     } else {
       side_effect_exprs_.emplace_back(e);
@@ -597,7 +677,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
 
   z3::expr VisitExpr_(const LetNode* op) override {
     if (IsZ3SupportedExpr(op->var.get())) {
-      memo_.emplace(op->var.as_or_throw<PrimExpr>(), VisitInt(op->value));
+      MemoPut(op->var.as_or_throw<PrimExpr>(), VisitInt(op->value));
     }
     return VisitExpr(op->body);
   }
@@ -840,6 +920,9 @@ namespace tvm::arith {
 
 using namespace tirx;
 using namespace ffi;
+
+void EnterZ3ContextScope() {}
+void ExitZ3ContextScope() {}
 
 // Stub implementation used when Z3 support is not built. All proving queries
 // conservatively report "cannot prove" while keeping the public API available.

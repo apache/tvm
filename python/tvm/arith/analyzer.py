@@ -117,6 +117,21 @@ class ConstraintScope:
         self._fexit()
 
 
+class Z3ContextScope:
+    """Share one fresh Z3 context across Analyzers created in this scope.
+
+    The outermost scope creates the context. Nested scopes on the same thread
+    reuse it, and exiting the outermost scope releases its ownership.
+    """
+
+    def __enter__(self):
+        _ffi_api.EnterZ3ContextScope()
+        return self
+
+    def __exit__(self, ptype, value, trace):
+        _ffi_api.ExitZ3ContextScope()
+
+
 @tvm_ffi.register_object("arith.Analyzer")
 class Analyzer(Object):
     """Integer arithmetic analyzer

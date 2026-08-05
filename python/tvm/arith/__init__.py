@@ -32,6 +32,7 @@ from .analyzer import (
     ProofStrength,
     Extension,
     CompareResult,
+    Z3ContextScope,
     allow_uint_as_index,
 )
 from .bound import deduce_bound
