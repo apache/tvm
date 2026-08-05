@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F811, F841
+# ruff: noqa: F841
 import pytest
 
 import tvm
@@ -205,7 +205,7 @@ def test_i16_buffer():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_fail_on_buffer_map():
+def test_fail_on_buffer_param():
     @T.prim_func(private=True, s_tir=True)
     def func(A: T.Buffer((128,), "int64"), B: T.Buffer((128,), "int64")):
         for i in T.serial(0, 16):
@@ -219,7 +219,7 @@ def test_fail_on_buffer_map():
         tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
 
 
-def test_fail_on_buffer_map():
+def test_fail_on_internal_buffer():
     @T.prim_func(private=True, s_tir=True)
     def func(A: T.Buffer((128,), "int32"), B: T.Buffer((128,), "int32")):
         C = T.sblock_alloc_buffer((128,), "int64")

@@ -69,12 +69,12 @@ class IRMutatorWithAnalyzer : public tirx::StmtExprMutator {
 
  protected:
   /*!
-   * \brief Mark the all the buffer shape values in the buffer map as positive value.
+   * \brief Mark all buffer-parameter shape values as positive values.
    *
    * \note call this function before Visit function's body to maximize
    *       simplification efficiency
    */
-  void MarkBufferMapShapes(const tirx::PrimFunc& func);
+  void MarkBufferParamShapes(const tirx::PrimFunc& func);
 
   /*!
    * \brief Use internal bound information to perform inter map simplification of indices.

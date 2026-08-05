@@ -635,14 +635,18 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
   buffer_remap_.clear();
   ivmap_.clear();
   // start rewrite
-  ffi::Map<Var, BufferVar> new_buffer_map = func->buffer_map;
-  for (const auto& [var, buffer] : func->buffer_map) {
-    new_buffer_map.Set(var, VisitBufferDef(buffer, /*alloc_data=*/true));
+  for (const Var& param : func->params) {
+    if (auto buffer = param.as<BufferVar>()) {
+      VisitBufferDef(buffer.value(), /*alloc_data=*/true);
+    }
   }
   // remap params
   bool is_enabled = true;
   std::swap(is_enabled_, is_enabled);
   ffi::Array<Var> params = func->params.Map([this](Var param) {
+    if (auto buffer = param.as<BufferVar>()) {
+      return buffer_remap_.Get(buffer.value()).value_or(buffer.value()).var();
+    }
     if (auto param_ty = param->ty.as<PrimType>();
         param_ty && param_ty.value().MatchesCode(DLDataTypeCode::kDLInt)) {
       return this->VisitPrimExpr(param.as_or_throw<PrimExpr>()).as_or_throw<Var>();
@@ -654,7 +658,6 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
 
   PrimFuncNode* new_func = func.CopyOnWrite();
   new_func->params = std::move(params);
-  new_func->buffer_map = std::move(new_buffer_map);
   new_func->body = VisitStmt(std::move(new_func->body));
   return func;
 }
