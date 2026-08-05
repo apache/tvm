@@ -3118,9 +3118,9 @@ def test_shape_unknown_rank_input():
     tvm_model = from_onnx(model, keep_params_in_input=True)
 
     # The input keeps an unknown shape rather than collapsing to R.Tensor(()).
-    data_sinfo = tvm_model["main"].params[0].struct_info
-    assert data_sinfo.shape is None
-    assert data_sinfo.ndim == -1
+    data_ty = tvm_model["main"].params[0].ty
+    assert data_ty.shape is None
+    assert data_ty.ndim == -1
 
     # And Shape falls back to computing it at runtime.
     op_names = []
