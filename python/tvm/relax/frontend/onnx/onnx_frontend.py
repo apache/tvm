@@ -222,10 +222,21 @@ def get_info(
 
     Returns
     -------
-    Tuple[str, List, str, List, Dict]
+    Tuple[str, Optional[List], str, Optional[List], Dict]
         The name, shape, type, and shape name of the ValueInfoProto, and the
-        value_dict.
+        value_dict. The shape and shape name are None when the proto carries no
+        shape field at all, which means the rank is unknown.
     """
+    tensor_type = info_proto.type.tensor_type
+    elem_dtype = get_type(tensor_type.elem_type) if tensor_type.elem_type else None
+
+    # An absent shape field means unknown rank, which is not the same as a rank-0
+    # tensor whose shape field is present with zero dims. Both would otherwise
+    # collapse to an empty list and become R.Tensor(()), so the unknown-rank case
+    # reports None and becomes a tensor with no static shape.
+    if not tensor_type.HasField("shape"):
+        return info_proto.name, None, elem_dtype, None, value_dict
+
     shape = []
     shape_name = []
     for dim in info_proto.type.tensor_type.shape.dim:
@@ -5956,6 +5967,11 @@ class ONNXGraphImporter:
                 self._input_names.append(i_name)
                 if i_name in self._shape:
                     i_shape = self._shape[i_name]
+                elif i_shape is None:
+                    warnings.warn(
+                        f"Input {i_name} has unknown rank. "
+                        "Specifying a static shape may improve performance"
+                    )
                 else:
                     if "?" in str(i_shape):
                         warning_msg = (

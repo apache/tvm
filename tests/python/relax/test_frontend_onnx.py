@@ -3098,6 +3098,41 @@ def test_shape_scalar_input():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+def test_shape_unknown_rank_input():
+    # An input whose ValueInfoProto carries no shape field has unknown rank, which
+    # must stay distinct from a rank-0 tensor. It has no static shape to fold, so
+    # Shape has to keep the runtime path rather than reporting R.shape([]).
+    shape_node = helper.make_node("Shape", ["data"], ["output"])
+
+    data_vi = helper.make_tensor_value_info("data", TensorProto.FLOAT, None)
+    assert not data_vi.type.tensor_type.HasField("shape"), "test needs an absent shape field"
+
+    graph = helper.make_graph(
+        [shape_node],
+        "shape_unknown_rank_test",
+        inputs=[data_vi],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.INT64, None)],
+    )
+
+    model = helper.make_model(graph, producer_name="shape_unknown_rank_test")
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+
+    # The input keeps an unknown shape rather than collapsing to R.Tensor(()).
+    data_sinfo = tvm_model["main"].params[0].struct_info
+    assert data_sinfo.shape is None
+    assert data_sinfo.ndim == -1
+
+    # And Shape falls back to computing it at runtime.
+    op_names = []
+
+    def collect_ops(expr):
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+            op_names.append(expr.op.name)
+
+    relax.analysis.post_order_visit(tvm_model["main"], collect_ops)
+    assert "relax.shape_of" in op_names
+
+
 def test_slice_of_scalar_shape():
     # Slice consuming Shape of a rank-0 input used to raise "Slice requires a
     # statically known input rank", because Shape handed it an opaque value
