@@ -7468,6 +7468,57 @@ def test_split():
                 )
 
 
+def test_split_initializer_with_params_in_input():
+    split_sizes = np.array([2, 4], dtype="int64")
+    split_node = helper.make_node(
+        "Split",
+        ["data", "split_sizes"],
+        ["left", "right"],
+        axis=0,
+    )
+    graph = helper.make_graph(
+        [split_node],
+        "split_initializer_test",
+        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, [6])],
+        initializer=[numpy_helper.from_array(split_sizes, name="split_sizes")],
+        outputs=[
+            helper.make_tensor_value_info("left", TensorProto.FLOAT, [2]),
+            helper.make_tensor_value_info("right", TensorProto.FLOAT, [4]),
+        ],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="split_initializer_test",
+        opset_imports=[helper.make_opsetid("", 13)],
+    )
+
+    tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
+    assert len(tvm_model["main"].attrs["params"]) == 1
+    np.testing.assert_array_equal(tvm_model["main"].attrs["params"][0].numpy(), split_sizes)
+    tvm_model["main"] = tvm_model["main"].without_attr("params")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            data: R.Tensor((6,), dtype="float32"),
+            split_sizes: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tuple(
+            R.Tensor((2,), dtype="float32"),
+            R.Tensor((4,), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(data, indices_or_sections=[2], axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                gv = (lv1, lv2)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
 def test_tile():
     def verify_tile(dynamic, in_shape, repeats, out_shape, expected):
         node = helper.make_node("Tile", inputs=["input", "repeats"], outputs=["out"])

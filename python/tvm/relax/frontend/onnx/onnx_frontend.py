@@ -2548,6 +2548,8 @@ class Split(OnnxOpConverter):
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         splits = inputs[1]
+        if splits is not None:
+            splits = get_constant(splits, params)
         splits_rank = None
         if splits is not None:
             splits_rank = splits.ty.ndim
