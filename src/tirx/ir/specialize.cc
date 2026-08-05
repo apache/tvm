@@ -174,12 +174,13 @@ class PrimFuncSpecializer : public StmtExprMutator {
   BufferVar VisitBufferUse(const BufferVar& buffer) final { return GetNewBuffer(buffer); }
 
   Expr VisitExpr_(const VarNode* op) final {
+    Var var = ffi::GetRef<Var>(op);
     if (constrained_buffer_params_.count(op)) {
-      return ffi::GetRef<Var>(op);
+      return var;
     }
-    auto it = var_map_.find(ffi::GetRef<Var>(op));
+    auto it = var_map_.find(var);
     if (it == var_map_.end()) {
-      return ffi::GetRef<Var>(op);
+      return StmtExprMutator::VisitExpr_(op);
     } else {
       return it->second;
     }

@@ -266,6 +266,24 @@ def test_specialize_decl_buffer():
     tvm.ir.assert_structural_equal(expected, after)
 
 
+def test_specialize_preserves_decl_buffer_alias():
+    @T.prim_func(private=True, s_tir=True)
+    def before(A_handle: T.handle, n: T.int32):
+        A = T.match_buffer(A_handle, (n,), "int32")
+        A_flat = T.decl_buffer((n,), "int32", data=A.data)
+        A_flat[n - 1] = 42
+
+    @T.prim_func(private=True, s_tir=True)
+    def expected(A_handle: T.handle):
+        A = T.match_buffer(A_handle, (8,), "int32")
+        A_flat = T.decl_buffer((8,), "int32", data=A.data)
+        A_flat[7] = 42
+
+    after = before.specialize({before.params[1]: 8})
+
+    tvm.ir.assert_structural_equal(expected, after)
+
+
 def test_specialize_buffer_var_to_var():
     """A buffer var may be remapped by specialization
 
