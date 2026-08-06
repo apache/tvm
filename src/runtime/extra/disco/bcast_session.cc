@@ -65,6 +65,8 @@ void BcastSessionObj::CopyToWorker0(const Tensor& host_array, const DRef& remote
 }
 
 void BcastSessionObj::Shutdown() {
+  if (shutdown_) return;
+  shutdown_ = true;
   BcastSessionObj::Internal::BroadcastUnpacked(this, DiscoAction::kShutDown, 0);
 }
 
@@ -103,6 +105,9 @@ DRef BcastSessionObj::CallWithPacked(const ffi::PackedArgs& args) {
 }
 
 void BcastSessionObj::DeallocReg(int reg_id) {
+  // After shutdown the workers (and their pipes) are gone; broadcasting would raise SIGPIPE.
+  // A DRef may be garbage-collected after the session has been shut down, so guard here.
+  if (shutdown_) return;
   BcastSessionObj::Internal::BroadcastUnpacked(this, DiscoAction::kKillReg, reg_id);
   this->free_regs_.push_back(reg_id);
 }

@@ -60,7 +60,8 @@ class DiscoProcessChannel final : public DiscoChannel {
 
 class ProcessSessionObj final : public BcastSessionObj {
  public:
-  explicit ProcessSessionObj(int num_workers, int num_groups, ffi::Function process_pool)
+  explicit ProcessSessionObj(int num_workers, int num_groups, ffi::Function process_pool,
+                             bool build_ring)
       : process_pool_(process_pool),
         worker_0_(
             std::make_unique<DiscoWorkerThread>(0, num_workers, num_groups, &worker_zero_data_)) {
@@ -78,6 +79,20 @@ class ProcessSessionObj final : public BcastSessionObj {
     }
     for (int i = 0; i < num_workers - 1; ++i) {
       workers_.emplace_back(std::make_unique<DiscoProcessChannel>(write_fds[i], read_fds[i]));
+    }
+
+    if (build_ring) {
+      ffi::Shape w0_fds = process_pool_(-1).cast<ffi::Shape>();
+      TVM_FFI_CHECK_EQ(w0_fds.size(), 2, ValueError)
+          << "process_pool(-1) should return a tuple of size 2 (worker_0's ring fds), "
+          << "but got a tuple of size " << w0_fds.size() << ".";
+      int64_t w0_ring_in_fd = w0_fds[0];
+      int64_t w0_ring_out_fd = w0_fds[1];
+
+      ring_in_w0_ = std::make_unique<DiscoRingChannel>(w0_ring_in_fd);
+      ring_out_w0_ = std::make_unique<DiscoRingChannel>(w0_ring_out_fd);
+      worker_0_->worker->ring_in = ring_in_w0_.get();
+      worker_0_->worker->ring_out = ring_out_w0_.get();
     }
   }
 
@@ -166,30 +181,54 @@ class ProcessSessionObj final : public BcastSessionObj {
     return workers_.at(worker_id - 1).get();
   }
 
+  std::unique_ptr<DiscoRingChannel> RerouteRingIn(
+      std::unique_ptr<DiscoRingChannel> new_ch) override {
+    auto old = std::move(ring_in_w0_);
+    ring_in_w0_ = std::move(new_ch);
+    worker_0_->worker->ring_in = ring_in_w0_.get();
+    return old;
+  }
+
+  void CloseRing() override {
+    ring_out_w0_.reset();
+    ring_in_w0_.reset();
+  }
+
   ffi::Function process_pool_;
   std::unique_ptr<DiscoWorkerThread> worker_0_;
   std::vector<std::unique_ptr<DiscoProcessChannel>> workers_;
+  std::unique_ptr<DiscoRingChannel> ring_in_w0_;
+  std::unique_ptr<DiscoRingChannel> ring_out_w0_;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.ProcessSession", ProcessSessionObj, SessionObj);
 };
 
 Session Session::ProcessSession(int num_workers, int num_group, ffi::String process_pool_creator,
-                                ffi::String entrypoint) {
+                                ffi::String entrypoint, bool build_ring) {
   TVM_FFI_ICHECK_EQ(num_workers % num_group, 0)
       << "The number of workers should be divisible by the number of worker group.";
   const auto pf = tvm::ffi::Function::GetGlobal(process_pool_creator);
   TVM_FFI_CHECK(pf, ValueError) << "Cannot find function " << process_pool_creator
                                 << " in the registry. Please check if it is registered.";
-  auto process_pool = (*pf)(num_workers, num_group, entrypoint).cast<ffi::Function>();
-  auto n = ffi::make_object<ProcessSessionObj>(num_workers, num_group, process_pool);
+  auto process_pool = (*pf)(num_workers, num_group, entrypoint, build_ring).cast<ffi::Function>();
+  auto n = ffi::make_object<ProcessSessionObj>(num_workers, num_group, process_pool, build_ring);
   return Session(n);
 }
 
-void WorkerProcess(int worker_id, int num_workers, int num_group, int64_t read_fd,
-                   int64_t write_fd) {
+void WorkerProcess(int worker_id, int num_workers, int num_group, int64_t read_fd, int64_t write_fd,
+                   int64_t ring_in_fd, int64_t ring_out_fd) {
   TVM_FFI_ICHECK_EQ(num_workers % num_group, 0)
       << "The number of workers should be divisible by the number of worker group.";
   DiscoProcessChannel channel(read_fd, write_fd);
   DiscoWorker worker(worker_id, num_workers, num_group, nullptr, &channel);
+
+  std::unique_ptr<DiscoRingChannel> ring_in_ch, ring_out_ch;
+  if (ring_in_fd >= 0 && ring_out_fd >= 0) {
+    ring_in_ch = std::make_unique<DiscoRingChannel>(ring_in_fd);
+    ring_out_ch = std::make_unique<DiscoRingChannel>(ring_out_fd);
+    worker.ring_in = ring_in_ch.get();
+    worker.ring_out = ring_out_ch.get();
+  }
+
   worker.MainLoop();
 }
 

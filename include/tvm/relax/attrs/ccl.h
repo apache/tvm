@@ -85,6 +85,23 @@ struct ScatterCollectiveAttrs : public tvm::AttrsNode {
                                     AttrsNode);
 };  // struct ScatterCollectiveAttrs
 
+/*! \brief Attributes used in gather operators */
+struct GatherCollectiveAttrs : public tvm::AttrsNode {
+  int num_workers;
+  bool in_group;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<GatherCollectiveAttrs>()
+        .def_ro("num_workers", &GatherCollectiveAttrs::num_workers,
+                "The number of workers to gather data from.")
+        .def_ro("in_group", &GatherCollectiveAttrs::in_group,
+                "Whether the gather operation performs in group or globally as default.");
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GatherCollectiveAttrs", GatherCollectiveAttrs,
+                                    AttrsNode);
+};  // struct GatherCollectiveAttrs
+
 }  // namespace relax
 }  // namespace tvm
 

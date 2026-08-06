@@ -322,6 +322,30 @@ class Session(Object):
         func = self._get_cached_method("runtime.disco.load_vm_module")
         return DModule(func(path, device), self)
 
+    def upload_vm_module(self, path: str) -> str:
+        """Broadcast a module file to every worker and write it locally on each.
+
+        This reads the file on the controller and broadcasts its bytes over the session,
+        so each worker writes its own copy at `path` (parent directories are created as needed).
+        No shared filesystem or scp is required.
+
+        Parameters
+        ----------
+        path : str
+            The path of the module file.  It is read locally on the controller and written to the
+            same path on every worker; pass this same path to `load_vm_module`.
+
+        Returns
+        -------
+        path : str
+            The path written on every worker (identical to the argument), for chaining into
+            `load_vm_module`.
+        """
+        with open(path, "rb") as f:
+            blob = bytearray(f.read())
+        self.get_global_func("runtime.disco.upload_module")(blob, path)
+        return path
+
     def init_ccl(self, ccl: str, *device_ids):
         """Initialize the underlying communication collective library.
 
@@ -336,7 +360,7 @@ class Session(Object):
         *device_ids : int
             The device IDs to be used by the underlying communication library.
         """
-        assert ccl in ("nccl", "rccl"), f"Unsupported CCL backend: {ccl}"
+        assert ccl in ("nccl", "rccl", "cpuccl"), f"Unsupported CCL backend: {ccl}"
         _ffi_api.SessionInitCCL(self, ccl, Shape(device_ids))  # type: ignore # pylint: disable=no-member
         self._clear_ipc_memory_pool()
 
@@ -545,12 +569,13 @@ class Session(Object):
 class ThreadedSession(Session):
     """A Disco session backed by multi-threading."""
 
-    def __init__(self, num_workers: int, num_groups: int = 1) -> None:
+    def __init__(self, num_workers: int, num_groups: int = 1, build_ring: bool = False) -> None:
         """Create a disco session backed by multiple threads in the same process."""
         self.__init_handle_by_constructor__(
             _ffi_api.SessionThreaded,  # type: ignore # pylint: disable=no-member
             num_workers,
             num_groups,
+            build_ring,
         )
 
 
@@ -563,6 +588,7 @@ class ProcessSession(Session):
         num_workers: int,
         num_groups: int = 1,
         entrypoint: str = "tvm.exec.disco_worker",
+        build_ring: bool = False,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.SessionProcess,  # type: ignore # pylint: disable=no-member
@@ -570,6 +596,7 @@ class ProcessSession(Session):
             num_groups,
             "runtime.disco.create_process_pool",
             entrypoint,
+            build_ring,
         )
         self._configure_structlog()
 
@@ -597,9 +624,9 @@ class ProcessSession(Session):
 
 
 @register_global_func("runtime.disco.create_socket_session_local_workers")
-def _create_socket_session_local_workers(num_workers) -> Session:
+def _create_socket_session_local_workers(num_workers, build_ring) -> Session:
     """Create the local session for each distributed node over socket session."""
-    return ProcessSession(num_workers)
+    return ProcessSession(num_workers, build_ring=build_ring)
 
 
 @register_object("runtime.disco.SocketSession")
@@ -613,6 +640,7 @@ class SocketSession(Session):
         num_groups: int,
         host: str,
         port: int,
+        build_ring: bool = False,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.SocketSession,  # type: ignore # pylint: disable=no-member
@@ -621,6 +649,7 @@ class SocketSession(Session):
             num_groups,
             host,
             port,
+            build_ring,
         )
 
 

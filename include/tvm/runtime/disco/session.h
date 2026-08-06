@@ -76,6 +76,7 @@
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/tensor.h>
+#include <unistd.h>
 
 #include <mutex>
 #include <queue>
@@ -294,8 +295,10 @@ class Session : public ffi::ObjectRef {
    * \brief Create a session backed by a thread pool of workers
    * \param num_workers The number of workers.
    * \param num_groups The number of worker groups.
+   * \param build_ring Whether to wire the workers into a unidirectional pipe ring
+   * (worker `i` -> worker `i + 1`), used as the data plane for CPU collectives.
    */
-  TVM_RUNTIME_DLL static Session ThreadedSession(int num_workers, int num_groups);
+  TVM_RUNTIME_DLL static Session ThreadedSession(int num_workers, int num_groups, bool build_ring);
   /*!
    * \brief Create a session backed by pipe-based multiprocessing
    * \param num_workers The number of workers.
@@ -305,12 +308,14 @@ class Session : public ffi::ObjectRef {
    * When `worker-id` is 0, it shuts down the process pool; Otherwise, it retursn a tuple
    * (read_fd, writefd) used to communicate with the corresponding worker.
    * \param entrypoint The entrypoint of DiscoWorker main worker function.
+   * \param build_ring Whether to wire the workers into a unidirectional pipe ring
+   * (worker `i` -> worker `i + 1`), used as the data plane for CPU collectives.
    * \note Worker-0 is always co-located with the controler as a separate thread, and therefore
    * worker-0 does not exist in the process pool.
    */
   TVM_RUNTIME_DLL static Session ProcessSession(int num_workers, int num_groups,
                                                 ffi::String process_pool_creator,
-                                                ffi::String entrypoint);
+                                                ffi::String entrypoint, bool build_ring);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Session, ffi::ObjectRef, SessionObj);
 };
@@ -330,6 +335,72 @@ class DiscoChannel {
   virtual void Reply(const ffi::PackedArgs& args) = 0;
   /*! \brief Receive a reply from the worker */
   virtual ffi::PackedArgs RecvReply() = 0;
+};
+
+class DiscoRingChannel {
+ public:
+  explicit DiscoRingChannel(int fd) : fd_(fd) {
+    TVM_FFI_ICHECK_GE(fd_, 0) << "DiscoRingChannel: invalid fd " << fd_;
+  }
+  ~DiscoRingChannel() { Close(); }
+
+  DiscoRingChannel(const DiscoRingChannel&) = delete;
+  DiscoRingChannel& operator=(const DiscoRingChannel&) = delete;
+  DiscoRingChannel(DiscoRingChannel&& other) noexcept : fd_(other.fd_) { other.fd_ = -1; }
+
+  void Send(const void* data, size_t size) {
+    const char* write_data = static_cast<const char*>(data);
+    while (size > 0) {
+      ssize_t n;
+      do {
+        n = ::write(fd_, write_data, size);
+      } while (n < 0 && errno == EINTR);
+      TVM_FFI_ICHECK_GT(n, 0) << "DiscoRingChannel::Send failed: " << std::strerror(errno);
+      write_data += n;
+      size -= n;
+    }
+  }
+
+  void Recv(void* data, size_t size) {
+    char* read_data = static_cast<char*>(data);
+    while (size > 0) {
+      ssize_t n;
+      do {
+        n = ::read(fd_, read_data, size);
+      } while (n < 0 && errno == EINTR);
+      TVM_FFI_ICHECK_GT(n, 0) << "DiscoRingChannel::Recv failed: " << std::strerror(errno);
+      read_data += n;
+      size -= n;
+    }
+  }
+
+  ssize_t ReadSome(void* data, size_t max_size) {
+    if (fd_ < 0) return 0;
+    ssize_t n;
+    do {
+      n = ::read(fd_, data, max_size);
+    } while (n < 0 && errno == EINTR);
+    return n;
+  }
+
+  ssize_t WriteSome(const void* data, size_t size) {
+    if (fd_ < 0) return -1;
+    ssize_t n;
+    do {
+      n = ::write(fd_, data, size);
+    } while (n < 0 && errno == EINTR);
+    return n;
+  }
+
+  void Close() {
+    if (fd_ >= 0) {
+      ::close(fd_);
+      fd_ = -1;
+    }
+  }
+
+ private:
+  int fd_;
 };
 
 /*!

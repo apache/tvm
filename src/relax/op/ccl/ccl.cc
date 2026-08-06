@@ -34,6 +34,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   AllReduceAttrs::RegisterReflection();
   AllGatherAttrs::RegisterReflection();
   ScatterCollectiveAttrs::RegisterReflection();
+  GatherCollectiveAttrs::RegisterReflection();
 }
 
 Expr allreduce(Expr x, ffi::String op_type, bool in_group) {
@@ -171,6 +172,43 @@ TVM_REGISTER_OP("relax.ccl.scatter_from_worker0")
                   "The buffer to be divided into equal parts and sent to each worker accordingly.")
     .set_attrs_type<ScatterCollectiveAttrs>()
     .set_attr<FInferType>("FInferType", InferTypeScatter)
+    .set_attr<bool>("FPurity", true);
+
+/* relax.ccl.gather_to_worker0 */
+Expr gather_to_worker0(Expr x, int num_workers, bool in_group) {
+  ffi::ObjectPtr<GatherCollectiveAttrs> attrs = ffi::make_object<GatherCollectiveAttrs>();
+  attrs->num_workers = std::move(num_workers);
+  attrs->in_group = std::move(in_group);
+  static const Op& op = Op::Get("relax.ccl.gather_to_worker0");
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.ccl.gather_to_worker0", gather_to_worker0);
+}
+
+Type InferTypeGatherToWorker0(const Call& call, const BlockBuilder& ctx) {
+  TensorType input_ty = GetUnaryInputTensorType(call, ctx);
+
+  const auto* attrs = call->attrs.as<GatherCollectiveAttrs>();
+  int num_workers = attrs->num_workers;
+
+  ffi::Optional<PrimType> output_dtype = input_ty->dtype;
+  auto input_shape = input_ty->GetShape();
+  if (!input_shape.has_value()) {
+    return input_ty;
+  }
+  ffi::Array<PrimExpr> output_shape = input_shape.value();
+  output_shape.Set(0, output_shape[0] * num_workers);
+  return TensorType(ShapeExpr(output_shape), output_dtype, input_ty->vdevice);
+}
+
+TVM_REGISTER_OP("relax.ccl.gather_to_worker0")
+    .set_num_inputs(1)
+    .add_argument("x", "Tensor", "Input to be gathered to worker-0.")
+    .set_attrs_type<GatherCollectiveAttrs>()
+    .set_attr<FInferType>("FInferType", InferTypeGatherToWorker0)
     .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
