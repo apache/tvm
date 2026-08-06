@@ -80,11 +80,11 @@ def _emit_binary_f32x2_for(op_name):
         rm = extras.get("rounding_mode", "rz")
         lhs = T.local_scalar("uint64")
         rhs = T.local_scalar("uint64")
-        T.evaluate(T.ptxd.mov.b64(lhs, _lane(a_arg, 0), _lane(a_arg, 1)))
-        T.evaluate(T.ptxd.mov.b64(rhs, _lane(b_arg, 0), _lane(b_arg, 1)))
-        T.evaluate(T.ptxd[f"{op_name}.{rm}.ftz.f32x2"](lhs, lhs, rhs))
+        T.evaluate(T.ptx.mov.b64(lhs, _lane(a_arg, 0), _lane(a_arg, 1)))
+        T.evaluate(T.ptx.mov.b64(rhs, _lane(b_arg, 0), _lane(b_arg, 1)))
+        T.evaluate(T.ptx[f"{op_name}.{rm}.ftz.f32x2"](lhs, lhs, rhs))
         T.evaluate(
-            T.ptxd.mov.b64(
+            T.ptx.mov.b64(
                 dst_buf[tuple(dst_lane_indices[0])],
                 dst_buf[tuple(dst_lane_indices[1])],
                 lhs,

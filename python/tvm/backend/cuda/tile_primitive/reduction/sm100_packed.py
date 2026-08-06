@@ -107,34 +107,34 @@ def _emit_reduction_local_thread_packed_add_sum(
         # Process remaining full chunks of 8
         for outer in T.serial(num_full_chunks - 1):
             for j in T.unroll(4):
-                T.ptxd.mov.b64(acc, local_sum[2 * j], local_sum[2 * j + 1])
-                T.ptxd.mov.b64(
+                T.ptx.mov.b64(acc, local_sum[2 * j], local_sum[2 * j + 1])
+                T.ptx.mov.b64(
                     rhs,
                     src[src_base + 8 * (outer + 1) + 2 * j],
                     src[src_base + 8 * (outer + 1) + 2 * j + 1],
                 )
-                T.ptxd.add.rn.ftz.f32x2(acc, acc, rhs)
-                T.ptxd.mov.b64(local_sum[2 * j], local_sum[2 * j + 1], acc)
+                T.ptx.add.rn.ftz.f32x2(acc, acc, rhs)
+                T.ptx.mov.b64(local_sum[2 * j], local_sum[2 * j + 1], acc)
 
         # Handle remainder elements (0 to 7)
         for i in T.serial(remainder):
             local_sum[0] = local_sum[0] + src[src_base + remainder_base + i]
 
         # Final packed add sum: 8 -> 4 -> 2 -> 1
-        T.ptxd.mov.b64(acc, local_sum[0], local_sum[1])
-        T.ptxd.mov.b64(rhs, local_sum[2], local_sum[3])
-        T.ptxd.add.rn.ftz.f32x2(acc, acc, rhs)
-        T.ptxd.mov.b64(local_sum[0], local_sum[1], acc)
+        T.ptx.mov.b64(acc, local_sum[0], local_sum[1])
+        T.ptx.mov.b64(rhs, local_sum[2], local_sum[3])
+        T.ptx.add.rn.ftz.f32x2(acc, acc, rhs)
+        T.ptx.mov.b64(local_sum[0], local_sum[1], acc)
 
-        T.ptxd.mov.b64(acc, local_sum[4], local_sum[5])
-        T.ptxd.mov.b64(rhs, local_sum[6], local_sum[7])
-        T.ptxd.add.rn.ftz.f32x2(acc, acc, rhs)
-        T.ptxd.mov.b64(local_sum[4], local_sum[5], acc)
+        T.ptx.mov.b64(acc, local_sum[4], local_sum[5])
+        T.ptx.mov.b64(rhs, local_sum[6], local_sum[7])
+        T.ptx.add.rn.ftz.f32x2(acc, acc, rhs)
+        T.ptx.mov.b64(local_sum[4], local_sum[5], acc)
 
-        T.ptxd.mov.b64(acc, local_sum[0], local_sum[1])
-        T.ptxd.mov.b64(rhs, local_sum[4], local_sum[5])
-        T.ptxd.add.rn.ftz.f32x2(acc, acc, rhs)
-        T.ptxd.mov.b64(local_sum[0], local_sum[1], acc)
+        T.ptx.mov.b64(acc, local_sum[0], local_sum[1])
+        T.ptx.mov.b64(rhs, local_sum[4], local_sum[5])
+        T.ptx.add.rn.ftz.f32x2(acc, acc, rhs)
+        T.ptx.mov.b64(local_sum[0], local_sum[1], acc)
 
         dst[tuple(dst_st)] = local_sum[0] + local_sum[1]
     # fmt: on
@@ -176,14 +176,14 @@ def _emit_reduction_local_thread_3input_maxmin(
         # First pass: process first 8 elements into 4 temps
         for i in T.unroll(4):
             if accum and i == 0:
-                T.ptxd[f"{reduce3_name}.f32"](temp[i], src[src_base + 2 * i], src[src_base + 2 * i + 1], dst[tuple(dst_st)])  # noqa: E501
+                T.ptx[f"{reduce3_name}.f32"](temp[i], src[src_base + 2 * i], src[src_base + 2 * i + 1], dst[tuple(dst_st)])  # noqa: E501
             else:
                 temp[i] = op_func(src[src_base + 2 * i], src[src_base + 2 * i + 1])
 
         # Process remaining full chunks of 8
         for outer in T.serial(num_full_chunks - 1):
             for i in T.unroll(4):
-                T.ptxd[f"{reduce3_name}.f32"](
+                T.ptx[f"{reduce3_name}.f32"](
                     temp[i],
                     temp[i],
                     src[src_base + 8 * (outer + 1) + 2 * i],
@@ -196,7 +196,7 @@ def _emit_reduction_local_thread_3input_maxmin(
 
         # Final merge: combine 4 temps into result
         dst[tuple(dst_st)] = op_func(temp[0], temp[1])
-        T.ptxd[f"{reduce3_name}.f32"](dst[tuple(dst_st)], dst[tuple(dst_st)], temp[2], temp[3])
+        T.ptx[f"{reduce3_name}.f32"](dst[tuple(dst_st)], dst[tuple(dst_st)], temp[2], temp[3])
     # fmt: on
 
     return impl

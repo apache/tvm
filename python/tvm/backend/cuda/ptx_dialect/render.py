@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Pure CUDA-helper rendering for the ptxd dialect.
+"""Pure CUDA-helper rendering for the ptx dialect.
 
 tvm-free (imports only :mod:`.table`), so it is shared by the codegen engine
 and by :mod:`.gen_helpers`, which dumps the generated helpers for humans to
@@ -109,7 +109,7 @@ def _helper_name(entry: InstructionEntry, written, imms, dtypes, canonical) -> s
     discriminator = (
         [] if tuple(dtypes) == tuple(canonical) else [C_BINDING[d].suffix for d in dtypes]
     )
-    return "tvm_builtin_ptxd_" + "_".join([*isa_name, *discriminator]).replace("::", "__").replace(
+    return "tvm_builtin_ptx_" + "_".join([*isa_name, *discriminator]).replace("::", "__").replace(
         ".", "_"
     ).replace("-", "m")
 

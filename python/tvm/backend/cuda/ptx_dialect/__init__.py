@@ -14,18 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Table-driven PTX dialect prototype (``T.ptxd``).
+"""Table-driven PTX dialect (``T.ptx``).
 
 One table (:mod:`.table`), one generic engine (:mod:`.engine`), thin
 generators (:mod:`.gen_helpers``/``gen_stubs`, :mod:`.gen_coverage`). Importing this package
 registers every table entry as a TVM Op with a generic codegen; the
-``T.ptxd`` namespace itself is installed by the CUDA backend's
+``T.ptx`` namespace itself is installed by the CUDA backend's
 ``register_backend()`` via ``script_namespaces()``.
 """
 
-from .engine import PTXDNamespace, register_table
+from .engine import PTXNamespace, register_table
 from .table import TABLE
 
 register_table(TABLE)
 
-__all__ = ["TABLE", "PTXDNamespace", "register_table"]
+__all__ = ["TABLE", "PTXNamespace", "register_table"]

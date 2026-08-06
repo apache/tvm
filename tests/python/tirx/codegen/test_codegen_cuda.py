@@ -320,17 +320,17 @@ def test_ptx_ld_acquire_and_volatile_codegen():
         T.device_entry()
         tx = T.thread_id([32])
         if tx == 0:
-            T.ptxd.ld.acquire.gpu.global_.u64(A[0], A.data)
-            T.ptxd.ld.acquire.sys.global_.s32(B[0], B.data)
-            T.ptxd.ld.acquire.gpu.global_.b32(C[0], C.data)
-            T.ptxd.ld.acquire.gpu.global_.b32(B[0], B.data)
-            T.ptxd.ld.volatile.global_.u64(A[0], A.data)
+            T.ptx.ld.acquire.gpu.global_.u64(A[0], A.data)
+            T.ptx.ld.acquire.sys.global_.s32(B[0], B.data)
+            T.ptx.ld.acquire.gpu.global_.b32(C[0], C.data)
+            T.ptx.ld.acquire.gpu.global_.b32(B[0], B.data)
+            T.ptx.ld.volatile.global_.u64(A[0], A.data)
 
     src, _ = _get_source(main)
     assert "ld.acquire.gpu.global.u64" in src
     assert "ld.acquire.sys.global.s32" in src
     assert "ld.acquire.gpu.global.b32" in src
-    assert "tvm_builtin_ptxd_ld_acquire_gpu_global_b32_s32" in src
+    assert "tvm_builtin_ptx_ld_acquire_gpu_global_b32_s32" in src
     assert "ld.volatile.global.u64" in src
 
 
@@ -344,16 +344,16 @@ def test_ptx_f32x2_value_codegen():
             rhs: T.let = T.cuda.make_float2(B[1], B[0])
             prod = T.local_scalar("uint64")
             sum_pair = T.local_scalar("uint64")
-            T.ptxd.mul.f32x2(prod, lhs, rhs)
-            T.ptxd.fma.rn.f32x2(A[0], lhs, rhs, prod)
-            T.ptxd.add.rn.f32x2(sum_pair, lhs, rhs)
-            T.ptxd.sub.rn.f32x2(A[1], sum_pair, rhs)
+            T.ptx.mul.f32x2(prod, lhs, rhs)
+            T.ptx.fma.rn.f32x2(A[0], lhs, rhs, prod)
+            T.ptx.add.rn.f32x2(sum_pair, lhs, rhs)
+            T.ptx.sub.rn.f32x2(A[1], sum_pair, rhs)
 
     src, _ = _get_source(main)
-    assert "tvm_builtin_ptxd_mul_f32x2" in src
-    assert "tvm_builtin_ptxd_fma_rn_f32x2" in src
-    assert "tvm_builtin_ptxd_add_rn_f32x2" in src
-    assert "tvm_builtin_ptxd_sub_rn_f32x2" in src
+    assert "tvm_builtin_ptx_mul_f32x2" in src
+    assert "tvm_builtin_ptx_fma_rn_f32x2" in src
+    assert "tvm_builtin_ptx_add_rn_f32x2" in src
+    assert "tvm_builtin_ptx_sub_rn_f32x2" in src
     # `.rnd` is optional on add/mul and mandatory on fma; the tokens written at
     # the call site are exactly the tokens emitted.
     assert "mul.f32x2 %0, %1, %2;" in src
@@ -362,7 +362,7 @@ def test_ptx_f32x2_value_codegen():
     assert "add.rn.f32x2 %0, %1, %2;" in src
 
 
-def test_ptxd_neg_f32_codegen():
+def test_ptx_neg_f32_codegen():
     """`neg{.ftz}.f32` (ISA 9.7.3.10) -- the exact form, without fast-math .ftz."""
 
     @T.prim_func
@@ -370,14 +370,14 @@ def test_ptxd_neg_f32_codegen():
         T.device_entry()
         tx = T.thread_id([32])
         if tx == 0:
-            T.ptxd.neg.f32(A[1], A[0])
+            T.ptx.neg.f32(A[1], A[0])
 
     src, _ = _get_source(main)
     assert "neg.f32 %0, %1;" in src
     assert "neg.ftz.f32" not in src
 
 
-def test_ptxd_sub_f16x2_codegen():
+def test_ptx_sub_f16x2_codegen():
     """The packed half line `sub{.rnd}{.ftz}{.sat}.f16x2` (ISA 9.7.4.2)."""
 
     @T.prim_func
@@ -385,7 +385,7 @@ def test_ptxd_sub_f16x2_codegen():
         T.device_entry()
         tx = T.thread_id([32])
         if tx == 0:
-            T.ptxd.sub.f16x2(A[2], A[0], A[1])
+            T.ptx.sub.f16x2(A[2], A[0], A[1])
 
     src, _ = _get_source(main)
     assert "sub.f16x2 %0, %1, %2;" in src
@@ -409,10 +409,10 @@ def test_sparse_decode_conversion_intrinsics_codegen(monkeypatch):
         tx = T.thread_id([32])
         if tx == 0:
             pair: T.let = T.cuda.make_float2(F32[0], F32[1])
-            T.ptxd.cvt.rz.ue8m0x2.f32(U16[0], F32[1], F32[0])
-            T.ptxd.cvt.rn.bf16x2.ue8m0x2(U32[0], U16[0])
-            T.ptxd.cvt.rn.bf16x2.e4m3x2(U32[1], U16[0])
-            T.ptxd.add.f32x2(U64[0], pair, pair)
+            T.ptx.cvt.rz.ue8m0x2.f32(U16[0], F32[1], F32[0])
+            T.ptx.cvt.rn.bf16x2.ue8m0x2(U32[0], U16[0])
+            T.ptx.cvt.rn.bf16x2.e4m3x2(U32[1], U16[0])
+            T.ptx.add.f32x2(U64[0], pair, pair)
 
     src, _ = _get_source(main)
     assert "cvt.rz.ue8m0x2.f32 %0, %1, %2;" in src
@@ -435,23 +435,23 @@ def test_megamoe_extracted_intrinsics_codegen():
         T.device_entry()
         tx = T.thread_id([32])
         if tx == 0:
-            T.ptxd.red.release.gpu.global_.or_.b64(U64.data, U64[0])
-            T.ptxd.red.release.sys.global_.add.s32(I32.data, I32[0])
-            T.ptxd.atom.release.gpu.global_.add.u32(U32[0], U32.data, U32[0])
-            T.ptxd.atom.sys.global_.add.u64(U64[0], U64.data, U64[0])
-            T.ptxd.red.gpu.global_.add.u32(U32.data, U32[0])
-            T.ptxd.st.shared.u32(U32.data, U32[0])
-            T.ptxd.st.shared.v4.b32(U32.data, U32[0], U32[1], U32[2], U32[3])
-            T.ptxd.st_bulk.weak.shared__cta(U32.data, T.uint64(16))
-            T.ptxd.fns.b32(U32[0], U32[0], U32[1], I32[0])
-            T.ptxd.stmatrix.sync.aligned.m16n8.x1.trans.shared.b8(U32.data, U32[0])
+            T.ptx.red.release.gpu.global_.or_.b64(U64.data, U64[0])
+            T.ptx.red.release.sys.global_.add.s32(I32.data, I32[0])
+            T.ptx.atom.release.gpu.global_.add.u32(U32[0], U32.data, U32[0])
+            T.ptx.atom.sys.global_.add.u64(U64[0], U64.data, U64[0])
+            T.ptx.red.gpu.global_.add.u32(U32.data, U32[0])
+            T.ptx.st.shared.u32(U32.data, U32[0])
+            T.ptx.st.shared.v4.b32(U32.data, U32[0], U32[1], U32[2], U32[3])
+            T.ptx.st_bulk.weak.shared__cta(U32.data, T.uint64(16))
+            T.ptx.fns.b32(U32[0], U32[0], U32[1], I32[0])
+            T.ptx.stmatrix.sync.aligned.m16n8.x1.trans.shared.b8(U32.data, U32[0])
 
             F32[1] = T.cuda.uint_as_float(U32[0])
-            T.ptxd.ld.global_.f32(F32[2], F32.data)
+            T.ptx.ld.global_.f32(F32[2], F32.data)
             F32[2] = T.cuda.ldg(T.handle_add_byte_offset(F32.data, 4), "float32")
             F32[3] = T.cuda.fdividef(F32[0], F32[1])
             U32[3] = T.cuda.float_as_uint(F32[1])
-            T.ptxd.add.rn.f32.bf16(F32[0], T.cast(U32[0], "uint16"), F32[0])
+            T.ptx.add.rn.f32.bf16(F32[0], T.cast(U32[0], "uint16"), F32[0])
             U64[0] = T.reinterpret("uint64", U32.data)
             U32[0] = T.cuda.ballot_sync(T.uint32(0xFFFFFFFF), I32[0])
             I32[0] = T.cuda.ffs_u32(U32[0])
@@ -528,18 +528,18 @@ def test_ptx_cp_async_bulk_non_tma_form_codegen():
         tx = T.thread_id([32])
         if tx == 0:
             smem = T.alloc_shared([128], "float32")
-            T.ptxd["cp.async.bulk.shared::cta.global.mbarrier::complete_tx::bytes.L2::cache_hint"](
+            T.ptx["cp.async.bulk.shared::cta.global.mbarrier::complete_tx::bytes.L2::cache_hint"](
                 smem.ptr_to([0]), A.data, T.uint32(64), smem.ptr_to([0]), C[0]
             )
-            T.ptxd[
+            T.ptx[
                 "cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes.L2::cache_hint"
             ](smem.ptr_to([0]), A.data, T.uint32(64), smem.ptr_to([0]), C[0])
-            T.ptxd["cp.async.bulk.global.shared::cta.bulk_group.L2::cache_hint"](
+            T.ptx["cp.async.bulk.global.shared::cta.bulk_group.L2::cache_hint"](
                 B.data, smem.ptr_to([0]), T.uint32(64), C[0]
             )
-            T.ptxd.cp.async_.bulk.commit_group()
-            T.ptxd.cp.async_.bulk.wait_group.read(0)
-            T.ptxd.cp.async_.bulk.wait_group(1)
+            T.ptx.cp.async_.bulk.commit_group()
+            T.ptx.cp.async_.bulk.wait_group.read(0)
+            T.ptx.cp.async_.bulk.wait_group(1)
 
     src, _ = _get_source(main)
     assert "cp.async.bulk.shared::cta.global.mbarrier::complete_tx::bytes.L2::cache_hint" in src
@@ -558,28 +558,28 @@ def test_ptx_sync_and_clc_codegen():
         if tx == 0:
             bar = T.alloc_buffer((5,), "uint64", scope="shared", align=16)
             response = T.alloc_buffer((4,), "uint32", scope="shared", align=16)
-            T.ptxd.cp.async_.mbarrier.arrive.shared.b64(bar.ptr_to([0]))
-            T.ptxd.cp.async_.mbarrier.arrive.noinc.shared__cta.b64(bar.ptr_to([0]))
+            T.ptx.cp.async_.mbarrier.arrive.shared.b64(bar.ptr_to([0]))
+            T.ptx.cp.async_.mbarrier.arrive.noinc.shared__cta.b64(bar.ptr_to([0]))
             T.cuda.mbarrier_wait(bar.ptr_to([0]), T.int32(0))
-            T.ptxd.mbarrier.complete_tx.shared.b64(bar.ptr_to([0]), T.uint32(T.uint32(16)))
-            T.ptxd.mbarrier.complete_tx.relaxed.cta.shared__cta.b64(bar.ptr_to([1]), T.uint32(24))
-            T.ptxd.mbarrier.complete_tx.relaxed.cta.shared__cta.b64(
+            T.ptx.mbarrier.complete_tx.shared.b64(bar.ptr_to([0]), T.uint32(T.uint32(16)))
+            T.ptx.mbarrier.complete_tx.relaxed.cta.shared__cta.b64(bar.ptr_to([1]), T.uint32(24))
+            T.ptx.mbarrier.complete_tx.relaxed.cta.shared__cta.b64(
                 bar.ptr_to([2]), T.uint32(28), pred=T.uint32(1)
             )
             # The remote form is a mapa plus a complete_tx on the mapped window
             # address, which is what the fused legacy helper emitted inside one
             # asm block.
             remote_bar = T.alloc_local([1], "uint32")
-            T.ptxd.mapa.shared__cluster.u32(
+            T.ptx.mapa.shared__cluster.u32(
                 remote_bar[0], T.cuda.cvta_generic_to_shared(bar.ptr_to([3])), T.uint32(1)
             )
-            T.ptxd.mbarrier.complete_tx.relaxed.cluster.shared__cluster.b64(
+            T.ptx.mbarrier.complete_tx.relaxed.cluster.shared__cluster.b64(
                 remote_bar[0], T.uint32(32)
             )
-            T.ptxd.mbarrier.complete_tx.relaxed.cluster.shared__cluster.b64(
+            T.ptx.mbarrier.complete_tx.relaxed.cluster.shared__cluster.b64(
                 remote_bar[0], T.uint32(40), pred=T.uint32(1)
             )
-            T.ptxd[
+            T.ptx[
                 "clusterlaunchcontrol.try_cancel.async.shared::cta"
                 ".mbarrier::complete_tx::bytes.multicast::cluster::all.b128"
             ](response.ptr_to([0]), bar.ptr_to([0]))
@@ -588,7 +588,7 @@ def test_ptx_sync_and_clc_codegen():
             A[0] = nxt
             query_cancel_first_ctaid_x(nxt, response.ptr_to([0]), use_ld_acquire=False)
             A[0] = nxt
-            T.ptxd.griddepcontrol.launch_dependents()
+            T.ptx.griddepcontrol.launch_dependents()
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
@@ -602,17 +602,16 @@ def test_ptx_sync_and_clc_codegen():
     assert "tvm_builtin_cuda_mbarrier_wait" in src
     # (No assertion on the timeout local: T.cuda.mbarrier_wait keeps the
     # `ticks = 0x989680` hint the TIRx spin-wait convention specifies.)
-    assert "tirx.ptx.cp_async_mbarrier_arrive_noinc" not in src
     assert "mbarrier.complete_tx.relaxed.cluster.shared::cluster.b64" in src
     assert "mbarrier.complete_tx.relaxed.cta.shared::cta.b64" in src
     assert "@p mbarrier.complete_tx.relaxed.cta.shared::cta.b64" in src
     assert "@p mbarrier.complete_tx.relaxed.cluster.shared::cluster.b64" in src
-    # A ptxd helper is exactly one instruction, so the mapping is a call of its
+    # A ptx helper is exactly one instruction, so the mapping is a call of its
     # own rather than something folded into the complete_tx helper.
     assert "mapa.shared::cluster.u32" in src
     for helper in (
-        "tvm_builtin_ptxd_mbarrier_complete_tx_complete_tx_relaxed_cta_shared__cta_b64",
-        "tvm_builtin_ptxd_mbarrier_complete_tx_complete_tx_relaxed_cluster_shared__cluster_b64",
+        "tvm_builtin_ptx_mbarrier_complete_tx_complete_tx_relaxed_cta_shared__cta_b64",
+        "tvm_builtin_ptx_mbarrier_complete_tx_complete_tx_relaxed_cluster_shared__cluster_b64",
     ):
         assert "mapa" not in _helper_source(src, helper)
     assert "mbarrier.complete_tx.shared::cluster.relaxed.cluster.b64" not in src
@@ -631,18 +630,18 @@ def test_ptx_mbarrier_arrive_new_forms_codegen():
         if tx == 0:
             bar = T.alloc_buffer((6,), "uint64", scope="shared", align=16)
             state = T.local_scalar("uint64")
-            T.ptxd.mbarrier.arrive.relaxed.cta.shared__cta.b64(bar.ptr_to([0]))
-            T.ptxd.mbarrier.arrive.relaxed.cluster.shared__cluster.b64(bar.ptr_to([1]))
-            T.ptxd.mbarrier.arrive.release.cta.shared.b64(bar.ptr_to([2]), pred=Pred[0])
-            T.ptxd.mbarrier.arrive.expect_tx.relaxed.cluster.shared__cluster.b64(
+            T.ptx.mbarrier.arrive.relaxed.cta.shared__cta.b64(bar.ptr_to([0]))
+            T.ptx.mbarrier.arrive.relaxed.cluster.shared__cluster.b64(bar.ptr_to([1]))
+            T.ptx.mbarrier.arrive.release.cta.shared.b64(bar.ptr_to([2]), pred=Pred[0])
+            T.ptx.mbarrier.arrive.expect_tx.relaxed.cluster.shared__cluster.b64(
                 bar.ptr_to([3]), T.uint32(128)
             )
-            T.ptxd.mbarrier.arrive.noComplete.release.cta.shared.b64(
+            T.ptx.mbarrier.arrive.noComplete.release.cta.shared.b64(
                 state, bar.ptr_to([4]), T.uint32(2)
             )
             # noComplete writes a real state result, yet pred= stays legal:
             # the accumulator binds "+", so a false predicate leaves it intact.
-            T.ptxd.mbarrier.arrive.noComplete.release.cta.shared__cta.b64(
+            T.ptx.mbarrier.arrive.noComplete.release.cta.shared__cta.b64(
                 state, bar.ptr_to([5]), T.uint32(3), pred=Pred[0]
             )
 
@@ -729,26 +728,26 @@ def test_tma_cache_policy_operand_codegen():
         if tx == 0:
             smem = T.alloc_buffer((128,), "float32", scope="shared", align=128)
             bar = T.shared_scalar("uint64")
-            T.ptxd[_TMA_G2S_CG2_CACHE](
+            T.ptx[_TMA_G2S_CG2_CACHE](
                 smem.data, T.address_of(A_map), 0, 0, T.address_of(bar), Cache[0]
             )
-            T.ptxd[_TMA_G2S_MC_CG2_CACHE](
+            T.ptx[_TMA_G2S_MC_CG2_CACHE](
                 smem.data, T.address_of(A_map), 0, 0, T.address_of(bar), 3, Cache[0]
             )
-            T.ptxd[_TMA_S2G_CACHE](T.address_of(A_map), 0, 0, smem.data, Cache[0])
-            T.ptxd[_TMA_CTA_GATHER4_CG2_CACHE](
+            T.ptx[_TMA_S2G_CACHE](T.address_of(A_map), 0, 0, smem.data, Cache[0])
+            T.ptx[_TMA_CTA_GATHER4_CG2_CACHE](
                 smem.data, T.address_of(A_map), 0, 1, 2, 3, 4, T.address_of(bar), Cache[0]
             )
             leader_mbar_addr = T.cuda.sm100_2sm_leader_smem_addr(T.address_of(bar))
-            T.ptxd[_TMA_G2S_CG2_CACHE](
+            T.ptx[_TMA_G2S_CG2_CACHE](
                 smem.data, T.address_of(A_map), 0, 0, leader_mbar_addr, Cache[0]
             )
             if tx == 0:
-                T.ptxd[_TMA_G2S_CG2_CACHE](
+                T.ptx[_TMA_G2S_CG2_CACHE](
                     smem.data, T.address_of(A_map), 0, 0, leader_mbar_addr, Cache[0]
                 )
             else:
-                T.ptxd[_TMA_G2S_CG2_CACHE](
+                T.ptx[_TMA_G2S_CG2_CACHE](
                     smem.data, T.address_of(B_map), 0, 0, leader_mbar_addr, Cache[0]
                 )
 
@@ -945,15 +944,15 @@ def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
         A_shared = T.alloc_shared([N], "float16")
         for i in T.vectorized(N):
             A_shared[i] = 5.0
-        T.ptxd.fence.proxy.async_.shared__cta()
+        T.ptx.fence.proxy.async_.shared__cta()
         if fill_mode == "zero":
-            T.ptxd[chain](A_shared.ptr_to([0]), A.ptr_to([0]), cp_size, src_size, *cache_args)
+            T.ptx[chain](A_shared.ptr_to([0]), A.ptr_to([0]), cp_size, src_size, *cache_args)
         elif has_pred:
-            T.ptxd[chain](A_shared.ptr_to([0]), A.ptr_to([0]), cp_size, *cache_args, pred=predicate)
+            T.ptx[chain](A_shared.ptr_to([0]), A.ptr_to([0]), cp_size, *cache_args, pred=predicate)
         else:
-            T.ptxd[chain](A_shared.ptr_to([0]), A.ptr_to([0]), cp_size, *cache_args)
-        T.ptxd.cp.async_.commit_group()
-        T.ptxd.cp.async_.wait_group(0)
+            T.ptx[chain](A_shared.ptr_to([0]), A.ptr_to([0]), cp_size, *cache_args)
+        T.ptx.cp.async_.commit_group()
+        T.ptx.cp.async_.wait_group(0)
         for i in T.serial(N):
             A[i] = A_shared[i] + 1.0
         # fmt: on
@@ -981,7 +980,7 @@ def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("trans", [False, True])
 @pytest.mark.parametrize("num", [1, 2, 4])
-def test_ptxd_ldmatrix(trans, num):
+def test_ptx_ldmatrix(trans, num):
     # fmt: off
     @T.prim_func
     def main(A: T.Buffer((16, 16), "float16"), B: T.Buffer((16, 16), "float16")):
@@ -1000,18 +999,18 @@ def test_ptxd_ldmatrix(trans, num):
         # view, two fp16 elements per word.
         A_words = A_local.view("uint32")
         if num == 1:
-            T.ptxd[f"ldmatrix.sync.aligned.m8n8.x1{'.trans' if trans else ''}.shared.b16"](
+            T.ptx[f"ldmatrix.sync.aligned.m8n8.x1{'.trans' if trans else ''}.shared.b16"](
                 A_words[0],
                 A_shared.ptr_to([tx % 16, tx // 16 * 8]),
             )
         elif num == 2:
-            T.ptxd[f"ldmatrix.sync.aligned.m8n8.x2{'.trans' if trans else ''}.shared.b16"](
+            T.ptx[f"ldmatrix.sync.aligned.m8n8.x2{'.trans' if trans else ''}.shared.b16"](
                 A_words[0],
                 A_words[1],
                 A_shared.ptr_to([tx % 16, tx // 16 * 8]),
             )
         else:
-            T.ptxd[f"ldmatrix.sync.aligned.m8n8.x4{'.trans' if trans else ''}.shared.b16"](
+            T.ptx[f"ldmatrix.sync.aligned.m8n8.x4{'.trans' if trans else ''}.shared.b16"](
                 A_words[0],
                 A_words[1],
                 A_words[2],

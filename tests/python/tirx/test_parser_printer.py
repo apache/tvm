@@ -2687,7 +2687,7 @@ def test_roundtrip_cp_async_bulk_tensor_g2s_cluster():
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
             A_smem = T.alloc_buffer((16, 16), "float32", scope="shared")
-            T.ptxd["cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes"](
+            T.ptx["cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes"](
                 A_smem.data, T.address_of(A_map), 0, 0, T.uint32(0)
             )
     # fmt: on
@@ -2708,7 +2708,7 @@ def test_roundtrip_cp_async_bulk_tensor_s2g():
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
             A_smem = T.alloc_buffer((16, 16), "float32", scope="shared")
-            T.ptxd["cp.async.bulk.tensor.2d.global.shared::cta.tile.bulk_group"](
+            T.ptx["cp.async.bulk.tensor.2d.global.shared::cta.tile.bulk_group"](
                 T.address_of(A_map), 0, 0, A_smem.data
             )
     # fmt: on
@@ -2728,7 +2728,7 @@ def test_roundtrip_cp_async_bulk_tensor_prefetch():
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
-            T.ptxd["cp.async.bulk.prefetch.tensor.2d.L2.global.tile"](
+            T.ptx["cp.async.bulk.prefetch.tensor.2d.L2.global.tile"](
                 T.address_of(A_map), 0, 0
             )
     # fmt: on
@@ -2749,7 +2749,7 @@ def test_roundtrip_cp_async_bulk_tensor_s2g_reduce():
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
             A_smem = T.alloc_buffer((16, 16), "float32", scope="shared")
-            T.ptxd["cp.reduce.async.bulk.tensor.2d.global.shared::cta.add.tile.bulk_group"](
+            T.ptx["cp.reduce.async.bulk.tensor.2d.global.shared::cta.add.tile.bulk_group"](
                 T.address_of(A_map), 0, 0, A_smem.data
             )
     # fmt: on

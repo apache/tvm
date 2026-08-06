@@ -65,12 +65,12 @@ def _emit_fma_f32x2(dst_buf, dst_lane_indices, src_args, extras) -> None:
     pa = T.local_scalar("uint64")
     pb = T.local_scalar("uint64")
     pc = T.local_scalar("uint64")
-    T.evaluate(T.ptxd.mov.b64(pa, _lane(a_arg, 0), _lane(a_arg, 1)))
-    T.evaluate(T.ptxd.mov.b64(pb, _lane(b_arg, 0), _lane(b_arg, 1)))
-    T.evaluate(T.ptxd.mov.b64(pc, _lane(c_arg, 0), _lane(c_arg, 1)))
-    T.evaluate(T.ptxd[f"fma.{rm}.ftz.f32x2"](pa, pa, pb, pc))
+    T.evaluate(T.ptx.mov.b64(pa, _lane(a_arg, 0), _lane(a_arg, 1)))
+    T.evaluate(T.ptx.mov.b64(pb, _lane(b_arg, 0), _lane(b_arg, 1)))
+    T.evaluate(T.ptx.mov.b64(pc, _lane(c_arg, 0), _lane(c_arg, 1)))
+    T.evaluate(T.ptx[f"fma.{rm}.ftz.f32x2"](pa, pa, pb, pc))
     T.evaluate(
-        T.ptxd.mov.b64(
+        T.ptx.mov.b64(
             dst_buf[tuple(dst_lane_indices[0])],
             dst_buf[tuple(dst_lane_indices[1])],
             pa,

@@ -39,7 +39,7 @@ from tvm.tirx.operator.tile_primitive.registry import DispatchContext
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..layout_utils import recompose_swizzle, strip_swizzle_to_tile
-from ._common import _alignment_ok, copy_ptxd_form, copy_ptxd_ld_chain
+from ._common import _alignment_ok, copy_ptx_form, copy_ptx_ld_chain
 from .utils import _is_valid_copy, _scope_allowed
 from .vec_forced import _ld_cache_config
 
@@ -554,7 +554,7 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
 
     s_is_shared = s_buf.scope().startswith("shared")
     num_bytes = vec_bits // 8
-    tail, lanes, reg_dtype = copy_ptxd_form(num_bytes)
+    tail, lanes, reg_dtype = copy_ptx_form(num_bytes)
     space = "shared" if s_is_shared else "global"
 
     # Honor the load cache hint (cache="nc") only on global -> register loads;
@@ -574,7 +574,7 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     # not something the parser can carry. `nc` folds into the chain, so the
     # three-way branch at the call site collapses to load-or-store.
     st_chain = f"st.{space}.{tail}"
-    ld_chain = copy_ptxd_ld_chain(
+    ld_chain = copy_ptx_ld_chain(
         space,
         tail,
         nc=_use_nc,
@@ -617,9 +617,9 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
             # between element and word granularity.
             r_w = (r_off_base + dr) * words_per_elem // elems_per_word
             if r_is_src:
-                T.ptxd[st_chain](s_ptr, *[r_words[r_w + i] for i in range(lanes)])
+                T.ptx[st_chain](s_ptr, *[r_words[r_w + i] for i in range(lanes)])
             else:
-                T.ptxd[ld_chain](*[r_words[r_w + i] for i in range(lanes)], s_ptr)
+                T.ptx[ld_chain](*[r_words[r_w + i] for i in range(lanes)], s_ptr)
     # fmt: on
     import os
 

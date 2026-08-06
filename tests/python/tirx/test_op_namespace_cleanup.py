@@ -336,7 +336,7 @@ def test_registered_tirx_ops_have_exactly_one_category():
     categories = {"builtin", "tile_primitive", "device_intrin"}
     device_namespaces = {
         "cuda",
-        "ptxd",
+        "ptx",
         # `ptx_legacy` holds the Apache-compatible spellings, `s_tir` the
         # nodes that pipeline's own passes build; neither is a dialect surface.
         "ptx_legacy",

@@ -129,8 +129,9 @@ accumulate over K in place, one ``mma`` per (m, n) tile:
                 d_ptrs = [d_local.ptr_to([m, n, rM, rN]) for rM in range(2) for rN in range(2)]  # 4 f32
                 a_ptrs = [a_local.ptr_to([m, k, rM, kHi, 0]) for kHi in range(n_kHi) for rM in range(2)]
                 b_ptrs = [b_local.ptr_to([k, n, kHi, 0]) for kHi in range(n_kHi)]
-                T.ptxd.mma(shape_str, "row", "col", "float32", a_type, b_type, "float32",
-                          d_ptrs, a_ptrs, b_ptrs, d_ptrs)        # d = a·b + d
+                mma_chain = (f"mma.sync.aligned.{shape_str}.row.col"
+                             f".f32.{a_elem}.{b_elem}.f32")
+                T.ptx[mma_chain](*d_regs, *a_regs, *b_regs, *d_regs)   # d = a·b + d
 
 Generated TIRx IR
 -----------------
@@ -139,8 +140,8 @@ The single 16×8×16 tile lowers to one ``mma`` (4 D regs, 4 A regs, 2 B regs):
 
 .. code-block:: python
 
-    T.ptxd.mma("m16n8k16", "row", "col", "float32", "float16", "float16", "float32",
-              4, 4, 2, 4, False, T.address_of(d_local[0]), ...)
+    T.ptx["mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32"](
+        d_local[0], d_local[1], d_local[2], d_local[3], a_local[0], ...)
 
 Generated CUDA
 --------------

@@ -534,7 +534,7 @@ def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Prim
     M_tiles, N_tiles, K_tiles = d_shape[0], d_shape[1], a_shape[1]
     shape_str = f"m{inst.m}n{inst.n}k{inst.k}"
     a_type, b_type, c_type, d_type = inst.dtype
-    # The ptxd chain is built here: a Python string bound inside the traced
+    # The ptx chain is built here: a Python string bound inside the traced
     # body is not something the parser can carry. PTX names the element format
     # of each matrix, which is not the TVM dtype of the register buffer.
     _PTX_ELEM = {"float16": "f16", "bfloat16": "bf16", "float32": "f32"}
@@ -587,6 +587,6 @@ def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Prim
                     # B: b32 regs in PTX order b32 = kHi.
                     b_regs = [b_words[k, n, kHi, 0] for kHi in range(n_kHi)]
                     # Accumulate in place into D's own regs: c = d.
-                    T.ptxd[mma_chain](*d_regs, *a_regs, *b_regs, *d_regs)
+                    T.ptx[mma_chain](*d_regs, *a_regs, *b_regs, *d_regs)
 
     return impl

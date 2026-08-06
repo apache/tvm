@@ -40,9 +40,9 @@ def ptx_scalar_f32_math(
     with T.sblock():
         T.reads(A[0:32], B[0:32])
         T.writes(C_add[0:32], C_mul[0:32], C_max[0:32])
-        T.ptxd.add.rn.f32(C_add[tx], A[tx], B[tx])
-        T.ptxd.mul.rn.f32(C_mul[tx], A[tx], B[tx])
-        T.ptxd.max.f32(C_max[tx], A[tx], B[tx])
+        T.ptx.add.rn.f32(C_add[tx], A[tx], B[tx])
+        T.ptx.mul.rn.f32(C_mul[tx], A[tx], B[tx])
+        T.ptx.max.f32(C_max[tx], A[tx], B[tx])
 
 
 @pytest.mark.gpu

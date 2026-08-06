@@ -39,12 +39,12 @@ def query_cancel_first_ctaid_x(first_ctaid_x, handle, *, use_ld_acquire=True):
     response = T.local_scalar("uint128")
     canceled = T.local_scalar("uint32")
 
-    T.ptxd[f"ld{'.acquire.cta' if use_ld_acquire else ''}.shared.b128"](response, handle)
-    T.ptxd.clusterlaunchcontrol.query_cancel.is_canceled.pred.b128(canceled, response)
+    T.ptx[f"ld{'.acquire.cta' if use_ld_acquire else ''}.shared.b128"](response, handle)
+    T.ptx.clusterlaunchcontrol.query_cancel.is_canceled.pred.b128(canceled, response)
     first_ctaid_x = T.uint32(0xFFFFFFFF)
-    T.ptxd.clusterlaunchcontrol.query_cancel.get_first_ctaid__x.b32.b128(
+    T.ptx.clusterlaunchcontrol.query_cancel.get_first_ctaid__x.b32.b128(
         first_ctaid_x, response, pred=canceled
     )
     # Release the generic-proxy read of the handle before the next iteration's
     # async-proxy write to it (ISA 9.7.14.15's own example does the same).
-    T.ptxd.fence.proxy.async_.shared__cta()
+    T.ptx.fence.proxy.async_.shared__cta()

@@ -570,12 +570,7 @@ def test_binary_op_packed_f32x2_auto_dispatch(op_type):
             "sub": r"sub\.[a-z]+\.ftz\.f32x2",
             "mul": r"mul\.[a-z]+\.ftz\.f32x2",
         }[op_type]
-        builtin_pat = {
-            "add": r"tvm_builtin_ptx_add_packed_",
-            "sub": r"tvm_builtin_ptx_sub_packed_",
-            "mul": r"tvm_builtin_ptx_mul_packed_",
-        }[op_type]
-        assert re.search(ptx_pat, src) or re.search(builtin_pat, src), src
+        assert re.search(ptx_pat, src), src
         if op_type == "add":
             A_ref = A_np + B_np
         elif op_type == "sub":
@@ -715,9 +710,9 @@ def test_binary_op_warpgroup_wg_local_emits_packed_f32x2(op_name, ptx_op):
         src = ex.mod.imports[0].inspect_source()
 
     # Codegen must use the packed f32x2 path, not scalar fallback.
-    assert re.search(rf"{ptx_op}\.[a-z]+\.ftz\.f32x2", src) or re.search(
-        rf"tvm_builtin_ptx_{ptx_op}_packed_[a-z]+_f32x2", src
-    ), f"expected packed f32x2 PTX for op={op_name}, source preview:\n{src[:2000]}"
+    assert re.search(rf"{ptx_op}\.[a-z]+\.ftz\.f32x2", src), (
+        f"expected packed f32x2 PTX for op={op_name}, source preview:\n{src[:2000]}"
+    )
 
 
 def test_fma_warpgroup_wg_local_emits_packed_f32x2():
@@ -757,9 +752,9 @@ def test_fma_warpgroup_wg_local_emits_packed_f32x2():
         ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
-    assert re.search(r"fma\.[a-z]+\.ftz\.f32x2", src) or re.search(
-        r"tvm_builtin_ptx_fma_packed_[a-z]+_f32x2", src
-    ), f"expected packed f32x2 fma PTX, source preview:\n{src[:2000]}"
+    assert re.search(r"fma\.[a-z]+\.ftz\.f32x2", src), (
+        f"expected packed f32x2 fma PTX, source preview:\n{src[:2000]}"
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -792,9 +787,9 @@ def test_binary_add_f32_sm100_packed_f32x2_dispatch():
         mod = tvm.IRModule({"main": k})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
-    assert re.search(r"add\.[a-z]+\.ftz\.f32x2", src) or re.search(
-        r"tvm_builtin_ptx_add_packed_", src
-    ), f"expected packed add_f32x2; got:\n{src[:2000]}"
+    assert re.search(r"add\.[a-z]+\.ftz\.f32x2", src), (
+        f"expected packed add_f32x2; got:\n{src[:2000]}"
+    )
 
 
 @pytest.mark.gpu
@@ -896,9 +891,9 @@ def test_mul_tcgen05_16x256b_atom_warpgroup_dispatch():
     with target:
         mod = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
-    assert re.search(r"mul\.[a-z]+\.ftz\.f32x2", src) or re.search(
-        r"tvm_builtin_ptx_mul_packed_", src
-    ), f"expected packed mul_f32x2 for tcgen05 atom; got:\n{src[:2000]}"
+    assert re.search(r"mul\.[a-z]+\.ftz\.f32x2", src), (
+        f"expected packed mul_f32x2 for tcgen05 atom; got:\n{src[:2000]}"
+    )
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Thin generator 1: emit a ``.pyi`` stub for the ``T.ptxd`` namespace.
+"""Thin generator 1: emit a ``.pyi`` stub for the ``T.ptx`` namespace.
 
 Run manually (never at import time)::
 
@@ -23,7 +23,7 @@ Run manually (never at import time)::
 The output is a *module stub for* ``tvm.script.tirx``: that module is
 virtual at runtime (dialect-registry ``__getattr__``), but a ``.pyi`` file
 at ``python/tvm/script/tirx.pyi`` makes Pyright/Pylance resolve it — giving
-VS Code completion for ``T.ptxd.`` chains. All other members fall back to
+VS Code completion for ``T.ptx.`` chains. All other members fall back to
 ``Any`` via the stub's module ``__getattr__``, matching today's behavior.
 
 Each family's chain class lists every slot token flatly, so the stub also
@@ -102,7 +102,7 @@ def _chain_class(family: str, entries: list[InstructionEntry]) -> str:
         if not attr.isidentifier():
             # A token like `16x64b` cannot be an attribute name, so the chain
             # form cannot reach it; those variants are written as strings,
-            # `T.ptxd["tcgen05.ld.sync.aligned.16x64b.x4.b32"](...)`.
+            # `T.ptx["tcgen05.ld.sync.aligned.16x64b.x4.b32"](...)`.
             continue
         lines.append(f"    {attr}: {cls}")
     if len(signature) > 92:  # keep the generated stub within the repo line limit
@@ -136,7 +136,7 @@ _ASF_HEADER = """\
 def generate() -> str:
     out = [
         _ASF_HEADER,
-        '"""Generated stub for T.ptxd — do not edit.',
+        '"""Generated stub for T.ptx — do not edit.',
         "",
         "Regenerate:",
         "  python -m tvm.backend.cuda.ptx_dialect.gen_stubs -o python/tvm/script/tirx.pyi",
@@ -151,12 +151,12 @@ def generate() -> str:
     for family in sorted(families):
         out.append(_chain_class(family, families[family]))
         out.append("")
-    out.append("class _PTXD:")
+    out.append("class _PTX:")
     for family in sorted(families):
         out.append(f"    {escape_token(family)}: _Chain_{family}")
     out.append("    def __getitem__(self, text: str) -> Any: ...")
     out.append("")
-    out.append("ptxd: _PTXD")
+    out.append("ptx: _PTX")
     out.append("")
     out.append("# Every other tvm.script.tirx member stays dynamically typed, as before.")
     out.append("def __getattr__(name: str) -> Any: ...")

@@ -578,8 +578,8 @@ def test_ptx_st_from_src_f32_vector_preserves_values():
         out = T.alloc_local((4,), "float32")
         for i in range(4):
             reg[i] = T.cast(i + 1, "float32")
-        T.ptxd.st.shared.v4.f32(smem.ptr_to([0]), reg[0], reg[1], reg[2], reg[3])
-        T.ptxd.ld.shared.v4.f32(out[0], out[1], out[2], out[3], smem.ptr_to([0]))
+        T.ptx.st.shared.v4.f32(smem.ptr_to([0]), reg[0], reg[1], reg[2], reg[3])
+        T.ptx.ld.shared.v4.f32(out[0], out[1], out[2], out[3], smem.ptr_to([0]))
         for i in range(4):
             B[i] = out[i]
 

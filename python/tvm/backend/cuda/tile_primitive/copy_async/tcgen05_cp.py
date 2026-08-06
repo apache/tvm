@@ -768,7 +768,7 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
     if total == 1:
         @T.prim_func(check_well_formed=False)
         def impl():
-            T.ptxd[cp_chain](T.cast(t_addr[0] + t_addr_off, "uint32"), _cp_desc(init_off_16B))
+            T.ptx[cp_chain](T.cast(t_addr[0] + t_addr_off, "uint32"), _cp_desc(init_off_16B))
     else:
         def compute_offsets(flat):
             t_off = 0
@@ -785,7 +785,7 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
         def impl():
             for flat in T.unroll(total):
                 t_off, s_off = T.meta_var(compute_offsets(flat))
-                T.ptxd[cp_chain](
+                T.ptx[cp_chain](
                     T.cast(t_addr[0] + t_addr_off + t_off, "uint32"),
                     _cp_desc(init_off_16B + s_off),
                 )

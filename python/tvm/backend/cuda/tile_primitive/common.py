@@ -220,7 +220,7 @@ def copy_vec_load_impl(
                         fused = T.meta_var((s * tx + tid_x) * vec_len)
                         dst_indices = T.meta_var(get_indices(fused, dst_st, dst_extent))
                         src_indices = T.meta_var(get_indices(fused, src_st, src_extent))
-                        T.evaluate(T.ptxd[f"cp.async.{'cg' if cp_size == 16 else 'ca'}.shared.global"](dst.ptr_to(dst_indices), src.ptr_to(src_indices), cp_size))  # noqa: E501
+                        T.evaluate(T.ptx[f"cp.async.{'cg' if cp_size == 16 else 'ca'}.shared.global"](dst.ptr_to(dst_indices), src.ptr_to(src_indices), cp_size))  # noqa: E501
             if dst.scope().startswith("shared") and inst_type == CopyInstType.NORMAL:
                 T.tvm_storage_sync("shared")
         # fmt: on
@@ -239,7 +239,7 @@ def copy_vec_load_impl(
                     fused = T.meta_var(s * vec_len)
                     dst_indices = T.meta_var(get_indices(fused, dst_st, dst_extent))
                     src_indices = T.meta_var(get_indices(fused, src_st, src_extent))
-                    T.evaluate(T.ptxd[f"cp.async.{'cg' if cp_size == 16 else 'ca'}.shared.global"](dst.ptr_to(dst_indices), src.ptr_to(src_indices), cp_size))  # noqa: E501
+                    T.evaluate(T.ptx[f"cp.async.{'cg' if cp_size == 16 else 'ca'}.shared.global"](dst.ptr_to(dst_indices), src.ptr_to(src_indices), cp_size))  # noqa: E501
         # fmt: on
     else:
         fail(f"unsupported exec_scope {sctx.scope_kind}")

@@ -19,11 +19,11 @@
 
 Cache-semantics config (all variants, read from ``op_call.config``):
 
-- ``cache``: ``None`` (default, plain ``T.ptxd.ld``) or ``"nc"`` (load via
-  ``T.ptxd.ld.global_.nc``, i.e. PTX ``ld.global.nc``). Requires a global src.
+- ``cache``: ``None`` (default, plain ``T.ptx.ld``) or ``"nc"`` (load via
+  ``T.ptx.ld.global_.nc``, i.e. PTX ``ld.global.nc``). Requires a global src.
 - ``l1_evict`` / ``l2_evict`` / ``prefetch_size``: L1/L2 cache hint kwargs
-  forwarded verbatim to the emitted load (same values ``T.ptxd.ld`` /
-  ``T.ptxd.ld.global_.nc`` accept, e.g. ``"L1::no_allocate"``,
+  forwarded verbatim to the emitted load (same values ``T.ptx.ld`` /
+  ``T.ptx.ld.global_.nc`` accept, e.g. ``"L1::no_allocate"``,
   ``"L2::evict_first"``, ``"L2::256B"``). Requires a global src.
 
 Example::
@@ -41,7 +41,7 @@ from tvm.tirx.operator.tile_primitive.registry import DispatchContext
 from tvm.tirx.stmt import BufferRegion
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
-from ._common import copy_ptxd_form, copy_ptxd_ld_chain
+from ._common import copy_ptx_form, copy_ptx_ld_chain
 from .utils import _scope_allowed
 
 
@@ -75,7 +75,7 @@ def _ld_cache_config(op_call: TilePrimitiveCall) -> tuple[str | None, dict[str, 
     """Read the cache-semantics config from ``op_call.config``.
 
     Returns ``(cache, hints)``: ``cache`` is ``None`` or ``"nc"``, and
-    ``hints`` maps the ``T.ptxd.ld``/``T.ptxd.ld.global_.nc`` L1/L2 hint kwargs
+    ``hints`` maps the ``T.ptx.ld``/``T.ptx.ld.global_.nc`` L1/L2 hint kwargs
     (``l1_evict``, ``l2_evict``, ``prefetch_size``) to their string values.
     """
     cache = op_call.config.get("cache", None)
@@ -148,7 +148,7 @@ def _emit_forced_vec_copy(op_call: TilePrimitiveCall, _sctx: DispatchContext, nu
     src_ptr = src.ptr_to(_region_start(op_call.src))
     dst_ptr = dst.ptr_to(_region_start(op_call.dst))
     elem_bits = DataType(src.dtype).bits
-    tail, lanes, reg_dtype = copy_ptxd_form(num_bytes)
+    tail, lanes, reg_dtype = copy_ptx_form(num_bytes)
     container_bits = num_bytes * 8 // lanes
 
     def _words(buf, region):
@@ -179,7 +179,7 @@ def _emit_forced_vec_copy(op_call: TilePrimitiveCall, _sctx: DispatchContext, nu
     l1_evict = hints.get("l1_evict", "")
     l2_evict = hints.get("l2_evict", "")
     prefetch_size = hints.get("prefetch_size", "")
-    ld_chain = copy_ptxd_ld_chain(
+    ld_chain = copy_ptx_ld_chain(
         src_space,
         tail,
         nc=use_nc,
@@ -192,13 +192,13 @@ def _emit_forced_vec_copy(op_call: TilePrimitiveCall, _sctx: DispatchContext, nu
     @T.prim_func(check_well_formed=False)
     def impl():
         if src_is_local:
-            T.ptxd[st_chain](dst_ptr, *_words(src, op_call.src))
+            T.ptx[st_chain](dst_ptr, *_words(src, op_call.src))
         elif dst_is_local:
-            T.ptxd[ld_chain](*_words(dst, op_call.dst), src_ptr)
+            T.ptx[ld_chain](*_words(dst, op_call.dst), src_ptr)
         else:
             tmp = T.alloc_local((lanes,), reg_dtype)
-            T.ptxd[ld_chain](*[tmp[i] for i in range(lanes)], src_ptr)
-            T.ptxd[st_chain](dst_ptr, *[tmp[i] for i in range(lanes)])
+            T.ptx[ld_chain](*[tmp[i] for i in range(lanes)], src_ptr)
+            T.ptx[st_chain](dst_ptr, *[tmp[i] for i in range(lanes)])
     # fmt: on
     return impl
 

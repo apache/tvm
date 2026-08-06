@@ -17,7 +17,7 @@
 # pylint: disable=missing-function-docstring
 """Codegen tests for Ampere (sm_80) warp-level ``mma.sync`` tensor cores.
 
-These exercise the ``T.ptxd.mma`` chain directly (not via the gemm
+These exercise the ``T.ptx.mma`` chain directly (not via the gemm
 dispatch). ``ptx.mma`` takes one pointer per 32-bit register for each operand
 (``d_ptrs`` / ``a_ptrs`` / ``b_ptrs`` / ``c_ptrs``), enumerated in the fixed
 PTX register order, so the b32 registers may be scattered in the register file
@@ -127,12 +127,12 @@ def test_ptx_mma_m16n8k16(a_type, no_c_ptr):
         # multiplicands are packed two per b32, so they ride a uint32 view.
         A_words = A_local.view("uint32")
         B_words = B_local.view("uint32")
-        # ptxd takes the accumulator as an operand; the legacy "omit c" form
+        # ptx takes the accumulator as an operand; the legacy "omit c" form
         # fed literal zeros, which is now spelled at the call site.
         if no_c_ptr:
             for i in range(4):
                 C_local[i] = T.float32(0)
-        T.ptxd[f"mma.sync.aligned.m16n8k16.row.col.f32.{_elem}.{_elem}.f32"](
+        T.ptx[f"mma.sync.aligned.m16n8k16.row.col.f32.{_elem}.{_elem}.f32"](
             *[D_local[i] for i in range(4)],
             *[A_words[i] for i in range(4)],
             *[B_words[i] for i in range(2)],
@@ -203,12 +203,12 @@ def test_ptx_mma_m16n8k8(a_type, no_c_ptr):
         # One register per b32, in PTX order: A=2, B=1, D/C=4.
         A_words = A_local.view("uint32")
         B_words = B_local.view("uint32")
-        # ptxd takes the accumulator as an operand; the legacy "omit c" form
+        # ptx takes the accumulator as an operand; the legacy "omit c" form
         # fed literal zeros, which is now spelled at the call site.
         if no_c_ptr:
             for i in range(4):
                 C_local[i] = T.float32(0)
-        T.ptxd[f"mma.sync.aligned.m16n8k8.row.col.f32.{_elem}.{_elem}.f32"](
+        T.ptx[f"mma.sync.aligned.m16n8k8.row.col.f32.{_elem}.{_elem}.f32"](
             *[D_local[i] for i in range(4)],
             *[A_words[i] for i in range(2)],
             *[B_words[i] for i in range(1)],

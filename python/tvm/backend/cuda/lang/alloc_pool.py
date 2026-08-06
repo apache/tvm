@@ -358,7 +358,7 @@ class TMEMPool:
 
         def emit_alloc():
             _emit_stmt(
-                T.ptxd[f"tcgen05.alloc.cta_group::{self.cta_group}.sync.aligned.shared::cta.b32"](
+                T.ptx[f"tcgen05.alloc.cta_group::{self.cta_group}.sync.aligned.shared::cta.b32"](
                     T.address_of(self.addr), T.uint32(self.total_cols)
                 )
             )
@@ -376,12 +376,10 @@ class TMEMPool:
 
         def emit_dealloc():
             _emit_stmt(
-                T.ptxd[
-                    f"tcgen05.relinquish_alloc_permit.cta_group::{self.cta_group}.sync.aligned"
-                ]()
+                T.ptx[f"tcgen05.relinquish_alloc_permit.cta_group::{self.cta_group}.sync.aligned"]()
             )
             _emit_stmt(
-                T.ptxd[f"tcgen05.dealloc.cta_group::{self.cta_group}.sync.aligned.b32"](
+                T.ptx[f"tcgen05.dealloc.cta_group::{self.cta_group}.sync.aligned.b32"](
                     self.addr, T.uint32(self.total_cols)
                 )
             )

@@ -21,7 +21,7 @@ TIRx Basics: CUDA C++/PTX native level
 .. note::
 
    Native-level kernel authoring for the **CUDA backend** (the ``"cuda"``
-   target): the thread hierarchy, memory scopes, the ``T.cuda.*`` / ``T.ptxd.*``
+   target): the thread hierarchy, memory scopes, the ``T.cuda.*`` / ``T.ptx.*``
    intrinsics, and the compile / run / inspect loop. The complete kernels in
    these chapters (``scale``, ``add``, ``smem_demo``, ``block_sum``, and the
    warp all-reduce) are tested end-to-end on a CUDA GPU.

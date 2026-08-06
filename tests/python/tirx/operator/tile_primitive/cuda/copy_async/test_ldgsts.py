@@ -89,8 +89,8 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
         A_smem = T.alloc_buffer(s_shape, dtype, scope="shared", layout=layoutS)
 
         Tx.cta.copy_async(A_smem[tuple(r_smem)], A[tuple(r_gmem)], dispatch="ldgsts")
-        T.ptxd.cp.async_.commit_group()
-        T.ptxd.cp.async_.wait_group(0)
+        T.ptx.cp.async_.commit_group()
+        T.ptx.cp.async_.wait_group(0)
         T.cuda.cta_sync()
         Tx.cta.copy(B[tuple(r_gmem)], A_smem[tuple(r_smem)])
         # fmt: on

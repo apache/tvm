@@ -207,9 +207,9 @@ def test_add_rounding_mode():
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         # Check that the PTX uses the rounding mode
         src = mod.mod.imports[0].inspect_source()
-        assert re.search(r"add\.rm\.ftz\.f32x2", src) or re.search(
-            r"tvm_builtin_ptx_add_packed_", src
-        ), f"Expected packed add with rm rounding in PTX:\n{src}"
+        assert re.search(r"add\.rm\.ftz\.f32x2", src), (
+            f"Expected packed add with rm rounding in PTX:\n{src}"
+        )
 
         def run_and_check():
             dev = tvm.cuda(0)
@@ -300,9 +300,9 @@ def test_sub_buffer_buffer_rounding():
         mod = tvm.IRModule({"main": test_func})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
-        assert re.search(r"sub\.rn\.ftz\.f32x2", src) or re.search(
-            r"tvm_builtin_ptx_sub_packed_", src
-        ), f"Expected packed sub with rn rounding in PTX:\n{src}"
+        assert re.search(r"sub\.rn\.ftz\.f32x2", src), (
+            f"Expected packed sub with rn rounding in PTX:\n{src}"
+        )
 
         def run_and_check():
             dev = tvm.cuda(0)
@@ -394,9 +394,9 @@ def test_fma_f32_sm100_packed_f32x2_dispatch():
         mod = tvm.IRModule({"main": k})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
-    assert re.search(r"fma\.[a-z]+\.ftz\.f32x2", src) or re.search(
-        r"tvm_builtin_ptx_fma_packed_", src
-    ), f"expected packed fma_f32x2; got:\n{src[:2000]}"
+    assert re.search(r"fma\.[a-z]+\.ftz\.f32x2", src), (
+        f"expected packed fma_f32x2; got:\n{src[:2000]}"
+    )
 
 
 if __name__ == "__main__":

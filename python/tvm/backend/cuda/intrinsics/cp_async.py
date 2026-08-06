@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name, too-many-arguments, too-many-locals, too-many-positional-arguments
-"""The raw cp.async op behind ``InjectPTXAsyncCopy`` (everything else is ptxd).
+"""The raw cp.async op behind ``InjectPTXAsyncCopy`` (everything else is ptx).
 
-``tirx.ptx.cp_async_raw`` is constructed by the C++ pass with explicit
+``tirx.s_tir.cp_async_raw`` is constructed by the C++ pass with explicit
 offsets; its codegen emits the scaling helper inline. All user-issued
-cp.async / cp.async.bulk copies go through ``T.ptxd`` instead.
+cp.async / cp.async.bulk copies go through ``T.ptx`` instead.
 """
 
 from tvm.backend.cuda.op import cuda_func_call
@@ -35,7 +35,7 @@ def _safe(s):
 
 @register_codegen("s_tir_cp_async_raw")
 def codegen_s_tir_cp_async_raw(*args):
-    """The raw cp.async op InjectPTXAsyncCopy emits (new copies are ptxd).
+    """The raw cp.async op InjectPTXAsyncCopy emits (new copies are ptx).
 
     Accepts two call shapes:
 

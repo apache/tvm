@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The ptxd cvt entries: one case per registered syntax line of ISA 9.7.9.22."""
+"""The ptx cvt entries: one case per registered syntax line of ISA 9.7.9.22."""
 
 import pytest
 
@@ -250,8 +250,8 @@ def test_cvt_form_renders_its_instruction(entry_name, slots, instruction):
     # text. That those bodies emit it as their own statement is the
     # single-instruction invariant's job, not this test's.
     assert f"{instruction} " in source
-    assert helper.startswith("tvm_builtin_ptxd_cvt_")
-    # Every ptxd helper is void: the destination is an operand, not a return.
+    assert helper.startswith("tvm_builtin_ptx_cvt_")
+    # Every ptx helper is void: the destination is an operand, not a return.
     assert source.startswith("__forceinline__ __device__ void ")
 
 
@@ -284,7 +284,7 @@ def test_cvt_e2m1x2_stages_its_b8_operand():
     and bridge it to the 16-bit "h" carrier; uint8_t is what the caller sees.
     """
     _, _, source = render_variant(TABLE["cvt_f4x2_f32"], ("rn", "satfinite", "", "e2m1x2", "f32"))
-    assert "void tvm_builtin_ptxd_cvt_f4x2_f32_rn_satfinite_e2m1x2_f32(" in source
+    assert "void tvm_builtin_ptx_cvt_f4x2_f32_rn_satfinite_e2m1x2_f32(" in source
     assert "(uint8_t& __d, float __a, float __b)" in source
     assert (
         '"{ .reg .b8 raw_d; cvt.rn.satfinite.e2m1x2.f32 raw_d, %1, %2;'

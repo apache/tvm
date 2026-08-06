@@ -48,7 +48,7 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
             and getattr(node.data, "name", None) == "remote_mbar_ptr"
         ):
             buffers.append(node)
-        if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.ptxd.mapa":
+        if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.ptx.mapa":
             mapa_calls.append(node)
         if isinstance(node, tvm.ir.Call) and node.op.name == arrive_op_name:
             arrive_calls.append(node)
@@ -64,7 +64,7 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
     assert buffers[0].data.same_as(bindings[0].var)
     assert buffers[0].data.ty.storage_scope == "shared"
     assert buffers[0].buffer.scope() == "shared"
-    # ptxd operand order is the PTX operand order: mapa writes its result into
+    # ptx operand order is the PTX operand order: mapa writes its result into
     # a destination the caller declared, so args are (d, a, b) and the arrive
     # reads the mapped address back out of that destination rather than
     # re-deriving it. One mapa serves every arrive on the view -- the arrive
@@ -95,15 +95,15 @@ def test_tmem_alloc_dealloc_relinquish():
 
         # alloc TMEM
         if warp_id == 0:
-            T.ptxd[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
+            T.ptx[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
                 T.address_of(tmem_addr), T.uint32(N_COLS)
             )
         T.cuda.cta_sync()
 
         # dealloc TMEM
         if warp_id == 0:
-            T.ptxd[f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned"]()
-            T.ptxd[f"tcgen05.dealloc.cta_group::{cta_group}.sync.aligned.b32"](
+            T.ptx[f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned"]()
+            T.ptx[f"tcgen05.dealloc.cta_group::{cta_group}.sync.aligned.b32"](
                 tmem_addr, T.uint32(N_COLS)
             )
     # fmt: on
@@ -127,7 +127,7 @@ def test_mbarrier_try_wait_once_codegen():
         T.thread_id([128])
         bar = T.shared_scalar("uint64")
         ok = T.local_scalar("uint32")
-        T.ptxd.mbarrier.try_wait.parity.shared__cta.b64(
+        T.ptx.mbarrier.try_wait.parity.shared__cta.b64(
             ok, T.address_of(bar), T.uint32(0), T.uint32(0)
         )
     # fmt: on
@@ -163,13 +163,13 @@ def test_mbarrier_remote_view_codegen():
     # the mapped address rather than re-deriving it the way the fused wrapper
     # did. The two arrives are different ISA lines (implicit count vs explicit),
     # hence different entries.
-    _assert_remote_mbarrier_ir(test_remote_view, "tirx.ptxd.mbarrier_arrive_nocount")
-    _assert_remote_mbarrier_ir(test_remote_view, "tirx.ptxd.mbarrier_arrive")
+    _assert_remote_mbarrier_ir(test_remote_view, "tirx.ptx.mbarrier_arrive_nocount")
+    _assert_remote_mbarrier_ir(test_remote_view, "tirx.ptx.mbarrier_arrive")
     with tvm.target.Target("cuda"):
         src, _ = _get_source(test_remote_view)
-        assert "tvm_builtin_ptxd_mapa_u64" in src
-        assert "tvm_builtin_ptxd_mbarrier_arrive_nocount_arrive_shared__cluster_b64" in src
-        assert "tvm_builtin_ptxd_mbarrier_arrive_arrive_shared__cluster_b64" in src
+        assert "tvm_builtin_ptx_mapa_u64" in src
+        assert "tvm_builtin_ptx_mbarrier_arrive_nocount_arrive_shared__cluster_b64" in src
+        assert "tvm_builtin_ptx_mbarrier_arrive_arrive_shared__cluster_b64" in src
         assert "mbarrier.arrive.shared::cluster.b64" in src
         assert 'asm volatile("mbarrier.arrive.shared.b64' not in src
 
@@ -193,11 +193,11 @@ def test_tma_mbarrier_remote_view_codegen():
         remote_bar.arrive(0, tx_count=128)
     # fmt: on
 
-    _assert_remote_mbarrier_ir(test_remote_view, "tirx.ptxd.mbarrier_arrive_expect_tx")
+    _assert_remote_mbarrier_ir(test_remote_view, "tirx.ptx.mbarrier_arrive_expect_tx")
     with tvm.target.Target("cuda"):
         src, _ = _get_source(test_remote_view)
         assert (
-            "tvm_builtin_ptxd_mbarrier_arrive_expect_tx_arrive_expect_tx_shared__cluster_b64" in src
+            "tvm_builtin_ptx_mbarrier_arrive_expect_tx_arrive_expect_tx_shared__cluster_b64" in src
         )
         assert "mbarrier.arrive.expect_tx.shared::cluster.b64" in src
         assert 'asm volatile("mbarrier.arrive.expect_tx.shared.b64' not in src
@@ -281,9 +281,9 @@ def test_fence_before_after_thread_sync():
         warp_id = T.warp_id([4])
         lane_id = T.lane_id([32])
         tid = T.thread_id([128])
-        T.ptxd.tcgen05.fence__before_thread_sync()
-        T.ptxd.bar.sync(0, 32)
-        T.ptxd.tcgen05.fence__after_thread_sync()
+        T.ptx.tcgen05.fence__before_thread_sync()
+        T.ptx.bar.sync(0, 32)
+        T.ptx.tcgen05.fence__after_thread_sync()
     # fmt: on
 
     target = tvm.target.Target("cuda")
@@ -316,7 +316,7 @@ def test_tcgen05_ld_st_roundtrip():
 
         # alloc TMEM
         if warp_id == 0:
-            T.ptxd[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
+            T.ptx[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
                 T.address_of(tmem_addr), T.uint32(N_COLS)
             )
         T.cuda.cta_sync()
@@ -325,26 +325,26 @@ def test_tcgen05_ld_st_roundtrip():
             reg[i] = A[tx, i]
         # RF -> TMEM
         for i in range(WIDTH):
-            T.ptxd[f"tcgen05.st.sync.aligned.32x32b.x{REPEAT_NUM}.b32"](T.cuda.get_tmem_addr(tmem_addr, warp_id * 32, i), reg[i])  # noqa: E501
-        T.ptxd.tcgen05.wait__st.sync.aligned()
+            T.ptx[f"tcgen05.st.sync.aligned.32x32b.x{REPEAT_NUM}.b32"](T.cuda.get_tmem_addr(tmem_addr, warp_id * 32, i), reg[i])  # noqa: E501
+        T.ptx.tcgen05.wait__st.sync.aligned()
         T.cuda.cta_sync()
         # reset RF
         for i in range(WIDTH):
             reg[i] = 0.0
         T.cuda.cta_sync()
         # TMEM -> RF
-        T.ptxd.tcgen05.fence__after_thread_sync()
+        T.ptx.tcgen05.fence__after_thread_sync()
         for i in range(WIDTH):
-            T.ptxd[f"tcgen05.ld.sync.aligned.32x32b.x{REPEAT_NUM}.b32"](reg[i], T.cuda.get_tmem_addr(tmem_addr, warp_id * 32, i))  # noqa: E501
-        T.ptxd.tcgen05.wait__ld.sync.aligned()
+            T.ptx[f"tcgen05.ld.sync.aligned.32x32b.x{REPEAT_NUM}.b32"](reg[i], T.cuda.get_tmem_addr(tmem_addr, warp_id * 32, i))  # noqa: E501
+        T.ptx.tcgen05.wait__ld.sync.aligned()
         # RF -> GMEM
         for i in range(WIDTH):
             B[tx, i] = reg[i]
 
         # dealloc TMEM
         if warp_id == 0:
-            T.ptxd[f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned"]()
-            T.ptxd[f"tcgen05.dealloc.cta_group::{cta_group}.sync.aligned.b32"](
+            T.ptx[f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned"]()
+            T.ptx[f"tcgen05.dealloc.cta_group::{cta_group}.sync.aligned.b32"](
                 tmem_addr, T.uint32(N_COLS)
             )
     # fmt: on
@@ -400,12 +400,12 @@ def test_tcgen05_cp_ld_roundtrip():
 
         # alloc TMEM
         if warp_id == 0:
-            T.ptxd[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
+            T.ptx[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
                 T.address_of(tmem_addr), T.uint32(N_COLS)
             )
         T.cuda.cta_sync()
         Tx.cta.copy(A_smem[:, :], A[:, :])
-        T.ptxd.fence.proxy.async_.shared__cta()
+        T.ptx.fence.proxy.async_.shared__cta()
         T.cuda.cta_sync()
         # reset RF
         for i in range(WIDTH):
@@ -413,27 +413,27 @@ def test_tcgen05_cp_ld_roundtrip():
         # SMEM -> TMEM (cp)
         phase[0] = 0
         if tx == 0:
-            T.ptxd.mbarrier.init.shared.b64(bar.data, T.uint32(1))
+            T.ptx.mbarrier.init.shared.b64(bar.data, T.uint32(1))
             for k in range(dtype_bits * WIDTH // 256):
                 T.cuda.tcgen05.encode_matrix_descriptor(descA.data, A_smem.access_ptr("r", offset=A_smem.elem_offset_of([0, k * 8])), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
-                T.ptxd[f"tcgen05.cp.cta_group::{cta_group}.128x256b"](T.cuda.get_tmem_addr(tmem_addr, 0, k * 256 // 32), descA[0])  # noqa: E501
-            T.ptxd[f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"](bar.data)
+                T.ptx[f"tcgen05.cp.cta_group::{cta_group}.128x256b"](T.cuda.get_tmem_addr(tmem_addr, 0, k * 256 // 32), descA[0])  # noqa: E501
+            T.ptx[f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"](bar.data)
         T.cuda.mbarrier_wait(bar.data, phase[0])
         phase[0] = phase[0] ^ 1
         T.cuda.cta_sync()
         # TMEM -> RF (ld)
-        T.ptxd.tcgen05.fence__after_thread_sync()
+        T.ptx.tcgen05.fence__after_thread_sync()
         for i in range(WIDTH):
-            T.ptxd[f"tcgen05.ld.sync.aligned.32x32b.x{REPEAT_NUM}.b32"](reg[i], T.cuda.get_tmem_addr(tmem_addr, warp_id * 32, i))  # noqa: E501
-        T.ptxd.tcgen05.wait__ld.sync.aligned()
+            T.ptx[f"tcgen05.ld.sync.aligned.32x32b.x{REPEAT_NUM}.b32"](reg[i], T.cuda.get_tmem_addr(tmem_addr, warp_id * 32, i))  # noqa: E501
+        T.ptx.tcgen05.wait__ld.sync.aligned()
         # RF -> GMEM
         for i in range(WIDTH):
             B[tx, i] = reg[i]
 
         # dealloc TMEM
         if warp_id == 0:
-            T.ptxd[f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned"]()
-            T.ptxd[f"tcgen05.dealloc.cta_group::{cta_group}.sync.aligned.b32"](
+            T.ptx[f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned"]()
+            T.ptx[f"tcgen05.dealloc.cta_group::{cta_group}.sync.aligned.b32"](
                 tmem_addr, T.uint32(N_COLS)
             )
     # fmt: on
@@ -517,7 +517,7 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
 
         # alloc TMEM
         if warp_id == 0:
-            T.ptxd[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
+            T.ptx[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
                 T.address_of(tmem_addr), T.uint32(N_COLS)
             )
         T.cuda.cta_sync()
@@ -525,38 +525,38 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
             reg[i] = 0.0
         Tx.cta.copy(A_smem[:, :], A[:, :])
         Tx.cta.copy(B_smem[:, :], B[:, :])
-        T.ptxd.fence.proxy.async_.shared__cta()
+        T.ptx.fence.proxy.async_.shared__cta()
         T.cuda.cta_sync()
         # MMA
         phase[0] = 0
         if tx == 0:
-            T.ptxd.mbarrier.init.shared.b64(bar.data, T.uint32(1))
+            T.ptx.mbarrier.init.shared.b64(bar.data, T.uint32(1))
             T.cuda.tcgen05.encode_instr_descriptor(descI.data, d_dtype=d_type, a_dtype=a_type, b_dtype=b_type, M=M, N=N, K=MMA_K, trans_a=False, trans_b=False, n_cta_groups=cta_group)  # noqa: E501
             for k in range(K // MMA_K):
                 T.cuda.tcgen05.encode_matrix_descriptor(descA.data, A_smem.ptr_to([0, k * MMA_K]), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
                 T.cuda.tcgen05.encode_matrix_descriptor(descB.data, B_smem.ptr_to([0, k * MMA_K]), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
                 if k == 0:
-                    T.ptxd[mma_chain](tmem_addr, descA[0], descB[0], descI[0], *mma_masks, 0)
+                    T.ptx[mma_chain](tmem_addr, descA[0], descB[0], descI[0], *mma_masks, 0)
                 else:
-                    T.ptxd[mma_chain](tmem_addr, descA[0], descB[0], descI[0], *mma_masks, 1)
-            T.ptxd[f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"](bar.data)
+                    T.ptx[mma_chain](tmem_addr, descA[0], descB[0], descI[0], *mma_masks, 1)
+            T.ptx[f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"](bar.data)
         T.cuda.mbarrier_wait(bar.data, phase[0])
         phase[0] = phase[0] ^ 1
         T.cuda.cta_sync()
 
         # TMEM -> RF
-        T.ptxd.tcgen05.fence__after_thread_sync()
+        T.ptx.tcgen05.fence__after_thread_sync()
         for i in range(N):
-            T.ptxd[f"tcgen05.ld.sync.aligned.32x32b.x{REPEAT_NUM}.b32"](reg[i], T.cuda.get_tmem_addr(tmem_addr, warp_id * 32, i))  # noqa: E501
-        T.ptxd.tcgen05.wait__ld.sync.aligned()
+            T.ptx[f"tcgen05.ld.sync.aligned.32x32b.x{REPEAT_NUM}.b32"](reg[i], T.cuda.get_tmem_addr(tmem_addr, warp_id * 32, i))  # noqa: E501
+        T.ptx.tcgen05.wait__ld.sync.aligned()
         # RF -> GMEM
         for i in range(N):
             C[tx, i] = reg[i]
 
         # dealloc TMEM
         if warp_id == 0:
-            T.ptxd[f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned"]()
-            T.ptxd[f"tcgen05.dealloc.cta_group::{cta_group}.sync.aligned.b32"](
+            T.ptx[f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned"]()
+            T.ptx[f"tcgen05.dealloc.cta_group::{cta_group}.sync.aligned.b32"](
                 tmem_addr, T.uint32(N_COLS)
             )
     # fmt: on
@@ -607,7 +607,7 @@ def test_tcgen05_mma_pred_codegen():
         desc_b[0] = T.uint64(0)
         desc_i[0] = T.uint32(0)
         pred[0] = T.uint32(1)
-        T.ptxd["tcgen05.mma.cta_group::1.kind::f16"](
+        T.ptx["tcgen05.mma.cta_group::1.kind::f16"](
             tmem_addr[0],
             desc_a[0],
             desc_b[0],
@@ -624,7 +624,7 @@ def test_tcgen05_mma_pred_codegen():
     target = tvm.target.Target("cuda")
     with target:
         src, _ = _get_source(test_mma_pred)
-        assert "tvm_builtin_ptxd_tcgen05_mma_ss_mma_cta_group__1_kind__f16_pred" in src
+        assert "tvm_builtin_ptx_tcgen05_mma_ss_mma_cta_group__1_kind__f16_pred" in src
         # enable-input-d converts in via ps0, the @p guard via p -- two
         # independent setp conversions inside one block.
         assert "setp.ne.b32 ps0" in src

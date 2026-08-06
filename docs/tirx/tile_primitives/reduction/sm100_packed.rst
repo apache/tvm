@@ -88,16 +88,12 @@ the accumulator ``8 → 4 → 2 → 1`` with three more ``add.f32x2``:
 
 .. code-block:: python
 
-    # final tree (8 -> 4 -> 2 -> 1)
-    T.ptxd.add_f32x2(T.address_of(local_sum[0]),
-                    T.cuda.make_float2(local_sum[0], local_sum[1]),
-                    T.cuda.make_float2(local_sum[2], local_sum[3]), ftz=True)
-    T.ptxd.add_f32x2(T.address_of(local_sum[4]),
-                    T.cuda.make_float2(local_sum[4], local_sum[5]),
-                    T.cuda.make_float2(local_sum[6], local_sum[7]), ftz=True)
-    T.ptxd.add_f32x2(T.address_of(local_sum[0]),
-                    T.cuda.make_float2(local_sum[0], local_sum[1]),
-                    T.cuda.make_float2(local_sum[4], local_sum[5]), ftz=True)
+    # final tree (8 -> 4 -> 2 -> 1); mov.b64 packs/unpacks the float2 lanes
+    T.ptx.mov.b64(acc, local_sum[0], local_sum[1])
+    T.ptx.mov.b64(rhs, local_sum[2], local_sum[3])
+    T.ptx.add.rn.ftz.f32x2(acc, acc, rhs)
+    T.ptx.mov.b64(local_sum[0], local_sum[1], acc)
+    # ... same for local_sum[4:8], then fold the two halves together ...
     dst[...] = local_sum[0] + local_sum[1]
 
 **max / min (3input_maxmin).** A 4-wide accumulator folded three-at-a-time with the
@@ -108,9 +104,10 @@ Generated TIRx IR
 
 .. code-block:: python
 
-    T.ptxd.add_f32x2(T.address_of(local_sum[0]),
-                    T.cuda.make_float2(local_sum[0], local_sum[1]),
-                    T.cuda.make_float2(local_sum[2], local_sum[3]))   # ... the 8->4->2->1 tree
+    T.ptx.mov.b64(acc, local_sum[0], local_sum[1])
+    T.ptx.mov.b64(rhs, local_sum[2], local_sum[3])
+    T.ptx.add.rn.ftz.f32x2(acc, acc, rhs)                             # ... the 8->4->2->1 tree
+    T.ptx.mov.b64(local_sum[0], local_sum[1], acc)
 
 Generated CUDA
 --------------
@@ -119,9 +116,9 @@ Generated CUDA
 
     // packed pairwise add: two float lanes per instruction
     "add.rn.ftz.f32x2 %0, %1, %2;"
-    // call: tvm_builtin_ptx_add_f32x2_rn_ftz(&local_sum_ptr[0],
-    //          tvm_builtin_make_float2(local_sum_ptr[0], local_sum_ptr[1]),
-    //          tvm_builtin_make_float2(local_sum_ptr[2], local_sum_ptr[3]));
+    // call: tvm_builtin_ptx_add_rn_ftz_f32x2(acc, acc, rhs);
+    //   with acc / rhs packed by tvm_builtin_ptx_mov_pack_b32x2_b64_u64_f32(...)
+    //   and unpacked by  tvm_builtin_ptx_mov_unpack_b32x2_b64_f32_u64(...)
 
 (Verified on ``sm_100a`` — ``B == sum(A)`` for a 32-element vector.)
 

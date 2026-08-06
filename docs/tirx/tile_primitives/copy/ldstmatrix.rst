@@ -152,10 +152,11 @@ handles:
     for mm in T.unroll(m_outer):
         smem_ptr = _ptr_off(s_buf.ptr_to(s_zero), _smem_off(mm, tile_off + (laneid % 8) * p))
         handles  = [r_local.ptr_to([...]) for i in range(num)]
+        chain = f"{direction}matrix.sync.aligned.m8n8.x{num}{trans_seg}.shared.b16"
         if direction == "ld":
-            T.ptxd.ldmatrix(trans, num, ".b16", smem_ptr, *handles)
+            T.ptx[chain](*words, smem_ptr)
         else:
-            T.ptxd.stmatrix(trans, num, ".b16", smem_ptr, *handles, shape="m8n8", space="shared")
+            T.ptx[chain](smem_ptr, *words)   # stmatrix takes the address first
 
 (This is the one copy variant that **does** use ``T.unroll`` — ``m_outer`` is tiny.)
 
@@ -167,21 +168,22 @@ For the demo (``num = 2``, ``M = 8`` ⇒ ``m_outer = 1``):
 .. code-block:: python
 
     for mm in T.unroll(1):
-        T.ptxd.ldmatrix(T.bool(False), 2, ".b16", smem_ptr,
-                       T.address_of(r_local[0]), T.address_of(r_local[2]))
+        T.ptx["ldmatrix.sync.aligned.m8n8.x2.shared.b16"](
+            r_local[0], r_local[2], smem_ptr)
 
 Generated CUDA
 --------------
 
 .. code-block:: c++
 
-    __forceinline__ __device__ void ptx_ldmatrix_2_b16_0(void* smem_ptr, void* dst0, void* dst1) {
-      // ...
-      "ldmatrix.sync.aligned.m8n8.x2.shared.b16 {%0, %1}, [%2];"
-      // ...
+    __forceinline__ __device__ void tvm_builtin_ptx_ldmatrix_sync_aligned_m8n8_x2_shared_b16(
+        uint32_t& __d0, uint32_t& __d1, uint32_t __a) {
+      asm volatile("ldmatrix.sync.aligned.m8n8.x2.shared.b16 {%0, %1}, [%2];"
+                   : "=r"(__d0), "=r"(__d1) : "r"(__a));
     }
     // call site (per lane):
-    ptx_ldmatrix_2_b16_0(smem_ptr, &r_local_ptr[0], &r_local_ptr[2]);
+    tvm_builtin_ptx_ldmatrix_sync_aligned_m8n8_x2_shared_b16(
+        r_local_ptr[0], r_local_ptr[2], smem_addr);
 
 ``num = 2`` becomes ``.x2`` with two destination registers; the warp's 32 lanes
 cooperatively supply the 8 source rows and receive the shuffled fragment.

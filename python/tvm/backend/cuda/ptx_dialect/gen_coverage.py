@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Thin generator 2: emit a markdown coverage table for the ptxd dialect.
+"""Thin generator 2: emit a markdown coverage table for the ptx dialect.
 
 Run manually::
 
@@ -30,7 +30,7 @@ from .table import TABLE
 
 def generate() -> str:
     lines = [
-        "# ptxd dialect coverage",
+        "# ptx dialect coverage",
         "",
         "| instruction | modifiers | constraints | operands |",
         "|---|---|---|---|",

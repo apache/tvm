@@ -541,8 +541,8 @@ def _outer_offsets(outer_iters_s, outer_iters_g, flat_idx):
     return ds, dg
 
 
-def copy_ptxd_form(num_bytes: int) -> tuple[str, int, str]:
-    """Map copy width (bytes) to ``(ptxd chain tail, lanes, register dtype)``.
+def copy_ptx_form(num_bytes: int) -> tuple[str, int, str]:
+    """Map copy width (bytes) to ``(ptx chain tail, lanes, register dtype)``.
 
     The chain tail is the ``{vec.}type`` suffix; ``lanes`` is how many operands
     the group takes; the register dtype is the container the lanes are read and
@@ -559,7 +559,7 @@ def copy_ptxd_form(num_bytes: int) -> tuple[str, int, str]:
     }[num_bytes]
 
 
-def copy_ptxd_ld_chain(
+def copy_ptx_ld_chain(
     space: str,
     tail: str,
     *,

@@ -102,7 +102,7 @@ A buffer's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
 - ``T.alloc_buffer(...)`` allocates storage **and** defines its ``data`` pointer.
 - ``T.decl_buffer(..., data=ptr)`` declares a buffer over an existing pointer
   ``Var`` ``ptr``.
-- To back a buffer with a pointer **expression** — e.g. ``T.ptxd.mapa`` giving
+- To back a buffer with a pointer **expression** — e.g. ``T.ptx.mapa`` giving
   another cluster CTA's shared address — convert the ``uint64`` address the
   instruction wrote to a pointer with the intended element type and storage
   scope.  Assigning that pointer expression to an unannotated name
@@ -114,7 +114,7 @@ A buffer's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
       from tvm.ir.type import PointerType, PrimType
 
       mapped = T.alloc_local([1], "uint64")
-      T.ptxd.mapa.u64(mapped[0], mbar.ptr_to([0]), T.uint32(0))
+      T.ptx.mapa.u64(mapped[0], mbar.ptr_to([0]), T.uint32(0))
       ptr_ty = PointerType(PrimType("uint64"), "shared")
       ptr = T.reinterpret(ptr_ty, mapped[0])
       remote_mbar = T.decl_buffer([1], "uint64", data=ptr, scope="shared")

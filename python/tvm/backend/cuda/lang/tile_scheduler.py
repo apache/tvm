@@ -933,7 +933,7 @@ class ClusterLaunchControlScheduler:
                 if cbx == 0:
                     self.sched_fin.empty.wait(0, sf.phase)
                     sf.advance()
-                    T.ptxd[
+                    T.ptx[
                         "clusterlaunchcontrol.try_cancel.async.shared::cta"
                         ".mbarrier::complete_tx::bytes.multicast::cluster::all.b128"
                     ](T.address_of(self.clc_handle[0]), T.address_of(self.sched_arr.full.buf[0]))

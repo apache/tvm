@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name, too-many-arguments, too-many-locals, too-many-positional-arguments
-"""PTX WGMMA companions that are not instructions (mma_async itself is ptxd).
+"""PTX WGMMA companions that are not instructions (mma_async itself is ptx).
 
 ``encode_matrix_descriptor`` is a pure-C bitfield fill and ``noop_barrier``
 is an empty asm with one inout register operand -- neither maps to a PTX
@@ -27,7 +27,7 @@ from .registry import CODEGEN_REGISTRY, register_codegen
 from .types import PTXDataType
 
 # =============================================================================
-# wgmma noop_barrier / descriptor encode helpers (wait_group is ptxd).
+# wgmma noop_barrier / descriptor encode helpers (wait_group is ptx).
 # =============================================================================
 
 

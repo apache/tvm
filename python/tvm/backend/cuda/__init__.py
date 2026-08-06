@@ -77,7 +77,7 @@ def register_backend():
 
 def script_namespaces(**_):
     """Return CUDA-owned TVMScript namespaces."""
-    from .ptx_dialect import PTXDNamespace  # pylint: disable=import-outside-toplevel
+    from .ptx_dialect import PTXNamespace  # pylint: disable=import-outside-toplevel
     from .script import (  # pylint: disable=import-outside-toplevel
         CUDANamespace,
         NVSHMEMNamespace,
@@ -89,7 +89,7 @@ def script_namespaces(**_):
         "cuda": CUDANamespace(),
         "nvshmem": NVSHMEMNamespace(),
         "ptx_legacy": PTXLegacyNamespace(),
-        "ptxd": PTXDNamespace(),
+        "ptx": PTXNamespace(),
         "s_tir": STIRNamespace(),
     }
 

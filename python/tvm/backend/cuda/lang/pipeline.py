@@ -95,7 +95,7 @@ def _map_addr_into_cta(ptr, rank):
     """
     mapped = T.alloc_local([1], "uint32")
     T.evaluate(
-        T.ptxd.mapa.shared__cluster.u32(
+        T.ptx.mapa.shared__cluster.u32(
             mapped[0], T.cuda.cvta_generic_to_shared(ptr), T.uint32(rank)
         )
     )
@@ -114,7 +114,7 @@ def _map_buffer_into_cta(ptr, rank, depth):
 
     ptr_ty = PointerType(PrimType("uint64"), "shared")
     mapped = T.alloc_local([1], "uint64")
-    T.evaluate(T.ptxd.mapa.u64(mapped[0], ptr, T.uint32(rank)))
+    T.evaluate(T.ptx.mapa.u64(mapped[0], ptr, T.uint32(rank)))
     remote_ptr = TIRVar("remote_mbar_ptr", ptr_ty)
     T.Bind(T.reinterpret(ptr_ty, mapped[0]), var=remote_ptr)
     return T.decl_buffer([depth], "uint64", data=remote_ptr, scope="shared")
@@ -127,14 +127,14 @@ def _mbarrier_arrive_remote(bar, pred=None, count=None):
     implicit count-of-1 line, which is a distinct ISA syntax line rather than
     a default operand.
     """
-    chain = T.ptxd.mbarrier.arrive.shared__cluster.b64
+    chain = T.ptx.mbarrier.arrive.shared__cluster.b64
     args = (bar,) if count is None else (bar, T.uint32(count))
     T.evaluate(chain(*args, pred=pred) if pred is not None else chain(*args))
 
 
 def _mbarrier_arrive_expect_tx_remote(bar, tx_count, pred=None):
     """``mbarrier.arrive.expect_tx.shared::cluster.b64 _, [bar], txCount``."""
-    chain = T.ptxd.mbarrier.arrive.expect_tx.shared__cluster.b64
+    chain = T.ptx.mbarrier.arrive.expect_tx.shared__cluster.b64
     args = (bar, T.uint32(tx_count))
     T.evaluate(chain(*args, pred=pred) if pred is not None else chain(*args))
 
@@ -184,7 +184,7 @@ class MBarrier:
     def _init(self, count):
         if self.leader:
             for i in T.unroll(self.depth):
-                T.ptxd.mbarrier.init.shared.b64(self.buf.ptr_to([i]), T.uint32(count))
+                T.ptx.mbarrier.init.shared.b64(self.buf.ptr_to([i]), T.uint32(count))
 
     def wait(self, stage, phase):
         if self._remote_cta_id is not None:
@@ -224,7 +224,7 @@ class MBarrier:
         # cross-CTA path was both surprising (``bar.arrive(stage)`` silently
         # ``mapa``ed across the cluster) and a per-call cost of ~3 PTX ops on
         # every single-CTA kernel.
-        T.ptxd.mbarrier.arrive.shared.b64(bar, T.uint32(1))
+        T.ptx.mbarrier.arrive.shared.b64(bar, T.uint32(1))
 
     def ptr_to(self, idx):
         return self.buf.ptr_to(idx)
@@ -281,9 +281,9 @@ class TMABar(MBarrier):
     @T.inline
     def _arrive_tma_local(self, bar, tx_count=None):
         if tx_count is None:
-            T.ptxd.mbarrier.arrive.shared.b64(bar, T.uint32(1))
+            T.ptx.mbarrier.arrive.shared.b64(bar, T.uint32(1))
         else:
-            T.ptxd.mbarrier.arrive.expect_tx.shared.b64(bar, T.uint32(tx_count))
+            T.ptx.mbarrier.arrive.expect_tx.shared.b64(bar, T.uint32(tx_count))
 
 
 class TCGen05Bar(MBarrier):
@@ -305,18 +305,18 @@ class TCGen05Bar(MBarrier):
         # mbar address already names the target, so no mask operand. A runtime
         # mask is fine -- ctaMask is a register operand -- but the *choice* of
         # form cannot depend on it, so a runtime mask always multicasts.
-        # ``pred`` rides the ptxd keyword: the instruction is emitted
+        # ``pred`` rides the ptx keyword: the instruction is emitted
         # predicated (@p) rather than branched around.
         if _tcgen05_commit_is_unicast(cta_mask):
             T.evaluate(
-                T.ptxd[
+                T.ptx[
                     f"tcgen05.commit.cta_group::{cta_group}"
                     ".mbarrier::arrive::one.shared::cluster.b64"
                 ](self.buf.ptr_to([stage]), pred=pred)
             )
         else:
             T.evaluate(
-                T.ptxd[
+                T.ptx[
                     f"tcgen05.commit.cta_group::{cta_group}"
                     ".mbarrier::arrive::one.shared::cluster.multicast::cluster.b64"
                 ](self.buf.ptr_to([stage]), T.Cast("uint16", cta_mask), pred=pred)

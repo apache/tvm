@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Tests for the table-driven PTX dialect prototype (``T.ptxd``)."""
+"""Tests for the table-driven PTX dialect (``T.ptx``)."""
 
 import os
 import re
@@ -43,10 +43,10 @@ def _cuda_source(func) -> str:
 # higher (tcgen05, clusterlaunchcontrol, several cp.async.bulk forms) MUST be
 # certified at their own floor: assembling them below it makes ptxas report
 # legal variants as illegal, which would then get baked into a check().
-PTXD_ARCH = os.environ.get("PTXD_ARCH", "sm_90")
+PTX_ARCH = os.environ.get("PTX_ARCH", "sm_90")
 
 
-def _assert_ptxas_ok(src: str, rdc: bool = False, arch: str = PTXD_ARCH) -> None:
+def _assert_ptxas_ok(src: str, rdc: bool = False, arch: str = PTX_ARCH) -> None:
     """Assemble through ptxas (cubin) — `-ptx` alone never validates inline asm."""
     from tvm.support import nvcc
 
@@ -54,35 +54,35 @@ def _assert_ptxas_ok(src: str, rdc: bool = False, arch: str = PTXD_ARCH) -> None
     nvcc.compile_cuda(src, target_format="cubin", arch=arch, options=options, compiler="nvcc")
 
 
-def test_ptxd_registration():
+def test_ptx_registration():
     from tvm.backend.cuda.intrinsics.registry import CODEGEN_REGISTRY
     from tvm.backend.cuda.ptx_dialect.table import TABLE
 
-    assert hasattr(T, "ptxd")
+    assert hasattr(T, "ptx")
     for entry in TABLE.values():
         op = Op.get(entry.op_name)  # raises if unregistered
         assert op.get_attr("TCallEffectKind") is not None, entry.name
         family = entry.family  # several entries may share a mnemonic
-        assert op.get_attr("TScriptPrinterName") == f"ptxd.{family}", entry.name
+        assert op.get_attr("TScriptPrinterName") == f"ptx.{family}", entry.name
         assert entry.op_name in CODEGEN_REGISTRY, entry.name
 
 
-def test_ptxd_prefetch_codegen():
+def test_ptx_prefetch_codegen():
     @T.prim_func
     def kernel(a_ptr: T.handle):
         A = T.match_buffer(a_ptr, (32,), "float32")
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
-        T.ptxd.prefetch.global_.L2(A.ptr_to([0]))
+        T.ptx.prefetch.global_.L2(A.ptr_to([0]))
         A[tx] = T.float32(0)  # keep-alive store so the buffer is not elided
 
     src = _cuda_source(kernel)
     assert "prefetch.global.L2 [%0];" in src
-    assert "tvm_builtin_ptxd_prefetch_global_L2" in src
+    assert "tvm_builtin_ptx_prefetch_global_L2" in src
 
 
-def test_ptxd_ld_st_codegen():
+def test_ptx_ld_st_codegen():
     @T.prim_func
     def kernel(a_ptr: T.handle, b_ptr: T.handle):
         A = T.match_buffer(a_ptr, (32,), "uint32")
@@ -93,8 +93,8 @@ def test_ptxd_ld_st_codegen():
         if tx == 0:
             # Declare the register, then name it as an operand — the PTX model.
             val = T.local_scalar("uint32")
-            T.ptxd.ld.global_.acquire.gpu.b32(val, A.ptr_to([0]))
-            T.ptxd.st.release.gpu.global_.b32(B.ptr_to([0]), val)
+            T.ptx.ld.global_.acquire.gpu.b32(val, A.ptr_to([0]))
+            T.ptx.st.release.gpu.global_.b32(B.ptr_to([0]), val)
         B[tx] = B[tx]
 
     src = _cuda_source(kernel)
@@ -102,11 +102,11 @@ def test_ptxd_ld_st_codegen():
     # regardless of the order they were written in the chain.
     assert "ld.acquire.gpu.global.b32 %0, [%1];" in src
     assert "st.release.gpu.global.b32 [%0], %1;" in src
-    assert "tvm_builtin_ptxd_ld_acquire_gpu_global_b32" in src
-    assert "tvm_builtin_ptxd_st_release_gpu_global_b32" in src
+    assert "tvm_builtin_ptx_ld_acquire_gpu_global_b32" in src
+    assert "tvm_builtin_ptx_st_release_gpu_global_b32" in src
 
 
-def test_ptxd_st_shared_coercion():
+def test_ptx_st_shared_coercion():
     @T.prim_func
     def kernel(out_ptr: T.handle):
         out = T.match_buffer(out_ptr, (1,), "uint32")
@@ -117,7 +117,7 @@ def test_ptxd_st_shared_coercion():
         if tx == 0:
             # Shared-space slot fed a shared-scope pointer: engine must
             # auto-wrap with cvta_generic_to_shared.
-            T.ptxd.st.shared__cta.b32(smem.ptr_to([0]), T.uint32(7))
+            T.ptx.st.shared__cta.b32(smem.ptr_to([0]), T.uint32(7))
         T.cuda.cta_sync()
         out[0] = smem[0]
 
@@ -126,7 +126,7 @@ def test_ptxd_st_shared_coercion():
     assert "cvta_generic_to_shared" in src
 
 
-def test_ptxd_explicit_cvta():
+def test_ptx_explicit_cvta():
     @T.prim_func
     def kernel(out_ptr: T.handle):
         out = T.match_buffer(out_ptr, (1,), "uint64")
@@ -136,14 +136,14 @@ def test_ptxd_explicit_cvta():
         smem = T.alloc_buffer((4,), "uint32", scope="shared")
         smem[tx % 4] = T.uint32(0)
         if tx == 0:
-            T.ptxd.cvta.to.shared.u64(out[0], smem.data)
+            T.ptx.cvta.to.shared.u64(out[0], smem.data)
 
     src = _cuda_source(kernel)
     assert "cvta.to.shared.u64 %0, %1;" in src
-    assert "tvm_builtin_ptxd_cvta_to_shared_u64" in src
+    assert "tvm_builtin_ptx_cvta_to_shared_u64" in src
 
 
-def test_ptxd_red_codegen():
+def test_ptx_red_codegen():
     @T.prim_func
     def kernel(a_ptr: T.handle):
         A = T.match_buffer(a_ptr, (1,), "uint32")
@@ -151,14 +151,14 @@ def test_ptxd_red_codegen():
         T.cta_id([1])
         tx = T.thread_id([32])
         if tx == 0:
-            T.ptxd.red.relaxed.gpu.global_.add.u32(A.ptr_to([0]), T.uint32(1))
+            T.ptx.red.relaxed.gpu.global_.add.u32(A.ptr_to([0]), T.uint32(1))
         A[0] = A[0]
 
     src = _cuda_source(kernel)
     assert "red.relaxed.gpu.global.add.u32 [%0], %1;" in src
 
 
-def test_ptxd_predication_codegen():
+def test_ptx_predication_codegen():
     @T.prim_func
     def kernel(a_ptr: T.handle):
         A = T.match_buffer(a_ptr, (32,), "uint32")
@@ -168,17 +168,17 @@ def test_ptxd_predication_codegen():
         flag: T.uint32 = T.uint32(0)
         if tx == 0:
             flag = T.uint32(1)
-        T.ptxd.red.relaxed.gpu.global_.add.u32(A.ptr_to([0]), T.uint32(1), pred=flag)
+        T.ptx.red.relaxed.gpu.global_.add.u32(A.ptr_to([0]), T.uint32(1), pred=flag)
         A[tx] = A[tx]
 
     src = _cuda_source(kernel)
-    assert "tvm_builtin_ptxd_red_relaxed_gpu_global_add_u32_pred" in src
+    assert "tvm_builtin_ptx_red_relaxed_gpu_global_add_u32_pred" in src
     assert "setp.ne.b32 p, %2, 0; @p red.relaxed.gpu.global.add.u32 [%0], %1;" in src
 
 
-def test_ptxd_string_form_matches_chain():
-    chain_call = T.ptxd.ld.global_.acquire.gpu.b32
-    string_call = T.ptxd["ld.acquire.gpu.global.b32"]
+def test_ptx_string_form_matches_chain():
+    chain_call = T.ptx.ld.global_.acquire.gpu.b32
+    string_call = T.ptx["ld.acquire.gpu.global.b32"]
 
     def make(fn):
         @T.prim_func
@@ -197,14 +197,14 @@ def test_ptxd_string_form_matches_chain():
     tvm.ir.assert_structural_equal(make(chain_call), make(string_call))
 
 
-def test_ptxd_trace_time_errors():
+def test_ptx_trace_time_errors():
     # Global ld fed a raw uint32 address.
     with pytest.raises((ValueError, tvm.error.DiagnosticError), match="shared state space"):
 
         @T.prim_func
         def bad_global_addr(out: T.Buffer((1,), "uint32")):
             T.device_entry()
-            T.ptxd.ld.global_.b32(out[0], T.uint32(0))
+            T.ptx.ld.global_.b32(out[0], T.uint32(0))
 
     # Bogus modifier token.
     with pytest.raises((AttributeError, tvm.error.DiagnosticError), match="not a valid modifier"):
@@ -212,17 +212,17 @@ def test_ptxd_trace_time_errors():
         @T.prim_func
         def bad_modifier(out: T.Buffer((1,), "uint32")):
             T.device_entry()
-            T.ptxd.ld.global_.bogus.b32(out[0], T.uint32(0))
+            T.ptx.ld.global_.bogus.b32(out[0], T.uint32(0))
 
     # Value dtype of the wrong *width*. A bit type accepts any dtype of its own
-    # width (see test_ptxd_bit_width_axis), so the rejection is about size.
+    # width (see test_ptx_bit_width_axis), so the rejection is about size.
     with pytest.raises((ValueError, tvm.error.DiagnosticError), match="must have dtype"):
 
         @T.prim_func
         def bad_value_dtype(a_ptr: T.handle):
             A = T.match_buffer(a_ptr, (1,), "uint32")
             T.device_entry()
-            T.ptxd.st.global_.b32(A.ptr_to([0]), T.float64(1.0))
+            T.ptx.st.global_.b32(A.ptr_to([0]), T.float64(1.0))
 
     # Missing required modifier (no type token).
     with pytest.raises((ValueError, tvm.error.DiagnosticError), match="missing required modifier"):
@@ -231,7 +231,7 @@ def test_ptxd_trace_time_errors():
         def missing_type(a_ptr: T.handle):
             A = T.match_buffer(a_ptr, (1,), "uint32")
             T.device_entry()
-            T.ptxd.st.global_(A.ptr_to([0]), T.uint32(0))
+            T.ptx.st.global_(A.ptr_to([0]), T.uint32(0))
 
     # Per-slot legal tokens whose combination is illegal PTX: acquire
     # requires a scope — rejected by the entry's check function.
@@ -241,7 +241,7 @@ def test_ptxd_trace_time_errors():
         def acquire_without_scope(out: T.Buffer((1,), "uint32"), a_ptr: T.handle):
             A = T.match_buffer(a_ptr, (1,), "uint32")
             T.device_entry()
-            T.ptxd.ld.global_.acquire.b32(out[0], A.ptr_to([0]))
+            T.ptx.ld.global_.acquire.b32(out[0], A.ptr_to([0]))
 
     # A float is not an address in any state space.
     with pytest.raises((ValueError, tvm.error.DiagnosticError), match="pointer or uint64 handle"):
@@ -249,10 +249,10 @@ def test_ptxd_trace_time_errors():
         @T.prim_func
         def bad_addr_dtype(out: T.Buffer((1,), "uint32")):
             T.device_entry()
-            T.ptxd.ld.global_.b32(out[0], T.float32(0))
+            T.ptx.ld.global_.b32(out[0], T.float32(0))
 
 
-def test_ptxd_destination_errors():
+def test_ptx_destination_errors():
     """A destination is a register the caller declared: it must be a writable lvalue."""
     # Destination of the wrong width (a .b32 load into a 64-bit slot).
     with pytest.raises((ValueError, tvm.error.DiagnosticError), match="must have dtype"):
@@ -261,7 +261,7 @@ def test_ptxd_destination_errors():
         def wrong_dst_dtype(out: T.Buffer((1,), "float64"), a_ptr: T.handle):
             A = T.match_buffer(a_ptr, (1,), "uint32")
             T.device_entry()
-            T.ptxd.ld.global_.b32(out[0], A.ptr_to([0]))
+            T.ptx.ld.global_.b32(out[0], A.ptr_to([0]))
 
     # A T.let binding is immutable, so it cannot be written into. This is the
     # gate that keeps the analyzer from re-expanding one call into N.
@@ -272,7 +272,7 @@ def test_ptxd_destination_errors():
             A = T.match_buffer(a_ptr, (1,), "uint32")
             T.device_entry()
             bound: T.let = out[0] + T.uint32(1)
-            T.ptxd.ld.global_.b32(bound, A.ptr_to([0]))
+            T.ptx.ld.global_.b32(bound, A.ptr_to([0]))
 
     # An rvalue is not a destination either.
     with pytest.raises((ValueError, tvm.error.DiagnosticError), match="writable scalar"):
@@ -281,7 +281,7 @@ def test_ptxd_destination_errors():
         def rvalue_destination(a_ptr: T.handle):
             A = T.match_buffer(a_ptr, (1,), "uint32")
             T.device_entry()
-            T.ptxd.ld.global_.b32(T.uint32(0), A.ptr_to([0]))
+            T.ptx.ld.global_.b32(T.uint32(0), A.ptr_to([0]))
 
     # @p is rejected on any instruction that writes a destination.
     with pytest.raises((ValueError, tvm.error.DiagnosticError), match="without a destination"):
@@ -290,10 +290,10 @@ def test_ptxd_destination_errors():
         def predicated_destination(out: T.Buffer((1,), "uint32"), a_ptr: T.handle):
             A = T.match_buffer(a_ptr, (1,), "uint32")
             T.device_entry()
-            T.ptxd.ld.global_.b32(out[0], A.ptr_to([0]), pred=T.uint32(1))
+            T.ptx.ld.global_.b32(out[0], A.ptr_to([0]), pred=T.uint32(1))
 
 
-def test_ptxd_register_group_codegen():
+def test_ptx_register_group_codegen():
     """A `.lanes > 1` operand renders as braces in the asm, flat params in C.
 
     `{%1, %2}` is ONE PTX operand occupying two registers (ISA 9.7.9.4), which
@@ -310,8 +310,8 @@ def test_ptxd_register_group_codegen():
         packed = T.local_scalar("uint64")
         lo = T.local_scalar("float32")
         hi = T.local_scalar("float32")
-        T.ptxd.mov.b64(packed, A[0], A[1])  # pack: one dst, a 2-register source
-        T.ptxd.mov.b64(lo, hi, packed)  # unpack: a 2-register dst, one source
+        T.ptx.mov.b64(packed, A[0], A[1])  # pack: one dst, a 2-register source
+        T.ptx.mov.b64(lo, hi, packed)  # unpack: a 2-register dst, one source
         A[tx % 4] = lo + hi
 
     src = _cuda_source(kernel)
@@ -319,11 +319,11 @@ def test_ptxd_register_group_codegen():
     assert "mov.b64 {%0, %1}, %2;" in src
     # Both shapes share the mnemonic; the operand shape picks the entry, which
     # is the same information ptxas resolves them by.
-    assert "tvm_builtin_ptxd_mov_pack_b32x2_b64_u64_f32(" in src
-    assert "tvm_builtin_ptxd_mov_unpack_b32x2_b64_f32_u64(" in src
+    assert "tvm_builtin_ptx_mov_pack_b32x2_b64_u64_f32(" in src
+    assert "tvm_builtin_ptx_mov_unpack_b32x2_b64_f32_u64(" in src
 
 
-def test_ptxd_register_group_errors():
+def test_ptx_register_group_errors():
     """A register group is one operand: its arity is fixed and its lanes agree."""
     # No `mov` shape takes two operands, so nothing in the family matches.
     with pytest.raises((ValueError, tvm.error.DiagnosticError), match=r"expects \d+ operand"):
@@ -333,7 +333,7 @@ def test_ptxd_register_group_errors():
             A = T.match_buffer(a_ptr, (4,), "uint32")
             T.device_entry()
             packed = T.local_scalar("uint64")
-            T.ptxd.mov.b64(packed, A[0])
+            T.ptx.mov.b64(packed, A[0])
             A[0] = T.uint32(0)
 
     # Each lane of a destination group is its own register the caller declared,
@@ -346,7 +346,7 @@ def test_ptxd_register_group_errors():
             T.device_entry()
             packed = T.local_scalar("uint64")
             lo = T.local_scalar("uint32")
-            T.ptxd.mov.b64(lo, A[0] + T.uint32(1), packed)
+            T.ptx.mov.b64(lo, A[0] + T.uint32(1), packed)
             A[0] = T.uint32(0)
 
     # Lanes disagreeing on dtype: legal for each lane alone (both are 32-bit),
@@ -361,7 +361,7 @@ def test_ptxd_register_group_errors():
             packed = T.local_scalar("uint64")
             f = T.local_scalar("float32")
             u = T.local_scalar("uint32")
-            T.ptxd.mov.b64(packed, f, u)
+            T.ptx.mov.b64(packed, f, u)
             A[0] = T.uint32(0)
 
     # A bare float literal names no dtype: on a .b32 lane it could be the
@@ -373,7 +373,7 @@ def test_ptxd_register_group_errors():
             A = T.match_buffer(a_ptr, (4,), "uint32")
             T.device_entry()
             packed = T.local_scalar("uint64")
-            T.ptxd.mov.b64(packed, 1.5, 2.5)
+            T.ptx.mov.b64(packed, 1.5, 2.5)
             A[0] = T.uint32(0)
 
     # An explicit constant is accepted and picks the float32 helper.
@@ -384,13 +384,13 @@ def test_ptxd_register_group_errors():
         T.cta_id([1])
         tx = T.thread_id([32])
         packed = T.local_scalar("uint64")
-        T.ptxd.mov.b64(packed, T.float32(1.5), T.float32(2.5))
+        T.ptx.mov.b64(packed, T.float32(1.5), T.float32(2.5))
         A[tx % 4] = A[tx % 4]
 
     assert "mov_pack_b32x2_b64_u64_f32" in _cuda_source(typed_literal)
 
 
-def test_ptxd_optional_operand_arity_dispatch():
+def test_ptx_optional_operand_arity_dispatch():
     """A no-count and a counted syntax line share a mnemonic, split by arity.
 
     This only works because `pred` is keyword-only: the old positional-pred
@@ -407,11 +407,11 @@ def test_ptxd_optional_operand_arity_dispatch():
         T.cta_id([1])
         tx = T.thread_id([32])
         bar = T.alloc_buffer((2,), "uint64", scope="shared")
-        T.ptxd.bar.sync(T.uint32(0))
-        T.ptxd.bar.sync(T.uint32(0), T.uint32(64))
-        T.ptxd.mbarrier.arrive.shared.b64(bar.ptr_to([0]))
-        T.ptxd.mbarrier.arrive.shared.b64(bar.ptr_to([0]), T.uint32(2))
-        T.ptxd.mbarrier.arrive.shared.b64(bar.ptr_to([1]), pred=T.uint32(1))
+        T.ptx.bar.sync(T.uint32(0))
+        T.ptx.bar.sync(T.uint32(0), T.uint32(64))
+        T.ptx.mbarrier.arrive.shared.b64(bar.ptr_to([0]))
+        T.ptx.mbarrier.arrive.shared.b64(bar.ptr_to([0]), T.uint32(2))
+        T.ptx.mbarrier.arrive.shared.b64(bar.ptr_to([1]), pred=T.uint32(1))
         A[tx % 4] = A[tx % 4]
 
     src = _cuda_source(kernel)
@@ -428,7 +428,7 @@ def test_ptxd_optional_operand_arity_dispatch():
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
-def test_ptxd_bit_width_axis():
+def test_ptx_bit_width_axis():
     """A `.bN` operand takes any dtype of that width, each with its own helper.
 
     PTX ISA 5.2: "The bit-size type is compatible with any fundamental type
@@ -447,16 +447,16 @@ def test_ptxd_bit_width_axis():
         tx = T.thread_id([32])
         fv = T.local_scalar("float32")
         sv = T.local_scalar("int32")
-        T.ptxd.ld.global_.b32(fv, A.ptr_to([0]))  # .b32 destination, float32
-        T.ptxd.ld.global_.b32(sv, A.ptr_to([1]))  # .b32 destination, int32
-        T.ptxd.st.global_.b32(Out.ptr_to([0]), fv)  # .b32 source, float32
+        T.ptx.ld.global_.b32(fv, A.ptr_to([0]))  # .b32 destination, float32
+        T.ptx.ld.global_.b32(sv, A.ptr_to([1]))  # .b32 destination, int32
+        T.ptx.st.global_.b32(Out.ptr_to([0]), fv)  # .b32 source, float32
         Out[tx % 4] = A[tx % 4]
 
     src = _cuda_source(kernel)
     # One instruction text, three signatures, named by the dtypes they carry.
-    assert "tvm_builtin_ptxd_ld_global_b32_f32(float& __d" in src
-    assert "tvm_builtin_ptxd_ld_global_b32_s32(int32_t& __d" in src
-    assert "tvm_builtin_ptxd_st_global_b32_f32(const void* __addr, float __value" in src
+    assert "tvm_builtin_ptx_ld_global_b32_f32(float& __d" in src
+    assert "tvm_builtin_ptx_ld_global_b32_s32(int32_t& __d" in src
+    assert "tvm_builtin_ptx_st_global_b32_f32(const void* __addr, float __value" in src
     assert '"=f"(__d)' in src and '"=r"(__d)' in src
     assert src.count("ld.global.b32 %0, [%1];") >= 1
     # The float binds "f" directly. Routing it through the canonical uint32_t
@@ -468,10 +468,10 @@ def test_ptxd_bit_width_axis():
 
     ld = TABLE["ld"]
     tokens = tokens_for(ld, space="global", type="b32")
-    assert render_variant(ld, tokens)[1] == "tvm_builtin_ptxd_ld_global_b32"
+    assert render_variant(ld, tokens)[1] == "tvm_builtin_ptx_ld_global_b32"
 
 
-def test_ptxd_u64_address_handle_is_reinterpreted():
+def test_ptx_u64_address_handle_is_reinterpreted():
     """A 64-bit address handle is accepted via an explicit, visible cast.
 
     Some PTX address operands reach us as u64 handles rather than typed
@@ -480,13 +480,13 @@ def test_ptxd_u64_address_handle_is_reinterpreted():
     rather than being punned inside the helper.
     """
     handle = tvm.tirx.Var("h", "uint64")
-    call = T.ptxd.prefetch.tensormap(handle)
+    call = T.ptx.prefetch.tensormap(handle)
     addr = call.args[0]
     assert addr.op.name == "tirx.reinterpret", addr
     assert addr.args[0].same_as(handle)
 
 
-def test_ptxd_parser_roundtrip():
+def test_ptx_parser_roundtrip():
     """script() output re-parses to a structurally equal PrimFunc."""
 
     @T.prim_func
@@ -505,13 +505,13 @@ def test_ptxd_parser_roundtrip():
             packed = T.local_scalar("uint64")
             # Several `mov` entries share one mnemonic; the printed form names
             # the family and reparsing re-dispatches on the operand shape.
-            T.ptxd.mov.b64(packed, lo, hi)
-            T.ptxd.mov.b64(lo, hi, packed)
-            T.ptxd.ld.global_.acquire.gpu.b32(val, A.ptr_to([0]))
-            T.ptxd.st.shared__cta.b32(smem.ptr_to([0]), val)
-            T.ptxd.red.relaxed.gpu.global_.add.u32(B.ptr_to([0]), T.uint32(1), pred=val)
-            T.ptxd.prefetch.global_.L2(A.ptr_to([16]))
-            T.ptxd.cvta.to.shared.u64(smem_addr, smem.data)
+            T.ptx.mov.b64(packed, lo, hi)
+            T.ptx.mov.b64(lo, hi, packed)
+            T.ptx.ld.global_.acquire.gpu.b32(val, A.ptr_to([0]))
+            T.ptx.st.shared__cta.b32(smem.ptr_to([0]), val)
+            T.ptx.red.relaxed.gpu.global_.add.u32(B.ptr_to([0]), T.uint32(1), pred=val)
+            T.ptx.prefetch.global_.L2(A.ptr_to([16]))
+            T.ptx.cvta.to.shared.u64(smem_addr, smem.data)
         T.cuda.cta_sync()
         B[tx] = smem[tx % 4]
 
@@ -519,7 +519,7 @@ def test_ptxd_parser_roundtrip():
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
-def test_ptxd_printer_form():
+def test_ptx_printer_form():
     @T.prim_func
     def kernel(a_ptr: T.handle, b_ptr: T.handle):
         A = T.match_buffer(a_ptr, (32,), "uint32")
@@ -528,11 +528,11 @@ def test_ptxd_printer_form():
         T.cta_id([1])
         tx = T.thread_id([32])
         if tx == 0:
-            T.ptxd.ld.global_.acquire.gpu.b32(B[0], A.ptr_to([0]))
+            T.ptx.ld.global_.acquire.gpu.b32(B[0], A.ptr_to([0]))
         B[tx] = B[tx]
 
     script = kernel.script()
-    assert "T.ptxd.ld(" in script
+    assert "T.ptx.ld(" in script
     assert '"acquire"' in script
 
 
@@ -542,7 +542,7 @@ def test_ptxd_printer_form():
 # ---------------------------------------------------------------------------
 
 
-def test_ptxd_helper_source_golden():
+def test_ptx_helper_source_golden():
     """Exact generated helper source, one per family (executable documentation)."""
     from tvm.backend.cuda.ptx_dialect.render import render_variant
     from tvm.backend.cuda.ptx_dialect.table import TABLE, tokens_for
@@ -565,7 +565,7 @@ def test_ptxd_helper_source_golden():
         tokens_for(TABLE["ld"], space="global")
 
     assert render("prefetch", space="global", level="L2") == (
-        "__forceinline__ __device__ void tvm_builtin_ptxd_prefetch_global_L2"
+        "__forceinline__ __device__ void tvm_builtin_ptx_prefetch_global_L2"
         "(const void* __addr) {\n"
         '  asm volatile("prefetch.global.L2 [%0];" :  : "l"(__addr) : "memory");\n'
         "}\n"
@@ -573,7 +573,7 @@ def test_ptxd_helper_source_golden():
     # A destination is an ordinary operand taken by reference, so the C
     # parameter list is the PTX operand list in order and the helper is void.
     assert render("ld", sem="acquire", scope="gpu", space="global", type="b32") == (
-        "__forceinline__ __device__ void tvm_builtin_ptxd_ld_acquire_gpu_global_b32"
+        "__forceinline__ __device__ void tvm_builtin_ptx_ld_acquire_gpu_global_b32"
         "(uint32_t& __d, const void* __addr) {\n"
         '  asm volatile("ld.acquire.gpu.global.b32 %0, [%1];" : "=r"(__d) : "l"(__addr)'
         ' : "memory");\n'
@@ -583,7 +583,7 @@ def test_ptxd_helper_source_golden():
     # carrier register and is narrowed into the reference afterwards. The asm
     # block still holds exactly one instruction.
     assert render("ld", space="global", type="b8") == (
-        "__forceinline__ __device__ void tvm_builtin_ptxd_ld_global_b8"
+        "__forceinline__ __device__ void tvm_builtin_ptx_ld_global_b8"
         "(uint8_t& __d, const void* __addr) {\n"
         "  uint16_t __d_reg;\n"
         '  asm volatile("ld.global.b8 %0, [%1];" : "=h"(__d_reg) : "l"(__addr) : "memory");\n'
@@ -592,7 +592,7 @@ def test_ptxd_helper_source_golden():
     )
     # Shared-space addr slot: helper takes uint32_t (post-coercion form), not void*.
     assert render("st", space="shared::cta", type="b32") == (
-        "__forceinline__ __device__ void tvm_builtin_ptxd_st_shared__cta_b32"
+        "__forceinline__ __device__ void tvm_builtin_ptx_st_shared__cta_b32"
         "(uint32_t __addr, uint32_t __value) {\n"
         '  asm volatile("st.shared::cta.b32 [%0], %1;" :  : "r"(__addr), "r"(__value)'
         ' : "memory");\n'
@@ -600,7 +600,7 @@ def test_ptxd_helper_source_golden():
     )
     # Register-only op: plain asm (asm_volatile=False), no memory clobber.
     assert render("cvta", dir="to", space="shared", type="u64") == (
-        "__forceinline__ __device__ void tvm_builtin_ptxd_cvta_to_shared_u64"
+        "__forceinline__ __device__ void tvm_builtin_ptx_cvta_to_shared_u64"
         "(uint64_t& __d, const void* __ptr) {\n"
         '  asm("cvta.to.shared.u64 %0, %1;" : "=l"(__d) : "l"(__ptr));\n'
         "}\n"
@@ -610,7 +610,7 @@ def test_ptxd_helper_source_golden():
     assert render(
         "red", predicated=True, sem="relaxed", scope="gpu", space="global", op="add", type="u32"
     ) == (
-        "__forceinline__ __device__ void tvm_builtin_ptxd_red_relaxed_gpu_global_add_u32_pred"
+        "__forceinline__ __device__ void tvm_builtin_ptx_red_relaxed_gpu_global_add_u32_pred"
         "(const void* __addr, uint32_t __value, uint32_t __pred) {\n"
         '  asm volatile("{ .reg .pred p; setp.ne.b32 p, %2, 0; '
         '@p red.relaxed.gpu.global.add.u32 [%0], %1; }"'
@@ -627,7 +627,7 @@ def test_ptxd_helper_source_golden():
         src_space="global",
         completion="mbarrier::complete_tx::bytes",
     ) == (
-        "__forceinline__ __device__ void tvm_builtin_ptxd_cp_async_bulk_shared__cta_global"
+        "__forceinline__ __device__ void tvm_builtin_ptx_cp_async_bulk_shared__cta_global"
         "_mbarrier__complete_tx__bytes"
         "(uint32_t __dst, const void* __src, uint32_t __size, uint32_t __mbar) {\n"
         '  asm volatile("cp.async.bulk.shared::cta.global.mbarrier::complete_tx::bytes '
@@ -640,13 +640,13 @@ def test_ptxd_helper_source_golden():
     # the group is braces in the asm text and flat C parameters around it. An
     # unpack turns that into two "=" outputs.
     assert render("mov_pack_b32x2", type="b64") == (
-        "__forceinline__ __device__ void tvm_builtin_ptxd_mov_pack_b32x2_b64"
+        "__forceinline__ __device__ void tvm_builtin_ptx_mov_pack_b32x2_b64"
         "(uint64_t& __d, uint32_t __a0, uint32_t __a1) {\n"
         '  asm("mov.b64 %0, {%1, %2};" : "=l"(__d) : "r"(__a0), "r"(__a1));\n'
         "}\n"
     )
     assert render("mov_unpack_b32x2", type="b64") == (
-        "__forceinline__ __device__ void tvm_builtin_ptxd_mov_unpack_b32x2_b64"
+        "__forceinline__ __device__ void tvm_builtin_ptx_mov_unpack_b32x2_b64"
         "(uint32_t& __d0, uint32_t& __d1, uint64_t __a) {\n"
         '  asm("mov.b64 {%0, %1}, %2;" : "=r"(__d0), "=r"(__d1) : "l"(__a));\n'
         "}\n"
@@ -654,7 +654,7 @@ def test_ptxd_helper_source_golden():
     # 128-bit destination on the "q" constraint, and asm_volatile=False: a
     # register shuffle nvcc is free to common up.
     assert render("mov_pack_b64x2", type="b128") == (
-        "__forceinline__ __device__ void tvm_builtin_ptxd_mov_pack_b64x2_b128"
+        "__forceinline__ __device__ void tvm_builtin_ptx_mov_pack_b64x2_b128"
         "(__uint128_t& __d, uint64_t __a0, uint64_t __a1) {\n"
         '  asm("mov.b128 %0, {%1, %2};" : "=q"(__d) : "l"(__a0), "l"(__a1));\n'
         "}\n"
@@ -663,14 +663,14 @@ def test_ptxd_helper_source_golden():
     # moves the lanes to "f", and nothing else moves. This is the shape the
     # packed-f32x2 call sites use.
     assert render("mov_pack_b32x2", type="b64", dtypes=("uint64", "float32")) == (
-        "__forceinline__ __device__ void tvm_builtin_ptxd_mov_pack_b32x2_b64_u64_f32"
+        "__forceinline__ __device__ void tvm_builtin_ptx_mov_pack_b32x2_b64_u64_f32"
         "(uint64_t& __d, float __a0, float __a1) {\n"
         '  asm("mov.b64 %0, {%1, %2};" : "=l"(__d) : "f"(__a0), "f"(__a1));\n'
         "}\n"
     )
 
 
-def test_ptxd_coercion_ir_forms():
+def test_ptx_coercion_ir_forms():
     """The trace-time addr coercion, written down as IR-level assertions."""
     from tvm.ir.type import PointerType, PrimType
 
@@ -680,17 +680,17 @@ def test_ptxd_coercion_ir_forms():
     val = tvm.tirx.Var("v", "uint32")
 
     # Shared slot + shared pointer: engine wraps with an explicit cvta call node.
-    call = T.ptxd.st.shared__cta.b32(shared_ptr, val)
+    call = T.ptx.st.shared__cta.b32(shared_ptr, val)
     addr = call.args[0]
     assert addr.op.name == "tirx.cuda.cvta_generic_to_shared"
     assert addr.args[0].same_as(shared_ptr)
 
     # Shared slot + raw uint32: passthrough, no conversion inserted.
-    call = T.ptxd.st.shared__cta.b32(raw_u32, val)
+    call = T.ptx.st.shared__cta.b32(raw_u32, val)
     assert call.args[0].same_as(raw_u32)
 
     # Global slot + global pointer: passthrough.
-    call = T.ptxd.st.release.gpu.global_.b32(global_ptr, val)
+    call = T.ptx.st.release.gpu.global_.b32(global_ptr, val)
     assert call.args[0].same_as(global_ptr)
 
     # Modifiers ride as trailing positional string args in slot order, then
@@ -710,20 +710,20 @@ def test_ptxd_coercion_ir_forms():
     # A shared-space slot converts whatever pointer it is given: TIRx pointer
     # scopes are not a reliable discriminator (a shared buffer's ptr_to()
     # reports 'global'), and the legacy helpers converted unconditionally too.
-    call = T.ptxd.st.shared__cta.b32(global_ptr, val)
+    call = T.ptx.st.shared__cta.b32(global_ptr, val)
     assert call.args[0].op.name == "tirx.cuda.cvta_generic_to_shared"
 
     # Predication: pred rides after the operands (codegen derives the
     # predicated form from the arg count).
     flag = tvm.tirx.Var("f", "uint32")
-    call = T.ptxd.st.release.gpu.global_.b32(global_ptr, val, pred=flag)
+    call = T.ptx.st.release.gpu.global_.b32(global_ptr, val, pred=flag)
     assert call.args[2].same_as(flag)
     assert len(call.args) == 2 + 1 + 7 + 1  # operands + pred + slot tokens + marker
     # @p on an instruction with a destination is rejected: a false predicate
     # leaves it unwritten while "=" tells nvcc its prior value is dead.
     dst = tvm.tirx.Var("d", "uint32")
     with pytest.raises(ValueError, match="without a destination"):
-        T.ptxd.ld.global_.b32(dst, global_ptr, pred=flag)
+        T.ptx.ld.global_.b32(dst, global_ptr, pred=flag)
 
 
 # fp16/bf16 dtypes bring in __half / __nv_bfloat16 and their bit-cast helpers.
@@ -765,8 +765,8 @@ def _sole_instruction(asm_text):
     return body
 
 
-def test_ptxd_single_instruction_invariant():
-    """Every ptxd variant emits exactly ONE native PTX instruction.
+def test_ptx_single_instruction_invariant():
+    """Every ptx variant emits exactly ONE native PTX instruction.
 
     This is the dialect's defining constraint, enforced mechanically so it
     cannot erode as the table grows: the only multi-statement form allowed is
@@ -828,7 +828,7 @@ def test_ptxd_single_instruction_invariant():
     assert checked > 0
 
 
-def test_ptxd_single_instruction_invariant_detects_violations():
+def test_ptx_single_instruction_invariant_detects_violations():
     """Falsify the probe: it must reject every shape the invariant forbids.
 
     A guard that has never been shown to fail is worth nothing, so exercise
@@ -850,7 +850,7 @@ def test_ptxd_single_instruction_invariant_detects_violations():
     assert _sole_instruction(guarded) == "red.relaxed.gpu.global.add.u32 [%0], %1;"
 
 
-def test_ptxd_all_variants_render_unique():
+def test_ptx_all_variants_render_unique():
     """Every legal variant renders; helper names (incl. @p twins) are unique."""
     from tvm.backend.cuda.ptx_dialect.render import render_variant
     from tvm.backend.cuda.ptx_dialect.table import TABLE, renderings, variants
@@ -878,7 +878,7 @@ def test_ptxd_all_variants_render_unique():
     assert total == 110831  # update when the table grows
 
 
-def test_ptxd_stub_up_to_date():
+def test_ptx_stub_up_to_date():
     """The checked-in tvm.script.tirx stub must match the generator."""
     from tvm.backend.cuda.ptx_dialect import gen_stubs
 
@@ -898,7 +898,7 @@ def test_ptxas_gate_rejects_invalid():
 
 
 @requires_nvcc
-def test_ptxd_sampled_helpers_assemble():
+def test_ptx_sampled_helpers_assemble():
     """Fast tier: a seeded sample of every family's variants assembles."""
     import random
 
@@ -908,7 +908,7 @@ def test_ptxd_sampled_helpers_assemble():
     rng = random.Random(20260802)
     by_arch = {}
     for entry in TABLE.values():
-        arch = entry.cert_arch or PTXD_ARCH
+        arch = entry.cert_arch or PTX_ARCH
         rendered = list(renderings(entry))
         for i in rng.sample(range(len(rendered)), min(48, len(rendered))):
             _, _, source = render_variant(entry, *_as_render_args(rendered[i]))
@@ -921,12 +921,12 @@ _CERT_SHARDS = 32
 
 
 @pytest.mark.skipif(
-    not os.environ.get("PTXD_CERT"),
-    reason="full-table ptxas certification; run with PTXD_CERT=1 after changing the table",
+    not os.environ.get("PTX_CERT"),
+    reason="full-table ptxas certification; run with PTX_CERT=1 after changing the table",
 )
 @requires_nvcc
 @pytest.mark.parametrize("shard", range(_CERT_SHARDS))
-def test_ptxd_all_helpers_certify(shard):
+def test_ptx_all_helpers_certify(shard):
     """Certification tier: EVERY legal variant assembles under ptxas.
 
     One scoped exception: an OPEN immediate operand (role="imm" with neither
@@ -938,7 +938,7 @@ def test_ptxd_all_helpers_certify(shard):
 
     Sharded so pytest-xdist can spread the nvcc work::
 
-        PTXD_CERT=1 pytest -n 16 -k certify tests/python/tirx/codegen/test_ptxd_dialect.py
+        PTX_CERT=1 pytest -n 16 -k certify tests/python/tirx/codegen/test_ptx_dialect.py
 
     Stride slicing keeps shards balanced (ld dominates the variant count).
     Variants are grouped by their family's arch floor and each group is
@@ -957,7 +957,7 @@ def test_ptxd_all_helpers_certify(shard):
     ):
         if index % _CERT_SHARDS == shard:
             covered += 1
-            arch = entry.cert_arch or PTXD_ARCH
+            arch = entry.cert_arch or PTX_ARCH
             _, _, src = render_variant(entry, *_as_render_args(rendering))
             by_arch.setdefault(arch, []).append(src.replace("__forceinline__ ", ""))
     assert covered, "empty shard: lower _CERT_SHARDS"
@@ -966,7 +966,7 @@ def test_ptxd_all_helpers_certify(shard):
 
 
 @requires_nvcc
-def test_ptxd_nvcc_smoke():
+def test_ptx_nvcc_smoke():
     @T.prim_func
     def kernel(a_ptr: T.handle, b_ptr: T.handle):
         A = T.match_buffer(a_ptr, (32,), "uint32")
@@ -977,10 +977,10 @@ def test_ptxd_nvcc_smoke():
         smem = T.alloc_buffer((4,), "uint32", scope="shared")
         if tx == 0:
             val = T.local_scalar("uint32")
-            T.ptxd.ld.global_.acquire.gpu.b32(val, A.ptr_to([0]))
-            T.ptxd.st.shared__cta.b32(smem.ptr_to([0]), val)
-            T.ptxd.red.relaxed.gpu.global_.add.u32(B.ptr_to([0]), T.uint32(1))
-            T.ptxd.prefetch.global_.L2(A.ptr_to([16]))
+            T.ptx.ld.global_.acquire.gpu.b32(val, A.ptr_to([0]))
+            T.ptx.st.shared__cta.b32(smem.ptr_to([0]), val)
+            T.ptx.red.relaxed.gpu.global_.add.u32(B.ptr_to([0]), T.uint32(1))
+            T.ptx.prefetch.global_.L2(A.ptr_to([16]))
         T.cuda.cta_sync()
         B[tx] = smem[tx % 4]
 
@@ -989,7 +989,7 @@ def test_ptxd_nvcc_smoke():
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="CUDA GPU not available")
-def test_ptxd_ld_st_gpu_roundtrip():
+def test_ptx_ld_st_gpu_roundtrip():
     @T.prim_func
     def kernel(a_ptr: T.handle, b_ptr: T.handle):
         A = T.match_buffer(a_ptr, (32,), "uint32")
@@ -998,8 +998,8 @@ def test_ptxd_ld_st_gpu_roundtrip():
         T.cta_id([1])
         tx = T.thread_id([32])
         val = T.local_scalar("uint32")
-        T.ptxd.ld.global_.acquire.gpu.b32(val, A.ptr_to([tx]))
-        T.ptxd.st.release.gpu.global_.b32(B.ptr_to([tx]), val)
+        T.ptx.ld.global_.acquire.gpu.b32(val, A.ptr_to([tx]))
+        T.ptx.st.release.gpu.global_.b32(B.ptr_to([tx]), val)
 
     with TARGET:
         mod = tvm.compile(tvm.IRModule({"main": kernel}), target=TARGET, tir_pipeline="tirx")

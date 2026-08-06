@@ -2085,7 +2085,7 @@ def _prefetch_main_descriptor(tensor_map, key: str, sctx: DispatchContext) -> No
     def prefetch_tensor_map():
         if warp_id == 0:
             if T.cuda.elect_sync() != T.uint32(0):
-                T.ptxd.prefetch.tensormap(T.address_of(tensor_map))
+                T.ptx.prefetch.tensormap(T.address_of(tensor_map))
         T.tvm_kernel_replace_point()
     # fmt: on
 
@@ -2150,7 +2150,7 @@ def _emit_plan(
                 args.append(T.cast(spec.cta_mask, "uint16"))
             if has_cache:
                 args.append(cache_policy)
-            T.evaluate(T.ptxd[chain](*args))
+            T.evaluate(T.ptx[chain](*args))
         else:
             if spec.use_tma_reduce is None:
                 chain = (
@@ -2165,7 +2165,7 @@ def _emit_plan(
             args = [tensor_map_address, *coords, shared_ptr]
             if has_cache:
                 args.append(cache_policy)
-            T.evaluate(T.ptxd[chain](*args))
+            T.evaluate(T.ptx[chain](*args))
 
     def shared_ptr(element_offset=0):
         # Keep the sliced offset in the pointer index instead of the Buffer's

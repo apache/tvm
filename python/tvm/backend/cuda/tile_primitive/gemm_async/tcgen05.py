@@ -111,7 +111,7 @@ def _encode_instr_descriptor_dense_uint32(
 
     See ``python/tvm/tirx/operator/intrinsics/cuda/header.py:InstrDescriptor``
     for the bit layout. Lets the dispatcher pass a literal ``uint32`` to
-    ``T.ptxd["tcgen05.mma..."]`` instead of allocating + encoding a per-dispatch
+    ``T.ptx["tcgen05.mma..."]`` instead of allocating + encoding a per-dispatch
     local descriptor on every gemm_async call (which forces an inline ``asm``
     block that ptxas cannot hoist out of the i_kv loop body).
 
@@ -1340,7 +1340,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     # and uses rows 64-127 for the other half.
     N_mma_phys_cols = N_mma // 2 if is_2x2 or packed_n2 else N_mma
 
-    # The ptxd instruction spelling, resolved once from the trace-time dtypes.
+    # The ptx instruction spelling, resolved once from the trace-time dtypes.
     if is_block_scaled:
         _bs_kind = _get_tcgen05_mma_kind(C_type, A_type, B_type, SFA_type, SFB_type)
         _bs_vec = _get_tcgen05_mma_scale_vec_size(_bs_kind, SFA_type)
@@ -1364,9 +1364,9 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         if a_is_tmem:
             a_val = T.cast(a_val, "uint32")
         if weight_stationary:
-            T.evaluate(T.ptxd[mma_chain](d_addr, a_val, b_val, i_val, accum, 0))
+            T.evaluate(T.ptx[mma_chain](d_addr, a_val, b_val, i_val, accum, 0))
         else:
-            T.evaluate(T.ptxd[mma_chain](d_addr, a_val, b_val, i_val, *_mma_zero_masks, accum))
+            T.evaluate(T.ptx[mma_chain](d_addr, a_val, b_val, i_val, *_mma_zero_masks, accum))
 
     # Build main_impl: descA_in is None when A is in TMEM (ignored by _a_operand).
     # fmt: off
@@ -1413,7 +1413,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
                         tmem_lane_offset + (0 if M_tiles == 1 else mi * M_mma)
                     )
                     if elect_pred:
-                        T.evaluate(T.ptxd[mma_chain](
+                        T.evaluate(T.ptx[mma_chain](
                             T.cast(_get_tmem_addr_fast(tmem_addr, tmem_row, tmem_col), "uint32"),
                             T.cast(a_val, "uint32") if a_is_tmem else a_val,
                             descB_val, descI_in,
@@ -1580,7 +1580,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
 #     T.cuda.tcgen05.encode_instr_descriptor(
 #         &descI_local, C_type="f32", A_type="f16", B_type="f16",
 #         M=64, N=256, MMA_K=64, transA=False, transB=True, cta_group=1)
-#     T.ptxd[mma_chain](..., descA_buf[0], descB_buf[0], descI_local, ...)
+#     T.ptx[mma_chain](..., descA_buf[0], descB_buf[0], descI_local, ...)
 #
 # Before (TilePrimitiveCall — block-scaled fp8 MMA):
 #     Tx.gemm_async(C_tmem, A_smem, B_smem,
@@ -1588,7 +1588,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
 #     # A/B: shared float8_e4m3, SFA/SFB: tmem float8_e8m0fnu
 #
 # After (adds scale factor descriptors):
-#     T.ptxd[mma_chain](..., descA, descB, descI,
+#     T.ptx[mma_chain](..., descA, descB, descI,
 #                        scale_A=sfA_desc, scale_B=sfB_desc)
 #
 # Scale factor layout (sf_tmem_layout) must match tcgen05 hardware requirements:

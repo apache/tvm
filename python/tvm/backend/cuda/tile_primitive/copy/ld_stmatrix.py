@@ -377,10 +377,10 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
                 for i in range(num)
             ]
             if direction == "ld":
-                T.ptxd[ld_chain](*words, smem_ptr)
+                T.ptx[ld_chain](*words, smem_ptr)
             else:
                 # stmatrix reverses ldmatrix's operand order: address first.
-                T.ptxd[st_chain](smem_ptr, *words)
+                T.ptx[st_chain](smem_ptr, *words)
     # fmt: on
     return impl
 

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Generated stub for T.ptxd — do not edit.
+"""Generated stub for T.ptx — do not edit.
 
 Regenerate:
   python -m tvm.backend.cuda.ptx_dialect.gen_stubs -o python/tvm/script/tirx.pyi
@@ -945,7 +945,7 @@ class _Chain_wgmma:
     wait_group: _Chain_wgmma
     def __call__(self, *args: Any, pred: Any = None) -> None: ...
 
-class _PTXD:
+class _PTX:
     add: _Chain_add
     atom: _Chain_atom
     bar: _Chain_bar
@@ -981,7 +981,7 @@ class _PTXD:
     wgmma: _Chain_wgmma
     def __getitem__(self, text: str) -> Any: ...
 
-ptxd: _PTXD
+ptx: _PTX
 
 # Every other tvm.script.tirx member stays dynamically typed, as before.
 def __getattr__(name: str) -> Any: ...

@@ -436,7 +436,7 @@ def test_shared_to_shared_uses_direct_ldst(dtype):
     ``buf[...]`` lowers the swizzled layout to a per-element IMAD flatten. The
     direct path computes one base ptr (``ptr_to(stride_offset)``) and adds a
     compile-time ``off * dtype_bytes`` per register slot, then issues
-    ``T.ptxd.ld/st(..., space="shared")``. The bits move through a uint
+    ``T.ptx.ld/st(..., space="shared")``. The bits move through a uint
     container, so ``float32`` (whose ``ld.b32`` cannot return a float) lowers
     the same way as the ``uint32`` SF case.
     """

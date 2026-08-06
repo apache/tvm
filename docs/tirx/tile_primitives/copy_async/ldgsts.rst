@@ -86,8 +86,8 @@ shared, then commits and waits before reading it back (from ``test_ldgsts.py``):
         T.device_entry(); T.cta_id([1]); T.warp_id([4]); T.lane_id([32]); tid = T.thread_id([128])
         A_smem = T.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
         Tx.cta.copy_async(A_smem[full], A[full], dispatch="ldgsts")   # async global -> shared
-        T.ptxd.cp_async.commit_group()                                # caller commits ...
-        T.ptxd.cp_async.wait_group()                                  # ... and waits
+        T.ptx.cp.async_.commit_group()                               # caller commits ...
+        T.ptx.cp.async_.wait_group(0)                                # ... and waits
         T.cuda.cta_sync()
         Tx.cta.copy(B[full], A_smem[full])
 
@@ -131,10 +131,10 @@ Generated CUDA
 .. code-block:: c++
 
     // cp.async.cg copies 16 bytes shared <- global, asynchronously
-    tvm_builtin_ptx_cp_async_cg_16(s_ptr, g_ptr, /*cache_policy=*/0);   // x4 (outer = 4)
+    tvm_builtin_ptx_cp_async_cg_async_cg_shared_global_16(s_ptr, g_ptr);   // x4 (outer = 4)
     // ...
-    tvm_builtin_ptx_cp_async_commit_group();    // asm: cp.async.commit_group;
-    tvm_builtin_ptx_cp_async_wait_group_0();    // asm: cp.async.wait_group 0;
+    tvm_builtin_ptx_cp_async_commit_group_async_commit_group();  // asm: cp.async.commit_group;
+    tvm_builtin_ptx_cp_async_wait_group_async_wait_group_0();    // asm: cp.async.wait_group 0;
 
 where the helper is ``asm volatile("cp.async.cg.shared.global [%0], [%1], 16;")``.
 Each thread issues 4 asynchronous 16-byte copies; nothing blocks until the caller's

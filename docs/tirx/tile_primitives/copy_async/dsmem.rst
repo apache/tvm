@@ -91,15 +91,15 @@ mbarrier and writes the result out (from ``test_dsmem.py``):
         dst_smem = T.decl_buffer(list(shape), dtype, pool.alloc([8192], dtype, align=128).data,
                                  elem_offset=0, scope="shared.dyn", layout=dst_layout)
         mbar = MBarrier(pool, 1); pool.commit()
-        mbar.init(1); T.ptxd.fence.mbarrier_init.release.cluster(); T.cuda.cluster_sync()
+        mbar.init(1); T.ptx.fence.mbarrier_init.release.cluster(); T.cuda.cluster_sync()
         if tid == 0:
             if cbx == 0:                                      # source CTA
                 Tx.copy(src_smem[r], A[r])                    # global -> local shared
-                T.ptxd.fence.proxy.async_.shared__cta()
+                T.ptx.fence.proxy.async_.shared__cta()
                 Tx.copy_async(dst_smem[r], src_smem[r], dispatch="dsmem",
                               mbar=mbar.ptr_to([0]), remote_cta_id=T.int32(1))   # -> CTA 1
             else:                                             # destination CTA
-                T.ptxd.mbarrier.arrive.expect_tx.shared.b64(mbar.ptr_to([0]), T.uint32(copy_bytes))
+                T.ptx.mbarrier.arrive.expect_tx.shared.b64(mbar.ptr_to([0]), T.uint32(copy_bytes))
                 mbar.wait(0, 0)
                 Tx.copy(B[r], dst_smem[r])                    # remote shared -> global
         T.cuda.cluster_sync()
@@ -118,7 +118,7 @@ and a multiple of 16 (a ``cp.async.bulk`` constraint), else it declines:
     if chunk_bytes < 16 or chunk_bytes % 16 != 0:
         fail(...)
 
-**2. Map the remote address.** ``T.ptxd.mapa.u64`` translates a local shared
+**2. Map the remote address.** ``T.ptx.mapa.u64`` translates a local shared
 pointer into the destination CTA's window — applied to both the destination
 buffer pointer and the mbarrier (``mapa`` writes into a declared register, so
 the mapped addresses live in a small local scratch buffer):
@@ -126,8 +126,8 @@ the mapped addresses live in a small local scratch buffer):
 .. code-block:: python
 
     mapped = T.alloc_local([2], "uint64")
-    T.ptxd.mapa.u64(mapped[0], mbar, T.uint32(remote_cta_id))                    # remote_mbar
-    T.ptxd.mapa.u64(mapped[1], dst_buf.ptr_to(dst_st), T.uint32(remote_cta_id))  # cluster_dst
+    T.ptx.mapa.u64(mapped[0], mbar, T.uint32(remote_cta_id))                    # remote_mbar
+    T.ptx.mapa.u64(mapped[1], dst_buf.ptr_to(dst_st), T.uint32(remote_cta_id))  # cluster_dst
 
 **3. Issue one bulk copy per chunk.** Fully contiguous → a single instruction; a
 strided region loops over the outer (non-contiguous) extents, re-deriving the
@@ -136,13 +136,13 @@ chunk's offsets each step:
 .. code-block:: python
 
     if not outer_extents:                                 # one contiguous chunk
-        T.ptxd["cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"](
+        T.ptx["cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"](
             T.cast(mapped[1], "uint32"), src_buf.ptr_to(src_st),
             T.cast(chunk_bytes, "uint32"), T.cast(mapped[0], "uint32"))
     else:
         for loop_vars in T.grid(*outer_extents):          # one chunk per outer coord
             ...  # re-decl src/dst views at the per-chunk offset
-            T.ptxd["cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"](
+            T.ptx["cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"](
                 T.cast(mapped[1], "uint32"), src_ptr,
                 T.cast(chunk_bytes, "uint32"), T.cast(mapped[0], "uint32"))
 
@@ -157,7 +157,7 @@ The fully contiguous ``128×64`` fp16 tile (``16384`` bytes) is a **single chunk
 
 .. code-block:: python
 
-    T.ptxd["cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"](
+    T.ptx["cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"](
         T.cast(mapped[1], "uint32"), src_ptr[0], T.uint32(16384), T.cast(mapped[0], "uint32"))
 
 Generated CUDA
@@ -166,8 +166,8 @@ Generated CUDA
 .. code-block:: c++
 
     // map local shared addresses into CTA 1's window (mapa)
-    remote_mbar = tvm_builtin_ptx_mapa_u64(&mbar,     /*rank=*/1);   // asm: mapa.u64
-    cluster_dst = tvm_builtin_ptx_mapa_u64(&dst_smem, /*rank=*/1);
+    tvm_builtin_ptx_mapa_shared__cluster_u64(remote_mbar, &mbar,     /*rank=*/1);
+    tvm_builtin_ptx_mapa_shared__cluster_u64(cluster_dst, &dst_smem, /*rank=*/1);
     // bulk-copy 16384 bytes local shared -> CTA 1 shared, signalling its mbarrier
     "cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes ..."
 

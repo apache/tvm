@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Instruction table for the ``T.ptxd`` table-driven PTX dialect prototype.
+"""Instruction table for the ``T.ptx`` table-driven PTX dialect.
 
 Pure data + pure functions: this module deliberately imports nothing from
 ``tvm`` so the thin generators (``gen_stubs``, ``gen_coverage``,
@@ -42,12 +42,12 @@ The converged :class:`InstructionEntry` design:
   destination accepts ``pred=`` at the call site; entries never mention it.
 
 Calling convention: PTX has no defining form — a register is declared first
-and instructions then write into it — so a ptxd call mirrors the PTX text
+and instructions then write into it — so a ptx call mirrors the PTX text
 exactly. Destinations are ordinary operands (``role="dst"``, in PTX operand
 order), every helper is ``void``, and every call is a statement::
 
     acc: T.float32                        # .reg .f32 acc;
-    T.ptxd.add.rn.f32(acc, x, acc)        # add.rn.f32 acc, x, acc;
+    T.ptx.add.rn.f32(acc, x, acc)        # add.rn.f32 acc, x, acc;
 """
 
 import functools
@@ -292,7 +292,7 @@ class InstructionEntry:
 
     @property
     def op_name(self) -> str:
-        return f"tirx.ptxd.{self.name}"
+        return f"tirx.ptx.{self.name}"
 
     @property
     def ptx_name(self) -> str:
@@ -300,7 +300,7 @@ class InstructionEntry:
 
     @property
     def family(self) -> str:
-        """The attribute users type: ``T.ptxd.<family>``.
+        """The attribute users type: ``T.ptx.<family>``.
 
         The mnemonic with dots folded to underscores. Equal to ``name`` for
         every single-shape family (``st.bulk`` -> ``st_bulk``); the shared
@@ -1824,7 +1824,7 @@ _ENTRIES = [
     # - .unified (variable-attribute addressing)
     # - .param/.const spaces (require kernel-parameter / const addresses,
     #   which cannot flow through the helper-function ABI)
-    # The ISA permits @p on this instruction; ptxd does not, because it writes a
+    # The ISA permits @p on this instruction; ptx does not, because it writes a
     # destination -- see InstructionEntry.has_dst for why that needs a "+"
     # constraint first.
     InstructionEntry(
@@ -2019,7 +2019,7 @@ _ENTRIES = [
             OperandSlot("value", role="value"),
         ),
     ),
-    # The ISA permits @p on this instruction; ptxd does not, because it writes a
+    # The ISA permits @p on this instruction; ptx does not, because it writes a
     # destination -- see InstructionEntry.has_dst for why that needs a "+"
     # constraint first.
     InstructionEntry(
@@ -2264,7 +2264,7 @@ _ENTRIES = [
     # `mov.b64 {lo,hi}, %x;  // %x is a double; lo,hi are .u32`), so both are
     # part of the operand shape, and each (direction, lanes, lane type) is its
     # own entry. They all share mnemonic "mov", so the emitted opcode is right
-    # and the call spelling stays `T.ptxd.mov.b64(...)`.
+    # and the call spelling stays `T.ptx.mov.b64(...)`.
     #
     # NOT REGISTERED -- legal PTX that CUDA C inline asm cannot express:
     #   mov.b16 d, {a,b}      2 x 8-bit lanes
@@ -3224,7 +3224,7 @@ _ENTRIES = [
     # set `orders_memory=True` -- see InstructionEntry for why `asm volatile`
     # alone is not enough. Each syntax line whose token sequence differs is its
     # own entry, all sharing the `fence` mnemonic, so the surface stays
-    # `T.ptxd.fence...` and the chain narrows on the tokens themselves.
+    # `T.ptx.fence...` and the chain narrows on the tokens themselves.
     # NOT REGISTERED: the `.sync_restrict` lines and the fabric-proxy line
     # (fixed token sequences with no users yet), and the deprecated `membar`
     # spellings, which the ISA itself marks as the old style for `fence`.
@@ -3408,7 +3408,7 @@ _ENTRIES = [
         InstructionEntry(  # barrier.cluster.arrive{.sem}{.aligned} / .wait{.acquire}{.aligned}
             name=f"barrier_cluster_{act}",
             # Shares the `barrier` mnemonic with 9.7.14.1 so the surface reads
-            # `T.ptxd.barrier.cluster.arrive(...)`; `cluster` is the token that
+            # `T.ptx.barrier.cluster.arrive(...)`; `cluster` is the token that
             # tells the two ISA sections apart.
             mnemonic="barrier",
             slots=(
@@ -5026,7 +5026,7 @@ _ENTRIES = [
     #     so it is a choices immediate, not a runtime operand. (The legacy
     #     helper burned a setp + predicate register on it per call.)
     #   - imm-scale-a/b: "the valid values ... are -1 and 1". The legacy
-    #     helper emitted 0 for "no negate", outside the ISA's domain; ptxd
+    #     helper emitted 0 for "no negate", outside the ISA's domain; ptx
     #     transcribes the documented set.
     #   - imm-trans-a/b: {0, 1}, f16/bf16 lines only (k-major inputs cannot
     #     be transposed); the rs line has no imm-trans-a.

@@ -1569,9 +1569,9 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
     TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
         << "For CUDA, the index of an async queue must be 0.";
     this->VisitStmt(op->body);
-    static const Op& ptxd_cp_async_commit_group_op = Op::Get("tirx.ptxd.cp_async_commit_group");
-    // ptxd Call layout: [operands...] [slot tokens] [pred marker ""].
-    auto commit_group = Call(PrimType::Void(), ptxd_cp_async_commit_group_op,
+    static const Op& ptx_cp_async_commit_group_op = Op::Get("tirx.ptx.cp_async_commit_group");
+    // ptx Call layout: [operands...] [slot tokens] [pred marker ""].
+    auto commit_group = Call(PrimType::Void(), ptx_cp_async_commit_group_op,
                              {StringImm("async"), StringImm("commit_group"), StringImm("")})
                             .as_or_throw<PrimExpr>();
     this->PrintIndent();
@@ -1584,11 +1584,11 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
     TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
         << "For CUDA, the index of an async queue must be 0.";
     auto wait_cnt = wait_attrs.second;
-    static const Op& ptxd_cp_async_wait_group_op = Op::Get("tirx.ptxd.cp_async_wait_group");
-    // ptxd Call layout: [operands...] [slot tokens] [pred marker ""]. The group
+    static const Op& ptx_cp_async_wait_group_op = Op::Get("tirx.ptx.cp_async_wait_group");
+    // ptx Call layout: [operands...] [slot tokens] [pred marker ""]. The group
     // count is a role="imm" operand baked into the instruction text, so it must
     // already be a compile-time constant here (the pipeline pass guarantees it).
-    auto wait_group = Call(PrimType::Void(), ptxd_cp_async_wait_group_op,
+    auto wait_group = Call(PrimType::Void(), ptx_cp_async_wait_group_op,
                            {wait_cnt, StringImm("async"), StringImm("wait_group"), StringImm("")})
                           .as_or_throw<PrimExpr>();
     this->PrintIndent();

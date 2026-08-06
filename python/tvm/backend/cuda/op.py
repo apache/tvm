@@ -436,7 +436,7 @@ def ptx_cp_async_legacy(*all_args):
 
     Signature: ``(dst_ptr, dst_offset, src_ptr, src_offset, cp_size)``.
     Offsets are folded into the pointers via ``tvm_access_ptr`` and the call
-    lowers through the raw ``tirx.ptx.cp_async_raw`` op.
+    lowers through the raw ``tirx.s_tir.cp_async_raw`` op.
 
     ``T.s_tir.cp_async_raw.legacy`` runs through ``_dtype_forward`` which
     prepends a ``dtype=`` kwarg as a leading positional. The dtype names

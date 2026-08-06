@@ -37,7 +37,7 @@ from ._common import (
     _TID_AXIS_FOR_SCOPE,
     _thread_cnt,
     align_layouts_gs,
-    copy_ptxd_form,
+    copy_ptx_form,
 )
 from .utils import _is_valid_copy, _scope_allowed
 from .vec_auto_reg import _all_threads_active, _axis_decl, _ptr_off
@@ -128,7 +128,7 @@ def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
 
     vec_bits = vec_len * elem_bits
     num_bytes = vec_bits // 8
-    tail, lanes, reg_dtype = copy_ptxd_form(num_bytes)
+    tail, lanes, reg_dtype = copy_ptx_form(num_bytes)
     # Chains are built here: a Python string bound inside the traced body is
     # not something the parser can carry.
     ld_g, st_s = f"ld.global.{tail}", f"st.shared.{tail}"
@@ -177,10 +177,10 @@ def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
             s_ptr = _ptr_off(s_buf.ptr_to(s_zero), s_off)
             g_ptr = _ptr_off(g_buf.ptr_to(g_zero), g_lin)
             if g_is_src:
-                T.ptxd[ld_g](*[tmp[i] for i in range(lanes)], g_ptr)
-                T.ptxd[st_s](s_ptr, *[tmp[i] for i in range(lanes)])
+                T.ptx[ld_g](*[tmp[i] for i in range(lanes)], g_ptr)
+                T.ptx[st_s](s_ptr, *[tmp[i] for i in range(lanes)])
             else:
-                T.ptxd[ld_s](*[tmp[i] for i in range(lanes)], s_ptr)
-                T.ptxd[st_g](g_ptr, *[tmp[i] for i in range(lanes)])
+                T.ptx[ld_s](*[tmp[i] for i in range(lanes)], s_ptr)
+                T.ptx[st_g](g_ptr, *[tmp[i] for i in range(lanes)])
     # fmt: on
     return impl

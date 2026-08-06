@@ -34,9 +34,9 @@ def ptx_griddepcontrol(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float3
     with T.sblock():
         T.reads(A[0:32])
         T.writes(B[0:32])
-        T.ptxd.griddepcontrol.wait()
+        T.ptx.griddepcontrol.wait()
         B[tx] = A[tx]
-        T.ptxd.griddepcontrol.launch_dependents()
+        T.ptx.griddepcontrol.launch_dependents()
 
 
 @pytest.mark.gpu

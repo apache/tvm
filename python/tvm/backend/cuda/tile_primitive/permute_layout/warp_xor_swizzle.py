@@ -339,7 +339,7 @@ def _impl(op_call, sctx):
                 iter_idx = T.meta_var(get_indices(flat, [0] * len(extent), extent))
                 off = T.meta_var(_iter_off(iter_idx, src_str_))
                 ptr = T.meta_var(T.ptr_byte_offset(base_src, off * dtype_bytes, dtype))
-                T.ptxd[ld_chain](regs[r], ptr)
+                T.ptx[ld_chain](regs[r], ptr)
             T.cuda.warp_sync()
             # Phase 2: write via L_dst
             for r in T.unroll(0, P):
@@ -348,7 +348,7 @@ def _impl(op_call, sctx):
                 iter_idx = T.meta_var(get_indices(flat, [0] * len(extent), extent))
                 off = T.meta_var(_iter_off(iter_idx, dst_str_))
                 ptr = T.meta_var(T.ptr_byte_offset(base_dst, off * dtype_bytes, dtype))
-                T.ptxd[st_chain](ptr, regs[r])
+                T.ptx[st_chain](ptr, regs[r])
             T.cuda.warp_sync()
     else:
         @T.prim_func

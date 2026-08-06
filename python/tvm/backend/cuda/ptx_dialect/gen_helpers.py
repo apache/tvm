@@ -16,14 +16,14 @@
 # under the License.
 """Thin generator 3: dump the generated inline-CUDA helper of every instruction.
 
-The engine renders each ``T.ptxd`` call's ``__device__`` helper on the fly at
+The engine renders each ``T.ptx`` call's ``__device__`` helper on the fly at
 codegen time — this tool renders the exact same helpers ahead of time so a
 human can inspect what each registered instruction variant compiles to,
 without building a kernel::
 
     python -m tvm.backend.cuda.ptx_dialect.gen_helpers            # everything
     python -m tvm.backend.cuda.ptx_dialect.gen_helpers ld st      # some families
-    python -m tvm.backend.cuda.ptx_dialect.gen_helpers -o ptxd_helpers.cu
+    python -m tvm.backend.cuda.ptx_dialect.gen_helpers -o ptx_helpers.cu
 
 Only imports :mod:`.table` / :mod:`.render` (tvm-free).
 """
@@ -61,7 +61,7 @@ def generate(families=None) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="python -m tvm.backend.cuda.ptx_dialect.gen_helpers",
-        description="Dump the generated inline-CUDA helper of every ptxd instruction variant.",
+        description="Dump the generated inline-CUDA helper of every ptx instruction variant.",
     )
     parser.add_argument("families", nargs="*", help="restrict to these families (default: all)")
     parser.add_argument("-o", "--output", default=None, help="output path (default: stdout)")

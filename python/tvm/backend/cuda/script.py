@@ -64,7 +64,7 @@ class _CpAsyncRaw:
             )
         raise TypeError(
             "T.s_tir.cp_async_raw only accepts the printed 6-arg raw form; "
-            'issue new copies through T.ptxd["cp.async..."]'
+            'issue new copies through T.ptx["cp.async..."]'
         )
 
 
@@ -91,7 +91,7 @@ class PTXLegacyNamespace:
     """
 
     def __init__(self):
-        # Same lowered asm as T.ptxd.mma, but the accumulator doubles as the
+        # Same lowered asm as T.ptx.mma, but the accumulator doubles as the
         # destination and the offsets are explicit.
         self.mma = _dtype_forward(_cuda_op.ptx_legacy_mma)
         # (trans, num, dtype, local_ptr, local_offset, smem_ptr, smem_offset)
@@ -139,15 +139,15 @@ class CUDANamespace:
         self.tcgen05 = CudaTcgen05Namespace()
         self.any_sync = _op_wrapper(_cuda_op.cuda_any_sync)
         # elect.sync plus the two movs that materialize its d|p pair: a
-        # multi-statement asm block, so it belongs here rather than T.ptxd.
+        # multi-statement asm block, so it belongs here rather than T.ptx.
         # The warp-specialization passes match this op to build predicates.
         self.elect_sync: Callable[..., Any] = _op_wrapper(_cuda_op.cuda_elect_sync)
         # `mov.u32 d, %sreg` -- one PTX instruction, but the special-register
         # name is baked into the asm text, so it is a helper per register
-        # rather than a ptxd entry with a register operand.
+        # rather than a ptx entry with a register operand.
         self.mov_sreg: Callable[..., Any] = _op_wrapper(_cuda_op.cuda_mov_sreg)
         # Spin-until-ready mbarrier waits: label-loop asm blocks, not single
-        # PTX instructions -- which is why they live here and not in T.ptxd.
+        # PTX instructions -- which is why they live here and not in T.ptx.
         self.mbarrier_wait = _op_wrapper(_cuda_op.cuda_mbarrier_wait)
         self.mbarrier_wait_acquire_cluster = _op_wrapper(
             _cuda_op.cuda_mbarrier_wait_acquire_cluster

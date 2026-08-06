@@ -124,13 +124,16 @@ dealloc tail elided):
     tmem_addr = T.alloc_shared([1], "uint32")
     cp_mbar   = T.alloc_shared([1], "uint64")
     if warp_id == 0:
-        T.ptxd.tcgen05.alloc(T.address_of(tmem_addr), n_cols=16, cta_group=1)
+        T.ptx["tcgen05.alloc.cta_group::1.sync.aligned.shared::cta.b32"](
+            T.address_of(tmem_addr), T.uint32(16))
     # ... mbarrier.init, fence, cta_sync, fill A_smem from global ...
     tmem = T.decl_buffer([32, 16], "uint8", scope="tmem", allocated_addr=tmem_addr[0],
                          layout=TileLayout(S[(32, 16) : (1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane]))
     if tid_in_wg == 0:
         Tx.copy_async(tmem[0:32, 0:16], A_smem[0:32, 0:16], cta_group=1)   # smem -> tmem
-        T.ptxd.tcgen05.commit(cp_mbar.ptr_to([0]), cta_group=1)             # caller signals
+        # caller signals
+        T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
+            cp_mbar.ptr_to([0]))
     T.cuda.mbarrier_wait(cp_mbar.ptr_to([0]), 0)
     # ... readback via tcgen05.ld, then tcgen05.dealloc ...
 
@@ -162,9 +165,9 @@ bits, plus the lane half-word for lane-tiled atoms):
 
     for flat in T.unroll(total):
         t_off, s_off = T.meta_var(compute_offsets(flat))
-        T.ptxd.tcgen05.cp(t_addr[0] + t_addr_off + t_off,
-                         smem_desc_add_16B_offset(desc_buf[0], init_off_16B + s_off),
-                         shape=shape, cta_group=cta_group, multicast=multicast)
+        T.ptx[f"tcgen05.cp.cta_group::{cta_group}.{shape}{multicast_seg}"](
+            T.cast(t_addr[0] + t_addr_off + t_off, "uint32"),
+            smem_desc_add_16B_offset(desc_buf[0], init_off_16B + s_off))
 
 The dispatch emits **no** ``tcgen05.commit`` / ``wait`` — the caller commits
 against an mbarrier (as in the demo).

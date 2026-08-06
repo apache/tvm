@@ -155,15 +155,15 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
         # mapa writes its result into a declared register, so the mapped
         # addresses live in a small local scratch buffer.
         mapped = T.alloc_local([2], "uint64")
-        T.ptxd.mapa.u64(mapped[0], mbar, T.uint32(remote_cta_id))
+        T.ptx.mapa.u64(mapped[0], mbar, T.uint32(remote_cta_id))
         remote_mbar = mapped[0]
 
         if not outer_extents:
             # Single contiguous chunk — no iteration needed
             src_ptr = src_buf.ptr_to(src_st)
-            T.ptxd.mapa.u64(mapped[1], dst_buf.ptr_to(dst_st), T.uint32(remote_cta_id))
+            T.ptx.mapa.u64(mapped[1], dst_buf.ptr_to(dst_st), T.uint32(remote_cta_id))
             cluster_dst = mapped[1]
-            T.ptxd["cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"](
+            T.ptx["cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"](
                     T.cast(cluster_dst, "uint32"), src_ptr, T.cast(chunk_bytes, "uint32"),
                     T.cast(remote_mbar, "uint32"),
                 )
@@ -185,9 +185,9 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
                 )
 
                 src_ptr = src_buf_w.ptr_to(src_st)
-                T.ptxd.mapa.u64(mapped[1], dst_buf_w.ptr_to(dst_st), T.uint32(remote_cta_id))
+                T.ptx.mapa.u64(mapped[1], dst_buf_w.ptr_to(dst_st), T.uint32(remote_cta_id))
                 cluster_dst = mapped[1]
-                T.ptxd["cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"](
+                T.ptx["cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"](
                     T.cast(cluster_dst, "uint32"), src_ptr, T.cast(chunk_bytes, "uint32"),
                     T.cast(remote_mbar, "uint32"),
                 )

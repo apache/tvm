@@ -483,7 +483,7 @@ def _tcgen05_ldst_emitter(is_load, shape, num):
 
     Returns the Call so a traced call site evaluates it; the two instructions
     mirror each other's operand order, which is why this is not just a chain
-    string. The tmem address is composed at the call site now -- ptxd is one
+    string. The tmem address is composed at the call site now -- ptx is one
     instruction per call, so the row/col packing the legacy helper did
     internally moves out to `T.cuda.get_tmem_addr`.
     """
@@ -496,7 +496,7 @@ def _tcgen05_ldst_emitter(is_load, shape, num):
             # Only compose when there is something to add: the packing is
             # (row << 16 | col), so a zero row and column leave the base alone.
             addr = T.cuda.get_tmem_addr(addr, row, col)
-        return T.ptxd[chain](*regs, addr) if is_load else T.ptxd[chain](addr, *regs)
+        return T.ptx[chain](*regs, addr) if is_load else T.ptx[chain](addr, *regs)
 
     return emit
 
@@ -574,9 +574,9 @@ def _emit_datapath_b_path(
 # When: one buffer is in tmem (tensor memory, Blackwell SM100+) and the other
 # is in local scope, at warpgroup exec scope.
 #
-# Emits: T.ptxd.tcgen05.ld / T.ptxd.tcgen05.st (async). The caller is
-# responsible for issuing the matching ``T.ptxd.tcgen05.wait__ld`` /
-# ``T.ptxd.tcgen05.wait__st`` when synchronization is required.
+# Emits: T.ptx.tcgen05.ld / T.ptx.tcgen05.st (async). The caller is
+# responsible for issuing the matching ``T.ptx.tcgen05.wait__ld`` /
+# ``T.ptx.tcgen05.wait__st`` when synchronization is required.
 @register_dispatch(
     "copy_async",
     "cuda",

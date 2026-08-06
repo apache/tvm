@@ -14,27 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Generic engine for the ``T.ptxd`` table-driven PTX dialect prototype.
+"""Generic engine for the ``T.ptx`` table-driven PTX dialect.
 
 One engine interprets every :class:`~.table.InstructionEntry` — there is no
 per-instruction generated or hand-written code:
 
 - :func:`register_table` registers each family as a TVM Op
-  (``tirx.ptxd.<name>``) with effect/printer attrs, plus one generic codegen
+  (``tirx.ptx.<name>``) with effect/printer attrs, plus one generic codegen
   closure that renders the ``asm volatile`` helper from the table.
-- :class:`PTXDNamespace` (surfaced as ``T.ptxd``) resolves attribute chains
-  such as ``T.ptxd.ld.global_.acquire.gpu.b32(addr)`` against the table:
+- :class:`PTXNamespace` (surfaced as ``T.ptx``) resolves attribute chains
+  such as ``T.ptx.ld.global_.acquire.gpu.b32(addr)`` against the table:
   the first token names the family, every further token fills a modifier
   slot (order-free). Python keywords are escaped with a trailing underscore
   (``global_``); ``::`` is written as a double underscore (``shared__cta``).
-  The string form ``T.ptxd["st.weak.shared::cta.b32"]`` preserves exact PTX
+  The string form ``T.ptx["st.weak.shared::cta.b32"]`` preserves exact PTX
   text.
 - Modifiers travel as trailing positional string args of the traced Call
   (never ``Call.attrs`` — that would break TVMScript pretty-printing). Call
   arg layout: ``[operands..., pred?] [slot tokens ("" = omitted)]``; the
   codegen derives predication from the arg count. Destinations are ordinary
   leading operands, so a call is always a statement:
-  ``T.ptxd.ld.acquire.gpu.global_.b32(val, ptr)``.
+  ``T.ptx.ld.acquire.gpu.global_.b32(val, ptr)``.
 """
 
 from tvm.backend.cuda.intrinsics.registry import register_codegen
@@ -58,7 +58,7 @@ from .table import (
     unescape_token,
 )
 
-# Every ptxd call is a void statement, and RemoveNoOp deletes any Evaluate()
+# Every ptx call is a void statement, and RemoveNoOp deletes any Evaluate()
 # whose value is <= kReadState, so kOpaque is what keeps the instruction alive.
 # It is also the honest answer: "do not touch my instruction" is exactly the
 # contract a hand-written PTX call wants.
@@ -76,13 +76,13 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
         # kind must exist before any side-effect analysis sees the op.
         register_op_attr(entry.op_name, "TCallEffectKind", _EFFECT_OPAQUE)
         # The printer name is the *surface* path a user can type, which is the
-        # mnemonic (several `mov_*` entries all answer to `T.ptxd.mov`), not the
+        # mnemonic (several `mov_*` entries all answer to `T.ptx.mov`), not the
         # table key. Reparsing re-dispatches on the operand shape.
         family = entry.family
-        register_op_attr(entry.op_name, "TScriptPrinterName", f"ptxd.{family}", level=20)
+        register_op_attr(entry.op_name, "TScriptPrinterName", f"ptx.{family}", level=20)
         register_op_attr(entry.op_name, "TIRxOpCategory", "device_intrin")
-        register_op_attr(entry.op_name, "TDeviceIntrinsicNamespace", "ptxd")
-        register_codegen(f"ptxd.{entry.name}")(_make_codegen(entry))
+        register_op_attr(entry.op_name, "TDeviceIntrinsicNamespace", "ptx")
+        register_codegen(f"ptx.{entry.name}")(_make_codegen(entry))
 
 
 # ---------------------------------------------------------------------------
@@ -373,7 +373,7 @@ def _emit(entry, filled, operands, pred=None):
     # one optional operand, a predicated short form is indistinguishable from an
     # unpredicated long one. The marker makes the round trip exact.
     return call_intrin(
-        "",  # every ptxd call is a void statement; destinations are operands
+        "",  # every ptx call is a void statement; destinations are operands
         entry.op_name,
         *coerced,
         *((pred,) if pred is not None else ()),
@@ -383,7 +383,7 @@ def _emit(entry, filled, operands, pred=None):
 
 
 # ---------------------------------------------------------------------------
-# Namespace surface: T.ptxd attribute chains + string form
+# Namespace surface: T.ptx attribute chains + string form
 # ---------------------------------------------------------------------------
 
 
@@ -466,11 +466,11 @@ class _InstrChain:
             if len(errors) == 1:
                 raise errors[0][1]
             raise ValueError(
-                "no ptxd instruction matches these operands; candidates rejected it as:\n  "
+                "no ptx instruction matches these operands; candidates rejected it as:\n  "
                 + "\n  ".join(f"{e.name}: {err}" for e, err in errors)
             )
         raise AssertionError(  # a table bug, not a user error
-            f"ambiguous ptxd table: {len(hits)} entries accept the same call "
+            f"ambiguous ptx table: {len(hits)} entries accept the same call "
             f"({', '.join(e.name for e, _ in cands)})"
         )
 
@@ -489,7 +489,7 @@ class _InstrChain:
     def __repr__(self):
         entry, filled = self._cands[0]
         mods_str = [tok for tok in filled if tok]
-        return f"<T.ptxd.{'.'.join([entry.ptx_name, *mods_str])}>"
+        return f"<T.ptx.{'.'.join([entry.ptx_name, *mods_str])}>"
 
 
 def _narrow(cands, token):
@@ -509,8 +509,8 @@ def _narrow(cands, token):
     return out
 
 
-class PTXDNamespace:
-    """``T.ptxd`` — table-driven PTX instruction namespace (prototype)."""
+class PTXNamespace:
+    """``T.ptx`` — table-driven PTX instruction namespace."""
 
     def __init__(self, table=None):
         if table is None:
@@ -535,18 +535,18 @@ class PTXDNamespace:
         chain = self._family(unescape_token(name))
         if chain is None:
             raise AttributeError(
-                f"'{name}' is not a ptxd instruction; known families: "
+                f"'{name}' is not a ptx instruction; known families: "
                 f"{', '.join(sorted(self._family_names()))}"
             )
         return chain
 
     def __getitem__(self, text):
-        """Exact-PTX-text form, e.g. ``T.ptxd["st.weak.shared::cta.b32"]``."""
+        """Exact-PTX-text form, e.g. ``T.ptx["st.weak.shared::cta.b32"]``."""
         first, _, rest = text.partition(".")
         chain = self._family(first)
         if chain is None:
             raise KeyError(
-                f"'{text}' does not start with a ptxd instruction family; "
+                f"'{text}' does not start with a ptx instruction family; "
                 f"known: {', '.join(sorted(self._family_names()))}"
             )
         for token in rest.split(".") if rest else []:
@@ -564,4 +564,4 @@ class PTXDNamespace:
         return sorted(self._family_names() | set(super().__dir__()))
 
     def __repr__(self):
-        return f"<T.ptxd: {len(self._family_names())} instruction families>"
+        return f"<T.ptx: {len(self._family_names())} instruction families>"

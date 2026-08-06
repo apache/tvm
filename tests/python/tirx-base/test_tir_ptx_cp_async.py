@@ -44,8 +44,8 @@ def ptx_cp_async(A: T.Buffer((32, 128), "float16"), B: T.Buffer((32, 128), "floa
             )
 
         # TODO(masahi): Remove dtype requirement from TVMScript parser
-        T.evaluate(T.ptxd.cp.async_.commit_group())
-        T.evaluate(T.ptxd.cp.async_.wait_group(0))
+        T.evaluate(T.ptx.cp.async_.commit_group())
+        T.evaluate(T.ptx.cp.async_.wait_group(0))
 
         for i in range(128):
             B[tx, i] = A_shared[tx, i]

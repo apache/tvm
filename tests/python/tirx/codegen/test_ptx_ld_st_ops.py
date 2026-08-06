@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Unit tests for the ptxd ``ld`` / ``st`` entries, scalar and vector."""
+"""Unit tests for the ptx ``ld`` / ``st`` entries, scalar and vector."""
 
 import numpy as np
 import pytest
@@ -23,7 +23,7 @@ import tvm
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.testing import env
-from tvm.tirx.cuda.tile_primitive.copy._common import copy_ptxd_form
+from tvm.tirx.cuda.tile_primitive.copy._common import copy_ptx_form
 
 TARGET = tvm.target.Target("cuda")
 
@@ -71,7 +71,7 @@ def _shared_scratch_copy_kernel(num_bytes: int):
     fill_value = spec.get("fill_value")
     fill_fp16 = spec.get("fill_fp16")
     fill_u8 = spec.get("fill_u8")
-    tail, lanes, reg_dtype = copy_ptxd_form(num_bytes)
+    tail, lanes, reg_dtype = copy_ptx_form(num_bytes)
     ld_chain, st_chain = f"ld.shared.{tail}", f"st.shared.{tail}"
 
     @T.prim_func
@@ -97,8 +97,8 @@ def _shared_scratch_copy_kernel(num_bytes: int):
             src_buf[0] = T.uint32(fill_value)
         T.cuda.cta_sync()
         if lane == 0:
-            T.ptxd[ld_chain](*[tmp[i] for i in range(lanes)], src_buf.ptr_to([0]))
-            T.ptxd[st_chain](dst_buf.ptr_to([0]), *[tmp[i] for i in range(lanes)])
+            T.ptx[ld_chain](*[tmp[i] for i in range(lanes)], src_buf.ptr_to([0]))
+            T.ptx[st_chain](dst_buf.ptr_to([0]), *[tmp[i] for i in range(lanes)])
         T.cuda.cta_sync()
         if lane < nelems:
             out[lane] = dst_buf[lane]
@@ -121,10 +121,10 @@ def test_ptx_ld_st_codegen_emits_shared_asm():
         smem = T.alloc_buffer((4,), "uint32", scope="shared")
         reg = T.alloc_local((4,), "uint32")
         if tid_in_wg == 0:
-            T.ptxd.st.shared.v4.u32(smem.ptr_to([0]), reg[0], reg[1], reg[2], reg[3])
+            T.ptx.st.shared.v4.u32(smem.ptr_to([0]), reg[0], reg[1], reg[2], reg[3])
         T.cuda.cta_sync()
         if tid_in_wg == 0:
-            T.ptxd.ld.shared.v4.u32(reg[0], reg[1], reg[2], reg[3], smem.ptr_to([0]))
+            T.ptx.ld.shared.v4.u32(reg[0], reg[1], reg[2], reg[3], smem.ptr_to([0]))
         Tx.copy(D[0:4], reg[:])
     # fmt: on
 
@@ -147,16 +147,16 @@ def test_ptx_ld_st_raw_shared_address_codegen():
         values = T.alloc_local((4,), "uint32")
         if tx == 0:
             raw_addr: T.uint32 = T.cuda.cvta_generic_to_shared(smem.data)
-            T.ptxd.ld.shared.u64(out[0], raw_addr)
-            T.ptxd.ld.shared.u64(out[1], smem.data)
-            T.ptxd.st.weak.shared__cta.b128(raw_addr, values.view("uint128")[0])
+            T.ptx.ld.shared.u64(out[0], raw_addr)
+            T.ptx.ld.shared.u64(out[1], smem.data)
+            T.ptx.st.weak.shared__cta.b128(raw_addr, values.view("uint128")[0])
 
     with TARGET:
         mod = tvm.compile(tvm.IRModule({"main": main}), target=TARGET, tir_pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")
     assert "ld.shared.u64 %0, [%1];" in src
     # One cvta, for the generic pointer. The raw window address is already a
-    # uint32 and passes straight through -- ptxd converts only pointers.
+    # uint32 and passes straight through -- ptx converts only pointers.
     assert src.count("__cvta_generic_to_shared") == 1
     assert '"st.weak.shared::cta.b128 [%0], %1;"' in src
     assert '"q"(__value)' in src
@@ -173,7 +173,7 @@ def test_ptx_ld_global_nc_v8_codegen():
         tx = T.thread_id([32])
         tmp = T.alloc_local((8,), "int32")
         if tx == 0:
-            T.ptxd["ld.global.nc.L1::no_allocate.L2::evict_first.L2::256B.v8.s32"](
+            T.ptx["ld.global.nc.L1::no_allocate.L2::evict_first.L2::256B.v8.s32"](
                 *[tmp[i] for i in range(8)], src.data
             )
             for i in T.unroll(8):
@@ -198,7 +198,7 @@ def test_ptx_ld_global_nc_v4_u64_256b_codegen():
         tx = T.thread_id([32])
         tmp = T.alloc_local((4,), "uint64")
         if tx == 0:
-            T.ptxd["ld.global.nc.L1::no_allocate.L2::evict_normal.L2::256B.v4.u64"](
+            T.ptx["ld.global.nc.L1::no_allocate.L2::evict_normal.L2::256B.v4.u64"](
                 tmp[0], tmp[1], tmp[2], tmp[3], src.data
             )
             for i in T.unroll(4):
@@ -226,7 +226,7 @@ def test_ptx_ld_vector_scatter_dst_codegen():
         tmp2 = T.alloc_local((1,), "int32")
         tmp3 = T.alloc_local((1,), "int32")
         if tx == 0:
-            T.ptxd["ld.global.nc.v4.s32"](tmp0[0], tmp1[0], tmp2[0], tmp3[0], src.data)
+            T.ptx["ld.global.nc.v4.s32"](tmp0[0], tmp1[0], tmp2[0], tmp3[0], src.data)
             out[0] = tmp0[0]
             out[1] = tmp1[0]
             out[2] = tmp2[0]
@@ -261,7 +261,7 @@ def test_ptx_ld_st_shared_copy_gpu(num_bytes):
     else:
         np.testing.assert_array_equal(result, expected)
     src = mod.mod.imports[0].inspect_source("cuda")
-    tail, _lanes, _dtype = copy_ptxd_form(num_bytes)
+    tail, _lanes, _dtype = copy_ptx_form(num_bytes)
     vec = tail.split(".")[0] if tail.startswith("v") else ""
     if vec == "v4":
         assert "ld.shared.v4" in src

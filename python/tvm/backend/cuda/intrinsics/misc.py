@@ -21,7 +21,7 @@
 Catch-all for ops that don't fit the (sync / mma / cp_async / memory / math /
 nvshmem) feature buckets:
 
-* PTX register-allocation control: ``mov`` from special reg (setmaxnreg is ptxd).
+* PTX register-allocation control: ``mov`` from special reg (setmaxnreg is ptx).
 * Per-thread queries / scheduling hints: ``thread_rank`` / ``nano_sleep``.
 * Profiler timer hooks (``timer_init/start/end/finalize``).
 * Debug helpers: ``printf`` / ``trap`` on assert failure.

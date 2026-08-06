@@ -25,7 +25,7 @@ emit time only:
 * direction: ``cp.async`` is global → shared only (hardware restriction).
 * cp_size: PTX ``cp.async`` only accepts 4 / 8 / 16 bytes, so the vec-width
   candidate set is restricted to ``{32, 64, 128}`` bits.
-* emit: one ``T.ptxd["cp.async..."]`` per slice instead of the synchronous
+* emit: one ``T.ptx["cp.async..."]`` per slice instead of the synchronous
   ``T.cuda.copy_{vec_bits}b(dst, src)``.
 * config: ``prefetch_size`` lands in the instruction spelling, ``predicate``
   rides ``pred=`` (@p), and ``fill_mode="zero"`` selects the src-size arity
@@ -68,7 +68,7 @@ _LDGSTS_VEC_BITS = (128, 64, 32)
 
 
 def _emit_cp_async(dst_ptr, src_ptr, cp_size, prefetch_size, predicate_expr, fill_mode):
-    """Emit one ptxd cp.async for the ldgsts configuration.
+    """Emit one ptx cp.async for the ldgsts configuration.
 
     fill_mode="zero" is the src-size arity (src-size = pred ? cp-size : 0,
     zero-filling the tail); a bare predicate rides pred= (@p); otherwise the
@@ -85,11 +85,11 @@ def _emit_cp_async(dst_ptr, src_ptr, cp_size, prefetch_size, predicate_expr, fil
     has_pred = not is_default
     if fill_mode == "zero":
         src_size = T.cast(if_then_else(predicate_expr != 0, int(cp_size), 0), "uint32")
-        T.evaluate(T.ptxd[chain](dst_ptr, src_ptr, int(cp_size), src_size))
+        T.evaluate(T.ptx[chain](dst_ptr, src_ptr, int(cp_size), src_size))
     elif has_pred:
-        T.evaluate(T.ptxd[chain](dst_ptr, src_ptr, int(cp_size), pred=predicate_expr))
+        T.evaluate(T.ptx[chain](dst_ptr, src_ptr, int(cp_size), pred=predicate_expr))
     else:
-        T.evaluate(T.ptxd[chain](dst_ptr, src_ptr, int(cp_size)))
+        T.evaluate(T.ptx[chain](dst_ptr, src_ptr, int(cp_size)))
 
 
 def _config_bool(value) -> bool:

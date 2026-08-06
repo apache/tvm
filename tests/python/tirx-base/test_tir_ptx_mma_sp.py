@@ -73,7 +73,7 @@ def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     a_words = T.decl_buffer([2], "uint32", data=multi_a.data, scope="local")
     b_words = T.decl_buffer([2], "uint32", data=multi_b.data, scope="local")
     acc_words = T.decl_buffer([2], "uint32", data=accum.data, scope="local")
-    T.ptxd.mma.sp.sync.aligned.m16n8k16.row.col.f16.f16.f16.f16(
+    T.ptx.mma.sp.sync.aligned.m16n8k16.row.col.f16.f16.f16.f16(
         acc_words[0],
         acc_words[1],
         a_words[0],
@@ -120,7 +120,7 @@ def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
 
     a_words = T.decl_buffer([2], "uint32", data=multi_a.data, scope="local")
     b_words = T.decl_buffer([2], "uint32", data=multi_b.data, scope="local")
-    T.ptxd.mma.sp.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32(
+    T.ptx.mma.sp.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32(
         accum[0],
         accum[1],
         accum[2],
@@ -172,7 +172,7 @@ def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     a_words = T.decl_buffer([4], "uint32", data=multi_a.data, scope="local")
     b_words = T.decl_buffer([4], "uint32", data=multi_b.data, scope="local")
     acc_words = T.decl_buffer([2], "uint32", data=accum.data, scope="local")
-    T.ptxd.mma.sp.sync.aligned.m16n8k32.row.col.f16.f16.f16.f16(
+    T.ptx.mma.sp.sync.aligned.m16n8k32.row.col.f16.f16.f16.f16(
         acc_words[0],
         acc_words[1],
         a_words[0],
@@ -223,7 +223,7 @@ def mma_sp_m16n8k32_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
 
     a_words = T.decl_buffer([4], "uint32", data=multi_a.data, scope="local")
     b_words = T.decl_buffer([4], "uint32", data=multi_b.data, scope="local")
-    T.ptxd.mma.sp.sync.aligned.m16n8k32.row.col.f32.f16.f16.f32(
+    T.ptx.mma.sp.sync.aligned.m16n8k32.row.col.f32.f16.f16.f32(
         accum[0],
         accum[1],
         accum[2],
