@@ -251,8 +251,11 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
       } else {
         // every "normal" operator is lowered to a global var in the IRModule. The Attrs for those
         // ops are handled in a pass when lowering them to TIR.
-        TVM_FFI_THROW(InternalError) << "CodeGenVMTIR cannot handle this intrinsic now:\n"
-                                     << call_node->op;
+        TVM_FFI_THROW(InternalError)
+            << "CodeGenVMTIR cannot emit this Relax operator directly. "
+            << "Run the appropriate lowering pass, or route the operator to an external "
+            << "codegen before VM codegen.\nOffending call:\n"
+            << call;
       }
     } else {
       EmitNormalCall(call, dst_reg);
