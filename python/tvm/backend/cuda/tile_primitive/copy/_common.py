@@ -541,18 +541,50 @@ def _outer_offsets(outer_iters_s, outer_iters_g, flat_idx):
     return ds, dg
 
 
-def copy_ptx_form(num_bytes: int) -> tuple[str, str]:
-    """Map copy width (bytes) to PTX ``(vec, ptx_type)`` for ``T.ptx.ld`` / ``T.ptx.st``."""
+def copy_ptxd_form(num_bytes: int) -> tuple[str, int, str]:
+    """Map copy width (bytes) to ``(ptxd chain tail, lanes, register dtype)``.
+
+    The chain tail is the ``{vec.}type`` suffix; ``lanes`` is how many operands
+    the group takes; the register dtype is the container the lanes are read and
+    written through, which follows the PTX type token rather than the element
+    type -- these copies move bits, not values.
+    """
     return {
-        32: ("v8", "u32"),
-        16: ("v4", "u32"),
-        8: ("v2", "u32"),
-        4: ("", "u32"),
-        2: ("", "u16"),
-        1: ("", "u8"),
+        32: ("v8.u32", 8, "uint32"),
+        16: ("v4.u32", 4, "uint32"),
+        8: ("v2.u32", 2, "uint32"),
+        4: ("u32", 1, "uint32"),
+        2: ("u16", 1, "uint16"),
+        1: ("u8", 1, "uint8"),
     }[num_bytes]
 
 
-def copy_ptx_ld_return_type(ptx_type: str) -> str:
-    """TVM dtype string for ``T.ptx.ld``'s ``return_type`` argument."""
-    return {"u32": "uint32", "u16": "uint16", "u8": "uint32"}[ptx_type]
+def copy_ptxd_ld_chain(
+    space: str,
+    tail: str,
+    *,
+    nc: bool = False,
+    l1_evict: str = "",
+    l2_evict: str = "",
+    prefetch_size: str = "",
+) -> str:
+    """Assemble an ld chain in the ISA's qualifier order.
+
+    Order matters for the printed instruction, not for filling the slots:
+    ``ld.global.nc.L1::no_allocate.L2::evict_first.L2::256B.v8.u32``.
+    """
+    toks = ["ld", space]
+    if nc:
+        toks.append("nc")
+    if l1_evict:
+        toks.append(l1_evict)
+    if l2_evict:
+        if not tail.startswith("v"):
+            # The ISA spells .level2::eviction_priority only on the 256-bit
+            # vector lines, so a scalar copy has nowhere to put it.
+            raise ValueError("L2 eviction priorities are vector-only")
+        toks.append(l2_evict)
+    if prefetch_size:
+        toks.append(prefetch_size)
+    toks.append(tail)
+    return ".".join(toks)

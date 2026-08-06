@@ -318,6 +318,12 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
             return laneid_expr // 8
         return 0
 
+    # Built out here: binding a Python string inside the traced body is not
+    # something the parser can carry.
+    _trans_seg = ".trans" if trans else ""
+    ld_chain = f"ldmatrix.sync.aligned.m8n8.x{num}{_trans_seg}.shared.b16"
+    st_chain = f"stmatrix.sync.aligned.m8n8.x{num}{_trans_seg}.shared.b16"
+
     apply_shape = [t_total // 32, 8, 4, m_total // (num * 2), num, 2]
     r_mem_axis = r.shard[r_seps[5]].axis.name
     s_mem_axis = s.shard[s_seps[5]].axis.name
@@ -362,19 +368,19 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
         for mm in T.unroll(m_outer):
             smem_off = _apply_s_layout(warp_idx_in_T, laneid, mm)
             smem_ptr = _ptr_off(s_buf.ptr_to(s_zero), smem_off)
-            handles = [
-                r_local.ptr_to([
-                    r.apply(0, 0, 0, mm, i, 0, shape=apply_shape)[r_mem_axis]
-                ])
+            # Both instructions move num b32 registers; the fragment buffer is
+            # b16, so they land through a uint32 view, two elements per word
+            # (the tcgen05_ldst 16-bit pattern).
+            r_words = r_local.view("uint32")
+            words = [
+                r_words[r.apply(0, 0, 0, mm, i, 0, shape=apply_shape)[r_mem_axis] // 2]
                 for i in range(num)
             ]
             if direction == "ld":
-                T.ptx.ldmatrix(trans, num, ".b16", smem_ptr, *handles)
+                T.ptxd[ld_chain](*words, smem_ptr)
             else:
-                T.ptx.stmatrix(
-                    trans, num, ".b16", smem_ptr, *handles,
-                    shape="m8n8", space="shared",
-                )
+                # stmatrix reverses ldmatrix's operand order: address first.
+                T.ptxd[st_chain](smem_ptr, *words)
     # fmt: on
     return impl
 

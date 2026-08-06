@@ -35,7 +35,7 @@ Plus the support modules:
 """
 
 # Import op modules to register their codegen functions.
-from . import cp_async, cvt, math, memory, misc, mma, nvshmem, sync, tcgen05, wgmma
+from . import cp_async, math, memory, misc, nvshmem, sync, tcgen05, wgmma
 from .header import TAGS, header_generator
 from .registry import CODEGEN_REGISTRY, get_codegen, register_codegen
 from .types import PTXDataType

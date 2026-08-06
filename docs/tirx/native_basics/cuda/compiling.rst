@@ -63,8 +63,8 @@ A natural native progression, each rung adding one capability:
 #. **Warp / block reduction** — ``T.tvm_warp_shuffle_xor`` or ``T.cuda.cta_sum``
    to combine partial results across lanes/warps (the warp all-reduce in
    :doc:`threads_sync`).
-#. **Async pipeline** — ``T.ptx.cp_async`` (or TMA ``cp_async.bulk.tensor``) with
-   ``T.ptx.mbarrier.*`` to overlap loads with compute.
+#. **Async pipeline** — ``T.ptxd.cp_async`` (or TMA ``cp_async.bulk.tensor``) with
+   ``T.ptxd.mbarrier.*`` / ``T.cuda.mbarrier_wait`` to overlap loads with compute.
 
 Rung 2 in full — a 256-element block sum via a shared-memory tree reduction
 (shared buffer, ``cta_sync``, a ``while`` loop, and a thread predicate):

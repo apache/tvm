@@ -39,7 +39,7 @@ from tvm.tirx.operator.tile_primitive.registry import DispatchContext
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..layout_utils import recompose_swizzle, strip_swizzle_to_tile
-from ._common import _alignment_ok, copy_ptx_form, copy_ptx_ld_return_type
+from ._common import _alignment_ok, copy_ptxd_form, copy_ptxd_ld_chain
 from .utils import _is_valid_copy, _scope_allowed
 from .vec_forced import _ld_cache_config
 
@@ -554,7 +554,7 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
 
     s_is_shared = s_buf.scope().startswith("shared")
     num_bytes = vec_bits // 8
-    vec, ptx_type = copy_ptx_form(num_bytes)
+    tail, lanes, reg_dtype = copy_ptxd_form(num_bytes)
     space = "shared" if s_is_shared else "global"
 
     # Honor the load cache hint (cache="nc") only on global -> register loads;
@@ -564,6 +564,24 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     _l1_evict = _cache_hints.get("l1_evict", "")
     _l2_evict = _cache_hints.get("l2_evict", "")
     _prefetch = _cache_hints.get("prefetch_size", "")
+    # Element offsets index the element buffer; the instruction moves whole
+    # containers, so they are scaled to container index. The vector alignment
+    # rule guarantees the division is exact.
+    container_bits = num_bytes * 8 // lanes
+    elems_per_word = container_bits // elem_bits if container_bits >= elem_bits else 1
+    words_per_elem = elem_bits // container_bits if elem_bits > container_bits else 1
+    # Chains are built here: a Python string bound inside the traced body is
+    # not something the parser can carry. `nc` folds into the chain, so the
+    # three-way branch at the call site collapses to load-or-store.
+    st_chain = f"st.{space}.{tail}"
+    ld_chain = copy_ptxd_ld_chain(
+        space,
+        tail,
+        nc=_use_nc,
+        l1_evict=_l1_evict,
+        l2_evict=_l2_evict,
+        prefetch_size=_prefetch,
+    )
 
     total_outer = 1
     for a in outer:
@@ -581,6 +599,8 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
         # ``dr`` and ``r_off_base`` below are physical storage offsets, so use
         # the raw-span local view rather than storage-iterator coordinates.
         r_local = r_buf.local()
+        # The registers the instruction moves are containers, not elements.
+        r_words = r_local.view(reg_dtype)
         # Keep a serial TIR loop and let ptxas unroll; explicit ``T.unroll``
         # replicates per-iter scratch arrays and pressures registers.
         for f in range(total_outer):
@@ -592,32 +612,14 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
                 s_ptr = _ptr_off(s_buf.ptr_to(s_zero_indices), s_off)
             else:
                 s_ptr = _ptr_off(s_buf.ptr_to(s_zero_indices), s_base + ds)
-            r_ptr = _ptr_off(r_local.ptr_to([0]), r_off_base + dr)
+            # The registers move through the reg_dtype word view, not a raw
+            # element pointer: the container index is the element offset scaled
+            # between element and word granularity.
+            r_w = (r_off_base + dr) * words_per_elem // elems_per_word
             if r_is_src:
-                T.ptx.st(s_ptr, src=r_ptr, space=space, vec=vec, ptx_type=ptx_type)
-            elif _use_nc:
-                T.ptx.ld_global_nc(
-                    s_ptr,
-                    copy_ptx_ld_return_type(ptx_type),
-                    ptx_type,
-                    dst=r_ptr,
-                    vec=vec,
-                    l1_evict=_l1_evict,
-                    l2_evict=_l2_evict,
-                    prefetch_size=_prefetch,
-                )
+                T.ptxd[st_chain](s_ptr, *[r_words[r_w + i] for i in range(lanes)])
             else:
-                T.ptx.ld(
-                    s_ptr,
-                    copy_ptx_ld_return_type(ptx_type),
-                    ptx_type,
-                    dst=r_ptr,
-                    space=space,
-                    vec=vec,
-                    l1_evict=_l1_evict,
-                    l2_evict=_l2_evict,
-                    prefetch_size=_prefetch,
-                )
+                T.ptxd[ld_chain](*[r_words[r_w + i] for i in range(lanes)], s_ptr)
     # fmt: on
     import os
 

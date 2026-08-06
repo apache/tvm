@@ -25,11 +25,12 @@ emit time only:
 * direction: ``cp.async`` is global → shared only (hardware restriction).
 * cp_size: PTX ``cp.async`` only accepts 4 / 8 / 16 bytes, so the vec-width
   candidate set is restricted to ``{32, 64, 128}`` bits.
-* emit: ``T.evaluate(T.ptx.cp_async(dst, src, cp_size))`` instead of the
-  synchronous ``T.cuda.copy_{vec_bits}b(dst, src)``.
-* config: ``prefetch_size``, ``predicate`` and ``fill_mode`` are forwarded to
-  ``T.ptx.cp_async``.  This covers predicated zero-fill loads such as FlashMLA
-  RoPE KV staging while preserving the same layout partitioner.
+* emit: one ``T.ptxd["cp.async..."]`` per slice instead of the synchronous
+  ``T.cuda.copy_{vec_bits}b(dst, src)``.
+* config: ``prefetch_size`` lands in the instruction spelling, ``predicate``
+  rides ``pred=`` (@p), and ``fill_mode="zero"`` selects the src-size arity
+  (zero-filling the tail).  This covers predicated zero-fill loads such as
+  FlashMLA RoPE KV staging while preserving the same layout partitioner.
 * config: ``direct=True`` is an explicit thread-scope fast path for callers
   that already selected a physically contiguous 4/8/16-byte slice.  It emits
   one ``cp.async`` from the region starts and bypasses the synthesized
@@ -64,6 +65,31 @@ from ..layout_utils import recompose_swizzle
 _LDGSTS_PAIRS = [("global", "shared*")]
 # cp.async cp_size ∈ {4, 8, 16} bytes ⇒ vec_bits ∈ {32, 64, 128}.
 _LDGSTS_VEC_BITS = (128, 64, 32)
+
+
+def _emit_cp_async(dst_ptr, src_ptr, cp_size, prefetch_size, predicate_expr, fill_mode):
+    """Emit one ptxd cp.async for the ldgsts configuration.
+
+    fill_mode="zero" is the src-size arity (src-size = pred ? cp-size : 0,
+    zero-filling the tail); a bare predicate rides pred= (@p); otherwise the
+    plain form. The instruction spelling carries the prefetch qualifier.
+    """
+    from tvm.tirx.op import if_then_else
+
+    cop = "cg" if int(cp_size) == 16 else "ca"
+    pref = "" if int(prefetch_size) == -1 else f".L2::{int(prefetch_size)}B"
+    chain = f"cp.async.{cop}.shared.global{pref}"
+    is_default = (isinstance(predicate_expr, int) and predicate_expr == -1) or (
+        hasattr(predicate_expr, "value") and int(predicate_expr.value) == -1
+    )
+    has_pred = not is_default
+    if fill_mode == "zero":
+        src_size = T.cast(if_then_else(predicate_expr != 0, int(cp_size), 0), "uint32")
+        T.evaluate(T.ptxd[chain](dst_ptr, src_ptr, int(cp_size), src_size))
+    elif has_pred:
+        T.evaluate(T.ptxd[chain](dst_ptr, src_ptr, int(cp_size), pred=predicate_expr))
+    else:
+        T.evaluate(T.ptxd[chain](dst_ptr, src_ptr, int(cp_size)))
 
 
 def _config_bool(value) -> bool:
@@ -149,15 +175,13 @@ def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
 
         @T.prim_func(check_well_formed=False)
         def impl():
-            T.evaluate(
-                T.ptx.cp_async(
-                    s_buf.ptr_to(s_start),
-                    g_buf.ptr_to(g_start),
-                    cp_size,
-                    prefetch_size=prefetch_size,
-                    predicate=predicate_expr,
-                    fill_mode=fill_mode,
-                )
+            _emit_cp_async(
+                s_buf.ptr_to(s_start),
+                g_buf.ptr_to(g_start),
+                cp_size,
+                prefetch_size,
+                predicate_expr,
+                fill_mode,
             )
 
         return impl
@@ -230,16 +254,7 @@ def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
             s_off = s_apply_layout.apply(f, tid, v0, shape=apply_shape)["m"]
             s_ptr = _ptr_off(s_buf.ptr_to(s_zero), s_off)
             g_ptr = _ptr_off(g_buf.ptr_to(g_zero), g_lin)
-            T.evaluate(
-                T.ptx.cp_async(
-                    s_ptr,
-                    g_ptr,
-                    cp_size,
-                    prefetch_size=prefetch_size,
-                    predicate=predicate_expr,
-                    fill_mode=fill_mode,
-                )
-            )
+            _emit_cp_async(s_ptr, g_ptr, cp_size, prefetch_size, predicate_expr, fill_mode)
         # cp.async is caller-synced — no cta_sync here (commit_group /
         # wait_group / cta_sync are the caller's responsibility).
     # fmt: on

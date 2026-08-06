@@ -153,9 +153,9 @@ handles:
         smem_ptr = _ptr_off(s_buf.ptr_to(s_zero), _smem_off(mm, tile_off + (laneid % 8) * p))
         handles  = [r_local.ptr_to([...]) for i in range(num)]
         if direction == "ld":
-            T.ptx.ldmatrix(trans, num, ".b16", smem_ptr, *handles)
+            T.ptxd.ldmatrix(trans, num, ".b16", smem_ptr, *handles)
         else:
-            T.ptx.stmatrix(trans, num, ".b16", smem_ptr, *handles, shape="m8n8", space="shared")
+            T.ptxd.stmatrix(trans, num, ".b16", smem_ptr, *handles, shape="m8n8", space="shared")
 
 (This is the one copy variant that **does** use ``T.unroll`` — ``m_outer`` is tiny.)
 
@@ -167,7 +167,7 @@ For the demo (``num = 2``, ``M = 8`` ⇒ ``m_outer = 1``):
 .. code-block:: python
 
     for mm in T.unroll(1):
-        T.ptx.ldmatrix(T.bool(False), 2, ".b16", smem_ptr,
+        T.ptxd.ldmatrix(T.bool(False), 2, ".b16", smem_ptr,
                        T.address_of(r_local[0]), T.address_of(r_local[2]))
 
 Generated CUDA

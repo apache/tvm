@@ -51,6 +51,7 @@ from ._common import (
     pick_vec_chunk,
     shape_broadcast_compat,
 )
+from .vec_emit import _emit_vec
 
 
 # -----------------------------------------------------------------------------
@@ -226,7 +227,7 @@ def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> PrimFunc
                         for i in range(len(srcs))
                     ]
                 )
-                T.evaluate(vec_impl.emit(dst_buf, dst_lane_indices, src_args, extras))
+                _emit_vec(vec_impl, dst_buf, dst_lane_indices, src_args, extras)
         sync()
 
     return impl

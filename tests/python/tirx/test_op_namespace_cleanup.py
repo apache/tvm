@@ -155,33 +155,33 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
         NVSHMEMNamespace as BackendNVSHMEMNamespace,
     )
     from tvm.backend.cuda.script import (
-        PTXNamespace as BackendPTXNamespace,
+        STIRNamespace as BackendSTIRNamespace,
     )
     from tvm.backend.metal.script import MetalNamespace as BackendMetalNamespace
     from tvm.backend.trn.script import NKINamespace as BackendNKINamespace
     from tvm.tirx.script.builder import ir as builder_ir
 
     assert isinstance(builder_ir.cuda, BackendCUDANamespace)
-    assert isinstance(builder_ir.ptx, BackendPTXNamespace)
+    assert isinstance(builder_ir.s_tir, BackendSTIRNamespace)
     assert isinstance(builder_ir.nvshmem, BackendNVSHMEMNamespace)
     assert isinstance(builder_ir.metal, BackendMetalNamespace)
     assert isinstance(builder_ir.nki, BackendNKINamespace)
     assert T.cuda is builder_ir.cuda
-    assert T.ptx is builder_ir.ptx
+    assert T.s_tir is builder_ir.s_tir
     assert T.nvshmem is builder_ir.nvshmem
     assert T.metal is builder_ir.metal
     assert T.nki is builder_ir.nki
 
     buffer = tvm.tirx.decl_buffer((1,), "float32")
     calls = [
-        T.ptx.elect_sync(),
+        T.cuda.elect_sync(),
         T.cuda.thread_fence(),
         T.nvshmem.fence(),
         T.nki.identity(buffer[0:1], 1),
     ]
 
     expected = [
-        ("tirx.ptx.elect_sync", "ptx"),
+        ("tirx.cuda.elect_sync", "cuda"),
         ("tirx.cuda.thread_fence", "cuda"),
         ("tirx.nvshmem.fence", "nvshmem"),
         ("tirx.nki.identity", "nki"),
@@ -200,7 +200,7 @@ def test_backend_specific_wrappers_are_not_root_exports():
     from tvm.tirx.trn import op as trn_op
 
     backend_only_names = [
-        "ptx_mma",
+        "ptx_legacy_mma",
         "mma_store",
         "cuda_thread_fence",
         "nvshmem_fence",
@@ -213,7 +213,7 @@ def test_backend_specific_wrappers_are_not_root_exports():
         assert not hasattr(tvm.tirx, name)
         assert not hasattr(T, name)
 
-    assert cuda_op.ptx_mma
+    assert cuda_op.ptx_legacy_mma
     assert cuda_op.mma_store
     assert cuda_op.cuda_thread_fence
     assert cuda_op.nvshmem_fence
@@ -221,7 +221,7 @@ def test_backend_specific_wrappers_are_not_root_exports():
     assert metal_op.simdgroup_load
     assert trn_op.nki_load
     assert hasattr(T, "cuda")
-    assert hasattr(T, "ptx")
+    assert hasattr(T, "ptx_legacy")
     assert hasattr(T, "nvshmem")
     assert hasattr(T, "metal")
     assert hasattr(T, "nki")
@@ -293,7 +293,7 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
         A = T.match_buffer(src, (1,), "float32")
         R = T.alloc_buffer((1,), "float32", scope="local")
         T.cuda.cta_sync()
-        T.ptx.ldg32(R[0], 1, A[0], 0)
+        T.s_tir.ldg32(R[0], 1, A[0], 0)
         T.metal.simd_shuffle(A[0], 0)
         T.metal.simd_shuffle_up(A[0], 1)
         T.metal.simd_shuffle_down(A[0], 1)
@@ -301,14 +301,14 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
     calls = _expr_calls(device_namespaces)
     assert [call.op.name for call in calls] == [
         "tirx.cuda.cta_sync",
-        "tirx.ptx.ldg32",
+        "tirx.s_tir.ldg32",
         "tirx.metal.simd_shuffle",
         "tirx.metal.simd_shuffle_up",
         "tirx.metal.simd_shuffle_down",
     ]
     for op_name, namespace in [
         ("tirx.cuda.cta_sync", "cuda"),
-        ("tirx.ptx.ldg32", "ptx"),
+        ("tirx.s_tir.ldg32", "s_tir"),
         ("tirx.metal.simd_shuffle", "metal"),
         ("tirx.metal.simd_shuffle_up", "metal"),
         ("tirx.metal.simd_shuffle_down", "metal"),
@@ -319,7 +319,7 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
 
     code = device_namespaces.script()
     assert "T.cuda.cta_sync(" in code
-    assert "T.ptx.ldg32(" in code
+    assert "T.s_tir.ldg32(" in code
     assert "T.metal.simd_shuffle(" in code
     assert "T.metal.simd_shuffle_up(" in code
     assert "T.metal.simd_shuffle_down(" in code
@@ -334,7 +334,18 @@ def test_registered_tirx_ops_have_exactly_one_category():
         pytest.skip("TIRx op categories require a rebuilt C++ runtime")
 
     categories = {"builtin", "tile_primitive", "device_intrin"}
-    device_namespaces = {"cuda", "ptx", "nvshmem", "nki", "metal", "webgpu"}
+    device_namespaces = {
+        "cuda",
+        "ptxd",
+        # `ptx_legacy` holds the Apache-compatible spellings, `s_tir` the
+        # nodes that pipeline's own passes build; neither is a dialect surface.
+        "ptx_legacy",
+        "s_tir",
+        "nvshmem",
+        "nki",
+        "metal",
+        "webgpu",
+    }
     flat_tile_only_names = {
         "tirx.add",
         "tirx.binary_chain",

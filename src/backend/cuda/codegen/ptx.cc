@@ -220,15 +220,14 @@ inline std::string LayoutTypeToString(LayoutType layout) {
  * \brief MMA Configurations, used to determine validity.
  */
 struct MMAConfig {
-  explicit MMAConfig(int m, int n, int k, DataType dtype_mul, bool use_bit_op, bool sparse)
-      : m(m), n(n), k(k), dtype_mul(dtype_mul), use_bit_op(use_bit_op), sparse(sparse) {}
+  explicit MMAConfig(int m, int n, int k, DataType dtype_mul, bool use_bit_op)
+      : m(m), n(n), k(k), dtype_mul(dtype_mul), use_bit_op(use_bit_op) {}
   int m, n, k;
   DataType dtype_mul;
   bool use_bit_op;
-  bool sparse;
   inline bool operator==(const MMAConfig& other) {
     return m == other.m && n == other.n && k == other.k && dtype_mul == other.dtype_mul &&
-           use_bit_op == other.use_bit_op && sparse == other.sparse;
+           use_bit_op == other.use_bit_op;
   }
 };
 
@@ -238,47 +237,31 @@ struct MMAConfig {
  * https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-shape
  */
 const MMAConfig valid_mma_configs[] = {
-    MMAConfig(8, 8, 4, DataType::kFloat64, false, false),
-    MMAConfig(8, 8, 4, DataType::kFloat16, false, false),
-    MMAConfig(16, 8, 8, DataType::kFloat16, false, false),
-    MMAConfig(16, 8, 16, DataType::kFloat16, false, false),
-    MMAConfig(16, 8, 8, DataType::kBFloat16, false, false),
-    MMAConfig(16, 8, 16, DataType::kBFloat16, false, false),
-    MMAConfig(16, 8, 4, DataType::kTensorFloat32, false, false),
-    MMAConfig(16, 8, 8, DataType::kTensorFloat32, false, false),
-    MMAConfig(8, 8, 16, DataType::kInt8, false, false),
-    MMAConfig(16, 8, 16, DataType::kInt8, false, false),
-    MMAConfig(16, 8, 32, DataType::kInt8, false, false),
-    MMAConfig(8, 8, 16, DataType::kUInt8, false, false),
-    MMAConfig(16, 8, 16, DataType::kUInt8, false, false),
-    MMAConfig(16, 8, 32, DataType::kUInt8, false, false),
-    MMAConfig(8, 8, 32, DataType::kInt4, false, false),
-    MMAConfig(16, 8, 32, DataType::kInt4, false, false),
-    MMAConfig(16, 8, 64, DataType::kInt4, false, false),
-    MMAConfig(8, 8, 32, DataType::kUInt4, false, false),
-    MMAConfig(16, 8, 32, DataType::kUInt4, false, false),
-    MMAConfig(16, 8, 64, DataType::kUInt4, false, false),
-    MMAConfig(8, 8, 128, DataType::kBit1, true, false),
-    MMAConfig(16, 8, 128, DataType::kBit1, true, false),
-    MMAConfig(16, 8, 256, DataType::kBit1, true, false),
-    MMAConfig(16, 8, 16, DataType::kFloat16, false, true),
-    MMAConfig(16, 8, 32, DataType::kFloat16, false, true),
-    MMAConfig(16, 8, 16, DataType::kBFloat16, false, true),
-    MMAConfig(16, 8, 32, DataType::kBFloat16, false, true),
-    MMAConfig(16, 8, 8, DataType::kTensorFloat32, false, true),
-    MMAConfig(16, 8, 16, DataType::kTensorFloat32, false, true),
-    MMAConfig(16, 8, 32, DataType::kInt8, false, true),
-    MMAConfig(16, 8, 64, DataType::kInt8, false, true),
-    MMAConfig(16, 8, 32, DataType::kUInt8, false, true),
-    MMAConfig(16, 8, 64, DataType::kUInt8, false, true),
-    MMAConfig(16, 8, 64, DataType::kInt4, false, true),
-    MMAConfig(16, 8, 128, DataType::kInt4, false, true),
-    MMAConfig(16, 8, 64, DataType::kUInt4, false, true),
-    MMAConfig(16, 8, 128, DataType::kUInt4, false, true),
-    MMAConfig(16, 8, 32, DataType::kFloat8_e4m3fn, false, false),
-    MMAConfig(16, 8, 64, DataType::kFloat8_e4m3fn, false, true),
-    MMAConfig(16, 8, 32, DataType::kFloat8_e5m2, false, false),
-    MMAConfig(16, 8, 64, DataType::kFloat8_e5m2, false, true),
+    MMAConfig(8, 8, 4, DataType::kFloat64, false),
+    MMAConfig(8, 8, 4, DataType::kFloat16, false),
+    MMAConfig(16, 8, 8, DataType::kFloat16, false),
+    MMAConfig(16, 8, 16, DataType::kFloat16, false),
+    MMAConfig(16, 8, 8, DataType::kBFloat16, false),
+    MMAConfig(16, 8, 16, DataType::kBFloat16, false),
+    MMAConfig(16, 8, 4, DataType::kTensorFloat32, false),
+    MMAConfig(16, 8, 8, DataType::kTensorFloat32, false),
+    MMAConfig(8, 8, 16, DataType::kInt8, false),
+    MMAConfig(16, 8, 16, DataType::kInt8, false),
+    MMAConfig(16, 8, 32, DataType::kInt8, false),
+    MMAConfig(8, 8, 16, DataType::kUInt8, false),
+    MMAConfig(16, 8, 16, DataType::kUInt8, false),
+    MMAConfig(16, 8, 32, DataType::kUInt8, false),
+    MMAConfig(8, 8, 32, DataType::kInt4, false),
+    MMAConfig(16, 8, 32, DataType::kInt4, false),
+    MMAConfig(16, 8, 64, DataType::kInt4, false),
+    MMAConfig(8, 8, 32, DataType::kUInt4, false),
+    MMAConfig(16, 8, 32, DataType::kUInt4, false),
+    MMAConfig(16, 8, 64, DataType::kUInt4, false),
+    MMAConfig(8, 8, 128, DataType::kBit1, true),
+    MMAConfig(16, 8, 128, DataType::kBit1, true),
+    MMAConfig(16, 8, 256, DataType::kBit1, true),
+    MMAConfig(16, 8, 32, DataType::kFloat8_e4m3fn, false),
+    MMAConfig(16, 8, 32, DataType::kFloat8_e5m2, false),
 };
 
 /*!
@@ -369,12 +352,11 @@ void CheckMMADTypeCompatible(DataType dtype_a, DataType dtype_b, DataType dtype_
  * \param dtype_c The data type of accumulator C.
  * \param bit_op The bit operator for 1-bit MMA computation, can be "xor"/"and" or ""(if it's not
  * 1-bit MMA).
- * \param sparse Whether it's Sparse MMA or not.
  * \param saturate Whether saturate output or not.
  */
 void CheckMMAConfigValidity(int m, int n, int k, LayoutType layout_a, LayoutType layout_b,
                             DataType dtype_a, DataType dtype_b, DataType dtype_c,
-                            const std::string& bit_op, bool sparse, bool saturate) {
+                            const std::string& bit_op, bool saturate) {
   TVM_FFI_ICHECK(bit_op == "xor" || bit_op == "and" || bit_op == "")
       << "Unrecognized 1-bit operation " << bit_op << " , can only be xor/and.";
   bool use_bit_op = !bit_op.empty();
@@ -396,7 +378,7 @@ void CheckMMAConfigValidity(int m, int n, int k, LayoutType layout_a, LayoutType
         << LayoutTypeToString(layout_b) << ".";
   }
 
-  MMAConfig config(m, n, k, dtype_a, use_bit_op, sparse);
+  MMAConfig config(m, n, k, dtype_a, use_bit_op);
   bool match = false;
   for (const MMAConfig& valid_config : valid_mma_configs) {
     if (config == valid_config) {
@@ -501,21 +483,18 @@ inline uint32_t GetNumMMAComputations(int m, int n, int k, ptx::DataType dtype) 
  * \param dtype_a The data type of multiplicand a.
  * \param dtype_b The data type of multiplicand b.
  * \param dtype_c The data type of accumulator c.
- * \param sparse Whether it's Sparse MMA or not.
  */
 inline std::tuple<std::string, std::string, std::string> GetMMAOperands(int m, int n, int k,
                                                                         ptx::DataType dtype_a,
                                                                         ptx::DataType dtype_b,
-                                                                        ptx::DataType dtype_c,
-                                                                        bool sparse) {
+                                                                        ptx::DataType dtype_c) {
   std::stringstream templates, inputs, outputs;
   const ptx::FragAttrs frag_attr_a = ptx::GetFragAttrs(dtype_a),
                        frag_attr_b = ptx::GetFragAttrs(dtype_b),
                        frag_attr_c = ptx::GetFragAttrs(dtype_c);
   constexpr uint32_t warp_size = 32;
   const uint32_t threads = warp_size / GetNumMMAComputations(m, n, k, dtype_a);
-  const int num_operands_a =
-                (m * k) * ptx::DTypeBits(dtype_a) / frag_attr_a.size / threads / (sparse ? 2 : 1),
+  const int num_operands_a = (m * k) * ptx::DTypeBits(dtype_a) / frag_attr_a.size / threads,
             num_operands_b = (k * n) * ptx::DTypeBits(dtype_b) / frag_attr_b.size / threads,
             num_operands_c = (m * n) * ptx::DTypeBits(dtype_c) / frag_attr_c.size / threads;
 
@@ -542,10 +521,6 @@ inline std::tuple<std::string, std::string, std::string> GetMMAOperands(int m, i
     templates << ", %" << arg_counter++;
   }
   templates << "}";
-  // templates of metadata and sparse selector for sparse mma.
-  if (sparse) {
-    templates << ", %" << (arg_counter++) << ", F";
-  }
 
   // generate inputs
   for (int i = 0; i < num_operands_a; ++i) {
@@ -562,10 +537,6 @@ inline std::tuple<std::string, std::string, std::string> GetMMAOperands(int m, i
   for (int i = 0; i < num_operands_c; ++i) {
     inputs << ", \"" << frag_attr_c.reg_type << "\"((" << frag_attr_c.ptr_type << "(C))[" << i
            << "])";
-  }
-  // input of metadata for sparse mma.
-  if (sparse) {
-    inputs << ", \"r\"(((unsigned *)(E))[0])";
   }
 
   // generate outputs
@@ -642,31 +613,27 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
                              const std::string& a_ptr, const std::string& a_elem_offset,
                              const std::string& b_ptr, const std::string& b_elem_offset,
                              const std::string& c_ptr, const std::string& c_elem_offset,
-                             const std::string& metadata, const std::string& metadata_offset,
-                             const std::string& sparsity_selector, const std::string& bit_op,
-                             bool sparse, bool saturate) {
+                             const std::string& bit_op, bool saturate) {
   ptx::DataType dtype_a = ptx::DTypeFromString(A_dtype), dtype_b = ptx::DTypeFromString(B_dtype),
                 dtype_c = ptx::DTypeFromString(C_dtype);
   ptx::LayoutType layout_a = ptx::LayoutTypeFromString(A_layout),
                   layout_b = ptx::LayoutTypeFromString(B_layout);
   auto [m, n, k] = ptx::ParseMMAShape(shape);
-  CheckMMAConfigValidity(m, n, k, layout_a, layout_b, dtype_a, dtype_b, dtype_c, bit_op, sparse,
-                         saturate);
+  CheckMMAConfigValidity(m, n, k, layout_a, layout_b, dtype_a, dtype_b, dtype_c, bit_op, saturate);
   std::string asm_code = R"(
   {
     __asm__ __volatile__(
-      "mma{.sparse}.sync.aligned{.shape}{.alayout}{.blayout}{.saturate}{.dtype}{.atype}{.btype}{.ctype}{.bitop}"
+      "mma.sync.aligned{.shape}{.alayout}{.blayout}{.saturate}{.dtype}{.atype}{.btype}{.ctype}{.bitop}"
       "{templates};\n"
       : {outputs}
       : {inputs});
   }
 )";
   auto [templates_str, inputs_str, outputs_str] =
-      GetMMAOperands(m, n, k, dtype_a, dtype_b, dtype_c, sparse);
+      GetMMAOperands(m, n, k, dtype_a, dtype_b, dtype_c);
 
   // replace patterns
   Replacer replacer;
-  replacer.register_rule("{.sparse}", sparse ? ".sp" : "");
   replacer.register_rule("{.shape}", "." + shape);
   replacer.register_rule("{.saturate}", saturate ? ".satfinite" : "");
   replacer.register_rule("{.alayout}", "." + A_layout);
@@ -685,34 +652,6 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
   replacer.register_rule("B", b_ptr + " + " + b_elem_offset);
   replacer.register_rule("C", c_ptr + " + " + c_elem_offset);
   replacer.register_rule("D", c_ptr + " + " + c_elem_offset);
-  replacer.register_rule("E", metadata + " + " + metadata_offset);
-  replacer.register_rule("F", sparsity_selector);
-  asm_code = replacer.rewrite(asm_code);
-  return asm_code;
-}
-
-std::string PrintCpAsyncBulkAsm(const std::string& shared_ptr,
-                                const std::string& shared_elem_offset,
-                                const std::string& global_ptr,
-                                const std::string& global_elem_offset, const std::string& bytes,
-                                const std::string& barrier) {
-  std::string asm_code = R"(
-  {
-    unsigned int smem_addr_int = __cvta_generic_to_shared({smem_addr});
-    unsigned int barrier_addr_int = __cvta_generic_to_shared({barrier});
-    __asm__ __volatile__(
-      "cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes [%0], [%1], %2, [%3];"
-      :: "r"(smem_addr_int), "l"({global_ptr}), "r"({bytes}), "r"(barrier_addr_int)
-      : "memory"
-    );
-  }
-)";
-
-  Replacer replacer;
-  replacer.register_rule("{smem_addr}", shared_ptr + " + " + shared_elem_offset);
-  replacer.register_rule("{global_ptr}", global_ptr + " + " + global_elem_offset);
-  replacer.register_rule("{bytes}", bytes);
-  replacer.register_rule("{barrier}", "&" + barrier);
   asm_code = replacer.rewrite(asm_code);
   return asm_code;
 }

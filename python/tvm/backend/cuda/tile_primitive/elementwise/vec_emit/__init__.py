@@ -23,7 +23,7 @@ pick the widest matching one at dispatch time, mirroring how copy picks
 ``copy_{Nb}`` from a menu.
 
 VecImpl emit contract:
-  emit(dst_buf, dst_lane_indices, src_args, extras) -> Expr
+  emit(dst_buf, dst_lane_indices, src_args, extras) -> Expr | None
 
   * dst_buf: Buffer
   * dst_lane_indices: list[list[Expr]] of length ``vec_len``; each entry is the
@@ -38,3 +38,14 @@ VecImpl emit contract:
   the call site. All Python-side shape branching (scalar vs buffer src) happens
   in this emit function -- collapses the old 4x2 schema.py factory explosion.
 """
+
+from tvm.script import tirx as T
+
+
+def _emit_vec(vec_impl, dst_buf, dst_lane_indices, src_args, extras) -> None:
+    """Run one VecImpl. ``emit`` returns an Expr to evaluate, or None when it
+    already emitted its own statements (a packed op that needs pack/unpack
+    around the instruction cannot be a single expression)."""
+    res = vec_impl.emit(dst_buf, dst_lane_indices, src_args, extras)
+    if res is not None:
+        T.evaluate(res)

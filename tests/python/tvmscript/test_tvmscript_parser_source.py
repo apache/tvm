@@ -138,7 +138,7 @@ def test_parser_attaches_span_to_direct_call():
     def direct_call():
         T.device_entry()
         barriers = T.alloc_buffer((1,), "uint64", scope="shared")
-        T.ptx.mbarrier.try_wait(
+        T.cuda.mbarrier_wait(
             T.address_of(barriers[0]),
             0,
         )
@@ -148,8 +148,9 @@ def test_parser_attaches_span_to_direct_call():
     func = T.prim_func(direct_call)
     call = _find_ir_node(
         func,
-        lambda node: isinstance(node, Call)
-        and getattr(node.op, "name", None) == "tirx.ptx.mbarrier_try_wait",
+        lambda node: (
+            isinstance(node, Call) and getattr(node.op, "name", None) == "tirx.cuda.mbarrier_wait"
+        ),
     )
 
     assert _span_range(call.span) == _span_range(source.to_span(call_ast))
@@ -157,7 +158,7 @@ def test_parser_attaches_span_to_direct_call():
 
 def test_parser_retains_inline_call_site_and_definition_spans():
     def wait_impl(barrier):
-        T.ptx.mbarrier.try_wait(barrier, 0)
+        T.cuda.mbarrier_wait(barrier, 0)
 
     wait_source = Source(wait_impl)
     wait_call_ast = wait_source.as_ast().body[0].body[0].value
@@ -174,8 +175,9 @@ def test_parser_retains_inline_call_site_and_definition_spans():
     func = T.prim_func(inline_call)
     call = _find_ir_node(
         func,
-        lambda node: isinstance(node, Call)
-        and getattr(node.op, "name", None) == "tirx.ptx.mbarrier_try_wait",
+        lambda node: (
+            isinstance(node, Call) and getattr(node.op, "name", None) == "tirx.cuda.mbarrier_wait"
+        ),
     )
 
     assert isinstance(call.span, SequentialSpan)

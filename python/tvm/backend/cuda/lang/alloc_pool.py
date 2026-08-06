@@ -358,8 +358,8 @@ class TMEMPool:
 
         def emit_alloc():
             _emit_stmt(
-                T.ptx.tcgen05.alloc(
-                    T.address_of(self.addr), n_cols=self.total_cols, cta_group=self.cta_group
+                T.ptxd[f"tcgen05.alloc.cta_group::{self.cta_group}.sync.aligned.shared::cta.b32"](
+                    T.address_of(self.addr), T.uint32(self.total_cols)
                 )
             )
             if self.sync_after_alloc:
@@ -375,9 +375,15 @@ class TMEMPool:
         from tvm.script import tirx as T
 
         def emit_dealloc():
-            _emit_stmt(T.ptx.tcgen05.relinquish_alloc_permit(cta_group=self.cta_group))
             _emit_stmt(
-                T.ptx.tcgen05.dealloc(self.addr, n_cols=self.total_cols, cta_group=self.cta_group)
+                T.ptxd[
+                    f"tcgen05.relinquish_alloc_permit.cta_group::{self.cta_group}.sync.aligned"
+                ]()
+            )
+            _emit_stmt(
+                T.ptxd[f"tcgen05.dealloc.cta_group::{self.cta_group}.sync.aligned.b32"](
+                    self.addr, T.uint32(self.total_cols)
+                )
             )
 
         self._emit_warp_guard(self.dealloc_warp, emit_dealloc)

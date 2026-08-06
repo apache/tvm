@@ -29,10 +29,10 @@ def test_roundtrip_tir_namespaces_minimal():
     @T.prim_func
     def func(a_ptr: T.handle) -> None:
         A = T.match_buffer(a_ptr, (2, 2), "float16")
-        T.ptx.wgmma.commit_group()
+        T.ptxd.wgmma.commit_group.sync.aligned()
         T.cuda.cluster_sync()
-        T.ptx.cp_async.wait_group(0)
-        T.ptx.fence.proxy_async("shared::cta")
+        T.ptxd.cp.async_.wait_group(0)
+        T.ptxd.fence.proxy.async_.shared__cta()
         T.cuda.printf("ok")
         T.nvshmem.quiet()
         T.nki.identity(A[0, 0], 1)

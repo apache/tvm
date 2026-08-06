@@ -175,7 +175,7 @@ def test_tir_op_ptx_mma():
     buffer_a = tirx.decl_buffer([32], "int4", scope="local")
     buffer_b = tirx.decl_buffer([16], "uint4", scope="local")
     buffer_c = tirx.decl_buffer([4], "int32", scope="local")
-    expr = _cuda_op.ptx_mma_legacy(
+    expr = _cuda_op.ptx_legacy_mma(
         "m8n8k32",
         "row",
         "col",
@@ -190,33 +190,7 @@ def test_tir_op_ptx_mma():
         0,
         False,
     )
-    assert expr.op.name == "tirx.ptx.mma_legacy"
-
-
-def test_tir_op_ptx_mma_sp():
-    buffer_a = tirx.decl_buffer([32], "int4", scope="local")
-    buffer_b = tirx.decl_buffer([16], "uint4", scope="local")
-    buffer_c = tirx.decl_buffer([4], "int32", scope="local")
-    buffer_d = tirx.decl_buffer([1], "uint32", scope="local")
-    expr = _cuda_op.ptx_mma_sp_legacy(
-        "m8n8k32",
-        "row",
-        "col",
-        "int4",
-        "uint4",
-        "int32",
-        buffer_a.data,
-        0,
-        buffer_b.data,
-        0,
-        buffer_c.data,
-        0,
-        buffer_d.data,
-        0,
-        0,
-        False,
-    )
-    assert expr.op.name == "tirx.ptx.mma_sp"
+    assert expr.op.name == "tirx.ptx_legacy.mma"
 
 
 def test_tir_op_mma_store():
@@ -244,45 +218,22 @@ def test_tir_op_mma_fill():
     assert expr.op.name == "tirx.mma_fill"
 
 
-def test_op_ptx_ldmatrix():
-    buffer_shared = tirx.decl_buffer([16, 16], "float16", scope="shared")
-    buffer_local = tirx.decl_buffer([8], "float16", scope="local")
-    # New API: 4 scatter-form dst handles for .x4.b16 (one per output register).
-    expr = _cuda_op.ptx_ldmatrix(
-        False,
-        4,
-        ".b16",
-        buffer_shared.data,
-        buffer_local.data,
-        buffer_local.data,
-        buffer_local.data,
-        buffer_local.data,
-    )
-    assert expr.op.name == "tirx.ptx.ldmatrix"
-
-
 def test_op_ptx_cp_async():
     buffer_shared = tirx.decl_buffer([16, 16], "float16", scope="shared")
     buffer_local = tirx.decl_buffer([8], "float16", scope="local")
     expr = _cuda_op.ptx_cp_async_legacy(buffer_shared.data, 0, buffer_local.data, 0, 16)
-    assert expr.op.name == "tirx.ptx.cp_async"
+    assert expr.op.name == "tirx.s_tir.cp_async_raw"
 
     inner_dst = tirx.tvm_access_ptr("float16", buffer_shared.data, 2, 8, 1)
     inner_src = tirx.tvm_access_ptr("float16", buffer_local.data, 4, 8, 1)
     expr = _cuda_op.ptx_cp_async_legacy("float16", inner_dst, 3, inner_src, 5, 16)
-    for access_ptr, expected_offset in zip(expr.args[:2], [5, 9]):
+    # Raw-form layout: (dst, dst_off, src, src_off, cp_size), offsets folded.
+    for access_ptr, expected_offset in zip((expr.args[0], expr.args[2]), [5, 9]):
         assert access_ptr.op.name == "tirx.tvm_access_ptr"
         assert access_ptr.args[1].op.name == "tirx.buffer_data"
         assert isinstance(access_ptr.args[1].args[0], tirx.Var)
         simplified_offset = tvm.arith.Analyzer().simplify(access_ptr.args[2])
         assert int(simplified_offset) == expected_offset
-
-
-def test_op_ptx_cp_async_bulk():
-    buffer_shared = tirx.decl_buffer([16, 16], "float16", scope="shared")
-    buffer_local = tirx.decl_buffer([8], "float16", scope="local")
-    expr = _cuda_op.ptx_cp_async_bulk("float16", buffer_shared.data, 0, buffer_local.data, 0, 16, 0)
-    assert expr.op.name == "tirx.ptx.cp_async_bulk"
 
 
 def test_tir_op_vectorlow():

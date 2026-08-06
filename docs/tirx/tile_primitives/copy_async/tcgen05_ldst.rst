@@ -88,7 +88,7 @@ fp16):
         tmem_addr = T.alloc_shared([1], "uint32")
         if wg_id == 0:
             if warp_id == 0:
-                T.ptx.tcgen05.alloc(T.address_of(tmem_addr), n_cols=32, cta_group=1)
+                T.ptxd.tcgen05.alloc(T.address_of(tmem_addr), n_cols=32, cta_group=1)
             T.tvm_storage_sync("shared")
             tmem = T.decl_buffer((128, WIDTH), "float16", scope="tmem", allocated_addr=tmem_addr[0],
                                  layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]))
@@ -96,9 +96,9 @@ fp16):
             A_local = A_reg.view(128, WIDTH, layout=local_view)
             B_local = B_reg.view(128, WIDTH, layout=local_view)
             # ... load A into A_reg, zero B_reg, cta_sync ...
-            Tx.wg.copy_async(tmem[:, :], A_local[:, :]); T.ptx.tcgen05.wait.st()   # store (local -> tmem)
+            Tx.wg.copy_async(tmem[:, :], A_local[:, :]); T.ptxd.tcgen05.wait.st()   # store (local -> tmem)
             T.cuda.cta_sync()
-            Tx.wg.copy_async(B_local[:, :], tmem[:, :]); T.ptx.tcgen05.wait.ld()   # load  (tmem -> local)
+            Tx.wg.copy_async(B_local[:, :], tmem[:, :]); T.ptxd.tcgen05.wait.ld()   # load  (tmem -> local)
             # ... write B_reg out; tcgen05.dealloc ...
 
 Algorithm
@@ -121,7 +121,7 @@ fragment spans two 16-row slabs, so the warps issue the atom twice
 
 .. code-block:: python
 
-    op = T.ptx.tcgen05.ld if load else T.ptx.tcgen05.st
+    op = T.ptxd.tcgen05.ld if load else T.ptxd.tcgen05.st
     classified = _check_tmem_layout_for_atom(tmem_buf, "16x*b", frag_rows)
     datapath, sub_slab = classified if classified is not None else (None, 0)
     for slab in range(n_slabs):                 # 1 for M=64; 2 for M=128
@@ -164,9 +164,9 @@ Selecting the upper F sub-slab
     )
 
     Tx.wg.copy_async(lower_frag, lower)
-    T.ptx.tcgen05.wait.ld()
+    T.ptxd.tcgen05.wait.ld()
     Tx.wg.copy_async(upper_frag, upper)
-    T.ptx.tcgen05.wait.ld()
+    T.ptxd.tcgen05.wait.ld()
 
 The lower view emits ``row=0`` and the upper view emits ``row=16`` for
 ``.16x64b``, ``.16x128b``, and ``.16x256b`` atoms. Layout D has 128 rows and
@@ -189,11 +189,11 @@ Use the public allocation and fragment APIs together:
     frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
 
     Tx.wg.copy_async(frag[:, :], accumulator[:, :])
-    T.ptx.tcgen05.wait.ld()
+    T.ptxd.tcgen05.wait.ld()
 
     # The inverse direction emits tcgen05.st with the same physical image.
     Tx.wg.copy_async(accumulator[:, :], frag[:, :])
-    T.ptx.tcgen05.wait.st()
+    T.ptxd.tcgen05.wait.st()
 
 This is a single ``tcgen05.{ld,st}.32x32b.x{N/2}`` issue. ``N`` must be
 even, ``N/2`` must be a valid PTX ``num``, and the fragment is fp32-only.
@@ -210,9 +210,9 @@ For the ``128×8`` fp16 tile the layout takes the ``.32x32b`` path with ``num = 
 
 .. code-block:: python
 
-    T.ptx.tcgen05.st(tmem_addr[0], 0, 0, "32x32b", 4, False, local_32b[0], local_32b[1],
+    T.ptxd.tcgen05.st(tmem_addr[0], 0, 0, "32x32b", 4, False, local_32b[0], local_32b[1],
                      local_32b[2], local_32b[3])     # local -> tmem
-    T.ptx.tcgen05.ld(tmem_addr[0], 0, 0, "32x32b", 4, False, local_32b_1[0], local_32b_1[1],
+    T.ptxd.tcgen05.ld(tmem_addr[0], 0, 0, "32x32b", 4, False, local_32b_1[0], local_32b_1[1],
                      local_32b_1[2], local_32b_1[3]) # tmem -> local
 
 Generated CUDA

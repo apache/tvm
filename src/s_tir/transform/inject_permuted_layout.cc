@@ -278,7 +278,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       return call;
     }
 
-    static const Op& ptx_ldmatrix_op = Op::Get("tirx.ptx.ldmatrix_legacy");
+    static const Op& ptx_ldmatrix_op = Op::Get("tirx.ptx_legacy.ldmatrix");
     static const Op& mma_store_op = Op::Get("tirx.mma_store_legacy");
     if (!call->op.same_as(ptx_ldmatrix_op) && !call->op.same_as(mma_store_op)) {
       return call;

@@ -21,7 +21,7 @@
 Catch-all for ops that don't fit the (sync / mma / cp_async / memory / math /
 nvshmem) feature buckets:
 
-* PTX register-allocation control: ``setmaxnreg`` / ``mov`` from special reg.
+* PTX register-allocation control: ``mov`` from special reg (setmaxnreg is ptxd).
 * Per-thread queries / scheduling hints: ``thread_rank`` / ``nano_sleep``.
 * Profiler timer hooks (``timer_init/start/end/finalize``).
 * Debug helpers: ``printf`` / ``trap`` on assert failure.
@@ -38,36 +38,13 @@ from .registry import CODEGEN_REGISTRY, register_codegen
 from .utils import parse_str
 
 # =============================================================================
-# setmaxnreg.{inc,dec}.sync.aligned.u32 — 1 PTX form (.action picks inc/dec).
-# =============================================================================
-
-
-def _ptx_setmaxnreg(inc, nreg):
-    inc = bool(int(inc)) if hasattr(inc, "value") else bool(inc)
-    nreg = int(nreg)
-    action = "inc" if inc else "dec"
-    return (
-        f"tvm_builtin_ptx_setmaxnreg_{action}_{nreg}",
-        f'    asm volatile("setmaxnreg.{action}.sync.aligned.u32 {nreg};");',
-    )
-
-
-device_intrinsic(
-    "ptx_setmaxnreg",
-    n_attrs=2,
-    helper_name=lambda inc, nreg: _ptx_setmaxnreg(inc, nreg)[0],
-    body=lambda inc, nreg: _ptx_setmaxnreg(inc, nreg)[1],
-)
-
-
-# =============================================================================
 # mov.u32/u64 from special register — 1 PTX form (Form 2 of mov.type d, sreg).
 # Each (bits, reg) emits a distinct helper because the special reg name is
 # baked into the PTX text.
 # =============================================================================
 
 
-def _ptx_fetch_register_body(bits):
+def _cuda_mov_sreg_body(bits):
     spec = "l" if bits == 64 else "r"
 
     def _body(reg):
@@ -83,7 +60,7 @@ def _ptx_fetch_register_body(bits):
 
 for _bits in (32, 64):
     device_intrinsic(
-        f"ptx_fetch_register_{_bits}",
+        f"cuda_mov_sreg_{_bits}",
         n_attrs=1,
         helper_name=(
             lambda *a, bits=_bits: (
@@ -92,18 +69,18 @@ for _bits in (32, 64):
             )
         ),
         return_type=f"int{_bits}_t",
-        body=_ptx_fetch_register_body(_bits),
+        body=_cuda_mov_sreg_body(_bits),
     )
 del _bits
 
 
-@register_codegen("ptx_fetch_register")
-def codegen_ptx_fetch_register(bits, reg):
+@register_codegen("cuda_mov_sreg")
+def codegen_cuda_mov_sreg(bits, reg):
     bits = int(bits)
     reg = parse_str(reg)
     if bits not in (32, 64):
-        raise ValueError(f"Only support 32/64 bits for ptx_fetch_register, but got {bits}.")
-    result = CODEGEN_REGISTRY[f"tirx.ptx_fetch_register_{bits}"]([reg])
+        raise ValueError(f"Only support 32/64 bits for cuda_mov_sreg, but got {bits}.")
+    result = CODEGEN_REGISTRY[f"tirx.cuda_mov_sreg_{bits}"]([reg])
     return result[0] if isinstance(result, tuple) else result
 
 

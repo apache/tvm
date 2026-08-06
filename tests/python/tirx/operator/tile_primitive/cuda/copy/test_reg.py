@@ -435,15 +435,15 @@ def test_vec_auto_reg_honors_cache_nc():
 
     # cache="nc" -> vectorized 128b ld.global.nc; no cache -> plain 128b ld.
     # Both must vectorize; only the cache qualifier differs.
-    assert "ld_global_nc_v4_u32" in nc_src, (
+    assert "ld.global.nc.v4.u32" in nc_src, (
         "vec_auto reg path must vectorize AND honor cache='nc' (emit "
         "ld.global.nc.v4), got:\n"
         + "\n".join(line for line in nc_src.splitlines() if "ld_" in line and "v4" in line)
     )
-    assert "ld_plain_None_global_v4_u32" in plain_src, (
+    assert "ld.global.v4.u32" in plain_src, (
         "no cache hint must vectorize to a plain 128b ld (ld.global.v4)"
     )
-    assert "ld_global_nc_v4_u32" not in plain_src, "no cache hint must NOT be nc"
+    assert "ld.global.nc.v4.u32" not in plain_src, "no cache hint must NOT be nc"
 
 
 @pytest.mark.gpu
@@ -540,7 +540,7 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_structured_compose_apply():
         src = ex.mod.imports[0].inspect_source()
 
     # (1) Widest variant: 8 fp16 elements per call (16 bytes → v4.u32 st).
-    assert "tvm_builtin_ptx_st" in src, (
+    assert 'asm volatile("st.' in src, (
         "expected PTX st in generated CUDA, alignment check fell back to a narrower variant"
     )
     assert "st.shared.v4" in src, "expected 128b vector store (st.shared.v4.u32)"
@@ -565,7 +565,7 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_structured_compose_apply():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ptx_st_from_src_f32_vector_preserves_values():
-    """The generic ``T.ptx.st(src=...)`` helper must preserve f32 values."""
+    """A vector store of f32 registers must preserve the values."""
 
     @T.prim_func
     def kernel(B_ptr: T.handle) -> None:
@@ -578,8 +578,8 @@ def test_ptx_st_from_src_f32_vector_preserves_values():
         out = T.alloc_local((4,), "float32")
         for i in range(4):
             reg[i] = T.cast(i + 1, "float32")
-        T.ptx.st(smem.ptr_to([0]), src=reg.ptr_to([0]), space="shared", vec="v4", ptx_type="f32")
-        T.ptx.ld(smem.ptr_to([0]), "float32", "f32", dst=out.ptr_to([0]), space="shared", vec="v4")
+        T.ptxd.st.shared.v4.f32(smem.ptr_to([0]), reg[0], reg[1], reg[2], reg[3])
+        T.ptxd.ld.shared.v4.f32(out[0], out[1], out[2], out[3], smem.ptr_to([0]))
         for i in range(4):
             B[i] = out[i]
 
@@ -589,8 +589,9 @@ def test_ptx_st_from_src_f32_vector_preserves_values():
         ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
-    assert "float4 src_" in src
     assert "st.shared.v4.f32" in src
+    # The values stay floats: each lane binds "f", not a reinterpreted "r".
+    assert '"f"(__value0)' in src
 
     dev = tvm.cuda(0)
     out = tvm.runtime.tensor(np.zeros((4,), dtype="float32"), dev)
@@ -1047,7 +1048,7 @@ def test_reg_copy_tcgen05_d_epilogue_deposit_codegen():
 
     assert "copy/fallback" not in src, "vec_auto register path must not fall back to scalar copy"
     assert "tvm_builtin_copy_" not in src, "vec_auto register path should emit PTX ld/st only"
-    assert "tvm_builtin_ptx_st" in src
+    assert 'asm volatile("st.' in src
     assert "st.shared.v2.u32" in src, "fp32 vec=2 → 8B shared store per outer iter"
 
     loop = re.search(r"for \(int f = 0; f < (\d+)", src)

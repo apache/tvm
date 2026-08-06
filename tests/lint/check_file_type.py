@@ -41,6 +41,7 @@ ALLOW_EXTENSION = {
     "sh",
     "bat",
     "py",
+    "pyi",
     # configurations
     "cfg",
     "mk",

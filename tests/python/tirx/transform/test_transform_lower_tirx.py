@@ -399,9 +399,9 @@ def test_lower_scope_id():
         cbx: T.let[T.int32] = clusterCtaIdx_x
         cby: T.let[T.int32] = clusterCtaIdx_y
         cbz: T.let[T.int32] = clusterCtaIdx_z
-        clx: T.let[T.int32] = T.ptx.fetch_register(32, "clusterid.x")
-        cly: T.let[T.int32] = T.ptx.fetch_register(32, "clusterid.y")
-        clz: T.let[T.int32] = T.ptx.fetch_register(32, "clusterid.z")
+        clx: T.let[T.int32] = T.cuda.mov_sreg(32, "clusterid.x")
+        cly: T.let[T.int32] = T.cuda.mov_sreg(32, "clusterid.y")
+        clz: T.let[T.int32] = T.cuda.mov_sreg(32, "clusterid.z")
         wg_id: T.let[T.int32] = warp_id_in_cta // 4
         warp_id_in_wg: T.let[T.int32] = warp_id_in_cta % 4
         lane_id: T.let[T.int32] = threadIdx_x % 32
@@ -545,15 +545,26 @@ def test_lower_layout():
         A_smem = T.alloc_shared((4096,), "float16", layout=None)
         for tile in range(4):
             for vec in T.vectorized(8):
+                # The swizzle lowers to its composition bindings rather than a
+                # folded closed form: compose_m is the flat element index, so
+                # compose_m // 8 is the row and compose_m % 8 the lane, which
+                # substituted back gives the same address.
+                compose_m = T.int32()
+                compose_q = T.int32()
                 A_smem[
-                    T.shift_left(
-                        T.bitwise_xor(
-                            tile * 128 + threadIdx_x,
-                            T.shift_right(T.bitwise_and(tile * 128 + threadIdx_x, 56), 3),
+                    T.Let(
+                        T.Let(
+                            T.shift_left(
+                                T.bitwise_xor(
+                                    compose_q, T.shift_right(T.bitwise_and(compose_q, 56), 3)
+                                ),
+                                3,
+                            )
+                            + compose_m % 8,
+                            where={compose_q: compose_m // 8},
                         ),
-                        3,
+                        where={compose_m: tile * 1024 + threadIdx_x * 8 + vec},
                     )
-                    + vec
                 ] = A_1[tile * 1024 + threadIdx_x * 8 + vec]
 
     compare(before, after, LowerTIRx)
@@ -962,19 +973,19 @@ def test_lower_exec_context_selector_filter_for_elect_sync():
         T.cta_id([1])
         T.warp_id([1])
         lane_id = T.lane_id([32])
-        if T.ptx.elect_sync():
+        if T.cuda.elect_sync():
             Tx.copy(B[0:1], A[0:1], dispatch=variant)
-        if T.ptx.elect_sync() != 0:
+        if T.cuda.elect_sync() != 0:
             Tx.copy(B[0:1], A[0:1], dispatch=variant)
-        if T.ptx.elect_sync():
+        if T.cuda.elect_sync():
             Tx.copy(B[0:1], A[0:1], dispatch=variant)
 
     with tvm.target.Target("cuda"):
         LowerTIRx()(tvm.IRModule({"main": before}))
 
     assert len(seen) == 3
-    assert any("T.selector(lane_id, T.ptx.elect_sync())" in item for item in seen)
-    assert any("T.selector(lane_id, T.ptx.elect_sync() != T.uint32(0))" in item for item in seen)
+    assert any("T.selector(lane_id, T.cuda.elect_sync())" in item for item in seen)
+    assert any("T.selector(lane_id, T.cuda.elect_sync() != T.uint32(0))" in item for item in seen)
 
 
 def test_lower_cleanup_accepts_bool_elect_sync_else_path():
@@ -985,7 +996,7 @@ def test_lower_cleanup_accepts_bool_elect_sync_else_path():
         T.cta_id([1])
         T.warp_id([1])
         lane_id = T.lane_id([32])
-        if T.ptx.elect_sync() != T.uint32(0):
+        if T.cuda.elect_sync() != T.uint32(0):
             A[lane_id] = 1
         else:
             A[lane_id] = 0
@@ -994,7 +1005,7 @@ def test_lower_cleanup_accepts_bool_elect_sync_else_path():
         lowered = LowerTIRx()(tvm.IRModule({"main": before}))
 
     script = lowered.script(extra_config={"tirx.prefix": "T"})
-    assert "T.ptx.elect_sync() != T.uint32(0)" in script
+    assert "T.cuda.elect_sync() != T.uint32(0)" in script
     assert "else:" in script
 
 
@@ -1023,7 +1034,7 @@ def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
         T.cta_id([1])
         warp_id = T.warp_id([4])
         lane_id = T.lane_id([32])
-        if (warp_id == 0) & T.ptx.elect_sync():
+        if (warp_id == 0) & T.cuda.elect_sync():
             Tx.copy(B[0:1], A[0:1], dispatch=variant)
 
     with tvm.target.Target("cuda"):
@@ -1034,7 +1045,7 @@ def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
     assert int(seen[0]["inter"]["laneid"][0]) == 1
     assert (
         seen[0]["inter"]["laneid"][1].script(extra_config={"tirx.prefix": "T"})
-        == "T.selector(lane_id, T.ptx.elect_sync())"
+        == "T.selector(lane_id, T.cuda.elect_sync())"
     )
     assert len(seen[0]["intra"]) == 0
 

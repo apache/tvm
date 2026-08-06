@@ -89,13 +89,13 @@ the accumulator ``8 → 4 → 2 → 1`` with three more ``add.f32x2``:
 .. code-block:: python
 
     # final tree (8 -> 4 -> 2 -> 1)
-    T.ptx.add_f32x2(T.address_of(local_sum[0]),
+    T.ptxd.add_f32x2(T.address_of(local_sum[0]),
                     T.cuda.make_float2(local_sum[0], local_sum[1]),
                     T.cuda.make_float2(local_sum[2], local_sum[3]), ftz=True)
-    T.ptx.add_f32x2(T.address_of(local_sum[4]),
+    T.ptxd.add_f32x2(T.address_of(local_sum[4]),
                     T.cuda.make_float2(local_sum[4], local_sum[5]),
                     T.cuda.make_float2(local_sum[6], local_sum[7]), ftz=True)
-    T.ptx.add_f32x2(T.address_of(local_sum[0]),
+    T.ptxd.add_f32x2(T.address_of(local_sum[0]),
                     T.cuda.make_float2(local_sum[0], local_sum[1]),
                     T.cuda.make_float2(local_sum[4], local_sum[5]), ftz=True)
     dst[...] = local_sum[0] + local_sum[1]
@@ -108,7 +108,7 @@ Generated TIRx IR
 
 .. code-block:: python
 
-    T.ptx.add_f32x2(T.address_of(local_sum[0]),
+    T.ptxd.add_f32x2(T.address_of(local_sum[0]),
                     T.cuda.make_float2(local_sum[0], local_sum[1]),
                     T.cuda.make_float2(local_sum[2], local_sum[3]))   # ... the 8->4->2->1 tree
 

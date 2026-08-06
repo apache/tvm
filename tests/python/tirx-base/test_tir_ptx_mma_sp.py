@@ -70,26 +70,20 @@ def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
 
     meta_local[0] = metadata[tx // 4]
 
-    T.evaluate(
-        T.ptx.mma.sp(
-            "m16n8k16",
-            "row",
-            "col",
-            "fp16",
-            "fp16",
-            "fp16",
-            multi_a.data,
-            0,
-            multi_b.data,
-            0,
-            accum.data,
-            0,
-            meta_local.data,
-            0,
-            0,
-            False,
-            dtype="float16",
-        )
+    a_words = T.decl_buffer([2], "uint32", data=multi_a.data, scope="local")
+    b_words = T.decl_buffer([2], "uint32", data=multi_b.data, scope="local")
+    acc_words = T.decl_buffer([2], "uint32", data=accum.data, scope="local")
+    T.ptxd.mma.sp.sync.aligned.m16n8k16.row.col.f16.f16.f16.f16(
+        acc_words[0],
+        acc_words[1],
+        a_words[0],
+        a_words[1],
+        b_words[0],
+        b_words[1],
+        acc_words[0],
+        acc_words[1],
+        meta_local[0],
+        0,
     )
 
     for i in range(4):
@@ -124,26 +118,23 @@ def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
 
     meta_local[0] = metadata[tx // 4]
 
-    T.evaluate(
-        T.ptx.mma.sp(
-            "m16n8k16",
-            "row",
-            "col",
-            "fp16",
-            "fp16",
-            "fp32",
-            multi_a.data,
-            0,
-            multi_b.data,
-            0,
-            accum.data,
-            0,
-            meta_local.data,
-            0,
-            0,
-            False,
-            dtype="float32",
-        )
+    a_words = T.decl_buffer([2], "uint32", data=multi_a.data, scope="local")
+    b_words = T.decl_buffer([2], "uint32", data=multi_b.data, scope="local")
+    T.ptxd.mma.sp.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32(
+        accum[0],
+        accum[1],
+        accum[2],
+        accum[3],
+        a_words[0],
+        a_words[1],
+        b_words[0],
+        b_words[1],
+        accum[0],
+        accum[1],
+        accum[2],
+        accum[3],
+        meta_local[0],
+        0,
     )
 
     for i in range(4):
@@ -178,26 +169,24 @@ def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
 
     meta_local[0] = metadata[tx // 4 * 2 + tx % 2]
 
-    T.evaluate(
-        T.ptx.mma.sp(
-            "m16n8k32",
-            "row",
-            "col",
-            "fp16",
-            "fp16",
-            "fp16",
-            multi_a.data,
-            0,
-            multi_b.data,
-            0,
-            accum.data,
-            0,
-            meta_local.data,
-            0,
-            0,
-            False,
-            dtype="float16",
-        )
+    a_words = T.decl_buffer([4], "uint32", data=multi_a.data, scope="local")
+    b_words = T.decl_buffer([4], "uint32", data=multi_b.data, scope="local")
+    acc_words = T.decl_buffer([2], "uint32", data=accum.data, scope="local")
+    T.ptxd.mma.sp.sync.aligned.m16n8k32.row.col.f16.f16.f16.f16(
+        acc_words[0],
+        acc_words[1],
+        a_words[0],
+        a_words[1],
+        a_words[2],
+        a_words[3],
+        b_words[0],
+        b_words[1],
+        b_words[2],
+        b_words[3],
+        acc_words[0],
+        acc_words[1],
+        meta_local[0],
+        0,
     )
 
     for i in range(4):
@@ -232,26 +221,27 @@ def mma_sp_m16n8k32_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
 
     meta_local[0] = metadata[tx // 4 * 2 + tx % 2]
 
-    T.evaluate(
-        T.ptx.mma.sp(
-            "m16n8k32",
-            "row",
-            "col",
-            "fp16",
-            "fp16",
-            "fp32",
-            multi_a.data,
-            0,
-            multi_b.data,
-            0,
-            accum.data,
-            0,
-            meta_local.data,
-            0,
-            0,
-            False,
-            dtype="float32",
-        )
+    a_words = T.decl_buffer([4], "uint32", data=multi_a.data, scope="local")
+    b_words = T.decl_buffer([4], "uint32", data=multi_b.data, scope="local")
+    T.ptxd.mma.sp.sync.aligned.m16n8k32.row.col.f32.f16.f16.f32(
+        accum[0],
+        accum[1],
+        accum[2],
+        accum[3],
+        a_words[0],
+        a_words[1],
+        a_words[2],
+        a_words[3],
+        b_words[0],
+        b_words[1],
+        b_words[2],
+        b_words[3],
+        accum[0],
+        accum[1],
+        accum[2],
+        accum[3],
+        meta_local[0],
+        0,
     )
 
     for i in range(4):

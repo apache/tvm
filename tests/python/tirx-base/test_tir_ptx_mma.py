@@ -45,7 +45,7 @@ def gemm_mma_m8n8k4_row_col_fp64pf64fp64(a: T.handle, b: T.handle, c: T.handle):
     MultiA[0] = A[(tx % 32) // 4, (tx % 32) % 4]
     MultiB[0] = B[(tx % 32) // 4, (tx % 32) % 4]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m8n8k4",
             "row",
             "col",
@@ -119,7 +119,7 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle):
             mma_multi_b_col + (4 * ((tx % 32) // 8)),
         ]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m8n8k4",
             "row",
             "row",
@@ -197,7 +197,7 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
             mma_multi_b_col + (4 * ((tx % 32) // 8)),
         ]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m8n8k4",
             "row",
             "row",
@@ -274,7 +274,7 @@ def gemm_mma_m8n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
     for mma_multi_b_col in T.vectorized(4):
         MultiB[mma_multi_b_col] = B[(tx % 32) // 4, mma_multi_b_col + (tx % 32) % 4 * 4]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m8n8k16",
             "row",
             "col",
@@ -346,7 +346,7 @@ def gemm_mma_m8n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
     for mma_multi_b_col in T.vectorized(4):
         MultiB[mma_multi_b_col] = B[(tx % 32) // 4, mma_multi_b_col + (tx % 32) % 4 * 4]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m8n8k16",
             "row",
             "col",
@@ -418,7 +418,7 @@ def gemm_mma_m8n8k32_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
     for mma_multi_b_col in T.vectorized(8):
         MultiB[mma_multi_b_col] = B[(tx % 32) // 4, mma_multi_b_col + (tx % 32) % 4 * 8]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m8n8k32",
             "row",
             "col",
@@ -484,7 +484,7 @@ def gemm_mma_m8n8k32_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
     for mma_multi_b_col in T.vectorized(8):
         MultiB[mma_multi_b_col] = B[(tx % 32) // 4, mma_multi_b_col + (tx % 32) % 4 * 8]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m8n8k32",
             "row",
             "col",
@@ -554,7 +554,7 @@ def gemm_mma_m16n8k8_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle)
             (tx % 32) // 4 + mma_multi_b_col // 2 * 8, (tx % 32) % 4 * 2 + mma_multi_b_col % 2
         ]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m16n8k8",
             "row",
             "col",
@@ -630,7 +630,7 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle
             (tx % 32) % 4 * 2 + mma_multi_b_col % 2 + mma_multi_b_col // 2 * 8,
         ]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m16n8k16",
             "row",
             "col",
@@ -707,7 +707,7 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle
             (tx % 32) % 4 * 2 + mma_multi_b_col % 2 + mma_multi_b_col // 2 * 8,
         ]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m16n8k16",
             "row",
             "col",
@@ -784,7 +784,7 @@ def gemm_mma_m16n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
             (tx % 32) % 4 * 4 + mma_multi_b_col,
         ]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m16n8k16",
             "row",
             "col",
@@ -861,7 +861,7 @@ def gemm_mma_m16n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
             (tx % 32) % 4 * 4 + mma_multi_b_col,
         ]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m16n8k16",
             "row",
             "col",
@@ -938,7 +938,7 @@ def gemm_mma_m16n8k32_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
             (tx % 32) % 4 * 4 + mma_multi_b_col % 4 + mma_multi_b_col // 4 * 16,
         ]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m16n8k32",
             "row",
             "col",
@@ -1015,7 +1015,7 @@ def gemm_mma_m16n8k32_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
             (tx % 32) % 4 * 4 + mma_multi_b_col % 4 + mma_multi_b_col // 4 * 16,
         ]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m16n8k32",
             "row",
             "col",
@@ -1092,7 +1092,7 @@ def gemm_mma_m16n8k64_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
             (tx % 32) % 4 * 8 + mma_multi_b_col % 8 + mma_multi_b_col // 8 * 32,
         ]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m8n8k32",
             "row",
             "col",
@@ -1163,7 +1163,7 @@ def gemm_mma_m16n8k64_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
             (tx % 32) % 4 * 8 + mma_multi_b_col % 8 + mma_multi_b_col // 8 * 32,
         ]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m8n8k32",
             "row",
             "col",
@@ -1234,7 +1234,7 @@ def gemm_mma_m16n8k256_row_col_b1b1s32(a: T.handle, b: T.handle, c: T.handle):
             (tx % 32) % 4 * 32 + mma_multi_b_col % 32 + mma_multi_b_col // 32 * 128,
         ]
     T.evaluate(
-        T.ptx.mma.legacy(
+        T.ptx_legacy.mma(
             "m16n8k256",
             "row",
             "col",

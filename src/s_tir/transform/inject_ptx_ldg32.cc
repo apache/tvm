@@ -97,7 +97,7 @@ class PTXRewriter : public StmtMutator {
         new_predicate = BufferLoad(predicate_buffer, {IntImm::Int32(0)});
         new_indice = BufferLoad(addr_buffer, {IntImm::Int32(1)});
         BufferStore value_store(store->buffer, imm_value, {new_indice});
-        static const Op& ptx_ldg32_op = Op::Get("tirx.ptx.ldg32");
+        static const Op& ptx_ldg32_op = Op::Get("tirx.s_tir.ldg32");
         Evaluate ptx_load(Call(store->buffer->dtype, ptx_ldg32_op,
                                {store->buffer.data(), new_predicate, new_lhs, new_indice})
                               .as_or_throw<PrimExpr>());

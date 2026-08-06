@@ -1488,11 +1488,13 @@ def test_inline_bound_static_shape_argument():
     reshape_calls = []
     relax.analysis.post_order_visit(
         grouped[0],
-        lambda expr: reshape_calls.append(expr)
-        if isinstance(expr, relax.Call)
-        and isinstance(expr.op, tvm.ir.Op)
-        and expr.op.name == "relax.reshape"
-        else None,
+        lambda expr: (
+            reshape_calls.append(expr)
+            if isinstance(expr, relax.Call)
+            and isinstance(expr.op, tvm.ir.Op)
+            and expr.op.name == "relax.reshape"
+            else None
+        ),
     )
     assert len(reshape_calls) == 1
     assert isinstance(reshape_calls[0].args[1], relax.ShapeExpr)

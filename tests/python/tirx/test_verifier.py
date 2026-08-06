@@ -212,11 +212,11 @@ def test_host():
 
                 phase[0] = 0
                 if threadIdx == 0:
-                    T.ptx.mbarrier.init(bar.data, 1)
-                    T.ptx.fence.proxy_async("shared::cta")
-                    T.ptx.cp_async.bulk.tensor.g2s_cluster(2, A_smem.data, bar.data, T.address_of(A_map), 0, 1, "", 0, 0)  # noqa: E501
-                    T.ptx.mbarrier.arrive.expect_tx(bar.data, 16*16*4)
-                T.ptx.mbarrier.try_wait(bar.data, phase[0])
+                    T.ptxd.mbarrier.init.shared.b64(bar.data, T.uint32(1))
+                    T.ptxd.fence.proxy.async_.shared__cta()
+                    T.ptxd["cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes"](A_smem.data, T.address_of(A_map), 0, 0, bar.data)  # noqa: E501
+                    T.ptxd.mbarrier.arrive.expect_tx.shared.b64(bar.data, T.uint32(16*16*4))
+                T.cuda.mbarrier_wait(bar.data, phase[0])
                 phase[0] = phase[0] ^ 1
                 T.print_buffer(A_smem.data, "float32", False, False, 2, 16*16)
         # fmt: on

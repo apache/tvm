@@ -465,8 +465,9 @@ class ContainerSession:
     @staticmethod
     def _get_docker_client():
         try:
-            from docker import from_env  # pylint: disable=import-outside-toplevel
             from docker.errors import DockerException
+
+            from docker import from_env  # pylint: disable=import-outside-toplevel
         except (ModuleNotFoundError, ImportError):
             raise Exception("Docker SDK module is not installed. Please install it.")
 

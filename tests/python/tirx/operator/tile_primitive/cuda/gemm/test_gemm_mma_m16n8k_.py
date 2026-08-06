@@ -374,19 +374,21 @@ def test_cuda_gemm_mma_lowers_to_mma_sync(dtype):
     the registers laid out in the fixed PTX fragment order."""
     script = _lower(_build_gemm(alpha=1.0, beta=0.0, dtype=dtype))["main"].script()
 
-    assert "T.ptx.mma(" in script
+    assert "T.ptxd.mma(" in script
     assert "m16n8k16" in script
     # beta == 0 clears the accumulator before the K loop.
     assert "T.float32(0" in script
     # D accumulator: c_id = 2*rM + rN -> regs 0..3.
     for r in range(4):
         assert f"d_local[{r}]" in script
-    # A multiplicand: b32 = rM + 2*kHi (kHi outer) -> ma in {0, 2, 4, 6}.
-    for r in (0, 2, 4, 6):
-        assert f"a_local[{r}]" in script
-    # B multiplicand: b32 = kHi -> mb in {0, 2}.
-    for r in (0, 2):
-        assert f"b_local[{r}]" in script
+    # A and B fragments are packed two elements per b32, so the instruction
+    # indexes a uint32 view: the element strides above halve into word strides.
+    # A: b32 = rM + 2*kHi (kHi outer) -> words 0..3.
+    for r in range(4):
+        assert f"a_words[{r}]" in script
+    # B: b32 = kHi -> words 0, 1.
+    for r in (0, 1):
+        assert f"b_words[{r}]" in script
 
 
 @pytest.mark.gpu
@@ -394,7 +396,7 @@ def test_cuda_gemm_mma_accumulates_c_when_beta_one():
     """beta=1: the accumulator is initialized by copying C instead of zeroing."""
     script = _lower(_build_gemm(alpha=1.0, beta=1.0))["main"].script()
 
-    assert "T.ptx.mma(" in script
+    assert "T.ptxd.mma(" in script
     assert "m16n8k16" in script
     # The init reads C into D; nothing is zeroed.
     assert "c_local[" in script
@@ -609,7 +611,7 @@ def test_cuda_gemm_mma_lowers_tiled(Mt, Nt, Kt, kinst):
     (an extent-1 high-K register group must not be rejected as a thread axis).
     """
     script = _lower(_build_tiled(Mt, Nt, Kt, kinst))["main"].script()
-    assert "T.ptx.mma(" in script
+    assert "T.ptxd.mma(" in script
     assert f"m16n8k{kinst}" in script
 
 
@@ -639,7 +641,7 @@ def test_cuda_gemm_mma_codegen_issue_count(Mt, Nt, Kt, kinst):
     src = mod.mod.imports[0].inspect_source()
     assert f"mma.sync.aligned.m16n8k{kinst}" in src
     # mma is emitted as one __device__ helper, invoked once per tile.
-    helper = f"ptx_mma_m16n8k{kinst}_row_col"
+    helper = f"ptxd_mma_sync_aligned_m16n8k{kinst}_row_col"
     assert src.count(helper) - 1 == Mt * Nt * Kt
 
 
@@ -652,7 +654,7 @@ def test_cuda_gemm_mma_lowers_transpose(transpose_A, transpose_B):
     """All four A/B orientations dispatch to the same m16n8k16. transpose only
     describes the input's logical orientation; the .row.col mma is unchanged."""
     script = _lower(_build_transpose(transpose_A, transpose_B))["main"].script()
-    assert "T.ptx.mma(" in script
+    assert "T.ptxd.mma(" in script
     assert "m16n8k16" in script
 
 

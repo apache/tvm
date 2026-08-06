@@ -45,6 +45,7 @@ from tvm.tirx.operator.tile_primitive import (
 )
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
+from ...op import _is_static_unicast_cta_mask, _resolve_cache_policy
 from ..exec_scope_utils import single_thread
 from ..layout_utils import strip_swizzle_to_tile
 from ..tma_utils import SwizzleMode, get_swizzle_mode_from_layout
@@ -2083,8 +2084,8 @@ def _prefetch_main_descriptor(tensor_map, key: str, sctx: DispatchContext) -> No
     @T.prim_func(check_well_formed=False)
     def prefetch_tensor_map():
         if warp_id == 0:
-            if T.ptx.elect_sync() != T.uint32(0):
-                T.ptx.prefetch_tensormap(T.address_of(tensor_map))
+            if T.cuda.elect_sync() != T.uint32(0):
+                T.ptxd.prefetch.tensormap(T.address_of(tensor_map))
         T.tvm_kernel_replace_point()
     # fmt: on
 
@@ -2118,53 +2119,53 @@ def _emit_plan(
 
     def tma_coordinates(coordinates):
         if spec.load_mode == "tile_gather4":
-            return [coordinates[0], *spec.gather4]
-        return list(coordinates)
+            coordinates = [coordinates[0], *spec.gather4]
+        # tensorCoords are .s32 operands; plan coordinates may arrive as
+        # uint32 expressions (the legacy helper narrowed them implicitly in C).
+        return [c if isinstance(c, int) else T.cast(c, "int32") for c in coordinates]
 
     def emit_at(shared_ptr, coordinates):
         coords = tma_coordinates(coordinates)
+        cache_policy, has_cache = _resolve_cache_policy(spec.cache_hint, spec.cache_policy)
+        cache_tok = ".L2::cache_hint" if has_cache else ""
         if spec.direction == "g2s":
             mbar_operand = (
                 T.cuda.cvta_generic_to_shared(spec.mbar) if spec.mbar_is_shared_addr else spec.mbar
             )
-            T.evaluate(
-                T.ptx.cp_async.bulk.tensor.g2s_cluster(
-                    spec.rank,
-                    shared_ptr,
-                    mbar_operand,
-                    tensor_map_address,
-                    spec.cta_mask,
-                    spec.cta_group,
-                    spec.cache_hint,
-                    *coords,
-                    cache_policy=spec.cache_policy,
-                    load_mode=spec.load_mode,
-                    mbar_is_shared_addr=spec.mbar_is_shared_addr,
-                )
+            # The legacy helper spelled .cta_group::N (including the default
+            # ::1) exactly when targeting SM100+; pre-SM100 only ::2 would be
+            # written, and that pairing is already rejected at validation.
+            cta_tok = f".cta_group::{spec.cta_group}" if _target_sm(spec.target_arch) >= 100 else ""
+            multicast = not _is_static_unicast_cta_mask(spec.cta_mask)
+            gather_tok = ".tile::gather4" if spec.load_mode == "tile_gather4" else ""
+            chain = (
+                f"cp.async.bulk.tensor.{spec.rank}d.shared::cluster.global{gather_tok}"
+                f".mbarrier::complete_tx::bytes"
+                f"{'.multicast::cluster' if multicast else ''}{cta_tok}{cache_tok}"
             )
-        elif spec.use_tma_reduce is None:
-            T.evaluate(
-                T.ptx.cp_async.bulk.tensor.s2g(
-                    spec.rank,
-                    shared_ptr,
-                    tensor_map_address,
-                    spec.cache_hint,
-                    *coords,
-                    cache_policy=spec.cache_policy,
-                )
-            )
+            args = [shared_ptr, tensor_map_address, *coords, mbar_operand]
+            if multicast:
+                # ctaMask is a .u16 operand; a dynamic mask expression arrives
+                # as int32 (the legacy helper narrowed it implicitly in C).
+                args.append(T.cast(spec.cta_mask, "uint16"))
+            if has_cache:
+                args.append(cache_policy)
+            T.evaluate(T.ptxd[chain](*args))
         else:
-            T.evaluate(
-                T.ptx.cp_async.bulk.tensor.s2g_reduce(
-                    spec.rank,
-                    shared_ptr,
-                    tensor_map_address,
-                    spec.cache_hint,
-                    spec.use_tma_reduce,
-                    *coords,
-                    cache_policy=spec.cache_policy,
+            if spec.use_tma_reduce is None:
+                chain = (
+                    f"cp.async.bulk.tensor.{spec.rank}d.global.shared::cta"
+                    f".tile.bulk_group{cache_tok}"
                 )
-            )
+            else:
+                chain = (
+                    f"cp.reduce.async.bulk.tensor.{spec.rank}d.global.shared::cta"
+                    f".{spec.use_tma_reduce}.tile.bulk_group{cache_tok}"
+                )
+            args = [tensor_map_address, *coords, shared_ptr]
+            if has_cache:
+                args.append(cache_policy)
+            T.evaluate(T.ptxd[chain](*args))
 
     def shared_ptr(element_offset=0):
         # Keep the sliced offset in the pointer index instead of the Buffer's

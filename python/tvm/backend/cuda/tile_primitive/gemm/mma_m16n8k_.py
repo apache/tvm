@@ -534,6 +534,14 @@ def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Prim
     M_tiles, N_tiles, K_tiles = d_shape[0], d_shape[1], a_shape[1]
     shape_str = f"m{inst.m}n{inst.n}k{inst.k}"
     a_type, b_type, c_type, d_type = inst.dtype
+    # The ptxd chain is built here: a Python string bound inside the traced
+    # body is not something the parser can carry. PTX names the element format
+    # of each matrix, which is not the TVM dtype of the register buffer.
+    _PTX_ELEM = {"float16": "f16", "bfloat16": "bf16", "float32": "f32"}
+    mma_chain = (
+        f"mma.sync.aligned.{shape_str}.row.col"
+        f".{_PTX_ELEM[d_type]}.{_PTX_ELEM[a_type]}.{_PTX_ELEM[b_type]}.{_PTX_ELEM[c_type]}"
+    )
     use_c = _const_scalar(beta) == 1.0
 
     # Per-register counts in the fixed PTX enumeration order (derived from the
@@ -554,6 +562,9 @@ def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Prim
         c_local = C.local(*c_shape, layout=C_reg)
         a_local = A.local(*a_shape, layout=A_reg)
         b_local = B.local(*b_shape, layout=B_reg)
+        # A and B fragments are packed two 16-bit elements per b32 register.
+        a_words = a_local.view("uint32")
+        b_words = b_local.view("uint32")
         for m in T.unroll(M_tiles):
             for n in T.unroll(N_tiles):
                 # Initialize D[m, n]: copy C (beta==1) or clear to 0 (beta==0).
@@ -566,30 +577,16 @@ def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Prim
                 # Accumulate over K in place: d = a·b + d.
                 for k in T.unroll(K_tiles):
                     # D: 4 f32 in PTX order c_id = 2*rM + rN.
-                    d_ptrs = [
-                        d_local.ptr_to([m, n, rM, rN]) for rM in range(n_rM) for rN in range(n_rN)
-                    ]
-                    # A: b32 regs in PTX order b32 = rM + 2*kHi (kHi outer, rM inner).
-                    a_ptrs = [
-                        a_local.ptr_to([m, k, rM, kHi, 0])
-                        for kHi in range(n_kHi)
-                        for rM in range(n_rM)
+                    d_regs = [d_local[m, n, rM, rN] for rM in range(n_rM) for rN in range(n_rN)]
+                    # A: b32 regs in PTX order b32 = rM + 2*kHi (kHi outer, rM
+                    # inner). The fragments are packed two elements per b32, so
+                    # they reach the instruction through a uint32 view.
+                    a_regs = [
+                        a_words[m, k, rM, kHi, 0] for kHi in range(n_kHi) for rM in range(n_rM)
                     ]
                     # B: b32 regs in PTX order b32 = kHi.
-                    b_ptrs = [b_local.ptr_to([k, n, kHi, 0]) for kHi in range(n_kHi)]
+                    b_regs = [b_words[k, n, kHi, 0] for kHi in range(n_kHi)]
                     # Accumulate in place into D's own regs: c = d.
-                    T.ptx.mma(
-                        shape_str,
-                        "row",
-                        "col",
-                        d_type,
-                        a_type,
-                        b_type,
-                        c_type,
-                        d_ptrs,
-                        a_ptrs,
-                        b_ptrs,
-                        d_ptrs,
-                    )
+                    T.ptxd[mma_chain](*d_regs, *a_regs, *b_regs, *d_regs)
 
     return impl
