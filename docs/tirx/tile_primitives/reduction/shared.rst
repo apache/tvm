@@ -23,7 +23,7 @@ The ``shared`` variant lowers a reduction (``sum`` / ``max`` / ``min``) when
 it partitions the threads into groups — one group per output position — has each
 thread gather a chunk of the reduction axis, then folds the group with an adaptive
 ``__shfl_xor`` tree. Source:
-``python/tvm/backend/cuda/operator/tile_primitive/reduction/shared.py``.
+``python/tvm/backend/cuda/tile_primitive/reduction/shared.py``.
 
 What it accepts
 ---------------

@@ -102,6 +102,29 @@ def test_sync_shared_dyn():
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
+def test_sync_shared_aliasing_buffer_views():
+    @T.prim_func(private=True, s_tir=True)
+    def func(A: T.Buffer((64,), "float32")):
+        blockIdx_x = T.launch_thread("blockIdx.x", 1)
+        shared_storage = T.alloc_buffer((32,), "float16", scope="shared")
+        local = T.alloc_buffer((1,), "float32", scope="local")
+        threadIdx_x = T.launch_thread("threadIdx.x", 32)
+        shared_half = T.decl_buffer((32,), "float16", data=shared_storage.data, scope="shared")
+        shared_float = T.decl_buffer((16,), "float32", data=shared_storage.data, scope="shared")
+        for i in range(2):
+            shared_half[threadIdx_x] = T.Cast("float16", A[i * 32 + threadIdx_x])
+            T.tvm_storage_sync("shared")
+            local[0] = shared_float[threadIdx_x % 16]
+            A[i * 32 + threadIdx_x] = local[0]
+
+    mod = tvm.IRModule({"main": func})
+    mod = tvm.s_tir.transform.ThreadSync("shared")(mod)
+
+    # In addition to the explicit write-to-read barrier, the shared physical
+    # storage needs a read-to-next-write barrier across loop iterations.
+    assert str(mod["main"]).count("T.tvm_storage_sync") == 2
+
+
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_sync_bind():

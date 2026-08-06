@@ -66,7 +66,8 @@ void VarUseDefAnalyzer::VisitStmt_(const ForNode* op) {
 }
 
 void VarUseDefAnalyzer::VisitStmt_(const AllocBufferNode* op) {
-  // VisitBufferDef (called by base) defines buffer->data and the buffer itself.
+  // VisitBufferDef (called by base) defines the typed buffer Var and visits
+  // its dependent BufferType expressions.
   StmtExprVisitor::VisitStmt_(op);
 }
 
@@ -90,7 +91,12 @@ void VarUseDefAnalyzer::VisitExpr_(const LetNode* op) {
 }
 
 void VarUseDefAnalyzer::VisitExpr_(const VarNode* op) {
-  this->HandleUse(ffi::GetRef<Var>(op));
+  Var var = ffi::GetRef<Var>(op);
+  if (var->ty.as<BufferTypeNode>()) {
+    this->VisitBufferUse(BufferVar(var));
+  } else {
+    this->HandleUse(var);
+  }
   StmtExprVisitor::VisitExpr_(op);
 }
 
@@ -101,50 +107,24 @@ void VarUseDefAnalyzer::VisitExpr_(const ReduceNode* op) {
   StmtExprVisitor::VisitExpr_(op);
 }
 
-void VarUseDefAnalyzer::VisitBufferDef(const Buffer& buffer, bool alloc_data) {
-  if (alloc_data) {
-    // AllocBuffer / SBlock: data is a new allocation — define it.
-    if (!use_count_.count(buffer->data.get())) {
-      HandleDef(buffer->data);
-    }
-  } else {
-    // DeclBuffer: data references an existing variable — use it.
-    // TMEM DeclBuffer data vars are internal lowering symbols and should
-    // not become external free vars in host packed-api generation.
-    if (buffer.scope() != "tmem") {
-      HandleUse(buffer->data);
+void VarUseDefAnalyzer::VisitBufferDef(const BufferVar& buffer, bool alloc_data) {
+  bool is_first_buffer_definition = !buffer_def_count_.count(buffer.get());
+  HandleDef(buffer);
+  if (is_first_buffer_definition) {
+    auto it = use_count_.find(buffer.get());
+    if (it == use_count_.end()) {
+      HandleDef(buffer.var());
     }
   }
-  HandleDef(buffer);
   // Visit shape/strides/elem_offset as uses of vars from the enclosing scope.
   for (const auto& e : buffer->shape) this->VisitExpr(e);
   for (const auto& e : buffer->strides) this->VisitExpr(e);
   this->VisitExpr(buffer->elem_offset);
 }
 
-void VarUseDefAnalyzer::VisitBufferUse(const Buffer& buffer) {
+void VarUseDefAnalyzer::VisitBufferUse(const BufferVar& buffer) {
   HandleUse(buffer);
-  // Buffer data pointer must be tracked as a use — the use site
-  // reads/writes through this pointer.  Without this, UndefinedVars
-  // misses data vars for buffers whose DeclBuffer is outside the scope.
-  HandleUse(buffer->data);
-}
-
-void VarUseDefAnalyzer::VisitBuffer(const Buffer& buffer) {
-  // TMEM buffers can carry symbolic data vars that are internal to lowering
-  // and should not become external free vars during host/device splitting.
-  if (buffer.scope() != "tmem") {
-    this->HandleUse(buffer->data);
-  }
-
-  auto visit_arr = [&](ffi::Array<PrimExpr> arr) {
-    for (const auto& element : arr) {
-      this->VisitExpr(element);
-    }
-  };
-
-  visit_arr(buffer->shape);
-  visit_arr(buffer->strides);
+  HandleUse(buffer.var());
 }
 
 void VarUseDefAnalyzer::HandleDef(const Var& var) {
@@ -170,24 +150,23 @@ void VarUseDefAnalyzer::HandleUse(const Var& var) {
   }
 }
 
-void VarUseDefAnalyzer::HandleDef(const Buffer& buf) {
+void VarUseDefAnalyzer::HandleDef(const BufferVar& buf) {
   auto ptr = buf.get();
   // Some lowering pipelines may duplicate identical DeclBuffer nodes that
-  // reference the same Buffer object. Treat repeated definition of the same
+  // reference the same BufferVar object. Treat repeated definition of the same
   // buffer object as idempotent.
   if (buffer_def_count_.count(ptr)) {
-    VisitBuffer(buf);
     return;
   }
-  TVM_FFI_ICHECK(!buffer_use_count_.count(ptr))
-      << "buffer " << ptr->name << " has been used before definition!";
-  buffer_use_count_[ptr] = 0;
+  if (!buffer_use_count_.count(ptr)) {
+    buffer_use_count_[ptr] = 0;
+  }
   buffer_def_count_[ptr] = 1;
-  // Buffer fields (data, shape, strides) are visited by the caller
+  // BufferVar fields (data, shape, strides) are visited by the caller
   // (VisitBufferDef) via the base class, not here.
 }
 
-void VarUseDefAnalyzer::HandleUse(const Buffer& buf) {
+void VarUseDefAnalyzer::HandleUse(const BufferVar& buf) {
   auto ptr = buf.get();
   auto it = buffer_use_count_.find(ptr);
   if (it != buffer_use_count_.end()) {
@@ -195,10 +174,10 @@ void VarUseDefAnalyzer::HandleUse(const Buffer& buf) {
       ++it->second;
     }
   } else {
-    undefined_buffers_.push_back(ffi::GetRef<Buffer>(ptr));
+    undefined_buffers_.push_back(BufferVar(ffi::GetRef<Var>(ptr)));
     buffer_use_count_[ptr] = -1;
   }
-  // Buffer fields (shape, strides, data) are visited at the definition
+  // BufferVar fields (shape, strides, data) are visited at the definition
   // site via VisitBufferDef.  Do not re-visit them at use sites, as the
   // buffer's shape variables may not be in scope at the point of use.
 }

@@ -48,7 +48,7 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
     arith::Analyzer ana;
     auto pass = TextureAllocInjector(ana);
     auto writer = func.CopyOnWrite();
-    pass.MarkBufferMapShapes(func);
+    pass.MarkBufferParamShapes(func);
     writer->body = pass.VisitStmt(func->body);
     return func;
   }
@@ -63,7 +63,7 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    std::string storage_scope = GetStorageScope(op->buffer->data);
+    std::string storage_scope = op->buffer.scope();
     if (IsTextureStorage(storage_scope)) {
       op = stmt.as<AllocBufferNode>();
       const auto& extents = op->buffer->shape;
@@ -82,8 +82,8 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
       args.push_back(Call(PointerType(PrimType::Int(64)), builtin::tvm_stack_make_shape(),
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm::Int64(channel_size));
-      stmt = Bind(op->buffer->data,
-                  Call(op->buffer->data->ty, builtin::nd_mem_alloc_with_scope(), args));
+      stmt = DeclBuffer(
+          op->buffer, Call(op->buffer.DataPointerType(), builtin::nd_mem_alloc_with_scope(), args));
     }
     return stmt;
   }

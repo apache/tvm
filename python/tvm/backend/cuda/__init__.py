@@ -23,7 +23,16 @@ from tvm_ffi.libinfo import load_lib_ctypes
 
 from tvm.base import _LOADED_LIBS
 
-_LAZY_SUBMODULES = {"lang", "op", "operator", "script", "target_tags"}
+_LAZY_SUBMODULES = {
+    "iket",
+    "intrinsics",
+    "lang",
+    "op",
+    "script",
+    "target_tags",
+    "tile_primitive",
+    "transforms",
+}
 
 
 def _detect_target_from_device(dev):
@@ -60,8 +69,8 @@ def register_backend():
     for name, namespace in script_namespaces().items():
         builder_ir.register_script_namespace(name, namespace)
 
-    import_module(f"{__name__}.operator.intrinsics")
-    import_module(f"{__name__}.operator.tile_primitive")
+    import_module(f"{__name__}.intrinsics")
+    import_module(f"{__name__}.tile_primitive")
     import_module(f"{__name__}.target_tags")
 
 
@@ -92,12 +101,15 @@ def __getattr__(name: str):
 
 
 __all__ = [
+    "iket",
+    "intrinsics",
     "lang",
     "op",
-    "operator",
     "register_backend",
     "script",
     "script_namespace",
     "script_namespaces",
     "target_tags",
+    "tile_primitive",
+    "transforms",
 ]

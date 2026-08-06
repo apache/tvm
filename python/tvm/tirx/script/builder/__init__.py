@@ -21,6 +21,6 @@ from .ir import *  # pylint: disable=wildcard-import,redefined-builtin
 from .ir import boolean as bool  # pylint: disable=redefined-builtin
 from .ir import buffer as Buffer
 from .utils import buffer_proxy, frame_scope, seq_scope
-from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool, TMEMStages
+from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool
 from . import tirx as tile
 from .tirx import cluster, cta, thread, warp, warpgroup, wg

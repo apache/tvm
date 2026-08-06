@@ -44,63 +44,9 @@ namespace tirx {
  */
 class TIRxOpaqueLower : public StmtExprMutator {
  public:
-  static Stmt Rewrite(Stmt body) {
-    TIRxOpaqueLower lower;
-    lower.pool_sizes_ = CollectPoolSizes(body);
-    return lower(std::move(body));
-  }
+  static Stmt Rewrite(Stmt body) { return TIRxOpaqueLower()(std::move(body)); }
 
  private:
-  static std::unordered_map<Var, int64_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> CollectPoolSizes(
-      const Stmt& body) {
-    class Collector : public StmtVisitor {
-     public:
-      void VisitStmt_(const AttrStmtNode* op) final {
-        if (op->attr_key == "tirx.pool_max_bytes") {
-          if (auto var = op->node.try_cast<Var>()) {
-            const auto* n = op->value.as<IntImmNode>();
-            TVM_FFI_ICHECK(n) << "TIRxError: tirx.pool_max_bytes must be IntImm";
-            pool_sizes_[var.value()] = n->value;
-          }
-        }
-        StmtVisitor::VisitStmt_(op);
-      }
-
-      std::unordered_map<Var, int64_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> pool_sizes_;
-    };
-
-    Collector collector;
-    collector(body);
-    return std::move(collector.pool_sizes_);
-  }
-
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == "tirx.pool_max_bytes") {
-      // Strip the pool size AttrStmt after pre-collection in Rewrite().
-      return VisitStmt(op->body);
-    }
-    return StmtExprMutator::VisitStmt_(op);
-  }
-
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<AllocBufferNode>();
-    TVM_FFI_ICHECK(op);
-
-    Buffer alloc_buf = op->buffer;
-    auto it = pool_sizes_.find(op->buffer->data);
-    if (it != pool_sizes_.end()) {
-      auto* n = alloc_buf.CopyOnWrite();
-      n->shape = {IntImm::Int64(it->second)};
-    }
-    if (alloc_buf.same_as(op->buffer)) {
-      return stmt;
-    }
-    auto n = CopyOnWrite(op);
-    n->buffer = std::move(alloc_buf);
-    return Stmt(n);
-  }
-
   Stmt VisitStmt_(const ForNode* op) final {
     // Step 1. Update unit loop info.
     PrimExpr min = this->VisitPrimExpr(op->min);
@@ -143,7 +89,9 @@ class TIRxOpaqueLower : public StmtExprMutator {
     Var var = ffi::GetRef<Var>(op);
     auto it = unit_loop_vars_.find(var);
     if (it == unit_loop_vars_.end()) {
-      return var;
+      // Fall through to the base visitor so buffer-variable remapping from
+      // any rebuild in this pass reaches remaining use sites.
+      return StmtExprMutator::VisitExpr_(op);
     } else {
       PrimExpr expr = it->second;
       PrimType var_ty = var->ty.as_or_throw<PrimType>();
@@ -213,8 +161,6 @@ class TIRxOpaqueLower : public StmtExprMutator {
 
   /*! \brief Record the loop_var and loop start value of unit loops, whose extent is one. */
   std::unordered_map<Var, PrimExpr> unit_loop_vars_;
-  /*! \brief Pool size annotations: buffer data var → size in bytes. */
-  std::unordered_map<Var, int64_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> pool_sizes_;
 };
 
 namespace transform {

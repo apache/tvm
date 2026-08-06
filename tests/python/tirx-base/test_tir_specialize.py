@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring, missing-module-docstring
-# ruff: noqa: F401, F841
+# ruff: noqa: F401
 
 import pytest
 
@@ -194,12 +194,12 @@ def test_specialize_matmul():
 
 def test_specialize_elemwise():
     a, c = element_wise.params
-    C = element_wise.buffer_map[c]
+    C = c
     # fully specialized
     func = element_wise.specialize({a: tvm.tirx.decl_buffer((128, 64))})
     assert_structural_equal_ignore_global_symbol(func, element_wise_128_64)
     # partially specialized
-    func = element_wise.specialize({c: tvm.tirx.decl_buffer((128, C.shape[1]))})
+    func = element_wise.specialize({c: tvm.tirx.decl_buffer((128, C.ty.shape[1]))})
     assert_structural_equal_ignore_global_symbol(func, element_wise_128_n)
 
 
@@ -266,6 +266,24 @@ def test_specialize_decl_buffer():
     tvm.ir.assert_structural_equal(expected, after)
 
 
+def test_specialize_preserves_decl_buffer_alias():
+    @T.prim_func(private=True, s_tir=True)
+    def before(A_handle: T.handle, n: T.int32):
+        A = T.match_buffer(A_handle, (n,), "int32")
+        A_flat = T.decl_buffer((n,), "int32", data=A.data)
+        A_flat[n - 1] = 42
+
+    @T.prim_func(private=True, s_tir=True)
+    def expected(A_handle: T.handle):
+        A = T.match_buffer(A_handle, (8,), "int32")
+        A_flat = T.decl_buffer((8,), "int32", data=A.data)
+        A_flat[7] = 42
+
+    after = before.specialize({before.params[1]: 8})
+
+    tvm.ir.assert_structural_equal(expected, after)
+
+
 def test_specialize_buffer_var_to_var():
     """A buffer var may be remapped by specialization
 
@@ -280,17 +298,14 @@ def test_specialize_buffer_var_to_var():
         for i in range(256):
             B_flat[i] = A_flat[i] * 2.0
 
-    # well-formed checker complains about multiple nested definitions of B_flat
-    # since it appears in the buffer map twice
-    @T.prim_func(private=True, check_well_formed=False, s_tir=True)
-    def expected(A: T.Buffer([16, 16], "float32"), B_handle: T.handle):
-        B = T.match_buffer(B_handle, [16, 16], "float32", data=A.data)
+    @T.prim_func(private=True, s_tir=True)
+    def expected(A: T.Buffer([16, 16], "float32")):
         A_flat = T.decl_buffer([256], "float32", data=A.data)
         B_flat = T.decl_buffer([256], "float32", data=A.data)
         for i in range(256):
             B_flat[i] = A_flat[i] * 2.0
 
-    A = before.buffer_map[before.params[0]]
+    A = before.params[0]
     B_handle = before.params[1]
     param_map = {B_handle: A}
     after = before.specialize(param_map)
@@ -299,14 +314,7 @@ def test_specialize_buffer_var_to_var():
 
 
 def test_specialize_buffer_var_to_expr():
-    """Handle specialization of buffer var
-
-    The `tirx::Buffer::data` field must be an explicit `tirx::Var`, and
-    cannot be replaced with a handle-typed `tirx::Expr`.  However,
-    these substitutions are useful
-    when lowering.  If these occur, a binding of the `tirx::Var` is
-    included in the specialized function.
-    """
+    """A DeclBuffer source expression may be specialized directly."""
 
     @T.prim_func(private=True, s_tir=True)
     def before(A_data: T.handle("float32"), B_data: T.handle("float32")):
@@ -318,8 +326,7 @@ def test_specialize_buffer_var_to_expr():
     @T.prim_func(private=True, s_tir=True)
     def expected(A_data: T.handle("float32")):
         A_buf = T.decl_buffer(32, "float32", data=A_data)
-        B_data: T.let[T.Ptr[T.float32]] = T.address_of(A_buf[16])
-        B_buf = T.decl_buffer(16, "float32", data=B_data)
+        B_buf = T.decl_buffer(16, "float32", data=T.address_of(A_buf[16]))
         for i in range(16):
             B_buf[i] = A_buf[i] * 2.0
 

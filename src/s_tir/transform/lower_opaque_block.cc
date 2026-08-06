@@ -60,9 +60,9 @@ class OpaqueBlockLower : public StmtExprMutator {
     }
     // Step 3. Handle allocations in reverse order
     for (size_t i = new_block->alloc_buffers.size(); i > 0; --i) {
-      const Buffer& buffer = new_block->alloc_buffers[i - 1];
+      const BufferVar& buffer = new_block->alloc_buffers[i - 1];
       ffi::Map<ffi::String, ffi::Any> allocate_annotations;
-      auto it = storage_align_.find(buffer->data);
+      auto it = storage_align_.find(buffer.var());
       if (it != storage_align_.end()) {
         StorageAlignAnnotation allocate_aligns;
         for (auto tuple : it->second) {

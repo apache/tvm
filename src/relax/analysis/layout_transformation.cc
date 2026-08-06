@@ -328,7 +328,7 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
 class BlockAnalyzer : public StmtExprVisitor {
  public:
   explicit BlockAnalyzer(const SBlock& block,
-                         const ffi::Map<Buffer, IndexMap>& transformation_cache,
+                         const ffi::Map<BufferVar, IndexMap>& transformation_cache,
                          IndexMap write_transformation)
       : can_transform_block_(true),
         write_transformation_(write_transformation),
@@ -361,7 +361,7 @@ class BlockAnalyzer : public StmtExprVisitor {
     }
 
     // Helper to get the spatial layout of buffer from buffer access map.
-    auto get_spatial_layout = [&](Buffer b) -> SpatialLayout {
+    auto get_spatial_layout = [&](BufferVar b) -> SpatialLayout {
       auto it = buffer_access_info_.find(b);
       if (it == buffer_access_info_.end()) {
         return {};
@@ -511,7 +511,7 @@ class BlockAnalyzer : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    Buffer read_buffer = op->buffer;
+    BufferVar read_buffer = op->buffer;
     BufferAccessInfo& access_info = buffer_access_info_[op->buffer];
 
     auto detected_spatial_layout = DetectBufferAccessIterMap(op->indices);
@@ -526,7 +526,9 @@ class BlockAnalyzer : public StmtExprVisitor {
  public:
   bool CanBeTransformed() { return can_transform_block_; }
   IndexMap GetSBlockTransformation() { return block_transformation_; }
-  ffi::Map<Buffer, IndexMap> GetReadBufferTransformations() { return read_buffer_transformations_; }
+  ffi::Map<BufferVar, IndexMap> GetReadBufferTransformations() {
+    return read_buffer_transformations_;
+  }
 
  private:
   bool can_transform_block_;
@@ -537,9 +539,9 @@ class BlockAnalyzer : public StmtExprVisitor {
   SBlock block_;
   IndexMap block_transformation_;
 
-  ffi::Map<Buffer, IndexMap> read_buffer_transformations_;
-  const ffi::Map<Buffer, IndexMap>& buffer_transformation_cache_;
-  std::unordered_map<Buffer, BufferAccessInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  ffi::Map<BufferVar, IndexMap> read_buffer_transformations_;
+  const ffi::Map<BufferVar, IndexMap>& buffer_transformation_cache_;
+  std::unordered_map<BufferVar, BufferAccessInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       buffer_access_info_;
 };
 
@@ -560,7 +562,7 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
     size_t first_write_index = func->params.size() - write_transformations.size();
     for (size_t i = 0; i < write_transformations.size(); ++i) {
       auto param = func->params[first_write_index + i];
-      ffi::Optional<Buffer> param_buf = func->buffer_map.Get(param);
+      ffi::Optional<BufferVar> param_buf = param.as<BufferVar>();
       TVM_FFI_ICHECK(param_buf.has_value());
       TVM_FFI_ICHECK_EQ(param_buf.value()->shape.size(),
                         write_transformations[i]->initial_indices.size())
@@ -613,9 +615,9 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
   }
 
  private:
-  ffi::Map<Buffer, IndexMap> buffer_transformation_cache_;
+  ffi::Map<BufferVar, IndexMap> buffer_transformation_cache_;
   ffi::Map<SBlock, IndexMap> block_transformations_;
-  std::unordered_map<SBlock, ffi::Array<Buffer>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<SBlock, ffi::Array<BufferVar>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       block_to_buffer_;
 };
 

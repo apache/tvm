@@ -25,7 +25,7 @@ memory**, and one elected thread launches the MMA, which runs asynchronously; th
 caller signals completion with ``tcgen05.commit`` against an mbarrier. It also
 supports **block-scaled** low precision (fp8 / fp4 with per-block scale factors
 ``SFA`` / ``SFB`` in tensor memory). Source:
-``python/tvm/backend/cuda/operator/tile_primitive/gemm_async/tcgen05.py``. (For the
+``python/tvm/backend/cuda/tile_primitive/gemm_async/tcgen05.py``. (For the
 synchronous warp-register path see :doc:`gemm`.)
 
 What it accepts
@@ -57,11 +57,18 @@ A single predicate — single-thread or warp scope:
        ``float8_e4m3fn`` / ``float4_e2m1fn`` with ``SFA`` / ``SFB`` scale factors in
        tmem; accumulator always ``float32``
    * - shape
-     - ``M ∈ {64, 128}`` (×2 for cta_group=2); ``N`` divisible by 8 (cta_group=1) or
-       16 (cta_group=2); ``K`` divisible by ``MMA_K`` = 16 (f16/bf16) / 32 (fp8) /
-       64 (fp4)
+     - per-CTA ``M ∈ {64, 128}``; ``N`` divisible by 8 (cta_group=1) or 16
+       (cta_group=2); ``K`` divisible by ``MMA_K`` = 16 (f16/bf16) / 32 (fp8) /
+       64 (fp4). With cta_group=2, the CTA pair covers twice the per-CTA M
    * - cta_group
      - ``1`` (one CTA) or ``2`` (two CTAs split the operand)
+   * - descriptor mode
+     - optional ``smem_desc`` controls shared matrix-descriptor construction:
+       ``"hoist"`` (default), ``"local_hoist"``, ``"encode"``, or
+       ``"recompute"``
+   * - layout forms
+     - swizzled shared layouts, no-swizzle packed shared layouts, regular tmem
+       accumulators, and FlashMLA-style packed ``N/2`` tmem accumulator layouts
 
 Demonstration program
 ----------------------
@@ -73,7 +80,7 @@ into a tmem accumulator, after TMA-loading A/B into shared (from
 .. code-block:: python
 
     from tvm.tirx.layout import S, TCol, TLane, TileLayout, tid_in_wg as axis_tid_in_wg
-    from tvm.tirx.cuda.operator.tile_primitive.tma_utils import mma_shared_layout
+    from tvm.tirx.cuda.tile_primitive.tma_utils import mma_shared_layout
 
     A_smem = T.alloc_buffer((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
     B_smem = T.alloc_buffer((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
@@ -94,9 +101,18 @@ into a tmem accumulator, after TMA-loading A/B into shared (from
 Algorithm
 ---------
 
-**1. Encode shared matrix descriptors.** Each shared operand gets a 64-bit
-descriptor (leading-dim offset ``ldo``, stride-dim offset ``sdo``, swizzle mode)
-naming its tile to the tensor core:
+**1. Encode or synthesize shared matrix descriptors.** Each shared operand is named
+by a 64-bit descriptor (leading-dim offset ``ldo``, stride-dim offset ``sdo``,
+swizzle mode).  ``smem_desc`` selects where that descriptor comes from:
+
+* ``"hoist"`` (default): encode one uniform descriptor per operand after shared
+  allocation and add each per-MMA 16-byte offset.
+* ``"local_hoist"``: encode at this ``gemm_async`` call site, under the caller's
+  control flow, then add offsets.  This is for call sites where only the elected
+  issue thread should construct the descriptor.
+* ``"encode"``: encode the exact shared pointer for each MMA issue.
+* ``"recompute"``: synthesize the descriptor value inline per MMA without a local
+  descriptor cell.
 
 .. code-block:: python
 
@@ -125,6 +141,45 @@ with two extra tmem addresses — ``SFA`` / ``SFB`` — and the scale-factor dty
 instruction descriptor is encoded at runtime. As with the other async ops, the
 dispatch emits **no** completion — the caller's ``tcgen05.commit`` + mbarrier wait
 close it.
+
+For row-0 schedules, the lowering folds ``T.cuda.get_tmem_addr(base, 0, col)`` to
+``base + col``.  This keeps the generated issue loop close to hand-written
+FlashMLA kernels while preserving the helper call for nonzero row offsets.  When
+``weight_stationary=True`` is passed, the flag is forwarded to the PTX wrapper so
+the wrapper can select the matching tcgen05 MMA ABI.
+
+Accumulator datapaths and readback
+----------------------------------
+
+The accumulator layout must match the MMA's row placement:
+
+* Layout D is the M=128 identity placement.
+* Layout F is the single-CTA M=64 scattered placement.
+* Layout B is the per-CTA M=64 placement for ``cta_group=2``. Its logical
+  N columns split across physical lane halves 0–63 and 64–127, so it
+  occupies all 128 lanes and ``N/2`` tensor-memory columns.
+
+Allocate and read a Layout B result as follows:
+
+.. code-block:: python
+
+    accumulator = tmem_pool.alloc((64, N), "float32", datapath="B")
+    Tx.gemm_async(
+        accumulator[:, :],
+        A_smem[:, :],
+        B_smem[:, :],
+        dispatch="tcgen05",
+        cta_group=2,
+    )
+
+    frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
+    Tx.wg.copy_async(frag[:, :], accumulator[:, :])
+    T.ptx.tcgen05.wait.ld()
+
+The fragment is a logical ``(64, N)`` view of one physical
+``.32x32b`` transfer over all 128 lanes. The gemm write-side layout and
+the allocation/readback layout are produced by the same
+``tmem_datapath_layout("B", 64, N)`` factory.
 
 Generated TIRx IR
 -----------------
@@ -167,9 +222,24 @@ How inputs change the algorithm
        addresses and a runtime-encoded instruction descriptor
    * - cta_group
      - ``1`` → one CTA, ``M ∈ {64, 128}``; ``2`` → two CTAs split the operand,
-       ``M ∈ {128, 256}`` and half the per-CTA N
+       each with per-CTA ``M ∈ {64, 128}`` and half the B rows. The
+       per-CTA M=64 output uses Layout B
    * - M / N / K extents
      - set the ``(mi, ni, ki)`` unrolled loop counts; K iterations accumulate into
        the same tmem accumulator
    * - shared swizzle
-     - sets the ``swizzle`` mode + ``ldo``/``sdo`` in the matrix descriptors
+     - sets the ``swizzle`` mode + ``ldo``/``sdo`` in the matrix descriptors;
+       no-swizzle packed layouts are accepted when the selected tile has a
+       hardware-compatible 16-byte packed stride
+   * - ``smem_desc``
+     - selects hoisted, call-site-hoisted, per-MMA encoded, or recomputed shared
+       descriptor construction.  The choice changes code shape only; the MMA
+       operands still describe the same selected shared tiles.
+   * - packed tmem accumulator
+     - layouts of the form ``TileLayout(S[(M, 2, N//2) : (1@TLane, 64@TLane,
+       1@TCol)])`` are treated as packed ``N/2`` physical columns, matching
+       FlashMLA-style low/high accumulator placement.
+   * - ``weight_stationary``
+     - forwarded to the low-level tcgen05 wrapper for kernels that require that
+       issue ABI; it is a lowering/configuration mode, not a separate PTX
+       instruction mnemonic.

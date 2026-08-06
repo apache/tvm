@@ -185,24 +185,36 @@ class ExprEvaluator:
 
     def _visit_node(self, node: doc.AST) -> Any:
         """Evaluate one AST node while its source span is active."""
+        # Boolean operators and conditional expressions require AST-level
+        # control over operand evaluation.  Walking all fields first would
+        # eagerly evaluate dead compile-time branches.
+        if isinstance(node, doc.BoolOp):
+            try:
+                value = self._eval_bool_op(node)
+            except Exception as err:  # pylint: disable=broad-except
+                self.parser.report_error(node, err)
+            return self._add_intermediate_result(value)
+        if isinstance(node, doc.IfExp):
+            try:
+                value = self._eval_if_exp(node)
+            except Exception as err:  # pylint: disable=broad-except
+                self.parser.report_error(node, err)
+            return self._add_intermediate_result(value)
+
         args = []
         if (
             isinstance(node, doc.Call)
             and hasattr(node.func, "attr")
             and node.func.attr not in ["reads", "writes", "match_buffer"]
-        ) or isinstance(node, doc.BinOp | doc.UnaryOp | doc.Compare | doc.BoolOp | doc.IfExp):
+        ) or isinstance(node, doc.BinOp | doc.UnaryOp | doc.Compare):
             if isinstance(node, doc.BinOp):
                 args = [node.left, node.right]
             elif isinstance(node, doc.UnaryOp):
                 args = [node.operand]
             elif isinstance(node, doc.Compare):
                 args = [node.left, *node.comparators]
-            elif isinstance(node, doc.IfExp):
-                args = [node.test, node.body, node.orelse]
             elif isinstance(node, doc.Call):
                 args = node.args
-            elif isinstance(node, doc.BoolOp):
-                args = node.values
         for arg in args:
             if isinstance(arg, doc.Subscript) and isinstance(arg.slice, doc.Slice | doc.Tuple):
                 if isinstance(arg.slice, doc.Slice):
@@ -260,16 +272,12 @@ class ExprEvaluator:
             else:
                 fields[field] = attr
         try:
-            if isinstance(node, doc.BoolOp):
-                value = self._eval_bool_op(fields)
-            elif isinstance(node, doc.Compare):
+            if isinstance(node, doc.Compare):
                 value = self._eval_compare(fields)
             elif isinstance(node, doc.UnaryOp):
                 value = self._eval_unary_op(fields)
             elif isinstance(node, doc.BinOp):
                 value = self._eval_bin_op(fields)
-            elif isinstance(node, doc.IfExp):
-                value = self._eval_if_exp(fields)
             elif isinstance(node, doc.Slice):
                 value = self._eval_slice(fields)
             else:
@@ -297,26 +305,31 @@ class ExprEvaluator:
             self.parser.report_error(node, err)
         return self._add_intermediate_result(value)
 
-    def _eval_bool_op(self, fields: dict[str, Any]) -> Any:
+    def _eval_bool_op(self, node: doc.BoolOp) -> Any:
         """The doc AST boolean operator node evaluating method.
 
         Parameters
         ----------
-        fields : Dict[str, Any]
-            The dictionary of boolean operation information,
-            e.g., operator types, operand values.
+        node : doc.BoolOp
+            The boolean operation whose operands are evaluated in order.
 
         Returns
         -------
         res : Any
             The evaluation result.
         """
-        op = fields["op"]
+        op = node.op
         if not isinstance(op, doc.And | doc.Or):
             raise TypeError(f"Unexpected operator: {op}")
-        value = self._eval_expr(fields["values"][0])
-        for rhs in fields["values"][1:]:
-            value = _eval_op(op, values=[value, self._eval_expr(rhs)])
+        value = self._eval_expr(self._visit(node.values[0]))
+        for rhs_node in node.values[1:]:
+            if isinstance(value, bool):
+                if isinstance(op, doc.And) and not value:
+                    return value
+                if isinstance(op, doc.Or) and value:
+                    return value
+            rhs = self._eval_expr(self._visit(rhs_node))
+            value = _eval_op(op, values=[value, rhs])
         return value
 
     def _eval_compare(self, fields: dict[str, Any]) -> Any:
@@ -386,26 +399,26 @@ class ExprEvaluator:
             ],
         )
 
-    def _eval_if_exp(self, fields: dict[str, Any]) -> Any:
+    def _eval_if_exp(self, node: doc.IfExp) -> Any:
         """The doc AST if-else expression node evaluating method.
 
         Parameters
         ----------
-        fields : Dict[str, Any]
-            The dictionary of if-else expression information,
-            e.g., test, body, orelse.
+        node : doc.IfExp
+            The conditional expression to evaluate.
 
         Returns
         -------
         res : Any
             The evaluation result.
         """
-        test = self._eval_expr(fields["test"])
-        body = self._eval_expr(fields["body"])
-        orelse = self._eval_expr(fields["orelse"])
+        test = self._eval_expr(self._visit(node.test))
         if isinstance(test, bool):
-            return body if test else orelse
+            selected = node.body if test else node.orelse
+            return self._eval_expr(self._visit(selected))
         elif tvm.ir.is_prim_expr(test) and test.ty.matches_code(tvm.DataTypeCode.BOOL):
+            body = self._eval_expr(self._visit(node.body))
+            orelse = self._eval_expr(self._visit(node.orelse))
             return tvm.tirx.op.if_then_else(test, body, orelse)
         else:
             raise TypeError(f"Expected Python bool or TIR bool, but got {type(test)}")

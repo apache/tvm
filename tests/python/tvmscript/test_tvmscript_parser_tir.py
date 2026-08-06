@@ -27,17 +27,153 @@ from tvm.script.parser import tirx as T
 def test_tir_buffer_proxy():
     buffer_0 = T.Buffer((128, 128), "float32")
     assert (
-        isinstance(buffer_0, tirx.Buffer)
+        tirx.is_buffer_var(buffer_0)
         and list(buffer_0.shape) == [128, 128]
         and buffer_0.dtype == ir.PrimType("float32")
     )
 
     buffer_1 = T.Buffer((64, 64, 64), "int32")
     assert (
-        isinstance(buffer_1, tirx.Buffer)
+        tirx.is_buffer_var(buffer_1)
         and list(buffer_1.shape) == [64, 64, 64]
         and buffer_1.dtype == ir.PrimType("int32")
     )
+
+
+def test_tir_bound_prim_param_reused_in_dependent_annotations():
+    func = tvm.script.from_source(
+        """
+@T.prim_func
+def main(
+    n: T.int32,
+    direct: T.Buffer((n,), "float32"),
+    string_direct: T.Buffer(("n",), "float32"),
+    compound: T.Buffer(("n + 1",), "float32"),
+) -> T.Buffer(("n",), "float32"):
+    return string_direct
+"""
+    )
+
+    n, direct, string_direct, compound = func.params
+    assert direct.ty.shape[0].same_as(n)
+    assert string_direct.ty.shape[0].same_as(n)
+    assert compound.ty.shape[0].a.same_as(n)
+    assert func.ret_type.shape[0].same_as(n)
+
+
+def test_tir_bound_prim_param_reused_in_declared_function_signature():
+    mod = tvm.script.from_source(
+        """
+@I.ir_module
+class Module:
+    @T.prim_func
+    def main(n: T.int32, A: T.Buffer(("n + 1",), "float32")):
+        T.evaluate(n)
+"""
+    )
+
+    n, A = mod["main"].params
+    assert A.ty.shape[0].a.same_as(n)
+
+
+def test_tir_string_defined_symbol_adopted_by_later_prim_param():
+    func = tvm.script.from_source(
+        """
+@T.prim_func
+def main(A: T.Buffer(("n",), "float32"), n: T.int32):
+    T.evaluate(n)
+"""
+    )
+
+    A, n = func.params
+    assert A.ty.shape[0].same_as(n)
+    assert str(n.ty.dtype) == "int32"
+
+    mod = tvm.script.from_source(
+        """
+@I.ir_module
+class Module:
+    @T.prim_func
+    def main(A: T.Buffer(("n",), "float32"), n: T.int32):
+        T.evaluate(n)
+"""
+    )
+
+    A, n = mod["main"].params
+    assert A.ty.shape[0].same_as(n)
+    assert str(n.ty.dtype) == "int32"
+
+
+def test_tir_string_defined_symbol_preserves_later_prim_param_dtype():
+    func = tvm.script.from_source(
+        """
+@T.prim_func
+def main(A: T.Buffer(("n",), "float32"), n: T.int64):
+    T.evaluate(n)
+"""
+    )
+
+    A, n = func.params
+    assert A.ty.shape[0].same_as(n)
+    assert str(n.ty.dtype) == "int64"
+
+
+def test_tir_string_defined_symbol_does_not_take_dtype_from_body():
+    with pytest.raises(tvm.error.DiagnosticError):
+        tvm.script.from_source(
+            """
+@T.prim_func
+def main(A: T.Buffer(("n",), "float32")):
+    n = T.int64()
+    T.evaluate(n)
+"""
+        )
+
+
+def test_tir_direct_use_before_string_definition_is_undefined():
+    with pytest.raises(tvm.error.DiagnosticError):
+        tvm.script.from_source(
+            """
+@T.prim_func
+def main(A: T.Buffer((n, "n"), "float32")):
+    T.evaluate(0)
+"""
+        )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+@T.prim_func
+def main(A: T.Buffer((n,), "float32"), n: T.int32):
+    T.evaluate(n)
+""",
+        """
+@I.ir_module
+class Module:
+    @T.prim_func
+    def main(A: T.Buffer((n,), "float32"), n: T.int32):
+        T.evaluate(n)
+""",
+    ],
+)
+def test_tir_direct_later_prim_param_is_undefined(source):
+    with pytest.raises(tvm.error.DiagnosticError):
+        tvm.script.from_source(source)
+
+
+def test_tir_return_annotation_does_not_define_symbolic_var():
+    with pytest.raises(tvm.error.DiagnosticError):
+        tvm.script.from_source(
+            """
+@T.prim_func
+def main() -> T.Buffer(("n",), "float32"):
+    n = T.int32()
+    A = T.alloc_buffer((n,), "float32")
+    return A
+"""
+        )
 
 
 def test_tir_ptr_proxy():

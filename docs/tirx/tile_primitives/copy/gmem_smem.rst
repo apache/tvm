@@ -23,7 +23,7 @@ shared** memory (either direction) when **neither side is a register**. Because
 neither operand carries a thread partition, the dispatch *synthesizes* one from the
 execution scope: it splits the region into ``[outer, threads, vec]`` and emits a
 serial loop of vectorized loads/stores. Source:
-``python/tvm/backend/cuda/operator/tile_primitive/copy/gmem_smem.py``.
+``python/tvm/backend/cuda/tile_primitive/copy/gmem_smem.py``.
 
 What it accepts
 ---------------

@@ -24,7 +24,7 @@ instruction moves ``num`` 8×8 16-bit matrix tiles between shared memory and the
 warp's registers, with the hardware performing the lane↔element shuffle that an
 MMA fragment needs. It only applies when the register and shared **layouts match
 the m8n8 fragment geometry**; otherwise the copy falls back to :doc:`reg`. Source:
-``python/tvm/backend/cuda/operator/tile_primitive/copy/ld_stmatrix.py``.
+``python/tvm/backend/cuda/tile_primitive/copy/ld_stmatrix.py``.
 
 What it accepts
 ---------------

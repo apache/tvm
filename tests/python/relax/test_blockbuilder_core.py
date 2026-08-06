@@ -385,11 +385,10 @@ def test_call_te_unique_tensor_name():
     f_matmul = bb.finalize()["matmul"]
     param_A = f_matmul.params[0]
     param_B = f_matmul.params[1]
-    buffer_A = f_matmul.buffer_map[param_A]
-    buffer_B = f_matmul.buffer_map[param_B]
     assert param_A.name != param_B.name
-    assert buffer_A.name != buffer_B.name
-    assert buffer_A.data.name != buffer_B.data.name
+    assert tvm.tirx.is_buffer_var(param_A)
+    assert tvm.tirx.is_buffer_var(param_B)
+    assert not param_A.same_as(param_B)
 
 
 def test_call_te_with_unsupported_shape_arg():

@@ -37,11 +37,12 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
  public:
   static PrimFunc RewriteDataType(PrimFunc func) {
     // Check if the integer parameter buffers have dtype other than int32.
-    for (auto it : func->buffer_map) {
-      if (it.second->dtype.MatchesCode(DLDataTypeCode::kDLInt) && it.second->dtype.bits() > 32) {
-        TVM_FFI_THROW(InternalError)
-            << "The buffer " << it.second << " in the function buffer map has dtype "
-            << it.second->dtype << ". The function is " << func;
+    for (const Var& param : func->params) {
+      if (auto buffer = param.as<BufferVar>();
+          buffer && buffer.value()->dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
+          buffer.value()->dtype.bits() > 32) {
+        TVM_FFI_THROW(InternalError) << "The buffer parameter " << buffer.value() << " has dtype "
+                                     << buffer.value()->dtype << ". The function is " << func;
       }
     }
 
@@ -65,7 +66,7 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
   Stmt VisitStmt_(const SBlockNode* block) final {
     SBlock block_ = IndexDataTypeNormalizer::VisitStmt_(block).as_or_throw<SBlock>();
     // Check if the allocated integer buffers have dtype other than int32.
-    for (const Buffer& buf : block_->alloc_buffers) {
+    for (const BufferVar& buf : block_->alloc_buffers) {
       if (buf->dtype.MatchesCode(DLDataTypeCode::kDLInt) && buf->dtype.bits() > 32) {
         TVM_FFI_THROW(InternalError)
             << "The buffer " << buf << " allocated in the function has dtype " << buf->dtype

@@ -240,15 +240,15 @@ ffi::Optional<ExprDoc> PrintRelaxPrint(const Call& n, const AccessPath& n_p, con
 }
 
 bool ShouldPrintAsTIR(const Call& call) {
-  if (!call->ty.as<PrimTypeNode>()) {
-    return false;
-  }
   if (call->op->ty.as<relax::FuncTypeNode>() || call->op.as<tvm::VarNode>() ||
       call->op.as<relax::FunctionNode>() || call->op.as<relax::ExternFuncNode>()) {
     return false;
   }
   if (auto op = call->op.as<Op>()) {
     return op.value()->name.find("relax.") != 0;
+  }
+  if (!call->ty.as<PrimTypeNode>()) {
+    return false;
   }
   return true;
 }

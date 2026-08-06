@@ -269,6 +269,7 @@ TMEM datapath layouts
     accum = tmem_datapath_layout("D", 128, cols)
     lower = tmem_datapath_layout("F", 64, cols, sub_slab=0)
     upper = tmem_datapath_layout("F", 64, cols, sub_slab=1)
+    paired = tmem_datapath_layout("B", 64, cols)
 
 Layout D maps logical row ``r`` directly to ``TLane = r`` and spans both
 16-lane halves of every warp's 32-lane TMEM partition. Layout F maps its 64
@@ -287,6 +288,32 @@ upper-half aliases of the same 128-row Layout D allocation. The
 ``row=0`` or ``row=16`` instruction. Layout D already occupies both halves,
 so a nonzero ``sub_slab`` is rejected.
 
+Layout B is the per-CTA accumulator placement for an M=64
+``tcgen05.mma.cta_group::2`` operation. PTX describes the two-CTA operation
+as M=128, while each CTA owns a logical ``(64, N)`` tile. Its columns split
+across the two 64-lane halves:
+
+.. math::
+
+   \mathrm{TLane}
+   = r + 64\left\lfloor\frac{c}{N/2}\right\rfloor,
+   \qquad
+   \mathrm{TCol} = c \bmod (N/2).
+
+Thus the tile occupies all 128 lanes and ``N/2`` tensor-memory columns, the
+same physical footprint as Layout D ``(128, N/2)``. ``N`` must be even and
+Layout B does not accept ``sub_slab``. Its register image uses the existing
+fragment API:
+
+.. code-block:: python
+
+    frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
+    Tx.wg.copy_async(frag[:, :], paired_accumulator[:, :])
+    T.ptx.tcgen05.wait.ld()
+
+The logical ``(64, N)`` fragment is one physical ``.32x32b`` transfer over
+all 128 lanes; each thread owns ``N/2`` contiguous fp32 registers.
+
 Beyond GPU registers
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -297,14 +324,17 @@ scratchpad (partition ``P`` and free ``F`` axes), or NVIDIA Blackwell tensor
 memory with native 2D addressing (``TLane`` × ``TCol``). The demo includes
 presets for each.
 
-SwizzleLayout, ComposeLayout
-----------------------------
+ComposeLayout (swizzled tile)
+-----------------------------
 
 Some layouts also need a *swizzle*: a non-linear, XOR-based permutation of the
 linear memory address. It is not expressible as a strided ``TileLayout`` (which
-is affine), so TIRx represents it as a separate ``SwizzleLayout`` composed with
-the tile layout: ``ComposeLayout(swizzle, tile)``. The tile layout produces a
-linear memory address; the swizzle then permutes that address.
+is affine), so TIRx folds it into a ``ComposeLayout``: alongside a
+``tile_layout``, a ``ComposeLayout`` carries four swizzle parameters
+(``per_element``, ``swizzle_len``, ``atom_len``, ``swizzle_inner``). The tile
+layout produces a linear memory address; the swizzle then permutes that address.
+A *bare* swizzle (no meaningful tile) is a ``ComposeLayout`` over a trivial
+identity ``TileLayout`` covering one swizzle period.
 
 Why swizzle
 ~~~~~~~~~~~
@@ -324,10 +354,11 @@ conflict. Swizzle scatters those accesses across banks.
 The transform
 ~~~~~~~~~~~~~
 
-A ``SwizzleLayout`` has three integer parameters — ``per_element`` (M),
+The swizzle has three integer parameters — ``per_element`` (M),
 ``swizzle_len`` (B), and ``atom_len`` (S) — and maps a linear element address
 ``m`` as follows (keeping the low ``M`` bits untouched and XOR-ing a higher bit
-group down into a lower one):
+group down into a lower one; this is the ``swizzle_inner=True`` direction, and
+``swizzle_inner=False`` mirrors the XOR):
 
 .. math::
 
@@ -353,7 +384,7 @@ mode** (the 32B / 64B / 128B shared-memory swizzle widths):
    S = 3 .
 
 For example ``float16`` (16-bit) gives ``M = bitlen(8) - 1 = 3``; with 128B
-swizzle that is ``Swizzle(M=3, B=3, S=3)``. ``M`` keeps a 16-byte (128-bit)
+swizzle that is swizzle ``(M=3, B=3, S=3)``. ``M`` keeps a 16-byte (128-bit)
 contiguous run unswizzled, matching the minimum vector access.
 
 Bank and line of an element
@@ -373,7 +404,7 @@ swizzled element address ``a = addr(m)`` lands in
 Worked example: 128B swizzle, ``float16``, ``(8, 64)`` tile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-With ``Swizzle(3,3,3)`` over ``m = 64i + j`` the address simplifies to
+With the swizzle ``(3,3,3)`` over ``m = 64i + j`` the address simplifies to
 
 .. math::
 

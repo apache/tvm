@@ -36,7 +36,7 @@ struct IndexInfo {
   /*! \brief Record the common subexpr extract threshold */
   size_t cse_thresh;
   /*! \brief The cache buffer to store the precomputed index */
-  std::vector<Buffer> cache_buffer;
+  std::vector<BufferVar> cache_buffer;
   /*! \brief The expr to be precomputed */
   std::vector<PrimExpr> index_exprs;
   /*! \brief The range of the loop vars relating to index computation */
@@ -262,15 +262,14 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     }
 
     PrimType data_ty = index_expr.ty();
-    Var index_buffer_var("index_var_" + std::to_string(expr_index),
-                         PointerType(data_ty, storage_scope));
+    ffi::String index_buffer_name = "index_var_" + std::to_string(expr_index);
     ffi::Array<PrimExpr> buffer_shape;
     for (const Var& it : info->origin_block_vars[expr_index]) {
       buffer_shape.push_back(
           arith::EvalSet(info->var_binding.at(it), arith::AsIntSet(info->range_map)).max() + 1);
     }
-    info->cache_buffer.push_back(
-        Buffer(index_buffer_var, data_ty, buffer_shape, {1}, {0}, index_buffer_var->name, 0, 0));
+    info->cache_buffer.push_back(BufferVar(
+        index_buffer_name, BufferType(storage_scope, data_ty, buffer_shape, {1}, {0}, 0, 0)));
 
     // Create loop vars and block vars' binding_value
     std::vector<PrimVar> loop_vars;
@@ -400,7 +399,7 @@ class CacheIndexRewriter : public StmtExprMutator {
       // If so, put buffer allocation and insert cache stages on the parent scope
       ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
       n->body = InsertIndexStage(n->body, info_->loc_pos, info_->cache_stage);
-      for (const Buffer& it : info_->cache_buffer) {
+      for (const BufferVar& it : info_->cache_buffer) {
         n->alloc_buffers.push_back(it);
       }
       stmt = SBlock(n);

@@ -29,7 +29,7 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
-#include <tvm/tirx/tirx_op.h>
+#include <tvm/tirx/tile_primitive.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -55,28 +55,34 @@ static bool IsTrainiumLayout(const TileLayoutNode* layout) {
 
 class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
  public:
-  static std::pair<Stmt, ffi::Map<Var, Buffer>> Lower(
-      const Stmt& stmt, const ffi::Map<tirx::Var, Buffer> buffer_map) {
+  static std::pair<Stmt, ffi::Array<Var>> Lower(const Stmt& stmt, const ffi::Array<Var>& params) {
     arith::Analyzer ana;
     TrainiumLayoutApplier storage_lower(ana);
-    std::unordered_map<Var, Buffer> new_buffer_map;
-    std::vector<Buffer> param_flattened_buffers;
-    for (const auto& kv : buffer_map) {
-      if (kv.second->layout.has_value()) {
-        param_flattened_buffers.push_back(storage_lower.GetFlattenedBuffer(kv.second));
-        Buffer buffer = kv.second;
-        auto* writer = buffer.CopyOnWrite();
-        writer->layout = std::nullopt;
-        new_buffer_map[kv.first] = buffer;
+    ffi::Array<Var> new_params;
+    new_params.reserve(params.size());
+    std::vector<std::pair<BufferVar, BufferVar>> param_flattened_buffers;
+    for (const Var& param : params) {
+      auto buffer = param.as<BufferVar>();
+      if (!buffer) {
+        new_params.push_back(param);
+        continue;
+      }
+      if (buffer.value()->layout.has_value()) {
+        BufferVar flattened = storage_lower.GetFlattenedBuffer(buffer.value());
+        auto type = CopyBufferType(buffer.value());
+        type->layout = std::nullopt;
+        BufferVar source = RebuildBufferVar(buffer.value(), std::move(type));
+        param_flattened_buffers.emplace_back(flattened, source);
+        new_params.push_back(source.var());
       } else {
-        new_buffer_map[kv.first] = kv.second;
+        new_params.push_back(buffer.value().var());
       }
     }
     auto new_stmt = storage_lower(stmt);
-    for (const auto& buf : param_flattened_buffers) {
-      new_stmt = SeqStmt::Flatten(DeclBuffer(buf), std::move(new_stmt));
+    for (const auto& [buf, source] : param_flattened_buffers) {
+      new_stmt = SeqStmt::Flatten(DeclBuffer(buf, source.data()), std::move(new_stmt));
     }
-    return std::make_pair(new_stmt, ffi::Map<Var, Buffer>(new_buffer_map));
+    return std::make_pair(new_stmt, new_params);
   }
 
  protected:
@@ -90,7 +96,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
     if (any == nullptr) {
       return any;
     }
-    if (auto buffer = any.as<Buffer>()) {
+    if (auto buffer = any.as<BufferVar>()) {
       return GetFlattenedBuffer(buffer.value());
     } else if (auto prim_expr = any.as<PrimExpr>()) {
       return VisitPrimExpr(prim_expr.value());
@@ -114,23 +120,22 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
+    Expr data = VisitExpr(op->data);
     auto buffer = GetFlattenedBuffer(op->buffer);
-    if (buffer.same_as(op->buffer)) {
+    if (buffer.same_as(op->buffer) && data.same_as(op->data)) {
       return ffi::GetRef<Stmt>(op);
     }
-    auto n = CopyOnWrite(op);
-    n->buffer = buffer;
-    return Stmt(n);
+    return DeclBuffer(buffer, std::move(data), op->span);
   }
 
-  Buffer GetFlattenedBuffer(Buffer buf, bool is_alloc = false) {
+  BufferVar GetFlattenedBuffer(BufferVar buf, bool is_alloc = false) {
     auto it = buffer_remap_.find(buf);
     if (it != buffer_remap_.end()) {
       return it->second;
     }
     auto trn_layout = buf->layout.as<TileLayoutNode>();
-    Buffer flattened;
-    tirx::BufferNode* writer;
+    BufferVar flattened;
+    ffi::ObjectPtr<BufferTypeNode> type;
     if (IsTrainiumLayout(trn_layout)) {
       ffi::Array<PrimExpr> new_shape =
           buf.scope() == "trn.psum" ? ffi::Array<PrimExpr>{trn_layout->GetSpan(ffi::String("Bank")),
@@ -139,9 +144,9 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
                                     : ffi::Array<PrimExpr>{trn_layout->GetSize(ffi::String("P")),
                                                            trn_layout->GetSpan(ffi::String("F"))};
       flattened = buf;
-      writer = flattened.CopyOnWrite();
-      writer->shape = new_shape;
-      writer->strides = {};
+      type = CopyBufferType(flattened);
+      type->shape = new_shape;
+      type->strides = {};
     } else if (is_alloc) {
       if (auto tile_layout = buf->layout.as<TileLayoutNode>();
           tile_layout && tile_layout->HasThreadAxis()) {
@@ -163,25 +168,26 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
           }
         }
         flattened = buf;
-        writer = flattened.CopyOnWrite();
-        writer->shape = {ana->Simplify(mem_span)};
-        writer->strides = {};
+        type = CopyBufferType(flattened);
+        type->shape = {ana->Simplify(mem_span)};
+        type->strides = {};
       } else {
         flattened = buf.GetFlattenedBuffer();
-        writer = flattened.CopyOnWrite();
+        type = CopyBufferType(flattened);
       }
     } else {
       flattened = buf.GetFlattenedBuffer();
-      writer = flattened.CopyOnWrite();
+      type = CopyBufferType(flattened);
     }
     if (flattened->dtype->dtype == DLDataType{kDLBool, 8, 1}) {
-      writer->dtype = PrimType::Int(8);
+      type->dtype = PrimType::Int(8);
     }
     for (size_t i = 0; i < flattened->shape.size(); ++i) {
-      writer->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
+      type->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
     }
-    writer->layout = std::nullopt;
-    writer->elem_offset = StmtExprMutator::VisitPrimExpr(buf->elem_offset);
+    type->layout = std::nullopt;
+    type->elem_offset = StmtExprMutator::VisitPrimExpr(buf->elem_offset);
+    flattened = RebuildBufferVar(flattened, std::move(type));
 
     buffer_remap_[buf] = flattened;
     return flattened;
@@ -230,7 +236,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
     }
   }
 
-  ffi::Array<PrimExpr> GetSimplifiedElemOffset(const Buffer& buffer,
+  ffi::Array<PrimExpr> GetSimplifiedElemOffset(const BufferVar& buffer,
                                                const ffi::Array<PrimExpr>& indices) {
     if (buffer->layout.has_value()) {
       auto tile_layout = buffer->layout.value().as<TileLayoutNode>();
@@ -270,14 +276,14 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
       return node;
     }
     auto flattened_indices = GetSimplifiedElemOffset(node->buffer, node->indices);
-    Buffer flattened_buffer = GetFlattenedBuffer(node->buffer);
+    BufferVar flattened_buffer = GetFlattenedBuffer(node->buffer);
     auto writer = node.CopyOnWrite();
     writer->buffer = flattened_buffer;
     writer->indices = flattened_indices;
     return node;
   }
 
-  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
+  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
 };
 
 class TrainiumBufferOffsetRemover : public StmtExprMutator {
@@ -297,16 +303,17 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
   Stmt VisitStmt_(const DeclBufferNode* op) {
     auto buffer = op->buffer;
     auto elem_offset = this->VisitPrimExpr(buffer->elem_offset);
-    if (elem_offset.same_as(buffer->elem_offset)) {
-      return StmtExprMutator::VisitStmt_(op);
-    } else {
-      auto n_buffer = buffer.CopyOnWrite();
-      n_buffer->elem_offset = std::move(elem_offset);
+    Expr data = VisitExpr(op->data);
+    if (!elem_offset.same_as(buffer->elem_offset)) {
+      auto type = CopyBufferType(buffer);
+      type->elem_offset = std::move(elem_offset);
+      buffer = RebuildBufferVar(buffer, std::move(type));
       buffer_remap_[op->buffer] = buffer;
-      auto n = CopyOnWrite(op);
-      n->buffer = ffi::GetRef<Buffer>(n_buffer);
-      return Stmt(n);
     }
+    if (buffer.same_as(op->buffer) && data.same_as(op->data)) {
+      return ffi::GetRef<Stmt>(op);
+    }
+    return DeclBuffer(buffer, std::move(data), op->span);
   }
 
   using StmtExprMutator::VisitExpr_;
@@ -336,7 +343,7 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
     return node;
   }
 
-  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
+  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
 };
 
 namespace transform {
@@ -344,7 +351,9 @@ namespace transform {
 Pass LowerTrainiumLayout() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    std::tie(n->body, n->buffer_map) = TrainiumLayoutApplier::Lower(n->body, n->buffer_map);
+    auto [body, params] = TrainiumLayoutApplier::Lower(n->body, n->params);
+    n->body = std::move(body);
+    n->params = std::move(params);
     n->body = TrainiumBufferOffsetRemover::Remove(n->body);
     return f;
   };

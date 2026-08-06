@@ -155,6 +155,25 @@ def transformed_opaque_access(a: T.handle, b: T.handle) -> None:
 
 
 @T.prim_func(s_tir=True)
+def opaque_buffer_data_projection(a: T.handle) -> None:
+    A = T.match_buffer(a, (16,))
+    with T.sblock():
+        T.reads([])
+        T.writes(A[4:8])
+        sub_A = T.match_buffer(A[4:8], (4,), offset_factor=1)
+        T.evaluate(T.call_extern("consume", sub_A.data, sub_A.elem_offset, dtype="int32"))
+
+
+@T.prim_func(s_tir=True)
+def transformed_opaque_buffer_data_projection(a: T.handle) -> None:
+    A = T.match_buffer(a, (16,))
+    with T.sblock():
+        T.reads([])
+        T.writes(A[4:8])
+        T.evaluate(T.call_extern("consume", A.data, 4, dtype="int32"))
+
+
+@T.prim_func(s_tir=True)
 def high_dim_opaque_access(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 32, 64))
     for i, j, k in T.grid(16, 2, 4):
@@ -501,6 +520,7 @@ def test_buffer_load_store():
 
 def test_opaque_access():
     _check(opaque_access, transformed_opaque_access)
+    _check(opaque_buffer_data_projection, transformed_opaque_buffer_data_projection)
 
 
 def test_high_dim_opaque_access():

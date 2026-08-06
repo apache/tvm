@@ -23,7 +23,7 @@ The ``smem`` variant lowers an elementwise op (``sqrt``, ``exp``, ``add``,
 :doc:`../copy/gmem_smem` variant it *synthesizes* a ``[outer, threads, vec]``
 partition from the execution scope, then applies the op to each (vectorized)
 element. Source:
-``python/tvm/backend/cuda/operator/tile_primitive/elementwise/smem.py``.
+``python/tvm/backend/cuda/tile_primitive/elementwise/smem.py``.
 
 What it accepts
 ---------------

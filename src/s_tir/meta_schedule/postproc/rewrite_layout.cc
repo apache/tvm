@@ -35,7 +35,7 @@ using namespace tvm::tirx;
  */
 class BufferReadPosCollector : public StmtExprVisitor {
  public:
-  explicit BufferReadPosCollector(const Buffer& buffer) : buffer_(buffer.get()) {}
+  explicit BufferReadPosCollector(const BufferVar& buffer) : buffer_(buffer.get()) {}
 
   const std::pair<SBlock, int>& GetBufferLocation() const { return buffer_loc_; }
 
@@ -58,7 +58,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
   void VisitExpr_(const BufferLoadNode* op) final {
     TVM_FFI_ICHECK(cur_realize_.defined()) << "BufferLoad occurred outside of any block";
 
-    const Buffer& buffer = op->buffer;
+    const BufferVar& buffer = op->buffer;
     if (buffer_ == buffer.get()) {
       ffi::Map<Var, PrimExpr> subst_map;
       for (size_t i = 0; i < cur_realize_->iter_values.size(); i++) {
@@ -81,7 +81,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
     }
   }
 
-  static int GetReadBufferIndex(const SBlock& block, const Buffer& buffer) {
+  static int GetReadBufferIndex(const SBlock& block, const BufferVar& buffer) {
     for (size_t i = 0; i < block->reads.size(); i++) {
       if (block->reads[i]->buffer.same_as(buffer)) {
         return i;
@@ -92,7 +92,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
 
  private:
   /*! \brief The buffer of interest. */
-  const BufferNode* buffer_;
+  const VarNode* buffer_;
   /*! \brief The block that consumes the buffer and the corresponding read index. */
   std::pair<SBlock, int> buffer_loc_;
   /*! \brief The proposed IndexMap. */
@@ -111,25 +111,25 @@ class LayoutFreeBufferCollector : public StmtVisitor {
   void VisitStmt_(const SBlockNode* block) final {
     StmtVisitor::VisitStmt_(block);
     if (auto ann = block->annotations.Get("layout_free_placeholders")) {
-      for (Buffer buffer : ann.value().as_or_throw<ffi::Array<Buffer>>()) {
+      for (BufferVar buffer : ann.value().as_or_throw<ffi::Array<BufferVar>>()) {
         buffers.insert(buffer);
       }
     }
   }
 
-  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffers;
+  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffers;
 };
 
-ffi::Array<Buffer> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
+ffi::Array<BufferVar> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
   // Only rewrite PrimFuncs with attr "layout_free_buffers"
   ffi::Array<int64_t> layout_free_buffer_index =
       func->GetAttr(s_tir::attr::layout_free_buffers, ffi::Array<int64_t>()).value();
 
-  ffi::Array<Buffer> layout_free_buffers;
+  ffi::Array<BufferVar> layout_free_buffers;
   for (int64_t index : layout_free_buffer_index) {
     TVM_FFI_ICHECK(static_cast<size_t>(index) < func->params.size());
     const Var& param = func->params[index];
-    layout_free_buffers.push_back(func->buffer_map.at(param));
+    layout_free_buffers.push_back(param.as_or_throw<BufferVar>());
   }
 
   LayoutFreeBufferCollector collector;
@@ -142,7 +142,7 @@ ffi::Array<Buffer> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
 }
 
 std::optional<std::tuple<SBlock, int, IndexMap>> GetSuggestedIndexMap(
-    Buffer buffer, const PrimFuncNode* prim_func) {
+    BufferVar buffer, const PrimFuncNode* prim_func) {
   BufferReadPosCollector collector(buffer);
   collector(prim_func->body);
 
@@ -158,10 +158,10 @@ std::optional<std::tuple<SBlock, int, IndexMap>> GetSuggestedIndexMap(
 }
 
 /*! \brief Get a chain of cache-read blocks, starting from the one consuming buf. */
-std::vector<std::string> GetCacheReadChain(const Buffer& buf, const PrimFuncNode* prim_func) {
+std::vector<std::string> GetCacheReadChain(const BufferVar& buf, const PrimFuncNode* prim_func) {
   class BufferReadChainCollector : public StmtVisitor {
    public:
-    explicit BufferReadChainCollector(const Buffer& buffer) : cur_buffer_(buffer.get()) {}
+    explicit BufferReadChainCollector(const BufferVar& buffer) : cur_buffer_(buffer.get()) {}
 
     void VisitStmt_(const SBlockNode* op) final {
       // Check if this block is doing cache_read or a similar operation that consumes cur_buffer_.
@@ -176,7 +176,7 @@ std::vector<std::string> GetCacheReadChain(const Buffer& buf, const PrimFuncNode
     std::vector<std::string> cache_read_chain;
 
    private:
-    const BufferNode* cur_buffer_;
+    const VarNode* cur_buffer_;
   };
 
   BufferReadChainCollector collector(buf);

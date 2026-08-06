@@ -44,7 +44,7 @@ from tvm.target import Target
 
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-from tvm.tirx import Buffer, BufferRegion, Expr, IndexMap, type_annotation
+from tvm.tirx import Buffer, BufferRegion, Expr, IndexMap, is_buffer_var, type_annotation
 from tvm.tirx import _ffi_api as _tirx_ffi_api
 from tvm.tirx import op as _tir_op
 from tvm.tirx.exec_scope import ExecScope, ScopeIdDef, Var
@@ -90,7 +90,6 @@ from tvm.tirx.layout import (
     Layout,
     R,
     S,
-    SwizzleLayout,
     TileLayout,
     wg_local_layout,
 )
@@ -155,6 +154,9 @@ def _normalize_prim_type(dtype) -> ir.PrimType:
         ty = getattr(value, "ty", None)
         if isinstance(ty, ir.PrimType):
             return ty
+        type_annotation = getattr(value, "type_annotation", None)
+        if isinstance(type_annotation, ir.PrimType):
+            return type_annotation
     return ir.PrimType(dtype)
 
 
@@ -516,7 +518,7 @@ def match_buffer(
     """
     if shape is None:
         if isinstance(param, BufferRegion):
-            dtype = param.buffer.dtype
+            dtype = param.buffer.ty.dtype
             shape = [region.extent for region in param.region]
         else:
             raise ValueError("Shape must be specified when binding input param")
@@ -1807,7 +1809,7 @@ def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
 
     Sizes the per-thread storage, allocates ``local`` scope memory, and returns
     a 2-D view of shape ``tensor_shape`` with a matching ``tcgen05_atom_layout``.
-    Pass the result to ``Tx.copy_async`` (with a ``(128, W)``-shaped TMEM
+    Pass the result to ``Tx.wg.copy_async`` (with a matching TMEM
     buffer) to trigger the corresponding dispatch path.
 
     Parameters
@@ -1819,7 +1821,8 @@ def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
         per-shape per-lane register decomposition).
     tensor_shape : tuple[int, int]
         Logical fragment shape ``(frag_rows, K)`` in element units. ``frag_rows``
-        is ``128`` for ``.32x32b`` and ``64`` for the ``.16x*b`` shapes.
+        is ``128`` for ``.32x32b`` and ``64`` for the ``.16x*b`` shapes. The
+        fp32 Layout B readback image also uses ``("32x32b", (64, N))``.
     dtype : str
         ``"float32"``, ``"float16"``, or ``"bfloat16"``.
 
@@ -1833,11 +1836,16 @@ def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
     --------
     M=128 readback (existing dispatch):
         ``frag = T.alloc_tcgen05_ldst_frag("32x32b", (128, 64), "float32")``
-        ``Tx.copy_async(frag[:, :], tmem[:, 0:64])``
+        ``Tx.wg.copy_async(frag[:, :], tmem[:, 0:64])``
 
     M=64 readback (.16x64b dispatch):
         ``frag = T.alloc_tcgen05_ldst_frag("16x64b", (64, 64), "float32")``
-        ``Tx.copy_async(frag[:, :], tmem[0:64, 0:64])``
+        ``Tx.wg.copy_async(frag[:, :], tmem[0:64, 0:64])``
+
+    Datapath B readback (cta_group=2, per-CTA M=64):
+        ``C = tmem_pool.alloc((64, 128), "float32", datapath="B")``
+        ``frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, 128), "float32")``
+        ``Tx.wg.copy_async(frag[:, :], C[:, :])``
     """
     from tvm.tirx.layout import tcgen05_atom_layout  # local import to avoid cycle
 
@@ -1879,10 +1887,10 @@ def alloc_cast_frag(src, dtype):
     Buffer
         Fresh ``local`` frag, ``src.shape`` shaped, ``src.layout``, dtype-cast.
     """
-    rows, cols = src.shape
+    rows, cols = src.ty.shape
     per_thread_elems = (rows * cols) // 128
     flat = alloc_local((per_thread_elems,), dtype)
-    return flat.view(rows, cols, layout=src.layout)
+    return flat.view(rows, cols, layout=src.ty.layout)
 
 
 if TYPE_CHECKING:
@@ -1986,7 +1994,7 @@ else:
 def alloc_scalar(dtype: str = "float32", scope: str = "global") -> BufferLoad:
     """Allocate a zero-dimensional buffer (scalar)."""
     buf = alloc_buffer(shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]))
-    assert isinstance(buf, Buffer)
+    assert is_buffer_var(buf)
     scalar = buf[0]
     if _current_meta_construction_scope() is not None:
         return scalar
@@ -2006,7 +2014,7 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> Buffe
         offset_factor=0,
         layout=TileLayout(S[1]),
     )
-    assert isinstance(buf, Buffer)
+    assert is_buffer_var(buf)
     scalar = buf[0]
     if _current_meta_construction_scope() is not None:
         return scalar
@@ -2042,7 +2050,7 @@ def _meta_resource_for_value(value: Any) -> Any | None:
         return value.scalar.buffer
     if isinstance(value, BufferLoad):
         return value.buffer
-    if isinstance(value, Buffer):
+    if is_buffer_var(value):
         return value
     return None
 
@@ -2292,7 +2300,7 @@ def buffer_store(
                 expr_indices.append(ramp(index.start, step, lanes))
         else:
             expr_indices.append(index)
-    if isinstance(value, bool) and buffer.dtype == "bool":
+    if isinstance(value, bool) and buffer.ty.dtype == "bool":
         value = IntImm("bool", value)
     return _ffi_api.BufferStore(  # type: ignore[attr-defined] # pylint: disable=no-member
         buffer, value, expr_indices, predicate
@@ -2913,19 +2921,19 @@ class WebGPUNamespace:
 
     @staticmethod
     def subgroup_shuffle(var, lane):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle", var, lane)
 
     @staticmethod
     def subgroup_shuffle_up(var, delta):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle_up", var, delta)
 
     @staticmethod
     def subgroup_shuffle_down(var, delta):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle_down", var, delta)
 
@@ -3519,7 +3527,6 @@ __all__ += [
     "R",
     "S",
     "ScopeIdDef",
-    "SwizzleLayout",
     "TensorMap",
     "TileLayout",
     "Var",

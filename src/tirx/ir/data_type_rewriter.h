@@ -101,8 +101,8 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   using Parent::VisitExpr_;
   using Parent::VisitStmt_;
 
-  Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) override;
-  Buffer VisitBufferUse(const Buffer& buffer) override;
+  BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) override;
+  BufferVar VisitBufferUse(const BufferVar& buffer) override;
   Stmt VisitStmt_(const SBlockRealizeNode* op) override;
   Stmt VisitStmt_(const SBlockNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;

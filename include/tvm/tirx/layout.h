@@ -408,99 +408,28 @@ class TileLayout : public Layout {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TileLayoutNode);
 };
 
-// SwizzleLayout
-class SwizzleLayoutNode : public LayoutNode {
+// ComposeLayout
+class ComposeLayoutNode : public LayoutNode {
  public:
   int per_element;
   int swizzle_len;
   int atom_len;
   bool swizzle_inner;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SwizzleLayoutNode>()
-        .def_ro("per_element", &SwizzleLayoutNode::per_element)
-        .def_ro("swizzle_len", &SwizzleLayoutNode::swizzle_len)
-        .def_ro("atom_len", &SwizzleLayoutNode::atom_len)
-        .def_ro("swizzle_inner", &SwizzleLayoutNode::swizzle_inner)
-        .def_ro("inner_mask", &SwizzleLayoutNode::inner_mask)
-        .def_ro("outer_mask", &SwizzleLayoutNode::outer_mask);
-  }
-
-  /*! \brief Check if the layout is compatible with the shape */
-  bool CompatibleWithShape(const ffi::Array<PrimExpr>& shape) const final;
-
-  /*! \brief Verify if the layout is well-formed */
-  bool VerifyWellFormed() const final;
-
-  /*! \brief Get the size of the layout */
-  PrimExpr GetSize(ffi::Optional<ffi::String> axis_name = std::nullopt) const final;
-
-  /*! \brief Get the span of the layout */
-  PrimExpr GetSpan(ffi::Optional<ffi::String> axis_name = std::nullopt) const final;
-
-  /*! \brief Apply the input coordinate and get the mapped output */
-  ffi::Map<ffi::String, PrimExpr> Apply(ffi::Array<PrimExpr> coord) const final;
-  ffi::Map<ffi::String, PrimExpr> Apply(PrimExpr coord) const final;
-
-  /*! \brief Turn the layout to canonical form */
-  Layout Canonicalize() const final;
-
-  /*! \brief Tile the layout with an outer layout */
-  Layout Tile(const TileLayout& outer, const ffi::Array<PrimExpr>& outer_shape,
-              const ffi::Array<PrimExpr>& inner_shape) const final;
-
-  Layout DirectSum(const TileLayout& left, const ffi::Array<PrimExpr>& left_shape,
-                   const ffi::Array<PrimExpr>& right_shape) const final;
-
-  /*! \brief Check if the layout is the inner layout of a tiled layout */
-  ffi::Optional<TileLayout> IsTileInner(const Layout& tile_layout,
-                                        const ffi::Array<PrimExpr>& tiled_shape,
-                                        const ffi::Array<PrimExpr>& inner_shape) const final;
-
-  /*! \brief Check if the layout is the outer layout of a tiled layout */
-  ffi::Optional<Layout> IsTileOuter(const Layout& tile_layout,
-                                    const ffi::Array<PrimExpr>& tiled_shape,
-                                    const ffi::Array<PrimExpr>& outer_shape) const final;
-
-  ffi::Optional<TileLayout> IsDirectSumRight(const Layout& sum_layout,
-                                             const ffi::Array<PrimExpr>& interleaved_shape,
-                                             const ffi::Array<PrimExpr>& right_shape) const final;
-
-  ffi::Optional<Layout> IsDirectSumLeft(const Layout& sum_layout,
-                                        const ffi::Array<PrimExpr>& interleaved_shape,
-                                        const ffi::Array<PrimExpr>& left_shape) const final;
-
-  /*! \brief Slice the layout with a given shape and region */
-  ffi::Optional<Layout> Slice(const ffi::Array<PrimExpr>& shape, const Region& region) const final;
-
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.SwizzleLayout", SwizzleLayoutNode, LayoutNode);
-
- private:
-  friend class SwizzleLayout;
+  TileLayout tile_layout;
+  // Cached swizzle masks: inner_mask = (1 << swizzle_len) - 1;
+  // outer_mask = inner_mask << atom_len. Set by the ComposeLayout ctor.
   int inner_mask;
   int outer_mask;
-};
-
-class SwizzleLayout : public Layout {
- public:
-  TVM_DLL explicit SwizzleLayout(int per_element, int swizzle_len, int atom_len,
-                                 bool swizzle_inner);
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SwizzleLayout, Layout, SwizzleLayoutNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(SwizzleLayoutNode);
-};
-
-// ComposeLayout
-class ComposeLayoutNode : public LayoutNode {
- public:
-  SwizzleLayout swizzle;
-  TileLayout tile_layout;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ComposeLayoutNode>()
-        .def_ro("swizzle", &ComposeLayoutNode::swizzle)
+        .def_ro("per_element", &ComposeLayoutNode::per_element)
+        .def_ro("swizzle_len", &ComposeLayoutNode::swizzle_len)
+        .def_ro("atom_len", &ComposeLayoutNode::atom_len)
+        .def_ro("swizzle_inner", &ComposeLayoutNode::swizzle_inner)
+        .def_ro("inner_mask", &ComposeLayoutNode::inner_mask)
+        .def_ro("outer_mask", &ComposeLayoutNode::outer_mask)
         .def_ro("tile_layout", &ComposeLayoutNode::tile_layout);
   }
 
@@ -556,7 +485,8 @@ class ComposeLayoutNode : public LayoutNode {
 
 class ComposeLayout : public Layout {
  public:
-  TVM_DLL explicit ComposeLayout(SwizzleLayout layout_A, TileLayout layout_B);
+  TVM_DLL explicit ComposeLayout(int per_element, int swizzle_len, int atom_len,
+                                 TileLayout tile_layout, bool swizzle_inner = true);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ComposeLayout, Layout, ComposeLayoutNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComposeLayoutNode);

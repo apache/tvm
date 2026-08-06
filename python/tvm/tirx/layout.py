@@ -343,8 +343,8 @@ class Layout(Object):
         return list(reversed(res))
 
     def is_swizzle(self) -> bool:
-        """Check if the layout is swizzle."""
-        return isinstance(self, SwizzleLayout)
+        """Check if the layout is a bare swizzle (ComposeLayout over a trivial tile)."""
+        return isinstance(self, ComposeLayout) and self.tile_layout.is_trivial()
 
     def is_trivial(self) -> bool:
         """Check if the layout is trivial."""
@@ -364,10 +364,14 @@ class Layout(Object):
             exclude = {axis: offset for axis, offset in self.offset.items() if not axis.is_thread()}
             return TileLayout.from_iters(shard, replicate, exclude)  # pylint: disable=no-member
 
-        elif isinstance(self, SwizzleLayout):
-            return self
         elif isinstance(self, ComposeLayout):
-            return ComposeLayout(self.swizzle.storage(), self.tile_layout.storage())
+            return ComposeLayout(
+                self.per_element,
+                self.swizzle_len,
+                self.atom_len,
+                self.tile_layout.storage(),
+                self.swizzle_inner,
+            )
         else:
             raise ValueError(f"Unsupported layout type: {type(self)}")
 
@@ -388,16 +392,15 @@ class Layout(Object):
             shard = [Iter(iter.extent, iter.stride * num, iter.axis) for iter in self.shard]
             shard.append(Iter(num, 1, Axis.get("m")))
             return TileLayout.from_iters(shard, self.replica, self.offset)
-        elif isinstance(self, SwizzleLayout):
+        elif isinstance(self, ComposeLayout):
             assert num & (num - 1) == 0, "num must be a power of 2"
-            return SwizzleLayout(
+            return ComposeLayout(
                 self.per_element + (num.bit_length() - 1),
                 self.swizzle_len,
                 self.atom_len,
+                self.tile_layout.unpack(num),
                 self.swizzle_inner,
             )
-        elif isinstance(self, ComposeLayout):
-            return ComposeLayout(self.swizzle.unpack(num), self.tile_layout.unpack(num))
         else:
             raise ValueError(f"Unsupported layout type: {type(self)}")
 
@@ -421,7 +424,13 @@ class Layout(Object):
             shard.insert(insert_at, new_iter)
             return TileLayout.from_iters(shard, self.replica, self.offset)
         elif isinstance(self, ComposeLayout):
-            return ComposeLayout(self.swizzle, self.tile_layout.broadcast(num, position, axis))
+            return ComposeLayout(
+                self.per_element,
+                self.swizzle_len,
+                self.atom_len,
+                self.tile_layout.broadcast(num, position, axis),
+                self.swizzle_inner,
+            )
         else:
             raise ValueError(f"broadcast not supported for {type(self)}")
 
@@ -448,19 +457,18 @@ class Layout(Object):
             shard = [Iter(iter.extent, iter.stride // num, iter.axis) for iter in self.shard[:-1]]
             shard.append(Iter(inner_iter.extent // num, 1, inner_iter.axis))
             return TileLayout.from_iters(shard, self.replica, self.offset)
-        elif isinstance(self, SwizzleLayout):
+        elif isinstance(self, ComposeLayout):
             assert num & (num - 1) == 0, "num must be a power of 2"
             assert self.per_element >= num.bit_length() - 1, (
                 "per_element must be greater than or equal to num.bit_length() - 1"
             )
-            return SwizzleLayout(
+            return ComposeLayout(
                 self.per_element - (num.bit_length() - 1),
                 self.swizzle_len,
                 self.atom_len,
+                self.tile_layout.pack(num),
                 self.swizzle_inner,
             )
-        elif isinstance(self, ComposeLayout):
-            return ComposeLayout(self.swizzle.pack(num), self.tile_layout.pack(num))
         else:
             raise ValueError(f"Unsupported layout type: {type(self)}")
 
@@ -564,7 +572,12 @@ except NameError:  # pragma: no cover
     __all__ = []  # type: ignore[var-annotated]
 __all__ += list(_AXIS_NAMES)
 __all__ += ["R", "S"]
-__all__ += ["tcgen05_atom_layout", "tmem_datapath_layout", "wg_local_layout"]
+__all__ += [
+    "tcgen05_atom_layout",
+    "tmem_datapath_layout",
+    "tmem_mma_operand_layout",
+    "wg_local_layout",
+]
 
 
 # ============================================================================
@@ -586,7 +599,7 @@ __all__ += ["tcgen05_atom_layout", "tmem_datapath_layout", "wg_local_layout"]
 #
 # We surface this via the factory below. Callers pass the datapath letter
 # (``"D"`` / ``"F"``) and the logical ``(rows, cols)``; the factory returns
-# the appropriate TileLayout. ``tmem_pool.alloc(..., datapath="F")`` plumbs
+# the appropriate TileLayout. ``tmem_pool.alloc(..., layout=...)`` plumbs
 # this into the buffer's layout so the dispatch can structurally verify
 # atom ↔ datapath compatibility instead of silently accepting mismatches.
 #
@@ -595,11 +608,16 @@ __all__ += ["tcgen05_atom_layout", "tmem_datapath_layout", "wg_local_layout"]
 #   - ``"F"``: M=64, non-``.ws``, half datapath (4x1 lane utilization).
 #     Logical row r → physical lane
 #     (r // 16) * 32 + sub_slab * 16 + (r % 16).
+#   - ``"B"``: per-CTA M=64, ``.cta_group::2``, Dense A ("2x2" datapath).
+#     PTX names the CTA-pair shape M=128; each CTA owns a logical ``(64, N)``
+#     accumulator. Its N columns split into two N/2 halves across physical
+#     lanes 0..63 and 64..127:
+#       (r, c) → (TLane=r + 64 * (c // (N/2)), TCol=c % (N/2)).
 #
-# Layouts A / B / C / E / G are reserved for future expansion.
+# Layouts A / C / E / G are reserved for future expansion.
 
 
-_TMEM_DATAPATH_ROWS = {"D": 128, "F": 64}
+_TMEM_DATAPATH_ROWS = {"A": 128, "B": 64, "C": 64, "D": 128, "E": 64, "F": 64, "G": 32}
 
 
 def tmem_datapath_layout(datapath: str, rows: int, cols: int, sub_slab: int = 0) -> "TileLayout":
@@ -614,20 +632,33 @@ def tmem_datapath_layout(datapath: str, rows: int, cols: int, sub_slab: int = 0)
     Parameters
     ----------
     datapath : str
-        One of ``"D"`` (M=128, ``.cta_group::1``, full datapath) or
-        ``"F"`` (M=64, non-``.ws``, half datapath). Other layouts are not
-        yet supported by this factory.
+        PTX data path layout letter (all cta_group::2 layouts are the
+        per-CTA view of the M-rows this CTA of the pair owns):
+
+        - ``"A"``: M=256, ``.cta_group::2`` — identity over 128 rows.
+        - ``"B"``: M=128, ``.cta_group::2``, dense A — 64 rows, column
+          halves folded across the two 64-lane halves.
+        - ``"C"``: M=128, ``.cta_group::2``, sparse A — 64 rows scattered
+          16-per-warp, half datapath (same organization as F).
+        - ``"D"``: M=128, ``.cta_group::1`` — identity, full datapath.
+        - ``"E"``: M=64, ``.ws`` — 64 rows, column halves folded (same
+          organization as B).
+        - ``"F"``: M=64, non-``.ws`` — 64 rows scattered 16-per-warp,
+          half datapath.
+        - ``"G"``: M=32, ``.ws`` — 32 rows, column quarters folded across
+          the four 32-lane warp slabs.
     rows : int
         Logical row count of the TMEM buffer. Must match the datapath's M
-        dimension: 128 for D, 64 for F.
+        dimension: 128 for A/D, 64 for B/C/E/F, 32 for G.
     cols : int
-        Logical column count.
+        Logical column count. Datapath B requires an even count because its
+        columns split into two equal lane halves.
     sub_slab : int
         For Layout F, select the lower (``0``) or upper (``1``) 16-lane
         half of each warp's 32-lane TMEM partition. The upper half is useful
         as a 64-row read/write view of the high half-slab of a Layout D
-        accumulator. Layout D already spans both halves and therefore only
-        accepts ``0``.
+        accumulator. Layouts D and B already span both halves and therefore
+        only accept ``0``.
 
     Returns
     -------
@@ -648,17 +679,45 @@ def tmem_datapath_layout(datapath: str, rows: int, cols: int, sub_slab: int = 0)
         raise ValueError(f"tmem_datapath_layout: sub_slab must be 0 or 1, got {sub_slab}")
     tlane = Axis.get("TLane")
     tcol = Axis.get("TCol")
-    if datapath == "D":
-        # M=128, identity row→lane: row r ∈ [0, 128) → physical lane r. D
-        # already spans both 16-lane sub-slabs of every warp partition.
+    if datapath in ("A", "D"):
+        # Identity row→lane (r → lane r). D is the full cta_group::1 datapath;
+        # A is the per-CTA view of M=256/cta_group::2 (this CTA's 128 M-rows).
+        # Both already span both 16-lane sub-slabs of every warp partition.
         if sub_slab != 0:
             raise ValueError(
-                "tmem_datapath_layout: datapath='D' (M=128) already spans both "
+                f"tmem_datapath_layout: datapath={datapath!r} (M=128) already spans both "
                 "sub-slabs; sub_slab must be 0"
             )
         return TileLayout(S[(rows, cols) : (1 @ tlane, 1 @ tcol)])
-    # Layout F: M=64 scattered. Logical row r = wid * 16 + intra (wid ∈ [0,4),
-    # intra ∈ [0,16)) → physical lane wid * 32 + sub_slab * 16 + intra.
+    if datapath == "G":
+        # Layout G (M=32, .ws): quarter datapath — column space splits into 4
+        # quarters, lane = row + 32*q, physical col = col % (cols/4).
+        if sub_slab != 0:
+            raise ValueError(
+                "tmem_datapath_layout: datapath='G' folds column quarters across "
+                "full 32-lane slabs; sub_slab must be 0"
+            )
+        if cols % 4 != 0:
+            raise ValueError(
+                f"tmem_datapath_layout: datapath='G' requires cols % 4 == 0, got {cols}"
+            )
+        return TileLayout(S[(rows, 4, cols // 4) : (1 @ tlane, 32 @ tlane, 1 @ tcol)])
+    if datapath in ("B", "E"):
+        # Layouts B (M=128 cta_group::2 dense) and E (M=64 .ws): half datapath,
+        # lane = row + 64 * (col >= cols/2), physical col = col % (cols/2).
+        if sub_slab != 0:
+            raise ValueError(
+                f"tmem_datapath_layout: datapath={datapath!r} folds column halves across "
+                "full 64-lane halves; sub_slab must be 0"
+            )
+        if cols % 2 != 0:
+            raise ValueError(
+                f"tmem_datapath_layout: datapath={datapath!r} expects even cols, got {cols}"
+            )
+        return TileLayout(S[(rows, 2, cols // 2) : (1 @ tlane, 64 @ tlane, 1 @ tcol)])
+    # Layouts C (M=128 cta_group::2 sparse) and F (M=64 non-.ws): rows-per-CTA
+    # scattered, half datapath — logical row wid*16+intra → physical lane
+    # wid*32 + sub_slab*16 + intra.
     # ``TileLayout`` decomposes a scalar row index via ``SplitCoord``
     # (src/tirx/ir/layout/utils.cc), which uses row-major ordering: with
     # shape ``(s0, s1)`` the FIRST iter receives ``coord // s1`` (the high
@@ -670,6 +729,149 @@ def tmem_datapath_layout(datapath: str, rows: int, cols: int, sub_slab: int = 0)
     if sub_slab:
         spec = spec + (16 @ tlane)
     return TileLayout(spec)
+
+
+def _mma_datapath_letter(M, cta_group, ws=False, sparse=False):
+    """Map (instruction ``M``, ``cta_group``, ``ws``, ``sparse``) to the PTX
+    tcgen05 datapath letter. Raises for families rejected in the v1 semantic
+    allocator API (sparse Layout C, M=32 Layout G). See
+    ``localdoc/claude_plan.txt`` S3a."""
+    if sparse:
+        raise ValueError(
+            f"alloc_tcgen05_mma_AB: sparse A (Layout C) not supported in v1 "
+            f"(M={M}, cta_group={cta_group})"
+        )
+    if ws and not (cta_group == 1 and M == 64):
+        raise ValueError(
+            f"alloc_tcgen05_mma_AB: ws=True only valid for cta_group=1, M=64 (Layout E); "
+            f"got M={M}, cta_group={cta_group}"
+        )
+    if cta_group == 1:
+        if M == 128:
+            return "D"
+        if M == 64:
+            return "E" if ws else "F"
+    elif cta_group == 2:
+        if M == 256:
+            return "A"
+        if M == 128:
+            return "B"
+    raise ValueError(
+        f"alloc_tcgen05_mma_AB: no supported datapath for M={M}, cta_group={cta_group}, "
+        f"ws={ws} (supported: cta1 M in {{64,128}}, cta2 M in {{128,256}})"
+    )
+
+
+def tmem_mma_operand_layout(
+    operand, shape, dtype, *, M, cta_group, ws=False, sparse=False, group=None
+):
+    """Resolve the TMEM ``TileLayout`` for a tcgen05 MMA operand from operand
+    role + instruction params.
+
+    ``operand``: ``"A"`` (A-in-TMEM) or ``"D"`` (accumulator / C).
+    ``M`` is the PTX ``tcgen05.mma`` **instruction** M (256/128/64), NOT the
+    per-CTA buffer rows; ``per_cta_rows = M // cta_group``. Physical 32-bit
+    column count is left to the pool's ``_resolve_cols`` (layout-aware).
+
+    Reproduces the hand-written layouts the three FlashMLA kernels use; the
+    supported/reject domain is spec'd in ``localdoc/claude_plan.txt`` S3a.
+    """
+    tlane = Axis.get("TLane")
+    tcol = Axis.get("TCol")
+    datapath = _mma_datapath_letter(M, cta_group, ws, sparse)
+    per_cta_rows = M // cta_group
+    ext = [int(s) for s in shape]
+
+    def _chk_rows(rows):
+        if rows != per_cta_rows:
+            raise ValueError(
+                f"alloc_mma_{operand}: M={M}, cta_group={cta_group} expects "
+                f"per-CTA rows {per_cta_rows}, got {rows} (shape {ext})"
+            )
+
+    if operand == "D":
+        if group is not None:
+            # flat buffer (m, N) + explicit grouping -> (m, s, 2, n) layout
+            # (codex plan option b): keeps kernel O buffer 2D, layout 4-axis.
+            if len(ext) != 2:
+                raise ValueError(f"alloc_tcgen05_mma_D group= requires 2D (m,N), got {ext}")
+            m, N = ext
+            gs = [int(g) for g in group]
+            if len(gs) != 3 or gs[1] != 2:
+                raise ValueError(f"alloc_tcgen05_mma_D group must be (s,2,n), got {group}")
+            s2, _, n2 = gs
+            if s2 * 2 * n2 != N:
+                raise ValueError(f"alloc_tcgen05_mma_D group {group} product != N={N}")
+            if datapath not in ("B", "E"):
+                raise ValueError(f"alloc_tcgen05_mma_D group= only for Layout B/E, got {datapath}")
+            _chk_rows(m)
+            return TileLayout(
+                S[(m, s2, 2, n2) : (1 @ tlane, n2 @ tcol, 64 @ tlane, 1 @ tcol)]
+            ).canonicalize()
+        # Grouped grammar (C3): (m,N) | (m,2,N/2) | (m,s,2,n); plus batched
+        # C[2,m,N/2] normalizing to packed. bank axis is fixed by position.
+        if len(ext) == 2:
+            m, N = ext
+            _chk_rows(m)
+            layout = tmem_datapath_layout(datapath, m, N)
+        elif len(ext) == 3 and ext[0] == 2 and datapath in ("B", "E"):
+            _, m, Nh = ext  # batched C[2, m, N/2]
+            _chk_rows(m)
+            layout = TileLayout(S[(2, m, Nh) : (64 @ tlane, 1 @ tlane, 1 @ tcol)])
+        elif len(ext) == 3 and ext[1] == 2 and datapath in ("B", "E"):
+            m, _, Nh = ext  # explicit (m, 2, N/2)
+            _chk_rows(m)
+            layout = TileLayout(S[(m, 2, Nh) : (1 @ tlane, 64 @ tlane, 1 @ tcol)])
+        elif len(ext) == 4 and ext[2] == 2 and datapath in ("B", "E"):
+            m, s, _, n = ext  # column-segmented (m, s, 2, n): flatten N=s*2*n
+            _chk_rows(m)
+            layout = TileLayout(S[(m, s, 2, n) : (1 @ tlane, n @ tcol, 64 @ tlane, 1 @ tcol)])
+        else:
+            raise ValueError(
+                f"alloc_tcgen05_mma_D: unsupported D shape {ext} for datapath {datapath}"
+            )
+    elif operand == "A":
+        if datapath in ("A", "D"):
+            if len(ext) != 2:
+                raise ValueError(
+                    f"alloc_tcgen05_mma_A: datapath {datapath} identity needs 2D (m,K), got {ext}"
+                )
+            m, K = ext
+            _chk_rows(m)
+            layout = tmem_datapath_layout(datapath, m, K)  # identity
+        elif datapath == "B":
+            if len(ext) == 2:  # replica A
+                m, K = ext
+                _chk_rows(m)
+                layout = TileLayout(S[(m, K) : (1 @ tlane, 1 @ tcol)] + R[2 : 64 @ tlane])
+            elif len(ext) == 3 and ext[0] == 2:  # bank-batched A
+                _, m, K = ext
+                _chk_rows(m)
+                layout = TileLayout(S[(2, m, K) : (64 @ tlane, 1 @ tlane, 1 @ tcol)])
+            else:
+                raise ValueError(
+                    f"alloc_tcgen05_mma_A: datapath B needs (64,K) replica or (2,64,K) "
+                    f"bank-batched, got {ext}"
+                )
+        elif datapath == "E":  # M=64 .ws: bank-batched only, flat rejected
+            if len(ext) == 3 and ext[0] == 2:
+                _, m, K = ext
+                _chk_rows(m)
+                layout = TileLayout(S[(2, m, K) : (64 @ tlane, 1 @ tlane, 1 @ tcol)])
+            else:
+                raise ValueError(
+                    f"alloc_tcgen05_mma_A: datapath E (M=64 .ws) requires bank-batched "
+                    f"(2,64,K); flat {ext} rejected (hidden second-half read)"
+                )
+        else:  # F (M=64 non-.ws): A occupies lanes 0..63 identically
+            if len(ext) != 2:
+                raise ValueError(f"alloc_tcgen05_mma_A: datapath F needs 2D (m,K), got {ext}")
+            m, K = ext
+            _chk_rows(m)
+            layout = TileLayout(S[(m, K) : (1 @ tlane, 1 @ tcol)])
+    else:
+        raise ValueError(f"tmem_mma_operand_layout: operand must be 'A' or 'D', got {operand!r}")
+    return layout.canonicalize()
 
 
 def wg_local_layout(cols, rows=128):
@@ -697,14 +899,14 @@ _TCGEN05_ATOM_REPS = {
 _TCGEN05_COL_FACTOR_FP32 = {"32x32b": 1, "16x64b": 2, "16x128b": 4, "16x256b": 8}
 
 # Allowed fragment row counts per warpgroup for each instr_shape. ``.32x32b``
-# is fixed at M=128; ``.16x*b`` natively covers M=64 (one 16-row slab per
-# warp, using lanes 0..15 of each warp's 32-lane TMEM partition) and can be
-# extended to M=128 by issuing the atom twice with row offsets 0 and 16
-# (covering lanes 0..15 + 16..31, i.e. the warp's full slab). The M=128
-# variant doubles per-thread registers and treats the extra slab as the
-# highest m-bit.
+# normally covers M=128, but a 64-row shape denotes the Layout B readback image:
+# the logical (64, N) tile is physically a (128, N/2) ``.32x32b`` register
+# file. ``.16x*b`` natively covers M=64 (one 16-row slab per warp, using lanes
+# 0..15 of each warp's 32-lane TMEM partition) and can be extended to M=128 by
+# issuing the atom twice with row offsets 0 and 16. The M=128 variant doubles
+# per-thread registers and treats the extra slab as the highest m-bit.
 _TCGEN05_FRAG_ROWS = {
-    "32x32b": (128,),
+    "32x32b": (64, 128),
     "16x64b": (64, 128),
     "16x128b": (64, 128),
     "16x256b": (64, 128),
@@ -712,15 +914,17 @@ _TCGEN05_FRAG_ROWS = {
 
 
 def tcgen05_atom_layout(instr_shape: str, tensor_shape: tuple[int, int], dtype) -> "TileLayout":
-    """Register-side ``TileLayout`` for ``tcgen05.ld``/``tcgen05.st`` ``.16x*`` atoms.
+    """Register-side ``TileLayout`` for ``tcgen05.ld``/``tcgen05.st`` atoms.
 
     Describes the per-warpgroup register tile that ``Tx.copy_async`` produces
     when reading a TMEM fragment via ``tcgen05.{ld,st}.<instr_shape>.xN``.
     ``rep`` (the ``.xN`` qualifier) is inferred from ``tensor_shape``.
 
-    Fragment row count is determined by ``instr_shape``: ``.32x32b`` covers an
-    M=128 fragment (128 rows per warpgroup), and ``.16x{64,128,256}b`` covers
-    an M=64 fragment (64 rows per warpgroup).
+    Fragment row count is determined by ``instr_shape``: ``.32x32b`` normally
+    covers an M=128 fragment (128 rows per warpgroup), and
+    ``.16x{64,128,256}b`` covers an M=64 fragment (64 rows per warpgroup).
+    ``("32x32b", (64, N))`` is the fp32 Layout B readback image for a
+    ``.cta_group::2`` M=64 accumulator.
 
     TMEM is kept **dense** for 16-bit dtypes: two 16-bit elements per 32-bit
     TMEM cell (matching the existing ``.32x32b`` convention). The PTX op is
@@ -736,8 +940,9 @@ def tcgen05_atom_layout(instr_shape: str, tensor_shape: tuple[int, int], dtype) 
     tensor_shape : tuple[int, int]
         The logical fragment shape in **element units**. Must be
         ``(frag_rows, K)`` where ``frag_rows`` is ``128`` for ``.32x32b`` and
-        ``64`` for the other shapes, and ``K`` is divisible by the per-warp
-        column factor for the chosen instr_shape and dtype::
+        ``64`` for the other shapes. The fp32 Layout B image is the exception:
+        it uses ``("32x32b", (64, N))``. The column extent is divisible by the
+        per-warp column factor for the chosen instr_shape and dtype::
 
             K must be a power-of-two multiple of (factor_fp32 * elem_per_32b)
 
@@ -751,9 +956,9 @@ def tcgen05_atom_layout(instr_shape: str, tensor_shape: tuple[int, int], dtype) 
     Returns
     -------
     TileLayout
-        A ``(64, K)``-shaped tile layout. The factory builds it as a sequence
-        of fine-grained iters describing the per-(lane, register) destination
-        position; ``.group([(64, K)])[0]`` flattens to two iters.
+        A ``tensor_shape``-shaped tile layout. The factory builds it as a
+        sequence of fine-grained iters describing the per-(lane, register)
+        destination position.
 
     Examples
     --------
@@ -781,6 +986,35 @@ def tcgen05_atom_layout(instr_shape: str, tensor_shape: tuple[int, int], dtype) 
     if rows not in allowed_rows:
         raise ValueError(
             f"tcgen05_atom_layout {instr_shape!r} expects rows ∈ {allowed_rows}, got {rows}"
+        )
+
+    if instr_shape == "32x32b" and rows == 64:
+        # Layout B's logical (64, N) tile physically occupies all 128 lanes and
+        # N/2 tcols. A .32x32b thread therefore owns its physical lane and N/2
+        # fp32 registers. Re-label that (128, N/2) register file as (64, N).
+        if bits != 32:
+            raise ValueError(
+                "tcgen05_atom_layout: 32x32b with 64 rows is the datapath B "
+                f"readback image and is fp32-only, got {dtype} ({bits} bits)"
+            )
+        if cols % 2 != 0:
+            raise ValueError(
+                f"tcgen05_atom_layout: 32x32b (64, N) datapath B image expects even N, got {cols}"
+            )
+        n_half = cols // 2
+        if n_half not in _TCGEN05_ATOM_REPS["32x32b"]:
+            raise ValueError(
+                f"tcgen05_atom_layout: 32x32b (64, N) datapath B image needs N/2={n_half} "
+                f"(from N={cols}) in the PTX Table 49 set {_TCGEN05_ATOM_REPS['32x32b']}"
+            )
+        return TileLayout.from_iters(
+            [
+                Iter(64, 1, Axis.tid_in_wg),
+                Iter(2, 64, Axis.tid_in_wg),
+                Iter(n_half, 1, "m"),
+            ],
+            [],
+            {},
         )
 
     elem_per_32b = 32 // bits
@@ -1000,14 +1234,14 @@ class _LayoutSpec:
                 replica=other.replica if other.replica else self.replica,
                 offset=_merge_offset(self.offset, other.offset),
             )
-        if isinstance(other, _OnAxis | _OffsetExpr | int):
+        if isinstance(other, _OnAxis | _OffsetExpr | Expr | int):
             return _LayoutSpec(
                 shard=self.shard, replica=self.replica, offset=_merge_offset(self.offset, other)
             )
         return NotImplemented
 
     def __radd__(self, other):
-        if isinstance(other, _OnAxis | _OffsetExpr | int):
+        if isinstance(other, _OnAxis | _OffsetExpr | Expr | int):
             return _LayoutSpec(
                 shard=self.shard, replica=self.replica, offset=_merge_offset(other, self.offset)
             )
@@ -1167,6 +1401,28 @@ class TileLayout(Layout):
         """
         return _ffi_api.TileLayoutGroup(self, shape)  # pylint: disable=no-member
 
+    def group_many(self, shapes: Sequence[Sequence[Expr]]) -> tuple["TileLayout", list[list[int]]]:
+        """Group the layout by the minimal common refinement of several shapes.
+
+        Repeated cumulative product boundaries are retained, so an extent-one
+        dimension in any input shape becomes a real unit iterator in the
+        refined layout.  This operation only splits existing shard iterators;
+        it does not canonicalize or reorder the layout.
+
+        Parameters
+        ----------
+        shapes : Sequence[Sequence[Expr]]
+            Logical shapes with provably equal total products.
+
+        Returns
+        -------
+        Tuple[TileLayout, List[List[int]]]
+            The commonly refined layout and one separator list per input shape.
+        """
+        return _ffi_api.TileLayoutGroupMany(  # pylint: disable=no-member
+            self, [list(shape) for shape in shapes]
+        )
+
     def get_scope(self) -> tuple[ExecScope, ExecScope] | None:
         """Get the scope pair of the layout."""
         return _ffi_api.TileLayoutGetScope(self)  # pylint: disable=no-member
@@ -1284,34 +1540,35 @@ class TileLayout(Layout):
         return self.permute_dims(flat)
 
 
-@tvm_ffi.register_object("tirx.SwizzleLayout")
-class SwizzleLayout(Layout):
-    """A memory layout that swizzles elements to improve memory access patterns."""
+@tvm_ffi.register_object("tirx.ComposeLayout")
+class ComposeLayout(Layout):
+    """A memory layout that swizzles a tile layout.
+
+    ``per_element`` / ``swizzle_len`` / ``atom_len`` / ``swizzle_inner`` carry the
+    swizzle (formerly the standalone ``SwizzleLayout``); ``tile_layout`` is the
+    tiled memory map the swizzle is applied to. A bare swizzle is a
+    ``ComposeLayout`` over a trivial identity tile.
+    """
 
     per_element: int
     swizzle_len: int
     atom_len: int
     swizzle_inner: bool
+    tile_layout: "TileLayout"
 
     def __init__(
-        self, per_element: int, swizzle_len: int, atom_len: int, swizzle_inner: bool = True
+        self,
+        per_element: int,
+        swizzle_len: int,
+        atom_len: int,
+        tile_layout: "TileLayout",
+        swizzle_inner: bool = True,
     ):
         self.__init_handle_by_constructor__(
-            _ffi_api.SwizzleLayout,  # pylint: disable=no-member
+            _ffi_api.ComposeLayout,  # pylint: disable=no-member
             per_element,
             swizzle_len,
             atom_len,
+            tile_layout,
             swizzle_inner,
-        )
-
-
-@tvm_ffi.register_object("tirx.ComposeLayout")
-class ComposeLayout(Layout):
-    """A memory layout that composes 2 layouts."""
-
-    def __init__(self, layout_A: "SwizzleLayout", layout_B: "TileLayout"):
-        self.__init_handle_by_constructor__(
-            _ffi_api.ComposeLayout,  # pylint: disable=no-member
-            layout_A,
-            layout_B,
         )

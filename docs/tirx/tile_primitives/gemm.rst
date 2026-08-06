@@ -24,7 +24,7 @@ fragments and the C/D accumulators **all live in registers** — the caller stag
 and B into register fragments first (typically via :doc:`copy/ldstmatrix`). The
 dispatch tiles M/N/K into ``m16n8k`` atoms and emits one ``mma`` per output tile,
 accumulating over K in place. Source:
-``python/tvm/backend/cuda/operator/tile_primitive/gemm/mma_m16n8k_.py``. (For the
+``python/tvm/backend/cuda/tile_primitive/gemm/mma_m16n8k_.py``. (For the
 Blackwell async tensor-core path see :doc:`gemm_async`.)
 
 What it accepts
@@ -88,7 +88,7 @@ accumulate) — one ``m16n8k16`` atom (from ``test_gemm_mma_m16n8k_.py``):
         D_f = T.alloc_buffer((16, 8),  "float32", scope="local", layout=D_FRAG)
         A_reg = A_f.local(8)                              # stage A into the lane's 8 regs
         for s in T.unroll(8):
-            kp, kHi, rM = s % 2, (s // 2) % 2, s // 4
+            kp, rM, kHi = s % 2, (s // 2) % 2, s // 4
             A_reg[s] = A_g[lane // 4 + 8 * rM, 2 * (lane % 4) + kp + 8 * kHi]
         B_reg = B_f.local(4)                              # stage B into the lane's 4 regs
         for s in T.unroll(4):
@@ -109,9 +109,13 @@ group the operand sub-layouts (``D_M, D_N, A_M, A_K, B_K, B_N, C_*``) into the f
 m16n8k frame, anchoring A/C on D's M, B/C on D's N, and B on A's K. The first
 instruction that fits, with matching warp-tiling, wins.
 
-**2. Derive register layouts.** Each operand gets a per-lane register view: D/C as
-``[Mo, No, rM, rN]`` (4 f32), A as ``[Mo, Ko, rM, kHi, k_pack]``, B as
-``[Ko, No, kHi, k_pack]`` — the exact register order ``mma.sync`` expects.
+**2. Derive register layouts.** Each operand gets a mediated per-lane view:
+D/C as ``[Mo, No, rM, rN]`` (4 f32), A as
+``[Mo, Ko, rM, kHi, k_pack]``, and B as
+``[Ko, No, kHi, k_pack]``.  The corresponding raw physical register order
+exposed by the default ``local`` view is D/C ``[Mo, No, rM, rN]``, A
+``[Mo, Ko, kHi, rM, k_pack]``, and B ``[Ko, No, kHi, k_pack]`` — the PTX
+operand enumeration that ``mma.sync`` expects.
 
 **3. Emit the unrolled nest** — initialize D (from C if ``beta==1``, else 0), then
 accumulate over K in place, one ``mma`` per (m, n) tile:

@@ -85,7 +85,8 @@ def test_ir2():
     st = tvm.tirx.BufferStore(buf, x + 1, [1])
     assert isinstance(st, tvm.tirx.BufferStore)
     assert st.buffer == buf
-    assert st.buffer.data == array
+    assert st.buffer.data.args[0].same_as(buf)
+    assert st.buffer.data.ty == array.ty
 
 
 def test_let():
@@ -308,9 +309,11 @@ def test_prim_func():
 
     func = tvm.tirx.PrimFunc([x, y, b], stmt)
     # make sure we can print
-    assert func.buffer_map[func.params[2]].same_as(b)
+    assert func.params[2].same_as(b)
+    assert not hasattr(func, "buffer_map")
 
-    assert len(func.buffer_map) == 1
+    assert sum(tvm.tirx.is_buffer_var(param) for param in func.params) == 1
+    assert func.with_body(tvm.tirx.Evaluate(0)).params[2].same_as(b)
     f2 = func.with_attr({"calling_conv": 1, "tirx.noalias": True})
     assert f2.attrs["calling_conv"] == 1
     assert not func.attrs

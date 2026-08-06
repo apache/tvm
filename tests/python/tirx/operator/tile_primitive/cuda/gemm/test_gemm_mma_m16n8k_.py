@@ -241,11 +241,12 @@ def _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype):
     """End-to-end ``T.gemm`` over an Mt x Nt x Kt tiling, with the A/B inputs
     loaded and the D output stored register-by-register.
 
-    Fragments are indexed through their per-register multi-dim ``.local()`` views
-    (the shard's non-lane dims, in shard order): A = [Mt, rM(2), Kt, kHi, kp],
-    B = [Kt, kHi, kp, Nt], D/C = [Mt, rM(2), Nt, rN(2)]. The lane owns g = lane>>2
-    and t = lane&3; within a tile M = mt*16 + rM*8 + g, N = nt*8 + t*2 + rN,
-    K = kt*kinst + kHi*8 + t*2 + kp.
+    Fragments are indexed through per-register multi-dim ``.local()`` views.
+    Their axes follow physical register order (stride-descending):
+    A = [Mt, Kt, kHi, rM(2), kp], B = [Kt, Nt, kHi, kp], and
+    D/C = [Mt, Nt, rM(2), rN(2)]. The lane owns g = lane>>2 and
+    t = lane&3; within a tile M = mt*16 + rM*8 + g,
+    N = nt*8 + t*2 + rN, K = kt*kinst + kHi*8 + t*2 + kp.
     """
     Dl, Al, Bl = _frag(Mt, Nt, Kt, kinst)
     M, N, K = 16 * Mt, 8 * Nt, kinst * Kt
@@ -266,28 +267,28 @@ def _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype):
         B_f = T.alloc_buffer((K, N), dtype, scope="local", layout=Bl)
         C_f = T.alloc_buffer((M, N), "float32", scope="local", layout=Dl)
         D_f = T.alloc_buffer((M, N), "float32", scope="local", layout=Dl)
-        A_reg = A_f.local(Mt, 2, Kt, kHi_n, KP)
-        for mt, rM, kt, kHi, kp in T.grid(Mt, 2, Kt, kHi_n, KP):
-            A_reg[mt, rM, kt, kHi, kp] = A_g[
+        A_reg = A_f.local(Mt, Kt, kHi_n, 2, KP)
+        for mt, kt, kHi, rM, kp in T.grid(Mt, Kt, kHi_n, 2, KP):
+            A_reg[mt, kt, kHi, rM, kp] = A_g[
                 mt * 16 + lane // 4 + 8 * rM,
                 kt * kinst + kHi * 8 + 2 * (lane % 4) + kp,
             ]
-        B_reg = B_f.local(Kt, kHi_n, KP, Nt)
-        for kt, kHi, kp, nt in T.grid(Kt, kHi_n, KP, Nt):
-            B_reg[kt, kHi, kp, nt] = B_g[
+        B_reg = B_f.local(Kt, Nt, kHi_n, KP)
+        for kt, nt, kHi, kp in T.grid(Kt, Nt, kHi_n, KP):
+            B_reg[kt, nt, kHi, kp] = B_g[
                 kt * kinst + kHi * 8 + 2 * (lane % 4) + kp,
                 nt * 8 + lane // 4,
             ]
         if beta == 1.0:
-            C_reg = C_f.local(Mt, 2, Nt, 2)
-            for mt, rM, nt, rN in T.grid(Mt, 2, Nt, 2):
-                C_reg[mt, rM, nt, rN] = C_g[
+            C_reg = C_f.local(Mt, Nt, 2, 2)
+            for mt, nt, rM, rN in T.grid(Mt, Nt, 2, 2):
+                C_reg[mt, nt, rM, rN] = C_g[
                     mt * 16 + lane // 4 + 8 * rM, nt * 8 + 2 * (lane % 4) + rN
                 ]
         Tx.warp.gemm(D_f, A_f, B_f, C_f, transpose_A=False, transpose_B=False, alpha=1.0, beta=beta)
-        D_reg = D_f.local(Mt, 2, Nt, 2)
-        for mt, rM, nt, rN in T.grid(Mt, 2, Nt, 2):
-            D_g[mt * 16 + lane // 4 + 8 * rM, nt * 8 + 2 * (lane % 4) + rN] = D_reg[mt, rM, nt, rN]
+        D_reg = D_f.local(Mt, Nt, 2, 2)
+        for mt, nt, rM, rN in T.grid(Mt, Nt, 2, 2):
+            D_g[mt * 16 + lane // 4 + 8 * rM, nt * 8 + 2 * (lane % 4) + rN] = D_reg[mt, nt, rM, rN]
 
     return gemm, M, N, K
 
@@ -295,11 +296,9 @@ def _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype):
 def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
     """End-to-end single-tile ``T.gemm`` for one A/B input orientation.
 
-    The transposed A fragment (``A_KM_FRAG``) carries its registers in the
-    [kHi, kp, rM] shard order (vs [rM, kHi, kp] for the K-major ``A_FRAG``); B's
-    register order ([kHi, kp]) is the same for both orientations. The buffer
-    index axes swap with the orientation, but each register still holds the same
-    logical (M, K) / (K, N) element.
+    The transposed and K-major A fragments share the physical register order
+    [kHi, rM, kp]; only their logical buffer axes differ.  B's physical order
+    [kHi, kp] is likewise unchanged by orientation.
     """
     Al = A_KM_FRAG if transpose_A else A_FRAG
     Bl = B_NK_FRAG if transpose_B else B_FRAG
@@ -320,13 +319,13 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
         D_f = T.alloc_buffer((16, 8), "float32", scope="local", layout=D_FRAG)
         A_reg = A_f.local(2, 2, 2)
         if transpose_A:
-            # A_KM_FRAG register order is [kHi, kp, rM]; buffer is [K, M].
-            for kHi, kp, rM in T.grid(2, 2, 2):
-                A_reg[kHi, kp, rM] = A_g[2 * (lane % 4) + kp + 8 * kHi, lane // 4 + 8 * rM]
+            # A_KM_FRAG: buffer is [K, M].
+            for kHi, rM, kp in T.grid(2, 2, 2):
+                A_reg[kHi, rM, kp] = A_g[2 * (lane % 4) + kp + 8 * kHi, lane // 4 + 8 * rM]
         else:
-            # A_FRAG register order is [rM, kHi, kp]; buffer is [M, K].
-            for rM, kHi, kp in T.grid(2, 2, 2):
-                A_reg[rM, kHi, kp] = A_g[lane // 4 + 8 * rM, 2 * (lane % 4) + kp + 8 * kHi]
+            # A_FRAG: buffer is [M, K].
+            for kHi, rM, kp in T.grid(2, 2, 2):
+                A_reg[kHi, rM, kp] = A_g[lane // 4 + 8 * rM, 2 * (lane % 4) + kp + 8 * kHi]
         B_reg = B_f.local(2, 2)
         if transpose_B:
             # B_NK_FRAG buffer is [N, K].
@@ -428,7 +427,7 @@ def test_cuda_gemm_mma_numerical(dtype):
     with ``g = lane >> 2`` and ``t = lane & 3``. The per-register *slot* order
     matches the dispatch's fragment register layout:
 
-        A reg slot = 4*rM + 2*kHi + kp  -> M = g + 8*rM, K = 2*t + kp + 8*kHi
+        A reg slot = 4*kHi + 2*rM + kp  -> M = g + 8*rM, K = 2*t + kp + 8*kHi
         B reg slot = 2*kHi + kp         -> K = 2*t + kp + 8*kHi, N = g
         D reg slot = 2*rM + rN          -> M = g + 8*rM, N = 2*t + rN
     """
@@ -452,9 +451,10 @@ def test_cuda_gemm_mma_numerical(dtype):
         D_f = T.alloc_buffer((16, 8), "float32", scope="local", layout=D_FRAG)
         A_reg = A_f.local(8)
         for s in T.unroll(8):
+            # Physical register order: s = 4*kHi + 2*rM + kp.
             kp = s % 2
-            kHi = (s // 2) % 2
-            rM = s // 4
+            rM = (s // 2) % 2
+            kHi = s // 4
             A_reg[s] = A_g[lane // 4 + 8 * rM, 2 * (lane % 4) + kp + 8 * kHi]
         B_reg = B_f.local(4)
         for s in T.unroll(4):

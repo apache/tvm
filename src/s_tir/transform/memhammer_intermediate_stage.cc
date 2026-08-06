@@ -202,7 +202,7 @@ class IndexPatternFinder : public ExprVisitor {
 
 class BufferLoadReplacer : public StmtExprMutator {
  public:
-  BufferLoadReplacer(const Buffer& tgt_buffer, const BufferLoad& new_buffer_load)
+  BufferLoadReplacer(const BufferVar& tgt_buffer, const BufferLoad& new_buffer_load)
       : tgt_buffer_(tgt_buffer), new_buffer_load_(new_buffer_load) {}
 
   Expr VisitExpr_(const BufferLoadNode* op) {
@@ -213,7 +213,7 @@ class BufferLoadReplacer : public StmtExprMutator {
   }
 
  private:
-  Buffer tgt_buffer_;
+  BufferVar tgt_buffer_;
   BufferLoad new_buffer_load_;
 };
 
@@ -231,7 +231,7 @@ class BufferLoadReplacer : public StmtExprMutator {
 std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::String storage_scope,
                                           ffi::Optional<For> compute_location,
                                           const ffi::Array<For>& outer_loops,
-                                          Buffer* alloc_buffer) {
+                                          BufferVar* alloc_buffer) {
   Stmt body = stmt;
   std::vector<const ForNode*> loops;
   std::vector<const ForNode*> loops_under_compute_location;
@@ -358,7 +358,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
     subst_cache_indices.push_back(Substitute(e, subst_map));
   }
 
-  Buffer new_buffer;
+  BufferVar new_buffer;
   if (is_write_cache) {
     // this is needed for global <- cast(load(wmma))
     // shared stage should have the same dtype as wmma
@@ -366,8 +366,9 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   } else {
     new_buffer = WithScope(buf_store->buffer, storage_scope);
   }
-  BufferNode* buffer_ptr = new_buffer.CopyOnWrite();
-  buffer_ptr->shape = new_shape;
+  ffi::ObjectPtr<BufferTypeNode> buffer_type = CopyBufferType(new_buffer);
+  buffer_type->shape = new_shape;
+  new_buffer = RebuildBufferVar(new_buffer, std::move(buffer_type));
   *alloc_buffer = new_buffer;
 
   Stmt generate_body;
@@ -440,7 +441,7 @@ Stmt CreateLocalStage::Rewrite(const Stmt& stmt, const ConstraintSet& constraint
   Stmt body;
   For compute_location;
   std::tie(body, compute_location) = LiftThreadBindingLoops(std::move(stmt));
-  Buffer cache_buffer;
+  BufferVar cache_buffer;
   Stmt after_caching = InsertCacheStage(body, false, "local", compute_location,
                                         constraints.outer_loops, &cache_buffer)
                            .first;

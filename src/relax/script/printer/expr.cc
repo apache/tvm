@@ -158,7 +158,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<relax::DataflowVar>("rel
 
 std::string ReprPrintVar(const ffi::ObjectRef& obj, const PrinterConfig& cfg) {
   Var var = obj.as_or_throw<Var>();
-  if (var->ty.as<PrimTypeNode>() || var->ty.as<PointerTypeNode>()) {
+  if (var->ty.as<PrimTypeNode>() || var->ty.as<PointerTypeNode>() ||
+      var->ty.as<tirx::BufferTypeNode>()) {
     return ReprPrintTIR(obj, cfg);
   }
   return ReprPrintRelax(obj, cfg);

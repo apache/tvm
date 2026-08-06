@@ -52,52 +52,6 @@ class PrimFuncNode : public BaseFuncNode {
   ffi::Array<tirx::Var> params;
   /*! \brief The return type of the function. */
   Type ret_type = Type::Missing();
-  /*!
-   * \brief Maps some parameters to specific Buffer data structures.
-   *
-   *  buffer_map provides a way to express data structure's field and shape
-   *  constraints. The provided information is used in the program analysis
-   *  and the code generation.
-   *
-   *  - It defines the vars in the Buffer (m, n) in the cases below when
-   *    they appears in the buffer_map for the first time.
-   *  - When a var appears multiple times, they translate into runtime
-   *    assertion to check the field constraint.
-   *
-   *  \code
-   *
-   *   # The corresponding fields of f are as follows
-   *   #
-   *   # - f.params = [a, b]
-   *   # - f.buffer_map = {a: A, b: B}
-   *   # - A = decl_buffer(shape=[m, n])
-   *   # - B = decl_buffer(shape=[m, n])
-   *
-   *   def f(a, b):
-   *       m, n = var(), var()
-   *       A = bind_buffer(a, shape=[m, n])
-   *       B = bind_buffer(b, shape=[m, n])
-   *       # body
-   *
-   *  \endcode
-   *
-   *  buffer_map is a sugar to express:
-   *  - Parameter unpacking: e.g. I can load a.shape[0] to get value of m
-   *  - Constraint checking: a.shape[0] must equal b.shape[0] because they
-   *    both corresponds to m.
-
-   *  While we could have express parameter unpacking and constraint using
-   *  normal statements, making buffer_map as first class citizen of PrimFunc
-   *  will make program analysis much easier.
-   *
-   *  Prior to buffer flattening, which is performed FlattenBuffer for
-   *  TIR-based schedules, these buffer objects are used directly in
-   *  the body of the function.  After buffer flattening, these buffer
-   *  objects remain unflattened for use in argument validation, but
-   *  all usage in the body of the function is done through a
-   *  flattened alias of the buffer.
-   */
-  ffi::Map<tirx::Var, Buffer> buffer_map;
   /*! \brief The body of the function */
   tirx::Stmt body;
 
@@ -106,7 +60,6 @@ class PrimFuncNode : public BaseFuncNode {
     refl::ObjectDef<PrimFuncNode>()
         .def_ro("params", &PrimFuncNode::params, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("ret_type", &PrimFuncNode::ret_type)
-        .def_ro("buffer_map", &PrimFuncNode::buffer_map)
         .def_ro("body", &PrimFuncNode::body);
     refl::TypeAttrDef<PrimFuncNode>()
         .def("__s_equal__", &PrimFuncNode::SEqual)
@@ -121,7 +74,6 @@ class PrimFuncNode : public BaseFuncNode {
     return equal(attrs, other->attrs, false, "attrs") &&
            equal(params, other->params, true, "params") &&
            equal(ret_type, other->ret_type, false, "ret_type") &&
-           equal(buffer_map, other->buffer_map, false, "buffer_map") &&
            equal(body, other->body, false, "body");
   }
 
@@ -130,7 +82,6 @@ class PrimFuncNode : public BaseFuncNode {
     hash_value = hash(attrs, hash_value, false);
     hash_value = hash(params, hash_value, true);
     hash_value = hash(ret_type, hash_value, false);
-    hash_value = hash(buffer_map, hash_value, false);
     hash_value = hash(body, hash_value, false);
     return hash_value;
   }
@@ -162,17 +113,11 @@ class PrimFunc : public BaseFunc {
    *
    * \param ret_type The return type of the function.
    *
-   * \param buffer_map The buffer map for parameter buffer unpacking.
-   * This contains buffer objects as they appear in the body of the
-   * PrimFunc.  (e.g. a buffer of shape ``[1024]`` originally
-   * generated as a tensor of shape ``[32, 32]``)
-   *
    * \param attrs Additional function attributes.
    *
    * \param span The location of this object in the source code.
    */
   TVM_DLL PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type = VoidType(),
-                   ffi::Map<tirx::Var, Buffer> buffer_map = ffi::Map<tirx::Var, Buffer>(),
                    DictAttrs attrs = DictAttrs(), Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimFunc, BaseFunc, PrimFuncNode);
@@ -273,7 +218,7 @@ class TensorIntrin : public ffi::ObjectRef {
  *              B[vi, vj] = A[vi, vj]
  * \endcode
  */
-PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<Buffer, Expr>>& param_map);
+PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<BufferVar, Expr>>& param_map);
 
 /*!
  * \brief PrimFunc specific attribute names.
@@ -293,7 +238,8 @@ namespace attr {
  *      [arg1, arg2, ..., arg_n,
  *       work_size_1, work_size_2, ... work_size_m, dyn_shmem_size])
  *
- * Here n = len(arg), m = len(work_size) = len(launch_params)-1.
+ * Flag-only launch tags do not add packed operands.  The dynamic shared-memory
+ * operand is present only when its value-bearing tag is listed.
  *
  * The list of kernel launch params indicates which additional
  * parameters will be provided to the ffi::Function by the calling
@@ -319,12 +265,14 @@ namespace attr {
  *
  * - tvm::runtime::launch_param::kUseDynamicSharedMemoryTag
  *
- *   The size of the shared memory that may be allocated internally by
- *   the kernel.  For example, exposed as the
- *   CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES attribute in
- *   CUDA.
+ *   The dynamic shared-memory byte count passed for this launch.
  *
  *   Defined as "tirx.use_dyn_shared_memory".
+ *
+ * - tvm::runtime::launch_param::kUseProgramaticDependentLaunch
+ * - tvm::runtime::launch_param::kUseCooperativeLaunch
+ *
+ *   Flag-only launch attributes.  These tags add no packed operand.
  *
  * \sa tvm::CallingConv::kDeviceKernelLaunch
  */
@@ -336,6 +284,14 @@ constexpr const char* kKernelLaunchParams = "tirx.kernel_launch_params";
  * Type: IntImm
  */
 constexpr const char* kLaunchBoundsMinBlocksPerSM = "tirx.launch_bounds_min_blocks_per_sm";
+
+/*!
+ * \brief CUDA launch bound maximum CTAs per cluster.
+ *
+ * Type: IntImm
+ */
+constexpr const char* kLaunchBoundsMaxBlocksPerCluster =
+    "tirx.launch_bounds_max_blocks_per_cluster";
 
 /*!
  * \brief Whether to set noalias rule on the function arguments.

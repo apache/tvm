@@ -59,15 +59,15 @@ class MatchBufferLower : public StmtExprMutator {
     // (e.g., remapping elem_offset). We need match_buffers_ to also
     // contain the remapped buffer keys for lookups in the body.
     // Snapshot current match_buffers_ keys before base visit.
-    std::vector<Buffer> orig_buffers;
+    std::vector<BufferVar> orig_buffers;
     for (const auto& kv : match_buffers_) {
       orig_buffers.push_back(kv.first);
     }
     Stmt stmt = StmtExprMutator ::VisitStmt_(op);
     // Add remapped buffer keys to match_buffers_
-    for (const Buffer& orig_buf : orig_buffers) {
+    for (const BufferVar& orig_buf : orig_buffers) {
       if (auto remap_it = buffer_remap_.find(orig_buf); remap_it != buffer_remap_.end()) {
-        Buffer remapped = (*remap_it).second;
+        BufferVar remapped = (*remap_it).second;
         if (!match_buffers_.count(remapped)) {
           match_buffers_.Set(remapped, match_buffers_[orig_buf]);
         }
@@ -106,9 +106,22 @@ class MatchBufferLower : public StmtExprMutator {
     }
   }
 
+  Expr VisitExpr_(const CallNode* op) final {
+    if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
+      if (auto var = op->args[0].as<Var>();
+          var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
+        auto it = match_buffers_.find(BufferVar(var.value()));
+        if (it != match_buffers_.end()) {
+          return (*it).second->buffer.data();
+        }
+      }
+    }
+    return StmtExprMutator::VisitExpr_(op);
+  }
+
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     // Save the original buffer before base class mutation may remap it
-    Buffer orig_buffer = op->buffer;
+    BufferVar orig_buffer = op->buffer;
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferStoreNode>();
     TVM_FFI_ICHECK(op != nullptr);
@@ -118,7 +131,7 @@ class MatchBufferLower : public StmtExprMutator {
     if (it == match_buffers_.end()) {
       return stmt;
     } else {
-      const Buffer& buffer = (*it).first;
+      const BufferVar& buffer = (*it).first;
       const BufferRegion& source = (*it).second;
 
       auto n = CopyOnWrite(op);
@@ -132,7 +145,7 @@ class MatchBufferLower : public StmtExprMutator {
 
   Expr VisitExpr_(const BufferLoadNode* op) final {
     // Save the original buffer before base class mutation may remap it
-    Buffer orig_buffer = op->buffer;
+    BufferVar orig_buffer = op->buffer;
     PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
     op = expr.as<BufferLoadNode>();
     TVM_FFI_ICHECK(op != nullptr);
@@ -141,7 +154,7 @@ class MatchBufferLower : public StmtExprMutator {
     if (it == match_buffers_.end()) {
       return expr;
     } else {
-      const Buffer& buffer = (*it).first;
+      const BufferVar& buffer = (*it).first;
       const BufferRegion& source = (*it).second;
       ffi::Array<PrimExpr> indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
       TVM_FFI_ICHECK(!op->predicate.has_value())
@@ -151,7 +164,7 @@ class MatchBufferLower : public StmtExprMutator {
   }
 
   BufferRegion VisitBufferRegion(const BufferRegion& buffer_region) {
-    const Buffer& buffer = buffer_region->buffer;
+    const BufferVar& buffer = buffer_region->buffer;
     auto it = match_buffers_.find(buffer);
     if (it == match_buffers_.end()) {
       return buffer_region;
@@ -165,9 +178,9 @@ class MatchBufferLower : public StmtExprMutator {
  private:
   void CheckAndUpdateVarMap(const MatchBufferRegion& match_buffer) {
     // Step.1. Check
-    const Buffer& buffer = match_buffer->buffer;
+    const BufferVar& buffer = match_buffer->buffer;
     const BufferRegion& source = VisitBufferRegion(match_buffer->source);
-    const Buffer& source_buffer = source->buffer;
+    const BufferVar& source_buffer = source->buffer;
 
     // Step.1.1. Check scope & dtype
     TVM_FFI_ICHECK_EQ(buffer.scope(), source_buffer.scope())
@@ -185,17 +198,14 @@ class MatchBufferLower : public StmtExprMutator {
     }
     if (is_zero(buffer->elem_offset)) {
       TVM_FFI_ICHECK(is_zero(source_buffer->elem_offset))
-          << "Trying to bind a Buffer with offset into one without offset "
+          << "Trying to bind a BufferVar with offset into one without offset "
           << " required elem_offset=" << buffer->elem_offset
           << ", provided elem_offset=" << source_buffer->elem_offset;
     }
 
     // Step.2. Update
     match_buffers_.Set(buffer, source);
-    // Step.2.1. Update buffer data
-    Bind(buffer->data, source_buffer->data, buffer->name + ".data");
-
-    // Step.2.2. Update element offset
+    // Step.2.1. Update element offset
     // We use the ElemOffset method to avoid duplicating the index calculation.
     {
       ffi::Array<PrimExpr> indices;
@@ -206,7 +216,7 @@ class MatchBufferLower : public StmtExprMutator {
 
       ffi::Array<PrimExpr> buffer_start_indices = source_buffer->ElemOffset(indices);
       if (buffer_start_indices.size() == 1) {
-        Bind(buffer->elem_offset, buffer_start_indices[0], buffer->name + ".elem_offset");
+        Bind(buffer->elem_offset, buffer_start_indices[0], buffer.name() + ".elem_offset");
         TVM_FFI_ICHECK(
             analyzer_->CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
             << "The source elem_offset " << buffer_start_indices[0]
@@ -229,14 +239,14 @@ class MatchBufferLower : public StmtExprMutator {
         PrimExpr stride = MakeConst(buffer->strides.back().ty(), 1);
         for (size_t i = buffer->shape.size(); i > 0; --i) {
           const PrimExpr& shape = source_buffer->shape[i - 1 + offset];
-          Bind(buffer->strides[i - 1], stride, buffer->name + ".strides_" + std::to_string(i - 1));
+          Bind(buffer->strides[i - 1], stride, buffer.name() + ".strides_" + std::to_string(i - 1));
           stride *= shape;
         }
       } else {
         TVM_FFI_ICHECK_EQ(buffer->shape.size() + offset, source_buffer->strides.size());
         for (size_t i = buffer->shape.size(); i > 0; --i) {
           const PrimExpr& stride = source_buffer->strides[i - 1 + offset];
-          Bind(buffer->strides[i - 1], stride, buffer->name + ".strides_" + std::to_string(i - 1));
+          Bind(buffer->strides[i - 1], stride, buffer.name() + ".strides_" + std::to_string(i - 1));
         }
       }
     }
@@ -244,7 +254,7 @@ class MatchBufferLower : public StmtExprMutator {
     // Step 2.4. Check and update shape
     for (size_t i = 0; i < buffer->shape.size(); ++i) {
       const Range& range = source->region[i + offset];
-      Bind(buffer->shape[i], range->extent, buffer->name + ".shape_" + std::to_string(i));
+      Bind(buffer->shape[i], range->extent, buffer.name() + ".shape_" + std::to_string(i));
     }
   }
 
@@ -295,8 +305,8 @@ class MatchBufferLower : public StmtExprMutator {
   }
 
  private:
-  /*! \brief Buffer region mapping. */
-  ffi::Map<Buffer, BufferRegion> match_buffers_;
+  /*! \brief BufferVar region mapping. */
+  ffi::Map<BufferVar, BufferRegion> match_buffers_;
   /*! \brief Var mapping for buffer signature (data, strides, element_offset, etc.) */
   ffi::Map<Var, Expr> var_map_;
   /*! \brief The analyzer */

@@ -35,9 +35,24 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
+namespace {
+
+ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
+  if (auto var = data.as<Var>()) {
+    return var;
+  }
+  if (const auto* call = data.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    return call->args[0].as<Var>();
+  }
+  return std::nullopt;
+}
+
+}  // namespace
+
 void StorageAccessVisitor::VisitExpr_(const BufferLoadNode* op) {
-  Var buf = op->buffer->data;
-  StorageScope scope = GetScope(buf);
+  Var buf = ResolveBuffer(op->buffer.var());
+  StorageScope scope = StorageScope::Create(op->buffer.scope());
   if (Enabled(buf.get(), scope)) {
     TVM_FFI_ICHECK(allow_append_) << op << " " << scope.to_string();
     AccessEntry e;
@@ -60,8 +75,8 @@ void StorageAccessVisitor::VisitStmt_(const BufferStoreNode* op) {
   TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
 
-  Var buf = op->buffer->data;
-  StorageScope scope = GetScope(buf);
+  Var buf = ResolveBuffer(op->buffer.var());
+  StorageScope scope = StorageScope::Create(op->buffer.scope());
   if (Enabled(buf.get(), scope)) {
     AccessEntry e;
     e.threads = env_threads();
@@ -81,6 +96,13 @@ void StorageAccessVisitor::VisitStmt_(const BufferStoreNode* op) {
   // clear access entry.
   curr_stmt_.access.clear();
   allow_append_ = false;
+}
+
+void StorageAccessVisitor::VisitStmt_(const DeclBufferNode* op) {
+  if (auto source = GetBufferDataVar(op->data)) {
+    buffer_aliases_.insert_or_assign(op->buffer.get(), ResolveBuffer(source.value()));
+  }
+  StmtExprVisitor::VisitStmt_(op);
 }
 
 void StorageAccessVisitor::VisitStmt_(const EvaluateNode* op) {
@@ -111,7 +133,10 @@ void StorageAccessVisitor::VisitStmt_(const BindNode* op) {
 void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == s_tir::attr::double_buffer_write) {
     TVM_FFI_ICHECK(double_buffer_write_ == nullptr);
-    double_buffer_write_ = op->node.as<VarNode>();
+    auto buffer = GetBufferDataVar(op->node);
+    TVM_FFI_ICHECK(buffer.has_value())
+        << "Expected a buffer data expression for double-buffer writes, but received " << op->node;
+    double_buffer_write_ = ResolveBuffer(buffer.value()).get();
     scope_.push_back(std::vector<StmtEntry>());
     StmtExprVisitor::VisitStmt_(op);
     StmtEntry s;
@@ -248,8 +273,8 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
   } else if (op->op.same_as(builtin::tvm_access_ptr())) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
     PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
-    const VarNode* buffer = op->args[1].as<VarNode>();
-    if (buffer == nullptr) {
+    auto buffer_var = GetBufferDataVar(op->args[1]);
+    if (!buffer_var.has_value()) {
       // args[1] is not a raw Var — e.g. a nested tvm_access_ptr or some
       // other PrimExpr. Recurse into sub-exprs so any inner buffer var
       // refs still get visited, but don't try to record an access entry
@@ -257,17 +282,18 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
       StmtExprVisitor::VisitExpr_(op);
       return;
     }
+    Var buffer = ResolveBuffer(buffer_var.value());
     PrimExpr offset = op->args[2].as_or_throw<PrimExpr>();
     PrimExpr extent = op->args[3].as_or_throw<PrimExpr>();
     const IntImmNode* flag = op->args[4].as<IntImmNode>();
-    StorageScope scope = GetScope(ffi::GetRef<Var>(buffer));
+    StorageScope scope = GetScope(buffer_var.value());
     // The buffer scope.
-    if (Enabled(buffer, scope)) {
+    if (Enabled(buffer.get(), scope)) {
       TVM_FFI_ICHECK(allow_append_);
       AccessEntry e;
       e.threads = env_threads();
       e.dtype = dtype;
-      e.buffer = ffi::GetRef<Var>(buffer);
+      e.buffer = buffer;
       e.touched = {arith::IntSet::FromRange(Range::FromMinExtent(offset, extent))};
       e.scope = scope;
       if (flag->value & 1) {
@@ -297,10 +323,18 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
 }
 
 StorageScope StorageAccessVisitor::GetScope(Var buffer_var) const {
+  if (auto buffer_type = buffer_var->ty.as<BufferType>()) {
+    return StorageScope::Create(buffer_type.value()->storage_scope);
+  }
   if (buffer_var->ty.as<PointerTypeNode>()) {
     return StorageScope::Create(GetPtrStorageScope(buffer_var));
   }
   return StorageScope();  // global by default
+}
+
+Var StorageAccessVisitor::ResolveBuffer(Var buffer_var) const {
+  auto it = buffer_aliases_.find(buffer_var.get());
+  return it == buffer_aliases_.end() ? buffer_var : it->second;
 }
 
 }  // namespace s_tir

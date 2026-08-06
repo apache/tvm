@@ -35,7 +35,7 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
-#include <tvm/tirx/tirx_op.h>
+#include <tvm/tirx/tile_primitive.h>
 #include <tvm/tirx/transform.h>
 
 #include <optional>
@@ -254,7 +254,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
  private:
   class BufferRefRewriter : public StmtExprMutator {
    public:
-    static Stmt Rewrite(const Stmt& stmt, const Buffer& src, const Buffer& dst) {
+    static Stmt Rewrite(const Stmt& stmt, const BufferVar& src, const BufferVar& dst) {
       if (src.same_as(dst)) {
         return stmt;
       }
@@ -262,25 +262,25 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     }
 
    private:
-    BufferRefRewriter(Buffer src, Buffer dst) : src_(std::move(src)), dst_(std::move(dst)) {}
+    BufferRefRewriter(BufferVar src, BufferVar dst) : src_(std::move(src)), dst_(std::move(dst)) {}
 
-    Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) final {
-      Buffer new_buffer = StmtExprMutator::VisitBufferDef(buffer, alloc_data);
+    BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) final {
+      BufferVar new_buffer = StmtExprMutator::VisitBufferDef(buffer, alloc_data);
       if (new_buffer.same_as(src_)) {
         return dst_;
       }
       return new_buffer;
     }
 
-    Buffer VisitBufferUse(const Buffer& buffer) final {
+    BufferVar VisitBufferUse(const BufferVar& buffer) final {
       if (buffer.same_as(src_)) {
         return dst_;
       }
       return StmtExprMutator::VisitBufferUse(buffer);
     }
 
-    Buffer src_;
-    Buffer dst_;
+    BufferVar src_;
+    BufferVar dst_;
   };
 
   class KernelReplacePointSearcher : public StmtExprMutator {
@@ -423,7 +423,12 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     // Insert host init stmts outside the outermost thread binding or block.
     if (is_first_thread_attr_) {
       for (const auto& stmt : host_init_stmts_) {
-        res = KernelReplacePointSearcher::Seek(stmt, std::move(res));
+        // These statements leave the kernel region for host scope, where a
+        // ``buffer_data`` projection of a device-local view cannot be
+        // resolved.  Rewrite each projection onto its storage root, which is
+        // a PrimFunc parameter and therefore visible on the host.
+        res = KernelReplacePointSearcher::Seek(StorageRootResolver::Apply(stmt, buffer_root_),
+                                               std::move(res));
       }
       host_init_stmts_.clear();
     }
@@ -469,6 +474,20 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return SeqStmt::Flatten(rebuilt);
   }
 
+  Stmt VisitStmt_(const BindNode* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    const auto* bind = stmt.as<BindNode>();
+    TVM_FFI_ICHECK(bind);
+    if (auto value = bind->value.as<PrimExpr>()) {
+      // Bind is flat: the definition is visible to subsequent statements in
+      // its enclosing scope.  Under SSA, an inner-scope Var cannot be
+      // referenced after leaving that scope or rebound elsewhere, so stale
+      // entries are never consulted and no scope-based cleanup is needed.
+      var_range_map_.Set(bind->var, Range::FromMinExtent(value.value(), 1));
+    }
+    return stmt;
+  }
+
   Stmt VisitStmt_(const ForNode* op) final {
     // Collect the loop variables
     auto loop_var = op->loop_var.as_or_throw<Var>();
@@ -477,11 +496,74 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
+  /*!
+   * \brief Track the storage root of a buffer variable.
+   *
+   * A ``DeclBuffer`` whose data is ``buffer_data(src)`` is a view over
+   * ``src``'s storage, so it inherits ``src``'s root; anything else owns its
+   * storage.  Buffers with no definition in the body (PrimFunc parameters)
+   * are absent from the map and are their own root.
+   */
+  void RegisterStorageRoot(const Var& old_var, const Var& new_var,
+                           const ffi::Optional<Expr>& data) {
+    Var root = new_var;
+    if (data.has_value()) {
+      if (const auto* call = data.value().as<CallNode>();
+          call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+        if (auto src = call->args[0].as<Var>();
+            src.has_value() && src.value()->ty.as<BufferTypeNode>()) {
+          root = StorageRootOf(src.value());
+        }
+      }
+    }
+    buffer_root_[new_var] = root;
+    if (!old_var.same_as(new_var)) {
+      buffer_root_[old_var] = root;
+    }
+  }
+
+  Var StorageRootOf(const Var& var) const {
+    auto it = buffer_root_.find(var);
+    return it == buffer_root_.end() ? var : it->second;
+  }
+
+  /*! \brief Rewrite ``buffer_data(view)`` onto ``buffer_data(storage root)``. */
+  class StorageRootResolver : public StmtExprMutator {
+   public:
+    static Stmt Apply(
+        Stmt stmt,
+        const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& buffer_root) {
+      StorageRootResolver resolver(buffer_root);
+      return resolver(std::move(stmt));
+    }
+
+   private:
+    explicit StorageRootResolver(
+        const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& buffer_root)
+        : buffer_root_(buffer_root) {}
+
+    Expr VisitExpr_(const CallNode* op) final {
+      if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
+        if (auto var = op->args[0].as<Var>();
+            var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
+          auto it = buffer_root_.find(var.value());
+          if (it != buffer_root_.end() && !it->second.same_as(var.value())) {
+            return BufferVar(it->second).data();
+          }
+        }
+      }
+      return StmtExprMutator::VisitExpr_(op);
+    }
+
+    const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& buffer_root_;
+  };
+
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Buffer old_buffer = op->buffer;
+    BufferVar old_buffer = op->buffer;
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<AllocBufferNode>();
     TVM_FFI_ICHECK(op);
+    RegisterStorageRoot(old_buffer.var(), op->buffer.var(), std::nullopt);
 
     std::vector<Stmt> seq{stmt};
     AppendPostBufferDefStmts(&seq, old_buffer, op->buffer);
@@ -489,10 +571,11 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    Buffer old_buffer = op->buffer;
+    BufferVar old_buffer = op->buffer;
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<DeclBufferNode>();
     TVM_FFI_ICHECK(op);
+    RegisterStorageRoot(old_buffer.var(), op->buffer.var(), op->data);
 
     std::vector<Stmt> seq{stmt};
     AppendPostBufferDefStmts(&seq, old_buffer, op->buffer);
@@ -559,7 +642,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     TVM_FFI_ICHECK(res.defined()) << "TIRx dispatcher did not return a PrimFunc";
     // Implementation found, handle callbacks
     if (auto bufs = sctx->callbacks.Get(tirx::callback::kPrivateAlloc)) {
-      auto buf_list = bufs.value().as<Array<Buffer>>().value();
+      auto buf_list = bufs.value().as<Array<BufferVar>>().value();
       alloc_buffers_.insert(alloc_buffers_.end(), buf_list.begin(), buf_list.end());
     }
     if (auto stmts = sctx->callbacks.Get(tirx::callback::kDeviceInitStmt)) {
@@ -571,7 +654,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       host_init_stmts_.insert(host_init_stmts_.end(), stmt_list.begin(), stmt_list.end());
     }
     if (auto mapping = sctx->callbacks.Get(tirx::callback::kPostBufferDefStmt)) {
-      auto map = mapping.value().as_or_throw<ffi::Map<Buffer, Array<Stmt>>>();
+      auto map = mapping.value().as_or_throw<ffi::Map<BufferVar, Array<Stmt>>>();
       for (const auto& [buffer, stmts] : map) {
         auto& vec = post_buffer_def_stmts_[buffer];
         vec.insert(vec.end(), stmts.begin(), stmts.end());
@@ -1431,10 +1514,12 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   std::vector<std::vector<ScopeIdDef>> scope_id_defs_at_level_;
   std::vector<ExecContext> ctx_stack_;
   std::unordered_map<ffi::String, IterVar> launch_params_;
-  std::vector<Buffer> alloc_buffers_;
+  std::vector<BufferVar> alloc_buffers_;
   std::vector<Stmt> device_init_stmts_;
   std::vector<Stmt> host_init_stmts_;
-  std::unordered_map<Buffer, std::vector<Stmt>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  /*! \brief Storage root of each buffer variable defined in the body. */
+  std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_root_;
+  std::unordered_map<BufferVar, std::vector<Stmt>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       post_buffer_def_stmts_;
   ffi::Map<ffi::String, ffi::ObjectRef> shared_state_;
   std::vector<std::pair<std::string, int64_t>> cluster_cta_axis_extents_;
@@ -1442,10 +1527,10 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   bool is_first_block_{true};
   bool is_first_thread_attr_{true};
 
-  bool AppendPostBufferDefStmts(std::vector<Stmt>* seq, const Buffer& old_buffer,
-                                const Buffer& new_buffer) {
+  bool AppendPostBufferDefStmts(std::vector<Stmt>* seq, const BufferVar& old_buffer,
+                                const BufferVar& new_buffer) {
     auto append_with_remap = [this, seq, &new_buffer](auto it) -> bool {
-      Buffer src = it->first;
+      BufferVar src = it->first;
       for (const auto& stmt : it->second) {
         Stmt remapped = BufferRefRewriter::Rewrite(stmt, src, new_buffer);
         seq->push_back(KernelReplacePointSearcher::Seek(remapped, Evaluate(0)));

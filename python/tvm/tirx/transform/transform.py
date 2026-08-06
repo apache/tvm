@@ -248,20 +248,19 @@ def ConvertSSA():
 def MakePackedAPI():
     """Transform the PrimFuncs in the module to a packed func API.
 
-    Prior to this pass, the PrimFunc may have Buffer arguments defined
-    in the `PrimFuncNode::buffer_map`.  This pass consumes the
-    `buffer_map`, using it to generate arguments that implement
-    the packed based TVM FFI API.
+    Prior to this pass, the PrimFunc may have parameters annotated with
+    `BufferType`.  This pass consumes those annotations to generate
+    arguments that implement the packed based TVM FFI API.
 
-    For static shapes, the `BufferNode::shape`, `BufferNode::strides`,
-    and `BufferNode::elem_offset` member variables are used to
+    For static shapes, the `BufferType::shape`, `BufferType::strides`,
+    and `BufferType::elem_offset` fields are used to
     generate runtime checks on the corresponding member variables in
     the user-provided `DLTensor*` or `tvm.runtime.tensor` argument.  (e.g. A
     PrimFunc that accepts a buffer of shape `[16,32]` validates that
     the `DLTensor::shape` array is `[16,32]`.)
 
-    For dynamic Buffers, in which one or more of these `BufferNode` member
-    variables use `tirx.Var` that are not defined by other PrimFunc
+    For dynamic Buffers, in which one or more of these `BufferType` fields
+    use `tirx.Var` that are not defined by other PrimFunc
     parameters, these are instead used to define the variables based on
     the corresponding `DLTensor` members.  (e.g. A PrimFunc that accepts a
     buffer of shape `[tirx.Var("n", "int64"), tirx.Var("m", "int64")]`,

@@ -149,10 +149,13 @@ def _compile_cuda_nvcc(
         #   "-gencode", "arch=compute_52,code=sm_52",
         #   "-gencode", "arch=compute_70,code=sm_70"
         # ]
-        compute_version = "".join(
-            get_target_compute_version(Target.current(allow_none=True)).split(".")
-        )
-        arch = ["-gencode", f"arch=compute_{compute_version},code=sm_{compute_version}"]
+        target = Target.current(allow_none=True)
+        target_arch = getattr(target, "arch", None) if target is not None else None
+        if isinstance(target_arch, str) and target_arch.startswith("sm_"):
+            suffix = target_arch[3:]
+        else:
+            suffix = "".join(get_target_compute_version(target).split("."))
+        arch = ["-gencode", f"arch=compute_{suffix},code=sm_{suffix}"]
 
     temp = utils.tempdir()
     file_name = "tvm_kernels"
@@ -213,7 +216,7 @@ def _compile_cuda_nvcc(
         "-U__CUDA_NO_BFLOAT162_CONVERSIONS__",
         "--expt-relaxed-constexpr",
         "--expt-extended-lambda",
-        "--use_fast_math",
+        *([] if os.environ.get("TVM_CUDA_NVCC_NO_FAST_MATH") else ["--use_fast_math"]),
         f"--ptxas-options={','.join(_ptxas_option_flags())}",
     ]
 
@@ -255,6 +258,12 @@ def _compile_cuda_nvcc(
 
     # Second stage for NVSHMEM
     if use_nvshmem:
+        target = Target.current(allow_none=True)
+        target_arch = getattr(target, "arch", None) if target is not None else None
+        if isinstance(target_arch, str) and target_arch.startswith("sm_"):
+            compute_version = target_arch[3:]
+        else:
+            compute_version = "".join(get_target_compute_version(target).split("."))
         cmd = ["nvlink"]
         cmd += [f"-arch=sm_{compute_version}"]
         cmd += ["-L", nvshmem_lib_path]
@@ -549,6 +558,13 @@ namespace std {
     # have no NVRTC equivalent and are intentionally not mirrored.
     for flag in _ptxas_option_flags():
         compile_opts.append(f"--ptxas-options={flag}".encode())
+
+    # Extra NVRTC frontend flags (shell-tokenized), appended after all built-in
+    # defaults so they can override them (e.g. TVM_CUDA_NVRTC_EXTRA_OPTS="--ftz=false"
+    # to undo the -ftz=true implied by --use_fast_math).
+    nvrtc_extra = os.environ.get("TVM_CUDA_NVRTC_EXTRA_OPTS", "").strip()
+    if nvrtc_extra:
+        compile_opts.extend(t.encode() for t in shlex.split(nvrtc_extra))
 
     # Add user-provided options, filtering out nvcc-specific flags that nvrtc doesn't support
     if options:

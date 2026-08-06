@@ -56,14 +56,6 @@ Array<PrimExpr> SplitCoord(PrimExpr coord, const Array<PrimExpr>& shape);
 PrimExpr FlattenCoord(const Array<PrimExpr>& coord, const Array<PrimExpr>& shape);
 
 /*!
- * \brief Create a TileLayout that maps the given logical shape to itself on the memory axis.
- *        This is effectively an identity layout over axis "m" with unit stride.
- * \param shape Logical shape to map.
- * \return Identity TileLayout over the concatenated extent of `shape`.
- */
-TileLayout IdentityTileLayout(const ffi::Array<PrimExpr>& shape);
-
-/*!
  * \brief Build a map from axis name to span for the provided layout's shard axes.
  *        If an axis appears multiple times, the first occurrence defines the span value.
  * \param layout The layout whose shard axes will be scanned.
@@ -86,6 +78,14 @@ std::vector<PrimExpr> GetDefaultStrides(const ffi::Array<PrimExpr>& data,
  *        When `axis_name` is not provided, memory axes match; when provided, the name must match.
  */
 bool AxisMatchesFilter(const Axis& axis, const ffi::Optional<ffi::String>& axis_name);
+
+/*!
+ * \brief Build a 1D identity TileLayout whose single shard covers the product of
+ *        `shape` (contiguous, stride 1, memory axis "m"). Used to represent the
+ *        "tile" of a bare swizzle (a ComposeLayout carrying a trivial tile) when
+ *        delegating tile-relationship queries to TileLayoutNode.
+ */
+TileLayout IdentityTileLayout(const ffi::Array<PrimExpr>& shape);
 
 }  // namespace tirx
 }  // namespace tvm

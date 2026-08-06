@@ -46,7 +46,7 @@ def test_alloc_seq():
     def verify(n):
         if isinstance(n, tvm.tirx.AllocBuffer):
             num_alloc[0] += 1
-            assert n.buffer.shape[0].value == 200
+            assert n.buffer.ty.shape[0].value == 200
 
     tvm.tirx.stmt_functor.post_order_visit(body, verify)
     assert num_alloc[0] == 1
@@ -100,7 +100,7 @@ def test_alloc_different_dtypes():
     def dtype_test(dtype_list, length):
         def verify(n):
             if isinstance(n, tvm.tirx.AllocBuffer):
-                assert n.buffer.shape[0].value == offset
+                assert n.buffer.ty.shape[0].value == offset
 
         mod = make_mod(dtype_list, length)
         offset = offset_generater(dtype_list, length)
@@ -157,7 +157,7 @@ def test_address_of():
 
     def verify(n):
         if isinstance(n, tvm.tirx.AllocBuffer):
-            total_alloc[0] += n.buffer.shape[0].value
+            total_alloc[0] += n.buffer.ty.shape[0].value
 
     total_alloc = [0]
     mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
@@ -280,7 +280,7 @@ def test_alloc_seq_type():
     def verify(n):
         if isinstance(n, tvm.tirx.AllocBuffer):
             num_alloc[0] += 1
-            assert n.buffer.shape[0].value == 500
+            assert n.buffer.ty.shape[0].value == 500
 
     tvm.tirx.stmt_functor.post_order_visit(body, verify)
     assert num_alloc[0] == 1
@@ -310,7 +310,7 @@ def test_alloc_seq_type2():
     def verify(n):
         if isinstance(n, tvm.tirx.AllocBuffer):
             num_alloc[0] += 1
-            assert n.buffer.shape[0].value == 200
+            assert n.buffer.ty.shape[0].value == 200
 
     tvm.tirx.stmt_functor.post_order_visit(body, verify)
     assert num_alloc[0] == 1
@@ -342,7 +342,7 @@ def test_reuse_small_buffer():
     def verify(n):
         if isinstance(n, tvm.tirx.AllocBuffer):
             num_alloc[0] += 1
-            assert n.buffer.shape[0].value == 800
+            assert n.buffer.ty.shape[0].value == 800
 
     tvm.tirx.stmt_functor.post_order_visit(body, verify)
     assert num_alloc[0] == 1
@@ -371,15 +371,11 @@ def test_access_in_let_value():
     tvm.ir.assert_structural_equal(mod["main"], func_rewritten.with_attr("global_symbol", "main"))
 
 
-def test_let_buffer_rewrite():
-    """StorageRewrite replaces the bound var of backing allocations
+def test_decl_buffer_is_not_vectorized():
+    """StorageRewrite leaves explicit DeclBuffer views unchanged.
 
-    If StorageRewrite replaces the backing variable of an array, such
-    as when vectorizing the storage type, the variable must be
-    replaced in the Bind that defines it.  Currently, StmtMutator
-    only visits usage of variables, and does not visit definitions of
-    variables, so the definition in a Bind must be explicitly
-    handled.
+    Vectorization of DeclBuffer views was dropped because the rewritten result
+    violates the immutable BufferVar binding invariants.
     """
 
     @I.ir_module
@@ -392,19 +388,8 @@ def test_let_buffer_rewrite():
             A = T.decl_buffer([8], "int32", data=A_data)
             A[0:8] = T.broadcast(42, 8)
 
-    @I.ir_module(check_well_formed=False)
-    class Expected:
-        @T.prim_func(s_tir=True)
-        def main() -> None:
-            A_data: T.let[T.handle("int32x8")] = T.call_extern(
-                "dummy_func", dtype=T.handle("int32x8").ty
-            )
-            A = T.decl_buffer([8], "int32", data=A_data)
-            A_1 = T.Buffer([1], "int32x8", data=A_data)
-            A_1[0] = T.broadcast(42, 8)
-
     After = tvm.tirx.transform.StorageRewrite()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, Before)
 
 
 def test_rewrite_decl_buffer():
@@ -443,7 +428,58 @@ def test_rewrite_decl_buffer():
                 D[i] = C[i]
 
     After = tvm.tirx.transform.StorageRewrite()(Before)
+    assert tvm.tirx.analysis.verify_well_formed(After)
     tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_decl_buffer_alias_chain_uses_flat_root():
+    """StorageRewrite resolves every alias in a chain to the same flat root."""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(D: T.Buffer(1, "float32")):
+            A = T.decl_buffer(16, dtype="float32")
+            B = T.decl_buffer(16, dtype="float32", data=A.data)
+            C = T.decl_buffer(16, dtype="float32", data=B.data)
+            A[0] = 1.0
+            D[0] = C[0]
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(D: T.Buffer(1, "float32")):
+            A = T.decl_buffer(16, dtype="float32")
+            B = T.decl_buffer(16, dtype="float32", data=A.data)
+            C = T.decl_buffer(16, dtype="float32", data=A.data)
+            A[0] = 1.0
+            D[0] = C[0]
+
+    After = tvm.tirx.transform.StorageRewrite()(Before)
+    assert tvm.tirx.analysis.verify_well_formed(After)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_decl_buffer_alias_extends_source_lifetime():
+    """An access through an alias prevents reuse of its source allocation."""
+
+    @T.prim_func(s_tir=True)
+    def func(D: T.Buffer(1, "float32")):
+        A = T.decl_buffer(16, dtype="float32")
+        B = T.decl_buffer(16, dtype="float32", data=A.data)
+        A[0] = 1.0
+
+        C = T.decl_buffer(16, dtype="float32")
+        C[0] = 2.0
+        D[0] = B[0] + C[0]
+
+    after = tvm.tirx.transform.StorageRewrite()(tvm.IRModule.from_expr(func))["func"]
+    allocations = []
+    tvm.tirx.stmt_functor.post_order_visit(
+        after.body,
+        lambda node: allocations.append(node) if isinstance(node, tvm.tirx.AllocBuffer) else None,
+    )
+    assert len(allocations) == 2
 
 
 def test_no_orphaned_decl_buffer():

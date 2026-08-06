@@ -78,6 +78,7 @@ def parse(
     extra_vars: dict[str, Any] | None = None,
     check_well_formed: bool = True,
     s_tir: bool = False,
+    absent_params: dict[str, None] | None = None,
 ) -> Any:
     """Register a method for a operand type, AST operator node and operand index.
 
@@ -91,6 +92,10 @@ def parse(
 
     check_well_formed : bool
         Whether to check well-formedness after parsing.
+
+    absent_params : Optional[Dict[str, None]]
+        Function parameters removed by a compile-time specialization.  The
+        dialect-specific function parser decides how to bind these names.
 
     Returns
     -------
@@ -111,7 +116,7 @@ def parse(
                 all_pyfuncs[name] = func
 
     source = Source(program)
-    parser = Parser(source, ann)
+    parser = Parser(source, ann, absent_params=absent_params)
     with IRBuilder() as builder:
         try:
             parser.parse(extra_vars=extra_vars)

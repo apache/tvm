@@ -24,7 +24,7 @@ register** (``local``) buffer and the other is ``shared*`` or ``global``. Unlike
 register operand's layout: that layout's thread-axis iters already say which thread
 owns which logical coordinate, so the dispatch drops those axes, leaves each thread
 its private bundle of elements, and copies them in a vectorized serial loop. Source:
-``python/tvm/backend/cuda/operator/tile_primitive/copy/reg.py``.
+``python/tvm/backend/cuda/tile_primitive/copy/reg.py``.
 
 What it accepts
 ---------------
@@ -121,7 +121,7 @@ loop (not ``T.unroll`` — same flooding rationale as :doc:`gmem_smem`):
 
 .. code-block:: python
 
-    r_local = r_buf.local(*per_thread_r_shape)   # flat per-thread registers
+    r_local = r_buf.local()                      # raw per-thread physical span
     for f in range(total_outer):
         ds, dr = _outer_const_offsets(outer, f)               # shared / reg deltas
         s_ptr = _ptr_off(s_buf.ptr_to(s_zero_indices), _s_iter_off(f, ds, s_off))
@@ -130,6 +130,11 @@ loop (not ``T.unroll`` — same flooding rationale as :doc:`gmem_smem`):
             copy_op(s_ptr, r_ptr)     # register -> shared/global
         else:
             copy_op(r_ptr, s_ptr)     # shared/global -> register
+
+``dr`` and ``r_off_base`` are physical storage offsets, so the register alias
+must use the raw-span ``local()`` view.  This remains correct when storage
+iterators are permuted or leave gaps; every physical slot through
+``layout.storage().span()`` is directly addressable.
 
 Generated TIRx IR
 -----------------

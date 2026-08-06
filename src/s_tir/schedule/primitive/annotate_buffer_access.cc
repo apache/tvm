@@ -27,7 +27,7 @@ using namespace tvm::tirx;
 
 class AnnotateRegionRewriter : public StmtExprMutator {
  public:
-  AnnotateRegionRewriter(Buffer buffer, int buffer_index, BufferRegion new_region,
+  AnnotateRegionRewriter(BufferVar buffer, int buffer_index, BufferRegion new_region,
                          BufferIndexType buffer_index_type)
       : buffer_(buffer),
         buffer_index_(buffer_index),
@@ -79,7 +79,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
   }
 
  private:
-  Buffer buffer_;
+  BufferVar buffer_;
   int buffer_index_;
   BufferRegion new_region_;
   BufferIndexType buffer_index_type_;
@@ -88,7 +88,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
 void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                           BufferIndexType buffer_index_type, const IndexMap& index_map) {
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  Buffer buffer =
+  BufferVar buffer =
       GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index, buffer_index_type);
 
   arith::Analyzer analyzer;

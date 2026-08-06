@@ -46,7 +46,7 @@ ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IR
       } else {
         ExprDoc element_type =
             LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
-        if (ptr_type->storage_scope == "") {
+        if (ptr_type->storage_scope.empty()) {
           rhs = rhs->Call({element_type}, kwargs_keys, kwargs_values);
         } else {
           rhs = rhs->Call({element_type,
@@ -87,6 +87,25 @@ Doc PrintVar(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
     .set_dispatch<tirx::Var>("", [](tirx::Var var, AccessPath p, IRDocsifier d) -> Doc {
+      if (var->ty.as<tirx::BufferTypeNode>()) {
+        tirx::BufferVar buffer(var);
+        if (!d->IsVarDefined(buffer)) {
+          if (ffi::Optional<Frame> opt_f = FindLowestVarDef(buffer, d)) {
+            ExprDoc lhs = DefineBuffer(buffer, opt_f.value(), d);
+            ExprDoc rhs = BufferDecl(buffer, "Buffer", {}, p, opt_f.value(), d,
+                                     BufferVarDefinition::DataPointer);
+            opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
+          }
+        }
+        if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(buffer)) {
+          // special case for scalar buffer
+          if (buffer.IsScalar()) {
+            return doc.value()->Attr("buffer");
+          }
+          return doc.value();
+        }
+        TVM_FFI_THROW(IndexError) << "BufferVar is not defined in the environment: " << buffer;
+      }
       if (var->ty.as<PrimTypeNode>() || var->ty.as<PointerTypeNode>()) {
         return PrintVar(var, p, d);
       }
@@ -238,9 +257,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
         });
 
-LambdaDoc PrintPredicate(const ffi::ObjectRef& pred, const ffi::Array<tirx::PrimVar>& vs,
-                         const AccessPath& vs_p, const PrimExpr& p, const AccessPath& p_p,
-                         const IRDocsifier& d) {
+LambdaDoc PrintLambda(const ffi::ObjectRef& pred, const ffi::Array<tirx::Var>& vs,
+                      const AccessPath& vs_p, const PrimExpr& p, const AccessPath& p_p,
+                      const IRDocsifier& d) {
   With<TIRFrame> f(d, pred);
   ffi::Array<IdDoc> vars;
   for (int i = 0, l = vs.size(); i < l; ++i) {
@@ -251,11 +270,11 @@ LambdaDoc PrintPredicate(const ffi::ObjectRef& pred, const ffi::Array<tirx::Prim
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Predicate>("",
-                                   [](tirx::Predicate pred, AccessPath p, IRDocsifier d) -> Doc {
-                                     return PrintPredicate(pred, pred->vars, p->Attr("vars"),
-                                                           pred->pred, p->Attr("pred"), d);
-                                   });
+    .set_dispatch<tirx::LambdaExpr>("",
+                                    [](tirx::LambdaExpr pred, AccessPath p, IRDocsifier d) -> Doc {
+                                      return PrintLambda(pred, pred->vars, p->Attr("vars"),
+                                                         pred->pred, p->Attr("pred"), d);
+                                    });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::Let>("", [](tirx::Let let, AccessPath p, IRDocsifier d) -> Doc {
@@ -266,6 +285,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
+  if (call->op.same_as(tirx::builtin::buffer_data())) {
+    TVM_FFI_ICHECK_EQ(call->args.size(), 1);
+    return d->AsDoc<ExprDoc>(call->args[0], call_p->Attr("args")->ArrayItem(0))->Attr("data");
+  }
   ffi::Optional<PrimType> call_prim_type = call->ty.as<PrimType>();
   auto get_call_type_doc = [&](AccessPath type_p) -> ExprDoc {
     if (call_prim_type.has_value()) {
@@ -497,7 +520,7 @@ TVM_SCRIPT_REPR(tirx::ShuffleNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::CommReducerNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::IndexMapNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::ReduceNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::PredicateNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tirx::LambdaExprNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

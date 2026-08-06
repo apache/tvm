@@ -104,7 +104,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     analyzer->rewrite_simplify.SetEnabledExtensions(config->GetEnabledExtensions());
 
     StmtSimplifier simplifier(analyzer, config);
-    simplifier.MarkBufferMapShapes(func);
+    simplifier.MarkBufferParamShapes(func);
     func.CopyOnWrite()->body = simplifier(func->body);
     return func;
   }
@@ -129,7 +129,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   //
   // Instead, we keep buffer definitions unchanged and rely on used_in_buffer_def_
   // to prevent inlining LetStmt vars that appear in buffer definitions.
-  Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) override { return buffer; }
+  BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) override { return buffer; }
 
   Expr VisitExpr(const Expr& expr) final {
     if (auto prim_expr = expr.as<PrimExpr>()) {
@@ -211,8 +211,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const BufferStoreNode* op) override {
     BufferStore store = Parent::VisitStmt_(op).as_or_throw<BufferStore>();
     if (const BufferLoadNode* load = store->value.as<BufferLoadNode>()) {
-      if (load->buffer->data.same_as(store->buffer->data) &&
-          ArrayDeepEqual(load->indices, store->indices) &&
+      if (load->buffer.same_as(store->buffer) && ArrayDeepEqual(load->indices, store->indices) &&
           tirx::ExprDeepEqual()(load->buffer->elem_offset, store->buffer->elem_offset) &&
           ArrayDeepEqual(load->buffer->shape, store->buffer->shape) &&
           ArrayDeepEqual(load->buffer->strides, store->buffer->strides)) {

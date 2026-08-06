@@ -48,10 +48,9 @@ class UpdatePointerStorageScope : public StmtExprMutator {
   template <typename Node>
   Node UpdateBufferAccess(Node node);
 
-  Buffer GetUpdatedBuffer(Buffer buf);
+  BufferVar GetUpdatedBuffer(BufferVar buf);
 
   std::unordered_map<const VarNode*, Var> new_var_remap_;
-  std::unordered_map<const BufferNode*, Buffer> new_buffer_remap_;
 };
 
 }  // namespace tirx

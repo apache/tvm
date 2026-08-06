@@ -70,9 +70,8 @@ class ForMatcher : public TensorizeComparator {
     }
     // Get evaluated symbols, buffers from the pattern.
     for (const auto& arg : pattern_->params) {
-      auto it = pattern_->buffer_map.find(arg);
-      if (it != pattern_->buffer_map.end()) {
-        auto itt = rhs_buffer_map_.find((*it).second);
+      if (auto buffer = arg.as<tirx::BufferVar>()) {
+        auto itt = rhs_buffer_map_.find(buffer.value());
         TVM_FFI_ICHECK(itt != rhs_buffer_map_.end());
         evaluated_buffers.push_back(itt->second);
       }
@@ -81,7 +80,7 @@ class ForMatcher : public TensorizeComparator {
   }
 
   std::vector<SymbolMap> evaluated_symbols;
-  std::vector<Buffer> evaluated_buffers;
+  std::vector<BufferVar> evaluated_buffers;
 
  private:
   using ExprComparator::VisitExpr_;
@@ -324,7 +323,7 @@ class ForMatcher : public TensorizeComparator {
     return CompareBufferAccess(op, rhs);
   }
 
-  bool CompareBuffer(const Buffer& lhs, const Buffer& rhs) {
+  bool CompareBuffer(const BufferVar& lhs, const BufferVar& rhs) {
     if (lhs.same_as(rhs)) return true;
     auto it = rhs_buffer_map_.find(rhs);
     bool equal;
@@ -336,9 +335,8 @@ class ForMatcher : public TensorizeComparator {
       for (size_t i = 0; i < lhs->shape.size(); ++i) {
         if (!VisitExpr(lhs->shape[i], rhs->shape[i])) return false;
       }
-      // Remap both buffer itself and buffer data
       equal =
-          DefEqual(lhs->data, rhs->data) && lhs->dtype == rhs->dtype && lhs.scope() == rhs.scope();
+          DefEqual(lhs.var(), rhs.var()) && lhs->dtype == rhs->dtype && lhs.scope() == rhs.scope();
       if (equal) {
         rhs_buffer_map_[rhs] = lhs;
       }
@@ -393,7 +391,11 @@ class TIRPatternMatcher {
     for (const TIRPattern& pattern : patterns_) {
       tirx::PrimFunc pattern_func = pattern;
       ffi::Array<Var> pattern_symbolic_vars;
-      int buffer_count = pattern_func->buffer_map.size();
+      int buffer_count = 0;
+      while (buffer_count < static_cast<int>(pattern_func->params.size()) &&
+             pattern_func->params[buffer_count]->ty.as<tirx::BufferTypeNode>()) {
+        ++buffer_count;
+      }
       for (int i = buffer_count; i < static_cast<int>(pattern_func->params.size()); i++) {
         pattern_symbolic_vars.push_back(pattern_func->params[i]);
       }
@@ -449,18 +451,18 @@ class FunctionPartitioner : public StmtExprVisitor {
  public:
   explicit FunctionPartitioner(int num_matched_ops) : num_matched_ops_(num_matched_ops) {}
   /*! \brief alloc_buffers for the first function */
-  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs1;
+  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs1;
   /*! \brief alloc_buffers for the second function */
-  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs2;
+  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs2;
   /*! \brief whether the current block is in the first function */
   ffi::Map<SBlock, bool> block_partition;
   /*! \brief input buffers for the first function */
-  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input1;
+  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input1;
   /*! \brief input buffers for the second function */
-  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input2;
+  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input2;
   /*! \brief The output buffer for the first function, which is also the input buffer for the second
   function */
-  Buffer intermediate_buffer;
+  BufferVar intermediate_buffer;
   /*! \brief Indicate whether we have failed. If failed, we will not do any further analysis and
   directly return the original one. */
   bool fail = false;
@@ -506,7 +508,7 @@ class BlockRemover : public StmtExprMutator {
  public:
   static Stmt RemoveBlockByPartition(
       Stmt stmt, const ffi::Map<SBlock, bool>& block_partition,
-      const std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
+      const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
       bool is_library_part) {
     BlockRemover remover(block_partition, allocs, is_library_part);
     return remover(stmt);
@@ -514,7 +516,7 @@ class BlockRemover : public StmtExprMutator {
 
  private:
   BlockRemover(const ffi::Map<SBlock, bool>& block_partition,
-               const std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
+               const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
                bool is_library_part)
       : block_partition(block_partition), allocs_(allocs), is_library_part_(is_library_part) {}
 
@@ -530,8 +532,8 @@ class BlockRemover : public StmtExprMutator {
         erased_ = true;
       }
     }
-    ffi::Array<Buffer> alloc_buffers;
-    for (const Buffer& b : block->alloc_buffers) {
+    ffi::Array<BufferVar> alloc_buffers;
+    for (const BufferVar& b : block->alloc_buffers) {
       if (allocs_.count(b)) {
         alloc_buffers.push_back(b);
       }
@@ -555,7 +557,7 @@ class BlockRemover : public StmtExprMutator {
 
   bool erased_ = false;
   ffi::Map<SBlock, bool> block_partition;
-  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs_;
+  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs_;
   bool is_library_part_ = false;
 };
 
@@ -583,7 +585,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   TVM_FFI_ICHECK(codegen_result.size() == 3);
   ffi::String library_code = codegen_result[0].as_or_throw<ffi::String>();
   int num_matched_ops = codegen_result[1].as_or_throw<IntImm>()->value;
-  ffi::Array<Buffer> func1_args = codegen_result[2].as_or_throw<ffi::Array<Buffer>>();
+  ffi::Array<BufferVar> func1_args = codegen_result[2].as_or_throw<ffi::Array<BufferVar>>();
   if (num_matched_ops == 0) {
     return {func, std::nullopt};
   }
@@ -615,7 +617,8 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   for (const auto& buffer : func1_args) {
     TVM_FFI_ICHECK(partitioner.input1.find(buffer) != partitioner.input1.end());
     for (size_t i = 0; i < func->params.size(); i++) {
-      if (func->buffer_map[func->params[i]].same_as(buffer)) {
+      auto param_buffer = func->params[i].as<tirx::BufferVar>();
+      if (param_buffer.has_value() && param_buffer.value().same_as(buffer)) {
         new_params1.push_back(func->params[i]);
         arg_partition1.push_back(i);
         break;
@@ -623,23 +626,17 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
     }
   }
   arg_partition->push_back(arg_partition1);
-  new_params1.push_back(Var("output", PointerType::VoidPointerTy()));
-  ffi::Map<Var, Buffer> new_buffer_map1;
-  for (const auto& kv : func->buffer_map) {
-    if (partitioner.input1.count(kv.second)) {
-      new_buffer_map1.Set(kv.first, kv.second);
-    }
-  }
-  new_buffer_map1.Set(new_params1.back(), partitioner.intermediate_buffer);
-  PrimFunc func1 = PrimFunc(new_params1, body1, func->ret_type, new_buffer_map1, func->attrs);
+  new_params1.push_back(partitioner.intermediate_buffer.var());
+  PrimFunc func1 = PrimFunc(new_params1, body1, func->ret_type, func->attrs);
   func1 = WithAttr(func1, kLibraryKernel, library_code);
   // Step 4. Craft the second function.
   ffi::Array<Var> new_params2;
   std::vector<int> arg_partition2;
-  new_params2.push_back(Var("input", PointerType::VoidPointerTy()));
+  new_params2.push_back(partitioner.intermediate_buffer.var());
   for (int i = 0; i < static_cast<int>(func->params.size()); i++) {
     Var param = func->params[i];
-    if (partitioner.input2.count(func->buffer_map[param])) {
+    auto param_buffer = param.as<tirx::BufferVar>();
+    if (param_buffer.has_value() && partitioner.input2.count(param_buffer.value())) {
       new_params2.push_back(param);
       if (i != static_cast<int>(func->params.size()) - 1) {
         arg_partition2.push_back(i);
@@ -647,14 +644,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
     }
   }
   arg_partition->push_back(arg_partition2);
-  ffi::Map<Var, Buffer> new_buffer_map2;
-  new_buffer_map2.Set(new_params2[0], partitioner.intermediate_buffer);
-  for (const auto& kv : func->buffer_map) {
-    if (partitioner.input2.count(kv.second)) {
-      new_buffer_map2.Set(kv.first, kv.second);
-    }
-  }
-  PrimFunc func2 = PrimFunc(new_params2, body2, func->ret_type, new_buffer_map2, func->attrs);
+  PrimFunc func2 = PrimFunc(new_params2, body2, func->ret_type, func->attrs);
   return {func1, func2};
 }
 }  // namespace tirx
@@ -752,7 +742,7 @@ class SplitMutator : public ExprMutator {
     if (lib_func->IsInstance<tirx::PrimFuncNode>()) return ffi::GetRef<Call>(op);
     TVM_FFI_ICHECK(lib_func->IsInstance<ExternFuncNode>());
     builder_->UpdateFunction(gv, lib_func);
-    tirx::Buffer intermediate_buffer = func1->buffer_map.at(func1->params.back());
+    tirx::BufferVar intermediate_buffer = func1->params.back().as_or_throw<tirx::BufferVar>();
     PrimType dtype = intermediate_buffer->dtype;
     Call call1(Type::Missing(), call_dps_packed_, {lib_func, Tuple(args1)}, call->attrs,
                {TensorType(ShapeExpr(intermediate_buffer->shape), dtype)});

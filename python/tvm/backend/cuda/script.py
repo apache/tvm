@@ -22,7 +22,7 @@ from collections.abc import Callable
 from typing import Any
 
 from tvm.backend.cuda import op as _cuda_op
-from tvm.tirx import Buffer
+from tvm.tirx import is_buffer_var
 from tvm.tirx import op as _tir_op
 from tvm.tirx.script.builder.ir import _dtype_forward, _op_wrapper
 
@@ -30,7 +30,7 @@ from tvm.tirx.script.builder.ir import _dtype_forward, _op_wrapper
 
 
 def _ptx_ldg32(reg, guard, addr, local_addr):
-    if isinstance(addr, Buffer):
+    if is_buffer_var(addr):
         addr = addr[0]
     return _tir_op.call_intrin(reg.ty, "tirx.ptx.ldg32", reg, guard, addr, local_addr)
 
@@ -57,6 +57,7 @@ class PTXNamespace:
         self.clc_query_cancel = _op_wrapper(_cuda_op.ptx_clc_query_cancel)
         self.fetch_register: Callable[..., Any] = _op_wrapper(_cuda_op.ptx_fetch_register)
         self.ld = _op_wrapper(_cuda_op.ptx_ld)
+        self.ld_global_nc = _op_wrapper(_cuda_op.ptx_ld_global_nc)
         self.ld_acquire = _op_wrapper(_cuda_op.ptx_ld_acquire)
         self.ld_relaxed = _op_wrapper(_cuda_op.ptx_ld_relaxed)
         self.ld_volatile = _op_wrapper(_cuda_op.ptx_ld_volatile)
@@ -86,6 +87,7 @@ class PTXNamespace:
         self.rcp = _op_wrapper(_cuda_op.ptx_rcp)
         self.reduce3_min_f32 = _op_wrapper(_cuda_op.ptx_reduce3_min_f32)
         self.reduce3_max_f32 = _op_wrapper(_cuda_op.ptx_reduce3_max_f32)
+        self.cvt = _dtype_forward(_cuda_op.ptx_cvt)
         # add/sub/mul/fma DPS form: (d_addr, a, b[, c], *, rounding, ftz[, sat])
         self.add_f32 = _op_wrapper(_cuda_op.ptx_add_f32)
         self.add_f32x2 = _op_wrapper(_cuda_op.ptx_add_f32x2)
@@ -181,80 +183,32 @@ class CpAsyncBulkTensorNamespace:
     """The CpAsyncBulkTensor instruction submodule."""
 
     def __init__(self):
-        self.g2c = _op_wrapper(_cuda_op.ptx_cp_async_bulk_tensor_global_to_cluster)
-        self.g2c_tile_gather4 = _op_wrapper(
-            _cuda_op.ptx_cp_async_bulk_tensor_tile_gather4_global_to_cluster
-        )
+        self.g2s_cta = _op_wrapper(_cuda_op.ptx_cp_async_bulk_tensor_g2s_cta)
+        self.g2s_cluster = _op_wrapper(_cuda_op.ptx_cp_async_bulk_tensor_g2s_cluster)
         self.s2g = _op_wrapper(_cuda_op.ptx_cp_async_bulk_tensor_shared_to_global)
         self.s2g_reduce = _op_wrapper(_cuda_op.ptx_cp_async_bulk_tensor_shared_to_global_reduce)
-        self.g2c_prefetch = _op_wrapper(
-            _cuda_op.ptx_cp_async_bulk_tensor_global_to_cluster_prefetch
-        )
-
-    @staticmethod
-    def g2c_bar_addr(
-        dim,
-        dst_ptr,
-        bar_addr,
-        tensormap_addr,
-        cta_mask,
-        cta_group,
-        cache_hint,
-        *coords,
-        cache_policy=None,
-    ):
-        _cuda_op._choice("cta_group", cta_group, _cuda_op._TCGEN05_CTA_GROUP)
-        cache_policy, has_cache_policy = _cuda_op._resolve_cache_policy(cache_hint, cache_policy)
-        return _tir_op.call_intrin(
-            "",
-            "tirx.ptx.cp_async_bulk_tensor_global_to_cluster",
-            dim,
-            dst_ptr,
-            bar_addr,
-            tensormap_addr,
-            cta_mask,
-            cta_group,
-            cache_policy,
-            int(has_cache_policy),
-            1,
-            *coords,
-        )
-
-    @staticmethod
-    def g2c_tile_gather4_bar_addr(
-        dim,
-        dst_ptr,
-        bar_addr,
-        tensormap_addr,
-        cta_mask,
-        cta_group,
-        cache_hint,
-        *coords,
-        cache_policy=None,
-    ):
-        _cuda_op._choice("cta_group", cta_group, _cuda_op._TCGEN05_CTA_GROUP)
-        cache_policy, has_cache_policy = _cuda_op._resolve_cache_policy(cache_hint, cache_policy)
-        return _tir_op.call_intrin(
-            "",
-            "tirx.ptx.cp_async_bulk_tensor_tile_gather4_global_to_cluster",
-            dim,
-            dst_ptr,
-            bar_addr,
-            tensormap_addr,
-            cta_mask,
-            cta_group,
-            cache_policy,
-            int(has_cache_policy),
-            1,
-            *coords,
-        )
+        self.prefetch = _op_wrapper(_cuda_op.ptx_cp_async_bulk_tensor_prefetch)
 
 
 class CpAsyncMbarrierNamespace:
     """The CpAsyncMbarrier instruction submodule."""
 
     def __init__(self):
-        self.arrive = _op_wrapper(_cuda_op.ptx_cp_async_mbarrier_arrive)
+        self.arrive = CpAsyncMbarrierArriveNamespace()
+
+
+class CpAsyncMbarrierArriveNamespace:
+    """The CpAsyncMbarrier Arrive instruction submodule."""
+
+    @staticmethod
+    def noinc(*args, **kwds):
+        return _cuda_op.ptx_cp_async_mbarrier_arrive_noinc(*args, **kwds)
+
+    def __call__(self, *args, **kwds):
+        return _op_wrapper(_cuda_op.ptx_cp_async_mbarrier_arrive)(*args, **kwds)
+
+    # __call__ corresponds to ptx_cp_async_mbarrier_arrive
+    __tir_call_op_name__ = "ptx_cp_async_mbarrier_arrive"
 
 
 class WgmmaNamespace:
@@ -282,6 +236,7 @@ class MbarrierNamespace:
 
     def __init__(self):
         self.init = _op_wrapper(_cuda_op.ptx_mbarrier_init)
+        self.complete_tx = _op_wrapper(_cuda_op.ptx_mbarrier_complete_tx)
         self.try_wait = _op_wrapper(_cuda_op.ptx_mbarrier_try_wait)
         self.try_wait_once = _op_wrapper(_cuda_op.ptx_mbarrier_try_wait_once)
         self.try_wait_acquire_cluster = _op_wrapper(_cuda_op.ptx_mbarrier_try_wait_acquire_cluster)
@@ -293,7 +248,7 @@ class MbarrierArriveNamespace:
 
     def __init__(self):
         self.expect_tx = _op_wrapper(_cuda_op.ptx_mbarrier_arrive_expect_tx)
-        self.cluster_count = _op_wrapper(_cuda_op.ptx_mbarrier_arrive_cluster_count)
+        self.no_complete = _op_wrapper(_cuda_op.ptx_mbarrier_arrive_no_complete)
 
     def __call__(self, *args, **kwds):
         return _op_wrapper(_cuda_op.ptx_mbarrier_arrive)(*args, **kwds)
@@ -379,6 +334,7 @@ class BarrierNamespace:
     """The Barrier instruction submodule."""
 
     def __init__(self):
+        self.sync = _op_wrapper(_cuda_op.ptx_barrier_sync)
         self.cluster = BarrierClusterNamespace()
 
 
@@ -411,10 +367,24 @@ class GriddepcontrolNamespace:
         self.launch_dependents = _op_wrapper(_cuda_op.ptx_griddepcontrol_launch_dependents)
 
 
+class IketNamespace:
+    """Frontend-only NVIDIA IKET annotations."""
+
+    def __init__(self):
+        self.mark = _op_wrapper(_cuda_op.cuda_iket_mark)
+        self.range_start = _op_wrapper(_cuda_op.cuda_iket_range_start)
+        self.range_end = _op_wrapper(_cuda_op.cuda_iket_range_end)
+        self.range_push = _op_wrapper(_cuda_op.cuda_iket_range_push)
+        self.range_pop = _op_wrapper(_cuda_op.cuda_iket_range_pop)
+        self.sentinel_token = _op_wrapper(_cuda_op.cuda_iket_sentinel_token)
+        self.official_event = _op_wrapper(_cuda_op.cuda_iket_official_event)
+
+
 class CUDANamespace:
     """The CUDA intrinsics submodule."""
 
     def __init__(self):
+        self.iket = IketNamespace()
         self.atomic_add = _op_wrapper(_cuda_op.cuda_atomic_add)
         self.thread_fence = _op_wrapper(_cuda_op.cuda_thread_fence)
         self.warpgroup_sync = _op_wrapper(_cuda_op.cuda_warpgroup_sync)
@@ -445,10 +415,11 @@ class CUDANamespace:
         self.func_call = _op_wrapper(_cuda_op.cuda_func_call)
         self.printf = _op_wrapper(_cuda_op.cuda_printf)
         self.ldg = _op_wrapper(_cuda_op.cuda_ldg)
+        self.fdividef = _op_wrapper(_cuda_op.cuda_fdividef)
         self.get_tmem_addr = _op_wrapper(_cuda_op.cuda_get_tmem_addr)
         self.cvta_generic_to_shared = _op_wrapper(_cuda_op.cuda_cvta_generic_to_shared)
         self.smem_addr_from_uint64 = _op_wrapper(_cuda_op.cuda_smem_addr_from_uint64)
-        self.sm100_tma_2sm_mbarrier_addr = _op_wrapper(_cuda_op.cuda_sm100_tma_2sm_mbarrier_addr)
+        self.sm100_2sm_leader_smem_addr = _op_wrapper(_cuda_op.cuda_sm100_2sm_leader_smem_addr)
         self.uint_as_float = _op_wrapper(_cuda_op.cuda_uint_as_float)
         self.float_as_uint = _op_wrapper(_cuda_op.cuda_float_as_uint)
         self.ballot_sync = _op_wrapper(_cuda_op.cuda_ballot_sync)
@@ -485,25 +456,25 @@ class CUDANamespace:
 
     @staticmethod
     def _shfl_sync(mask, var, lane, width):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_sync", mask, var, lane, width)
 
     @staticmethod
     def _shfl_up_sync(mask, var, delta, width):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_up_sync", mask, var, delta, width)
 
     @staticmethod
     def _shfl_down_sync(mask, var, delta, width):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_down_sync", mask, var, delta, width)
 
     @staticmethod
     def _shfl_xor_sync(mask, var, lane_mask, width):
-        if isinstance(var, Buffer):
+        if is_buffer_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_xor_sync", mask, var, lane_mask, width)
 

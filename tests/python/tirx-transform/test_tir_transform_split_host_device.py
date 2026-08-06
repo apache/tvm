@@ -345,6 +345,28 @@ def test_symbolic_var_parameter():
     assert isinstance(after["main_kernel"].params[2], tvm.tirx.Var)
 
 
+def test_buffer_used_only_through_data_projection():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((16,), "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            with T.attr(T.target("cuda"), "target", 0):
+                T.evaluate(T.call_extern("consume", A.data, dtype="int32"))
+
+    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    kernel = after["main_kernel"]
+    declared_buffers = []
+
+    def collect(node):
+        if isinstance(node, tvm.tirx.DeclBuffer):
+            declared_buffers.append(node.buffer)
+
+    tvm.tirx.stmt_functor.post_order_visit(kernel.body, collect)
+    assert len(declared_buffers) == 1
+    assert not tvm.tirx.analysis.undefined_vars(kernel.body, kernel.params)
+
+
 def test_thread_extent_region_extracted_as_device_kernel():
     """A bare thread_extent is annotated and extracted as a device kernel."""
 
@@ -381,6 +403,38 @@ def test_thread_extent_region_extracted_as_device_kernel():
 
     After = tvm.tirx.transform.SplitHostDevice()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_cuda_launch_preserves_flag_metadata():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(16, "float32")):
+            T.func_attr(
+                {
+                    "target": T.target("cuda", host="llvm"),
+                    "tirx.kernel_launch_params": [
+                        "threadIdx.x",
+                        "tirx.use_programtic_dependent_launch",
+                    ],
+                }
+            )
+            T.attr(T.target("cuda"), "target", 0)
+            tx = T.launch_thread("threadIdx.x", 16)
+            A[tx] = 0.0
+
+    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    kernel = after["main_kernel"]
+    assert list(kernel.attrs["tirx.kernel_launch_params"]) == [
+        "threadIdx.x",
+        "tirx.use_programtic_dependent_launch",
+    ]
+
+    launch = after["main"].body.value
+    assert isinstance(launch, tvm.ir.Call)
+    # Programmatic launch is flag-only and therefore adds no packed operand.
+    assert len(launch.args) == 3
+    assert int(launch.args[-1]) == 16
 
 
 def test_device_scope_region_extracted_as_device_kernel():

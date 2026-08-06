@@ -113,6 +113,19 @@ def test_lower_nested_access_ptr():
     assert isinstance(load, tvm.tirx.BufferLoad)
     assert int(tvm.arith.Analyzer().simplify(load.indices[0])) == 5
 
+    targets = ["c"]
+    if env.has_llvm():
+        targets.append("llvm")
+    for target in targets:
+        target = tvm.target.Target(target)
+        build_func = (
+            tvm.tirx.PrimFunc([data], body)
+            .with_attr("global_symbol", "main")
+            .with_attr("target", target)
+        )
+        build_mod = tvm.tirx.transform.LowerIntrin()(tvm.IRModule.from_expr(build_func))
+        tvm.tirx.build(build_mod, target=target)
+
 
 def test_lower_vector_access_ptr():
     buffer = tvm.tirx.decl_buffer((8,), "float32x2", name="A")
@@ -128,14 +141,21 @@ def test_lower_vector_access_ptr():
             "target", tvm.target.Target("llvm")
         )
     )
-    lowered = tvm.tirx.transform.LowerIntrin()(mod)["main"].body.value
+    lowered_body = tvm.tirx.transform.LowerIntrin()(mod)["main"].body
+    assert isinstance(lowered_body, tvm.tirx.SeqStmt)
+    alias = lowered_body.seq[0]
+    assert isinstance(alias, tvm.tirx.DeclBuffer)
+    assert alias.data.op.name == "tirx.buffer_data"
+    assert alias.data.args[0].same_as(buffer)
+    lowered = lowered_body.seq[1].value
     assert lowered.op.name == "tirx.address_of"
     assert lowered.ty == access_ptr.ty
 
     load = lowered.args[0]
     assert isinstance(load, tvm.tirx.BufferLoad)
-    assert load.buffer.data.same_as(buffer.data)
-    assert load.buffer.dtype == tvm.ir.PrimType("float32")
+    assert load.buffer.same_as(alias.buffer)
+    assert not load.buffer.same_as(buffer)
+    assert load.buffer.ty.dtype == tvm.ir.PrimType("float32")
     assert len(load.indices) == 1
     ramp = load.indices[0]
     assert isinstance(ramp, tvm.tirx.Ramp)
@@ -152,6 +172,41 @@ def test_lower_vector_access_ptr_with_padded_vector_dtype():
     func = tvm.tirx.PrimFunc([buffer], body).with_attr("global_symbol", "main")
 
     tvm.tirx.build(tvm.IRModule.from_expr(func), target="llvm")
+
+
+def test_lower_buffer_data_access_ptr_preserves_buffer_identity():
+    buffer = tvm.tirx.decl_buffer((16,), "float32", "buffer")
+    access = tvm.tirx.tvm_access_ptr("float32", buffer.data, 3, 8, 1)
+
+    func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(access)).with_attr(
+        "target", tvm.target.Target("llvm")
+    )
+    lowered = tvm.tirx.transform.LowerIntrin()(tvm.IRModule.from_expr(func))["main"].body.value
+    assert isinstance(lowered, tvm.ir.Call)
+    assert lowered.op.name == "tirx.address_of"
+    load = lowered.args[0]
+    assert isinstance(load, tvm.tirx.BufferLoad)
+    assert load.buffer.same_as(buffer)
+    assert int(load.indices[0]) == 3
+
+
+@pytest.mark.parametrize("shape", [(), (2, 4)])
+def test_lower_access_ptr_uses_flat_alias_for_non_1d_buffer(shape):
+    buffer = tvm.tirx.decl_buffer(shape, "float32", "buffer")
+    access = buffer.access_ptr(access_mask=1)
+    func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(access)).with_attr(
+        "target", tvm.target.Target("llvm")
+    )
+
+    lowered = tvm.tirx.transform.LowerIntrin()(tvm.IRModule.from_expr(func))["main"].body
+    assert isinstance(lowered, tvm.tirx.SeqStmt)
+    alias = lowered.seq[0]
+    assert isinstance(alias, tvm.tirx.DeclBuffer)
+    assert len(alias.buffer.ty.shape) == 1
+    load = lowered.seq[1].value.args[0]
+    assert isinstance(load, tvm.tirx.BufferLoad)
+    assert load.buffer.same_as(alias.buffer)
+    assert len(load.indices) == 1
 
 
 def get_ref_data():

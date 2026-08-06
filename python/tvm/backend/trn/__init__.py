@@ -18,7 +18,15 @@
 
 from importlib import import_module
 
-_LAZY_SUBMODULES = {"layout", "op", "operator", "pipeline", "script", "target_tags", "transform"}
+_LAZY_SUBMODULES = {
+    "layout",
+    "op",
+    "pipeline",
+    "script",
+    "target_tags",
+    "tile_primitive",
+    "transform",
+}
 
 
 def register_backend():
@@ -29,7 +37,7 @@ def register_backend():
     for name, namespace in script_namespaces().items():
         builder_ir.register_script_namespace(name, namespace)
 
-    import_module(f"{__name__}.operator.tile_primitive")
+    import_module(f"{__name__}.tile_primitive")
     trn_pipeline = import_module(f"{__name__}.pipeline")
     import_module(f"{__name__}.target_tags")
     import_module(f"{__name__}.transform")
@@ -57,12 +65,12 @@ def __getattr__(name: str):
 __all__ = [
     "layout",
     "op",
-    "operator",
     "pipeline",
     "register_backend",
     "script",
     "script_namespace",
     "script_namespaces",
     "target_tags",
+    "tile_primitive",
     "transform",
 ]

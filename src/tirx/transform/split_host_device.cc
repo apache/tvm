@@ -89,10 +89,16 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
  public:
   Stmt Extract(Stmt stmt) {
     min_blocks_per_sm_.reset();
-    return operator()(std::move(stmt));
+    max_blocks_per_cluster_.reset();
+    Stmt result = operator()(std::move(stmt));
+    TVM_FFI_ICHECK(!max_blocks_per_cluster_.has_value() || min_blocks_per_sm_.has_value())
+        << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " requires "
+        << tirx::attr::kLaunchBoundsMinBlocksPerSM;
+    return result;
   }
 
   std::optional<int64_t> min_blocks_per_sm() const { return min_blocks_per_sm_; }
+  std::optional<int64_t> max_blocks_per_cluster() const { return max_blocks_per_cluster_; }
 
  private:
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -108,11 +114,24 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
       }
       min_blocks_per_sm_ = min_blocks_per_sm->value;
       return VisitStmt(op->body);
+    } else if (op->attr_key == tirx::attr::kLaunchBoundsMaxBlocksPerCluster) {
+      const auto* max_blocks_per_cluster = op->value.as<IntImmNode>();
+      TVM_FFI_ICHECK(max_blocks_per_cluster)
+          << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " expects an integer value";
+      TVM_FFI_ICHECK_GT(max_blocks_per_cluster->value, 0)
+          << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " must be positive";
+      if (max_blocks_per_cluster_.has_value()) {
+        TVM_FFI_ICHECK_EQ(max_blocks_per_cluster_.value(), max_blocks_per_cluster->value)
+            << "Conflicting " << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " values";
+      }
+      max_blocks_per_cluster_ = max_blocks_per_cluster->value;
+      return VisitStmt(op->body);
     }
     return StmtMutator::VisitStmt_(op);
   }
 
   std::optional<int64_t> min_blocks_per_sm_;
+  std::optional<int64_t> max_blocks_per_cluster_;
 };
 
 class HostDeviceSplitter : public StmtMutator {
@@ -131,7 +150,8 @@ class HostDeviceSplitter : public StmtMutator {
 
  private:
   Stmt SplitDeviceFunc(Stmt body, Target device_target) {
-    auto [params, buffers_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<Buffer>> {
+    auto [params,
+          buffers_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<BufferVar>> {
       VarUseDefAnalyzer use_def(/*defined_vars=*/{}, /*visit_thread_extent=*/true);
       use_def(body);
 
@@ -140,7 +160,8 @@ class HostDeviceSplitter : public StmtMutator {
       if (device_target->kind->name != "trn") {
         std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
           auto sort_key = [](const Var& var) {
-            bool is_handle = var->ty.as<PointerTypeNode>() != nullptr;
+            bool is_handle =
+                var->ty.as<PointerTypeNode>() != nullptr || var->ty.as<BufferTypeNode>() != nullptr;
             return std::tuple{
                 !is_handle,
                 var->name,
@@ -151,7 +172,7 @@ class HostDeviceSplitter : public StmtMutator {
       } else {
         std::unordered_map<Var, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> param_order;
         for (size_t i = 0; i < cur_func_->params.size(); ++i) {
-          param_order[cur_func_->buffer_map[cur_func_->params[i]]->data] = i;
+          param_order[cur_func_->params[i].as_or_throw<BufferVar>().var()] = i;
         }
         // sort by original order
         std::sort(params.begin(), params.end(),
@@ -159,6 +180,29 @@ class HostDeviceSplitter : public StmtMutator {
       }
       return {params, use_def.undefined_buffers_};
     }();
+
+    // Buffer Vars are compiler-side values, not ABI values.  Thread their
+    // physical pointer projection through the kernel call and recover the
+    // typed buffer at the kernel entry with an explicit DeclBuffer source.
+    ffi::Array<Var> kernel_params;
+    ffi::Array<Expr> call_args;
+    ffi::Map<Var, Var> buffer_data_params;
+    ffi::Map<Var, Expr> kernel_buffer_remap;
+    for (const Var& param : params) {
+      if (param->ty.as<BufferTypeNode>()) {
+        BufferVar buffer(param);
+        BufferVar kernel_buffer(buffer.name(), buffer.type(), buffer.span());
+        Var data_param(buffer.name() + "_ptr", buffer.DataPointerType());
+        kernel_params.push_back(data_param);
+        call_args.push_back(buffer.data());
+        buffer_data_params.Set(param, data_param);
+        kernel_buffer_remap.Set(param, kernel_buffer.var());
+      } else {
+        kernel_params.push_back(param);
+        call_args.push_back(param);
+      }
+    }
+    body = Substitute(std::move(body), kernel_buffer_remap);
 
     // CodeGenCPU is used for some device-side targets, such as
     // "ext_dev", and expects to be able to return a int32_t status
@@ -177,12 +221,19 @@ class HostDeviceSplitter : public StmtMutator {
       kernel_ret_type = VoidType();
     }
 
-    for (Buffer buf : buffers_to_declare) {
-      body = SeqStmt::Flatten(DeclBuffer(buf), std::move(body));
+    for (BufferVar buf : buffers_to_declare) {
+      auto data_param = buffer_data_params.Get(buf.var());
+      auto kernel_buffer = kernel_buffer_remap.Get(buf.var());
+      TVM_FFI_ICHECK(data_param.has_value())
+          << "Undefined buffer " << buf.name() << " was not captured as a kernel parameter";
+      TVM_FFI_ICHECK(kernel_buffer.has_value());
+      body = SeqStmt::Flatten(
+          DeclBuffer(BufferVar(kernel_buffer.value().as_or_throw<Var>()), data_param.value()),
+          std::move(body));
     }
     LaunchBoundsAttrExtractor launch_bounds_attr;
     body = launch_bounds_attr.Extract(std::move(body));
-    PrimFunc device_func(params, body, kernel_ret_type);
+    PrimFunc device_func(kernel_params, body, kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tirx::attr::kNoAlias, true},
                                                      {tirx::attr::kIsGlobalFunc, true}});
@@ -190,9 +241,20 @@ class HostDeviceSplitter : public StmtMutator {
     if (is_stir) {
       device_func = WithAttr(std::move(device_func), tvm::attr::kSTir, true);
     }
-    if (device_target->kind->name == "cuda" && launch_bounds_attr.min_blocks_per_sm().has_value()) {
-      device_func = WithAttr(std::move(device_func), tirx::attr::kLaunchBoundsMinBlocksPerSM,
-                             launch_bounds_attr.min_blocks_per_sm().value());
+    if (auto launch_params =
+            cur_func_->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams)) {
+      device_func =
+          WithAttr(std::move(device_func), tirx::attr::kKernelLaunchParams, launch_params.value());
+    }
+    if (device_target->kind->name == "cuda") {
+      if (launch_bounds_attr.min_blocks_per_sm().has_value()) {
+        device_func = WithAttr(std::move(device_func), tirx::attr::kLaunchBoundsMinBlocksPerSM,
+                               launch_bounds_attr.min_blocks_per_sm().value());
+      }
+      if (launch_bounds_attr.max_blocks_per_cluster().has_value()) {
+        device_func = WithAttr(std::move(device_func), tirx::attr::kLaunchBoundsMaxBlocksPerCluster,
+                               launch_bounds_attr.max_blocks_per_cluster().value());
+      }
     }
     auto num_inputs = cur_func_->GetAttr<int64_t>(tvm::attr::kNumInputs);
     if (num_inputs.has_value()) {
@@ -200,11 +262,9 @@ class HostDeviceSplitter : public StmtMutator {
     }
     GlobalVar kernel_symbol_global = var_supply_();
     (*device_mod_)->Add(kernel_symbol_global, device_func);
-    ffi::Array<Expr> args = params.Map([](const Var& var) -> Expr { return var; });
-
     if (can_propagate_errors) {
       Var kernel_error_code("kernel_error_code", success.ty());
-      Call kernel_call(success.ty(), kernel_symbol_global, args);
+      Call kernel_call(success.ty(), kernel_symbol_global, call_args);
       AssertStmt assert_success(kernel_error_code.as_or_throw<PrimExpr>() == success,
                                 StringImm("RuntimeError"),
                                 {StringImm("Error executing compute kernel")});
@@ -212,7 +272,8 @@ class HostDeviceSplitter : public StmtMutator {
                                       assert_success});
 
     } else {
-      return Evaluate(Call(PrimType::Void(), kernel_symbol_global, args).as_or_throw<PrimExpr>());
+      return Evaluate(
+          Call(PrimType::Void(), kernel_symbol_global, call_args).as_or_throw<PrimExpr>());
     }
   }
 
@@ -272,10 +333,39 @@ class DeviceInfoCollector : public StmtVisitor {
     collector.info_.target = func->GetAttr<Target>(tvm::attr::kTarget).value().WithoutHost();
     collector.info_.params = func->params;
 
+    if (auto requested = func->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams)) {
+      for (const ffi::String& tag : requested.value()) {
+        if (tag == tvm::runtime::launch_param::kUseProgramaticDependentLaunch) {
+          collector.use_programmatic_dependent_launch_ = true;
+        } else if (tag == tvm::runtime::launch_param::kUseCooperativeLaunch) {
+          collector.use_cooperative_launch_ = true;
+        }
+      }
+    }
+
     collector(func->body);
 
-    // The dynamic shared memory is required to be the last of the
-    // kernel launch parameters.
+    if (collector.use_programmatic_dependent_launch_) {
+      collector.info_.launch_params.push_back(
+          tvm::runtime::launch_param::kUseProgramaticDependentLaunch);
+    }
+    if (collector.use_cooperative_launch_) {
+      collector.info_.launch_params.push_back(tvm::runtime::launch_param::kUseCooperativeLaunch);
+    }
+    // The dynamic shared memory is required to be the last of the kernel
+    // launch parameters. An explicit tirx.dyn_smem_bytes declaration wins;
+    // otherwise fall back to the size inferred from the allocation extent.
+    // A zero-extent allocation is a pool-style extern placeholder, so having
+    // neither a declaration nor a usable extent is an authoring error.
+    if (!collector.dyn_shmem_size.has_value() && collector.inferred_shmem_size_.has_value()) {
+      const auto* inferred = collector.inferred_shmem_size_.value().as<IntImmNode>();
+      TVM_FFI_ICHECK(!(inferred && inferred->value == 0))
+          << "PrimFunc " << gvar->name_hint
+          << " allocates dynamic shared memory with a placeholder extent but does not declare "
+             "its size; annotate the kernel with tirx.dyn_smem_bytes (SMEMPool.commit() emits "
+             "it).";
+      collector.dyn_shmem_size = collector.inferred_shmem_size_;
+    }
     if (collector.dyn_shmem_size) {
       collector.info_.launch_params.push_back(
           tvm::runtime::launch_param::kUseDynamicSharedMemoryTag);
@@ -284,8 +374,13 @@ class DeviceInfoCollector : public StmtVisitor {
     collector.info_.global_symbol =
         func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
 
-    collector.info_.launch_args = collector.info_.launch_params.Map(
-        [&](const auto& param) { return collector.GetArgument(param); });
+    for (const ffi::String& param : collector.info_.launch_params) {
+      if (param == tvm::runtime::launch_param::kUseProgramaticDependentLaunch ||
+          param == tvm::runtime::launch_param::kUseCooperativeLaunch) {
+        continue;
+      }
+      collector.info_.launch_args.push_back(collector.GetArgument(param));
+    }
 
     return collector.info_;
   }
@@ -295,7 +390,7 @@ class DeviceInfoCollector : public StmtVisitor {
     if (launch_param == tvm::runtime::launch_param::kUseDynamicSharedMemoryTag) {
       TVM_FFI_ICHECK(dyn_shmem_size.has_value())
           << "Compute kernel requires launch parameter \"" << launch_param
-          << "\", but PrimFunc did not contain AllocBuffer node with shared dynamic scope.";
+          << "\", but PrimFunc did not declare tirx.dyn_smem_bytes.";
       return dyn_shmem_size.value();
     }
 
@@ -324,6 +419,15 @@ class DeviceInfoCollector : public StmtVisitor {
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
+    if (op->attr_key == "tirx.dyn_smem_bytes") {
+      // Kernel-level declaration of the dynamic shared memory launch size.
+      // The backing shared.dyn allocation is an extern placeholder; this
+      // attribute is the single source of truth for the launch parameter.
+      TVM_FFI_ICHECK(!dyn_shmem_size.has_value())
+          << "Only one tirx.dyn_smem_bytes declaration is allowed per kernel.";
+      TVM_FFI_ICHECK(op->value.as<IntImmNode>()) << "tirx.dyn_smem_bytes must be an IntImm";
+      dyn_shmem_size = op->value;
+    }
     if (op->attr_key == attr::thread_extent) {
       ffi::String thread_tag;
       if (auto iv = op->node.as<IterVar>()) {
@@ -352,23 +456,26 @@ class DeviceInfoCollector : public StmtVisitor {
   }
 
   void VisitStmt_(const AllocBufferNode* op) final {
-    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer->data));
+    auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
-      TVM_FFI_ICHECK(!dyn_shmem_size.has_value())
+      TVM_FFI_ICHECK(!saw_dyn_shared_alloc_)
           << "Only one dynamic shared memory allocation is allowed.";
-      TVM_FFI_ICHECK_GT(op->buffer->shape.size(), 0);
+      saw_dyn_shared_alloc_ = true;
 
+      // Fallback launch size inferred from the allocation extent, used when
+      // no tirx.dyn_smem_bytes declaration is present (e.g. s_tir schedules
+      // allocate shared.dyn with a concrete extent). A zero extent is a
+      // pool-style extern placeholder and carries no size information.
+      TVM_FFI_ICHECK_GT(op->buffer->shape.size(), 0);
       PrimExpr dyn_size = IntImm::Int32(1);
       for (const auto& extent : op->buffer->shape) {
         dyn_size *= extent;
       }
       dyn_size *= IntImm::Int64(static_cast<int64_t>(op->buffer->dtype.StorageBytes()));
-
-      // Inline any locally-bound variables (e.g. from CSE).
       if (bind_map_.size()) {
         dyn_size = Substitute(dyn_size, bind_map_);
       }
-      dyn_shmem_size = dyn_size;
+      inferred_shmem_size_ = dyn_size;
     }
     StmtVisitor::VisitStmt_(op);
   }
@@ -381,24 +488,36 @@ class DeviceInfoCollector : public StmtVisitor {
   ffi::Map<ffi::String, PrimExpr> thread_extent;
   // The amount of dynamic shared memory used.
   ffi::Optional<PrimExpr> dyn_shmem_size{std::nullopt};
+  // Whether a shared.dyn allocation was seen.
+  bool saw_dyn_shared_alloc_{false};
+  // Launch size inferred from the allocation extent (fallback when no
+  // tirx.dyn_smem_bytes declaration is present).
+  ffi::Optional<PrimExpr> inferred_shmem_size_{std::nullopt};
+  // Flag-only launch attributes requested by the original PrimFunc.
+  bool use_programmatic_dependent_launch_{false};
+  bool use_cooperative_launch_{false};
   // Accumulated Bind definitions for inlining into extent/size expressions.
   ffi::Map<Var, PrimExpr> bind_map_;
 };
 
 class ReturnRemover : public StmtExprMutator {
  public:
-  static Stmt Apply(const Stmt& stmt) {
-    ReturnRemover mutator;
+  static Stmt Apply(const Stmt& stmt, bool remove) {
+    ReturnRemover mutator(remove);
     return mutator(stmt);
   }
 
  private:
+  explicit ReturnRemover(bool remove) : remove_(remove) {}
+
   Stmt VisitStmt_(const ReturnNode* op) override {
     auto as_int = op->value.as<IntImmNode>();
     TVM_FFI_ICHECK(as_int && as_int->value == 0)
         << "Device kernel may only contain a successful return, return 0";
-    return Evaluate(0);
+    return remove_ ? Evaluate(0) : ffi::GetRef<Stmt>(op);
   }
+
+  bool remove_;
 };
 
 class GlobalVarCallCollector : public StmtExprVisitor {
@@ -485,7 +604,20 @@ class DeviceKernelMutator : public StmtExprMutator {
       {
         auto write_ptr = func.CopyOnWrite();
         write_ptr->ret_type = VoidType();
-        write_ptr->body = ReturnRemover::Apply(write_ptr->body);
+        Target target = func->GetAttr<Target>(tvm::attr::kTarget).value();
+        bool preserve_early_returns = target->kind->name == "cuda";
+        write_ptr->body = ReturnRemover::Apply(write_ptr->body, !preserve_early_returns);
+        // The dyn-smem size declaration was consumed by DeviceInfoCollector;
+        // it has no meaning inside the kernel body.
+        class StripDynSmemAttr : public StmtMutator {
+          Stmt VisitStmt_(const AttrStmtNode* op) final {
+            if (op->attr_key == "tirx.dyn_smem_bytes") {
+              return VisitStmt(op->body);
+            }
+            return StmtMutator::VisitStmt_(op);
+          }
+        };
+        write_ptr->body = StripDynSmemAttr()(std::move(write_ptr->body));
       }
 
       func = WithAttrs(std::move(func),

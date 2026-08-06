@@ -15,186 +15,213 @@
     specific language governing permissions and limitations
     under the License.
 
-copy_async → tma
-================
+copy_async → tma_auto / tma_explicit
+=====================================
 
-The ``tma`` variant lowers ``copy_async`` between **global and shared** to the
-hardware **Tensor Memory Accelerator**: a single elected thread issues a
-descriptor-driven bulk copy (``cp.async.bulk.tensor``), and the hardware walks the
-multi-dimensional tile described by a ``cuTensorMap``. The descriptor is built once
-on the host (``cuTensorMapEncodeTiled``); the device only *issues* the copy — the
-hardware signals the caller's mbarrier when the transfer completes (the dispatch
-itself emits no completion op). Source:
-``python/tvm/backend/cuda/operator/tile_primitive/copy_async/tma.py``.
+The ``tma_auto`` and ``tma_explicit`` variants lower ``copy_async`` between
+global and shared memory to CUDA Tensor Memory Accelerator instructions.  Both
+variants:
 
-What it accepts
----------------
+* are issued by a single elected thread;
+* construct and cache ``cuTensorMap`` descriptors on the host with
+  ``cuTensorMapEncodeTiled``;
+* use the same hardware validator, descriptor cache, prefetch path, and PTX
+  emitter; and
+* require the source and destination regions to contain the same total number
+  of bytes.  Their ranks and per-dimension shapes need not match.
 
-The dispatch registers two predicates — a valid copy and a **single-thread** scope:
+The variants differ only in how the TensorMap and issue count are planned.
+
+``tma_auto``
+------------
+
+``tma_auto`` derives the largest legal TMA box from the shared-memory iteration
+order.  It is intended for ordinary full-tile copies whose layout relationship
+can be proven statically:
 
 .. code-block:: python
 
-    # register_dispatch(..., priority=10, when=[
-    predicate("validate_copy_op", lambda op, sctx: (validate_copy_op(op, sctx), "not a valid copy op")),
-    predicate("single_thread",    lambda op, sctx: (single_thread(op, sctx),    "expected single thread")),
-    # ])
+    Tx.copy_async(
+        A_smem[:, :],
+        A[tile_m : tile_m + 64, tile_k : tile_k + 64],
+        dispatch="tma_auto",
+        mbar=mbar.ptr_to([0]),
+    )
 
-    def single_thread(op_call, sctx):
-        return sctx.is_thread            # exactly one elected thread issues the TMA
+The shared slice must contain only memory iterators and must form one complete
+contiguous stride chain.  The planner groups the global layout against that
+chain, selects the maximum hardware-legal shared prefix for the TensorMap box,
+and emits mixed-radix issue loops for the remaining dimensions.
+
+Every raw candidate runs the same address-preserving dimension
+canonicalization: address-free unit dimensions are removed where legal, and
+adjacent contiguous dimensions are merged when the inner dimension is copied
+in full from coordinate zero.  When an innermost contiguous, fully boxed,
+coordinate-zero pair is blocked only because its merged box would exceed 256,
+canonicalization may first apply one byte-preserving descriptor-unit promotion
+and retry that same boundary, but only if that single promotion makes the merge
+legal and a farther outer dimension exists.  This avoids skipping outward and
+changing the TensorMap tiling of the contiguous inner chain.  Promotion is
+otherwise a repair step used only when the canonical candidate fails a
+repairable hardware rule.  It preserves byte strides, payload size,
+transaction size, global base, and shared pointer, and is not used for
+reductions, TF32, packed dtypes, interleave, OOB fill, gather4, or issue-driven
+innermost axes.
+
+``tma_auto`` does not accept ``gather4`` or ``src_selector`` and only accepts the
+default no-OOB contract (``oob=None``).  Symbolic facts that affect layout
+mapping, prefix selection, or repair must be proven.  A dynamic ``globalDim``
+whose range is otherwise unknown is the exception: the runtime TensorMap
+encoder checks it is in ``(0, 2^32]`` immediately before the CUDA Driver call.
+Use ``tma_explicit`` for explicit OOB behavior or when other descriptor facts
+are only known at runtime.
+
+``tma_explicit``
+----------------
+
+``tma_explicit`` maps the supplied global Buffer or view directly:
+
+* Buffer/view shape becomes ``globalDim``;
+* layout strides become byte ``globalStrides``;
+* region start becomes the instruction coordinates;
+* region extent becomes ``boxDim``; and
+* Buffer data plus ``elem_offset`` becomes the TensorMap base.
+
+It never regroups, compresses, promotes, shrinks, or splits a copy.  One
+``Tx.copy_async`` call emits exactly one TMA instruction, so a caller must
+explicitly tile a wider transfer:
+
+.. code-block:: python
+
+    for atom in T.unroll(8):
+        Tx.copy_async(
+            O[:, atom * 64 : (atom + 1) * 64],
+            O_smem[:, atom * 64 : (atom + 1) * 64],
+            dispatch="tma_explicit",
+        )
+
+The sliced shared layout must canonicalize to a trivial box after its pointer
+offset and swizzle are extracted.  Global rank and memory-layout rank must
+match.  A statically illegal value is rejected; symbolic global shapes,
+strides, and alignment are retained for validation by the runtime encoder.
+
+Gather4
+~~~~~~~
+
+Gather4 is an explicit global-to-shared operation on SM100 or newer.  It
+requires a two-dimensional TensorMap and exactly four absolute row
+coordinates.  Public axis zero is the four-row payload, and PTX receives
+coordinates in ``{column, row0, row1, row2, row3}`` order:
+
+.. code-block:: python
+
+    Tx.copy_async(
+        K_smem[0:4, :],
+        K[0:1, :],
+        dispatch="tma_explicit",
+        mbar=mbar.ptr_to([0]),
+        gather4=[row0, row1, row2, row3],
+    )
+
+Longer gathers must be written as multiple four-row calls.  Each destination
+slice must be four-row box-linear and each source row must have the descriptor's
+declared byte stride.
+
+Descriptor selection
+~~~~~~~~~~~~~~~~~~~~
+
+``src_selector`` selects among alternate global Buffers or views while reusing
+the main operand's region and gather coordinates:
+
+.. code-block:: python
+
+    Tx.copy_async(
+        K_smem[0:4, :],
+        K_main[0:1, :],
+        dispatch="tma_explicit",
+        mbar=mbar.ptr_to([0]),
+        gather4=[row0, row1, row2, row3],
+        src_selector=[
+            (use_extra, K_extra.sub[base_row:, :]),
+            (use_backup, K_backup),
+        ],
+    )
+
+Conditions use first-true priority and the main Buffer is the default.  Every
+candidate gets its own validated and encoded TensorMap.  Candidates may have
+different bases, global shapes, and strides, but must have the same descriptor
+dtype, rank, box, swizzle, and transfer byte count.  Lowering selects a
+pointer-typed descriptor and emits one TMA instruction; it does not select
+coordinates or generate instruction-level branches.
+
+``prefetch_tensormap=True`` deduplicates and prefetches only the main
+descriptor.  Selector candidates are not prefetched automatically.
+
+Common configuration
+--------------------
 
 .. list-table::
    :header-rows: 1
-   :widths: 22 78
+   :widths: 28 72
 
-   * - Property
-     - Requirement
-   * - target / priority
-     - ``cuda``; priority ``10`` (the bulk path for ``copy_async`` global ↔ shared)
-   * - scope
-     - **single thread** (``sctx.is_thread``) — TMA is issued by one thread, not a
-       partitioned warp
-   * - direction
-     - ``global → shared`` (g2s) or ``shared → global`` (s2g), inferred from the
-       buffer scopes at lowering
-   * - dtype / shape
-     - ``validate_copy_op``: both sides have layouts, equal dtype, equal non-unit
-       extents
-   * - layout
-     - must form a legal descriptor: rank ≤ 5, innermost stride 1, innermost box
-       fits the shared swizzle atom (else the plan search shrinks / declines)
+   * - Option
+     - Meaning
+   * - ``mbar`` / ``mbarrier_addr``
+     - Completion barrier for global-to-shared copies.  ``mbarrier_addr``
+       selects the PTX shared-address operand form; lowering converts the
+       supplied generic shared pointer once before the instruction.
+   * - ``cta_group`` / ``cta_mask``
+     - CTA group and multicast mask.  ``cta_group`` is one or two.
+   * - ``cache_hint``
+     - Named cache hint or a runtime ``uint64`` cache-policy operand.
+   * - ``prefetch_tensormap``
+     - Deduplicated device-side prefetch of the main descriptor.
+   * - ``tensormap_l2_promotion``
+     - ``none``, ``L2::64B``, ``L2::128B``, or ``L2::256B``.
+   * - ``tma_dtype``
+     - ``tf32`` or ``tfloat32`` for a float32 descriptor conversion.
+   * - ``use_tma_reduce``
+     - Shared-to-global reduction operation.
+   * - ``oob``
+     - Explicit global-to-shared only.  ``zero`` is the default; ``nan`` is
+       limited to non-packed floating-point descriptors.
 
-Demonstration program
-----------------------
+Hardware validation
+-------------------
 
-One thread bulk-copies an ``8×256`` ``float16`` tile global → shared (with a
-128-byte swizzled shared layout), signals an mbarrier, waits, then reads it back
-(mirrors ``test_tma.py``'s G2S smoke test):
+TensorMap dimensions use CUDA API order: dimension zero is innermost and
+``globalStrides`` omits its unit stride.  Layout order is reversed once when
+the descriptor specification is constructed.
 
-.. code-block:: python
+The shared validator checks, among other rules:
 
-    from tvm.tirx.cuda.operator.tile_primitive.tma_utils import mma_shared_layout
+* rank 1 through 5 and target SM90 or newer;
+* legal scalar descriptor dtype and conversion dtype;
+* 16-byte global base alignment, raised where packed or interleaved modes
+  require 32 bytes, and 64-byte TensorMap object alignment;
+* ``globalDim`` in ``(0, 2^32]``;
+* each explicit byte stride non-negative, aligned, and less than ``2^40``;
+* ``boxDim`` in ``[1, 256]`` and element stride in ``[1, 8]``;
+* unit innermost stride and ordinary inner-box bytes divisible by 16;
+* legal interleave, swizzle, L2 promotion, and OOB combinations;
+* swizzled inner boxes no larger than their 32-, 64-, or 128-byte atom; and
+* direction, reduction, mbarrier, CTA group, coordinate count, and load-mode
+  combinations.
 
-    g_shape = s_shape = (8, 256); dtype = "float16"
-    shared_layout = mma_shared_layout(dtype, 3, (8, 256))    # 128-B swizzle
-    smem_bytes = 8 * 256 * 2
+Packed sub-byte descriptors are validated in their actual TensorMap encoding
+units rather than by truncating ``bits // 8``.
 
-    @T.prim_func
-    def copy_async(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, g_shape, dtype, layout=TileLayout(S[8, 256]))
-        B = T.match_buffer(B_ptr, g_shape, dtype, layout=TileLayout(S[8, 256]))
-        T.device_entry(); T.cta_id([1]); tid = T.thread_id([8])
-        dyn = T.alloc_buffer([smem_bytes + 8], "uint8", scope="shared.dyn")   # arena
-        A_smem   = T.decl_buffer(s_shape, dtype, dyn.data, elem_offset=0, layout=shared_layout)
-        mbarrier = T.decl_buffer([1], "uint64", dyn.data, elem_offset=smem_bytes // 8)
-        phase: T.int32 = 0
-        if tid == 0:
-            T.ptx.mbarrier.init(mbarrier.ptr_to([0]), 1)
-        T.ptx.fence.proxy_async("shared::cta"); T.cuda.cta_sync()
-        if tid == 0:
-            Tx.copy_async(A_smem[0:8, 0:256], A[0:8, 0:256], dispatch="tma", mbar=mbarrier.ptr_to([0]))
-            T.ptx.mbarrier.arrive.expect_tx(mbarrier.ptr_to([0]), smem_bytes)
-        T.ptx.mbarrier.try_wait(mbarrier.ptr_to([0]), phase)
-        T.ptx.fence.proxy_async("shared::cta"); T.cuda.cta_sync()
-        Tx.cta.copy(B[0:8, 0:256], A_smem[0:8, 0:256])
+For ``tma_auto``, a statically disproven rule always rejects the candidate.
+Unknown planner-sensitive rules also reject it; only the dynamic
+``globalDim`` range is deferred to the runtime encoder.  ``tma_explicit``
+retains unknown descriptor values for runtime validation because it does not
+choose among alternative boxes or issue loops.
 
-Algorithm
----------
+Completion
+----------
 
-**1. Infer direction from scopes.** ``global → shared`` is g2s, ``shared → global``
-is s2g (anything else is an error):
-
-.. code-block:: python
-
-    if src.scope() == "global" and dst.scope().startswith("shared"):
-        direction, s_buf, g_buf = "g2s", dst, src
-    elif src.scope().startswith("shared") and dst.scope() == "global":
-        direction, s_buf, g_buf = "s2g", src, dst
-
-**2. Plan the descriptor (L1 → L2 → L3).** The dispatch canonicalizes both
-layouts (L1), then for each global iter finds the maximal contiguous stride-1 shard
-chain and cuts the axis into descriptor **box** segments (L2), then stacks those
-into a ``cuTensorMap`` and validates the hardware constraints — rank ≤ 5, innermost
-stride 1, innermost box fits the shared swizzle atom — shrinking the chain prefix
-and retrying if a constraint fails (L3). Adjacent fully-boxed contiguous dims are
-merged, and an over-256 box may trigger element-type promotion.
-
-**3. Emit the host descriptor once,** keyed by a cache so a repeated copy reuses it:
-
-.. code-block:: python
-
-    T.call_packed("runtime.cuTensorMapEncodeTiled", tensormap, dtype_str, rank,
-                  tensor_ptr, *reversed(shape), *reversed(strides[:-1]),
-                  *reversed(box_dim), *element_strides, 0, swizzle_mode, 2, oob_fill)
-
-**4. Emit the device issue loop** — an unrolled loop over the issue axes, one
-``cp.async.bulk.tensor`` per step, direction-specific:
-
-.. code-block:: python
-
-    if direction == "g2s":
-        T.ptx.cp_async.bulk.tensor.g2c(plan.rank, s_buf.ptr_to(s_st), mbar,
-                                       T.address_of(tensor_map), cta_mask, cta_group,
-                                       cache_hint, *tma_coords)
-    else:
-        T.ptx.cp_async.bulk.tensor.s2g(plan.rank, s_buf.ptr_to(s_st),
-                                       T.address_of(tensor_map), cache_hint, *tma_coords)
-
-Like all ``copy_async`` variants the dispatch emits no completion — the caller's
-mbarrier ``arrive.expect_tx`` / ``try_wait`` (g2s) close the loop.
-
-Generated TIRx IR
------------------
-
-The ``8×256`` swizzled tile produces a **rank-3** descriptor and a single issue:
-
-.. code-block:: python
-
-    # host (once): encode the tensor map (rank 3, reversed shape/box/strides, swizzle 3)
-    T.call_packed("runtime.cuTensorMapEncodeTiled", A_ptr_tensormap, "float16", 3,
-                  A.data, 64, 8, 4, 512, 128, 64, 8, 4, 1, 1, 1, 0, 3, 2, 0)
-    # device:
-    for loop_vars in T.unroll(1):
-        T.ptx.cp_async.bulk.tensor.g2c(3, T.address_of(s_buf_w_offset[0]),
-                                       T.address_of(mbarrier[0]),
-                                       T.address_of(A_ptr_tensormap), 0, 1, ..., 0, 0, 0)
-
-Generated CUDA
---------------
-
-.. code-block:: c++
-
-    // one TMA instruction copies the whole rank-3 tile, async, into shared
-    "cp.async.bulk.tensor.3d.shared::cluster.global.mbarrier::complete_tx::bytes"
-    ".cta_group::1 [%0], [%1, {%3, %4, %5}], [%2];"
-    // call: ptx_cp_async_bulk_tensor_g2cluster_tile_3d(smem, mbar, tensormap, coords...)
-
-The three ``{%3, %4, %5}`` are the descriptor coordinates; ``[%1]`` is the
-tensor-map address, ``[%2]`` the mbarrier. One thread launches the entire 8×256
-copy. (This was compiled for ``sm_100a`` — Blackwell — so the instruction carries
-the ``.cta_group::1`` qualifier; on Hopper the qualifier is omitted.)
-
-How inputs change the algorithm
--------------------------------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 26 74
-
-   * - input
-     - effect
-   * - direction
-     - ``g2s`` → ``cp.async.bulk.tensor.*.g2c``; ``s2g`` → ``…s2g``; with a reduce
-       op → ``…s2g_reduce`` (e.g. ``add``)
-   * - shared swizzle mode
-     - sets the ``swizzle_mode`` in the descriptor and the innermost-box constraint;
-       a 128-B swizzle on a 2-D tile yields a **rank-3** descriptor (the inner axis
-       splits into swizzle atoms), as in the demo
-   * - box shape / chain prefix
-     - more selected stride-1 shards → more box>1 descriptor dims; merge collapses
-       contiguous full-box dims; box > 256 triggers dtype promotion (1→2→4→8 B)
-   * - dtype
-     - sets element size and the descriptor's element strides / box byte width
-
-A copy whose layout cannot form a legal descriptor (rank > 5 after shrinking, or no
-swizzle-atom-aligned innermost box) makes the plan search fail and the variant
-declines.
+The dispatch emits the TMA instruction but no completion operation.
+Global-to-shared callers initialize the barrier, call
+``arrive.expect_tx`` with the transferred byte count, and wait for its phase.
+Shared-to-global callers use the bulk-group commit/wait operations required by
+their surrounding algorithm.

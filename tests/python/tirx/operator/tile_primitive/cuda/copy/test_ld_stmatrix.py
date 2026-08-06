@@ -40,7 +40,7 @@ import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.testing import env
-from tvm.tirx.layout import ComposeLayout, S, SwizzleLayout, TileLayout, laneid, tid_in_wg, tx
+from tvm.tirx.layout import ComposeLayout, S, TileLayout, laneid, tid_in_wg, tx
 
 
 def _compile_src(kernel):
@@ -79,13 +79,19 @@ def _s_layout_warpgroup_or_cta(num, trans):
 
 
 # 128b swizzle for fp16 (p=3 ⇒ 8 fp16 chunk; sw=at=3 ⇒ 8-row swizzle period).
-_SWIZZLE_128B = SwizzleLayout(per_element=3, swizzle_len=3, atom_len=3)
+_SWIZZLE_128B = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
 
 
 def _maybe_wrap_swizzle(tile_layout, enable: bool):
     if not enable:
         return tile_layout
-    return ComposeLayout(_SWIZZLE_128B, tile_layout)
+    return ComposeLayout(
+        _SWIZZLE_128B.per_element,
+        _SWIZZLE_128B.swizzle_len,
+        _SWIZZLE_128B.atom_len,
+        tile_layout,
+        _SWIZZLE_128B.swizzle_inner,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -405,7 +411,7 @@ def _build_multi_iter_kernel(outer_ext: int):
     = outer_ext*16 - 1, matching extent product = 16*outer_ext."""
     shape = (outer_ext, 8, 2, 4, 4, 2)
     r_layout = TileLayout(S[shape : (16, 4 @ laneid, 8, 2, 1 @ laneid, 1)])
-    s_layout = SwizzleLayout(3, 3, 3)
+    s_layout = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
     full = tuple(slice(0, e) for e in shape)
 
     @T.prim_func
@@ -447,10 +453,10 @@ def test_ldstmatrix_swizzle_multi_iter_pow2():
     assert "ldmatrix.sync.aligned.m8n8.x4.shared.b16" in src
 
     # Fast-path fingerprint: 3-slot signed_strides + bit-select uses.
-    assert re.search(r"alignas\(\d+\) int v_\d+\[3\]", src), (
+    assert re.search(r"alignas\(\d+\) int \w+\[3\]", src), (
         "expected 3-slot signed_strides buffer for bjs [7, 6, 2]"
     )
-    bitsel = re.findall(r"& 1\) \* v_\d+\[", src)
+    bitsel = re.findall(r"& 1\) \* \w+\[", src)
     assert bitsel, "fast-path bit-select pattern '& 1) * v_<n>[' missing"
 
     n_elem = 1
@@ -482,7 +488,7 @@ def test_ldstmatrix_tcgen05_warpgroup_atom_emits_ldmatrix():
     ``GetScope`` would reject (which silently fell back to a scalar reg path).
     Compile-only (no GPU): asserts the instruction appears in generated source.
     """
-    from tvm.tirx.cuda.operator.tile_primitive.tma_utils import mma_shared_layout
+    from tvm.tirx.cuda.tile_primitive.tma_utils import mma_shared_layout
     from tvm.tirx.layout import tcgen05_atom_layout
 
     m, k = 64, 64
@@ -523,10 +529,10 @@ def test_ldstmatrix_swizzle_multi_iter_linear():
     assert "ldmatrix.sync.aligned.m8n8.x4.shared.b16" in src
 
     # Fast-path fingerprint: 1-slot signed_strides (just the inner BitIter).
-    assert re.search(r"alignas\(\d+\) int v_\d+\[1\]", src), (
+    assert re.search(r"alignas\(\d+\) int \w+\[1\]", src), (
         "expected 1-slot signed_strides buffer (only the inner Case-1.A bj=2)"
     )
-    bitsel = re.findall(r"& 1\) \* v_\d+\[", src)
+    bitsel = re.findall(r"& 1\) \* \w+\[", src)
     assert bitsel, "fast-path bit-select pattern missing"
 
     n_elem = 1

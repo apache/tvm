@@ -198,7 +198,7 @@ def test_reused_buffer_obj():
 
 
 def test_reused_buffer_parameter():
-    """De-duplicate buffer_map across entire module"""
+    """De-duplicate buffer parameters across the entire module."""
 
     @T.prim_func(private=True, s_tir=True)
     def func(A: T.Buffer(1, "float32")):
@@ -223,6 +223,28 @@ def test_reused_buffer_parameter():
 
     after = tvm.tirx.transform.ConvertSSA()(before)
     tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_reused_compound_buffer_shape_var():
+    """De-duplicate implicit Vars nested in buffer parameter shapes."""
+    n = tirx.Var("n", "int32")
+    A = tirx.decl_buffer((tirx.max(n, 1),), layout=None)
+    func = tirx.PrimFunc([A], tirx.Evaluate(n))
+    before = tvm.IRModule(
+        {
+            "func_a": func.with_attr("global_symbol", "func_a"),
+            "func_b": func.with_attr("global_symbol", "func_b"),
+        }
+    )
+
+    after = tvm.tirx.transform.ConvertSSA()(before)
+    func_a = after["func_a"]
+    func_b = after["func_b"]
+    n_a = func_a.params[0].shape[0].a
+    n_b = func_b.params[0].shape[0].a
+    assert not n_a.same_as(n_b)
+    assert n_a.same_as(func_a.body.value)
+    assert n_b.same_as(func_b.body.value)
 
 
 def test_no_change_if_already_ssa():
@@ -490,32 +512,23 @@ def test_track_forward_declarations_in_attr_stmt():
         stmt,
     )
 
-    A_handle = tirx.Var("A_handle", "handle")
-    B_handle = tirx.Var("B_handle", "handle")
-
-    before = tirx.PrimFunc(
-        [A_handle, B_handle],
-        stmt,
-        buffer_map={A_handle: A, B_handle: B},
-    )
+    before = tirx.PrimFunc([A, B], stmt)
 
     mod = tvm.IRModule.from_expr(before)
     after = tvm.tirx.transform.ConvertSSA()(mod)
     tvm.ir.assert_structural_equal(after["main"], before)
 
 
-def test_shared_shape_var_in_buffer_map_and_alloc_buffer():
-    """Shape var shared across buffer_map entries and AllocBuffer should not be renamed.
+def test_shared_shape_var_in_buffer_params_and_alloc_buffer():
+    """Shape var shared across buffer params and AllocBuffer should not be renamed.
 
-    When the same Var (e.g., `n`) appears in multiple buffer_map
-    entries (A and B both have shape [n]), ConvertSSA should not treat
+    When the same Var (e.g., `n`) appears in multiple buffer parameter
+    annotations (A and B both have shape [n]), ConvertSSA should not treat
     the second occurrence as a redefinition.  All uses of `n` in the
     function body (including AllocBuffer shapes) must remain the same
     Var object so that MakePackedAPI can bind it from the DLTensor shape.
     """
     n = tirx.Var("n", "int32")
-    A_handle = tirx.Var("A_handle", "handle")
-    B_handle = tirx.Var("B_handle", "handle")
     A = tirx.decl_buffer((n,), "float32", "A")
     B = tirx.decl_buffer((n,), "float32", "B")
 
@@ -523,11 +536,7 @@ def test_shared_shape_var_in_buffer_map_and_alloc_buffer():
     C = tirx.decl_buffer((n,), "float32", "C")
     body = tirx.SeqStmt([tirx.AllocBuffer(C), tirx.Evaluate(1)])
 
-    before = tirx.PrimFunc(
-        [A_handle, B_handle],
-        body,
-        buffer_map={A_handle: A, B_handle: B},
-    )
+    before = tirx.PrimFunc([A, B], body)
 
     mod = tvm.IRModule.from_expr(before)
     after = tvm.tirx.transform.ConvertSSA()(mod)
@@ -545,14 +554,19 @@ def test_reused_loop_var_in_decl_buffer_elem_offset():
         elem_offset=loop_var * 128,
         scope="shared.dyn",
     )
+    buffer_data = tirx.Var("buffer_data", buffer.data.ty)
     loop = tirx.For(
         loop_var,
         0,
         128,
         tirx.ForKind.SERIAL,
-        tirx.DeclBuffer(buffer, tirx.Evaluate(tirx.BufferLoad(buffer, [0]))),
+        tirx.DeclBuffer(
+            buffer,
+            tirx.Evaluate(tirx.BufferLoad(buffer, [0])),
+            data=buffer_data,
+        ),
     )
-    func = tirx.PrimFunc([buffer.data], tirx.SeqStmt([loop, loop, loop]))
+    func = tirx.PrimFunc([buffer_data], tirx.SeqStmt([loop, loop, loop]))
 
     after = tvm.tirx.transform.ConvertSSA()(tvm.IRModule.from_expr(func))
 

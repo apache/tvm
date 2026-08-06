@@ -388,6 +388,10 @@ TIR_DEFINE_BUILTIN_FUNC(buffer_offset)
     .set_num_inputs(2)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
+TIR_DEFINE_BUILTIN_FUNC(buffer_data)
+    .set_num_inputs(1)
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
 TIR_DEFINE_BUILTIN_FUNC(print_buffer)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 

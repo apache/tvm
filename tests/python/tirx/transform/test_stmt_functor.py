@@ -681,7 +681,9 @@ def create_test_statements():
             continue
 
     # DeclBuffer
-    buffer_decl = tir.DeclBuffer(T.buffer((10,), "int32"), evaluate_stmt)
+    buffer = T.buffer((10,), "int32")
+    buffer_data = tir.Var("buffer_data", buffer.data.ty)
+    buffer_decl = tir.DeclBuffer(buffer, evaluate_stmt, data=buffer_data)
 
     # TilePrimitiveCall — extract the TilePrimitiveCall from the kernel body, then wrap in an SBlock
     @T.prim_func
@@ -1124,13 +1126,13 @@ def test_op_call_config_visited():
         Tx.add(A, B, 1.0)
 
     op_call_stmt = op_call_with_config.body.body
-    assert isinstance(op_call_stmt, tir.stmt.TilePrimitiveCall)
+    assert isinstance(op_call_stmt, tir.TilePrimitiveCall)
 
     # Manually construct an TilePrimitiveCall with a Expr in config
     config_var = Var("config_val", "int32")
     new_config = dict(op_call_stmt.config)
     new_config["cta_mask"] = config_var + tir.IntImm("int32", 5)
-    op_call_with_var = tir.stmt.TilePrimitiveCall(
+    op_call_with_var = tir.TilePrimitiveCall(
         *op_call_stmt.args, op=op_call_stmt.op, config=new_config
     )
 
@@ -1156,20 +1158,20 @@ def test_op_call_config_mutated():
         Tx.add(A, B, 1.0)
 
     op_call_stmt = op_call_with_config.body.body
-    assert isinstance(op_call_stmt, tir.stmt.TilePrimitiveCall)
+    assert isinstance(op_call_stmt, tir.TilePrimitiveCall)
 
     # Create TilePrimitiveCall with a Var in the config
     old_var = Var("old_scope_id", "int32")
     new_var = Var("new_let_var", "int32")
     new_config = dict(op_call_stmt.config)
     new_config["cta_mask"] = old_var + tir.IntImm("int32", 5)
-    op_call_with_var = tir.stmt.TilePrimitiveCall(
+    op_call_with_var = tir.TilePrimitiveCall(
         *op_call_stmt.args, op=op_call_stmt.op, config=new_config
     )
 
     # Substitute old_var -> new_var
     result = substitute(op_call_with_var, {old_var: new_var})
-    assert isinstance(result, tir.stmt.TilePrimitiveCall)
+    assert isinstance(result, tir.TilePrimitiveCall)
 
     # The config value should now reference new_var, not old_var
     cta_mask_expr = result.config["cta_mask"]
@@ -1179,6 +1181,85 @@ def test_op_call_config_mutated():
         f"Expected 'new_let_var' after substitution, got '{cta_mask_expr.a.name}'. "
         "Substitute should visit Expr values in TilePrimitiveCall.config."
     )
+
+
+def test_op_call_pointer_config_visited_and_mutated():
+    """Pointer-valued config expressions participate in Python traversal."""
+
+    @T.prim_func
+    def copy_async(
+        A: T.Buffer((8,), "float16"),
+        B: T.Buffer((8,), "float16"),
+        mbar: T.Buffer((1,), "uint64"),
+    ):
+        Tx.copy_async(B[:], A[:], dispatch="tma_auto", mbar=T.address_of(mbar[0]))
+
+    op_call = copy_async.body
+    assert isinstance(op_call, tir.TilePrimitiveCall)
+    mbar_buffer = copy_async.params[2]
+
+    class LoadCollector(StmtExprVisitor):
+        def __init__(self):
+            super().__init__()
+            self.buffers = []
+
+        def visit_buffer_load_(self, op):
+            self.buffers.append(op.buffer)
+            return super().visit_buffer_load_(op)
+
+    collector = LoadCollector()
+    collector.visit_stmt(op_call)
+    assert any(buffer.same_as(mbar_buffer) for buffer in collector.buffers)
+
+    replacement = tir.decl_buffer((1,), "uint64", name="replacement")
+
+    class ReplaceMbarLoad(StmtExprMutator):
+        def visit_buffer_load_(self, op):
+            new_op = super().visit_buffer_load_(op)
+            if op.buffer.same_as(mbar_buffer):
+                return tir.BufferLoad(replacement, new_op.indices, new_op.predicate)
+            return new_op
+
+    updated = ReplaceMbarLoad().visit_stmt(op_call)
+    mbar_load = updated.config["mbar"].args[0]
+    assert isinstance(mbar_load, tir.BufferLoad)
+    assert mbar_load.buffer.same_as(replacement)
+
+
+def test_op_call_nested_config_visited_and_substituted():
+    """Nested selector arrays participate in the core visitor and mutator."""
+    from tvm.tirx.stmt_functor import post_order_visit, substitute
+
+    @T.prim_func
+    def selector(
+        A: T.Buffer((8,), "float16"),
+        B: T.Buffer((8,), "float16"),
+        C: T.Buffer((8,), "float16"),
+        flag: T.int32,
+    ):
+        Tx.copy_async(
+            C[:],
+            A[:],
+            dispatch="tma_explicit",
+            mbar=C.data,
+            src_selector=[(flag != 0, B)],
+        )
+
+    op_call = selector.body
+    assert isinstance(op_call, tir.TilePrimitiveCall)
+    original_b = selector.params[1]
+    seen = []
+    post_order_visit(selector.body, seen.append)
+    assert any(isinstance(node, Var) and node.same_as(selector.params[-1]) for node in seen)
+    undefined = tvm.tirx.analysis.undefined_vars(op_call)
+    assert any(var.same_as(original_b) for var in undefined)
+
+    replacement = Var("replacement", "int32")
+    updated = substitute(op_call, {selector.params[-1]: replacement})
+    condition, candidate = updated.config["src_selector"][0]
+    assert isinstance(condition, tir.NE)
+    assert condition.a.same_as(replacement)
+    assert candidate.same_as(original_b)
 
 
 if __name__ == "__main__":

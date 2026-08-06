@@ -18,6 +18,7 @@
 """Arithmetic data structure and utility"""
 
 import enum
+from contextlib import contextmanager
 
 import tvm_ffi
 
@@ -114,6 +115,21 @@ class ConstraintScope:
 
     def __exit__(self, ptype, value, trace):
         self._fexit()
+
+
+class Z3ContextScope:
+    """Share one fresh Z3 context across Analyzers created in this scope.
+
+    The outermost scope creates the context. Nested scopes on the same thread
+    reuse it, and exiting the outermost scope releases its ownership.
+    """
+
+    def __enter__(self):
+        _ffi_api.EnterZ3ContextScope()
+        return self
+
+    def __exit__(self, ptype, value, trace):
+        _ffi_api.ExitZ3ContextScope()
 
 
 @tvm_ffi.register_object("arith.Analyzer")
@@ -527,3 +543,25 @@ class Analyzer(Object):
         """
         flags = Extension(flags).value
         _ffi_api.AnalyzerSetEnabledExtensions(self, flags)
+
+
+@contextmanager
+def allow_uint_as_index():
+    """Opt-in no-overflow domain for unsigned index arithmetic.
+
+    Within the scope, the analyzer treats uint32/uint64 scalars as index
+    types: it assumes their values never approach the type limit (no
+    wraparound), so the signed rewrite rule set (floordiv/floormod
+    decomposition, modular analysis) applies to them. Every unsigned
+    expression admitted under the assumption is logged once per process
+    (WARNING) so the assumption stays auditable.
+
+    Off by default. Intended for compile-time layout proofs (offsets that
+    provably stay small), NOT for runtime codegen semantics where unsigned
+    wraparound is real behavior.
+    """
+    _ffi_api.EnterAllowUintAsIndex()
+    try:
+        yield
+    finally:
+        _ffi_api.ExitAllowUintAsIndex()

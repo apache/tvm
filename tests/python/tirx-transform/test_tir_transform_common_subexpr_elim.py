@@ -754,6 +754,30 @@ def test_no_lift_bool_logical():
     assert "cse_v" not in after["main"].script()
 
 
+# T24: Shared subtree stays SSA. UnrollLoop reuses one Stmt object across
+# positions; the identity-keyed rewriter must bind fresh cse vars per occurrence.
+def test_shared_subtree_stays_ssa():
+    @tvm.script.ir_module
+    class Payload:
+        @T.prim_func(s_tir=True)
+        def main(B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32):
+            B[i1] = (i1 + i2) * 2
+            B[i2] = (i1 + i2) * 3
+
+    f = Payload["main"]
+    shared = f.body  # one Stmt object, placed at two positions below
+    func = f.with_body(tvm.tirx.SeqStmt([shared, shared]))
+    after = tvm.tirx.transform.CommonSubexprElim()(tvm.IRModule({"main": func}))["main"]
+
+    binds = [s for s in after.body if isinstance(s, tvm.tirx.Bind)]
+    assert len(binds) == 6, after.script()  # (i1+i2, *2, *3) per occurrence
+    bound_vars = [b.var for b in binds]
+    for i, va in enumerate(bound_vars):
+        for vb in bound_vars[i + 1 :]:
+            assert not va.same_as(vb), f"duplicate var definitions:\n{after.script()}"
+    assert tvm.tirx.analysis.verify_ssa(after), after.script()
+
+
 if __name__ == "__main__":
     test_basic()
     test_if_single_branch()
@@ -778,3 +802,4 @@ if __name__ == "__main__":
     test_let_floordiv_pattern()
     test_no_lift_bool_predicate()
     test_no_lift_bool_logical()
+    test_shared_subtree_stays_ssa()

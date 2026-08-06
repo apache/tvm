@@ -237,8 +237,8 @@ void CodeGenC::PrintSSAAssign(const std::string& target, const std::string& src,
 }
 
 // Print a reference expression to a buffer.
-std::string CodeGenC::GetBufferRef(const PrimType& t, const BufferNode* buffer, PrimExpr index) {
-  const VarNode* buffer_var = buffer->data.get();
+std::string CodeGenC::GetBufferRef(const PrimType& t, const VarNode* buffer, PrimExpr index) {
+  const VarNode* buffer_var = buffer;
   std::ostringstream os;
   std::string vid = GetVarID(buffer_var);
   std::string scope;
@@ -261,7 +261,7 @@ std::string CodeGenC::GetBufferRef(const PrimType& t, const BufferNode* buffer, 
     return ptr_os.str();
   };
 
-  const PrimType& buffer_element_dtype = buffer->dtype;
+  const PrimType& buffer_element_dtype = GetBufferVar(buffer)->dtype;
 
   std::string buffer_str = vid;
   if (!HandleTypeMatch(buffer_var, buffer_element_dtype) || is_vol) {
@@ -413,8 +413,6 @@ void CodeGenC::RegisterHandleType(const VarNode* buf_var, const PrimType& t) {
 
 void CodeGenC::RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* value) {
   if (value == nullptr) return;
-  auto* call = value->as<CallNode>();
-  if (call == nullptr || !call->op.same_as(builtin::ptr_byte_offset())) return;
   std::optional<PrimType> value_dtype = [&]() {
     if (auto prim_value = value->as<PrimExpr>()) {
       return tirx::GetPointerType(GetType(prim_value.value()));
@@ -422,8 +420,11 @@ void CodeGenC::RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* v
     return tirx::GetPointerType((*value)->ty);
   }();
   if (!value_dtype.has_value()) return;
+  auto* call = value->as<CallNode>();
+  if (call != nullptr && call->op.same_as(builtin::ptr_byte_offset())) {
+    pointer_offset_vars_.insert(var.get());
+  }
   RegisterHandleType(var.get(), value_dtype.value());
-  pointer_offset_vars_.insert(var.get());
 }
 
 void CodeGenC::PrintVecElemLoad(const std::string& vec, const PrimType& t, int i,
@@ -437,11 +438,11 @@ void CodeGenC::PrintVecElemStore(const std::string& vec, const PrimType& t, int 
   stream << vec << ".s" << std::hex << i << " = " << value << ";\n" << std::dec;
 }
 
-std::string CodeGenC::GetVecLoad(const PrimType& t, const BufferNode* buffer, PrimExpr base) {
+std::string CodeGenC::GetVecLoad(const PrimType& t, const VarNode* buffer, PrimExpr base) {
   return GetBufferRef(t, buffer, base);
 }
 
-void CodeGenC::PrintVecStore(const BufferNode* buffer, const PrimType& t, PrimExpr base,
+void CodeGenC::PrintVecStore(const VarNode* buffer, const PrimType& t, PrimExpr base,
                              const std::string& value) {
   std::string ref = GetBufferRef(t, buffer, base);
   this->PrintIndent();
@@ -673,7 +674,13 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (auto opt_call_op = op->op.as<Op>()) {
     auto call_op = opt_call_op.value();
 
-    if (op->op.same_as(builtin::continue_loop())) {
+    if (op->op.same_as(builtin::buffer_data())) {
+      TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
+      const auto* buffer = op->args[0].as<VarNode>();
+      TVM_FFI_ICHECK(buffer && buffer->ty.as<BufferTypeNode>())
+          << "buffer_data expects a Var with BufferType";
+      os << GetVarID(buffer);
+    } else if (op->op.same_as(builtin::continue_loop())) {
       os << "continue;";
     } else if (op->op.same_as(builtin::break_loop())) {
       os << "break;";
@@ -764,7 +771,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
         if (const RampNode* ramp = index.as<RampNode>()) {
           index = ramp->base;
         }
-        const VarNode* data = load->buffer->data.get();
+        const VarNode* data = load->buffer.get();
         if (pointer_offset_vars_.count(data) && HandleTypeMatch(data, load->buffer->dtype) &&
             !IsVolatile(data)) {
           os << "(" << GetVarID(data) << " + ";
@@ -823,6 +830,9 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     } else if (op->op.same_as(builtin::reinterpret())) {
       if (const auto* pointer_type = op->ty.as<PointerTypeNode>()) {
         os << "((";
+        if (IsScopePartOfType()) {
+          PrintStorageScope(pointer_type->storage_scope, os);
+        }
         if (const auto* element_type = pointer_type->element_type.as<PrimTypeNode>()) {
           this->PrintType(ffi::GetRef<PrimType>(element_type), os);
         } else {
@@ -904,7 +914,39 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimEx
 }
 
 void CodeGenC::VisitStmt_(const DeclBufferNode* op) {
-  // DeclBuffer is a flat statement with no body — nothing to emit.
+  const VarNode* source = op->data.as<VarNode>();
+  if (const auto* call = op->data.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    source = call->args[0].as<VarNode>();
+  }
+  if (source && var_idmap_.count(source)) {
+    TVM_FFI_ICHECK(!var_idmap_.count(op->buffer.get()));
+    var_idmap_[op->buffer.get()] = GetVarID(source);
+    if (auto it = alloc_storage_scope_.find(source); it != alloc_storage_scope_.end()) {
+      alloc_storage_scope_[op->buffer.get()] = it->second;
+    } else {
+      alloc_storage_scope_[op->buffer.get()] = op->buffer.scope();
+    }
+    if (IsVolatile(source)) {
+      MarkVolatile(op->buffer.get());
+    }
+    auto it = handle_data_type_.find(source);
+    RegisterHandleType(op->buffer.get(),
+                       it == handle_data_type_.end() ? op->buffer->dtype : it->second);
+    return;
+  }
+
+  std::string scope = op->buffer.scope();
+  alloc_storage_scope_[op->buffer.get()] = scope;
+  this->PrintIndent();
+  if (IsScopePartOfType()) {
+    PrintStorageScope(scope, stream);
+  }
+  PrintType(op->buffer.DataPointerType(), stream);
+  stream << ' ' << AllocVarID(op->buffer.get()) << " = ";
+  PrintExpr(Call(op->buffer.DataPointerType(), builtin::reinterpret(), {op->data}), stream);
+  stream << ";\n";
+  RegisterHandleType(op->buffer.get(), op->buffer->dtype);
 }
 
 void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)
@@ -913,7 +955,7 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
 
   PrimType value_ty = op->ty.as_or_throw<PrimType>();
   PrimExpr index = op->indices[0];
-  Var buffer_var = op->buffer->data;
+  Var buffer_var = op->buffer.var();
   const PrimType& element_ty = op->buffer->dtype;
 
   int lanes = value_ty.lanes();
@@ -989,7 +1031,7 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
   PrimType value_ty = op->value.ty();
   const PrimType& element_ty = op->buffer->dtype;
   PrimExpr index_expr = op->indices[0];
-  Var buffer_var = op->buffer->data;
+  Var buffer_var = op->buffer.var();
 
   if (value_ty.lanes() == element_ty.lanes()) {
     std::string value = this->PrintExpr(op->value);
@@ -1195,7 +1237,7 @@ void CodeGenC::VisitStmt_(const BindNode* op) {
 
 void CodeGenC::VisitStmt_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
-  std::string vid = AllocVarID(op->buffer->data.get());
+  std::string vid = AllocVarID(op->buffer.get(), op->buffer.name() + "_ptr");
 
   this->PrintIndent();
   const auto& shape = op->buffer->shape;
@@ -1207,16 +1249,16 @@ void CodeGenC::VisitStmt_(const AllocBufferNode* op) {
   }
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
-  auto scope = GetPtrStorageScope(op->buffer->data);
-  alloc_storage_scope_[op->buffer->data.get()] = scope;
+  auto scope = op->buffer.scope();
+  alloc_storage_scope_[op->buffer.get()] = scope;
   PrintStorageScope(scope, stream);
 
   PrintType(op->buffer->dtype, stream);
   stream << ' ' << vid << '[' << constant_size << "];\n";
 
-  RegisterHandleType(op->buffer->data.get(), op->buffer->dtype);
+  RegisterHandleType(op->buffer.get(), op->buffer->dtype);
   if (op->annotations.count(tirx::attr::kVolatile)) {
-    MarkVolatile(op->buffer->data.get());
+    MarkVolatile(op->buffer.get());
   }
 }
 

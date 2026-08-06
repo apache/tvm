@@ -274,6 +274,7 @@ Analyzer AnalyzerObj::Clone() const {
   cloned->canonical_simplify.CopyFrom(this->canonical_simplify);
   cloned->int_set.CopyFrom(this->int_set);
   cloned->transitive_comparisons.CopyFrom(this->transitive_comparisons);
+  cloned->z3_prover.CopyFrom(this->z3_prover);
   return cloned;
 }
 
@@ -283,6 +284,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("arith.Analyzer", []() { return Analyzer(); })
       .def("arith.AnalyzerClone", [](Analyzer analyzer) { return analyzer->Clone(); })
+      .def("arith.EnterZ3ContextScope", []() { EnterZ3ContextScope(); })
+      .def("arith.ExitZ3ContextScope", []() { ExitZ3ContextScope(); })
       .def("arith.AnalyzerConstIntBound",
            [](Analyzer analyzer, const PrimExpr& expr) { return analyzer->const_int_bound(expr); })
       .def("arith.AnalyzerConstIntBoundUpdate",
@@ -337,6 +340,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](Analyzer analyzer, const PrimExpr& expr, int strength) {
              return analyzer->CanProve(expr, static_cast<ProofStrength>(strength));
            })
+      .def("arith.EnterAllowUintAsIndex", []() { ++arith::uint_as_index::g_depth; })
+      .def("arith.ExitAllowUintAsIndex",
+           []() {
+             TVM_FFI_ICHECK(arith::uint_as_index::g_depth > 0)
+                 << "ExitAllowUintAsIndex without a matching Enter";
+             --arith::uint_as_index::g_depth;
+           })
+      .def("arith.GetAllowUintAsIndex", []() { return arith::uint_as_index::Enabled(); })
       .def("arith.AnalyzerSetMaximumRewriteSteps",
            [](Analyzer analyzer, int64_t maximum) {
              analyzer->rewrite_simplify.SetMaximumRewriteSteps(maximum);

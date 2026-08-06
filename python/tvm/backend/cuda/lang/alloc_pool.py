@@ -40,12 +40,6 @@ def _get_ir():
     return _ir
 
 
-def _get_frame():
-    from tvm.tirx.script.builder import frame
-
-    return frame
-
-
 # ---------------------------------------------------------------------------
 # Shared utilities
 # ---------------------------------------------------------------------------
@@ -75,7 +69,7 @@ def _shape_product(shape):
 
 def _auto_swizzle_mode(dtype):
     """Select the default MMA swizzle mode for a shared-memory allocation."""
-    from tvm.backend.cuda.operator.tile_primitive.tma_utils import SwizzleMode
+    from tvm.backend.cuda.tile_primitive.tma_utils import SwizzleMode
 
     del dtype
     return SwizzleMode.SWIZZLE_128B_ATOM
@@ -83,7 +77,7 @@ def _auto_swizzle_mode(dtype):
 
 def _swizzle_atom_bytes(swizzle_mode):
     """Return the row width (in bytes) of one swizzle atom for *swizzle_mode*."""
-    from tvm.backend.cuda.operator.tile_primitive.tma_utils import SwizzleMode
+    from tvm.backend.cuda.tile_primitive.tma_utils import SwizzleMode
 
     return {
         SwizzleMode.SWIZZLE_NONE: 0,
@@ -118,14 +112,14 @@ def _validate_mma_alloc_shape(shape, dtype, swizzle_mode):
 
     Validation skipped when *swizzle_mode* is ``SWIZZLE_NONE`` (no atom).
     """
-    from tvm.backend.cuda.operator.tile_primitive.tma_utils import SwizzleMode
+    from tvm.backend.cuda.tile_primitive.tma_utils import SwizzleMode
 
     if swizzle_mode == SwizzleMode.SWIZZLE_NONE:
         return
 
     if len(shape) < 2:
         raise ValueError(
-            f"alloc_mma shape={tuple(shape)} has fewer than 2 dimensions; "
+            f"alloc_tcgen05_mma_AB shape={tuple(shape)} has fewer than 2 dimensions; "
             f"swizzled MMA layouts tile over the last two dims (rows, cols). "
             f"Use swizzle_mode='none' for 1-D allocations."
         )
@@ -148,7 +142,7 @@ def _validate_mma_alloc_shape(shape, dtype, swizzle_mode):
             atom_bytes = _swizzle_atom_bytes(swizzle_mode)
             suggestion = _suggest_swizzle_for_row_bytes(col_bits // 8 if col_bits >= 8 else 0)
             raise ValueError(
-                f"alloc_mma shape={tuple(shape)} with dtype={dtype!r} produces "
+                f"alloc_tcgen05_mma_AB shape={tuple(shape)} with dtype={dtype!r} produces "
                 f"{row_bytes}B rows, which is incompatible with the {atom_bytes}B "
                 f"swizzle atom selected by {swizzle_mode.name}. "
                 f"Use swizzle_mode=SwizzleMode.{suggestion}, or widen shape[-1] "
@@ -162,7 +156,7 @@ def _validate_mma_alloc_shape(shape, dtype, swizzle_mode):
             suggestion = _suggest_swizzle_for_row_bytes(row_bytes)
             min_cols = atom_bytes // dtype_bytes
             raise ValueError(
-                f"alloc_mma shape={tuple(shape)} with dtype={dtype!r} produces "
+                f"alloc_tcgen05_mma_AB shape={tuple(shape)} with dtype={dtype!r} produces "
                 f"{row_bytes}B rows, which is incompatible with the {atom_bytes}B "
                 f"swizzle atom selected by {swizzle_mode.name}. "
                 f"Use swizzle_mode=SwizzleMode.{suggestion}, or widen shape[-1] "
@@ -173,63 +167,16 @@ def _validate_mma_alloc_shape(shape, dtype, swizzle_mode):
     atom_rows = 8
     if rows < atom_rows or rows % atom_rows != 0:
         raise ValueError(
-            f"alloc_mma shape={tuple(shape)} has shape[-2]={rows}, but the "
+            f"alloc_tcgen05_mma_AB shape={tuple(shape)} has shape[-2]={rows}, but the "
             f"{swizzle_mode.name} atom requires shape[-2] to be a positive "
             f"multiple of {atom_rows}. Use swizzle_mode='none', or widen shape[-2] "
             f"to a multiple of {atom_rows}."
         )
 
 
-# ---------------------------------------------------------------------------
-# TMEMStages
-# ---------------------------------------------------------------------------
-
-
 def _meta_class(cls):
     """Apply @meta_class decorator from ir_builder."""
     return _get_ir().meta_class(cls)
-
-
-@_meta_class
-class TMEMStages:
-    """Parse-time staged view over a TMEM buffer.
-
-    Parameters
-    ----------
-    buf : Buffer
-        The underlying TMEM buffer (e.g. f32 or f16 view).
-    col_start : int
-        First column of stage 0 in *buf*'s column space.
-    width : int
-        Number of columns per stage.
-    stages : int
-        Number of pipeline stages (default 1).
-    stride : int or None
-        Column distance between consecutive stages.  When *None* (default),
-        equals *width* (stages are packed back-to-back).
-    """
-
-    def __init__(self, buf, col_start, width, stages=1, stride=None):
-        self.buf = buf
-        self.col_start = col_start
-        self.width = width
-        self.stages = stages
-        self.stride = width if stride is None else stride
-
-    def _stage_base(self, stage):
-        return self.col_start + stage * self.stride
-
-    def __getitem__(self, item):
-        if isinstance(item, tuple):
-            assert len(item) == 2, "TMEMStages expects region[stage] or region[stage, start:stop]"
-            stage, col_slice = item
-            assert isinstance(col_slice, slice), "TMEMStages tuple indexing requires a slice"
-            base = self._stage_base(stage)
-            start = 0 if col_slice.start is None else col_slice.start
-            stop = self.width if col_slice.stop is None else col_slice.stop
-            return self.buf[:, base + start : base + stop : col_slice.step]
-        base = self._stage_base(item)
-        return self.buf[:, base : base + self.width]
 
 
 # ---------------------------------------------------------------------------
@@ -312,7 +259,7 @@ class TMEMPool:
         )
         return total_bits // (32 * rows)
 
-    def alloc(self, shape, dtype="float32", *, layout=None, cols=None, datapath=None):
+    def alloc(self, shape, dtype="float32", *, layout=None, cols=None):
         """Allocate a TMEM buffer.
 
         Parameters
@@ -323,7 +270,8 @@ class TMEMPool:
             Explicit ``TileLayout``. Mutually exclusive with ``datapath``.
         datapath : str | None
             Optional tcgen05 datapath letter (``"D"`` for M=128 full datapath,
-            ``"F"`` for M=64 non-``.ws`` scattered). When provided, the buffer's
+            ``"F"`` for M=64 non-``.ws`` scattered, or ``"B"`` for per-CTA
+            M=64 ``.cta_group::2`` "2x2"). When provided, the buffer's
             layout is derived from ``tmem_datapath_layout(datapath, *shape)``
             so the row index reflects the *physical* TMEM lane occupation
             (PTX ISA §9.7.16.10.5). The downstream ``.16x*b`` / ``.32x32b``
@@ -333,14 +281,6 @@ class TMEMPool:
             mapping — keep this for shape ``(128, X)`` buffers that hold
             an M=128 MMA accumulator.
         """
-        from tvm.tirx.layout import tmem_datapath_layout
-
-        if layout is not None and datapath is not None:
-            raise ValueError("TMEMPool.alloc: pass at most one of layout= and datapath=")
-        if datapath is not None:
-            assert len(shape) == 2, "TMEMPool.alloc: datapath= requires a 2-D shape"
-            layout = tmem_datapath_layout(datapath, shape[0], shape[1])
-
         ir = _get_ir()
         cols = self._resolve_cols(shape, dtype, cols, layout)
         col_start = self.offset
@@ -361,7 +301,7 @@ class TMEMPool:
         what gemm dispatch iterates over). When ``shape`` has 3 dims, the first
         is treated as a pipe-depth outer.
         """
-        from tvm.backend.cuda.operator.tile_primitive.gemm_async.tcgen05 import sf_tmem_layout
+        from tvm.backend.cuda.tile_primitive.gemm_async.tcgen05 import sf_tmem_layout
 
         if len(shape) == 2:
             pipe_depth, rows, last = None, shape[0], shape[1]
@@ -380,6 +320,33 @@ class TMEMPool:
             rows=rows, SF_K=SF_K, sf_per_mma=sf_per_mma, sf_reuse=sf_reuse, pipe_depth=pipe_depth
         )
         return self.alloc(shape, dtype, layout=layout)
+
+    def alloc_tcgen05_mma_A(
+        self, shape, dtype="bfloat16", *, M, cta_group, ws=False, sparse=False, cols=None
+    ):
+        """Allocate a TMEM A operand (A-in-TMEM); layout resolved from MMA
+        instruction params. ``M`` is the PTX tcgen05.mma instruction M (256/128/
+        64), NOT per-CTA rows. See ``localdoc/claude_plan.txt`` S3a."""
+        from tvm.tirx.layout import tmem_mma_operand_layout
+
+        layout = tmem_mma_operand_layout(
+            "A", shape, dtype, M=M, cta_group=cta_group, ws=ws, sparse=sparse
+        )
+        return self.alloc(shape, dtype, layout=layout, cols=cols)
+
+    def alloc_tcgen05_mma_D(
+        self, shape, dtype="float32", *, M, cta_group, ws=False, sparse=False, group=None, cols=None
+    ):
+        """Allocate a TMEM D/C accumulator operand. ``M`` = PTX instruction M.
+        ``group=(s,2,n)`` gives a flat (m,N) buffer a grouped column layout."""
+        from tvm.tirx.layout import tmem_mma_operand_layout
+
+        layout = tmem_mma_operand_layout(
+            "D", shape, dtype, M=M, cta_group=cta_group, ws=ws, sparse=sparse, group=group
+        )
+        return self.alloc(shape, dtype, layout=layout, cols=cols)
+
+    alloc_tcgen05_mma_C = alloc_tcgen05_mma_D
 
     def move_base_to(self, col):
         self.offset = col
@@ -478,9 +445,9 @@ class SMEMPool:
             self.max_offset = max(self.max_offset, self.offset)
         return res
 
-    def alloc_mma(self, shape, dtype="float16", swizzle_mode="auto", align=1024):
+    def alloc_tcgen05_mma_AB(self, shape, dtype="float16", swizzle_mode="auto", align=1024):
         """Allocate MMA-compatible shared memory with an inferred swizzle layout."""
-        from tvm.backend.cuda.operator.tile_primitive.tma_utils import (
+        from tvm.backend.cuda.tile_primitive.tma_utils import (
             SwizzleMode,
             mma_shared_layout,
         )
@@ -517,16 +484,16 @@ class SMEMPool:
         """
         if not self._owns_buffer:
             return
-        ir = _get_ir()
-        frame_mod = _get_frame()
         resolved = size if size is not None else self.max_offset
         assert resolved >= self.max_offset, (
             f"Specified smem size ({resolved}) is smaller than "
             f"the pool high-water mark ({self.max_offset})"
         )
-        attr_frame = ir.attr(self.ptr, "tirx.pool_max_bytes", resolved)
-        if isinstance(attr_frame, frame_mod.AttrFrame):
-            from functools import partial
+        import tvm.tirx
 
-            attr_frame.add_callback(partial(attr_frame.__exit__, None, None, None))
-            attr_frame.__enter__()
+        ir = _get_ir()
+        ir.add_to_parent(
+            tvm.tirx.AttrStmt(
+                0, "tirx.dyn_smem_bytes", tvm.tirx.IntImm("int64", resolved), tvm.tirx.Evaluate(0)
+            )
+        )

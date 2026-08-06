@@ -80,6 +80,7 @@
 #include <algorithm>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -762,12 +763,41 @@ class CSERewriter : public StmtExprMutator {
    * before recursing. If insertions are planned, wraps the visited result
    * in a SeqStmt with the Bind statements prepended. SeqStmt flattening
    * ensures correct structure regardless of context.
+   *
+   * The same statement object can occur at several tree positions (loop
+   * unrolling shares loop-invariant subtrees), and each occurrence hits the
+   * pointer-keyed plan entry. Re-emitting the planned Binds verbatim would
+   * define each cse var once per occurrence and the result would no longer
+   * be SSA, so only the first occurrence materializes the plan as-is; later
+   * occurrences bind fresh vars and substitute them through both the Bind
+   * values and their copy of the subtree.
    */
   Stmt VisitStmt(const Stmt& stmt) override {
     auto it = insert_before_.find(stmt);
     Stmt visited = StmtExprMutator::VisitStmt(stmt);
     if (it != insert_before_.end()) {
-      ffi::Array<Stmt> new_stmts(it->second.begin(), it->second.end());
+      ffi::Array<Stmt> new_stmts;
+      if (materialized_.insert(stmt.get()).second) {
+        new_stmts = ffi::Array<Stmt>(it->second.begin(), it->second.end());
+      } else {
+        std::unordered_map<const VarNode*, PrimExpr> remap;
+        auto lookup = [&remap](const Var& v) -> ffi::Optional<Expr> {
+          auto rit = remap.find(v.get());
+          if (rit != remap.end()) return Expr(rit->second);
+          return std::nullopt;
+        };
+        for (const Stmt& s : it->second) {
+          const BindNode* bind = s.as<BindNode>();
+          TVM_FFI_ICHECK(bind != nullptr);
+          // Deeper Bind values may reference shallower cse vars of this same
+          // insertion point; route them through the fresh vars as well.
+          Expr value = Substitute(bind->value, lookup);
+          Var fresh(bind->var->name, bind->var->ty.as_or_throw<PrimType>());
+          remap[bind->var.get()] = fresh.as_or_throw<PrimExpr>();
+          new_stmts.push_back(Bind(fresh, value));
+        }
+        visited = Substitute(visited, lookup);
+      }
       new_stmts.push_back(visited);
       return SeqStmt(new_stmts);
     }
@@ -775,10 +805,12 @@ class CSERewriter : public StmtExprMutator {
   }
 
  private:
-  /*! \brief Plan: stmts to insert before each target. */
+  /*! \brief Plan: stmts to insert each target (keyed by object identity). */
   InsertBeforeTable insert_before_;
   /*! \brief Plan: expressions to replace with CSE vars. */
   ExprRemapTable expr_remap_;
+  /*! \brief Insertion targets whose plan has already been materialized once. */
+  std::unordered_set<const StmtNode*> materialized_;
 };
 
 // ============================================================================

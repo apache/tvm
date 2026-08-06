@@ -109,7 +109,7 @@ PrimType WithScalableVScaleFactor(const PrimType& dtype, int vscale_factor) {
   return PrimType::ScalableVector(dtype.code(), dtype.bits(), vscale_factor);
 }
 
-// Underlying access type for a Buffer: bool is backed by int8 so vectorized
+// Underlying access type for a buffer: bool is backed by int8 so vectorized
 // accesses lower to real loads/stores instead of i1 predicate registers.
 PrimType BufferAccessType(const PrimType& dtype) {
   if (!dtype.MatchesCode(DLDataTypeCode::kDLBool)) return dtype;
@@ -241,6 +241,7 @@ void CodeGenLLVM::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
 
 void CodeGenLLVM::InitFuncState() {
   var_map_.clear();
+  buffer_physical_root_.clear();
   alias_var_set_.clear();
   alloc_storage_info_.clear();
   volatile_buf_.clear();
@@ -268,8 +269,10 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
     return it->second;
   }
 
-  TVM_FFI_ICHECK_EQ(func->buffer_map.size(), 0U)
-      << "Cannot codegen function with buffer_map, please lower them first";
+  for (const Var& param : func->params) {
+    TVM_FFI_ICHECK(!param->ty.as<tirx::BufferTypeNode>())
+        << "Cannot codegen BufferType-annotated parameter " << param << "; please lower it first";
+  }
 
   std::vector<llvm::Type*> param_types;
   is_restricted_ = func->HasNonzeroAttr(tirx::attr::kNoAlias);
@@ -1415,7 +1418,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     }
 
     TypedPointer buffer_ptr =
-        CreateBufferPtr(MakeValue(load->buffer->data), load->buffer->dtype, indices_val,
+        CreateBufferPtr(MakeValue(load->buffer.var()), load->buffer->dtype, indices_val,
                         PrimType(load->ty.as_or_throw<PrimType>()->dtype));
     return buffer_ptr.addr;
   } else if (op->op.same_as(builtin::reinterpret()) && args[0].as<PrimExpr>() &&
@@ -1723,8 +1726,13 @@ bool CodeGenLLVM::HasAlignmentPadding(PrimType dtype) {
   return bytes != bytes_scalar * dtype.lanes();
 }
 
+const VarNode* CodeGenLLVM::GetBufferPhysicalRoot(const VarNode* buffer) const {
+  auto it = buffer_physical_root_.find(buffer);
+  return it == buffer_physical_root_.end() ? buffer : it->second;
+}
+
 void CodeGenLLVM::BufferAccessHelper(
-    Buffer buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
+    BufferVar buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
     PrimType value_dtype,
     std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                      llvm::Value* predicate, int alignment, bool is_volatile)>
@@ -1732,7 +1740,7 @@ void CodeGenLLVM::BufferAccessHelper(
   PrimType buffer_element_dtype = BufferAccessType(buffer->dtype);
 
   TVM_FFI_ICHECK_GE(indices.size(), 1)
-      << "Buffer " << buffer->name << " is accessed with no indices.  "
+      << "Buffer " << buffer.name() << " is accessed with no indices.  "
       << "0-d scalar buffers are expected to be flattened to 1-d buffers prior to codegen.";
 
   // Only the last index is allowed to be multi-lane.  All earlier
@@ -1742,7 +1750,7 @@ void CodeGenLLVM::BufferAccessHelper(
   std::vector<llvm::Value*> earlier_index_values;
   for (size_t i = 0; i < indices.size() - 1; i++) {
     TVM_FFI_ICHECK_EQ(PrimType(indices[i].ty()->dtype).lanes(), 1)
-        << "Buffer " << buffer->name << " is accessed with a multi-lane index at position " << i
+        << "Buffer " << buffer.name() << " is accessed with a multi-lane index at position " << i
         << ".  Multi-lane indices are only supported as the last index.";
     earlier_index_values.push_back(MakeValue(indices[i]));
   }
@@ -1756,7 +1764,8 @@ void CodeGenLLVM::BufferAccessHelper(
   PrimExpr last_index_origin = last_index;
   PrimType buffer_element_dtype_origin = buffer_element_dtype;
 
-  bool is_volatile = volatile_buf_.count(buffer->data.get());
+  const VarNode* physical_root = GetBufferPhysicalRoot(buffer.get());
+  bool is_volatile = volatile_buf_.count(physical_root);
 
   // If the buffer index is a contiguous ramp node, we only need to
   // access the first element, then cast to the value type.
@@ -1784,7 +1793,7 @@ void CodeGenLLVM::BufferAccessHelper(
     // element being accessed may require more alignment than the
     // underlying data type.
     int native_bits;
-    GetAlignment(value_dtype, buffer->data.get(), last_index, &alignment, &native_bits);
+    GetAlignment(value_dtype, physical_root, last_index, &alignment, &native_bits);
   } else {
     // Otherwise, alignment is based on the return value's scalar
     // type.
@@ -1821,14 +1830,14 @@ void CodeGenLLVM::BufferAccessHelper(
 
     TypedPointer buffer_ptr =
         value_dtype.IsScalableVector()
-            ? CreateBufferPtr(MakeValue(buffer->data), buffer_element_dtype, all_index_values,
+            ? CreateBufferPtr(MakeValue(buffer.var()), buffer_element_dtype, all_index_values,
                               WithScalableVScaleFactor(
                                   value_dtype, value_dtype.VScaleFactor() / last_index_lanes))
-            : CreateBufferPtr(MakeValue(buffer->data), buffer_element_dtype, all_index_values,
+            : CreateBufferPtr(MakeValue(buffer.var()), buffer_element_dtype, all_index_values,
                               value_dtype.WithLanes(value_dtype.lanes() / last_index_lanes));
     auto instruction =
         make_instruction(buffer_ptr, subelement_i, predicate_value, alignment, is_volatile);
-    AddAliasInfo(instruction, buffer->data.get(), last_index_origin, buffer_element_dtype_origin);
+    AddAliasInfo(instruction, physical_root, last_index_origin, buffer_element_dtype_origin);
   }
 }
 
@@ -1877,6 +1886,10 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
   const ffi::Array<Expr>& args = op->args;
+  if (op->op.same_as(builtin::buffer_data())) {
+    TVM_FFI_ICHECK_EQ(args.size(), 1U);
+    return MakeValue(args[0]);
+  }
   if (auto opt_call_op = op->op.as<Op>()) {
     auto call_op = opt_call_op.value();
     if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
@@ -1986,7 +1999,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BroadcastNode* op) {
 void CodeGenLLVM::VisitStmt_(const BufferStoreNode* op) {
   EmitDebugLocation(op);
   PrimType value_dtype = PrimType(op->value.ty()->dtype);
-  Var buffer_var = op->buffer->data;
+  Var buffer_var = op->buffer.var();
 
   llvm::Value* value = MakeValue(op->value);
 
@@ -2099,7 +2112,7 @@ void CodeGenLLVM::VisitStmt_(const AllocBufferNode* op) {
   EmitDebugLocation(op);
   TVM_FFI_ICHECK_EQ(op->buffer->shape.size(), 1)
       << "LLVM codegen only supports flat 1-d buffer allocation, but allocation of "
-      << op->buffer->name << " is " << op->buffer->shape << "-d";
+      << op->buffer.name() << " is " << op->buffer->shape << "-d";
 
   llvm::Value* buf = nullptr;
 
@@ -2108,7 +2121,7 @@ void CodeGenLLVM::VisitStmt_(const AllocBufferNode* op) {
   int32_t constant_size = static_cast<int32_t>(dim_imm->value);
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation";
 
-  StorageInfo& info = alloc_storage_info_[op->buffer->data.get()];
+  StorageInfo& info = alloc_storage_info_[op->buffer.get()];
   // Use buffer's data_alignment if specified, otherwise compute from shape.
   if (op->buffer->data_alignment > 0) {
     info.alignment = op->buffer->data_alignment;
@@ -2133,12 +2146,12 @@ void CodeGenLLVM::VisitStmt_(const AllocBufferNode* op) {
   buf =
       builder_->CreatePointerCast(buf, llvmGetPointerTo(DTypeToLLVMType(op->buffer->dtype),
                                                         buf->getType()->getPointerAddressSpace()));
-  AddDebugInformation(buf, op->buffer->data);
+  AddDebugInformation(buf, op->buffer.var());
 
-  TVM_FFI_ICHECK(!var_map_.count(op->buffer->data.get()));
-  var_map_[op->buffer->data.get()] = buf;
+  TVM_FFI_ICHECK(!var_map_.count(op->buffer.get()));
+  var_map_[op->buffer.get()] = buf;
   if (op->annotations.count(tirx::attr::kVolatile)) {
-    volatile_buf_.insert(op->buffer->data.get());
+    volatile_buf_.insert(op->buffer.get());
   }
 }
 
@@ -2216,7 +2229,39 @@ void CodeGenLLVM::VisitStmt_(const SeqStmtNode* op) {
   }
 }
 
-void CodeGenLLVM::VisitStmt_(const DeclBufferNode* op) { EmitDebugLocation(op); }
+void CodeGenLLVM::VisitStmt_(const DeclBufferNode* op) {
+  EmitDebugLocation(op);
+  const VarNode* buffer = op->buffer.get();
+  TVM_FFI_ICHECK(!var_map_.count(buffer));
+  if (!is_restricted_) {
+    alias_var_set_.insert(buffer);
+  }
+
+  llvm::Value* value = MakeValue(op->data);
+  const VarNode* source = op->data.as<VarNode>();
+  if (const auto* call = op->data.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    source = call->args[0].as<VarNode>();
+  }
+  if (source) {
+    buffer_physical_root_[buffer] = GetBufferPhysicalRoot(source);
+  }
+
+  llvm::Type* expected_type = GetLLVMType(op->buffer.DataPointerType());
+  if (value->getType() != expected_type) {
+    value->setName((op->buffer.name() + "_source_ptr").c_str());
+    value = builder_->CreatePointerCast(value, expected_type);
+  }
+
+  AddDebugInformation(value, op->buffer.var());
+  var_map_[buffer] = value;
+  const VarNode* physical_root = GetBufferPhysicalRoot(buffer);
+  if (alloc_storage_info_.count(physical_root) &&
+      alloc_storage_info_[physical_root].alignment > 1) {
+    builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(buffer),
+                                        alloc_storage_info_[physical_root].alignment);
+  }
+}
 
 void CodeGenLLVM::VisitStmt_(const EvaluateNode* op) {
   EmitDebugLocation(op);
@@ -2305,7 +2350,13 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
 
   if (!di_subprogram_) return;
 
-  auto dbg_dtype = GetDebugType(tir_var->ty);
+  Type debug_type = tir_var->ty;
+  if (const auto* buffer_type = debug_type.as<BufferTypeNode>()) {
+    // A BufferVar is a compiler-side identity.  Its LLVM value is the physical
+    // data pointer installed by AllocBuffer or DeclBuffer.
+    debug_type = buffer_type->DataPointerType();
+  }
+  auto dbg_dtype = GetDebugType(debug_type);
   // no invalid dtypes
   if (!dbg_dtype) return;
   auto local_var = dbg_info_->di_builder_->createAutoVariable(

@@ -717,22 +717,5 @@ std::string PrintCpAsyncBulkAsm(const std::string& shared_ptr,
   return asm_code;
 }
 
-std::string PrintCpAsyncBarrierAsm(const std::string& barrier) {
-  std::string predicated_asm_code = R"(
-  {
-    unsigned int barrier_addr_int = __cvta_generic_to_shared({barrier});
-    __asm__ __volatile__(
-      "cp.async.mbarrier.arrive.shared.b64 [%0];"
-      :: "r" (barrier_addr_int)
-    );
-  }
-)";
-
-  Replacer replacer;
-  replacer.register_rule("{barrier}", "&" + barrier);
-  predicated_asm_code = replacer.rewrite(predicated_asm_code);
-  return predicated_asm_code;
-}
-
 }  // namespace codegen
 }  // namespace tvm

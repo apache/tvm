@@ -26,7 +26,16 @@ tvm.script.register_dialect("tirx", "tvm.tirx.script")
 from tvm.ir import Expr
 from tvm.runtime import const
 
-from .buffer import Buffer, decl_buffer, DataProducer
+from .buffer import (
+    Buffer,
+    BufferAccessKind,
+    BufferType,
+    DataProducer,
+    buffer_data,
+    buffer_data_pointer_type,
+    decl_buffer,
+    is_buffer_var,
+)
 from .expr import convert
 from .expr import Var, Reduce, FloatImm, IntImm, StringImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
@@ -44,7 +53,8 @@ from .stmt import BufferStore, AllocBuffer, AttrStmt, DeclBuffer
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
 from .stmt import BufferRegion, MatchBufferRegion, SBlock, SBlockRealize
-from .stmt import TilePrimitiveCall, ScopeIdDefStmt
+from .stmt import ScopeIdDefStmt
+from .tile_primitive import DispatchContext, LambdaExpr, TilePrimitiveCall
 
 from .function import PrimFunc, TensorIntrin, IndexMap
 
@@ -85,8 +95,7 @@ from .op import ignore_loop_partition
 
 # TIRX-specific imports (must come before subpackage imports to avoid circular imports)
 from .exec_scope import ExecScope, ScopeIdDef
-from .layout import TileLayout, Layout, SwizzleLayout, ComposeLayout
-from .predicate import Predicate
+from .layout import TileLayout, Layout, ComposeLayout
 from .expr_functor import ExprFunctor
 
 from . import transform

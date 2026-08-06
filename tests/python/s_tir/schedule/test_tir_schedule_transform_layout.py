@@ -304,8 +304,15 @@ def test_simplify():
                         # T.reads(B[vi // 16 + vi_o, vj // 16 + vj_o, vi % 16, vj % 16])
                         # C[...] = B[vi // 16 + vi_o, vj // 16 + vj_o, vi % 16, vj % 16] + T.float32(1)
 
-    # not comparing PrimFuncs
-    tvm.ir.assert_structural_equal(ref.body.block.body, sch.get(sch.get_loops(block_outer)[0]))
+    expected = tvm.tirx.PrimFunc(
+        [param for param in ref.params if tvm.tirx.is_buffer_var(param)], ref.body.block.body
+    )
+    actual_block = sch.get(block_outer)
+    actual = tvm.tirx.PrimFunc(
+        [actual_block.reads[0].buffer, actual_block.writes[0].buffer],
+        sch.get(sch.get_loops(block_outer)[0]),
+    )
+    tvm.ir.assert_structural_equal(expected, actual)
 
 
 def test_var_args_sugar():
@@ -1021,7 +1028,7 @@ def test_pad_value_may_not_reference_other_buffer():
 
     sch = tvm.s_tir.Schedule(Before)
     A = sch.get(sch.get_sblock("block")).reads[0].buffer
-    other = tirx.decl_buffer(1, A.dtype, name="other")
+    other = tirx.decl_buffer(1, A.ty.dtype, name="other")
     with pytest.raises(tvm.s_tir.schedule.schedule.ScheduleError):
         sch.transform_layout(
             "block",
@@ -1171,7 +1178,7 @@ def test_transform_layout_with_symbolic_bound():
     # pylint: enable=invalid-name,line-too-long,too-many-locals
     # fmt: on
     # pylint: disable=invalid-name
-    _, _, n, _ = before.buffer_map[before.params[1]].shape
+    _, _, n, _ = before.params[1].ty.shape
     sch = tvm.s_tir.Schedule(before)
     block = sch.get_sblock("NT_matmul")
     sch.transform_layout(
@@ -1221,7 +1228,7 @@ def test_transform_block_layout_with_symbolic_bound():
     # pylint: enable=invalid-name,line-too-long,too-many-locals
     # fmt: on
     # pylint: disable=invalid-name
-    _, _, n, _ = before.buffer_map[before.params[1]].shape
+    _, _, n, _ = before.params[1].ty.shape
     sch = tvm.s_tir.Schedule(before)
     block = sch.get_sblock("NT_matmul")
     sch.transform_block_layout(

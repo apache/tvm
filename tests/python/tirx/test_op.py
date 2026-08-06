@@ -21,7 +21,7 @@ import pytest
 from tvm.ir import Op, assert_structural_equal
 from tvm.tirx.buffer import decl_buffer
 from tvm.tirx.exec_scope import ExecScope
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 
 def _test(op: str, *args):
@@ -62,10 +62,12 @@ def test_tile_primitive_call_pickle_roundtrip():
     )
     restored = pickle.loads(pickle.dumps(call))
 
-    assert_structural_equal(restored, call)
+    # Buffer values are ordinary free Vars.  Pickle reconstructs their
+    # identities, so compare them under the standard free-Var mapping.
+    assert_structural_equal(restored, call, map_free_vars=True)
     assert restored.op.same_as(call.op)
-    assert_structural_equal(restored.args, call.args)
-    assert_structural_equal(restored.workspace, call.workspace)
+    assert_structural_equal(restored.args, call.args, map_free_vars=True)
+    assert_structural_equal(restored.workspace, call.workspace, map_free_vars=True)
     assert_structural_equal(restored.config, call.config)
     assert restored.dispatch == call.dispatch
     assert_structural_equal(restored.scope, call.scope)

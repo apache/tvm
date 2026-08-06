@@ -31,7 +31,7 @@
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/tirx_stmt.h>
+#include <tvm/tirx/tile_primitive.h>
 
 #include <unordered_map>
 #include <utility>
@@ -162,13 +162,13 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
    * \param alloc_data If true, the buffer's data pointer is a new allocation (AllocBuffer);
    *              if false, data references an existing variable (DeclBuffer).
    */
-  virtual void VisitBufferDef(const Buffer& buffer, bool alloc_data);
+  virtual void VisitBufferDef(const BufferVar& buffer, bool alloc_data);
   /*!
    * \brief Visit buffer at use site (BufferStore, BufferLoad, SBlock reads/writes).
    *  By default, this is a no-op, as buffer fields (shape, strides, elem_offset)
    *  are visited at their definition site.
    */
-  virtual void VisitBufferUse(const Buffer& buffer);
+  virtual void VisitBufferUse(const BufferVar& buffer);
   // statement visitor
   void VisitStmt_(const BindNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
@@ -210,7 +210,7 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
 
  protected:
   /*! \brief Map from old buffer to new buffer, populated by VisitBufferDef. */
-  ffi::Map<Buffer, Buffer> buffer_remap_;
+  ffi::Map<BufferVar, BufferVar> buffer_remap_;
   // We perform copy on write optimizations on the StmtMutator
   // so that an unique copy of parent can be mutated inplace
   // when some of its children changed.
@@ -282,14 +282,14 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
    *              if false, data references an existing variable (DeclBuffer).
    * \return The (possibly new) buffer.
    */
-  virtual Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data);
+  virtual BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data);
   /*!
    * \brief Visit buffer at use site (BufferStore, BufferLoad, SBlock reads/writes).
    *  By default, returns the remapped buffer from buffer_remap_ if exists, otherwise
-   *  returns the original buffer. Buffer fields are visited at their definition site.
+   *  returns the original buffer. BufferVar fields are visited at their definition site.
    * \return The (possibly remapped) buffer.
    */
-  virtual Buffer VisitBufferUse(const Buffer& buffer);
+  virtual BufferVar VisitBufferUse(const BufferVar& buffer);
   // statement visitor
   Stmt VisitStmt_(const BindNode* op) override;
   Stmt VisitStmt_(const AttrStmtNode* op) override;
@@ -360,6 +360,7 @@ class TVM_DLL StmtExprMutator : public ExprMutator, public StmtMutator {
   using StmtMutator::VisitStmt;
 
   Expr VisitExpr(const Expr& e) override { return ExprMutator::VisitExpr(e); }
+  Expr VisitExpr_(const VarNode* op) override;
   Expr VisitExpr_(const BufferLoadNode* op) override;
 };
 

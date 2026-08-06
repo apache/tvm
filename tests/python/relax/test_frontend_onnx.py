@@ -3067,6 +3067,103 @@ def test_shape():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+def test_shape_scalar_input():
+    # A rank-0 input has a known, empty static shape. It used to be imported as
+    # a runtime R.shape_of because an empty ShapeExpr is falsy, which made the
+    # result opaque to every converter that matches on relax.ShapeExpr.
+    shape_node = helper.make_node("Shape", ["data"], ["output"])
+
+    graph = helper.make_graph(
+        [shape_node],
+        "shape_scalar_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, []),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.INT64, [0])],
+    )
+
+    model = helper.make_model(graph, producer_name="shape_scalar_test")
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(data: R.Tensor((), dtype="float32")) -> R.Shape([]):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Shape([]) = R.shape([])
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_shape_unknown_rank_input():
+    # An input whose ValueInfoProto carries no shape field has unknown rank, which
+    # must stay distinct from a rank-0 tensor. It has no static shape to fold, so
+    # Shape has to keep the runtime path rather than reporting R.shape([]).
+    shape_node = helper.make_node("Shape", ["data"], ["output"])
+
+    data_vi = helper.make_tensor_value_info("data", TensorProto.FLOAT, None)
+    assert not data_vi.type.tensor_type.HasField("shape"), "test needs an absent shape field"
+
+    graph = helper.make_graph(
+        [shape_node],
+        "shape_unknown_rank_test",
+        inputs=[data_vi],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.INT64, None)],
+    )
+
+    model = helper.make_model(graph, producer_name="shape_unknown_rank_test")
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+
+    # The input keeps an unknown shape rather than collapsing to R.Tensor(()).
+    data_ty = tvm_model["main"].params[0].ty
+    assert data_ty.shape is None
+    assert data_ty.ndim == -1
+
+    # And Shape falls back to computing it at runtime.
+    op_names = []
+
+    def collect_ops(expr):
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+            op_names.append(expr.op.name)
+
+    relax.analysis.post_order_visit(tvm_model["main"], collect_ops)
+    assert "relax.shape_of" in op_names
+
+
+def test_slice_of_scalar_shape():
+    # Slice consuming Shape of a rank-0 input used to raise "Slice requires a
+    # statically known input rank", because Shape handed it an opaque value
+    # instead of a ShapeExpr. ONNX Runtime returns an empty int64 tensor here.
+    nodes = [
+        helper.make_node("Shape", ["data"], ["shape"]),
+        helper.make_node("Slice", ["shape", "starts", "ends"], ["output"]),
+    ]
+
+    graph = helper.make_graph(
+        nodes,
+        "slice_of_scalar_shape_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, []),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.INT64, [0])],
+        initializer=[
+            helper.make_tensor("starts", TensorProto.INT64, [1], [0]),
+            helper.make_tensor("ends", TensorProto.INT64, [1], [1]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="slice_of_scalar_shape_test")
+    tvm_model = from_onnx(model)
+
+    output_ty = tvm_model["main"].ret_ty
+    assert isinstance(output_ty, relax.TensorType)
+    assert [int(dim) for dim in output_ty.shape] == [0]
+    assert output_ty.dtype == "int64"
+
+
 @pytest.mark.parametrize(
     "attrs,expected_shape",
     [
@@ -3221,6 +3318,10 @@ def test_shape_start_end_scalar():
 
     assert relax.analysis.check_well_formed(tvm_model)
 
+    # A rank-0 input has a known, empty static shape, so start=1 slices an empty
+    # ShapeExpr and folds at import time. This used to fall back to a runtime
+    # shape_of / shape_to_tensor / strided_slice / tensor_to_shape chain, because
+    # the empty ShapeExpr tested as falsy in Shape._impl_v13.
     op_names = []
 
     def collect_ops(expr):
@@ -3229,12 +3330,19 @@ def test_shape_start_end_scalar():
 
     relax.analysis.post_order_visit(tvm_model["main"], collect_ops)
 
-    assert op_names == [
-        "relax.shape_of",
-        "relax.shape_to_tensor",
-        "relax.strided_slice",
-        "relax.tensor_to_shape",
-    ]
+    assert op_names == []
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(data: R.Tensor((), dtype="float32")) -> R.Shape([]):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Shape([]) = R.shape([])
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_trilu():
@@ -7480,6 +7588,57 @@ def test_split():
                     pass_split=pass_split,
                     opset=opset,
                 )
+
+
+def test_split_initializer_with_params_in_input():
+    split_sizes = np.array([2, 4], dtype="int64")
+    split_node = helper.make_node(
+        "Split",
+        ["data", "split_sizes"],
+        ["left", "right"],
+        axis=0,
+    )
+    graph = helper.make_graph(
+        [split_node],
+        "split_initializer_test",
+        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, [6])],
+        initializer=[numpy_helper.from_array(split_sizes, name="split_sizes")],
+        outputs=[
+            helper.make_tensor_value_info("left", TensorProto.FLOAT, [2]),
+            helper.make_tensor_value_info("right", TensorProto.FLOAT, [4]),
+        ],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="split_initializer_test",
+        opset_imports=[helper.make_opsetid("", 13)],
+    )
+
+    tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
+    assert len(tvm_model["main"].attrs["params"]) == 1
+    np.testing.assert_array_equal(tvm_model["main"].attrs["params"][0].numpy(), split_sizes)
+    tvm_model["main"] = tvm_model["main"].without_attr("params")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            data: R.Tensor((6,), dtype="float32"),
+            split_sizes: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tuple(
+            R.Tensor((2,), dtype="float32"),
+            R.Tensor((4,), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(data, indices_or_sections=[2], axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                gv = (lv1, lv2)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_tile():

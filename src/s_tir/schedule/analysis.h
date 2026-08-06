@@ -450,8 +450,8 @@ struct ProducerConsumerSplit {
  * \return The buffer of the n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */
-Buffer GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
-                          BufferIndexType index_type);
+BufferVar GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
+                             BufferIndexType index_type);
 
 /*!
  * \brief Get the n-th read or write buffer of the given block.
@@ -473,7 +473,7 @@ BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& b
  *         buffer is from match_buffer).
  */
 std::pair<ffi::Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
-                                                               const Buffer& buffer);
+                                                               const BufferVar& buffer);
 
 /******** Reduction SBlock Related ********/
 
@@ -600,7 +600,8 @@ bool CanReverseComputeAt(const ScheduleState& self, const StmtSRef& block_sref,
  * \param predicate The predicate of the access
  * \param analyzer Arithmetic analyzer
  */
-ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<PrimExpr>& indices,
+ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
+                                        const ffi::Array<PrimExpr>& indices,
                                         const ffi::Array<For>& loops, const PrimExpr& predicate,
                                         arith::AnalyzerObj* analyzer);
 
@@ -788,9 +789,9 @@ class AutoTensorizeMappingInfoNode : public ffi::Object {
   /* Additional information from AutoTensorizeComparator */
 
   /*! \brief Mapping from LHS buffer to RHS buffer */
-  ffi::Map<Buffer, Buffer> lhs_buffer_map;
-  /*! \brief Buffer indices on RHS */
-  ffi::Map<Buffer, ffi::Array<PrimExpr>> rhs_buffer_indices;
+  ffi::Map<BufferVar, BufferVar> lhs_buffer_map;
+  /*! \brief BufferVar indices on RHS */
+  ffi::Map<BufferVar, ffi::Array<PrimExpr>> rhs_buffer_indices;
   /*! \brief SBlock iters on LHS */
   ffi::Array<IterVar> lhs_iters;
   /*! \brief SBlock iters on RHS */

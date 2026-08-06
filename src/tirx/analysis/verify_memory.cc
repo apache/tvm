@@ -90,12 +90,12 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    HandleLoadStoreToVariable(op->buffer->data);
+    HandleLoadStoreToVariable(op->buffer.var());
     return StmtExprVisitor::VisitExpr_(op);
   }
 
   void VisitStmt_(const BufferStoreNode* op) final {
-    HandleLoadStoreToVariable(op->buffer->data);
+    HandleLoadStoreToVariable(op->buffer.var());
     return StmtExprVisitor::VisitStmt_(op);
   }
   //@}
@@ -103,8 +103,8 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   /// Check if the value of a Variable comes from function argument.
   bool IsFromFunctionArgs(const VarNode* var) const {
     const VarNode* V = var;
-    for (auto kv : func_->buffer_map) {
-      if (V == kv.second->data.get()) return true;
+    for (const Var& param : func_->params) {
+      if (param->ty.as<BufferTypeNode>() && V == param.get()) return true;
     }
 
     while (true) {

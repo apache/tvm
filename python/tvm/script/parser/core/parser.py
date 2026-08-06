@@ -373,11 +373,15 @@ class Parser(doc.NodeVisitor):
 
     var_table : VarTable
         The variable table for parsing.
+
+    absent_params : Dict[str, None]
+        Function parameters removed by a compile-time specialization.
     """
 
     diag: Diagnostics
     dispatch_tokens: list[str]
     function_annotations: dict[str, dict[str, Any]] | None
+    absent_params: dict[str, None]
     var_table: VarTable
     inside_function: bool  # whether we are within a function
     current_class: str | None = None  # current class being parsed
@@ -387,10 +391,12 @@ class Parser(doc.NodeVisitor):
         self,
         source: Source,
         function_annotations: dict[str, dict[str, Any]],
+        absent_params: dict[str, None] | None = None,
     ) -> None:
         self.diag = Diagnostics(source)
         self.dispatch_tokens = ["default"]
         self.function_annotations = function_annotations
+        self.absent_params = absent_params or {}
         self.var_table = VarTable()
         self.inside_function = False
 
