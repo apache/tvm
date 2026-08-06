@@ -2553,7 +2553,7 @@ class Split(OnnxOpConverter):
         shape = data.struct_info.shape
         if shape is not None and isinstance(shape, relax.ShapeExpr):
             dim_val = shape[axis]
-            if isinstance(dim_val, (tir.IntImm,)):
+            if isinstance(dim_val, tirx.IntImm):
                 dim = int(dim_val)
                 if dim % num_outputs:
                     block_size = math.ceil(dim / num_outputs)
