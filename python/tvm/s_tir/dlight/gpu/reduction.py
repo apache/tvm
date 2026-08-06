@@ -108,9 +108,11 @@ class Reduction(GPUScheduleRule):
                 sch, target, block, c_factor, epilogue, loop_order, s_split_index
             )
         else:
-            self._sch_inner_spatial(
+            result = self._sch_inner_spatial(
                 sch, target, block, block_info, c_factor, epilogue, loop_order, s_split_index
             )
+            if result is None:
+                return None
         return sch
 
     def _normalize(  # pylint: disable=too-many-branches
@@ -268,10 +270,65 @@ class Reduction(GPUScheduleRule):
         sch.decompose_reduction(rf, r)
         # Schedule the write back block
         sch.reverse_compute_at(block, bx, preserve_unit_loops=True)
-        _, r, *s = sch.get_loops(block)
+
+        all_loops = sch.get_loops(block)[1:]
+        all_iter_vars = sch.get(block).iter_vars
+
+        # After reverse_compute_at, the write-back block's loop physical order may not
+        # match iter_var declaration order. For 4D+ tensors with 3+ spatial dimensions,
+        # the loop nesting [spatial*m, reduce] doesn't align with iter_var order
+        # [reduce, spatial*n], making position-based classification unreliable.
+        #
+        # Check if we have the problematic mismatch: at least 3 spatial iter_vars
+        # where the first iter_var is reduce. This indicates the loop order and
+        # iter_var order are inverted.
+
+        num_reduction_iters = sum(
+            1 for iv in all_iter_vars if iv.iter_type == tirx.IterVar.CommReduce
+        )
+
+        s_loops = []
+        r_loops = []
+
+        if len(all_loops) == len(all_iter_vars):
+            # One-to-one loop-to-itervar correspondence: classify by iter_var kind.
+            # Note: loop physical order may not match iter_var declaration order,
+            # so we can't assume position-based pairing is correct. Instead, we rely
+            # on reorder to fix the loop arrangement after classification.
+            for loop_rv, iter_var in zip(all_loops, all_iter_vars):
+                if iter_var.iter_type == tirx.IterVar.DataPar:
+                    s_loops.append(loop_rv)
+                elif iter_var.iter_type == tirx.IterVar.CommReduce:
+                    r_loops.append(loop_rv)
+        elif len(all_loops) < len(all_iter_vars):
+            # Fused case: spatial dimensions are fused into fewer loops.
+            # Loops are ordered: [Spatial loops (potentially fused), reduction loops]
+            # The first (num_loops - num_reduction_iters) loops are spatial.
+            # the remaining loops are reduction.
+            num_spatial_loops = len(all_loops) - num_reduction_iters
+            if num_spatial_loops <= 0 or num_reduction_iters <= 0:
+                return None
+            s_loops = all_loops[:num_spatial_loops]
+            r_loops = all_loops[num_spatial_loops:]
+        else:
+            # More loops than iter_vars: unexpected
+            return None
+
+        if not s_loops or not r_loops:
+            return None
+
+        r = r_loops[0]  # Use first (usually only) reduction loop
+
         if unroll_spatial_factor:
-            assert len(s) == len(loop_order)
-            new_order_s = [s[loop_order[i]] for i in range(len(s))]
+            num_original_spatial = len([i for i in block_info.iters if i.kind == "S"])
+            if len(s_loops) != num_original_spatial:
+                return None
+            # Safe to apply loop_order reordering (assumes write-back block spatial loops
+            # correspond to original block spatial loops)
+            assert len(s_loops) == len(loop_order), (
+                f"loop_order size {len(loop_order)} != s_loops size {len(s_loops)}"
+            )
+            new_order_s = [s_loops[loop_order[i]] for i in range(len(s_loops))]
             sch.reorder(*new_order_s)
             new_order_s[s_split_index], c = sch.split(
                 new_order_s[s_split_index], factors=[None, unroll_spatial_factor]
@@ -280,10 +337,23 @@ class Reduction(GPUScheduleRule):
             s = sch.fuse(*new_order_s)
             sch.reorder(s, c, r)
         else:
-            s = sch.fuse(*s)
+            # Ensure spatial loops are contiguous before fusing.
+            # reorder to place all spatial loops together, then reduction loops.
+            all_s = list(s_loops)
+            all_r = list(r_loops)
+            # Build the target order: all spatial loops first, the reduction loops
+            sch.reorder(*(all_s + all_r))
+            s = sch.fuse(*all_s)
             sch.reorder(s, r)
-        sch.bind(s, "threadIdx.x")
-        sch.bind(r, "threadIdx.y")
+
+        try:
+            sch.bind(s, "threadIdx.x")
+            sch.bind(r, "threadIdx.y")
+        except Exception:
+            # If bind fails (e.g., due to block structure issues),
+            # the block cannot be scheduled by this rule
+            # Return None to allow fallback.
+            return None
 
         # Schedule epilogue
         if epilogue_info is not None:
@@ -303,3 +373,4 @@ class Reduction(GPUScheduleRule):
                 tx, _ = sch.split(sch.fuse(*s), factors=[len_tx, None])
                 sch.bind(tx, "threadIdx.x")
         # pylint: enable=invalid-name
+        return sch
