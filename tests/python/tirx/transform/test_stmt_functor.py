@@ -1196,7 +1196,7 @@ def test_op_call_pointer_config_visited_and_mutated():
 
     op_call = copy_async.body
     assert isinstance(op_call, tir.TilePrimitiveCall)
-    mbar_buffer = copy_async.buffer_map[copy_async.params[2]]
+    mbar_buffer = copy_async.params[2]
 
     class LoadCollector(StmtExprVisitor):
         def __init__(self):
