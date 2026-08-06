@@ -226,14 +226,19 @@ class TCGen05Bar(MBarrier):
     """Barrier signaled by ``tcgen05`` commit.
 
     The caller is responsible for ensuring only one thread issues the
-    commit, e.g. by wrapping the call in ``if T.ptx.elect_sync():``.
+    commit, e.g. by wrapping the call in ``if T.ptx.elect_sync():`` or by
+    passing ``pred=T.ptx.elect_sync()``. The ``pred`` form emits the
+    predicated instruction (``@p tcgen05.commit``) instead of a branch and
+    lets one elected leader predicate be shared across several commits.
     """
 
     @T.inline
-    def arrive(self, stage, cta_group=1, cta_mask=None):
+    def arrive(self, stage, cta_group=1, cta_mask=None, pred=None):
         # NOTE: this arrive() kwarg set intentionally differs from
         # MBarrier.arrive (hardware necessity, LSP-incompatible by design).
-        if cta_mask is None and cta_group == 1:
+        if pred is not None:
+            T.ptx.tcgen05.commit(self.buf.ptr_to([stage]), cta_group=cta_group, pred=pred)
+        elif cta_mask is None and cta_group == 1:
             T.ptx.tcgen05.commit(self.buf.ptr_to([stage]))
         else:
             T.ptx.tcgen05.commit(self.buf.ptr_to([stage]), cta_group=cta_group, cta_mask=cta_mask)

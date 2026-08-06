@@ -23,7 +23,7 @@ shared** memory (either direction) when **neither side is a register**. Because
 neither operand carries a thread partition, the dispatch *synthesizes* one from the
 execution scope: it splits the region into ``[outer, threads, vec]`` and emits a
 serial loop of vectorized loads/stores. Source:
-``python/tvm/backend/cuda/tile_primitive/copy/gmem_smem.py``.
+``python/tvm/backend/cuda/tile_primitive/copy/vec_auto_gmem_smem.py``.
 
 What it accepts
 ---------------
@@ -117,15 +117,14 @@ vector pointer is naturally aligned. (Only the innermost ``vec`` iter is exclude
 from that check.) For ``float32`` that is ``vec = 4`` (``4 × 4 B = 16 B = 128 bit``),
 giving ``outer = 1024 / (32 × 4) = 8``.
 
-**3. Emit a serial loop** (`gmem_smem.py`) — deliberately a Python ``for`` (so
+**3. Emit a serial loop** (``vec_auto_gmem_smem.py``) — deliberately a Python ``for`` (so
 ptxas unrolls it), *not* ``T.unroll``:
 
 .. code-block:: python
 
     for f in range(total_outer):
-        s_lin = s_p.apply(f, tid, v0, shape=apply_shape)["m"]   # shared element offset
-        g_lin = g_p.apply(f, tid, v0, shape=apply_shape)["m"]   # global element offset
-        s_off = _s_off(f, s_lin)                                # apply swizzle if any
+        g_lin = g_p.apply(f, tid, v0, shape=apply_shape)["m"]
+        s_off = s_apply_layout.apply(f, tid, v0, shape=apply_shape)["m"]
         s_ptr = _ptr_off(s_buf.ptr_to(s_zero), s_off)
         g_ptr = _ptr_off(g_buf.ptr_to(g_zero), g_lin)
         if g_is_src:

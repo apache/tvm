@@ -24,12 +24,9 @@ Direction (ld vs st) and exec scope (warp / warpgroup) are decided inside
 
 from math import prod
 
-import tvm
 from tvm.script import tirx as T
 from tvm.tirx import PrimFunc
-from tvm.tirx import Var as _TirVar
-from tvm.tirx.expr import IntImm as _IntImm
-from tvm.tirx.layout import S, TileLayout
+from tvm.tirx.layout import ComposeLayout, S, TileLayout
 from tvm.tirx.operator.tile_primitive.dispatcher import fail, predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
 from tvm.tirx.tile_primitive import TilePrimitiveCall
@@ -38,7 +35,6 @@ from ._common import (  # noqa: F401  (_carve_tail reserved for future variants)
     _carve_tail,
     _extract_tile,
 )
-from ._swizzle_iter import emit_init, emit_iter_offset, get_swizzle, try_recognize
 from .utils import _is_valid_copy, _scope_allowed
 from .vec_auto_reg import _all_threads_active, _ptr_off
 
@@ -103,13 +99,9 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
         r = r_sliced.canonicalize()
         s = s_sliced.canonicalize()
 
-    # Step 2.5: peel any S-side swizzle wrapper to expose the underlying
-    # TileLayout. The ComposeLayout doesn't have ``.replica`` / ``.shard``,
-    # so we must peel *before* the structural checks below. Capture the
-    # swizzle separately for use at emit time.
-    # NB: read swizzle from the *buffer* layout, not the post-canon ``s`` --
-    # the buffer layout is the reliable source for the swizzle params.
-    s_swizzle = get_swizzle(s_buf.layout)
+    # Peel the S-side wrapper before structural checks, retaining its
+    # parameters so the selected TileLayout can be wrapped again at emit.
+    s_swizzle = s_buf.layout if isinstance(s_buf.layout, ComposeLayout) else None
     if s_swizzle is not None and s_swizzle.per_element < 3:
         # ldmatrix/stmatrix .b16 reads/writes 8 fp16 = 128b per lane in one
         # contiguous chunk. The swizzle preserves the lowest ``per_element``
@@ -230,11 +222,9 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
         return None
 
     # Try the **sorted** variant: 5D-group, sub-group R's M/2 by S's M/2
-    # extents, sort the sub-groups by descending S-stride, rebuild. This
-    # makes the m_outer iter list carry the largest S-strides on top, which
-    # maximizes the §2 swizzle fast-path applicability later. If anything
-    # in the rebuild raises (e.g. M/2 can't be sub-grouped by S's extents),
-    # we silently fall back to the no-sort path below.
+    # extents, sort the sub-groups by descending S-stride, rebuild. If
+    # anything in the rebuild raises (e.g. M/2 can't be sub-grouped by S's
+    # extents), silently fall back to the no-sort path below.
     r_sort = s_sort = None
     try:
         gs5 = [t_total // 32, 8, 4, m_total // 2, 2]
@@ -283,7 +273,30 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
 
     if chosen is None:
         fail("ldstmatrix layout doesn't fit any num ∈ {4,2,1}")
-    r, r_seps, s, s_seps, trans, p, num = chosen
+    r, r_seps, s, s_seps, trans, _row_stride, num = chosen
+
+    # Order the num atom (seg 4) iters by R m-stride descending. The dst of
+    # each ldmatrix/stmatrix must be 4 consecutive registers; when the seg-4
+    # decomposition order matches R's fragment word order (largest m-stride
+    # slowest), the frag words land in consecutive dst registers and ptxas
+    # needs no register-shuffle MOVs. R and S are permuted in lockstep, so
+    # the R↔S element pairing (and thus numerics) is unchanged.
+    r_num_iters = list(r.shard[r_seps[4] : r_seps[5]])
+    if len(r_num_iters) > 1:
+        num_order = sorted(range(len(r_num_iters)), key=lambda i: -int(r_num_iters[i].stride))
+        if num_order != list(range(len(r_num_iters))):
+            r_iters = list(r.shard)
+            s_iters = list(s.shard)
+            r_seg = [r_iters[r_seps[4] : r_seps[5]][i] for i in num_order]
+            s_seg = [s_iters[s_seps[4] : s_seps[5]][i] for i in num_order]
+            r = TileLayout.from_iters(
+                r_iters[: r_seps[4]] + r_seg + r_iters[r_seps[5] :],
+                offset=dict(r.offset),
+            )
+            s = TileLayout.from_iters(
+                s_iters[: s_seps[4]] + s_seg + s_iters[s_seps[5] :],
+                offset=dict(s.offset),
+            )
 
     # Step 10: emit one ldmatrix/stmatrix per mm, per warp.
 
@@ -308,95 +321,37 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     apply_shape = [t_total // 32, 8, 4, m_total // (num * 2), num, 2]
     r_mem_axis = r.shard[r_seps[5]].axis.name
     s_mem_axis = s.shard[s_seps[5]].axis.name
+    s_mem_axis_obj = s.shard[s_seps[5]].axis
     m_outer = m_total // (num * 2)
     s_zero = [0] * len(s_buf.shape)
 
-    # Swizzle fast-path setup. When S is swizzled, the per-mm `tile_off +
-    # row_off` is a logical offset; the physical SMEM address is
-    # `swizzle.apply(logical)`. The slow path computes that per iter; the
-    # fast path (§2.E of the swizzle-iter plan) reduces it to
-    # `base_off + sum_j bit_j(mm) · signed_strides[j]` where base_off and
-    # signed_strides are per-thread constants set once. We try to
-    # recognize the m_outer iter list as such a pattern; if it fails (e.g.
-    # the analyzer can't discharge condition C1 over the lane/warp
-    # placeholders) we silently fall through to the slow path.
-    swizzle_pattern = None
-    s_off_template = None
-    lane_ph = warp_ph = None
-    if s_swizzle is not None:
-        m_outer_iters = list(s.shard[s_seps[3] : s_seps[4]])
-        iter_extents = [int(it.extent) for it in m_outer_iters]
-        iter_strides = [int(it.stride) for it in m_outer_iters]
-        # Build s_off at mm=0 with placeholder vars for lane and warp_idx.
-        lane_ph = _TirVar("lane_ph", "int32")
-        seg4_ph = (lane_ph // 8) if num > 1 else _IntImm("int32", 0)
-        if r_lane_axis == "laneid":
-            warp_ph_expr = _IntImm("int32", 0)
-        else:
-            warp_ph = _TirVar("warp_ph", "int32")
-            warp_ph_expr = warp_ph
-        s_off_template = s.apply(
-            warp_ph_expr,
-            _IntImm("int32", 0),
-            _IntImm("int32", 0),
-            _IntImm("int32", 0),
-            seg4_ph,
-            _IntImm("int32", 0),
-            shape=apply_shape,
-        )[s_mem_axis] + (lane_ph % 8) * _IntImm("int32", p)
-        # Bind lane / warp placeholder bounds for the (C1) analyzer. ``lane_ph``
-        # is the per-warp lane id ∈ [0, 32); ``warp_ph`` (when present) is the
-        # warp index inside the scope: warpgroup ⇒ [0, 4), cta ⇒ [0, t_total/32).
-        var_bounds = {lane_ph: tvm.ir.Range.from_min_extent(0, 32)}
-        if warp_ph is not None:
-            var_bounds[warp_ph] = tvm.ir.Range.from_min_extent(0, t_total // 32)
-        swizzle_pattern = try_recognize(
-            s_swizzle,
-            iter_extents,
-            iter_strides,
-            s_off_template,
-            var_bounds=var_bounds,
-        )
-
-    class _SwizzleState:
-        def __init__(self):
-            self.signed_strides = None
-            self.base_off = None
-
-    state = _SwizzleState()
-
-    def _resolve_s_off(laneid_var, warp_var):
-        # Build the placeholder→runtime-var map and substitute. Keep this in a
-        # regular Python helper — the @T.prim_func parser intercepts dict
-        # literals when written directly in the body.
-        vmap = {lane_ph: laneid_var}
-        if warp_ph is not None:
-            vmap[warp_ph] = warp_var
-        return tvm.tirx.stmt_functor.substitute(s_off_template, vmap)
-
-    def _setup_swizzle(s_off_resolved):
-        if swizzle_pattern is None:
-            return
-        state.signed_strides, state.base_off = emit_init(
-            swizzle_pattern,
-            s_off_resolved,
-        )
-
-    def _smem_off(mm_idx, logical_off):
-        # Three paths:
-        #   * pattern matched: physical off = base_off + Σ bit_j(mm)·ss[j].
-        #   * swizzle present, pattern missed: per-iter swizzle.apply(logical).
-        #   * no swizzle: identity.
-        if swizzle_pattern is not None:
-            return emit_iter_offset(
-                swizzle_pattern,
-                state.signed_strides,
-                state.base_off,
-                mm_idx,
-            )
+    def _apply_s_layout(warp_idx, lane_idx, mm_idx):
+        # The PTX lane-row contribution is not always one of the grouped S
+        # coordinates (the transposed form takes its stride from another
+        # group). Add it to the TileLayout offset so ComposeLayout sees the
+        # complete structured address and can prove its bounded low part.
+        offset = dict(s.offset)
+        row_offset = (lane_idx % 8) * _row_stride
+        offset[s_mem_axis_obj] = offset.get(s_mem_axis_obj, 0) + row_offset
+        row_tile = TileLayout.from_iters(list(s.shard), list(s.replica), offset)
+        row_layout = row_tile
         if s_swizzle is not None:
-            return s_swizzle.apply(logical_off)["m"]
-        return logical_off
+            row_layout = ComposeLayout(
+                s_swizzle.per_element,
+                s_swizzle.swizzle_len,
+                s_swizzle.atom_len,
+                row_tile,
+                s_swizzle.swizzle_inner,
+            )
+        return row_layout.apply(
+            warp_idx,
+            0,
+            0,
+            mm_idx,
+            _seg4_coord(lane_idx),
+            0,
+            shape=apply_shape,
+        )[s_mem_axis]
 
     # fmt: off
     @T.prim_func(check_well_formed=False)
@@ -404,19 +359,9 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
         r_local = r_buf.local(m_total, layout=TileLayout(S[(m_total,)]))
         laneid = T.lane_id()
         warp_idx_in_T = _get_warp_idx_in_T()
-        # Resolve s_off_template by substituting placeholders → actual
-        # scope-id vars (via _resolve_s_off helper to keep the dict literal
-        # out of the parser's view). Only the swizzle fast path needs this;
-        # without swizzle we keep using the per-iter s.apply directly.
-        if swizzle_pattern is not None:
-            _setup_swizzle(_resolve_s_off(laneid, warp_idx_in_T))
         for mm in T.unroll(m_outer):
-            tile_off = s.apply(
-                warp_idx_in_T, 0, 0, mm, _seg4_coord(laneid), 0, shape=apply_shape,
-            )[s_mem_axis]
-            row_off = (laneid % 8) * p
-            logical_off = tile_off + row_off
-            smem_ptr = _ptr_off(s_buf.ptr_to(s_zero), _smem_off(mm, logical_off))
+            smem_off = _apply_s_layout(warp_idx_in_T, laneid, mm)
+            smem_ptr = _ptr_off(s_buf.ptr_to(s_zero), smem_off)
             handles = [
                 r_local.ptr_to([
                     r.apply(0, 0, 0, mm, i, 0, shape=apply_shape)[r_mem_axis]

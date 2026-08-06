@@ -447,13 +447,51 @@ def test_vec_auto_reg_honors_cache_nc():
 
 
 @pytest.mark.gpu
-def test_reg_copy_wg_local_to_swizzled_shared_uses_swizzle_fastpath():
-    """Regression: R→S copy where R has a ``wg_local_layout`` (thread iter
-    ``1 @ tid_in_wg``) must pick the widest vec PTX ``st.shared.v4`` AND use the
-    swizzle fast path (precomputed ``signed_strides`` + per-iter
-    bit-select), not the per-iter ``swizzle.apply()`` fallback.
+def test_reg_copy_linear_shared_hoists_thread_base():
+    """A linear R→S copy must keep its per-thread base outside the hot loop."""
+    from tvm.tirx.layout import wg_local_layout
 
-    Two distinct bugs this test guards against:
+    n_threads, width = 128, 64
+    shape = (n_threads, width)
+    linear_layout = TileLayout(S[shape])
+
+    @T.prim_func
+    def kernel(A_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, shape, "float16", layout=linear_layout)
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([n_threads])
+        tid = T.thread_id_in_wg([n_threads])
+        reg = T.alloc_buffer(shape, "float16", scope="local", layout=wg_local_layout(width))
+        smem = T.alloc_buffer(shape, "float16", scope="shared", layout=linear_layout)
+
+        reg_local = reg.local(width)
+        for i in T.serial(width):
+            reg_local[i] = A[tid, i]
+        Tx.wg.copy(smem, reg)
+        T.cuda.cta_sync()
+        T.evaluate(smem[tid, 0])
+
+    target = tvm.target.Target("cuda")
+    with target:
+        ex = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+        src = ex.mod.imports[0].inspect_source()
+
+    base_assignment = "s_base_ptr[0] ="
+    loop = "for (int f = 0; f < 8; ++f)"
+    assert base_assignment in src and loop in src
+    assert src.index(base_assignment) < src.index(loop)
+    assert "(s_base_ptr[0] + ds_ptr[0])" in src
+    assert "s_off_ptr" not in src
+
+
+@pytest.mark.gpu
+def test_reg_copy_wg_local_to_swizzled_shared_uses_structured_compose_apply():
+    """Regression: R→S copy where R has a ``wg_local_layout`` (thread iter
+    ``1 @ tid_in_wg``) must pick the widest vec PTX ``st.shared.v4`` and lower
+    its synthetic TileLayout through structured ComposeLayout apply.
+
+    Two distinct properties are covered:
 
     (1) ``_choose_vec_len`` used to include R-side thread-iter strides in
     its alignment check. ``wg_local_layout``'s thread iter has stride 1;
@@ -462,11 +500,8 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_swizzle_fastpath():
     strides are partition-coord (virtual), not storage-physical, so they
     must be excluded.
 
-    (2) Even at the widest vec, if the outer loop is a runtime serial
-    (Python ``range`` doesn't actually unroll in TVMScript) the swizzle
-    fast path's per-iter constant-fold can't kick in and the
-    ``tvm_builtin_pointer_offset`` swizzle XOR ends up recomputed every
-    iteration. Loop must be ``T.unroll``.
+    (2) The hot-loop address must be the direct P/XOR-low/ADD-high chain,
+    without full-address quotient/mod decomposition.
     """
     from tvm.tirx.layout import ComposeLayout, wg_local_layout
 
@@ -512,18 +547,18 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_swizzle_fastpath():
     assert "tvm_builtin_copy_" not in src, (
         "copy_xxb helpers appeared — reg dispatch should use PTX ld/st only"
     )
-    # (2) Swizzle fast path fingerprint:
-    #   * emit_init allocates a size-N int buffer of "signed strides".
-    #   * emit_iter_offset uses bit-select * signed-stride: ``(bit) * v[i]``
-    #     where ``bit = (f >> M) & 1``.
-    # The fallback (per-iter ``swizzle.apply(s_off + ds_per_iter)``) has no
-    # such bit-select * signed-stride pattern.
-    import re
-
-    bitsel_pattern = re.findall(r"& 1\) \* \w+\[", src)
-    assert bitsel_pattern, (
-        "fast-path bit-select pattern '& 1) * v_<n>[' not found; "
-        "looks like emit_iter_offset's fast path didn't fire."
+    # (2) Structured address fingerprint: tid contributes one atom-aligned
+    # add, while the bounded outer coordinate is XORed with the phase.
+    s_off_lines = [
+        line
+        for line in src.splitlines()
+        if line.strip().startswith("s_off_ptr") and "[0] =" in line
+    ]
+    assert len(s_off_lines) == 1
+    assert "^" in s_off_lines[0]
+    assert "* 64" in s_off_lines[0] and "f * 8" in s_off_lines[0]
+    assert "/" not in s_off_lines[0] and "%" not in s_off_lines[0], (
+        "structured hot-loop offset must not contain full quotient/mod decomposition"
     )
 
 
@@ -767,6 +802,141 @@ def test_copy_forced_vec_rejects_non_thread_scope():
         mod = tvm.IRModule({"main": kernel})
         with pytest.raises(RuntimeError, match="expected thread exec_scope"):
             tvm.compile(mod, target=target, tir_pipeline="tirx")
+
+
+def test_reg_swizzle_chunk_caps_vector_width():
+    from tvm.backend.cuda.tile_primitive.copy.vec_auto_reg import _choose_vec_len
+
+    atoms = [(8, 1, 1)]
+    tile = TileLayout(S[8:1])
+    assert _choose_vec_len(16, atoms, tile, tile) == 8
+    assert _choose_vec_len(16, atoms, tile, tile, max_vec_len=4) == 4
+
+
+def _eval_const_layout_expr(expr, values):
+    node_type = type(expr).__name__
+    if node_type == "IntImm":
+        return int(expr.value)
+    if node_type == "Var":
+        return values[expr]
+    if node_type in ("Add", "Sub", "Mul", "FloorDiv", "FloorMod"):
+        lhs = _eval_const_layout_expr(expr.a, values)
+        rhs = _eval_const_layout_expr(expr.b, values)
+        if node_type == "Add":
+            return lhs + rhs
+        if node_type == "Sub":
+            return lhs - rhs
+        if node_type == "Mul":
+            return lhs * rhs
+        if node_type == "FloorDiv":
+            return lhs // rhs
+        return lhs % rhs
+    if node_type == "Cast":
+        return _eval_const_layout_expr(expr.value, values)
+    if node_type == "Call":
+        args = [_eval_const_layout_expr(arg, values) for arg in expr.args]
+        op_name = str(expr.op.name)
+        if op_name == "tirx.bitwise_xor":
+            return args[0] ^ args[1]
+        if op_name == "tirx.bitwise_and":
+            return args[0] & args[1]
+        if op_name == "tirx.shift_left":
+            return args[0] << args[1]
+        if op_name == "tirx.shift_right":
+            return args[0] >> args[1]
+        raise AssertionError(f"Cannot evaluate call {op_name}")
+    raise AssertionError(f"Cannot evaluate node type {node_type}")
+
+
+@pytest.mark.parametrize("case", ["wg", "wg_slice", "tcgen05"])
+def test_reg_synthetic_tile_matches_thread_base_plus_outer_delta(case):
+    from tvm.arith import Analyzer
+    from tvm.backend.cuda.tile_primitive.copy.vec_auto_reg import (
+        _build_atoms,
+        _build_s_apply_layout,
+        _choose_vec_len,
+        _make_thread_placeholders,
+        _outer_const_offsets,
+        _s_thread_contributions,
+        _split_atoms_for_vec,
+        _split_thread_loop,
+        align_layouts_raw,
+    )
+    from tvm.tirx.exec_scope import ExecScope
+    from tvm.tirx.layout import ComposeLayout, wg_local_layout
+    from tvm.tirx.operator.tile_primitive import DispatchContext
+
+    if case in ("wg", "wg_slice"):
+        shape = [128, 64]
+        region = [(0, 128), (0, 64) if case == "wg" else (8, 40)]
+        r_layout = wg_local_layout(64)
+        s_layout = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
+        elem_bits = 16
+        expected_thread_extents = [128]
+    else:
+        from tvm.tirx.cuda.tile_primitive.tma_utils import mma_shared_layout
+        from tvm.tirx.layout import tcgen05_atom_layout
+
+        shape = [64, 64]
+        region = [(0, 64), (0, 64)]
+        r_layout = tcgen05_atom_layout("16x256b", (64, 64), "float32")
+        s_layout = mma_shared_layout("float32", 3, (64, 64))
+        elem_bits = 32
+        expected_thread_extents = [4, 8, 4]
+
+    target = tvm.target.Target("cuda")
+    with target:
+        r_p, s_p, s_seps, r_perm = align_layouts_raw(
+            r_layout.slice(shape, region), s_layout.slice(shape, region), region
+        )
+    r_iters, s_groups = _split_thread_loop(r_perm, s_p, s_seps)
+    atoms = _build_atoms(r_iters, s_groups)
+    max_vec_len = 1 << int(s_layout.per_element)
+    vec_len = _choose_vec_len(elem_bits, atoms, r_p, s_p, max_vec_len)
+    outer = _split_atoms_for_vec(atoms, vec_len)
+    placeholders = _make_thread_placeholders(r_p)
+    sctx = DispatchContext(target, ExecScope("warpgroup"), {}, {}, scope_kind="warpgroup")
+    s_apply_layout, thread_coords, apply_shape = _build_s_apply_layout(
+        s_layout, r_p, s_p, outer, placeholders, sctx
+    )
+
+    assert isinstance(s_apply_layout, ComposeLayout)
+    assert [int(it.extent) for it in s_apply_layout.tile_layout.shard[: len(thread_coords)]] == (
+        expected_thread_extents
+    )
+
+    old_base = tvm.tirx.IntImm("int32", 0)
+    for coord, stride in _s_thread_contributions(r_p, s_p, placeholders):
+        old_base = old_base + coord * stride
+    for value in s_p.offset.values():
+        old_base = old_base + value
+
+    period = 1 << (int(s_layout.per_element) + int(s_layout.swizzle_len) + int(s_layout.atom_len))
+    bare_swizzle = ComposeLayout(
+        int(s_layout.per_element),
+        int(s_layout.swizzle_len),
+        int(s_layout.atom_len),
+        TileLayout(S[(period,)]),
+        bool(s_layout.swizzle_inner),
+    )
+    placeholder = next(iter(placeholders.values()))
+    analyzer = Analyzer()
+    for tid in range(128):
+        value_map = {placeholder: tvm.tirx.IntImm("int32", tid)}
+        for f in range(int(apply_shape[-1])):
+            ds, _dr = _outer_const_offsets(outer, f)
+            old_linear = old_base + ds
+            synthetic_linear = s_apply_layout.tile_layout.apply(
+                *thread_coords, f, shape=apply_shape
+            )["m"]
+            structured_swizzle = s_apply_layout.apply(*thread_coords, f, shape=apply_shape)["m"]
+            naive_swizzle = bare_swizzle.apply(old_linear)["m"]
+            assert int(
+                analyzer.simplify(tvm.tirx.stmt_functor.substitute(synthetic_linear, value_map))
+            ) == int(analyzer.simplify(tvm.tirx.stmt_functor.substitute(old_linear, value_map)))
+            assert _eval_const_layout_expr(
+                structured_swizzle, value_map
+            ) == _eval_const_layout_expr(naive_swizzle, value_map)
 
 
 # --- tcgen05 D epilogue deposit (tf32_hc_prenorm_gemm) -----------------------

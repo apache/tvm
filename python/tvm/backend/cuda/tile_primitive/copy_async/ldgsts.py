@@ -43,7 +43,6 @@ async pipeline.
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.tirx import Buffer, PrimFunc
-from tvm.tirx import Var as _TirVar
 from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.operator.tile_primitive.dispatcher import (
     predicate,
@@ -57,14 +56,9 @@ from ..copy._common import (
     _thread_cnt,
     align_layouts_gs,
 )
-from ..copy._swizzle_iter import (
-    emit_init,
-    emit_iter_offset,
-    get_swizzle,
-    try_recognize,
-)
 from ..copy.utils import _is_valid_copy, _scope_allowed
 from ..copy.vec_auto_reg import _all_threads_active, _axis_decl, _ptr_off
+from ..layout_utils import recompose_swizzle
 
 # cp.async is unidirectional: global → shared.
 _LDGSTS_PAIRS = [("global", "shared*")]
@@ -185,6 +179,7 @@ def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
             thread_cnt,
             vec_bits_candidates=_LDGSTS_VEC_BITS,
         )
+        s_apply_layout = recompose_swizzle(s_buf.layout, s_p)
 
     vec_bits = vec_len * elem_bits
     cp_size = vec_bits // 8  # cp.async cp_size is in bytes
@@ -195,7 +190,7 @@ def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
 
         fail(f"ldgsts: cannot find a cp.async-compatible vec_len for elem_bits={elem_bits}")
 
-    # Mirror gmem_smem.py: build 3D `(f, tid, 0)` against
+    # Mirror vec_auto_gmem_smem.py: build 3D `(f, tid, 0)` against
     # `[total_outer, thread_cnt, vec_len]` and let `s_p.apply(coord, shape)`
     # flatten + resplit into whatever multi-iter T / outer-iter structure
     # `align_layouts_gs` picked. Emit is oblivious to how many shard iters
@@ -219,84 +214,10 @@ def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
 
     tid_axis_name = _TID_AXIS_FOR_SCOPE[sctx.scope_kind] if thread_cnt > 1 else None
 
-    # T-iters-walk-back to recover outer_iters_s for the fast-path
-    # recognizer. Same trick as gmem_smem.py.
-    if thread_cnt > 1:
-        acc, _i = 1, len(s_p.shard) - 2
-        while _i >= 0 and acc < thread_cnt:
-            _ext = int(s_p.shard[_i].extent)
-            if acc * _ext > thread_cnt:
-                break
-            acc *= _ext
-            _i -= 1
-        outer_iters_s = list(s_p.shard[: _i + 1]) if acc == thread_cnt else []
-    else:
-        outer_iters_s = list(s_p.shard[:-1])
-
-    swizzle = get_swizzle(s_buf.layout)
-    swizzle_pattern = None
-    if swizzle is not None and outer_iters_s:
-        if tid_axis_name is not None:
-            _tid_placeholder = _TirVar(tid_axis_name, "int32")
-        else:
-            _tid_placeholder = _IntImm("int32", 0)
-        s_off_template = s_p.apply(
-            _IntImm("int32", 0),
-            _tid_placeholder,
-            _IntImm("int32", 0),
-            shape=apply_shape,
-        )["m"]
-        swizzle_pattern = try_recognize(
-            swizzle,
-            [int(it.extent) for it in outer_iters_s],
-            [int(it.stride) for it in outer_iters_s],
-            s_off_template,
-        )
-
-    class _SwizzleState:
-        def __init__(self):
-            self.signed_strides = None
-            self.base_off = None
-
-    state = _SwizzleState()
-
     def _decl_tid():
         if tid_axis_name is not None:
             return _axis_decl(tid_axis_name, sctx)
         return _IntImm("int32", 0)
-
-    def _setup_swizzle(tid):
-        if swizzle_pattern is None:
-            return
-        s_off_resolved = s_p.apply(
-            _IntImm("int32", 0),
-            tid,
-            _IntImm("int32", 0),
-            shape=apply_shape,
-        )["m"]
-        state.signed_strides, state.base_off = emit_init(
-            swizzle_pattern,
-            s_off_resolved,
-        )
-
-    if swizzle_pattern is not None:
-
-        def _s_off(f, s_lin):
-            return emit_iter_offset(
-                swizzle_pattern,
-                state.signed_strides,
-                state.base_off,
-                f,
-            )
-    elif swizzle is not None:
-        _sw = swizzle
-
-        def _s_off(f, s_lin):
-            return _sw.apply(s_lin)["m"]
-    else:
-
-        def _s_off(f, s_lin):
-            return s_lin
 
     v0 = _IntImm("int32", 0)
 
@@ -304,11 +225,9 @@ def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     @T.prim_func(check_well_formed=False)
     def impl():
         tid = _decl_tid()
-        _setup_swizzle(tid)
         for f in T.unroll(total_outer):
-            s_lin = s_p.apply(f, tid, v0, shape=apply_shape)["m"]
             g_lin = g_p.apply(f, tid, v0, shape=apply_shape)["m"]
-            s_off = _s_off(f, s_lin)
+            s_off = s_apply_layout.apply(f, tid, v0, shape=apply_shape)["m"]
             s_ptr = _ptr_off(s_buf.ptr_to(s_zero), s_off)
             g_ptr = _ptr_off(g_buf.ptr_to(g_zero), g_lin)
             T.evaluate(
