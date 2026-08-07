@@ -91,12 +91,18 @@ def _chain_class(family: str, entries: list[InstructionEntry]) -> str:
     if not any(e.has_dst for e in entries):
         params.append("pred: Any = None")
     signature = f"def __call__({', '.join(params)}) -> None"
-    # 4 indent + 3 opening quotes + text + 3 closing quotes must stay <= 100,
-    # because ruff format collapses a one-line docstring onto a single line.
+    # Emit the shape ruff format would produce, so the generated text needs no
+    # formatter to be canonical: a docstring that fits on one line closes on
+    # that line. 4 indent + 3 opening quotes + text + 3 closing quotes must
+    # stay <= 100.
     doc_lines = textwrap.wrap(f"`{family}` — {doc or '(no modifiers)'}", width=88)
-    lines.append('    """' + doc_lines[0])
-    lines.extend(f"    {line}" for line in doc_lines[1:])
-    lines.append('    """')
+    if len(doc_lines) == 1:
+        lines.append(f'    """{doc_lines[0]}"""')
+    else:
+        lines.append('    """' + doc_lines[0])
+        lines.extend(f"    {line}" for line in doc_lines[1:])
+        lines.append('    """')
+    lines.append("")
     for tok in tokens:
         attr = escape_token(tok)
         if not attr.isidentifier():
@@ -160,32 +166,9 @@ def generate() -> str:
     out.append("")
     out.append("# Every other tvm.script.tirx member stays dynamically typed, as before.")
     out.append("def __getattr__(name: str) -> Any: ...")
-    return _ruff_format("\n".join(out) + "\n")
-
-
-def _ruff_format(text: str) -> str:
-    """Normalize through ``ruff format`` so the generated file is stable under pre-commit.
-
-    Without this the repo's ruff-format hook rewrites the checked-in stub and the
-    freshness test can never pass. Falls back to the raw text if ruff is absent.
-    """
-    import shutil  # pylint: disable=import-outside-toplevel
-    import subprocess  # pylint: disable=import-outside-toplevel
-
-    if shutil.which("ruff") is None:
-        return text
-    done = subprocess.run(
-        # An absolute path, so ruff resolves the repo's pyproject.toml (and its
-        # line-length) from the file's own directory rather than from the
-        # caller's CWD -- pytest run from the workspace root otherwise gets
-        # ruff's 88-column default and the freshness check fails.
-        ["ruff", "format", "--stdin-filename", str(STUB_PATH), "-"],
-        input=text,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    return done.stdout if done.returncode == 0 else text
+    # No formatter pass: every line above is emitted in the shape ruff format
+    # produces, so this is byte-stable on a machine that has no ruff at all.
+    return "\n".join(out) + "\n"
 
 
 def main() -> None:
