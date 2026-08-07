@@ -126,8 +126,7 @@ device_intrinsic(
     helper_name=lambda *a: f"tvm_builtin_cuda_mbarrier_wait{_mbarrier_wait_parts(*a)[0]}",
     c_signature=lambda *a: _mbarrier_wait_parts(*a)[1],
     body=lambda *a: (
-        _mbarrier_wait_parts(*a)[2]
-        + "    unsigned int ticks = 0x989680;\n"
+        _mbarrier_wait_parts(*a)[2] + "    unsigned int ticks = 0x989680;\n"
         "    asm volatile(\n"
         '        "{\\n"\n'
         '        ".reg .pred                P1;\\n"\n'
