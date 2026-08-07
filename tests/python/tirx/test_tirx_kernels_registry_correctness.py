@@ -33,7 +33,7 @@ kernel_registry = pytest.importorskip("tirx_kernels.registry")
 kernel_runner = pytest.importorskip("tirx_kernels.runner")
 bench_suite_run = pytest.importorskip("tirx_kernels.bench_suite.run")
 
-_WORKLOADS = bench_suite_run.load_workloads(bench_suite_run.DEFAULT_WORKLOADS)
+_WORKLOADS = bench_suite_run.load_config_dir()
 _KERNELS = {
     kernel_name: kernel_registry.load_kernel(kernel_name, strict=True)
     for kernel_name in sorted({workload["kernel"] for workload in _WORKLOADS})
