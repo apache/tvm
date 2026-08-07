@@ -20,6 +20,7 @@ These classes emit TIR via @T.inline. Decorate with @T.meta_class so that
 instances are automatically treated as meta values inside @T.prim_func.
 """
 
+from tvm.backend.cuda.lang.clc import query_cancel_first_ctaid_x
 from tvm.backend.cuda.lang.pipeline import Pipeline, PipelineState
 from tvm.script import tirx as T
 
@@ -870,7 +871,7 @@ class _CLCWorker(ClusterPersistentScheduler2D):
         # Single-elected-thread scope: wait for the handle, decode, release the slot.
         self._clc.sched_arr.full.wait(0, self._sa.phase)
         self._sa.advance()
-        self._nxt = T.ptx.clc_query_cancel(T.address_of(self._clc.clc_handle[0]))
+        query_cancel_first_ctaid_x(self._nxt, T.address_of(self._clc.clc_handle[0]))
         self._clc.sched_fin.empty.arrive(0, remote=0, pred=True)
 
     @T.inline
@@ -878,7 +879,7 @@ class _CLCWorker(ClusterPersistentScheduler2D):
         # Warpgroup scope: all threads decode; one elected lane releases the slot.
         self._clc.sched_arr.full.wait(0, self._sa.phase)
         self._sa.advance()
-        self._nxt = T.ptx.clc_query_cancel(T.address_of(self._clc.clc_handle[0]))
+        query_cancel_first_ctaid_x(self._nxt, T.address_of(self._clc.clc_handle[0]))
         T.cuda.warpgroup_sync(wg_id + 1)
         if (warp_id == 0) & (lane_id == 0):
             self._clc.sched_fin.empty.arrive(0, remote=0, pred=True)
@@ -924,7 +925,7 @@ class ClusterLaunchControlScheduler:
     def run_scheduler(self, cbx):
         # cta0 drives try_cancel; both CTAs expect_bytes + consume the handle so the
         # finished-barrier count is met and the slot can be reissued.
-        if T.ptx.elect_sync():
+        if T.cuda.elect_sync():
             sa = PipelineState(1, 0)
             sf = PipelineState(1, 1)
             self._s_done = 0
@@ -932,13 +933,14 @@ class ClusterLaunchControlScheduler:
                 if cbx == 0:
                     self.sched_fin.empty.wait(0, sf.phase)
                     sf.advance()
-                    T.ptx.clc_try_cancel(
-                        T.address_of(self.clc_handle[0]), T.address_of(self.sched_arr.full.buf[0])
-                    )
+                    T.ptx[
+                        "clusterlaunchcontrol.try_cancel.async.shared::cta"
+                        ".mbarrier::complete_tx::bytes.multicast::cluster::all.b128"
+                    ](T.address_of(self.clc_handle[0]), T.address_of(self.sched_arr.full.buf[0]))
                 self.sched_arr.full.arrive(0, 16)  # expect_bytes for the 16B handle
                 self.sched_arr.full.wait(0, sa.phase)
                 sa.advance()
-                self._s_nxt = T.ptx.clc_query_cancel(T.address_of(self.clc_handle[0]))
+                query_cancel_first_ctaid_x(self._s_nxt, T.address_of(self.clc_handle[0]))
                 self.sched_fin.empty.arrive(0, remote=0, pred=True)
                 if self._s_nxt == 0xFFFFFFFF:
                     self._s_done = 1

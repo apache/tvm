@@ -381,12 +381,14 @@ def test_cuda_gemm_mma_lowers_to_mma_sync(dtype):
     # D accumulator: c_id = 2*rM + rN -> regs 0..3.
     for r in range(4):
         assert f"d_local[{r}]" in script
-    # A multiplicand: b32 = rM + 2*kHi (kHi outer) -> ma in {0, 2, 4, 6}.
-    for r in (0, 2, 4, 6):
-        assert f"a_local[{r}]" in script
-    # B multiplicand: b32 = kHi -> mb in {0, 2}.
-    for r in (0, 2):
-        assert f"b_local[{r}]" in script
+    # A and B fragments are packed two elements per b32, so the instruction
+    # indexes a uint32 view: the element strides above halve into word strides.
+    # A: b32 = rM + 2*kHi (kHi outer) -> words 0..3.
+    for r in range(4):
+        assert f"a_words[{r}]" in script
+    # B: b32 = kHi -> words 0, 1.
+    for r in (0, 1):
+        assert f"b_words[{r}]" in script
 
 
 @pytest.mark.gpu
@@ -639,7 +641,7 @@ def test_cuda_gemm_mma_codegen_issue_count(Mt, Nt, Kt, kinst):
     src = mod.mod.imports[0].inspect_source()
     assert f"mma.sync.aligned.m16n8k{kinst}" in src
     # mma is emitted as one __device__ helper, invoked once per tile.
-    helper = f"ptx_mma_m16n8k{kinst}_row_col"
+    helper = f"ptx_mma_sync_aligned_m16n8k{kinst}_row_col"
     assert src.count(helper) - 1 == Mt * Nt * Kt
 
 

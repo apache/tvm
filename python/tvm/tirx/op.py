@@ -35,9 +35,13 @@ from .expr import BufferLoad, CommReducer, ExprOp, ExprWithOp, IntImm, Var
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
 
+# Insertion order matters: a longer prefix has to be tried before the shorter
+# one it starts with, or `ptx_legacy_mma` would strip as `ptx` + `legacy_mma`.
 _DEVICE_INTRIN_PREFIX_TO_NAMESPACE = {
     "cuda_": "cuda",
+    "ptx_legacy_": "ptx_legacy",
     "ptx_": "ptx",
+    "s_tir_": "s_tir",
     "nvshmem_": "nvshmem",
     "nki_": "nki",
 }
@@ -2147,7 +2151,7 @@ def filter(var, pred, *, span=None):  # pylint: disable=redefined-builtin
     Use this wrapper only when the predicate is *not* in the canonical
     thread-filter grammar (see ``src/tirx/analysis/filter_canonical.h``).
     Canonical predicates -- pure conjunctions of ``scopeid_var <op> const``
-    comparisons plus bare ``T.ptx.elect_sync()`` calls -- are recognized by
+    comparisons plus bare ``T.cuda.elect_sync()`` calls -- are recognized by
     the lowering pass directly from ``if cond:``, so the wrapper is redundant
     for them.
 
