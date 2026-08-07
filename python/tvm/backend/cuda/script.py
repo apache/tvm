@@ -29,342 +29,92 @@ from tvm.tirx.script.builder.ir import _dtype_forward, _op_wrapper
 # pylint: disable=protected-access
 
 
-def _ptx_ldg32(reg, guard, addr, local_addr):
+def _s_tir_ldg32(reg, guard, addr, local_addr):
     if is_buffer_var(addr):
         addr = addr[0]
-    return _tir_op.call_intrin(reg.ty, "tirx.ptx.ldg32", reg, guard, addr, local_addr)
+    return _tir_op.call_intrin(reg.ty, "tirx.s_tir.ldg32", reg, guard, addr, local_addr)
 
 
-_ptx_ldg32.__tir_op_name__ = "ptx.ldg32"
+_s_tir_ldg32.__tir_op_name__ = "s_tir.ldg32"
 
 
-class PTXNamespace:
-    """The PTX instruction submodule."""
-
-    def __init__(self):
-        self.ldg32 = _ptx_ldg32
-        self.ldmatrix = _dtype_forward(_cuda_op.ptx_ldmatrix)
-        # Apache-compatible variant. Same lowered intrinsic as
-        # ``ldmatrix`` but accepts the historical ``(trans, num, dtype,
-        # local_ptr, local_offset, smem_ptr, smem_offset)`` form. Coexists
-        # with the fork-native version so upstream-derived tests keep
-        # working without rewriting their tirx code.
-        self.ldmatrix_legacy = _dtype_forward(_cuda_op.ptx_ldmatrix_legacy)
-        self.stmatrix = _op_wrapper(_cuda_op.ptx_stmatrix)
-        self.setmaxnreg: Callable[..., Any] = _op_wrapper(_cuda_op.ptx_setmaxnreg)
-        self.elect_sync: Callable[..., Any] = _op_wrapper(_cuda_op.ptx_elect_sync)
-        self.clc_try_cancel = _op_wrapper(_cuda_op.ptx_clc_try_cancel)
-        self.clc_query_cancel = _op_wrapper(_cuda_op.ptx_clc_query_cancel)
-        self.fetch_register: Callable[..., Any] = _op_wrapper(_cuda_op.ptx_fetch_register)
-        self.ld = _op_wrapper(_cuda_op.ptx_ld)
-        self.ld_global_nc = _op_wrapper(_cuda_op.ptx_ld_global_nc)
-        self.ld_acquire = _op_wrapper(_cuda_op.ptx_ld_acquire)
-        self.ld_relaxed = _op_wrapper(_cuda_op.ptx_ld_relaxed)
-        self.ld_volatile = _op_wrapper(_cuda_op.ptx_ld_volatile)
-        self.ld_mmio = _op_wrapper(_cuda_op.ptx_ld_mmio)
-        self.ld_global_acquire = _op_wrapper(_cuda_op.ptx_ld_global_acquire)
-        self.red_scalar = _op_wrapper(_cuda_op.ptx_red_scalar)
-        self.atom_scalar = _op_wrapper(_cuda_op.ptx_atom_scalar)
-        self.prefetch_tensormap = _op_wrapper(_cuda_op.ptx_prefetch_tensormap)
-        self.mbarrier_test_wait_parity = _op_wrapper(_cuda_op.ptx_mbarrier_test_wait_parity)
-        self.cp_async_bulk_g2s_cta = _op_wrapper(_cuda_op.ptx_cp_async_bulk_g2s_cta)
-        self.cp_async_bulk_g2s_cluster = _op_wrapper(_cuda_op.ptx_cp_async_bulk_g2s_cluster)
-        self.cp_async_bulk_s2s_cluster = _op_wrapper(_cuda_op.ptx_cp_async_bulk_s2s_cluster)
-        self.cp_async_bulk_s2g = _op_wrapper(_cuda_op.ptx_cp_async_bulk_s2g)
-        self.st = _op_wrapper(_cuda_op.ptx_st)
-        self.st_relaxed = _op_wrapper(_cuda_op.ptx_st_relaxed)
-        self.st_release = _op_wrapper(_cuda_op.ptx_st_release)
-        self.st_volatile = _op_wrapper(_cuda_op.ptx_st_volatile)
-        self.st_mmio = _op_wrapper(_cuda_op.ptx_st_mmio)
-        self.st_bulk = _op_wrapper(_cuda_op.ptx_st_bulk)
-        self.fns_b32 = _op_wrapper(_cuda_op.ptx_fns_b32)
-        self.add_rn_f32_bf16 = _op_wrapper(_cuda_op.ptx_add_rn_f32_bf16)
-        self.mapa = _op_wrapper(_cuda_op.ptx_mapa)
-        self.map_shared_rank = _op_wrapper(_cuda_op.ptx_map_shared_rank)
-        self.any_sync = _op_wrapper(_cuda_op.ptx_any_sync)
-        # Math operations
-        self.exp2 = _op_wrapper(_cuda_op.ptx_exp2)
-        self.rcp = _op_wrapper(_cuda_op.ptx_rcp)
-        self.reduce3_min_f32 = _op_wrapper(_cuda_op.ptx_reduce3_min_f32)
-        self.reduce3_max_f32 = _op_wrapper(_cuda_op.ptx_reduce3_max_f32)
-        self.cvt = _dtype_forward(_cuda_op.ptx_cvt)
-        # add/sub/mul/fma DPS form: (d_addr, a, b[, c], *, rounding, ftz[, sat])
-        self.add_f32 = _op_wrapper(_cuda_op.ptx_add_f32)
-        self.add_f32x2 = _op_wrapper(_cuda_op.ptx_add_f32x2)
-        self.add_f64 = _op_wrapper(_cuda_op.ptx_add_f64)
-        self.sub_f32 = _op_wrapper(_cuda_op.ptx_sub_f32)
-        self.sub_f32x2 = _op_wrapper(_cuda_op.ptx_sub_f32x2)
-        self.sub_f64 = _op_wrapper(_cuda_op.ptx_sub_f64)
-        self.mul_f32 = _op_wrapper(_cuda_op.ptx_mul_f32)
-        self.mul_f32x2 = _op_wrapper(_cuda_op.ptx_mul_f32x2)
-        self.mul_f64 = _op_wrapper(_cuda_op.ptx_mul_f64)
-        self.fma_f32 = _op_wrapper(_cuda_op.ptx_fma_f32)
-        self.fma_f32x2 = _op_wrapper(_cuda_op.ptx_fma_f32x2)
-        self.fma_f64 = _op_wrapper(_cuda_op.ptx_fma_f64)
-        self.max_f32 = _op_wrapper(_cuda_op.ptx_max_f32)
-        self.mma = MmaNamespace()
-        self.cp_async = CpAsyncNamespace()
-        self.wgmma = WgmmaNamespace()
-        self.mbarrier = MbarrierNamespace()
-        self.tcgen05 = Tcgen05Namespace()
-        self.bar = BarNamespace()
-        self.barrier = BarrierNamespace()
-        self.fence = FenceNamespace()
-        self.griddepcontrol = GriddepcontrolNamespace()
-
-
-class MmaNamespace:
-    """The MMA instruction submodule."""
+class _CpAsyncRaw:
+    """The raw cp.async node's printer surface."""
 
     def __init__(self):
-        self.sp = _dtype_forward(_cuda_op.ptx_mma_sp)
-        # Apache-compatible variant of ptx_mma. Coexists with the
-        # fork-native ``__call__`` form (``T.ptx.mma(...)``).
-        self.legacy = _dtype_forward(_cuda_op.ptx_mma_legacy)
-        # __call__ corresponds to ptx_mma
-        self.__tir_call_op_name__ = "ptx_mma"
-
-    def __call__(self, *args, **kwds):
-        return _dtype_forward(_cuda_op.ptx_mma)(*args, **kwds)
-
-
-class CpAsyncNamespace:
-    """The CpAsync instruction submodule."""
-
-    def __init__(self):
-        self.commit_group = _op_wrapper(_cuda_op.ptx_cp_async_commit_group)
-        self.wait_group = _op_wrapper(_cuda_op.ptx_cp_async_wait_group)
         # Legacy variant: takes (dst_ptr, dst_offset, src_ptr, src_offset,
-        # cp_size). Offsets are folded into the pointers; coexists with
-        # the fork-native ``__call__`` form.
+        # cp_size). Offsets are folded into the pointers; lowers through the
+        # raw op below.
         self.legacy = _dtype_forward(_cuda_op.ptx_cp_async_legacy)
-        self.bulk = CpAsyncBulkNamespace()
-        self.mbarrier = CpAsyncMbarrierNamespace()
 
     def __call__(self, *args, **kwds):
-        # Accept the legacy 6-arg form ``(elem_dtype, dst, dst_off, src,
-        # src_off, cp_size)`` that the printer round-trips for the raw
-        # ``tirx.ptx.cp_async`` Call emitted by
-        # ``tvm.backend.cuda.transform.InjectPTXAsyncCopy``. The pass-emitted
-        # Call has 5 args (no ``tvm_access_ptr`` fold) and a
+        # The 6-arg form ``(elem_dtype, dst, dst_off, src, src_off, cp_size)``
+        # the printer round-trips for the raw ``tirx.s_tir.cp_async_raw`` Call
+        # emitted by ``tvm.backend.cuda.transform.InjectPTXAsyncCopy``. The
+        # pass-emitted Call has 5 args (no ``tvm_access_ptr`` fold) and a
         # per-element-dtype Call.dtype, so build it directly.
         if len(args) == 6 and isinstance(args[0], str) and "dtype" not in kwds:
             import tvm
 
             elem_dtype, dst, dst_off, src, src_off, cp_size = args
             return tvm.ir.Call(
-                tvm.ir.Op.get("tirx.ptx.cp_async_raw"),
+                tvm.ir.Op.get("tirx.s_tir.cp_async_raw"),
                 [dst, dst_off, src, src_off, cp_size],
                 ret_ty=tvm.ir.PrimType(elem_dtype),
             )
-        return _dtype_forward(_cuda_op.ptx_cp_async)(*args, **kwds)
-
-    # __call__ corresponds to ptx_cp_async
-    __tir_call_op_name__ = "ptx_cp_async"
-
-
-class CpAsyncBulkNamespace:
-    """The CpAsyncBulk instruction submodule."""
-
-    def __init__(self):
-        self.commit_group = _op_wrapper(_cuda_op.ptx_cp_async_bulk_commit_group)
-        self.wait_group = _op_wrapper(_cuda_op.ptx_cp_async_bulk_wait_group)
-        self.tensor = CpAsyncBulkTensorNamespace()
-        self.s2c = _op_wrapper(_cuda_op.ptx_cp_async_bulk_shared_to_cluster)
-
-    def __call__(self, *args, **kwds):
-        return _dtype_forward(_cuda_op.ptx_cp_async_bulk)(*args, **kwds)
-
-    # __call__ corresponds to ptx_cp_async_bulk
-    __tir_call_op_name__ = "ptx_cp_async_bulk"
-
-
-class CpAsyncBulkTensorNamespace:
-    """The CpAsyncBulkTensor instruction submodule."""
-
-    def __init__(self):
-        self.g2s_cta = _op_wrapper(_cuda_op.ptx_cp_async_bulk_tensor_g2s_cta)
-        self.g2s_cluster = _op_wrapper(_cuda_op.ptx_cp_async_bulk_tensor_g2s_cluster)
-        self.s2g = _op_wrapper(_cuda_op.ptx_cp_async_bulk_tensor_shared_to_global)
-        self.s2g_reduce = _op_wrapper(_cuda_op.ptx_cp_async_bulk_tensor_shared_to_global_reduce)
-        self.prefetch = _op_wrapper(_cuda_op.ptx_cp_async_bulk_tensor_prefetch)
-
-
-class CpAsyncMbarrierNamespace:
-    """The CpAsyncMbarrier instruction submodule."""
-
-    def __init__(self):
-        self.arrive = CpAsyncMbarrierArriveNamespace()
-
-
-class CpAsyncMbarrierArriveNamespace:
-    """The CpAsyncMbarrier Arrive instruction submodule."""
-
-    @staticmethod
-    def noinc(*args, **kwds):
-        return _cuda_op.ptx_cp_async_mbarrier_arrive_noinc(*args, **kwds)
-
-    def __call__(self, *args, **kwds):
-        return _op_wrapper(_cuda_op.ptx_cp_async_mbarrier_arrive)(*args, **kwds)
-
-    # __call__ corresponds to ptx_cp_async_mbarrier_arrive
-    __tir_call_op_name__ = "ptx_cp_async_mbarrier_arrive"
-
-
-class WgmmaNamespace:
-    """The WGMMA instruction submodule."""
-
-    def __init__(self):
-        self.fence: Callable[..., Any] = _op_wrapper(_cuda_op.ptx_wgmma_fence)
-        self.commit_group = _op_wrapper(_cuda_op.ptx_wgmma_commit_group)
-        self.wait_group = _op_wrapper(_cuda_op.ptx_wgmma_wait_group)
-        self.noop_barrier = _op_wrapper(_cuda_op.ptx_wgmma_noop_barrier)
-        self.mma_async = WgmmaMmaAsyncNamespace()
-        self.encode_matrix_descriptor = _op_wrapper(_cuda_op.ptx_wgmma_encode_matrix_descriptor)
-
-
-class WgmmaMmaAsyncNamespace:
-    """The WGMMA MMAAsync instruction submodule."""
-
-    def __init__(self):
-        self.ss = _op_wrapper(_cuda_op.ptx_wgmma_mma_async_ss)
-        self.rs = _op_wrapper(_cuda_op.ptx_wgmma_mma_async_rs)
-
-
-class MbarrierNamespace:
-    """The Mbarrier instruction submodule."""
-
-    def __init__(self):
-        self.init = _op_wrapper(_cuda_op.ptx_mbarrier_init)
-        self.complete_tx = _op_wrapper(_cuda_op.ptx_mbarrier_complete_tx)
-        self.try_wait = _op_wrapper(_cuda_op.ptx_mbarrier_try_wait)
-        self.try_wait_once = _op_wrapper(_cuda_op.ptx_mbarrier_try_wait_once)
-        self.try_wait_acquire_cluster = _op_wrapper(_cuda_op.ptx_mbarrier_try_wait_acquire_cluster)
-        self.arrive = MbarrierArriveNamespace()
-
-
-class MbarrierArriveNamespace:
-    """The Mbarrier Arrive instruction submodule."""
-
-    def __init__(self):
-        self.expect_tx = _op_wrapper(_cuda_op.ptx_mbarrier_arrive_expect_tx)
-        self.no_complete = _op_wrapper(_cuda_op.ptx_mbarrier_arrive_no_complete)
-
-    def __call__(self, *args, **kwds):
-        return _op_wrapper(_cuda_op.ptx_mbarrier_arrive)(*args, **kwds)
-
-    # __call__ corresponds to ptx_mbarrier_arrive
-    __tir_call_op_name__ = "ptx_mbarrier_arrive"
-
-
-class Tcgen05Namespace:
-    """The Tcgen05 instruction submodule."""
-
-    def __init__(self):
-        self.alloc = _op_wrapper(_cuda_op.ptx_tcgen05_alloc)
-        self.dealloc = _op_wrapper(_cuda_op.ptx_tcgen05_dealloc)
-        self.relinquish_alloc_permit = _op_wrapper(_cuda_op.ptx_tcgen05_relinquish_alloc_permit)
-        self.encode_matrix_descriptor = _op_wrapper(_cuda_op.ptx_tcgen05_encode_matrix_descriptor)
-        self.encode_instr_descriptor = _op_wrapper(_cuda_op.ptx_tcgen05_encode_instr_descriptor)
-        self.encode_instr_descriptor_block_scaled = _op_wrapper(
-            _cuda_op.ptx_tcgen05_encode_instr_descriptor_block_scaled
+        raise TypeError(
+            "T.s_tir.cp_async_raw only accepts the printed 6-arg raw form; "
+            'issue new copies through T.ptx["cp.async..."]'
         )
-        self.ld = _op_wrapper(_cuda_op.ptx_tcgen05_ld)
-        self.st = _op_wrapper(_cuda_op.ptx_tcgen05_st)
-        self.cp = _op_wrapper(_cuda_op.ptx_tcgen05_cp)
-        self.shift = _op_wrapper(_cuda_op.ptx_tcgen05_shift)
-        self.commit = _op_wrapper(_cuda_op.ptx_tcgen05_commit)
-        self.wait = Tcgen05WaitNamespace()
-        self.mma = Tcgen05MmaNamespace()
-        self.fence = Tcgen05FenceNamespace()
 
 
-class Tcgen05FenceNamespace:
-    """The Tcgen05 Fence instruction submodule."""
+class STIRNamespace:
+    """Nodes the s_tir pipeline's own passes build.
+
+    Nothing here is meant to be written by hand: ``InjectPTXLDG32`` and
+    ``InjectPTXAsyncCopy`` construct these, later passes match on them, and
+    codegen turns them into asm. They have a script spelling only so printed
+    IR round-trips.
+    """
 
     def __init__(self):
-        self.before_thread_sync = _op_wrapper(_cuda_op.ptx_tcgen05_fence_before_thread_sync)
-        self.after_thread_sync = _op_wrapper(_cuda_op.ptx_tcgen05_fence_after_thread_sync)
+        self.ldg32 = _s_tir_ldg32
+        self.cp_async_raw = _CpAsyncRaw()
 
 
-class Tcgen05MmaNamespace:
-    """The Tcgen05 MMA instruction submodule."""
+class PTXLegacyNamespace:
+    """Apache-compatible spellings of instructions the dialect already covers.
 
-    def __init__(self):
-        self.block_scale = _op_wrapper(_cuda_op.ptx_tcgen05_mma_block_scale)
-        self.sp = Tcgen05MmaSpNamespace()
-
-    def __call__(self, *args, **kwds):
-        return _op_wrapper(_cuda_op.ptx_tcgen05_mma)(*args, **kwds)
-
-    # __call__ corresponds to ptx_tcgen05_mma
-    __tir_call_op_name__ = "ptx_tcgen05_mma"
-
-
-class Tcgen05MmaSpNamespace:
-    """Tcgen05 Sparse MMA instruction submodule."""
+    They take the historical argument order and are pattern-matched by the
+    passes that lower them, which is why they are not simply deleted: tests
+    inherited from upstream still write them.
+    """
 
     def __init__(self):
-        self.block_scale = _op_wrapper(_cuda_op.ptx_tcgen05_mma_sp_block_scale)
-
-    def __call__(self, *args, **kwds):
-        return _op_wrapper(_cuda_op.ptx_tcgen05_mma_sp)(*args, **kwds)
-
-    # __call__ corresponds to ptx_tcgen05_mma_sp
-    __tir_call_op_name__ = "ptx_tcgen05_mma_sp"
+        # Same lowered asm as T.ptx.mma, but the accumulator doubles as the
+        # destination and the offsets are explicit.
+        self.mma = _dtype_forward(_cuda_op.ptx_legacy_mma)
+        # (trans, num, dtype, local_ptr, local_offset, smem_ptr, smem_offset)
+        self.ldmatrix = _dtype_forward(_cuda_op.ptx_legacy_ldmatrix)
 
 
-class Tcgen05WaitNamespace:
-    """The Tcgen05 Wait instruction submodule."""
+class CudaWgmmaNamespace:
+    """WGMMA companions that are not PTX instructions (pure-C / empty-asm helpers)."""
 
     def __init__(self):
-        self.ld = _op_wrapper(_cuda_op.ptx_tcgen05_wait_ld)
-        self.st = _op_wrapper(_cuda_op.ptx_tcgen05_wait_st)
+        self.noop_barrier = _op_wrapper(_cuda_op.cuda_wgmma_noop_barrier)
+        self.encode_matrix_descriptor = _op_wrapper(_cuda_op.cuda_wgmma_encode_matrix_descriptor)
 
 
-class BarNamespace:
-    """The Bar instruction submodule."""
-
-    def __init__(self):
-        self.arrive = _op_wrapper(_cuda_op.ptx_bar_arrive)
-        self.sync = _op_wrapper(_cuda_op.ptx_bar_sync)
-
-
-class BarrierNamespace:
-    """The Barrier instruction submodule."""
+class CudaTcgen05Namespace:
+    """tcgen05 companions that are not PTX instructions (pure-C descriptor packers)."""
 
     def __init__(self):
-        self.sync = _op_wrapper(_cuda_op.ptx_barrier_sync)
-        self.cluster = BarrierClusterNamespace()
-
-
-class BarrierClusterNamespace:
-    """The BarrierCluster instruction submodule."""
-
-    def __init__(self):
-        self.arrive = _op_wrapper(_cuda_op.ptx_barrier_cluster_arrive)
-        self.wait = _op_wrapper(_cuda_op.ptx_barrier_cluster_wait)
-
-
-class FenceNamespace:
-    """PTX fence instruction submodule."""
-
-    def __init__(self):
-        self.proxy_async = _op_wrapper(_cuda_op.ptx_fence_proxy_async)
-        self.mbarrier_init = _op_wrapper(_cuda_op.ptx_fence_mbarrier_init)
-
-    def __call__(self, *args, **kwds):
-        return _op_wrapper(_cuda_op.ptx_fence)(*args, **kwds)
-
-    __tir_call_op_name__ = "ptx_fence"
-
-
-class GriddepcontrolNamespace:
-    """PTX griddepcontrol instruction submodule (sm_90+)."""
-
-    def __init__(self):
-        self.wait = _op_wrapper(_cuda_op.ptx_griddepcontrol_wait)
-        self.launch_dependents = _op_wrapper(_cuda_op.ptx_griddepcontrol_launch_dependents)
+        self.encode_matrix_descriptor = _op_wrapper(_cuda_op.cuda_tcgen05_encode_matrix_descriptor)
+        self.encode_instr_descriptor = _op_wrapper(_cuda_op.cuda_tcgen05_encode_instr_descriptor)
+        self.encode_instr_descriptor_block_scaled = _op_wrapper(
+            _cuda_op.cuda_tcgen05_encode_instr_descriptor_block_scaled
+        )
 
 
 class IketNamespace:
@@ -385,6 +135,23 @@ class CUDANamespace:
 
     def __init__(self):
         self.iket = IketNamespace()
+        self.wgmma = CudaWgmmaNamespace()
+        self.tcgen05 = CudaTcgen05Namespace()
+        self.any_sync = _op_wrapper(_cuda_op.cuda_any_sync)
+        # elect.sync plus the two movs that materialize its d|p pair: a
+        # multi-statement asm block, so it belongs here rather than T.ptx.
+        # The warp-specialization passes match this op to build predicates.
+        self.elect_sync: Callable[..., Any] = _op_wrapper(_cuda_op.cuda_elect_sync)
+        # `mov.u32 d, %sreg` -- one PTX instruction, but the special-register
+        # name is baked into the asm text, so it is a helper per register
+        # rather than a ptx entry with a register operand.
+        self.mov_sreg: Callable[..., Any] = _op_wrapper(_cuda_op.cuda_mov_sreg)
+        # Spin-until-ready mbarrier waits: label-loop asm blocks, not single
+        # PTX instructions -- which is why they live here and not in T.ptx.
+        self.mbarrier_wait = _op_wrapper(_cuda_op.cuda_mbarrier_wait)
+        self.mbarrier_wait_acquire_cluster = _op_wrapper(
+            _cuda_op.cuda_mbarrier_wait_acquire_cluster
+        )
         self.atomic_add = _op_wrapper(_cuda_op.cuda_atomic_add)
         self.thread_fence = _op_wrapper(_cuda_op.cuda_thread_fence)
         self.warpgroup_sync = _op_wrapper(_cuda_op.cuda_warpgroup_sync)
@@ -541,4 +308,4 @@ class NVSHMEMPutMemSignalNBINamespace:
     __tir_call_op_name__ = "nvshmem_putmem_signal_nbi"
 
 
-__all__ = ["CUDANamespace", "NVSHMEMNamespace", "PTXNamespace"]
+__all__ = ["CUDANamespace", "NVSHMEMNamespace", "PTXLegacyNamespace", "STIRNamespace"]

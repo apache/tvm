@@ -36,7 +36,9 @@ def _canonical_device_intrin_name(op_name: str) -> str:
         return op_name
     for prefix, namespace in (
         ("cuda_", "cuda"),
+        ("ptx_legacy_", "ptx_legacy"),
         ("ptx_", "ptx"),
+        ("s_tir_", "s_tir"),
         ("nvshmem_", "nvshmem"),
         ("nki_", "nki"),
     ):

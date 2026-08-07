@@ -45,7 +45,7 @@ bool IsBitwiseAndCall(const CallNode* call) {
 }
 
 bool IsPtxElectSyncCall(const CallNode* call) {
-  static const Op& ptx_elect_sync_op = Op::Get("tirx.ptx.elect_sync");
+  static const Op& ptx_elect_sync_op = Op::Get("tirx.cuda.elect_sync");
   return call->op.same_as(ptx_elect_sync_op);
 }
 
@@ -190,7 +190,7 @@ bool TryParseCompareAtom(const PrimExpr& expr, const ScopeIdPredicate& is_scope_
   return true;
 }
 
-// Try to read `expr` as a direct `Call("tirx.ptx.elect_sync")` atom.
+// Try to read `expr` as a direct `Call("tirx.cuda.elect_sync")` atom.
 // Composed forms like `elect_sync() != 0` or `not elect_sync()` are NOT
 // accepted -- the canonical grammar requires a bare elect_sync call.
 bool TryParseElectSyncAtom(const PrimExpr& expr, FilterAtom* out) {

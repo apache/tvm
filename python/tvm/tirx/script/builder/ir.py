@@ -600,12 +600,12 @@ def elected():
 
     Write the explicit form instead::
 
-        if T.ptx.elect_sync():
+        if T.cuda.elect_sync():
             ...                         # thread is the default scope
     """
     raise RuntimeError(
         "T.elected() is no longer available. Write explicitly: "
-        "`if T.ptx.elect_sync(): ...` (thread is the default scope)"
+        "`if T.cuda.elect_sync(): ...` (thread is the default scope)"
     )
 
 
