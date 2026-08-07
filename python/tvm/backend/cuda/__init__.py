@@ -28,7 +28,7 @@ _LAZY_SUBMODULES = {
     "intrinsics",
     "lang",
     "op",
-    "ptx_dialect",
+    "ptx",
     "script",
     "target_tags",
     "tile_primitive",
@@ -77,7 +77,7 @@ def register_backend():
 
 def script_namespaces(**_):
     """Return CUDA-owned TVMScript namespaces."""
-    from .ptx_dialect import PTXNamespace  # pylint: disable=import-outside-toplevel
+    from .ptx import PTXNamespace  # pylint: disable=import-outside-toplevel
     from .script import (  # pylint: disable=import-outside-toplevel
         CUDANamespace,
         NVSHMEMNamespace,
@@ -110,7 +110,7 @@ __all__ = [
     "intrinsics",
     "lang",
     "op",
-    "ptx_dialect",
+    "ptx",
     "register_backend",
     "script",
     "script_namespace",

@@ -17,7 +17,7 @@
 """Generated stub for T.ptx — do not edit.
 
 Regenerate:
-  python -m tvm.backend.cuda.ptx_dialect.gen_stubs -o python/tvm/script/tirx.pyi
+  python -m tvm.backend.cuda.ptx.gen_stubs -o python/tvm/script/tirx.pyi
 """
 
 from typing import Any

@@ -72,7 +72,7 @@ def _ptx_call_parts(call):
     the operand positions follow the table's layout for the call's tokens, so
     tests name operands instead of hard-coding argument indices.
     """
-    from tvm.backend.cuda.ptx_dialect.table import TABLE, mods, operand_layout
+    from tvm.backend.cuda.ptx.table import TABLE, mods, operand_layout
 
     entry = TABLE[call.op.name.removeprefix("tirx.ptx.")]
     n_slots = len(entry.slots)

@@ -18,8 +18,8 @@
 
 import pytest
 
-from tvm.backend.cuda.ptx_dialect.render import render_variant
-from tvm.backend.cuda.ptx_dialect.table import TABLE, renderings, tokens_for
+from tvm.backend.cuda.ptx.render import render_variant
+from tvm.backend.cuda.ptx.table import TABLE, renderings, tokens_for
 
 # (entry name, the modifier slots to write, the instruction that combination emits).
 # Slots are named, not positional: `tokens_for` shifts nothing when a slot is

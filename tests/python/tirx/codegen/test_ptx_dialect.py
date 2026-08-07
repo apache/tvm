@@ -56,7 +56,7 @@ def _assert_ptxas_ok(src: str, rdc: bool = False, arch: str = PTX_ARCH) -> None:
 
 def test_ptx_registration():
     from tvm.backend.cuda.intrinsics.registry import CODEGEN_REGISTRY
-    from tvm.backend.cuda.ptx_dialect.table import TABLE
+    from tvm.backend.cuda.ptx.table import TABLE
 
     assert hasattr(T, "ptx")
     for entry in TABLE.values():
@@ -463,8 +463,8 @@ def test_ptx_bit_width_axis():
     # parameter would have been a numeric conversion, not a bit pun.
     assert "cvt." not in src
     # The canonical dtype keeps the unsuffixed name it had before the axis.
-    from tvm.backend.cuda.ptx_dialect.render import render_variant
-    from tvm.backend.cuda.ptx_dialect.table import TABLE, tokens_for
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
 
     ld = TABLE["ld"]
     tokens = tokens_for(ld, space="global", type="b32")
@@ -544,8 +544,8 @@ def test_ptx_printer_form():
 
 def test_ptx_helper_source_golden():
     """Exact generated helper source, one per family (executable documentation)."""
-    from tvm.backend.cuda.ptx_dialect.render import render_variant
-    from tvm.backend.cuda.ptx_dialect.table import TABLE, tokens_for
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
 
     def render(name, predicated=False, dtypes=None, **by_name):
         entry = TABLE[name]
@@ -782,8 +782,8 @@ def test_ptx_single_instruction_invariant():
     new one can never be added without editing this test. Every other assertion
     still applies to them.
     """
-    from tvm.backend.cuda.ptx_dialect.render import render_variant
-    from tvm.backend.cuda.ptx_dialect.table import TABLE, renderings
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, renderings
 
     RAW_ENTRIES = {"cvt_f4x2_f32", "cvt_f4x2_fp16x2", "cvt_f16x2_f4x2", "cvt_bf16x2_f4x2"}
     assert RAW_ENTRIES == {name for name, e in TABLE.items() if e.raw_render}, (
@@ -852,8 +852,8 @@ def test_ptx_single_instruction_invariant_detects_violations():
 
 def test_ptx_all_variants_render_unique():
     """Every legal variant renders; helper names (incl. @p twins) are unique."""
-    from tvm.backend.cuda.ptx_dialect.render import render_variant
-    from tvm.backend.cuda.ptx_dialect.table import TABLE, renderings, variants
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, renderings, variants
 
     names = set()
     total = 0
@@ -887,8 +887,8 @@ def test_ptx_no_instruction_registered_twice():
     operand constraints — if two entries ever produce the same one, the ISA
     line has been registered twice and calls to it are unresolvable.
     """
-    from tvm.backend.cuda.ptx_dialect.render import render_variant
-    from tvm.backend.cuda.ptx_dialect.table import TABLE, renderings
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, renderings
 
     owners = {}
     for entry in TABLE.values():
@@ -910,7 +910,7 @@ def test_ptx_dispatch_unambiguous():
     rendering check above — two entries can emit different assembly and still
     leave a call with nothing to choose between them.
     """
-    from tvm.backend.cuda.ptx_dialect.table import (
+    from tvm.backend.cuda.ptx.table import (
         TABLE,
         mods,
         operand_dtypes,
@@ -945,12 +945,12 @@ def test_ptx_dispatch_unambiguous():
 
 def test_ptx_stub_up_to_date():
     """The checked-in tvm.script.tirx stub must match the generator."""
-    from tvm.backend.cuda.ptx_dialect import gen_stubs
+    from tvm.backend.cuda.ptx import gen_stubs
 
     stub = gen_stubs.STUB_PATH
     assert stub.read_text(encoding="utf-8") == gen_stubs.generate(), (
         "python/tvm/script/tirx.pyi is stale; regenerate with "
-        "`python -m tvm.backend.cuda.ptx_dialect.gen_stubs -o python/tvm/script/tirx.pyi`"
+        "`python -m tvm.backend.cuda.ptx.gen_stubs -o python/tvm/script/tirx.pyi`"
     )
 
 
@@ -967,8 +967,8 @@ def test_ptx_sampled_helpers_assemble():
     """Fast tier: a seeded sample of every family's variants assembles."""
     import random
 
-    from tvm.backend.cuda.ptx_dialect.render import render_variant
-    from tvm.backend.cuda.ptx_dialect.table import TABLE, renderings
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, renderings
 
     rng = random.Random(20260802)
     by_arch = {}
@@ -1012,8 +1012,8 @@ def test_ptx_all_helpers_certify(shard):
     __forceinline__ must be stripped and -rdc used: unreferenced inline
     device functions are silently dropped before ptxas ever sees them.
     """
-    from tvm.backend.cuda.ptx_dialect.render import render_variant
-    from tvm.backend.cuda.ptx_dialect.table import TABLE, renderings
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, renderings
 
     by_arch = {}
     covered = 0
