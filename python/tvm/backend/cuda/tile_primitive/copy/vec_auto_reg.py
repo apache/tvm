@@ -28,25 +28,18 @@ vectorized copy loop. Direction-symmetric: covers R2S / S2R / R2G / G2R.
 """
 
 import tvm
-from tvm.arith import Analyzer
+from tvm.arith import Analyzer, ConstIntBound
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx import Var as _TirVar
 from tvm.tirx.expr import IntImm as _IntImm
-from tvm.tirx.layout import TileLayout
+from tvm.tirx.layout import ComposeLayout, Iter, TileLayout
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
-from ..layout_utils import strip_swizzle_to_tile
-from ._common import _alignment_ok, copy_ptx_form, copy_ptx_ld_return_type
-from ._swizzle_iter import (
-    emit_fallback_offset,
-    emit_init,
-    emit_iter_offset,
-    get_swizzle,
-    try_recognize,
-)
+from ..layout_utils import recompose_swizzle, strip_swizzle_to_tile
+from ._common import _alignment_ok, copy_ptx_form, copy_ptx_ld_chain
 from .utils import _is_valid_copy, _scope_allowed
 from .vec_forced import _ld_cache_config
 
@@ -298,22 +291,15 @@ def _make_thread_placeholders(r_p) -> dict[str, _TirVar]:
     return placeholders
 
 
-def _s_thread_offset(r_p, s_p, placeholders: dict[str, _TirVar]):
-    """Per-thread S base offset. Coord per R position is placeholder (thread
-    axis) or 0 (memory axis); apply_to_shape decomposes across s_p iters.
-    Includes layout-level offsets (e.g. from slicing a non-zero S region)."""
+def _s_thread_contributions(r_p, s_p, placeholders: dict[str, _TirVar]):
+    """Return the per-S-iter coordinates contributing to a thread's address."""
     coord = [
         placeholders[it.axis.name] if it.axis.is_thread() else _IntImm("int32", 0)
         for it in r_p.shard
     ]
     input_shape = [int(it.extent) for it in r_p.shard]
     per_iter = s_p.apply_to_shape(coord, input_shape)
-    off = _IntImm("int32", 0)
-    for c, it in zip(per_iter, s_p.shard, strict=True):
-        off = off + c * it.stride
-    for _axis, val in s_p.offset.items():
-        off = off + val
-    return off
+    return list(zip(per_iter, (it.stride for it in s_p.shard), strict=True))
 
 
 _VEC_BITS_CANDIDATES = (128, 64, 32, 16, 8)
@@ -333,7 +319,7 @@ def _vec_len_candidates(elem_bits: int) -> list[int]:
     return out
 
 
-def _choose_vec_len(elem_bits: int, atoms, r_p, s_p) -> int:
+def _choose_vec_len(elem_bits: int, atoms, r_p, s_p, max_vec_len: int | None = None) -> int:
     """Widest candidate that:
       1. divides the atom contiguous-tail extent (so vec_len consecutive
          R-side regs map to vec_len contiguous S-side elements), AND
@@ -358,6 +344,8 @@ def _choose_vec_len(elem_bits: int, atoms, r_p, s_p) -> int:
     # strides are partition-virtual, not storage-physical — exclude them.
     shared_terms = list(s_p.offset.values()) + list(r_p.offset.values())
     for n in _vec_len_candidates(elem_bits):
+        if max_vec_len is not None and n > max_vec_len:
+            continue
         if n == 1:
             return n
         if t % n != 0 or t < n:
@@ -401,26 +389,95 @@ def _axis_decl(axis_name: str, sctx: DispatchContext):
     raise ValueError(f"unsupported thread axis {axis_name}")
 
 
-def _s_thread_offset_with_vars(r_p, s_p, axis_var_map: dict):
-    coord = [
-        axis_var_map[it.axis.name] if it.axis.is_thread() else _IntImm("int32", 0)
-        for it in r_p.shard
-    ]
-    input_shape = [int(it.extent) for it in r_p.shard]
-    per_iter = s_p.apply_to_shape(coord, input_shape)
-    off = _IntImm("int32", 0)
-    for c, it in zip(per_iter, s_p.shard, strict=True):
-        off = off + c * it.stride
-    for _ax, val in s_p.offset.items():
-        off = off + val
-    return off
+def _thread_axis_extent(axis_name: str, sctx: DispatchContext) -> int | None:
+    """Return the full hardware range of a scope-id axis when it is static."""
+    if axis_name in sctx.intra:
+        active = sctx.intra[axis_name]
+        try:
+            extent, offset = int(active[0]), int(active[1])
+        except (TypeError, ValueError):
+            return None
+        if offset != 0:
+            return None
+        return extent
+
+    fixed = {"laneid": 32, "wid_in_wg": 4, "tid_in_wg": 128}
+    if axis_name in fixed:
+        return fixed[axis_name]
+
+    tx = sctx.launch_params.get("threadIdx.x")
+    if tx is None:
+        return None
+    try:
+        tx_extent = int(tx.dom.extent)
+    except (TypeError, ValueError):
+        return None
+    divisor = {"tx": 1, "warpid": 32, "wgid": 128}.get(axis_name)
+    if divisor is None or tx_extent % divisor != 0:
+        return None
+    return tx_extent // divisor
 
 
-def _substitute_axes(s_off_template, placeholders: dict[str, _TirVar], sctx: DispatchContext):
-    """Inside an impl body: declare real scope_ids and rewrite the
-    placeholder-built ``s_off_template`` to use them."""
-    vmap = {placeholders[name]: _axis_decl(name, sctx) for name in placeholders}
-    return tvm.tirx.stmt_functor.substitute(s_off_template, vmap)
+def _build_s_apply_layout(original_layout, r_p, s_p, outer, placeholders, sctx):
+    """Build a structured tile whose ``m`` is exactly old ``s_off + ds``.
+
+    Each bounded per-thread coordinate becomes its own Iter with a proven
+    hardware-derived extent. Outer atoms retain their exact extent/stride and
+    are addressed by one flattened loop coordinate through shape-aware apply.
+    Slice offsets and any thread term without a finite non-negative bound stay
+    in the tile's ``m`` offset, which makes ComposeLayout conservatively use
+    its full-swizzle fallback when needed.
+    """
+    analyzer = Analyzer()
+    for name, placeholder in placeholders.items():
+        extent = _thread_axis_extent(name, sctx)
+        if extent is not None:
+            analyzer.bind(placeholder, tvm.ir.Range.from_min_extent(0, extent))
+
+    shard = []
+    thread_coords = []
+    apply_shape = []
+    offset = _IntImm("int32", 0)
+    for coord, stride in _s_thread_contributions(r_p, s_p, placeholders):
+        coord = analyzer.simplify(coord)
+        if analyzer.can_prove_equal(coord, 0):
+            continue
+        bound = analyzer.const_int_bound(coord)
+        if (
+            bound.min_value >= 0
+            and bound.max_value != ConstIntBound.POS_INF
+            and bound.max_value < (1 << 31) - 1
+        ):
+            extent = int(bound.max_value) + 1
+            extent_expr = _IntImm("int32", extent)
+            shard.append(Iter(extent_expr, stride, "m"))
+            thread_coords.append(coord)
+            apply_shape.append(extent_expr)
+        else:
+            offset = analyzer.simplify(offset + coord * stride)
+
+    for _axis, value in s_p.offset.items():
+        offset = analyzer.simplify(offset + value)
+
+    total_outer = 1
+    for extent, stride, _r_mul in outer:
+        shard.append(Iter(extent, stride, "m"))
+        total_outer *= extent
+    apply_shape.append(_IntImm("int32", total_outer))
+
+    tile = TileLayout.from_iters(shard, [], {"m": offset})
+    return recompose_swizzle(original_layout, tile), thread_coords, apply_shape
+
+
+def _axis_substitution(placeholders: dict[str, _TirVar], sctx: DispatchContext):
+    """Declare the real scope ids once and map placeholder Vars to them."""
+    return {placeholders[name]: _axis_decl(name, sctx) for name in placeholders}
+
+
+def _apply_s_layout(layout, thread_coords, flat_outer, shape, placeholders, sctx):
+    coord = [*thread_coords, flat_outer]
+    mapped = layout.apply(*coord, shape=shape)["m"]
+    return tvm.tirx.stmt_functor.substitute(mapped, _axis_substitution(placeholders, sctx))
 
 
 def _flat_coords(outer_atoms, flat_idx: int) -> list[int]:
@@ -473,14 +530,21 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     r_iters, s_groups = _split_thread_loop(r_perm, s_p, s_seps)
     atoms = _build_atoms(r_iters, s_groups)
     elem_bits = DataType(src.dtype).bits
-    vec_len = _choose_vec_len(elem_bits, atoms, r_p, s_p)
+    max_vec_len = None
+    if isinstance(s_buf.layout, ComposeLayout) and int(s_buf.layout.swizzle_len) > 0:
+        max_vec_len = 1 << int(s_buf.layout.per_element)
+    vec_len = _choose_vec_len(elem_bits, atoms, r_p, s_p, max_vec_len)
     vec_bits = vec_len * elem_bits
     outer = _split_atoms_for_vec(atoms, vec_len)
 
-    # Build the per-thread S offset outside the impl with placeholder Vars;
-    # inside the impl, real scope_ids are declared and substituted in.
     placeholders = _make_thread_placeholders(r_p)
-    s_off_template = _s_thread_offset(r_p, s_p, placeholders)
+    s_apply_layout, thread_coords, s_apply_shape = _build_s_apply_layout(
+        s_buf.layout, r_p, s_p, outer, placeholders, sctx
+    )
+    # A plain TileLayout is additive, so keep its loop-invariant thread base
+    # outside the serial copy loop. A real swizzle must still apply to the
+    # complete base + outer coordinate inside each iteration.
+    has_swizzle = isinstance(s_apply_layout, ComposeLayout) and int(s_apply_layout.swizzle_len) > 0
 
     # R-side base offset from slicing (e.g. ``R[i*8:i*8+8]`` ⇒ ``i*8``), from
     # ``r_p.offset``; sum across all axes on R's local stride-1 storage.
@@ -490,7 +554,7 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
 
     s_is_shared = s_buf.scope().startswith("shared")
     num_bytes = vec_bits // 8
-    vec, ptx_type = copy_ptx_form(num_bytes)
+    tail, lanes, reg_dtype = copy_ptx_form(num_bytes)
     space = "shared" if s_is_shared else "global"
 
     # Honor the load cache hint (cache="nc") only on global -> register loads;
@@ -500,83 +564,62 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     _l1_evict = _cache_hints.get("l1_evict", "")
     _l2_evict = _cache_hints.get("l2_evict", "")
     _prefetch = _cache_hints.get("prefetch_size", "")
+    # Element offsets index the element buffer; the instruction moves whole
+    # containers, so they are scaled to container index. The vector alignment
+    # rule guarantees the division is exact.
+    container_bits = num_bytes * 8 // lanes
+    elems_per_word = container_bits // elem_bits if container_bits >= elem_bits else 1
+    words_per_elem = elem_bits // container_bits if elem_bits > container_bits else 1
+    # Chains are built here: a Python string bound inside the traced body is
+    # not something the parser can carry. `nc` folds into the chain, so the
+    # three-way branch at the call site collapses to load-or-store.
+    st_chain = f"st.{space}.{tail}"
+    ld_chain = copy_ptx_ld_chain(
+        space,
+        tail,
+        nc=_use_nc,
+        l1_evict=_l1_evict,
+        l2_evict=_l2_evict,
+        prefetch_size=_prefetch,
+    )
 
     total_outer = 1
     for a in outer:
         total_outer *= a[0]
-
-    # Recognize the S-side swizzle iter-pattern from atom extents/strides
-    # (atom = (extent, s_stride, r_mul); a[1] is the S stride per outer round).
-    swizzle = get_swizzle(s_buf.layout)
-    swizzle_pattern = None
-    if swizzle is not None:
-        swizzle_pattern = try_recognize(
-            swizzle,
-            [a[0] for a in outer],
-            [a[1] for a in outer],
-            s_off_template,
-        )
-
-    class _SwizzleState:
-        def __init__(self):
-            self.signed_strides = None
-            self.base_off = None
-
-    state = _SwizzleState()
-
-    def _setup_swizzle(s_off):
-        if swizzle_pattern is None:
-            return
-        state.signed_strides, state.base_off = emit_init(swizzle_pattern, s_off)
-
-    def _s_iter_off(f, ds, s_off):
-        if swizzle_pattern is not None:
-            return emit_iter_offset(swizzle_pattern, state.signed_strides, state.base_off, f)
-        if swizzle is not None:
-            return emit_fallback_offset(swizzle, s_off, ds)
-        return s_off + ds
 
     # fmt: off
     s_zero_indices = [0] * len(s_buf.shape)
 
     @T.prim_func(check_well_formed=False)
     def impl():
-        s_off = _substitute_axes(s_off_template, placeholders, sctx)
-        _setup_swizzle(s_off)
+        if not has_swizzle:
+            s_base = _apply_s_layout(
+                s_apply_layout, thread_coords, 0, s_apply_shape, placeholders, sctx
+            )
         # ``dr`` and ``r_off_base`` below are physical storage offsets, so use
         # the raw-span local view rather than storage-iterator coordinates.
         r_local = r_buf.local()
+        # The registers the instruction moves are containers, not elements.
+        r_words = r_local.view(reg_dtype)
         # Keep a serial TIR loop and let ptxas unroll; explicit ``T.unroll``
         # replicates per-iter scratch arrays and pressures registers.
         for f in range(total_outer):
             ds, dr = _outer_const_offsets(outer, f)
-            s_ptr = _ptr_off(s_buf.ptr_to(s_zero_indices), _s_iter_off(f, ds, s_off))
-            r_ptr = _ptr_off(r_local.ptr_to([0]), r_off_base + dr)
-            if r_is_src:
-                T.ptx.st(s_ptr, src=r_ptr, space=space, vec=vec, ptx_type=ptx_type)
-            elif _use_nc:
-                T.ptx.ld_global_nc(
-                    s_ptr,
-                    copy_ptx_ld_return_type(ptx_type),
-                    ptx_type,
-                    dst=r_ptr,
-                    vec=vec,
-                    l1_evict=_l1_evict,
-                    l2_evict=_l2_evict,
-                    prefetch_size=_prefetch,
+            if has_swizzle:
+                s_off = _apply_s_layout(
+                    s_apply_layout, thread_coords, f, s_apply_shape, placeholders, sctx
                 )
+                s_ptr = _ptr_off(s_buf.ptr_to(s_zero_indices), s_off)
             else:
-                T.ptx.ld(
-                    s_ptr,
-                    copy_ptx_ld_return_type(ptx_type),
-                    ptx_type,
-                    dst=r_ptr,
-                    space=space,
-                    vec=vec,
-                    l1_evict=_l1_evict,
-                    l2_evict=_l2_evict,
-                    prefetch_size=_prefetch,
-                )
+                s_ptr = _ptr_off(s_buf.ptr_to(s_zero_indices), s_base + ds)
+            # The registers move through the reg_dtype word view, not a raw
+            # element pointer: the container index is the element offset scaled
+            # between element and word granularity.
+            r_w = (r_off_base + dr) * words_per_elem // elems_per_word
+            if r_is_src:
+                T.ptx[st_chain](s_ptr, *[r_words[r_w + i] for i in range(lanes)])
+            else:
+                T.ptx[ld_chain](*[r_words[r_w + i] for i in range(lanes)], s_ptr)
     # fmt: on
     import os
 

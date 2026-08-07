@@ -151,14 +151,22 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
     # fmt: off
     @T.prim_func(check_well_formed=False)
     def impl():
-        # Map mbar to remote CTA (complete_tx targets the destination's mbar)
-        remote_mbar = T.ptx.map_shared_rank(mbar, remote_cta_id)
+        # Map mbar to remote CTA (complete_tx targets the destination's mbar).
+        # mapa writes its result into a declared register, so the mapped
+        # addresses live in a small local scratch buffer.
+        mapped = T.alloc_local([2], "uint64")
+        T.ptx.mapa.u64(mapped[0], mbar, T.uint32(remote_cta_id))
+        remote_mbar = mapped[0]
 
         if not outer_extents:
             # Single contiguous chunk — no iteration needed
             src_ptr = src_buf.ptr_to(src_st)
-            cluster_dst = T.ptx.map_shared_rank(dst_buf.ptr_to(dst_st), remote_cta_id)
-            T.ptx.cp_async.bulk.s2c(cluster_dst, src_ptr, chunk_bytes, remote_mbar)
+            T.ptx.mapa.u64(mapped[1], dst_buf.ptr_to(dst_st), T.uint32(remote_cta_id))
+            cluster_dst = mapped[1]
+            T.ptx["cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"](
+                    T.cast(cluster_dst, "uint32"), src_ptr, T.cast(chunk_bytes, "uint32"),
+                    T.cast(remote_mbar, "uint32"),
+                )
         else:
             for loop_vars in T.grid(*outer_extents):
                 src_elem_offset, dst_elem_offset = T.meta_var(compute_offsets(loop_vars))
@@ -177,8 +185,12 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
                 )
 
                 src_ptr = src_buf_w.ptr_to(src_st)
-                cluster_dst = T.ptx.map_shared_rank(dst_buf_w.ptr_to(dst_st), remote_cta_id)
-                T.ptx.cp_async.bulk.s2c(cluster_dst, src_ptr, chunk_bytes, remote_mbar)
+                T.ptx.mapa.u64(mapped[1], dst_buf_w.ptr_to(dst_st), T.uint32(remote_cta_id))
+                cluster_dst = mapped[1]
+                T.ptx["cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"](
+                    T.cast(cluster_dst, "uint32"), src_ptr, T.cast(chunk_bytes, "uint32"),
+                    T.cast(remote_mbar, "uint32"),
+                )
     # fmt: on
 
     return impl

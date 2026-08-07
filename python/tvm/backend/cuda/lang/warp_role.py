@@ -45,7 +45,8 @@ class WarpRole:
     Generates::
 
         if <warp_id_var> == <warp_id_val>:
-            T.ptx.setmaxnreg(<increase>, <regs>)  # if regs specified
+            # if regs specified:
+            T.ptx[f"setmaxnreg.{'inc' if <increase> else 'dec'}.sync.aligned.u32"](<regs>)
             <user code>
 
     The ``if`` guard narrows the active set to the single warp; individual
@@ -77,7 +78,9 @@ class WarpRole:
         self._then_frame = T.Then()
         self._then_frame.__enter__()
         if self.regs is not None:
-            T.evaluate(T.ptx.setmaxnreg(self.increase, self.regs))
+            T.evaluate(
+                T.ptx[f"setmaxnreg.{'inc' if self.increase else 'dec'}.sync.aligned.u32"](self.regs)
+            )
         return self
 
     def __exit__(self, *exc):
@@ -93,13 +96,14 @@ class WarpgroupRole:
     Generates (single wg_id)::
 
         if <wg_id_var> == <wg_id_val>:
-            T.ptx.setmaxnreg(<increase>, <regs>)  # if regs specified
+            # if regs specified:
+            T.ptx[f"setmaxnreg.{'inc' if <increase> else 'dec'}.sync.aligned.u32"](<regs>)
             <user code>
 
     Generates (range of wg_ids, e.g. ``wg_id_val=(0, 2)``)::
 
         if 0 <= <wg_id_var> and <wg_id_var> < 2:
-            T.ptx.setmaxnreg(<increase>, <regs>)
+            T.ptx[f"setmaxnreg.{'inc' if <increase> else 'dec'}.sync.aligned.u32"](<regs>)
             <user code>
 
     The ``if`` guard narrows the active set to the target warpgroup(s);
@@ -135,7 +139,9 @@ class WarpgroupRole:
         self._then_frame = T.Then()
         self._then_frame.__enter__()
         if self.regs is not None:
-            T.evaluate(T.ptx.setmaxnreg(self.increase, self.regs))
+            T.evaluate(
+                T.ptx[f"setmaxnreg.{'inc' if self.increase else 'dec'}.sync.aligned.u32"](self.regs)
+            )
         return self
 
     def __exit__(self, *exc):

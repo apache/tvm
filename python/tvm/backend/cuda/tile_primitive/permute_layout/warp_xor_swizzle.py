@@ -312,6 +312,9 @@ def _impl(op_call, sctx):
         and "shared" in str(dst_buf.scope())
     )
     ptx_t = f"b{dtype_bytes * 8}"
+    # Built out here: a Python string bound inside the traced body is not
+    # something the parser can carry.
+    ld_chain, st_chain = f"ld.shared.{ptx_t}", f"st.shared.{ptx_t}"
     # ld/st only move bits, so use an unsigned container of the matching width:
     # ``ptx.ld(..., bN)`` rejects a float return dtype, and the permute is a pure
     # byte shuffle, so a float32/float64 tile loads/stores correctly as uint.
@@ -336,7 +339,7 @@ def _impl(op_call, sctx):
                 iter_idx = T.meta_var(get_indices(flat, [0] * len(extent), extent))
                 off = T.meta_var(_iter_off(iter_idx, src_str_))
                 ptr = T.meta_var(T.ptr_byte_offset(base_src, off * dtype_bytes, dtype))
-                regs[r] = T.ptx.ld(ptr, bits_dtype, ptx_t, space="shared")
+                T.ptx[ld_chain](regs[r], ptr)
             T.cuda.warp_sync()
             # Phase 2: write via L_dst
             for r in T.unroll(0, P):
@@ -345,7 +348,7 @@ def _impl(op_call, sctx):
                 iter_idx = T.meta_var(get_indices(flat, [0] * len(extent), extent))
                 off = T.meta_var(_iter_off(iter_idx, dst_str_))
                 ptr = T.meta_var(T.ptr_byte_offset(base_dst, off * dtype_bytes, dtype))
-                T.evaluate(T.ptx.st(ptr, regs[r], space="shared", ptx_type=ptx_t))
+                T.ptx[st_chain](ptr, regs[r])
             T.cuda.warp_sync()
     else:
         @T.prim_func

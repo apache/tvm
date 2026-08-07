@@ -371,13 +371,15 @@ tensor as a view at a column offset, and one warp frees it at the end:
 
     addr = T.alloc_shared((1,), "uint32")             # slot for the allocated base
     if warp_id == alloc_warp:                         # tcgen05.alloc is warp-uniform
-        T.ptx.tcgen05.alloc(T.address_of(addr), n_cols=512, cta_group=cta_group)
+        T.ptx[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
+            T.address_of(addr), T.uint32(512))
     acc = T.decl_buffer((CTA_M, 512), "float32", scope="tmem",
                         allocated_addr=0, layout=tmem_layout)   # view at column 0
     # ... use acc as a gemm_async / copy_async operand ...
     if warp_id == alloc_warp:
-        T.ptx.tcgen05.relinquish_alloc_permit(cta_group=cta_group)
-        T.ptx.tcgen05.dealloc(addr, n_cols=512, cta_group=cta_group)
+        T.ptx[f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned"]()
+        T.ptx[f"tcgen05.dealloc.cta_group::{cta_group}.sync.aligned.b32"](
+            addr, T.uint32(512))
 
 You manage the column offsets and the ``tmem_layout`` (a datapath D/F/B layout)
 yourself. This is exactly the sequence the pool below emits.

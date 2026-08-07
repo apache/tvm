@@ -257,8 +257,8 @@ def test_async_copy():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
             B_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
-            T.ptx.cp_async("float32", A_sh.data, threadIdx_x, A.data, threadIdx_x, 512)
-            T.ptx.cp_async("float32", B_sh.data, threadIdx_x, B.data, threadIdx_x, 512)
+            T.s_tir.cp_async_raw("float32", A_sh.data, threadIdx_x, A.data, threadIdx_x, 512)
+            T.s_tir.cp_async_raw("float32", B_sh.data, threadIdx_x, B.data, threadIdx_x, 512)
 
     After = transform(Before)
     # The pass merges shared.dyn allocations. A_sh and B_sh are accessed
@@ -273,8 +273,8 @@ def test_async_copy():
     # lowering, rather than being pre-scaled as byte offsets here.
     assert 'A_sh = buf_dyn_shmem.view("float32")' in script
     assert 'B_sh = buf_dyn_shmem.view("float32")' in script
-    assert 'T.ptx.cp_async("float32", A_sh.data, threadIdx_x' in script
-    assert 'T.ptx.cp_async("float32", B_sh.data, threadIdx_x' in script
+    assert 'T.s_tir.cp_async_raw("float32", A_sh.data, threadIdx_x' in script
+    assert 'T.s_tir.cp_async_raw("float32", B_sh.data, threadIdx_x' in script
 
 
 def test_decl_buffer_alias_extends_allocation_lifetime():

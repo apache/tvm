@@ -278,14 +278,14 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       return call;
     }
 
-    static const Op& ptx_ldmatrix_op = Op::Get("tirx.ptx.ldmatrix_legacy");
+    static const Op& ptx_ldmatrix_op = Op::Get("tirx.ptx_legacy.ldmatrix");
     static const Op& mma_store_op = Op::Get("tirx.mma_store_legacy");
     if (!call->op.same_as(ptx_ldmatrix_op) && !call->op.same_as(mma_store_op)) {
       return call;
     }
 
     if (call->op.same_as(ptx_ldmatrix_op)) {
-      // form: T.ptx.ldmatrix_legacy(..., smem_ptr, smem_offset)
+      // form: T.ptx_legacy.ldmatrix(..., smem_ptr, smem_offset)
       // smem_ptr: T.tvm_access_ptr(ptype, data, offset, extent, rw_mask)
       Expr access_ptr = call->args[5];
       PrimExpr smem_offset = call->args[6].as_or_throw<PrimExpr>();

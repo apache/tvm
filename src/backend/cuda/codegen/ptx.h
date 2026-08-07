@@ -48,11 +48,7 @@ namespace codegen {
  * \param b_offset The offset of element in B.
  * \param c_ptr Pointer to buffer C.
  * \param c_offset The offset of element in C.
- * \param metadata Pointer to metadata buffer (only used for sparse mma).
- * \param metadata_offset The offset of element in metadata.
- * \param sparsity_selector The sparsity selector in sparse mma.
  * \param bit_op The bit operator used in 1-bit mma, can be either "xor" or "and".
- * \param sparse Whether it's sparse mma or not.
  * \param saturate Whether saturate output or not.
  */
 /*!
@@ -72,24 +68,7 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
                              const std::string& a_ptr, const std::string& a_offset,
                              const std::string& b_ptr, const std::string& b_offset,
                              const std::string& c_ptr, const std::string& c_offset,
-                             const std::string& metadata, const std::string& metadata_offset,
-                             const std::string& sparsity_selector, const std::string& bit_op,
-                             bool sparse, bool saturate);
-
-/*!
- * \brief Print ptx async copy from global to shared memory using cp.async.bulk
- * \param shared_ptr: The pointer to the destination shared memory.
- * \param shared_elem_offset: The offset into the shared memory.
- * \param global_ptr: The pointer to the global memory.
- * \param global_elem_offset: The offset into the global memory.
- * \param bytes: The number of bytes to copy.
- * \param barrier: The name of the barrier in shared memory.
- */
-std::string PrintCpAsyncBulkAsm(const std::string& shared_ptr,
-                                const std::string& shared_elem_offset,
-                                const std::string& global_ptr,
-                                const std::string& global_elem_offset, const std::string& bytes,
-                                const std::string& barrier);
+                             const std::string& bit_op, bool saturate);
 
 }  // namespace codegen
 }  // namespace tvm

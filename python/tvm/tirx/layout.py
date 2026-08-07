@@ -114,12 +114,11 @@ class Layout(Object):
         Dict[str, Expr]
             The mapped output (axis name -> value on the axis)
         """
+        if shape is not None:
+            return _ffi_api.LayoutApplyWithShape(self, coord, shape)  # pylint: disable=no-member
         if len(coord) == 1:
-            # assert shape is None, "shape must be None if coord is not a list or tuple"
             return _ffi_api.LayoutApplyLinear(self, coord[0])  # pylint: disable=no-member
-        if shape is None:
-            return _ffi_api.LayoutApply(self, coord)  # pylint: disable=no-member
-        return _ffi_api.LayoutApplyWithShape(self, coord, shape)  # pylint: disable=no-member
+        return _ffi_api.LayoutApply(self, coord)  # pylint: disable=no-member
 
     def apply_to_shape(self, coord: list[Expr], input_shape: list[Expr]) -> list[Expr]:
         """Compute the per-shard value that each shard would take if ``coord``

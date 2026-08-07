@@ -385,10 +385,10 @@ ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
     case ScopeBinding::kKernelCluster: {
       TVM_FFI_ICHECK_LE(out_dim, 3)
           << "ValueError: kernel->cluster can only have 3 dimensions for now";
-      static const Op& ptx_fetch_register_op = Op::Get("tirx.ptx.fetch_register");
+      static const Op& cuda_mov_sreg_op = Op::Get("tirx.cuda.mov_sreg");
       ffi::Array<PrimExpr> ret;
       for (int i = 0; i < out_dim; ++i) {
-        ret.push_back(Call(PrimType::Int(32), ptx_fetch_register_op,
+        ret.push_back(Call(PrimType::Int(32), cuda_mov_sreg_op,
                            {IntImm::Int32(32), StringImm("clusterid." + std::string(1, 'x' + i))})
                           .as_or_throw<PrimExpr>());
       }

@@ -25,9 +25,6 @@ Adding a new modifier value requires changing exactly one place.
 """
 
 # Memory ordering / scope -----------------------------------------------------
-FENCE_SEM = ("sc", "acq_rel")
-FENCE_SCOPE = ("cta", "cluster", "gpu", "sys")
-FENCE_PROXY_ASYNC_SPACE = ("", "global", "shared::cta", "shared::cluster")
 CLUSTER_BARRIER_SEM = ("", "release", "relaxed")
 MBARRIER_COMPLETE_TX_SEM = ("relaxed",)
 MBARRIER_COMPLETE_TX_SCOPE = ("cta", "cluster")
@@ -58,11 +55,6 @@ CP_ASYNC_BULK_RED_OP = ("add", "min", "max", "inc", "dec", "and", "or", "xor")
 # ldmatrix / stmatrix ---------------------------------------------------------
 LDMATRIX_DTYPE = (".b16", ".b8")
 LDMATRIX_NUM = (1, 2, 4)
-
-# tcgen05.cp ------------------------------------------------------------------
-TCGEN05_CP_SHAPES = ("32x128b", "4x256b", "128x128b", "128x256b", "64x128b")
-TCGEN05_CP_MULTICAST = ("", "warpx4", "warpx2::02_13", "warpx2::01_23")
-TCGEN05_CP_DECOMPRESS = ("", "b8x16.b4x16_p64", "b8x16.b6x16_p32")
 
 # tcgen05.ld / tcgen05.st -----------------------------------------------------
 TCGEN05_LDST_SHAPES = ("16x32bx2", "16x64b", "16x128b", "16x256b", "32x32b")

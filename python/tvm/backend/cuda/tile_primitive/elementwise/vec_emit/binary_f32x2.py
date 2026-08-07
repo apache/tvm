@@ -26,7 +26,6 @@ because operand-shape branching is now Python-level (outside any
 
 from __future__ import annotations
 
-from tvm.ir.expr import Expr
 from tvm.script import tirx as T
 
 from .._common import dtype_name, scalar_dtype
@@ -71,18 +70,27 @@ def _f32x2_applies(op_name):
 
 
 def _emit_binary_f32x2_for(op_name):
-    op_func = getattr(T.ptx, f"{op_name}_f32x2")
-
-    def emit(dst_buf, dst_lane_indices, src_args, extras) -> Expr:
+    def emit(dst_buf, dst_lane_indices, src_args, extras) -> None:
+        # `.f32x2` operands are .b64 register pairs (PTX ISA 9.7.3.3), so the
+        # instruction is bracketed by mov pack/unpack. This body is plain Python
+        # run during tracing, not TVMScript, so each traced call goes through
+        # T.evaluate to reach the frame; emitting statements is why it returns
+        # None (see the VecImpl contract in vec_emit/__init__.py).
         a_arg, b_arg = src_args
         rm = extras.get("rounding_mode", "rz")
-        return op_func(
-            T.address_of(dst_buf[tuple(dst_lane_indices[0])]),
-            T.cuda.make_float2(_lane(a_arg, 0), _lane(a_arg, 1)),
-            T.cuda.make_float2(_lane(b_arg, 0), _lane(b_arg, 1)),
-            rounding=rm,
-            ftz=True,
+        lhs = T.local_scalar("uint64")
+        rhs = T.local_scalar("uint64")
+        T.evaluate(T.ptx.mov.b64(lhs, _lane(a_arg, 0), _lane(a_arg, 1)))
+        T.evaluate(T.ptx.mov.b64(rhs, _lane(b_arg, 0), _lane(b_arg, 1)))
+        T.evaluate(T.ptx[f"{op_name}.{rm}.ftz.f32x2"](lhs, lhs, rhs))
+        T.evaluate(
+            T.ptx.mov.b64(
+                dst_buf[tuple(dst_lane_indices[0])],
+                dst_buf[tuple(dst_lane_indices[1])],
+                lhs,
+            )
         )
+        return None
 
     return emit
 

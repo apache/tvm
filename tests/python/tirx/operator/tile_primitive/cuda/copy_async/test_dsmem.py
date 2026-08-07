@@ -71,7 +71,7 @@ class _S2CCounter(StmtExprVisitor):
 
     def visit_evaluate_(self, op):
         if isinstance(op.value, tvm.ir.Call):
-            if op.value.op.name == "tirx.ptx.cp_async_bulk_shared_to_cluster":
+            if op.value.op.name == "tirx.ptx.cp_async_bulk_s2c":
                 n = 1
                 for e in self._loop_extents:
                     n *= e
@@ -186,13 +186,13 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
         pool.commit()
 
         mbar.init(1)
-        T.ptx.fence.mbarrier_init()
+        T.ptx.fence.mbarrier_init.release.cluster()
         T.cuda.cluster_sync()
 
         if tid == 0:
             if cbx == 0:
                 Tx.copy(src_smem[r], A[r])
-                T.ptx.fence.proxy_async("shared::cta")
+                T.ptx.fence.proxy.async_.shared__cta()
 
                 Tx.copy_async(
                     dst_smem[r], src_smem[r],
@@ -201,7 +201,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
                     remote_cta_id=T.int32(1),
                 )
             else:
-                T.ptx.mbarrier.arrive.expect_tx(mbar.ptr_to([0]), copy_bytes)
+                T.ptx.mbarrier.arrive.expect_tx.shared.b64(mbar.ptr_to([0]), T.uint32(copy_bytes))
                 mbar.wait(0, 0)
 
                 Tx.copy(B[r], dst_smem[r])

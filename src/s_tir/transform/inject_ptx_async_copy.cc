@@ -90,7 +90,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
           if (predicated) {
             args.push_back(predicate_value);
           }
-          static const Op& ptx_cp_async_op = Op::Get("tirx.ptx.cp_async_raw");
+          static const Op& ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
           return Evaluate(
               Call(store->buffer->dtype, ptx_cp_async_op, args).as_or_throw<PrimExpr>());
         }
@@ -120,7 +120,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
             return PrimExpr();
           }();
           if (src_offset.defined() && dst_offset.defined()) {
-            static const Op& ptx_cp_async_op = Op::Get("tirx.ptx.cp_async_raw");
+            static const Op& ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
             return Evaluate(Call(store->buffer->dtype, ptx_cp_async_op,
                                  {store->buffer.data(), mul(dst_offset, PrimExpr(index_factor)),
                                   load->buffer.data(), src_offset, PrimExpr(bytes)})
@@ -151,7 +151,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
           }();
 
           if (src_offset.defined() && dst_offset.defined()) {
-            static const Op& ptx_cp_async_op = Op::Get("tirx.ptx.cp_async_raw");
+            static const Op& ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
             return Evaluate(
                 Call(store->buffer->dtype, ptx_cp_async_op,
                      {store->buffer.data(), mul(dst_offset, PrimExpr(index_factor)),
