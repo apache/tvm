@@ -304,12 +304,14 @@ class InstructionEntry:
     # enumeration, certification, dispatch, stubs) is unchanged, so a raw entry
     # is still enumerable and still proven against ptxas.
     #
-    # It exists for one shape: an operand the ISA types as .b8. Inline asm has
-    # no 8-bit register constraint, ptxas rejects a wider carrier in those
-    # positions, and the value therefore has to be staged through a block-local
-    # `.reg .b8` -- several statements, which the single-instruction invariant
-    # otherwise forbids. Every raw entry must be listed in that test's
-    # exemption set, so adding one is never silent.
+    # It currently has no users. Its one client was `.e2m1x2`, whose operand
+    # the ISA types .b8 -- a register class inline asm cannot bind, which needs
+    # staging through a block-local `.reg .b8`. That turned out to be the same
+    # shape as `.pred`'s setp/selp rather than a one-off, so it became a
+    # `render.BRIDGE` row and the hand-written body went away. The hatch stays
+    # for a family that is genuinely irregular; every raw entry must be listed
+    # in the single-instruction invariant's exemption set, so taking it is
+    # never silent.
     raw_render: Callable[["InstructionEntry", str, str, tuple, tuple], str] | None = None
 
     @property
@@ -1160,79 +1162,6 @@ def _present_lanes(slot: str) -> LanesFn:
 # instruction uses packed scale-factor with 2 scale values of ue8m0 type.
 # Operand scale-factor and qualifier .scaled::n2::ue8m0 must be used together."
 _cvt_scale_lanes = _present_lanes("scaled")
-
-
-def _cvt_f4x2_raw(entry, opcode: str, helper: str, tokens, dtypes) -> str:
-    """The hand-written helper body for one `.e2m1x2` line (Hatch A).
-
-    `render.render_variant` hands over the entry plus the opcode and helper
-    name it has already derived, so nothing about this entry's identity is
-    restated here: the operands come from `entry.typed_operands`, which is the
-    order `canonical_dtypes` reports, and which operands exist comes from
-    `lanes_of` -- the same rule the derived path applies, so `{, scale-factor}`
-    appears exactly when `.scaled::n2::ue8m0` is written without this function
-    knowing that qualifier's name.
-
-    These four lines are the only client of `raw_render`, for the reason that
-    field documents: exactly one of their operands is `.b8`, and the value has
-    to be staged through a block-local `.reg .b8`. What varies between them is
-    only which end that operand sits on, so both shapes live in this one
-    builder:
-
-        dst  `{ .reg .b8 raw_d; <cvt> raw_d, %1[, %2]; cvt.u16.u8 %0, raw_d; }`
-        src  `{ .reg .b8 raw_a; cvt.u8.u16 raw_a, %1; <cvt> %0, raw_a[, %2]; }`
-
-    Every other piece -- carrier locals, constraint letters, the `(uint8_t)`
-    truncation at the C boundary -- is taken from `render.C_BINDING`, the same
-    table the derived path reads, so a raw helper differs from a derived one in
-    the asm text and nowhere else. The import is deferred because `.render`
-    imports this module.
-    """
-    from .render import C_BINDING
-
-    mod_map = mods(entry, tokens)
-    operands = [
-        (slot.name, dtype)
-        for slot, dtype in zip(entry.typed_operands, dtypes, strict=True)
-        if lanes_of(slot, mod_map)
-    ]
-    (dname, ddtype), srcs = operands[0], operands[1:]
-    params, inputs, texts = [], [], []
-    for index, (name, dtype) in enumerate(srcs, start=1):
-        cb = C_BINDING[dtype]
-        params.append(f"{cb.c_type} __{name}")
-        inputs.append(f'"{cb.constraint}"({cb.to_carrier.format(f"__{name}")})')
-        texts.append(f"%{index}")
-    dcb = C_BINDING[ddtype]
-    params.insert(0, f"{dcb.c_type}& __{dname}")
-    volatile = " volatile" if entry.asm_volatile else ""
-    pre, post = [], []
-    if dcb.carrier != dcb.c_type:
-        # The destination is the `.b8`: the instruction writes the `.reg .b8`,
-        # the wider carrier picks it up, and the C boundary truncates back.
-        reg = f"__{dname}_reg"
-        pre.append(f"{dcb.carrier} {reg};")
-        post.append(f"__{dname} = {dcb.from_carrier.format(reg)};")
-        output = f'"={dcb.constraint}"({reg})'
-        block = [
-            f".reg .b8 raw_{dname};",
-            f"{opcode} raw_{dname}, {', '.join(texts)};",
-            f"cvt.u16.u8 %0, raw_{dname};",
-        ]
-    else:
-        # The `.b8` operand is the source `a`, always first in the list.
-        aname = srcs[0][0]
-        texts[0] = f"raw_{aname}"
-        output = f'"={dcb.constraint}"(__{dname})'
-        block = [
-            f".reg .b8 raw_{aname};",
-            f"cvt.u8.u16 raw_{aname}, %1;",
-            f"{opcode} %0, {', '.join(texts)};",
-        ]
-    asm_text = "{ " + " ".join(block) + " }"
-    asm_line = f'asm{volatile}("{asm_text}" : {output} : {", ".join(inputs)});'
-    body = "\n".join(f"  {line}" for line in [*pre, asm_line, *post])
-    return f"__forceinline__ __device__ void {helper}({', '.join(params)}) {{\n{body}\n}}\n"
 
 
 def _check_cvt_tf32(m):
@@ -2670,42 +2599,15 @@ _ENTRIES = [
             OperandSlot("rbits", dtype="b32"),
         ),
     ),
-    # The four `.f4x2type = { .e2m1x2 };` lines. These are the table's only
-    # `raw_render` entries, and the reason is one sentence per direction:
-    # ISA:92 "When converting to .e2m1x2 data formats, the destination operand d
-    # has .b8 type." and :101 "When converting from .e2m1x2 to .f16x2/.bf16x2,
-    # source operand a has .b8 type."
-    #
-    # Inline asm has no 8-bit constraint letter, so the derived path can only
-    # offer that operand a wider register. The ISA says that should be fine --
-    # :476-480 "A source register wider than the specified type may be used,
-    # except when the source operand has .bf16 or .bf16x2 format." and :481-486
-    # "A destination register wider than the specified type may be used, except
-    # when the destination operand has .bf16, .bf16x2 or .tf32 format." Neither
-    # exception names .e2m1x2. It still does not assemble. TOOLCHAIN FACTS,
-    # measured on ptxas 13.2 at -arch=sm_100a, both carrier widths in both
-    # directions:
-    #
-    #   - destination, 16-bit ("h") and 32-bit ("r"), on
-    #     cvt.rn.satfinite.e2m1x2.f32, cvt.rn.satfinite.e2m1x2.f16x2 and
-    #     cvt.rn.satfinite.e2m1x2.bf16x2 -- every one of the six is
-    #     "Arguments mismatch for instruction 'cvt'".
-    #   - source, the same two widths, on cvt.rn.f16x2.e2m1x2 and
-    #     cvt.rn.bf16x2.e2m1x2 -- the same message on all four.
-    #
-    # So the operand has to be a `.reg .b8` declared inside the asm block, and
-    # something has to move the value between it and the "h" carrier. ptxas
-    # refuses `mov` for that bridge in both directions -- `mov.b16` and
-    # `mov.u16` between a `.reg .b8` and a 16-bit register are "Arguments
-    # mismatch for instruction 'mov'" (same toolchain, same probe). The
-    # `cvt.u8.u16` / `cvt.u16.u8` pair the deleted legacy implementation used
-    # assembles, which settles the question that idiom raised: it was the
-    # correct bridge, not a defect to be cleaned up. `_cvt_f4x2_raw` writes it.
-    #
-    # Declaration plus instruction plus bridge is three PTX statements, so all
-    # four entries are listed in the single-instruction invariant's exemption
-    # set. The detector that test falsifies still rejects the shape, which is
-    # the point of putting the exemption in the table walk and not in it.
+    # The four `.f4x2type = { .e2m1x2 };` lines. Their one operand is typed
+    # .b8 by the ISA -- :92 "When converting to .e2m1x2 data formats, the
+    # destination operand d has .b8 type." and :101 "When converting from
+    # .e2m1x2 to .f16x2/.bf16x2, source operand a has .b8 type." -- a register
+    # class inline asm cannot bind, so it is staged through a block-local
+    # `.reg .b8`. That staging is not written here: `.e2m1x2` carries a row in
+    # `render.BRIDGE`, which is where the measured toolchain facts live, and
+    # the derived path emits it exactly as `mov`'s `.pred` operands get their
+    # setp. These entries are therefore ordinary entries.
     InstructionEntry(  # cvt.rn.satfinite{.relu}.f4x2type.f32 d, a, b;
         name="cvt_f4x2_f32",
         mnemonic="cvt",
@@ -2726,7 +2628,6 @@ _ENTRIES = [
             OperandSlot("a", dtype="f32"),
             OperandSlot("b", dtype="f32"),
         ),
-        raw_render=_cvt_f4x2_raw,
     ),
     InstructionEntry(  # cvt.rn.satfinite{.relu}.f4x2type.fp16x2type d, a;
         name="cvt_f4x2_fp16x2",
@@ -2748,7 +2649,6 @@ _ENTRIES = [
             OperandSlot("d", rw="w", dtype="e2m1x2"),
             OperandSlot("a", dtype="atype"),
         ),
-        raw_render=_cvt_f4x2_raw,
     ),
     InstructionEntry(  # cvt.rn{.relu}.f16x2.f4x2type d, a;
         name="cvt_f16x2_f4x2",
@@ -2767,7 +2667,6 @@ _ENTRIES = [
             OperandSlot("d", rw="w", dtype="f16x2"),
             OperandSlot("a", dtype="e2m1x2"),
         ),
-        raw_render=_cvt_f4x2_raw,
     ),
     # cvt.rn{.relu}{.satfinite}{.scaled::n2::ue8m0}.bf16x2.f4x2type
     #     d, a{, scale-factor};
@@ -2798,7 +2697,6 @@ _ENTRIES = [
                 vector=False,
             ),
         ),
-        raw_render=_cvt_f4x2_raw,
     ),
     InstructionEntry(  # cvt.rs{.relu}.satfinite.f4x4type.f32 d, {a, b, e, f}, rbits;
         name="cvt_rs_f4x4_f32",

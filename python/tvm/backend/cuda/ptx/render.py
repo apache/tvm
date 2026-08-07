@@ -126,6 +126,24 @@ BRIDGE = {
     "pred": Bridge(
         ".pred", "ps{n}", "pd{n}", "setp.ne.b32 {reg}, %{idx}, 0;", "selp.b32 %{idx}, 1, 0, {reg};"
     ),
+    # `.e2m1x2`: the ISA types this operand .b8 (9.7.9.22:92 for the
+    # destination, :101 for the source). Its general prose says a wider
+    # register may be used and names no exception for e2m1x2 (:476-486), but
+    # the toolchain disagrees, so the width here is measured, not read:
+    # ptxas 13.2 at -arch=sm_100a answers "Arguments mismatch for instruction
+    # 'cvt'" for BOTH carrier widths ("h" and "r") in BOTH directions, across
+    # cvt.rn.satfinite.e2m1x2.{f32,f16x2,bf16x2} and
+    # cvt.rn.{f16x2,bf16x2}.e2m1x2 -- ten probes, ten rejections.
+    #
+    # `mov` is not the bridge either: mov.b16 / mov.u16 between a `.reg .b8`
+    # and a 16-bit register are the same "Arguments mismatch" (same probe).
+    # `cvt.u8.u16` / `cvt.u16.u8` assemble, which settles the question the
+    # deleted legacy implementation raised -- its idiom was the correct
+    # bridge, not a defect to be cleaned up. The C side needs no help: the
+    # uint8 row of C_BINDING already carries the uint16 and its casts.
+    "e2m1x2": Bridge(
+        ".b8", "raw_{slot}", "raw_{slot}", "cvt.u8.u16 {reg}, %{idx};", "cvt.u16.u8 %{idx}, {reg};"
+    ),
 }
 
 

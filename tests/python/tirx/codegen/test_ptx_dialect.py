@@ -802,7 +802,17 @@ _BLOCK_RE = re.compile(r"^\{ (?P<body>.*) \}$")
 # The sanctioned in-block boundary conversions, and nothing else: predicate
 # register declarations, setp conversions in (@p's own guard and pred_src
 # operands), selp materializations out (pred_dst operands).
-_BOUNDARY_PREFIXES = (".reg .pred ", "setp.ne.b32 ", "selp.b32 ")
+# The asm block's sanctioned non-instructions: `render.BRIDGE`'s register
+# declarations and the conversions that move a value between the class the ISA
+# names and the carrier inline asm can bind. Never semantics -- see BRIDGE.
+_BOUNDARY_PREFIXES = (
+    ".reg .pred ",
+    ".reg .b8 ",
+    "setp.ne.b32 ",
+    "selp.b32 ",
+    "cvt.u8.u16 ",
+    "cvt.u16.u8 ",
+)
 
 
 def _as_render_args(rendering):
@@ -853,7 +863,10 @@ def test_ptx_single_instruction_invariant():
     from tvm.backend.cuda.ptx.render import render_variant
     from tvm.backend.cuda.ptx.table import TABLE, renderings
 
-    RAW_ENTRIES = {"cvt_f4x2_f32", "cvt_f4x2_fp16x2", "cvt_f16x2_f4x2", "cvt_bf16x2_f4x2"}
+    # Empty, and it should stay that way: the one shape that used to need a
+    # hand-written body (`.e2m1x2`'s .b8 operand) turned out to be a dtype with
+    # a bridge, not an irregular family.
+    RAW_ENTRIES = set()
     assert RAW_ENTRIES == {name for name, e in TABLE.items() if e.raw_render}, (
         "the set of hand-written (raw_render) entries changed; each one is a "
         "permanent exemption from the single-instruction invariant, so it has "
@@ -907,15 +920,23 @@ def test_ptx_single_instruction_invariant_detects_violations():
         "bundle": 'asm volatile("mov.u32 %0, 1; add.u32 %0, %0, 2;" : "=r"(x));',
         # spin loop with a label and a branch (the mbarrier.try_wait shape)
         "spin": 'asm volatile("{ LAB: mbarrier.try_wait.b64 p, [%0]; @!p bra LAB; }" :: "r"(a));',
-        # prologue + instruction (the cvt e2m1x2 shape)
-        "prologue": 'asm volatile("{ .reg .b8 t; cvt.u8.u16 t, %1; cvt.f32 %0, t; }" : "=r"(d));',
+        # a prologue that computes rather than converts: `shl` is arithmetic,
+        # so it is a second instruction no matter that it feeds the first.
+        # (Contrast the b8 staging below, which is a sanctioned conversion.)
+        "prologue": 'asm volatile("{ .reg .b32 t; shl.b32 t, %1, 4; cvt.f32 %0, t; }" : "=r"(d));',
+        # a bridge conversion on a register class that has no bridge: the
+        # prefixes are a closed set, not "anything that looks like a cvt".
+        "unsanctioned": 'asm volatile("{ cvt.u32.u16 %0, %1; st.b32 [%2], %0; }" : "=r"(d));',
     }
     for shape, src in forbidden.items():
         assert _sole_instruction(_ASM_RE.findall(src)[0]) is None, f"{shape} slipped through"
 
-    # The sanctioned @p wrapper is NOT a violation — it guards one instruction.
+    # The sanctioned wrappers are NOT violations -- each carries exactly one
+    # instruction, everything else being a `render.BRIDGE` boundary conversion.
     guarded = "{ .reg .pred p; setp.ne.b32 p, %2, 0; @p red.relaxed.gpu.global.add.u32 [%0], %1; }"
     assert _sole_instruction(guarded) == "red.relaxed.gpu.global.add.u32 [%0], %1;"
+    staged = "{ .reg .b8 raw_a; cvt.u8.u16 raw_a, %1; cvt.rn.f16x2.e2m1x2 %0, raw_a; }"
+    assert _sole_instruction(staged) == "cvt.rn.f16x2.e2m1x2 %0, raw_a;"
 
 
 def test_ptx_all_variants_render_unique():
