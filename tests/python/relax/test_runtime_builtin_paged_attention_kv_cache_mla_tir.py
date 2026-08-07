@@ -174,6 +174,7 @@ def create_kv_cache(dtype):
         None,  # f_transpose_append_mha
         ftranspose_append,
         ["tirx", fmla_prefill_ragged],  # fattn_prefill_ragged
+        [],
         [],  # fattn_prefill
         [],  # fattn_decode
         [],  # fattn_prefill_sliding_window
@@ -304,6 +305,7 @@ def apply_attention(
         lse2 = tvm.runtime.empty((total_seq_length, num_attention_heads), "float32", device=device)
 
         fappend_mla_kv(kv_cache, layer_id, key_value)
+        sinks = tvm.runtime.tensor(np.zeros((num_attention_heads,), dtype=dtype), device)
         if not is_decode_request:
             # Part 1. self-attention
             latent, k_pe = torch.split(
@@ -320,7 +322,9 @@ def apply_attention(
             keys = torch.cat([keys, k_pe_expanded], dim=2)
             keys_tvm = tvm.runtime.tensor(keys.cpu().numpy(), device)
             values_tvm = tvm.runtime.tensor(values.cpu().numpy(), device)
-            fself_attn(kv_cache, layer_id, sm_scale, queries, keys_tvm, values_tvm, outputs1, lse1)
+            fself_attn(
+                kv_cache, layer_id, sm_scale, queries, keys_tvm, values_tvm, sinks, outputs1, lse1
+            )
 
         if not all_new_sequences or is_decode_request:
             # Part 2. cross-attention
@@ -331,7 +335,7 @@ def apply_attention(
                 [torch.bmm(queries_lora_np.permute(1, 0, 2), w_uk).permute(1, 0, 2), q_pe], dim=2
             )
             queries_lora = tvm.runtime.tensor(queries_lora_np.cpu().numpy(), device)
-            fcross_attn(kv_cache, layer_id, sm_scale, queries_lora, outputs2, lse2)
+            fcross_attn(kv_cache, layer_id, sm_scale, queries_lora, sinks, outputs2, lse2)
             cross_attn_output = tvm.runtime.tensor(
                 torch.bmm(
                     torch.from_numpy(outputs2.numpy()).to(device_torch).permute(1, 0, 2), w_uv

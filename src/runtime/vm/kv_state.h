@@ -180,7 +180,8 @@ class AttentionKVCacheObj : public KVStateObj {
    * \sa AttentionKVCache::Attention
    */
   virtual void AttentionWithFusedQKV(int64_t layer_id, Tensor qkv_data, ffi::Optional<Tensor> mask,
-                                     Tensor o_data, double sm_scale) = 0;
+                                     ffi::Optional<Tensor> sinks, Tensor o_data,
+                                     double sm_scale) = 0;
 
   /*!
    * \brief Fine-grained API that computes ragged self attention with Q/K/V data.
@@ -193,7 +194,8 @@ class AttentionKVCacheObj : public KVStateObj {
    * \param sm_scale The additional attention scaling factor.
    */
   virtual void SelfAttention(int64_t layer_id, Tensor q_data, Tensor k_data, Tensor v_data,
-                             Tensor o_data, Tensor lse_data, double sm_scale) = 0;
+                             ffi::Optional<Tensor> sinks, Tensor o_data, Tensor lse_data,
+                             double sm_scale) = 0;
 
   /*!
    * \brief Fine-grained API that computes paged cross attention with Q and in-cache KV data.
@@ -203,8 +205,8 @@ class AttentionKVCacheObj : public KVStateObj {
    * \param lse_data The output attention LSE data, in layout `(total_length, num_qo_heads)`.
    * \param sm_scale The additional attention scaling factor.
    */
-  virtual void CrossAttention(int64_t layer_id, Tensor q_data, Tensor o_data, Tensor lse_data,
-                              double sm_scale) = 0;
+  virtual void CrossAttention(int64_t layer_id, Tensor q_data, ffi::Optional<Tensor> sinks,
+                              Tensor o_data, Tensor lse_data, double sm_scale) = 0;
 
   /*!
    * \brief Fine-grained API that appends the MLA K/V data to KV cache.
