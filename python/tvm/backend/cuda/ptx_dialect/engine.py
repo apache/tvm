@@ -455,13 +455,13 @@ class _InstrChain:
         # what lets optional trailing operands dispatch by arity.
         for entry, filled in cands:
             try:
-                hits.append(_emit(entry, filled, operands, pred=pred))
+                hits.append((entry, _emit(entry, filled, operands, pred=pred)))
             except ValueError as err:
                 # Keep the exception; a lone candidate re-raises it untouched,
                 # and only the aggregate view needs entry names in front.
                 errors.append((entry, err))
         if len(hits) == 1:
-            return hits[0]
+            return hits[0][1]
         if not hits:
             if len(errors) == 1:
                 raise errors[0][1]
@@ -470,8 +470,11 @@ class _InstrChain:
                 + "\n  ".join(f"{e.name}: {err}" for e, err in errors)
             )
         raise AssertionError(  # a table bug, not a user error
+            # The entries that ACCEPTED, not the ones that merely survived
+            # narrowing: naming a candidate that `_emit` rejected sends whoever
+            # reads this after the wrong row.
             f"ambiguous ptx table: {len(hits)} entries accept the same call "
-            f"({', '.join(e.name for e, _ in cands)})"
+            f"({', '.join(e.name for e, _ in hits)})"
         )
 
     def __dir__(self):

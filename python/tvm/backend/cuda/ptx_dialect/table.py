@@ -3026,38 +3026,6 @@ _ENTRIES = [
             ),
         ),
     ),
-    # cp.async.bulk per PTX ISA 9.7.9.26.4.1, which has eight syntax lines (four
-    # copy directions x plain/`.sem.scope...type`). This entry renders exactly
-    # one of them: global -> shared::cta, no optional qualifier written. The
-    # other three directions, plus .L2::cache_hint, .multicast::cluster and
-    # .cp_mask, are registered by the cp_async_bulk_* entries further down, whose
-    # g2s_cta form also subsumes this entry's rendering. For what those entries
-    # do not render, see their NOT REGISTERED note -- it is the authority, and
-    # this comment deliberately makes no completeness claim of its own.
-    # `{.sem}` (`.weak`) is
-    # additionally blocked by the toolchain: it is PTX ISA 9.3 and ptxas 13.2
-    # assembles 9.2, the same situation _check_ld already records for
-    # ld.mmio.acquire.
-    #
-    # Mixed-space operands: dst/mbar are shared::cta (u32 carriers), src is
-    # global (pointer carrier), size is a plain u32 register — each operand
-    # declares its own space/dtype instead of reading the entry-level slots.
-    InstructionEntry(
-        name="cp",
-        slots=(
-            ModifierSlot("api", ("async",)),
-            ModifierSlot("kind", ("bulk",)),
-            ModifierSlot("dst_space", ("shared::cta",)),
-            ModifierSlot("src_space", ("global",)),
-            ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
-        ),
-        operands=(
-            OperandSlot("dst", role="addr", space="shared::cta"),
-            OperandSlot("src", role="addr", space="global"),
-            OperandSlot("size", role="value", dtype="u32"),
-            OperandSlot("mbar", role="addr", space="shared::cta"),
-        ),
-    ),
     # mapa per PTX ISA 9.7.9.24: map a shared address into another CTA of the
     # cluster. All four syntax lines differ only in how `a` is spelled at the
     # PTX level (register / variable / variable+imm); through a C helper the
@@ -3725,6 +3693,10 @@ _ENTRIES = [
     #   semantics, .scope and .type qualifiers are introduced in PTX ISA version
     #   9.3", which ptxas 13.2 in this toolchain (9.2) cannot assemble, and no
     #   call site uses them.
+    # - the `{.sem}` (`.weak`) position on the plain lines, for the same reason:
+    #   omitting an optional qualifier renders the same instruction, and the
+    #   token itself is 9.3. Same situation `_check_ld` records for
+    #   ld.mmio.acquire.
     #
     # `.ignore_oob` is registered, on the one entry below whose direction the
     # ISA gives it: "The qualifier .ignore_oob is only available for the global
@@ -5288,3 +5260,6 @@ _ENTRIES = [
 ]
 
 TABLE: dict[str, InstructionEntry] = {e.name: e for e in _ENTRIES}
+# Keying by name silently drops a duplicate, and a dropped entry is an ISA line
+# that stops being reachable. Two entries never legitimately share a name.
+assert len(TABLE) == len(_ENTRIES), "duplicate InstructionEntry name in _ENTRIES"

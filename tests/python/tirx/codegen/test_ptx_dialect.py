@@ -620,18 +620,18 @@ def test_ptx_helper_source_golden():
     # Mixed-space operands: per-operand space/dtype pick each carrier —
     # shared addrs are uint32, the global addr is a pointer.
     assert render(
-        "cp",
+        "cp_async_bulk_g2s_cta",
         api="async",
         kind="bulk",
-        dst_space="shared::cta",
-        src_space="global",
+        dst="shared::cta",
+        src="global",
         completion="mbarrier::complete_tx::bytes",
     ) == (
-        "__forceinline__ __device__ void tvm_builtin_ptx_cp_async_bulk_shared__cta_global"
-        "_mbarrier__complete_tx__bytes"
-        "(uint32_t __dst, const void* __src, uint32_t __size, uint32_t __mbar) {\n"
+        "__forceinline__ __device__ void tvm_builtin_ptx_cp_async_bulk_g2s_cta_async_bulk"
+        "_shared__cta_global_mbarrier__complete_tx__bytes"
+        "(uint32_t __dst_mem, const void* __src_mem, uint32_t __size, uint32_t __mbar) {\n"
         '  asm volatile("cp.async.bulk.shared::cta.global.mbarrier::complete_tx::bytes '
-        '[%0], [%1], %2, [%3];" :  : "r"(__dst), "l"(__src), "r"(__size), "r"(__mbar)'
+        '[%0], [%1], %2, [%3];" :  : "r"(__dst_mem), "l"(__src_mem), "r"(__size), "r"(__mbar)'
         ' : "memory");\n'
         "}\n"
     )
@@ -875,7 +875,72 @@ def test_ptx_all_variants_render_unique():
                     or f"; {opcode};" in source
                 )
             total += not predicated  # a @p twin is not a separate variant
-    assert total == 110831  # update when the table grows
+    assert total == 110830  # update when the table grows
+
+
+def test_ptx_no_instruction_registered_twice():
+    """One PTX instruction, one entry.
+
+    The table's law is the ISA: an entry models one syntax group, and no two
+    entries may model the same one. Strip the helper name and the parameter
+    names off a rendering and what is left is the instruction itself plus its
+    operand constraints — if two entries ever produce the same one, the ISA
+    line has been registered twice and calls to it are unresolvable.
+    """
+    from tvm.backend.cuda.ptx_dialect.render import render_variant
+    from tvm.backend.cuda.ptx_dialect.table import TABLE, renderings
+
+    owners = {}
+    for entry in TABLE.values():
+        for tokens, dtypes, predicated, imms in renderings(entry):
+            _, _, source = render_variant(entry, tokens, predicated, dtypes, imms)
+            instruction = re.sub(r"__[A-Za-z_][A-Za-z0-9_]*", "ARG", source)
+            instruction = re.sub(r"tvm_builtin_\w+", "FN", instruction)
+            first = owners.setdefault(instruction, entry.name)
+            assert first == entry.name, f"{first} and {entry.name} both register\n{instruction}"
+
+
+def test_ptx_dispatch_unambiguous():
+    """No two entries may accept the same call.
+
+    Models what the engine resolves by, and only that: the written tokens (slot
+    names and order are invisible to `_fill`), the operand count, and each
+    position's acceptance class. Declared spaces that `_coerce_address` treats
+    alike collapse into one class, which is what makes this stricter than the
+    rendering check above — two entries can emit different assembly and still
+    leave a call with nothing to choose between them.
+    """
+    from tvm.backend.cuda.ptx_dialect.table import (
+        TABLE,
+        mods,
+        operand_dtypes,
+        operand_layout,
+        operand_space,
+        variants,
+    )
+
+    def accepts(slot, mod_map):
+        if slot.role == "addr":
+            space = operand_space(slot, mod_map)
+            if space == "tmem":
+                return ("addr", "tmem")
+            return ("addr", "shared*" if space.startswith("shared") else "generic")
+        if slot.role in ("dst", "value", "acc"):
+            return (slot.role, tuple(sorted(operand_dtypes(slot, mod_map))))
+        return (slot.role,)
+
+    owners = {}
+    for entry in TABLE.values():
+        for tokens in variants(entry):
+            mod_map = mods(entry, tokens)
+            layout = operand_layout(entry, mod_map)
+            shape = tuple(accepts(s, mod_map) for s, _, n in layout for _ in range(n))
+            key = (entry.family, frozenset(t for t in tokens if t), shape)
+            first = owners.setdefault(key, entry.name)
+            assert first == entry.name, (
+                f"{first} and {entry.name} both accept "
+                f"T.ptx.{entry.family} with {sorted(key[1])} and {len(shape)} operand(s)"
+            )
 
 
 def test_ptx_stub_up_to_date():
