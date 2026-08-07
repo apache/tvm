@@ -135,8 +135,8 @@ class _Chain_clusterlaunchcontrol:
 
 class _Chain_cp:
     """`cp` — 19 entries sharing this mnemonic; PTX puts their difference in the operand list,
-    so the call selects one. Shapes: (addr); (); (group); (*__operands); (dst_mem, src_mem,
-    size, mbar)
+    so the call selects one. Shapes: (group); (*__operands); (); (dst_mem, src_mem, size,
+    mbar); (addr)
     """
 
     L2: _Chain_cp
@@ -424,8 +424,8 @@ class _Chain_max:
 class _Chain_mbarrier:
     """`mbarrier` — 15 entries sharing this mnemonic; PTX puts their difference in the operand
     list, so the call selects one. Shapes: (addr, count); (addr); (addr, tx_count); (state,
-    addr, count); (count, state); (wait_complete, addr, phase); (wait_complete, addr, phase,
-    time_hint)
+    addr, count); (wait_complete, addr, phase); (wait_complete, addr, phase, time_hint);
+    (count, state)
     """
 
     acquire: _Chain_mbarrier
@@ -746,11 +746,11 @@ class _Chain_sub:
 
 class _Chain_tcgen05:
     """`tcgen05` — 18 entries sharing this mnemonic; PTX puts their difference in the operand
-    list, so the call selects one. Shapes: (dst, ncols); (taddr, ncols); (); (mbar); (mbar,
-    mask); (*__operands); (taddr, s_desc); (d_tmem, a_desc, b_desc, idesc, enable_input_d,
-    zero_col_mask); (d_tmem, a_tmem, b_desc, idesc, enable_input_d, zero_col_mask); (d_tmem,
-    a_desc, b_desc, idesc, sfa_tmem, sfb_tmem, enable_input_d); (d_tmem, a_tmem, b_desc,
-    idesc, sfa_tmem, sfb_tmem, enable_input_d)
+    list, so the call selects one. Shapes: (dst, ncols); (taddr, ncols); (); (*__operands);
+    (taddr, s_desc); (d_tmem, a_desc, b_desc, idesc, sfa_tmem, sfb_tmem, enable_input_d);
+    (d_tmem, a_tmem, b_desc, idesc, sfa_tmem, sfb_tmem, enable_input_d); (d_tmem, a_desc,
+    b_desc, idesc, enable_input_d, zero_col_mask); (d_tmem, a_tmem, b_desc, idesc,
+    enable_input_d, zero_col_mask); (mbar); (mbar, mask)
     """
 
     aligned: _Chain_tcgen05
@@ -807,7 +807,7 @@ class _Chain_tcgen05:
 
 class _Chain_wgmma:
     """`wgmma` — 19 entries sharing this mnemonic; PTX puts their difference in the operand
-    list, so the call selects one. Shapes: (group); (); (*__operands)
+    list, so the call selects one. Shapes: (*__operands); (); (group)
     """
 
     aligned: _Chain_wgmma
