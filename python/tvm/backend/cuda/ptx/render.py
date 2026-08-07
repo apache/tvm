@@ -147,7 +147,9 @@ BRIDGE = {
 }
 
 
-def _helper_name(entry: InstructionEntry, written, imms, dtypes, canonical, mod_map) -> str:
+def _helper_name(
+    entry: InstructionEntry, written, imms, dtypes, canonical, mod_map, sinks=()
+) -> str:
     """The helper's C identifier: the instruction's ISA identity, plus a
     signature discriminator only when it is no longer enough.
 
@@ -175,7 +177,14 @@ def _helper_name(entry: InstructionEntry, written, imms, dtypes, canonical, mod_
         for slot, dtype, canon in zip(entry.typed_operands, dtypes, canonical, strict=True)
         if lanes_of(slot, mod_map)
     ]
-    isa_name = [entry.name, *written, *(imms or ())]
+    # A sunk lane has no C parameter, so the mask is part of the signature and
+    # has to be in the name. Empty mask -> nothing appended, which is what
+    # keeps every pre-existing helper name exactly as it was.
+    sunk = [
+        f"sink_{name}" + "".join(str(lane) for _, lane in sorted(group))
+        for name, group in itertools.groupby(sorted(sinks), key=lambda pair: pair[0])
+    ]
+    isa_name = [entry.name, *written, *(imms or ()), *sunk]
     discriminator = (
         []
         if all(dtype == canon for dtype, canon in present)
@@ -186,7 +195,9 @@ def _helper_name(entry: InstructionEntry, written, imms, dtypes, canonical, mod_
     ).replace("-", "m")
 
 
-def render_variant(entry: InstructionEntry, tokens, predicated=False, dtypes=None, imms=None):
+def render_variant(
+    entry: InstructionEntry, tokens, predicated=False, dtypes=None, imms=None, sinks=frozenset()
+):
     """Render one variant: ``(opcode, helper_name, helper_source)``.
 
     Every helper is ``void`` and its C parameter list is the PTX operand list
@@ -221,7 +232,7 @@ def render_variant(entry: InstructionEntry, tokens, predicated=False, dtypes=Non
         # derived the same way so dispatch, stubs and certification do not
         # need to know the difference.
         assert not predicated, f"{opcode}: raw entries have no @p twin"
-        helper = _helper_name(entry, written, imms, dtypes, canonical, mod_map)
+        helper = _helper_name(entry, written, imms, dtypes, canonical, mod_map, sinks)
         return opcode, helper, entry.raw_render(entry, opcode, helper, tokens, tuple(dtypes))
     # A helper name is the instruction's ISA identity plus, only when it is no
     # longer enough, a signature discriminator. The opcode alone stopped being
@@ -230,7 +241,7 @@ def render_variant(entry: InstructionEntry, tokens, predicated=False, dtypes=Non
     # ones that changed collides whenever two operands swap which of them is
     # non-canonical (atom's d and b do exactly that).
     imm_of = dict(zip(imm_slots(entry), imms or (), strict=True))
-    helper = _helper_name(entry, written, imms, dtypes, canonical, mod_map)
+    helper = _helper_name(entry, written, imms, dtypes, canonical, mod_map, sinks)
     if predicated:
         assert not entry.has_dst, "@p is only supported on instructions without a destination"
         helper += "_pred"
@@ -273,6 +284,12 @@ def render_variant(entry: InstructionEntry, tokens, predicated=False, dtypes=Non
             # One operand, `lanes` registers: PTX writes the group in the
             # operand list, so a lane is a C parameter but not an operand.
             lname = f"{pname}{lane}" if is_group else pname
+            if (slot.name, lane) in sinks:
+                # `_`: the ISA's "this element is discarded". No C parameter,
+                # no constraint, no `%k` -- the instruction names the symbol
+                # directly, which is why the mask is part of the signature.
+                regs.append("_")
+                continue
             if slot.kind == "addr":
                 # A tmem address rides the same 32-bit carrier a shared window
                 # address does; only its provenance differs.

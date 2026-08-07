@@ -115,37 +115,59 @@ def _make_codegen(entry: InstructionEntry):
         # The marker is a comma-joined flag set ("pred" and/or "p<i>"); codegen
         # only cares about @p, since the register classes are already in the
         # table. See the arg-layout note in `_emit`.
-        predicated = "pred" in parse_str(args[-1]).split(",")
+        flags = parse_str(args[-1]).split(",")
+        predicated = "pred" in flags
         tokens = [parse_str(a) for a in args[len(args) - n_slots - 1 : -1]]
         rest = args[: len(args) - n_slots - 1]  # operands, plus pred when present
         mod_map = mods(entry, tokens)
         layout = operand_layout(entry, mod_map)
         n_operands = sum(n for _, _, n in layout)
+        # Sunk lanes left no argument behind, so the layout's operand indices
+        # and the Call's argument positions no longer line up; `at` maps one to
+        # the other. Everything below indexes through it.
+        sunk = {int(f[1:]) for f in flags if f.startswith("s") and f != "sink"}
+        at, pos = {}, 0
+        for i in range(n_operands):
+            if i not in sunk:
+                at[i] = pos
+                pos += 1
+        n_present = pos
+        sinks = frozenset(
+            (slot.name, lane)
+            for slot, i, lanes in layout
+            for lane in range(lanes)
+            if i + lane in sunk
+        )
+
         # Which dtype each typed operand actually carries. It is already in the
         # Call -- the same channel PTX uses, where a register's type lives in its
         # .reg declaration rather than in the instruction text. An operand whose
         # length function resolved to zero has no argument to read; it still
         # needs its dtype slot filled (the render aligns dtypes with *every*
         # typed operand), so it reports its canonical dtype.
-        dtypes = tuple(
-            arg_dtype(rest[i])
-            if n and len(operand_dtypes(slot, mod_map)) > 1
-            else operand_dtypes(slot, mod_map)[0]
-            for slot, i, n in layout
-            if slot.kind == "reg"
-        )
+        def _slot_dtype(slot, i, n):
+            # A dtype belongs to the operand, so any surviving lane reports it;
+            # an operand with none left (zero lanes, or every lane sunk) falls
+            # back to its canonical choice, which is the only one it can have
+            # when there is nothing to read it from.
+            live = [i + lane for lane in range(n) if i + lane not in sunk]
+            if live and len(operand_dtypes(slot, mod_map)) > 1:
+                return arg_dtype(rest[at[live[0]]])
+            return operand_dtypes(slot, mod_map)[0]
+
+        dtypes = tuple(_slot_dtype(slot, i, n) for slot, i, n in layout if slot.kind == "reg")
         # Caller-chosen immediates ride the Call as IntImm args but are baked
         # into the instruction text, so they are read here and NOT forwarded to
         # the helper (which has no parameter for them).
         imm_at = {i for slot, i, _ in layout if slot.kind == "imm"}
-        imms = tuple(str(int(rest[i])) for i in sorted(imm_at))
-        _, helper, source = render_variant(entry, tokens, predicated, dtypes, imms)
+        imms = tuple(str(int(rest[at[i]])) for i in sorted(imm_at))
+        _, helper, source = render_variant(entry, tokens, predicated, dtypes, imms, sinks)
         # Every helper is void; a destination is an ordinary argument, printed
         # by the C codegen as the lvalue it binds the reference parameter to.
         # A predicate rides after the operands, so everything past n_operands
         # is forwarded as-is.
-        forwarded = [rest[i] for i in range(n_operands) if i not in imm_at]
-        forwarded += list(rest[n_operands:])
+        forwarded = [rest[at[i]] for i in range(n_operands) if i not in imm_at and i not in sunk]
+        forwarded += list(rest[n_present:])
         return cuda_func_call(helper, *forwarded, source_code=source)
 
     return codegen
@@ -154,6 +176,27 @@ def _make_codegen(entry: InstructionEntry):
 # ---------------------------------------------------------------------------
 # Trace time: operand coercion + Call emission
 # ---------------------------------------------------------------------------
+
+
+class _Sink:
+    """``T.ptx.SINK`` -- the ISA's sink symbol ``_`` at one destination lane.
+
+    PTX writes the discard at the operand position (`mov.b64 {_, %0}, %1;`),
+    so this is written there too. It is a per-call choice rather than a
+    property of the instruction, which is why the resulting mask is part of
+    the variant: a sunk lane has no C parameter, so it is a different helper.
+
+    Only a lane of a `sinkable` destination accepts it; anywhere else is a
+    trace-time error, because `_` is a destination spelling in the ISA.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self):
+        return "T.ptx.SINK"
+
+
+SINK = _Sink()
 
 
 class PredArg:
@@ -434,10 +477,37 @@ def _emit(entry, filled, operands, pred=None):
                 f'"=" output constraint would discard its prior value)'
             )
         pred = _coerce_pred(entry, pred)
+    # The sink symbol `_`: a lane the caller discards. It is checked here
+    # rather than in `_coerce_operand` because it is not a value at all -- the
+    # instruction names the symbol, so the lane leaves no Call argument, and
+    # its index has to be recorded for the codegen and the round trip.
+    sunk = set()
+    for slot, i, lanes in layout:
+        for lane in range(lanes):
+            if operands[i + lane] is not SINK:
+                continue
+            if not (slot.sinkable and slot.kind == "reg" and slot.rw in ("w", "rw")):
+                raise ValueError(
+                    f"{entry.name}: operand '{slot.name}' is not a sinkable destination, "
+                    f"so it cannot take T.ptx.SINK"
+                )
+            sunk.add(i + lane)
+        if lanes and all(i + lane in sunk for lane in range(lanes)):
+            # ISA 9.7.9.4 states it for mov ("provided that at least one
+            # element is a scalar register"); an instruction whose every
+            # destination is discarded has nothing left to do anyway.
+            raise ValueError(
+                f"{entry.name}: at least one lane of '{slot.name}' must be a real register"
+            )
     coerced = [
         value
         for slot, i, lanes in layout
-        for value in _coerce_operand(entry, slot, operands[i : i + lanes], mod_map)
+        for value in _coerce_operand(
+            entry,
+            slot,
+            [operands[i + lane] for lane in range(lanes) if i + lane not in sunk],
+            mod_map,
+        )
     ]
     # Call arg layout: [operands..., pred?] [slot tokens ("" = omitted)] [marker].
     # The trailing marker states what the argument list alone cannot: whether a
@@ -454,6 +524,9 @@ def _emit(entry, filled, operands, pred=None):
         for slot, i, lanes in layout
         if lanes and slot.kind == "reg" and slot.rw == "r" and operand_type(slot, mod_map) == "pred"
     ]
+    # A sunk lane leaves no argument behind, so only the marker can say it was
+    # there -- without it a printed call would re-parse at the wrong arity.
+    flags += [f"s{i}" for i in sorted(sunk)]
     return call_intrin(
         "",  # every ptx call is a void statement; destinations are operands
         entry.op_name,
@@ -521,8 +594,13 @@ class _InstrChain:
             flags = marker.split(",") if marker else []
             if "pred" in flags and pred is None and args:
                 args, pred = args[:-1], args[-1]
-            # Re-apply the register-class tags the printed text cannot carry.
+            # Put back what the printed text cannot carry: the sunk lanes
+            # (which left no argument at all, so they are re-inserted first, in
+            # ascending order, to restore the operand positions) and then the
+            # register-class tags, whose indices are those same positions.
             args = list(args)
+            for flag in sorted(f for f in flags if f.startswith("s")):
+                args.insert(int(flag[1:]), SINK)
             for flag in flags:
                 if flag.startswith("p") and flag != "pred":
                     args[int(flag[1:])] = PredArg(args[int(flag[1:])])
@@ -616,6 +694,9 @@ class PTXNamespace:
         self._by_family = {}
         for entry in table.values():
             self._by_family.setdefault(entry.family, []).append((entry, (None,) * len(entry.slots)))
+
+    #: The sink symbol -- see :class:`_Sink`.
+    SINK = SINK
 
     @staticmethod
     def pred(value):

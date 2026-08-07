@@ -587,6 +587,58 @@ def test_ptx_pred_operand_rejects_untagged_integer():
     assert bool_needs_no_tag is not None
 
 
+def test_ptx_sink_lane_codegen_and_roundtrip():
+    """`T.ptx.SINK` renders the ISA's `_` and survives print/parse.
+
+    A sunk lane has no C parameter, so the printed call is *shorter* than the
+    one that was written -- the marker is the only thing that can say a lane
+    was there at all, and without it reparsing would land on a different
+    arity.
+    """
+
+    @T.prim_func
+    def kernel(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (32,), "uint32")
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([32])
+        if tx == 0:
+            hi = T.local_scalar("uint32")
+            packed = T.local_scalar("uint64")
+            T.ptx.mov.b64(T.ptx.SINK, hi, packed)
+        A[tx] = A[tx]
+
+    src = _cuda_source(kernel)
+    assert "mov.b64 {_, %0}, %1;" in src
+    assert "_sink_d0" in src
+    reparsed = tvm.script.from_source(kernel.script())
+    tvm.ir.assert_structural_equal(kernel, reparsed)
+
+
+def test_ptx_sink_rejected_where_the_isa_has_no_underscore():
+    """`_` is a destination spelling, and not every destination takes it."""
+    # A source operand is never sinkable.
+    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="not a sinkable destination"):
+
+        @T.prim_func
+        def sink_a_source():
+            T.device_entry()
+            packed = T.local_scalar("uint64")
+            lo = T.local_scalar("uint32")
+            hi = T.local_scalar("uint32")
+            T.ptx.mov.b64(packed, lo, T.ptx.SINK)
+            T.evaluate(hi)
+
+    # ISA 9.7.9.4: "provided that at least one element is a scalar register".
+    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="must be a real register"):
+
+        @T.prim_func
+        def sink_every_lane():
+            T.device_entry()
+            packed = T.local_scalar("uint64")
+            T.ptx.mov.b64(T.ptx.SINK, T.ptx.SINK, packed)
+
+
 def test_ptx_printer_form():
     @T.prim_func
     def kernel(a_ptr: T.handle, b_ptr: T.handle):
@@ -819,8 +871,8 @@ _BOUNDARY_PREFIXES = (
 def _as_render_args(rendering):
     """`renderings` yields (tokens, dtypes, predicated, imms); render_variant
     takes (tokens, predicated, dtypes, imms)."""
-    tokens, dtypes, predicated, imms = rendering
-    return tokens, predicated, dtypes, imms
+    tokens, dtypes, predicated, imms, sinks = rendering
+    return tokens, predicated, dtypes, imms, sinks
 
 
 def _sole_instruction(asm_text):
@@ -878,8 +930,8 @@ def test_ptx_single_instruction_invariant():
     checked = 0
     for entry in TABLE.values():
         raw = entry.raw_render is not None
-        for tokens, dtypes, predicated, imms in renderings(entry):
-            opcode, helper, source = render_variant(entry, tokens, predicated, dtypes, imms)
+        for tokens, dtypes, predicated, imms, sinks in renderings(entry):
+            opcode, helper, source = render_variant(entry, tokens, predicated, dtypes, imms, sinks)
             asm_blocks = asm_re.findall(source)
             assert len(asm_blocks) == 1, f"{opcode}: {len(asm_blocks)} asm blocks, expected 1"
             if raw:
@@ -949,8 +1001,8 @@ def test_ptx_all_variants_render_unique():
     total = 0
     for entry in TABLE.values():
         assert variants(entry), f"{entry.name}: check() filtered out every combination"
-        for tokens, dtypes, predicated, imms in renderings(entry):
-            opcode, helper, source = render_variant(entry, tokens, predicated, dtypes, imms)
+        for tokens, dtypes, predicated, imms, sinks in renderings(entry):
+            opcode, helper, source = render_variant(entry, tokens, predicated, dtypes, imms, sinks)
             assert helper not in names, f"helper name collision: {helper}"
             names.add(helper)
             if predicated:  # framework-level @p twin, guarded inside the block
@@ -965,7 +1017,7 @@ def test_ptx_all_variants_render_unique():
                     or f"; {opcode};" in source
                 )
             total += not predicated  # a @p twin is not a separate variant
-    assert total == 160718  # update when the table grows
+    assert total == 161108  # update when the table grows
 
 
 def test_ptx_no_instruction_registered_twice():
@@ -982,8 +1034,8 @@ def test_ptx_no_instruction_registered_twice():
 
     owners = {}
     for entry in TABLE.values():
-        for tokens, dtypes, predicated, imms in renderings(entry):
-            _, _, source = render_variant(entry, tokens, predicated, dtypes, imms)
+        for tokens, dtypes, predicated, imms, sinks in renderings(entry):
+            _, _, source = render_variant(entry, tokens, predicated, dtypes, imms, sinks)
             instruction = re.sub(r"__[A-Za-z_][A-Za-z0-9_]*", "ARG", source)
             instruction = re.sub(r"tvm_builtin_\w+", "FN", instruction)
             first = owners.setdefault(instruction, entry.name)

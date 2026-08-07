@@ -352,7 +352,7 @@ def test_cvt_blackwell_lines_carry_their_arch_floor():
     """
     for name in _CVT_ENTRIES:
         entry = TABLE[name]
-        if any(_needs_sm100a(set(tokens)) for tokens, _, _, _ in renderings(entry)):
+        if any(_needs_sm100a(set(tokens)) for tokens, *_ in renderings(entry)):
             assert entry.cert_arch == "sm_100a", name
 
 
@@ -362,7 +362,7 @@ def test_cvt_tf32_satfinite_carries_its_sm_100_floor():
     sm_80/sm_90."""
     entry = TABLE["cvt_tf32_f32"]
     assert entry.cert_arch == "sm_100"
-    opcodes = {render_variant(entry, tokens)[0] for tokens, _, _, _ in renderings(entry)}
+    opcodes = {render_variant(entry, tokens)[0] for tokens, *_ in renderings(entry)}
     assert "cvt.rn.satfinite.tf32.f32" in opcodes
 
 

@@ -51,8 +51,8 @@ def generate(families=None) -> str:
         # covers every helper the engine can emit -- dtype choices included.
         rendered = list(renderings(entry))
         chunks.append(f"// ========== {entry.name} — {len(rendered)} helper(s) ==========\n")
-        for tokens, dtypes, predicated, imms in rendered:
-            opcode, _, source = render_variant(entry, tokens, predicated, dtypes, imms)
+        for tokens, dtypes, predicated, imms, sinks in rendered:
+            opcode, _, source = render_variant(entry, tokens, predicated, dtypes, imms, sinks)
             chunks.append(f"// {'@p ' if predicated else ''}{opcode}")
             chunks.append(source)
     return "\n".join(chunks)

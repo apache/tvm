@@ -256,6 +256,20 @@ class OperandSlot:
     # tensorCoords]` is a single PTX operand holding a 64-bit pointer and an
     # .s32 coordinate vector that have no single-register encoding.
     bracket: str | None = None
+    # Whether the ISA lets a lane of this operand be written `_`, the sink
+    # symbol: "this element is discarded" (a destination that is not written,
+    # or a memory location that is not read). Only ever true on a register
+    # operand the instruction writes -- `_` is a destination spelling -- which
+    # includes an accumulator: sinking a lane of one drops both halves of its
+    # read-modify-write, and clusterlaunchcontrol's own ISA example does
+    # exactly that (`{xctaid, _, _, _}`).
+    #
+    # Unlike every other field this one grants a *per-call* choice rather than
+    # describing the instruction, so the chosen mask is part of the variant:
+    # a sunk lane has no C parameter and no constraint, which is a different
+    # helper signature. The mask 0 variant keeps the name it had before the
+    # slot became sinkable.
+    sinkable: bool = False
 
 
 CheckFn = Callable[[dict], str | None]
@@ -474,19 +488,48 @@ def dtype_combos(entry: InstructionEntry, tokens) -> tuple[tuple[str, ...], ...]
     return tuple(itertools.product(*axes)) if axes else ((),)
 
 
-def renderings(entry: InstructionEntry):
-    """Every ``(tokens, dtypes, predicated)`` this entry renders to.
+def sink_combos(entry: InstructionEntry, tokens) -> tuple[frozenset, ...]:
+    """Every legal assignment of the sink symbol ``_`` to this entry's lanes.
 
-    The product of the four independent axes -- modifiers, operand dtypes,
-    caller immediates, predication. Defined once so a new axis lands in one
-    place instead of in every consumer (the certification tiers, the helper
-    dump, the stub writer).
+    A sink is spelled per element, so the domain is the subsets of the
+    sinkable lanes -- minus the all-sunk one. ISA 9.7.9.4 states that
+    exclusion for `mov` ("provided that at least one element is a scalar
+    register"); it is the conservative reading everywhere else, and an
+    instruction whose every destination is discarded has nothing left to do.
+
+    Empty set first, so the un-sunk variant keeps the helper name it had
+    before the slot became sinkable.
+    """
+    lanes = [
+        (slot.name, lane)
+        for slot in entry.operands
+        if slot.sinkable
+        for lane in range(lanes_of(slot, mods(entry, tokens)))
+    ]
+    if not lanes:
+        return (frozenset(),)
+    combos = [
+        frozenset(subset)
+        for size in range(len(lanes))  # never all of them
+        for subset in itertools.combinations(lanes, size)
+    ]
+    return tuple(combos)
+
+
+def renderings(entry: InstructionEntry):
+    """Every ``(tokens, dtypes, predicated, imms, sinks)`` this entry renders to.
+
+    The product of the five independent axes -- modifiers, operand dtypes,
+    caller immediates, predication, sink symbols. Defined once so a new axis
+    lands in one place instead of in every consumer (the certification tiers,
+    the helper dump, the stub writer).
     """
     for tokens in variants(entry):
         for dtypes in dtype_combos(entry, tokens):
             for imms in imm_combos(entry):
                 for predicated in pred_forms(entry):
-                    yield tokens, dtypes, predicated, imms
+                    for sinks in sink_combos(entry, tokens):
+                        yield tokens, dtypes, predicated, imms, sinks
 
 
 def imm_slots(entry: InstructionEntry) -> tuple[OperandSlot, ...]:
@@ -2014,10 +2057,13 @@ _ENTRIES = [
     # block assembles but needs four cvt instructions to get the values in --
     # a multi-instruction template, which this dialect forbids.
     #
-    # Also unregistered: the sink symbol `_` (ISA: "the sink symbol '_' may be
-    # used for one or more elements"), which does assemble from inline asm but
-    # needs an operand role for "this lane is discarded"; and scalar mov
-    # (9.7.9.3), a different instruction that shares the mnemonic.
+    # The sink symbol `_` IS registered on the unpack destinations, per ISA
+    # 9.7.9.4: "When destination operand d is a vector register, the sink
+    # symbol '_' may be used for one or more elements provided that at least
+    # one element is a scalar register." That proviso is `sink_combos`' rule.
+    #
+    # Also unregistered: scalar mov (9.7.9.3), a different instruction that
+    # shares the mnemonic.
     *[
         InstructionEntry(
             name=f"mov_{direction}_{lane_dtype}x{lanes}",
@@ -2029,6 +2075,9 @@ _ENTRIES = [
                     rw="w",
                     dtype=lane_dtype if unpack else agg,
                     lanes=lanes if unpack else 1,
+                    # Only the unpack shape has a vector destination, which is
+                    # where the ISA puts the sink symbol.
+                    sinkable=unpack,
                 ),
                 OperandSlot(
                     "a",
@@ -2118,9 +2167,17 @@ _ENTRIES = [
     # eviction position at all. Every rule beyond that is the scalar rule:
     # `_check_ld`/`_check_st` read both eviction priorities as one qualifier.
     #
-    # NOT REGISTERED: the sink symbol `_` in the two 256-bit lines (it needs an
-    # operand role for "this lane is discarded"), and `.mmio`, whose syntax
-    # line carries no `{.vec}`.
+    # NOT REGISTERED: `.mmio`, whose syntax line carries no `{.vec}`; and the
+    # sink symbol `_` on the 256-bit lines. The mechanism for `_` exists
+    # (`OperandSlot.sinkable`, used by mov and clusterlaunchcontrol) -- what
+    # keeps it off these two is the size of its domain here. The ISA allows it
+    # "when .vec is .v8 and .type is .b32/.s32/.u32/.f32 OR .vec is .v4 and
+    # .type is .b64/.s64/.u64/.f64", i.e. 2**8 masks over 25392 ld renderings
+    # and 11952 st ones: 3453312 and 1625472 helpers, against 161108 for the
+    # whole table today. Each mask is its own C signature, so the
+    # certification tier would have to prove every one of them, and it cannot.
+    # Register these the day a caller needs a specific mask -- the axis is
+    # already there, and `sink_combos` would only need a domain bound.
     InstructionEntry(
         name="ld_vec",
         mnemonic="ld",
@@ -3970,12 +4027,10 @@ _ENTRIES = [
     # So the bare form is a different operand shape, i.e. its own entry below,
     # not a fourth token on the per-dimension slot.
     #
-    # NOT REGISTERED: the sink-symbol spelling of the `.v4` line's fourth
-    # destination ("The contents of the 4th element are unspecified"); `_` needs
-    # an operand role for "this lane is discarded". The line itself is
-    # registered with four ordinary registers, which is how the ISA's own
-    # example writes it -- "@p clusterlaunchcontrol.query_cancel.
-    # get_first_ctaid.v4.b32.b128 {xdim, ydim, zdim, ignr}  handle;".
+    # The `.v4` line's sink spelling IS registered: the ISA's own example is
+    # "@p clusterlaunchcontrol.query_cancel.get_first_ctaid.v4.b32.b128
+    # {xctaid, _, _, _}, handle;", and "The contents of the 4th element are
+    # unspecified" makes the discard the point rather than an optimization.
     InstructionEntry(
         name="clusterlaunchcontrol_query_cancel_is_canceled",
         mnemonic="clusterlaunchcontrol",
@@ -4036,7 +4091,10 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", rw="rw", dtype="b32", lanes=4),
+            # "The contents of the 4th element are unspecified", and the
+            # ISA's example discards three of the four: `_` is registered here
+            # rather than described.
+            OperandSlot("d", rw="rw", dtype="b32", lanes=4, sinkable=True),
             OperandSlot("response", dtype="b128"),
         ),
     ),
