@@ -134,7 +134,7 @@ class _Chain_clusterlaunchcontrol:
     def __call__(self, *args: Any) -> None: ...
 
 class _Chain_cp:
-    """`cp` — 19 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    """`cp` — 21 entries sharing this mnemonic; PTX puts their difference in the operand list,
     so the call selects one. Shapes: (group); (*__operands); (); (dst_mem, src_mem, size,
     mbar); (addr)
     """

@@ -964,7 +964,7 @@ def test_ptx_all_variants_render_unique():
                     or f"; {opcode};" in source
                 )
             total += not predicated  # a @p twin is not a separate variant
-    assert total == 110830  # update when the table grows
+    assert total == 110894  # update when the table grows
 
 
 def test_ptx_no_instruction_registered_twice():
@@ -1039,6 +1039,53 @@ def test_ptx_dispatch_unambiguous():
                 f"{first} and {entry.name} both accept "
                 f"T.ptx.{entry.family} with {sorted(key[1])} and {len(shape)} operand(s)"
             )
+
+
+def test_ptx_dispatch_model_detects_a_collapsed_class():
+    """Falsify the discriminator: erasing a class must make it go red.
+
+    `.pred` is only an acceptance class of its own because `T.ptx.pred(...)`
+    evidences it -- the carrier it rides is the same uint32 every integer
+    operand uses. Collapse that distinction and the two `cp.async` lines whose
+    only difference is `{, src-size}` vs `{, ignore-src}` become
+    indistinguishable, which is the defect this guard exists to catch. A guard
+    that has only ever been seen to pass proves nothing.
+    """
+    from tvm.backend.cuda.ptx.table import (
+        TABLE,
+        mods,
+        operand_dtypes,
+        operand_layout,
+        operand_space,
+        variants,
+    )
+
+    def accepts(slot, mod_map):
+        # The same key as test_ptx_dispatch_unambiguous, minus the pred class.
+        if slot.kind == "addr":
+            space = operand_space(slot, mod_map)
+            if space == "tmem":
+                return ("addr", "tmem")
+            return ("addr", "shared*" if space.startswith("shared") else "generic")
+        if slot.kind != "reg":
+            return (slot.kind,)
+        return (slot.rw, tuple(sorted(operand_dtypes(slot, mod_map))))
+
+    owners, collisions = {}, set()
+    for entry in TABLE.values():
+        for tokens in variants(entry):
+            mod_map = mods(entry, tokens)
+            layout = operand_layout(entry, mod_map)
+            shape = tuple(accepts(s, mod_map) for s, _, n in layout for _ in range(n))
+            key = (entry.family, frozenset(t for t in tokens if t), shape)
+            first = owners.setdefault(key, entry.name)
+            if first != entry.name:
+                collisions.add(tuple(sorted((first, entry.name))))
+
+    assert collisions == {
+        ("cp_async_ca_ignore_src", "cp_async_ca_src_size"),
+        ("cp_async_cg_ignore_src", "cp_async_cg_src_size"),
+    }, f"expected exactly the src-size/ignore-src pairs to collapse, got {sorted(collisions)}"
 
 
 def test_ptx_stub_up_to_date():

@@ -2971,14 +2971,18 @@ _ENTRIES = [
     # the destination tail; it is a separate entry told apart by arity, the
     # mbarrier.arrive precedent.
     #
-    # NOT REGISTERED: the `{, ignore-src}` lines. No call site ever used
-    # them (the legacy intrinsics for those forms were unreachable from the
-    # dispatcher), and their arity collides with the src-size lines -- the
-    # operand-shape dispatch could not tell a src-size u32 from an
-    # ignore-src predicate.
+    # The `{, src-size}` and `{, ignore-src}` lines are separate entries: they
+    # change the operand list, which is what an entry is. Both add one operand
+    # at the same position, so arity cannot tell them apart -- the ISA tells
+    # them apart by register class, "The optional and non-immediate PREDICATE
+    # argument ignore-src" against "a 32-bit INTEGER operand src-size", and so
+    # does this table: `.pred` and `.u32` are different acceptance classes, and
+    # the caller writes `T.ptx.pred(...)` for the one PTX would write `%p` for.
+    # Before `.pred` was a dtype these two were indistinguishable and the
+    # ignore-src lines could not be registered at all.
     *[
         InstructionEntry(
-            name=f"cp_async_{cop}{'_src_size' if src_size else ''}",
+            name=f"cp_async_{cop}{'_' + tail if tail else ''}",
             mnemonic="cp",
             slots=(
                 ModifierSlot("api", ("async",)),
@@ -2995,12 +2999,22 @@ _ENTRIES = [
                 OperandSlot(
                     "cp_size", kind="imm", choices=("4", "8", "16") if cop == "ca" else ("16",)
                 ),
-                *((OperandSlot("src_size", dtype="u32"),) if src_size else ()),
+                # src-size zero-fills the destination tail; ignore-src skips
+                # the read entirely and zero-fills all of it ("If the source
+                # data is ignored then zeros will be copied to destination
+                # dst"), which is why it is a predicate and not a count.
+                *(
+                    (OperandSlot("src_size", dtype="u32"),)
+                    if tail == "src_size"
+                    else (OperandSlot("ignore_src", dtype="pred"),)
+                    if tail
+                    else ()
+                ),
                 OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
             ),
         )
         for cop in ("ca", "cg")
-        for src_size in (False, True)
+        for tail in (None, "src_size", "ignore_src")
     ],
     InstructionEntry(  # cp.async.commit_group;
         name="cp_async_commit_group",
