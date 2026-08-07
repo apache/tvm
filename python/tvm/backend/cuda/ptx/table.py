@@ -257,19 +257,31 @@ class OperandSlot:
     # .s32 coordinate vector that have no single-register encoding.
     bracket: str | None = None
     # Whether the ISA lets a lane of this operand be written `_`, the sink
-    # symbol: "this element is discarded" (a destination that is not written,
-    # or a memory location that is not read). Only ever true on a register
-    # operand the instruction writes -- `_` is a destination spelling -- which
-    # includes an accumulator: sinking a lane of one drops both halves of its
-    # read-modify-write, and clusterlaunchcontrol's own ISA example does
-    # exactly that (`{xctaid, _, _, _}`).
+    # symbol: "this element takes no register". What that means follows the
+    # direction, and it is NOT a destination-only spelling -- the ISA puts it
+    # on a source too:
+    #   rw="w"   the element is not written   (ld's `d`, mov's unpack `d`)
+    #   rw="rw"  neither read nor written     (clusterlaunchcontrol's `.v4`,
+    #            whose own example is `{xctaid, _, _, _}`)
+    #   rw="r"   the element is not stored    (st's `b`, ISA 9.7.9.11)
+    # So this is a per-slot fact read off the syntax line, never derived from
+    # the direction.
+    #
+    # Like `lanes`, this may be a function of the modifier map: the ISA states
+    # the condition per syntax line, and for the 256-bit ld/st it depends on
+    # the vector width and the element type.
+    #
+    # An always-sunk operand is NOT this: it is a fixed value in the
+    # instruction text, i.e. a `kind="imm"` with `literal="_"`, which is how
+    # mbarrier.arrive's `state` is registered. This field is for the case where
+    # the caller chooses.
     #
     # Unlike every other field this one grants a *per-call* choice rather than
     # describing the instruction, so the chosen mask is part of the variant:
     # a sunk lane has no C parameter and no constraint, which is a different
     # helper signature. The mask 0 variant keeps the name it had before the
     # slot became sinkable.
-    sinkable: bool = False
+    sinkable: bool | Callable[[dict], bool] = False
 
 
 CheckFn = Callable[[dict], str | None]
@@ -500,11 +512,12 @@ def sink_combos(entry: InstructionEntry, tokens) -> tuple[frozenset, ...]:
     Empty set first, so the un-sunk variant keeps the helper name it had
     before the slot became sinkable.
     """
+    mod_map = mods(entry, tokens)
     lanes = [
         (slot.name, lane)
         for slot in entry.operands
-        if slot.sinkable
-        for lane in range(lanes_of(slot, mods(entry, tokens)))
+        if (slot.sinkable(mod_map) if callable(slot.sinkable) else slot.sinkable)
+        for lane in range(lanes_of(slot, mod_map))
     ]
     if not lanes:
         return (frozenset(),)
@@ -519,16 +532,44 @@ def sink_combos(entry: InstructionEntry, tokens) -> tuple[frozenset, ...]:
 def renderings(entry: InstructionEntry):
     """Every ``(tokens, dtypes, predicated, imms, sinks)`` this entry renders to.
 
-    The product of the five independent axes -- modifiers, operand dtypes,
-    caller immediates, predication, sink symbols. Defined once so a new axis
-    lands in one place instead of in every consumer (the certification tiers,
-    the helper dump, the stub writer).
+    Four axes -- modifiers, operand dtypes, caller immediates, predication --
+    are multiplied. The fifth, the sink symbols, is *added*: the full product
+    is walked with nothing sunk, and then the sink domain is walked once, at
+    the first token combination that has any sinkable lane.
+
+    That asymmetry is deliberate, and it is the difference between a walk this
+    machine can finish and one it cannot. A sink is spelled per element, so its
+    domain is 2**lanes -- 256 for the 256-bit `.v8` lines. Multiplying that by
+    their 25392 modifier combinations would be 3.45 million rows for one entry,
+    against 161108 for the whole table. Nothing is bought by it: whether ptxas
+    accepts `_` at a given lane does not depend on `.cop`, `.scope` or the
+    eviction priorities, so the product re-proves one fact 25392 times.
+
+    Callers are unaffected either way. This function enumerates what gets
+    *verified*; a call site renders from the sink mask it actually wrote, so an
+    unvisited mask still compiles. The same is already true of an OPEN
+    immediate, and for the same reason -- see `imm_combos`.
     """
+    # One representative per *distinct* sink domain, not one per entry: `.v4`
+    # and `.v8` sink four and eight lanes, so they are different domains and a
+    # single representative would leave one of them unproven.
+    sink_at = {}
+    for tokens in variants(entry):
+        combos = sink_combos(entry, tokens)
+        if len(combos) > 1:
+            sink_at.setdefault(frozenset().union(*combos), tokens)
     for tokens in variants(entry):
         for dtypes in dtype_combos(entry, tokens):
             for imms in imm_combos(entry):
                 for predicated in pred_forms(entry):
-                    for sinks in sink_combos(entry, tokens):
+                    yield tokens, dtypes, predicated, imms, frozenset()
+    for tokens in sink_at.values():
+        for sinks in sink_combos(entry, tokens):
+            if not sinks:
+                continue  # already yielded, above
+            for dtypes in dtype_combos(entry, tokens):
+                for imms in imm_combos(entry):
+                    for predicated in pred_forms(entry):
                         yield tokens, dtypes, predicated, imms, sinks
 
 
@@ -682,6 +723,26 @@ def _check_ld_vec(m):
 
 def _check_st_vec(m):
     return _check_vec128(m) or _check_st(m)
+
+
+def _sink256(m):
+    """Whether the 256-bit lines admit `_` under these modifiers.
+
+    ISA 9.7.9.8/9.7.9.11, verbatim: "sink symbol '_' can be used in vector
+    expression d when: .vec is .v8 and .type is .b32 or .s32 or .u32 or .f32
+    OR .vec is .v4 and .type is .b64 or .s64 or .u64 or .f64" (and the same
+    sentence for `b` on st). It is the same pairing that gates
+    `.level2::eviction_priority`, which is not a coincidence -- both are
+    properties of the 32-byte access, not of the qualifier.
+
+    ptxas is looser than this: it also takes `_` on `.v4` with a 32-bit type
+    (measured, CUDA 13.2 at sm_100). The ISA is the law here -- toolchain
+    evidence narrows what the ISA permits, it never widens it -- so that
+    spelling stays out.
+    """
+    return (m["vec"] == "v8" and m["type"] in ("b32", "s32", "u32", "f32")) or (
+        m["vec"] == "v4" and m["type"] in ("b64", "s64", "u64", "f64")
+    )
 
 
 def _check_ld_vec256(m):
@@ -2167,17 +2228,7 @@ _ENTRIES = [
     # eviction position at all. Every rule beyond that is the scalar rule:
     # `_check_ld`/`_check_st` read both eviction priorities as one qualifier.
     #
-    # NOT REGISTERED: `.mmio`, whose syntax line carries no `{.vec}`; and the
-    # sink symbol `_` on the 256-bit lines. The mechanism for `_` exists
-    # (`OperandSlot.sinkable`, used by mov and clusterlaunchcontrol) -- what
-    # keeps it off these two is the size of its domain here. The ISA allows it
-    # "when .vec is .v8 and .type is .b32/.s32/.u32/.f32 OR .vec is .v4 and
-    # .type is .b64/.s64/.u64/.f64", i.e. 2**8 masks over 25392 ld renderings
-    # and 11952 st ones: 3453312 and 1625472 helpers, against 161108 for the
-    # whole table today. Each mask is its own C signature, so the
-    # certification tier would have to prove every one of them, and it cannot.
-    # Register these the day a caller needs a specific mask -- the axis is
-    # already there, and `sink_combos` would only need a domain bound.
+    # NOT REGISTERED: `.mmio`, whose syntax line carries no `{.vec}`.
     InstructionEntry(
         name="ld_vec",
         mnemonic="ld",
@@ -2225,7 +2276,8 @@ _ENTRIES = [
         cert_arch="sm_100",
         check=_check_ld_vec256,
         operands=(
-            OperandSlot("d", rw="w", lanes=_vec_lanes),
+            # `_` means this element is not read from memory.
+            OperandSlot("d", rw="w", lanes=_vec_lanes, sinkable=_sink256),
             OperandSlot("addr", kind="addr"),
         ),
     ),
@@ -2297,7 +2349,10 @@ _ENTRIES = [
         check=_check_st_vec256,
         operands=(
             OperandSlot("addr", kind="addr"),
-            OperandSlot("value", lanes=_vec_lanes),
+            # ISA 9.7.9.11 puts the sink in "vector expression b" -- the data
+            # being stored -- so here `_` means this element is not written to
+            # memory. Sink is not a destination-only spelling.
+            OperandSlot("value", lanes=_vec_lanes, sinkable=_sink256),
         ),
     ),
     # st.bulk per PTX ISA 9.7.9.14:
@@ -3707,7 +3762,15 @@ _ENTRIES = [
     # The arrive lines come in a `state`-returning form and a sink form
     # (`_, [addr]`); the sink is what a void helper can express, so `_` is an
     # ISA-fixed immediate the way `st.bulk`'s initval is. That also leaves the
-    # instruction without a destination, so `pred=` works. arrive_drop's five
+    # instruction without a destination, so `pred=` works.
+    #
+    # This is the same ISA facility `OperandSlot.sinkable` models elsewhere,
+    # spelled differently on purpose: here the sink is not a choice. The
+    # state-returning form needs a destination nothing reads today, so only the
+    # sunk spelling is registered, and an operand that is ALWAYS `_` is a fixed
+    # instruction-text value -- which is what a literal imm is. `sinkable`
+    # would let a caller ask for the other form, and there is no other form
+    # here. Unify the two the day the state-returning line is registered. arrive_drop's five
     # syntax lines (9.7.14.16.17) are the same five shapes, so they are
     # registered as the same four entries with the action token swapped.
     #

@@ -186,8 +186,10 @@ class _Sink:
     property of the instruction, which is why the resulting mask is part of
     the variant: a sunk lane has no C parameter, so it is a different helper.
 
-    Only a lane of a `sinkable` destination accepts it; anywhere else is a
-    trace-time error, because `_` is a destination spelling in the ISA.
+    Only a lane of a `sinkable` operand accepts it; anywhere else is a
+    trace-time error. Which operands those are is read off each syntax line
+    and is not a property of the direction: `ld` sinks an element it does not
+    write, `st` sinks one it does not store.
     """
 
     __slots__ = ()
@@ -486,9 +488,10 @@ def _emit(entry, filled, operands, pred=None):
         for lane in range(lanes):
             if operands[i + lane] is not SINK:
                 continue
-            if not (slot.sinkable and slot.kind == "reg" and slot.rw in ("w", "rw")):
+            sinkable = slot.sinkable(mod_map) if callable(slot.sinkable) else slot.sinkable
+            if not (sinkable and slot.kind == "reg"):
                 raise ValueError(
-                    f"{entry.name}: operand '{slot.name}' is not a sinkable destination, "
+                    f"{entry.name}: operand '{slot.name}' is not sinkable here, "
                     f"so it cannot take T.ptx.SINK"
                 )
             sunk.add(i + lane)

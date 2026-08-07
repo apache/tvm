@@ -616,9 +616,14 @@ def test_ptx_sink_lane_codegen_and_roundtrip():
 
 
 def test_ptx_sink_rejected_where_the_isa_has_no_underscore():
-    """`_` is a destination spelling, and not every destination takes it."""
-    # A source operand is never sinkable.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="not a sinkable destination"):
+    """Which operands take `_` is read off each syntax line, never derived.
+
+    Not from the direction: `ld` sinks a destination it does not write and
+    `st` sinks a source it does not store, so "is it written" answers nothing.
+    Not from the family either: mov's *pack* shape has a scalar destination
+    and a vector source, and the ISA gives neither of them a sink.
+    """
+    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="not sinkable here"):
 
         @T.prim_func
         def sink_a_source():
@@ -1017,7 +1022,7 @@ def test_ptx_all_variants_render_unique():
                     or f"; {opcode};" in source
                 )
             total += not predicated  # a @p twin is not a separate variant
-    assert total == 161108  # update when the table grows
+    assert total == 162716  # update when the table grows
 
 
 def test_ptx_no_instruction_registered_twice():
