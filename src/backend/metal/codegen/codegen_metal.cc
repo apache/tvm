@@ -327,6 +327,31 @@ void CodeGenMetal::PrintStorageScope(const std::string& scope, std::ostream& os)
   }
 }
 
+void CodeGenMetal::VisitStmt_(const BindNode* op) {
+  const auto* pointer_type = op->var->ty.as<PointerTypeNode>();
+  if (pointer_type == nullptr || pointer_type->storage_scope.empty()) {
+    return CodeGenC::VisitStmt_(op);
+  }
+
+  const std::string& storage_scope = pointer_type->storage_scope;
+  alloc_storage_scope_[op->var.get()] = storage_scope;
+  RegisterHandleTypeFromPointer(op->var, &op->value);
+  std::string value = PrintExpr(op->value);
+  if (print_ssa_form_) {
+    TVM_FFI_ICHECK(!var_idmap_.count(op->var.get()));
+    var_idmap_[op->var.get()] = value;
+    return;
+  }
+
+  PrintIndent();
+  PrintStorageScope(storage_scope, stream);
+  PrintType(pointer_type->element_type, stream);
+  stream << "* " << AllocVarID(op->var.get()) << " = (";
+  PrintStorageScope(storage_scope, stream);
+  PrintType(pointer_type->element_type, stream);
+  stream << "*)" << value << ";\n";
+}
+
 void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
   std::string vid = AllocVarID(op->buffer.get());
@@ -445,6 +470,27 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
        << PrintExpr(a) << "[" << PrintExpr(op->args[3]) << "], "  //
        << PrintExpr(b) << "[" << PrintExpr(op->args[5]) << "], "  //
        << PrintExpr(c) << "[" << PrintExpr(op->args[7]) << "])";
+  } else if (op->op.same_as(builtin::ptr_byte_offset()) ||
+             op->op.same_as(builtin::handle_add_byte_offset())) {
+    bool is_typed_offset = op->op.same_as(builtin::ptr_byte_offset());
+    TVM_FFI_ICHECK_EQ(op->args.size(), is_typed_offset ? 3U : 2U);
+    const auto* pointer_type = op->ty.as<PointerTypeNode>();
+    TVM_FFI_ICHECK(pointer_type)
+        << "Metal pointer byte offsets must have a pointer result type, but got " << op->ty;
+    if (pointer_type->storage_scope.empty()) {
+      return CodeGenC::VisitExpr_(op, os);
+    }
+
+    os << "((";
+    PrintStorageScope(pointer_type->storage_scope, os);
+    PrintType(pointer_type->element_type, os);
+    os << "*)(((";
+    PrintStorageScope(pointer_type->storage_scope, os);
+    os << "char*)";
+    PrintExpr(op->args[0], os);
+    os << ") + ";
+    PrintExpr(op->args[1], os);
+    os << "))";
   } else if (op->op.same_as(builtin::reinterpret())) {
     if (!op->ty.as<PrimTypeNode>() || !op->args[0]->ty.as<PrimTypeNode>()) {
       return CodeGenC::VisitExpr_(op, os);
