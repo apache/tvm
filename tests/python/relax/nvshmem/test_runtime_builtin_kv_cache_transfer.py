@@ -104,6 +104,7 @@ fattn_decode = None
 fattn_prefill_sliding_window = None
 fattn_decode_sliding_window = None
 fattn_prefill_ragged = None
+fattn_prefill_ragged_sliding_window = None
 fattn_prefill_with_tree_mask = None
 fattn_prefill_with_tree_mask_paged_kv_cache = None
 fmerge_state = None
@@ -123,6 +124,7 @@ def set_global_func(head_dim, dtype, target):
         fattn_prefill_with_tree_mask, \
         fattn_prefill_with_tree_mask_paged_kv_cache
     global fattn_prefill_sliding_window, fattn_decode_sliding_window
+    global fattn_prefill_ragged_sliding_window
     global fmerge_state, fsplit_rotary, fattention_rotary, fcopy_single_page, fcompact_copy
     global fnvshmem_get_uid, fnvshmem_init, fdisagg_mark_send, fdisagg_prepare_recv
 
@@ -163,6 +165,18 @@ def set_global_func(head_dim, dtype, target):
         _attention_prefill_ragged(
             num_kv_heads, num_qo_heads, head_dim, head_dim, dtype, rope_scaling, target
         ),
+        _attention_prefill_ragged(
+            num_kv_heads,
+            num_qo_heads,
+            head_dim,
+            head_dim,
+            dtype,
+            rope_scaling,
+            target,
+            is_sinks=False,
+            sliding_window=True,
+            sliding_window_size=-1,
+        ),
         tree_attn(num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target),
         tree_attn_with_paged_kv_cache(
             num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target
@@ -188,6 +202,7 @@ def set_global_func(head_dim, dtype, target):
         fattn_prefill_sliding_window,
         fattn_decode_sliding_window,
         fattn_prefill_ragged,
+        fattn_prefill_ragged_sliding_window,
         fattn_prefill_with_tree_mask,
         fattn_prefill_with_tree_mask_paged_kv_cache,
         fmerge_state,
@@ -224,6 +239,7 @@ def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
         ftranspose_append,
         None,  # f_transpose_append_mla
         ["tirx", fattn_prefill_ragged],
+        ["tirx", fattn_prefill_ragged_sliding_window],
         ["tirx", fattn_prefill],
         ["tirx", fattn_decode],
         ["tirx", fattn_prefill_sliding_window],
@@ -507,7 +523,8 @@ def apply_attention(
         )
         outputs = tvm.runtime.empty(queries_np.shape, dtype, device=device)
         if not only_update_host:
-            fattention_with_fuse_qkv(kv_cache, layer_id, sm_scale, qkv, outputs)
+            sinks = tvm.runtime.empty((num_qo_heads,), dtype, device=device)
+            fattention_with_fuse_qkv(kv_cache, layer_id, sm_scale, qkv, sinks, outputs)
 
         # Compute attention expected results.
         outputs = torch.from_numpy(outputs.numpy()).unsqueeze(0).to(device_torch)

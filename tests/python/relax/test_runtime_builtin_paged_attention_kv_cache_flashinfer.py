@@ -189,6 +189,7 @@ def create_kv_cache(rope_mode):
         ftranspose_append,
         None,  # f_transpose_append_mla
         ["flashinfer", fattention_prefill_ragged, fattention_prefill_ragged_plan],
+        [],  # fattn_prefill_ragged_sliding_window
         ["flashinfer", fattention_prefill, fattention_prefill_plan],
         ["flashinfer", fattention_decode, fattention_decode_plan],
         [],  # fattn_prefill_sliding_window
@@ -391,7 +392,7 @@ def apply_attention(
             torch.cat([queries_np, keys_np, values_np], dim=1).cpu().numpy(), device
         )
         outputs = tvm.runtime.empty(queries_np.shape, dtype, device=device)
-        fattention_with_fuse_qkv(kv_cache, layer_id, sm_scale, qkv, outputs)
+        fattention_with_fuse_qkv(kv_cache, layer_id, sm_scale, qkv, None, outputs)
 
         # Compute attention expected results.
         outputs = torch.from_numpy(outputs.numpy()).unsqueeze(0).to(device_torch)

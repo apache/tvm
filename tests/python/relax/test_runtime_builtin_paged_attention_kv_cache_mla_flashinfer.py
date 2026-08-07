@@ -220,6 +220,7 @@ def create_kv_cache(dtype):
             qk_nope_head_dim + qk_rope_head_dim,
             v_head_dim,
         ],  # fattn_prefill_ragged
+        [],
         [],  # fattn_prefill
         [],  # fattn_decode
         [],  # fattn_prefill_sliding_window

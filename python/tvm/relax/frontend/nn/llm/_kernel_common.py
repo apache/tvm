@@ -127,11 +127,19 @@ def _rope(buffer: T.Buffer, offset: tirx.Var, rotary_dim: int, theta: tirx.Var, 
     return expr
 
 
-def _causal_mask(causal, row, col, kv_len, qo_len):
+def _causal_mask(causal, row, col, kv_len, qo_len, sliding_window=False, sliding_window_size=-1):
+    if not (sliding_window and sliding_window_size > 0):
+        return T.if_then_else(
+            causal > 0,
+            col < kv_len - qo_len + row + 1,
+            col < kv_len,
+        )
     return T.if_then_else(
         causal > 0,
-        col < kv_len - qo_len + row + 1,
-        col < kv_len,
+        T.bitwise_and(
+            col < kv_len - qo_len + row + 1, col > kv_len - qo_len + row - sliding_window_size
+        ),
+        T.bitwise_and(col > row, col < kv_len),
     )
 
 
@@ -175,7 +183,8 @@ def _alloc_softmax_state_buffers(tile_x, tile_z, bdx, num_warps):
     m_new = T.sblock_alloc_buffer(md_shape, "float32", scope="local")
     m_prev = T.sblock_alloc_buffer(md_shape, "float32", scope="local")
     d_new = T.sblock_alloc_buffer(md_shape, "float32", scope="local")
-    return S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new
+    alpha = T.alloc_buffer((tile_x, ), "float32", scope="shared")
+    return S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new, alpha
 
 
 def _alloc_mha_qkvo_buffers(tile_x, tile_z, d_qk, d_v, dtype):
@@ -212,13 +221,14 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
     """
     @T.macro
     def init_states(
-        m_smem: T.Buffer, d_smem: T.Buffer, O_local: T.Buffer, ty: T.int32, tx: T.int32,
+        m_smem: T.Buffer, d_smem: T.Buffer, alpha: T.Buffer, O_local: T.Buffer, ty: T.int32, tx: T.int32,
     ):
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
             if row < tile_x:
                 m_smem[row] = -5e4
                 d_smem[row] = 1.0
+                alpha[row] = 1.0
         for li, lj in T.grid(tile_x, tile_o):
             with T.sblock("O_init"):
                 i, j = T.axis.remap("SS", [li, lj])
@@ -248,7 +258,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         S_smem: T.Buffer, m_smem: T.Buffer, d_smem: T.Buffer, m_prev_smem: T.Buffer,
         m_new: T.Buffer, m_prev: T.Buffer, d_new: T.Buffer,
         ty: T.int32, tx: T.int32, LH_start: T.int32, L_kv_start: T.int32,
-        causal: T.int32, kv_len: T.int32, qo_len: T.int32,
+        causal: T.int32, kv_len: T.int32, qo_len: T.int32, sliding_window=False, sliding_window_size=-1
     ):
         # Phase 1: compute m_new = max(masked S over kv tile), d_new = d_prev * exp2(m_prev - m_new)
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
@@ -259,7 +269,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     m_new[i] = m_smem[row]
                     row_: T.let[T.int32] = (LH_start + row) // group_size
                     for j in T.serial(tile_z):
-                        if _causal_mask(causal, row=row_, col=L_kv_start + j, kv_len=kv_len, qo_len=qo_len):
+                        if _causal_mask(causal, row=row_, col=L_kv_start + j, kv_len=kv_len, qo_len=qo_len, sliding_window=sliding_window, sliding_window_size=sliding_window_size):
                             m_new[i] = T.max(m_new[i], S_smem[row, j])
                     d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
         # Phase 2: exp-and-scale S_smem; masked-out entries use -inf
@@ -270,7 +280,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     # predicate sits inside loop so sync stays outside conditional branches
                     if row < tile_x:
                         row_: T.let[T.int32] = (LH_start + row) // group_size
-                        if _causal_mask(causal, row=row_, col=L_kv_start + j, kv_len=kv_len, qo_len=qo_len):
+                        if _causal_mask(causal, row=row_, col=L_kv_start + j, kv_len=kv_len, qo_len=qo_len, sliding_window=sliding_window, sliding_window_size=sliding_window_size):
                             S_smem[row, j] = T.exp2(S_smem[row, j] - m_new[i])
                         else:
                             S_smem[row, j] = T.exp2(-5e4 - m_new[i])
@@ -301,8 +311,8 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
 
     @T.macro
     def paged_store_output_lse(
-        output: T.Buffer, lse: T.Buffer, O_local: T.Buffer, m_smem: T.Buffer, d_smem: T.Buffer,
-        q_indptr: T.Buffer, b_idx: T.int32, by: T.int32, LH_start: T.int32,
+        output: T.Buffer, lse: T.Buffer, O_local: T.Buffer, m_smem: T.Buffer, d_smem: T.Buffer, alpha: T.Buffer,
+        q_indptr: T.Buffer, b_idx: T.int32, by: T.int32, LH_start: T.int32
     ):
         """Paged-style (q_indptr-based) O_store + lse_store epilogue.
 
@@ -315,7 +325,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                 cur_L: T.let[T.int32] = q_indptr[b_idx] + (LH_start + i) // group_size
                 cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                 if cur_L < q_indptr[b_idx + 1]:
-                    output[cur_L, cur_H_qo, j] = O_local[i, j] / d_smem[i]
+                    output[cur_L, cur_H_qo, j] = (O_local[i, j] * alpha[i]) / d_smem[i]
         for li in T.grid(tile_x):
             with T.sblock("lse_store"):
                 i = T.axis.remap("S", [li])

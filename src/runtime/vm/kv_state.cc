@@ -77,22 +77,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   &AttentionKVCacheObj::DebugGetKVMLA)
       .def("vm.builtin.attention_kv_cache_attention_with_fused_qkv",
            [](AttentionKVCache kv_cache, int64_t layer_id, double sm_scale, Tensor qkv_data,
-              Tensor o_data) {
+              ffi::Optional<Tensor> sinks, Tensor o_data) {
              kv_cache->AttentionWithFusedQKV(layer_id, std::move(qkv_data), std::nullopt,
-                                             std::move(o_data), sm_scale);
+                                             std::move(sinks), std::move(o_data), sm_scale);
            })
       .def("vm.builtin.attention_kv_cache_self_attention",
            [](AttentionKVCache kv_cache, int64_t layer_id, double sm_scale, Tensor q_data,
-              Tensor k_data, Tensor v_data, Tensor o_data, Tensor lse_data) {
+              Tensor k_data, Tensor v_data, ffi::Optional<Tensor> sinks, Tensor o_data,
+              Tensor lse_data) {
              kv_cache->SelfAttention(layer_id, std::move(q_data), std::move(k_data),
-                                     std::move(v_data), std::move(o_data), std::move(lse_data),
-                                     sm_scale);
+                                     std::move(v_data), std::move(sinks), std::move(o_data),
+                                     std::move(lse_data), sm_scale);
            })
       .def("vm.builtin.attention_kv_cache_cross_attention",
            [](AttentionKVCache kv_cache, int64_t layer_id, double sm_scale, Tensor q_data,
-              Tensor o_data, Tensor lse_data) {
-             kv_cache->CrossAttention(layer_id, std::move(q_data), std::move(o_data),
-                                      std::move(lse_data), sm_scale);
+              ffi::Optional<Tensor> sinks, Tensor o_data, Tensor lse_data) {
+             kv_cache->CrossAttention(layer_id, std::move(q_data), std::move(sinks),
+                                      std::move(o_data), std::move(lse_data), sm_scale);
            })
       .def("vm.builtin.attention_kv_cache_append_mla_kv",
            [](AttentionKVCache kv_cache, int64_t layer_id, Tensor kv_data) {
