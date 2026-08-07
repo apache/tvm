@@ -623,7 +623,7 @@ def test_ptx_helper_source_golden():
     # tuples silently shift when a slot is inserted, which is the one edit this
     # table invites; naming makes that a loud error instead.
     assert tokens_for(TABLE["ld"], space="global", type="b32") == (
-        ("", "", "", "global", "", "", "", "", "b32")
+        ("", "", "", "global", "", "", "", "", "", "b32")
     )
     with pytest.raises(ValueError, match="no modifier slot named"):
         tokens_for(TABLE["ld"], storage="global", type="b32")
@@ -771,6 +771,7 @@ def test_ptx_coercion_ir_forms():
         "global",
         "",
         "",
+        "",
         "b32",
         "",
     ]
@@ -786,7 +787,7 @@ def test_ptx_coercion_ir_forms():
     flag = tvm.tirx.Var("f", "uint32")
     call = T.ptx.st.release.gpu.global_.b32(global_ptr, val, pred=flag)
     assert call.args[2].same_as(flag)
-    assert len(call.args) == 2 + 1 + 7 + 1  # operands + pred + slot tokens + marker
+    assert len(call.args) == 2 + 1 + 8 + 1  # operands + pred + slot tokens + marker
     # @p on an instruction with a destination is rejected: a false predicate
     # leaves it unwritten while "=" tells nvcc its prior value is dead.
     dst = tvm.tirx.Var("d", "uint32")
@@ -964,7 +965,7 @@ def test_ptx_all_variants_render_unique():
                     or f"; {opcode};" in source
                 )
             total += not predicated  # a @p twin is not a separate variant
-    assert total == 110894  # update when the table grows
+    assert total == 160718  # update when the table grows
 
 
 def test_ptx_no_instruction_registered_twice():

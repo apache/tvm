@@ -147,7 +147,7 @@ BRIDGE = {
 }
 
 
-def _helper_name(entry: InstructionEntry, written, imms, dtypes, canonical) -> str:
+def _helper_name(entry: InstructionEntry, written, imms, dtypes, canonical, mod_map) -> str:
     """The helper's C identifier: the instruction's ISA identity, plus a
     signature discriminator only when it is no longer enough.
 
@@ -164,9 +164,22 @@ def _helper_name(entry: InstructionEntry, written, imms, dtypes, canonical) -> s
     "m" for minus: wgmma's imm-scale-a/b take the value -1, and "-" cannot
     appear in a C identifier.
     """
+    # Only the operands that are actually there. A length function may resolve
+    # to zero -- that is how a bracketed-optional operand disappears when its
+    # qualifier is absent -- and an operand with no C parameter cannot be part
+    # of the signature this discriminator exists to name. Counting it anyway
+    # would rename every helper of an entry the moment such an operand were
+    # added to it, present or not.
+    present = [
+        (dtype, canon)
+        for slot, dtype, canon in zip(entry.typed_operands, dtypes, canonical, strict=True)
+        if lanes_of(slot, mod_map)
+    ]
     isa_name = [entry.name, *written, *(imms or ())]
     discriminator = (
-        [] if tuple(dtypes) == tuple(canonical) else [C_BINDING[d].suffix for d in dtypes]
+        []
+        if all(dtype == canon for dtype, canon in present)
+        else [C_BINDING[dtype].suffix for dtype, _ in present]
     )
     return "tvm_builtin_ptx_" + "_".join([*isa_name, *discriminator]).replace("::", "__").replace(
         ".", "_"
@@ -208,7 +221,7 @@ def render_variant(entry: InstructionEntry, tokens, predicated=False, dtypes=Non
         # derived the same way so dispatch, stubs and certification do not
         # need to know the difference.
         assert not predicated, f"{opcode}: raw entries have no @p twin"
-        helper = _helper_name(entry, written, imms, dtypes, canonical)
+        helper = _helper_name(entry, written, imms, dtypes, canonical, mod_map)
         return opcode, helper, entry.raw_render(entry, opcode, helper, tokens, tuple(dtypes))
     # A helper name is the instruction's ISA identity plus, only when it is no
     # longer enough, a signature discriminator. The opcode alone stopped being
@@ -217,7 +230,7 @@ def render_variant(entry: InstructionEntry, tokens, predicated=False, dtypes=Non
     # ones that changed collides whenever two operands swap which of them is
     # non-canonical (atom's d and b do exactly that).
     imm_of = dict(zip(imm_slots(entry), imms or (), strict=True))
-    helper = _helper_name(entry, written, imms, dtypes, canonical)
+    helper = _helper_name(entry, written, imms, dtypes, canonical, mod_map)
     if predicated:
         assert not entry.has_dst, "@p is only supported on instructions without a destination"
         helper += "_pred"

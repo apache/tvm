@@ -530,8 +530,34 @@ def variants(entry: InstructionEntry) -> tuple:
     )
 
 
+def _check_cache_hint(m):
+    """`{.level::cache_hint}` and its `{, cache_policy}` operand, per ISA
+    9.7.9.8/9.7.9.11/9.7.12.x and MEASURED on ptxas 13.2 at -arch=sm_90.
+
+    The qualifier is an L2 policy, so it is spelled only on lines that can
+    reach L2: `.global` or generic addressing. `.local`, `.shared` and the
+    `.volatile` line (whose ISA syntax carries no `{.level::cache_hint}` at
+    all) are each answered with "Modifier '.L2::cache_hint' cannot be used
+    with ...". `.mmio` is excluded by its own "no cache qualifiers" rule, which
+    had to grow to name this qualifier: ptxas answers "Modifier
+    '.L2::cache_hint' cannot be combined with modifier '.mmio'".
+    Accepted alongside .cop, .nc, both eviction priorities, .level::prefetch_size
+    and the .acquire/.relaxed scoped lines -- probed, all OK.
+    """
+    if not m.get("cache"):
+        return None
+    if m["space"] in ("local", "shared", "shared::cta", "shared::cluster"):
+        return f".level::cache_hint is an L2 policy and is not valid on .{m['space']}"
+    if m.get("sem") == "volatile":
+        return "the .volatile syntax line carries no .level::cache_hint"
+    return None
+
+
 def _check_ld(m):
     """Scalar ld grammar per PTX ISA 9.7.9.8 (ld) and 9.7.9.9 (ld.global.nc)."""
+    hint = _check_cache_hint(m)
+    if hint:
+        return hint
     sem, scope, ss = m["sem"], m["scope"], m["space"]
     mmio, cop, nc = m.get("mmio", ""), m["cop"], m["nc"]
     prefetch = m["prefetch"]
@@ -559,7 +585,7 @@ def _check_ld(m):
             return "only the sys scope is valid for ld.mmio"
         if ss not in ("", "global"):
             return "ld.mmio may only be used with .global or generic addressing"
-        if cop or nc or l1ev or prefetch:
+        if cop or nc or l1ev or prefetch or m.get("cache"):
             return "ld.mmio takes no cache qualifiers"
     if sem in ("relaxed", "acquire") and not mmio:
         # "May be used with .global, .shared spaces, or generic addressing.
@@ -680,6 +706,9 @@ def _check_st_vec256(m):
 
 def _check_st(m):
     """Scalar st grammar per PTX ISA 9.7.9.11 (the mirror of _check_ld)."""
+    hint = _check_cache_hint(m)
+    if hint:
+        return hint
     sem, scope, ss = m["sem"], m["scope"], m["space"]
     mmio, cop = m.get("mmio", ""), m["cop"]
     # One eviction qualifier: see the note in `_check_ld`.
@@ -701,7 +730,7 @@ def _check_st(m):
             return "only the sys scope is valid for st.mmio"
         if ss not in ("", "global"):
             return "st.mmio may only be used with .global or generic addressing"
-        if cop or l1ev:
+        if cop or l1ev or m.get("cache"):
             return "st.mmio takes no cache qualifiers"
     if sem in ("relaxed", "release") and not mmio:
         # ".relaxed and .release: May be used with .global, .shared spaces or
@@ -909,6 +938,9 @@ def _check_atomic(m):
     types appear in ptxas' message but are excluded from this entry (they need
     .noftz and a half carrier type).
     """
+    hint = _check_cache_hint(m)
+    if hint:
+        return hint
     op, ty = m["op"], m["type"]
     allowed = {
         "and": ("b32", "b64"),
@@ -2022,11 +2054,15 @@ _ENTRIES = [
         for direction, unpack in (("pack", False), ("unpack", True))
     ],
     # Complete scalar `ld` per PTX ISA 9.7.9.8 + the 9.7.9.9 ld.global.nc forms.
-    # NOT REGISTERED: each needs a mechanism this shape lacks --
-    # - .level::cache_hint + the cache_policy operand (optional operand)
-    # - .unified (variable-attribute addressing)
-    # - .param/.const spaces (require kernel-parameter / const addresses,
-    #   which cannot flow through the helper-function ABI)
+    # NOT REGISTERED: each is an operand the helper-function ABI cannot carry,
+    # because it is a *symbol* rather than a value --
+    # - .unified (asserts its address names a variable declared with that
+    #   attribute: a declaration property, invisible from a register)
+    # - .param/.const spaces (kernel-parameter and const addresses are named,
+    #   not computed; taking `&param` in CUDA C already materializes a generic
+    #   pointer, so no C expression can deliver one)
+    # Registering these needs a second rendering model that emits at the site
+    # where the symbol is in scope, not a slot field.
     # The ISA permits @p on this instruction; ptx does not, because it writes a
     # destination -- see InstructionEntry.has_dst for why that needs a "+"
     # constraint first.
@@ -2049,6 +2085,7 @@ _ENTRIES = [
             ModifierSlot("cop", ("ca", "cg", "cs", "lu", "cv"), optional=True),
             ModifierSlot("nc", ("nc",), optional=True),
             ModifierSlot("l1ev", _L1_EVICT, optional=True),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
             ModifierSlot("prefetch", ("L2::64B", "L2::128B", "L2::256B"), optional=True),
             ModifierSlot("type", _LD_TYPES),
         ),
@@ -2056,6 +2093,7 @@ _ENTRIES = [
         operands=(
             OperandSlot("d", rw="w"),
             OperandSlot("addr", kind="addr"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
     ),
     # The `.vec` lines of ld / st (PTX ISA 9.7.9.8 / 9.7.9.11). Separate
@@ -2081,9 +2119,8 @@ _ENTRIES = [
     # `_check_ld`/`_check_st` read both eviction priorities as one qualifier.
     #
     # NOT REGISTERED: the sink symbol `_` in the two 256-bit lines (it needs an
-    # operand role for "this lane is discarded"), .level::cache_hint with
-    # its trailing cache_policy operand, and `.mmio`, whose syntax line carries
-    # no `{.vec}`.
+    # operand role for "this lane is discarded"), and `.mmio`, whose syntax
+    # line carries no `{.vec}`.
     InstructionEntry(
         name="ld_vec",
         mnemonic="ld",
@@ -2098,6 +2135,7 @@ _ENTRIES = [
             ModifierSlot("cop", ("ca", "cg", "cs", "lu", "cv"), optional=True),
             ModifierSlot("nc", ("nc",), optional=True),
             ModifierSlot("l1ev", _L1_EVICT, optional=True),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
             ModifierSlot("prefetch", ("L2::64B", "L2::128B", "L2::256B"), optional=True),
             ModifierSlot("vec", ("v2", "v4")),
             ModifierSlot("type", _LD_VEC_TYPES),
@@ -2106,6 +2144,7 @@ _ENTRIES = [
         operands=(
             OperandSlot("d", rw="w", lanes=_vec_lanes),
             OperandSlot("addr", kind="addr"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
     ),
     InstructionEntry(
@@ -2134,10 +2173,9 @@ _ENTRIES = [
         ),
     ),
     # Complete scalar `st` per PTX ISA 9.7.9.11, at parity with `ld`.
-    # NOT REGISTERED: each needs a mechanism this shape lacks --
-    # - .level::cache_hint + its trailing cache_policy operand (optional operand)
-    # - .param::func (kernel-parameter addresses cannot flow through the
-    #   helper-function ABI)
+    # NOT REGISTERED: .param::func -- a kernel-parameter address is a symbol,
+    # not a value, so it cannot flow through the helper-function ABI (see the
+    # note on `ld` above).
     InstructionEntry(
         name="st",
         slots=(
@@ -2151,12 +2189,14 @@ _ENTRIES = [
             ),
             ModifierSlot("cop", ("wb", "cg", "cs", "wt"), optional=True),
             ModifierSlot("l1ev", _L1_EVICT, optional=True),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
             ModifierSlot("type", _LD_TYPES),
         ),
         check=_check_st,
         operands=(
             OperandSlot("addr", kind="addr"),
             OperandSlot("value"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
     ),
     InstructionEntry(
@@ -2172,6 +2212,7 @@ _ENTRIES = [
             ),
             ModifierSlot("cop", ("wb", "cg", "cs", "wt"), optional=True),
             ModifierSlot("l1ev", _L1_EVICT, optional=True),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
             ModifierSlot("vec", ("v2", "v4")),
             ModifierSlot("type", _LD_VEC_TYPES),
         ),
@@ -2179,6 +2220,7 @@ _ENTRIES = [
         operands=(
             OperandSlot("addr", kind="addr"),
             OperandSlot("value", lanes=_vec_lanes),
+            OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
     ),
     InstructionEntry(
@@ -3560,6 +3602,7 @@ _ENTRIES = [
             ModifierSlot("scope", _ATOM_SCOPES, optional=True),
             ModifierSlot("space", _ATOM_SPACES, optional=True),
             ModifierSlot("op", _ATOM_OPS),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
             ModifierSlot("type", _ATOM_TYPES),
         ),
         check=_check_atomic,
@@ -3567,11 +3610,12 @@ _ENTRIES = [
             OperandSlot("d", rw="w"),
             OperandSlot("addr", kind="addr"),
             OperandSlot("value"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
     ),
     # red / atom scalar `.op` forms per PTX ISA 9.7.14.6 and 9.7.14.5.
-    # NOT REGISTERED: each needs a mechanism this shape lacks --
-    # - {.level::cache_hint} with its trailing cache_policy operand
+    # NOT REGISTERED: each is a different syntax shape, i.e. its own entry
+    # whenever a caller wants it --
     # - the .vec_16_bit/.vec_32_bit vector forms
     # - .f16/.bf16/.f16x2/.bf16x2 (add.noftz), which need half carrier types
     # - atom's .cas (3 operands) and .exch (own type set): other syntax shapes
@@ -3582,12 +3626,14 @@ _ENTRIES = [
             ModifierSlot("scope", _ATOM_SCOPES, optional=True),
             ModifierSlot("space", _ATOM_SPACES, optional=True),
             ModifierSlot("op", _ATOM_OPS),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
             ModifierSlot("type", _ATOM_TYPES),
         ),
         check=_check_atomic,
         operands=(
             OperandSlot("addr", kind="addr"),
             OperandSlot("value"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
     ),
     InstructionEntry(  # griddepcontrol.action;

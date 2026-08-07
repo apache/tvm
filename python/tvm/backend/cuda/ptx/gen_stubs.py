@@ -47,12 +47,18 @@ from .table import TABLE, InstructionEntry, escape_token
 STUB_PATH = Path(__file__).resolve().parents[3] / "script" / "tirx.pyi"
 
 
+# The signature a modifier-dependent operand list collapses to. It is also a
+# catch-all for the trailing round-trip arguments, so a class that uses it must
+# not also declare `*args`.
+_CATCH_ALL = ["*__operands: Any"]
+
+
 def _operand_params(entry: InstructionEntry) -> list[str]:
     """One stub parameter per call argument, from the single call-layout definition."""
     if any(callable(s.lanes) for s in entry.operands):
         # The group length depends on the modifiers, so there is no single
         # signature to write down.
-        return ["*__operands: Any"]
+        return list(_CATCH_ALL)
     out = []
     for slot in entry.operands:
         if slot.kind == "imm" and slot.literal is not None:
@@ -85,9 +91,13 @@ def _chain_class(family: str, entries: list[InstructionEntry]) -> str:
     # positional pred) so re-parsed scripts type-check too. Families with more
     # than one shape take their operands through *args for the same reason.
     params = ["self"]
-    if len(entries) == 1:
-        params += _operand_params(entry)
-    params.append("*args: Any")
+    operands = _operand_params(entry) if len(entries) == 1 else []
+    params += operands
+    if operands != _CATCH_ALL:
+        # A single entry whose group lengths are modifier-dependent already
+        # spells its operands as the catch-all; a second one would not even
+        # parse ("Only one '*' parameter allowed").
+        params.append("*args: Any")
     if not any(e.has_dst for e in entries):
         params.append("pred: Any = None")
     signature = f"def __call__({', '.join(params)}) -> None"

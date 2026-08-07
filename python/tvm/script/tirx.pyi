@@ -45,14 +45,16 @@ class _Chain_add:
 class _Chain_atom:
     """`atom` — sem∈{relaxed,acquire,release,acq_rel} (opt); scope∈{cta,cluster,gpu,sys} (opt);
     space∈{global,shared,shared::cta,shared::cluster} (opt);
-    op∈{and,or,xor,add,inc,dec,min,max}; type∈{b32,b64,u32,u64,s32,s64,f32,f64} — op x type
-    pairings for atom/red (PTX ISA 9.7.14.5 / 9.7.14.6).      Normative source: ISA Table 35
-    (atom) and Table 36 (red), which give the     pairing cell by cell. The `.type = {...}`
-    line in the Syntax block is only     the union across ops, which is why it cannot be
-    transcribed directly. Half-precision     types appear in ptxas' message but are excluded
-    from this entry (they need     .noftz and a half carrier type).
+    op∈{and,or,xor,add,inc,dec,min,max}; cache∈{L2::cache_hint} (opt);
+    type∈{b32,b64,u32,u64,s32,s64,f32,f64} — op x type pairings for atom/red (PTX ISA
+    9.7.14.5 / 9.7.14.6).      Normative source: ISA Table 35 (atom) and Table 36 (red),
+    which give the     pairing cell by cell. The `.type = {...}` line in the Syntax block is
+    only     the union across ops, which is why it cannot be transcribed directly. Half-
+    precision     types appear in ptxas' message but are excluded from this entry (they need
+    .noftz and a half carrier type).
     """
 
+    L2__cache_hint: _Chain_atom
     acq_rel: _Chain_atom
     acquire: _Chain_atom
     add: _Chain_atom
@@ -81,7 +83,7 @@ class _Chain_atom:
     u32: _Chain_atom
     u64: _Chain_atom
     xor: _Chain_atom
-    def __call__(self, d: Any, addr: Any, value: Any, *args: Any) -> None: ...
+    def __call__(self, *__operands: Any) -> None: ...
 
 class _Chain_bar:
     """`bar` — 4 entries sharing this mnemonic; PTX puts their difference in the operand list,
@@ -308,7 +310,7 @@ class _Chain_griddepcontrol:
 
 class _Chain_ld:
     """`ld` — 3 entries sharing this mnemonic; PTX puts their difference in the operand list,
-    so the call selects one. Shapes: (d, addr); (*__operands)
+    so the call selects one. Shapes: (*__operands)
     """
 
     L1__evict_first: _Chain_ld
@@ -319,6 +321,7 @@ class _Chain_ld:
     L2__128B: _Chain_ld
     L2__256B: _Chain_ld
     L2__64B: _Chain_ld
+    L2__cache_hint: _Chain_ld
     L2__evict_first: _Chain_ld
     L2__evict_last: _Chain_ld
     L2__evict_normal: _Chain_ld
@@ -601,14 +604,16 @@ class _Chain_rcp:
 class _Chain_red:
     """`red` — sem∈{relaxed,release} (opt); scope∈{cta,cluster,gpu,sys} (opt);
     space∈{global,shared,shared::cta,shared::cluster} (opt);
-    op∈{and,or,xor,add,inc,dec,min,max}; type∈{b32,b64,u32,u64,s32,s64,f32,f64} — op x type
-    pairings for atom/red (PTX ISA 9.7.14.5 / 9.7.14.6).      Normative source: ISA Table 35
-    (atom) and Table 36 (red), which give the     pairing cell by cell. The `.type = {...}`
-    line in the Syntax block is only     the union across ops, which is why it cannot be
-    transcribed directly. Half-precision     types appear in ptxas' message but are excluded
-    from this entry (they need     .noftz and a half carrier type).
+    op∈{and,or,xor,add,inc,dec,min,max}; cache∈{L2::cache_hint} (opt);
+    type∈{b32,b64,u32,u64,s32,s64,f32,f64} — op x type pairings for atom/red (PTX ISA
+    9.7.14.5 / 9.7.14.6).      Normative source: ISA Table 35 (atom) and Table 36 (red),
+    which give the     pairing cell by cell. The `.type = {...}` line in the Syntax block is
+    only     the union across ops, which is why it cannot be transcribed directly. Half-
+    precision     types appear in ptxas' message but are excluded from this entry (they need
+    .noftz and a half carrier type).
     """
 
+    L2__cache_hint: _Chain_red
     add: _Chain_red
     and_: _Chain_red
     b32: _Chain_red
@@ -635,7 +640,7 @@ class _Chain_red:
     u32: _Chain_red
     u64: _Chain_red
     xor: _Chain_red
-    def __call__(self, addr: Any, value: Any, *args: Any, pred: Any = None) -> None: ...
+    def __call__(self, *__operands: Any, pred: Any = None) -> None: ...
 
 class _Chain_setmaxnreg:
     """`setmaxnreg` — action∈{inc,dec}; sync∈{sync}; aligned∈{aligned}; type∈{u32}"""
@@ -649,7 +654,7 @@ class _Chain_setmaxnreg:
 
 class _Chain_st:
     """`st` — 3 entries sharing this mnemonic; PTX puts their difference in the operand list,
-    so the call selects one. Shapes: (addr, value); (*__operands)
+    so the call selects one. Shapes: (*__operands)
     """
 
     L1__evict_first: _Chain_st
@@ -657,6 +662,7 @@ class _Chain_st:
     L1__evict_normal: _Chain_st
     L1__evict_unchanged: _Chain_st
     L1__no_allocate: _Chain_st
+    L2__cache_hint: _Chain_st
     L2__evict_first: _Chain_st
     L2__evict_last: _Chain_st
     L2__evict_normal: _Chain_st
