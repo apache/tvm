@@ -33,7 +33,19 @@ kernel_registry = pytest.importorskip("tirx_kernels.registry")
 kernel_runner = pytest.importorskip("tirx_kernels.runner")
 bench_suite_run = pytest.importorskip("tirx_kernels.bench_suite.run")
 
-_WORKLOADS = bench_suite_run.load_config_dir()
+
+def _load_workloads():
+    """The pinned bench sweep, across both tirx-kernels layouts.
+
+    Newer checkouts keep one config file per kernel and assemble the sweep with
+    ``load_config_dir``; older ones list it in a single ``workloads.yaml``.
+    """
+    if hasattr(bench_suite_run, "load_config_dir"):
+        return bench_suite_run.load_config_dir()
+    return bench_suite_run.load_workloads(bench_suite_run.DEFAULT_WORKLOADS)
+
+
+_WORKLOADS = _load_workloads()
 _KERNELS = {
     kernel_name: kernel_registry.load_kernel(kernel_name, strict=True)
     for kernel_name in sorted({workload["kernel"] for workload in _WORKLOADS})
