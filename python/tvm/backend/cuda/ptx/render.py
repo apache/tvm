@@ -21,6 +21,7 @@ and by :mod:`.gen_helpers`, which dumps the generated helpers for humans to
 inspect without compiling a kernel.
 """
 
+import collections
 import itertools
 from typing import NamedTuple
 
@@ -31,6 +32,7 @@ from .table import (
     lanes_of,
     mods,
     operand_space,
+    operand_type,
 )
 
 
@@ -88,6 +90,45 @@ C_BINDING = {
 }
 
 
+class Bridge(NamedTuple):
+    """How one PTX register class that inline asm cannot bind is reached.
+
+    ``C_BINDING`` above answers "what C type carries this value"; this answers
+    the other half, "what does the instruction actually name". Two ISA types
+    need it, for the same reason from opposite ends of the constraint
+    alphabet: ``.pred`` has no letter at all, and ``.b8`` is below the
+    narrowest one (``"h"``). Both are reached the way hand-written PTX reaches
+    them -- declare a register of the real class inside the asm block, and
+    convert between it and the bound carrier.
+
+    ``read``/``write`` are the local register's name (``{slot}`` = the operand
+    name, ``{n}`` = how many of this direction the block already declared).
+    ``into`` runs before the instruction, ``out_of`` after it; both take
+    ``{reg}`` and ``{idx}``. ``rw`` fires both, in that order.
+
+    These conversions are the asm block's sanctioned exceptions to the
+    single-instruction invariant -- ``@p``'s own setp was the first of them.
+    Each one is a *measured* fact, not a derivation: ptxas rejects the obvious
+    alternatives (a wider register for a ``.b8`` operand; ``mov`` as the b8
+    bridge), so a new row here means a new ptxas probe.
+    """
+
+    reg_class: str
+    read: str
+    write: str
+    into: str
+    out_of: str
+
+
+BRIDGE = {
+    # `.pred`: setp on the way in, selp materializing 0/1 on the way out --
+    # the same conversion `@p` performs for its own guard predicate.
+    "pred": Bridge(
+        ".pred", "ps{n}", "pd{n}", "setp.ne.b32 {reg}, %{idx}, 0;", "selp.b32 %{idx}, 1, 0, {reg};"
+    ),
+}
+
+
 def _helper_name(entry: InstructionEntry, written, imms, dtypes, canonical) -> str:
     """The helper's C identifier: the instruction's ISA identity, plus a
     signature discriminator only when it is no longer enough.
@@ -119,7 +160,7 @@ def render_variant(entry: InstructionEntry, tokens, predicated=False, dtypes=Non
 
     Every helper is ``void`` and its C parameter list is the PTX operand list
     in order, so the generated call reads like the PTX text it wraps.
-    Destinations (``role="dst"``) and accumulators (``role="acc"``, read and
+    Destinations (``rw="w"``) and accumulators (``rw="rw"``, read and
     written in place via a "+" constraint) are taken by reference; the caller passes a
     writable lvalue.
 
@@ -164,16 +205,17 @@ def render_variant(entry: InstructionEntry, tokens, predicated=False, dtypes=Non
         helper += "_pred"
 
     params, inputs, outputs, rendered = [], [], [], []
-    pre, post = [], []  # carrier declarations / boundary conversions
-    # Predicate-boundary pieces, all inside the asm block: `.reg .pred`
-    # declarations, leading setp conversions (pred_src), trailing selp
-    # conversions (pred_dst). See the pred_dst/pred_src role notes.
-    pred_decls, asm_pre, asm_post = [], [], []
+    pre, post = [], []  # C-side carrier declarations / bit puns
+    # Bridge pieces, all inside the asm block: declarations of the register
+    # classes inline asm cannot bind, the conversions in (before the
+    # instruction) and out (after it). See `BRIDGE`.
+    bridge_decls, asm_pre, asm_post = [], [], []
+    bridge_counts: dict[str, int] = collections.defaultdict(int)
     dtype_of = dict(zip(entry.typed_operands, dtypes, strict=True))
     idx = 0
     for slot in entry.operands:
         pname = f"__{slot.name}"
-        if slot.role == "imm":
+        if slot.kind == "imm":
             # An immediate lives in the instruction text, never a C parameter.
             # A literal is table-owned; a choices/open value arrives through
             # `imms` and is baked here (and into the helper name).
@@ -200,7 +242,19 @@ def render_variant(entry: InstructionEntry, tokens, predicated=False, dtypes=Non
             # One operand, `lanes` registers: PTX writes the group in the
             # operand list, so a lane is a C parameter but not an operand.
             lname = f"{pname}{lane}" if is_group else pname
-            if slot.role == "acc":
+            if slot.kind == "addr":
+                # A tmem address rides the same 32-bit carrier a shared window
+                # address does; only its provenance differs.
+                if operand_space(slot, mod_map).startswith(("shared", "tmem")):
+                    params.append(f"uint32_t {lname}")
+                    inputs.append(f'"r"({lname})')
+                else:
+                    params.append(f"const void* {lname}")
+                    inputs.append(f'"l"({lname})')
+            elif slot.kind == "ptr":
+                params.append(f"const void* {lname}")
+                inputs.append(f'"l"({lname})')
+            elif slot.rw == "rw":
                 # A register the instruction both reads and writes -- an
                 # in-place accumulator. "+" tells the compiler the prior value
                 # is live, which "=" would declare dead; it is also what makes
@@ -216,7 +270,7 @@ def render_variant(entry: InstructionEntry, tokens, predicated=False, dtypes=Non
                     )
                 params.append(f"{cb.c_type}& {lname}")
                 outputs.append(f'"+{cb.constraint}"({lname})')
-            elif slot.role == "dst":
+            elif slot.rw == "w":
                 cb = C_BINDING[dtype_of[slot]]
                 c_ty, constraint, carrier = cb.c_type, cb.constraint, cb.carrier
                 params.append(f"{c_ty}& {lname}")
@@ -230,48 +284,28 @@ def render_variant(entry: InstructionEntry, tokens, predicated=False, dtypes=Non
                     pre.append(f"{carrier} {reg};")
                     outputs.append(f'"={constraint}"({reg})')
                     post.append(f"{lname} = {cb.from_carrier.format(reg)};")
-            elif slot.role == "addr":
-                # A tmem address rides the same 32-bit carrier a shared window
-                # address does; only its provenance differs.
-                if operand_space(slot, mod_map).startswith(("shared", "tmem")):
-                    params.append(f"uint32_t {lname}")
-                    inputs.append(f'"r"({lname})')
-                else:
-                    params.append(f"const void* {lname}")
-                    inputs.append(f'"l"({lname})')
-            elif slot.role == "ptr":
-                params.append(f"const void* {lname}")
-                inputs.append(f'"l"({lname})')
-            elif slot.role == "pred_dst":
-                # No constraint letter exists for .pred, so the instruction
-                # writes a predicate register and selp materializes it as 0/1
-                # into a "=r" uint32 -- the same in-block boundary conversion
-                # @p performs on the way in. The C side is a dst: a reference
-                # parameter the caller binds a writable lvalue to.
-                reg = f"pd{sum(1 for d in pred_decls if '.pred pd' in d)}"
-                params.append(f"uint32_t& {lname}")
-                outputs.append(f'"=r"({lname})')
-                pred_decls.append(f".reg .pred {reg};")
-                asm_post.append(f"selp.b32 %{idx}, 1, 0, {reg};")
-                regs.append(reg)
-                idx += 1
-                continue
-            elif slot.role == "pred_src":
-                # The mirror conversion: setp turns a "r"-bound uint32 into
-                # the predicate register the instruction names.
-                reg = f"ps{sum(1 for d in pred_decls if '.pred ps' in d)}"
-                params.append(f"uint32_t {lname}")
-                inputs.append(f'"r"({lname})')
-                pred_decls.append(f".reg .pred {reg};")
-                asm_pre.append(f"setp.ne.b32 {reg}, %{idx}, 0;")
-                regs.append(reg)
-                idx += 1
-                continue
-            else:  # value
+            else:  # rw == "r", an ordinary register input
                 cb = C_BINDING[dtype_of[slot]]
                 params.append(f"{cb.c_type} {lname}")
                 inputs.append(f'"{cb.constraint}"({cb.to_carrier.format(lname)})')
-            regs.append(f"[%{idx}]" if slot.role == "addr" and slot.bracket is None else f"%{idx}")
+            bridge = BRIDGE.get(operand_type(slot, mod_map)) if slot.kind == "reg" else None
+            if bridge is None:
+                regs.append(
+                    f"[%{idx}]" if slot.kind == "addr" and slot.bracket is None else f"%{idx}"
+                )
+            else:
+                # The C side above bound the carrier; the instruction names a
+                # block-local register of the class the ISA actually asks for,
+                # and the conversions move the value between the two.
+                template = bridge.read if slot.rw == "r" else bridge.write
+                reg = template.format(slot=slot.name, n=bridge_counts[template])
+                bridge_counts[template] += 1
+                bridge_decls.append(f".reg {bridge.reg_class} {reg};")
+                if slot.rw in ("r", "rw"):
+                    asm_pre.append(bridge.into.format(reg=reg, idx=idx))
+                if slot.rw in ("w", "rw"):
+                    asm_post.append(bridge.out_of.format(reg=reg, idx=idx))
+                regs.append(reg)
             idx += 1
         rendered.append((slot.bracket, "{" + ", ".join(regs) + "}" if is_group else regs[0]))
 
@@ -290,13 +324,13 @@ def render_variant(entry: InstructionEntry, tokens, predicated=False, dtypes=Non
     if predicated:
         params.append("uint32_t __pred")
         inputs.append('"r"(__pred)')
-        pred_decls.append(".reg .pred p;")
+        bridge_decls.append(".reg .pred p;")
         asm_pre.append(f"setp.ne.b32 p, %{idx}, 0;")
         instr = f"@p {instr}"
-    if pred_decls:
+    if bridge_decls:
         # One block: predicate declarations, the setp conversions in, the
         # instruction, the selp conversions out.
-        asm_text = "{ " + " ".join([*pred_decls, *asm_pre, instr, *asm_post]) + " }"
+        asm_text = "{ " + " ".join([*bridge_decls, *asm_pre, instr, *asm_post]) + " }"
     else:
         asm_text = instr
     # Two independent C-level properties, deliberately not conflated:
@@ -317,7 +351,7 @@ def render_variant(entry: InstructionEntry, tokens, predicated=False, dtypes=Non
     # issued per K-step in the hottest loop, the needless barrier is measurable.
     # Ordering against tmem consumers is the job of tcgen05.fence/commit/wait.
     touches_memory = (
-        any(s.role == "addr" and operand_space(s, mod_map) != "tmem" for s in entry.operands)
+        any(s.kind == "addr" and operand_space(s, mod_map) != "tmem" for s in entry.operands)
         or entry.orders_memory
     )
     clobber = ' : "memory"' if touches_memory else ""

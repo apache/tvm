@@ -55,7 +55,7 @@ def _operand_params(entry: InstructionEntry) -> list[str]:
         return ["*__operands: Any"]
     out = []
     for slot in entry.operands:
-        if slot.role == "imm" and slot.literal is not None:
+        if slot.kind == "imm" and slot.literal is not None:
             continue
         for lane in range(slot.lanes):
             out.append(f"{slot.name}{lane}: Any" if slot.lanes > 1 else f"{slot.name}: Any")

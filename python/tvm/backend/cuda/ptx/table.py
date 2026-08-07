@@ -43,7 +43,7 @@ The converged :class:`InstructionEntry` design:
 
 Calling convention: PTX has no defining form — a register is declared first
 and instructions then write into it — so a ptx call mirrors the PTX text
-exactly. Destinations are ordinary operands (``role="dst"``, in PTX operand
+exactly. Destinations are ordinary operands (``rw="w"``, in PTX operand
 order), every helper is ``void``, and every call is a statement::
 
     acc: T.float32                        # .reg .f32 acc;
@@ -122,6 +122,16 @@ PTX_TYPE_DTYPES = {
     "s8x4": ("uint32",),
     "f16x2": ("uint32",),
     "bf16x2": ("uint32",),
+    # `.pred` is an ISA fundamental type (5.2), declared `.reg .pred p` exactly
+    # as `.reg .b32 r` is -- so it is a dtype here, not a role. Inline asm has
+    # no constraint letter for it, so like `.e2m1x2` above the uint32 is the
+    # C-boundary carrier, not the register the instruction sees; the bridge
+    # (`setp` in, `selp` out) lives in `render.BRIDGE`. The carrier is shared
+    # with ordinary integer operands, which is why a `.pred` argument has to be
+    # *evidenced* at the call site (`T.ptx.pred(x)`) rather than inferred from
+    # its dtype: ptxas tells `%p` from `%r` by the declared register class, and
+    # the tag is that declaration lifted to the call.
+    "pred": ("uint32",),
 }
 
 
@@ -157,40 +167,51 @@ LanesFn = Callable[[dict], int]  # modifier map -> registers in this operand's g
 class OperandSlot:
     """One operand of an instruction family, in PTX operand order.
 
-    role:
-      - ``"addr"``  memory operand, rendered ``[%k]``; state space comes from
+    Two independent axes describe an operand, mirroring how PTX itself
+    describes one: ``rw`` is the data direction, ``dtype`` is the register
+    class, and ``kind`` names the few operands that are not plain registers.
+
+    ``rw`` -- direction, which fixes the whole C-boundary story:
+      - ``"r"``   an input. Passed by value, bound ``"r"``-style. ``@p`` ok.
+      - ``"w"``   a destination the instruction writes; the previous value is
+        dead, so it binds ``"="`` and the helper takes a C++ reference. The
+        caller passes a writable lvalue (a scalar or a buffer element),
+        mirroring PTX's own "declare the register, then name it as an
+        operand". Blocks ``@p``: a false predicate leaves the register
+        unwritten, but ``"="`` has already told nvcc the old value is dead.
+      - ``"rw"``  a register the instruction reads AND writes -- an in-place
+        accumulator, bound ``"+"``. Takes an lvalue like a ``"w"``; unlike one
+        it does not block ``@p``, because ``"+"`` keeps the old value live
+        under a false predicate.
+
+    ``kind`` -- what the operand *is*, for the three that are not registers.
+    All of them are inherently read-only (no ISA line writes an address
+    register or a text immediate), so they leave ``rw`` at its default:
+      - ``"reg"``  (default) a register operand typed by ``dtype`` (fixed per
+        operand) or else the entry's ``type`` modifier slot.
+      - ``"addr"`` memory operand, rendered ``[%k]``; state space comes from
         ``space`` (fixed per operand, for instructions whose operands live in
         different spaces like cp.async.bulk) or else the entry's ``space``
         modifier slot. Shared-space addresses are auto-coerced (generic
         pointer -> cvta) or accepted as raw ``uint32``.
-      - ``"ptr"``   raw pointer value, rendered ``%k`` (e.g. ``cvta`` input).
-      - ``"value"`` register operand typed by ``dtype`` (fixed per operand)
-        or else the entry's ``type`` modifier slot.
-      - ``"imm"``   an operand that lives in the instruction *text*, not in a
+      - ``"ptr"``  raw pointer value, rendered ``%k`` (e.g. ``cvta`` input).
+      - ``"imm"``  an operand that lives in the instruction *text*, not in a
         register. With ``literal`` the ISA fixes its value (st.bulk's initval
         "must be zero"): no C parameter, no call argument. With ``choices``
         the caller picks the value -- a compile-time constant, validated
         against the closed set at trace time and baked into the text, with
         one helper generated per value (the way `cp.async.wait_group N` or
         `setmaxnreg`'s nreg exist only as integer literals in the ISA).
-      - ``"dst"``   a destination the instruction writes, typed like
-        ``"value"``. The helper takes it as a C++ reference and the caller
-        passes a writable lvalue (a scalar or a buffer element), mirroring
-        PTX's own "declare the register, then name it as an operand".
-      - ``"acc"``   a register the instruction reads AND writes -- an in-place
-        accumulator, bound "+" where a dst binds "=". Takes an lvalue like a
-        dst; unlike a dst it does not block ``@p``, because "+" keeps the old
-        value live under a false predicate.
-      - ``"pred_dst"`` a ``.pred`` result. Inline asm has no constraint letter
-        for predicate registers, so the boundary conversion lives inside the
-        block: the instruction writes a predicate register and a trailing
-        ``selp.b32`` materializes it as 0/1 into a "=r" uint32 the caller
-        receives through a reference parameter, exactly like a dst (and it
-        gates ``@p`` like one).
-      - ``"pred_src"`` a ``.pred`` argument. The mirror conversion: a leading
-        ``setp.ne.b32`` turns a "r"-bound uint32 into the predicate register
-        the instruction reads. These are the block's second and third
-        boundary-conversion exceptions -- ``@p``'s own setp was the first.
+
+    ``dtype`` names the ISA type, and two of those name a register class the
+    inline-asm constraint alphabet cannot bind (``.pred`` has no letter at
+    all, ``.b8`` is below ``"h"``). Those dtypes carry a *bridge* in
+    :data:`render.BRIDGE`: the value crosses the C boundary in a wider
+    carrier, and a conversion instruction inside the asm block moves it
+    between the carrier and a block-local register of the real class. ``rw``
+    picks which conversions fire -- in for ``"r"``, out for ``"w"``, both for
+    ``"rw"``. These are the asm block's sanctioned exceptions to the
+    single-instruction invariant: boundary conversions, never semantics.
 
     ``lanes`` > 1 makes the operand a brace-enclosed register group. PTX writes
     the group in the operand list (``mov.b64 d, {lo, hi}``), so the group is
@@ -198,10 +219,11 @@ class OperandSlot:
     """
 
     name: str
-    role: str
+    rw: str = "r"  # "r" | "w" | "rw" -- direction; see the docstring
+    kind: str = "reg"  # "reg" | "addr" | "ptr" | "imm"
     space: str | None = None
     dtype: str | None = None
-    # role="imm" is a value in the instruction *text* (never a C parameter),
+    # kind="imm" is a value in the instruction *text* (never a C parameter),
     # in one of three states, by who owns the value:
     #   literal set   -- the ISA fixed it; invisible to programs.
     #   choices set   -- the caller picks from this closed set; every value is
@@ -312,7 +334,7 @@ class InstructionEntry:
     @functools.cached_property
     def typed_operands(self) -> tuple[OperandSlot, ...]:
         """The operands carrying a dtype, in order: a dtype tuple aligns with these."""
-        return tuple(s for s in self.operands if s.role in ("value", "dst", "acc"))
+        return tuple(s for s in self.operands if s.kind == "reg")
 
     @property
     def has_dst(self) -> bool:
@@ -320,12 +342,13 @@ class InstructionEntry:
 
         Gates ``@p``: a false predicate leaves destinations unwritten, and the
         ``"="`` output constraint tells nvcc the prior value is dead, so a
-        predicated destination silently loses it. An accumulator (``role="acc"``)
+        predicated destination silently loses it. An accumulator (``rw="rw"``)
         binds "+" instead, which keeps the old value live -- so it does not
-        count here and @p remains available on it. A pred_dst is written
-        through "=" the same way a dst is, so it counts.
+        count here and @p remains available on it. A ``.pred`` result is a
+        ``rw="w"`` register like any other, written through "=" the same way,
+        so it counts without needing a case of its own.
         """
-        return any(slot.role in ("dst", "pred_dst") for slot in self.operands)
+        return any(s.kind == "reg" and s.rw == "w" for s in self.operands)
 
 
 def mods(entry: InstructionEntry, tokens) -> dict:
@@ -355,7 +378,7 @@ def _operand_layout(entry, mod_values):
     mod_map = dict(zip((s.name for s in entry.slots), mod_values))
     rows, i = [], 0
     for slot in entry.operands:
-        if slot.role == "imm" and slot.literal is not None:
+        if slot.kind == "imm" and slot.literal is not None:
             # Table-owned value: no call argument. choices/open imms DO occupy
             # a call-argument position (the engine reads and bakes them).
             continue
@@ -467,7 +490,7 @@ def renderings(entry: InstructionEntry):
 def imm_slots(entry: InstructionEntry) -> tuple[OperandSlot, ...]:
     """The caller-passed immediates (choices or open), in operand order; an imm
     tuple aligns with these. Literal imms are table-owned and not in it."""
-    return tuple(s for s in entry.operands if s.role == "imm" and s.literal is None)
+    return tuple(s for s in entry.operands if s.kind == "imm" and s.literal is None)
 
 
 def imm_combos(
@@ -1828,9 +1851,9 @@ _ENTRIES = [
             # Notes); cert_arch is the max over the entry's variants.
             cert_arch="sm_90",
             operands=(
-                OperandSlot("d", role="dst"),
-                OperandSlot("a", role="value"),
-                OperandSlot("b", role="value"),
+                OperandSlot("d", rw="w"),
+                OperandSlot("a"),
+                OperandSlot("b"),
             ),
         )
         for name in ("max", "min")
@@ -1848,10 +1871,10 @@ _ENTRIES = [
             check=_check_minmax3,
             cert_arch="sm_100",  # "max.f32 with 3 input operands" requires sm_100
             operands=(
-                OperandSlot("d", role="dst"),
-                OperandSlot("a", role="value"),
-                OperandSlot("b", role="value"),
-                OperandSlot("c", role="value"),
+                OperandSlot("d", rw="w"),
+                OperandSlot("a"),
+                OperandSlot("b"),
+                OperandSlot("c"),
             ),
         )
         for name in ("max", "min")
@@ -1864,10 +1887,10 @@ _ENTRIES = [
         name="fns",
         slots=(ModifierSlot("type", ("b32",)),),
         operands=(
-            OperandSlot("d", role="dst"),
-            OperandSlot("mask", role="value", dtype="b32"),
-            OperandSlot("base", role="value", dtype="b32"),
-            OperandSlot("offset", role="value", dtype="s32"),
+            OperandSlot("d", rw="w"),
+            OperandSlot("mask", dtype="b32"),
+            OperandSlot("base", dtype="b32"),
+            OperandSlot("offset", dtype="s32"),
         ),
         asm_volatile=False,  # legacy fns carried no barrier
     ),
@@ -1894,11 +1917,11 @@ _ENTRIES = [
             ),
             check=_check_farith,
             operands=(
-                OperandSlot("d", role="dst"),
+                OperandSlot("d", rw="w"),
                 # On the mixed line `a` is the converted 16-bit source; on every
                 # other line it is just the instruction type.
-                OperandSlot("a", role="value", dtype="srctype" if mixed else None),
-                OperandSlot("b", role="value"),
+                OperandSlot("a", dtype="srctype" if mixed else None),
+                OperandSlot("b"),
             ),
         )
         # `mul` is the one line with no mixed-precision form (ISA 9.7.5).
@@ -1926,11 +1949,11 @@ _ENTRIES = [
         ),
         check=_check_farith,
         operands=(
-            OperandSlot("d", role="dst"),
+            OperandSlot("d", rw="w"),
             # .abtype converts both a and b; c is always the instruction type.
-            OperandSlot("a", role="value", dtype="srctype"),
-            OperandSlot("b", role="value", dtype="srctype"),
-            OperandSlot("c", role="value"),
+            OperandSlot("a", dtype="srctype"),
+            OperandSlot("b", dtype="srctype"),
+            OperandSlot("c"),
         ),
     ),
     # neg (PTX ISA 9.7.3.10): `neg{.ftz}.f32 d, a;` and `neg.f64 d, a;`.
@@ -1942,8 +1965,8 @@ _ENTRIES = [
         ),
         check=_check_neg,
         operands=(
-            OperandSlot("d", role="dst"),
-            OperandSlot("a", role="value"),
+            OperandSlot("d", rw="w"),
+            OperandSlot("a"),
         ),
     ),
     # rcp per PTX ISA 9.7.3.13. `rcp.approx.ftz.f64` (a separate syntax line in
@@ -1957,8 +1980,8 @@ _ENTRIES = [
         ),
         check=_check_rcp,
         operands=(
-            OperandSlot("d", role="dst"),
-            OperandSlot("value", role="value"),
+            OperandSlot("d", rw="w"),
+            OperandSlot("value"),
         ),
     ),
     # ex2 per PTX ISA 9.7.3.21 (`ex2.approx{.ftz}.f32`). The half-precision
@@ -1974,8 +1997,8 @@ _ENTRIES = [
             ModifierSlot("type", ("f32",)),
         ),
         operands=(
-            OperandSlot("d", role="dst"),
-            OperandSlot("value", role="value"),
+            OperandSlot("d", rw="w"),
+            OperandSlot("value"),
         ),
     ),
     # ------------------------------------------------------------------
@@ -1996,9 +2019,9 @@ _ENTRIES = [
             ),
             check=_check_half_arith,
             operands=(
-                OperandSlot("d", role="dst"),
-                OperandSlot("a", role="value"),
-                OperandSlot("b", role="value"),
+                OperandSlot("d", rw="w"),
+                OperandSlot("a"),
+                OperandSlot("b"),
             ),
         )
         for name in ("add", "sub", "mul")
@@ -2042,13 +2065,12 @@ _ENTRIES = [
             operands=(
                 OperandSlot(
                     "d",
-                    role="dst",
+                    rw="w",
                     dtype=lane_dtype if unpack else agg,
                     lanes=lanes if unpack else 1,
                 ),
                 OperandSlot(
                     "a",
-                    role="value",
                     dtype=agg if unpack else lane_dtype,
                     lanes=1 if unpack else lanes,
                 ),
@@ -2103,8 +2125,8 @@ _ENTRIES = [
         ),
         check=_check_ld,
         operands=(
-            OperandSlot("d", role="dst"),
-            OperandSlot("addr", role="addr"),
+            OperandSlot("d", rw="w"),
+            OperandSlot("addr", kind="addr"),
         ),
     ),
     # The `.vec` lines of ld / st (PTX ISA 9.7.9.8 / 9.7.9.11). Separate
@@ -2153,8 +2175,8 @@ _ENTRIES = [
         ),
         check=_check_ld_vec,
         operands=(
-            OperandSlot("d", role="dst", lanes=_vec_lanes),
-            OperandSlot("addr", role="addr"),
+            OperandSlot("d", rw="w", lanes=_vec_lanes),
+            OperandSlot("addr", kind="addr"),
         ),
     ),
     InstructionEntry(
@@ -2178,8 +2200,8 @@ _ENTRIES = [
         cert_arch="sm_100",
         check=_check_ld_vec256,
         operands=(
-            OperandSlot("d", role="dst", lanes=_vec_lanes),
-            OperandSlot("addr", role="addr"),
+            OperandSlot("d", rw="w", lanes=_vec_lanes),
+            OperandSlot("addr", kind="addr"),
         ),
     ),
     # Complete scalar `st` per PTX ISA 9.7.9.11, at parity with `ld`.
@@ -2204,8 +2226,8 @@ _ENTRIES = [
         ),
         check=_check_st,
         operands=(
-            OperandSlot("addr", role="addr"),
-            OperandSlot("value", role="value"),
+            OperandSlot("addr", kind="addr"),
+            OperandSlot("value"),
         ),
     ),
     InstructionEntry(
@@ -2226,8 +2248,8 @@ _ENTRIES = [
         ),
         check=_check_st_vec,
         operands=(
-            OperandSlot("addr", role="addr"),
-            OperandSlot("value", role="value", lanes=_vec_lanes),
+            OperandSlot("addr", kind="addr"),
+            OperandSlot("value", lanes=_vec_lanes),
         ),
     ),
     InstructionEntry(
@@ -2246,8 +2268,8 @@ _ENTRIES = [
         cert_arch="sm_100",
         check=_check_st_vec256,
         operands=(
-            OperandSlot("addr", role="addr"),
-            OperandSlot("value", role="value", lanes=_vec_lanes),
+            OperandSlot("addr", kind="addr"),
+            OperandSlot("value", lanes=_vec_lanes),
         ),
     ),
     # st.bulk per PTX ISA 9.7.9.14:
@@ -2267,9 +2289,9 @@ _ENTRIES = [
             ModifierSlot("space", ("shared::cta",), optional=True),
         ),
         operands=(
-            OperandSlot("addr", role="addr"),
-            OperandSlot("size", role="value", dtype="u64"),
-            OperandSlot("initval", role="imm", literal="0"),
+            OperandSlot("addr", kind="addr"),
+            OperandSlot("size", dtype="u64"),
+            OperandSlot("initval", kind="imm", literal="0"),
         ),
     ),
     # prefetch per PTX ISA 9.7.9.16, covering three of its four syntax lines:
@@ -2286,7 +2308,7 @@ _ENTRIES = [
             ModifierSlot("tensormap", ("tensormap",), optional=True),
         ),
         check=_check_prefetch,
-        operands=(OperandSlot("addr", role="addr"),),
+        operands=(OperandSlot("addr", kind="addr"),),
     ),
     # cvta per PTX ISA 9.7.9.21. This entry exists to serve the engine's
     # shared-address coercion, so it registers exactly the one combination that
@@ -2302,8 +2324,8 @@ _ENTRIES = [
             ModifierSlot("type", ("u64",)),
         ),
         operands=(
-            OperandSlot("d", role="dst"),
-            OperandSlot("ptr", role="ptr"),
+            OperandSlot("d", rw="w"),
+            OperandSlot("ptr", kind="ptr"),
         ),
         asm_volatile=False,  # legacy cvta carried no barrier
     ),
@@ -2363,8 +2385,8 @@ _ENTRIES = [
         # {.f16x2, .bf16, .bf16x2, .tf32} destination formats require sm_80 or
         # higher."
         operands=(
-            OperandSlot("d", role="dst", dtype="dtype"),
-            OperandSlot("a", role="value", dtype="atype"),
+            OperandSlot("d", rw="w", dtype="dtype"),
+            OperandSlot("a", dtype="atype"),
         ),
     ),
     # The two frnd2 lines that pack *two* .f32 sources into one register are a
@@ -2392,9 +2414,9 @@ _ENTRIES = [
         # destination formats require sm_80 or higher." -- the whole entry is
         # under the sm_90 default, so it states no floor of its own.
         operands=(
-            OperandSlot("d", role="dst", dtype="f16x2"),
-            OperandSlot("a", role="value", dtype="f32"),
-            OperandSlot("b", role="value", dtype="f32"),
+            OperandSlot("d", rw="w", dtype="f16x2"),
+            OperandSlot("a", dtype="f32"),
+            OperandSlot("b", dtype="f32"),
         ),
     ),
     InstructionEntry(  # cvt.frnd2{.relu}{.satfinite}.bf16x2.f32 d, a, b;
@@ -2408,9 +2430,9 @@ _ENTRIES = [
             ModifierSlot("atype", ("f32",)),
         ),
         operands=(
-            OperandSlot("d", role="dst", dtype="bf16x2"),
-            OperandSlot("a", role="value", dtype="f32"),
-            OperandSlot("b", role="value", dtype="f32"),
+            OperandSlot("d", rw="w", dtype="bf16x2"),
+            OperandSlot("a", dtype="f32"),
+            OperandSlot("b", dtype="f32"),
         ),
     ),
     # Both .tf32 lines, in one entry: see `_check_cvt_tf32` for why .rna and
@@ -2434,8 +2456,8 @@ _ENTRIES = [
         # four satfinite spellings as illegal.
         cert_arch="sm_100",
         operands=(
-            OperandSlot("d", role="dst", dtype="tf32"),
-            OperandSlot("a", role="value", dtype="f32"),
+            OperandSlot("d", rw="w", dtype="tf32"),
+            OperandSlot("a", dtype="f32"),
         ),
     ),
     # The .rs (stochastic rounding) lines. Their trailing operand is one more
@@ -2457,10 +2479,10 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="f16x2"),
-            OperandSlot("a", role="value", dtype="f32"),
-            OperandSlot("b", role="value", dtype="f32"),
-            OperandSlot("rbits", role="value", dtype="b32"),
+            OperandSlot("d", rw="w", dtype="f16x2"),
+            OperandSlot("a", dtype="f32"),
+            OperandSlot("b", dtype="f32"),
+            OperandSlot("rbits", dtype="b32"),
         ),
     ),
     InstructionEntry(  # cvt.rs{.relu}{.satfinite}.bf16x2.f32 d, a, b, rbits;
@@ -2475,10 +2497,10 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="bf16x2"),
-            OperandSlot("a", role="value", dtype="f32"),
-            OperandSlot("b", role="value", dtype="f32"),
-            OperandSlot("rbits", role="value", dtype="b32"),
+            OperandSlot("d", rw="w", dtype="bf16x2"),
+            OperandSlot("a", dtype="f32"),
+            OperandSlot("b", dtype="f32"),
+            OperandSlot("rbits", dtype="b32"),
         ),
     ),
     InstructionEntry(  # cvt.frnd3{.satfinite}.ue8m0x2.f32 d, a, b;
@@ -2493,9 +2515,9 @@ _ENTRIES = [
         # bf16x2 / ue8m0x2 conversions are Blackwell lines.
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="ue8m0x2"),
-            OperandSlot("a", role="value", dtype="f32"),
-            OperandSlot("b", role="value", dtype="f32"),
+            OperandSlot("d", rw="w", dtype="ue8m0x2"),
+            OperandSlot("a", dtype="f32"),
+            OperandSlot("b", dtype="f32"),
         ),
     ),
     InstructionEntry(  # cvt.frnd3{.satfinite}.ue8m0x2.bf16x2 d, a;
@@ -2510,8 +2532,8 @@ _ENTRIES = [
         # bf16x2 / ue8m0x2 conversions are Blackwell lines.
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="ue8m0x2"),
-            OperandSlot("a", role="value", dtype="bf16x2"),
+            OperandSlot("d", rw="w", dtype="ue8m0x2"),
+            OperandSlot("a", dtype="bf16x2"),
         ),
     ),
     InstructionEntry(  # cvt.rn.bf16x2.ue8m0x2 d, a;
@@ -2525,8 +2547,8 @@ _ENTRIES = [
         # bf16x2 / ue8m0x2 conversions are Blackwell lines.
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="bf16x2"),
-            OperandSlot("a", role="value", dtype="ue8m0x2"),
+            OperandSlot("d", rw="w", dtype="bf16x2"),
+            OperandSlot("a", dtype="ue8m0x2"),
         ),
     ),
     InstructionEntry(  # cvt.rn.satfinite{.relu}.f8x2type.f32 d, a, b;
@@ -2540,9 +2562,9 @@ _ENTRIES = [
             ModifierSlot("atype", ("f32",)),
         ),
         operands=(
-            OperandSlot("d", role="dst", dtype="dtype"),
-            OperandSlot("a", role="value", dtype="f32"),
-            OperandSlot("b", role="value", dtype="f32"),
+            OperandSlot("d", rw="w", dtype="dtype"),
+            OperandSlot("a", dtype="f32"),
+            OperandSlot("b", dtype="f32"),
         ),
     ),
     InstructionEntry(  # cvt.rn.satfinite{.relu}.f8x2type.fp16x2 d, a;
@@ -2560,8 +2582,8 @@ _ENTRIES = [
         # architectures:" (9.7.9.22), listing sm_100f, sm_110f and sm_120f.
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="dtype"),
-            OperandSlot("a", role="value", dtype="atype"),
+            OperandSlot("d", rw="w", dtype="dtype"),
+            OperandSlot("a", dtype="atype"),
         ),
     ),
     InstructionEntry(  # cvt.rn{.relu}.f16x2.f8x2type d, a;
@@ -2574,8 +2596,8 @@ _ENTRIES = [
             ModifierSlot("atype", ("e4m3x2", "e5m2x2")),
         ),
         operands=(
-            OperandSlot("d", role="dst", dtype="f16x2"),
-            OperandSlot("a", role="value", dtype="atype"),
+            OperandSlot("d", rw="w", dtype="f16x2"),
+            OperandSlot("a", dtype="atype"),
         ),
     ),
     # The scale-factor operand: ISA:86-87 "For .bf16x2 destination type optional
@@ -2609,11 +2631,10 @@ _ENTRIES = [
         # variant here -- a toolchain fact; the sentence above is the rule.
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="bf16x2"),
-            OperandSlot("a", role="value", dtype="atype"),
+            OperandSlot("d", rw="w", dtype="bf16x2"),
+            OperandSlot("a", dtype="atype"),
             OperandSlot(
                 "scale_factor",
-                role="value",
                 dtype="ue8m0x2",
                 lanes=_cvt_scale_lanes,
                 vector=False,
@@ -2641,12 +2662,12 @@ _ENTRIES = [
         operands=(
             # ISA:138-140 "When converting to .e5m2x4/.e4m3x4/.e3m2x4/.e2m3x4
             # data format, the destination operand d has .b32 type."
-            OperandSlot("d", role="dst", dtype="dtype"),
+            OperandSlot("d", rw="w", dtype="dtype"),
             # The four sources are one brace-enclosed group in the operand
             # list, which is what `lanes` renders; the name is the ISA's own
             # spelling of the group, `{a, b, e, f}`.
-            OperandSlot("abef", role="value", dtype="f32", lanes=4),
-            OperandSlot("rbits", role="value", dtype="b32"),
+            OperandSlot("abef", dtype="f32", lanes=4),
+            OperandSlot("rbits", dtype="b32"),
         ),
     ),
     # The four `.f4x2type = { .e2m1x2 };` lines. These are the table's only
@@ -2701,9 +2722,9 @@ _ENTRIES = [
         # plus family-specific targets from PTX ISA version 8.8 at :533-540.
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="e2m1x2"),
-            OperandSlot("a", role="value", dtype="f32"),
-            OperandSlot("b", role="value", dtype="f32"),
+            OperandSlot("d", rw="w", dtype="e2m1x2"),
+            OperandSlot("a", dtype="f32"),
+            OperandSlot("b", dtype="f32"),
         ),
         raw_render=_cvt_f4x2_raw,
     ),
@@ -2724,8 +2745,8 @@ _ENTRIES = [
         # the same treatment cvt_f6x2_fp16x2 gets from the same sentence.
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="e2m1x2"),
-            OperandSlot("a", role="value", dtype="atype"),
+            OperandSlot("d", rw="w", dtype="e2m1x2"),
+            OperandSlot("a", dtype="atype"),
         ),
         raw_render=_cvt_f4x2_raw,
     ),
@@ -2743,8 +2764,8 @@ _ENTRIES = [
         # `cvt_f4x2_f32` cites, plus :548-555's family-specific targets.
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="f16x2"),
-            OperandSlot("a", role="value", dtype="e2m1x2"),
+            OperandSlot("d", rw="w", dtype="f16x2"),
+            OperandSlot("a", dtype="e2m1x2"),
         ),
         raw_render=_cvt_f4x2_raw,
     ),
@@ -2764,15 +2785,14 @@ _ENTRIES = [
         # ISA:634-639, the same family-specific list as cvt_bf16x2_f8x2.
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="bf16x2"),
-            OperandSlot("a", role="value", dtype="e2m1x2"),
+            OperandSlot("d", rw="w", dtype="bf16x2"),
+            OperandSlot("a", dtype="e2m1x2"),
             # ISA:106-107 "For .bf16x2 destination type optional scale-factor
             # operand of type .b16 can be specified along with
             # .scaled::n2::ue8m0 qualifier." -- .b16, not .b8, so only `a`
             # needs the staging register.
             OperandSlot(
                 "scale_factor",
-                role="value",
                 dtype="ue8m0x2",
                 lanes=_cvt_scale_lanes,
                 vector=False,
@@ -2796,9 +2816,9 @@ _ENTRIES = [
             # needs no `.reg .b8` staging the way the .e2m1x2 lines do:
             # ISA:112-113 "When converting to .e2m1x4 data format, the
             # destination operand d has .b16 type."
-            OperandSlot("d", role="dst", dtype="e2m1x4"),
-            OperandSlot("abef", role="value", dtype="f32", lanes=4),
-            OperandSlot("rbits", role="value", dtype="b32"),
+            OperandSlot("d", rw="w", dtype="e2m1x4"),
+            OperandSlot("abef", dtype="f32", lanes=4),
+            OperandSlot("rbits", dtype="b32"),
         ),
     ),
     # The fp6 lines. `.f6x2type = { .e2m3x2, .e3m2x2 };` and both members ride a
@@ -2822,9 +2842,9 @@ _ENTRIES = [
         # plus family-specific targets from PTX ISA version 8.8 at :533-540.
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="dtype"),
-            OperandSlot("a", role="value", dtype="f32"),
-            OperandSlot("b", role="value", dtype="f32"),
+            OperandSlot("d", rw="w", dtype="dtype"),
+            OperandSlot("a", dtype="f32"),
+            OperandSlot("b", dtype="f32"),
         ),
     ),
     InstructionEntry(  # cvt.rn.satfinite{.relu}.f6x2type.fp16x2type d, a;
@@ -2843,8 +2863,8 @@ _ENTRIES = [
         # Certified at sm_100a, which ptxas 13.2 accepts here (toolchain fact).
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="dtype"),
-            OperandSlot("a", role="value", dtype="atype"),
+            OperandSlot("d", rw="w", dtype="dtype"),
+            OperandSlot("a", dtype="atype"),
         ),
     ),
     InstructionEntry(  # cvt.rn{.relu}.f16x2.f6x2type d, a;
@@ -2861,8 +2881,8 @@ _ENTRIES = [
         # `cvt_f6x2_f32` cites, plus :548-555's family-specific targets.
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="f16x2"),
-            OperandSlot("a", role="value", dtype="atype"),
+            OperandSlot("d", rw="w", dtype="f16x2"),
+            OperandSlot("a", dtype="atype"),
         ),
     ),
     # cvt.rn{.relu}{.satfinite}{.scaled::n2::ue8m0}.bf16x2.f6x2type
@@ -2881,11 +2901,10 @@ _ENTRIES = [
         # ISA:634-639, the same family-specific list as cvt_bf16x2_f8x2.
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="bf16x2"),
-            OperandSlot("a", role="value", dtype="atype"),
+            OperandSlot("d", rw="w", dtype="bf16x2"),
+            OperandSlot("a", dtype="atype"),
             OperandSlot(
                 "scale_factor",
-                role="value",
                 dtype="ue8m0x2",
                 lanes=_cvt_scale_lanes,
                 vector=False,
@@ -2904,9 +2923,9 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="dtype"),
-            OperandSlot("abef", role="value", dtype="f32", lanes=4),
-            OperandSlot("rbits", role="value", dtype="b32"),
+            OperandSlot("d", rw="w", dtype="dtype"),
+            OperandSlot("abef", dtype="f32", lanes=4),
+            OperandSlot("rbits", dtype="b32"),
         ),
     ),
     # The .s2f6x2 lines. ISA:154 "When converting to .s2f6x2 data formats, the
@@ -2931,14 +2950,13 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="s2f6x2"),
-            OperandSlot("a", role="value", dtype="f32"),
-            OperandSlot("b", role="value", dtype="f32"),
+            OperandSlot("d", rw="w", dtype="s2f6x2"),
+            OperandSlot("a", dtype="f32"),
+            OperandSlot("b", dtype="f32"),
             # ISA:162-163 "Optional operand scale-factor has type .b16 and
             # stores two packed scaling factors of type .ue8m0."
             OperandSlot(
                 "scale_factor",
-                role="value",
                 dtype="ue8m0x2",
                 lanes=_cvt_scale_lanes,
                 vector=False,
@@ -2960,11 +2978,10 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="s2f6x2"),
-            OperandSlot("a", role="value", dtype="bf16x2"),
+            OperandSlot("d", rw="w", dtype="s2f6x2"),
+            OperandSlot("a", dtype="bf16x2"),
             OperandSlot(
                 "scale_factor",
-                role="value",
                 dtype="ue8m0x2",
                 lanes=_cvt_scale_lanes,
                 vector=False,
@@ -2986,11 +3003,10 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="dst", dtype="bf16x2"),
-            OperandSlot("a", role="value", dtype="s2f6x2"),
+            OperandSlot("d", rw="w", dtype="bf16x2"),
+            OperandSlot("a", dtype="s2f6x2"),
             OperandSlot(
                 "scale_factor",
-                role="value",
                 dtype="ue8m0x2",
                 lanes=_cvt_scale_lanes,
                 vector=False,
@@ -3012,9 +3028,9 @@ _ENTRIES = [
         ),
         asm_volatile=False,  # a pure address computation
         operands=(
-            OperandSlot("d", role="dst"),
-            OperandSlot("a", role="ptr"),
-            OperandSlot("b", role="value", dtype="u32"),
+            OperandSlot("d", rw="w"),
+            OperandSlot("a", kind="ptr"),
+            OperandSlot("b", dtype="u32"),
         ),
     ),
     InstructionEntry(
@@ -3031,9 +3047,9 @@ _ENTRIES = [
         ),
         asm_volatile=False,
         operands=(
-            OperandSlot("d", role="dst"),
-            OperandSlot("a", role="value", dtype="u32"),
-            OperandSlot("b", role="value", dtype="u32"),
+            OperandSlot("d", rw="w"),
+            OperandSlot("a", dtype="u32"),
+            OperandSlot("b", dtype="u32"),
         ),
     ),
     *[
@@ -3047,7 +3063,7 @@ _ENTRIES = [
                 *((ModifierSlot("read", ("read",), optional=True),) if bulk else ()),
             ),
             orders_memory=True,
-            operands=(OperandSlot("group", role="imm", choices=tuple(str(n) for n in range(8))),),
+            operands=(OperandSlot("group", kind="imm", choices=tuple(str(n) for n in range(8))),),
         )
         for bulk in (False, True)
     ],
@@ -3076,15 +3092,13 @@ _ENTRIES = [
             ),
             cert_arch="sm_90",
             operands=(
-                OperandSlot("dst_mem", role="addr", space="shared"),
-                OperandSlot("src_mem", role="addr", space="global"),
+                OperandSlot("dst_mem", kind="addr", space="shared"),
+                OperandSlot("src_mem", kind="addr", space="global"),
                 OperandSlot(
-                    "cp_size", role="imm", choices=("4", "8", "16") if cop == "ca" else ("16",)
+                    "cp_size", kind="imm", choices=("4", "8", "16") if cop == "ca" else ("16",)
                 ),
-                *((OperandSlot("src_size", role="value", dtype="u32"),) if src_size else ()),
-                OperandSlot(
-                    "cache_policy", role="value", dtype="u64", lanes=_tma_cache_lanes, vector=False
-                ),
+                *((OperandSlot("src_size", dtype="u32"),) if src_size else ()),
+                OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
             ),
         )
         for cop in ("ca", "cg")
@@ -3172,27 +3186,23 @@ _ENTRIES = [
         ),
         cert_arch="sm_90",
         operands=(
-            OperandSlot("dst_mem", role="addr", space="shared::cta"),
-            OperandSlot("src_mem", role="addr", space="global"),
-            OperandSlot("size", role="value", dtype="u32"),
+            OperandSlot("dst_mem", kind="addr", space="shared::cta"),
+            OperandSlot("src_mem", kind="addr", space="global"),
+            OperandSlot("size", dtype="u32"),
             OperandSlot(
                 "ignore_bytes_left",
-                role="value",
                 dtype="u32",
                 lanes=_ignore_oob_lanes,
                 vector=False,
             ),
             OperandSlot(
                 "ignore_bytes_right",
-                role="value",
                 dtype="u32",
                 lanes=_ignore_oob_lanes,
                 vector=False,
             ),
-            OperandSlot("mbar", role="addr", space="shared"),
-            OperandSlot(
-                "cache_policy", role="value", dtype="u64", lanes=_tma_cache_lanes, vector=False
-            ),
+            OperandSlot("mbar", kind="addr", space="shared"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
         ),
     ),
     InstructionEntry(  # global -> shared::cluster
@@ -3209,14 +3219,12 @@ _ENTRIES = [
         ),
         cert_arch="sm_90",
         operands=(
-            OperandSlot("dst_mem", role="addr", space="shared::cluster"),
-            OperandSlot("src_mem", role="addr", space="global"),
-            OperandSlot("size", role="value", dtype="u32"),
-            OperandSlot("mbar", role="addr", space="shared"),
-            OperandSlot("cta_mask", role="value", dtype="u16", lanes=_tma_mask_lanes, vector=False),
-            OperandSlot(
-                "cache_policy", role="value", dtype="u64", lanes=_tma_cache_lanes, vector=False
-            ),
+            OperandSlot("dst_mem", kind="addr", space="shared::cluster"),
+            OperandSlot("src_mem", kind="addr", space="global"),
+            OperandSlot("size", dtype="u32"),
+            OperandSlot("mbar", kind="addr", space="shared"),
+            OperandSlot("cta_mask", dtype="u16", lanes=_tma_mask_lanes, vector=False),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
         ),
     ),
     InstructionEntry(  # shared::cta -> shared::cluster (peer-CTA push)
@@ -3231,10 +3239,10 @@ _ENTRIES = [
         ),
         cert_arch="sm_90",
         operands=(
-            OperandSlot("dst_mem", role="addr", space="shared::cluster"),
-            OperandSlot("src_mem", role="addr", space="shared::cta"),
-            OperandSlot("size", role="value", dtype="u32"),
-            OperandSlot("mbar", role="addr", space="shared"),
+            OperandSlot("dst_mem", kind="addr", space="shared::cluster"),
+            OperandSlot("src_mem", kind="addr", space="shared::cta"),
+            OperandSlot("size", dtype="u32"),
+            OperandSlot("mbar", kind="addr", space="shared"),
         ),
     ),
     InstructionEntry(  # shared::cta -> global
@@ -3269,16 +3277,14 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("dst_mem", role="addr", space="global"),
-            OperandSlot("src_mem", role="addr", space="shared::cta"),
-            OperandSlot("size", role="value", dtype="u32"),
-            OperandSlot(
-                "cache_policy", role="value", dtype="u64", lanes=_tma_cache_lanes, vector=False
-            ),
+            OperandSlot("dst_mem", kind="addr", space="global"),
+            OperandSlot("src_mem", kind="addr", space="shared::cta"),
+            OperandSlot("size", dtype="u32"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
             # "the 16-bit wide byteMask operand" -- the legacy helper bound it
             # "r", but that form was unreachable and ptxas rejects the 32-bit
             # register here.
-            OperandSlot("byte_mask", role="value", dtype="u16", lanes=_cp_mask_lanes, vector=False),
+            OperandSlot("byte_mask", dtype="u16", lanes=_cp_mask_lanes, vector=False),
         ),
     ),
     # cp.async.bulk.tensor (TMA), per ISA 9.7.9.26.5.2-4. The tensor address
@@ -3316,16 +3322,12 @@ _ENTRIES = [
         cert_arch="sm_100a",
         check=_check_tma_gather4,
         operands=(
-            OperandSlot("dst_mem", role="addr", space="shared::cluster"),
-            OperandSlot("tmap", role="addr", space="global", bracket="src"),
-            OperandSlot(
-                "coords", role="value", dtype="s32", lanes=_tma_coords_lanes, bracket="src"
-            ),
-            OperandSlot("mbar", role="addr", space="shared"),
-            OperandSlot("cta_mask", role="value", dtype="u16", lanes=_tma_mask_lanes, vector=False),
-            OperandSlot(
-                "cache_policy", role="value", dtype="u64", lanes=_tma_cache_lanes, vector=False
-            ),
+            OperandSlot("dst_mem", kind="addr", space="shared::cluster"),
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+            OperandSlot("mbar", kind="addr", space="shared"),
+            OperandSlot("cta_mask", dtype="u16", lanes=_tma_mask_lanes, vector=False),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
         ),
     ),
     InstructionEntry(  # global -> shared::cta (no multicast operand)
@@ -3346,15 +3348,11 @@ _ENTRIES = [
         cert_arch="sm_100a",
         check=_check_tma_gather4,
         operands=(
-            OperandSlot("dst_mem", role="addr", space="shared::cta"),
-            OperandSlot("tmap", role="addr", space="global", bracket="src"),
-            OperandSlot(
-                "coords", role="value", dtype="s32", lanes=_tma_coords_lanes, bracket="src"
-            ),
-            OperandSlot("mbar", role="addr", space="shared"),
-            OperandSlot(
-                "cache_policy", role="value", dtype="u64", lanes=_tma_cache_lanes, vector=False
-            ),
+            OperandSlot("dst_mem", kind="addr", space="shared::cta"),
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+            OperandSlot("mbar", kind="addr", space="shared"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
         ),
     ),
     InstructionEntry(  # shared::cta -> global
@@ -3374,14 +3372,10 @@ _ENTRIES = [
         cert_arch="sm_100a",
         check=_check_tma_gather4,
         operands=(
-            OperandSlot("tmap", role="addr", space="global", bracket="dst"),
-            OperandSlot(
-                "coords", role="value", dtype="s32", lanes=_tma_coords_lanes, bracket="dst"
-            ),
-            OperandSlot("src_mem", role="addr", space="shared::cta"),
-            OperandSlot(
-                "cache_policy", role="value", dtype="u64", lanes=_tma_cache_lanes, vector=False
-            ),
+            OperandSlot("tmap", kind="addr", space="global", bracket="dst"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="dst"),
+            OperandSlot("src_mem", kind="addr", space="shared::cta"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
         ),
     ),
     InstructionEntry(  # cp.reduce.async.bulk.tensor: shared::cta -> global, in place
@@ -3402,14 +3396,10 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("tmap", role="addr", space="global", bracket="dst"),
-            OperandSlot(
-                "coords", role="value", dtype="s32", lanes=_tma_coords_lanes, bracket="dst"
-            ),
-            OperandSlot("src_mem", role="addr", space="shared::cta"),
-            OperandSlot(
-                "cache_policy", role="value", dtype="u64", lanes=_tma_cache_lanes, vector=False
-            ),
+            OperandSlot("tmap", kind="addr", space="global", bracket="dst"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="dst"),
+            OperandSlot("src_mem", kind="addr", space="shared::cta"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
         ),
     ),
     InstructionEntry(  # global -> L2 prefetch
@@ -3429,13 +3419,9 @@ _ENTRIES = [
         cert_arch="sm_100a",
         check=_check_tma_gather4,
         operands=(
-            OperandSlot("tmap", role="addr", space="global", bracket="src"),
-            OperandSlot(
-                "coords", role="value", dtype="s32", lanes=_tma_coords_lanes, bracket="src"
-            ),
-            OperandSlot(
-                "cache_policy", role="value", dtype="u64", lanes=_tma_cache_lanes, vector=False
-            ),
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
         ),
     ),
     InstructionEntry(  # cp.async.bulk.commit_group;
@@ -3475,7 +3461,7 @@ _ENTRIES = [
                 (ModifierSlot("aligned", ("aligned",), optional=True),) if mnem == "barrier" else ()
             ),
             orders_memory=True,
-            operands=(OperandSlot("a", role="value", dtype="u32"),),
+            operands=(OperandSlot("a", dtype="u32"),),
         )
         for mnem in ("bar", "barrier")
     ],
@@ -3488,8 +3474,8 @@ _ENTRIES = [
         ),
         orders_memory=True,
         operands=(
-            OperandSlot("a", role="value", dtype="u32"),
-            OperandSlot("b", role="value", dtype="u32"),
+            OperandSlot("a", dtype="u32"),
+            OperandSlot("b", dtype="u32"),
         ),
     ),
     InstructionEntry(
@@ -3501,8 +3487,8 @@ _ENTRIES = [
         ),
         orders_memory=True,
         operands=(
-            OperandSlot("a", role="value", dtype="u32"),
-            OperandSlot("b", role="value", dtype="u32"),
+            OperandSlot("a", dtype="u32"),
+            OperandSlot("b", dtype="u32"),
         ),
     ),
     InstructionEntry(
@@ -3515,8 +3501,8 @@ _ENTRIES = [
         ),
         orders_memory=True,
         operands=(
-            OperandSlot("a", role="value", dtype="u32"),
-            OperandSlot("b", role="value", dtype="u32"),
+            OperandSlot("a", dtype="u32"),
+            OperandSlot("b", dtype="u32"),
         ),
     ),
     InstructionEntry(
@@ -3529,8 +3515,8 @@ _ENTRIES = [
         ),
         orders_memory=True,
         operands=(
-            OperandSlot("a", role="value", dtype="u32"),
-            OperandSlot("b", role="value", dtype="u32"),
+            OperandSlot("a", dtype="u32"),
+            OperandSlot("b", dtype="u32"),
         ),
     ),
     *[
@@ -3579,7 +3565,7 @@ _ENTRIES = [
             ModifierSlot("action", ("sync",)),
         ),
         orders_memory=True,
-        operands=(OperandSlot("membermask", role="value", dtype="u32"),),
+        operands=(OperandSlot("membermask", dtype="u32"),),
     ),
     # fence / membar per PTX ISA 9.7.14.4, griddepcontrol per 9.7.14.14.
     #
@@ -3646,10 +3632,10 @@ _ENTRIES = [
         ),
         orders_memory=True,
         operands=(
-            OperandSlot("addr", role="addr"),
+            OperandSlot("addr", kind="addr"),
             # "The only supported value for the size operand is 128, which must
             # be a constant integer literal" -- ISA 9.7.14.4.
-            OperandSlot("size", role="imm", literal="128"),
+            OperandSlot("size", kind="imm", literal="128"),
         ),
     ),
     # The ISA permits @p on this instruction; ptx does not, because it writes a
@@ -3666,9 +3652,9 @@ _ENTRIES = [
         ),
         check=_check_atomic,
         operands=(
-            OperandSlot("d", role="dst"),
-            OperandSlot("addr", role="addr"),
-            OperandSlot("value", role="value"),
+            OperandSlot("d", rw="w"),
+            OperandSlot("addr", kind="addr"),
+            OperandSlot("value"),
         ),
     ),
     # red / atom scalar `.op` forms per PTX ISA 9.7.14.6 and 9.7.14.5.
@@ -3688,8 +3674,8 @@ _ENTRIES = [
         ),
         check=_check_atomic,
         operands=(
-            OperandSlot("addr", role="addr"),
-            OperandSlot("value", role="value"),
+            OperandSlot("addr", kind="addr"),
+            OperandSlot("value"),
         ),
     ),
     InstructionEntry(  # griddepcontrol.action;
@@ -3746,8 +3732,8 @@ _ENTRIES = [
             ModifierSlot("type", ("b64",)),
         ),
         operands=(
-            OperandSlot("addr", role="addr"),
-            OperandSlot("count", role="value", dtype="u32"),
+            OperandSlot("addr", kind="addr"),
+            OperandSlot("count", dtype="u32"),
         ),
     ),
     # mbarrier.arrive (9.7.14.16.16) and mbarrier.arrive_drop (9.7.14.16.17)
@@ -3783,8 +3769,8 @@ _ENTRIES = [
             ),
             check=_check_mbarrier_sem_scope,
             operands=(
-                OperandSlot("state", role="imm", literal="_"),
-                OperandSlot("addr", role="addr"),
+                OperandSlot("state", kind="imm", literal="_"),
+                OperandSlot("addr", kind="addr"),
             ),
         )
         for act in ("arrive", "arrive_drop")
@@ -3802,9 +3788,9 @@ _ENTRIES = [
             ),
             check=_check_mbarrier_sem_scope,
             operands=(
-                OperandSlot("state", role="imm", literal="_"),
-                OperandSlot("addr", role="addr"),
-                OperandSlot("count", role="value", dtype="u32"),
+                OperandSlot("state", kind="imm", literal="_"),
+                OperandSlot("addr", kind="addr"),
+                OperandSlot("count", dtype="u32"),
             ),
         )
         for act in ("arrive", "arrive_drop")
@@ -3823,9 +3809,9 @@ _ENTRIES = [
             ),
             check=_check_mbarrier_sem_scope,
             operands=(
-                OperandSlot("state", role="imm", literal="_"),
-                OperandSlot("addr", role="addr"),
-                OperandSlot("tx_count", role="value", dtype="u32"),
+                OperandSlot("state", kind="imm", literal="_"),
+                OperandSlot("addr", kind="addr"),
+                OperandSlot("tx_count", dtype="u32"),
             ),
         )
         for act in ("arrive", "arrive_drop")
@@ -3834,7 +3820,7 @@ _ENTRIES = [
     *[
         InstructionEntry(
             # This line has no sink form, so `state` is a real register result.
-            # It rides role="acc" rather than dst: "+" keeps the old value live
+            # It rides rw="rw" rather than "w": "+" keeps the old value live
             # under a false predicate, which is what lets `pred=` remain legal on
             # an instruction that writes a register. Its qualifier pair is fixed
             # (.release.cta only) and the space domain has no ::cluster.
@@ -3853,9 +3839,9 @@ _ENTRIES = [
                 # Pinned u64, not b64: the bit-type dtype axis would offer an f64
                 # carrier, and ptxas rejects an .f64 register as the state operand
                 # ("Arguments mismatch for instruction 'mbarrier.arrive'").
-                OperandSlot("state", role="acc", dtype="u64"),
-                OperandSlot("addr", role="addr"),
-                OperandSlot("count", role="value", dtype="u32"),
+                OperandSlot("state", rw="rw", dtype="u64"),
+                OperandSlot("addr", kind="addr"),
+                OperandSlot("count", dtype="u32"),
             ),
         )
         for act in ("arrive", "arrive_drop")
@@ -3863,7 +3849,7 @@ _ENTRIES = [
     # mbarrier.test_wait.parity{.sem.scope}{.ss}.b64 waitComplete, [addr], phaseParity;
     # mbarrier.try_wait.parity{.sem.scope}{.ss}.b64 waitComplete, [addr], phaseParity, timeHint;
     #
-    # waitComplete is a `.pred` result -- role="pred_dst", the in-block selp
+    # waitComplete is a `.pred` result -- rw="w", dtype="pred", the in-block selp
     # materialization. try_wait is registered in its timeHint arity only (the
     # hint is a nanosecond budget the callers always pass).
     *[
@@ -3880,14 +3866,10 @@ _ENTRIES = [
             ),
             check=_check_mbarrier_sem_scope,
             operands=(
-                OperandSlot("wait_complete", role="pred_dst"),
-                OperandSlot("addr", role="addr"),
-                OperandSlot("phase", role="value", dtype="u32"),
-                *(
-                    (OperandSlot("time_hint", role="value", dtype="u32"),)
-                    if act == "try_wait"
-                    else ()
-                ),
+                OperandSlot("wait_complete", rw="w", dtype="pred"),
+                OperandSlot("addr", kind="addr"),
+                OperandSlot("phase", dtype="u32"),
+                *((OperandSlot("time_hint", dtype="u32"),) if act == "try_wait" else ()),
             ),
         )
         for act in ("test_wait", "try_wait")
@@ -3905,8 +3887,8 @@ _ENTRIES = [
             ),
             check=_check_mbarrier_sem_scope,
             operands=(
-                OperandSlot("addr", role="addr"),
-                OperandSlot("tx_count", role="value", dtype="u32"),
+                OperandSlot("addr", kind="addr"),
+                OperandSlot("tx_count", dtype="u32"),
             ),
         )
         for act in ("expect_tx", "complete_tx")
@@ -3919,7 +3901,7 @@ _ENTRIES = [
             ModifierSlot("space", ("shared", "shared::cta"), optional=True),
             ModifierSlot("type", ("b64",)),
         ),
-        operands=(OperandSlot("addr", role="addr"),),
+        operands=(OperandSlot("addr", kind="addr"),),
     ),
     # cp.async completion tracking: cp.async.mbarrier.arrive per PTX ISA
     # 9.7.14.16.18, cp.async.commit_group per 9.7.9.26.3.2, cp.async.wait_group
@@ -3950,7 +3932,7 @@ _ENTRIES = [
         # sm_90+, so pinning the operand to shared would bind a 32-bit register
         # under the space-omitted spelling. `operand_space` reads the entry's
         # `space` slot instead, so the carrier follows the spelling.
-        operands=(OperandSlot("addr", role="addr"),),
+        operands=(OperandSlot("addr", kind="addr"),),
     ),
     InstructionEntry(  # mbarrier.pending_count.b64 count, state;
         # The reader of the `state` result the two `.noComplete` entries above
@@ -3976,8 +3958,8 @@ _ENTRIES = [
             ModifierSlot("type", ("b64",)),
         ),
         operands=(
-            OperandSlot("count", role="dst", dtype="u32"),
-            OperandSlot("state", role="value", dtype="u64"),
+            OperandSlot("count", rw="w", dtype="u32"),
+            OperandSlot("state", dtype="u64"),
         ),
     ),
     # clusterlaunchcontrol.try_cancel per PTX ISA 9.7.14.18.
@@ -4004,8 +3986,8 @@ _ENTRIES = [
         # `operand_space` read the entry's `space` slot gives each variant the
         # carrier its own spelling promises -- the mbarrier-family rule.
         operands=(
-            OperandSlot("addr", role="addr"),
-            OperandSlot("mbar", role="addr"),
+            OperandSlot("addr", kind="addr"),
+            OperandSlot("mbar", kind="addr"),
         ),
     ),
     # clusterlaunchcontrol.query_cancel per PTX ISA 9.7.14.19: decode the
@@ -4047,12 +4029,12 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("p", role="pred_dst"),
-            OperandSlot("response", role="value", dtype="b128"),
+            OperandSlot("p", rw="w", dtype="pred"),
+            OperandSlot("response", dtype="b128"),
         ),
     ),
     InstructionEntry(
-        # `d` is role="acc", not "dst": the caller seeds it with a sentinel and
+        # `d` is rw="rw", not "w": the caller seeds it with a sentinel and
         # predicates the instruction on the cancellation having succeeded, so a
         # false predicate has to leave the seed intact. "=" would tell nvcc the
         # prior value is dead; "+" keeps it live, and (unlike a dst) it does not
@@ -4074,15 +4056,15 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="acc", dtype="b32"),
-            OperandSlot("response", role="value", dtype="b128"),
+            OperandSlot("d", rw="rw", dtype="b32"),
+            OperandSlot("response", dtype="b128"),
         ),
     ),
     InstructionEntry(
         # The `.v4` line, which is also the `{::dimension}`-omitted spelling
         # (see the family comment). `d` is one operand of four registers, not
         # four operands: PTX writes it as the brace group `{xdim, ydim, zdim,
-        # ignr}`. role="acc" for the same reason as the per-dimension entry --
+        # ignr}`. rw="rw" for the same reason as the per-dimension entry --
         # the ISA's own example predicates this instruction, and "+" is what
         # keeps the caller's prior value live under a false predicate.
         name="clusterlaunchcontrol_query_cancel_get_first_ctaid_v4",
@@ -4096,8 +4078,8 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("d", role="acc", dtype="b32", lanes=4),
-            OperandSlot("response", role="value", dtype="b128"),
+            OperandSlot("d", rw="rw", dtype="b32", lanes=4),
+            OperandSlot("response", dtype="b128"),
         ),
     ),
     # ------------------------------------------------------------------
@@ -4134,10 +4116,10 @@ _ENTRIES = [
         # and binds "f". Pinning each to a single-dtype PTX type keeps the
         # dtype axis from offering combinations ptxas refuses.
         operands=(
-            OperandSlot("d", role="dst", dtype="f32", lanes=_mma_lanes("d")),
-            OperandSlot("a", role="value", dtype="u32", lanes=_mma_lanes("a")),
-            OperandSlot("b", role="value", dtype="u32", lanes=_mma_lanes("b")),
-            OperandSlot("c", role="value", dtype="f32", lanes=_mma_lanes("c")),
+            OperandSlot("d", rw="w", dtype="f32", lanes=_mma_lanes("d")),
+            OperandSlot("a", dtype="u32", lanes=_mma_lanes("a")),
+            OperandSlot("b", dtype="u32", lanes=_mma_lanes("b")),
+            OperandSlot("c", dtype="f32", lanes=_mma_lanes("c")),
         ),
     ),
     InstructionEntry(  # the same lines with an .f16 accumulator
@@ -4156,10 +4138,10 @@ _ENTRIES = [
         ),
         check=_check_mma_fp_f16,
         operands=(
-            OperandSlot("d", role="dst", dtype="u32", lanes=_mma_lanes("d")),
-            OperandSlot("a", role="value", dtype="u32", lanes=_mma_lanes("a")),
-            OperandSlot("b", role="value", dtype="u32", lanes=_mma_lanes("b")),
-            OperandSlot("c", role="value", dtype="u32", lanes=_mma_lanes("c")),
+            OperandSlot("d", rw="w", dtype="u32", lanes=_mma_lanes("d")),
+            OperandSlot("a", dtype="u32", lanes=_mma_lanes("a")),
+            OperandSlot("b", dtype="u32", lanes=_mma_lanes("b")),
+            OperandSlot("c", dtype="u32", lanes=_mma_lanes("c")),
         ),
     ),
     InstructionEntry(  # mma.sync.aligned.m8n8k4.alayout.blayout.f32.f16.f16.f16
@@ -4213,10 +4195,10 @@ _ENTRIES = [
             ModifierSlot("ctype", ("f16",)),
         ),
         operands=(
-            OperandSlot("d", role="dst", dtype="f32", lanes=_mma_lanes("d")),
-            OperandSlot("a", role="value", dtype="u32", lanes=_mma_lanes("a")),
-            OperandSlot("b", role="value", dtype="u32", lanes=_mma_lanes("b")),
-            OperandSlot("c", role="value", dtype="u32", lanes=_mma_lanes("c")),
+            OperandSlot("d", rw="w", dtype="f32", lanes=_mma_lanes("d")),
+            OperandSlot("a", dtype="u32", lanes=_mma_lanes("a")),
+            OperandSlot("b", dtype="u32", lanes=_mma_lanes("b")),
+            OperandSlot("c", dtype="u32", lanes=_mma_lanes("c")),
         ),
     ),
     InstructionEntry(  # integer, sub-byte and single-bit lines
@@ -4250,10 +4232,10 @@ _ENTRIES = [
         ),
         check=_check_mma_int,
         operands=(
-            OperandSlot("d", role="dst", dtype="u32", lanes=_mma_lanes("d")),
-            OperandSlot("a", role="value", dtype="u32", lanes=_mma_lanes("a")),
-            OperandSlot("b", role="value", dtype="u32", lanes=_mma_lanes("b")),
-            OperandSlot("c", role="value", dtype="u32", lanes=_mma_lanes("c")),
+            OperandSlot("d", rw="w", dtype="u32", lanes=_mma_lanes("d")),
+            OperandSlot("a", dtype="u32", lanes=_mma_lanes("a")),
+            OperandSlot("b", dtype="u32", lanes=_mma_lanes("b")),
+            OperandSlot("c", dtype="u32", lanes=_mma_lanes("c")),
         ),
     ),
     InstructionEntry(  # double precision
@@ -4318,10 +4300,10 @@ _ENTRIES = [
             ModifierSlot("rnd", ("rn", "rz", "rm", "rp"), optional=True),
         ),
         operands=(
-            OperandSlot("d", role="dst", dtype="f64", lanes=_mma_lanes("d")),
-            OperandSlot("a", role="value", dtype="f64", lanes=_mma_lanes("a")),
-            OperandSlot("b", role="value", dtype="f64", lanes=_mma_lanes("b")),
-            OperandSlot("c", role="value", dtype="f64", lanes=_mma_lanes("c")),
+            OperandSlot("d", rw="w", dtype="f64", lanes=_mma_lanes("d")),
+            OperandSlot("a", dtype="f64", lanes=_mma_lanes("a")),
+            OperandSlot("b", dtype="f64", lanes=_mma_lanes("b")),
+            OperandSlot("c", dtype="f64", lanes=_mma_lanes("c")),
         ),
     ),
     *[
@@ -4341,12 +4323,12 @@ _ENTRIES = [
                 ModifierSlot("ctype", ("f16",)),
             ),
             operands=(
-                OperandSlot("d", role="dst", dtype="u32", lanes=_mma_sp_lanes("d")),
-                OperandSlot("a", role="value", dtype="u32", lanes=_mma_sp_lanes("a")),
-                OperandSlot("b", role="value", dtype="u32", lanes=_mma_sp_lanes("b")),
-                OperandSlot("c", role="value", dtype="u32", lanes=_mma_sp_lanes("c")),
-                OperandSlot("e", role="value", dtype="u32"),
-                OperandSlot("f", role="imm", choices=selector),
+                OperandSlot("d", rw="w", dtype="u32", lanes=_mma_sp_lanes("d")),
+                OperandSlot("a", dtype="u32", lanes=_mma_sp_lanes("a")),
+                OperandSlot("b", dtype="u32", lanes=_mma_sp_lanes("b")),
+                OperandSlot("c", dtype="u32", lanes=_mma_sp_lanes("c")),
+                OperandSlot("e", dtype="u32"),
+                OperandSlot("f", kind="imm", choices=selector),
             ),
         )
         for suffix, shape, selector in (
@@ -4373,12 +4355,12 @@ _ENTRIES = [
             ),
             check=check,
             operands=(
-                OperandSlot("d", role="dst", dtype="u32", lanes=_mma_sp_lanes("d")),
-                OperandSlot("a", role="value", dtype="u32", lanes=_mma_sp_lanes("a")),
-                OperandSlot("b", role="value", dtype="u32", lanes=_mma_sp_lanes("b")),
-                OperandSlot("c", role="value", dtype="u32", lanes=_mma_sp_lanes("c")),
-                OperandSlot("e", role="value", dtype="u32"),
-                OperandSlot("f", role="imm", choices=selector),
+                OperandSlot("d", rw="w", dtype="u32", lanes=_mma_sp_lanes("d")),
+                OperandSlot("a", dtype="u32", lanes=_mma_sp_lanes("a")),
+                OperandSlot("b", dtype="u32", lanes=_mma_sp_lanes("b")),
+                OperandSlot("c", dtype="u32", lanes=_mma_sp_lanes("c")),
+                OperandSlot("e", dtype="u32"),
+                OperandSlot("f", kind="imm", choices=selector),
             ),
         )
         for suffix, shapes, selector, check in (
@@ -4410,8 +4392,8 @@ _ENTRIES = [
             ModifierSlot("type", ("b16",)),
         ),
         operands=(
-            OperandSlot("r", role="dst", dtype="b32", lanes=_ldmatrix_lanes),
-            OperandSlot("p", role="addr"),
+            OperandSlot("r", rw="w", dtype="b32", lanes=_ldmatrix_lanes),
+            OperandSlot("p", kind="addr"),
         ),
     ),
     InstructionEntry(  # line 1, .m16n16.b8: "only .x1 and .x2 are valid"
@@ -4432,8 +4414,8 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("r", role="dst", dtype="b32", lanes=_ldmatrix_lanes),
-            OperandSlot("p", role="addr"),
+            OperandSlot("r", rw="w", dtype="b32", lanes=_ldmatrix_lanes),
+            OperandSlot("p", kind="addr"),
         ),
     ),
     InstructionEntry(  # lines 2+3: the 6/4-bit decompression loads
@@ -4452,8 +4434,8 @@ _ENTRIES = [
         cert_arch="sm_100a",
         check=_check_ldmatrix_b8fmt,
         operands=(
-            OperandSlot("r", role="dst", dtype="b32", lanes=_ldmatrix_lanes),
-            OperandSlot("p", role="addr"),
+            OperandSlot("r", rw="w", dtype="b32", lanes=_ldmatrix_lanes),
+            OperandSlot("p", kind="addr"),
         ),
     ),
     # stmatrix per PTX ISA 9.7.15.5.16 -- the store mirror of ldmatrix. One
@@ -4479,8 +4461,8 @@ _ENTRIES = [
         ),
         cert_arch="sm_90",  # ISA: "Requires sm_90 or higher."
         operands=(
-            OperandSlot("p", role="addr"),
-            OperandSlot("r", role="value", dtype="b32", lanes=_matrix_num_lanes),
+            OperandSlot("p", kind="addr"),
+            OperandSlot("r", dtype="b32", lanes=_matrix_num_lanes),
         ),
     ),
     InstructionEntry(  # .m16n8.b8: ".m16n8 shape is valid only for .b8 type"
@@ -4498,8 +4480,8 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("p", role="addr"),
-            OperandSlot("r", role="value", dtype="b32", lanes=_matrix_num_lanes),
+            OperandSlot("p", kind="addr"),
+            OperandSlot("r", dtype="b32", lanes=_matrix_num_lanes),
         ),
     ),
     # mma.sp / mma.sp::ordered_metadata per PTX ISA 9.7.15.6.3: the same
@@ -4540,12 +4522,12 @@ _ENTRIES = [
             ),
             check=check,
             operands=(
-                OperandSlot("d", role="dst", dtype="f32", lanes=_mma_sp_lanes("d")),
-                OperandSlot("a", role="value", dtype="u32", lanes=_mma_sp_lanes("a")),
-                OperandSlot("b", role="value", dtype="u32", lanes=_mma_sp_lanes("b")),
-                OperandSlot("c", role="value", dtype="f32", lanes=_mma_sp_lanes("c")),
-                OperandSlot("e", role="value", dtype="u32"),
-                OperandSlot("f", role="imm", choices=selector),
+                OperandSlot("d", rw="w", dtype="f32", lanes=_mma_sp_lanes("d")),
+                OperandSlot("a", dtype="u32", lanes=_mma_sp_lanes("a")),
+                OperandSlot("b", dtype="u32", lanes=_mma_sp_lanes("b")),
+                OperandSlot("c", dtype="f32", lanes=_mma_sp_lanes("c")),
+                OperandSlot("e", dtype="u32"),
+                OperandSlot("f", kind="imm", choices=selector),
             ),
         )
         for suffix, shapes, types, selector, check in (
@@ -4590,7 +4572,7 @@ _ENTRIES = [
     # entry per accumulator register type so every operand dtype is pinned.
     #
     # The accumulator is read and written in place: D = A*B + D, so `d` is
-    # role="acc", the "+" constraint. The trailing arguments all live in the
+    # rw="rw", the "+" constraint. The trailing arguments all live in the
     # instruction text as caller immediates:
     #   - scale-d: "the operation of the form D = A*B is issued when the input
     #     predicate argument scale-d is false". The syntax calls it a
@@ -4622,22 +4604,22 @@ _ENTRIES = [
             ),
             cert_arch="sm_90a",
             operands=(
-                OperandSlot("d", role="acc", dtype="f32", lanes=_wgmma_acc_lanes),
+                OperandSlot("d", rw="rw", dtype="f32", lanes=_wgmma_acc_lanes),
                 *(
-                    (OperandSlot("a_desc", role="value", dtype="u64"),)
+                    (OperandSlot("a_desc", dtype="u64"),)
                     if form == "ss"
-                    else (OperandSlot("a", role="value", dtype="u32", lanes=4),)
+                    else (OperandSlot("a", dtype="u32", lanes=4),)
                 ),
-                OperandSlot("b_desc", role="value", dtype="u64"),
-                OperandSlot("scale_d", role="imm", choices=("0", "1")),
-                OperandSlot("scale_a", role="imm", choices=("-1", "1")),
-                OperandSlot("scale_b", role="imm", choices=("-1", "1")),
+                OperandSlot("b_desc", dtype="u64"),
+                OperandSlot("scale_d", kind="imm", choices=("0", "1")),
+                OperandSlot("scale_a", kind="imm", choices=("-1", "1")),
+                OperandSlot("scale_b", kind="imm", choices=("-1", "1")),
                 *(
-                    (OperandSlot("trans_a", role="imm", choices=("0", "1")),)
+                    (OperandSlot("trans_a", kind="imm", choices=("0", "1")),)
                     if form == "ss"
                     else ()
                 ),
-                OperandSlot("trans_b", role="imm", choices=("0", "1")),
+                OperandSlot("trans_b", kind="imm", choices=("0", "1")),
             ),
         )
         for form in ("ss", "rs")
@@ -4657,22 +4639,22 @@ _ENTRIES = [
             ),
             cert_arch="sm_90a",
             operands=(
-                OperandSlot("d", role="acc", dtype="u32", lanes=_wgmma_acc_lanes),
+                OperandSlot("d", rw="rw", dtype="u32", lanes=_wgmma_acc_lanes),
                 *(
-                    (OperandSlot("a_desc", role="value", dtype="u64"),)
+                    (OperandSlot("a_desc", dtype="u64"),)
                     if form == "ss"
-                    else (OperandSlot("a", role="value", dtype="u32", lanes=4),)
+                    else (OperandSlot("a", dtype="u32", lanes=4),)
                 ),
-                OperandSlot("b_desc", role="value", dtype="u64"),
-                OperandSlot("scale_d", role="imm", choices=("0", "1")),
-                OperandSlot("scale_a", role="imm", choices=("-1", "1")),
-                OperandSlot("scale_b", role="imm", choices=("-1", "1")),
+                OperandSlot("b_desc", dtype="u64"),
+                OperandSlot("scale_d", kind="imm", choices=("0", "1")),
+                OperandSlot("scale_a", kind="imm", choices=("-1", "1")),
+                OperandSlot("scale_b", kind="imm", choices=("-1", "1")),
                 *(
-                    (OperandSlot("trans_a", role="imm", choices=("0", "1")),)
+                    (OperandSlot("trans_a", kind="imm", choices=("0", "1")),)
                     if form == "ss"
                     else ()
                 ),
-                OperandSlot("trans_b", role="imm", choices=("0", "1")),
+                OperandSlot("trans_b", kind="imm", choices=("0", "1")),
             ),
         )
         for form in ("ss", "rs")
@@ -4692,22 +4674,22 @@ _ENTRIES = [
             ),
             cert_arch="sm_90a",
             operands=(
-                OperandSlot("d", role="acc", dtype="f32", lanes=_wgmma_acc_lanes),
+                OperandSlot("d", rw="rw", dtype="f32", lanes=_wgmma_acc_lanes),
                 *(
-                    (OperandSlot("a_desc", role="value", dtype="u64"),)
+                    (OperandSlot("a_desc", dtype="u64"),)
                     if form == "ss"
-                    else (OperandSlot("a", role="value", dtype="u32", lanes=4),)
+                    else (OperandSlot("a", dtype="u32", lanes=4),)
                 ),
-                OperandSlot("b_desc", role="value", dtype="u64"),
-                OperandSlot("scale_d", role="imm", choices=("0", "1")),
-                OperandSlot("scale_a", role="imm", choices=("-1", "1")),
-                OperandSlot("scale_b", role="imm", choices=("-1", "1")),
+                OperandSlot("b_desc", dtype="u64"),
+                OperandSlot("scale_d", kind="imm", choices=("0", "1")),
+                OperandSlot("scale_a", kind="imm", choices=("-1", "1")),
+                OperandSlot("scale_b", kind="imm", choices=("-1", "1")),
                 *(
-                    (OperandSlot("trans_a", role="imm", choices=("0", "1")),)
+                    (OperandSlot("trans_a", kind="imm", choices=("0", "1")),)
                     if form == "ss"
                     else ()
                 ),
-                OperandSlot("trans_b", role="imm", choices=("0", "1")),
+                OperandSlot("trans_b", kind="imm", choices=("0", "1")),
             ),
         )
         for form in ("ss", "rs")
@@ -4727,16 +4709,16 @@ _ENTRIES = [
             ),
             cert_arch="sm_90a",
             operands=(
-                OperandSlot("d", role="acc", dtype="f32", lanes=_wgmma_acc_lanes),
+                OperandSlot("d", rw="rw", dtype="f32", lanes=_wgmma_acc_lanes),
                 *(
-                    (OperandSlot("a_desc", role="value", dtype="u64"),)
+                    (OperandSlot("a_desc", dtype="u64"),)
                     if form == "ss"
-                    else (OperandSlot("a", role="value", dtype="u32", lanes=4),)
+                    else (OperandSlot("a", dtype="u32", lanes=4),)
                 ),
-                OperandSlot("b_desc", role="value", dtype="u64"),
-                OperandSlot("scale_d", role="imm", choices=("0", "1")),
-                OperandSlot("scale_a", role="imm", choices=("-1", "1")),
-                OperandSlot("scale_b", role="imm", choices=("-1", "1")),
+                OperandSlot("b_desc", dtype="u64"),
+                OperandSlot("scale_d", kind="imm", choices=("0", "1")),
+                OperandSlot("scale_a", kind="imm", choices=("-1", "1")),
+                OperandSlot("scale_b", kind="imm", choices=("-1", "1")),
             ),
         )
         for form in ("ss", "rs")
@@ -4756,16 +4738,16 @@ _ENTRIES = [
             ),
             cert_arch="sm_90a",
             operands=(
-                OperandSlot("d", role="acc", dtype="f32", lanes=_wgmma_acc_lanes),
+                OperandSlot("d", rw="rw", dtype="f32", lanes=_wgmma_acc_lanes),
                 *(
-                    (OperandSlot("a_desc", role="value", dtype="u64"),)
+                    (OperandSlot("a_desc", dtype="u64"),)
                     if form == "ss"
-                    else (OperandSlot("a", role="value", dtype="u32", lanes=4),)
+                    else (OperandSlot("a", dtype="u32", lanes=4),)
                 ),
-                OperandSlot("b_desc", role="value", dtype="u64"),
-                OperandSlot("scale_d", role="imm", choices=("0", "1")),
-                OperandSlot("scale_a", role="imm", choices=("-1", "1")),
-                OperandSlot("scale_b", role="imm", choices=("-1", "1")),
+                OperandSlot("b_desc", dtype="u64"),
+                OperandSlot("scale_d", kind="imm", choices=("0", "1")),
+                OperandSlot("scale_a", kind="imm", choices=("-1", "1")),
+                OperandSlot("scale_b", kind="imm", choices=("-1", "1")),
             ),
         )
         for form in ("ss", "rs")
@@ -4785,16 +4767,16 @@ _ENTRIES = [
             ),
             cert_arch="sm_90a",
             operands=(
-                OperandSlot("d", role="acc", dtype="u32", lanes=_wgmma_acc_lanes),
+                OperandSlot("d", rw="rw", dtype="u32", lanes=_wgmma_acc_lanes),
                 *(
-                    (OperandSlot("a_desc", role="value", dtype="u64"),)
+                    (OperandSlot("a_desc", dtype="u64"),)
                     if form == "ss"
-                    else (OperandSlot("a", role="value", dtype="u32", lanes=4),)
+                    else (OperandSlot("a", dtype="u32", lanes=4),)
                 ),
-                OperandSlot("b_desc", role="value", dtype="u64"),
-                OperandSlot("scale_d", role="imm", choices=("0", "1")),
-                OperandSlot("scale_a", role="imm", choices=("-1", "1")),
-                OperandSlot("scale_b", role="imm", choices=("-1", "1")),
+                OperandSlot("b_desc", dtype="u64"),
+                OperandSlot("scale_d", kind="imm", choices=("0", "1")),
+                OperandSlot("scale_a", kind="imm", choices=("-1", "1")),
+                OperandSlot("scale_b", kind="imm", choices=("-1", "1")),
             ),
         )
         for form in ("ss", "rs")
@@ -4817,14 +4799,14 @@ _ENTRIES = [
             operands=(
                 # An .s32 accumulator rides a u32 carrier register, the same
                 # bit-identical pinning as mma_int's d/c operands.
-                OperandSlot("d", role="acc", dtype="u32", lanes=_wgmma_acc_lanes),
+                OperandSlot("d", rw="rw", dtype="u32", lanes=_wgmma_acc_lanes),
                 *(
-                    (OperandSlot("a_desc", role="value", dtype="u64"),)
+                    (OperandSlot("a_desc", dtype="u64"),)
                     if form == "ss"
-                    else (OperandSlot("a", role="value", dtype="u32", lanes=4),)
+                    else (OperandSlot("a", dtype="u32", lanes=4),)
                 ),
-                OperandSlot("b_desc", role="value", dtype="u64"),
-                OperandSlot("scale_d", role="imm", choices=("0", "1")),
+                OperandSlot("b_desc", dtype="u64"),
+                OperandSlot("scale_d", kind="imm", choices=("0", "1")),
             ),
         )
         for form in ("ss", "rs")
@@ -4846,14 +4828,14 @@ _ENTRIES = [
             ),
             cert_arch="sm_90a",
             operands=(
-                OperandSlot("d", role="acc", dtype="u32", lanes=_wgmma_acc_lanes),
+                OperandSlot("d", rw="rw", dtype="u32", lanes=_wgmma_acc_lanes),
                 *(
-                    (OperandSlot("a_desc", role="value", dtype="u64"),)
+                    (OperandSlot("a_desc", dtype="u64"),)
                     if form == "ss"
-                    else (OperandSlot("a", role="value", dtype="u32", lanes=4),)
+                    else (OperandSlot("a", dtype="u32", lanes=4),)
                 ),
-                OperandSlot("b_desc", role="value", dtype="u64"),
-                OperandSlot("scale_d", role="imm", choices=("0", "1")),
+                OperandSlot("b_desc", dtype="u64"),
+                OperandSlot("scale_d", kind="imm", choices=("0", "1")),
             ),
         )
         for form in ("ss", "rs")
@@ -4904,7 +4886,7 @@ _ENTRIES = [
         ),
         cert_arch="sm_90a",
         orders_memory=True,
-        operands=(OperandSlot("group", role="imm", choices=tuple(str(n) for n in range(8))),),
+        operands=(OperandSlot("group", kind="imm", choices=tuple(str(n) for n in range(8))),),
     ),
     # ------------------------------------------------------------------
     # PTX ISA 9.7.17 — TensorCore 5th Generation Family Instructions
@@ -4934,8 +4916,8 @@ _ENTRIES = [
         cert_arch="sm_100a",
         orders_memory=True,
         operands=(
-            OperandSlot("dst", role="addr", space="shared::cta"),
-            OperandSlot("ncols", role="value", dtype="u32"),
+            OperandSlot("dst", kind="addr", space="shared::cta"),
+            OperandSlot("ncols", dtype="u32"),
         ),
     ),
     InstructionEntry(  # tcgen05.dealloc.cta_group.sync.aligned.b32 taddr, nCols;
@@ -4952,8 +4934,8 @@ _ENTRIES = [
         orders_memory=True,
         operands=(
             # `taddr` is a plain register operand here, not bracketed.
-            OperandSlot("taddr", role="value", dtype="u32"),
-            OperandSlot("ncols", role="value", dtype="u32"),
+            OperandSlot("taddr", dtype="u32"),
+            OperandSlot("ncols", dtype="u32"),
         ),
     ),
     InstructionEntry(  # tcgen05.relinquish_alloc_permit.cta_group.sync.aligned;
@@ -5000,8 +4982,8 @@ _ENTRIES = [
         cert_arch="sm_100a",
         check=_check_tcgen05_ldst,
         operands=(
-            OperandSlot("r", role="dst", dtype="b32", lanes=_tcgen05_ldst_lanes),
-            OperandSlot("taddr", role="addr", space="tmem"),
+            OperandSlot("r", rw="w", dtype="b32", lanes=_tcgen05_ldst_lanes),
+            OperandSlot("taddr", kind="addr", space="tmem"),
         ),
     ),
     # The `.16x32bx2` lines, ISA 9.7.17.8.3:11 / 9.7.17.8.4:9 --
@@ -5030,9 +5012,9 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("r", role="dst", dtype="b32", lanes=_tcgen05_ldst_lanes),
-            OperandSlot("taddr", role="addr", space="tmem"),
-            OperandSlot("imm_half_splitoff", role="imm"),
+            OperandSlot("r", rw="w", dtype="b32", lanes=_tcgen05_ldst_lanes),
+            OperandSlot("taddr", kind="addr", space="tmem"),
+            OperandSlot("imm_half_splitoff", kind="imm"),
         ),
     ),
     InstructionEntry(
@@ -5050,8 +5032,8 @@ _ENTRIES = [
         cert_arch="sm_100a",
         check=_check_tcgen05_ldst,
         operands=(
-            OperandSlot("taddr", role="addr", space="tmem"),
-            OperandSlot("r", role="value", dtype="b32", lanes=_tcgen05_ldst_lanes),
+            OperandSlot("taddr", kind="addr", space="tmem"),
+            OperandSlot("r", dtype="b32", lanes=_tcgen05_ldst_lanes),
         ),
     ),
     InstructionEntry(
@@ -5068,9 +5050,9 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("taddr", role="addr", space="tmem"),
-            OperandSlot("imm_half_splitoff", role="imm"),
-            OperandSlot("r", role="value", dtype="b32", lanes=_tcgen05_ldst_lanes),
+            OperandSlot("taddr", kind="addr", space="tmem"),
+            OperandSlot("imm_half_splitoff", kind="imm"),
+            OperandSlot("r", dtype="b32", lanes=_tcgen05_ldst_lanes),
         ),
     ),
     InstructionEntry(  # tcgen05.wait::{ld,st}.sync.aligned;
@@ -5107,8 +5089,8 @@ _ENTRIES = [
         cert_arch="sm_100a",
         check=_check_tcgen05_cp,
         operands=(
-            OperandSlot("taddr", role="addr", space="tmem"),
-            OperandSlot("s_desc", role="value", dtype="b64"),
+            OperandSlot("taddr", kind="addr", space="tmem"),
+            OperandSlot("s_desc", dtype="b64"),
         ),
     ),
     # tcgen05.mma per PTX ISA 9.7.17.10.9.1 (sm_100a): D = A*B + D where D
@@ -5116,7 +5098,7 @@ _ENTRIES = [
     # has no dst and @p stays available). Two entries per family split on the
     # A operand's home: a 64-bit shared-memory descriptor ("ss") or a tmem
     # address ("ts"), the same split the syntax lines draw. enable-input-d is
-    # a runtime .pred argument -- role="pred_src", the in-block setp
+    # a runtime .pred argument -- dtype="pred", the in-block setp
     # conversion -- and disable-output-lane is a register vector whose length
     # follows .cta_group (4 or 8).
     #
@@ -5141,21 +5123,20 @@ _ENTRIES = [
             ),
             cert_arch="sm_100a",
             operands=(
-                OperandSlot("d_tmem", role="addr", space="tmem"),
+                OperandSlot("d_tmem", kind="addr", space="tmem"),
                 *(
-                    (OperandSlot("a_desc", role="value", dtype="u64"),)
+                    (OperandSlot("a_desc", dtype="u64"),)
                     if form == "ss"
-                    else (OperandSlot("a_tmem", role="addr", space="tmem"),)
+                    else (OperandSlot("a_tmem", kind="addr", space="tmem"),)
                 ),
-                OperandSlot("b_desc", role="value", dtype="u64"),
-                OperandSlot("idesc", role="value", dtype="u32"),
+                OperandSlot("b_desc", dtype="u64"),
+                OperandSlot("idesc", dtype="u32"),
                 OperandSlot(
                     "disable_output_lane",
-                    role="value",
                     dtype="u32",
                     lanes=_tcgen05_mma_mask_lanes,
                 ),
-                OperandSlot("enable_input_d", role="pred_src"),
+                OperandSlot("enable_input_d", dtype="pred"),
             ),
         )
         for form in ("ss", "ts")
@@ -5174,17 +5155,17 @@ _ENTRIES = [
             cert_arch="sm_100a",
             check=_check_tcgen05_mma_block_scale,
             operands=(
-                OperandSlot("d_tmem", role="addr", space="tmem"),
+                OperandSlot("d_tmem", kind="addr", space="tmem"),
                 *(
-                    (OperandSlot("a_desc", role="value", dtype="u64"),)
+                    (OperandSlot("a_desc", dtype="u64"),)
                     if form == "ss"
-                    else (OperandSlot("a_tmem", role="addr", space="tmem"),)
+                    else (OperandSlot("a_tmem", kind="addr", space="tmem"),)
                 ),
-                OperandSlot("b_desc", role="value", dtype="u64"),
-                OperandSlot("idesc", role="value", dtype="u32"),
-                OperandSlot("sfa_tmem", role="addr", space="tmem"),
-                OperandSlot("sfb_tmem", role="addr", space="tmem"),
-                OperandSlot("enable_input_d", role="pred_src"),
+                OperandSlot("b_desc", dtype="u64"),
+                OperandSlot("idesc", dtype="u32"),
+                OperandSlot("sfa_tmem", kind="addr", space="tmem"),
+                OperandSlot("sfb_tmem", kind="addr", space="tmem"),
+                OperandSlot("enable_input_d", dtype="pred"),
             ),
         )
         for form in ("ss", "ts")
@@ -5201,16 +5182,16 @@ _ENTRIES = [
             ),
             cert_arch="sm_100a",
             operands=(
-                OperandSlot("d_tmem", role="addr", space="tmem"),
+                OperandSlot("d_tmem", kind="addr", space="tmem"),
                 *(
-                    (OperandSlot("a_desc", role="value", dtype="u64"),)
+                    (OperandSlot("a_desc", dtype="u64"),)
                     if form == "ss"
-                    else (OperandSlot("a_tmem", role="addr", space="tmem"),)
+                    else (OperandSlot("a_tmem", kind="addr", space="tmem"),)
                 ),
-                OperandSlot("b_desc", role="value", dtype="u64"),
-                OperandSlot("idesc", role="value", dtype="u32"),
-                OperandSlot("enable_input_d", role="pred_src"),
-                OperandSlot("zero_col_mask", role="value", dtype="u64"),
+                OperandSlot("b_desc", dtype="u64"),
+                OperandSlot("idesc", dtype="u32"),
+                OperandSlot("enable_input_d", dtype="pred"),
+                OperandSlot("zero_col_mask", dtype="u64"),
             ),
         )
         for form in ("ss", "ts")
@@ -5236,7 +5217,7 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         orders_memory=True,
-        operands=(OperandSlot("mbar", role="addr", space="shared::cluster"),),
+        operands=(OperandSlot("mbar", kind="addr", space="shared::cluster"),),
     ),
     # tcgen05.commit...{.shared::cluster}.multicast::cluster.b64 [mbar], ctaMask;
     # The multicast form: `pred` is keyword-only, so the trailing mask
@@ -5256,8 +5237,8 @@ _ENTRIES = [
         cert_arch="sm_100a",
         orders_memory=True,
         operands=(
-            OperandSlot("mbar", role="addr", space="shared::cluster"),
-            OperandSlot("mask", role="value", dtype="u16"),
+            OperandSlot("mbar", kind="addr", space="shared::cluster"),
+            OperandSlot("mask", dtype="u16"),
         ),
     ),
     # ------------------------------------------------------------------
@@ -5276,7 +5257,7 @@ _ENTRIES = [
         cert_arch="sm_90a",
         orders_memory=True,
         operands=(
-            OperandSlot("nreg", role="imm", choices=tuple(str(n) for n in range(24, 257, 8))),
+            OperandSlot("nreg", kind="imm", choices=tuple(str(n) for n in range(24, 257, 8))),
         ),
     ),
 ]

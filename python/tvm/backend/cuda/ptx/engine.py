@@ -112,7 +112,10 @@ def _make_codegen(entry: InstructionEntry):
         # operand layout -- which may depend on them, a register group's length
         # being a function of the modifiers -- is looked up from them (memoized
         # per token combination in the table).
-        predicated = parse_str(args[-1]) == "pred"
+        # The marker is a comma-joined flag set ("pred" and/or "p<i>"); codegen
+        # only cares about @p, since the register classes are already in the
+        # table. See the arg-layout note in `_emit`.
+        predicated = "pred" in parse_str(args[-1]).split(",")
         tokens = [parse_str(a) for a in args[len(args) - n_slots - 1 : -1]]
         rest = args[: len(args) - n_slots - 1]  # operands, plus pred when present
         mod_map = mods(entry, tokens)
@@ -125,14 +128,16 @@ def _make_codegen(entry: InstructionEntry):
         # needs its dtype slot filled (the render aligns dtypes with *every*
         # typed operand), so it reports its canonical dtype.
         dtypes = tuple(
-            arg_dtype(rest[i]) if n else operand_dtypes(slot, mod_map)[0]
+            arg_dtype(rest[i])
+            if n and len(operand_dtypes(slot, mod_map)) > 1
+            else operand_dtypes(slot, mod_map)[0]
             for slot, i, n in layout
-            if slot.role in ("value", "dst", "acc")
+            if slot.kind == "reg"
         )
         # Caller-chosen immediates ride the Call as IntImm args but are baked
         # into the instruction text, so they are read here and NOT forwarded to
         # the helper (which has no parameter for them).
-        imm_at = {i for slot, i, _ in layout if slot.role == "imm"}
+        imm_at = {i for slot, i, _ in layout if slot.kind == "imm"}
         imms = tuple(str(int(rest[i])) for i in sorted(imm_at))
         _, helper, source = render_variant(entry, tokens, predicated, dtypes, imms)
         # Every helper is void; a destination is an ordinary argument, printed
@@ -151,6 +156,38 @@ def _make_codegen(entry: InstructionEntry):
 # ---------------------------------------------------------------------------
 
 
+class PredArg:
+    """``T.ptx.pred(x)`` -- "this operand is a ``.pred`` register".
+
+    A trace-time tag, never a conversion: ``value`` is handed to the helper
+    untouched, and the ``setp`` that turns the carrier into a predicate is
+    emitted inside the asm block exactly as before. The tag exists for
+    dispatch. PTX distinguishes a predicate operand from an integer one by the
+    declared register class, but both cross the C boundary as a uint32, so
+    without the tag the two `cp.async` syntax lines that differ only in
+    ``{, src-size}`` vs ``{, ignore-src}`` would be indistinguishable -- the
+    same shape of defect as two entries with identical discriminators.
+
+    Being a plain Python object rather than a PrimExpr, it cannot be a branch
+    of a TVMScript conditional -- ``a if c else b`` lowers to
+    ``tirx.if_then_else``, which takes ``ir.Expr`` operands. Wrap the whole
+    expression instead::
+
+        T.ptx.pred(accumulate if k == 0 else 1)   # not T.ptx.pred(x) if ... else ...
+
+    A bool-typed expression needs no tag at all: its dtype already names the
+    class, so ``tx == 0`` and ``True`` are accepted as they are.
+    """
+
+    __slots__ = ("value",)
+
+    def __init__(self, value):
+        self.value = value
+
+    def __repr__(self):
+        return f"T.ptx.pred({self.value!r})"
+
+
 def _coerce_operand(entry, slot, values, mod_map):
     """Coerce one whole operand: ``slot.lanes`` arguments in, that many out.
 
@@ -162,17 +199,46 @@ def _coerce_operand(entry, slot, values, mod_map):
     group instead of being typed on its own.
     """
     # T.local_scalar / `x: T.float32` hand back a wrapper around the BufferLoad;
-    # unwrap once here so every role sees the node itself.
-    values = [getattr(v, "scalar", v) for v in values]
-    if slot.role == "imm":
+    # unwrap once here so every kind sees the node itself. A PredArg is NOT
+    # unwrapped here: whether the tag is present is the discriminator, so each
+    # branch below has to be able to see it.
+    values = [v if isinstance(v, PredArg) else getattr(v, "scalar", v) for v in values]
+    is_pred = slot.kind == "reg" and operand_type(slot, mod_map) == "pred"
+    tagged = [v for v in values if isinstance(v, PredArg)]
+    if tagged and not is_pred:
+        raise ValueError(
+            f"{entry.name}: operand '{slot.name}' is not a .pred operand, so it cannot "
+            f"take a T.ptx.pred(...) value"
+        )
+    if is_pred:
+        return _coerce_pred_operand(entry, slot, values)
+    if slot.kind == "imm":
         return [_coerce_imm(entry, slot, v) for v in values]
-    if slot.role in ("dst", "value", "acc"):
-        return _coerce_typed(entry, slot, values, mod_map)
-    if slot.role == "pred_dst":
+    if slot.kind in ("addr", "ptr"):
+        return [_coerce_address(entry, slot, v, mod_map) for v in values]
+    return _coerce_typed(entry, slot, values, mod_map)
+
+
+def _coerce_pred_operand(entry, slot, values):
+    """Coerce a ``.pred`` operand -- the one register class the C boundary cannot bind.
+
+    PTX tells a ``.pred`` operand from an integer one by the declared register
+    class (``%p`` vs ``%r``); the carrier that gets it through inline asm is a
+    uint32, which is also every integer operand's carrier, so the class has to
+    be *evidenced* at the call instead of inferred from the value. That is what
+    ``T.ptx.pred(x)`` is: the declaration, lifted to the call site. Without it
+    the two `cp.async` syntax lines that differ only in whether their fourth
+    operand is a predicate or a byte count would be indistinguishable.
+
+    A tag is not needed on the way out: a ``.pred`` result is a destination
+    like any other, and no syntax line offers a non-predicate alternative at
+    the same position.
+    """
+    (value,) = values
+    if slot.rw != "r":
         # The 0/1 materialization of a .pred result: a "=r" uint32 the caller
         # receives through a reference parameter, so it needs a writable
-        # uint32 lvalue exactly like a dst.
-        (value,) = values
+        # uint32 lvalue exactly like any other destination.
         if not isinstance(value, BufferLoad) or arg_dtype(value) != "uint32":
             raise ValueError(
                 f"{entry.name}: operand '{slot.name}' is a .pred result and must be "
@@ -180,28 +246,35 @@ def _coerce_operand(entry, slot, values, mod_map):
                 f'e.g. `ok = T.local_scalar("uint32")`)'
             )
         return values
-    if slot.role == "pred_src":
-        # A .pred argument arrives as any 0/1-valued integer expression; the
-        # helper converts it with setp, the same way pred= does. A bare
-        # Python literal is unambiguous and gets typed here.
-        (value,) = values
+    if isinstance(value, PredArg):
+        value = getattr(value.value, "scalar", value.value)
         if isinstance(value, bool | int):
             return [const(int(value), "uint32")]
         ty = getattr(value, "ty", None)
         if isinstance(ty, PrimType) and ty.dtype in ("bool", "uint32", "int32"):
-            return values
+            return [value]
         raise ValueError(
-            f"{entry.name}: operand '{slot.name}' is a .pred argument and must be "
-            f"a bool/uint32/int32 expression"
+            f"{entry.name}: T.ptx.pred(...) takes a bool/uint32/int32 expression, "
+            f"got dtype {getattr(ty, 'dtype', type(value).__name__)}"
         )
-    return [_coerce_address(entry, slot, v, mod_map) for v in values]
+    # A truth value needs no tag: it already says what it is.
+    if isinstance(value, bool):
+        return [const(int(value), "uint32")]
+    ty = getattr(value, "ty", None)
+    if isinstance(ty, PrimType) and ty.dtype == "bool":
+        return [value]
+    raise ValueError(
+        f"{entry.name}: operand '{slot.name}' is a .pred argument. Pass a bool "
+        f"expression, or wrap an integer one so the register class is explicit: "
+        f"T.ptx.pred(x)"
+    )
 
 
 def _coerce_typed(entry, slot, values, mod_map):
-    """Coerce a dtype-carrying operand (``role`` dst or value)."""
+    """Coerce a dtype-carrying register operand (``rw`` any)."""
     allowed = operand_dtypes(slot, mod_map)
     token = operand_type(slot, mod_map)
-    if slot.role in ("dst", "acc"):
+    if slot.rw in ("w", "rw"):
         # A PTX destination is a register the caller declared, so every lane has
         # to be a writable lvalue: a scalar (`x: T.float32`) or a buffer element.
         # Both are BufferLoad nodes, which the C codegen prints as the lvalue
@@ -213,7 +286,7 @@ def _coerce_typed(entry, slot, values, mod_map):
                     f"buffer element (declare it first, e.g. `d: T.{allowed[0]}`), got "
                     f"{type(value).__name__} — a T.let binding is immutable and cannot be one"
                 )
-    role = "destination" if slot.role in ("dst", "acc") else "operand"
+    role = "destination" if slot.rw in ("w", "rw") else "operand"
     # A bare Python literal names no dtype, so it does not get a vote.
     carried = [None if isinstance(v, int | float) else arg_dtype(v) for v in values]
     named = sorted({d for d in carried if d is not None})
@@ -251,7 +324,7 @@ def _coerce_typed(entry, slot, values, mod_map):
 def _coerce_address(entry, slot, value, mod_map):
     """Coerce an address-like operand (``role`` addr or ptr)."""
     ty = getattr(value, "ty", None)
-    if slot.role == "ptr":
+    if slot.kind == "ptr":
         if isinstance(ty, PointerType):
             return value
         raise ValueError(f"{entry.name}: operand '{slot.name}' must be a pointer")
@@ -367,18 +440,27 @@ def _emit(entry, filled, operands, pred=None):
         for value in _coerce_operand(entry, slot, operands[i : i + lanes], mod_map)
     ]
     # Call arg layout: [operands..., pred?] [slot tokens ("" = omitted)] [marker].
-    # The trailing marker ("pred" or "") states whether a predicate operand is
-    # present. Without it, a printed call would have to be re-parsed by guessing
-    # from the argument count -- and in a family whose syntax lines differ by
-    # one optional operand, a predicated short form is indistinguishable from an
-    # unpredicated long one. The marker makes the round trip exact.
+    # The trailing marker states what the argument list alone cannot: whether a
+    # predicate operand is present ("pred"), and which operand positions carry
+    # a `.pred` register class ("p<i>"), comma-joined. Without it a printed call
+    # would have to be re-parsed by guessing -- in a family whose syntax lines
+    # differ by one optional operand a predicated short form is
+    # indistinguishable from an unpredicated long one, and a `.pred` operand is
+    # indistinguishable from the integer that shares its carrier. The marker
+    # makes the round trip exact; a call with neither prints "" as before.
+    flags = ["pred"] if pred is not None else []
+    flags += [
+        f"p{i}"
+        for slot, i, lanes in layout
+        if lanes and slot.kind == "reg" and slot.rw == "r" and operand_type(slot, mod_map) == "pred"
+    ]
     return call_intrin(
         "",  # every ptx call is a void statement; destinations are operands
         entry.op_name,
         *coerced,
         *((pred,) if pred is not None else ()),
         *mod_map.values(),
-        "pred" if pred is not None else "",
+        ",".join(flags),
     )
 
 
@@ -434,10 +516,17 @@ class _InstrChain:
             split -= 1
         trailing = args[split:]
         args = args[:split]
-        if trailing:  # printed form: last trailing string is the pred marker
+        if trailing:  # printed form: last trailing string is the marker
             *tokens, marker = trailing
-            if marker == "pred" and pred is None and args:
+            flags = marker.split(",") if marker else []
+            if "pred" in flags and pred is None and args:
                 args, pred = args[:-1], args[-1]
+            # Re-apply the register-class tags the printed text cannot carry.
+            args = list(args)
+            for flag in flags:
+                if flag.startswith("p") and flag != "pred":
+                    args[int(flag[1:])] = PredArg(args[int(flag[1:])])
+            args = tuple(args)
         else:
             tokens = ()
         cands = self._cands
@@ -527,6 +616,11 @@ class PTXNamespace:
         self._by_family = {}
         for entry in table.values():
             self._by_family.setdefault(entry.family, []).append((entry, (None,) * len(entry.slots)))
+
+    @staticmethod
+    def pred(value):
+        """Tag an operand as a ``.pred`` register -- see :class:`PredArg`."""
+        return PredArg(value)
 
     def _family(self, token):
         cands = self._by_family.get(token)

@@ -28,6 +28,13 @@ import sys
 from .table import TABLE
 
 
+def _operand_tag(slot) -> str:
+    """How one operand reads in the coverage table: its kind, or its direction
+    when it is an ordinary register (where the direction is the interesting
+    half and ``reg`` says nothing)."""
+    return slot.rw if slot.kind == "reg" else slot.kind
+
+
 def generate() -> str:
     lines = [
         "# ptx dialect coverage",
@@ -45,8 +52,12 @@ def generate() -> str:
             or "—"
         )
         check_doc = (e.check.__doc__ or "").strip() if e.check is not None else "—"
+        # `lanes` may be a function of the modifiers, which has no single number
+        # to print here; the group marker only reports a fixed width.
         operands = ", ".join(
-            f"{s.name}:{s.role}[{s.lanes}]" if s.lanes > 1 else f"{s.name}:{s.role}"
+            f"{s.name}:{_operand_tag(s)}[{s.lanes}]"
+            if not callable(s.lanes) and s.lanes > 1
+            else f"{s.name}:{_operand_tag(s)}"
             for s in e.operands
         )
         lines.append(f"| `{name}` | {mods} | {check_doc} | {operands} |")

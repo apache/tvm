@@ -536,9 +536,9 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
                 T.cuda.tcgen05.encode_matrix_descriptor(descA.data, A_smem.ptr_to([0, k * MMA_K]), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
                 T.cuda.tcgen05.encode_matrix_descriptor(descB.data, B_smem.ptr_to([0, k * MMA_K]), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
                 if k == 0:
-                    T.ptx[mma_chain](tmem_addr, descA[0], descB[0], descI[0], *mma_masks, 0)
+                    T.ptx[mma_chain](tmem_addr, descA[0], descB[0], descI[0], *mma_masks, False)
                 else:
-                    T.ptx[mma_chain](tmem_addr, descA[0], descB[0], descI[0], *mma_masks, 1)
+                    T.ptx[mma_chain](tmem_addr, descA[0], descB[0], descI[0], *mma_masks, True)
             T.ptx[f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"](bar.data)
         T.cuda.mbarrier_wait(bar.data, phase[0])
         phase[0] = phase[0] ^ 1
@@ -616,7 +616,7 @@ def test_tcgen05_mma_pred_codegen():
             0,
             0,
             0,
-            1,
+            True,
             pred=pred[0],
         )
     # fmt: on

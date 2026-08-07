@@ -519,6 +519,74 @@ def test_ptx_parser_roundtrip():
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
+def test_ptx_pred_operand_roundtrip():
+    """A `.pred` operand survives print/parse, tag and all.
+
+    The printed text carries neither the `T.ptx.pred(...)` wrapper nor the
+    register class -- a predicate and an integer share the same uint32 carrier
+    -- so the marker has to name the position. Without that, reparsing would
+    re-dispatch on a bare uint32 and could pick a *different* entry of the same
+    family (which is exactly what the src-size / ignore-src pair does).
+    """
+
+    @T.prim_func
+    def kernel(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (32,), "uint32")
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([32])
+        if tx == 0:
+            tmem = T.local_scalar("uint32")
+            desc = T.local_scalar("uint64")
+            idesc = T.local_scalar("uint32")
+            flag = T.local_scalar("uint32")
+            T.ptx["tcgen05.mma.cta_group::1.kind::f16"](
+                tmem, desc, desc, idesc, 0, 0, 0, 0, T.ptx.pred(flag)
+            )
+        A[tx] = A[tx]
+
+    reparsed = tvm.script.from_source(kernel.script())
+    tvm.ir.assert_structural_equal(kernel, reparsed)
+
+
+def test_ptx_pred_operand_rejects_untagged_integer():
+    """An untagged integer at a `.pred` position is refused, by name.
+
+    The carrier is shared, so accepting it would erase the only thing that
+    tells the two `cp.async` optional-operand syntax lines apart. A bool needs
+    no tag -- it already says what it is.
+    """
+    with pytest.raises((ValueError, tvm.error.DiagnosticError), match=r"T\.ptx\.pred"):
+
+        @T.prim_func
+        def untagged_integer():
+            T.device_entry()
+            T.cta_id([1])
+            tmem = T.local_scalar("uint32")
+            desc = T.local_scalar("uint64")
+            idesc = T.local_scalar("uint32")
+            flag = T.local_scalar("uint32")
+            T.ptx["tcgen05.mma.cta_group::1.kind::f16"](tmem, desc, desc, idesc, 0, 0, 0, 0, flag)
+
+    # A bool expression carries the class in its own dtype, so it needs no tag.
+    @T.prim_func
+    def bool_needs_no_tag(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (32,), "uint32")
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([32])
+        if tx == 0:
+            tmem = T.local_scalar("uint32")
+            desc = T.local_scalar("uint64")
+            idesc = T.local_scalar("uint32")
+            T.ptx["tcgen05.mma.cta_group::1.kind::f16"](
+                tmem, desc, desc, idesc, 0, 0, 0, 0, tx == 0
+            )
+        A[tx] = A[tx]
+
+    assert bool_needs_no_tag is not None
+
+
 def test_ptx_printer_form():
     @T.prim_func
     def kernel(a_ptr: T.handle, b_ptr: T.handle):
@@ -916,18 +984,27 @@ def test_ptx_dispatch_unambiguous():
         operand_dtypes,
         operand_layout,
         operand_space,
+        operand_type,
         variants,
     )
 
-    def accepts(slot, mod_map):
-        if slot.role == "addr":
+    def accepts(slot, mod_map, pred_is_distinct=True):
+        if slot.kind == "addr":
             space = operand_space(slot, mod_map)
             if space == "tmem":
                 return ("addr", "tmem")
             return ("addr", "shared*" if space.startswith("shared") else "generic")
-        if slot.role in ("dst", "value", "acc"):
-            return (slot.role, tuple(sorted(operand_dtypes(slot, mod_map))))
-        return (slot.role,)
+        if slot.kind != "reg":
+            return (slot.kind,)
+        if pred_is_distinct and operand_type(slot, mod_map) == "pred":
+            # A `.pred` operand shares its uint32 carrier with every integer
+            # one, so it is only a class of its own because `T.ptx.pred(...)`
+            # evidences it at the call. `pred_is_distinct=False` models the
+            # engine as it would be WITHOUT that tag -- see the falsification
+            # twin below, which is what proves this key can see the collision
+            # it exists to prevent.
+            return (slot.rw, "pred")
+        return (slot.rw, tuple(sorted(operand_dtypes(slot, mod_map))))
 
     owners = {}
     for entry in TABLE.values():
