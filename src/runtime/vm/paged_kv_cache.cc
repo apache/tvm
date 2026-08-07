@@ -104,7 +104,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   /*! \brief A boolean flag indicating if the KV cache has per layer sliding window. */
   const bool support_layer_sliding_window_;
   /*! \brief sliding window size if flag sliding_window enabled default -1 */
-  const int64_t sliding_window_size_;
+  int32_t sliding_window_size_;
   /*! \brief The attention kinds for each layer. */
   const std::vector<AttnKind> attn_kinds_;
 
@@ -2421,7 +2421,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         TVM_FFI_ICHECK_EQ(page_indices_sliding_window_on_depths_host_[d].size(),
                           page_indptr_sliding_window_on_depths_host_[d].back());
         page_indices_sliding_window_on_depths_view_[d] =
-            aux_data_manager_->CopyPageIndicesSlidingWindowOnDepthAsync((
+            aux_data_manager_->CopyPageIndicesSlidingWindowOnDepthAsync(
                 &page_indices_sliding_window_on_depths_host_[d], d);
       }
     }
