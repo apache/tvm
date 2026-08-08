@@ -20,7 +20,7 @@ import ast
 import contextlib
 from copy import deepcopy
 from functools import partial
-from typing import Any
+from typing import Any, TypeVar
 
 import tvm
 from tvm.ir import Expr, GlobalVar, PointerType, PrimType
@@ -429,9 +429,15 @@ def _eval_signature_annotation(
             for child in ast.walk(expression):
                 if not isinstance(child, ast.Name) or not isinstance(child.ctx, ast.Load):
                     continue
-                if define_missing and child.id not in self_parser.var_table.get():
+                current_value = self_parser.var_table.get().get(child.id)
+                is_shadowed_type_var = child.id in signature_dtypes and isinstance(
+                    current_value, TypeVar
+                )
+                if define_missing and (current_value is None or is_shadowed_type_var):
                     # TIR match-scope indices default to int32.  A later scalar
-                    # parameter keeps its explicitly declared dtype.
+                    # parameter keeps its explicitly declared dtype.  That
+                    # runtime parameter also shadows a module TypeVar with the
+                    # same name, such as one emitted for another function.
                     var = tvm.tirx.Var(child.id, signature_dtypes.get(child.id, "int32"))
                     self_parser.var_table.add(child.id, var, allow_shadowing=False)
                     self_parser._signature_match_vars[child.id] = var

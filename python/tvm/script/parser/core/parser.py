@@ -47,6 +47,7 @@ def collect_signature_type_vars(parser: "Parser", node: doc.FunctionDef) -> dict
     """Collect symbolic variables declared by function type-parameter syntax."""
 
     annotation_names = set()
+    parameter_names = {arg.arg for arg in node.args.args}
 
     class AnnotationNameCollector(doc.NodeVisitor):
         def visit_Name(self, name):  # pylint: disable=invalid-name
@@ -70,7 +71,11 @@ def collect_signature_type_vars(parser: "Parser", node: doc.FunctionDef) -> dict
 
     symbolic_vars = {}
     for binding_name, value in parser.var_table.get().items():
-        if binding_name not in annotation_names or not isinstance(value, TypeVar):
+        if (
+            binding_name not in annotation_names
+            or binding_name in parameter_names
+            or not isinstance(value, TypeVar)
+        ):
             continue
         if value.__name__ != binding_name:
             parser.report_error(
