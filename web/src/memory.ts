@@ -134,7 +134,7 @@ export class Memory {
       this.updateViews();
     }
     const result = new Uint8Array(numBytes);
-    result.set(this.viewU8.slice(ptr, ptr + numBytes));
+    result.set(this.viewU8.subarray(ptr, ptr + numBytes));
     return result;
   }
   /**
@@ -346,7 +346,7 @@ export class CachedCallStack implements Disposable {
       ];
       this.storePtr(targetOffset, this.ptrFromOffset(valueOffset));
     }
-    this.memory.storeRawBytes(this.basePtr, this.viewU8.slice(0, nbytes));
+    this.memory.storeRawBytes(this.basePtr, this.viewU8.subarray(0, nbytes));
   }
 
   /**
