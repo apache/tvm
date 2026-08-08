@@ -1174,7 +1174,7 @@ def serial(
     *,
     annotations: dict[str, Any] | None = None,
     step: Expr | None = None,
-    unroll: bool | None = None,
+    unroll: bool | int | None = None,
     dtype: str | None = None,
 ) -> frame.ForFrame:
     """The serial For statement.
@@ -1193,11 +1193,12 @@ def serial(
     step : Expr
         The optional step value of iteration.
 
-    unroll : bool, optional
+    unroll : bool or int, optional
         If True, adds ``{"pragma_unroll": True}`` annotation, which asks CUDA codegen
         to emit ``#pragma unroll`` while preserving the loop as a C++ ``for``.
         If False, adds ``{"disable_unroll": True}`` annotation.
-        Shorthand for ``annotations={"disable_unroll": True}``.
+        If a positive integer, emits ``#pragma unroll N``. Boolean values are
+        handled separately from integers, so ``False`` keeps disabling unrolling.
 
     dtype : str, optional
         The dtype of the loop variable, either ``"int32"`` or ``"uint32"``. When
@@ -1212,10 +1213,17 @@ def serial(
     """
     if unroll is not None:
         annotations = dict(annotations) if annotations else {}
-        if unroll:
-            annotations["pragma_unroll"] = True
+        if isinstance(unroll, bool):
+            if unroll:
+                annotations["pragma_unroll"] = True
+            else:
+                annotations["disable_unroll"] = True
+        elif isinstance(unroll, int):
+            if unroll < 1:
+                raise ValueError("unroll must be a positive integer")
+            annotations["pragma_unroll"] = unroll
         else:
-            annotations["disable_unroll"] = True
+            raise TypeError("unroll must be a bool, a positive integer, or None")
     if stop is None:
         stop = start
         if is_prim_expr(start):

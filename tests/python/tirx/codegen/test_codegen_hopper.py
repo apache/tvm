@@ -367,7 +367,9 @@ def test_ptx_elect_sync():
 
     src, mod = _get_source(func)
     print(src)
-    assert "elect.sync %%rx|%%px, %2;" in src
+    assert "elect.sync _|%%px, %1;" in src
+    assert ".reg .b32 %%rx;" not in src
+    assert "mov.s32 %0, %%rx;" not in src
 
 
 @pytest.mark.gpu

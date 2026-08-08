@@ -2297,6 +2297,28 @@ def test_roundtrip_serial_unroll_true():
     assert_structural_equal(test, from_source(code))
 
 
+def test_roundtrip_serial_unroll_count():
+    """T.serial(N, unroll=2) should preserve the requested unroll count."""
+
+    # fmt: off
+    @T.prim_func
+    def test(A_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
+        T.device_entry()
+        cta_id = T.cta_id([1])
+        warp_id = T.warp_id([1])
+        lane_id = T.lane_id([32])
+        for _ in T.serial(10, unroll=2):
+            Tx.cta.fill(A[0:32], T.float32(0))
+        # fmt: on
+
+    code = test.script()
+    assert "unroll=2" in code, f"printer should emit unroll=2, got:\n{code}"
+    assert "annotations" not in code, "printer should NOT emit annotations dict"
+    assert from_source(code).script() == code
+    assert_structural_equal(test, from_source(code))
+
+
 def test_roundtrip_serial_unroll_false_with_other_annotations():
     """When other annotations exist alongside disable_unroll, fall back to full dict."""
 

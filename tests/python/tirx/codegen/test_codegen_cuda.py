@@ -239,6 +239,19 @@ def test_serial_pragma_unroll_codegen():
     assert "break;" in src
 
 
+def test_serial_pragma_unroll_count_codegen():
+    @T.prim_func
+    def main(A: T.Buffer((4,), "int32")):
+        T.device_entry()
+        tx = T.thread_id([32])
+        if tx == 0:
+            for i in T.serial(4, unroll=2):
+                A[i] = A[i] + 1
+
+    src, _ = _get_source(main)
+    assert re.search(r"#pragma unroll 2\s*for \(", src)
+
+
 def test_serial_disable_unroll_pragma_immediately_precedes_dynamic_for():
     @T.prim_func
     def main(A: T.Buffer((4,), "int32")):
@@ -598,7 +611,7 @@ def test_ptx_sync_and_clc_codegen():
     assert "cp.async.mbarrier.arrive.noinc.shared::cta.b64" in src
     # The spin-wait moved to T.cuda.mbarrier_wait, which takes its timeout as a
     # parameter rather than baking 10000000 into the asm text.
-    assert "mbarrier.try_wait.parity.shared::cta.b64 P1, [%0], %1, %2;" in src
+    assert "mbarrier.try_wait.parity.acquire.cta.shared::cta.b64 P1, [%0], %1, %2;" in src
     assert "tvm_builtin_cuda_mbarrier_wait" in src
     # (No assertion on the timeout local: T.cuda.mbarrier_wait keeps the
     # `ticks = 0x989680` hint the TIRx spin-wait convention specifies.)
