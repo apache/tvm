@@ -4662,7 +4662,9 @@ _tfl_stablehlo_gather_opts = _get_tflite_schema_module("StablehloGatherOptions")
 _tfl_stablehlo_reduce_opts = _get_tflite_schema_module("StablehloReduceOptions")
 _tfl_stablehlo_reduce_window_opts = _get_tflite_schema_module("StablehloReduceWindowOptions")
 _tfl_stablehlo_scatter_opts = _get_tflite_schema_module("StablehloScatterOptions")
+_tfl_stablehlo_slice_opts = _get_tflite_schema_module("StablehloSliceOptions")
 _tfl_stablehlo_sort_opts = _get_tflite_schema_module("StablehloSortOptions")
+_tfl_stablehlo_transpose_opts = _get_tflite_schema_module("StablehloTransposeOptions")
 _tfl_stablehlo_while_opts = _get_tflite_schema_module("StablehloWhileOptions")
 _tfl_stablehlo_rng_opts = _get_tflite_schema_module("StablehloRngBitGeneratorOptions")
 _tfl_call_options = _get_tflite_schema_module("CallOptions")
@@ -9506,6 +9508,197 @@ def test_stablehlo_concatenate(dimension):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 gv: R.Tensor(out_dim, dtype="float32") = R.concat((x, y), axis=dimension)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def _build_stablehlo_reshape_model(input_shape, output_shape):
+    """STABLEHLO_RESHAPE with given input and output shapes."""
+    builder = flatbuffers.Builder(1024)
+
+    builtin_op = _get_stablehlo_builtin_operator("STABLEHLO_RESHAPE")
+    op_code = _build_operator_code(builder, builtin_op)
+
+    tensors = [
+        _build_tensor(builder, 0, input_shape),
+        _build_tensor(builder, 1, output_shape),
+    ]
+    op = _build_operator(builder, 0, [0], [1])
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[op],
+        inputs=[0],
+        outputs=[1],
+    )
+    buffers = [_build_buffer(builder) for _ in range(2)]
+    return _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=[op_code], buffers=buffers
+    )
+
+
+def test_stablehlo_reshape():
+    """TFLite StableHLO RESHAPE lowers to Relax reshape."""
+    mod = _load_model_from_buffer(
+        _build_stablehlo_reshape_model(input_shape=[2, 3], output_shape=[3, 2])
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((3, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 2), dtype="float32") = R.reshape(x, (3, 2))
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def _build_stablehlo_slice_model(input_shape, start_indices, limit_indices, strides, output_shape):
+    """STABLEHLO_SLICE with static start, limit, and stride attributes."""
+    builder = flatbuffers.Builder(1024)
+
+    start_vec = _tflite_int64_vector(
+        builder,
+        _tfl_stablehlo_slice_opts.StablehloSliceOptionsStartStartIndicesVector,
+        start_indices,
+    )
+    limit_vec = _tflite_int64_vector(
+        builder,
+        _tfl_stablehlo_slice_opts.StablehloSliceOptionsStartLimitIndicesVector,
+        limit_indices,
+    )
+    strides_vec = _tflite_int64_vector(
+        builder,
+        _tfl_stablehlo_slice_opts.StablehloSliceOptionsStartStridesVector,
+        strides,
+    )
+
+    _tfl_stablehlo_slice_opts.StablehloSliceOptionsStart(builder)
+    _tfl_stablehlo_slice_opts.StablehloSliceOptionsAddStartIndices(builder, start_vec)
+    _tfl_stablehlo_slice_opts.StablehloSliceOptionsAddLimitIndices(builder, limit_vec)
+    _tfl_stablehlo_slice_opts.StablehloSliceOptionsAddStrides(builder, strides_vec)
+    slice_opts = _tfl_stablehlo_slice_opts.StablehloSliceOptionsEnd(builder)
+
+    builtin_op = _get_stablehlo_builtin_operator("STABLEHLO_SLICE")
+    op_code = _build_operator_code(builder, builtin_op)
+
+    tensors = [
+        _build_tensor(builder, 0, input_shape),
+        _build_tensor(builder, 1, output_shape),
+    ]
+    op = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options2_type=_tfl_builtin_options2.StablehloSliceOptions,
+        builtin_options2=slice_opts,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[op],
+        inputs=[0],
+        outputs=[1],
+    )
+    buffers = [_build_buffer(builder) for _ in range(2)]
+    return _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=[op_code], buffers=buffers
+    )
+
+
+def test_stablehlo_slice():
+    """TFLite StableHLO SLICE lowers to Relax strided_slice."""
+    mod = _load_model_from_buffer(
+        _build_stablehlo_slice_model(
+            input_shape=[4, 5],
+            start_indices=[1, 0],
+            limit_indices=[4, 4],
+            strides=[2, 2],
+            output_shape=[2, 2],
+        )
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((4, 5), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.strided_slice(
+                    x, axes=[0, 1], begin=[1, 0], end=[4, 4], strides=[2, 2]
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def _build_stablehlo_transpose_model(input_shape, permutation, output_shape):
+    """STABLEHLO_TRANSPOSE with a static permutation."""
+    builder = flatbuffers.Builder(1024)
+
+    perm_vec = _tflite_int64_vector(
+        builder,
+        _tfl_stablehlo_transpose_opts.StablehloTransposeOptionsStartPermutationVector,
+        permutation,
+    )
+    _tfl_stablehlo_transpose_opts.StablehloTransposeOptionsStart(builder)
+    _tfl_stablehlo_transpose_opts.StablehloTransposeOptionsAddPermutation(builder, perm_vec)
+    transpose_opts = _tfl_stablehlo_transpose_opts.StablehloTransposeOptionsEnd(builder)
+
+    builtin_op = _get_stablehlo_builtin_operator("STABLEHLO_TRANSPOSE")
+    op_code = _build_operator_code(builder, builtin_op)
+
+    tensors = [
+        _build_tensor(builder, 0, input_shape),
+        _build_tensor(builder, 1, output_shape),
+    ]
+    op = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options2_type=_tfl_builtin_options2.StablehloTransposeOptions,
+        builtin_options2=transpose_opts,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[op],
+        inputs=[0],
+        outputs=[1],
+    )
+    buffers = [_build_buffer(builder) for _ in range(2)]
+    return _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=[op_code], buffers=buffers
+    )
+
+
+def test_stablehlo_transpose():
+    """TFLite StableHLO TRANSPOSE lowers to Relax permute_dims."""
+    mod = _load_model_from_buffer(
+        _build_stablehlo_transpose_model(
+            input_shape=[2, 3, 4], permutation=[1, 2, 0], output_shape=[3, 4, 2]
+        )
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32")
+        ) -> R.Tensor((3, 4, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 4, 2), dtype="float32") = R.permute_dims(
+                    x, axes=[1, 2, 0]
+                )
                 R.output(gv)
             return gv
 
