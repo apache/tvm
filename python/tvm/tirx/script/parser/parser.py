@@ -27,7 +27,7 @@ from tvm.ir import Expr, GlobalVar, PointerType, PrimType
 from tvm.script.ir_builder import ir as I
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.base import IRBuilderFrame as Frame
-from tvm.script.parser._core import Parser, dispatch, doc
+from tvm.script.parser._core import Parser, collect_signature_type_vars, dispatch, doc
 from tvm.script.parser.core.doc import from_doc
 from tvm.tirx import Buffer, IterVar, Layout, buffer_data, is_buffer_var
 from tvm.tirx.script import builder as T
@@ -835,6 +835,8 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     persistent = find_decorator_annotation(node, "persistent", default=False)
     self.function_annotations = None
     with self.var_table.with_frame(), _signature_match_var_scope(self):
+        for name, var in collect_signature_type_vars(self, node).items():
+            self.var_table.add(name, var, allow_shadowing=False)
         prim_func_ctx = T.prim_func(is_private=privacy, s_tir=s_tir, persistent=persistent)
         with prim_func_ctx:
             T.func_name(node.name)
@@ -1139,6 +1141,8 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
     ret_type = None
     with self.var_table.with_frame(), _signature_match_var_scope(self):
         signature_dtypes = _signature_prim_var_dtypes(node)
+        for name, var in collect_signature_type_vars(self, node).items():
+            self.var_table.add(name, var, allow_shadowing=False)
 
         arg_annotations = []
         for arg in node.args.args:

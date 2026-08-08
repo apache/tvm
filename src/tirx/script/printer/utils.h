@@ -316,10 +316,13 @@ ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
  * \param d The IRDocsifier
  * \param stringify_shape_vars Variables whose first shape use must be stringified.  The set is
  *     passed by value so entries can be consumed as dimensions are emitted.
+ * \param stringify_compound_shape_vars Variables whose compound shape expressions must be
+ *     stringified while their bare-name uses remain direct.
  * \return The ExprDoc corresponding to the buffer declaration
  */
 ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
-                   const IRDocsifier& d, std::unordered_set<tirx::Var> stringify_shape_vars = {});
+                   const IRDocsifier& d, std::unordered_set<tirx::Var> stringify_shape_vars = {},
+                   std::unordered_set<tirx::Var> stringify_compound_shape_vars = {});
 
 /*!
  * \brief Print the creation of a Var
