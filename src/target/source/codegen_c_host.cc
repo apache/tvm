@@ -32,6 +32,8 @@
 #include <utility>
 #include <vector>
 
+#include "../min_max_utils.h"
+
 namespace tvm {
 namespace codegen {
 
@@ -347,16 +349,25 @@ void CodeGenCHost::VisitStmt_(const AssertStmtNode* op) {  // NOLINT(*)
 }
 
 void CodeGenCHost::VisitExpr_(const MinNode* op, std::ostream& os) {  // NOLINT(*)
-  PrintTernaryCondExpr(op, "<", os);
+  PrintTernaryCondExpr(op, "<", ">=", os);
 }
 
 void CodeGenCHost::VisitExpr_(const MaxNode* op, std::ostream& os) {  // NOLINT(*)
-  PrintTernaryCondExpr(op, ">", os);
+  PrintTernaryCondExpr(op, ">", "<=", os);
 }
 
 template <typename T>
 inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
+                                               const char* reverse_compare,
                                                std::ostream& os) {  // NOLINT(*)
+  PrimType dtype = op->ty.template as_or_throw<PrimType>();
+  ConstFloatKind a_kind = ConstFloatKind::kNotConst;
+  ConstFloatKind b_kind = ConstFloatKind::kNotConst;
+  if (dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
+    a_kind = GetConstFloatKind(op->a);
+    b_kind = GetConstFloatKind(op->b);
+  }
+
   std::ostringstream temp_a;
   VisitExpr(op->a, temp_a);
   std::string a_id = SSAGetID(temp_a.str(), op->a.ty());
@@ -364,8 +375,30 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
   VisitExpr(op->b, temp_b);
   std::string b_id = SSAGetID(temp_b.str(), op->b.ty());
 
-  os << "((" << a_id << ") " << compare << " (" << b_id << ") "
-     << "? (" << a_id << ") : (" << b_id << "))";
+  if (dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
+    if (a_kind == ConstFloatKind::kNaN) {
+      os << "(" << a_id << ")";
+    } else if (a_kind == ConstFloatKind::kNonNaN) {
+      os << "((" << a_id << ") " << compare << " (" << b_id << ") ? (" << a_id << ") : (" << b_id
+         << "))";
+    } else if (b_kind == ConstFloatKind::kNaN) {
+      os << "((" << a_id << ") != (" << a_id << ") ? (" << a_id << ") : (" << b_id << "))";
+    } else if (b_kind == ConstFloatKind::kNonNaN) {
+      // Reversing the select avoids a separate NaN test: if a is NaN, the
+      // ordered comparison is false and a is selected.  Equality still
+      // selects b, preserving the existing signed-zero behavior.
+      os << "((" << a_id << ") " << reverse_compare << " (" << b_id << ") ? (" << b_id << ") : ("
+         << a_id << "))";
+    } else {
+      // Preserve NaNs from either operand while retaining the existing behavior
+      // of selecting the second operand when both operands compare equal.
+      os << "(((" << a_id << ") " << compare << " (" << b_id << ") || (" << a_id << ") != (" << a_id
+         << ")) ? (" << a_id << ") : (" << b_id << "))";
+    }
+  } else {
+    os << "((" << a_id << ") " << compare << " (" << b_id << ") "
+       << "? (" << a_id << ") : (" << b_id << "))";
+  }
 }
 
 ffi::Module BuildCHost(IRModule mod, Target target) {
