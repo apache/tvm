@@ -42,6 +42,8 @@ class RelaxFrameNode : public FrameNode {
   bool is_func = false;
   bool module_alias_printed = false;
   std::unordered_set<const VarNode*>* func_vars = nullptr;
+  std::unordered_set<const VarNode*>* type_vars = nullptr;
+  std::unordered_set<const VarNode*>* prim_params = nullptr;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -60,6 +62,8 @@ class RelaxFrame : public Frame {
     n->d = d.get();
     n->is_func = false;
     n->func_vars = nullptr;
+    n->type_vars = nullptr;
+    n->prim_params = nullptr;
     data_ = std::move(n);
   }
 

@@ -21,4 +21,4 @@
 from .core import dispatch, doc, utils
 from .core.dispatch import OpMethod, register_op
 from .core.entry import parse, scan_macro
-from .core.parser import Parser
+from .core.parser import Parser, collect_signature_type_vars

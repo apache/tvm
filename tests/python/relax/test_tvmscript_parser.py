@@ -995,6 +995,8 @@ def test_call_tir_with_tir_var():
                     Y[vi] = X[vi]
 
     _check(Module)
+    portable = Module.script(show_meta=True, extra_config={"script.use_pep695": False})
+    tvm.ir.assert_structural_equal(Module, tvm.script.from_source(portable))
 
 
 def test_call_tir_with_grad():
