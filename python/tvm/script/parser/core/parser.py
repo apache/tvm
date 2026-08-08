@@ -17,6 +17,7 @@
 """The core parser"""
 
 import abc
+import ast
 import inspect
 from collections import defaultdict
 from collections.abc import Callable
@@ -45,9 +46,31 @@ DEFAULT_VISIT = {
 def collect_signature_type_vars(parser: "Parser", node: doc.FunctionDef) -> dict[str, Var]:
     """Collect symbolic variables declared by function type-parameter syntax."""
 
+    annotation_names = set()
+
+    class AnnotationNameCollector(doc.NodeVisitor):
+        def visit_Name(self, name):  # pylint: disable=invalid-name
+            annotation_names.add(name.id)
+
+        def visit_Constant(self, constant):  # pylint: disable=invalid-name
+            if not isinstance(constant.value, str):
+                return
+            try:
+                expression = ast.parse(constant.value, mode="eval")
+            except SyntaxError:
+                return
+            annotation_names.update(
+                child.id for child in ast.walk(expression) if isinstance(child, ast.Name)
+            )
+
+    name_collector = AnnotationNameCollector()
+    for arg in node.args.args:
+        name_collector.visit(arg.annotation)
+    name_collector.visit(node.returns)
+
     symbolic_vars = {}
     for binding_name, value in parser.var_table.get().items():
-        if not isinstance(value, TypeVar):
+        if binding_name not in annotation_names or not isinstance(value, TypeVar):
             continue
         if value.__name__ != binding_name:
             parser.report_error(

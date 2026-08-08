@@ -23,6 +23,7 @@ import tvm.testing
 from tvm.script import relax as R
 
 M = TypeVar("M")
+UNUSED_GENERIC = TypeVar("UNUSED_GENERIC", bound=int)
 
 
 def test_type_vars_roundtrip():
@@ -55,6 +56,7 @@ def func[M: int](x: R.Tensor((M, M * 2), "float32")):
     assert 'M = TypeVar("M")' in portable
     assert 'R.Tensor((M, "M * 2"), dtype="float32")' in portable
     assert "M = T.int64()" not in script
+    assert "UNUSED_GENERIC" not in script
     assert [param.name for param in func.params] == ["x"]
     assert not hasattr(func, "type_params")
     assert func.attrs.get("relax.type_vars") is None
