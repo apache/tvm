@@ -644,6 +644,33 @@ def test_lower_separate_scope_id_def():
     compare(before, after, LowerTIRx)
 
 
+def test_lower_uint32_scope_id_casts_at_bind():
+    """uint32 scope ids get a Cast at the bind; launch params stay int32."""
+
+    @T.prim_func(private=True)
+    def before():
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([128], dtype="uint32")
+        for k in T.serial(4, dtype="uint32"):
+            T.evaluate(tx + k)
+
+    @T.prim_func(private=True)
+    def after():
+        blockIdx_x = T.launch_thread("blockIdx.x", 1)
+        threadIdx_x = T.launch_thread("threadIdx.x", 128)
+        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+            T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
+        )
+        v: T.let[T.int32] = blockIdx_x
+        tx: T.let[T.uint32] = T.Cast("uint32", threadIdx_x)
+        T.evaluate(v)
+        for k in T.serial(T.uint32(4)):
+            T.evaluate(tx + k)
+
+    compare(before, after, LowerTIRx)
+
+
 def test_lower_exec_context_infers_plain_predicate_for_dispatch():
     import tvm.tirx.operator.tile_primitive as _  # noqa: F401
     from tvm.tirx.operator.tile_primitive.dispatcher import register_dispatch

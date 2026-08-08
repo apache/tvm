@@ -1048,5 +1048,48 @@ def test_ptx_ldmatrix(trans, num):
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+def test_uint32_loop_var_and_scope_id_emit_unsigned():
+    @T.prim_func
+    def main(A: T.Buffer((128,), "int32")):
+        T.device_entry()
+        _ = T.cta_id([1])
+        tx = T.thread_id([128], dtype="uint32")
+        for k in T.serial(4, dtype="uint32"):
+            A[tx] = A[tx] + T.int32(k)
+
+    src, _ = _get_source(main)
+    # The loop var is declared unsigned and iterates over unsigned bounds.
+    assert re.search(r"for \(uint k = \(uint\)0; k < \(uint\)4;", src), src
+    # The scope id is bound as an unsigned value.
+    assert re.search(r"uint tx = ", src), src
+
+
+def test_uint32_loop_var_runs_correctly():
+    @T.prim_func
+    def main(A: T.Buffer((128,), "int32"), B: T.Buffer((128,), "int32")):
+        T.device_entry()
+        _ = T.cta_id([1])
+        tx = T.thread_id([128], dtype="uint32")
+        acc = T.alloc_buffer((1,), "int32", scope="local")
+        acc[0] = 0
+        for k in T.serial(4, dtype="uint32"):
+            acc[0] = acc[0] + A[tx] + T.int32(k)
+        B[tx] = acc[0]
+
+    _, mod = _get_source(main)
+
+    A_np = np.arange(128, dtype="int32")
+    B_ref = A_np * 4 + (0 + 1 + 2 + 3)
+
+    def run_and_check():
+        dev = tvm.cuda()
+        A = tvm.runtime.tensor(A_np, device=dev)
+        B = tvm.runtime.tensor(np.zeros(128, dtype="int32"), device=dev)
+        mod(A, B)
+        np.testing.assert_allclose(B.numpy(), B_ref)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

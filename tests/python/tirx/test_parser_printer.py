@@ -2759,5 +2759,251 @@ def test_roundtrip_cp_async_bulk_tensor_s2g_reduce():
     assert_structural_equal(func, from_source(code))
 
 
+def _assert_roundtrip(func):
+    code = func.script()
+    assert from_source(code).script() == code
+    assert_structural_equal(func, from_source(code))
+
+
+def test_loop_var_dtype_uint32():
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (128,), "float32")
+        for i in T.serial(128, dtype="uint32"):
+            A[i] = T.float32(1)
+    # fmt: on
+
+    loop = func.body
+    assert loop.loop_var.ty == PrimType("uint32")
+    assert loop.min.ty == PrimType("uint32")
+    assert loop.extent.ty == PrimType("uint32")
+    _assert_roundtrip(func)
+
+
+def test_loop_var_dtype_uint32_with_step():
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (128,), "float32")
+        for i in T.serial(4, 128, step=2, dtype="uint32"):
+            A[i] = T.float32(1)
+    # fmt: on
+
+    loop = func.body
+    assert loop.loop_var.ty == PrimType("uint32")
+    assert loop.min.ty == PrimType("uint32")
+    assert loop.extent.ty == PrimType("uint32")
+    assert loop.step.ty == PrimType("uint32")
+    _assert_roundtrip(func)
+
+
+@pytest.mark.parametrize("for_kind", ["serial", "parallel", "vectorized", "unroll"])
+def test_loop_var_dtype_uint32_all_for_kinds(for_kind):
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (4,), "float32")
+        for i in getattr(T, for_kind)(4, dtype="uint32"):
+            A[i] = T.float32(1)
+    # fmt: on
+
+    assert func.body.loop_var.ty == PrimType("uint32")
+    _assert_roundtrip(func)
+
+
+def test_grid_loop_var_dtype_uint32():
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (8, 16), "float32")
+        for i, j in T.grid(8, 16, dtype="uint32"):
+            A[i, j] = T.float32(1)
+    # fmt: on
+
+    outer = func.body
+    assert outer.loop_var.ty == PrimType("uint32")
+    assert outer.body.loop_var.ty == PrimType("uint32")
+    _assert_roundtrip(func)
+
+
+def test_loop_var_dtype_defaults_to_int32():
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (128,), "float32")
+        for i in range(128):
+            A[i] = T.float32(1)
+    # fmt: on
+
+    assert func.body.loop_var.ty == PrimType("int32")
+    _assert_roundtrip(func)
+
+
+def test_loop_var_dtype_inferred_from_unsigned_extent():
+    """A uint32 extent makes the loop var uint32 without an explicit dtype."""
+
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle, n: T.uint32):
+        A = T.match_buffer(A_ptr, (128,), "float32")
+        for i in range(n):
+            A[i] = T.float32(1)
+    # fmt: on
+
+    assert func.body.loop_var.ty == PrimType("uint32")
+    _assert_roundtrip(func)
+
+
+def test_loop_var_dtype_casts_mismatched_bound():
+    """A non-literal bound of another dtype is cast to the requested loop dtype."""
+
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle, n: T.int32):
+        A = T.match_buffer(A_ptr, (128,), "float32")
+        for i in T.serial(n, dtype="uint32"):
+            A[i] = T.float32(1)
+    # fmt: on
+
+    loop = func.body
+    assert loop.loop_var.ty == PrimType("uint32")
+    assert loop.extent.ty == PrimType("uint32")
+    _assert_roundtrip(func)
+
+
+@pytest.mark.parametrize("dtype", ["int64", "uint64", "int16", "float32"])
+def test_loop_var_dtype_rejects_unsupported(dtype):
+    with pytest.raises(Exception, match='must be "int32" or "uint32"'):
+        T.serial(4, dtype=dtype)
+
+
+def test_thread_binding_has_no_dtype_parameter():
+    with pytest.raises(TypeError):
+        T.thread_binding(0, 128, "threadIdx.x", dtype="uint32")
+
+
+def test_hand_built_for_promotes_int_literal_bounds_to_uint32():
+    """The For constructor retypes literal bounds to the loop var's dtype."""
+    loop_var = tvm.tirx.Var("i", "uint32")
+    loop = tvm.tirx.For(loop_var, 0, 128, tvm.tirx.ForKind.SERIAL, tvm.tirx.Evaluate(0))
+    assert loop.min.ty == PrimType("uint32")
+    assert loop.extent.ty == PrimType("uint32")
+
+
+def test_hand_built_for_rejects_negative_literal_for_uint32():
+    loop_var = tvm.tirx.Var("i", "uint32")
+    with pytest.raises(Exception, match="not representable"):
+        tvm.tirx.For(loop_var, -1, 128, tvm.tirx.ForKind.SERIAL, tvm.tirx.Evaluate(0))
+
+
+def test_scope_id_dtype_uint32():
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (128,), "float32")
+        T.device_entry()
+        bx = T.cta_id([1])
+        tx = T.thread_id([128], dtype="uint32")
+        A[tx] = T.float32(bx)
+    # fmt: on
+
+    scope_defs = []
+    tvm.tirx.stmt_functor.post_order_visit(
+        func.body,
+        lambda s: (
+            scope_defs.append(getattr(s, "def")) if isinstance(s, tvm.tirx.ScopeIdDefStmt) else None
+        ),
+    )
+    dtypes = {str(d.def_ids[0].ty) for d in scope_defs}
+    assert dtypes == {"int32", "uint32"}
+    # The extents stay int32 regardless of the def var dtype.
+    for d in scope_defs:
+        assert d.extents[0].ty == PrimType("int32")
+
+    code = func.script()
+    assert 'T.thread_id([128], dtype="uint32")' in code
+    assert "T.cta_id([1])" in code
+    _assert_roundtrip(func)
+
+
+def test_scope_id_dtype_uint32_lane_and_warp():
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (32,), "float32")
+        T.device_entry()
+        _ = T.cta_id([1])
+        warp = T.warp_id([4], dtype="uint32")
+        lane = T.lane_id([32], dtype="uint32")
+        A[lane] = T.float32(warp)
+    # fmt: on
+
+    code = func.script()
+    assert 'T.warp_id([4], dtype="uint32")' in code
+    assert 'T.lane_id([32], dtype="uint32")' in code
+    _assert_roundtrip(func)
+
+
+def test_scope_id_dtype_uint32_with_preferred():
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (4,), "float32")
+        T.device_entry()
+        _ = T.cluster_id([2])
+        cx, cy = T.cta_id_in_cluster([2, 2], preferred=[2, 2], dtype="uint32")
+        tx = T.thread_id([32])
+        if tx == 0:
+            A[cx + cy] = T.float32(1)
+    # fmt: on
+
+    code = func.script()
+    assert 'dtype="uint32"' in code
+    _assert_roundtrip(func)
+
+
+def test_scope_id_dtype_uint32_deferred_extent():
+    """The deferred (extent=None) form carries the dtype too."""
+
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (32,), "float32")
+        T.device_entry()
+        _ = T.cta_id([1])
+        lane = T.lane_id(dtype="uint32")
+        warp = T.warp_id([4])
+        A[lane] = T.float32(warp)
+    # fmt: on
+
+    scope_defs = []
+    tvm.tirx.stmt_functor.post_order_visit(
+        func.body,
+        lambda s: (
+            scope_defs.append(getattr(s, "def")) if isinstance(s, tvm.tirx.ScopeIdDefStmt) else None
+        ),
+    )
+    deferred = [d for d in scope_defs if d.extents is None]
+    assert len(deferred) == 1
+    assert deferred[0].def_ids[0].ty == PrimType("uint32")
+    _assert_roundtrip(func)
+
+
+@pytest.mark.parametrize("dtype", ["int64", "float32"])
+def test_scope_id_dtype_rejects_unsupported(dtype):
+    # fmt: off
+    with pytest.raises(Exception, match='must be "int32" or "uint32"'):
+
+        @T.prim_func
+        def func(A_ptr: T.handle):
+            A = T.match_buffer(A_ptr, (128,), "float32")
+            T.device_entry()
+            _ = T.cta_id([1])
+            tx = T.thread_id([128], dtype=dtype)
+            A[tx] = T.float32(1)
+    # fmt: on
+
+
 if __name__ == "__main__":
     tvm.testing.main()
