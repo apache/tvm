@@ -34,6 +34,42 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       d->SetCommonPrefix(func, [](const ffi::ObjectRef& obj) {
         return obj->IsInstance<tirx::VarNode>() || obj->IsInstance<tirx::BufferTypeNode>();
       });
+      std::unordered_set<const VarNode*> runtime_params;
+      for (const tirx::Var& param : func->params) {
+        runtime_params.insert(param.get());
+      }
+      std::unordered_set<const VarNode*> type_vars;
+      auto collect_type_vars = [&](const PrimExpr& expr) {
+        for (const tirx::Var& var : tirx::UndefinedVars(expr)) {
+          const auto* var_ty_node = var->ty.as<PrimTypeNode>();
+          if (var_ty_node == nullptr) {
+            continue;
+          }
+          PrimType var_ty(var_ty_node->dtype);
+          if (!runtime_params.count(var.get()) && var_ty.IsScalar() &&
+              var_ty.MatchesElementType(DLDataTypeCode::kDLInt, 64)) {
+            type_vars.insert(var.get());
+          }
+        }
+      };
+      for (const tirx::Var& param : func->params) {
+        if (!param->ty.as<tirx::BufferTypeNode>()) {
+          continue;
+        }
+        tirx::BufferVar buffer(param);
+        for (const PrimExpr& extent : buffer->shape) {
+          collect_type_vars(extent);
+        }
+        for (const PrimExpr& stride : buffer->strides) {
+          collect_type_vars(stride);
+        }
+        collect_type_vars(buffer->elem_offset);
+        for (const PrimExpr& address : buffer->allocated_addr) {
+          collect_type_vars(address);
+        }
+      }
+      auto type_var_docs = DefineTypeVarDocs(type_vars, ffi::GetRef<Frame>((*f).get()), d);
+      bool use_postponed_annotations = UsePEP695TypeVars(d) && !type_vars.empty();
       int n_args = func->params.size();
       // Step 1. Handle `func->params`
       ffi::Array<AssignDoc> args;
@@ -55,21 +91,28 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         if (var->ty.as<tirx::BufferTypeNode>()) {
           tirx::BufferVar buffer(var);
           std::unordered_set<tirx::Var> stringify_shape_vars;
+          std::unordered_set<tirx::Var> stringify_compound_shape_vars;
           std::unordered_set<tirx::Var> shape_vars;
           for (const PrimExpr& shape : buffer->shape) {
             tirx::PostOrderVisit(shape, [&](const ffi::ObjectRef& obj) {
               if (const auto* shape_var_node = obj.as<tirx::VarNode>()) {
                 tirx::Var shape_var = ffi::GetRef<tirx::Var>(shape_var_node);
                 shape_vars.insert(shape_var);
-                if (!bound_signature_vars.count(shape_var)) {
+                bool is_type_var = type_vars.count(shape_var.get());
+                if (!use_postponed_annotations && !bound_signature_vars.count(shape_var) &&
+                    !is_type_var) {
                   stringify_shape_vars.insert(shape_var);
+                }
+                if (!use_postponed_annotations && is_type_var) {
+                  stringify_compound_shape_vars.insert(shape_var);
                 }
               }
             });
           }
           IdDoc lhs = DefineBuffer(buffer, *f, d);
           ExprDoc annotation =
-              BufferAttn(buffer, var_p->Attr("ty"), *f, d, std::move(stringify_shape_vars));
+              BufferAttn(buffer, var_p->Attr("ty"), *f, d, std::move(stringify_shape_vars),
+                         std::move(stringify_compound_shape_vars));
           args.push_back(AssignDoc(lhs, std::nullopt, annotation));
           for (const tirx::Var& shape_var : shape_vars) {
             bound_signature_vars.insert(shape_var);
@@ -177,12 +220,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         ffi::Array<ExprDoc> pos_args;
         decorator = std::move(decorator->Call(pos_args, kwargs_keys, kwargs_values));
       }
-      return HeaderWrapper(d, FunctionDoc(
-                                  /*name=*/func_name,
-                                  /*args=*/args,
-                                  /*decorators=*/{decorator},
-                                  /*return_type=*/ret_type,
-                                  /*body=*/(*f)->stmts));
+      return WrapFunctionDocWithTypeVars(d,
+                                         FunctionDoc(
+                                             /*name=*/func_name,
+                                             /*args=*/args,
+                                             /*decorators=*/{decorator},
+                                             /*return_type=*/ret_type,
+                                             /*body=*/(*f)->stmts),
+                                         type_var_docs);
     });
 
 TVM_REGISTER_SCRIPT_AS_REPR(tirx::PrimFuncNode, ReprPrintTIR);
