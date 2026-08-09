@@ -97,9 +97,9 @@ def _ptx_barrier_cluster_wait(acquire, aligned):
 
 
 # =============================================================================
-# mbarrier.try_wait.parity.shared::cta.b64 — 1 form. Body wraps the asm in a
-# label loop (TIRx convention; the magic ``ticks = 0x989680`` is the timeout
-# hint in ns).
+# mbarrier.try_wait.parity.acquire.cta.shared::cta.b64 — 1 form. Body wraps the
+# asm in a label loop (TIRx convention; the magic ``ticks = 0x989680`` is the
+# timeout hint in ns).
 # =============================================================================
 def _mbarrier_wait_parts(barrier, *_rest):
     """Dispatch on the barrier operand's dtype, as the retired op did.
@@ -131,7 +131,7 @@ device_intrinsic(
         '        "{\\n"\n'
         '        ".reg .pred                P1;\\n"\n'
         '        "LAB_WAIT:\\n"\n'
-        '        "mbarrier.try_wait.parity.shared::cta.b64 P1, [%0], %1, %2;\\n"\n'
+        '        "mbarrier.try_wait.parity.acquire.cta.shared::cta.b64 P1, [%0], %1, %2;\\n"\n'
         '        "@P1                       bra.uni DONE;\\n"\n'
         '        "bra.uni                   LAB_WAIT;\\n"\n'
         '        "DONE:\\n"\n'

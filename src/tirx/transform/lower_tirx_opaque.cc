@@ -136,7 +136,8 @@ class TIRxOpaqueLower : public StmtExprMutator {
   /*!
    * \brief Handle loop annotation dict.
    * (1) if the attr key is prefixed by `pragma_`, move to ordered kv list
-   *     (lowered to `AttrStmt` by legacy TE schedule convention).
+   *     (lowered to `AttrStmt` by legacy TE schedule convention), except for
+   *     `pragma_unroll`, whose bool-or-integer value must remain on the loop.
    * (2) non-pragma loop annotations are preserved.
    * \return New annotation dict with preserved keys. Also update pragma attr pairs ordered by key.
    */
@@ -147,7 +148,9 @@ class TIRxOpaqueLower : public StmtExprMutator {
     pragma_attrs->clear();
     for (const auto& kv : annotations) {
       const ffi::String& key = kv.first;
-      if (tirx::attr::IsPragmaKey(key)) {
+      if (key == "pragma_unroll") {
+        preserved_annotations.Set(key, kv.second);
+      } else if (tirx::attr::IsPragmaKey(key)) {
         pragma_attrs->emplace_back(key, ConvertAttrValue(key, kv.second));
       } else {
         // loop annotations are always preserved (no SBlock annotation dropping here)

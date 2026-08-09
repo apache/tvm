@@ -184,8 +184,19 @@ SBlockFrame Block(ffi::String name, bool no_realize, ffi::String exec_scope) {
 
 void TilePrimitiveCall(tvm::tirx::TilePrimitiveCall op_call) { AddToParent(op_call); }
 
+/*!
+ * \brief Validate a user-requested loop / scope-id var dtype.
+ * \note Only scalar int32 and uint32 are supported.
+ */
+void CheckExplicitIndexDtype(const PrimType& dtype) {
+  TVM_FFI_ICHECK(dtype.IsScalar() && dtype.bits() == 32 &&
+                 dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))
+      << "ValueError: dtype of a loop/scope-id var must be \"int32\" or \"uint32\", got " << dtype;
+}
+
 ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                                   ffi::String name, ffi::String cur) {
+                                   ffi::String name, ffi::String cur, PrimType dtype) {
+  CheckExplicitIndexDtype(dtype);
   // Determine the number of Vars to introduce. Deferred form (extents=None)
   // is always 1-axis; the verifier closure fills the extent at LowerTIRx.
   size_t n_vars = extents.has_value() ? extents.value().size() : 1;
@@ -195,7 +206,7 @@ ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, 
   }
   ffi::Array<tvm::tirx::Var> scope_ids;
   for (size_t i = 0; i < n_vars; ++i) {
-    scope_ids.push_back(tvm::tirx::PrimVar(""));
+    scope_ids.push_back(tvm::tirx::PrimVar("", dtype));
   }
   // Emit a standalone ScopeIdDefStmt to the current TIRFrame's stmts list.
   // The def is visible to all subsequent stmts within the same enclosing
@@ -208,13 +219,14 @@ ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, 
 }
 
 ffi::Array<tvm::tirx::Var> ClusterId(ffi::Optional<ffi::Array<PrimExpr>> extents,
-                                     ffi::String parent) {
-  return ScopeId(extents, parent, "T.cluster_id", "cluster");
+                                     ffi::String parent, PrimType dtype) {
+  return ScopeId(extents, parent, "T.cluster_id", "cluster", dtype);
 }
 
 ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                                 ffi::Optional<ffi::Array<PrimExpr>> preferred) {
+                                 ffi::Optional<ffi::Array<PrimExpr>> preferred, PrimType dtype) {
   if (preferred.has_value()) {
+    CheckExplicitIndexDtype(dtype);
     TVM_FFI_ICHECK(parent == "cluster")
         << "ValueError: preferred is only valid when parent=\"cluster\", got parent=\"" << parent
         << "\"";
@@ -222,7 +234,7 @@ ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ff
         << "ValueError: preferred=... requires explicit extents (deferred form is incompatible)";
     ffi::Array<tvm::tirx::Var> scope_ids;
     for (size_t i = 0; i < extents.value().size(); ++i) {
-      scope_ids.push_back(tvm::tirx::PrimVar(""));
+      scope_ids.push_back(tvm::tirx::PrimVar("", dtype));
     }
     tvm::tirx::ScopeIdDef def(
         scope_ids.Map([](tvm::tirx::Var var) { return var.as_or_throw<tvm::tirx::PrimVar>(); }),
@@ -230,11 +242,12 @@ ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ff
     AddToParent(tvm::tirx::ScopeIdDefStmt(def));
     return scope_ids;
   }
-  return ScopeId(extents, parent, "T.cta_id", "cta");
+  return ScopeId(extents, parent, "T.cta_id", "cta", dtype);
 }
 
-ffi::Array<tvm::tirx::Var> CtaIdInPair() {
-  ffi::Array<tvm::tirx::Var> scope_ids{tvm::tirx::PrimVar("")};
+ffi::Array<tvm::tirx::Var> CtaIdInPair(PrimType dtype) {
+  CheckExplicitIndexDtype(dtype);
+  ffi::Array<tvm::tirx::Var> scope_ids{tvm::tirx::PrimVar("", dtype)};
   tvm::tirx::ScopeIdDef def(
       scope_ids.Map([](tvm::tirx::Var var) { return var.as_or_throw<tvm::tirx::PrimVar>(); }),
       ffi::Array<PrimExpr>{IntImm::Int32(2)}, tvm::tirx::ScopeBinding::kClusterCtaPair);
@@ -243,17 +256,18 @@ ffi::Array<tvm::tirx::Var> CtaIdInPair() {
 }
 
 ffi::Array<tvm::tirx::Var> WarpgroupId(ffi::Optional<ffi::Array<PrimExpr>> extents,
-                                       ffi::String parent) {
-  return ScopeId(extents, parent, "T.warpgroup_id", "warpgroup");
+                                       ffi::String parent, PrimType dtype) {
+  return ScopeId(extents, parent, "T.warpgroup_id", "warpgroup", dtype);
 }
 
-ffi::Array<tvm::tirx::Var> WarpId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent) {
-  return ScopeId(extents, parent, "T.warp_id", "warp");
+ffi::Array<tvm::tirx::Var> WarpId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                                  PrimType dtype) {
+  return ScopeId(extents, parent, "T.warp_id", "warp", dtype);
 }
 
-ffi::Array<tvm::tirx::Var> ThreadId(ffi::Optional<ffi::Array<PrimExpr>> extents,
-                                    ffi::String parent) {
-  return ScopeId(extents, parent, "T.thread_id", "thread");
+ffi::Array<tvm::tirx::Var> ThreadId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                                    PrimType dtype) {
+  return ScopeId(extents, parent, "T.thread_id", "thread", dtype);
 }
 
 BlockInitFrame Init() { return BlockInitFrame(ffi::make_object<BlockInitFrameNode>()); }
@@ -476,17 +490,54 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType
 
 }  // namespace axis
 
+/*!
+ * \brief Determine the dtype of a loop var from its bounds, or validate an explicit one.
+ *
+ * Without an explicit dtype the bit width is the max of both bounds and the
+ * signedness follows C-style promotion (unsigned wins), which is exactly what
+ * `PromoteBinaryOpType` applies to the `stop - start` extent.
+ */
+PrimType InferLoopVarDtype(const PrimExpr& start, const PrimExpr& stop,
+                           const ffi::Optional<PrimType>& dtype) {
+  if (dtype.has_value()) {
+    CheckExplicitIndexDtype(dtype.value());
+    return dtype.value();
+  }
+  PrimType start_ty = start.ty();
+  PrimType stop_ty = stop.ty();
+  bool is_unsigned =
+      start_ty.MatchesCode(DLDataTypeCode::kDLUInt) || stop_ty.MatchesCode(DLDataTypeCode::kDLUInt);
+  return PrimType(is_unsigned ? DLDataTypeCode::kDLUInt : DLDataTypeCode::kDLInt,
+                  std::max(start_ty.bits(), stop_ty.bits()), 1);
+}
+
+/*!
+ * \brief Coerce a loop bound to the loop var's dtype.
+ *
+ * Integer literals are re-created in the target dtype; any other mismatched
+ * expression gets an explicit Cast, so the loop header stays the single place
+ * where the index dtype has to be spelled out.
+ */
+PrimExpr ConvertLoopBound(const PrimExpr& e, const PrimType& var_ty) {
+  if (e.ty() == var_ty) return e;
+  if (const auto* imm = e.as<IntImmNode>()) {
+    return tvm::IntImm(var_ty, imm->value);
+  }
+  return tvm::tirx::Cast(var_ty, e);
+}
+
 #define TVM_TIRX_IR_BUILDER_FOR_FRAME(Method, Kind)                                        \
   ForFrame Method(PrimExpr start, PrimExpr stop,                                           \
                   ffi::Optional<ffi::Map<ffi::String, Any>> annotations,                   \
-                  ffi::Optional<PrimExpr> step) {                                          \
-    PrimExpr min = start;                                                                  \
-    PrimExpr extent = arith::Analyzer()->Simplify(stop - start);                           \
+                  ffi::Optional<PrimExpr> step, ffi::Optional<PrimType> dtype) {           \
+    PrimType var_ty = InferLoopVarDtype(start, stop, dtype);                               \
+    PrimExpr min = ConvertLoopBound(start, var_ty);                                        \
+    PrimExpr extent = arith::Analyzer()->Simplify(ConvertLoopBound(stop, var_ty) - min);   \
+    if (step.has_value()) {                                                                \
+      step = ConvertLoopBound(step.value(), var_ty);                                       \
+    }                                                                                      \
     ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();                     \
-    PrimType min_ty = min.ty();                                                            \
-    PrimType extent_ty = extent.ty();                                                      \
-    int bits = std::max(min_ty.bits(), extent_ty.bits());                                  \
-    n->vars = {Var("v", min_ty.WithBits(bits).WithLanes(1))};                              \
+    n->vars = {Var("v", var_ty)};                                                          \
     n->doms = {Range::FromMinExtent(min, extent)};                                         \
     n->steps = {step};                                                                     \
     n->f_make_for_loop = [annotations](ffi::Array<Var> vars, ffi::Array<Range> doms,       \
@@ -537,8 +588,12 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
   return ForFrame(n);
 }
 
-ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>> extents) {
+ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>> extents,
+              ffi::Optional<PrimType> dtype) {
   using namespace tvm::tirx;
+  if (dtype.has_value()) {
+    CheckExplicitIndexDtype(dtype.value());
+  }
   ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();
   n->vars.reserve(extents.size());
   n->doms.reserve(extents.size());
@@ -546,14 +601,15 @@ ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>>
   for (const auto& extent : extents) {
     if (auto prim_expr = extent.as<PrimExpr>()) {
       // extent is a single PrimExpr
-      PrimType dtype = prim_expr.value().ty();
-      n->vars.push_back(Var("v", dtype));
-      n->doms.push_back(Range(tvm::IntImm(dtype, 0), prim_expr.value()));
+      PrimType var_ty = dtype.value_or(prim_expr.value().ty());
+      n->vars.push_back(Var("v", var_ty));
+      n->doms.push_back(Range(tvm::IntImm(var_ty, 0), ConvertLoopBound(prim_expr.value(), var_ty)));
     } else if (auto tuple = extent.as<ffi::Tuple<PrimExpr, PrimExpr>>()) {
       // extent is a tuple of two PrimExpr (start, extent)
-      PrimType dtype = tuple.value().get<0>().ty();
-      n->vars.push_back(Var("v", dtype));
-      n->doms.push_back(Range::FromMinExtent(tuple.value().get<0>(), tuple.value().get<1>()));
+      PrimType var_ty = dtype.value_or(tuple.value().get<0>().ty());
+      n->vars.push_back(Var("v", var_ty));
+      n->doms.push_back(Range::FromMinExtent(ConvertLoopBound(tuple.value().get<0>(), var_ty),
+                                             ConvertLoopBound(tuple.value().get<1>(), var_ty)));
     } else {
       TVM_FFI_THROW(InternalError) << "TypeError: Invalid type for grid extent";
     }
@@ -915,30 +971,30 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.Block", Block)
       .def("script.ir_builder.tirx.TilePrimitiveCall", TilePrimitiveCall)
       .def("script.ir_builder.tirx.ClusterId",
-           [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent) {
-             return ClusterId(extents, parent);
+           [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent, PrimType dtype) {
+             return ClusterId(extents, parent, dtype);
            })
       .def("script.ir_builder.tirx.CtaId",
            [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-              ffi::Optional<ffi::Array<PrimExpr>> preferred) {
-             return CtaId(extents, parent, preferred);
-           })
+              ffi::Optional<ffi::Array<PrimExpr>> preferred,
+              PrimType dtype) { return CtaId(extents, parent, preferred, dtype); })
       .def("script.ir_builder.tirx.CtaIdInPair", CtaIdInPair)
       .def("script.ir_builder.tirx.WarpgroupId",
-           [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent) {
-             return WarpgroupId(extents, parent);
+           [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent, PrimType dtype) {
+             return WarpgroupId(extents, parent, dtype);
            })
       .def("script.ir_builder.tirx.WarpId",
-           [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent) {
-             return WarpId(extents, parent);
+           [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent, PrimType dtype) {
+             return WarpId(extents, parent, dtype);
            })
       .def("script.ir_builder.tirx.ThreadId",
-           [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent) {
-             return ThreadId(extents, parent);
+           [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent, PrimType dtype) {
+             return ThreadId(extents, parent, dtype);
            })
       .def("script.ir_builder.tirx.ScopeId",
            [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent, ffi::String name,
-              ffi::String cur) { return ScopeId(extents, parent, name, cur); })
+              ffi::String cur,
+              PrimType dtype) { return ScopeId(extents, parent, name, cur, dtype); })
       .def("script.ir_builder.tirx.Init", Init)
       .def("script.ir_builder.tirx.Where", Where)
       .def("script.ir_builder.tirx.Reads", Reads)

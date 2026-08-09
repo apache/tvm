@@ -138,8 +138,8 @@ class CUDANamespace:
         self.wgmma = CudaWgmmaNamespace()
         self.tcgen05 = CudaTcgen05Namespace()
         self.any_sync = _op_wrapper(_cuda_op.cuda_any_sync)
-        # elect.sync plus the two movs that materialize its d|p pair: a
-        # multi-statement asm block, so it belongs here rather than T.ptx.
+        # elect.sync plus the predicated mov that materializes its predicate:
+        # a multi-statement asm block, so it belongs here rather than T.ptx.
         # The warp-specialization passes match this op to build predicates.
         self.elect_sync: Callable[..., Any] = _op_wrapper(_cuda_op.cuda_elect_sync)
         # `mov.u32 d, %sreg` -- one PTX instruction, but the special-register

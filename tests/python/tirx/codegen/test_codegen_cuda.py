@@ -239,6 +239,19 @@ def test_serial_pragma_unroll_codegen():
     assert "break;" in src
 
 
+def test_serial_pragma_unroll_count_codegen():
+    @T.prim_func
+    def main(A: T.Buffer((4,), "int32")):
+        T.device_entry()
+        tx = T.thread_id([32])
+        if tx == 0:
+            for i in T.serial(4, unroll=2):
+                A[i] = A[i] + 1
+
+    src, _ = _get_source(main)
+    assert re.search(r"#pragma unroll 2\s*for \(", src)
+
+
 def test_serial_disable_unroll_pragma_immediately_precedes_dynamic_for():
     @T.prim_func
     def main(A: T.Buffer((4,), "int32")):
@@ -598,7 +611,7 @@ def test_ptx_sync_and_clc_codegen():
     assert "cp.async.mbarrier.arrive.noinc.shared::cta.b64" in src
     # The spin-wait moved to T.cuda.mbarrier_wait, which takes its timeout as a
     # parameter rather than baking 10000000 into the asm text.
-    assert "mbarrier.try_wait.parity.shared::cta.b64 P1, [%0], %1, %2;" in src
+    assert "mbarrier.try_wait.parity.acquire.cta.shared::cta.b64 P1, [%0], %1, %2;" in src
     assert "tvm_builtin_cuda_mbarrier_wait" in src
     # (No assertion on the timeout local: T.cuda.mbarrier_wait keeps the
     # `ticks = 0x989680` hint the TIRx spin-wait convention specifies.)
@@ -1042,6 +1055,51 @@ def test_ptx_ldmatrix(trans, num):
         dev = tvm.cuda()
         A = tvm.runtime.tensor(A_np, device=dev)
         B = tvm.runtime.tensor(B_np, device=dev)
+        mod(A, B)
+        np.testing.assert_allclose(B.numpy(), B_ref)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+def test_uint32_loop_var_and_scope_id_emit_unsigned():
+    @T.prim_func
+    def main(A: T.Buffer((128,), "int32")):
+        T.device_entry()
+        _ = T.cta_id([1])
+        tx = T.thread_id([128], dtype="uint32")
+        for k in T.serial(4, dtype="uint32"):
+            A[tx] = A[tx] + T.int32(k)
+
+    src, _ = _get_source(main)
+    # The loop var is declared unsigned and iterates over unsigned bounds.
+    assert re.search(r"for \(uint k = \(uint\)0; k < \(uint\)4;", src), src
+    # The scope id is bound as an unsigned value.
+    assert re.search(r"uint tx = ", src), src
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_uint32_loop_var_runs_correctly():
+    @T.prim_func
+    def main(A: T.Buffer((128,), "int32"), B: T.Buffer((128,), "int32")):
+        T.device_entry()
+        _ = T.cta_id([1])
+        tx = T.thread_id([128], dtype="uint32")
+        acc = T.alloc_buffer((1,), "int32", scope="local")
+        acc[0] = 0
+        for k in T.serial(4, dtype="uint32"):
+            acc[0] = acc[0] + A[tx] + T.int32(k)
+        B[tx] = acc[0]
+
+    _, mod = _get_source(main)
+
+    A_np = np.arange(128, dtype="int32")
+    B_ref = A_np * 4 + (0 + 1 + 2 + 3)
+
+    def run_and_check():
+        dev = tvm.cuda()
+        A = tvm.runtime.tensor(A_np, device=dev)
+        B = tvm.runtime.tensor(np.zeros(128, dtype="int32"), device=dev)
         mod(A, B)
         np.testing.assert_allclose(B.numpy(), B_ref)
 

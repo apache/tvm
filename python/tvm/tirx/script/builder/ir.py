@@ -609,94 +609,120 @@ def elected():
     )
 
 
-def scope_id(extents: list[Expr | int] | None, parent: str, cur: str) -> Var | list[Var]:
-    ret = _ffi_api.ScopeId(extents, parent, "T.scope_id", cur)  # type: ignore[attr-defined] # pylint: disable=no-member
+def scope_id(
+    extents: list[Expr | int] | None, parent: str, cur: str, dtype: str = "int32"
+) -> Var | list[Var]:
+    ret = _ffi_api.ScopeId(extents, parent, "T.scope_id", cur, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
     if len(ret) == 1:
         return ret[0]
     return ret
 
 
-def cluster_id(extents: list[Expr | int] | None = None) -> Var | list[Var]:
+def cluster_id(extents: list[Expr | int] | None = None, dtype: str = "int32") -> Var | list[Var]:
     """Define a kernel→cluster scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling ScopeIdDef closure."""
-    ret = _ffi_api.ClusterId(extents, "kernel")  # type: ignore[attr-defined] # pylint: disable=no-member
+    extent; it will be inferred at LowerTIRx from sibling ScopeIdDef closure.
+
+    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``)."""
+    ret = _ffi_api.ClusterId(extents, "kernel", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
     if len(ret) == 1:
         return ret[0]
     return ret
 
 
-def cta_id(extents: list[Expr | int] | None = None, preferred=None) -> Var | list[Var]:
+def cta_id(
+    extents: list[Expr | int] | None = None, preferred=None, dtype: str = "int32"
+) -> Var | list[Var]:
     """Define a kernel→cta scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling ScopeIdDef closure."""
-    ret = _ffi_api.CtaId(extents, "kernel", preferred)  # type: ignore[attr-defined] # pylint: disable=no-member
+    extent; it will be inferred at LowerTIRx from sibling ScopeIdDef closure.
+
+    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``)."""
+    ret = _ffi_api.CtaId(extents, "kernel", preferred, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
     if len(ret) == 1:
         return ret[0]
     return ret
 
 
-def cta_id_in_cluster(extents: list[Expr | int] | None = None, preferred=None) -> Var | list[Var]:
+def cta_id_in_cluster(
+    extents: list[Expr | int] | None = None, preferred=None, dtype: str = "int32"
+) -> Var | list[Var]:
     """Define a cluster→cta scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling ScopeIdDef closure."""
-    ret = _ffi_api.CtaId(extents, "cluster", preferred)  # type: ignore[attr-defined] # pylint: disable=no-member
+    extent; it will be inferred at LowerTIRx from sibling ScopeIdDef closure.
+
+    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``)."""
+    ret = _ffi_api.CtaId(extents, "cluster", preferred, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
     if len(ret) == 1:
         return ret[0]
     return ret
 
 
-def cta_id_in_pair() -> Var:
-    ret = _ffi_api.CtaIdInPair()  # type: ignore[attr-defined] # pylint: disable=no-member
+def cta_id_in_pair(dtype: str = "int32") -> Var:
+    ret = _ffi_api.CtaIdInPair(dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
     return ret[0]
 
 
-def warpgroup_id(extents: list[Expr | int] | None = None) -> Var | list[Var]:
+def warpgroup_id(extents: list[Expr | int] | None = None, dtype: str = "int32") -> Var | list[Var]:
     """Define a cta→warpgroup scope id. Pass ``None`` (the default) to defer
-    the extent; it will be inferred at LowerTIRx from sibling closure."""
-    ret = _ffi_api.WarpgroupId(extents, "cta")  # type: ignore[attr-defined] # pylint: disable=no-member
+    the extent; it will be inferred at LowerTIRx from sibling closure.
+
+    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``)."""
+    ret = _ffi_api.WarpgroupId(extents, "cta", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
     if len(ret) == 1:
         return ret[0]
     return ret
 
 
-def warp_id(extents: list[Expr | int] | None = None) -> Var | list[Var]:
+def warp_id(extents: list[Expr | int] | None = None, dtype: str = "int32") -> Var | list[Var]:
     """Define a cta→warp scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling closure."""
-    ret = _ffi_api.WarpId(extents, "cta")  # type: ignore[attr-defined] # pylint: disable=no-member
+    extent; it will be inferred at LowerTIRx from sibling closure.
+
+    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``)."""
+    ret = _ffi_api.WarpId(extents, "cta", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
     if len(ret) == 1:
         return ret[0]
     return ret
 
 
-def warp_id_in_wg(extents: list[Expr | int] | None = None) -> Var | list[Var]:
+def warp_id_in_wg(extents: list[Expr | int] | None = None, dtype: str = "int32") -> Var | list[Var]:
     """Define a warpgroup→warp scope id. Pass ``None`` (the default) to defer
-    the extent; it will be inferred at LowerTIRx from sibling closure."""
-    ret = _ffi_api.WarpId(extents, "warpgroup")  # type: ignore[attr-defined] # pylint: disable=no-member
+    the extent; it will be inferred at LowerTIRx from sibling closure.
+
+    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``)."""
+    ret = _ffi_api.WarpId(extents, "warpgroup", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
     if len(ret) == 1:
         return ret[0]
     return ret
 
 
-def lane_id(extents: list[Expr | int] | None = None) -> Var | list[Var]:
+def lane_id(extents: list[Expr | int] | None = None, dtype: str = "int32") -> Var | list[Var]:
     """Define a warp→thread scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling closure."""
-    ret = _ffi_api.ThreadId(extents, "warp")  # type: ignore[attr-defined] # pylint: disable=no-member
+    extent; it will be inferred at LowerTIRx from sibling closure.
+
+    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``)."""
+    ret = _ffi_api.ThreadId(extents, "warp", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
     if len(ret) == 1:
         return ret[0]
     return ret
 
 
-def thread_id(extents: list[Expr | int] | None = None) -> Var | list[Var]:
+def thread_id(extents: list[Expr | int] | None = None, dtype: str = "int32") -> Var | list[Var]:
     """Define a cta→thread scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling closure."""
-    ret = _ffi_api.ThreadId(extents, "cta")  # type: ignore[attr-defined] # pylint: disable=no-member
+    extent; it will be inferred at LowerTIRx from sibling closure.
+
+    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``)."""
+    ret = _ffi_api.ThreadId(extents, "cta", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
     if len(ret) == 1:
         return ret[0]
     return ret
 
 
-def thread_id_in_wg(extents: list[Expr | int] | None = None) -> Var | list[Var]:
+def thread_id_in_wg(
+    extents: list[Expr | int] | None = None, dtype: str = "int32"
+) -> Var | list[Var]:
     """Define a warpgroup→thread scope id. Pass ``None`` (the default) to defer
-    the extent; it will be inferred at LowerTIRx from sibling closure."""
-    ret = _ffi_api.ThreadId(extents, "warpgroup")  # type: ignore[attr-defined] # pylint: disable=no-member
+    the extent; it will be inferred at LowerTIRx from sibling closure.
+
+    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``)."""
+    ret = _ffi_api.ThreadId(extents, "warpgroup", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
     if len(ret) == 1:
         return ret[0]
     return ret
@@ -1148,7 +1174,8 @@ def serial(
     *,
     annotations: dict[str, Any] | None = None,
     step: Expr | None = None,
-    unroll: bool | None = None,
+    unroll: bool | int | None = None,
+    dtype: str | None = None,
 ) -> frame.ForFrame:
     """The serial For statement.
 
@@ -1166,11 +1193,18 @@ def serial(
     step : Expr
         The optional step value of iteration.
 
-    unroll : bool, optional
+    unroll : bool or int, optional
         If True, adds ``{"pragma_unroll": True}`` annotation, which asks CUDA codegen
         to emit ``#pragma unroll`` while preserving the loop as a C++ ``for``.
         If False, adds ``{"disable_unroll": True}`` annotation.
-        Shorthand for ``annotations={"disable_unroll": True}``.
+        If a positive integer, emits ``#pragma unroll N``. Boolean values are
+        handled separately from integers, so ``False`` keeps disabling unrolling.
+
+    dtype : str, optional
+        The dtype of the loop variable, either ``"int32"`` or ``"uint32"``. When
+        omitted it is inferred from the bounds. Bounds that do not already have this
+        dtype are converted (literals are retyped, other expressions get a Cast).
+        Note ``T.thread_binding`` does not support this; its loop var is always int32.
 
     Returns
     -------
@@ -1179,17 +1213,24 @@ def serial(
     """
     if unroll is not None:
         annotations = dict(annotations) if annotations else {}
-        if unroll:
-            annotations["pragma_unroll"] = True
+        if isinstance(unroll, bool):
+            if unroll:
+                annotations["pragma_unroll"] = True
+            else:
+                annotations["disable_unroll"] = True
+        elif isinstance(unroll, int):
+            if unroll < 1:
+                raise ValueError("unroll must be a positive integer")
+            annotations["pragma_unroll"] = unroll
         else:
-            annotations["disable_unroll"] = True
+            raise TypeError("unroll must be a bool, a positive integer, or None")
     if stop is None:
         stop = start
         if is_prim_expr(start):
             start = IntImm(start.ty, 0)
         else:
             start = 0
-    return _ffi_api.Serial(start, stop, annotations, step)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Serial(start, stop, annotations, step, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def parallel(
@@ -1198,6 +1239,7 @@ def parallel(
     *,
     annotations: dict[str, Any] | None = None,
     step: Expr | None = None,
+    dtype: str | None = None,
 ) -> frame.ForFrame:
     """The parallel For statement.
 
@@ -1215,6 +1257,10 @@ def parallel(
     step : Expr
         The optional step value of iteration.
 
+    dtype : str, optional
+        The dtype of the loop variable, either ``"int32"`` or ``"uint32"``. When
+        omitted it is inferred from the bounds.
+
     Returns
     -------
     res : frame.ForFrame
@@ -1226,7 +1272,7 @@ def parallel(
             start = IntImm(start.ty, 0)
         else:
             start = 0
-    return _ffi_api.Parallel(start, stop, annotations, step)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Parallel(start, stop, annotations, step, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def vectorized(
@@ -1235,6 +1281,7 @@ def vectorized(
     *,
     annotations: dict[str, Any] | None = None,
     step: Expr | None = None,
+    dtype: str | None = None,
 ) -> frame.ForFrame:
     """The vectorized For statement.
 
@@ -1252,6 +1299,10 @@ def vectorized(
     step : Expr
         The optional step value of iteration.
 
+    dtype : str, optional
+        The dtype of the loop variable, either ``"int32"`` or ``"uint32"``. When
+        omitted it is inferred from the bounds.
+
     Returns
     -------
     res : frame.ForFrame
@@ -1263,7 +1314,7 @@ def vectorized(
             start = IntImm(start.ty, 0)
         else:
             start = 0
-    return _ffi_api.Vectorized(start, stop, annotations, step)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Vectorized(start, stop, annotations, step, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def unroll(
@@ -1272,6 +1323,7 @@ def unroll(
     *,
     annotations: dict[str, Any] | None = None,
     step: Expr | None = None,
+    dtype: str | None = None,
 ) -> frame.ForFrame:
     """The unrolled For statement.
 
@@ -1289,6 +1341,10 @@ def unroll(
     step : Expr
         The optional step value of iteration.
 
+    dtype : str, optional
+        The dtype of the loop variable, either ``"int32"`` or ``"uint32"``. When
+        omitted it is inferred from the bounds.
+
     Returns
     -------
     res : frame.ForFrame
@@ -1300,7 +1356,7 @@ def unroll(
             start = IntImm(start.ty, 0)
         else:
             start = 0
-    return _ffi_api.Unroll(start, stop, annotations, step)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Unroll(start, stop, annotations, step, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def thread_binding(
@@ -1351,7 +1407,7 @@ def thread_binding(
     )
 
 
-def grid(*extents: tuple[Expr | tuple[Expr, Expr]]) -> frame.ForFrame:
+def grid(*extents: tuple[Expr | tuple[Expr, Expr]], dtype: str | None = None) -> frame.ForFrame:
     """The grid For statement.
 
     Parameters
@@ -1361,6 +1417,10 @@ def grid(*extents: tuple[Expr | tuple[Expr, Expr]]) -> frame.ForFrame:
         If a tuple of two Expr is provided, the first is the start of the iteration,
         and the second is the extent of the iteration.
 
+    dtype : str, optional
+        The dtype of every loop variable, either ``"int32"`` or ``"uint32"``. When
+        omitted each loop variable takes the dtype of its own extent.
+
     Returns
     -------
     res : frame.ForFrame
@@ -1368,17 +1428,20 @@ def grid(*extents: tuple[Expr | tuple[Expr, Expr]]) -> frame.ForFrame:
     """
     # Convert integer extents to IntImm
     # TODO(@bohan): fix this after FFI refactor
+    imm_dtype = dtype if dtype is not None else "int32"
     processed_extents = []
     for extent in extents:
         if isinstance(extent, tuple):
             start, extent = extent
-            start = IntImm("int32", start) if isinstance(start, int) else start
-            extent = IntImm("int32", extent) if isinstance(extent, int) else extent
+            start = IntImm(imm_dtype, start) if isinstance(start, int) else start
+            extent = IntImm(imm_dtype, extent) if isinstance(extent, int) else extent
             processed_extents.append((start, extent))
         else:
-            processed_extents.append(IntImm("int32", extent) if isinstance(extent, int) else extent)
+            processed_extents.append(
+                IntImm(imm_dtype, extent) if isinstance(extent, int) else extent
+            )
     extents = tuple(processed_extents)
-    return _ffi_api.Grid(extents)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Grid(extents, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def Assert(condition: Expr, message, error_kind: str = "RuntimeError") -> frame.AssertFrame:  # pylint: disable=invalid-name
