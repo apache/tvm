@@ -554,3 +554,218 @@ device_intrinsic(
     c_signature="(uint32_t* desc, const uint32_t& sf_id)",
     body="    *desc = (*desc & ~0x60000030) | ((sf_id << 29) | (sf_id << 4));",
 )
+
+
+# ---------------------------------------------------------------------------
+# Compile-time folds of the same descriptors
+#
+# The encoders above are pure-C struct fills, so a call site whose descriptor
+# fields are all known at build time still pays for an opaque device helper the
+# generated CUDA must call and ptxas cannot hoist out of a loop. These fold the
+# identical bit layouts in Python instead, so such a call site can pass a
+# literal. They mirror the runtime encoders' validation exactly: a fold that
+# accepted a combination the runtime encoder rejects would be a silent
+# divergence between two spellings of one hardware format.
+# ---------------------------------------------------------------------------
+
+
+def _dtype_name(dtype) -> str:
+    """Name of a dtype given as a string, a DataType, or an object holding one."""
+    dtype_obj = getattr(dtype, "dtype", None)
+    if dtype_obj is not None:
+        return str(dtype_obj)
+    return str(dtype)
+
+
+# `a_format_` / `b_format_` / `d_format_`, mirroring `format_map` in the
+# runtime encoders above.
+_INSTR_DESC_FORMAT_MAP = {
+    "float16": 0,
+    "bfloat16": 1,
+    "tensor_float32": 2,
+    "tf32": 2,
+    "float8_e4m3fn": 0,
+    "float8_e4m3fnuz": 0,
+    "float8_e5m2": 1,
+    "float6_e2m3fn": 3,
+    "float6_e3m2fn": 4,
+    "float4_e2m1fn": 5,
+    "uint8": 0,
+    "int8": 1,
+    "float32": 1,
+    "int32": 2,
+}
+
+# `scale_format_` of the block-scaled descriptor: 0 = E4M3, 1 = E8M0.
+_INSTR_DESC_SF_FORMAT_MAP = {
+    "float8_e4m3fn": 0,
+    "float8_e4m3fnuz": 0,
+    "float8_e8m0fnu": 1,
+}
+
+# `layout_type_` of SmemDescriptor, keyed by the swizzle enum the runtime
+# encoder switches on (0=none, 1=32B, 2=64B, 3=128B, 4=128B_base32B).
+_SMEM_DESC_LAYOUT_TYPE = {0: 0, 1: 6, 2: 4, 3: 2, 4: 1}
+
+# PTXDataType spells tensor-float32 as "tf32".
+_PTX_DTYPE_ALIAS = {"tensor_float32": "tf32"}
+
+
+def _check_instr_desc_trans(a_ptx_name, b_ptx_name, trans_a, trans_b):
+    """Only a few source formats may be MN-major, per the descriptor's comment."""
+    if trans_a and PTXDataType.from_string(a_ptx_name) not in _TCGEN05_MMA_TRANS_DTYPES:
+        raise ValueError(f"Invalid a_dtype for transpose: {a_ptx_name}")
+    if trans_b and PTXDataType.from_string(b_ptx_name) not in _TCGEN05_MMA_TRANS_DTYPES:
+        raise ValueError(f"Invalid b_dtype for transpose: {b_ptx_name}")
+
+
+def _instr_desc_common_bits(M, N, a_format, b_format, trans_a, trans_b, neg_a, neg_b, is_sparse):
+    """The nine fields the dense and block-scaled descriptors share.
+
+    They encode the same hardware bitfield and differ only in what each adds:
+    the dense line owns `saturate_`/`d_format_`, the block-scaled one
+    `scale_format_`. Keeping the shared bits in one place is what stops a
+    correction landing in only one of them.
+    """
+    desc = 0
+    desc |= (int(is_sparse) & 0x1) << 2
+    desc |= (a_format & 0x7) << 7
+    desc |= (b_format & 0x7) << 10
+    desc |= (int(neg_a) & 0x1) << 13
+    desc |= (int(neg_b) & 0x1) << 14
+    desc |= (int(trans_a) & 0x1) << 15
+    desc |= (int(trans_b) & 0x1) << 16
+    desc |= ((N >> 3) & 0x3F) << 17
+    desc |= ((M >> 4) & 0x1F) << 24
+    return desc
+
+
+def encode_instr_descriptor_dense_uint32(
+    M,
+    N,
+    K,
+    d_dtype,
+    a_dtype,
+    b_dtype,
+    trans_a,
+    trans_b,
+    cta_group=1,
+    neg_a=False,
+    neg_b=False,
+    sat_d=False,
+    is_sparse=False,
+):
+    """Compile-time fold of `codegen_cuda_tcgen05_encode_instr_descriptor`.
+
+    Bit layout: `InstrDescriptor` in `python/tvm/backend/cuda/codegen/header.py`.
+
+    The validation is the runtime encoder's, deliberately: cta_group=1 M=128
+    requires N % 16 == 0, which a tile chooser enforcing only N % 8 does not
+    guarantee.
+    """
+    d_name = _dtype_name(d_dtype)
+    a_name = _dtype_name(a_dtype)
+    b_name = _dtype_name(b_dtype)
+    d_ptx = _PTX_DTYPE_ALIAS.get(d_name, d_name)
+    a_ptx = _PTX_DTYPE_ALIAS.get(a_name, a_name)
+    b_ptx = _PTX_DTYPE_ALIAS.get(b_name, b_name)
+
+    kind = _get_tcgen05_mma_kind(d_ptx, a_ptx, b_ptx)
+    if kind not in ("f16", "tf32", "f8f6f4", "i8"):
+        raise ValueError(
+            f"Check failed for Data Type Kind. d_dtype: {d_name}, "
+            f"a_dtype: {a_name}, b_dtype: {b_name}"
+        )
+    _check_tcgen05_mma_matrix_shape(kind, cta_group, int(M), int(N), int(K), is_sparse)
+    _check_instr_desc_trans(a_ptx, b_ptx, trans_a, trans_b)
+
+    desc = _instr_desc_common_bits(
+        M,
+        N,
+        _INSTR_DESC_FORMAT_MAP[a_name],
+        _INSTR_DESC_FORMAT_MAP[b_name],
+        trans_a,
+        trans_b,
+        neg_a,
+        neg_b,
+        is_sparse,
+    )
+    desc |= (int(sat_d) & 0x1) << 3
+    desc |= (_INSTR_DESC_FORMAT_MAP[d_name] & 0x3) << 4
+    return desc & 0xFFFFFFFF
+
+
+def encode_instr_descriptor_block_scaled_uint32(
+    M,
+    N,
+    K,
+    d_dtype,
+    a_dtype,
+    b_dtype,
+    sf_dtype,
+    trans_a,
+    trans_b,
+    cta_group=1,
+    neg_a=False,
+    neg_b=False,
+    is_sparse=False,
+):
+    """Compile-time fold of `codegen_cuda_tcgen05_encode_instr_descriptor_block_scaled`.
+
+    Bit layout: `InstrDescriptorBlockScaled` in
+    `python/tvm/backend/cuda/codegen/header.py`.
+    """
+    d_name = _dtype_name(d_dtype)
+    a_name = _dtype_name(a_dtype)
+    b_name = _dtype_name(b_dtype)
+    sf_name = _dtype_name(sf_dtype)
+    d_ptx = _PTX_DTYPE_ALIAS.get(d_name, d_name)
+    a_ptx = _PTX_DTYPE_ALIAS.get(a_name, a_name)
+    b_ptx = _PTX_DTYPE_ALIAS.get(b_name, b_name)
+
+    kind = _get_tcgen05_mma_kind(d_ptx, a_ptx, b_ptx, sf_name, sf_name)
+    valid_kinds = {"mxf8f6f4", "mxf4", "mxf4nvf4"}
+    if kind not in valid_kinds:
+        raise ValueError(
+            f"Check failed for Data Type Kind. Expected one of {valid_kinds}, but got "
+            f"'{kind}' for d:{d_name}, a:{a_name}, b:{b_name}, sf:{sf_name}"
+        )
+    _check_tcgen05_mma_matrix_shape(kind, cta_group, int(M), int(N), int(K), is_sparse)
+    _check_instr_desc_trans(a_ptx, b_ptx, trans_a, trans_b)
+
+    # mxf4 / mxf4nvf4 pin both operand formats to 1; only mxf8f6f4 reads them
+    # off the dtypes. Same branch as the runtime encoder.
+    if kind == "mxf8f6f4":
+        a_format = _INSTR_DESC_FORMAT_MAP[a_name]
+        b_format = _INSTR_DESC_FORMAT_MAP[b_name]
+    else:
+        a_format = 1
+        b_format = 1
+
+    desc = _instr_desc_common_bits(
+        M, N, a_format, b_format, trans_a, trans_b, neg_a, neg_b, is_sparse
+    )
+    desc |= (_INSTR_DESC_SF_FORMAT_MAP[sf_name] & 0x1) << 23
+    # `a_sf_id_` / `b_sf_id_` stay 0, as the runtime encoder leaves them:
+    # callers that cycle scale-factor ids patch those bits per MMA.
+    return desc & 0xFFFFFFFF
+
+
+def encode_smem_descriptor_base_uint64(ldo, sdo, swizzle):
+    """Compile-time fold of `codegen_cuda_tcgen05_encode_matrix_descriptor`, minus
+    the address.
+
+    `start_address_` is the only runtime input, so the descriptor splits into a
+    constant the caller bakes in and an `addr >> 4` it ORs into bits [0,14).
+    Bit layout: `SmemDescriptor` in `python/tvm/backend/cuda/codegen/header.py`.
+
+    `ldo` / `sdo` are in 16-byte units, matching what the runtime encoder
+    assigns straight into the two offset fields.
+    """
+    desc = 0
+    desc |= (int(ldo) & 0x3FFF) << 16
+    desc |= (int(sdo) & 0x3FFF) << 32
+    desc |= 1 << 46  # version_
+    # base_offset_ [49,52) and lbo_mode_ [52,53) are zero, as the encoder sets.
+    desc |= (_SMEM_DESC_LAYOUT_TYPE[int(swizzle)] & 0x7) << 61
+    return desc & 0xFFFFFFFFFFFFFFFF
