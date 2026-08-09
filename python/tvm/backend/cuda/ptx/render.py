@@ -261,9 +261,7 @@ def render_variant(
             # An immediate lives in the instruction text, never a C parameter.
             # A literal is table-owned; a choices/open value arrives through
             # `imms` and is baked here (and into the helper name).
-            rendered.append(
-                (slot.bracket, slot.literal if slot.literal is not None else imm_of[slot])
-            )
+            rendered.append((slot, slot.literal if slot.literal is not None else imm_of[slot]))
             continue
         regs = []
         n_lanes = lanes_of(slot, mod_map)
@@ -355,13 +353,25 @@ def render_variant(
                     asm_post.append(bridge.out_of.format(reg=reg, idx=idx))
                 regs.append(reg)
             idx += 1
-        rendered.append((slot.bracket, "{" + ", ".join(regs) + "}" if is_group else regs[0]))
+        rendered.append((slot, "{" + ", ".join(regs) + "}" if is_group else regs[0]))
+
+    # Adjacent slots naming the same `pipe` are one operand written `p|q`
+    # (setp's two predicate destinations). Merged first, and into a plain text
+    # entry carrying the group's bracket, so the bracket pass below sees one
+    # operand where the table declared two.
+    piped = []
+    for key, members in itertools.groupby(rendered, key=lambda pair: pair[0].pipe):
+        members = list(members)
+        if key is None:
+            piped.extend((slot.bracket, text) for slot, text in members)
+        else:
+            piped.append((members[0][0].bracket, "|".join(text for _, text in members)))
 
     # Adjacent slots naming the same `bracket` are one composite memory operand:
     # `[tensorMap, {c0, c1}]` is a single PTX operand whose members keep their
     # own registers and constraints.
     ptx_operands = []
-    for key, members in itertools.groupby(rendered, key=lambda pair: pair[0]):
+    for key, members in itertools.groupby(piped, key=lambda pair: pair[0]):
         texts = [text for _, text in members]
         if key is None:
             ptx_operands.extend(texts)

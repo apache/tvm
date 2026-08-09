@@ -396,7 +396,7 @@ def _validate_mbarrier_arrive_attrs(sem, scope, space, remote):
 
 
 def cuda_mbarrier_wait(bar, phase):
-    """TVM intrinsic to call mbarrier.try_wait.parity repeatedly until it returns true
+    """Retry ``mbarrier.try_wait.parity.acquire.cta`` until it returns true.
 
     Parameters
     ----------

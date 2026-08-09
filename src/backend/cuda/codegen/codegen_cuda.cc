@@ -311,9 +311,18 @@ void CodeGenCUDA::VisitStmt_(const tirx::ForNode* op) {
   if (op->annotations.count("disable_unroll")) {
     PrintIndent();
     stream << "#pragma unroll 1\n";
-  } else if (op->kind == tirx::ForKind::kUnrolled || op->annotations.count("pragma_unroll")) {
+  } else if (op->kind == tirx::ForKind::kUnrolled) {
     PrintIndent();
     stream << "#pragma unroll\n";
+  } else if (auto it = op->annotations.find("pragma_unroll"); it != op->annotations.end()) {
+    PrintIndent();
+    stream << "#pragma unroll";
+    if (auto count = (*it).second.as<int64_t>()) {
+      stream << " " << count.value();
+    } else if (const auto* count = (*it).second.as<IntImmNode>()) {
+      stream << " " << count->value;
+    }
+    stream << "\n";
   }
   PrintIndent();
   std::string vid = AllocVarID(op->loop_var.get());
@@ -1605,7 +1614,11 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
     return;
   } else if (op->attr_key == "pragma_unroll") {
     PrintIndent();
-    stream << "#pragma unroll\n";
+    stream << "#pragma unroll";
+    if (const auto* count = op->value.as<IntImmNode>(); count && count->value != 1) {
+      stream << " " << count->value;
+    }
+    stream << "\n";
     this->VisitStmt(op->body);
     return;
   } else if (op->attr_key == tirx::attr::thread_extent) {
