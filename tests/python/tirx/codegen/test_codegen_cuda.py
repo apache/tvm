@@ -1077,6 +1077,8 @@ def test_uint32_loop_var_and_scope_id_emit_unsigned():
     assert re.search(r"uint tx = ", src), src
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_uint32_loop_var_runs_correctly():
     @T.prim_func
     def main(A: T.Buffer((128,), "int32"), B: T.Buffer((128,), "int32")):
