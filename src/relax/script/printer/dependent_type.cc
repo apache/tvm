@@ -53,7 +53,15 @@ ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifie
     });
   }
   // Step 3. Stringify the PrimExpr if func var exists
-  if (func_var_mode) {
+  bool is_bare_type_var = false;
+  if (f != nullptr && f->type_vars != nullptr) {
+    if (auto var = e.as<tirx::PrimVar>()) {
+      is_bare_type_var = f->type_vars->count(var.value().get());
+    }
+  }
+  bool use_postponed_annotations =
+      UsePEP695TypeVars(d) && f != nullptr && f->type_vars != nullptr && !f->type_vars->empty();
+  if (func_var_mode && !is_bare_type_var && !use_postponed_annotations) {
     return ExprStringDoc(expr_doc, e_p);
   }
   return expr_doc;

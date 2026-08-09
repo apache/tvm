@@ -30,8 +30,8 @@ namespace printer {
 ffi::Map<ffi::String, ExprDoc> BufferAttrs(
     tirx::BufferVar buffer, const AccessPath& buffer_p, const Frame& frame, const IRDocsifier& d,
     BufferVarDefinition var_definitions, ffi::Optional<Expr> data = std::nullopt,
-    bool stringify_undefined_shape = false,
-    std::unordered_set<tirx::Var> stringify_shape_vars = {}) {
+    bool stringify_undefined_shape = false, std::unordered_set<tirx::Var> stringify_shape_vars = {},
+    std::unordered_set<tirx::Var> stringify_compound_shape_vars = {}) {
   using tvm::tirx::Var;
   using tvm::tirx::VarNode;
   ffi::Map<ffi::String, ExprDoc> kwargs;
@@ -88,6 +88,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
       PrimExpr e = shape[i];
       AccessPath e_p = shape_p->ArrayItem(i);
       bool contains_new_var = false;
+      bool contains_compound_shape_var = false;
       std::unordered_set<Var> vars_in_shape;
       tirx::PostOrderVisit(e, [&](const ffi::ObjectRef& obj) {
         if (const auto* var_node = obj.as<VarNode>()) {
@@ -95,14 +96,20 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
           vars_in_shape.insert(var);
           contains_new_var =
               contains_new_var || !d->IsVarDefined(var) || stringify_shape_vars.count(var);
+          contains_compound_shape_var =
+              contains_compound_shape_var || stringify_compound_shape_vars.count(var);
         }
       });
       if (is_new_var(e)) {
         add_out_of_line_var_def(e.as_or_throw<Var>(), e_p);
       }
       ExprDoc result = d->AsDoc<ExprDoc>(e, e_p);
-      results.push_back(stringify_undefined_shape && contains_new_var ? ExprStringDoc(result, e_p)
-                                                                      : result);
+      bool is_bare_compound_shape_var =
+          e.as<VarNode>() && stringify_compound_shape_vars.count(e.as_or_throw<Var>());
+      bool stringify_compound_expr = contains_compound_shape_var && !is_bare_compound_shape_var;
+      results.push_back((stringify_undefined_shape && contains_new_var) || stringify_compound_expr
+                            ? ExprStringDoc(result, e_p)
+                            : result);
       // A quoted shape expression defines every Var it contains.  Do not quote
       // later dimensions merely because they reuse a Var introduced here.
       for (const Var& var : vars_in_shape) {
@@ -335,10 +342,11 @@ ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
 }
 
 ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
-                   const IRDocsifier& d, std::unordered_set<tirx::Var> stringify_shape_vars) {
+                   const IRDocsifier& d, std::unordered_set<tirx::Var> stringify_shape_vars,
+                   std::unordered_set<tirx::Var> stringify_compound_shape_vars) {
   ffi::Map<ffi::String, ExprDoc> attrs =
       BufferAttrs(buffer, p, frame, d, BufferVarDefinition::MatchBuffer, std::nullopt, true,
-                  std::move(stringify_shape_vars));
+                  std::move(stringify_shape_vars), std::move(stringify_compound_shape_vars));
   if (!attrs.count("dtype")) {
     attrs.Set("dtype", LiteralDoc::DataType(buffer->dtype->dtype, p->Attr("dtype")));
   }

@@ -307,7 +307,12 @@ def _register_default():
                 DefaultTranslator(
                     getattr(ast, cls_name),
                     from_doc,
-                    doc_cls._FIELDS,  # pylint: disable=protected-access
+                    [
+                        field
+                        for field in doc_cls._FIELDS  # pylint: disable=protected-access
+                        if field in getattr(getattr(ast, cls_name), "_fields", ())
+                        or field in {"lineno", "col_offset", "end_lineno", "end_col_offset"}
+                    ],
                 )
             )
 
