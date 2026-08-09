@@ -8216,6 +8216,141 @@ def test_range():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+@pytest.mark.parametrize(
+    "start, limit, delta, tensor_dtype, np_dtype",
+    [
+        (0, 6, 2, TensorProto.INT64, np.int64),
+        (8, 0, -2, TensorProto.INT64, np.int64),
+        (5, 1, 1, TensorProto.INT64, np.int64),
+        (0, 7, 2, TensorProto.INT32, np.int32),
+        (0.0, 1.0, 0.25, TensorProto.FLOAT, np.float32),
+        (1.0, -1.0, -0.5, TensorProto.FLOAT, np.float32),
+        (0.0, 0.3, 0.1, TensorProto.FLOAT, np.float32),
+    ],
+)
+def test_range_dynamic_scalar_inputs(start, limit, delta, tensor_dtype, np_dtype):
+    range_node = helper.make_node(
+        "Range",
+        ["start", "limit", "delta"],
+        ["output"],
+    )
+
+    graph = helper.make_graph(
+        [range_node],
+        "range_dynamic_scalar_inputs_test",
+        inputs=[
+            helper.make_tensor_value_info("start", tensor_dtype, []),
+            helper.make_tensor_value_info("limit", tensor_dtype, []),
+            helper.make_tensor_value_info("delta", tensor_dtype, []),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("output", tensor_dtype, ["range_len"]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="range_dynamic_scalar_inputs_test")
+    check_correctness(
+        model,
+        inputs={
+            "start": np.array(start, dtype=np_dtype),
+            "limit": np.array(limit, dtype=np_dtype),
+            "delta": np.array(delta, dtype=np_dtype),
+        },
+        opset=12,
+        check_dtypes=True,
+    )
+
+
+def test_range_mixed_tensor_and_primexpr_limit():
+    shape = helper.make_node("Shape", ["x"], ["x_shape"])
+    axis = make_constant_node("axis", TensorProto.INT64, [], [1])
+    gather = helper.make_node("Gather", ["x_shape", "axis"], ["limit_int"])
+    cast = helper.make_node("Cast", ["limit_int"], ["limit"], to=TensorProto.FLOAT)
+    delta = make_constant_node("delta", TensorProto.FLOAT, [], [1.0])
+    range_node = helper.make_node(
+        "Range",
+        ["start", "limit", "delta"],
+        ["output"],
+    )
+
+    graph = helper.make_graph(
+        [shape, axis, gather, cast, delta, range_node],
+        "range_mixed_tensor_and_primexpr_limit_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, "range_len"]),
+            helper.make_tensor_value_info("start", TensorProto.FLOAT, []),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("output", TensorProto.FLOAT, ["range_len"]),
+        ],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="range_mixed_tensor_and_primexpr_limit_test",
+        opset_imports=[helper.make_opsetid("", 17)],
+    )
+    model.ir_version = 8
+    check_correctness(
+        model,
+        inputs={
+            "x": np.ones((1, 4), dtype=np.float32),
+            "start": np.array(0.0, dtype=np.float32),
+        },
+        opset=17,
+        check_dtypes=True,
+    )
+
+
+@pytest.mark.parametrize(
+    "start_from_dim, limit_from_dim, delta",
+    [
+        (True, False, -1),
+        (False, True, -1),
+    ],
+)
+def test_range_primexpr_negative_and_empty(start_from_dim, limit_from_dim, delta):
+    shape = helper.make_node("Shape", ["x"], ["x_shape"])
+    axis = make_constant_node("axis", TensorProto.INT64, [], [1])
+    gather = helper.make_node("Gather", ["x_shape", "axis"], ["dim"])
+    start = make_constant_node("start", TensorProto.INT64, [], [0])
+    limit = make_constant_node("limit", TensorProto.INT64, [], [0])
+    delta_node = make_constant_node("delta", TensorProto.INT64, [], [delta])
+
+    range_inputs = [
+        "dim" if start_from_dim else "start",
+        "dim" if limit_from_dim else "limit",
+        "delta",
+    ]
+    range_node = helper.make_node("Range", range_inputs, ["output"])
+
+    graph = helper.make_graph(
+        [shape, axis, gather, start, limit, delta_node, range_node],
+        "range_primexpr_negative_and_empty_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, "range_len"]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("output", TensorProto.INT64, ["output_len"]),
+        ],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="range_primexpr_negative_and_empty_test",
+        opset_imports=[helper.make_opsetid("", 17)],
+    )
+    model.ir_version = 8
+    check_correctness(
+        model,
+        inputs={
+            "x": np.ones((1, 4), dtype=np.float32),
+        },
+        opset=17,
+        check_dtypes=True,
+    )
+
+
 def test_batch_norm():
     batch_norm_node = helper.make_node(
         "BatchNormalization", ["x", "s", "bias", "mean", "var"], ["y"], epsilon=1e-2
