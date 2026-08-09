@@ -78,7 +78,13 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
         # The printer name is the *surface* path a user can type, which is the
         # mnemonic (several `mov_*` entries all answer to `T.ptx.mov`), not the
         # table key. Reparsing re-dispatches on the operand shape.
-        family = entry.family
+        #
+        # Escaped, because "a user can type it" is the whole requirement and
+        # three PTX mnemonics are Python keywords: `and`, `or` and `not` (ISA
+        # 9.7.8) print as `T.ptx.and_` and are read back by `unescape_token` in
+        # `PTXNamespace.__getattr__`. The escape is the identity for every
+        # other family, and `gen_stubs` already spells the attribute this way.
+        family = escape_token(entry.family)
         register_op_attr(entry.op_name, "TScriptPrinterName", f"ptx.{family}", level=20)
         register_op_attr(entry.op_name, "TIRxOpCategory", "device_intrin")
         register_op_attr(entry.op_name, "TDeviceIntrinsicNamespace", "ptx")
