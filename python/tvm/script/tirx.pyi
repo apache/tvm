@@ -22,8 +22,31 @@ Regenerate:
 
 from typing import Any
 
+class _Chain_abs:
+    """`abs` — 3 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    so the call selects one. Shapes: (d, a)
+    """
+
+    bf16: _Chain_abs
+    bf16x2: _Chain_abs
+    f16: _Chain_abs
+    f16x2: _Chain_abs
+    f32: _Chain_abs
+    f64: _Chain_abs
+    ftz: _Chain_abs
+    s16: _Chain_abs
+    s32: _Chain_abs
+    s64: _Chain_abs
+    def __call__(self, *args: Any) -> None: ...
+
+class _Chain_activemask:
+    """`activemask` — type∈{b32}"""
+
+    b32: _Chain_activemask
+    def __call__(self, d: Any, *args: Any) -> None: ...
+
 class _Chain_add:
-    """`add` — 2 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    """`add` — 3 entries sharing this mnemonic; PTX puts their difference in the operand list,
     so the call selects one. Shapes: (d, a, b)
     """
 
@@ -39,19 +62,36 @@ class _Chain_add:
     rn: _Chain_add
     rp: _Chain_add
     rz: _Chain_add
+    s16: _Chain_add
+    s16x2: _Chain_add
+    s32: _Chain_add
+    s64: _Chain_add
     sat: _Chain_add
+    u16: _Chain_add
+    u16x2: _Chain_add
+    u32: _Chain_add
+    u64: _Chain_add
     def __call__(self, *args: Any) -> None: ...
 
+class _Chain_and:
+    """`and` — type∈{pred,b16,b32,b64}"""
+
+    b16: _Chain_and
+    b32: _Chain_and
+    b64: _Chain_and
+    pred: _Chain_and
+    def __call__(self, d: Any, a: Any, b: Any, *args: Any) -> None: ...
+
+class _Chain_applypriority:
+    """`applypriority` — space∈{global} (opt); level∈{L2::evict_normal}"""
+
+    L2__evict_normal: _Chain_applypriority
+    global_: _Chain_applypriority
+    def __call__(self, addr: Any, *args: Any, pred: Any = None) -> None: ...
+
 class _Chain_atom:
-    """`atom` — sem∈{relaxed,acquire,release,acq_rel} (opt); scope∈{cta,cluster,gpu,sys} (opt);
-    space∈{global,shared,shared::cta,shared::cluster} (opt);
-    op∈{and,or,xor,add,inc,dec,min,max}; cache∈{L2::cache_hint} (opt);
-    type∈{b32,b64,u32,u64,s32,s64,f32,f64} — op x type pairings for atom/red (PTX ISA
-    9.7.14.5 / 9.7.14.6).      Normative source: ISA Table 35 (atom) and Table 36 (red),
-    which give the     pairing cell by cell. The `.type = {...}` line in the Syntax block is
-    only     the union across ops, which is why it cannot be transcribed directly. Half-
-    precision     types appear in ptxas' message but are excluded from this entry (they need
-    .noftz and a half carrier type).
+    """`atom` — 6 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    so the call selects one. Shapes: (*__operands); (d, addr, compare, value)
     """
 
     L2__cache_hint: _Chain_atom
@@ -59,11 +99,19 @@ class _Chain_atom:
     acquire: _Chain_atom
     add: _Chain_atom
     and_: _Chain_atom
+    b128: _Chain_atom
+    b16: _Chain_atom
     b32: _Chain_atom
     b64: _Chain_atom
+    bf16: _Chain_atom
+    bf16x2: _Chain_atom
+    cas: _Chain_atom
     cluster: _Chain_atom
     cta: _Chain_atom
     dec: _Chain_atom
+    exch: _Chain_atom
+    f16: _Chain_atom
+    f16x2: _Chain_atom
     f32: _Chain_atom
     f64: _Chain_atom
     global_: _Chain_atom
@@ -71,6 +119,7 @@ class _Chain_atom:
     inc: _Chain_atom
     max: _Chain_atom
     min: _Chain_atom
+    noftz: _Chain_atom
     or_: _Chain_atom
     relaxed: _Chain_atom
     release: _Chain_atom
@@ -82,35 +131,91 @@ class _Chain_atom:
     sys: _Chain_atom
     u32: _Chain_atom
     u64: _Chain_atom
+    v2: _Chain_atom
+    v4: _Chain_atom
+    v8: _Chain_atom
     xor: _Chain_atom
-    def __call__(self, *__operands: Any) -> None: ...
+    def __call__(self, *args: Any) -> None: ...
 
 class _Chain_bar:
-    """`bar` — 4 entries sharing this mnemonic; PTX puts their difference in the operand list,
-    so the call selects one. Shapes: (a); (a, b); (membermask)
+    """`bar` — 8 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    so the call selects one. Shapes: (a); (a, b); (membermask); (d, a, c); (d, a, b, c)
     """
 
+    and_: _Chain_bar
     arrive: _Chain_bar
     cta: _Chain_bar
+    or_: _Chain_bar
+    popc: _Chain_bar
+    pred: _Chain_bar
+    red: _Chain_bar
     sync: _Chain_bar
+    u32: _Chain_bar
     warp: _Chain_bar
-    def __call__(self, *args: Any, pred: Any = None) -> None: ...
+    def __call__(self, *args: Any) -> None: ...
 
 class _Chain_barrier:
-    """`barrier` — 5 entries sharing this mnemonic; PTX puts their difference in the operand
-    list, so the call selects one. Shapes: (a); (a, b); ()
+    """`barrier` — 9 entries sharing this mnemonic; PTX puts their difference in the operand
+    list, so the call selects one. Shapes: (a); (a, b); (); (d, a, c); (d, a, b, c)
     """
 
     acquire: _Chain_barrier
     aligned: _Chain_barrier
+    and_: _Chain_barrier
     arrive: _Chain_barrier
     cluster: _Chain_barrier
     cta: _Chain_barrier
+    or_: _Chain_barrier
+    popc: _Chain_barrier
+    pred: _Chain_barrier
+    red: _Chain_barrier
     relaxed: _Chain_barrier
     release: _Chain_barrier
     sync: _Chain_barrier
+    u32: _Chain_barrier
     wait: _Chain_barrier
-    def __call__(self, *args: Any, pred: Any = None) -> None: ...
+    def __call__(self, *args: Any) -> None: ...
+
+class _Chain_bfe:
+    """`bfe` — type∈{u32,u64,s32,s64}"""
+
+    s32: _Chain_bfe
+    s64: _Chain_bfe
+    u32: _Chain_bfe
+    u64: _Chain_bfe
+    def __call__(self, d: Any, a: Any, b: Any, c: Any, *args: Any) -> None: ...
+
+class _Chain_bfi:
+    """`bfi` — type∈{b32,b64}"""
+
+    b32: _Chain_bfi
+    b64: _Chain_bfi
+    def __call__(self, f: Any, a: Any, b: Any, c: Any, d: Any, *args: Any) -> None: ...
+
+class _Chain_bfind:
+    """`bfind` — shiftamt∈{shiftamt} (opt); type∈{u32,u64,s32,s64}"""
+
+    s32: _Chain_bfind
+    s64: _Chain_bfind
+    shiftamt: _Chain_bfind
+    u32: _Chain_bfind
+    u64: _Chain_bfind
+    def __call__(self, d: Any, a: Any, *args: Any) -> None: ...
+
+class _Chain_bmsk:
+    """`bmsk` — mode∈{clamp,wrap}; type∈{b32}"""
+
+    b32: _Chain_bmsk
+    clamp: _Chain_bmsk
+    wrap: _Chain_bmsk
+    def __call__(self, d: Any, a: Any, b: Any, *args: Any) -> None: ...
+
+class _Chain_brev:
+    """`brev` — type∈{b32,b64}"""
+
+    b32: _Chain_brev
+    b64: _Chain_brev
+    def __call__(self, d: Any, a: Any, *args: Any) -> None: ...
 
 class _Chain_clusterlaunchcontrol:
     """`clusterlaunchcontrol` — 4 entries sharing this mnemonic; PTX puts their difference in
@@ -135,9 +240,39 @@ class _Chain_clusterlaunchcontrol:
     v4: _Chain_clusterlaunchcontrol
     def __call__(self, *args: Any) -> None: ...
 
+class _Chain_clz:
+    """`clz` — type∈{b32,b64}"""
+
+    b32: _Chain_clz
+    b64: _Chain_clz
+    def __call__(self, d: Any, a: Any, *args: Any) -> None: ...
+
+class _Chain_cnot:
+    """`cnot` — type∈{b16,b32,b64}"""
+
+    b16: _Chain_cnot
+    b32: _Chain_cnot
+    b64: _Chain_cnot
+    def __call__(self, d: Any, a: Any, *args: Any) -> None: ...
+
+class _Chain_copysign:
+    """`copysign` — type∈{f32,f64}"""
+
+    f32: _Chain_copysign
+    f64: _Chain_copysign
+    def __call__(self, d: Any, a: Any, b: Any, *args: Any) -> None: ...
+
+class _Chain_cos:
+    """`cos` — mode∈{approx}; ftz∈{ftz} (opt); type∈{f32}"""
+
+    approx: _Chain_cos
+    f32: _Chain_cos
+    ftz: _Chain_cos
+    def __call__(self, d: Any, value: Any, *args: Any) -> None: ...
+
 class _Chain_cp:
-    """`cp` — 21 entries sharing this mnemonic; PTX puts their difference in the operand list,
-    so the call selects one. Shapes: (group); (*__operands); (); (dst_mem, src_mem, size,
+    """`cp` — 22 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    so the call selects one. Shapes: (*__operands); (group); (); (dst_mem, src_mem, size,
     mbar); (addr)
     """
 
@@ -184,6 +319,24 @@ class _Chain_cp:
     wait_group: _Chain_cp
     xor: _Chain_cp
     def __call__(self, *args: Any, pred: Any = None) -> None: ...
+
+class _Chain_createpolicy:
+    """`createpolicy` — 4 entries sharing this mnemonic; PTX puts their difference in the
+    operand list, so the call selects one. Shapes: (cache_policy, addr, primary_size,
+    total_size); (cache_policy); (cache_policy, fraction); (cache_policy, access_property)
+    """
+
+    L2: _Chain_createpolicy
+    L2__evict_first: _Chain_createpolicy
+    L2__evict_last: _Chain_createpolicy
+    L2__evict_normal: _Chain_createpolicy
+    L2__evict_unchanged: _Chain_createpolicy
+    b64: _Chain_createpolicy
+    cvt: _Chain_createpolicy
+    fractional: _Chain_createpolicy
+    global_: _Chain_createpolicy
+    range: _Chain_createpolicy
+    def __call__(self, *args: Any) -> None: ...
 
 class _Chain_cvt:
     """`cvt` — 27 entries sharing this mnemonic; PTX puts their difference in the operand list,
@@ -235,21 +388,104 @@ class _Chain_cvt:
     ue8m0x2: _Chain_cvt
     def __call__(self, *args: Any) -> None: ...
 
-class _Chain_cvta:
-    """`cvta` — dir∈{to}; space∈{shared}; type∈{u64}"""
+class _Chain_cvt_pack:
+    """`cvt_pack` — 2 entries sharing this mnemonic; PTX puts their difference in the operand
+    list, so the call selects one. Shapes: (d, a, b); (d, a, b, c)
+    """
 
+    b32: _Chain_cvt_pack
+    s16: _Chain_cvt_pack
+    s2: _Chain_cvt_pack
+    s32: _Chain_cvt_pack
+    s4: _Chain_cvt_pack
+    s8: _Chain_cvt_pack
+    sat: _Chain_cvt_pack
+    u16: _Chain_cvt_pack
+    u2: _Chain_cvt_pack
+    u4: _Chain_cvt_pack
+    u8: _Chain_cvt_pack
+    def __call__(self, *args: Any) -> None: ...
+
+class _Chain_cvta:
+    """`cvta` — 2 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    so the call selects one. Shapes: (d, ptr); (d, a)
+    """
+
+    const: _Chain_cvta
+    global_: _Chain_cvta
+    local: _Chain_cvta
+    param: _Chain_cvta
+    param__entry: _Chain_cvta
     shared: _Chain_cvta
+    shared__cluster: _Chain_cvta
+    shared__cta: _Chain_cvta
     to: _Chain_cvta
     u64: _Chain_cvta
-    def __call__(self, d: Any, ptr: Any, *args: Any) -> None: ...
+    def __call__(self, *args: Any) -> None: ...
+
+class _Chain_discard:
+    """`discard` — space∈{global} (opt); level∈{L2}"""
+
+    L2: _Chain_discard
+    global_: _Chain_discard
+    def __call__(self, addr: Any, *args: Any, pred: Any = None) -> None: ...
+
+class _Chain_div:
+    """`div` — 2 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    so the call selects one. Shapes: (d, a, b)
+    """
+
+    approx: _Chain_div
+    f32: _Chain_div
+    f64: _Chain_div
+    ftz: _Chain_div
+    full: _Chain_div
+    rm: _Chain_div
+    rn: _Chain_div
+    rp: _Chain_div
+    rz: _Chain_div
+    s16: _Chain_div
+    s32: _Chain_div
+    s64: _Chain_div
+    u16: _Chain_div
+    u32: _Chain_div
+    u64: _Chain_div
+    def __call__(self, *args: Any) -> None: ...
+
+class _Chain_dp2a:
+    """`dp2a` — mode∈{lo,hi}; atype∈{u32,s32}; btype∈{u32,s32}"""
+
+    hi: _Chain_dp2a
+    lo: _Chain_dp2a
+    s32: _Chain_dp2a
+    u32: _Chain_dp2a
+    def __call__(self, d: Any, a: Any, b: Any, c: Any, *args: Any) -> None: ...
+
+class _Chain_dp4a:
+    """`dp4a` — atype∈{u32,s32}; btype∈{u32,s32}"""
+
+    s32: _Chain_dp4a
+    u32: _Chain_dp4a
+    def __call__(self, d: Any, a: Any, b: Any, c: Any, *args: Any) -> None: ...
+
+class _Chain_elect_sync:
+    """`elect_sync` — (no modifiers)"""
+
+    def __call__(self, d: Any, p: Any, membermask: Any, *args: Any) -> None: ...
 
 class _Chain_ex2:
-    """`ex2` — mode∈{approx}; ftz∈{ftz} (opt); type∈{f32}"""
+    """`ex2` — 2 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    so the call selects one. Shapes: (d, value)
+    """
 
     approx: _Chain_ex2
+    bf16: _Chain_ex2
+    bf16x2: _Chain_ex2
+    f16: _Chain_ex2
+    f16x2: _Chain_ex2
     f32: _Chain_ex2
     ftz: _Chain_ex2
-    def __call__(self, d: Any, value: Any, *args: Any) -> None: ...
+    def __call__(self, *args: Any) -> None: ...
 
 class _Chain_fence:
     """`fence` — 5 entries sharing this mnemonic; PTX puts their difference in the operand
@@ -275,25 +511,26 @@ class _Chain_fence:
     def __call__(self, *args: Any, pred: Any = None) -> None: ...
 
 class _Chain_fma:
-    """`fma` — rnd∈{rn,rz,rm,rp}; ftz∈{ftz} (opt); sat∈{sat} (opt); type∈{f32,f64,f32x2};
-    srctype∈{f16,bf16} (opt) — Which qualifiers each add/sub/mul/fma syntax line allows (PTX
-    ISA 9.7.3.{3,4,5,6}, 9.7.5).      Same-precision lines:  op{.rnd}{.ftz}{.sat}.f32 |
-    op{.rnd}{.ftz}.f32x2 | op{.rnd}.f64     Mixed-precision lines: op{.rnd}{.sat}.f32.atype
-    (.atype = .f16 | .bf16)
+    """`fma` — 2 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    so the call selects one. Shapes: (d, a, b, c)
     """
 
     bf16: _Chain_fma
+    bf16x2: _Chain_fma
     f16: _Chain_fma
+    f16x2: _Chain_fma
     f32: _Chain_fma
     f32x2: _Chain_fma
     f64: _Chain_fma
     ftz: _Chain_fma
+    oob: _Chain_fma
+    relu: _Chain_fma
     rm: _Chain_fma
     rn: _Chain_fma
     rp: _Chain_fma
     rz: _Chain_fma
     sat: _Chain_fma
-    def __call__(self, d: Any, a: Any, b: Any, c: Any, *args: Any) -> None: ...
+    def __call__(self, *args: Any) -> None: ...
 
 class _Chain_fns:
     """`fns` — type∈{b32}"""
@@ -301,12 +538,37 @@ class _Chain_fns:
     b32: _Chain_fns
     def __call__(self, d: Any, mask: Any, base: Any, offset: Any, *args: Any) -> None: ...
 
+class _Chain_getctarank:
+    """`getctarank` — 2 entries sharing this mnemonic; PTX puts their difference in the operand
+    list, so the call selects one. Shapes: (d, a)
+    """
+
+    shared__cluster: _Chain_getctarank
+    u32: _Chain_getctarank
+    u64: _Chain_getctarank
+    def __call__(self, *args: Any) -> None: ...
+
 class _Chain_griddepcontrol:
     """`griddepcontrol` — action∈{launch_dependents,wait}"""
 
     launch_dependents: _Chain_griddepcontrol
     wait: _Chain_griddepcontrol
     def __call__(self, *args: Any, pred: Any = None) -> None: ...
+
+class _Chain_isspacep:
+    """`isspacep` —
+    space∈{const,global,local,shared,shared::cta,shared::cluster,param,param::entry}
+    """
+
+    const: _Chain_isspacep
+    global_: _Chain_isspacep
+    local: _Chain_isspacep
+    param: _Chain_isspacep
+    param__entry: _Chain_isspacep
+    shared: _Chain_isspacep
+    shared__cluster: _Chain_isspacep
+    shared__cta: _Chain_isspacep
+    def __call__(self, p: Any, a: Any, *args: Any) -> None: ...
 
 class _Chain_ld:
     """`ld` — 3 entries sharing this mnemonic; PTX puts their difference in the operand list,
@@ -388,6 +650,88 @@ class _Chain_ldmatrix:
     x4: _Chain_ldmatrix
     def __call__(self, *args: Any) -> None: ...
 
+class _Chain_ldu:
+    """`ldu` — 2 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    so the call selects one. Shapes: (d, addr); (*__operands)
+    """
+
+    b128: _Chain_ldu
+    b16: _Chain_ldu
+    b32: _Chain_ldu
+    b64: _Chain_ldu
+    b8: _Chain_ldu
+    f32: _Chain_ldu
+    f64: _Chain_ldu
+    global_: _Chain_ldu
+    s16: _Chain_ldu
+    s32: _Chain_ldu
+    s64: _Chain_ldu
+    s8: _Chain_ldu
+    u16: _Chain_ldu
+    u32: _Chain_ldu
+    u64: _Chain_ldu
+    u8: _Chain_ldu
+    v2: _Chain_ldu
+    v4: _Chain_ldu
+    def __call__(self, *args: Any) -> None: ...
+
+class _Chain_lg2:
+    """`lg2` — mode∈{approx}; ftz∈{ftz} (opt); type∈{f32}"""
+
+    approx: _Chain_lg2
+    f32: _Chain_lg2
+    ftz: _Chain_lg2
+    def __call__(self, d: Any, value: Any, *args: Any) -> None: ...
+
+class _Chain_lop3:
+    """`lop3` — 2 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    so the call selects one. Shapes: (d, a, b, c, immLut); (d, p, a, b, c, immLut, q)
+    """
+
+    and_: _Chain_lop3
+    b32: _Chain_lop3
+    or_: _Chain_lop3
+    def __call__(self, *args: Any) -> None: ...
+
+class _Chain_mad:
+    """`mad` — 3 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    so the call selects one. Shapes: (d, a, b, c)
+    """
+
+    f32: _Chain_mad
+    f64: _Chain_mad
+    ftz: _Chain_mad
+    hi: _Chain_mad
+    lo: _Chain_mad
+    rm: _Chain_mad
+    rn: _Chain_mad
+    rp: _Chain_mad
+    rz: _Chain_mad
+    s16: _Chain_mad
+    s32: _Chain_mad
+    s64: _Chain_mad
+    sat: _Chain_mad
+    u16: _Chain_mad
+    u32: _Chain_mad
+    u64: _Chain_mad
+    wide: _Chain_mad
+    def __call__(self, *args: Any) -> None: ...
+
+class _Chain_mad24:
+    """`mad24` — mode∈{hi,lo}; sat∈{sat} (opt); type∈{u32,s32} — `.sat` on the multiply-add
+    lines: `.hi` mode, `.s32` type, nothing else.      Both lines spell it as a syntax line
+    of its own -- `mad.hi.sat.s32 d, a, b,     c;` (ISA 9.7.1.4) and `mad24.hi.sat.s32 d, a,
+    b, c;` (9.7.1.7) -- with the     Notes repeating "Applies only to .s32 type in .hi
+    mode".
+    """
+
+    hi: _Chain_mad24
+    lo: _Chain_mad24
+    s32: _Chain_mad24
+    sat: _Chain_mad24
+    u32: _Chain_mad24
+    def __call__(self, d: Any, a: Any, b: Any, c: Any, *args: Any) -> None: ...
+
 class _Chain_mapa:
     """`mapa` — 2 entries sharing this mnemonic; PTX puts their difference in the operand list,
     so the call selects one. Shapes: (d, a, b)
@@ -396,6 +740,18 @@ class _Chain_mapa:
     shared__cluster: _Chain_mapa
     u32: _Chain_mapa
     u64: _Chain_mapa
+    def __call__(self, *args: Any) -> None: ...
+
+class _Chain_match:
+    """`match` — 3 entries sharing this mnemonic; PTX puts their difference in the operand
+    list, so the call selects one. Shapes: (d, a, membermask); (d, p, a, membermask)
+    """
+
+    all: _Chain_match
+    any: _Chain_match
+    b32: _Chain_match
+    b64: _Chain_match
+    sync: _Chain_match
     def __call__(self, *args: Any) -> None: ...
 
 class _Chain_max:
@@ -425,9 +781,10 @@ class _Chain_max:
     def __call__(self, *args: Any) -> None: ...
 
 class _Chain_mbarrier:
-    """`mbarrier` — 15 entries sharing this mnemonic; PTX puts their difference in the operand
+    """`mbarrier` — 24 entries sharing this mnemonic; PTX puts their difference in the operand
     list, so the call selects one. Shapes: (addr, count); (addr); (addr, tx_count); (state,
     addr, count); (wait_complete, addr, phase); (wait_complete, addr, phase, time_hint);
+    (state, addr); (wait_complete, addr, state); (wait_complete, addr, state, time_hint);
     (count, state)
     """
 
@@ -525,18 +882,28 @@ class _Chain_mma:
     def __call__(self, *args: Any) -> None: ...
 
 class _Chain_mov:
-    """`mov` — 10 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    """`mov` — 11 entries sharing this mnemonic; PTX puts their difference in the operand list,
     so the call selects one. Shapes: (d, a0, a1); (d0, d1, a); (d, a0, a1, a2, a3); (d0, d1,
-    d2, d3, a)
+    d2, d3, a); (d, a)
     """
 
     b128: _Chain_mov
+    b16: _Chain_mov
     b32: _Chain_mov
     b64: _Chain_mov
+    f32: _Chain_mov
+    f64: _Chain_mov
+    pred: _Chain_mov
+    s16: _Chain_mov
+    s32: _Chain_mov
+    s64: _Chain_mov
+    u16: _Chain_mov
+    u32: _Chain_mov
+    u64: _Chain_mov
     def __call__(self, *args: Any) -> None: ...
 
 class _Chain_mul:
-    """`mul` — 2 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    """`mul` — 4 entries sharing this mnemonic; PTX puts their difference in the operand list,
     so the call selects one. Shapes: (d, a, b)
     """
 
@@ -548,21 +915,173 @@ class _Chain_mul:
     f32x2: _Chain_mul
     f64: _Chain_mul
     ftz: _Chain_mul
+    hi: _Chain_mul
+    lo: _Chain_mul
     rm: _Chain_mul
     rn: _Chain_mul
     rp: _Chain_mul
     rz: _Chain_mul
+    s16: _Chain_mul
+    s32: _Chain_mul
+    s64: _Chain_mul
     sat: _Chain_mul
+    u16: _Chain_mul
+    u32: _Chain_mul
+    u64: _Chain_mul
+    wide: _Chain_mul
     def __call__(self, *args: Any) -> None: ...
 
-class _Chain_neg:
-    """`neg` — ftz∈{ftz} (opt); type∈{f32,f64} — `neg{.ftz}.f32 d, a;` and `neg.f64 d, a;` (ISA
-    9.7.3.10) -- the f64     line spells no `.ftz`.
+class _Chain_mul24:
+    """`mul24` — mode∈{hi,lo}; type∈{u32,s32}"""
+
+    hi: _Chain_mul24
+    lo: _Chain_mul24
+    s32: _Chain_mul24
+    u32: _Chain_mul24
+    def __call__(self, d: Any, a: Any, b: Any, *args: Any) -> None: ...
+
+class _Chain_multimem_ld_reduce:
+    """`multimem_ld_reduce` — 3 entries sharing this mnemonic; PTX puts their difference in the
+    operand list, so the call selects one. Shapes: (d, addr); (*__operands)
     """
 
+    acc__f32: _Chain_multimem_ld_reduce
+    acquire: _Chain_multimem_ld_reduce
+    add: _Chain_multimem_ld_reduce
+    and_: _Chain_multimem_ld_reduce
+    b32: _Chain_multimem_ld_reduce
+    b64: _Chain_multimem_ld_reduce
+    bf16: _Chain_multimem_ld_reduce
+    bf16x2: _Chain_multimem_ld_reduce
+    cluster: _Chain_multimem_ld_reduce
+    cta: _Chain_multimem_ld_reduce
+    f16: _Chain_multimem_ld_reduce
+    f16x2: _Chain_multimem_ld_reduce
+    f32: _Chain_multimem_ld_reduce
+    f64: _Chain_multimem_ld_reduce
+    global_: _Chain_multimem_ld_reduce
+    gpu: _Chain_multimem_ld_reduce
+    max: _Chain_multimem_ld_reduce
+    min: _Chain_multimem_ld_reduce
+    or_: _Chain_multimem_ld_reduce
+    relaxed: _Chain_multimem_ld_reduce
+    s32: _Chain_multimem_ld_reduce
+    s64: _Chain_multimem_ld_reduce
+    sys: _Chain_multimem_ld_reduce
+    u32: _Chain_multimem_ld_reduce
+    u64: _Chain_multimem_ld_reduce
+    v2: _Chain_multimem_ld_reduce
+    v4: _Chain_multimem_ld_reduce
+    v8: _Chain_multimem_ld_reduce
+    weak: _Chain_multimem_ld_reduce
+    xor: _Chain_multimem_ld_reduce
+    def __call__(self, *args: Any) -> None: ...
+
+class _Chain_multimem_red:
+    """`multimem_red` — 3 entries sharing this mnemonic; PTX puts their difference in the
+    operand list, so the call selects one. Shapes: (addr, b); (*__operands)
+    """
+
+    add: _Chain_multimem_red
+    and_: _Chain_multimem_red
+    b32: _Chain_multimem_red
+    b64: _Chain_multimem_red
+    bf16: _Chain_multimem_red
+    bf16x2: _Chain_multimem_red
+    cluster: _Chain_multimem_red
+    cta: _Chain_multimem_red
+    f16: _Chain_multimem_red
+    f16x2: _Chain_multimem_red
+    f32: _Chain_multimem_red
+    f64: _Chain_multimem_red
+    global_: _Chain_multimem_red
+    gpu: _Chain_multimem_red
+    max: _Chain_multimem_red
+    min: _Chain_multimem_red
+    or_: _Chain_multimem_red
+    relaxed: _Chain_multimem_red
+    release: _Chain_multimem_red
+    s32: _Chain_multimem_red
+    s64: _Chain_multimem_red
+    sys: _Chain_multimem_red
+    u32: _Chain_multimem_red
+    u64: _Chain_multimem_red
+    v2: _Chain_multimem_red
+    v4: _Chain_multimem_red
+    v8: _Chain_multimem_red
+    xor: _Chain_multimem_red
+    def __call__(self, *args: Any, pred: Any = None) -> None: ...
+
+class _Chain_multimem_st:
+    """`multimem_st` — 3 entries sharing this mnemonic; PTX puts their difference in the
+    operand list, so the call selects one. Shapes: (addr, b); (*__operands)
+    """
+
+    b32: _Chain_multimem_st
+    b64: _Chain_multimem_st
+    bf16: _Chain_multimem_st
+    bf16x2: _Chain_multimem_st
+    cluster: _Chain_multimem_st
+    cta: _Chain_multimem_st
+    f16: _Chain_multimem_st
+    f16x2: _Chain_multimem_st
+    f32: _Chain_multimem_st
+    f64: _Chain_multimem_st
+    global_: _Chain_multimem_st
+    gpu: _Chain_multimem_st
+    relaxed: _Chain_multimem_st
+    release: _Chain_multimem_st
+    s32: _Chain_multimem_st
+    s64: _Chain_multimem_st
+    sys: _Chain_multimem_st
+    u32: _Chain_multimem_st
+    u64: _Chain_multimem_st
+    v2: _Chain_multimem_st
+    v4: _Chain_multimem_st
+    v8: _Chain_multimem_st
+    weak: _Chain_multimem_st
+    def __call__(self, *args: Any, pred: Any = None) -> None: ...
+
+class _Chain_neg:
+    """`neg` — 3 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    so the call selects one. Shapes: (d, a)
+    """
+
+    bf16: _Chain_neg
+    bf16x2: _Chain_neg
+    f16: _Chain_neg
+    f16x2: _Chain_neg
     f32: _Chain_neg
     f64: _Chain_neg
     ftz: _Chain_neg
+    s16: _Chain_neg
+    s32: _Chain_neg
+    s64: _Chain_neg
+    def __call__(self, *args: Any) -> None: ...
+
+class _Chain_not:
+    """`not` — type∈{pred,b16,b32,b64}"""
+
+    b16: _Chain_not
+    b32: _Chain_not
+    b64: _Chain_not
+    pred: _Chain_not
+    def __call__(self, d: Any, a: Any, *args: Any) -> None: ...
+
+class _Chain_or:
+    """`or` — type∈{pred,b16,b32,b64}"""
+
+    b16: _Chain_or
+    b32: _Chain_or
+    b64: _Chain_or
+    pred: _Chain_or
+    def __call__(self, d: Any, a: Any, b: Any, *args: Any) -> None: ...
+
+class _Chain_popc:
+    """`popc` — type∈{b32,b64}"""
+
+    b32: _Chain_popc
+    b64: _Chain_popc
     def __call__(self, d: Any, a: Any, *args: Any) -> None: ...
 
 class _Chain_prefetch:
@@ -586,9 +1105,34 @@ class _Chain_prefetch:
     tensormap: _Chain_prefetch
     def __call__(self, addr: Any, *args: Any, pred: Any = None) -> None: ...
 
+class _Chain_prefetchu:
+    """`prefetchu` — level∈{L1}"""
+
+    L1: _Chain_prefetchu
+    def __call__(self, addr: Any, *args: Any, pred: Any = None) -> None: ...
+
+class _Chain_prmt:
+    """`prmt` — type∈{b32}; mode∈{f4e,b4e,rc8,ecl,ecr,rc16} (opt)"""
+
+    b32: _Chain_prmt
+    b4e: _Chain_prmt
+    ecl: _Chain_prmt
+    ecr: _Chain_prmt
+    f4e: _Chain_prmt
+    rc16: _Chain_prmt
+    rc8: _Chain_prmt
+    def __call__(self, d: Any, a: Any, b: Any, c: Any, *args: Any) -> None: ...
+
 class _Chain_rcp:
-    """`rcp` — mode∈{approx,rn,rz,rm,rp}; ftz∈{ftz} (opt); type∈{f32,f64} — This entry's
-    rcp.approx is f32-only; .f64 is IEEE-rounded, no .ftz (PTX ISA 9.7.3.13).
+    """`rcp` — mode∈{approx,rn,rz,rm,rp}; ftz∈{ftz} (opt); type∈{f32,f64} — rcp's four syntax
+    lines, across two ISA subsections.          rcp.approx{.ftz}.f32  d, a;
+    rcp.rnd{.ftz}.f32  d, a;   (9.7.3.13)         rcp.rnd.f64           d, a;
+    rcp.approx.ftz.f64    d, a;                              (9.7.3.14)      The ISA gives
+    the last one a subsection of its own because it is a     different *computation* -- a
+    gross approximation off the top 20 mantissa     bits, with its own corner-case table --
+    but its syntax is one more cell of     this grid, and the shape (`d, a`) is unchanged.
+    So it lives here, with the     mandatory `.ftz` of its syntax line enforced below rather
+    than by a second     entry that would render identically.
     """
 
     approx: _Chain_rcp
@@ -602,15 +1146,8 @@ class _Chain_rcp:
     def __call__(self, d: Any, value: Any, *args: Any) -> None: ...
 
 class _Chain_red:
-    """`red` — sem∈{relaxed,release} (opt); scope∈{cta,cluster,gpu,sys} (opt);
-    space∈{global,shared,shared::cta,shared::cluster} (opt);
-    op∈{and,or,xor,add,inc,dec,min,max}; cache∈{L2::cache_hint} (opt);
-    type∈{b32,b64,u32,u64,s32,s64,f32,f64} — op x type pairings for atom/red (PTX ISA
-    9.7.14.5 / 9.7.14.6).      Normative source: ISA Table 35 (atom) and Table 36 (red),
-    which give the     pairing cell by cell. The `.type = {...}` line in the Syntax block is
-    only     the union across ops, which is why it cannot be transcribed directly. Half-
-    precision     types appear in ptxas' message but are excluded from this entry (they need
-    .noftz and a half carrier type).
+    """`red` — 2 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    so the call selects one. Shapes: (*__operands)
     """
 
     L2__cache_hint: _Chain_red
@@ -618,9 +1155,13 @@ class _Chain_red:
     and_: _Chain_red
     b32: _Chain_red
     b64: _Chain_red
+    bf16: _Chain_red
+    bf16x2: _Chain_red
     cluster: _Chain_red
     cta: _Chain_red
     dec: _Chain_red
+    f16: _Chain_red
+    f16x2: _Chain_red
     f32: _Chain_red
     f64: _Chain_red
     global_: _Chain_red
@@ -628,6 +1169,7 @@ class _Chain_red:
     inc: _Chain_red
     max: _Chain_red
     min: _Chain_red
+    noftz: _Chain_red
     or_: _Chain_red
     relaxed: _Chain_red
     release: _Chain_red
@@ -640,7 +1182,146 @@ class _Chain_red:
     u32: _Chain_red
     u64: _Chain_red
     xor: _Chain_red
-    def __call__(self, *__operands: Any, pred: Any = None) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None) -> None: ...
+
+class _Chain_red_async:
+    """`red_async` — 2 entries sharing this mnemonic; PTX puts their difference in the operand
+    list, so the call selects one. Shapes: (addr, value, mbar); (addr, value)
+    """
+
+    add: _Chain_red_async
+    and_: _Chain_red_async
+    b32: _Chain_red_async
+    cluster: _Chain_red_async
+    dec: _Chain_red_async
+    global_: _Chain_red_async
+    gpu: _Chain_red_async
+    inc: _Chain_red_async
+    max: _Chain_red_async
+    mbarrier__complete_tx__bytes: _Chain_red_async
+    min: _Chain_red_async
+    mmio: _Chain_red_async
+    or_: _Chain_red_async
+    relaxed: _Chain_red_async
+    release: _Chain_red_async
+    s32: _Chain_red_async
+    s64: _Chain_red_async
+    shared__cluster: _Chain_red_async
+    sys: _Chain_red_async
+    u32: _Chain_red_async
+    u64: _Chain_red_async
+    xor: _Chain_red_async
+    def __call__(self, *args: Any, pred: Any = None) -> None: ...
+
+class _Chain_redux_sync:
+    """`redux_sync` — 3 entries sharing this mnemonic; PTX puts their difference in the operand
+    list, so the call selects one. Shapes: (d, a, membermask)
+    """
+
+    NaN: _Chain_redux_sync
+    abs: _Chain_redux_sync
+    add: _Chain_redux_sync
+    and_: _Chain_redux_sync
+    b32: _Chain_redux_sync
+    f32: _Chain_redux_sync
+    max: _Chain_redux_sync
+    min: _Chain_redux_sync
+    or_: _Chain_redux_sync
+    s32: _Chain_redux_sync
+    u32: _Chain_redux_sync
+    xor: _Chain_redux_sync
+    def __call__(self, *args: Any) -> None: ...
+
+class _Chain_rem:
+    """`rem` — type∈{u16,u32,u64,s16,s32,s64}"""
+
+    s16: _Chain_rem
+    s32: _Chain_rem
+    s64: _Chain_rem
+    u16: _Chain_rem
+    u32: _Chain_rem
+    u64: _Chain_rem
+    def __call__(self, d: Any, a: Any, b: Any, *args: Any) -> None: ...
+
+class _Chain_rsqrt:
+    """`rsqrt` — mode∈{approx}; ftz∈{ftz} (opt); type∈{f32,f64}"""
+
+    approx: _Chain_rsqrt
+    f32: _Chain_rsqrt
+    f64: _Chain_rsqrt
+    ftz: _Chain_rsqrt
+    def __call__(self, d: Any, value: Any, *args: Any) -> None: ...
+
+class _Chain_sad:
+    """`sad` — type∈{u16,u32,u64,s16,s32,s64}"""
+
+    s16: _Chain_sad
+    s32: _Chain_sad
+    s64: _Chain_sad
+    u16: _Chain_sad
+    u32: _Chain_sad
+    u64: _Chain_sad
+    def __call__(self, d: Any, a: Any, b: Any, c: Any, *args: Any) -> None: ...
+
+class _Chain_selp:
+    """`selp` — type∈{b16,b32,b64,u16,u32,u64,s16,s32,s64,f32,f64}"""
+
+    b16: _Chain_selp
+    b32: _Chain_selp
+    b64: _Chain_selp
+    f32: _Chain_selp
+    f64: _Chain_selp
+    s16: _Chain_selp
+    s32: _Chain_selp
+    s64: _Chain_selp
+    u16: _Chain_selp
+    u32: _Chain_selp
+    u64: _Chain_selp
+    def __call__(self, d: Any, a: Any, b: Any, c: Any, *args: Any) -> None: ...
+
+class _Chain_set:
+    """`set` — 4 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    so the call selects one. Shapes: (d, a, b); (d, a, b, c)
+    """
+
+    and_: _Chain_set
+    b16: _Chain_set
+    b32: _Chain_set
+    b64: _Chain_set
+    bf16: _Chain_set
+    bf16x2: _Chain_set
+    eq: _Chain_set
+    equ: _Chain_set
+    f16: _Chain_set
+    f16x2: _Chain_set
+    f32: _Chain_set
+    f64: _Chain_set
+    ftz: _Chain_set
+    ge: _Chain_set
+    geu: _Chain_set
+    gt: _Chain_set
+    gtu: _Chain_set
+    hi: _Chain_set
+    hs: _Chain_set
+    le: _Chain_set
+    leu: _Chain_set
+    lo: _Chain_set
+    ls: _Chain_set
+    lt: _Chain_set
+    ltu: _Chain_set
+    nan: _Chain_set
+    ne: _Chain_set
+    neu: _Chain_set
+    num: _Chain_set
+    or_: _Chain_set
+    s16: _Chain_set
+    s32: _Chain_set
+    s64: _Chain_set
+    u16: _Chain_set
+    u32: _Chain_set
+    u64: _Chain_set
+    xor: _Chain_set
+    def __call__(self, *args: Any) -> None: ...
 
 class _Chain_setmaxnreg:
     """`setmaxnreg` — action∈{inc,dec}; sync∈{sync}; aligned∈{aligned}; type∈{u32}"""
@@ -651,6 +1332,143 @@ class _Chain_setmaxnreg:
     sync: _Chain_setmaxnreg
     u32: _Chain_setmaxnreg
     def __call__(self, nreg: Any, *args: Any, pred: Any = None) -> None: ...
+
+class _Chain_setp:
+    """`setp` — 8 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    so the call selects one. Shapes: (p, a, b); (p, q, a, b); (p, a, b, c); (p, q, a, b, c)
+    """
+
+    and_: _Chain_setp
+    b16: _Chain_setp
+    b32: _Chain_setp
+    b64: _Chain_setp
+    bf16: _Chain_setp
+    bf16x2: _Chain_setp
+    eq: _Chain_setp
+    equ: _Chain_setp
+    f16: _Chain_setp
+    f16x2: _Chain_setp
+    f32: _Chain_setp
+    f64: _Chain_setp
+    ftz: _Chain_setp
+    ge: _Chain_setp
+    geu: _Chain_setp
+    gt: _Chain_setp
+    gtu: _Chain_setp
+    hi: _Chain_setp
+    hs: _Chain_setp
+    le: _Chain_setp
+    leu: _Chain_setp
+    lo: _Chain_setp
+    ls: _Chain_setp
+    lt: _Chain_setp
+    ltu: _Chain_setp
+    nan: _Chain_setp
+    ne: _Chain_setp
+    neu: _Chain_setp
+    num: _Chain_setp
+    or_: _Chain_setp
+    s16: _Chain_setp
+    s32: _Chain_setp
+    s64: _Chain_setp
+    u16: _Chain_setp
+    u32: _Chain_setp
+    u64: _Chain_setp
+    xor: _Chain_setp
+    def __call__(self, *args: Any) -> None: ...
+
+class _Chain_shf:
+    """`shf` — dir∈{l,r}; mode∈{clamp,wrap}; type∈{b32}"""
+
+    b32: _Chain_shf
+    clamp: _Chain_shf
+    l: _Chain_shf
+    r: _Chain_shf
+    wrap: _Chain_shf
+    def __call__(self, d: Any, a: Any, b: Any, c: Any, *args: Any) -> None: ...
+
+class _Chain_shfl_sync:
+    """`shfl_sync` — 2 entries sharing this mnemonic; PTX puts their difference in the operand
+    list, so the call selects one. Shapes: (d, a, b, c, membermask); (d, p, a, b, c,
+    membermask)
+    """
+
+    b32: _Chain_shfl_sync
+    bfly: _Chain_shfl_sync
+    down: _Chain_shfl_sync
+    idx: _Chain_shfl_sync
+    up: _Chain_shfl_sync
+    def __call__(self, *args: Any) -> None: ...
+
+class _Chain_shl:
+    """`shl` — type∈{b16,b32,b64}"""
+
+    b16: _Chain_shl
+    b32: _Chain_shl
+    b64: _Chain_shl
+    def __call__(self, d: Any, a: Any, b: Any, *args: Any) -> None: ...
+
+class _Chain_shr:
+    """`shr` — type∈{b16,b32,b64,u16,u32,u64,s16,s32,s64}"""
+
+    b16: _Chain_shr
+    b32: _Chain_shr
+    b64: _Chain_shr
+    s16: _Chain_shr
+    s32: _Chain_shr
+    s64: _Chain_shr
+    u16: _Chain_shr
+    u32: _Chain_shr
+    u64: _Chain_shr
+    def __call__(self, d: Any, a: Any, b: Any, *args: Any) -> None: ...
+
+class _Chain_sin:
+    """`sin` — mode∈{approx}; ftz∈{ftz} (opt); type∈{f32}"""
+
+    approx: _Chain_sin
+    f32: _Chain_sin
+    ftz: _Chain_sin
+    def __call__(self, d: Any, value: Any, *args: Any) -> None: ...
+
+class _Chain_slct:
+    """`slct` — ftz∈{ftz} (opt); dtype∈{b16,b32,b64,u16,u32,u64,s16,s32,s64,f32,f64};
+    ctype∈{s32,f32} — slct's two lines (ISA 9.7.6.4), which differ only in the selector
+    type.          slct.dtype.s32        d, a, b, c;         slct{.ftz}.dtype.f32  d, a, b,
+    c;      `.ftz` is spelled on the .f32 selector line alone -- there is nothing to
+    flush when the sign being tested is an integer's.
+    """
+
+    b16: _Chain_slct
+    b32: _Chain_slct
+    b64: _Chain_slct
+    f32: _Chain_slct
+    f64: _Chain_slct
+    ftz: _Chain_slct
+    s16: _Chain_slct
+    s32: _Chain_slct
+    s64: _Chain_slct
+    u16: _Chain_slct
+    u32: _Chain_slct
+    u64: _Chain_slct
+    def __call__(self, d: Any, a: Any, b: Any, c: Any, *args: Any) -> None: ...
+
+class _Chain_sqrt:
+    """`sqrt` — mode∈{approx,rn,rz,rm,rp}; ftz∈{ftz} (opt); type∈{f32,f64} — sqrt's three lines
+    (PTX ISA 9.7.3.15).          sqrt.approx{.ftz}.f32  d, a;   sqrt.rnd{.ftz}.f32  d, a;
+    sqrt.rnd.f64           d, a;      Unlike rcp, there is no f64 approximation at any
+    spelling -- 9.7.3.15 is     the whole of sqrt, and it offers `.approx` on the .f32 line
+    only.
+    """
+
+    approx: _Chain_sqrt
+    f32: _Chain_sqrt
+    f64: _Chain_sqrt
+    ftz: _Chain_sqrt
+    rm: _Chain_sqrt
+    rn: _Chain_sqrt
+    rp: _Chain_sqrt
+    rz: _Chain_sqrt
+    def __call__(self, d: Any, value: Any, *args: Any) -> None: ...
 
 class _Chain_st:
     """`st` — 3 entries sharing this mnemonic; PTX puts their difference in the operand list,
@@ -704,6 +1522,35 @@ class _Chain_st:
     wt: _Chain_st
     def __call__(self, *args: Any, pred: Any = None) -> None: ...
 
+class _Chain_st_async:
+    """`st_async` — 3 entries sharing this mnemonic; PTX puts their difference in the operand
+    list, so the call selects one. Shapes: (addr, b, mbar); (*__operands); (addr, b)
+    """
+
+    b128: _Chain_st_async
+    b16: _Chain_st_async
+    b32: _Chain_st_async
+    b64: _Chain_st_async
+    f32: _Chain_st_async
+    f64: _Chain_st_async
+    global_: _Chain_st_async
+    gpu: _Chain_st_async
+    mbarrier__complete_tx__bytes: _Chain_st_async
+    mmio: _Chain_st_async
+    release: _Chain_st_async
+    s16: _Chain_st_async
+    s32: _Chain_st_async
+    s64: _Chain_st_async
+    shared__cluster: _Chain_st_async
+    sys: _Chain_st_async
+    u16: _Chain_st_async
+    u32: _Chain_st_async
+    u64: _Chain_st_async
+    v2: _Chain_st_async
+    v4: _Chain_st_async
+    weak: _Chain_st_async
+    def __call__(self, *args: Any, pred: Any = None) -> None: ...
+
 class _Chain_st_bulk:
     """`st_bulk` — weak∈{weak} (opt); space∈{shared::cta} (opt)"""
 
@@ -731,7 +1578,7 @@ class _Chain_stmatrix:
     def __call__(self, *args: Any, pred: Any = None) -> None: ...
 
 class _Chain_sub:
-    """`sub` — 2 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    """`sub` — 3 entries sharing this mnemonic; PTX puts their difference in the operand list,
     so the call selects one. Shapes: (d, a, b)
     """
 
@@ -747,7 +1594,35 @@ class _Chain_sub:
     rn: _Chain_sub
     rp: _Chain_sub
     rz: _Chain_sub
+    s16: _Chain_sub
+    s32: _Chain_sub
+    s64: _Chain_sub
     sat: _Chain_sub
+    u16: _Chain_sub
+    u32: _Chain_sub
+    u64: _Chain_sub
+    def __call__(self, *args: Any) -> None: ...
+
+class _Chain_szext:
+    """`szext` — mode∈{clamp,wrap}; type∈{u32,s32}"""
+
+    clamp: _Chain_szext
+    s32: _Chain_szext
+    u32: _Chain_szext
+    wrap: _Chain_szext
+    def __call__(self, d: Any, a: Any, b: Any, *args: Any) -> None: ...
+
+class _Chain_tanh:
+    """`tanh` — 2 entries sharing this mnemonic; PTX puts their difference in the operand list,
+    so the call selects one. Shapes: (d, value)
+    """
+
+    approx: _Chain_tanh
+    bf16: _Chain_tanh
+    bf16x2: _Chain_tanh
+    f16: _Chain_tanh
+    f16x2: _Chain_tanh
+    f32: _Chain_tanh
     def __call__(self, *args: Any) -> None: ...
 
 class _Chain_tcgen05:
@@ -809,6 +1684,72 @@ class _Chain_tcgen05:
     x4: _Chain_tcgen05
     x64: _Chain_tcgen05
     x8: _Chain_tcgen05
+    def __call__(self, *args: Any) -> None: ...
+
+class _Chain_tensormap_cp_fenceproxy:
+    """`tensormap_cp_fenceproxy` — dst∈{global}; src∈{shared::cta}; proxy∈{tensormap::generic};
+    sem∈{release}; scope∈{cta,cluster,gpu,sys}; sync∈{sync}; aligned∈{aligned}
+    """
+
+    aligned: _Chain_tensormap_cp_fenceproxy
+    cluster: _Chain_tensormap_cp_fenceproxy
+    cta: _Chain_tensormap_cp_fenceproxy
+    global_: _Chain_tensormap_cp_fenceproxy
+    gpu: _Chain_tensormap_cp_fenceproxy
+    release: _Chain_tensormap_cp_fenceproxy
+    shared__cta: _Chain_tensormap_cp_fenceproxy
+    sync: _Chain_tensormap_cp_fenceproxy
+    sys: _Chain_tensormap_cp_fenceproxy
+    tensormap__generic: _Chain_tensormap_cp_fenceproxy
+    def __call__(self, dst_mem: Any, src_mem: Any, *args: Any, pred: Any = None) -> None: ...
+
+class _Chain_tensormap_replace:
+    """`tensormap_replace` — 8 entries sharing this mnemonic; PTX puts their difference in the
+    operand list, so the call selects one. Shapes: (addr, new_val); (addr, ord, new_val)
+    """
+
+    b1024: _Chain_tensormap_replace
+    b32: _Chain_tensormap_replace
+    b64: _Chain_tensormap_replace
+    box_dim: _Chain_tensormap_replace
+    element_stride: _Chain_tensormap_replace
+    elemtype: _Chain_tensormap_replace
+    fill_mode: _Chain_tensormap_replace
+    global_: _Chain_tensormap_replace
+    global_address: _Chain_tensormap_replace
+    global_dim: _Chain_tensormap_replace
+    global_stride: _Chain_tensormap_replace
+    interleave_layout: _Chain_tensormap_replace
+    rank: _Chain_tensormap_replace
+    shared__cta: _Chain_tensormap_replace
+    swizzle_mode: _Chain_tensormap_replace
+    tile: _Chain_tensormap_replace
+    def __call__(self, *args: Any, pred: Any = None) -> None: ...
+
+class _Chain_testp:
+    """`testp` — op∈{finite,infinite,number,notanumber,normal,subnormal}; type∈{f32,f64}"""
+
+    f32: _Chain_testp
+    f64: _Chain_testp
+    finite: _Chain_testp
+    infinite: _Chain_testp
+    normal: _Chain_testp
+    notanumber: _Chain_testp
+    number: _Chain_testp
+    subnormal: _Chain_testp
+    def __call__(self, p: Any, a: Any, *args: Any) -> None: ...
+
+class _Chain_vote_sync:
+    """`vote_sync` — 2 entries sharing this mnemonic; PTX puts their difference in the operand
+    list, so the call selects one. Shapes: (d, a, membermask)
+    """
+
+    all: _Chain_vote_sync
+    any: _Chain_vote_sync
+    b32: _Chain_vote_sync
+    ballot: _Chain_vote_sync
+    pred: _Chain_vote_sync
+    uni: _Chain_vote_sync
     def __call__(self, *args: Any) -> None: ...
 
 class _Chain_wgmma:
@@ -951,40 +1892,109 @@ class _Chain_wgmma:
     wait_group: _Chain_wgmma
     def __call__(self, *args: Any, pred: Any = None) -> None: ...
 
+class _Chain_xor:
+    """`xor` — type∈{pred,b16,b32,b64}"""
+
+    b16: _Chain_xor
+    b32: _Chain_xor
+    b64: _Chain_xor
+    pred: _Chain_xor
+    def __call__(self, d: Any, a: Any, b: Any, *args: Any) -> None: ...
+
 class _PTX:
+    abs: _Chain_abs
+    activemask: _Chain_activemask
     add: _Chain_add
+    and_: _Chain_and
+    applypriority: _Chain_applypriority
     atom: _Chain_atom
     bar: _Chain_bar
     barrier: _Chain_barrier
+    bfe: _Chain_bfe
+    bfi: _Chain_bfi
+    bfind: _Chain_bfind
+    bmsk: _Chain_bmsk
+    brev: _Chain_brev
     clusterlaunchcontrol: _Chain_clusterlaunchcontrol
+    clz: _Chain_clz
+    cnot: _Chain_cnot
+    copysign: _Chain_copysign
+    cos: _Chain_cos
     cp: _Chain_cp
+    createpolicy: _Chain_createpolicy
     cvt: _Chain_cvt
+    cvt_pack: _Chain_cvt_pack
     cvta: _Chain_cvta
+    discard: _Chain_discard
+    div: _Chain_div
+    dp2a: _Chain_dp2a
+    dp4a: _Chain_dp4a
+    elect_sync: _Chain_elect_sync
     ex2: _Chain_ex2
     fence: _Chain_fence
     fma: _Chain_fma
     fns: _Chain_fns
+    getctarank: _Chain_getctarank
     griddepcontrol: _Chain_griddepcontrol
+    isspacep: _Chain_isspacep
     ld: _Chain_ld
     ldmatrix: _Chain_ldmatrix
+    ldu: _Chain_ldu
+    lg2: _Chain_lg2
+    lop3: _Chain_lop3
+    mad: _Chain_mad
+    mad24: _Chain_mad24
     mapa: _Chain_mapa
+    match: _Chain_match
     max: _Chain_max
     mbarrier: _Chain_mbarrier
     min: _Chain_min
     mma: _Chain_mma
     mov: _Chain_mov
     mul: _Chain_mul
+    mul24: _Chain_mul24
+    multimem_ld_reduce: _Chain_multimem_ld_reduce
+    multimem_red: _Chain_multimem_red
+    multimem_st: _Chain_multimem_st
     neg: _Chain_neg
+    not_: _Chain_not
+    or_: _Chain_or
+    popc: _Chain_popc
     prefetch: _Chain_prefetch
+    prefetchu: _Chain_prefetchu
+    prmt: _Chain_prmt
     rcp: _Chain_rcp
     red: _Chain_red
+    red_async: _Chain_red_async
+    redux_sync: _Chain_redux_sync
+    rem: _Chain_rem
+    rsqrt: _Chain_rsqrt
+    sad: _Chain_sad
+    selp: _Chain_selp
+    set: _Chain_set
     setmaxnreg: _Chain_setmaxnreg
+    setp: _Chain_setp
+    shf: _Chain_shf
+    shfl_sync: _Chain_shfl_sync
+    shl: _Chain_shl
+    shr: _Chain_shr
+    sin: _Chain_sin
+    slct: _Chain_slct
+    sqrt: _Chain_sqrt
     st: _Chain_st
+    st_async: _Chain_st_async
     st_bulk: _Chain_st_bulk
     stmatrix: _Chain_stmatrix
     sub: _Chain_sub
+    szext: _Chain_szext
+    tanh: _Chain_tanh
     tcgen05: _Chain_tcgen05
+    tensormap_cp_fenceproxy: _Chain_tensormap_cp_fenceproxy
+    tensormap_replace: _Chain_tensormap_replace
+    testp: _Chain_testp
+    vote_sync: _Chain_vote_sync
     wgmma: _Chain_wgmma
+    xor: _Chain_xor
     def __getitem__(self, text: str) -> Any: ...
 
 ptx: _PTX

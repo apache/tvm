@@ -235,7 +235,11 @@ _FORM_CASES = [
 
 # The generic scalar line is one entry named plain "cvt"; the packed lines are
 # the "cvt_*" family.
-_CVT_ENTRIES = {name for name in TABLE if name == "cvt" or name.startswith("cvt_")}
+# Every entry of the `cvt` instruction (ISA 9.7.9.22). Keyed off the mnemonic
+# rather than the table name: `cvt.pack` (9.7.9.23) is a different instruction
+# that happens to sort under the same prefix, and its forms are not points on
+# this conversion grid.
+_CVT_ENTRIES = {name for name, entry in TABLE.items() if entry.ptx_name == "cvt"}
 
 
 @pytest.mark.parametrize("entry_name,slots,instruction", _FORM_CASES)
