@@ -805,6 +805,11 @@ void PythonDocPrinter::PrintTypedDoc(const FunctionDoc& doc) {
 
   output_ << "def ";
   PrintDoc(doc->name);
+  if (!doc->type_params.empty()) {
+    output_ << "[";
+    PrintJoinedDocs(doc->type_params, ", ");
+    output_ << "]";
+  }
 
   output_ << "(";
   PrintJoinedDocs(doc->args, ", ");

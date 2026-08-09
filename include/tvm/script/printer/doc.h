@@ -1212,6 +1212,14 @@ class FunctionDocNode : public StmtDocNode {
   ffi::Optional<ExprDoc> return_type{std::nullopt};
   /*! \brief The body of function. */
   ffi::Array<StmtDoc> body;
+  /*!
+   * \brief The PEP 695 type parameters of the function.
+   *
+   * Possible actual types:
+   * - ExprDoc (a bare parameter like ``T``)
+   * - AssignDoc (an annotated parameter like ``T: int``)
+   */
+  ffi::Array<Doc> type_params;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -1220,7 +1228,8 @@ class FunctionDocNode : public StmtDocNode {
         .def_ro("args", &FunctionDocNode::args)
         .def_ro("decorators", &FunctionDocNode::decorators)
         .def_ro("return_type", &FunctionDocNode::return_type)
-        .def_ro("body", &FunctionDocNode::body);
+        .def_ro("body", &FunctionDocNode::body)
+        .def_ro("type_params", &FunctionDocNode::type_params);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.FunctionDoc", FunctionDocNode, StmtDocNode);
 };
@@ -1239,9 +1248,11 @@ class FunctionDoc : public StmtDoc {
    * \param decorators The decorator of function.
    * \param return_type The return type of function.
    * \param body The body of function.
+   * \param type_params The PEP 695 type parameters of the function.
    */
   explicit FunctionDoc(IdDoc name, ffi::Array<AssignDoc> args, ffi::Array<ExprDoc> decorators,
-                       ffi::Optional<ExprDoc> return_type, ffi::Array<StmtDoc> body);
+                       ffi::Optional<ExprDoc> return_type, ffi::Array<StmtDoc> body,
+                       ffi::Array<Doc> type_params = {});
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionDoc, StmtDoc, FunctionDocNode);
 };
 
