@@ -15,22 +15,53 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name, too-many-arguments, too-many-locals, line-too-long, too-many-positional-arguments
-"""PTX tcgen05 operations (Blackwell tensor memory, MMA).
+"""Matrix and instruction descriptor encoding for wgmma / tcgen05.
 
-One ``device_intrinsic`` registration per PTX form table entry; bodies are
-hand-written ``asm volatile(...)`` strings. Variable-arity forms (mma masks,
-ld/st register vectors) compute the C signature and body together inside a
-shared parts callable.
+Descriptors are bitfield structs the hardware reads, so each encoder is a
+pure-C struct fill over a layout declared in the CUDA header tags -- no
+asm, and nothing that maps to a PTX instruction.
+
+The tcgen05 MMA validation tables live here too: they decide the dtype
+*kind* and legal (M, N, K) shape that the instruction descriptor encodes,
+and ``tile_primitive/gemm_async/tcgen05.py`` reuses them when it folds the
+same constraints into its dispatch.
 """
 
-from ._schema import device_intrinsic
-from .registry import CODEGEN_REGISTRY, register_codegen
-from .types import PTXDataType
-from .utils import parse_str, validate_cta_group
+from ..codegen.registry import CODEGEN_REGISTRY, register_codegen
+from ..codegen.schema import device_intrinsic
+from ..codegen.types import PTXDataType
+from ..codegen.utils import parse_str, validate_cta_group
 
-
-def _safe(s):
-    return s.replace("::", "_").replace(".", "_")
+# =============================================================================
+# wgmma_encode_matrix_descriptor — pure-C bitfield struct fill (no asm).
+# =============================================================================
+device_intrinsic(
+    "cuda_wgmma_encode_matrix_descriptor",
+    helper_name="ptx_wgmma_encode_matrix_descriptor",
+    c_signature="(uint64_t* desc, void* addr, int ldo, int sdo, int swizzle)",
+    body=(
+        "  GmmaDescriptor _desc{};  // value-init: reading uncovered pad bits is UB\n"
+        "\n"
+        "  switch (swizzle) {\n"
+        "    case 0: _desc.bitfield.layout_type_ = uint8_t(0); break; // No swizzle\n"
+        "    case 1: _desc.bitfield.layout_type_ = uint8_t(3); break; // 32B swizzle\n"
+        "    case 2: _desc.bitfield.layout_type_ = uint8_t(2); break; // 64B swizzle\n"
+        "    case 3: _desc.bitfield.layout_type_ = uint8_t(1); break; // 128B swizzle\n"
+        "  }\n"
+        "\n"
+        "  uint32_t start_address = __cvta_generic_to_shared(addr);\n"
+        "  _desc.bitfield.start_address_ = static_cast<uint16_t>(start_address >> 4);\n"
+        "\n"
+        "  constexpr uint8_t base_offset = 0;\n"
+        "  _desc.bitfield.base_offset_ = base_offset;\n"
+        "\n"
+        "  _desc.bitfield.stride_byte_offset_  = static_cast<uint32_t>(sdo);\n"
+        "  _desc.bitfield.leading_byte_offset_ = static_cast<uint32_t>(ldo);\n"
+        "\n"
+        "  *desc = (uint64_t)_desc;"
+    ),
+    extra_deps=("gmma_descriptor",),
+)
 
 
 # =============================================================================
@@ -478,9 +509,9 @@ def codegen_cuda_tcgen05_encode_instr_descriptor_block_scaled(
 
 
 # =============================================================================
-# tcgen05.mma — 2 PTX form table entries (FP forms 1 / Int form 5) plus block-
-# scaled (form 2). Each form is one device_intrinsic; the C signature and
-# body both depend on (sparse, use_a_tmem, cta_group, scale_input_d).
+# Scale-vector size for block-scaled MMA — consumed by the gemm_async
+# dispatch wrappers, which pass it to the ``T.ptx`` tcgen05.mma forms.
+# =============================================================================
 def _get_tcgen05_mma_scale_vec_size(kind, scale_dtype):
     scale_vec_size = 0
     stype = PTXDataType.from_string(scale_dtype)
@@ -502,8 +533,8 @@ def _get_tcgen05_mma_scale_vec_size(kind, scale_dtype):
 
 # =============================================================================
 # tcgen05 address / descriptor patch helpers — used by the dispatch wrappers
-# in ``tile_primitive/cuda/gemm_async/tcgen05.py``. They live here
-# (not in ``memory.py``) because their semantics are tcgen05-specific:
+# in ``tile_primitive/gemm_async/tcgen05.py``. They are tcgen05-specific rather
+# than generic address arithmetic:
 #   - get_tmem_addr packs a TMEM (taddr, row, col) tuple into the uint32 the
 #     PTX asm slots expect.
 #   - runtime_instr_desc patches the ``b_sf_id_`` (bits [4, 6)) and ``a_sf_id_``

@@ -20,7 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.backend.cuda.intrinsics.tcgen05 import _get_tcgen05_mma_kind
+from tvm.backend.cuda.cpp.descriptors import _get_tcgen05_mma_kind
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.testing import env

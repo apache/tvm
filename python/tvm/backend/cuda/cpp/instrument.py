@@ -16,15 +16,11 @@
 # under the License.
 # ruff: noqa: E501
 # pylint: disable=redefined-builtin, invalid-name
-"""Miscellaneous device helpers.
+"""Profiling, tracing, and debug hooks.
 
-Catch-all for ops that don't fit the (sync / mma / cp_async / memory / math /
-nvshmem) feature buckets:
-
-* PTX register-allocation control: ``mov`` from special reg (setmaxnreg is ptx).
-* Per-thread queries / scheduling hints: ``thread_rank`` / ``nano_sleep``.
-* Profiler timer hooks (``timer_init/start/end/finalize``).
-* Debug helpers: ``printf`` / ``trap`` on assert failure.
+Helpers that observe a running kernel rather than compute anything in it:
+the TIRx profiler timer ring, the official IKET NativeDump event, the
+cycle counter, and the ``printf`` / ``trap`` debug escapes.
 """
 
 import hashlib
@@ -33,71 +29,9 @@ import json
 import tvm
 from tvm.backend.cuda.op import cuda_func_call
 
-from ._schema import device_intrinsic
-from .registry import CODEGEN_REGISTRY, register_codegen
-from .utils import parse_str
-
-# =============================================================================
-# mov.u32/u64 from special register — 1 PTX form (Form 2 of mov.type d, sreg).
-# Each (bits, reg) emits a distinct helper because the special reg name is
-# baked into the PTX text.
-# =============================================================================
-
-
-def _cuda_mov_sreg_body(bits):
-    spec = "l" if bits == 64 else "r"
-
-    def _body(reg):
-        reg = parse_str(reg)
-        return (
-            f"    uint{bits}_t x;\n"
-            f'    asm volatile("mov.u{bits} %0, %{reg};" : "={spec}"(x));\n'
-            f"    return (int{bits}_t)x;"
-        )
-
-    return _body
-
-
-for _bits in (32, 64):
-    device_intrinsic(
-        f"cuda_mov_sreg_{_bits}",
-        n_attrs=1,
-        helper_name=(
-            lambda *a, bits=_bits: (
-                f"tvm_builtin_ptx_fetch_register_"
-                f"{parse_str(a[-1]).replace('::', '_').replace('.', '_')}"
-            )
-        ),
-        return_type=f"int{_bits}_t",
-        body=_cuda_mov_sreg_body(_bits),
-    )
-del _bits
-
-
-@register_codegen("cuda_mov_sreg")
-def codegen_cuda_mov_sreg(bits, reg):
-    bits = int(bits)
-    reg = parse_str(reg)
-    if bits not in (32, 64):
-        raise ValueError(f"Only support 32/64 bits for cuda_mov_sreg, but got {bits}.")
-    result = CODEGEN_REGISTRY[f"tirx.cuda_mov_sreg_{bits}"]([reg])
-    return result[0] if isinstance(result, tuple) else result
-
-
-# =============================================================================
-# Per-thread queries / scheduling hints.
-# =============================================================================
-device_intrinsic(
-    "cuda_thread_rank",
-    body=(
-        "    namespace cg = cooperative_groups;\n    return cg::this_thread_block().thread_rank();"
-    ),
-    return_type="int",
-    tvm_return_type="int32",
-    extra_deps=("cooperative_groups",),
-)
-device_intrinsic("cuda_nano_sleep", c_signature="(uint64_t time)", body="    __nanosleep(time);")
-
+from ..codegen.registry import register_codegen
+from ..codegen.schema import device_intrinsic
+from ..codegen.utils import parse_str
 
 # =============================================================================
 # Profiler timer hooks.

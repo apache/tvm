@@ -17,8 +17,8 @@
 # pylint: disable=redefined-builtin, invalid-name
 """NVSHMEM intrinsics. Each backend call is one ``device_intrinsic(...)``."""
 
-from ._schema import device_intrinsic
-from .registry import CODEGEN_REGISTRY, register_codegen
+from ..codegen.registry import CODEGEN_REGISTRY, register_codegen
+from ..codegen.schema import device_intrinsic
 
 _NVSHMEM = ("nvshmem",)
 

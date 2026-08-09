@@ -46,13 +46,13 @@ from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, registe
 from tvm.tirx.stmt import AllocBuffer, Evaluate, SeqStmt
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
-from ...intrinsics.tcgen05 import (
+from ...codegen.types import PTXDataType
+from ...cpp.descriptors import (
     _TCGEN05_MMA_TRANS_DTYPES,
     _check_tcgen05_mma_matrix_shape,
     _get_tcgen05_mma_kind,
     _get_tcgen05_mma_scale_vec_size,
 )
-from ...intrinsics.types import PTXDataType
 from ..common import get_st_extent, smem_desc_add_16B_offset
 from ..exec_scope_utils import single_thread
 from ..layout_utils import strip_swizzle_to_tile
@@ -64,7 +64,7 @@ from ..tma_utils import (
 )
 
 # Mirror of ``format_map`` in the dense ``encode_instr_descriptor`` codegen
-# (``python/tvm/tirx/operator/intrinsics/cuda/tcgen05.py``). Used to fold the
+# (``python/tvm/backend/cuda/cpp/descriptors.py``). Used to fold the
 # runtime-encoded instruction descriptor into a compile-time uint32 when
 # all parameters are dispatch-time constants.
 _INSTR_DESC_FORMAT_MAP = {
@@ -109,7 +109,7 @@ def _encode_instr_descriptor_dense_uint32(
 ):
     """Compile-time port of the dense ``InstrDescriptor`` bitfield packing.
 
-    See ``python/tvm/tirx/operator/intrinsics/cuda/header.py:InstrDescriptor``
+    See ``python/tvm/backend/cuda/codegen/header.py:InstrDescriptor``
     for the bit layout. Lets the dispatcher pass a literal ``uint32`` to
     ``T.ptx["tcgen05.mma..."]`` instead of allocating + encoding a per-dispatch
     local descriptor on every gemm_async call (which forces an inline ``asm``

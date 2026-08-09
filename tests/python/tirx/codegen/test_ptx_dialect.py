@@ -55,7 +55,7 @@ def _assert_ptxas_ok(src: str, rdc: bool = False, arch: str = PTX_ARCH) -> None:
 
 
 def test_ptx_registration():
-    from tvm.backend.cuda.intrinsics.registry import CODEGEN_REGISTRY
+    from tvm.backend.cuda.codegen.registry import CODEGEN_REGISTRY
     from tvm.backend.cuda.ptx.table import TABLE, escape_token
 
     assert hasattr(T, "ptx")
