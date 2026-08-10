@@ -1454,13 +1454,43 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     builder_->CreateCondBr(MakeValue(args[0]), then_block, else_block);
     builder_->SetInsertPoint(then_block);
     llvm::Value* then_value = MakeValue(args[1]);
+    std::vector<llvm::Value*> then_elements;
+    // Merge fixed-width vectors lane-by-lane so branch-local vector assembly does not escape
+    // its defining block.  Some LLVM optimization pipelines otherwise form uses of the
+    // branch-local shuffles that are not dominated by their definitions.
+    if (auto* vector_type = llvm::dyn_cast<llvm::FixedVectorType>(then_value->getType())) {
+      for (unsigned i = 0; i < vector_type->getNumElements(); ++i) {
+        then_elements.push_back(builder_->CreateExtractElement(then_value, ConstInt32(i)));
+      }
+    }
     llvm::BasicBlock* then_value_block = builder_->GetInsertBlock();
     builder_->CreateBr(end_block);
     builder_->SetInsertPoint(else_block);
     llvm::Value* else_value = MakeValue(args[2]);
+    std::vector<llvm::Value*> else_elements;
+    if (!then_elements.empty()) {
+      TVM_FFI_ICHECK_EQ(then_value->getType(), else_value->getType());
+      for (size_t i = 0; i < then_elements.size(); ++i) {
+        else_elements.push_back(builder_->CreateExtractElement(else_value, ConstInt32(i)));
+      }
+    }
     llvm::BasicBlock* else_value_block = builder_->GetInsertBlock();
     builder_->CreateBr(end_block);
     builder_->SetInsertPoint(end_block);
+    if (!then_elements.empty()) {
+      std::vector<llvm::PHINode*> elements;
+      for (size_t i = 0; i < then_elements.size(); ++i) {
+        llvm::PHINode* element = builder_->CreatePHI(then_elements[i]->getType(), 2);
+        element->addIncoming(then_elements[i], then_value_block);
+        element->addIncoming(else_elements[i], else_value_block);
+        elements.push_back(element);
+      }
+      llvm::Value* result = llvm::UndefValue::get(then_value->getType());
+      for (size_t i = 0; i < elements.size(); ++i) {
+        result = builder_->CreateInsertElement(result, elements[i], ConstInt32(i));
+      }
+      return result;
+    }
     llvm::PHINode* value = builder_->CreatePHI(then_value->getType(), 2);
     value->addIncoming(then_value, then_value_block);
     value->addIncoming(else_value, else_value_block);

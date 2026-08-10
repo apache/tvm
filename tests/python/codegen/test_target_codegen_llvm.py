@@ -1015,6 +1015,74 @@ def test_llvm_scalar_concat():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_llvm_vector_concat_across_conditional():
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def uneven_lanes(
+            A: T.Buffer((16,), "float32"), B: T.Buffer((4,), "float32"), condition: T.int32
+        ):
+            first = T.Shuffle([A[T.Ramp(0, 1, 4)], A[T.Ramp(4, 1, 4)]], [2, 6])
+            second = T.if_then_else(
+                condition != 0,
+                T.Shuffle([A[T.Ramp(8, 1, 4)], A[T.Ramp(12, 1, 4)]], [0, 5]),
+                T.Shuffle([A[T.Ramp(8, 1, 4)], A[T.Ramp(12, 1, 4)]], [2, 7]),
+            )
+            B[T.Ramp(0, 1, 4)] = T.Shuffle([first, second], [0, 1, 2, 3])
+
+        @T.prim_func(s_tir=True)
+        def alternate_shape(
+            A: T.Buffer((16,), "float32"), B: T.Buffer((4,), "float32"), condition: T.int32
+        ):
+            first = T.if_then_else(
+                condition != 0,
+                T.Shuffle([A[T.Ramp(0, 1, 8)], A[T.Ramp(8, 1, 8)]], [1, 5, 9]),
+                T.Shuffle([A[T.Ramp(0, 1, 8)], A[T.Ramp(8, 1, 8)]], [2, 6, 10]),
+            )
+            B[T.Ramp(0, 1, 4)] = T.Shuffle([first, A[15]], [0, 1, 2, 3])
+
+    built = tvm.compile(Module, target="llvm")
+    dev = tvm.cpu(0)
+
+    a = tvm.runtime.tensor(np.arange(16, dtype="float32"), dev)
+    b = tvm.runtime.empty((4,), dtype="float32", device=dev)
+    built["uneven_lanes"](a, b, 1)
+    tvm.testing.assert_allclose(b.numpy(), np.array([2, 6, 8, 13], dtype="float32"))
+    built["uneven_lanes"](a, b, 0)
+    tvm.testing.assert_allclose(b.numpy(), np.array([2, 6, 10, 15], dtype="float32"))
+
+    a = tvm.runtime.tensor(np.arange(16, dtype="float32"), dev)
+    b = tvm.runtime.empty((4,), dtype="float32", device=dev)
+    built["alternate_shape"](a, b, 1)
+    tvm.testing.assert_allclose(b.numpy(), np.array([1, 5, 9, 15], dtype="float32"))
+    built["alternate_shape"](a, b, 0)
+    tvm.testing.assert_allclose(b.numpy(), np.array([2, 6, 10, 15], dtype="float32"))
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_llvm_vector_conditional_remains_lazy():
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32"), condition: T.int32
+        ):
+            B[T.Ramp(0, 1, 4)] = T.if_then_else(
+                condition != 0,
+                A[T.Ramp(0, 1, 4)],
+                A[T.Ramp(1024, 1, 4)],
+            )
+
+    built = tvm.compile(Module, target="llvm")
+    dev = tvm.cpu(0)
+    a_np = np.arange(4, dtype="float32")
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.empty((4,), dtype="float32", device=dev)
+    built(a, b, 1)
+    tvm.testing.assert_allclose(b.numpy(), a_np)
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_raise_exception_during_codegen():
     @I.ir_module(s_tir=True)
     class Module:
