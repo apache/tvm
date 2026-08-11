@@ -260,6 +260,48 @@ def test_pod_params_and_select():
     tvm.ir.assert_structural_equal(Expected, after)
 
 
+def test_if_then_else_index():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((T.int64(4),), "float32"), B: T.Buffer((1,), "float32"), n: T.int64):
+            B[0] = A[T.if_then_else(n < T.int64(0), n + T.int64(1), n)]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((4,), "float32"), B: T.Buffer((1,), "float32"), n: T.int32):
+            B[0] = A[T.if_then_else(n < 0, n + 1, n)]
+
+    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
+    tvm.ir.assert_structural_equal(Expected, after)
+
+
+def test_conditional_index_mixed_width_branches():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((T.int64(4),), "float32"), B: T.Buffer((4,), "float32"), n: T.int64):
+            opaque_index = T.call_extern("opaque_index", n, dtype="int64")
+            B[0] = A[T.if_then_else(n < T.int64(0), opaque_index, n)]
+            B[1] = A[T.if_then_else(n < T.int64(0), n, opaque_index)]
+            B[2] = A[T.Select(n < T.int64(0), opaque_index, n)]
+            B[3] = A[T.Select(n < T.int64(0), n, opaque_index)]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32"), n: T.int32):
+            opaque_index = T.call_extern("opaque_index", n, dtype="int64")
+            B[0] = A[T.if_then_else(n < 0, opaque_index, T.Cast("int64", n))]
+            B[1] = A[T.if_then_else(n < 0, T.Cast("int64", n), opaque_index)]
+            B[2] = A[T.Select(n < 0, opaque_index, T.Cast("int64", n))]
+            B[3] = A[T.Select(n < 0, T.Cast("int64", n), opaque_index)]
+
+    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
+    tvm.ir.assert_structural_equal(Expected, after)
+
+
 def test_clz():
     @tvm.script.ir_module
     class Before:
@@ -275,6 +317,26 @@ def test_clz():
             for i in range(4):
                 B[i] = T.clz(i) - 32 + 64
 
+    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
+    tvm.ir.assert_structural_equal(Expected, after)
+
+
+def test_right_shift_preserves_sign_extension_after_narrowing():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((T.int64(6),), "float32"), B: T.Buffer((1,), "float32"), n: T.int64):
+            B[0] = A[T.shift_right(T.truncmod(n - T.int64(8), T.int64(6)), T.int64(63))]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((6,), "float32"), B: T.Buffer((1,), "float32"), n: T.int32):
+            B[0] = A[T.shift_right(T.truncmod(n - 8, 6), 31)]
+
+    # ForceNarrowIndexToInt32 assumes that index values fit in int32.  Under
+    # that precondition, shifting the original int64 value by 63 and shifting
+    # the narrowed value by its sign-bit position have the same result.
     after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
     tvm.ir.assert_structural_equal(Expected, after)
 
