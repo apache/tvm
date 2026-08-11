@@ -679,10 +679,38 @@ class FunctionCreator : public ExprMutator {
     if (const auto* tuple = expr.as<TupleNode>()) {
       return std::all_of(tuple->fields.begin(), tuple->fields.end(),
                          [this](const Expr& e) { return IsInlinableConstants(e); });
+    } else if (auto prim_value = expr.as<PrimExpr>()) {
+      ffi::Array<tirx::Var> undefined_vars = tvm::tirx::UndefinedVars(prim_value.value());
+      if (undefined_vars.empty()) {
+        return true;
+      }
+
+      // A symbolic value directly defined by an existing tensor/shape parameter is already part
+      // of the grouped function's shape environment.  A variable that only occurs inside a
+      // derived dimension is not directly definable, but leaving it symbolic lets CreateFunction
+      // add the explicit Shape parameter required to define it.  In either case, lifting the value
+      // as an unrelated scalar parameter would sever the relation to the parameter types.
+      auto parameter_types =
+          TupleType(params_.Map([](const Var& param) { return GetType(param); }));
+      std::unordered_set<tirx::Var> definable_shape_vars;
+      for (const tirx::Var& var : DefinableTIRVarsInType(parameter_types)) {
+        definable_shape_vars.insert(var);
+      }
+      if (std::all_of(undefined_vars.begin(), undefined_vars.end(),
+                      [&definable_shape_vars](const tirx::Var& var) {
+                        return definable_shape_vars.count(var);
+                      })) {
+        return true;
+      }
+
+      std::unordered_set<tirx::Var> referenced_shape_vars;
+      for (const tirx::Var& var : TIRVarsInType(parameter_types)) {
+        referenced_shape_vars.insert(var);
+      }
+      return std::all_of(undefined_vars.begin(), undefined_vars.end(),
+                         [&](const tirx::Var& var) { return referenced_shape_vars.count(var); });
     } else if (expr.as<VarNode>() || expr.as<CallNode>()) {
       return false;
-    } else if (auto prim_value = expr.as<PrimExpr>()) {
-      return tvm::tirx::UndefinedVars(prim_value.value()).empty();
     } else if (const auto* shape_expr = expr.as<ShapeExprNode>()) {
       return std::all_of(shape_expr->values.begin(), shape_expr->values.end(),
                          [](const PrimExpr& e) { return tvm::tirx::UndefinedVars(e).empty(); });

@@ -1352,6 +1352,200 @@ def test_symbolic_shape_aware_fuse_2():
     _check(Before, Expected)
 
 
+def test_symbolic_prim_arg_bound_by_tensor_shape():
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(private=True, s_tir=True)
+        def add_one(x_handle: T.handle, n: T.int64, out_handle: T.handle):
+            T.func_attr({"op_pattern": 0, "tirx.noalias": True})
+            x = T.match_buffer(x_handle, (T.int64(1), n), "float32")
+            out = T.match_buffer(out_handle, (T.int64(1), n), "float32")
+            for i in range(n):
+                with T.sblock("add_one"):
+                    vi = T.axis.spatial(n, i)
+                    out[0, vi] = x[0, vi] + T.float32(1)
+
+        @T.prim_func(private=True, s_tir=True)
+        def exp(x_handle: T.handle, n: T.int64, out_handle: T.handle):
+            T.func_attr({"op_pattern": 0, "tirx.noalias": True})
+            x = T.match_buffer(x_handle, (T.int64(1), n), "float32")
+            out = T.match_buffer(out_handle, (T.int64(1), n), "float32")
+            for i in range(n):
+                with T.sblock("exp"):
+                    vi = T.axis.spatial(n, i)
+                    out[0, vi] = T.exp(x[0, vi])
+
+        @R.function
+        def main(
+            x: R.Tensor((1, "n"), dtype="float32"),
+        ) -> R.Tensor((1, "n"), dtype="float32"):
+            n = T.int64()
+            cls = Before
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.add_one,
+                    (x, n),
+                    out_ty=R.Tensor((1, n), dtype="float32"),
+                )
+                gv = R.call_tir(
+                    cls.exp,
+                    (lv, n),
+                    out_ty=R.Tensor((1, n), dtype="float32"),
+                )
+                R.output(gv)
+            return gv
+
+    mod = relax.transform.AnnotateTIROpPattern()(Before)
+    mod = relax.transform.FuseOps()(mod)
+
+    fused = next(
+        mod[global_var]
+        for global_var in mod.get_global_vars()
+        if global_var.name_hint.startswith("fused_")
+    )
+    assert len(fused.params) == 1
+    assert fused.ret_ty.shape is not None
+
+
+def test_symbolic_prim_arg_reused_from_derived_tensor_shape():
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(private=True, s_tir=True)
+        def add_one(x_handle: T.handle, n: T.int64, out_handle: T.handle):
+            T.func_attr({"op_pattern": 0, "tirx.noalias": True})
+            x = T.match_buffer(
+                x_handle,
+                (T.int64(1), (n - T.int64(1)) // T.int64(4) + T.int64(1)),
+                "float32",
+            )
+            out = T.match_buffer(
+                out_handle,
+                (T.int64(1), (n - T.int64(1)) // T.int64(4) + T.int64(1)),
+                "float32",
+            )
+            for i in range((n - T.int64(1)) // T.int64(4) + T.int64(1)):
+                with T.sblock("add_one"):
+                    vi = T.axis.spatial((n - T.int64(1)) // T.int64(4) + T.int64(1), i)
+                    out[0, vi] = x[0, vi] + T.float32(1)
+
+        @T.prim_func(private=True, s_tir=True)
+        def exp(x_handle: T.handle, n: T.int64, out_handle: T.handle):
+            T.func_attr({"op_pattern": 0, "tirx.noalias": True})
+            x = T.match_buffer(
+                x_handle,
+                (T.int64(1), (n - T.int64(1)) // T.int64(4) + T.int64(1)),
+                "float32",
+            )
+            out = T.match_buffer(
+                out_handle,
+                (T.int64(1), (n - T.int64(1)) // T.int64(4) + T.int64(1)),
+                "float32",
+            )
+            for i in range((n - T.int64(1)) // T.int64(4) + T.int64(1)):
+                with T.sblock("exp"):
+                    vi = T.axis.spatial((n - T.int64(1)) // T.int64(4) + T.int64(1), i)
+                    out[0, vi] = T.exp(x[0, vi])
+
+        @R.function
+        def main(
+            source: R.Tensor(("n",), dtype="float32"),
+            x: R.Tensor((1, "(n - 1) // 4 + 1"), dtype="float32"),
+        ) -> R.Tensor((1, "(n - 1) // 4 + 1"), dtype="float32"):
+            n = T.int64()
+            cls = Before
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.add_one,
+                    (x, n),
+                    out_ty=R.Tensor((1, (n - 1) // 4 + 1), dtype="float32"),
+                )
+                gv = R.call_tir(
+                    cls.exp,
+                    (lv, n),
+                    out_ty=R.Tensor((1, (n - 1) // 4 + 1), dtype="float32"),
+                )
+                R.output(gv)
+            return gv
+
+    mod = relax.transform.AnnotateTIROpPattern()(Before)
+    mod = relax.transform.FuseOps()(mod)
+
+    fused = next(
+        mod[global_var]
+        for global_var in mod.get_global_vars()
+        if global_var.name_hint.startswith("fused_")
+    )
+    assert len(fused.params) == 2
+    assert isinstance(fused.params[1].ty, relax.ShapeType)
+    assert all(not isinstance(param.ty, tvm.ir.PrimType) for param in fused.params)
+
+    mod = relax.transform.FuseTIR()(mod)
+    fused_tir = next(
+        mod[global_var]
+        for global_var in mod.get_global_vars()
+        if global_var.name_hint.startswith("fused_")
+    )
+    assert tvm.tirx.analysis.verify_well_formed(fused_tir)
+
+
+def test_symbolic_prim_arg_not_bound_by_derived_tensor_shape():
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(private=True, s_tir=True)
+        def add_one(x_handle: T.handle, n: T.int64, m: T.int64, out_handle: T.handle):
+            T.func_attr({"op_pattern": 0, "tirx.noalias": True})
+            x = T.match_buffer(x_handle, (T.int64(1), n + T.int64(1)), "float32")
+            out = T.match_buffer(out_handle, (T.int64(1), n + T.int64(1)), "float32")
+            for i in range(n + T.int64(1)):
+                with T.sblock("add_one"):
+                    vi = T.axis.spatial(n + T.int64(1), i)
+                    out[0, vi] = x[0, vi] + T.float32(1)
+
+        @T.prim_func(private=True, s_tir=True)
+        def exp(x_handle: T.handle, n: T.int64, m: T.int64, out_handle: T.handle):
+            T.func_attr({"op_pattern": 0, "tirx.noalias": True})
+            x = T.match_buffer(x_handle, (T.int64(1), n + T.int64(1)), "float32")
+            out = T.match_buffer(out_handle, (T.int64(1), n + T.int64(1)), "float32")
+            for i in range(n + T.int64(1)):
+                with T.sblock("exp"):
+                    vi = T.axis.spatial(n + T.int64(1), i)
+                    out[0, vi] = T.exp(x[0, vi])
+
+        @R.function
+        def main(
+            shape: R.Shape(["n", "m"]),
+            x: R.Tensor((1, "n + 1"), dtype="float32"),
+        ) -> R.Tensor((1, "n + 1"), dtype="float32"):
+            n = T.int64()
+            m = T.int64()
+            cls = Before
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.add_one,
+                    (x, n, m),
+                    out_ty=R.Tensor((1, n + 1), dtype="float32"),
+                )
+                gv = R.call_tir(
+                    cls.exp,
+                    (lv, n, m),
+                    out_ty=R.Tensor((1, n + 1), dtype="float32"),
+                )
+                R.output(gv)
+            return gv
+
+    mod = relax.transform.AnnotateTIROpPattern()(Before)
+    mod = relax.transform.FuseOps()(mod)
+
+    fused = next(
+        mod[global_var]
+        for global_var in mod.get_global_vars()
+        if global_var.name_hint.startswith("fused_")
+    )
+    assert len(fused.params) == 3
+    assert sum(isinstance(param.ty, relax.ShapeType) for param in fused.params) == 1
+    assert sum(isinstance(param.ty, tvm.ir.PrimType) for param in fused.params) == 1
+
+
 def test_shape_expr_arg():
     @I.ir_module(s_tir=True)
     class Before:
