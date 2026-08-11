@@ -955,6 +955,28 @@ def test_adaptive_pooling_window():
     _check_workload(te_workload, tir_workload)
 
 
+@pytest.mark.parametrize(
+    ("input_shape", "expected"),
+    [
+        ((3, 4), [[12.5, 14.5], [16.5, 18.5]]),
+        ((4, 3), [[12.0, 13.0], [18.0, 19.0]]),
+    ],
+)
+def test_adaptive_pooling_mixed_reduction_levels(input_shape, expected):
+    data = te.placeholder((1, 1, *input_shape), "float32", "data")
+    output = topi.nn.adaptive_pool(data, [2, 2], pool_type="avg")
+    prim_func = te.create_prim_func([data, output])
+    compiled = tvm.compile(prim_func)
+
+    input_data = np.arange(10, 10 + np.prod(input_shape), dtype="float32").reshape(
+        1, 1, *input_shape
+    )
+    actual = tvm.runtime.tensor(np.empty((1, 1, 2, 2), dtype="float32"))
+    compiled(tvm.runtime.tensor(input_data), actual)
+
+    tvm.testing.assert_allclose(actual.numpy()[0, 0], np.array(expected, dtype="float32"))
+
+
 def test_global_pool():
     # fix the issue-17938
     data = te.placeholder((1, 1, 32, 32), dtype="int8", name="data")
@@ -991,10 +1013,11 @@ def test_nested_reduce_domain_dependency():
                                 v_i2_2 = T.axis.spatial((v_i2_1, v_i2_1 + 1), v_i2_1)
                                 v_rv_1 = T.axis.reduce((v_rv, v_rv + 1), v_rv)
                                 v_rv_2 = T.axis.reduce(v_rv, rv_1)
-                                T.reads(x[v_i0_2, v_i1_2, v_i2_2, v_rv_1, v_rv_2])
+                                T.reads(
+                                    compute[v_i0_2, v_i1_2, v_i2_2],
+                                    x[v_i0_2, v_i1_2, v_i2_2, v_rv_1, v_rv_2],
+                                )
                                 T.writes(compute[v_i0_2, v_i1_2, v_i2_2])
-                                with T.init():
-                                    compute[v_i0_2, v_i1_2, v_i2_2] = T.float32(0.0)
                                 compute[v_i0_2, v_i1_2, v_i2_2] = (
                                     compute[v_i0_2, v_i1_2, v_i2_2]
                                     + x[v_i0_2, v_i1_2, v_i2_2, v_rv_1, v_rv_2]
