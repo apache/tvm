@@ -2449,8 +2449,14 @@ class MultiInputBase(OnnxOpConverter):
         if cls.numpy_op is None or cls.relax_op is None:
             raise NotImplementedError("numpy_op and relax_op must be defined for MultiInputBase")
         if all([isinstance(inp, relax.Constant) for inp in inputs]):
-            np_inputs = [inp.data.numpy() for inp in inputs]
-            output = cls.numpy_op(*np_inputs)  # pylint: disable=not-callable
+            # numpy_op is a reduction, so the operands cannot be passed
+            # positionally: the second constant would be taken as ``axis``.
+            # Broadcast and stack first, then reduce over the stack axis, which
+            # is what the non-constant path below builds.
+            np_inputs = _np.broadcast_arrays(*[inp.data.numpy() for inp in inputs])
+            output = cls.numpy_op(  # pylint: disable=not-callable
+                _np.stack(np_inputs, axis=0), axis=0
+            )
             return relax.const(output, output.dtype)
 
         input_shapes = [inp.ty.shape for inp in inputs]
