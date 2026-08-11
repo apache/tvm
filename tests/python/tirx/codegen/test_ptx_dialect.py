@@ -55,7 +55,7 @@ def _assert_ptxas_ok(src: str, rdc: bool = False, arch: str = PTX_ARCH) -> None:
 
 
 def test_ptx_registration():
-    from tvm.backend.cuda.intrinsics.registry import CODEGEN_REGISTRY
+    from tvm.backend.cuda.codegen.registry import CODEGEN_REGISTRY
     from tvm.backend.cuda.ptx.table import TABLE, escape_token
 
     assert hasattr(T, "ptx")
@@ -107,6 +107,28 @@ def test_ptx_ld_st_codegen():
     assert "st.release.gpu.global.b32 [%0], %1;" in src
     assert "tvm_builtin_ptx_ld_acquire_gpu_global_b32" in src
     assert "tvm_builtin_ptx_st_release_gpu_global_b32" in src
+
+
+@requires_nvcc
+def test_ptx_ld_s32_wide_destination_codegen():
+    """A signed scalar load may sign-extend into a wider destination register."""
+
+    @T.prim_func
+    def kernel(a_ptr: T.handle, out_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (32,), "int32")
+        Out = T.match_buffer(out_ptr, (32,), "int64")
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([32])
+        wide = T.local_scalar("int64")
+        T.ptx.ld.global_.s32(wide, A.ptr_to([tx]))
+        Out[tx] = wide
+
+    src = _cuda_source(kernel)
+    assert "tvm_builtin_ptx_ld_global_s32_s64(int64_t& __d" in src
+    assert 'asm volatile("ld.global.s32 %0, [%1];" : "=l"(__d)' in src
+    assert "cvt." not in src
+    _assert_ptxas_ok(src)
 
 
 def test_ptx_st_shared_coercion():
@@ -1510,6 +1532,12 @@ def test_ptx_helper_source_golden():
         ' : "memory");\n'
         "}\n"
     )
+    assert render("ld", dtypes=("int64", "uint64"), space="global", type="s32") == (
+        "__forceinline__ __device__ void tvm_builtin_ptx_ld_global_s32_s64"
+        "(int64_t& __d, const void* __addr) {\n"
+        '  asm volatile("ld.global.s32 %0, [%1];" : "=l"(__d) : "l"(__addr) : "memory");\n'
+        "}\n"
+    )
     # 8-bit destination: no asm constraint of its own, so it rides a 16-bit
     # carrier register and is narrowed into the reference afterwards. The asm
     # block still holds exactly one instruction.
@@ -2173,7 +2201,7 @@ def test_ptx_all_variants_render_unique():
                     or f"; {opcode};" in source
                 )
             total += not predicated  # a @p twin is not a separate variant
-    assert total == 198709  # update when the table grows
+    assert total == 200002  # update when the table grows
 
 
 def test_ptx_no_instruction_registered_twice():

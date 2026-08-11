@@ -43,8 +43,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from tvm.backend.cuda.intrinsics.registry import register_codegen
 from tvm.backend.cuda.op import cuda_func_call
+
+from .registry import register_codegen
 
 # C primitive type → TVM dtype string. Used when the caller specifies a
 # non-void ``return_type`` but no explicit ``tvm_return_type`` — the helper

@@ -781,7 +781,7 @@ class _Chain_max:
     def __call__(self, *args: Any) -> None: ...
 
 class _Chain_mbarrier:
-    """`mbarrier` — 24 entries sharing this mnemonic; PTX puts their difference in the operand
+    """`mbarrier` — 25 entries sharing this mnemonic; PTX puts their difference in the operand
     list, so the call selects one. Shapes: (addr, count); (addr); (addr, tx_count); (state,
     addr, count); (wait_complete, addr, phase); (wait_complete, addr, phase, time_hint);
     (state, addr); (wait_complete, addr, state); (wait_complete, addr, state, time_hint);
