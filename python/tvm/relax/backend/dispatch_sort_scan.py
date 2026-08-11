@@ -146,10 +146,14 @@ class SortScanDispatcher(BackendDispatcher):
             # TODO(tvm-team): Support fully dynamic case with `shape=None`
             if shape is None:
                 raise ValueError("non-symbolic shape is not supported for now")
+            shape_values = [shape[i] for i in range(len(shape))]
             kwargs = {}
+            normalized_axis = axis
+            if normalized_axis is not None and normalized_axis < 0:
+                normalized_axis += len(shape)
             if (
-                shape is not None
-                and (axis == -1 or axis == len(shape) - 1)
+                normalized_axis is not None
+                and (normalized_axis == len(shape) - 1 or tgt.kind.name == "webgpu")
                 and self.is_gpu_target(tgt)
                 and not can_use_thrust(tgt, "tvm.contrib.thrust.sum_scan")
                 and call.op.name == "relax.cumsum"
@@ -157,29 +161,43 @@ class SortScanDispatcher(BackendDispatcher):
             ):
                 from tvm.relax.backend.gpu_generic import (  # pylint: disable=import-outside-toplevel
                     gpu_2d_continuous_cumsum,
+                    gpu_3d_axis_1_cumsum,
                 )
 
-                dim = 1
-                for i in range(len(shape) - 1):
-                    dim *= shape[i]
+                input_tensor = call.args[0]
                 in_dtype = call.args[0].ty.dtype
                 out_dtype = call.attrs.dtype
                 out_dtype = out_dtype or in_dtype
-                cumsum_2d_shape = relax.ShapeExpr([dim, shape[-1]])
+
+                if normalized_axis == len(shape) - 1:
+                    outer = reduce(mul, shape_values[:-1], 1)
+                    kernel_shape = relax.ShapeExpr([outer, shape[-1]])
+                    kernel = gpu_2d_continuous_cumsum(
+                        in_dtype=in_dtype,
+                        out_dtype=out_dtype,
+                    )
+                    kernel_name = "gpu_2d_continuous_cumsum"
+                else:
+                    outer = reduce(mul, shape_values[:normalized_axis], 1)
+                    inner = reduce(mul, shape_values[normalized_axis + 1 :], 1)
+                    kernel_shape = relax.ShapeExpr([outer, shape[normalized_axis], inner])
+                    kernel = gpu_3d_axis_1_cumsum(
+                        in_dtype=in_dtype,
+                        out_dtype=out_dtype,
+                    )
+                    kernel_name = "gpu_3d_axis_1_cumsum"
+
                 reshape = relax.call_pure_packed(
                     "vm.builtin.reshape",
-                    call.args[0],
-                    cumsum_2d_shape,
-                    ty_args=relax.TensorType(cumsum_2d_shape, out_dtype),
+                    input_tensor,
+                    kernel_shape,
+                    ty_args=relax.TensorType(kernel_shape, in_dtype, vdevice=call.ty.vdevice),
                 )
-                gv = self.builder_.add_func(
-                    gpu_2d_continuous_cumsum(in_dtype=in_dtype, out_dtype=out_dtype),
-                    "gpu_2d_continuous_cumsum",
-                )
+                gv = self.builder_.add_func(kernel, kernel_name)
                 cumsum = relax.call_tir(
                     gv,
                     reshape,
-                    out_ty=relax.TensorType(cumsum_2d_shape, out_dtype),
+                    out_ty=relax.TensorType(kernel_shape, out_dtype, vdevice=call.ty.vdevice),
                 )
                 return relax.call_pure_packed(
                     "vm.builtin.reshape",
