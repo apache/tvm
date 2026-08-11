@@ -3455,20 +3455,34 @@ def test_mish():
 
 
 def test_prelu():
-    def _assert_prelu_ir(slope_shape, expected):
+    def _assert_prelu_ir(slope_shape, expected, input_shape=(3, 32, 32)):
         prelu_node = helper.make_node("PRelu", ["a", "b"], ["c"])
         graph = helper.make_graph(
             [prelu_node],
             "prelu_structural_test",
             inputs=[
-                helper.make_tensor_value_info("a", TensorProto.FLOAT, [3, 32, 32]),
+                helper.make_tensor_value_info("a", TensorProto.FLOAT, input_shape),
                 helper.make_tensor_value_info("b", TensorProto.FLOAT, slope_shape),
             ],
-            outputs=[helper.make_tensor_value_info("c", TensorProto.FLOAT, [3, 32, 32])],
+            outputs=[helper.make_tensor_value_info("c", TensorProto.FLOAT, input_shape)],
         )
         model = helper.make_model(graph, producer_name="prelu_structural_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
         tvm.ir.assert_structural_equal(tvm_model, expected)
+
+    @I.ir_module
+    class ExpectedRankZeroSlope:
+        @R.function
+        def main(
+            a: R.Tensor((3, 32, 32), dtype="float32"),
+            b: R.Tensor((), dtype="float32"),
+        ) -> R.Tensor((3, 32, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((1,), dtype="float32") = R.reshape(b, R.shape([1]))
+                gv: R.Tensor((3, 32, 32), dtype="float32") = R.nn.prelu(a, lv, axis=2)
+                R.output(gv)
+            return gv
 
     @I.ir_module
     class ExpectedScalarSlope:
@@ -3526,10 +3540,50 @@ def test_prelu():
                 R.output(gv)
             return gv
 
+    @I.ir_module
+    class ExpectedLowerRankChannelSlope:
+        @R.function
+        def main(
+            a: R.Tensor((1, 32, 16, 16), dtype="float32"),
+            b: R.Tensor((32, 1, 1), dtype="float32"),
+        ) -> R.Tensor((1, 32, 16, 16), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32,), dtype="float32") = R.reshape(b, R.shape([32]))
+                gv: R.Tensor((1, 32, 16, 16), dtype="float32") = R.nn.prelu(a, lv, axis=1)
+                R.output(gv)
+            return gv
+
+    _assert_prelu_ir([], ExpectedRankZeroSlope)
     _assert_prelu_ir([1], ExpectedScalarSlope)
     _assert_prelu_ir([1, 1], ExpectedTwoDimScalarSlope)
     _assert_prelu_ir([32], ExpectedChannelSlope)
     _assert_prelu_ir([3, 1, 1], ExpectedBatchSlope)
+    _assert_prelu_ir([32, 1, 1], ExpectedLowerRankChannelSlope, input_shape=(1, 32, 16, 16))
+
+
+def test_prelu_lower_rank_slope():
+    input_shape = (1, 4, 3, 3)
+    slope_shape = (4, 1, 1)
+    graph = helper.make_graph(
+        [helper.make_node("PRelu", ["x", "slope"], ["y"])],
+        "prelu_lower_rank_slope_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
+            helper.make_tensor_value_info("slope", TensorProto.FLOAT, slope_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, input_shape)],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="prelu_lower_rank_slope_test",
+        opset_imports=[helper.make_opsetid("", 16)],
+    )
+    inputs = {
+        "x": np.linspace(-2.0, 2.0, np.prod(input_shape), dtype="float32").reshape(input_shape),
+        "slope": np.array([0.1, 0.2, 0.3, 0.4], dtype="float32").reshape(slope_shape),
+    }
+    check_correctness(model, inputs=inputs, opset=16, check_dtypes=True)
 
 
 def test_thresholded_relu():
