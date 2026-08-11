@@ -985,8 +985,8 @@ def _static_str(value):
 
 
 # See top-of-file imports for `_FENCE_SEM` etc. (re-exported from _common).
-# Note: TCGEN05_LDST_SHAPES values must stay in sync with the shape branches
-# of codegen_ptx_tcgen05_ld/_st in intrinsics/cuda/tcgen05.py.
+# Note: TCGEN05_LDST_SHAPES values must stay in sync with the tcgen05.ld/.st
+# shape tokens in backend/cuda/ptx/table.py.
 
 
 def timer_init_cuda(profiler_buffer, profiler_tag, profiler_write_offset, num_groups, group_id):

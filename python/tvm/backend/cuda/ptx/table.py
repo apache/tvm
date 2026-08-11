@@ -177,6 +177,7 @@ class ModifierSlot:
 
 LanesFn = Callable[[dict], int]  # modifier map -> registers in this operand's group
 DtypeFn = Callable[[dict], str]  # modifier map -> this operand's PTX type token
+DtypesFn = Callable[[dict], tuple[str, ...]]  # modifier map -> accepted TVM dtypes
 
 
 @dataclass(frozen=True)
@@ -247,6 +248,12 @@ class OperandSlot:
     dataclass hashes a callable field by identity, so a fresh lambda per entry
     would make otherwise-equal slots compare unequal.
 
+    ``dtypes`` optionally narrows or widens the TVM dtype domain independently
+    of the ISA type. This is for operands whose register may legally exceed the
+    instruction type, such as the sign-extending destination of ``ld.s32``.
+    Like ``dtype``, a callable must be pure, total, and module-level. Leaving it
+    unset uses :data:`PTX_TYPE_DTYPES` for the resolved ISA type.
+
     ``lanes`` > 1 makes the operand a brace-enclosed register group. PTX writes
     the group in the operand list (``mov.b64 d, {lo, hi}``), so the group is
     part of the *shape*, never of the dotted modifier text.
@@ -257,6 +264,7 @@ class OperandSlot:
     kind: str = "reg"  # "reg" | "addr" | "ptr" | "imm"
     space: str | None = None
     dtype: str | DtypeFn | None = None
+    dtypes: tuple[str, ...] | DtypesFn | None = None
     # kind="imm" is a value in the instruction *text* (never a C parameter),
     # in one of three states, by who owns the value:
     #   literal set   -- the ISA fixed it; invisible to programs.
@@ -526,6 +534,10 @@ def operand_space(slot: OperandSlot, mod_map: dict) -> str:
 
 def operand_dtypes(slot: OperandSlot, mod_map: dict) -> tuple[str, ...]:
     """The TVM dtypes one operand accepts, canonical first (see PTX_TYPE_DTYPES)."""
+    if callable(slot.dtypes):
+        return slot.dtypes(mod_map)
+    if slot.dtypes is not None:
+        return slot.dtypes
     return PTX_TYPE_DTYPES[operand_type(slot, mod_map)]
 
 
@@ -981,6 +993,13 @@ _WIDE_RESULT = {"u16": "u32", "s16": "s32", "u32": "u64", "s32": "s64"}
 def _wide_dtype(m):
     """`.wide`'s double-width operand type (ISA 9.7.1.3/9.7.1.4)."""
     return _WIDE_RESULT[m["type"]]
+
+
+def _ld_dst_dtypes(m):
+    """Scalar ``ld.s32`` may sign-extend into a wider destination register."""
+    if m["type"] == "s32":
+        return ("int32", "int64")
+    return PTX_TYPE_DTYPES[m["type"]]
 
 
 def _dp_acc_dtype(m):
@@ -3690,7 +3709,7 @@ _ENTRIES = [
         ),
         check=_check_ld,
         operands=(
-            OperandSlot("d", rw="w"),
+            OperandSlot("d", rw="w", dtypes=_ld_dst_dtypes),
             OperandSlot("addr", kind="addr"),
             OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
@@ -6221,8 +6240,7 @@ _ENTRIES = [
     # mbarrier.try_wait.parity{.sem.scope}{.ss}.b64 waitComplete, [addr], phaseParity, timeHint;
     #
     # waitComplete is a `.pred` result -- rw="w", dtype="pred", the in-block selp
-    # materialization. try_wait is registered in its timeHint arity only (the
-    # hint is a nanosecond budget the callers always pass).
+    # materialization. try_wait supports both PTX arities: timeHint is optional.
     *[
         InstructionEntry(
             name=f"mbarrier_{act}_parity",
@@ -6245,6 +6263,24 @@ _ENTRIES = [
         )
         for act in ("test_wait", "try_wait")
     ],
+    InstructionEntry(
+        name="mbarrier_try_wait_parity_no_hint",
+        mnemonic="mbarrier",
+        slots=(
+            ModifierSlot("action", ("try_wait",)),
+            ModifierSlot("parity", ("parity",)),
+            ModifierSlot("sem", ("acquire", "relaxed"), optional=True),
+            ModifierSlot("scope", ("cta", "cluster"), optional=True),
+            ModifierSlot("space", ("shared", "shared::cta"), optional=True),
+            ModifierSlot("type", ("b64",)),
+        ),
+        check=_check_mbarrier_sem_scope,
+        operands=(
+            OperandSlot("wait_complete", rw="w", dtype="pred"),
+            OperandSlot("addr", kind="addr"),
+            OperandSlot("phase", dtype="u32"),
+        ),
+    ),
     *[
         InstructionEntry(  # mbarrier.{expect_tx,complete_tx}{.sem.scope}{.space}.b64 [addr], tx;
             name=f"mbarrier_{act}",
