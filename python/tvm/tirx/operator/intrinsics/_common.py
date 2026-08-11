@@ -14,12 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Shared enum / value tables for PTX intrinsic schemas and user wrappers.
+"""Shared enum / value tables for the PTX intrinsic user wrappers.
 
-Single source of truth. Both ``tvm.tirx.op`` (user wrappers that validate
-arguments via ``_choice``) and ``tvm.tirx.cuda.intrinsics.*``
-(schema declarations using ``Choice(choices=...)`` / ``IntAttr(choices=...)``)
-import from here.
+Single source of truth for the modifier values ``tvm.tirx.op`` accepts, which
+it validates via ``_choice``. The ``T.ptx`` dialect does not read these -- it
+derives its legal modifier tokens from its own instruction table.
 
 Adding a new modifier value requires changing exactly one place.
 """

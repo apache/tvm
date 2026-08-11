@@ -15,35 +15,36 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-import
-"""CUDA HW intrinsic codegens, grouped by feature domain.
+"""Shared machinery behind every CUDA device-intrinsic codegen.
 
-- ``mma`` / ``wgmma`` / ``tcgen05`` — matrix-multiply hardware (Volta+/Hopper/Blackwell).
-- ``cp_async`` — cp.async + cp.async.bulk + cp.async.bulk.tensor (TMA), incl. TMA address helpers.
-- ``sync`` — barriers, fences, mbarrier, cluster.barrier, warp vote, elect, sync helpers.
-- ``math`` — packed-f32x2 arithmetic, exp2/rcp/reduce3, warp/CTA reductions.
-- ``cvt`` — PTX data movement and conversion instruction forms.
-- ``memory`` — typed copies, ldg, ld.global.acquire, atomics, type conversions, address casts.
-- ``nvshmem`` — NVSHMEM RMA / signal / collective.
-- ``misc`` — register-allocation control, profiler timer, debug helpers (printf / trap).
+Both dialects build on this layer: :mod:`tvm.backend.cuda.ptx` renders PTX
+instructions from a table, and :mod:`tvm.backend.cuda.cpp` registers
+hand-written CUDA C++ device helpers.
 
-Plus the support modules:
-
-- ``header`` — CUDA header generator and helper-tag table.
-- ``registry`` — codegen registry.
-- ``types`` — PTX dtype enum.
+- ``registry`` — the op-name → codegen map C++ queries during codegen.
+- ``schema`` — :func:`device_intrinsic`, the declarative helper registration.
+- ``header`` — CUDA header generator and its helper-tag table.
+- ``types`` — PTX dtype enum mirroring ``src/backend/cuda/codegen/ptx.cc``.
 - ``utils`` — small parsing / validation helpers.
+
+Importing ``registry`` and ``header`` is load-bearing: their module-level
+``register_global_func`` decorators publish ``tirx.intrinsics.cuda.get_codegen``
+and ``tirx.intrinsics.cuda.header_generator``, which ``codegen_cuda.cc`` looks
+up when it emits a kernel. Nothing else imports them for their side effects, so
+dropping them here fails at kernel-build time, not at import time.
 """
 
-# Import op modules to register their codegen functions.
-from . import cp_async, math, memory, misc, nvshmem, sync, tcgen05, wgmma
+from . import header, registry, schema, types, utils
 from .header import TAGS, header_generator
 from .registry import CODEGEN_REGISTRY, get_codegen, register_codegen
+from .schema import device_intrinsic
 from .types import PTXDataType
 
 __all__ = [
     "CODEGEN_REGISTRY",
     "TAGS",
     "PTXDataType",
+    "device_intrinsic",
     "get_codegen",
     "header_generator",
     "register_codegen",

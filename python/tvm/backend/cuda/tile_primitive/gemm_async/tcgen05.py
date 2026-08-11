@@ -46,13 +46,13 @@ from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, registe
 from tvm.tirx.stmt import AllocBuffer, Evaluate, SeqStmt
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
-from ...intrinsics.tcgen05 import (
-    _TCGEN05_MMA_TRANS_DTYPES,
+from ...cpp.descriptors import (
     _check_tcgen05_mma_matrix_shape,
+    _dtype_name,
     _get_tcgen05_mma_kind,
     _get_tcgen05_mma_scale_vec_size,
+    encode_instr_descriptor_dense_uint32,
 )
-from ...intrinsics.types import PTXDataType
 from ..common import get_st_extent, smem_desc_add_16B_offset
 from ..exec_scope_utils import single_thread
 from ..layout_utils import strip_swizzle_to_tile
@@ -62,102 +62,6 @@ from ..tma_utils import (
     mma_atom_layout,
     mma_atom_shape,
 )
-
-# Mirror of ``format_map`` in the dense ``encode_instr_descriptor`` codegen
-# (``python/tvm/tirx/operator/intrinsics/cuda/tcgen05.py``). Used to fold the
-# runtime-encoded instruction descriptor into a compile-time uint32 when
-# all parameters are dispatch-time constants.
-_INSTR_DESC_FORMAT_MAP = {
-    "float16": 0,
-    "bfloat16": 1,
-    "tensor_float32": 2,
-    "tf32": 2,
-    "float8_e4m3fn": 0,
-    "float8_e4m3fnuz": 0,
-    "float8_e5m2": 1,
-    "float6_e2m3fn": 3,
-    "float6_e3m2fn": 4,
-    "float4_e2m1fn": 5,
-    "uint8": 0,
-    "int8": 1,
-    "float32": 1,
-    "int32": 2,
-}
-
-
-def _dtype_name(dtype) -> str:
-    dtype_obj = getattr(dtype, "dtype", None)
-    if dtype_obj is not None:
-        return str(dtype_obj)
-    return str(dtype)
-
-
-def _encode_instr_descriptor_dense_uint32(
-    M,
-    N,
-    K,
-    d_dtype,
-    a_dtype,
-    b_dtype,
-    trans_a,
-    trans_b,
-    cta_group=1,
-    neg_a=False,
-    neg_b=False,
-    sat_d=False,
-    is_sparse=False,
-):
-    """Compile-time port of the dense ``InstrDescriptor`` bitfield packing.
-
-    See ``python/tvm/tirx/operator/intrinsics/cuda/header.py:InstrDescriptor``
-    for the bit layout. Lets the dispatcher pass a literal ``uint32`` to
-    ``T.ptx["tcgen05.mma..."]`` instead of allocating + encoding a per-dispatch
-    local descriptor on every gemm_async call (which forces an inline ``asm``
-    block that ptxas cannot hoist out of the i_kv loop body).
-
-    Mirrors the runtime encoder's validation
-    (``codegen_cuda_tcgen05_encode_instr_descriptor``): the compile-time fold
-    must not accept kind/shape/trans combinations the runtime encoder would
-    reject — e.g. cta_group=1 M=128 requires N % 16 == 0, which the tile
-    chooser alone does not guarantee (it only enforces N % 8).
-    """
-    d_dtype = _dtype_name(d_dtype)
-    a_dtype = _dtype_name(a_dtype)
-    b_dtype = _dtype_name(b_dtype)
-
-    # PTXDataType spells tensor-float32 as "tf32".
-    _PTX_NAME = {"tensor_float32": "tf32"}
-    d_ptx_name = _PTX_NAME.get(d_dtype, d_dtype)
-    a_ptx_name = _PTX_NAME.get(a_dtype, a_dtype)
-    b_ptx_name = _PTX_NAME.get(b_dtype, b_dtype)
-    kind = _get_tcgen05_mma_kind(d_ptx_name, a_ptx_name, b_ptx_name)
-    if kind not in ("f16", "tf32", "f8f6f4", "i8"):
-        raise ValueError(
-            f"Check failed for Data Type Kind. d_dtype: {d_dtype}, "
-            f"a_dtype: {a_dtype}, b_dtype: {b_dtype}"
-        )
-    _check_tcgen05_mma_matrix_shape(kind, cta_group, int(M), int(N), int(K), is_sparse)
-    if trans_a and PTXDataType.from_string(a_ptx_name) not in _TCGEN05_MMA_TRANS_DTYPES:
-        raise ValueError(f"Invalid a_dtype for transpose: {a_dtype}")
-    if trans_b and PTXDataType.from_string(b_ptx_name) not in _TCGEN05_MMA_TRANS_DTYPES:
-        raise ValueError(f"Invalid b_dtype for transpose: {b_dtype}")
-
-    d_format = _INSTR_DESC_FORMAT_MAP[d_dtype]
-    a_format = _INSTR_DESC_FORMAT_MAP[a_dtype]
-    b_format = _INSTR_DESC_FORMAT_MAP[b_dtype]
-    desc = 0
-    desc |= (int(is_sparse) & 0x1) << 2
-    desc |= (int(sat_d) & 0x1) << 3
-    desc |= (d_format & 0x3) << 4
-    desc |= (a_format & 0x7) << 7
-    desc |= (b_format & 0x7) << 10
-    desc |= (int(neg_a) & 0x1) << 13
-    desc |= (int(neg_b) & 0x1) << 14
-    desc |= (int(trans_a) & 0x1) << 15
-    desc |= (int(trans_b) & 0x1) << 16
-    desc |= ((N >> 3) & 0x3F) << 17
-    desc |= ((M >> 4) & 0x1F) << 24
-    return desc & 0xFFFFFFFF
 
 
 def sf_smem_layout(rows, SF_K, sf_per_mma, sf_reuse=1, pipe_depth=None):
@@ -1545,7 +1449,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         # ``alignas(64) uint descI_local[1]; encode_instr_descriptor(...)``
         # block. The encoded value depends only on (M, N, dtype, transA,
         # transB) which are all constants here.
-        descI_value = _encode_instr_descriptor_dense_uint32(
+        descI_value = encode_instr_descriptor_dense_uint32(
             M=M_mma * cta_group,
             N=N_mma,
             K=MMA_K,

@@ -37,8 +37,8 @@ per-instruction generated or hand-written code:
   ``T.ptx.ld.acquire.gpu.global_.b32(val, ptr)``.
 """
 
-from tvm.backend.cuda.intrinsics.registry import register_codegen
-from tvm.backend.cuda.intrinsics.utils import parse_str
+from tvm.backend.cuda.codegen.registry import register_codegen
+from tvm.backend.cuda.codegen.utils import parse_str
 from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
 from tvm.ir.op import register_op_attr
 from tvm.ir.type import PointerType, PrimType

@@ -24,8 +24,9 @@ from tvm_ffi.libinfo import load_lib_ctypes
 from tvm.base import _LOADED_LIBS
 
 _LAZY_SUBMODULES = {
+    "codegen",
+    "cpp",
     "iket",
-    "intrinsics",
     "lang",
     "op",
     "ptx",
@@ -70,7 +71,10 @@ def register_backend():
     for name, namespace in script_namespaces().items():
         builder_ir.register_script_namespace(name, namespace)
 
-    import_module(f"{__name__}.intrinsics")
+    # script_namespaces() above pulls in ptx, which only imports the shared
+    # codegen layer -- not the device-helper modules. This import is the sole
+    # trigger that registers their codegens for codegen_cuda.cc to find.
+    import_module(f"{__name__}.cpp")
     import_module(f"{__name__}.tile_primitive")
     import_module(f"{__name__}.target_tags")
 
@@ -106,8 +110,9 @@ def __getattr__(name: str):
 
 
 __all__ = [
+    "codegen",
+    "cpp",
     "iket",
-    "intrinsics",
     "lang",
     "op",
     "ptx",
