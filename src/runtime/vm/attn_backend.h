@@ -205,13 +205,14 @@ class PagedPrefillFunc : public AttnBackendFunc {
                    Tensor page_indices, Tensor length_info, Tensor q_rope_position,
                    Tensor k_rope_pos_offset, bool causal, RoPEMode rope_mode, double rotary_scale,
                    double rotary_theta, double sm_scale, Tensor attn_output, Tensor attn_lse,
-                   TVMStreamHandle compute_stream) {
+                   TVMStreamHandle compute_stream, ffi::Optional<Tensor> sinks = std::nullopt) {
     TVM_FFI_THROW(InternalError) << "MHA computation is not supported by the current backend";
   }
 
   virtual void MLA(int depth, Tensor q, Tensor qo_indptr, Tensor pages, Tensor page_indptr,
                    Tensor page_indices, Tensor length_info, bool causal, double sm_scale,
-                   Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream) {
+                   Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream,
+                   ffi::Optional<Tensor> sinks = std::nullopt) {
     TVM_FFI_THROW(InternalError) << "MLA computation is not supported by the current backend";
   }
 
@@ -235,18 +236,19 @@ class TIRPagedPrefillFunc : public PagedPrefillFunc {
            Tensor page_indices, Tensor length_info, Tensor q_rope_position,
            Tensor k_rope_pos_offset, bool causal, RoPEMode rope_mode, double rotary_scale,
            double rotary_theta, double sm_scale, Tensor attn_output, Tensor attn_lse,
-           TVMStreamHandle compute_stream) final {
+           TVMStreamHandle compute_stream, ffi::Optional<Tensor> sinks = std::nullopt) final {
     attn_func_(q, qo_indptr, pages, page_indptr, page_indices, length_info, k_rope_pos_offset,
                q_rope_position, attn_output, attn_lse, static_cast<int64_t>(causal),
                /*rotary_mode=*/static_cast<int64_t>(rope_mode == RoPEMode::kInline), rotary_scale,
-               rotary_theta, sm_scale);
+               rotary_theta, sm_scale, sinks);
   }
 
   void MLA(int depth, Tensor q, Tensor qo_indptr, Tensor pages, Tensor page_indptr,
            Tensor page_indices, Tensor length_info, bool causal, double sm_scale,
-           Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream) final {
+           Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream,
+           ffi::Optional<Tensor> sinks = std::nullopt) final {
     attn_func_(q, qo_indptr, pages, page_indptr, page_indices, length_info, attn_output, attn_lse,
-               static_cast<int64_t>(causal), sm_scale);
+               static_cast<int64_t>(causal), sm_scale, sinks);
   }
 };
 
@@ -262,11 +264,15 @@ class FlashInferPagedPrefillFunc : public PagedPrefillFunc {
            Tensor page_indices, Tensor length_info, Tensor q_rope_position,
            Tensor k_rope_pos_offset, bool causal, RoPEMode rope_mode, double rotary_scale,
            double rotary_theta, double sm_scale, Tensor attn_output, Tensor attn_lse,
-           TVMStreamHandle compute_stream) final {
+           TVMStreamHandle compute_stream, ffi::Optional<Tensor> sinks = std::nullopt) final {
     auto [float_workspace_buffer, int_workspace_buffer, page_locked_int_workspace_buffer,
           plan_info_vec] = cached_buffers_[depth];
     double rope_rcp_scale = 1 / rotary_scale;
     double rope_rcp_theta = 1 / rotary_theta;
+    if (sinks.defined())
+      LOG(WARNING)
+          << "MHA with FlashAttention extention function is not supported with sinks param "
+             "in attention block.";
     attn_func_(
         float_workspace_buffer, int_workspace_buffer, plan_info_vec, q, PagedKVCacheView(pages, 0),
         PagedKVCacheView(pages, 1), ZeroByteOffsetView(qo_indptr), ZeroByteOffsetView(page_indptr),
@@ -278,7 +284,8 @@ class FlashInferPagedPrefillFunc : public PagedPrefillFunc {
 
   void MLA(int depth, Tensor q, Tensor qo_indptr, Tensor pages, Tensor page_indptr,
            Tensor page_indices, Tensor length_info, bool causal, double sm_scale,
-           Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream) final {
+           Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream,
+           ffi::Optional<Tensor> sinks = std::nullopt) final {
     auto [float_workspace_buffer, int_workspace_buffer, page_locked_int_workspace_buffer,
           plan_info_vec] = cached_buffers_[depth];
     // FlashInfer's MLA run takes the query split into its compressed (nope) and
@@ -288,6 +295,10 @@ class FlashInferPagedPrefillFunc : public PagedPrefillFunc {
     // store the two components concatenated along the last dimension.
     int64_t head_dim_ckv = mla_head_dim_ckv_;
     int64_t head_dim_kpe = mla_head_dim_kpe_;
+    if (sinks.defined())
+      LOG(WARNING)
+          << "MLA with FlashAttention extention function is not supported with sinks param "
+             "in attention block.";
     TVM_FFI_ICHECK_GE(head_dim_ckv, 0)
         << "MLA head dims are unset; BeginForward must run before MLA.";
     attn_func_(float_workspace_buffer, int_workspace_buffer, plan_info_vec,
@@ -366,7 +377,8 @@ class RaggedPrefillFunc : public AttnBackendFunc {
   virtual void MHA(Tensor q, Tensor k, Tensor v, Tensor qo_indptr, Tensor kv_indptr,
                    Tensor q_rope_position, Tensor k_rope_pos_offset, bool causal,
                    RoPEMode rope_mode, double rotary_scale, double rotary_theta, double sm_scale,
-                   Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream) {
+                   Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream,
+                   ffi::Optional<Tensor> sinks = std::nullopt) {
     TVM_FFI_THROW(InternalError) << "MHA computation is not supported by the current backend";
   }
 
@@ -388,11 +400,11 @@ class TIRRaggedPrefillFunc : public RaggedPrefillFunc {
   void MHA(Tensor q, Tensor k, Tensor v, Tensor qo_indptr, Tensor kv_indptr, Tensor q_rope_position,
            Tensor k_rope_pos_offset, bool causal, RoPEMode rope_mode, double rotary_scale,
            double rotary_theta, double sm_scale, Tensor attn_output, Tensor attn_lse,
-           TVMStreamHandle compute_stream) final {
+           TVMStreamHandle compute_stream, ffi::Optional<Tensor> sinks = std::nullopt) final {
     attn_func_(q, qo_indptr, k, v, kv_indptr, q_rope_position, k_rope_pos_offset, attn_output,
                attn_lse, static_cast<int64_t>(causal),
                /*rotary_mode=*/static_cast<int64_t>(rope_mode == RoPEMode::kInline), rotary_scale,
-               rotary_theta, sm_scale);
+               rotary_theta, sm_scale, sinks);
   }
 };
 
@@ -410,9 +422,12 @@ class FlashInferRaggedPrefillFunc : public RaggedPrefillFunc {
   void MHA(Tensor q, Tensor k, Tensor v, Tensor qo_indptr, Tensor kv_indptr, Tensor q_rope_position,
            Tensor k_rope_pos_offset, bool causal, RoPEMode rope_mode, double rotary_scale,
            double rotary_theta, double sm_scale, Tensor attn_output, Tensor attn_lse,
-           TVMStreamHandle compute_stream) final {
+           TVMStreamHandle compute_stream, ffi::Optional<Tensor> sinks = std::nullopt) final {
     double rope_rcp_scale = 1 / rotary_scale;
     double rope_rcp_theta = 1 / rotary_theta;
+    if (sinks.defined())
+      LOG(FATAL) << "MHA with FlashAttention extention function is not supported with sinks param "
+                    "in attention block.";
     attn_func_(float_workspace_buffer_, int_workspace_buffer_, plan_info_vec_, q, k, v,
                ZeroByteOffsetView(qo_indptr), ZeroByteOffsetView(kv_indptr), attn_output, attn_lse,
                /*mask_mode_code=*/static_cast<int64_t>(causal),
@@ -478,13 +493,14 @@ class PagedDecodeFunc : public AttnBackendFunc {
   virtual void MHA(int depth, Tensor q, Tensor pages, Tensor page_indptr, Tensor page_indices,
                    Tensor length_info, Tensor k_rope_pos_offset, Tensor q_rope_position,
                    RoPEMode rope_mode, double rotary_scale, double rotary_theta, double sm_scale,
-                   Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream) {
+                   Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream,
+                   ffi::Optional<Tensor> sinks = std::nullopt) {
     TVM_FFI_THROW(InternalError) << "MHA computation is not supported by the current backend";
   }
 
   virtual void MLA(int depth, Tensor q, Tensor pages, Tensor page_indptr, Tensor page_indices,
                    Tensor length_info, double sm_scale, Tensor attn_output, Tensor attn_lse,
-                   TVMStreamHandle compute_stream) {
+                   TVMStreamHandle compute_stream, ffi::Optional<Tensor> sinks = std::nullopt) {
     TVM_FFI_THROW(InternalError) << "MLA computation is not supported by the current backend";
   }
 
@@ -507,17 +523,19 @@ class TIRPagedDecodeFunc : public PagedDecodeFunc {
   void MHA(int depth, Tensor q, Tensor pages, Tensor page_indptr, Tensor page_indices,
            Tensor length_info, Tensor k_rope_pos_offset, Tensor q_rope_position, RoPEMode rope_mode,
            double rotary_scale, double rotary_theta, double sm_scale, Tensor attn_output,
-           Tensor attn_lse, TVMStreamHandle compute_stream) final {
+           Tensor attn_lse, TVMStreamHandle compute_stream,
+           ffi::Optional<Tensor> sinks = std::nullopt) final {
     attn_func_(q, pages, page_indptr, page_indices, length_info, k_rope_pos_offset, q_rope_position,
                attn_output, attn_lse,
                /*rotary_mode=*/static_cast<int64_t>(rope_mode == RoPEMode::kInline), rotary_scale,
-               rotary_theta, sm_scale);
+               rotary_theta, sm_scale, sinks);
   }
 
   void MLA(int depth, Tensor q, Tensor pages, Tensor page_indptr, Tensor page_indices,
            Tensor length_info, double sm_scale, Tensor attn_output, Tensor attn_lse,
-           TVMStreamHandle compute_stream) final {
-    attn_func_(q, pages, page_indptr, page_indices, length_info, attn_output, attn_lse, sm_scale);
+           TVMStreamHandle compute_stream, ffi::Optional<Tensor> sinks = std::nullopt) final {
+    attn_func_(q, pages, page_indptr, page_indices, length_info, attn_output, attn_lse, sm_scale,
+               sinks);
   }
 };
 
@@ -532,11 +550,16 @@ class FlashInferPagedDecodeFunc : public PagedDecodeFunc {
   void MHA(int depth, Tensor q, Tensor pages, Tensor page_indptr, Tensor page_indices,
            Tensor length_info, Tensor k_rope_pos_offset, Tensor q_rope_position, RoPEMode rope_mode,
            double rotary_scale, double rotary_theta, double sm_scale, Tensor attn_output,
-           Tensor attn_lse, TVMStreamHandle compute_stream) final {
+           Tensor attn_lse, TVMStreamHandle compute_stream,
+           ffi::Optional<Tensor> sinks = std::nullopt) final {
     auto [float_workspace_buffer, int_workspace_buffer, page_locked_int_workspace_buffer,
           plan_info_vec] = cached_buffers_[depth];
     double rope_rcp_scale = 1 / rotary_scale;
     double rope_rcp_theta = 1 / rotary_theta;
+    if (sinks.defined())
+      LOG(FATAL)
+          << "MHA decode with FlashAttention extention function is not supported with sinks param "
+             "in attention block.";
     attn_func_(float_workspace_buffer, int_workspace_buffer, plan_info_vec, q,
                PagedKVCacheView(pages, 0), PagedKVCacheView(pages, 1),
                ZeroByteOffsetView(page_indptr), ZeroByteOffsetView(page_indices),

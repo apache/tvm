@@ -46,7 +46,7 @@ from ._kernel_common import (
 )
 
 
-def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_window: bool, rope_scaling: dict[str, Any], page_size: int = 16):
+def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_window: bool, rope_scaling: dict[str, Any], is_sinks: bool = False, page_size: int = 16):
     H_qo = num_qo_heads
     H_kv = num_kv_heads
     D = head_dim
@@ -71,6 +71,7 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
+        var_sinks: T.handle,
     ):
         T.func_attr({"tirx.is_scheduled": True, "global_symbol": global_symbol})
         B = T.int32()
@@ -90,6 +91,7 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
         q_rope_position = T.match_buffer(q_rope_position_handle, (B,), "int32", elem_offset=q_rope_position_elem_offset)
         output = T.match_buffer(output_handle, (B, H_qo, D), qkv_dtype)
         lse = T.match_buffer(lse_handle, (B, H_qo), "float32")  # pylint: disable=unused-variable
+        sinks = T.match_buffer(var_sinks, (H_qo,), qkv_dtype)
         # The length information of the sequences.
         # - It is in shape `(3, batch_size)` when sliding window is enabled.
         #   For a sequence "i", location
@@ -112,6 +114,7 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
                 m_val = T.sblock_alloc_buffer((1,), "float32")
                 new_m = T.sblock_alloc_buffer((1,), "float32")
                 d_val = T.sblock_alloc_buffer((1,), "float32")
+                alpha = T.alloc_buffer((1,), "float32")
                 S_val = T.sblock_alloc_buffer((1,), "float32")
                 scale_O = T.sblock_alloc_buffer((1,), "float32")
                 factor = T.sblock_alloc_buffer((1,), "float32")
@@ -128,6 +131,7 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
                 for h_qo in T.serial(H_qo):
                     m_val[0] = -5e4
                     d_val[0] = 1.0
+                    alpha[0] = 1.0
 
                     for d in T.serial(D):
                         O_local[d] = 0.0
@@ -170,15 +174,19 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
                         factor[0] = T.exp2(S_val[0] - m_val[0])
                         for d in T.serial(D):
                             O_local[d] = O_local[d] + V_local[d] * factor[0]
+                    if is_sinks:
+                        new_m[0] = T.max(m_val[0], sinks[h_qo] * math.log2(math.exp(1)))
+                        alpha[0] = T.exp2(m_val[0] - new_m[0])
+                        d_val[0] = d_val[0] * alpha[0] + T.exp2(sinks[h_qo] * math.log2(math.exp(1)) - new_m[0])
                     for d in T.serial(D):
-                        O_local[d] = O_local[d] / d_val[0]
+                        O_local[d] = (O_local[d] * alpha[0]) / d_val[0]
                         output[b, h_qo, d] = O_local[d]
                     lse[b, h_qo] = m_val[0] + T.log2(d_val[0])
 
     return batch_decode_paged_kv
 
 
-def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_window: bool, rope_scaling: dict[str, Any], target: Target, page_size: int = 16):
+def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_window: bool, rope_scaling: dict[str, Any], target: Target, is_sinks: bool = False, page_size: int = 16):
     qkv_dtype_bytes = 2
     H_qo = num_qo_heads
     H_kv = num_kv_heads
@@ -226,6 +234,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
+        var_sinks: T.handle,
     ):
         T.func_attr({"tirx.is_scheduled": True, "global_symbol": global_symbol})
         B = T.int32()
@@ -246,6 +255,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
         q_rope_position = T.match_buffer(q_rope_position_handle, (B,), "int32", elem_offset=q_rope_position_elem_offset)
         output = T.match_buffer(output_handle, (B, H_qo, D), qkv_dtype)
         lse = T.match_buffer(lse_handle, (B, H_qo), "float32")  # pylint: disable=unused-variable
+        sinks = T.match_buffer(var_sinks, (H_qo,), qkv_dtype)
         length_info = _declare_length_info(var_length_info, B, sliding_window, length_info_elem_offset)
 
         for bx in T.thread_binding(B, thread="blockIdx.x"):
@@ -275,6 +285,8 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                 other_o = T.sblock_alloc_buffer((VEC_SIZE,), "float32", scope="local")
                                 st_m = T.sblock_alloc_buffer((1,), "float32", scope="local")
                                 st_d = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                                m_new = T.alloc_buffer((1,), "float32", scope="local")
+                                alpha = T.alloc_buffer((1,), "float32", scope="local")
                                 O_local = T.sblock_alloc_buffer((VEC_SIZE,), "float32", scope="local")
 
                                 by: T.let[T.int32] = fused_by_bz % H_kv
@@ -291,6 +303,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                 # init states
                                 st_m[0] = -5e4
                                 st_d[0] = 1.0
+                                alpha[0] = 1.0
                                 for vec in T.vectorized(VEC_SIZE):
                                     O_local[vec] = 0.0
 
@@ -397,9 +410,14 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                         for vec in T.vectorized(VEC_SIZE):
                                             O_local[vec] = O_local[vec] * exp_mprev[0] + other_o[vec] * exp_otherm[0]
 
+                                if is_sinks:
+                                    m_new[0] = T.max(st_m[0], sinks[by * GROUP_SIZE + bz * bdy + ty] * math.log2(math.exp(1)))
+                                    alpha[0] = T.exp2(st_m[0] - m_new[0])
+                                    st_d[0] = st_d[0] * alpha[0] + T.exp2(sinks[by * GROUP_SIZE + bz * bdy + ty] * math.log2(math.exp(1)) - m_new[0])
+
                                 # normalize O
                                 for vec in T.vectorized(VEC_SIZE):
-                                    O_local[vec] /= st_d[0]
+                                    O_local[vec] = (O_local[vec] * alpha[0]) / st_d[0]
 
                                 # store O to global memory
                                 for vec in T.vectorized(VEC_SIZE):

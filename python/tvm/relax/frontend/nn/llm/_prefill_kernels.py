@@ -51,7 +51,7 @@ from ._kernel_common import (
 
 
 def _attention_prefill_cpu(
-    h_kv, h_q, d, dtype, sliding_window: bool, rope_scaling: dict[str, Any], page_size: int = 16
+    h_kv, h_q, d, dtype, sliding_window: bool, rope_scaling: dict[str, Any], is_sinks: bool = False, sliding_window_size: int = -1, page_size: int = 16
 ):
     global_symbol = "batch_prefill_paged_kv_cpu"
     if sliding_window:
@@ -77,6 +77,7 @@ def _attention_prefill_cpu(
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
+        var_sinks: T.handle,
     ):
         T.func_attr({"global_symbol": global_symbol})
         batch_size = T.int32()
@@ -108,6 +109,7 @@ def _attention_prefill_cpu(
         # - It is in shape `(batch_size,)` when sliding window is disabled,
         #   denoting the "last_page_len".
         length_info = _declare_length_info(var_length_info, batch_size, sliding_window, length_info_elem_offset)
+        sinks = T.match_buffer(var_sinks, (h_q,), dtype)
 
 
         for h_qo in T.serial(h_q):
@@ -126,6 +128,7 @@ def _attention_prefill_cpu(
                     S_val = T.sblock_alloc_buffer((1, ), "float32")
                     scale_O = T.sblock_alloc_buffer((1, ), "float32")
                     factor = T.sblock_alloc_buffer((1, ), "float32")
+                    alpha = T.alloc_buffer((1, ), "float32")
                     cur_page_indptr_begin: T.let[T.int32] = page_indptr[b_idx]
                     cur_page_indptr_end: T.let[T.int32] = page_indptr[b_idx + 1]
                     #max_kv_len: T.let[T.int32] = max_num_pages * page_size
@@ -140,6 +143,7 @@ def _attention_prefill_cpu(
                         #init m, d, O
                         m_val[0] = -5e4
                         d_val[0] = 1.0
+                        alpha[0] = 1.0
                         for d_idx in T.serial(d):
                             O_local[d_idx] = 0.0
                         curl_q: T.let[T.int32] = q_indptr[b_idx] + q_idx
@@ -177,7 +181,9 @@ def _attention_prefill_cpu(
                                     row=q_idx,
                                     col=row_idx,
                                     kv_len=kv_chunk_len[0],
-                                    qo_len=q_indptr[b_idx + 1] - q_indptr[b_idx]):
+                                    qo_len=q_indptr[b_idx + 1] - q_indptr[b_idx],
+                                    sliding_window=sliding_window,
+                                    sliding_window_size=sliding_window_size):
                                     new_m[0] = T.max(m_val[0], S_val[0])
                                 else:
                                     S_val[0] = -5e4
@@ -195,15 +201,19 @@ def _attention_prefill_cpu(
 
                                 for d_idx in T.serial(d):
                                     O_local[d_idx] += V_local[d_idx] * factor[0]
+                        if is_sinks:
+                            new_m[0] = T.max(m_val[0], sinks[h_qo] * math.log2(math.exp(1)))
+                            alpha[0] = T.exp2(m_val[0] - new_m[0])
+                            d_val[0] = d_val[0] * alpha[0] + T.exp2(sinks[h_qo] * math.log2(math.exp(1)) - new_m[0])
                         # Store Output
                         for d_idx in T.serial(d):
-                            O_local[d_idx] = O_local[d_idx] /d_val[0]
+                            O_local[d_idx] = (O_local[d_idx] * alpha[0]) /d_val[0]
                             output[curl_q, h_qo, d_idx] = O_local[d_idx]
                         lse[curl_q, h_qo] = m_val[0] + T.log2(d_val[0])
     return batch_prefill_paged_kv_cpu
 
 
-def _attention_prefill(h_kv, h_q, d, dtype, sliding_window: bool, rope_scaling: dict[str, Any], target: Target, page_size: int = 16):
+def _attention_prefill(h_kv, h_q, d, dtype, sliding_window: bool, rope_scaling: dict[str, Any], target: Target, is_sinks: bool = False, sliding_window_size: int = -1, page_size: int = 16):
     NUM_BLKS, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(h_kv, h_q, d, dtype, target)
 
     global_symbol = "batch_prefill_paged_kv"
@@ -230,6 +240,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, sliding_window: bool, rope_scaling: 
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
+        var_sinks: T.handle,
     ):
         T.func_attr({"global_symbol": global_symbol})
         batch_size = T.int32()
@@ -262,6 +273,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, sliding_window: bool, rope_scaling: 
         # - It is in shape `(batch_size,)` when sliding window is disabled,
         #   denoting the "last_page_len".
         length_info = _declare_length_info(var_length_info, batch_size, sliding_window, length_info_elem_offset)
+        sinks = T.match_buffer(var_sinks, (h_q,), dtype)
 
         # kernel code
         for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
@@ -274,7 +286,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, sliding_window: bool, rope_scaling: 
                             T.writes()
                             tile_id, batch_idx, batch_tiles, batch_rows, iterator, kv_chunk_len = _alloc_tile_walk_state()
                             Q_smem, K_smem, V_smem, O_local = _alloc_mha_qkvo_buffers(tile_x, tile_z, d, d, dtype)
-                            S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new = (
+                            S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new, alpha = (
                                 _alloc_softmax_state_buffers(tile_x, tile_z, bdx, num_warps)
                             )
 
@@ -299,7 +311,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, sliding_window: bool, rope_scaling: 
                                     )
                                     T.tvm_storage_sync("shared")
 
-                                    init_states(m_smem, d_smem, O_local, ty, tx)
+                                    init_states(m_smem, d_smem, alpha, O_local, ty, tx)
 
                                     # Load Q from gmem to smem
                                     for li, lj in T.grid(tile_x, tile_y):
@@ -355,10 +367,20 @@ def _attention_prefill(h_kv, h_q, d, dtype, sliding_window: bool, rope_scaling: 
                                         T.tvm_storage_sync("shared")
 
                                         compute_s_gemm(Q_smem, K_smem, S_local, S_smem, sm_scale)
-                                        softmax_update_causal(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, causal, kv_chunk_len[0], q_indptr[b_idx + 1] - q_indptr[b_idx])
+                                        softmax_update_causal(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, causal, kv_chunk_len[0], q_indptr[b_idx + 1] - q_indptr[b_idx], sliding_window, sliding_window_size)
                                         compute_o_gemm(S_smem, V_smem, O_local, m_prev_smem, m_smem)
 
-                                    paged_store_output_lse(output, lse, O_local, m_smem, d_smem, q_indptr, b_idx, by, LH_start)
+                                    if is_sinks:
+                                        for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                            row: T.int32 = i * bdx * num_warps + ty * bdx + tx
+                                            if row < tile_x:
+                                                with T.sblock("update_sink_denom"):
+                                                    sink_H_qo: T.int32 = by * group_size + (LH_start + row) % group_size
+                                                    m_new[0]: T.float32 = T.max(m_smem[row], sinks[sink_H_qo] * math.log2(math.exp(1)))
+                                                    alpha[row] = T.exp2(m_smem[row] - m_new[0])
+                                                    d_smem[row] = d_smem[row] * alpha[row] + T.exp2(sinks[sink_H_qo] * math.log2(math.exp(1)) - m_new[0])
+
+                                    paged_store_output_lse(output, lse, O_local, m_smem, d_smem, alpha, q_indptr, b_idx, by, LH_start)
 
                                     # move to next tile
                                     tile_id[0] += NUM_BLKS
@@ -371,7 +393,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, sliding_window: bool, rope_scaling: 
 
 
 
-def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, sm_scale=1.0):
+def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, sm_scale=1.0, is_sinks=False, sliding_window=False, sliding_window_size=-1):
     _, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(h_kv, h_q, d, dtype, target)
     init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, tile_y, bdx, num_warps, group_size)
 
@@ -380,6 +402,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
         var_q: T.handle, # [total_len, h_q, d]
         var_k: T.handle, # [total_len, h_kv, d]
         var_v: T.handle, # [total_len, h_kv, d]
+        var_sinks: T.handle,
         var_output: T.handle, # [total_len, h_q, d]
         var_lse: T.handle # [total_len, h_q]
     ):
@@ -389,6 +412,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
         q = T.match_buffer(var_q, (batch_size, qo_len, h_q, d), dtype)
         k = T.match_buffer(var_k, (batch_size, kv_len, h_kv, d), dtype)
         v = T.match_buffer(var_v, (batch_size, kv_len, h_kv, d), dtype)
+        sinks = T.match_buffer(var_sinks, (h_q,), dtype)
         output = T.match_buffer(var_output, (batch_size, qo_len, h_q, d), dtype)
         lse = T.match_buffer(var_lse, (batch_size, qo_len, h_q), dtype)  # pylint: disable=unused-variable
 
@@ -405,7 +429,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
                             T.writes()
 
                             Q_smem, K_smem, V_smem, O_local = _alloc_mha_qkvo_buffers(tile_x, tile_z, d, d, dtype)
-                            S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new = (
+                            S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new, alpha = (
                                 _alloc_softmax_state_buffers(tile_x, tile_z, bdx, num_warps)
                             )
 
@@ -414,7 +438,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
                             LH_start: T.let[T.int32] = tile_id * tile_x
                             T.tvm_storage_sync("shared")
 
-                            init_states(m_smem, d_smem, O_local, ty, tx)
+                            init_states(m_smem, d_smem, alpha, O_local, ty, tx)
 
                             # Load Q from gmem to smem
                             for li, lj in T.grid(tile_x, tile_y):
@@ -459,9 +483,17 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
                                 T.tvm_storage_sync("shared")
 
                                 compute_s_gemm(Q_smem, K_smem, S_local, S_smem, sm_scale)
-                                softmax_update_causal(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, causal, kv_len, qo_len)
+                                softmax_update_causal(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, causal, kv_len, qo_len, sliding_window, sliding_window_size)
                                 compute_o_gemm(S_smem, V_smem, O_local, m_prev_smem, m_smem)
-
+                            if is_sinks:
+                                for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                    row: T.int32 = i * bdx * num_warps + ty * bdx + tx
+                                    if row < tile_x:
+                                        with T.sblock("update_sink_denom"):
+                                            sink_H_qo: T.int32 = by * group_size + (LH_start + row) % group_size
+                                            m_new[i] = T.max(m_smem[row], sinks[sink_H_qo] * math.log2(math.exp(1)))
+                                            alpha[row] = T.exp2(m_smem[row] - m_new[i])
+                                            d_smem[row] = d_smem[row] * alpha[row] + T.exp2(sinks[sink_H_qo] * math.log2(math.exp(1)) - m_new[i])
                             # Store O from smem to gmem
                             for li, lj in T.grid(tile_x, tile_y):
                                 with T.sblock("O_store"):
@@ -489,7 +521,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
 
 def _attention_sequence_prefill_with_mask(
     h_kv, h_q, d, dtype, target: Target, sm_scale=1.0, *,
-    mask_mode: Literal["padded", "causal_padded_left"] = "padded",
+    mask_mode: Literal["padded", "causal_padded_left"] = "padded", is_sinks: bool = False
 ):
     """Tiled sequence prefill kernel with a per-batch padding mask.
 
@@ -548,6 +580,7 @@ def _attention_sequence_prefill_with_mask(
         var_k: T.handle, # [batch_size, kv_len, h_kv, d]
         var_v: T.handle, # [batch_size, kv_len, h_kv, d]
         var_valid_lens: T.handle, # [batch_size], int32
+        var_sinks: T.handle,
         var_output: T.handle, # [batch_size, qo_len, h_q, d]
         var_lse: T.handle # [batch_size, qo_len, h_q]
     ):
@@ -558,6 +591,7 @@ def _attention_sequence_prefill_with_mask(
         k = T.match_buffer(var_k, (batch_size, kv_len, h_kv, d), dtype)
         v = T.match_buffer(var_v, (batch_size, kv_len, h_kv, d), dtype)
         valid_lens = T.match_buffer(var_valid_lens, (batch_size,), "int32")
+        sinks = T.match_buffer(var_sinks, (h_q,), dtype)
         output = T.match_buffer(var_output, (batch_size, qo_len, h_q, d), dtype)
         lse = T.match_buffer(var_lse, (batch_size, qo_len, h_q), dtype)
 
@@ -573,7 +607,7 @@ def _attention_sequence_prefill_with_mask(
                             T.writes()
 
                             Q_smem, K_smem, V_smem, O_local = _alloc_mha_qkvo_buffers(tile_x, tile_z, d, d, dtype)
-                            S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new = (
+                            S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new, alpha = (
                                 _alloc_softmax_state_buffers(tile_x, tile_z, bdx, num_warps)
                             )
 
@@ -583,7 +617,7 @@ def _attention_sequence_prefill_with_mask(
                             LH_start: T.let[T.int32] = tile_id * tile_x
                             T.tvm_storage_sync("shared")
 
-                            init_states(m_smem, d_smem, O_local, ty, tx)
+                            init_states(m_smem, d_smem, alpha, O_local, ty, tx)
 
                             # Load Q; rows outside the valid range are zeroed so they contribute nothing downstream.
                             for li, lj in T.grid(tile_x, tile_y):
@@ -629,6 +663,15 @@ def _attention_sequence_prefill_with_mask(
                                 softmax_update(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, valid_len, qo_len, kv_len)
                                 compute_o_gemm(S_smem, V_smem, O_local, m_prev_smem, m_smem)
 
+                            if is_sinks:
+                                for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                    row: T.int32 = i * bdx * num_warps + ty * bdx + tx
+                                    if row < tile_x:
+                                        with T.sblock("update_sink_denom"):
+                                            sink_H_qo: T.int32 = by * group_size + (LH_start + row) % group_size
+                                            m_new[i] = T.max(m_smem[row], sinks[sink_H_qo] * math.log2(math.exp(1)))
+                                            alpha[row] = T.exp2(m_smem[row] - m_new[i])
+                                            d_smem[row] = d_smem[row] * alpha[row] + T.exp2(sinks[sink_H_qo] * math.log2(math.exp(1)) - m_new[i])
                             # Store O
                             for li, lj in T.grid(tile_x, tile_y):
                                 with T.sblock("O_store"):
@@ -636,7 +679,7 @@ def _attention_sequence_prefill_with_mask(
                                     cur_L: T.let[T.int32] = 0 + (LH_start + i) // group_size
                                     cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                                     if cur_L < qo_len:
-                                        output[b_idx, cur_L, cur_H_qo, j] = O_local[i, j] / d_smem[i]
+                                        output[b_idx, cur_L, cur_H_qo, j] = (O_local[i, j] * alpha[i]) / d_smem[i]
 
                             # Store LSE
                             for li in T.grid(tile_x):
@@ -653,7 +696,7 @@ def _attention_sequence_prefill_with_mask(
 
 
 
-def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[str, Any]):
+def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[str, Any], is_sinks: bool = False, sliding_window: bool = False, sliding_window_size: int = -1,):
     group_size = h_q // h_kv
 
     @T.prim_func(s_tir=True)
@@ -672,6 +715,7 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
+        var_sinks: T.handle,
     ):
         batch_size = T.int32()
         qo_len = T.int32()
@@ -690,6 +734,7 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
         k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
         output = T.match_buffer(var_output, (qo_len, h_q, d_v), dtype)
         lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")  # pylint: disable=unused-variable
+        sinks = T.match_buffer(var_sinks, (h_q,), dtype)
 
         for b in T.serial(batch_size):
             with T.sblock("attn"):
@@ -698,6 +743,7 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
                 m_new = T.sblock_alloc_buffer([h_q], "float32")
                 d_prev = T.sblock_alloc_buffer([h_q], "float32")
                 d_new = T.sblock_alloc_buffer([h_q], "float32")
+                alpha = T.alloc_buffer([h_q], "float32")
                 p_sum = T.sblock_alloc_buffer([d_v], "float32")
                 max_score = T.sblock_alloc_buffer([h_q], "float32")
                 attention_scores = T.sblock_alloc_buffer([kv_len, h_q], "float32")
@@ -712,6 +758,7 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
                         max_score[i] = -5e4
                         m_prev[i] = -5e4
                         d_prev[i] = 1.0
+                        alpha[i] = 1.0
 
                     for k_idx in T.serial(kv_indptr[b + 1] - kv_indptr[b]):
                         for h in T.serial(h_q):
@@ -723,6 +770,8 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
                                 col=k_idx,
                                 kv_len=kv_indptr[b + 1] - kv_indptr[b],
                                 qo_len=q_indptr[b + 1] - q_indptr[b],
+                                sliding_window=sliding_window,
+                                sliding_window_size=sliding_window_size
                             ):
                                 result[0] = 0.0
                                 for d_idx in T.serial(d_qk):
@@ -756,22 +805,29 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
                             softmax_sum[h] += exp_scores[k_idx, h]
                         d_new[h] += softmax_sum[h]
 
+                    d_prev = d_new
+                    m_prev = m_new
+
                     for h in T.serial(h_q):
                         h_kv_idx: T.let[T.int32] = h // group_size
+                        if is_sinks:
+                            m_new[h] = T.max(m_prev[h], sinks[h] * math.log2(math.exp(1)))
+                            alpha[h] = T.exp2(m_prev[h] - m_new[h])
+                            d_prev[h] = d_prev[h] * alpha[h] + T.exp2(sinks[h] * math.log2(math.exp(1)) - m_new[h])
                         for i in T.serial(d_v):
                             p_sum[i] = 0.0
                         for v_idx in T.serial(kv_indptr[b + 1] - kv_indptr[b]):
-                            weight: T.let[T.float32] = exp_scores[v_idx, h] / d_new[h]
+                            weight: T.let[T.float32] = exp_scores[v_idx, h]
                             for i in T.serial(d_v):
                                 p_sum[i] += v[kv_indptr[b] + v_idx, h_kv_idx, i] * weight
                         for i in T.serial(d_v):
-                            output[q_indptr[b] + q_idx, h, i] = p_sum[i]
+                            output[q_indptr[b] + q_idx, h, i] = (p_sum[i] * alpha[h]) / d_prev[h]
                         lse[q_indptr[b] + q_idx, h] = m_new[h] + T.log2(d_new[h])
     return batch_prefill_ragged_kv
 
 
 
-def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[str, Any], target: Target):
+def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[str, Any], target: Target, is_sinks: bool = False, sliding_window: bool = False, sliding_window_size: int = -1):
     NUM_BLKS, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(h_kv, h_q, d_qk, dtype, target)
     init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, _, advance_tile_batch, paged_store_output_lse, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, d_v, bdx, num_warps, group_size)
 
@@ -790,7 +846,8 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
-        sm_scale: T.float32
+        sm_scale: T.float32,
+        var_sinks: T.handle,
     ):
         batch_size = T.int32()
         qo_len = T.int32()
@@ -809,6 +866,7 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
         k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
         output = T.match_buffer(var_output, (qo_len, h_q, d_v), dtype)
         lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")  # pylint: disable=unused-variable
+        sinks = T.match_buffer(var_sinks, (h_q,), dtype)
 
         # kernel code
         for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
@@ -821,7 +879,7 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
                             T.writes()
                             tile_id, batch_idx, batch_tiles, batch_rows, iterator, kv_chunk_len = _alloc_tile_walk_state()
                             Q_smem, K_smem, V_smem, O_local = _alloc_mha_qkvo_buffers(tile_x, tile_z, d_qk, d_v, dtype)
-                            S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new = (
+                            S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new, alpha = (
                                 _alloc_softmax_state_buffers(tile_x, tile_z, bdx, num_warps)
                             )
 
@@ -840,7 +898,7 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
                                     kv_chunk_len[0] = kv_indptr[b_idx + 1] - kv_indptr[b_idx]
                                     T.tvm_storage_sync("shared")
 
-                                    init_states(m_smem, d_smem, O_local, ty, tx)
+                                    init_states(m_smem, d_smem, alpha, O_local, ty, tx)
 
                                     # Load Q from gmem to smem
                                     for li, lj in T.grid(tile_x, tile_y):
@@ -889,10 +947,20 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
                                         T.tvm_storage_sync("shared")
 
                                         compute_s_gemm(Q_smem, K_smem, S_local, S_smem, sm_scale)
-                                        softmax_update_causal(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, causal, kv_chunk_len[0], q_indptr[b_idx + 1] - q_indptr[b_idx])
+                                        softmax_update_causal(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, causal, kv_chunk_len[0], q_indptr[b_idx + 1] - q_indptr[b_idx], sliding_window, sliding_window_size)
                                         compute_o_gemm(S_smem, V_smem, O_local, m_prev_smem, m_smem)
 
-                                    paged_store_output_lse(output, lse, O_local, m_smem, d_smem, q_indptr, b_idx, by, LH_start)
+                                    if is_sinks:
+                                        for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                            row: T.int32 = i * bdx * num_warps + ty * bdx + tx
+                                            if row < tile_x:
+                                                with T.sblock("update_sink_denom"):
+                                                    sink_H_qo: T.int32 = by * group_size + (LH_start + row) % group_size
+                                                    m_new[0]: T.float32 = T.max(m_smem[row], sinks[sink_H_qo] * math.log2(math.exp(1)))
+                                                    alpha[row] = T.exp2(m_smem[row] - m_new[0])
+                                                    d_smem[row] = d_smem[row] * alpha[row] + T.exp2(sinks[sink_H_qo] * math.log2(math.exp(1)) - m_new[0])
+
+                                    paged_store_output_lse(output, lse, O_local, m_smem, d_smem, alpha, q_indptr, b_idx, by, LH_start)
 
                                     # move to next tile
                                     tile_id[0] += NUM_BLKS
@@ -903,7 +971,7 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
 
 
 
-def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, target: Target, page_size: int = 16):
+def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, target: Target, is_sinks: bool = False, sliding_window_size: int = -1,  page_size: int = 16):
     d_qk = d_latent + d_rope
     NUM_BLKS, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(1, h_q, d_qk, dtype, target)
     init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, _, advance_tile_batch, paged_store_output_lse, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, d_latent, bdx, num_warps, group_size)
@@ -925,6 +993,7 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
         var_lse: T.handle, # [total_len, h_q]
         causal: T.int32,
         sm_scale: T.float32,
+        var_sinks: T.handle,
     ):
         T.func_attr({"global_symbol": global_symbol})
         batch_size = T.int32()
@@ -953,6 +1022,7 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
         # - It is in shape `(batch_size,)` when sliding window is disabled,
         #   denoting the "last_page_len".
         length_info = _declare_length_info(var_length_info, batch_size, sliding_window, length_info_elem_offset)
+        sinks = T.match_buffer(var_sinks, (h_q,), dtype)
 
         # kernel code
         for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
@@ -964,7 +1034,7 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
                         T.writes()
                         tile_id, batch_idx, batch_tiles, batch_rows, iterator, kv_chunk_len = _alloc_tile_walk_state()
                         Q_smem, KV_smem, O_local = _alloc_mla_qkvo_buffers(tile_x, tile_z, d_qk, d_latent, dtype)
-                        S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new = (
+                        S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new, alpha = (
                             _alloc_softmax_state_buffers(tile_x, tile_z, bdx, num_warps)
                         )
 
@@ -989,7 +1059,7 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
                                 )
                                 T.tvm_storage_sync("shared")
 
-                                init_states(m_smem, d_smem, O_local, ty, tx)
+                                init_states(m_smem, d_smem, alpha, O_local, ty, tx)
 
                                 # Load Q from gmem to smem
                                 for li, lj in T.grid(tile_x, tile_y):
@@ -1030,16 +1100,24 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
                                         m_new, m_prev, d_new,
                                         ty, tx, LH_start, L_kv_start,
                                         causal, kv_chunk_len[0], q_indptr[b_idx + 1] - q_indptr[b_idx],
+                                        sliding_window, sliding_window_size,
                                     )
 
                                     compute_o_gemm(S_smem, KV_smem, O_local, m_prev_smem, m_smem)
 
                                 # MLA has no blockIdx.y binding; pass by=0 so the
                                 # by*group_size term in the shared epilogue drops.
-                                paged_store_output_lse(
-                                    output, lse, O_local, m_smem, d_smem,
-                                    q_indptr, b_idx, 0, LH_start,
-                                )
+                                if is_sinks:
+                                    for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                        row: T.int32 = i * bdx * num_warps + ty * bdx + tx
+                                        if row < tile_x:
+                                            with T.sblock("update_sink_denom"):
+                                                sink_H_qo: T.int32 = (LH_start + row) % group_size
+                                                m_new[0]: T.float32 = T.max(m_smem[row], sinks[sink_H_qo] * math.log2(math.exp(1)))
+                                                alpha[row] = T.exp2(m_smem[row] - m_new[0])
+                                                d_smem[row] = d_smem[row] * alpha[row] + T.exp2(sinks[sink_H_qo] * math.log2(math.exp(1)) - m_new[0])
+
+                                paged_store_output_lse(output, lse, O_local, m_smem, d_smem, alpha, q_indptr, b_idx, 0, LH_start)
 
                                 # move to next tile
                                 tile_id[0] += NUM_BLKS

@@ -478,6 +478,10 @@ class PagedKVCacheAuxDataManager {
   virtual Tensor CopyPageIndptrOnDepthAsync(HostMemoryVector* data, int depth) = 0;
   /*! \brief Copy the indices array of page table. */
   virtual Tensor CopyPageIndicesOnDepthAsync(HostMemoryVector* data, int depth) = 0;
+  /*! \brief Copy the indptr array of page table. */
+  virtual Tensor CopyPageIndptrSlidingWindowOnDepthAsync(HostMemoryVector* data, int depth) = 0;
+  /*! \brief Copy the indices array of page table. */
+  virtual Tensor CopyPageIndicesSlidingWindowOnDepthAsync(HostMemoryVector* data, int depth) = 0;
   /*! \brief Copy the array of KV slot number used in the last page of the seq. */
   virtual Tensor CopyLastPageLenOnDepthAsync(HostMemoryVector* data, int depth) = 0;
   /*!
@@ -495,6 +499,8 @@ class PagedKVCacheAuxDataManager {
                                             HostMemoryVector* sink_size, int depth) = 0;
   /*! \brief Copy the k position offset of applying RoPE for each sequence. */
   virtual Tensor CopyKRoPEPosOffsetOnDepthAsync(HostMemoryVector* data, int depth) = 0;
+  /*! \brief Copy the k position offset of applying RoPE for each sequence. */
+  virtual Tensor CopyKRoPEPosOffsetSlidingWindowOnDepthAsync(HostMemoryVector* data, int depth) = 0;
   /*!
    * \brief Copy the append length indptr array on device.
    * \note Since the Q/K/V data may have raggedness in terms of lengths,
@@ -567,9 +573,15 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
           Tensor::Empty({reserved_num_seqs + 1}, dtype_aux_, device));
       page_indices_on_depths_device_.push_back(
           Tensor::Empty({num_total_pages}, dtype_aux_, device));
+      page_indptr_sliding_window_on_depths_device_.push_back(
+          Tensor::Empty({reserved_num_seqs + 1}, dtype_aux_, device));
+      page_indices_sliding_window_on_depths_device_.push_back(
+          Tensor::Empty({num_total_pages}, dtype_aux_, device));
       length_info_on_depths_device_.push_back(
           Tensor::Empty({3, reserved_num_seqs}, dtype_aux_, device));
       k_rope_pos_offset_on_depths_device_.push_back(
+          Tensor::Empty({reserved_num_seqs}, dtype_aux_, device));
+      k_rope_pos_offset_sliding_window_on_depths_device_.push_back(
           Tensor::Empty({reserved_num_seqs}, dtype_aux_, device));
       tree_attn_mask_device_.push_back(Tensor::Empty(
           {kTreeAttnMaxTreeSize * kTreeAttnMaxTreeSize * reserved_num_seqs}, dtype_aux_, device));
@@ -614,6 +626,18 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     CopyVecDataToArray(view, data->data());
     return view;
   }
+  Tensor CopyPageIndptrSlidingWindowOnDepthAsync(HostMemoryVector* data, int depth) final {
+    Tensor view = page_indptr_sliding_window_on_depths_device_[depth].CreateView(
+        {static_cast<int64_t>(data->size())}, dtype_aux_);
+    CopyVecDataToArray(view, data->data());
+    return view;
+  }
+  Tensor CopyPageIndicesSlidingWindowOnDepthAsync(HostMemoryVector* data, int depth) final {
+    Tensor view = page_indices_sliding_window_on_depths_device_[depth].CreateView(
+        {static_cast<int64_t>(data->size())}, dtype_aux_);
+    CopyVecDataToArray(view, data->data());
+    return view;
+  }
   Tensor CopyLastPageLenOnDepthAsync(HostMemoryVector* data, int depth) final {
     Tensor view = length_info_on_depths_device_[depth].CreateView(
         {static_cast<int64_t>(data->size())}, dtype_aux_);
@@ -622,6 +646,12 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
   }
   Tensor CopyKRoPEPosOffsetOnDepthAsync(HostMemoryVector* data, int depth) final {
     Tensor view = k_rope_pos_offset_on_depths_device_[depth].CreateView(
+        {static_cast<int64_t>(data->size())}, dtype_aux_);
+    CopyVecDataToArray(view, data->data());
+    return view;
+  }
+  Tensor CopyKRoPEPosOffsetSlidingWindowOnDepthAsync(HostMemoryVector* data, int depth) final {
+    Tensor view = k_rope_pos_offset_sliding_window_on_depths_device_[depth].CreateView(
         {static_cast<int64_t>(data->size())}, dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
@@ -785,8 +815,11 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
   std::vector<Tensor> qo_indptr_on_depths_device_;
   std::vector<Tensor> page_indptr_on_depths_device_;
   std::vector<Tensor> page_indices_on_depths_device_;
+  std::vector<Tensor> page_indptr_sliding_window_on_depths_device_;
+  std::vector<Tensor> page_indices_sliding_window_on_depths_device_;
   std::vector<Tensor> length_info_on_depths_device_;
   std::vector<Tensor> k_rope_pos_offset_on_depths_device_;
+  std::vector<Tensor> k_rope_pos_offset_sliding_window_on_depths_device_;
   std::vector<Tensor> tree_attn_mask_device_;
   std::vector<Tensor> tree_attn_mn_indptr_device_;
   Tensor cur_append_length_indptr_device_;
@@ -850,10 +883,19 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
   Tensor CopyPageIndicesOnDepthAsync(HostMemoryVector* data, int depth) final {
     return CopyAttnAuxVecToCache(data);
   }
+  Tensor CopyPageIndptrSlidingWindowOnDepthAsync(HostMemoryVector* data, int depth) final {
+    return CopyAttnAuxVecToCache(data);
+  }
+  Tensor CopyPageIndicesSlidingWindowOnDepthAsync(HostMemoryVector* data, int depth) final {
+    return CopyAttnAuxVecToCache(data);
+  }
   Tensor CopyLastPageLenOnDepthAsync(HostMemoryVector* data, int depth) final {
     return CopyAttnAuxVecToCache(data);
   }
   Tensor CopyKRoPEPosOffsetOnDepthAsync(HostMemoryVector* data, int depth) final {
+    return CopyAttnAuxVecToCache(data);
+  }
+  Tensor CopyKRoPEPosOffsetSlidingWindowOnDepthAsync(HostMemoryVector* data, int depth) final {
     return CopyAttnAuxVecToCache(data);
   }
   Tensor CopyCurAppendLengthIndptrAsync(HostMemoryVector* data) final {
