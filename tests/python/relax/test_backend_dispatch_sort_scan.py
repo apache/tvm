@@ -484,5 +484,145 @@ def test_dispatch_cumprod_cuda_large_batch():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+@pytest.mark.parametrize(
+    "shape, axis, in_dtype, out_dtype, expected_kernel, expected_kernel_rank",
+    [
+        ((3, 5), 0, "float32", None, "gpu_3d_axis_1_cumsum", 3),
+        ((2, 3, 4, 5), 1, "float32", None, "gpu_3d_axis_1_cumsum", 3),
+        ((2, 3, 4, 5), -2, "int32", "float32", "gpu_3d_axis_1_cumsum", 3),
+        # A short scan keeps total_rounds at zero in gpu_2d_continuous_cumsum.
+        ((2, 3, 4, 5), -1, "float32", None, "gpu_2d_continuous_cumsum", 2),
+    ],
+)
+def test_dispatch_cumsum_webgpu_axes_and_dtypes(
+    shape, axis, in_dtype, out_dtype, expected_kernel, expected_kernel_rank
+):
+    """WebGPU dispatch collapses arbitrary-rank scans to the appropriate kernel."""
+
+    vdevice = tvm.ir.VDevice("webgpu", 0)
+    x = relax.Var("x", relax.TensorType(shape, in_dtype, vdevice=vdevice))
+    bb = relax.BlockBuilder()
+    with bb.function("main", (x,)):
+        out = bb.emit(relax.op.cumsum(x, axis=axis, dtype=out_dtype))
+        bb.emit_func_output(out)
+    before = bb.finalize()
+    before.update_global_info("vdevice", [vdevice])
+
+    target = tvm.target.Target("webgpu", host="llvm")
+    with target:
+        mod = DispatchSortScan()(before)
+
+    called_kernels = []
+    permute_count = 0
+
+    def collect_calls(expr):
+        nonlocal permute_count
+        if isinstance(expr, relax.Call) and getattr(expr.op, "name", None) == (
+            "relax.permute_dims"
+        ):
+            permute_count += 1
+        if isinstance(expr, relax.Call) and getattr(expr.op, "name", None) == "relax.call_tir":
+            called_kernels.append(expr.args[0].name_hint)
+
+    relax.analysis.post_order_visit(mod["main"], collect_calls)
+    assert permute_count == 0
+    assert called_kernels == [expected_kernel]
+
+    cumsum = mod[expected_kernel]
+    buffers = [param for param in cumsum.params if tvm.tirx.is_buffer_var(param)]
+    assert len(buffers) == 2
+    assert all(len(buffer.shape) == expected_kernel_rank for buffer in buffers)
+    assert str(buffers[0].dtype) == in_dtype
+    assert str(buffers[1].dtype) == (out_dtype or in_dtype)
+
+    if expected_kernel == "gpu_2d_continuous_cumsum":
+        floor_divisors = []
+
+        def collect_floor_divisors(node):
+            if isinstance(node, tirx.FloorDiv):
+                floor_divisors.append(node.b)
+
+        tirx.stmt_functor.post_order_visit(cumsum.body, collect_floor_divisors)
+        assert floor_divisors
+        assert all(
+            isinstance(divisor, tirx.IntImm)
+            and divisor.value > 0
+            and divisor.value & (divisor.value - 1) == 0
+            for divisor in floor_divisors
+        )
+
+    with target:
+        tvm.compile(mod, target)
+
+
+def test_dispatch_cumsum_webgpu_symbolic_non_contiguous_axis():
+    """The serial WebGPU fallback accepts a symbolic scan extent."""
+
+    @I.ir_module
+    class Symbolic:
+        I.module_global_infos({"vdevice": [I.vdevice("webgpu", 0)]})
+
+        @R.function
+        def main(x: R.Tensor((1, "n", 9), "float32", "webgpu")):
+            return R.cumsum(x, axis=1)
+
+    target = tvm.target.Target("webgpu", host="llvm")
+    with target:
+        mod = DispatchSortScan()(Symbolic)
+        tvm.compile(mod, target)
+
+    called_kernels = []
+
+    def collect_calls(expr):
+        if isinstance(expr, relax.Call) and getattr(expr.op, "name", None) == "relax.call_tir":
+            called_kernels.append(expr.args[0].name_hint)
+
+    relax.analysis.post_order_visit(mod["main"], collect_calls)
+    assert called_kernels == ["gpu_3d_axis_1_cumsum"]
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param({"kind": "vulkan", "supports_int64": True}, marks=pytest.mark.gpu),
+        pytest.param("metal", marks=pytest.mark.gpu),
+    ],
+)
+@pytest.mark.parametrize(
+    "in_dtype, out_dtype",
+    [("float32", "float32"), ("int32", "int32"), ("int32", "float32")],
+)
+def test_gpu_axis_1_cumsum_numerical(target, in_dtype, out_dtype):
+    """The fallback matches a sequential cumsum for supported WebGPU dtypes."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+
+    from tvm.relax.backend.gpu_generic import (  # pylint: disable=import-outside-toplevel
+        gpu_3d_axis_1_cumsum,
+    )
+
+    shape = (2, 5, 7)
+    if in_dtype == "int32":
+        np_data = np.random.randint(-4, 5, shape).astype(in_dtype)
+    else:
+        np_data = np.random.uniform(-2, 2, shape).astype(in_dtype)
+    expected = np.cumsum(np_data, axis=1, dtype=out_dtype)
+
+    func = gpu_3d_axis_1_cumsum(in_dtype=in_dtype, out_dtype=out_dtype).with_attr(
+        "global_symbol", "main"
+    )
+    compiled = tvm.compile(func, target=target)
+
+    def run_and_check():
+        dev = tvm.device_from_target(target)
+        input_tensor = tvm.runtime.tensor(np_data, dev)
+        output_tensor = tvm.runtime.empty(shape, out_dtype, dev)
+        compiled(input_tensor, output_tensor)
+        tvm.testing.assert_allclose(output_tensor.numpy(), expected)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
