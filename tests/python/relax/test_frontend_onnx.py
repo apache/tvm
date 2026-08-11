@@ -1694,10 +1694,10 @@ def test_castlike_ir():
         [castlike_node],
         "castlike_test",
         inputs=[
-            helper.make_tensor_value_info("a", TensorProto.FLOAT, [1, 32]),
-            helper.make_tensor_value_info("b", TensorProto.INT32, [1]),
+            helper.make_tensor_value_info("a", TensorProto.INT32, [1, 32]),
+            helper.make_tensor_value_info("b", TensorProto.FLOAT, [1]),
         ],
-        outputs=[helper.make_tensor_value_info("c", TensorProto.INT32, [1, 32])],
+        outputs=[helper.make_tensor_value_info("c", TensorProto.FLOAT, [1, 32])],
     )
     model = helper.make_model(graph, producer_name="castlike_test")
     tvm_model = from_onnx(model, opset=15, keep_params_in_input=True)
@@ -1706,16 +1706,65 @@ def test_castlike_ir():
     class Expected:
         @R.function
         def main(
-            a: R.Tensor((1, 32), dtype="float32"),
-            b: R.Tensor((1,), dtype="int32"),
-        ) -> R.Tensor((1, 32), dtype="int32"):
+            a: R.Tensor((1, 32), dtype="int32"),
+            b: R.Tensor((1,), dtype="float32"),
+        ) -> R.Tensor((1, 32), dtype="float32"):
             R.func_attr({"num_input": 2})
             with R.dataflow():
-                gv: R.Tensor((1, 32), dtype="int32") = R.astype(a, "int32")
+                gv: R.Tensor((1, 32), dtype="float32") = R.astype(a, "float32")
                 R.output(gv)
             return gv
 
     tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_castlike_nan_inf_to_int8():
+    vals = np.array([np.nan, np.inf, -np.inf, 1.9, -1.9], dtype=np.float32)
+    castlike_node = helper.make_node("CastLike", ["data", "like"], ["output"])
+    graph = helper.make_graph(
+        [castlike_node],
+        "castlike_nan_inf_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, list(vals.shape)),
+            helper.make_tensor_value_info("like", TensorProto.INT8, [1]),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.INT8, list(vals.shape))],
+    )
+    model = helper.make_model(graph, producer_name="castlike_nan_inf_test")
+    inputs = {"data": vals, "like": np.array([0], dtype=np.int8)}
+    check_correctness(model, inputs=inputs, opset=15, check_dtypes=True)
+
+
+def test_castlike_shape_expr_data():
+    shape_node = helper.make_node("Shape", ["data"], ["data_shape"])
+    castlike_node = helper.make_node("CastLike", ["data_shape", "like"], ["output"])
+    graph = helper.make_graph(
+        [shape_node, castlike_node],
+        "castlike_shape_data_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("like", TensorProto.FLOAT, [1]),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [2])],
+    )
+    model = helper.make_model(graph, producer_name="castlike_shape_data_test")
+    check_correctness(model, opset=15, check_dtypes=True)
+
+
+def test_castlike_shape_expr_target():
+    shape_node = helper.make_node("Shape", ["like"], ["like_shape"])
+    castlike_node = helper.make_node("CastLike", ["data", "like_shape"], ["output"])
+    graph = helper.make_graph(
+        [shape_node, castlike_node],
+        "castlike_shape_target_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, [3]),
+            helper.make_tensor_value_info("like", TensorProto.FLOAT, [2, 3]),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.INT64, [3])],
+    )
+    model = helper.make_model(graph, producer_name="castlike_shape_target_test")
+    check_correctness(model, opset=15, check_dtypes=True)
 
 
 def test_gather():
@@ -4155,6 +4204,42 @@ def test_trilu_with_const_k(k_value: int):
 
     model = helper.make_model(graph, producer_name="trilu_graph")
     check_correctness(model)
+
+
+def test_trilu_initializer_with_params_in_input():
+    k_value = np.array(1, dtype="int64")
+    graph = helper.make_graph(
+        [helper.make_node("Trilu", inputs=["x", "k"], outputs=["y"])],
+        "trilu_initializer_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3])],
+        initializer=[numpy_helper.from_array(k_value, name="k")],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3])],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="trilu_initializer_test",
+        opset_imports=[helper.make_opsetid("", 14)],
+    )
+
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+    assert len(tvm_model["main"].attrs["params"]) == 1
+    np.testing.assert_array_equal(tvm_model["main"].attrs["params"][0].numpy(), k_value)
+    tvm_model["main"] = tvm_model["main"].without_attr("params")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32"),
+            k: R.Tensor((), dtype="int64"),
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="float32") = R.triu(x, 1)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("upper", [True, False])
