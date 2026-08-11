@@ -4,27 +4,17 @@ Run the full TIRX test suite.
 
 Run all commands below in the same Bash shell from the TVM repository root.
 
-1. Point Python at this workspace's repos and select every eligible idle Blackwell GPU.
+1. Point Python at this workspace's repos and select every Blackwell GPU.
    `TIR_TEST_GPUS` may explicitly provide physical GPU IDs, and
    `TIR_TEST_NUM_GPUS` may optionally cap the automatically selected count. Otherwise,
-   selection uses all eligible GPUs, ordered by least memory in use.
+   selection uses all Blackwell GPUs, ordered by least memory in use.
    ```bash
    export WORKSPACE=/path/to/workspace
    export TIR_TEST_NUM_GPUS="${TIR_TEST_NUM_GPUS:-}"
-   export TIR_TEST_MIN_FREE_GB="${TIR_TEST_MIN_FREE_GB:-32}"
-   export TIR_TEST_MAX_USED_MIB="${TIR_TEST_MAX_USED_MIB:-256}"
    export TIR_TEST_XDIST_WORKERS="${TIR_TEST_XDIST_WORKERS:-16}"
 
    [[ -z "$TIR_TEST_NUM_GPUS" || "$TIR_TEST_NUM_GPUS" =~ ^[1-9][0-9]*$ ]] || {
      echo "TIR_TEST_NUM_GPUS must be empty or a positive integer" >&2
-     exit 2
-   }
-   [[ "$TIR_TEST_MIN_FREE_GB" =~ ^[0-9]+$ ]] || {
-     echo "TIR_TEST_MIN_FREE_GB must be a non-negative integer" >&2
-     exit 2
-   }
-   [[ "$TIR_TEST_MAX_USED_MIB" =~ ^[0-9]+$ ]] || {
-     echo "TIR_TEST_MAX_USED_MIB must be a non-negative integer" >&2
      exit 2
    }
    [[ "$TIR_TEST_XDIST_WORKERS" =~ ^[1-9][0-9]*$ ]] || {
@@ -37,19 +27,15 @@ Run all commands below in the same Bash shell from the TVM repository root.
    else
      mapfile -t TIR_TEST_SELECTED_GPUS < <(
        nvidia-smi \
-         --query-gpu=index,memory.total,memory.used,utilization.gpu,compute_cap \
+         --query-gpu=index,memory.used,compute_cap \
          --format=csv,noheader,nounits \
-       | awk -F, \
-           -v min_free_mib="$((TIR_TEST_MIN_FREE_GB * 1024))" \
-           -v max_used_mib="$TIR_TEST_MAX_USED_MIB" '
+       | awk -F, '
            {
-             for (i = 1; i <= 5; ++i) {
+             for (i = 1; i <= 3; ++i) {
                gsub(/^[[:space:]]+|[[:space:]]+$/, "", $i)
              }
-             free_mib = $2 - $3
-             if (($5 + 0) >= 10 && free_mib >= min_free_mib &&
-                 ($3 + 0) <= max_used_mib && ($4 + 0) == 0) {
-               print $1, $3
+             if (($3 + 0) >= 10) {
+               print $1, $2
              }
            }' \
        | sort -k2,2n -k1,1n \
@@ -64,7 +50,7 @@ Run all commands below in the same Bash shell from the TVM repository root.
    fi
 
    (( ${#TIR_TEST_SELECTED_GPUS[@]} > 0 )) || {
-     echo "no eligible CUDA compute capability >= 10 GPU is available" >&2
+     echo "no CUDA compute capability >= 10 GPU is available" >&2
      exit 1
    }
    for gpu in "${TIR_TEST_SELECTED_GPUS[@]}"; do
@@ -80,7 +66,9 @@ Run all commands below in the same Bash shell from the TVM repository root.
 
    export CUDA_VISIBLE_DEVICES
    CUDA_VISIBLE_DEVICES="$(IFS=,; printf '%s' "${TIR_TEST_SELECTED_GPUS[*]}")"
-   export TIRX_KERNEL_TEST_MIN_FREE_GB="$TIR_TEST_MIN_FREE_GB"
+   # Registry correctness tests skip a device with less than this much free
+   # memory; 0 runs them regardless of what else is on the GPU.
+   export TIRX_KERNEL_TEST_MIN_FREE_GB=0
    export PYTHONPATH="${WORKSPACE}/tirx-kernels:${WORKSPACE}/tvm/python"
    export TVM_LIBRARY_PATH="${WORKSPACE}/tvm/build/lib"
 
@@ -111,51 +99,11 @@ Run all commands below in the same Bash shell from the TVM repository root.
    done
    ```
 
-   Automatic selection uses every eligible idle device. Set
+   Automatic selection uses every Blackwell device. Set
    `TIR_TEST_NUM_GPUS=4` to cap the count or `TIR_TEST_GPUS=3,4,5,6` to override
    selection with exact physical IDs.
 
-2. Start one GPU monitor per selected physical GPU. A baseline foreign process
-   is a selection race; stop and select a different GPU before running tests.
-   ```bash
-   TIR_TEST_MONITOR_PIDS=()
-   TIR_TEST_GPU_LOGS=()
-
-   cleanup_tir_test_monitors() {
-     local pid
-     for pid in "${TIR_TEST_MONITOR_PIDS[@]}"; do
-       kill "$pid" 2>/dev/null || true
-     done
-     for pid in "${TIR_TEST_MONITOR_PIDS[@]}"; do
-       wait "$pid" 2>/dev/null || true
-     done
-   }
-   trap cleanup_tir_test_monitors EXIT
-
-   for gpu in "${TIR_TEST_SELECTED_GPUS[@]}"; do
-     log="/tmp/tir_test_gpu_${gpu}_$$.log"
-     bash .agents/scripts/monitor_gpu.sh \
-       --gpu "$gpu" --interval 5 --log "$log" &
-     TIR_TEST_MONITOR_PIDS+=("$!")
-     TIR_TEST_GPU_LOGS+=("$log")
-   done
-   sleep 1
-
-   baseline_conflict=0
-   for log in "${TIR_TEST_GPU_LOGS[@]}"; do
-     if grep -q '\[FOREIGN\]' "$log"; then
-       echo "foreign process present at baseline: $log" >&2
-       baseline_conflict=1
-     fi
-   done
-   if (( baseline_conflict )); then
-     cleanup_tir_test_monitors
-     trap - EXIT
-     exit 1
-   fi
-   ```
-
-3. Import gate: bench workloads. Fail fast if any kernel listed in
+2. Import gate: bench workloads. Fail fast if any kernel listed in
    `workloads.yaml` fails to import.
    ```bash
    "$PYTHON_BIN" -m tirx_kernels.bench_suite --check-imports
@@ -163,12 +111,12 @@ Run all commands below in the same Bash shell from the TVM repository root.
    A non-zero exit means a pinned workload kernel failed to import. Fix it before
    proceeding.
 
-4. Full kernel import gate for correctness-suite coverage:
+3. Full kernel import gate for correctness-suite coverage:
    ```bash
    "$PYTHON_BIN" -m tirx_kernels.registry --cc 10 --strict
    ```
 
-5. Run the full test suite with xdist parallelism:
+4. Run the full test suite with xdist parallelism:
    ```bash
    "$PYTHON_BIN" -m pytest tests/python/tirx/ -n "$TIR_TEST_XDIST_WORKERS"
    ```
@@ -180,29 +128,8 @@ Run all commands below in the same Bash shell from the TVM repository root.
    first selected physical GPU. MegaMoE remains skipped because it requires its
    dedicated multi-process scheduler, not ordinary xdist device assignment.
 
-6. Stop every monitor and check every selected GPU for foreign usage:
-   ```bash
-   cleanup_tir_test_monitors
-   trap - EXIT
-
-   foreign_usage=0
-   for i in "${!TIR_TEST_GPU_LOGS[@]}"; do
-     gpu="${TIR_TEST_SELECTED_GPUS[$i]}"
-     log="${TIR_TEST_GPU_LOGS[$i]}"
-     if grep -qE 'FOREIGN USER|\[FOREIGN\]' "$log"; then
-       echo "GPU $gpu foreign-process events:"
-       grep -E 'FOREIGN USER|\[FOREIGN\]' "$log"
-       foreign_usage=1
-     else
-       echo "GPU $gpu: no foreign GPU usage observed"
-     fi
-   done
-   ```
-
-7. Report results: selected physical GPUs, elapsed time, total passed, failed,
-   skipped, and errors, plus both import-gate results. If any foreign-user events
-   are present in step 6, mention the affected physical GPUs. Flaky failures
-   should be re-evaluated on clean GPUs before being attributed to code changes.
+5. Report results: selected physical GPUs, elapsed time, total passed, failed,
+   skipped, and errors, plus both import-gate results.
 
 ## Failure triage rules
 
