@@ -31,7 +31,9 @@
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
+#include <optional>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -67,6 +69,22 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
  private:
   using StmtExprVisitor::VisitExpr_;
 
+  static ffi::Optional<Var> GetBufferDataVar(const Expr& data) {
+    if (auto var = data.as<Var>()) {
+      return var;
+    }
+    if (const auto* call = data.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      return call->args[0].as<Var>();
+    }
+    return std::nullopt;
+  }
+
+  Var ResolveBuffer(Var buffer_var) const {
+    auto it = buffer_aliases_.find(buffer_var.get());
+    return it == buffer_aliases_.end() ? buffer_var : it->second;
+  }
+
   void VisitExpr_(const VarNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     Var buffer_var = ffi::GetRef<Var>(op);
@@ -77,7 +95,15 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
 
   void VisitStmt_(const BufferStoreNode* op) final {
     StmtExprVisitor::VisitStmt_(op);
-    info_.write_access_set.insert(op->buffer.var());
+    info_.write_access_set.insert(ResolveBuffer(op->buffer.var()));
+  }
+
+  void VisitStmt_(const DeclBufferNode* op) final {
+    if (auto source = GetBufferDataVar(op->data)) {
+      buffer_aliases_.insert_or_assign(op->buffer.get(), ResolveBuffer(source.value()));
+      return;
+    }
+    StmtExprVisitor::VisitStmt_(op);
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
@@ -104,6 +130,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
   WebGPUWorkGroupInfo info_;
+  std::unordered_map<const VarNode*, Var> buffer_aliases_;
 };
 
 std::string CodeGenWebGPU::Finish() {
