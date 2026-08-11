@@ -1336,12 +1336,15 @@ class CastLike(OnnxOpConverter):
     def _impl_v15(cls, bb, inputs, attr, params):
         data = inputs[0]
         target = inputs[1]
-        target_dtype = getattr(getattr(getattr(target, "ty", None), "dtype", None), "dtype", None)
-        if target_dtype is None:
-            target_dtype = getattr(target.struct_info, "dtype", None)
+        if isinstance(target, relax.ShapeExpr):
+            target_dtype = "int64"
+        else:
+            target_dtype = getattr(getattr(target, "ty", None), "dtype", None) or getattr(
+                target, "dtype", None
+            )
         if target_dtype is None:
             raise ValueError(f"CastLike: unable to determine dtype from target {target}")
-        return relax.op.astype(data, target_dtype)
+        return Cast._impl_v13(bb, [data], {"to": str(target_dtype)}, params)
 
 
 class Gather(OnnxOpConverter):
@@ -1714,6 +1717,8 @@ class Trilu(OnnxOpConverter):
         x = inputs[0]
         k = inputs[1] if len(inputs) > 1 else 0
 
+        if len(inputs) > 1:
+            k = get_constant(k, params)
         if isinstance(k, relax.Constant):
             k = int(k.data.numpy().item())
         if isinstance(k, int):
@@ -6077,6 +6082,7 @@ class ONNXGraphImporter:
                 "Equal",
                 "Where",
                 "Cast",
+                "CastLike",
                 "Squeeze",
             ]
             return_tuple_ops = [
