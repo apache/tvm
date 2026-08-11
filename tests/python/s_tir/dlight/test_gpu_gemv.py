@@ -24,6 +24,33 @@ from tvm.script import tirx as T
 from tvm.target import Target
 
 
+def test_gemv_rejects_composite_normalized_axis():
+    @T.prim_func(private=True, s_tir=True)
+    def before(
+        p_data: T.handle,
+        weight: T.Buffer((64, 1, 512), "float32"),
+        p_output: T.handle,
+        n: T.int64,
+    ):
+        data = T.match_buffer(p_data, (1, 64, n), "float32")
+        output = T.match_buffer(p_output, (1, 1, n * 256), "float32")
+        for w, rc, rw in T.grid(n * 256, 64, 512):
+            with T.sblock("conv1d_transpose"):
+                vw, vrc, vrw = T.axis.remap("SRR", [w, rc, rw])
+                T.reads(data[0, vrc, (vw + vrw - 383) // 256], weight[vrc, 0, 511 - vrw])
+                T.writes(output[0, 0, vw])
+                with T.init():
+                    output[0, 0, vw] = T.float32(0)
+                output[0, 0, vw] += (
+                    data[0, vrc, (vw + vrw - 383) // 256] * weight[vrc, 0, 511 - vrw]
+                )
+
+    mod = tvm.IRModule({"main": before})
+    with Target("webgpu"):
+        scheduled = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
+    tvm.ir.assert_structural_equal(scheduled["main"], before)
+
+
 def test_gemv_basic():
     # fmt: off
     @T.prim_func(private=True, s_tir=True)
