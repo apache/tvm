@@ -6240,8 +6240,7 @@ _ENTRIES = [
     # mbarrier.try_wait.parity{.sem.scope}{.ss}.b64 waitComplete, [addr], phaseParity, timeHint;
     #
     # waitComplete is a `.pred` result -- rw="w", dtype="pred", the in-block selp
-    # materialization. try_wait is registered in its timeHint arity only (the
-    # hint is a nanosecond budget the callers always pass).
+    # materialization. try_wait supports both PTX arities: timeHint is optional.
     *[
         InstructionEntry(
             name=f"mbarrier_{act}_parity",
@@ -6264,6 +6263,24 @@ _ENTRIES = [
         )
         for act in ("test_wait", "try_wait")
     ],
+    InstructionEntry(
+        name="mbarrier_try_wait_parity_no_hint",
+        mnemonic="mbarrier",
+        slots=(
+            ModifierSlot("action", ("try_wait",)),
+            ModifierSlot("parity", ("parity",)),
+            ModifierSlot("sem", ("acquire", "relaxed"), optional=True),
+            ModifierSlot("scope", ("cta", "cluster"), optional=True),
+            ModifierSlot("space", ("shared", "shared::cta"), optional=True),
+            ModifierSlot("type", ("b64",)),
+        ),
+        check=_check_mbarrier_sem_scope,
+        operands=(
+            OperandSlot("wait_complete", rw="w", dtype="pred"),
+            OperandSlot("addr", kind="addr"),
+            OperandSlot("phase", dtype="u32"),
+        ),
+    ),
     *[
         InstructionEntry(  # mbarrier.{expect_tx,complete_tx}{.sem.scope}{.space}.b64 [addr], tx;
             name=f"mbarrier_{act}",

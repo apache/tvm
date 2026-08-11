@@ -127,8 +127,12 @@ def test_mbarrier_try_wait_once_codegen():
         T.thread_id([128])
         bar = T.shared_scalar("uint64")
         ok = T.local_scalar("uint32")
+        ok_no_hint = T.local_scalar("uint32")
         T.ptx.mbarrier.try_wait.parity.shared__cta.b64(
             ok, T.address_of(bar), T.uint32(0), T.uint32(0)
+        )
+        T.ptx.mbarrier.try_wait.parity.shared__cta.b64(
+            ok_no_hint, T.address_of(bar), T.uint32(0)
         )
     # fmt: on
 
@@ -137,6 +141,7 @@ def test_mbarrier_try_wait_once_codegen():
         src, _ = _get_source(test_try_wait_once)
         assert "mbarrier.try_wait.parity.shared::cta.b64 pd0, [%1], %2, %3;" in src
         assert "selp.b32 %0, 1, 0, pd0;" in src
+        assert "mbarrier.try_wait.parity.shared::cta.b64 pd0, [%1], %2;" in src
 
 
 @pytest.mark.gpu
