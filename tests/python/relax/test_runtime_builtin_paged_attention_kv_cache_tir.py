@@ -18,7 +18,9 @@
 import functools
 import itertools
 import json
+import math
 
+import numpy as np
 import pytest
 import torch
 import tvm_ffi
@@ -89,6 +91,69 @@ fcopy_single_page = None
 fcompact_copy = None
 
 _COMPILED_KERNEL_CACHE = {}
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
+@pytest.mark.parametrize("device_type", ["cuda", "metal"])
+def test_paged_prefill_layer_sliding_window_mask(device_type):
+    if not tvm.testing.device_enabled(device_type):
+        pytest.skip(f"{device_type} not enabled")
+
+    dev = tvm.device(device_type)
+    target = tvm.target.Target.from_device(dev)
+    head_dim = 64
+    num_kv_heads = 2
+    num_qo_heads = 4
+    page_size = 16
+    tir_func = _attention_prefill(
+        num_kv_heads,
+        num_qo_heads,
+        head_dim,
+        "float16",
+        True,
+        {},
+        target,
+        page_size=page_size,
+        sliding_window_size=3,
+    )
+    built = tvm.tirx.build(tir_func, target=target)
+
+    q = np.zeros((2, num_qo_heads, head_dim), dtype="float16")
+    q_indptr = np.array([0, 2], dtype="int32")
+    pages = np.zeros((1, 2, num_kv_heads, page_size, head_dim), dtype="float16")
+    for position, value in enumerate([1, 3, 5]):
+        pages[0, 1, :, position, :] = value
+    page_indptr = np.array([0, 1], dtype="int32")
+    page_values = np.array([0], dtype="int32")
+    length_info = np.array([[3], [0], [0]], dtype="int32")
+    k_rope_pos_offset = np.array([0], dtype="int32")
+    q_rope_position = np.array([3, 4], dtype="int32")
+    output = np.zeros_like(q)
+    lse = np.zeros((2, num_qo_heads), dtype="float32")
+
+    args = [
+        tvm.runtime.tensor(array, device=dev)
+        for array in [
+            q,
+            q_indptr,
+            pages,
+            page_indptr,
+            page_values,
+            length_info,
+            k_rope_pos_offset,
+            q_rope_position,
+            output,
+            lse,
+        ]
+    ]
+
+    def run_and_check():
+        built.main(*args, 1, 0, 1.0, 10000.0, 1 / math.sqrt(head_dim))
+        expected = np.array([4, 5], dtype="float16")
+        tvm.testing.assert_allclose(args[8].numpy()[:, 0, 0], expected, rtol=1e-3, atol=1e-3)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def set_global_func(head_dim, dtype, target):

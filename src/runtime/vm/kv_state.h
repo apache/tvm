@@ -207,6 +207,21 @@ class AttentionKVCacheObj : public KVStateObj {
                               double sm_scale) = 0;
 
   /*!
+   * \brief Compute attention with K/V shared by another logical layer.
+   *
+   * This operation does not append K/V. The cache-owning source layer must run before this
+   * operation in the active forward pass.
+   * \param source_layer_id The physical cache layer containing past K/V data.
+   * \param q_data The logical layer's input Q data.
+   * \param current_k_data The source layer's K data for the active chunk.
+   * \param current_v_data The source layer's V data for the active chunk.
+   * \param o_data The output O data.
+   * \param sm_scale The additional attention scaling factor.
+   */
+  virtual void AttentionWithSharedKV(int64_t source_layer_id, Tensor q_data, Tensor current_k_data,
+                                     Tensor current_v_data, Tensor o_data, double sm_scale) = 0;
+
+  /*!
    * \brief Fine-grained API that appends the MLA K/V data to KV cache.
    * \param layer_id The model layer where the attention compute happens.
    * \param kv_data The input KV data to append, in layout `(total_length, qk_head_dim)`.
