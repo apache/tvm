@@ -2505,6 +2505,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         value = args[1] if isinstance(args[1], relax.Expr) else relax.const(args[1], dtype)
         return self.block_builder.emit(relax.op.full(x.ty.shape, value, dtype))
 
+    def _prim_value_to_scalar_tensor(self, value: relax.Expr, dtype: str) -> relax.Var:
+        """Materialize an integer primitive value as a rank-zero tensor."""
+        value_tensor = self.block_builder.emit(relax.op.shape_to_tensor(relax.ShapeExpr([value])))
+        if dtype != "int64":
+            value_tensor = self.block_builder.emit(relax.op.astype(value_tensor, dtype))
+        return self.block_builder.emit(relax.op.squeeze(value_tensor, axis=[0]))
+
     def _inplace_fill(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
@@ -2522,7 +2529,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dtype = self._convert_data_type(
             node.kwargs.get("dtype", torch.get_default_dtype()), self.env
         )
-        value = args[1] if isinstance(args[1], relax.expr.Constant) else relax.const(args[1], dtype)
+        if isinstance(getattr(args[1], "ty", None), PrimType):
+            value = self._prim_value_to_scalar_tensor(args[1], dtype)
+        elif isinstance(args[1], relax.Expr):
+            value = args[1]
+        else:
+            value = relax.const(args[1], dtype)
         return self.block_builder.emit(
             relax.op.full(
                 size,
@@ -2532,11 +2544,17 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         )
 
     def _full_like(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        value = node.args[1]
-        fill_value = relax.const(value)
+        args = self.retrieve_args(node)
+        x = args[0]
+        value = args[1]
+        x_dtype = str(x.ty.dtype)
+        if isinstance(getattr(value, "ty", None), PrimType):
+            fill_value = self._prim_value_to_scalar_tensor(value, x_dtype)
+        elif isinstance(value, relax.Expr):
+            fill_value = value
+        else:
+            fill_value = relax.const(value)
 
-        x_dtype = x.ty.dtype.dtype
         fill_dtype = None
         if isinstance(value, int | float) and (math.isinf(value) or math.isnan(value)):
             if not ("float" in x_dtype or "bfloat16" in x_dtype):
@@ -2807,6 +2825,19 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _item(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
+        shape = self.shape_of(x)
+        if shape is not None and len(shape) == 0:
+            dtype = str(x.ty.dtype)
+            if dtype in ("int32", "int64"):
+                scalar = x
+                if dtype != "int64":
+                    scalar = self.block_builder.emit(relax.op.astype(scalar, "int64"))
+                scalar = self.block_builder.emit(relax.op.reshape(scalar, [1]))
+                shape_value = self.block_builder.emit(relax.op.tensor_to_shape(scalar))
+                dim = tirx.Var(f"{node.name}_dim", "int64")
+                self.block_builder.match_cast(shape_value, relax.ShapeType([dim]))
+                return dim
+            return x
         return self.block_builder.emit(relax.op.take(x, relax.const(0, "int64"), axis=0))
 
     def _sym_size_int(self, node: fx.Node) -> relax.Expr:
