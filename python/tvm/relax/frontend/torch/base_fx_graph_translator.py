@@ -1905,14 +1905,21 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = args[0]
         broadcast_shape = []
         in_shape = self.shape_of(x)
+        input_rank = len(in_shape) if in_shape is not None else None
+        if input_rank is None and hasattr(node.args[0], "meta") and "val" in node.args[0].meta:
+            input_rank = len(node.args[0].meta["val"].shape)
+        rank_offset = len(sizes) - input_rank if input_rank is not None else 0
         for idx, i in enumerate(sizes):
             if isinstance(i, int) and i == -1:
+                input_idx = idx - rank_offset
+                if input_idx < 0:
+                    raise ValueError(f"Cannot use -1 in expand for new leading dim {idx}")
                 if in_shape is not None:
-                    broadcast_shape.append(in_shape[idx])
+                    broadcast_shape.append(in_shape[input_idx])
                 elif hasattr(node.args[0], "meta") and "val" in node.args[0].meta:
                     # Fallback: get shape from FX node metadata (FakeTensor)
                     fake_shape = node.args[0].meta["val"].shape
-                    broadcast_shape.append(fake_shape[idx])
+                    broadcast_shape.append(fake_shape[input_idx])
                 else:
                     raise ValueError(
                         f"Cannot use -1 in expand for dim {idx} when input shape is unknown"
