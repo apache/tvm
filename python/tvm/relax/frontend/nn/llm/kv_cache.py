@@ -230,6 +230,46 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         lse = Tensor(_expr=bb.emit(rx.TupleGetItem(attn_results, 1))).reshape(b, s, h_qo)
         return o, lse
 
+    def attention_with_shared_kv(
+        self,
+        source_layer_id: int,
+        q: Tensor,
+        current_k: Tensor,
+        current_v: Tensor,
+        sm_scale: float,
+    ) -> Tensor:
+        """Compute attention using K/V shared by another logical layer.
+
+        This operation does not append to the KV cache. The cache-owning source layer must run
+        before this operation in the active forward pass. ``current_k`` and ``current_v`` are that
+        source layer's K/V for the active chunk. During prefill they are combined with the source
+        layer's paged past K/V; during decode the source layer has already appended them and the
+        operation reads the cache directly.
+        """
+        # pylint: disable=protected-access
+        b, s, h_qo, d_qk = q._expr.ty.shape
+        _, _, h_kv, _ = current_k._expr.ty.shape
+        _, _, _, d_v = current_v._expr.ty.shape
+        q = q.reshape(b * s, h_qo, d_qk)
+        current_k = current_k.reshape(b * s, h_kv, d_qk)
+        current_v = current_v.reshape(b * s, h_kv, d_v)
+        return Tensor(
+            _expr=rx.BlockBuilder.current().emit(
+                rx.call_dps_packed(
+                    "vm.builtin.attention_kv_cache_attention_with_shared_kv",
+                    [
+                        self._expr,
+                        rx.prim_value(source_layer_id),  # type: ignore[arg-type]
+                        rx.prim_value(sm_scale),
+                        q._expr,
+                        current_k._expr,
+                        current_v._expr,
+                    ],
+                    out_ty=rx.TensorType((b * s, h_qo, d_v), q.dtype),
+                )
+            )
+        ).reshape(b, s, h_qo, d_v)
+
     def append_mla_kv(self, layer_id: int, kv: Tensor) -> "PagedKVCache":
         """Fine-grained API that appends the MLA K/V data to KV cache."""
         # pylint: disable=protected-access

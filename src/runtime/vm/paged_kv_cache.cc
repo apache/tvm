@@ -1484,6 +1484,46 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
+  void AttentionWithSharedKV(int64_t source_layer_id, Tensor q_data, Tensor current_k_data,
+                             Tensor current_v_data, Tensor o_data, double sm_scale) final {
+    int64_t local_layer_id = source_layer_id - layer_id_begin_offset_;
+    TVM_FFI_ICHECK_GE(local_layer_id, 0);
+    TVM_FFI_ICHECK_LT(local_layer_id, num_layers_);
+    Tensor pages = pages_[local_layer_id];
+    TVM_FFI_ICHECK(q_data.DataType() == pages.DataType());
+    TVM_FFI_ICHECK(current_k_data.DataType() == pages.DataType());
+    TVM_FFI_ICHECK(current_v_data.DataType() == pages.DataType());
+    TVM_FFI_ICHECK(o_data.DataType() == pages.DataType());
+    TVM_FFI_ICHECK(attn_kinds_[source_layer_id] == AttnKind::kMHA ||
+                   attn_kinds_[source_layer_id] == AttnKind::kMHASliding)
+        << "Querying K/V from another logical layer is only supported for MHA caches.";
+
+    int64_t total_seq_length = 0;
+    for (int64_t seq_id = 0; seq_id < cur_batch_size_; ++seq_id) {
+      total_seq_length += cur_append_lengths_[seq_id];
+    }
+    TVM_FFI_ICHECK_EQ(q_data->ndim, 3);
+    TVM_FFI_ICHECK_EQ(current_k_data->ndim, 3);
+    TVM_FFI_ICHECK_EQ(current_v_data->ndim, 3);
+    TVM_FFI_ICHECK_EQ(o_data->ndim, 3);
+    TVM_FFI_ICHECK_EQ(q_data->shape[0], total_seq_length);
+    TVM_FFI_ICHECK_EQ(current_k_data->shape[0], total_seq_length);
+    TVM_FFI_ICHECK_EQ(current_v_data->shape[0], total_seq_length);
+    TVM_FFI_ICHECK_EQ(o_data->shape[0], total_seq_length);
+    TVM_FFI_ICHECK_EQ(q_data->shape[1], num_qo_heads_);
+    TVM_FFI_ICHECK_EQ(current_k_data->shape[1], num_kv_heads_);
+    TVM_FFI_ICHECK_EQ(current_v_data->shape[1], num_kv_heads_);
+    TVM_FFI_ICHECK_EQ(o_data->shape[1], num_qo_heads_);
+    TVM_FFI_ICHECK_EQ(q_data->shape[2], qk_head_dim_);
+    TVM_FFI_ICHECK_EQ(current_k_data->shape[2], qk_head_dim_);
+    TVM_FFI_ICHECK_EQ(current_v_data->shape[2], v_head_dim_);
+    TVM_FFI_ICHECK_EQ(o_data->shape[2], v_head_dim_);
+
+    ComputeStreamWaitForCopyStream();
+    TVM_FFI_ICHECK(!dirty_aux_data_device_);
+    AttentionInternal(source_layer_id, q_data, current_k_data, current_v_data, o_data, sm_scale);
+  }
+
   void AppendMLAKV(int64_t layer_id, Tensor kv_data) final {
     // Shape and dtype check.
     int64_t local_layer_id = layer_id - layer_id_begin_offset_;

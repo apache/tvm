@@ -71,6 +71,7 @@ fbegin_forward = None
 fend_forward = None
 fcommit_accepted_token_tree_nodes = None
 fattention_with_fuse_qkv = None
+fattention_with_shared_kv = None
 fis_empty = None
 fdebug_get_kv = None
 
@@ -95,7 +96,7 @@ _COMPILED_KERNEL_CACHE = {}
 def set_global_func(head_dim, dtype, layer_sliding_window_size=1024):
     global fclear, fadd_sequence, fremove_sequence, ffork_sequence, fenable_sliding_window_for_seq
     global fpopn, fbegin_forward, fend_forward, fcommit_accepted_token_tree_nodes
-    global fattention_with_fuse_qkv, fis_empty, fdebug_get_kv
+    global fattention_with_fuse_qkv, fattention_with_shared_kv, fis_empty, fdebug_get_kv
     global ftranspose_append, fcopy_cache, fattn_prefill, fattn_decode
     global \
         fattn_prefill_ragged, \
@@ -119,6 +120,9 @@ def set_global_func(head_dim, dtype, layer_sliding_window_size=1024):
     )
     fattention_with_fuse_qkv = tvm.get_global_func(
         "vm.builtin.attention_kv_cache_attention_with_fused_qkv"
+    )
+    fattention_with_shared_kv = tvm.get_global_func(
+        "vm.builtin.attention_kv_cache_attention_with_shared_kv"
     )
     fis_empty = tvm.get_global_func("vm.builtin.attention_kv_cache_empty")
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
@@ -640,6 +644,62 @@ def test_per_layer_sliding_window():
             q, cached_k, cached_v, past_length, layer_window_size
         )
         tvm.testing.assert_allclose(output.numpy(), expected, rtol=1e-3, atol=1e-3)
+        fend_forward(kv_cache)
+
+
+@pytest.mark.parametrize(
+    ("source_attn_kind", "layer_window_size"),
+    [(AttnKind.MHA, None), (AttnKind.MHA_SLIDING, 3)],
+)
+def test_attention_with_shared_kv(source_attn_kind, layer_window_size):
+    global head_dim, sm_scale, dtype
+    head_dim = 64
+    sm_scale = head_dim ** (-0.5)
+    dtype = "float32"
+    set_global_func(head_dim, dtype, layer_window_size or 1024)
+    attn_kinds = [int(source_attn_kind)] + [int(AttnKind.MHA)] * (num_layers - 1)
+    kv_cache = create_kv_cache(
+        head_dim,
+        dtype,
+        RopeMode.NONE,
+        False,
+        layer_sliding_window_size=layer_window_size or 1024,
+        attn_kinds=attn_kinds,
+    )
+    fadd_sequence(kv_cache, 0)
+
+    rng = np.random.default_rng(0)
+    cached_k = np.empty((0, num_kv_heads, head_dim), dtype=dtype)
+    cached_v = np.empty((0, num_kv_heads, head_dim), dtype=dtype)
+    for append_length in [3, 2, 1]:
+        past_length = cached_k.shape[0]
+        source_q = rng.standard_normal((append_length, num_qo_heads, head_dim)).astype(dtype)
+        current_k = rng.standard_normal((append_length, num_kv_heads, head_dim)).astype(dtype)
+        current_v = rng.standard_normal((append_length, num_kv_heads, head_dim)).astype(dtype)
+        shared_q = rng.standard_normal((append_length, num_qo_heads, head_dim)).astype(dtype)
+
+        fbegin_forward(kv_cache, Shape([0]), Shape([append_length]), None)
+        qkv = tvm.runtime.tensor(np.concatenate([source_q, current_k, current_v], axis=1), device)
+        source_output = tvm.runtime.empty(source_q.shape, dtype, device=device)
+        fattention_with_fuse_qkv(kv_cache, 0, sm_scale, qkv, source_output)
+
+        shared_output = tvm.runtime.empty(shared_q.shape, dtype, device=device)
+        fattention_with_shared_kv(
+            kv_cache,
+            0,
+            sm_scale,
+            tvm.runtime.tensor(shared_q, device),
+            tvm.runtime.tensor(current_k, device),
+            tvm.runtime.tensor(current_v, device),
+            shared_output,
+        )
+
+        cached_k = np.concatenate([cached_k, current_k], axis=0)
+        cached_v = np.concatenate([cached_v, current_v], axis=0)
+        expected = _causal_attention_reference(
+            shared_q, cached_k, cached_v, past_length, layer_window_size
+        )
+        tvm.testing.assert_allclose(shared_output.numpy(), expected, rtol=1e-3, atol=1e-3)
         fend_forward(kv_cache)
 
 
