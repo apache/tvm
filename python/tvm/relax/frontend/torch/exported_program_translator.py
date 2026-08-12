@@ -1792,6 +1792,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "triu.default": self._tril_triu(relax.op.triu),
             "trunc.default": self._unary_op(relax.op.trunc),
             # binary
+            "add": self._binary_op(relax.op.add, operator.add),
             "add.Tensor": self._binary_op(relax.op.add, operator.add),
             "add.Scalar": self._binary_op(relax.op.add, operator.add),
             "add_.Tensor": self._binary_op(relax.op.add, operator.add),
@@ -1847,6 +1848,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "pow.Scalar": self._binary_op(relax.op.power, operator.pow),
             "pow.Tensor_Scalar": self._pow,
             "pow.Tensor_Tensor": self._binary_op(relax.op.power, operator.pow),
+            "sub": self._binary_op(relax.op.subtract, operator.sub),
             "sub.Tensor": self._binary_op(relax.op.subtract, operator.sub),
             "sub.Scalar": self._binary_op(relax.op.subtract, operator.sub),
             "__and__.Tensor": self._binary_op(relax.op.bitwise_and, operator.and_),
@@ -2038,6 +2040,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "le": self._symbolic_comparison,
             "gt": self._symbolic_comparison,
             "lt": self._symbolic_comparison,
+            "eq": self._symbolic_comparison,
             # higher-order ops
             "cond": self._cond,
         }
