@@ -9514,7 +9514,7 @@ def test_stablehlo_concatenate(dimension):
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def _build_stablehlo_reshape_model(input_shape, output_shape):
+def _build_stablehlo_reshape_model(input_shape, output_shape, tensor_type=_tfl_tensor_type.FLOAT32):
     """STABLEHLO_RESHAPE with given input and output shapes."""
     builder = flatbuffers.Builder(1024)
 
@@ -9522,8 +9522,8 @@ def _build_stablehlo_reshape_model(input_shape, output_shape):
     op_code = _build_operator_code(builder, builtin_op)
 
     tensors = [
-        _build_tensor(builder, 0, input_shape),
-        _build_tensor(builder, 1, output_shape),
+        _build_tensor(builder, 0, input_shape, tensor_type=tensor_type),
+        _build_tensor(builder, 1, output_shape, tensor_type=tensor_type),
     ]
     op = _build_operator(builder, 0, [0], [1])
     subgraph = _build_subgraph(
@@ -9552,6 +9552,46 @@ def test_stablehlo_reshape():
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((3, 2), dtype="float32") = R.reshape(x, (3, 2))
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_stablehlo_reshape_scalar():
+    """TFLite StableHLO RESHAPE supports a rank-0 output."""
+    mod = _load_model_from_buffer(_build_stablehlo_reshape_model(input_shape=[1], output_shape=[]))
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1,), dtype="float32")) -> R.Tensor((), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((), dtype="float32") = R.reshape(x, ())
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_stablehlo_reshape_complex64():
+    """TFLite StableHLO RESHAPE preserves the Relax complex pair axis."""
+    mod = _load_model_from_buffer(
+        _build_stablehlo_reshape_model(
+            input_shape=[2, 3],
+            output_shape=[3, 2],
+            tensor_type=_tfl_tensor_type.COMPLEX64,
+        )
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3, 2), dtype="float32")) -> R.Tensor((3, 2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 2, 2), dtype="float32") = R.reshape(x, (3, 2, 2))
                 R.output(gv)
             return gv
 
@@ -9639,7 +9679,9 @@ def test_stablehlo_slice():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def _build_stablehlo_transpose_model(input_shape, permutation, output_shape):
+def _build_stablehlo_transpose_model(
+    input_shape, permutation, output_shape, tensor_type=_tfl_tensor_type.FLOAT32
+):
     """STABLEHLO_TRANSPOSE with a static permutation."""
     builder = flatbuffers.Builder(1024)
 
@@ -9656,8 +9698,8 @@ def _build_stablehlo_transpose_model(input_shape, permutation, output_shape):
     op_code = _build_operator_code(builder, builtin_op)
 
     tensors = [
-        _build_tensor(builder, 0, input_shape),
-        _build_tensor(builder, 1, output_shape),
+        _build_tensor(builder, 0, input_shape, tensor_type=tensor_type),
+        _build_tensor(builder, 1, output_shape, tensor_type=tensor_type),
     ]
     op = _build_operator(
         builder,
@@ -9695,6 +9737,32 @@ def test_stablehlo_transpose():
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((3, 4, 2), dtype="float32") = R.permute_dims(x, axes=[1, 2, 0])
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_stablehlo_transpose_complex64():
+    """TFLite StableHLO TRANSPOSE leaves the Relax complex pair axis trailing."""
+    mod = _load_model_from_buffer(
+        _build_stablehlo_transpose_model(
+            input_shape=[2, 3, 4],
+            permutation=[1, 2, 0],
+            output_shape=[3, 4, 2],
+            tensor_type=_tfl_tensor_type.COMPLEX64,
+        )
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4, 2), dtype="float32")) -> R.Tensor(
+            (3, 4, 2, 2), dtype="float32"
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 4, 2, 2), dtype="float32") = R.permute_dims(x, axes=[1, 2, 0, 3])
                 R.output(gv)
             return gv
 

@@ -3205,7 +3205,7 @@ class OperatorConverter:
             )
 
         in_expr = self.get_tensor_expr(input_tensors[0])
-        output_shape = [int(d) for d in self.get_tensor_shape(output_tensors[0])]
+        output_shape = self._get_relax_tensor_shape(output_tensors[0])
         return self.bb.normalize(relax.op.reshape(in_expr, output_shape))
 
     def _convert_stablehlo_slice(self, op):
@@ -3252,6 +3252,8 @@ class OperatorConverter:
 
         opts = self._get_stablehlo_options(op, StablehloTransposeOptions)
         permutation = [int(d) for d in opts.PermutationAsNumpy()]
+        if self._is_tflite_complex64_type(input_tensors[0].tensor.Type()):
+            permutation.append(len(permutation))
 
         in_expr = self.get_tensor_expr(input_tensors[0])
         return self.bb.normalize(relax.op.permute_dims(in_expr, axes=permutation))
