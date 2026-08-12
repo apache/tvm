@@ -135,6 +135,15 @@ def _causal_mask(causal, row, col, kv_len, qo_len):
     )
 
 
+def _causal_or_sliding_cross_mask(causal, row, col, kv_len, qo_len, sliding_window_size):
+    visible_past = T.max(sliding_window_size - row - 1, 0)
+    return T.if_then_else(
+        tirx.And(causal > 0, sliding_window_size > 0),
+        tirx.And(col < kv_len, col >= T.max(kv_len - visible_past, 0)),
+        _causal_mask(causal, row, col, kv_len, qo_len),
+    )
+
+
 def _declare_length_info(var_length_info, batch_size, sliding_window, elem_offset):
     return (
         T.match_buffer(var_length_info, (3, batch_size), "int32", elem_offset=elem_offset)
@@ -248,7 +257,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         S_smem: T.Buffer, m_smem: T.Buffer, d_smem: T.Buffer, m_prev_smem: T.Buffer,
         m_new: T.Buffer, m_prev: T.Buffer, d_new: T.Buffer,
         ty: T.int32, tx: T.int32, LH_start: T.int32, L_kv_start: T.int32,
-        causal: T.int32, kv_len: T.int32, qo_len: T.int32,
+        causal: T.int32, kv_len: T.int32, qo_len: T.int32, sliding_window_size: T.int32,
     ):
         # Phase 1: compute m_new = max(masked S over kv tile), d_new = d_prev * exp2(m_prev - m_new)
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
@@ -259,7 +268,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     m_new[i] = m_smem[row]
                     row_: T.let[T.int32] = (LH_start + row) // group_size
                     for j in T.serial(tile_z):
-                        if _causal_mask(causal, row=row_, col=L_kv_start + j, kv_len=kv_len, qo_len=qo_len):
+                        if _causal_or_sliding_cross_mask(causal, row=row_, col=L_kv_start + j, kv_len=kv_len, qo_len=qo_len, sliding_window_size=sliding_window_size):
                             m_new[i] = T.max(m_new[i], S_smem[row, j])
                     d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
         # Phase 2: exp-and-scale S_smem; masked-out entries use -inf
@@ -270,7 +279,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     # predicate sits inside loop so sync stays outside conditional branches
                     if row < tile_x:
                         row_: T.let[T.int32] = (LH_start + row) // group_size
-                        if _causal_mask(causal, row=row_, col=L_kv_start + j, kv_len=kv_len, qo_len=qo_len):
+                        if _causal_or_sliding_cross_mask(causal, row=row_, col=L_kv_start + j, kv_len=kv_len, qo_len=qo_len, sliding_window_size=sliding_window_size):
                             S_smem[row, j] = T.exp2(S_smem[row, j] - m_new[i])
                         else:
                             S_smem[row, j] = T.exp2(-5e4 - m_new[i])

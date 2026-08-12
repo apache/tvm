@@ -355,6 +355,8 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
         dtype: str,
         target: Target,
         name: str = "paged_kv_cache",
+        *,
+        layer_sliding_window_size: int = 1024,
     ) -> None:
         """Create a paged KV cache object with FlashInfer kernels.
 
@@ -399,6 +401,8 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             The number of dimensions in the embedding that RoPE is applied to.
         enable_disaggregation : bool
             Whether to enable disaggregation in the KV cache.
+        layer_sliding_window_size : int
+            Window size used by layers whose attention kind is ``mha_sliding``.
         """
         assert rope_mode != RopeMode.INLINE, "FlashInfer RoPE does not support inline mode."
         rope_scaling = _prepare_yarn_rope_scaling(rope_scaling, rope_theta)
@@ -447,7 +451,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             [
                 rx.Tuple([rx.StringImm("flashinfer"), rx.ExternFunc("batch_prefill_paged_run"), rx.ExternFunc("batch_prefill_plan")]),
                 rx.Tuple([rx.StringImm("flashinfer"), rx.ExternFunc("batch_decode_run"), rx.ExternFunc("batch_decode_plan")]),
-                rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling, target), "tir_attention_prefill_sliding_window")]),
+                rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling, target, sliding_window_size=layer_sliding_window_size), "tir_attention_prefill_sliding_window")]),
                 rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling, target), "tir_attention_decode_sliding_window")]),
                 rx.Tuple([rx.StringImm("tirx"), bb.add_func(tree_attn_with_paged_kv_cache(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask_with_paged_kv_cache")]),
                 rx.Tuple([rx.StringImm("tirx"), bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask")]),
@@ -476,6 +480,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
                     prefill_chunk_size,
                     page_size,
                     support_sliding_window,
+                    layer_sliding_window_size,
                 ]
             ),
             layer_partition,
@@ -540,6 +545,8 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
         dtype: str,
         target: Target,
         name: str = "paged_kv_cache",
+        *,
+        layer_sliding_window_size: int = 1024,
     ) -> None:
         """Create a paged KV cache object with TIR kernels.
 
@@ -586,6 +593,8 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             Whether to enable disaggregation in the KV cache.
         target : Target
             The target to build the model to.
+        layer_sliding_window_size : int
+            Window size used by layers whose attention kind is ``mha_sliding``.
         """
         rope_scaling = _prepare_yarn_rope_scaling(rope_scaling, rope_theta)
         attn_kind_single = attn_kind[0] if isinstance(attn_kind, list) else attn_kind
@@ -604,6 +613,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
                     prefill_chunk_size,
                     page_size,
                     support_sliding_window,
+                    layer_sliding_window_size,
                 ]
             ),
             layer_partition,
@@ -630,7 +640,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
                     rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill_ragged_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, v_head_dim, dtype, rope_scaling), "tir_attention_prefill_ragged_cpu")]),
                     rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, False, rope_scaling), "tir_attention_prefill_cpu")]),
                     rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_decode_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, False, rope_scaling), "tir_attention_decode_cpu")]),
-                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling), "tir_attention_prefill_cpu_sliding_window")]),
+                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling, sliding_window_size=layer_sliding_window_size), "tir_attention_prefill_cpu_sliding_window")]),
                     rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_decode_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling), "tir_attention_decode_cpu_sliding_window")]),
                     rx.Tuple([rx.StringImm("tirx"), bb.add_func(tree_attn_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling), "tir_attention_prefill_with_tree_mask_cpu")]),
                     rx.Tuple([rx.StringImm("tirx"), bb.add_func(tree_attn_with_paged_kv_cache_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling), "tir_attention_prefill_with_tree_mask_with_paged_kv_cache_cpu")]),
@@ -650,7 +660,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
                 [
                     rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, False, rope_scaling, target), "tir_attention_prefill")]),
                     rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, False, rope_scaling, target), "tir_attention_decode")]),
-                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling, target), "tir_attention_prefill_sliding_window")]),
+                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling, target, sliding_window_size=layer_sliding_window_size), "tir_attention_prefill_sliding_window")]),
                     rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling, target), "tir_attention_decode_sliding_window")]),
                     rx.Tuple([rx.StringImm("tirx"), bb.add_func(tree_attn_with_paged_kv_cache(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask_with_paged_kv_cache")]),
                     rx.Tuple([rx.StringImm("tirx"), bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask")]),
