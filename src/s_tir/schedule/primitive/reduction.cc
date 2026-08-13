@@ -159,21 +159,12 @@ class LoopHeightError : public ScheduleError {
 
 PrimExpr RemakePredicate(PrimExpr pred, const std::unordered_set<const VarNode*>& discarded_loops) {
   if (is_one(pred)) return IntImm::Bool(true);
-  PrimExpr new_pred = IntImm::Bool(true);
   auto f = [&](const VarNode* var) { return discarded_loops.count(var); };
-  arith::PVar<PrimExpr> lhs, rhs, rest;
-  for (;;) {
-    if ((rest && (lhs < rhs)).Match(pred)) {
-      if (!UsesVar(lhs.Eval(), f)) new_pred = new_pred && (lhs.Eval() < rhs.Eval());
-      pred = rest.Eval();
-    } else if ((lhs < rhs).Match(pred)) {
-      if (!UsesVar(lhs.Eval(), f)) new_pred = new_pred && (lhs.Eval() < rhs.Eval());
-      break;
-    } else {
-      TVM_FFI_ICHECK(false) << "Unexpected predicate for reduction block";
-    }
+  if (const auto* and_node = pred.as<AndNode>()) {
+    return RemakePredicate(and_node->a, discarded_loops) &&
+           RemakePredicate(and_node->b, discarded_loops);
   }
-  return new_pred;
+  return UsesVar(pred, f) ? IntImm::Bool(true) : pred;
 }
 
 StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,

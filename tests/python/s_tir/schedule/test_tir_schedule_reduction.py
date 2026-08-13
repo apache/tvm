@@ -391,5 +391,41 @@ def test_decompose_reduction_with_thread_binding():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+def test_decompose_reduction_preserves_general_spatial_predicates():
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((8, 8), "float32"), B: T.Buffer((8,), "float32")):
+            for i, k in T.grid(10, 10):
+                with T.sblock("B"):
+                    T.where(1 <= i and i < 9 and 1 <= k and k < 9)
+                    vi = T.axis.spatial(8, i - 1)
+                    vk = T.axis.reduce(8, k - 1)
+                    with T.init():
+                        B[vi] = T.float32(0)
+                    B[vi] += A[vi, vk]
+
+    @I.ir_module(s_tir=True)
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((8, 8), "float32"), B: T.Buffer((8,), "float32")):
+            for i_init in range(10):
+                with T.sblock("B_init"):
+                    T.where(1 <= i_init and i_init < 9)
+                    vi = T.axis.spatial(8, i_init - 1)
+                    B[vi] = T.float32(0)
+            for i, k in T.grid(10, 10):
+                with T.sblock("B_update"):
+                    T.where(1 <= i and i < 9 and 1 <= k and k < 9)
+                    vi = T.axis.spatial(8, i - 1)
+                    vk = T.axis.reduce(8, k - 1)
+                    B[vi] += A[vi, vk]
+
+    sch = tvm.s_tir.Schedule(Before)
+    i, _ = sch.get_loops("B")
+    sch.decompose_reduction("B", i)
+    tvm.ir.assert_structural_equal(sch.mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
