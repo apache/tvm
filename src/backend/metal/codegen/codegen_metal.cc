@@ -22,6 +22,7 @@
  */
 #include "codegen_metal.h"
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
@@ -31,6 +32,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -359,12 +361,22 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
   this->PrintIndent();
   // Compute constant_size from buffer shape
   size_t constant_size = 1;
+  arith::Analyzer analyzer;
   for (const auto& dim : op->buffer->shape) {
-    const IntImmNode* dim_imm = dim.as<IntImmNode>();
-    TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
-    constant_size *= dim_imm->value;
+    const auto* dim_imm = dim.as<IntImmNode>();
+    int64_t dim_size = dim_imm ? dim_imm->value : analyzer->const_int_bound(dim)->max_value;
+    if (dim_imm == nullptr) {
+      const auto* dtype_max = max_value(dim.ty()).as<IntImmNode>();
+      TVM_FFI_ICHECK(dtype_max && dim_size < dtype_max->value)
+          << "Metal allocation extent requires a finite compile-time upper bound, but got " << dim;
+    }
+    TVM_FFI_ICHECK_GT(dim_size, 0)
+        << "Metal allocation extent requires a positive compile-time upper bound, but got " << dim;
+    TVM_FFI_ICHECK_LE(static_cast<uint64_t>(dim_size),
+                      std::numeric_limits<size_t>::max() / constant_size)
+        << "Metal allocation element count is too large to represent";
+    constant_size *= static_cast<size_t>(dim_size);
   }
-  TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
   auto scope = op->buffer.scope();
   alloc_storage_scope_[op->buffer.get()] = scope;
