@@ -463,9 +463,9 @@ def _get_prefill_kernel_config(h_kv, h_q, d, dtype, target: Target):
     while (tile_x * tile_y) % (bdx * num_warps) != 0:
         tile_y += original_tile_y
 
-    # Otherwise we would exceed maxComputeWorkgroupStorageSize
+    # Otherwise we would exceed the per-workgroup storage limit on WebGPU and Metal.
     if (
-        target.kind.name == "webgpu"
+        target.kind.name in ("webgpu", "metal")
         and ((d + 127) // 128) * ((DataType(dtype).bits + 15) // 16) >= 4
     ):
         tile_z = 8
