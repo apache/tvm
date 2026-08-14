@@ -452,6 +452,12 @@ def resize1d(
         Shape to return. If left None will be inferred
         (If shape is determined dynamically, pass out_dtype.shape as output_shape)
 
+    scales: tuple or None
+        Explicit scale factors for coordinate transformation.
+        If not None, scales=[scale_w] for 1D.
+        When provided, overrides the scale derived from input and output sizes.
+        Used by the ONNX frontend when a Resize node is driven by a "scales" input.
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -828,6 +834,12 @@ def resize2d(
     output_shape: tvm_ffi.Array, optional
         Shape to return. If left None will be inferred
         (If shape is determined dynamically, pass out_dtype.shape as output_shape)
+
+    scales: tuple or None
+        Explicit scale factors for coordinate transformation.
+        If not None, scales=[scale_h, scale_w] for 2D.
+        When provided, overrides the scale derived from input and output sizes.
+        Used by the ONNX frontend when a Resize node is driven by a "scales" input.
 
     Returns
     -------
