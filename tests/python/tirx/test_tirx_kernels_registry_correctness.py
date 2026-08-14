@@ -51,7 +51,14 @@ _KERNELS = {
     for kernel_name in sorted({workload["kernel"] for workload in _WORKLOADS})
 }
 _DISTRIBUTED_KERNELS = frozenset(
-    {"allgather_gemm", "deepgemm_fp8_fp4_mega_moe", "gemm_reduce_scatter"}
+    # Both MegaMoE names are listed so the test works across tirx-kernels
+    # checkouts from before and after the sm100_fp8_fp4_mega_moe rename.
+    {
+        "allgather_gemm",
+        "deepgemm_fp8_fp4_mega_moe",
+        "gemm_reduce_scatter",
+        "sm100_fp8_fp4_mega_moe",
+    }
 )
 _XDIST_CUDA_DEVICE = None
 
