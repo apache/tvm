@@ -420,12 +420,12 @@ class InstructionEntry:
     def has_dst(self) -> bool:
         """Whether the instruction writes a destination operand.
 
-        A false predicate leaves destinations unwritten, and the default
-        ``"="`` output constraint tells nvcc the prior value is dead. Callers
-        may explicitly request a read-write binding when predicating one of
-        these slots. An accumulator (``rw="rw"``) already binds "+", so it does
-        not count here. A ``.pred`` result is a ``rw="w"`` register like any
-        other and counts without needing a case of its own.
+        A false predicate leaves destinations unwritten. The default ``"="``
+        output constraint means the inactive value is undefined to the caller;
+        ``preserve_dst=True`` explicitly requests a read-write binding instead.
+        An accumulator (``rw="rw"``) already binds "+", so it does not count
+        here. A ``.pred`` result is a ``rw="w"`` register like any other and
+        counts without needing a case of its own.
         """
         return any(s.kind == "reg" and s.rw == "w" for s in self.operands)
 

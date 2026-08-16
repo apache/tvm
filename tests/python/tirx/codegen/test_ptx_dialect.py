@@ -222,7 +222,7 @@ def test_ptx_predicated_destination_preserves_old_value():
     _assert_ptxas_ok(src)
 
 
-def test_ptx_predicated_destination_can_be_explicitly_undefined():
+def test_ptx_predicated_destination_is_undefined_by_default():
     @T.prim_func
     def kernel(a_ptr: T.handle, out_ptr: T.handle):
         A = T.match_buffer(a_ptr, (1,), "float32")
@@ -232,7 +232,7 @@ def test_ptx_predicated_destination_can_be_explicitly_undefined():
         tx = T.thread_id([32])
         value = T.local_scalar("float32")
         pred: T.uint32 = T.cast(tx == 0, "uint32")
-        T.ptx.ld.global_.f32(value, A.ptr_to([0]), pred=pred, undefined_dst=True)
+        T.ptx.ld.global_.f32(value, A.ptr_to([0]), pred=pred)
         Out[tx] = T.if_then_else(pred != 0, value, T.float32(0))
 
     src = _cuda_source(kernel)
@@ -348,15 +348,6 @@ def test_ptx_destination_errors():
             A = T.match_buffer(a_ptr, (1,), "uint32")
             T.device_entry()
             T.ptx.ld.global_.b32(T.uint32(0), A.ptr_to([0]))
-
-    # @p is rejected on any instruction that writes a destination.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="without a destination"):
-
-        @T.prim_func
-        def predicated_destination(out: T.Buffer((1,), "uint32"), a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
-            T.device_entry()
-            T.ptx.ld.global_.b32(out[0], A.ptr_to([0]), pred=T.uint32(1))
 
 
 def test_ptx_register_group_codegen():
@@ -2084,25 +2075,15 @@ def test_ptx_coercion_ir_forms():
     call = T.ptx.st.release.gpu.global_.b32(global_ptr, val, pred=flag)
     assert call.args[2].same_as(flag)
     assert len(call.args) == 2 + 1 + 8 + 1  # operands + pred + slot tokens + marker
-    # @p on an instruction with a destination is rejected: a false predicate
-    # leaves it unwritten while "=" tells nvcc its prior value is dead.
-    dst = tvm.tirx.Var("d", "uint32")
-    with pytest.raises(ValueError, match="without a destination"):
-        T.ptx.ld.global_.b32(dst, global_ptr, pred=flag)
-
     out = tvm.tirx.decl_buffer((1,), "uint32", name="out", scope="local")
+    call = T.ptx.ld.global_.b32(out[0], global_ptr, pred=flag)
+    assert str(call.args[-1]).strip('"') == "pred"
     call = T.ptx.ld.global_.b32(out[0], global_ptr, pred=flag, preserve_dst=True)
     assert str(call.args[-1]).strip('"') == "pred,keep"
-    call = T.ptx.ld.global_.b32(out[0], global_ptr, pred=flag, undefined_dst=True)
-    assert str(call.args[-1]).strip('"') == "pred,undef"
-    with pytest.raises(ValueError, match="mutually exclusive"):
-        T.ptx.ld.global_.b32(
-            out[0],
-            global_ptr,
-            pred=flag,
-            preserve_dst=True,
-            undefined_dst=True,
-        )
+    with pytest.raises(ValueError, match="requires pred"):
+        T.ptx.ld.global_.b32(out[0], global_ptr, preserve_dst=True)
+    with pytest.raises(ValueError, match="requires a written destination"):
+        T.ptx.st.release.gpu.global_.b32(global_ptr, val, pred=flag, preserve_dst=True)
 
 
 # fp16/bf16 dtypes bring in __half / __nv_bfloat16 and their bit-cast helpers.

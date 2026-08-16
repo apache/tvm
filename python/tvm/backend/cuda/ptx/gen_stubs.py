@@ -100,7 +100,7 @@ def _chain_class(family: str, entries: list[InstructionEntry]) -> str:
         params.append("*args: Any")
     params.append("pred: Any = None")
     if any(e.has_dst for e in entries):
-        params.extend(("preserve_dst: bool = False", "undefined_dst: bool = False"))
+        params.append("preserve_dst: bool = False")
     signature = f"def __call__({', '.join(params)}) -> None"
     # Emit the shape ruff format would produce, so the generated text needs no
     # formatter to be canonical: a docstring that fits on one line closes on
@@ -122,7 +122,7 @@ def _chain_class(family: str, entries: list[InstructionEntry]) -> str:
             # `T.ptx["tcgen05.ld.sync.aligned.16x64b.x4.b32"](...)`.
             continue
         lines.append(f"    {attr}: {cls}")
-    if len(signature) > 92:  # keep the generated stub within the repo line limit
+    if len(f"    {signature}: ...") > 100:
         joined = ",\n        ".join(params)
         ret = signature[signature.rindex(")") + 1 :]
         signature = f"def __call__(\n        {joined},\n    ){ret}"

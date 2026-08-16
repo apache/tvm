@@ -125,7 +125,6 @@ def _make_codegen(entry: InstructionEntry):
         flags = parse_str(args[-1]).split(",")
         predicated = "pred" in flags
         preserve_dst = "keep" in flags
-        undefined_dst = "undef" in flags
         tokens = [parse_str(a) for a in args[len(args) - n_slots - 1 : -1]]
         rest = args[: len(args) - n_slots - 1]  # operands, plus pred when present
         mod_map = mods(entry, tokens)
@@ -178,7 +177,6 @@ def _make_codegen(entry: InstructionEntry):
             imms,
             sinks,
             preserve_dst=preserve_dst,
-            undefined_dst=undefined_dst,
         )
         # Every helper is void; a destination is an ordinary argument, printed
         # by the C codegen as the lvalue it binds the reference parameter to.
@@ -470,7 +468,7 @@ def _coerce_pred(entry, pred):
     raise ValueError(f"{entry.name}: pred must be a bool/uint32/int32 expression")
 
 
-def _emit(entry, filled, operands, pred=None, preserve_dst=False, undefined_dst=False):
+def _emit(entry, filled, operands, pred=None, preserve_dst=False):
     # Modifiers resolve before the operands are looked at: the attribute chain
     # is parsed before the call happens, and a register group's length may be a
     # function of the modifiers, so the expected arity needs the modifier map.
@@ -489,25 +487,12 @@ def _emit(entry, filled, operands, pred=None, preserve_dst=False, undefined_dst=
     if len(operands) != n_args:
         names = ", ".join(f"{slot.name}[{n}]" if n > 1 else slot.name for slot, _, n in layout)
         raise ValueError(f"{entry.name} expects {n_args} operand(s) ({names}), got {len(operands)}")
-    if preserve_dst and undefined_dst:
-        raise ValueError(
-            f"{entry.name}: preserve_dst=True and undefined_dst=True are mutually exclusive"
-        )
+    if preserve_dst and not entry.has_dst:
+        raise ValueError(f"{entry.name}: preserve_dst=True requires a written destination")
     if pred is not None:
-        if entry.has_dst and not (preserve_dst or undefined_dst):
-            raise ValueError(
-                f"{entry.name}: @p predication is only supported on instructions without a "
-                f"destination (a false predicate leaves the destination unwritten, and the "
-                f'"=" output constraint would discard its prior value); pass '
-                f"preserve_dst=True to retain the old value or undefined_dst=True when the "
-                f"inactive value is intentionally undefined"
-            )
-        if undefined_dst and not entry.has_dst:
-            raise ValueError(f"{entry.name}: undefined_dst=True requires a written destination")
         pred = _coerce_pred(entry, pred)
-    elif preserve_dst or undefined_dst:
-        policy = "preserve_dst" if preserve_dst else "undefined_dst"
-        raise ValueError(f"{entry.name}: {policy}=True requires pred=...")
+    elif preserve_dst:
+        raise ValueError(f"{entry.name}: preserve_dst=True requires pred=...")
     # The sink symbol `_`: a lane the caller discards. It is checked here
     # rather than in `_coerce_operand` because it is not a value at all -- the
     # instruction names the symbol, so the lane leaves no Call argument, and
@@ -553,8 +538,6 @@ def _emit(entry, filled, operands, pred=None, preserve_dst=False, undefined_dst=
     flags = ["pred"] if pred is not None else []
     if preserve_dst:
         flags.append("keep")
-    if undefined_dst:
-        flags.append("undef")
     flags += [
         f"p{i}"
         for slot, i, lanes in layout
@@ -614,7 +597,7 @@ class _InstrChain:
             raise AttributeError(name)
         return _InstrChain(_narrow(self._cands, unescape_token(name)))
 
-    def __call__(self, *args, pred=None, preserve_dst=False, undefined_dst=False):
+    def __call__(self, *args, pred=None, preserve_dst=False):
         # Also accepts the printed round-trip form: trailing modifier-token
         # strings in slot order ("" = omitted slot) followed by the pred
         # marker, and, when the marker says "pred", the predicate as the last
@@ -632,8 +615,6 @@ class _InstrChain:
                 args, pred = args[:-1], args[-1]
             if "keep" in flags:
                 preserve_dst = True
-            if "undef" in flags:
-                undefined_dst = True
             # Put back what the printed text cannot carry: the sunk lanes
             # (which left no argument at all, so they are re-inserted first, in
             # ascending order, to restore the operand positions) and then the
@@ -671,7 +652,6 @@ class _InstrChain:
                             operands,
                             pred=pred,
                             preserve_dst=preserve_dst,
-                            undefined_dst=undefined_dst,
                         ),
                     )
                 )

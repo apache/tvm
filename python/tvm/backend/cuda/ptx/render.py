@@ -203,7 +203,6 @@ def render_variant(
     imms=None,
     sinks=frozenset(),
     preserve_dst=False,
-    undefined_dst=False,
 ):
     """Render one variant: ``(opcode, helper_name, helper_source)``.
 
@@ -226,10 +225,10 @@ def render_variant(
     ``predicated`` is a framework-level axis (never in the table): the helper
     gains a trailing ``uint32_t __pred`` operand, and the instruction is
     guarded with ``.reg .pred p; setp.ne.b32 p, %N, 0; @p ...``. A written
-    destination additionally requires an explicit inactive-path policy:
-    ``preserve_dst`` binds read-write and retains its old value, while
-    ``undefined_dst`` keeps the normal write-only binding and states that the
-    caller will not consume the inactive value before selecting/guarding it.
+    destination uses the normal write-only binding by default, which states
+    that the caller will not consume the inactive value before selecting or
+    guarding it. ``preserve_dst`` instead binds read-write and retains the old
+    value on the inactive path.
     """
     mod_map = mods(entry, tokens)
     written = [tok for tok in tokens if tok]
@@ -252,19 +251,14 @@ def render_variant(
     # non-canonical (atom's d and b do exactly that).
     imm_of = dict(zip(imm_slots(entry), imms or (), strict=True))
     helper = _helper_name(entry, written, imms, dtypes, canonical, mod_map, sinks)
-    assert not (preserve_dst and undefined_dst), "destination policies are mutually exclusive"
+    assert not preserve_dst or entry.has_dst, "preserve_dst requires a written destination"
     if predicated:
-        assert not entry.has_dst or preserve_dst or undefined_dst, (
-            "@p on a written destination requires preserve_dst or undefined_dst"
-        )
-        if preserve_dst:
-            helper += "_pred_keep"
-        elif undefined_dst:
-            helper += "_pred_undef"
+        if entry.has_dst:
+            helper += "_pred_keep" if preserve_dst else "_pred_undef"
         else:
             helper += "_pred"
     else:
-        assert not preserve_dst and not undefined_dst, "destination policy requires predication"
+        assert not preserve_dst, "preserve_dst requires predication"
 
     params, inputs, outputs, rendered = [], [], [], []
     pre, post = [], []  # C-side carrier declarations / bit puns

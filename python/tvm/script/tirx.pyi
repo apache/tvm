@@ -37,13 +37,7 @@ class _Chain_abs:
     s16: _Chain_abs
     s32: _Chain_abs
     s64: _Chain_abs
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_activemask:
     """`activemask` — type∈{b32}"""
@@ -55,7 +49,6 @@ class _Chain_activemask:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_add:
@@ -84,13 +77,7 @@ class _Chain_add:
     u16x2: _Chain_add
     u32: _Chain_add
     u64: _Chain_add
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_and:
     """`and` — type∈{pred,b16,b32,b64}"""
@@ -107,7 +94,6 @@ class _Chain_and:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_applypriority:
@@ -163,13 +149,7 @@ class _Chain_atom:
     v4: _Chain_atom
     v8: _Chain_atom
     xor: _Chain_atom
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_bar:
     """`bar` — 8 entries sharing this mnemonic; PTX puts their difference in the operand list,
@@ -186,13 +166,7 @@ class _Chain_bar:
     sync: _Chain_bar
     u32: _Chain_bar
     warp: _Chain_bar
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_barrier:
     """`barrier` — 9 entries sharing this mnemonic; PTX puts their difference in the operand
@@ -214,13 +188,7 @@ class _Chain_barrier:
     sync: _Chain_barrier
     u32: _Chain_barrier
     wait: _Chain_barrier
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_bfe:
     """`bfe` — type∈{u32,u64,s32,s64}"""
@@ -238,7 +206,6 @@ class _Chain_bfe:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_bfi:
@@ -256,7 +223,6 @@ class _Chain_bfi:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_bfind:
@@ -274,7 +240,6 @@ class _Chain_bfind:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_bmsk:
@@ -291,7 +256,6 @@ class _Chain_bmsk:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_brev:
@@ -306,7 +270,6 @@ class _Chain_brev:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_clusterlaunchcontrol:
@@ -330,13 +293,7 @@ class _Chain_clusterlaunchcontrol:
     shared__cta: _Chain_clusterlaunchcontrol
     try_cancel: _Chain_clusterlaunchcontrol
     v4: _Chain_clusterlaunchcontrol
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_clz:
     """`clz` — type∈{b32,b64}"""
@@ -350,7 +307,6 @@ class _Chain_clz:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_cnot:
@@ -366,7 +322,6 @@ class _Chain_cnot:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_copysign:
@@ -382,7 +337,6 @@ class _Chain_copysign:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_cos:
@@ -398,7 +352,6 @@ class _Chain_cos:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_cp:
@@ -467,13 +420,7 @@ class _Chain_createpolicy:
     fractional: _Chain_createpolicy
     global_: _Chain_createpolicy
     range: _Chain_createpolicy
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_cvt:
     """`cvt` — 27 entries sharing this mnemonic; PTX puts their difference in the operand list,
@@ -523,13 +470,7 @@ class _Chain_cvt:
     u64: _Chain_cvt
     u8: _Chain_cvt
     ue8m0x2: _Chain_cvt
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_cvt_pack:
     """`cvt_pack` — 2 entries sharing this mnemonic; PTX puts their difference in the operand
@@ -547,13 +488,7 @@ class _Chain_cvt_pack:
     u2: _Chain_cvt_pack
     u4: _Chain_cvt_pack
     u8: _Chain_cvt_pack
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_cvta:
     """`cvta` — 2 entries sharing this mnemonic; PTX puts their difference in the operand list,
@@ -570,13 +505,7 @@ class _Chain_cvta:
     shared__cta: _Chain_cvta
     to: _Chain_cvta
     u64: _Chain_cvta
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_discard:
     """`discard` — space∈{global} (opt); level∈{L2}"""
@@ -605,13 +534,7 @@ class _Chain_div:
     u16: _Chain_div
     u32: _Chain_div
     u64: _Chain_div
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_dp2a:
     """`dp2a` — mode∈{lo,hi}; atype∈{u32,s32}; btype∈{u32,s32}"""
@@ -629,7 +552,6 @@ class _Chain_dp2a:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_dp4a:
@@ -646,7 +568,6 @@ class _Chain_dp4a:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_elect_sync:
@@ -660,7 +581,6 @@ class _Chain_elect_sync:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_ex2:
@@ -675,13 +595,7 @@ class _Chain_ex2:
     f16x2: _Chain_ex2
     f32: _Chain_ex2
     ftz: _Chain_ex2
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_fence:
     """`fence` — 5 entries sharing this mnemonic; PTX puts their difference in the operand
@@ -726,13 +640,7 @@ class _Chain_fma:
     rp: _Chain_fma
     rz: _Chain_fma
     sat: _Chain_fma
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_fns:
     """`fns` — type∈{b32}"""
@@ -747,7 +655,6 @@ class _Chain_fns:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_getctarank:
@@ -758,13 +665,7 @@ class _Chain_getctarank:
     shared__cluster: _Chain_getctarank
     u32: _Chain_getctarank
     u64: _Chain_getctarank
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_griddepcontrol:
     """`griddepcontrol` — action∈{launch_dependents,wait}"""
@@ -793,7 +694,6 @@ class _Chain_isspacep:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_ld:
@@ -851,13 +751,7 @@ class _Chain_ld:
     v8: _Chain_ld
     volatile: _Chain_ld
     weak: _Chain_ld
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_ldmatrix:
     """`ldmatrix` — 3 entries sharing this mnemonic; PTX puts their difference in the operand
@@ -880,13 +774,7 @@ class _Chain_ldmatrix:
     x1: _Chain_ldmatrix
     x2: _Chain_ldmatrix
     x4: _Chain_ldmatrix
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_ldu:
     """`ldu` — 2 entries sharing this mnemonic; PTX puts their difference in the operand list,
@@ -911,13 +799,7 @@ class _Chain_ldu:
     u8: _Chain_ldu
     v2: _Chain_ldu
     v4: _Chain_ldu
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_lg2:
     """`lg2` — mode∈{approx}; ftz∈{ftz} (opt); type∈{f32}"""
@@ -932,7 +814,6 @@ class _Chain_lg2:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_lop3:
@@ -943,13 +824,7 @@ class _Chain_lop3:
     and_: _Chain_lop3
     b32: _Chain_lop3
     or_: _Chain_lop3
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_mad:
     """`mad` — 3 entries sharing this mnemonic; PTX puts their difference in the operand list,
@@ -973,13 +848,7 @@ class _Chain_mad:
     u32: _Chain_mad
     u64: _Chain_mad
     wide: _Chain_mad
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_mad24:
     """`mad24` — mode∈{hi,lo}; sat∈{sat} (opt); type∈{u32,s32} — `.sat` on the multiply-add
@@ -1002,7 +871,6 @@ class _Chain_mad24:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_mapa:
@@ -1013,13 +881,7 @@ class _Chain_mapa:
     shared__cluster: _Chain_mapa
     u32: _Chain_mapa
     u64: _Chain_mapa
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_match:
     """`match` — 3 entries sharing this mnemonic; PTX puts their difference in the operand
@@ -1031,13 +893,7 @@ class _Chain_match:
     b32: _Chain_match
     b64: _Chain_match
     sync: _Chain_match
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_max:
     """`max` — 2 entries sharing this mnemonic; PTX puts their difference in the operand list,
@@ -1063,13 +919,7 @@ class _Chain_max:
     u32: _Chain_max
     u64: _Chain_max
     xorsign: _Chain_max
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_mbarrier:
     """`mbarrier` — 25 entries sharing this mnemonic; PTX puts their difference in the operand
@@ -1099,13 +949,7 @@ class _Chain_mbarrier:
     shared__cta: _Chain_mbarrier
     test_wait: _Chain_mbarrier
     try_wait: _Chain_mbarrier
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_min:
     """`min` — 2 entries sharing this mnemonic; PTX puts their difference in the operand list,
@@ -1131,13 +975,7 @@ class _Chain_min:
     u32: _Chain_min
     u64: _Chain_min
     xorsign: _Chain_min
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_mma:
     """`mma` — 12 entries sharing this mnemonic; PTX puts their difference in the operand list,
@@ -1182,13 +1020,7 @@ class _Chain_mma:
     u4: _Chain_mma
     u8: _Chain_mma
     xor: _Chain_mma
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_mov:
     """`mov` — 11 entries sharing this mnemonic; PTX puts their difference in the operand list,
@@ -1209,13 +1041,7 @@ class _Chain_mov:
     u16: _Chain_mov
     u32: _Chain_mov
     u64: _Chain_mov
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_mul:
     """`mul` — 4 entries sharing this mnemonic; PTX puts their difference in the operand list,
@@ -1244,13 +1070,7 @@ class _Chain_mul:
     u32: _Chain_mul
     u64: _Chain_mul
     wide: _Chain_mul
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_mul24:
     """`mul24` — mode∈{hi,lo}; type∈{u32,s32}"""
@@ -1267,7 +1087,6 @@ class _Chain_mul24:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_multimem_ld_reduce:
@@ -1305,13 +1124,7 @@ class _Chain_multimem_ld_reduce:
     v8: _Chain_multimem_ld_reduce
     weak: _Chain_multimem_ld_reduce
     xor: _Chain_multimem_ld_reduce
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_multimem_red:
     """`multimem_red` — 3 entries sharing this mnemonic; PTX puts their difference in the
@@ -1393,13 +1206,7 @@ class _Chain_neg:
     s16: _Chain_neg
     s32: _Chain_neg
     s64: _Chain_neg
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_not:
     """`not` — type∈{pred,b16,b32,b64}"""
@@ -1415,7 +1222,6 @@ class _Chain_not:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_or:
@@ -1433,7 +1239,6 @@ class _Chain_or:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_popc:
@@ -1448,7 +1253,6 @@ class _Chain_popc:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_prefetch:
@@ -1497,7 +1301,6 @@ class _Chain_prmt:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_rcp:
@@ -1526,7 +1329,6 @@ class _Chain_rcp:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_red:
@@ -1614,13 +1416,7 @@ class _Chain_redux_sync:
     s32: _Chain_redux_sync
     u32: _Chain_redux_sync
     xor: _Chain_redux_sync
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_rem:
     """`rem` — type∈{u16,u32,u64,s16,s32,s64}"""
@@ -1639,7 +1435,6 @@ class _Chain_rem:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_rsqrt:
@@ -1656,7 +1451,6 @@ class _Chain_rsqrt:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_sad:
@@ -1677,7 +1471,6 @@ class _Chain_sad:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_selp:
@@ -1703,7 +1496,6 @@ class _Chain_selp:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_set:
@@ -1748,13 +1540,7 @@ class _Chain_set:
     u32: _Chain_set
     u64: _Chain_set
     xor: _Chain_set
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_setmaxnreg:
     """`setmaxnreg` — action∈{inc,dec}; sync∈{sync}; aligned∈{aligned}; type∈{u32}"""
@@ -1808,13 +1594,7 @@ class _Chain_setp:
     u32: _Chain_setp
     u64: _Chain_setp
     xor: _Chain_setp
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_shf:
     """`shf` — dir∈{l,r}; mode∈{clamp,wrap}; type∈{b32}"""
@@ -1833,7 +1613,6 @@ class _Chain_shf:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_shfl_sync:
@@ -1847,13 +1626,7 @@ class _Chain_shfl_sync:
     down: _Chain_shfl_sync
     idx: _Chain_shfl_sync
     up: _Chain_shfl_sync
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_shl:
     """`shl` — type∈{b16,b32,b64}"""
@@ -1869,7 +1642,6 @@ class _Chain_shl:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_shr:
@@ -1892,7 +1664,6 @@ class _Chain_shr:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_sin:
@@ -1908,7 +1679,6 @@ class _Chain_sin:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_slct:
@@ -1940,7 +1710,6 @@ class _Chain_slct:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_sqrt:
@@ -1965,7 +1734,6 @@ class _Chain_sqrt:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_st:
@@ -2099,13 +1867,7 @@ class _Chain_sub:
     u16: _Chain_sub
     u32: _Chain_sub
     u64: _Chain_sub
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_szext:
     """`szext` — mode∈{clamp,wrap}; type∈{u32,s32}"""
@@ -2122,7 +1884,6 @@ class _Chain_szext:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_tanh:
@@ -2136,13 +1897,7 @@ class _Chain_tanh:
     f16: _Chain_tanh
     f16x2: _Chain_tanh
     f32: _Chain_tanh
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_tcgen05:
     """`tcgen05` — 20 entries sharing this mnemonic; PTX puts their difference in the operand
@@ -2205,13 +1960,7 @@ class _Chain_tcgen05:
     x4: _Chain_tcgen05
     x64: _Chain_tcgen05
     x8: _Chain_tcgen05
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_tensormap_cp_fenceproxy:
     """`tensormap_cp_fenceproxy` — dst∈{global}; src∈{shared::cta}; proxy∈{tensormap::generic};
@@ -2271,7 +2020,6 @@ class _Chain_testp:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _Chain_vote_sync:
@@ -2285,13 +2033,7 @@ class _Chain_vote_sync:
     ballot: _Chain_vote_sync
     pred: _Chain_vote_sync
     uni: _Chain_vote_sync
-    def __call__(
-        self,
-        *args: Any,
-        pred: Any = None,
-        preserve_dst: bool = False,
-        undefined_dst: bool = False,
-    ) -> None: ...
+    def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
 class _Chain_wgmma:
     """`wgmma` — 19 entries sharing this mnemonic; PTX puts their difference in the operand
@@ -2448,7 +2190,6 @@ class _Chain_xor:
         *args: Any,
         pred: Any = None,
         preserve_dst: bool = False,
-        undefined_dst: bool = False,
     ) -> None: ...
 
 class _PTX:
