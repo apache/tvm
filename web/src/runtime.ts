@@ -546,7 +546,9 @@ export class Tensor extends TVMObject {
     const arrayOffsetDtypeLanes = arrayOffsetDtypeBits + SizeOf.U8;
     const arrayOffsetShape = arrayOffsetDtype + SizeOf.DLDataType;
     const arrayOffsetStrides = arrayOffsetShape + this.lib.sizeofPtr();
-    const arrayOffsetByteOffset = arrayOffsetStrides + this.lib.sizeofPtr();
+    const byteOffsetUnaligned = arrayOffsetStrides + this.lib.sizeofPtr();
+    const arrayOffsetByteOffset =
+      Math.ceil(byteOffsetUnaligned / SizeOf.I64) * SizeOf.I64;
     // dataPtr
     this.dataPtr = lib.memory.loadPointer(this.dltensor);
     // ndim
@@ -654,21 +656,49 @@ export class Tensor extends TVMObject {
    * @returns this
    */
   copyFromRawBytes(data: Uint8Array): this {
-    // short cut for gpu copy
-    if (this.device.deviceType === DeviceStrToEnum.webgpu) {
-      this.lib.webGPUContext?.copyRawBytesToBuffer(data, this.getDataPtr(), 0, data.length);
-      return this;
-    }
-    // CPU copy
-    const size = this.shape.reduce((a, b) => {
-      return a * b;
-    }, 1);
-    const nbytes = this.dlDataType.numStorageBytes() * size;
+    const nbytes = this.numStorageBytes();
     if (nbytes != data.length) {
       throw new Error("Expect the data's length equals nbytes=" + nbytes);
     }
+    // short cut for gpu copy
+    if (this.device.deviceType === DeviceStrToEnum.webgpu) {
+      if (this.byteOffset % 4 != 0 || data.length % 4 != 0) {
+        throw new Error(
+          "WebGPU raw byte copies require four-byte-aligned offsets and sizes",
+        );
+      }
+      const webGPUContext = this.lib.webGPUContext;
+      if (webGPUContext === undefined) {
+        throw new Error("WebGPU context is not initialized");
+      }
+      webGPUContext.copyRawBytesToBuffer(
+        data,
+        this.getDataPtr(),
+        this.byteOffset,
+        data.length,
+      );
+      return this;
+    }
+    // CPU copy
     this.ctx.tensorCopyFromJSBytes(this, data);
     return this;
+  }
+
+  private numStorageBytes(): number {
+    let totalBits = this.dlDataType.bits * this.dlDataType.lanes;
+    if (!Number.isSafeInteger(totalBits) || totalBits < 0) {
+      throw new Error(`Invalid tensor dtype bit width: ${totalBits}`);
+    }
+    for (const dim of this.shape) {
+      if (!Number.isSafeInteger(dim) || dim < 0) {
+        throw new Error(`Invalid tensor dimension: ${dim}`);
+      }
+      totalBits *= dim;
+      if (!Number.isSafeInteger(totalBits)) {
+        throw new Error("Tensor storage size exceeds JavaScript's safe integer range");
+      }
+    }
+    return Math.ceil(totalBits / 8);
   }
   /**
    * Return a copied Uint8Array of the raw bytes in the Tensor.
@@ -1422,32 +1452,47 @@ export class Instance implements Disposable {
         buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
       const shardRecords = shard.records;
       for (let j = 0; j < shardRecords.length; ++j) {
+        let cpu_arr: Tensor | undefined;
+        let gpu_arr: Tensor | undefined;
         try {
           const rec = shardRecords[j];
-          const recSource = getTensorCacheRecordBytes(shardBytes, rec);
-          const cpu_arr = this.withNewScope(() => {
-            return this.detachFromCurrentScope(
-              this.empty(rec.shape, rec.dtype, this.cpu())
-            )
-          });
-          // first sync copy to cpu.
-          this.ctx.arrayDecodeStorage(cpu_arr, recSource, rec.format, rec.dtype);
-          // then async stream into GPU if needed
-          if (device.deviceType === DeviceStrToEnum.cpu) {
-            this.tensorCacheUpdate(rec.name, cpu_arr, false);
-            cpu_arr.dispose();
-          } else {
-            // allocate a gpu arr and async copy to it.
-            const gpu_arr = this.withNewScope(() => {
+          const recBytes = getTensorCacheRecordBytes(shardBytes, rec);
+          const requiresDecode =
+            rec.format === "f32-to-bf16" && rec.dtype === "float32";
+          const directToWebGPU =
+            device.deviceType === DeviceStrToEnum.webgpu &&
+            !requiresDecode &&
+            recBytes.byteLength % 4 === 0;
+
+          if (!directToWebGPU) {
+            cpu_arr = this.withNewScope(() => {
               return this.detachFromCurrentScope(
-                this.empty(rec.shape, rec.dtype, device)
-              )
+                this.empty(rec.shape, rec.dtype, this.cpu()),
+              );
             });
-            gpu_arr.copyFrom(cpu_arr);
+            this.ctx.arrayDecodeStorage(
+              cpu_arr,
+              recBytes,
+              rec.format,
+              rec.dtype,
+            );
+          }
+
+          if (device.deviceType === DeviceStrToEnum.cpu) {
+            this.tensorCacheUpdate(rec.name, cpu_arr!, false);
+          } else {
+            gpu_arr = this.withNewScope(() => {
+              return this.detachFromCurrentScope(
+                this.empty(rec.shape, rec.dtype, device),
+              );
+            });
+            if (directToWebGPU) {
+              gpu_arr.copyFromRawBytes(recBytes);
+            } else {
+              gpu_arr.copyFrom(cpu_arr!);
+            }
             await device.sync();
             this.tensorCacheUpdate(rec.name, gpu_arr, false);
-            cpu_arr.dispose();
-            gpu_arr.dispose();
           }
         } catch (err) {
           this.env.logger(
@@ -1455,6 +1500,9 @@ export class Instance implements Disposable {
             "Error: " + err
           );
           throw err;
+        } finally {
+          cpu_arr?.dispose();
+          gpu_arr?.dispose();
         }
       }
       fetchedBytes += shard.nbytes;
