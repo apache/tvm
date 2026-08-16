@@ -87,6 +87,19 @@ export class Memory {
     return this.viewI32[base];
   }
 
+  loadU64(ptr: Pointer): number {
+    if (this.buffer != this.memory.buffer) {
+      this.updateViews();
+    }
+    // WebAssembly is little-endian. Reject values JavaScript cannot represent exactly.
+    const base = ptr >> 2;
+    const value = this.viewU32[base] + this.viewU32[base + 1] * 0x100000000;
+    if (!Number.isSafeInteger(value)) {
+      throw new Error("Cannot represent uint64 value as a JavaScript number");
+    }
+    return value;
+  }
+
   loadF32(ptr: Pointer): number {
     if (this.buffer != this.memory.buffer) {
       this.updateViews();

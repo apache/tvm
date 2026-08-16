@@ -39,7 +39,7 @@ function createInstance() {
   );
 }
 
-function createMockGPUDevice() {
+function createMockGPUDevice({ detachWriteSources = false } = {}) {
   const buffers = [];
   const writes = [];
   const queue = {
@@ -57,6 +57,9 @@ function createMockGPUDevice() {
         }
         new Uint8Array(buffer.contents).set(snapshot, bufferOffset);
         writes.push({ buffer, bufferOffset, data, dataOffset, size, snapshot });
+        if (detachWriteSources) {
+          structuredClone(data.buffer, { transfer: [data.buffer] });
+        }
       },
     ),
   };
@@ -167,6 +170,46 @@ test("WebGPU tensor cache uploads pass-through records directly", async () => {
     ]);
   } finally {
     tvm.ctx.arrayDecodeStorage = originalDecode;
+    tvm.tensorCacheClear();
+    tvm.dispose();
+  }
+});
+
+test("direct upload snapshots a borrowed shard view before synchronization", async () => {
+  const tvm = createInstance();
+  const gpu = createMockGPUDevice({ detachWriteSources: true });
+  tvm.initWebGPU(gpu.device);
+
+  const shard = new Uint8Array([1, 2, 3, 4]).buffer;
+  const manifest = {
+    metadata: {},
+    records: [{
+      dataPath: "params.bin",
+      format: "raw-shard",
+      nbytes: shard.byteLength,
+      records: [{
+        name: "test.direct.release_before_sync",
+        shape: [1],
+        dtype: "uint32",
+        format: "raw",
+        byteOffset: 0,
+        nbytes: 4,
+      }],
+    }],
+  };
+
+  try {
+    await tvm.fetchTensorCache(
+      "https://example.test/model/",
+      tvm.webgpu(),
+      { artifactCache: createArtifactCache(manifest, shard) },
+    );
+
+    expect(gpu.writes).toHaveLength(1);
+    expect(gpu.writes[0].data.buffer).toBe(shard);
+    expect(gpu.writes[0].data.byteLength).toBe(0);
+    expect(Array.from(gpu.writes[0].snapshot)).toEqual([1, 2, 3, 4]);
+  } finally {
     tvm.tensorCacheClear();
     tvm.dispose();
   }
@@ -289,6 +332,41 @@ test("copyFromRawBytes uses packed tensor size and tensor byte offset", () => {
     expect(gpu.writes).toHaveLength(1);
     expect(gpu.writes[0].bufferOffset).toBe(4);
     expect(Array.from(gpu.writes[0].snapshot)).toEqual([21, 22, 23, 24]);
+  });
+  tvm.dispose();
+});
+
+test("Tensor parses byte offsets as checked unsigned 64-bit values", () => {
+  const tvm = createInstance();
+
+  tvm.withNewScope(() => {
+    const tensor = tvm.empty([1], "uint32", tvm.cpu());
+    // DLTensor::byte_offset starts at byte 32 in the wasm32 ABI.
+    const byteOffsetPtr = tensor.dltensor + 32;
+    const words = new Uint32Array(tvm.memory.memory.buffer);
+    const wordOffset = byteOffsetPtr >>> 2;
+    const original = [words[wordOffset], words[wordOffset + 1]];
+
+    try {
+      words.set([0x80000001, 1], wordOffset);
+      const parsed = new tvmjs.Tensor(
+        tensor.dltensor,
+        tensor.lib,
+        tensor.ctx,
+        true,
+      );
+      expect(parsed.byteOffset).toBe(0x180000001);
+
+      words.set([0, 0x200000], wordOffset);
+      expect(() => new tvmjs.Tensor(
+        tensor.dltensor,
+        tensor.lib,
+        tensor.ctx,
+        true,
+      )).toThrow("Cannot represent uint64 value");
+    } finally {
+      words.set(original, wordOffset);
+    }
   });
   tvm.dispose();
 });

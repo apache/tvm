@@ -37,6 +37,7 @@ import {
   ArtifactCacheTemplate,
   ArtifactCacheType,
   TensorCacheAccessOptions,
+  TensorCacheEntry,
   TensorShardEntry,
   createArtifactCache,
   getTensorCacheRecordBytes,
@@ -572,7 +573,7 @@ export class Tensor extends TVMObject {
     this.device = new DLDevice(deviceType, deviceId, lib);
 
     // byte_offset
-    this.byteOffset = lib.memory.loadI64(this.dltensor + arrayOffsetByteOffset);
+    this.byteOffset = lib.memory.loadU64(this.dltensor + arrayOffsetByteOffset);
   }
 
   /**
@@ -1342,6 +1343,36 @@ export class Instance implements Disposable {
     this.cacheMetadata = { ...this.cacheMetadata, ...(list["metadata"] as Record<string, any>) };
   }
 
+  /**
+   * Consume a tensor-cache record synchronously.
+   *
+   * Keeping the borrowed record view local to this non-async helper avoids
+   * capturing it across the caller's WebGPU synchronization point.
+   */
+  private loadTensorCacheRecordData(
+    shardBytes: Uint8Array,
+    rec: TensorCacheEntry,
+    cpuArray?: Tensor,
+    gpuArray?: Tensor,
+  ): void {
+    const recBytes = getTensorCacheRecordBytes(shardBytes, rec);
+    if (cpuArray !== undefined) {
+      this.ctx.arrayDecodeStorage(
+        cpuArray,
+        recBytes,
+        rec.format,
+        rec.dtype,
+      );
+    }
+    if (gpuArray !== undefined) {
+      if (cpuArray === undefined) {
+        gpuArray.copyFromRawBytes(recBytes);
+      } else {
+        gpuArray.copyFrom(cpuArray);
+      }
+    }
+  }
+
 
   /**
    * Fetch list of Tensor into the TensorCache.
@@ -1456,13 +1487,12 @@ export class Instance implements Disposable {
         let gpu_arr: Tensor | undefined;
         try {
           const rec = shardRecords[j];
-          const recBytes = getTensorCacheRecordBytes(shardBytes, rec);
           const requiresDecode =
             rec.format === "f32-to-bf16" && rec.dtype === "float32";
           const directToWebGPU =
             device.deviceType === DeviceStrToEnum.webgpu &&
             !requiresDecode &&
-            recBytes.byteLength % 4 === 0;
+            rec.nbytes % 4 === 0;
 
           if (!directToWebGPU) {
             cpu_arr = this.withNewScope(() => {
@@ -1470,27 +1500,21 @@ export class Instance implements Disposable {
                 this.empty(rec.shape, rec.dtype, this.cpu()),
               );
             });
-            this.ctx.arrayDecodeStorage(
-              cpu_arr,
-              recBytes,
-              rec.format,
-              rec.dtype,
-            );
           }
 
-          if (device.deviceType === DeviceStrToEnum.cpu) {
-            this.tensorCacheUpdate(rec.name, cpu_arr!, false);
-          } else {
+          if (device.deviceType !== DeviceStrToEnum.cpu) {
             gpu_arr = this.withNewScope(() => {
               return this.detachFromCurrentScope(
                 this.empty(rec.shape, rec.dtype, device),
               );
             });
-            if (directToWebGPU) {
-              gpu_arr.copyFromRawBytes(recBytes);
-            } else {
-              gpu_arr.copyFrom(cpu_arr!);
-            }
+          }
+
+          this.loadTensorCacheRecordData(shardBytes, rec, cpu_arr, gpu_arr);
+
+          if (device.deviceType === DeviceStrToEnum.cpu) {
+            this.tensorCacheUpdate(rec.name, cpu_arr!, false);
+          } else {
             await device.sync();
             this.tensorCacheUpdate(rec.name, gpu_arr, false);
           }
