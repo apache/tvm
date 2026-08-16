@@ -54,3 +54,27 @@ test("array copy", () => {
     testArrayCopy("float64", Float64Array);
   });
 });
+
+test("decode storage respects tensor view byte offset", () => {
+  tvm.withNewScope(() => {
+    const decodeStorage = tvm.getGlobalFunc("tvmjs.array.decode_storage");
+    const createView = tvm.getGlobalFunc("runtime.TVMTensorCreateView");
+    const backing = tvm.empty([4], "float32").copyFrom([9, 9, 9, 9]);
+    const view = createView(
+      backing,
+      tvm.makeShapeTuple([2]),
+      "float32",
+      tvm.scalar(4, "int")
+    );
+
+    // BF16 encodings for 1.0 and -2.0, little-endian.
+    decodeStorage(
+      view,
+      new Uint8Array([0x80, 0x3f, 0x00, 0xc0]),
+      "f32-to-bf16",
+      "float32"
+    );
+
+    assert.deepStrictEqual(Array.from(backing.toArray()), [9, 1, -2, 9]);
+  });
+});
