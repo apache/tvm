@@ -22,7 +22,7 @@
  */
 import { Pointer, PtrOffset, SizeOf, TypeIndex } from "./ctypes";
 import { Disposable } from "./types";
-import { Memory, CachedCallStack } from "./memory";
+import { Memory, CachedCallStack, WasmByteArraySource } from "./memory";
 import {
   assert,
   StringToUint8Array,
@@ -507,6 +507,15 @@ class PackedFuncCell extends TVMObject {
   }
 }
 
+interface PackedCallFrame {
+  cell: PackedFuncCell;
+  stack: CachedCallStack;
+  argsOffset: PtrOffset;
+  numArgs: number;
+  retOffset: PtrOffset;
+  released: boolean;
+}
+
 /**
  * Tensor( n-dimnesional array).
  */
@@ -918,6 +927,7 @@ export class Instance implements Disposable {
   private objFactory: Map<number, FObjectConstructor>;
   private ctx: RuntimeContext;
   private asyncifyHandler: AsyncifyHandler;
+  private asyncifyCallInProgress = false;
   private initProgressCallback: Array<InitProgressCallback> = [];
   private rng: LinearCongruentialGenerator;
   private deviceLostIsError = true;  // whether device.lost is due to actual error or dispose()
@@ -1946,8 +1956,49 @@ export class Instance implements Disposable {
    * @returns The wrapped AsyncPackedFunc
    */
   wrapAsyncifyPackedFunc(func: PackedFunc): AsyncPackedFunc {
-    const asyncFunc = this.asyncifyHandler.wrapExport(func) as AsyncPackedFunc;
-    asyncFunc.dispose = func.dispose;
+    let callInProgress = false;
+    let disposeRequested = false;
+    const asyncFunc = (async (...args: Array<any>): Promise<any> => {
+      if (this.asyncifyCallInProgress) {
+        throw new Error("Another Asyncify packed function is already running");
+      }
+      if (disposeRequested || func._tvmPackedCell.getHandle(false) === 0) {
+        throw new Error("Asyncify packed function has already been disposed");
+      }
+
+      callInProgress = true;
+      this.asyncifyCallInProgress = true;
+      let frame: PackedCallFrame | undefined;
+      try {
+        frame = this.preparePackedCall(func._tvmPackedCell, args);
+        // Every rewind must enter TVMFFIFunctionCall with the same argument and
+        // return storage.  In particular, the Wasm stack may retain pointers
+        // into transient byte arguments while its execution is suspended.
+        const run = this.asyncifyHandler.wrapExport(
+          () => this.invokePackedCall(frame as PackedCallFrame)
+        );
+        return await run();
+      } finally {
+        if (frame !== undefined) {
+          this.releasePackedCall(frame);
+        }
+        callInProgress = false;
+        this.asyncifyCallInProgress = false;
+        if (disposeRequested) {
+          func.dispose();
+        }
+      }
+    }) as AsyncPackedFunc;
+    asyncFunc.dispose = (): void => {
+      if (func._tvmPackedCell.getHandle(false) === 0 || disposeRequested) {
+        return;
+      }
+      if (callInProgress) {
+        disposeRequested = true;
+      } else {
+        func.dispose();
+      }
+    };
     asyncFunc._tvmPackedCell = func._tvmPackedCell;
     return asyncFunc;
   }
@@ -2226,6 +2277,7 @@ export class Instance implements Disposable {
     stack: CachedCallStack,
     args: Array<any>,
     packedArgs: PtrOffset,
+    wasmByteSources?: Array<WasmByteArraySource | undefined>,
   ): void {
     for (let i = 0; i < args.length; ++i) {
       let val = args[i];
@@ -2287,7 +2339,7 @@ export class Instance implements Disposable {
         stack.allocThenSetArgString(argValueOffset, val);
       } else if (val instanceof Uint8Array) {
         stack.storeI32(argTypeIndexOffset, TypeIndex.kTVMFFIByteArrayPtr);
-        stack.allocThenSetArgBytes(argValueOffset, val);
+        stack.allocThenSetArgBytes(argValueOffset, val, wasmByteSources?.[i]);
       } else if (val instanceof Function) {
         val = this.toPackedFuncInternal(val, false);
         stack.tempArgs.push(val);
@@ -2313,98 +2365,100 @@ export class Instance implements Disposable {
       numArgs: number,
       ret: Pointer
     ): number => {
-      const jsArgs = [];
-      // use scope to track js values.
-      this.ctx.beginScope();
-      for (let i = 0; i < numArgs; ++i) {
-        const argPtr = packedArgs + i * SizeOf.TVMFFIAny;
-        const typeIndex = lib.memory.loadI32(argPtr);
-
-        if (typeIndex >= TypeIndex.kTVMFFIRawStr) {
-          // NOTE: the following code have limitations in asyncify mode.
-          // The reason is that the TVMFFIAnyViewToOwnedAny will simply
-          // get skipped during the rewinding process, causing memory failure
-          if (!this.asyncifyHandler.isNormalStackState()) {
-            throw Error("Cannot handle str/object argument callback in asyncify mode");
-          }
-          lib.checkCall(
-            (lib.exports.TVMFFIAnyViewToOwnedAny as ctypes.FTVMFFIAnyViewToOwnedAny)(
-              argPtr,
-              argPtr
-            )
-          );
-        }
-        jsArgs.push(this.retValueToJS(argPtr, true));
-      }
-
       let rv: any;
       try {
-        rv = func(...jsArgs);
+        // use scope to track js values.
+        this.ctx.beginScope();
+        try {
+          const jsArgs = [];
+          for (let i = 0; i < numArgs; ++i) {
+            const argPtr = packedArgs + i * SizeOf.TVMFFIAny;
+            const typeIndex = lib.memory.loadI32(argPtr);
+
+            if (typeIndex >= TypeIndex.kTVMFFIRawStr) {
+              // NOTE: the following code have limitations in asyncify mode.
+              // The reason is that the TVMFFIAnyViewToOwnedAny will simply
+              // get skipped during the rewinding process, causing memory failure
+              if (!this.asyncifyHandler.isNormalStackState()) {
+                throw Error("Cannot handle str/object argument callback in asyncify mode");
+              }
+              lib.checkCall(
+                (lib.exports.TVMFFIAnyViewToOwnedAny as ctypes.FTVMFFIAnyViewToOwnedAny)(
+                  argPtr,
+                  argPtr
+                )
+              );
+            }
+            jsArgs.push(this.retValueToJS(argPtr, true));
+          }
+          rv = func(...jsArgs);
+        } finally {
+          // recycle all js object values created for the callback.
+          this.ctx.endScope();
+        }
+
+        if (rv !== undefined && rv !== null) {
+          const wasmByteSources = this.captureWasmByteSources([rv]);
+          const stack = lib.getOrAllocCallStack();
+          try {
+            const argOffset = stack.allocRawBytes(SizeOf.TVMFFIAny);
+            this.setPackedArguments(stack, [rv], argOffset, wasmByteSources);
+            stack.commitToWasmMemory();
+            const argPtr = stack.ptrFromOffset(argOffset);
+            lib.checkCall(
+              (lib.exports.TVMFFIAnyViewToOwnedAny as ctypes.FTVMFFIAnyViewToOwnedAny)(
+                argPtr,
+                ret
+              )
+            );
+          } finally {
+            lib.recycleCallStack(stack);
+          }
+        }
+        return 0;
       } catch (error) {
-        // error handling
-        // store error via SetLastError
-        this.ctx.endScope();
-        const errKind = "JSCallbackError"
-        const errMsg = error.message;
-        const stack = lib.getOrAllocCallStack();
-        const errKindOffset = stack.allocRawBytes(errKind.length + 1);
-        stack.storeRawBytes(errKindOffset, StringToUint8Array(errKind));
-        const errMsgOffset = stack.allocRawBytes(errMsg.length + 1);
-        stack.storeRawBytes(errMsgOffset, StringToUint8Array(errMsg));
-        stack.commitToWasmMemory();
-        (this.lib.exports.TVMFFIErrorSetRaisedFromCStr as ctypes.FTVMFFIErrorSetRaisedFromCStr)(
-          stack.ptrFromOffset(errKindOffset),
-          stack.ptrFromOffset(errMsgOffset)
-        );
-        this.lib.recycleCallStack(stack);
+        try {
+          this.setCallbackError(error);
+        } catch (reportError) {
+          this.env.logger(
+            `Failed to report JS callback error: ${String(reportError)}`
+          );
+        }
         return -1;
       }
-
-      // normal return path
-      // recycle all js object value in function unless we want to retain them.
-      this.ctx.endScope();
-      if (rv !== undefined && rv !== null) {
-        const stack = lib.getOrAllocCallStack();
-        const argOffset = stack.allocRawBytes(SizeOf.TVMFFIAny);
-        this.setPackedArguments(stack, [rv], argOffset);
-        stack.commitToWasmMemory();
-        const argPtr = stack.ptrFromOffset(argOffset);
-        lib.checkCall(
-          (lib.exports.TVMFFIAnyViewToOwnedAny as ctypes.FTVMFFIAnyViewToOwnedAny)(
-            argPtr,
-            ret
-          )
-        );
-        lib.recycleCallStack(stack);
-      }
-      return 0;
     };
+  }
+
+  private setCallbackError(error: unknown): void {
+    const errKind = "JSCallbackError";
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const errKindBytes = StringToUint8Array(errKind);
+    const errMsgBytes = StringToUint8Array(errMsg);
+    const stack = this.lib.getOrAllocCallStack();
+    try {
+      const errKindOffset = stack.allocRawBytes(errKindBytes.byteLength);
+      stack.storeRawBytes(errKindOffset, errKindBytes);
+      const errMsgOffset = stack.allocRawBytes(errMsgBytes.byteLength);
+      stack.storeRawBytes(errMsgOffset, errMsgBytes);
+      stack.commitToWasmMemory();
+      (this.lib.exports.TVMFFIErrorSetRaisedFromCStr as ctypes.FTVMFFIErrorSetRaisedFromCStr)(
+        stack.ptrFromOffset(errKindOffset),
+        stack.ptrFromOffset(errMsgOffset)
+      );
+    } finally {
+      this.lib.recycleCallStack(stack);
+    }
   }
 
   private makePackedFunc(handle: Pointer): PackedFunc {
     const cell = new PackedFuncCell(handle, this.lib, this.ctx);
     const packedFunc = (...args: any): any => {
-      const stack = this.lib.getOrAllocCallStack();
-      const argsOffset = stack.allocRawBytes(SizeOf.TVMFFIAny * args.length);
-      this.setPackedArguments(stack, args, argsOffset);
-      const retOffset = stack.allocRawBytes(SizeOf.TVMFFIAny);
-      // pre-store the result to be null
-      stack.storeI32(retOffset, TypeIndex.kTVMFFINone);
-      // clear off the extra zero padding before ptr storage
-      stack.storeI32(retOffset + SizeOf.I32, 0);
-      stack.commitToWasmMemory();
-      this.lib.checkCall(
-        (this.exports.TVMFFIFunctionCall as ctypes.FTVMFFIFunctionCall)(
-          cell.getHandle(),
-          stack.ptrFromOffset(argsOffset),
-          args.length,
-          stack.ptrFromOffset(retOffset)
-        )
-      );
-
-      const ret = this.retValueToJS(stack.ptrFromOffset(retOffset), false);
-      this.lib.recycleCallStack(stack);
-      return ret;
+      const frame = this.preparePackedCall(cell, args);
+      try {
+        return this.invokePackedCall(frame);
+      } finally {
+        this.releasePackedCall(frame);
+      }
     };
     // Attach attributes to the function type.
     // This is because javascript do not allow us to overload call.
@@ -2414,6 +2468,80 @@ export class Instance implements Disposable {
     };
     ret._tvmPackedCell = cell;
     return ret as PackedFunc;
+  }
+
+  private preparePackedCall(cell: PackedFuncCell, args: Array<any>): PackedCallFrame {
+    // Capture Wasm-backed views before either call-stack or transient
+    // allocation can grow memory and detach them.
+    const wasmByteSources = this.captureWasmByteSources(args);
+    const stack = this.lib.getOrAllocCallStack();
+    try {
+      const argsOffset = stack.allocRawBytes(SizeOf.TVMFFIAny * args.length);
+      this.setPackedArguments(stack, args, argsOffset, wasmByteSources);
+      const retOffset = stack.allocRawBytes(SizeOf.TVMFFIAny);
+      // pre-store the result to be null
+      stack.storeI32(retOffset, TypeIndex.kTVMFFINone);
+      // clear off the extra zero padding before ptr storage
+      stack.storeI32(retOffset + SizeOf.I32, 0);
+      stack.commitToWasmMemory();
+      return {
+        cell,
+        stack,
+        argsOffset,
+        numArgs: args.length,
+        retOffset,
+        released: false,
+      };
+    } catch (error) {
+      this.lib.recycleCallStack(stack);
+      throw error;
+    }
+  }
+
+  private invokePackedCall(frame: PackedCallFrame): any {
+    if (frame.released) {
+      throw new Error("Cannot invoke a released packed-call frame");
+    }
+    this.lib.checkCall(
+      (this.exports.TVMFFIFunctionCall as ctypes.FTVMFFIFunctionCall)(
+        frame.cell.getHandle(),
+        frame.stack.ptrFromOffset(frame.argsOffset),
+        frame.numArgs,
+        frame.stack.ptrFromOffset(frame.retOffset)
+      )
+    );
+    if (!this.asyncifyHandler.isNormalStackState()) {
+      return undefined;
+    }
+    return this.retValueToJS(frame.stack.ptrFromOffset(frame.retOffset), false);
+  }
+
+  private releasePackedCall(frame: PackedCallFrame): void {
+    if (!frame.released) {
+      frame.released = true;
+      this.lib.recycleCallStack(frame.stack);
+    }
+  }
+
+  private captureWasmByteSources(
+    args: Array<any>
+  ): Array<WasmByteArraySource | undefined> | undefined {
+    const wasmBuffer = this.memory.memory.buffer;
+    let sources: Array<WasmByteArraySource | undefined> | undefined;
+    for (let i = 0; i < args.length; ++i) {
+      const arg = args[i];
+      if (arg instanceof Uint8Array && arg.buffer === wasmBuffer) {
+        if (sources === undefined) {
+          sources = new Array(args.length);
+        }
+        sources[i] = {
+          buffer: wasmBuffer,
+          byteOffset: arg.byteOffset,
+          byteLength: arg.byteLength,
+        };
+      }
+    }
+    return sources;
   }
 
   /**
