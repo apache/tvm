@@ -217,7 +217,7 @@ export class Memory {
     const length = this.loadU32(sizePtr);
     const dataPtr = ffiAnyPtr + SizeOf.I32 + SizeOf.I32;
     const result = new Uint8Array(length);
-    result.set(this.viewU8.slice(dataPtr, dataPtr + length));
+    result.set(this.viewU8.subarray(dataPtr, dataPtr + length));
     return result;
   }
   /**
@@ -248,7 +248,7 @@ export class Memory {
     const ptr = this.loadPointer(byteArrayPtr);
     const length = this.loadUSize(byteArrayPtr + this.sizeofPtr());
     const result = new Uint8Array(length);
-    result.set(this.viewU8.slice(ptr, ptr + length));
+    result.set(this.viewU8.subarray(ptr, ptr + length));
     return result;
   }
   // private functions
