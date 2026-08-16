@@ -100,16 +100,23 @@ test("PackedFunc captures Wasm-backed byte sources automatically", () => {
   }
   try {
     const input = new Uint8Array(tvm.memory.memory.buffer, ptr, 32);
-    input.set(makeBytes(input.length));
-    expect(tvm.captureWasmByteSources([input])).toEqual([{
-      buffer: input.buffer,
-      byteOffset: input.byteOffset,
-      byteLength: input.byteLength,
-    }]);
-    tvm.withNewScope(() => {
-      const echo = tvm.getGlobalFunc("testing.echo");
-      expectExactBytes(echo(input), makeBytes(input.length));
-    });
+    const expected = makeBytes(input.length);
+    input.set(expected);
+    const capture = tvm.captureWasmByteSources;
+    tvm.captureWasmByteSources = function(args) {
+      const sources = capture.call(this, args);
+      this.memory.memory.grow(1);
+      return sources;
+    };
+    try {
+      tvm.withNewScope(() => {
+        const echo = tvm.getGlobalFunc("testing.echo");
+        expectExactBytes(echo(input), expected);
+      });
+      expect(input.byteLength).toBe(0);
+    } finally {
+      tvm.captureWasmByteSources = capture;
+    }
   } finally {
     tvm.exports.TVMWasmFreeSpace(ptr);
   }
@@ -187,6 +194,60 @@ test("Asyncify rejects overlapping calls from different wrappers", async () => {
     if (release !== undefined) {
       release();
     }
+    tvm.endScope();
+  }
+});
+
+test("Asyncify call retains the function across alias disposal", async () => {
+  tvm.beginScope();
+  let release;
+  try {
+    const input = makeBytes(64 * 1024 + 17);
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    tvm.registerAsyncifyFunc("tvmjs.testing.wait_for_alias_disposal", async () => {
+      await gate;
+    }, true);
+
+    const callback = tvm.getGlobalFunc("tvmjs.testing.wait_for_alias_disposal");
+    const original = tvm.getGlobalFunc(
+      "tvmjs.testing.check_byte_array_across_callbacks"
+    );
+    const active = tvm.wrapAsyncifyPackedFunc(original);
+    const alias = tvm.wrapAsyncifyPackedFunc(original);
+
+    const pending = active(input, callback);
+    alias.dispose();
+    expect(original._tvmPackedCell.getHandle(false)).toBe(0);
+    release();
+    expect(await pending).toBe(0);
+  } finally {
+    if (release !== undefined) {
+      release();
+    }
+    tvm.endScope();
+  }
+});
+
+test("Asyncify clears call state when frame cleanup throws", async () => {
+  tvm.beginScope();
+  const releasePackedCall = tvm.releasePackedCall;
+  try {
+    const original = tvm.getGlobalFunc("testing.echo");
+    const wrapped = tvm.wrapAsyncifyPackedFunc(original);
+    tvm.releasePackedCall = function(frame) {
+      releasePackedCall.call(this, frame);
+      throw new Error("expected frame cleanup failure");
+    };
+
+    const pending = wrapped(1);
+    wrapped.dispose();
+    await expect(pending).rejects.toThrow("expected frame cleanup failure");
+    expect(original._tvmPackedCell.getHandle(false)).toBe(0);
+    expect(tvm.asyncifyCallInProgress).toBe(false);
+  } finally {
+    tvm.releasePackedCall = releasePackedCall;
     tvm.endScope();
   }
 });

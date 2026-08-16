@@ -509,6 +509,8 @@ class PackedFuncCell extends TVMObject {
 
 interface PackedCallFrame {
   cell: PackedFuncCell;
+  /** Extra reference taken once the call suspends in Asyncify. */
+  retainedCell?: PackedFuncCell;
   stack: CachedCallStack;
   argsOffset: PtrOffset;
   numArgs: number;
@@ -1975,17 +1977,21 @@ export class Instance implements Disposable {
         // return storage.  In particular, the Wasm stack may retain pointers
         // into transient byte arguments while its execution is suspended.
         const run = this.asyncifyHandler.wrapExport(
-          () => this.invokePackedCall(frame as PackedCallFrame)
+          () => this.invokePackedCall(frame as PackedCallFrame),
+          () => this.retainPackedCall(frame as PackedCallFrame)
         );
         return await run();
       } finally {
-        if (frame !== undefined) {
-          this.releasePackedCall(frame);
-        }
-        callInProgress = false;
-        this.asyncifyCallInProgress = false;
-        if (disposeRequested) {
-          func.dispose();
+        try {
+          if (frame !== undefined) {
+            this.releasePackedCall(frame);
+          }
+        } finally {
+          callInProgress = false;
+          this.asyncifyCallInProgress = false;
+          if (disposeRequested) {
+            func.dispose();
+          }
         }
       }
     }) as AsyncPackedFunc;
@@ -2498,13 +2504,31 @@ export class Instance implements Disposable {
     }
   }
 
+  /**
+   * Take an extra reference on the function once a call has suspended.
+   *
+   * While the Wasm stack is unwound, other JavaScript can dispose the
+   * function through another wrapper. The frame keeps the callee alive
+   * until the rewound call finishes. Synchronous calls do not take it.
+   */
+  private retainPackedCall(frame: PackedCallFrame): void {
+    if (frame.released || frame.retainedCell !== undefined) {
+      return;
+    }
+    const handle = frame.cell.getHandle();
+    this.lib.checkCall(
+      (this.exports.TVMFFIObjectIncRef as ctypes.FTVMFFIObjectIncRef)(handle)
+    );
+    frame.retainedCell = new PackedFuncCell(handle, this.lib, this.ctx);
+  }
+
   private invokePackedCall(frame: PackedCallFrame): any {
     if (frame.released) {
       throw new Error("Cannot invoke a released packed-call frame");
     }
     this.lib.checkCall(
       (this.exports.TVMFFIFunctionCall as ctypes.FTVMFFIFunctionCall)(
-        frame.cell.getHandle(),
+        (frame.retainedCell ?? frame.cell).getHandle(),
         frame.stack.ptrFromOffset(frame.argsOffset),
         frame.numArgs,
         frame.stack.ptrFromOffset(frame.retOffset)
@@ -2519,7 +2543,11 @@ export class Instance implements Disposable {
   private releasePackedCall(frame: PackedCallFrame): void {
     if (!frame.released) {
       frame.released = true;
-      this.lib.recycleCallStack(frame.stack);
+      try {
+        this.lib.recycleCallStack(frame.stack);
+      } finally {
+        frame.retainedCell?.dispose();
+      }
     }
   }
 
