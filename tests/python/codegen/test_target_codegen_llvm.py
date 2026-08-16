@@ -958,6 +958,29 @@ def test_llvm_order_functions():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+@pytest.mark.parametrize("extent", [2**32 + 1, 2**32 + 4])
+def test_llvm_large_stack_allocation_uses_64bit_extent(extent):
+    @T.prim_func(s_tir=True)
+    def main(A: T.Buffer((1,), "float32")):
+        B = T.alloc_buffer(
+            (extent,),
+            "float32",
+            scope="global",
+            annotations={"disable_lower_builtin": True},
+        )
+        A[0] = B[extent - 1]
+
+    module = tvm.tirx.build(
+        main,
+        target={"kind": "llvm", "opt-level": 0},
+        pipeline="tirx",
+    )
+    llvm_ir = module.inspect_source("ll")
+
+    assert re.search(rf"alloca float, i64 {extent}(?:,|$)", llvm_ir)
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 @tvm.testing.skip_if_32bit
 def test_llvm_import():
     """all-platform-minimal-test: check shell dependent clang behavior."""
