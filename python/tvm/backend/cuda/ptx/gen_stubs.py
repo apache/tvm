@@ -98,8 +98,9 @@ def _chain_class(family: str, entries: list[InstructionEntry]) -> str:
         # spells its operands as the catch-all; a second one would not even
         # parse ("Only one '*' parameter allowed").
         params.append("*args: Any")
-    if not any(e.has_dst for e in entries):
-        params.append("pred: Any = None")
+    params.append("pred: Any = None")
+    if any(e.has_dst for e in entries):
+        params.extend(("preserve_dst: bool = False", "undefined_dst: bool = False"))
     signature = f"def __call__({', '.join(params)}) -> None"
     # Emit the shape ruff format would produce, so the generated text needs no
     # formatter to be canonical: a docstring that fits on one line closes on

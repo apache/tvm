@@ -196,7 +196,14 @@ def _helper_name(
 
 
 def render_variant(
-    entry: InstructionEntry, tokens, predicated=False, dtypes=None, imms=None, sinks=frozenset()
+    entry: InstructionEntry,
+    tokens,
+    predicated=False,
+    dtypes=None,
+    imms=None,
+    sinks=frozenset(),
+    preserve_dst=False,
+    undefined_dst=False,
 ):
     """Render one variant: ``(opcode, helper_name, helper_source)``.
 
@@ -218,8 +225,11 @@ def render_variant(
 
     ``predicated`` is a framework-level axis (never in the table): the helper
     gains a trailing ``uint32_t __pred`` operand, and the instruction is
-    guarded with ``.reg .pred p; setp.ne.b32 p, %N, 0; @p ...``. Only valid
-    for instructions without a destination — see ``InstructionEntry.has_dst``.
+    guarded with ``.reg .pred p; setp.ne.b32 p, %N, 0; @p ...``. A written
+    destination additionally requires an explicit inactive-path policy:
+    ``preserve_dst`` binds read-write and retains its old value, while
+    ``undefined_dst`` keeps the normal write-only binding and states that the
+    caller will not consume the inactive value before selecting/guarding it.
     """
     mod_map = mods(entry, tokens)
     written = [tok for tok in tokens if tok]
@@ -242,9 +252,19 @@ def render_variant(
     # non-canonical (atom's d and b do exactly that).
     imm_of = dict(zip(imm_slots(entry), imms or (), strict=True))
     helper = _helper_name(entry, written, imms, dtypes, canonical, mod_map, sinks)
+    assert not (preserve_dst and undefined_dst), "destination policies are mutually exclusive"
     if predicated:
-        assert not entry.has_dst, "@p is only supported on instructions without a destination"
-        helper += "_pred"
+        assert not entry.has_dst or preserve_dst or undefined_dst, (
+            "@p on a written destination requires preserve_dst or undefined_dst"
+        )
+        if preserve_dst:
+            helper += "_pred_keep"
+        elif undefined_dst:
+            helper += "_pred_undef"
+        else:
+            helper += "_pred"
+    else:
+        assert not preserve_dst and not undefined_dst, "destination policy requires predication"
 
     params, inputs, outputs, rendered = [], [], [], []
     pre, post = [], []  # C-side carrier declarations / bit puns
@@ -300,7 +320,7 @@ def render_variant(
             elif slot.kind == "ptr":
                 params.append(f"const void* {lname}")
                 inputs.append(f'"l"({lname})')
-            elif slot.rw == "rw":
+            elif slot.rw == "rw" or (preserve_dst and slot.rw == "w"):
                 # A register the instruction both reads and writes -- an
                 # in-place accumulator. "+" tells the compiler the prior value
                 # is live, which "=" would declare dead; it is also what makes
@@ -311,7 +331,7 @@ def render_variant(
                     # which has no coherent read-modify-write story; the dtypes
                     # that need one are refused rather than half-supported.
                     raise ValueError(
-                        f"{entry.name}: accumulator '{slot.name}' cannot take dtype "
+                        f"{entry.name}: read-write destination '{slot.name}' cannot take dtype "
                         f"{dtype_of[slot]} (it binds through a carrier)"
                     )
                 params.append(f"{cb.c_type}& {lname}")
@@ -347,7 +367,7 @@ def render_variant(
                 reg = template.format(slot=slot.name, n=bridge_counts[template])
                 bridge_counts[template] += 1
                 bridge_decls.append(f".reg {bridge.reg_class} {reg};")
-                if slot.rw in ("r", "rw"):
+                if slot.rw in ("r", "rw") or (preserve_dst and slot.rw == "w"):
                     asm_pre.append(bridge.into.format(reg=reg, idx=idx))
                 if slot.rw in ("w", "rw"):
                     asm_post.append(bridge.out_of.format(reg=reg, idx=idx))

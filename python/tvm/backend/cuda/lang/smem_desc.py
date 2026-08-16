@@ -43,13 +43,14 @@ class SmemDescriptor:
 
     def make_lo_uniform(self):
         """Broadcast the lower 32 bits to all warp lanes via ``__shfl_sync``."""
-        func_name = "smem_desc_make_lo_uniform"
-        source_code = f"""
-__forceinline__ __device__ void {func_name}(uint64_t* desc) {{
-    SmemDescriptor* d = reinterpret_cast<SmemDescriptor*>(desc);
-    d->lo = __shfl_sync(0xffffffff, d->lo, 0);
-}}
-"""
-        return T.cuda.func_call(
-            func_name, T.address_of(self._buf[0]), source_code=source_code, return_type="void"
+        desc_lo = T.alloc_local([1], "uint32")
+        desc_hi = T.alloc_local([1], "uint32")
+        T.ptx.mov.b64(desc_lo[0], desc_hi[0], self._buf[0])
+        T.ptx.shfl_sync.idx.b32(
+            desc_lo[0],
+            desc_lo[0],
+            T.uint32(0),
+            T.uint32(0x1F),
+            T.uint32(0xFFFFFFFF),
         )
+        T.ptx.mov.b64(self._buf[0], desc_lo[0], desc_hi[0])
