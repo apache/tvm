@@ -815,6 +815,47 @@ def test_multi_input_broadcasting():
             )
 
 
+@pytest.mark.parametrize(
+    "op_name, dtype, shapes, values",
+    [
+        # Two rank-1 constants, the shape reported in apache/tvm#20117.
+        ("Min", TensorProto.FLOAT, [[2], [2]], [[1.0, 2.0], [3.0, 4.0]]),
+        ("Max", TensorProto.FLOAT, [[2], [2]], [[1.0, 2.0], [3.0, 4.0]]),
+        ("Sum", TensorProto.FLOAT, [[2], [2]], [[1.0, 2.0], [3.0, 4.0]]),
+        ("Mean", TensorProto.FLOAT, [[2], [2]], [[1.0, 2.0], [3.0, 4.0]]),
+        # Sum and Mean accept only floating point operands in ONNX, so the
+        # integer cases cover Min and Max. A rank-0 operand holding a valid
+        # axis index is the input that returned a wrong answer rather than
+        # raising, so it needs 0 or 1 here and not an out-of-range value.
+        ("Min", TensorProto.INT64, [[3, 2], []], [[1, 2, 3, 4, 5, 6], [0]]),
+        ("Max", TensorProto.INT64, [[3, 2], []], [[1, 2, 3, 4, 5, 6], [1]]),
+    ],
+)
+def test_multi_input_all_constant_inputs(op_name, dtype, shapes, values):
+    """Folding constant operands must match the broadcast + stack + reduce path."""
+    nodes, names = [], []
+    for i, (shape, value) in enumerate(zip(shapes, values)):
+        nodes.append(
+            helper.make_node(
+                "Constant",
+                inputs=[],
+                outputs=[f"c{i}"],
+                value=helper.make_tensor(f"c{i}_v", dtype, shape, value),
+            )
+        )
+        names.append(f"c{i}")
+
+    nodes.append(helper.make_node(op_name, names, ["output"]))
+    output_shape = list(np.broadcast_shapes(*[tuple(shape) for shape in shapes]))
+    graph = helper.make_graph(
+        nodes,
+        f"all_constant_{op_name}",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("output", dtype, output_shape)],
+    )
+    check_correctness(helper.make_model(graph), opset=13)
+
+
 @pytest.mark.parametrize("op_name", ["And", "Or", "Xor"])
 def test_binary_bool(op_name: str):
     verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.BOOL)
