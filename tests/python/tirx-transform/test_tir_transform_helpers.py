@@ -284,6 +284,61 @@ def test_bind_target_with_device_host_call_same_func():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+def test_bind_target_with_tirx_device_entry():
+    """BindTarget classifies calls after T.device_entry as device-side."""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def add(a: T.int32, b: T.int32) -> T.int32:
+            return a + b
+
+        @T.prim_func
+        def main(A: T.Buffer((1,), "int32")):
+            T.func_attr({"global_symbol": "main"})
+            host_value: T.let[T.int32] = Before.add(1, 2)
+            T.device_entry()
+            tx = T.thread_id([1])
+            A[tx] = Before.add(host_value, 3)
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def add(a: T.int32, b: T.int32) -> T.int32:
+            T.func_attr({"target": T.target({"arch": "sm_100a", "kind": "cuda"})})
+            return a + b
+
+        @T.prim_func(private=True)
+        def add_host(a: T.int32, b: T.int32) -> T.int32:
+            T.func_attr({"target": T.target({"kind": "llvm", "opt-level": 0})})
+            return a + b
+
+        @T.prim_func
+        def main(A: T.Buffer((1,), "int32")):
+            T.func_attr(
+                {
+                    "global_symbol": "main",
+                    "target": T.target(
+                        {
+                            "arch": "sm_100a",
+                            "host": {"kind": "llvm", "opt-level": 0},
+                            "kind": "cuda",
+                        }
+                    ),
+                }
+            )
+            host_value: T.let[T.int32] = Expected.add_host(1, 2)
+            T.device_entry()
+            tx = T.thread_id([1])
+            A[tx] = Expected.add(host_value, 3)
+
+    target = tvm.target.Target(
+        {"kind": "cuda", "arch": "sm_100a"}, host={"kind": "llvm", "opt-level": 0}
+    )
+    After = tvm.tirx.transform.BindTarget(target)(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
 def test_filter_primfunc():
     mod = MockModule
     assert mod

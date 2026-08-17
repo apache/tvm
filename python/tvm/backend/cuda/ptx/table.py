@@ -420,13 +420,12 @@ class InstructionEntry:
     def has_dst(self) -> bool:
         """Whether the instruction writes a destination operand.
 
-        Gates ``@p``: a false predicate leaves destinations unwritten, and the
-        ``"="`` output constraint tells nvcc the prior value is dead, so a
-        predicated destination silently loses it. An accumulator (``rw="rw"``)
-        binds "+" instead, which keeps the old value live -- so it does not
-        count here and @p remains available on it. A ``.pred`` result is a
-        ``rw="w"`` register like any other, written through "=" the same way,
-        so it counts without needing a case of its own.
+        A false predicate leaves destinations unwritten. The default ``"="``
+        output constraint means the inactive value is undefined to the caller;
+        ``preserve_dst=True`` explicitly requests a read-write binding instead.
+        An accumulator (``rw="rw"``) already binds "+", so it does not count
+        here. A ``.pred`` result is a ``rw="w"`` register like any other and
+        counts without needing a case of its own.
         """
         return any(s.kind == "reg" and s.rw == "w" for s in self.operands)
 
@@ -2479,6 +2478,19 @@ def _check_tcgen05_mma_block_scale(m):
     }[m["kind"]]
     if m["scale_vec"] not in valid:
         return f"{m['kind']} scales in {'/'.join(valid)}"
+    return None
+
+
+def _check_tcgen05_mma_block_scale_block(m):
+    """Valid block sizes per kind: mxf8f6f4/mxf4 use block32, while
+    mxf4nvf4 supports block16 and block32."""
+    valid = {
+        "kind::mxf8f6f4": ("block32",),
+        "kind::mxf4": ("block32",),
+        "kind::mxf4nvf4": ("block16", "block32"),
+    }[m["kind"]]
+    if m["block_size"] not in valid:
+        return f"{m['kind']} supports {'/'.join(valid)}"
     return None
 
 
@@ -7647,8 +7659,8 @@ _ENTRIES = [
     #   only differ by those qualifiers: no call sites.
     # - .ws without the zero-column-mask-desc operand: every caller passes
     #   the mask (as literal zero).
-    # - block_scale's .block16/.block32 vector sizes and its
-    #   scale_vec-omitted spelling: the library always writes .scale_vec::NX.
+    # - block_scale's scale_vec-omitted spelling without a .block16/.block32
+    #   size: no call site uses that form.
     *[
         InstructionEntry(
             name=f"tcgen05_mma_{form}",
@@ -7691,6 +7703,35 @@ _ENTRIES = [
             ),
             cert_arch="sm_100a",
             check=_check_tcgen05_mma_block_scale,
+            operands=(
+                OperandSlot("d_tmem", kind="addr", space="tmem"),
+                *(
+                    (OperandSlot("a_desc", dtype="u64"),)
+                    if form == "ss"
+                    else (OperandSlot("a_tmem", kind="addr", space="tmem"),)
+                ),
+                OperandSlot("b_desc", dtype="u64"),
+                OperandSlot("idesc", dtype="u32"),
+                OperandSlot("sfa_tmem", kind="addr", space="tmem"),
+                OperandSlot("sfb_tmem", kind="addr", space="tmem"),
+                OperandSlot("enable_input_d", dtype="pred"),
+            ),
+        )
+        for form in ("ss", "ts")
+    ],
+    *[
+        InstructionEntry(  # block-scaled with an explicit scale block size
+            name=f"tcgen05_mma_block_scale_block_{form}",
+            mnemonic="tcgen05",
+            slots=(
+                ModifierSlot("action", ("mma",)),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
+                ModifierSlot("kind", ("kind::mxf8f6f4", "kind::mxf4", "kind::mxf4nvf4")),
+                ModifierSlot("block_scale", ("block_scale",)),
+                ModifierSlot("block_size", ("block16", "block32")),
+            ),
+            cert_arch="sm_100a",
+            check=_check_tcgen05_mma_block_scale_block,
             operands=(
                 OperandSlot("d_tmem", kind="addr", space="tmem"),
                 *(
