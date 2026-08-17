@@ -201,6 +201,49 @@ def test_ptx_predication_codegen():
     assert "setp.ne.b32 p, %2, 0; @p red.relaxed.gpu.global.add.u32 [%0], %1;" in src
 
 
+@requires_nvcc
+def test_ptx_predicated_destination_preserves_old_value():
+    @T.prim_func
+    def kernel(a_ptr: T.handle, out_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (1,), "float32")
+        Out = T.match_buffer(out_ptr, (32,), "float32")
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([32])
+        value: T.float32 = T.float32(0)
+        pred: T.uint32 = T.cast(tx == 0, "uint32")
+        T.ptx.ld.global_.f32(value, A.ptr_to([0]), pred=pred, preserve_dst=True)
+        T.ptx.ex2.approx.ftz.f32(value, value, pred=pred, preserve_dst=True)
+        Out[tx] = value
+
+    src = _cuda_source(kernel)
+    assert "tvm_builtin_ptx_ld_global_f32_pred_keep" in src
+    assert "tvm_builtin_ptx_ex2_approx_ftz_f32_pred_keep" in src
+    assert '"+f"(__d)' in src
+    _assert_ptxas_ok(src)
+
+
+@requires_nvcc
+def test_ptx_predicated_destination_is_undefined_by_default():
+    @T.prim_func
+    def kernel(a_ptr: T.handle, out_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (1,), "float32")
+        Out = T.match_buffer(out_ptr, (32,), "float32")
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([32])
+        value = T.local_scalar("float32")
+        pred: T.uint32 = T.cast(tx == 0, "uint32")
+        T.ptx.ld.global_.f32(value, A.ptr_to([0]), pred=pred)
+        Out[tx] = T.if_then_else(pred != 0, value, T.float32(0))
+
+    src = _cuda_source(kernel)
+    assert "tvm_builtin_ptx_ld_global_f32_pred_undef" in src
+    assert '"=f"(__d)' in src
+    assert '"+f"(__d)' not in src
+    _assert_ptxas_ok(src)
+
+
 def test_ptx_string_form_matches_chain():
     chain_call = T.ptx.ld.global_.acquire.gpu.b32
     string_call = T.ptx["ld.acquire.gpu.global.b32"]
@@ -307,15 +350,6 @@ def test_ptx_destination_errors():
             A = T.match_buffer(a_ptr, (1,), "uint32")
             T.device_entry()
             T.ptx.ld.global_.b32(T.uint32(0), A.ptr_to([0]))
-
-    # @p is rejected on any instruction that writes a destination.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="without a destination"):
-
-        @T.prim_func
-        def predicated_destination(out: T.Buffer((1,), "uint32"), a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
-            T.device_entry()
-            T.ptx.ld.global_.b32(out[0], A.ptr_to([0]), pred=T.uint32(1))
 
 
 def test_ptx_register_group_codegen():
@@ -1377,6 +1411,42 @@ def test_ptx_pred_operand_roundtrip():
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
+@requires_nvcc
+def test_ptx_tcgen05_mma_block_size_form():
+    @T.prim_func
+    def kernel(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (32,), "uint32")
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([32])
+        if tx == 0:
+            tmem = T.local_scalar("uint32")
+            desc = T.local_scalar("uint64")
+            idesc = T.local_scalar("uint32")
+            flag = T.local_scalar("uint32")
+            T.ptx["tcgen05.mma.cta_group::1.kind::mxf4.block_scale.block32"](
+                tmem, desc, desc, idesc, tmem, tmem, T.ptx.pred(flag)
+            )
+        A[tx] = A[tx]
+
+    src = _cuda_source(kernel)
+    assert "tcgen05.mma.cta_group::1.kind::mxf4.block_scale.block32" in src
+    _assert_ptxas_ok(src, arch="sm_100a")
+
+    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="mxf4.*block32"):
+
+        @T.prim_func
+        def invalid_mxf4_block16():
+            T.device_entry()
+            tmem = T.local_scalar("uint32")
+            desc = T.local_scalar("uint64")
+            idesc = T.local_scalar("uint32")
+            flag = T.local_scalar("uint32")
+            T.ptx["tcgen05.mma.cta_group::1.kind::mxf4.block_scale.block16"](
+                tmem, desc, desc, idesc, tmem, tmem, T.ptx.pred(flag)
+            )
+
+
 def test_ptx_pred_operand_rejects_untagged_integer():
     """An untagged integer at a `.pred` position is refused, by name.
 
@@ -2007,11 +2077,15 @@ def test_ptx_coercion_ir_forms():
     call = T.ptx.st.release.gpu.global_.b32(global_ptr, val, pred=flag)
     assert call.args[2].same_as(flag)
     assert len(call.args) == 2 + 1 + 8 + 1  # operands + pred + slot tokens + marker
-    # @p on an instruction with a destination is rejected: a false predicate
-    # leaves it unwritten while "=" tells nvcc its prior value is dead.
-    dst = tvm.tirx.Var("d", "uint32")
-    with pytest.raises(ValueError, match="without a destination"):
-        T.ptx.ld.global_.b32(dst, global_ptr, pred=flag)
+    out = tvm.tirx.decl_buffer((1,), "uint32", name="out", scope="local")
+    call = T.ptx.ld.global_.b32(out[0], global_ptr, pred=flag)
+    assert str(call.args[-1]).strip('"') == "pred"
+    call = T.ptx.ld.global_.b32(out[0], global_ptr, pred=flag, preserve_dst=True)
+    assert str(call.args[-1]).strip('"') == "pred,keep"
+    with pytest.raises(ValueError, match="requires pred"):
+        T.ptx.ld.global_.b32(out[0], global_ptr, preserve_dst=True)
+    with pytest.raises(ValueError, match="requires a written destination"):
+        T.ptx.st.release.gpu.global_.b32(global_ptr, val, pred=flag, preserve_dst=True)
 
 
 # fp16/bf16 dtypes bring in __half / __nv_bfloat16 and their bit-cast helpers.
@@ -2201,7 +2275,7 @@ def test_ptx_all_variants_render_unique():
                     or f"; {opcode};" in source
                 )
             total += not predicated  # a @p twin is not a separate variant
-    assert total == 200002  # update when the table grows
+    assert total == 200018  # update when the table grows
 
 
 def test_ptx_no_instruction_registered_twice():

@@ -3057,10 +3057,9 @@ def test_gemm_smem_desc_modes_codegen(smem_desc):
     base address, selected by the ``smem_desc`` config.
 
     - ``hoist`` (default): allocate + encode one descriptor per operand
-      (``descA`` / ``descB``), then add the per-MMA 16B offset via
-      ``smem_desc_add_16B_offset``.  This builder uses a single-thread scope,
-      where the encoding thread is also the consumer and no warp shuffle is
-      valid or needed.
+      (``descA`` / ``descB``), then update the descriptor address lane for each
+      MMA.  This builder uses a single-thread scope, where the encoding thread
+      is also the consumer and no warp shuffle is valid or needed.
     - ``recompute``: build the full descriptor inline per MMA (``_uniform_desc``)
       with no allocated/encoded descriptor cell — trades a few ALU ops for one
       fewer live register on the hot path.
@@ -3084,18 +3083,12 @@ def test_gemm_smem_desc_modes_codegen(smem_desc):
 
     if smem_desc == "hoist":
         assert "encode_matrix_descriptor" in src, "hoist mode must encode a descriptor"
-        assert "smem_desc_make_lo_uniform" not in src, "hoist mode must not warp-shuffle"
-        assert "smem_desc_add_16B_offset" in src, "hoist mode must add the per-MMA 16B offset"
     elif smem_desc == "local_hoist":
         assert "descA_local" in src and "descB_local" in src
-        assert "smem_desc_add_16B_offset" in src
         assert "encode_matrix_descriptor" in src
     elif smem_desc == "encode":
         assert "encode_matrix_descriptor" in src
-        assert "smem_desc_add_16B_offset" not in src
     else:
-        assert "smem_desc_make_lo_uniform" not in src, "recompute mode must not hoist a descriptor"
-        assert "smem_desc_add_16B_offset" not in src, "recompute mode must not add a 16B offset"
         assert "encode_matrix_descriptor" not in src, "recompute mode must not encode a descriptor"
 
 
@@ -3736,10 +3729,10 @@ def test_gemm_tcgen05_hoisted_descriptor_uniformization(scope_kind, expect_unifo
 
     callback_text = str(sctx.callbacks["post_buffer_def_stmt"])
     assert "encode_matrix_descriptor" in callback_text
-    assert ("smem_desc_make_lo_uniform" in callback_text) == expect_uniform
+    assert ("T.ptx.shfl_sync" in callback_text) == expect_uniform
     assert ("elect_sync" in impl.script()) == expect_uniform
     if expect_uniform:
-        assert callback_text.index("smem_desc_make_lo_uniform") < callback_text.index(
+        assert callback_text.index("T.ptx.shfl_sync") < callback_text.index(
             "tvm_kernel_replace_point"
         )
 
