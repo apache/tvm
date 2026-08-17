@@ -1658,7 +1658,10 @@ def test_add():
                 R.dtype("uint8"),
             )
             storage1: R.Any = R.memory.alloc_storage(
-                R.shape([128 * vocab_size]), R.prim_value(0), R.str("global"), R.dtype("float32")
+                R.shape([32 * vocab_size * 4]),
+                R.prim_value(0),
+                R.str("global"),
+                R.dtype("float32"),
             )
             alloc1: R.Tensor((batch_size, vocab_size), dtype="float32") = R.memory.alloc_tensor(
                 storage1, R.prim_value(0), R.shape([batch_size, vocab_size]), R.dtype("float32")
