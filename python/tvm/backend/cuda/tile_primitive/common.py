@@ -55,24 +55,22 @@ def get_indices(nth, start, extent):
     return [r + s for r, s in zip(reversed(relative), start)]
 
 
+def smem_desc_replace_lo(desc_val, desc_lo):
+    """Replace the lower address lane of a 64-bit SMEM descriptor."""
+    desc_halves = T.reinterpret("uint32x2", desc_val)
+    desc_hi = T.Shuffle([desc_halves], [1])
+    return T.reinterpret("uint64", T.Shuffle([T.cast(desc_lo, "uint32"), desc_hi], [0, 1]))
+
+
 def smem_desc_add_16B_offset(desc_val, offset):
     """Add a 16B-aligned byte offset to the lower 32 bits of a SMEM descriptor.
 
-    Uses the SmemDescriptor union defined in the CUDA header (header.py).
-    All callers must share a single implementation to avoid codegen conflicts.
+    The address lane wraps as uint32 without carrying into the descriptor's
+    upper control bits.
     """
-    func_name = "tvm_builtin_smem_desc_add_16B_offset"
-    source_code = f"""
-__forceinline__ __device__ uint64_t {func_name}(uint64_t desc_base, int32_t offset) {{
-    SmemDescriptor desc;
-    desc.desc_ = desc_base;
-    desc.lo += static_cast<uint32_t>(offset);
-    return desc.desc_;
-}}
-"""
-    return T.cuda.func_call(
-        func_name, desc_val, offset, source_code=source_code, return_type="uint64"
-    )
+    desc_halves = T.reinterpret("uint32x2", desc_val)
+    desc_lo = T.Shuffle([desc_halves], [0]) + T.cast(offset, "uint32")
+    return smem_desc_replace_lo(desc_val, desc_lo)
 
 
 class CopyInstType(Enum):
