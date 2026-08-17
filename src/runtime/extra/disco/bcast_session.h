@@ -84,17 +84,41 @@ class BcastSessionObj : public SessionObj {
    */
   virtual ffi::PackedArgs RecvReplyPacked(int worker_id) = 0;
 
+  /*!
+   * \brief Atomically swap W_0's ring_in channel. SocketSession uses this
+   *        to redirect cross-node ring inbound through a proxy pipe.
+   *        Default no-op; ProcessSession overrides.
+   * \param new_ch New channel to install; ownership taken.
+   * \return Previously installed channel; ownership returned to caller.
+   */
+  virtual std::unique_ptr<DiscoRingChannel> RerouteRingIn(
+      std::unique_ptr<DiscoRingChannel> new_ch) {
+    return nullptr;
+  }
+
+  /*!
+   * \brief Close worker-0's ring channels now, instead of waiting for the object destructor.
+   *        SocketSession calls this on its local session during Shutdown, before joining its proxy
+   *        threads: the send proxy reads the ring pipe whose write end is worker-0's ring_out. With
+   *        a single worker per node that write end lives in-process and is only released at
+   *        destruction, so without closing it here the proxy-thread join deadlocks. Default no-op;
+   *        ProcessSession overrides.
+   */
+  virtual void CloseRing() {}
+
   /*! \brief A side channel to communicate with worker-0 */
   WorkerZeroData worker_zero_data_;
   /*! \brief Number of registers used, including those in `free_regs_` */
   int reg_count_ = 1;
   /*! \brief The regsiter ids that have been deallocated */
   std::vector<int64_t> free_regs_;
+  bool shutdown_ = false;
 
   struct Internal;
   friend struct Internal;
   friend class SocketSessionObj;
   friend class RemoteSocketSession;
+  friend class RingProxyEndpoint;
 };
 
 /*!

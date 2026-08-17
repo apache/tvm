@@ -58,7 +58,9 @@ class DiscoWorker {
         default_device(Device{DLDeviceType::kDLCPU, 0}),
         worker_zero_data(worker_zero_data),
         channel(channel),
-        register_file{} {}
+        register_file{},
+        ring_in(nullptr),
+        ring_out(nullptr) {}
 
   /*! \brief Main loop of the worker */
   void MainLoop();
@@ -96,6 +98,9 @@ class DiscoWorker {
 
   struct Impl;
   friend struct DiscoWorker::Impl;
+  /*! \brief CPU communication ring endpoints assigned by the session during BuildRing(). */
+  DiscoRingChannel* ring_in;
+  DiscoRingChannel* ring_out;
 };
 /*!
  * \brief A threadlocal wrapper of DiscoWorker.

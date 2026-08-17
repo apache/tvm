@@ -46,7 +46,7 @@ tvm_option(USE_OPENCL "Build with OpenCL" OFF)
 tvm_option(USE_OPENCL_ENABLE_HOST_PTR "Enable OpenCL memory object access to host" OFF)
 tvm_option(USE_OPENCL_GTEST "Path to OpenCL specific gtest version for runtime cpp tests." /path/to/opencl/gtest)
 tvm_option(USE_VULKAN "Build with Vulkan" OFF)
-
+tvm_option(USE_CPU_CCL "Build with CPU CCL" OFF)
 
 # Whether to use spirv-tools and SPIRV-Headers from Khronos GitHub or GitLab.
 #
@@ -361,7 +361,7 @@ tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/vm/*.cc
   src/runtime/memory/*.cc
   src/runtime/rpc/minrpc/*.cc
-)
+  )
 # Note: src/runtime/extra/disco/** moves to libtvm_runtime_extra.
 # Note: src/backend/*/runtime sources move to per-backend DSOs.
 set(TVM_RUNTIME_EXT_OBJS "")
@@ -530,6 +530,15 @@ if(USE_ROCM AND USE_RCCL)
   add_library(tvm_rccl_objs OBJECT ${_rccl_srcs})
   target_link_libraries(tvm_rccl_objs PRIVATE tvm_runtime_extra_defs)
   target_link_libraries(tvm_runtime_extra PRIVATE tvm_rccl_objs rccl)
+endif()
+
+# CPUCCL.
+if(USE_CPU_CCL)
+  message(STATUS "Build with CPU CCL support...")
+  tvm_file_glob(GLOB _cpu_ccl_srcs src/runtime/extra/disco/cpuccl/*.cc)
+  add_library(tvm_cpu_ccl_objs OBJECT ${_cpu_ccl_srcs})
+  target_link_libraries(tvm_cpu_ccl_objs PRIVATE tvm_runtime_extra_defs)
+  target_link_libraries(tvm_runtime_extra PRIVATE tvm_cpu_ccl_objs)
 endif()
 
 target_link_libraries(tvm_runtime_extra PUBLIC tvm_runtime)

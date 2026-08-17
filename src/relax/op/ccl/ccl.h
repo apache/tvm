@@ -44,6 +44,9 @@ Expr broadcast_from_worker0(Expr data);
 /*! \brief Perform a scatter operation from worker-0, chunking the given buffer into equal parts. */
 Expr scatter_from_worker0(Expr data, int num_workers, int axis);
 
+/*! \brief Gather data from all workers to worker-0. */
+Expr gather_to_worker0(Expr data, int num_workers, bool in_group);
+
 }  // namespace relax
 }  // namespace tvm
 

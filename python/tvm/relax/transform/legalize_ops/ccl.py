@@ -123,3 +123,26 @@ def _scatter_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
             vdevice=call.args[0].ty.vdevice,
         ),
     )
+
+
+@register_legalize("relax.ccl.gather_to_worker0")
+def _gather_to_worker0(_bb: BlockBuilder, call: Call) -> Expr:
+    output_shape = []
+    arg_ty = call.args[0].ty
+    assert isinstance(arg_ty, TensorType), "The input of gather_to_worker0 should be TensorType."
+    assert isinstance(arg_ty.shape.ty, ShapeType)
+    arg_shape = arg_ty.shape.ty
+    for i, shape_value in enumerate(arg_shape.values):
+        if i == 0:
+            output_shape.append(shape_value * call.attrs.num_workers)
+        else:
+            output_shape.append(shape_value)
+    return call_dps_packed(
+        "runtime.disco.gather_to_worker0",
+        [call.args[0], call.attrs.in_group],
+        out_ty=TensorType(
+            shape=output_shape,
+            dtype=arg_ty.dtype,
+            vdevice=arg_ty.vdevice,
+        ),
+    )

@@ -143,5 +143,28 @@ def test_scatter_from_worker0():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_gather_to_worker0():
+    # fmt: off
+    @tvm.script.ir_module
+    class GatherToWorker0:
+        @R.function
+        def main(x: R.Tensor((10, 10), "float32"))  -> R.Tensor((10, 10), "float32"):
+            gv0: R.Tensor((20, 10), "float32") = R.ccl.gather_to_worker0(x, 2)
+            gv1 = R.ccl.gather_to_worker0(x, 2)
+            return x
+
+    @I.ir_module(s_tir=True)
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
+            gv0: R.Tensor((20, 10), dtype="float32") = R.call_dps_packed("runtime.disco.gather_to_worker0", [x, True], out_ty=R.Tensor((20, 10), dtype="float32"))
+            gv1: R.Tensor((20, 10), dtype="float32") = R.call_dps_packed("runtime.disco.gather_to_worker0", [x, True], out_ty=R.Tensor((20, 10), dtype="float32"))
+            return x
+    # fmt: on
+
+    mod = LegalizeOps()(GatherToWorker0)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
