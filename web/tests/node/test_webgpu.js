@@ -110,6 +110,7 @@ function createMockDevice({
 function createContext(deviceOptions) {
   const gpu = createMockDevice(deviceOptions);
   const memory = {
+    loadRawBytes: jest.fn(),
     storeRawBytes: jest.fn(),
   };
   const context = new WebGPUContext(memory, gpu.device);
@@ -173,6 +174,43 @@ test("a host write flushes pending GPU copies before writeBuffer", () => {
   expect(queue.submit).toHaveBeenCalledTimes(1);
   expect(queue.writeBuffer).toHaveBeenCalledTimes(1);
   expect(events).toEqual(["copy", "finish", "submit", "writeBuffer"]);
+});
+
+test("an aligned CPU to GPU copy writes the requested bytes", () => {
+  const { context, device, queue, memory, destination } = createContext();
+  const copyToGPU = context.getDeviceAPI("deviceCopyToGPU");
+  const rawBytes = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
+  memory.loadRawBytes.mockReturnValue(rawBytes);
+
+  copyToGPU(128, destination, 12, rawBytes.length);
+
+  expect(memory.loadRawBytes).toHaveBeenCalledWith(128, rawBytes.length);
+  expect(queue.writeBuffer).toHaveBeenCalledWith(
+    device.createBuffer.mock.results[1].value,
+    12,
+    rawBytes,
+    0,
+    rawBytes.length
+  );
+});
+
+test("an unaligned CPU to GPU copy pads the write to four bytes", () => {
+  const { context, device, queue, memory, destination } = createContext();
+  const copyToGPU = context.getDeviceAPI("deviceCopyToGPU");
+  const rawBytes = new Uint8Array([1, 2, 3]);
+  memory.loadRawBytes.mockReturnValue(rawBytes);
+
+  copyToGPU(256, destination, 4, rawBytes.length);
+
+  expect(memory.loadRawBytes).toHaveBeenCalledWith(256, rawBytes.length);
+  expect(queue.writeBuffer).toHaveBeenCalledTimes(1);
+  const [buffer, toOffset, data, dataOffset, nbytes] =
+    queue.writeBuffer.mock.calls[0];
+  expect(buffer).toBe(device.createBuffer.mock.results[1].value);
+  expect(toOffset).toBe(4);
+  expect(Array.from(data)).toEqual([1, 2, 3, 0]);
+  expect(dataOffset).toBe(0);
+  expect(nbytes).toBe(4);
 });
 
 test("a GPU readback flushes pending copies before its own submission", async () => {
