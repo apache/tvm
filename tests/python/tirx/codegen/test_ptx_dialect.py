@@ -201,6 +201,7 @@ def test_ptx_predication_codegen():
     assert "setp.ne.b32 p, %2, 0; @p red.relaxed.gpu.global.add.u32 [%0], %1;" in src
 
 
+@requires_nvcc
 def test_ptx_predicated_destination_preserves_old_value():
     @T.prim_func
     def kernel(a_ptr: T.handle, out_ptr: T.handle):
@@ -222,6 +223,7 @@ def test_ptx_predicated_destination_preserves_old_value():
     _assert_ptxas_ok(src)
 
 
+@requires_nvcc
 def test_ptx_predicated_destination_is_undefined_by_default():
     @T.prim_func
     def kernel(a_ptr: T.handle, out_ptr: T.handle):

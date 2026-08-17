@@ -78,7 +78,8 @@ def _chain_class(family: str, entries: list[InstructionEntry]) -> str:
         f"{s.name}∈{{{','.join(s.choices)}}}{' (opt)' if s.optional else ''}" for s in entry.slots
     )
     if entry.check is not None and entry.check.__doc__:
-        doc = f"{doc} — {entry.check.__doc__.strip()}" if doc else entry.check.__doc__.strip()
+        check_doc = " ".join(entry.check.__doc__.split())
+        doc = f"{doc} — {check_doc}" if doc else check_doc
     if len(entries) > 1:
         shapes = dict.fromkeys(
             "(" + ", ".join(_operand_params(e)).replace(": Any", "") + ")" for e in entries

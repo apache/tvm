@@ -852,7 +852,7 @@ class _Chain_mad:
 
 class _Chain_mad24:
     """`mad24` — mode∈{hi,lo}; sat∈{sat} (opt); type∈{u32,s32} — `.sat` on the multiply-add
-    lines: `.hi` mode, `.s32` type, nothing else.  Both lines spell it as a syntax line of
+    lines: `.hi` mode, `.s32` type, nothing else. Both lines spell it as a syntax line of
     its own -- `mad.hi.sat.s32 d, a, b, c;` (ISA 9.7.1.4) and `mad24.hi.sat.s32 d, a, b, c;`
     (9.7.1.7) -- with the Notes repeating "Applies only to .s32 type in .hi mode".
     """
@@ -1305,13 +1305,13 @@ class _Chain_prmt:
 
 class _Chain_rcp:
     """`rcp` — mode∈{approx,rn,rz,rm,rp}; ftz∈{ftz} (opt); type∈{f32,f64} — rcp's four syntax
-    lines, across two ISA subsections.      rcp.approx{.ftz}.f32  d, a;   rcp.rnd{.ftz}.f32
-    d, a;   (9.7.3.13)     rcp.rnd.f64           d, a;     rcp.approx.ftz.f64    d, a;
-    (9.7.3.14)  The ISA gives the last one a subsection of its own because it is a different
-    *computation* -- a gross approximation off the top 20 mantissa bits, with its own
-    corner-case table -- but its syntax is one more cell of this grid, and the shape (`d,
-    a`) is unchanged. So it lives here, with the mandatory `.ftz` of its syntax line
-    enforced below rather than by a second entry that would render identically.
+    lines, across two ISA subsections. rcp.approx{.ftz}.f32 d, a; rcp.rnd{.ftz}.f32 d, a;
+    (9.7.3.13) rcp.rnd.f64 d, a; rcp.approx.ftz.f64 d, a; (9.7.3.14) The ISA gives the last
+    one a subsection of its own because it is a different *computation* -- a gross
+    approximation off the top 20 mantissa bits, with its own corner-case table -- but its
+    syntax is one more cell of this grid, and the shape (`d, a`) is unchanged. So it lives
+    here, with the mandatory `.ftz` of its syntax line enforced below rather than by a
+    second entry that would render identically.
     """
 
     approx: _Chain_rcp
@@ -1684,9 +1684,9 @@ class _Chain_sin:
 class _Chain_slct:
     """`slct` — ftz∈{ftz} (opt); dtype∈{b16,b32,b64,u16,u32,u64,s16,s32,s64,f32,f64};
     ctype∈{s32,f32} — slct's two lines (ISA 9.7.6.4), which differ only in the selector
-    type.      slct.dtype.s32        d, a, b, c;     slct{.ftz}.dtype.f32  d, a, b, c;
-    `.ftz` is spelled on the .f32 selector line alone -- there is nothing to flush when the
-    sign being tested is an integer's.
+    type. slct.dtype.s32 d, a, b, c; slct{.ftz}.dtype.f32 d, a, b, c; `.ftz` is spelled on
+    the .f32 selector line alone -- there is nothing to flush when the sign being tested is
+    an integer's.
     """
 
     b16: _Chain_slct
@@ -1714,9 +1714,9 @@ class _Chain_slct:
 
 class _Chain_sqrt:
     """`sqrt` — mode∈{approx,rn,rz,rm,rp}; ftz∈{ftz} (opt); type∈{f32,f64} — sqrt's three lines
-    (PTX ISA 9.7.3.15).      sqrt.approx{.ftz}.f32  d, a;   sqrt.rnd{.ftz}.f32  d, a;
-    sqrt.rnd.f64           d, a;  Unlike rcp, there is no f64 approximation at any spelling
-    -- 9.7.3.15 is the whole of sqrt, and it offers `.approx` on the .f32 line only.
+    (PTX ISA 9.7.3.15). sqrt.approx{.ftz}.f32 d, a; sqrt.rnd{.ftz}.f32 d, a; sqrt.rnd.f64 d,
+    a; Unlike rcp, there is no f64 approximation at any spelling -- 9.7.3.15 is the whole of
+    sqrt, and it offers `.approx` on the .f32 line only.
     """
 
     approx: _Chain_sqrt
