@@ -687,6 +687,93 @@ def test_div_integer_primexpr_folding_truncates_toward_zero(input_size, divisor_
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+def _make_symbolic_dim_binary_graph(op_nodes, out_dtype):
+    """Build a graph whose binary operands are shape-derived symbolic scalars.
+
+    The input has two dynamic dims ("a", "b"); `d0` and `d1` are the two dims
+    gathered out of its Shape, so they reach binary converters as symbolic
+    PrimExprs rather than constants.
+    """
+    nodes = [
+        helper.make_node("Shape", ["x"], ["x_shape"]),
+        make_constant_node("i0", TensorProto.INT64, [], [0]),
+        make_constant_node("i1", TensorProto.INT64, [], [1]),
+        helper.make_node("Gather", ["x_shape", "i0"], ["d0"]),
+        helper.make_node("Gather", ["x_shape", "i1"], ["d1"]),
+    ]
+    nodes.extend(op_nodes)
+    graph = helper.make_graph(
+        nodes,
+        "binary_symbolic_scalar",
+        [helper.make_tensor_value_info("x", TensorProto.FLOAT, ["a", "b"])],
+        [helper.make_tensor_value_info("out", out_dtype, [])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
+    model.ir_version = 9
+    return model
+
+
+@pytest.mark.parametrize(
+    ("op_name", "out_dtype"),
+    [
+        ("Add", TensorProto.INT64),
+        ("Sub", TensorProto.INT64),
+        ("Mul", TensorProto.INT64),
+        ("Div", TensorProto.INT64),
+        ("Mod", TensorProto.INT64),
+        ("Less", TensorProto.BOOL),
+        ("LessOrEqual", TensorProto.BOOL),
+        ("Greater", TensorProto.BOOL),
+        ("GreaterOrEqual", TensorProto.BOOL),
+    ],
+)
+def test_binary_op_on_symbolic_shape_scalars(op_name, out_dtype):
+    """Binary ops on two shape-derived symbolic dims must fold into a scalar
+    PrimValue instead of dispatching symbolic PrimExprs through numpy.
+
+    Regression test for https://github.com/apache/tvm/issues/20065.
+    """
+    op_node = helper.make_node(op_name, ["d0", "d1"], ["out"])
+    model = _make_symbolic_dim_binary_graph([op_node], out_dtype)
+    check_correctness(model, inputs={"x": np.random.randn(7, 3).astype("float32")}, opset=18)
+
+
+def test_binary_op_chain_on_symbolic_shape_scalars():
+    """Chained shape arithmetic: intermediate operands are symbolic PrimExprs
+    that are not plain shape vars, mixed with scalar constants."""
+    op_nodes = [
+        make_constant_node("c2", TensorProto.INT64, [], [2]),
+        helper.make_node("Sub", ["d0", "d1"], ["t1"]),
+        helper.make_node("Mul", ["t1", "c2"], ["t2"]),
+        helper.make_node("Add", ["t2", "d0"], ["out"]),
+    ]
+    model = _make_symbolic_dim_binary_graph(op_nodes, TensorProto.INT64)
+    check_correctness(model, inputs={"x": np.random.randn(7, 3).astype("float32")}, opset=18)
+
+
+def test_logical_ops_on_symbolic_shape_scalars():
+    """Logical And/Or/Xor on comparisons of shape-derived symbolic dims."""
+    for logical_op in ["And", "Or", "Xor"]:
+        op_nodes = [
+            make_constant_node("c5", TensorProto.INT64, [], [5]),
+            helper.make_node("Less", ["d0", "d1"], ["t1"]),
+            helper.make_node("Greater", ["d0", "c5"], ["t2"]),
+            helper.make_node(logical_op, ["t1", "t2"], ["out"]),
+        ]
+        model = _make_symbolic_dim_binary_graph(op_nodes, TensorProto.BOOL)
+        check_correctness(model, inputs={"x": np.random.randn(7, 3).astype("float32")}, opset=18)
+
+
+def test_pow_on_symbolic_shape_scalars_imports():
+    """Pow on a symbolic dim must at least import without crashing."""
+    op_nodes = [
+        make_constant_node("c2", TensorProto.INT64, [], [2]),
+        helper.make_node("Pow", ["d0", "c2"], ["out"]),
+    ]
+    model = _make_symbolic_dim_binary_graph(op_nodes, TensorProto.INT64)
+    from_onnx(model, opset=18, keep_params_in_input=True)
+
+
 @pytest.mark.parametrize("int_mode", [True, False])
 def test_mod(int_mode: bool):
     if int_mode:
