@@ -17,7 +17,7 @@
 """The entry point of TVM parser."""
 
 import inspect
-from typing import Any
+from typing import Any, TypeVar
 
 import tvm
 
@@ -62,6 +62,7 @@ def _default_globals() -> dict[str, Any]:
         "Tx": _tirx_tile,
         "tirx": _tirx_dsl,
         "Axis": _tirx_layout.Axis,
+        "TypeVar": TypeVar,
     }
 
 

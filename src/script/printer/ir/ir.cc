@@ -64,9 +64,28 @@ struct SortableFunction {
   }
 };
 
+ffi::Optional<ffi::String> GetTypeVarDeclarationName(const StmtDoc& stmt) {
+  const auto* assign = stmt.as<AssignDocNode>();
+  if (assign == nullptr || !assign->rhs.has_value()) {
+    return std::nullopt;
+  }
+  const auto* lhs = assign->lhs.as<IdDocNode>();
+  const auto* call = assign->rhs.value().as<CallDocNode>();
+  if (lhs == nullptr || call == nullptr) {
+    return std::nullopt;
+  }
+  const auto* callee = call->callee.as<IdDocNode>();
+  if (callee == nullptr || callee->name != "TypeVar") {
+    return std::nullopt;
+  }
+  return lhs->name;
+}
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<IRModule>("", [](IRModule mod, AccessPath p, IRDocsifier d) -> Doc {
       std::vector<SortableFunction> functions;
+      ffi::Array<StmtDoc> type_var_decls;
+      std::unordered_set<ffi::String> declared_type_vars;
       for (const auto& kv : mod->functions) {
         functions.push_back(SortableFunction(kv));
       }
@@ -101,6 +120,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         Doc doc = d->AsDoc(base_func, p->Attr("functions")->MapItem(gv));
         d->cfg->binding_names.pop_back();
         if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
+          for (const StmtDoc& stmt : stmt_block->stmts) {
+            if (ffi::Optional<ffi::String> name = GetTypeVarDeclarationName(stmt)) {
+              if (!declared_type_vars.count(name.value())) {
+                declared_type_vars.insert(name.value());
+                type_var_decls.push_back(stmt);
+              }
+            }
+          }
           (*f)->stmts.push_back(stmt_block->stmts.back());
           (*f)->stmts.back()->source_paths = std::move(doc->source_paths);
         } else if (auto stmt = doc.as<StmtDoc>()) {
@@ -118,7 +145,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
               << " produced Doc type of " << doc->GetTypeKey();
         }
       }
-      return HeaderWrapper(d, ClassDoc(module_doc, {IR(d, "ir_module")}, (*f)->stmts));
+      ClassDoc class_doc(module_doc, {IR(d, "ir_module")}, (*f)->stmts);
+      if (type_var_decls.empty()) {
+        return HeaderWrapper(d, class_doc);
+      }
+      type_var_decls.push_back(class_doc);
+      return HeaderWrapper(d, StmtBlockDoc(type_var_decls));
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

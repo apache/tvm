@@ -70,7 +70,7 @@ jobs:
           from importlib.metadata import requires, version
 
           assert version("apache-tvm-ffi") == os.environ["TVM_FFI_VERSION"]
-          assert "apache-tvm-ffi>=0.1.13" in requires("apache-tvm")
+          assert "apache-tvm-ffi>=0.1.13.post2" in requires("apache-tvm")
           PY
 
       - name: Test

@@ -129,13 +129,10 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
  private:
   /// Visitor implementation
   void VisitExpr_(const CallNode* op) final {
-    static const Op& ptx_ldmatrix_op = Op::Get("tirx.ptx.ldmatrix");
     static const Op& mma_fill_op = Op::Get("tirx.mma_fill");
-    static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx.ldmatrix_legacy");
+    static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
     static const Op& mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
-    if (op->op.same_as(ptx_ldmatrix_op) && GetBufferVar(op->args[3]) == buffer_) {
-      UpdatePattern(op->args[4].as_or_throw<PrimExpr>());
-    } else if (op->op.same_as(mma_fill_op) && GetBufferVar(op->args[1]) == buffer_) {
+    if (op->op.same_as(mma_fill_op) && GetBufferVar(op->args[1]) == buffer_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
       warp_coeff_ = local_size->value;
@@ -315,22 +312,12 @@ class WarpAccessRewriter : protected StmtExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) override {
-    static const Op& ptx_mma_op = Op::Get("tirx.ptx.mma");
-    static const Op& ptx_ldmatrix_op = Op::Get("tirx.ptx.ldmatrix");
     static const Op& mma_store_op = Op::Get("tirx.mma_store");
     static const Op& mma_fill_op = Op::Get("tirx.mma_fill");
-    static const Op& ptx_mma_legacy_op = Op::Get("tirx.ptx.mma_legacy");
-    static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx.ldmatrix_legacy");
+    static const Op& ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
+    static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
     static const Op& mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
     static const Op& mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
-    if (op->op.same_as(ptx_mma_op)) {
-      return RewriteIndicesAt(op, {6, 8, 10});
-    }
-
-    if (op->op.same_as(ptx_ldmatrix_op)) {
-      return RewriteIndicesAt(op, {3});
-    }
-
     if (op->op.same_as(mma_store_op)) {
       return RewriteIndicesAt(op, {3});
     }

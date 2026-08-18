@@ -371,13 +371,15 @@ tensor as a view at a column offset, and one warp frees it at the end:
 
     addr = T.alloc_shared((1,), "uint32")             # slot for the allocated base
     if warp_id == alloc_warp:                         # tcgen05.alloc is warp-uniform
-        T.ptx.tcgen05.alloc(T.address_of(addr), n_cols=512, cta_group=cta_group)
+        T.ptx[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
+            T.address_of(addr), T.uint32(512))
     acc = T.decl_buffer((CTA_M, 512), "float32", scope="tmem",
                         allocated_addr=0, layout=tmem_layout)   # view at column 0
     # ... use acc as a gemm_async / copy_async operand ...
     if warp_id == alloc_warp:
-        T.ptx.tcgen05.relinquish_alloc_permit(cta_group=cta_group)
-        T.ptx.tcgen05.dealloc(addr, n_cols=512, cta_group=cta_group)
+        T.ptx[f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned"]()
+        T.ptx[f"tcgen05.dealloc.cta_group::{cta_group}.sync.aligned.b32"](
+            addr, T.uint32(512))
 
 You manage the column offsets and the ``tmem_layout`` (a datapath D/F/B layout)
 yourself. This is exactly the sequence the pool below emits.
@@ -424,7 +426,8 @@ or hand you a pointer — they emit no runtime op of their own. The common ones:
    * - ``B.view(*shape, layout=…)``
      - reinterpret the same storage under a new shape/layout (no copy)
    * - ``B.local(*shape, layout=…)``
-     - the calling thread's private register slice of a ``local`` buffer
+     - the calling thread's private register slice of a ``local`` buffer,
+       in physical storage order by default
    * - ``B.permute(*dims)``
      - a view with axes permuted (a transposed layout)
    * - ``B.access_ptr(mask, …)``
@@ -473,13 +476,23 @@ sees the 256-element buffer as ``64×4``; ``A.permute(1, 0)`` transposes the axe
     At_ptr[(j * 4) + i]                       // permute: swapped strides
 
 **Registers — ``local``.** Decomposes a thread-axis ``local`` layout into the
-calling thread's flat register bundle (used pervasively by the tile primitives):
+calling thread's register bundle (used pervasively by the tile primitives).
+Both forms expose the raw physical storage span by default, including layout
+gaps and offsets: ``R.local()`` infers a flat 1-D span, while
+``R.local(d0, d1, ...)`` is a row-major reshape whose product must equal that
+span.  Pass an explicit ``layout=`` only when storage-iterator coordinates are
+required.  This mediated form is an escape hatch: the supplied layout
+interprets the requested shape, so that shape is not constrained to the raw
+span.  Without ``layout=``, omitting the shape always infers a one-dimensional
+physical storage span.  Only the explicit-``layout=`` compatibility form with
+no shape infers a one-dimensional shape from the logical storage size:
 
 .. code-block:: python
 
     R  = T.alloc_buffer((32, 8), "float32", scope="local", layout=TileLayout(S[(32, 8) : (1 @ laneid, 1)]))
-    Rl = R.local(8)          # this lane's 8 registers
+    R_flat = R.local()       # this lane's 8 registers, physical order
+    R_2d = R.local(2, 4)     # the same registers, row-major 2x4 reshape
 
 .. code-block:: c++
 
-    alignas(64) float Rl_ptr[8];             // the lane's private registers
+    alignas(64) float R_flat_ptr[8];          // the lane's private registers

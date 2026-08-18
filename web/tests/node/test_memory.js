@@ -1,0 +1,66 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+const { CachedCallStack, Memory } = require("../../src/memory");
+
+test("loadRawBytes returns an owned copy", () => {
+  const wasmMemory = new WebAssembly.Memory({ initial: 1 });
+  const memory = new Memory(wasmMemory);
+  const source = new Uint8Array(wasmMemory.buffer, 8, 4);
+  source.set([1, 2, 3, 4]);
+
+  const result = memory.loadRawBytes(8, 4);
+
+  expect(Array.from(result)).toEqual([1, 2, 3, 4]);
+  expect(result.buffer).not.toBe(wasmMemory.buffer);
+
+  result[0] = 10;
+  source[1] = 20;
+  expect(Array.from(result)).toEqual([10, 2, 3, 4]);
+  expect(Array.from(source)).toEqual([1, 20, 3, 4]);
+});
+
+test("loadRawBytes preserves the requested length at the end of memory", () => {
+  const wasmMemory = new WebAssembly.Memory({ initial: 1 });
+  const memory = new Memory(wasmMemory);
+  const source = new Uint8Array(wasmMemory.buffer);
+  source.set([5, 6], source.length - 2);
+
+  const result = memory.loadRawBytes(source.length - 2, 4);
+
+  expect(Array.from(result)).toEqual([5, 6, 0, 0]);
+});
+
+test("CachedCallStack commits a view of its cached bytes", () => {
+  const memory = {
+    wasm32: true,
+    sizeofPtr: () => 4,
+    storeRawBytes: jest.fn(),
+  };
+  const stack = new CachedCallStack(memory, () => 1024, () => {});
+  const offset = stack.allocRawBytes(4);
+  stack.storeRawBytes(offset, new Uint8Array([1, 2, 3, 4]));
+
+  stack.commitToWasmMemory(4);
+
+  expect(memory.storeRawBytes).toHaveBeenCalledTimes(1);
+  const [ptr, bytes] = memory.storeRawBytes.mock.calls[0];
+  expect(ptr).toBe(1024);
+  expect(Array.from(bytes)).toEqual([1, 2, 3, 4]);
+  expect(bytes.buffer).toBe(stack.buffer);
+});

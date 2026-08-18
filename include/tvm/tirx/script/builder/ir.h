@@ -131,15 +131,37 @@ SBlockFrame Block(ffi::String name, bool no_realize = false, ffi::String exec_sc
 
 void TilePrimitiveCall(tvm::tirx::TilePrimitiveCall op_call);
 
-ffi::Array<tvm::tirx::Var> KernelId(ffi::Array<PrimExpr> extents, ffi::String parent);
+/*!
+ * \brief Define a scope id. Pass `extents=std::nullopt` to defer the extent; it is
+ *        inferred at LowerTIRx from the sibling ScopeIdDef closure.
+ * \param extents The optional extents of the scope id.
+ * \param parent The parent scope name.
+ * \param name The user-facing API name, used in error messages.
+ * \param cur The current scope name.
+ * \param dtype The dtype of the introduced scope id vars ("int32" or "uint32").
+ * \return The introduced scope id vars.
+ */
+ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                                   ffi::String name, ffi::String cur,
+                                   PrimType dtype = PrimType::Int(32));
 
-ffi::Array<tvm::tirx::Var> CtaId(ffi::Array<PrimExpr> extents, ffi::String parent);
+ffi::Array<tvm::tirx::Var> ClusterId(ffi::Optional<ffi::Array<PrimExpr>> extents,
+                                     ffi::String parent, PrimType dtype = PrimType::Int(32));
 
-ffi::Array<tvm::tirx::Var> CtaIdInPair();
+ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                                 ffi::Optional<ffi::Array<PrimExpr>> preferred = std::nullopt,
+                                 PrimType dtype = PrimType::Int(32));
 
-ffi::Array<tvm::tirx::Var> WarpId(ffi::Array<PrimExpr> extents, ffi::String parent);
+ffi::Array<tvm::tirx::Var> CtaIdInPair(PrimType dtype = PrimType::Int(32));
 
-ffi::Array<tvm::tirx::Var> ThreadId(ffi::Array<PrimExpr> extents, ffi::String parent);
+ffi::Array<tvm::tirx::Var> WarpgroupId(ffi::Optional<ffi::Array<PrimExpr>> extents,
+                                       ffi::String parent, PrimType dtype = PrimType::Int(32));
+
+ffi::Array<tvm::tirx::Var> WarpId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                                  PrimType dtype = PrimType::Int(32));
+
+ffi::Array<tvm::tirx::Var> ThreadId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                                    PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief The block initialization statement.
@@ -249,44 +271,53 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings,
  * \param stop The maximum value of iteration.
  * \param annotations The optional annotations of the For statement.
  * \param step The optional step value of iteration.
+ * \param dtype The optional dtype of the loop var ("int32" or "uint32"). When omitted
+ *              it is inferred from the bounds.
  * \return The ForFrame.
  */
 ForFrame Serial(PrimExpr start, PrimExpr stop,
                 ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                ffi::Optional<PrimExpr> step = std::nullopt);
+                ffi::Optional<PrimExpr> step = std::nullopt,
+                ffi::Optional<PrimType> dtype = std::nullopt);
 /*!
  * \brief The parallel For statement.
  * \param start The minimum value of iteration.
  * \param stop The maximum value of iteration.
  * \param annotations The optional annotations of the For statement.
  * \param step The optional step value of iteration.
+ * \param dtype The optional dtype of the loop var ("int32" or "uint32").
  * \return The ForFrame.
  */
 ForFrame Parallel(PrimExpr start, PrimExpr stop,
                   ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                  ffi::Optional<PrimExpr> step = std::nullopt);
+                  ffi::Optional<PrimExpr> step = std::nullopt,
+                  ffi::Optional<PrimType> dtype = std::nullopt);
 /*!
  * \brief The vectorized For statement.
  * \param start The minimum value of iteration.
  * \param stop The maximum value of iteration.
  * \param annotations The optional annotations of the For statement.
  * \param step The optional step value of iteration.
+ * \param dtype The optional dtype of the loop var ("int32" or "uint32").
  * \return The ForFrame.
  */
 ForFrame Vectorized(PrimExpr start, PrimExpr stop,
                     ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                    ffi::Optional<PrimExpr> step = std::nullopt);
+                    ffi::Optional<PrimExpr> step = std::nullopt,
+                    ffi::Optional<PrimType> dtype = std::nullopt);
 /*!
  * \brief The unrolled For statement.
  * \param start The minimum value of iteration.
  * \param stop The maximum value of iteration.
  * \param annotations The optional annotations of the For statement.
  * \param step The optional step value of iteration.
+ * \param dtype The optional dtype of the loop var ("int32" or "uint32").
  * \return The ForFrame.
  */
 ForFrame Unroll(PrimExpr start, PrimExpr stop,
                 ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                ffi::Optional<PrimExpr> step = std::nullopt);
+                ffi::Optional<PrimExpr> step = std::nullopt,
+                ffi::Optional<PrimType> dtype = std::nullopt);
 /*!
  * \brief The thread-binding For statement.
  * \param start The minimum value of iteration.
@@ -300,9 +331,12 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
 /*!
  * \brief The grid For statement.
  * \param extents The extents of the iteration.
+ * \param dtype The optional dtype of every loop var ("int32" or "uint32"). When omitted
+ *              each loop var takes the dtype of its own extent.
  * \return The ForFrame.
  */
-ForFrame Grid(ffi::Array<Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>> extents);
+ForFrame Grid(ffi::Array<Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>> extents,
+              ffi::Optional<PrimType> dtype = std::nullopt);
 
 /*!
  * \brief The assertion statement.

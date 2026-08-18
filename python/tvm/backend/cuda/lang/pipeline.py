@@ -21,6 +21,26 @@ instances are automatically treated as meta values inside @T.prim_func.
 """
 
 from tvm.script import tirx as T
+from tvm.tirx import IntImm as _IntImm
+
+
+def _tcgen05_commit_is_unicast(cta_mask):
+    """Trace-time choice of the commit form, as the legacy wrapper made it.
+
+    A compile-time mask arriving at most one CTA means the mbar address
+    already names the target, so the unicast line (no mask operand) is used.
+    A runtime mask is fine -- ctaMask is a register operand -- but the choice
+    of *form* cannot depend on it, so a runtime mask always multicasts.
+
+    Lives outside the inline body on purpose: the inline evaluator neither
+    short-circuits conditional expressions nor accepts a None binding, so this
+    decision needs real Python semantics.
+    """
+    if cta_mask is None:
+        return True
+    if isinstance(cta_mask, _IntImm):
+        cta_mask = cta_mask.value
+    return isinstance(cta_mask, int) and bin(cta_mask).count("1") <= 1
 
 
 @T.meta_class
@@ -62,6 +82,63 @@ class PipelineState:
             self.phase = self.phase ^ 1
 
 
+def _map_addr_into_cta(ptr, rank):
+    """The 32-bit shared-window address of ``ptr`` as another CTA sees it.
+
+    ``mapa.u32`` maps window addresses, so this is one cvta plus one mapa --
+    what the fused legacy wrapper emitted. ``mapa.u64`` would map the generic
+    pointer instead and cost a 64-bit register to carry it.
+
+    Plain Python rather than ``@T.inline``: the mapa call has to be handed to
+    the enclosing frame explicitly or it is discarded, and the scratch it
+    writes into has to be declared in this scope to bind into the PrimFunc.
+    """
+    mapped = T.alloc_local([1], "uint32")
+    T.evaluate(
+        T.ptx.mapa.shared__cluster.u32(
+            mapped[0], T.cuda.cvta_generic_to_shared(ptr), T.uint32(rank)
+        )
+    )
+    return mapped[0]
+
+
+def _map_buffer_into_cta(ptr, rank, depth):
+    """A buffer view of ``ptr`` as another CTA sees it.
+
+    A buffer needs a pointer to hang off, so this takes the ``mapa.u64`` route
+    and reinterprets the result. Callers that only need an address should use
+    ``_map_addr_into_cta``, which is a register cheaper.
+    """
+    from tvm.ir import PointerType, PrimType  # pylint: disable=import-outside-toplevel
+    from tvm.tirx import Var as TIRVar  # pylint: disable=import-outside-toplevel
+
+    ptr_ty = PointerType(PrimType("uint64"), "shared")
+    mapped = T.alloc_local([1], "uint64")
+    T.evaluate(T.ptx.mapa.u64(mapped[0], ptr, T.uint32(rank)))
+    remote_ptr = TIRVar("remote_mbar_ptr", ptr_ty)
+    T.Bind(T.reinterpret(ptr_ty, mapped[0]), var=remote_ptr)
+    return T.decl_buffer([depth], "uint64", data=remote_ptr, scope="shared")
+
+
+def _mbarrier_arrive_remote(bar, pred=None, count=None):
+    """``mbarrier.arrive.shared::cluster.b64 _, [bar]{, count}``.
+
+    ``count`` spells the arrival count explicitly; omitting it emits the
+    implicit count-of-1 line, which is a distinct ISA syntax line rather than
+    a default operand.
+    """
+    chain = T.ptx.mbarrier.arrive.shared__cluster.b64
+    args = (bar,) if count is None else (bar, T.uint32(count))
+    T.evaluate(chain(*args, pred=pred) if pred is not None else chain(*args))
+
+
+def _mbarrier_arrive_expect_tx_remote(bar, tx_count, pred=None):
+    """``mbarrier.arrive.expect_tx.shared::cluster.b64 _, [bar], txCount``."""
+    chain = T.ptx.mbarrier.arrive.expect_tx.shared__cluster.b64
+    args = (bar, T.uint32(tx_count))
+    T.evaluate(chain(*args, pred=pred) if pred is not None else chain(*args))
+
+
 @T.meta_class
 class MBarrier:
     """Mbarrier wrapper with regular ``mbarrier.arrive``.
@@ -93,7 +170,6 @@ class MBarrier:
 
     def __init__(self, pool, depth, phase_offset=0, leader=None):
         self.buf = pool.alloc((depth,), "uint64", align=8)
-        self._local_buf = self.buf
         self._remote_cta_id = None
         self.depth = depth
         self.phase_offset = phase_offset
@@ -108,7 +184,7 @@ class MBarrier:
     def _init(self, count):
         if self.leader:
             for i in T.unroll(self.depth):
-                T.ptx.mbarrier.init(self.buf.ptr_to([i]), count)
+                T.ptx.mbarrier.init.shared.b64(self.buf.ptr_to([i]), T.uint32(count))
 
     def wait(self, stage, phase):
         if self._remote_cta_id is not None:
@@ -119,38 +195,36 @@ class MBarrier:
     def _wait(self, stage, phase):
         # Blocks: ``mbarrier.try_wait`` loops internally until the phase flips,
         # so this returns only once the barrier has completed.
-        T.ptx.mbarrier.try_wait(self.buf.ptr_to([stage]), phase ^ self.phase_offset)
+        T.cuda.mbarrier_wait(self.buf.ptr_to([stage]), phase ^ self.phase_offset)
 
     def arrive(self, stage, remote=None, pred=None, count=None):
         if self._remote_cta_id is not None:
             if remote is not None:
                 raise ValueError("MBarrier.remote_view().arrive() cannot also specify remote")
-            remote = self._remote_cta_id
-            buf = self._local_buf
+            # ``self.buf`` is already the mapped view, so every arrive on it
+            # reuses the one mapa the view did.
+            _mbarrier_arrive_remote(self.buf.ptr_to([stage]), pred, count)
+        elif remote is None:
+            self._arrive(self.buf.ptr_to([stage]))
         else:
-            buf = self.buf
-        self._arrive(buf.ptr_to([stage]), remote, pred, count)
+            # Split of the legacy fused wrapper: map the address into the
+            # target CTA, then arrive on it. Plain Python so the mapa scratch
+            # binds here; `pred` rides on the arrive alone, since computing a
+            # remote address has no effect worth predicating.
+            _mbarrier_arrive_remote(
+                _map_addr_into_cta(self.buf.ptr_to([stage]), remote), pred, count
+            )
 
     @T.inline
-    def _arrive(self, bar, remote=None, pred=None, count=None):
-        # Default: local-CTA arrive — emits the simple
-        # ``mbarrier.arrive.shared.b64`` form. To arrive on a remote
-        # CTA's mbarrier in a cluster kernel, callers must pass
-        # ``remote=`` explicitly (e.g. ``bar.arrive(stage, remote=0)``)
-        # or use ``MBarrier.remote_view(rank).arrive(stage)``. Defaulting
-        # the cross-CTA path was both surprising (``bar.arrive(stage)``
-        # silently ``mapa`` ed across the cluster) and a per-call cost
-        # of ~3 PTX ops on every single-CTA kernel.
-        #
-        # ``count`` (cross-CTA path only) emits the explicit arrival-count
-        # operand, i.e. ``mbarrier.arrive.shared::cluster.b64 _, [addr], count``.
-        # When ``None`` the implicit count-of-1 form is emitted. Passing
-        # ``count=1`` is semantically identical but spells the count explicitly.
-        if remote is None:
-            T.ptx.mbarrier.arrive(bar)
-        else:
-            actual_pred = True if pred is None else pred
-            T.ptx.mbarrier.arrive(bar, remote=remote, pred=actual_pred, count=count)
+    def _arrive(self, bar):
+        # Local-CTA arrive. To arrive on a remote CTA's mbarrier in a cluster
+        # kernel, callers must pass ``remote=`` explicitly (e.g.
+        # ``bar.arrive(stage, remote=0)``) or use
+        # ``MBarrier.remote_view(rank).arrive(stage)``. Defaulting the
+        # cross-CTA path was both surprising (``bar.arrive(stage)`` silently
+        # ``mapa``ed across the cluster) and a per-call cost of ~3 PTX ops on
+        # every single-CTA kernel.
+        T.ptx.mbarrier.arrive.shared.b64(bar, T.uint32(1))
 
     def ptr_to(self, idx):
         return self.buf.ptr_to(idx)
@@ -163,20 +237,12 @@ class MBarrier:
         through ``ptr_to`` for operations that consume a remote shared-memory
         pointer. ``init`` and ``wait`` are local-only and reject remote views.
         """
-        from tvm.ir import PointerType, PrimType
-        from tvm.tirx import Var as TIRVar
-
         if self._remote_cta_id is not None:
             raise ValueError("MBarrier.remote_view() cannot be applied to a remote view")
 
-        ptr_ty = PointerType(PrimType("uint64"), "shared")
-        expr = T.reinterpret(ptr_ty, T.ptx.map_shared_rank(self.buf.ptr_to([0]), rank))
-        ptr = TIRVar("remote_mbar_ptr", ptr_ty)
-        T.Bind(expr, var=ptr)
-        buf = T.decl_buffer([self.depth], "uint64", data=ptr, scope="shared")
+        buf = _map_buffer_into_cta(self.buf.ptr_to([0]), rank, self.depth)
         remote = object.__new__(type(self))
         remote.buf = buf
-        remote._local_buf = self._local_buf
         remote._remote_cta_id = rank
         remote.depth = self.depth
         remote.phase_offset = self.phase_offset
@@ -191,17 +257,6 @@ class TMABar(MBarrier):
     """
 
     def arrive(self, stage, tx_count=None, remote=None, pred=None):
-        if self._remote_cta_id is not None:
-            if remote is not None:
-                raise ValueError("TMABar.remote_view().arrive() cannot also specify remote")
-            remote = self._remote_cta_id
-            buf = self._local_buf
-        else:
-            buf = self.buf
-        self._arrive_tma(buf.ptr_to([stage]), tx_count, remote, pred)
-
-    @T.inline
-    def _arrive_tma(self, bar, tx_count=None, remote=None, pred=None):
         # NOTE: this arrive() kwarg set intentionally differs from
         # MBarrier.arrive (hardware necessity, LSP-incompatible by design).
         # ``tx_count``: TMA byte count for ``mbarrier.arrive.expect_tx``.
@@ -209,34 +264,63 @@ class TMABar(MBarrier):
         # ``mbarrier.arrive`` (cluster path) when set; otherwise the
         # arrive is local-CTA only. See ``MBarrier.arrive`` for the
         # full default-local rationale.
-        if tx_count is not None:
-            if remote is None:
-                T.ptx.mbarrier.arrive.expect_tx(bar, tx_count)
-            else:
-                actual_pred = True if pred is None else pred
-                T.ptx.mbarrier.arrive.expect_tx(bar, tx_count, remote=remote, pred=actual_pred)
-        elif remote is None:
-            T.ptx.mbarrier.arrive(bar)
+        if self._remote_cta_id is not None:
+            if remote is not None:
+                raise ValueError("TMABar.remote_view().arrive() cannot also specify remote")
+            remote_bar = self.buf.ptr_to([stage])  # already mapped by the view
+        elif remote is not None:
+            remote_bar = _map_addr_into_cta(self.buf.ptr_to([stage]), remote)
         else:
-            actual_pred = True if pred is None else pred
-            T.ptx.mbarrier.arrive(bar, remote=remote, pred=actual_pred)
+            self._arrive_tma_local(self.buf.ptr_to([stage]), tx_count)
+            return
+        if tx_count is None:
+            _mbarrier_arrive_remote(remote_bar, pred)
+        else:
+            _mbarrier_arrive_expect_tx_remote(remote_bar, tx_count, pred)
+
+    @T.inline
+    def _arrive_tma_local(self, bar, tx_count=None):
+        if tx_count is None:
+            T.ptx.mbarrier.arrive.shared.b64(bar, T.uint32(1))
+        else:
+            T.ptx.mbarrier.arrive.expect_tx.shared.b64(bar, T.uint32(tx_count))
 
 
 class TCGen05Bar(MBarrier):
     """Barrier signaled by ``tcgen05`` commit.
 
     The caller is responsible for ensuring only one thread issues the
-    commit, e.g. by wrapping the call in ``if T.ptx.elect_sync():``.
+    commit, e.g. by wrapping the call in ``if T.cuda.elect_sync():`` or by
+    passing ``pred=T.cuda.elect_sync()``. The ``pred`` form emits the
+    predicated instruction (``@p tcgen05.commit``) instead of a branch and
+    lets one elected leader predicate be shared across several commits.
     """
 
     @T.inline
-    def arrive(self, stage, cta_group=1, cta_mask=None):
+    def arrive(self, stage, cta_group=1, cta_mask=None, pred=None):
         # NOTE: this arrive() kwarg set intentionally differs from
         # MBarrier.arrive (hardware necessity, LSP-incompatible by design).
-        if cta_mask is None and cta_group == 1:
-            T.ptx.tcgen05.commit(self.buf.ptr_to([stage]))
+        # The unicast/multicast split is decided at trace time, exactly as the
+        # legacy wrapper did: a compile-time mask arriving <= 1 CTA means the
+        # mbar address already names the target, so no mask operand. A runtime
+        # mask is fine -- ctaMask is a register operand -- but the *choice* of
+        # form cannot depend on it, so a runtime mask always multicasts.
+        # ``pred`` rides the ptx keyword: the instruction is emitted
+        # predicated (@p) rather than branched around.
+        if _tcgen05_commit_is_unicast(cta_mask):
+            T.evaluate(
+                T.ptx[
+                    f"tcgen05.commit.cta_group::{cta_group}"
+                    ".mbarrier::arrive::one.shared::cluster.b64"
+                ](self.buf.ptr_to([stage]), pred=pred)
+            )
         else:
-            T.ptx.tcgen05.commit(self.buf.ptr_to([stage]), cta_group=cta_group, cta_mask=cta_mask)
+            T.evaluate(
+                T.ptx[
+                    f"tcgen05.commit.cta_group::{cta_group}"
+                    ".mbarrier::arrive::one.shared::cluster.multicast::cluster.b64"
+                ](self.buf.ptr_to([stage]), T.Cast("uint16", cta_mask), pred=pred)
+            )
 
 
 # Barrier-type tags accepted by Pipeline's ``full=`` / ``empty=`` arguments.

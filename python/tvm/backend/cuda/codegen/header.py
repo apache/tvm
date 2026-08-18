@@ -792,16 +792,13 @@ union InstrDescriptorBlockScaled
         header += R"""
 __forceinline__ __device__ uint32_t tvm_builtin_elect_one_sync() {{
   uint32_t pred = 0;
-  uint32_t laneid = 0;
   asm volatile(
     "{\n"
-    ".reg .b32 %%rx;\n"
     ".reg .pred %%px;\n"
-    "     elect.sync %%rx|%%px, %2;\n"
-    "@%%px mov.s32 %1, 1;\n"
-    "     mov.s32 %0, %%rx;\n"
+    "     elect.sync _|%%px, %1;\n"
+    "@%%px mov.s32 %0, 1;\n"
     "}\n"
-    : "+r"(laneid), "+r"(pred)
+    : "+r"(pred)
     : "r"(0xFFFFFFFF));
   return pred;
 }}

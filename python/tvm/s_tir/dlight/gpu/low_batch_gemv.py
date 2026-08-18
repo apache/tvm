@@ -53,6 +53,17 @@ def _get_reduction_expr(block: tirx.SBlock) -> tirx.Expr | None:
     return buffer_store.value.b
 
 
+def _has_pad_einsum_compatible_access(block: tirx.SBlock) -> bool:
+    """Check the point-access restriction required by ``Schedule.pad_einsum``."""
+    return all(
+        isinstance(dim.extent, tirx.IntImm)
+        and int(dim.extent) == 1
+        and isinstance(dim.min, tirx.IntImm | tirx.Var)
+        for region in [*block.reads, *block.writes]
+        for dim in region.region
+    )
+
+
 def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | None:
     """Check if the block is a low batch GEMM.
 
@@ -79,6 +90,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
     conditions.append(len(block_stmt.reads) >= 2)
     conditions.append(len(block_stmt.writes) == 1)
     conditions.append(_get_reduction_expr(block_stmt) is not None)
+    conditions.append(_has_pad_einsum_compatible_access(block_stmt))
     conditions.append(
         len(collect_block_iter_vars_used_in_access_region(block_stmt, block_stmt.writes[0].region))
         > 0

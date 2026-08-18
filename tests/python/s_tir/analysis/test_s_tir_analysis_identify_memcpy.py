@@ -55,7 +55,7 @@ def test_1d():
         for i in T.serial(1024):
             B[i] = A[i]
 
-    A, B = func.buffer_map.values()
+    A, B = [param for param in func.params if tvm.tirx.is_buffer_var(param)]
     expected = (A[0:1024], B[0:1024])
     _check_memcpy_results(func, expected)
 
@@ -117,7 +117,7 @@ def test_1d_input_2d_output_fused_loop():
         for i in T.serial(1024):
             B[i // 32, i % 32] = A[i]
 
-    A, B = func.buffer_map.values()
+    A, B = [param for param in func.params if tvm.tirx.is_buffer_var(param)]
     expected = (A[0:1024], B[0:32, 0:32])
     _check_memcpy_results(func, expected)
 
@@ -130,7 +130,7 @@ def test_2d_input_1d_output_fused_loop():
         for i in T.serial(1024):
             B[i] = A[i // 32, i % 32]
 
-    A, B = func.buffer_map.values()
+    A, B = [param for param in func.params if tvm.tirx.is_buffer_var(param)]
     expected = (A[0:32, 0:32], B[0:1024])
     _check_memcpy_results(func, expected)
 
@@ -149,7 +149,7 @@ def test_1d_input_1d_output_nested_loop():
         for i, j in T.grid(32, 32):
             B[i * 32 + j] = A[i * 32 + j]
 
-    A, B = func.buffer_map.values()
+    A, B = [param for param in func.params if tvm.tirx.is_buffer_var(param)]
     i = func.body.loop_var
     expected = [
         (A[0:1024], B[0:1024]),
@@ -171,7 +171,7 @@ def test_1d_input_1d_output_nested_loop_equivalent_expressions():
         for i, j in T.grid(32, 32):
             B[i * 32 + j] = A[j + i * 32]
 
-    A, B = func.buffer_map.values()
+    A, B = [param for param in func.params if tvm.tirx.is_buffer_var(param)]
     i = func.body.loop_var
     expected = [
         (A[0:1024], B[0:1024]),
@@ -188,7 +188,7 @@ def test_1d_input_2d_output_nested_loop():
         for i, j in T.grid(32, 32):
             B[i, j] = A[i * 32 + j]
 
-    A, B = func.buffer_map.values()
+    A, B = [param for param in func.params if tvm.tirx.is_buffer_var(param)]
     i = func.body.loop_var
     expected = [
         (A[0:1024], B[0:32, 0:32]),
@@ -205,7 +205,7 @@ def test_2d_input_1d_output_nested_loop():
         for i, j in T.grid(32, 32):
             B[i * 32 + j] = A[i, j]
 
-    A, B = func.buffer_map.values()
+    A, B = [param for param in func.params if tvm.tirx.is_buffer_var(param)]
     i = func.body.loop_var
     expected = [
         (A[0:32, 0:32], B[0:1024]),
@@ -222,7 +222,7 @@ def test_2d_input_2d_output_nested_loop():
         for i, j in T.grid(32, 32):
             B[i, j] = A[i, j]
 
-    A, B = func.buffer_map.values()
+    A, B = [param for param in func.params if tvm.tirx.is_buffer_var(param)]
     i = func.body.loop_var
     expected = [
         (A[0:32, 0:32], B[0:32, 0:32]),
@@ -281,7 +281,7 @@ def test_2d_input_2d_output_transpose_both():
         for i, j in T.grid(32, 32):
             B[j, i] = A[j, i]
 
-    A, B = func.buffer_map.values()
+    A, B = [param for param in func.params if tvm.tirx.is_buffer_var(param)]
     expected = [
         (A[0:32, 0:32], B[0:32, 0:32]),
         "Mismatch .* number of src indices touched",
@@ -301,7 +301,7 @@ def test_cache_read():
         for i, j in T.grid(32, 32):
             B[j] = A[i, j]
 
-    A, B = func.buffer_map.values()
+    A, B = [param for param in func.params if tvm.tirx.is_buffer_var(param)]
     i = func.body.loop_var
     expected = [
         "does not form a bijective transform",
@@ -322,7 +322,7 @@ def test_cache_write():
         for i, j in T.grid(32, 32):
             B[i, j] = A[j]
 
-    A, B = func.buffer_map.values()
+    A, B = [param for param in func.params if tvm.tirx.is_buffer_var(param)]
     i = func.body.loop_var
     expected = [
         "does not form a bijective transform",

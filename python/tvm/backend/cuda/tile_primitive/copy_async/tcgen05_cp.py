@@ -676,7 +676,7 @@ def _get_or_create_desc(sctx, s_buf, ldo, sdo, swizzle):
         return cached
 
     desc_buf = tvm.tirx.decl_buffer((1,), "uint64", name="cp_desc", scope="local")
-    encode_call = T.ptx.tcgen05.encode_matrix_descriptor(
+    encode_call = T.cuda.tcgen05.encode_matrix_descriptor(
         desc_buf.data, T.reinterpret("handle", T.uint64(0)), ldo, sdo, swizzle
     )
     wrap = SeqStmt([AllocBuffer(desc_buf), Evaluate(encode_call)])
@@ -758,15 +758,17 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
     # special-cased to avoid a degenerate T.unroll(1).
     total = functools.reduce(operator.mul, [n for n, _, _ in middle_iters], 1)
 
+    # One instruction spelling for both impls: the ISA writes multicast
+    # after the shape, and this planner never emits the decompression pair.
+    cp_chain = f"tcgen05.cp.cta_group::{cta_group}.{shape}"
+    if multicast:
+        cp_chain += f".{multicast}"
+
     # fmt: off
     if total == 1:
         @T.prim_func(check_well_formed=False)
         def impl():
-            T.ptx.tcgen05.cp(
-                t_addr[0] + t_addr_off,
-                _cp_desc(init_off_16B),
-                shape=shape, cta_group=cta_group, multicast=multicast,
-            )
+            T.ptx[cp_chain](T.cast(t_addr[0] + t_addr_off, "uint32"), _cp_desc(init_off_16B))
     else:
         def compute_offsets(flat):
             t_off = 0
@@ -783,10 +785,9 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
         def impl():
             for flat in T.unroll(total):
                 t_off, s_off = T.meta_var(compute_offsets(flat))
-                T.ptx.tcgen05.cp(
-                    t_addr[0] + t_addr_off + t_off,
+                T.ptx[cp_chain](
+                    T.cast(t_addr[0] + t_addr_off + t_off, "uint32"),
                     _cp_desc(init_off_16B + s_off),
-                    shape=shape, cta_group=cta_group, multicast=multicast,
                 )
     # fmt: on
 

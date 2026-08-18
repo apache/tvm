@@ -24,10 +24,12 @@ from tvm_ffi.libinfo import load_lib_ctypes
 from tvm.base import _LOADED_LIBS
 
 _LAZY_SUBMODULES = {
+    "codegen",
+    "cpp",
     "iket",
-    "intrinsics",
     "lang",
     "op",
+    "ptx",
     "script",
     "target_tags",
     "tile_primitive",
@@ -69,23 +71,30 @@ def register_backend():
     for name, namespace in script_namespaces().items():
         builder_ir.register_script_namespace(name, namespace)
 
-    import_module(f"{__name__}.intrinsics")
+    # script_namespaces() above pulls in ptx, which only imports the shared
+    # codegen layer -- not the device-helper modules. This import is the sole
+    # trigger that registers their codegens for codegen_cuda.cc to find.
+    import_module(f"{__name__}.cpp")
     import_module(f"{__name__}.tile_primitive")
     import_module(f"{__name__}.target_tags")
 
 
 def script_namespaces(**_):
     """Return CUDA-owned TVMScript namespaces."""
+    from .ptx import PTXNamespace  # pylint: disable=import-outside-toplevel
     from .script import (  # pylint: disable=import-outside-toplevel
         CUDANamespace,
         NVSHMEMNamespace,
-        PTXNamespace,
+        PTXLegacyNamespace,
+        STIRNamespace,
     )
 
     return {
         "cuda": CUDANamespace(),
         "nvshmem": NVSHMEMNamespace(),
+        "ptx_legacy": PTXLegacyNamespace(),
         "ptx": PTXNamespace(),
+        "s_tir": STIRNamespace(),
     }
 
 
@@ -101,10 +110,12 @@ def __getattr__(name: str):
 
 
 __all__ = [
+    "codegen",
+    "cpp",
     "iket",
-    "intrinsics",
     "lang",
     "op",
+    "ptx",
     "register_backend",
     "script",
     "script_namespace",

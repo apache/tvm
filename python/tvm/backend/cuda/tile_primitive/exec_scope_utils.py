@@ -62,7 +62,7 @@ def thread_selector(sctx: DispatchContext, inner_impl, macro: bool = False) -> C
         @T.inline()
         def impl():
             T.lane_id([32])
-            if T.ptx.elect_sync():
+            if T.cuda.elect_sync():
                 inner_impl()
 
         return macro_or_prim_func(impl, need_macro=macro)
@@ -71,7 +71,7 @@ def thread_selector(sctx: DispatchContext, inner_impl, macro: bool = False) -> C
         @T.inline()
         def impl():
             T.lane_id([32])
-            if T.ptx.elect_sync():
+            if T.cuda.elect_sync():
                 inner_impl()
 
         return macro_or_prim_func(impl, need_macro=macro)
@@ -82,7 +82,7 @@ def thread_selector(sctx: DispatchContext, inner_impl, macro: bool = False) -> C
             warp_id = T.warp_id_in_wg([4])
             T.lane_id([32])
             if warp_id == 0:
-                if T.ptx.elect_sync():
+                if T.cuda.elect_sync():
                     inner_impl()
 
         return macro_or_prim_func(impl, need_macro=macro)

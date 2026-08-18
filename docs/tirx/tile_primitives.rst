@@ -236,7 +236,7 @@ Dispatch runs in the ``tirx.TilePrimitiveDispatch`` pass — the sole pass insid
 
 #. resolves the ``(inter, intra)`` execution split for the call's scope from the
    active set tracked through control flow (``if wg_id == ...``, ``warp_id``,
-   ``T.ptx.elect_sync()``);
+   ``T.cuda.elect_sync()``);
 #. builds a ``DispatchContext`` carrying ``target``, scope, launch params, value
    ranges, and the encoded ``inter``/``intra`` + ``scope_kind``;
 #. invokes the global FFI hook ``tirx.f_op_dispatcher`` (Python) with the call

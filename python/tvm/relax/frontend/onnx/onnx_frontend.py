@@ -222,10 +222,21 @@ def get_info(
 
     Returns
     -------
-    Tuple[str, List, str, List, Dict]
+    Tuple[str, Optional[List], str, Optional[List], Dict]
         The name, shape, type, and shape name of the ValueInfoProto, and the
-        value_dict.
+        value_dict. The shape and shape name are None when the proto carries no
+        shape field at all, which means the rank is unknown.
     """
+    tensor_type = info_proto.type.tensor_type
+    elem_dtype = get_type(tensor_type.elem_type) if tensor_type.elem_type else None
+
+    # An absent shape field means unknown rank, which is not the same as a rank-0
+    # tensor whose shape field is present with zero dims. Both would otherwise
+    # collapse to an empty list and become R.Tensor(()), so the unknown-rank case
+    # reports None and becomes a tensor with no static shape.
+    if not tensor_type.HasField("shape"):
+        return info_proto.name, None, elem_dtype, None, value_dict
+
     shape = []
     shape_name = []
     for dim in info_proto.type.tensor_type.shape.dim:
@@ -1641,7 +1652,11 @@ class Shape(OnnxOpConverter):
             return relax.ShapeExpr([data_info.ndim])
 
         # If no shape is defined in the type, it must be computed at runtime.
-        if not data_info.shape:
+        # A rank-0 tensor has a defined but empty shape, and an empty ShapeExpr
+        # is falsy, so compare against None instead of testing truthiness.
+        # Otherwise a scalar input takes the runtime path and downstream
+        # converters that match on relax.ShapeExpr see an opaque value.
+        if data_info.shape is None:
             data_shape = bb.normalize(relax.op.shape_of(inputs[0]))
             return data_shape
 
@@ -1762,11 +1777,15 @@ class PRelu(OnnxOpConverter):
         ndim = len(x_shape)
         s_ndim = len(slope_shape)
 
-        if all(ss == 1 for ss in slope_shape) or s_ndim == 1:
+        if all(ss == 1 for ss in slope_shape):
+            slope = relax.op.reshape(slope, (1,))
+            return relax.op.nn.prelu(x, slope, ndim - 1)
+
+        if s_ndim == 1:
             slope = relax.op.reshape(slope, (slope_shape[0],))
             return relax.op.nn.prelu(x, slope, ndim - 1)
 
-        if s_ndim == ndim:
+        if s_ndim <= ndim:
             non_one_axes = [i for i, ss in enumerate(slope_shape) if ss != 1]
 
             # Must have only ONE non-broadcast axis
@@ -1774,9 +1793,10 @@ class PRelu(OnnxOpConverter):
                 raise ValueError(
                     f"Invalid PRelu slope shape (multiple non-broadcast dims): {slope_shape}"
                 )
-            axis = non_one_axes[0]
+            relative_axis = non_one_axes[0]
+            axis = ndim - s_ndim + relative_axis
 
-            slope = relax.op.reshape(slope, (slope_shape[axis],))
+            slope = relax.op.reshape(slope, (slope_shape[relative_axis],))
             return relax.op.nn.prelu(x, slope, axis)
 
         raise ValueError(f"Unsupported PRelu slope shape: {slope_shape}")
@@ -2434,8 +2454,14 @@ class MultiInputBase(OnnxOpConverter):
         if cls.numpy_op is None or cls.relax_op is None:
             raise NotImplementedError("numpy_op and relax_op must be defined for MultiInputBase")
         if all([isinstance(inp, relax.Constant) for inp in inputs]):
-            np_inputs = [inp.data.numpy() for inp in inputs]
-            output = cls.numpy_op(*np_inputs)  # pylint: disable=not-callable
+            # numpy_op is a reduction, so the operands cannot be passed
+            # positionally: the second constant would be taken as ``axis``.
+            # Broadcast and stack first, then reduce over the stack axis, which
+            # is what the non-constant path below builds.
+            np_inputs = _np.broadcast_arrays(*[inp.data.numpy() for inp in inputs])
+            output = cls.numpy_op(  # pylint: disable=not-callable
+                _np.stack(np_inputs, axis=0), axis=0
+            )
             return relax.const(output, output.dtype)
 
         input_shapes = [inp.ty.shape for inp in inputs]
@@ -2548,6 +2574,8 @@ class Split(OnnxOpConverter):
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         splits = inputs[1]
+        if splits is not None:
+            splits = get_constant(splits, params)
         splits_rank = None
         if splits is not None:
             splits_rank = splits.ty.ndim
@@ -5952,6 +5980,11 @@ class ONNXGraphImporter:
                 self._input_names.append(i_name)
                 if i_name in self._shape:
                     i_shape = self._shape[i_name]
+                elif i_shape is None:
+                    warnings.warn(
+                        f"Input {i_name} has unknown rank. "
+                        "Specifying a static shape may improve performance"
+                    )
                 else:
                     if "?" in str(i_shape):
                         warning_msg = (

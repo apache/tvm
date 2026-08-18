@@ -815,6 +815,47 @@ def test_multi_input_broadcasting():
             )
 
 
+@pytest.mark.parametrize(
+    "op_name, dtype, shapes, values",
+    [
+        # Two rank-1 constants, the shape reported in apache/tvm#20117.
+        ("Min", TensorProto.FLOAT, [[2], [2]], [[1.0, 2.0], [3.0, 4.0]]),
+        ("Max", TensorProto.FLOAT, [[2], [2]], [[1.0, 2.0], [3.0, 4.0]]),
+        ("Sum", TensorProto.FLOAT, [[2], [2]], [[1.0, 2.0], [3.0, 4.0]]),
+        ("Mean", TensorProto.FLOAT, [[2], [2]], [[1.0, 2.0], [3.0, 4.0]]),
+        # Sum and Mean accept only floating point operands in ONNX, so the
+        # integer cases cover Min and Max. A rank-0 operand holding a valid
+        # axis index is the input that returned a wrong answer rather than
+        # raising, so it needs 0 or 1 here and not an out-of-range value.
+        ("Min", TensorProto.INT64, [[3, 2], []], [[1, 2, 3, 4, 5, 6], [0]]),
+        ("Max", TensorProto.INT64, [[3, 2], []], [[1, 2, 3, 4, 5, 6], [1]]),
+    ],
+)
+def test_multi_input_all_constant_inputs(op_name, dtype, shapes, values):
+    """Folding constant operands must match the broadcast + stack + reduce path."""
+    nodes, names = [], []
+    for i, (shape, value) in enumerate(zip(shapes, values)):
+        nodes.append(
+            helper.make_node(
+                "Constant",
+                inputs=[],
+                outputs=[f"c{i}"],
+                value=helper.make_tensor(f"c{i}_v", dtype, shape, value),
+            )
+        )
+        names.append(f"c{i}")
+
+    nodes.append(helper.make_node(op_name, names, ["output"]))
+    output_shape = list(np.broadcast_shapes(*[tuple(shape) for shape in shapes]))
+    graph = helper.make_graph(
+        nodes,
+        f"all_constant_{op_name}",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("output", dtype, output_shape)],
+    )
+    check_correctness(helper.make_model(graph), opset=13)
+
+
 @pytest.mark.parametrize("op_name", ["And", "Or", "Xor"])
 def test_binary_bool(op_name: str):
     verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.BOOL)
@@ -3067,6 +3108,103 @@ def test_shape():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+def test_shape_scalar_input():
+    # A rank-0 input has a known, empty static shape. It used to be imported as
+    # a runtime R.shape_of because an empty ShapeExpr is falsy, which made the
+    # result opaque to every converter that matches on relax.ShapeExpr.
+    shape_node = helper.make_node("Shape", ["data"], ["output"])
+
+    graph = helper.make_graph(
+        [shape_node],
+        "shape_scalar_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, []),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.INT64, [0])],
+    )
+
+    model = helper.make_model(graph, producer_name="shape_scalar_test")
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(data: R.Tensor((), dtype="float32")) -> R.Shape([]):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Shape([]) = R.shape([])
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_shape_unknown_rank_input():
+    # An input whose ValueInfoProto carries no shape field has unknown rank, which
+    # must stay distinct from a rank-0 tensor. It has no static shape to fold, so
+    # Shape has to keep the runtime path rather than reporting R.shape([]).
+    shape_node = helper.make_node("Shape", ["data"], ["output"])
+
+    data_vi = helper.make_tensor_value_info("data", TensorProto.FLOAT, None)
+    assert not data_vi.type.tensor_type.HasField("shape"), "test needs an absent shape field"
+
+    graph = helper.make_graph(
+        [shape_node],
+        "shape_unknown_rank_test",
+        inputs=[data_vi],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.INT64, None)],
+    )
+
+    model = helper.make_model(graph, producer_name="shape_unknown_rank_test")
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+
+    # The input keeps an unknown shape rather than collapsing to R.Tensor(()).
+    data_ty = tvm_model["main"].params[0].ty
+    assert data_ty.shape is None
+    assert data_ty.ndim == -1
+
+    # And Shape falls back to computing it at runtime.
+    op_names = []
+
+    def collect_ops(expr):
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+            op_names.append(expr.op.name)
+
+    relax.analysis.post_order_visit(tvm_model["main"], collect_ops)
+    assert "relax.shape_of" in op_names
+
+
+def test_slice_of_scalar_shape():
+    # Slice consuming Shape of a rank-0 input used to raise "Slice requires a
+    # statically known input rank", because Shape handed it an opaque value
+    # instead of a ShapeExpr. ONNX Runtime returns an empty int64 tensor here.
+    nodes = [
+        helper.make_node("Shape", ["data"], ["shape"]),
+        helper.make_node("Slice", ["shape", "starts", "ends"], ["output"]),
+    ]
+
+    graph = helper.make_graph(
+        nodes,
+        "slice_of_scalar_shape_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, []),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.INT64, [0])],
+        initializer=[
+            helper.make_tensor("starts", TensorProto.INT64, [1], [0]),
+            helper.make_tensor("ends", TensorProto.INT64, [1], [1]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="slice_of_scalar_shape_test")
+    tvm_model = from_onnx(model)
+
+    output_ty = tvm_model["main"].ret_ty
+    assert isinstance(output_ty, relax.TensorType)
+    assert [int(dim) for dim in output_ty.shape] == [0]
+    assert output_ty.dtype == "int64"
+
+
 @pytest.mark.parametrize(
     "attrs,expected_shape",
     [
@@ -3221,6 +3359,10 @@ def test_shape_start_end_scalar():
 
     assert relax.analysis.check_well_formed(tvm_model)
 
+    # A rank-0 input has a known, empty static shape, so start=1 slices an empty
+    # ShapeExpr and folds at import time. This used to fall back to a runtime
+    # shape_of / shape_to_tensor / strided_slice / tensor_to_shape chain, because
+    # the empty ShapeExpr tested as falsy in Shape._impl_v13.
     op_names = []
 
     def collect_ops(expr):
@@ -3229,12 +3371,19 @@ def test_shape_start_end_scalar():
 
     relax.analysis.post_order_visit(tvm_model["main"], collect_ops)
 
-    assert op_names == [
-        "relax.shape_of",
-        "relax.shape_to_tensor",
-        "relax.strided_slice",
-        "relax.tensor_to_shape",
-    ]
+    assert op_names == []
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(data: R.Tensor((), dtype="float32")) -> R.Shape([]):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Shape([]) = R.shape([])
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_trilu():
@@ -3347,20 +3496,34 @@ def test_mish():
 
 
 def test_prelu():
-    def _assert_prelu_ir(slope_shape, expected):
+    def _assert_prelu_ir(slope_shape, expected, input_shape=(3, 32, 32)):
         prelu_node = helper.make_node("PRelu", ["a", "b"], ["c"])
         graph = helper.make_graph(
             [prelu_node],
             "prelu_structural_test",
             inputs=[
-                helper.make_tensor_value_info("a", TensorProto.FLOAT, [3, 32, 32]),
+                helper.make_tensor_value_info("a", TensorProto.FLOAT, input_shape),
                 helper.make_tensor_value_info("b", TensorProto.FLOAT, slope_shape),
             ],
-            outputs=[helper.make_tensor_value_info("c", TensorProto.FLOAT, [3, 32, 32])],
+            outputs=[helper.make_tensor_value_info("c", TensorProto.FLOAT, input_shape)],
         )
         model = helper.make_model(graph, producer_name="prelu_structural_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
         tvm.ir.assert_structural_equal(tvm_model, expected)
+
+    @I.ir_module
+    class ExpectedRankZeroSlope:
+        @R.function
+        def main(
+            a: R.Tensor((3, 32, 32), dtype="float32"),
+            b: R.Tensor((), dtype="float32"),
+        ) -> R.Tensor((3, 32, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((1,), dtype="float32") = R.reshape(b, R.shape([1]))
+                gv: R.Tensor((3, 32, 32), dtype="float32") = R.nn.prelu(a, lv, axis=2)
+                R.output(gv)
+            return gv
 
     @I.ir_module
     class ExpectedScalarSlope:
@@ -3418,10 +3581,50 @@ def test_prelu():
                 R.output(gv)
             return gv
 
+    @I.ir_module
+    class ExpectedLowerRankChannelSlope:
+        @R.function
+        def main(
+            a: R.Tensor((1, 32, 16, 16), dtype="float32"),
+            b: R.Tensor((32, 1, 1), dtype="float32"),
+        ) -> R.Tensor((1, 32, 16, 16), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32,), dtype="float32") = R.reshape(b, R.shape([32]))
+                gv: R.Tensor((1, 32, 16, 16), dtype="float32") = R.nn.prelu(a, lv, axis=1)
+                R.output(gv)
+            return gv
+
+    _assert_prelu_ir([], ExpectedRankZeroSlope)
     _assert_prelu_ir([1], ExpectedScalarSlope)
     _assert_prelu_ir([1, 1], ExpectedTwoDimScalarSlope)
     _assert_prelu_ir([32], ExpectedChannelSlope)
     _assert_prelu_ir([3, 1, 1], ExpectedBatchSlope)
+    _assert_prelu_ir([32, 1, 1], ExpectedLowerRankChannelSlope, input_shape=(1, 32, 16, 16))
+
+
+def test_prelu_lower_rank_slope():
+    input_shape = (1, 4, 3, 3)
+    slope_shape = (4, 1, 1)
+    graph = helper.make_graph(
+        [helper.make_node("PRelu", ["x", "slope"], ["y"])],
+        "prelu_lower_rank_slope_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
+            helper.make_tensor_value_info("slope", TensorProto.FLOAT, slope_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, input_shape)],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="prelu_lower_rank_slope_test",
+        opset_imports=[helper.make_opsetid("", 16)],
+    )
+    inputs = {
+        "x": np.linspace(-2.0, 2.0, np.prod(input_shape), dtype="float32").reshape(input_shape),
+        "slope": np.array([0.1, 0.2, 0.3, 0.4], dtype="float32").reshape(slope_shape),
+    }
+    check_correctness(model, inputs=inputs, opset=16, check_dtypes=True)
 
 
 def test_thresholded_relu():
@@ -7466,6 +7669,57 @@ def test_split():
                     pass_split=pass_split,
                     opset=opset,
                 )
+
+
+def test_split_initializer_with_params_in_input():
+    split_sizes = np.array([2, 4], dtype="int64")
+    split_node = helper.make_node(
+        "Split",
+        ["data", "split_sizes"],
+        ["left", "right"],
+        axis=0,
+    )
+    graph = helper.make_graph(
+        [split_node],
+        "split_initializer_test",
+        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, [6])],
+        initializer=[numpy_helper.from_array(split_sizes, name="split_sizes")],
+        outputs=[
+            helper.make_tensor_value_info("left", TensorProto.FLOAT, [2]),
+            helper.make_tensor_value_info("right", TensorProto.FLOAT, [4]),
+        ],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="split_initializer_test",
+        opset_imports=[helper.make_opsetid("", 13)],
+    )
+
+    tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
+    assert len(tvm_model["main"].attrs["params"]) == 1
+    np.testing.assert_array_equal(tvm_model["main"].attrs["params"][0].numpy(), split_sizes)
+    tvm_model["main"] = tvm_model["main"].without_attr("params")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            data: R.Tensor((6,), dtype="float32"),
+            split_sizes: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tuple(
+            R.Tensor((2,), dtype="float32"),
+            R.Tensor((4,), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(data, indices_or_sections=[2], axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                gv = (lv1, lv2)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_tile():

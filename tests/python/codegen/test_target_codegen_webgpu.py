@@ -14,6 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Re-export from canonical location."""
 
-from tvm.tirx.lang.alloc_pool import TMEMPool  # noqa: F401
+import tvm
+import tvm.testing
+from tvm.script import ir as I
+from tvm.script import tirx as T
+
+
+def test_codegen_buffer_access_modes():
+    """Read-only typed buffer parameters should remain read-only in WGSL."""
+
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((8,), "float32"), B: T.Buffer((8,), "float32")):
+            for tx in T.thread_binding(8, thread="threadIdx.x"):
+                B[tx] = A[tx]
+
+    executable = tvm.compile(Module, target="webgpu")
+    source = executable.mod.imports[0].inspect_source("wgsl")
+
+    assert "var<storage, read> A_ptr" in source
+    assert "var<storage, read_write> B_ptr" in source
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

@@ -110,53 +110,48 @@ class IRConvertSSA final : public StmtExprMutator {
       for (const auto& var : func->params) {
         defined_params.insert(var.get());
       }
-      for (const auto& [var, buffer] : func->buffer_map) {
-        static_cast<void>(var);  // gcc 7.x bug, https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
-        auto check_expr = [&](const PrimExpr& expr) {
-          auto* var_ptr = expr.as<VarNode>();
-          if (!var_ptr) return;
+      std::unordered_set<const VarNode*> defined_match_vars;
+      for (const Var& param : func->params) {
+        auto buffer = param.as<BufferVar>();
+        if (!buffer) continue;
+        auto check_var = [&](const Var& var) {
+          const VarNode* var_ptr = var.get();
           if (defined_params.count(var_ptr)) return;
+          if (!defined_match_vars.insert(var_ptr).second) return;
 
-          // Buffer_map shape vars use "match" semantics: first occurrence
+          // Buffer-parameter shape vars use "match" semantics: first occurrence
           // defines the var, subsequent occurrences (in other buffers) are
           // just consistent uses of the same var -- not redefinitions.
-          if (!defined_.count(var_ptr)) {
+          if (defined_.count(var_ptr)) {
+            Var new_var = MakeNewVar(var);
+            PushVarRemap(var, new_var);
+          } else {
             defined_.insert(var_ptr);
           }
         };
-        for (const auto& dim : buffer->shape) {
-          check_expr(dim);
+        for (const auto& dim : buffer.value()->shape) {
+          PostOrderVisit(dim, [&](const ffi::ObjectRef& obj) {
+            if (auto var = obj.as<Var>()) check_var(var.value());
+          });
         }
-        for (const auto& stride : buffer->strides) {
-          check_expr(stride);
+        for (const auto& stride : buffer.value()->strides) {
+          if (auto var = stride.as<Var>()) check_var(var.value());
         }
-        check_expr(buffer->elem_offset);
+        if (auto var = buffer.value()->elem_offset.as<Var>()) check_var(var.value());
       }
     }
 
-    // Update the buffer map, based on the redefined parameters
-    auto buffer_map = [&]() {
-      ffi::Map<Var, BufferVar> buffer_map;
-      bool made_change = false;
-      for (const auto& [var, buffer] : func->buffer_map) {
-        auto new_var = GetRemappedVar(var);
-        if (defined_.count(buffer.get())) {
-          Var new_buffer_var = MakeNewVar(buffer.var());
-          PushVarRemap(buffer.var(), new_buffer_var);
-        } else {
-          defined_.insert(buffer.get());
+    // Update the buffer parameters, based on the redefined parameters
+    bool buffer_params_changed = false;
+    for (size_t i = 0; i < func->params.size(); ++i) {
+      if (auto buffer = func->params[i].as<BufferVar>()) {
+        BufferVar new_buffer = GetRemappedBuffer(buffer.value());
+        if (!new_buffer.same_as(buffer.value()) || !params[i].same_as(new_buffer)) {
+          buffer_params_changed = true;
+          params.Set(i, new_buffer.var());
         }
-        auto new_buf = GetRemappedBuffer(buffer);
-
-        made_change = made_change || !var.same_as(new_var) || !buffer.same_as(new_buf);
-        buffer_map.Set(new_var, new_buf);
       }
-      if (made_change) {
-        return buffer_map;
-      } else {
-        return func->buffer_map;
-      }
-    }();
+    }
 
     auto attrs = [&]() -> DictAttrs {
       ffi::Map<ffi::String, ffi::Any> dict;
@@ -184,9 +179,9 @@ class IRConvertSSA final : public StmtExprMutator {
     auto body = VisitStmt(func->body);
 
     // If anything changed, update the returned function
-    if (!params.same_as(func->params) || !buffer_map.same_as(func->buffer_map) ||
-        !attrs.same_as(func->attrs) || !body.same_as(func->body)) {
-      func = PrimFunc(params, body, func->ret_type, buffer_map, attrs);
+    if (!params.same_as(func->params) || buffer_params_changed || !attrs.same_as(func->attrs) ||
+        !body.same_as(func->body)) {
+      func = PrimFunc(params, body, func->ret_type, attrs);
     }
 
     // Pop function-scope remaps in reverse order

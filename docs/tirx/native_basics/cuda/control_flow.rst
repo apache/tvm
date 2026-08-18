@@ -26,7 +26,7 @@ if
 
 A Python ``if`` / ``else`` becomes a CUDA ``if`` / ``else``. Guard work by a
 thread/lane comparison, or elect a single issuing thread with
-``T.ptx.elect_sync()``:
+``T.cuda.elect_sync()``:
 
 .. code-block:: python
 
@@ -35,7 +35,7 @@ thread/lane comparison, or elect a single issuing thread with
     else:
         A[tx] = A[tx] + T.float32(1.0)
 
-    if T.ptx.elect_sync():
+    if T.cuda.elect_sync():
         ...                              # one elected lane (e.g. to issue TMA/MMA)
 
 .. code-block:: c++

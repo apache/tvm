@@ -60,9 +60,35 @@ from tvm.tirx.tile_primitive import DispatchContext
 
 _TMA_OPS = {
     "tirx.ptx.cp_async_bulk_tensor_g2s_cluster",
-    "tirx.ptx.cp_async_bulk_tensor_shared_to_global",
-    "tirx.ptx.cp_async_bulk_tensor_shared_to_global_reduce",
+    "tirx.ptx.cp_async_bulk_tensor_s2g",
+    "tirx.ptx.cp_reduce_async_bulk_tensor",
 }
+
+
+def _ptx_call_parts(call):
+    """Decode one ptx Call: (modifier map, operand name -> args tuple).
+
+    The dialect's Call layout is [operands..., pred?][slot tokens][pred marker];
+    the operand positions follow the table's layout for the call's tokens, so
+    tests name operands instead of hard-coding argument indices.
+    """
+    from tvm.backend.cuda.ptx.table import TABLE, mods, operand_layout
+
+    entry = TABLE[call.op.name.removeprefix("tirx.ptx.")]
+    n_slots = len(entry.slots)
+    tokens = [str(a.value) for a in call.args[len(call.args) - n_slots - 1 : -1]]
+    mod_map = mods(entry, tokens)
+    operands = {
+        slot.name: tuple(call.args[i : i + n]) for slot, i, n in operand_layout(entry, mod_map)
+    }
+    return mod_map, operands
+
+
+def _unwrap_shared_addr(value):
+    """Peel the dialect's generic-pointer -> shared-window conversion."""
+    if isinstance(value, tvm.ir.Call) and value.op.name == "tirx.cuda.cvta_generic_to_shared":
+        return value.args[0]
+    return value
 
 
 class _TMACounter(StmtExprVisitor):
@@ -119,14 +145,18 @@ class _PrefetchCollector(StmtExprVisitor):
         self.names = []
 
     def visit_call_(self, op):
-        if (
-            isinstance(op.op, tvm.ir.Op)
-            and op.op.name == "tirx.ptx.prefetch_tensormap"
-            and isinstance(op.args[0], tvm.ir.Call)
-            and op.args[0].op.name == "tirx.address_of"
-            and isinstance(op.args[0].args[0], Var)
-        ):
-            self.names.append(op.args[0].args[0].name)
+        if isinstance(op.op, tvm.ir.Op) and op.op.name == "tirx.ptx.prefetch":
+            addr = op.args[0]
+            # A tensormap address arrives as a u64 handle, so the dialect
+            # coerces it with an explicit reinterpret before the call.
+            if isinstance(addr, tvm.ir.Call) and addr.op.name == "tirx.reinterpret":
+                addr = addr.args[0]
+            if (
+                isinstance(addr, tvm.ir.Call)
+                and addr.op.name == "tirx.address_of"
+                and isinstance(addr.args[0], Var)
+            ):
+                self.names.append(addr.args[0].name)
         super().visit_call_(op)
 
 
@@ -934,9 +964,9 @@ def test_tma_codegen(case_id, kwargs):
     assert counter.total == 1
     assert len(counter.calls) == 1
     call = counter.calls[0]
-    assert int(call.args[0]) == len(expected.dims)
-    coord_start = 11 if kwargs.get("direction", "g2s") == "g2s" else 5
-    assert _ints(call.args[coord_start:]) == expected.coordinates
+    mod_map, operands = _ptx_call_parts(call)
+    assert mod_map["dim"] == f"{len(expected.dims)}d"
+    assert _ints(operands["coords"]) == expected.coordinates
 
     encodes = _collect_encodes(host)
     assert len(encodes) == 1
@@ -1117,10 +1147,11 @@ def bind_coordinate(D_ptr: T.handle):
     counter = _count_tma(lowered["main"])
     assert counter.total == 1
     call = counter.calls[0]
-    assert int(call.args[0]) == 3
-    assert int(call.args[5]) == 0
-    assert int(call.args[6]) == 0
-    assert str(call.args[7]) == "tile_index[0] * 2"
+    mod_map, operands = _ptx_call_parts(call)
+    assert mod_map["dim"] == "3d"
+    assert int(operands["coords"][0]) == 0
+    assert int(operands["coords"][1]) == 0
+    assert str(operands["coords"][2]) == "tile_index[0] * 2"
 
 
 def test_auto_recovers_stride_from_split_coordinate_only_dimension():
@@ -1424,7 +1455,7 @@ def test_explicit_oob_reduce_and_tf32_configs():
     )
     counter = _count_tma(store_impl)
     assert counter.total == 1
-    assert counter.calls[0].op.name.endswith("shared_to_global_reduce")
+    assert counter.calls[0].op.name == "tirx.ptx.cp_reduce_async_bulk_tensor"
 
     _, tf32_host, _ = _lower_direct(
         "tma_explicit",
@@ -1463,7 +1494,8 @@ def test_explicit_gather_uses_extracted_swizzled_slice_pointer():
         config={"gather4": [0, 1, 2, 3]},
         target_arch="sm_100a",
     )
-    shared_ptr = _count_tma(impl).calls[0].args[1]
+    _, operands = _ptx_call_parts(_count_tma(impl).calls[0])
+    shared_ptr = _unwrap_shared_addr(operands["dst_mem"][0])
     assert shared_ptr.op.name == "tirx.address_of"
     assert int(shared_ptr.args[0].buffer.elem_offset) == 0
     assert int(shared_ptr.args[0].indices[0]) == 256
@@ -1480,7 +1512,8 @@ def test_explicit_shared_pointer_counts_each_offset_once():
         s_layout=layout,
         s_elem_offset=32,
     )
-    shared_ptr = _count_tma(impl).calls[0].args[1]
+    _, operands = _ptx_call_parts(_count_tma(impl).calls[0])
+    shared_ptr = _unwrap_shared_addr(operands["dst_mem"][0])
     assert shared_ptr.op.name == "tirx.address_of"
     pointer_index = shared_ptr.args[0].indices[0]
     assert Analyzer().can_prove_equal(pointer_index, 32 + warp_offset * 64 + 128)
@@ -1529,7 +1562,7 @@ def selector_gather(
     )
     mbar = T.decl_buffer((1,), "uint64", dyn.data, elem_offset=64)
     if tid == 0:
-        T.ptx.mbarrier.init(mbar.ptr_to([0]), 1)
+        T.ptx.mbarrier.init.shared.b64(mbar.ptr_to([0]), T.uint32(1))
         Tx.copy_async(
             A_smem[:, :],
             A[0:1, :],
@@ -1564,7 +1597,16 @@ def test_explicit_gather_selector_encodes_each_map_selects_address_and_issues_on
     assert "uint64_t selected_tensormap" in cuda_source
     assert "flag != 0) ?" in cuda_source
     assert "if (flag" not in cuda_source
-    assert cuda_source.count("cp_async_bulk_tensor_g2s_cluster_tile_gather4_2d(") == 2
+    # One helper definition plus one call site: the selector collapses the two
+    # descriptors into a single gather4 issue.
+    assert (
+        cuda_source.count(
+            "tvm_builtin_ptx_cp_async_bulk_tensor_g2s_cluster_async_bulk_tensor_2d"
+            "_shared__cluster_global_tile__gather4_mbarrier__complete_tx__bytes"
+            "_cta_group__1("
+        )
+        == 2
+    )
 
 
 def test_explicit_selector_uses_first_true_and_requires_static_compatibility():
@@ -1748,7 +1790,7 @@ def test_sparse_decode_runtime_stride_q_tail_o_counts_and_descriptor_dedup():
     lowered = _lower_module(kernel)
     counter = _count_tma(lowered["main"])
     load_op = "tirx.ptx.cp_async_bulk_tensor_g2s_cluster"
-    store_op = "tirx.ptx.cp_async_bulk_tensor_shared_to_global"
+    store_op = "tirx.ptx.cp_async_bulk_tensor_s2g"
     assert sum(weight for call, weight in counter.weighted_calls if call.op.name == load_op) == 9
     assert sum(weight for call, weight in counter.weighted_calls if call.op.name == store_op) == 8
 
@@ -1969,8 +2011,8 @@ def _build_selector_gather_gpu_kernel(dtype="float16"):
         mbar = T.decl_buffer((1,), "uint64", dyn.data, elem_offset=shared_bytes // 8)
         mbar_ptr = T.meta_var(mbar.ptr_to([0]))
         if tid == 0:
-            T.ptx.mbarrier.init(mbar_ptr, 1)
-        T.ptx.fence.proxy_async("shared::cta")
+            T.ptx.mbarrier.init.shared.b64(mbar_ptr, T.uint32(1))
+        T.ptx.fence.proxy.async_.shared__cta()
         T.cuda.cta_sync()
         if tid == 0:
             Tx.copy_async(
@@ -1981,9 +2023,9 @@ def _build_selector_gather_gpu_kernel(dtype="float16"):
                 gather4=[7, 3, 19, 5],
                 src_selector=[(flag != 0, B)],
             )
-            T.ptx.mbarrier.arrive.expect_tx(mbar_ptr, shared_bytes)
-        T.ptx.mbarrier.try_wait(mbar_ptr, 0)
-        T.ptx.fence.proxy_async("shared::cta")
+            T.ptx.mbarrier.arrive.expect_tx.shared.b64(mbar_ptr, T.uint32(shared_bytes))
+        T.cuda.mbarrier_wait(mbar_ptr, 0)
+        T.ptx.fence.proxy.async_.shared__cta()
         T.cuda.cta_sync()
         Tx.cta.copy(Out[:, :], A_smem[:, :])
         # fmt: on

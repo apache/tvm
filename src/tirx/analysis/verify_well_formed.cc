@@ -239,7 +239,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
 /*! \brief Verify that buffers with a declaration are not used outside their declared scope.
  *
  * When a buffer is declared via one of the following sites:
- *   - PrimFunc buffer_map (function parameter buffers)
+ *   - BufferType-annotated PrimFunc parameters
  *   - DeclBuffer statement
  *   - SBlock::alloc_buffers
  *   - SBlock::match_buffers

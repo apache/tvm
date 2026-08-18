@@ -126,8 +126,8 @@ class PipelineOpaqueAccessRewriter {
     static const Op& load_matrix_sync = Op::Get("tirx.tvm_load_matrix_sync");
     static const Op& store_matrix_sync = Op::Get("tirx.tvm_store_matrix_sync");
     static const Op& mma_sync = Op::Get("tirx.tvm_mma_sync");
-    static const Op& ptx_ldmatrix_legacy = Op::Get("tirx.ptx.ldmatrix_legacy");
-    static const Op& ptx_mma_legacy = Op::Get("tirx.ptx.mma_legacy");
+    static const Op& ptx_ldmatrix_legacy = Op::Get("tirx.ptx_legacy.ldmatrix");
+    static const Op& ptx_mma_legacy = Op::Get("tirx.ptx_legacy.mma");
     if (call->op.same_as(load_matrix_sync) || call->op.same_as(store_matrix_sync)) {
       const BufferVar& buffer = buffer_data_to_buffer_.at(GetBufferDataVar(call->args[0]).value());
       auto it = buffer_remap_.find(buffer);
@@ -1065,9 +1065,10 @@ class PipelineInjector : private StmtExprMutator {
   static Stmt Inject(const PrimFunc& func) {
     auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     PipelineInjector injector(global_symbol);
-    for (const auto& kv : func->buffer_map) {
-      const BufferVar& buffer = kv.second;
-      injector.buffer_data_to_buffer_.Set(buffer.var(), buffer);
+    for (const Var& param : func->params) {
+      if (auto buffer = param.as<BufferVar>()) {
+        injector.buffer_data_to_buffer_.Set(buffer.value().var(), buffer.value());
+      }
     }
     injector.fragment_info_ = GetTensorCoreFragmentInfo(func->body);
     return injector(func->body);

@@ -562,7 +562,7 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
     size_t first_write_index = func->params.size() - write_transformations.size();
     for (size_t i = 0; i < write_transformations.size(); ++i) {
       auto param = func->params[first_write_index + i];
-      ffi::Optional<BufferVar> param_buf = func->buffer_map.Get(param);
+      ffi::Optional<BufferVar> param_buf = param.as<BufferVar>();
       TVM_FFI_ICHECK(param_buf.has_value());
       TVM_FFI_ICHECK_EQ(param_buf.value()->shape.size(),
                         write_transformations[i]->initial_indices.size())

@@ -1353,7 +1353,7 @@ def _collect_buffer_sources(func):
 
 
 def test_buffer_local_ir():
-    """Verify .local() auto-infer: shape from storage shard extents, layout, shared data."""
+    """Verify .local() infers the physical span and uses an identity layout."""
 
     # fmt: off
     @T.prim_func
@@ -1372,19 +1372,289 @@ def test_buffer_local_ir():
 
     # Shared data pointer
     assert_structural_equal(_collect_buffer_sources(func)["B_local"], b_buf.data)
-    # Shape: single dim matching storage shard total
+    # Shape: single dim matching the raw physical storage span
     assert len(b_local.ty.shape) == 1
     storage = b_buf.ty.layout.storage()
-    expected_total = 1
-    for it in storage.shard:
-        expected_total *= int(it.extent)
-    assert int(b_local.ty.shape[0]) == expected_total
-    # Layout: storage layout (parent layout with thread axes removed)
-    assert_structural_equal(b_local.ty.layout, storage)
+    assert int(b_local.ty.shape[0]) == int(storage.span())
+    # The inferred view uses physical storage order, not storage-iterator order.
+    assert b_local.ty.layout.is_trivial()
 
     # Round-trip
     code = func.script()
+    assert "B_local = B.local()" in code
     assert from_source(code).script() == code
+    assert_structural_equal(func, from_source(code))
+
+
+def test_buffer_local_physical_order():
+    """Both inferred and explicit shapes map a non-trivial fragment physically."""
+    from tvm.tirx.layout import tcgen05_atom_layout
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([32], dtype="float32", scope="local")
+        B = A.view(64, 64, layout=tcgen05_atom_layout("16x256b", (64, 64), "float32"))
+        B_flat = B.local()
+        B_2d = B.local(4, 8)
+        B_flat[2] = T.float32(1)
+        B_2d[0, 2] = T.float32(2)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    b_buf = bufs["B"]
+    b_flat = bufs["B_flat"]
+    b_2d = bufs["B_2d"]
+
+    # The parent storage view enumerates storage iters in a different order
+    # from their physical strides, so inheriting it would permute registers.
+    assert not b_buf.ty.layout.storage().is_trivial()
+
+    for local in [b_flat, b_2d]:
+        assert_structural_equal(_collect_buffer_sources(func)[local.name], b_buf.data)
+        assert local.ty.layout.is_trivial()
+    assert [int(dim) for dim in b_flat.ty.shape] == [32]
+    assert [int(dim) for dim in b_2d.ty.shape] == [4, 8]
+
+    # Index 2 in either row-major shape is the same physical register.
+    flat_offset = b_flat.ty.layout.apply(2, shape=list(b_flat.ty.shape))["m"]
+    reshaped_offset = b_2d.ty.layout.apply(0, 2, shape=list(b_2d.ty.shape))["m"]
+    assert int(flat_offset) == int(reshaped_offset) == 2
+
+    code = func.script()
+    assert "B_flat = B.local()" in code
+    assert "B_2d = B.local(4, 8)" in code
+    assert from_source(code).script() == code
+    assert_structural_equal(func, from_source(code))
+
+
+def test_buffer_local_layout_overrides_roundtrip():
+    """Storage and arbitrary mediated layouts remain explicit overrides."""
+    from tvm.tirx.layout import tcgen05_atom_layout
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([32], dtype="float32", scope="local")
+        B = A.view(64, 64, layout=tcgen05_atom_layout("16x256b", (64, 64), "float32"))
+        B_storage = B.local(layout=B.layout.storage())
+        # An explicit layout is an escape hatch and may describe a smaller
+        # mediated view than the parent's full per-thread storage.
+        B_custom = B.local(2, 4, layout=T.TileLayout(T.S[(2, 4) : (1, 2)]))
+        B_storage[0] = T.float32(1)
+        B_custom[0, 0] = T.float32(2)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    b_buf = bufs["B"]
+    b_storage = bufs["B_storage"]
+    b_custom = bufs["B_custom"]
+    assert_structural_equal(b_storage.ty.layout, b_buf.ty.layout.storage())
+    assert not b_storage.ty.layout.is_trivial()
+    assert not b_custom.ty.layout.is_trivial()
+
+    code = func.script()
+    storage_line = next(line for line in code.splitlines() if "B_storage =" in line)
+    custom_line = next(line for line in code.splitlines() if "B_custom =" in line)
+    assert ".local(layout=" in storage_line
+    assert ".local(2, 4, layout=" in custom_line
+    assert_structural_equal(func, from_source(code))
+    assert from_source(code).script() == code
+
+
+def test_buffer_local_explicit_layout_without_parent_layout():
+    """An explicit shape and layout do not inspect the parent's absent layout."""
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer((4,), dtype="float32", scope="local", layout=None)
+        B = A.local(4, layout=T.TileLayout(T.S[4]))
+        B[0] = T.float32(1)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    assert bufs["A"].ty.layout is None
+    assert bufs["B"].ty.layout.is_trivial()
+    code = func.script()
+    parsed = from_source(code)
+    assert_structural_equal(func, parsed)
+    assert parsed.script() == code
+
+
+def test_buffer_local_compose_layout_printer_roundtrip():
+    """Generic view sugar keeps a physical local view's identity layout."""
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer(
+            (8, 8),
+            dtype="float32",
+            scope="local",
+            layout=T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(8, 8)])),
+        )
+        B = A.local()
+        B[0] = T.float32(1)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    assert [int(dim) for dim in bufs["B"].ty.shape] == [64]
+    assert bufs["B"].ty.layout.is_trivial()
+    code = func.script()
+    local_line = next(line for line in code.splitlines() if "B =" in line)
+    assert ".view(64, layout=" in local_line
+    parsed = from_source(code)
+    assert_structural_equal(func, parsed)
+    assert parsed.script() == code
+
+
+def test_buffer_local_inference_without_parent_layout_has_clear_diagnostic():
+    """Shape inference requires a parent storage layout."""
+
+    with pytest.raises(tvm.error.DiagnosticError, match="parent buffer has layout=None"):
+        # fmt: off
+        @T.prim_func
+        def func() -> None:
+            T.device_entry()
+            A = T.alloc_buffer((4,), dtype="float32", scope="local", layout=None)
+            B = A.local(layout=T.TileLayout(T.S[4]))
+            B[0] = T.float32(1)
+            # fmt: on
+
+
+def test_buffer_local_physical_span_includes_gaps_and_offset():
+    """The raw local view includes every slot up to the storage span."""
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([6], dtype="float32", scope="local")
+        B = A.view(32, 2, layout=T.TileLayout(T.S[(32, 2) : (1 @ laneid, 2)] + 3))
+        B_flat = B.local()
+        B_2d = B.local(2, 3)
+        B_storage = B.local(2, layout=B.layout.storage())
+        B_flat[5] = T.float32(1)
+        B_2d[1, 2] = T.float32(2)
+        B_storage[1] = T.float32(3)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    b_buf = bufs["B"]
+    b_flat = bufs["B_flat"]
+    b_2d = bufs["B_2d"]
+    b_storage = bufs["B_storage"]
+    assert int(b_buf.ty.layout.storage().span()) == 6
+    assert int(b_buf.ty.layout.storage().size()) == 2
+    assert [int(dim) for dim in b_flat.ty.shape] == [6]
+    assert [int(dim) for dim in b_2d.ty.shape] == [2, 3]
+    assert [int(dim) for dim in b_storage.ty.shape] == [2]
+    for local in [b_flat, b_2d]:
+        assert local.ty.layout.is_trivial()
+    for i in range(6):
+        assert int(b_flat.ty.layout.apply(i, shape=list(b_flat.ty.shape))["m"]) == i
+    assert int(b_2d.ty.layout.apply(1, 2, shape=list(b_2d.ty.shape))["m"]) == 5
+    assert_structural_equal(b_storage.ty.layout, b_buf.ty.layout.storage())
+    assert int(b_storage.ty.layout.apply(0, shape=list(b_storage.ty.shape))["m"]) == 3
+    assert int(b_storage.ty.layout.apply(1, shape=list(b_storage.ty.shape))["m"]) == 5
+
+    code = func.script()
+    storage_line = next(line for line in code.splitlines() if "B_storage =" in line)
+    assert ".local(layout=" in storage_line
+    assert_structural_equal(func, from_source(code))
+    assert from_source(code).script() == code
+
+
+def test_buffer_local_printer_is_stable_with_multiple_aliases():
+    """Thread-layout parents win deterministically over sibling aliases."""
+    from tvm.tirx.layout import tcgen05_atom_layout
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([32], dtype="float32", scope="local")
+        B = A.view(64, 64, layout=tcgen05_atom_layout("16x256b", (64, 64), "float32"))
+        B_flat = B.local()
+        B_2d = B.local(4, 8)
+        B_storage = B.local(layout=B.layout.storage())
+        B_flat[0] = B_2d[0, 0] + B_storage[0]
+        # fmt: on
+
+    expected = func.script()
+    assert "B_flat = B.local()" in expected
+    assert "B_2d = B.local(4, 8)" in expected
+    storage_line = next(line for line in expected.splitlines() if "B_storage =" in line)
+    assert ".local(layout=" in storage_line
+    for _ in range(20):
+        parsed = from_source(expected)
+        assert parsed.script() == expected
+        assert_structural_equal(func, parsed)
+
+
+def test_buffer_local_printer_preserves_inherited_metadata():
+    """Local sugar falls back when it would discard Buffer metadata."""
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer(
+            [32, 2],
+            dtype="float32",
+            elem_offset=8,
+            scope="local",
+            layout=T.TileLayout(T.S[(32, 2) : (1 @ laneid, 2)]),
+        )
+        B_align = T.decl_buffer(
+            (2,),
+            dtype="float32",
+            data=A.data,
+            elem_offset=8,
+            scope="local",
+            align=128,
+        )
+        B_factor = T.decl_buffer(
+            (2,),
+            dtype="float32",
+            data=A.data,
+            elem_offset=8,
+            scope="local",
+            offset_factor=8,
+        )
+        B_align[0] = B_factor[0]
+        # fmt: on
+
+    code = func.script()
+    align_line = next(line for line in code.splitlines() if "B_align =" in line)
+    factor_line = next(line for line in code.splitlines() if "B_factor =" in line)
+    assert "T.decl_buffer" in align_line and "align=128" in align_line
+    assert "T.decl_buffer" in factor_line and "offset_factor=8" in factor_line
+    assert ".local(" not in align_line
+    assert ".local(" not in factor_line
+    parsed = from_source(code)
+    assert_structural_equal(func, parsed)
+    assert parsed.script() == code
+
+
+def test_buffer_local_rejects_shape_that_does_not_match_physical_span():
+    """An explicit local shape product must preserve the physical span."""
+
+    with pytest.raises(tvm.error.DiagnosticError, match="physical storage span 6 per thread"):
+        # fmt: off
+        @T.prim_func
+        def func() -> None:
+            T.device_entry()
+            A = T.alloc_buffer([6], dtype="float32", scope="local")
+            B = A.view(32, 2, layout=T.TileLayout(T.S[(32, 2) : (1 @ laneid, 2)] + 3))
+            B_local = B.local(2)
+            B_local[0] = T.float32(0)
+            # fmt: on
 
 
 def test_pointer_expression_assignment_uses_bind():
@@ -2027,6 +2297,28 @@ def test_roundtrip_serial_unroll_true():
     assert_structural_equal(test, from_source(code))
 
 
+def test_roundtrip_serial_unroll_count():
+    """T.serial(N, unroll=2) should preserve the requested unroll count."""
+
+    # fmt: off
+    @T.prim_func
+    def test(A_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
+        T.device_entry()
+        cta_id = T.cta_id([1])
+        warp_id = T.warp_id([1])
+        lane_id = T.lane_id([32])
+        for _ in T.serial(10, unroll=2):
+            Tx.cta.fill(A[0:32], T.float32(0))
+        # fmt: on
+
+    code = test.script()
+    assert "unroll=2" in code, f"printer should emit unroll=2, got:\n{code}"
+    assert "annotations" not in code, "printer should NOT emit annotations dict"
+    assert from_source(code).script() == code
+    assert_structural_equal(test, from_source(code))
+
+
 def test_roundtrip_serial_unroll_false_with_other_annotations():
     """When other annotations exist alongside disable_unroll, fall back to full dict."""
 
@@ -2407,7 +2699,7 @@ def test_roundtrip_cuda_func_call_source_code():
 
 
 def test_roundtrip_cp_async_bulk_tensor_g2s_cluster():
-    """cp.async.bulk.tensor.g2s_cluster must round-trip with *coords at end."""
+    """The TMA load composite [tensorMap, coords] operand must round-trip."""
 
     # fmt: off
     @T.prim_func(check_well_formed=False)
@@ -2417,8 +2709,8 @@ def test_roundtrip_cp_async_bulk_tensor_g2s_cluster():
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
             A_smem = T.alloc_buffer((16, 16), "float32", scope="shared")
-            T.ptx.cp_async.bulk.tensor.g2s_cluster(
-                2, A_smem.data, 0, T.address_of(A_map), 0, 1, "", 0, 0
+            T.ptx["cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes"](
+                A_smem.data, T.address_of(A_map), 0, 0, T.uint32(0)
             )
     # fmt: on
 
@@ -2428,7 +2720,7 @@ def test_roundtrip_cp_async_bulk_tensor_g2s_cluster():
 
 
 def test_roundtrip_cp_async_bulk_tensor_s2g():
-    """cp.async.bulk.tensor.s2g must round-trip with *coords at end."""
+    """The TMA store composite [tensorMap, coords] operand must round-trip."""
 
     # fmt: off
     @T.prim_func(check_well_formed=False)
@@ -2438,8 +2730,8 @@ def test_roundtrip_cp_async_bulk_tensor_s2g():
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
             A_smem = T.alloc_buffer((16, 16), "float32", scope="shared")
-            T.ptx.cp_async.bulk.tensor.s2g(
-                2, A_smem.data, T.address_of(A_map), "", 0, 0
+            T.ptx["cp.async.bulk.tensor.2d.global.shared::cta.tile.bulk_group"](
+                T.address_of(A_map), 0, 0, A_smem.data
             )
     # fmt: on
 
@@ -2449,7 +2741,7 @@ def test_roundtrip_cp_async_bulk_tensor_s2g():
 
 
 def test_roundtrip_cp_async_bulk_tensor_prefetch():
-    """cp.async.bulk.tensor.prefetch must round-trip with *coords at end."""
+    """The tensor prefetch composite [tensorMap, coords] operand must round-trip."""
 
     # fmt: off
     @T.prim_func(check_well_formed=False)
@@ -2458,8 +2750,8 @@ def test_roundtrip_cp_async_bulk_tensor_prefetch():
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
-            T.ptx.cp_async.bulk.tensor.prefetch(
-                2, T.address_of(A_map), "", 0, 0
+            T.ptx["cp.async.bulk.prefetch.tensor.2d.L2.global.tile"](
+                T.address_of(A_map), 0, 0
             )
     # fmt: on
 
@@ -2469,7 +2761,7 @@ def test_roundtrip_cp_async_bulk_tensor_prefetch():
 
 
 def test_roundtrip_cp_async_bulk_tensor_s2g_reduce():
-    """cp.async.bulk.tensor.s2g_reduce must round-trip with *coords at end."""
+    """The tensor reduction composite [tensorMap, coords] operand must round-trip."""
 
     # fmt: off
     @T.prim_func(check_well_formed=False)
@@ -2479,14 +2771,260 @@ def test_roundtrip_cp_async_bulk_tensor_s2g_reduce():
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
             A_smem = T.alloc_buffer((16, 16), "float32", scope="shared")
-            T.ptx.cp_async.bulk.tensor.s2g_reduce(
-                2, A_smem.data, T.address_of(A_map), "", "add", 0, 0
+            T.ptx["cp.reduce.async.bulk.tensor.2d.global.shared::cta.add.tile.bulk_group"](
+                T.address_of(A_map), 0, 0, A_smem.data
             )
     # fmt: on
 
     code = func.script()
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
+
+
+def _assert_roundtrip(func):
+    code = func.script()
+    assert from_source(code).script() == code
+    assert_structural_equal(func, from_source(code))
+
+
+def test_loop_var_dtype_uint32():
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (128,), "float32")
+        for i in T.serial(128, dtype="uint32"):
+            A[i] = T.float32(1)
+    # fmt: on
+
+    loop = func.body
+    assert loop.loop_var.ty == PrimType("uint32")
+    assert loop.min.ty == PrimType("uint32")
+    assert loop.extent.ty == PrimType("uint32")
+    _assert_roundtrip(func)
+
+
+def test_loop_var_dtype_uint32_with_step():
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (128,), "float32")
+        for i in T.serial(4, 128, step=2, dtype="uint32"):
+            A[i] = T.float32(1)
+    # fmt: on
+
+    loop = func.body
+    assert loop.loop_var.ty == PrimType("uint32")
+    assert loop.min.ty == PrimType("uint32")
+    assert loop.extent.ty == PrimType("uint32")
+    assert loop.step.ty == PrimType("uint32")
+    _assert_roundtrip(func)
+
+
+@pytest.mark.parametrize("for_kind", ["serial", "parallel", "vectorized", "unroll"])
+def test_loop_var_dtype_uint32_all_for_kinds(for_kind):
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (4,), "float32")
+        for i in getattr(T, for_kind)(4, dtype="uint32"):
+            A[i] = T.float32(1)
+    # fmt: on
+
+    assert func.body.loop_var.ty == PrimType("uint32")
+    _assert_roundtrip(func)
+
+
+def test_grid_loop_var_dtype_uint32():
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (8, 16), "float32")
+        for i, j in T.grid(8, 16, dtype="uint32"):
+            A[i, j] = T.float32(1)
+    # fmt: on
+
+    outer = func.body
+    assert outer.loop_var.ty == PrimType("uint32")
+    assert outer.body.loop_var.ty == PrimType("uint32")
+    _assert_roundtrip(func)
+
+
+def test_loop_var_dtype_defaults_to_int32():
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (128,), "float32")
+        for i in range(128):
+            A[i] = T.float32(1)
+    # fmt: on
+
+    assert func.body.loop_var.ty == PrimType("int32")
+    _assert_roundtrip(func)
+
+
+def test_loop_var_dtype_inferred_from_unsigned_extent():
+    """A uint32 extent makes the loop var uint32 without an explicit dtype."""
+
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle, n: T.uint32):
+        A = T.match_buffer(A_ptr, (128,), "float32")
+        for i in range(n):
+            A[i] = T.float32(1)
+    # fmt: on
+
+    assert func.body.loop_var.ty == PrimType("uint32")
+    _assert_roundtrip(func)
+
+
+def test_loop_var_dtype_casts_mismatched_bound():
+    """A non-literal bound of another dtype is cast to the requested loop dtype."""
+
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle, n: T.int32):
+        A = T.match_buffer(A_ptr, (128,), "float32")
+        for i in T.serial(n, dtype="uint32"):
+            A[i] = T.float32(1)
+    # fmt: on
+
+    loop = func.body
+    assert loop.loop_var.ty == PrimType("uint32")
+    assert loop.extent.ty == PrimType("uint32")
+    _assert_roundtrip(func)
+
+
+@pytest.mark.parametrize("dtype", ["int64", "uint64", "int16", "float32"])
+def test_loop_var_dtype_rejects_unsupported(dtype):
+    with pytest.raises(Exception, match='must be "int32" or "uint32"'):
+        T.serial(4, dtype=dtype)
+
+
+def test_thread_binding_has_no_dtype_parameter():
+    with pytest.raises(TypeError):
+        T.thread_binding(0, 128, "threadIdx.x", dtype="uint32")
+
+
+def test_hand_built_for_promotes_int_literal_bounds_to_uint32():
+    """The For constructor retypes literal bounds to the loop var's dtype."""
+    loop_var = tvm.tirx.Var("i", "uint32")
+    loop = tvm.tirx.For(loop_var, 0, 128, tvm.tirx.ForKind.SERIAL, tvm.tirx.Evaluate(0))
+    assert loop.min.ty == PrimType("uint32")
+    assert loop.extent.ty == PrimType("uint32")
+
+
+def test_hand_built_for_rejects_negative_literal_for_uint32():
+    loop_var = tvm.tirx.Var("i", "uint32")
+    with pytest.raises(Exception, match="not representable"):
+        tvm.tirx.For(loop_var, -1, 128, tvm.tirx.ForKind.SERIAL, tvm.tirx.Evaluate(0))
+
+
+def test_scope_id_dtype_uint32():
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (128,), "float32")
+        T.device_entry()
+        bx = T.cta_id([1])
+        tx = T.thread_id([128], dtype="uint32")
+        A[tx] = T.float32(bx)
+    # fmt: on
+
+    scope_defs = []
+    tvm.tirx.stmt_functor.post_order_visit(
+        func.body,
+        lambda s: (
+            scope_defs.append(getattr(s, "def")) if isinstance(s, tvm.tirx.ScopeIdDefStmt) else None
+        ),
+    )
+    dtypes = {str(d.def_ids[0].ty) for d in scope_defs}
+    assert dtypes == {"int32", "uint32"}
+    # The extents stay int32 regardless of the def var dtype.
+    for d in scope_defs:
+        assert d.extents[0].ty == PrimType("int32")
+
+    code = func.script()
+    assert 'T.thread_id([128], dtype="uint32")' in code
+    assert "T.cta_id([1])" in code
+    _assert_roundtrip(func)
+
+
+def test_scope_id_dtype_uint32_lane_and_warp():
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (32,), "float32")
+        T.device_entry()
+        _ = T.cta_id([1])
+        warp = T.warp_id([4], dtype="uint32")
+        lane = T.lane_id([32], dtype="uint32")
+        A[lane] = T.float32(warp)
+    # fmt: on
+
+    code = func.script()
+    assert 'T.warp_id([4], dtype="uint32")' in code
+    assert 'T.lane_id([32], dtype="uint32")' in code
+    _assert_roundtrip(func)
+
+
+def test_scope_id_dtype_uint32_with_preferred():
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (4,), "float32")
+        T.device_entry()
+        _ = T.cluster_id([2])
+        cx, cy = T.cta_id_in_cluster([2, 2], preferred=[2, 2], dtype="uint32")
+        tx = T.thread_id([32])
+        if tx == 0:
+            A[cx + cy] = T.float32(1)
+    # fmt: on
+
+    code = func.script()
+    assert 'dtype="uint32"' in code
+    _assert_roundtrip(func)
+
+
+def test_scope_id_dtype_uint32_deferred_extent():
+    """The deferred (extent=None) form carries the dtype too."""
+
+    # fmt: off
+    @T.prim_func
+    def func(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (32,), "float32")
+        T.device_entry()
+        _ = T.cta_id([1])
+        lane = T.lane_id(dtype="uint32")
+        warp = T.warp_id([4])
+        A[lane] = T.float32(warp)
+    # fmt: on
+
+    scope_defs = []
+    tvm.tirx.stmt_functor.post_order_visit(
+        func.body,
+        lambda s: (
+            scope_defs.append(getattr(s, "def")) if isinstance(s, tvm.tirx.ScopeIdDefStmt) else None
+        ),
+    )
+    deferred = [d for d in scope_defs if d.extents is None]
+    assert len(deferred) == 1
+    assert deferred[0].def_ids[0].ty == PrimType("uint32")
+    _assert_roundtrip(func)
+
+
+@pytest.mark.parametrize("dtype", ["int64", "float32"])
+def test_scope_id_dtype_rejects_unsupported(dtype):
+    # fmt: off
+    with pytest.raises(Exception, match='must be "int32" or "uint32"'):
+
+        @T.prim_func
+        def func(A_ptr: T.handle):
+            A = T.match_buffer(A_ptr, (128,), "float32")
+            T.device_entry()
+            _ = T.cta_id([1])
+            tx = T.thread_id([128], dtype=dtype)
+            A[tx] = T.float32(1)
+    # fmt: on
 
 
 if __name__ == "__main__":

@@ -363,14 +363,14 @@ class StmtVisitor(StmtFunctor):
     def visit_op_call_(self, op):
         """Visitor implementation for TilePrimitiveCall."""
         for arg in op.args:
-            if tvm.ir.is_prim_expr(arg):
+            if isinstance(arg, tvm.ir.Expr):
                 self.visit_expr(arg)
             elif isinstance(arg, tvm.tirx.Stmt):
                 self.visit_stmt(arg)
             elif isinstance(arg, tvm.tirx.BufferRegion):
                 self.visit_buffer_region_(arg)
         for value in op.config.values():
-            if tvm.ir.is_prim_expr(value):
+            if isinstance(value, tvm.ir.Expr):
                 self.visit_expr(value)
             elif isinstance(value, tvm.tirx.Stmt):
                 self.visit_stmt(value)
@@ -842,7 +842,7 @@ class StmtMutator(StmtFunctor):
         args_changed = False
 
         for arg in op.args:
-            if tvm.ir.is_prim_expr(arg):
+            if isinstance(arg, tvm.ir.Expr):
                 new_arg = self.visit_expr(arg)
             elif isinstance(arg, tvm.tirx.Stmt):
                 new_arg = self.visit_stmt(arg)
@@ -859,7 +859,7 @@ class StmtMutator(StmtFunctor):
         new_config = {}
         config_changed = False
         for key, value in op.config.items():
-            if tvm.ir.is_prim_expr(value):
+            if isinstance(value, tvm.ir.Expr):
                 new_value = self.visit_expr(value)
             elif isinstance(value, tvm.tirx.Stmt):
                 new_value = self.visit_stmt(value)

@@ -93,6 +93,30 @@ def test_z3_context_lifetime_outlives_worker_thread():
     gc.collect()
 
 
+def test_z3_context_scope_clone_lifetime():
+    _require_z3(Analyzer())
+
+    a = tirx.Var("a", "int32")
+    b = tirx.Var("b", "int32")
+    c = tirx.Var("c", "int32")
+    expr = ((b - a) // c) * c + a <= b
+
+    with tvm.arith.Z3ContextScope():
+        analyzer = Analyzer()
+        analyzer.bind(a, tvm.ir.Range(1, 100000))
+        analyzer.bind(b, tvm.ir.Range(1, 100000))
+        analyzer.bind(c, tvm.ir.Range(1, 100000))
+        assert analyzer.can_prove(expr, SB)
+
+    # Clone while a different scope is active. The clone must adopt the
+    # source Analyzer's context before copying any Z3 handles.
+    with tvm.arith.Z3ContextScope():
+        cloned = analyzer.clone()
+
+    del analyzer
+    assert cloned.can_prove(expr, SB)
+
+
 # ---------------------------------------------------------------------------
 # Examples the native analyzer cannot prove but Z3 can.
 #
@@ -652,6 +676,34 @@ def test_z3_opaque_call_is_safe():
     with analyzer.constraint_scope(call > 0):
         assert analyzer.can_prove(call > 0, SB)
     assert not analyzer.can_prove(call > 0, SB)
+
+
+def test_z3_memo_pool_reuse_survives_clone():
+    analyzer = Analyzer()
+    _require_z3(analyzer)
+
+    # BufferLoad is read-state, so these expressions are memoized only for the
+    # duration of the query and then erased.  This leaves holes in the Z3 memo
+    # pool that subsequent pure expressions must be able to reuse safely.
+    buffer = tirx.decl_buffer((16,), "int32")
+    read_expr = tirx.all(*(buffer[i] >= 0 for i in range(16)))
+    assert not analyzer.can_prove(read_expr, SB)
+
+    a = tirx.Var("a", "int32")
+    b = tirx.Var("b", "int32")
+    c = tirx.Var("c", "int32")
+    analyzer.bind(a, tvm.ir.Range(1, 100000))
+    analyzer.bind(b, tvm.ir.Range(1, 100000))
+    analyzer.bind(c, tvm.ir.Range(1, 100000))
+    expr = ((b - a) // c) * c + a <= b
+    assert analyzer.can_prove(expr, SB)
+
+    # Cloning must replay only live memo entries in slot order, even when the
+    # source pool contains erased and reused slots.
+    cloned = analyzer.clone()
+    del analyzer
+    gc.collect()
+    assert cloned.can_prove(expr, SB)
 
 
 def test_z3_shift_overflow_is_not_proven():

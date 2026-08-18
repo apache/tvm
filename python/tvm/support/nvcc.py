@@ -304,7 +304,7 @@ def _compile_cuda_nvrtc(
     target_format : str, optional
         Output format: "cubin" or "ptx". Default: "cubin"
     arch : str, optional
-        Target architecture (e.g., "sm_80"). Auto-detected if None.
+        Target architecture (e.g., "compute_80" or "sm_80"). Auto-detected if None.
     options : str or list of str, optional
         Additional NVRTC options.
     path_target : str, optional
@@ -357,10 +357,18 @@ def _compile_cuda_nvrtc(
     if options is not None and not isinstance(options, str | list):
         raise ValueError("options must be str or list of str")
 
-    # Auto-detect architecture
+    # NVRTC selects the output kind through both target_format and the
+    # architecture spelling.  A virtual ``compute_*`` target produces PTX,
+    # while a real ``sm_*`` target produces a loadable cubin.  Keep the suffix
+    # (including family/architecture qualifiers such as ``a`` and ``f``), but
+    # normalize the prefix to the requested output format.
     if arch is None:
         compute_version = get_target_compute_version(Target.current(allow_none=True))
         arch = f"sm_{''.join(compute_version.split('.'))}"
+    if target_format == "ptx" and arch.startswith("sm_"):
+        arch = f"compute_{arch.removeprefix('sm_')}"
+    elif target_format == "cubin" and arch.startswith("compute_"):
+        arch = f"sm_{arch.removeprefix('compute_')}"
 
     # Get NVSHMEM paths if needed
     nvshmem_include_path, nvshmem_lib_path = None, None

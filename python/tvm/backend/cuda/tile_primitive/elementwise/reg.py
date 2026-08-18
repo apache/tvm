@@ -55,6 +55,7 @@ from ._common import (
     pick_anchor,
     shape_broadcast_compat,
 )
+from .vec_emit import _emit_vec
 
 
 # -----------------------------------------------------------------------------
@@ -396,7 +397,7 @@ def _emit_induced_packed(
                     for src in srcs
                 ]
             )
-            T.evaluate(vec_impl.emit(views[dst_br], dst_lane_indices, src_args, extras))
+            _emit_vec(vec_impl, views[dst_br], dst_lane_indices, src_args, extras)
 
     return impl
 

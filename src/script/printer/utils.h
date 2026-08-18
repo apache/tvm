@@ -29,6 +29,7 @@
 #include <tvm/script/printer/ir_docsifier.h>
 #include <tvm/script/printer/printer.h>
 
+#include <algorithm>
 #include <sstream>
 #include <string>
 #include <unordered_set>
@@ -67,6 +68,9 @@ inline std::string Docsify(const ffi::ObjectRef& obj, const IRDocsifier& d, cons
     TVM_FFI_THROW(TypeError) << "Unexpected doc type: " << doc->GetTypeKey();
   }
   std::ostringstream os;
+  if (d->ir_usage.count("future_annotations")) {
+    os << "from __future__ import annotations\n\n";
+  }
   if (!d->metadata.empty()) {
     if (d->cfg->show_meta) {
       os << "metadata = tvm.ir.load_json(\"\"\""
@@ -124,6 +128,9 @@ inline std::string DType2Str(DLDataType dtype) {
 inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
   if (d->ir_usage.size()) {
     ffi::Array<StmtDoc> stmts;
+    if (d->ir_usage.count("type_var")) {
+      stmts.push_back(CommentDoc("from typing import TypeVar"));
+    }
     if (d->ir_usage.count("ir")) {
       stmts.push_back(CommentDoc("from tvm.script import ir as " + d->cfg->ir_prefix));
     }
@@ -140,10 +147,63 @@ inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
                                  d->cfg->GetExtraConfig<ffi::String>("relax.prefix", "R")));
     }
     stmts.push_back(CommentDoc(""));
-    stmts.push_back(doc.as_or_throw<StmtDoc>());
+    if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
+      stmts.insert(stmts.end(), stmt_block->stmts.begin(), stmt_block->stmts.end());
+    } else {
+      stmts.push_back(doc.as_or_throw<StmtDoc>());
+    }
     return StmtBlockDoc(stmts);
   }
   return doc;
+}
+
+inline std::vector<std::pair<std::string, ExprDoc>> DefineTypeVarDocs(
+    const std::unordered_set<const VarNode*>& type_vars, const Frame& frame, const IRDocsifier& d) {
+  std::vector<std::pair<std::string, ExprDoc>> type_var_docs;
+  type_var_docs.reserve(type_vars.size());
+  for (const VarNode* var_node : type_vars) {
+    Var var = ffi::GetRef<Var>(var_node);
+    ffi::Optional<ExprDoc> existing_doc = d->GetVarDoc(var);
+    ExprDoc var_doc = existing_doc.has_value()
+                          ? existing_doc.value()
+                          : d->Define(var, frame, var->name.empty() ? "v" : var->name);
+    const auto* id_doc = var_doc.as<IdDocNode>();
+    TVM_FFI_ICHECK(id_doc != nullptr);
+    type_var_docs.emplace_back(id_doc->name, var_doc);
+  }
+  std::sort(type_var_docs.begin(), type_var_docs.end(),
+            [](const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
+  return type_var_docs;
+}
+
+inline bool UsePEP695TypeVars(const IRDocsifier& d) {
+  return d->cfg->GetExtraConfig<bool>("script.use_pep695",
+                                      d->cfg->GetExtraConfig<bool>("relax.use_pep695", false));
+}
+
+inline Doc WrapFunctionDocWithTypeVars(
+    const IRDocsifier& d, FunctionDoc function_doc,
+    const std::vector<std::pair<std::string, ExprDoc>>& type_var_docs) {
+  if (type_var_docs.empty()) {
+    return HeaderWrapper(d, function_doc);
+  }
+  if (UsePEP695TypeVars(d)) {
+    d->ir_usage.insert("future_annotations");
+    for (const auto& type_var_doc : type_var_docs) {
+      function_doc->type_params.push_back(type_var_doc.second);
+    }
+    return HeaderWrapper(d, function_doc);
+  }
+
+  d->ir_usage.insert("type_var");
+  ffi::Array<StmtDoc> stmts;
+  for (const auto& [name, var_doc] : type_var_docs) {
+    stmts.push_back(AssignDoc(
+        var_doc, IdDoc("TypeVar")->Call({LiteralDoc::Str(name, ffi::Optional<AccessPath>())}),
+        std::nullopt));
+  }
+  stmts.push_back(function_doc);
+  return HeaderWrapper(d, StmtBlockDoc(stmts));
 }
 
 /*! \brief Check if a string has multiple lines. */

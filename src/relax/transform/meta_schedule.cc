@@ -134,7 +134,6 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
           tirx::PrimFunc new_prim_func = tirx::PrimFunc(/*params=*/tuned_prim_func->params,
                                                         /*body=*/tuned_prim_func->body,
                                                         /*ret_type=*/tuned_prim_func->ret_type,
-                                                        /*buffer_map=*/tuned_prim_func->buffer_map,
                                                         /*attrs=*/prim_func->attrs);
           new_prim_func = WithAttr(std::move(new_prim_func), tirx::attr::kIsScheduled, true);
           result.Set(gv, new_prim_func);

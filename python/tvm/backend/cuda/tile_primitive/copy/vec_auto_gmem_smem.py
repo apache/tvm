@@ -25,27 +25,19 @@ consecutive fused-index slots. Layout / partition algorithm lives in
 ``_common.py`` and is shared with ``ldgsts.py``.
 """
 
-import tvm
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.tirx import Buffer, PrimFunc
-from tvm.tirx import Var as _TirVar
 from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
+from ..layout_utils import recompose_swizzle
 from ._common import (
     _TID_AXIS_FOR_SCOPE,
     _thread_cnt,
     align_layouts_gs,
     copy_ptx_form,
-    copy_ptx_ld_return_type,
-)
-from ._swizzle_iter import (
-    emit_init,
-    emit_iter_offset,
-    get_swizzle,
-    try_recognize,
 )
 from .utils import _is_valid_copy, _scope_allowed
 from .vec_auto_reg import _all_threads_active, _axis_decl, _ptr_off
@@ -129,13 +121,18 @@ def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
             elem_bits,
             thread_cnt,
         )
+        s_apply_layout = recompose_swizzle(s_buf.layout, s_p)
 
     # vec_len=1 is the scalar fallback — uses the same unified
     # [outer x thread x vec] coord scheme below.
 
     vec_bits = vec_len * elem_bits
     num_bytes = vec_bits // 8
-    vec, ptx_type = copy_ptx_form(num_bytes)
+    tail, lanes, reg_dtype = copy_ptx_form(num_bytes)
+    # Chains are built here: a Python string bound inside the traced body is
+    # not something the parser can carry.
+    ld_g, st_s = f"ld.global.{tail}", f"st.shared.{tail}"
+    ld_s, st_g = f"ld.shared.{tail}", f"st.global.{tail}"
 
     # Express the per-thread per-round address as a 3D coord ``(f, tid, 0)`` vs
     # ``[total_outer, thread_cnt, vec_len]``; ``layout.apply`` flattens the rest.
@@ -158,92 +155,10 @@ def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
 
     tid_axis_name = _TID_AXIS_FOR_SCOPE[sctx.scope_kind] if thread_cnt > 1 else None
 
-    # Walk shard back from the vec iter to the prefix covering T exactly
-    # (∏ext == thread_cnt); the leading prefix is the outer iter list.
-    if thread_cnt > 1:
-        acc, _i = 1, len(s_p.shard) - 2
-        while _i >= 0 and acc < thread_cnt:
-            _ext = int(s_p.shard[_i].extent)
-            if acc * _ext > thread_cnt:
-                break
-            acc *= _ext
-            _i -= 1
-        outer_iters_s = list(s_p.shard[: _i + 1]) if acc == thread_cnt else []
-    else:
-        outer_iters_s = list(s_p.shard[:-1])
-
-    # Swizzle on s_buf: try the closed-form signed-strides pattern, else
-    # fall back to per-iter ``swizzle.apply``; closure picked at parse time.
-    swizzle = get_swizzle(s_buf.layout)
-    swizzle_pattern = None
-    if swizzle is not None and outer_iters_s:
-        if tid_axis_name is not None:
-            _tid_placeholder = _TirVar(tid_axis_name, "int32")
-        else:
-            _tid_placeholder = _IntImm("int32", 0)
-        s_off_template = s_p.apply(
-            _IntImm("int32", 0),
-            _tid_placeholder,
-            _IntImm("int32", 0),
-            shape=apply_shape,
-        )["m"]
-        # Bind the tid range so the (C1) analyzer can discharge
-        # ``bit_bj(s_off // C) == 0``; without bounds it rejects.
-        var_bounds = {}
-        if tid_axis_name is not None:
-            var_bounds[_tid_placeholder] = tvm.ir.Range.from_min_extent(0, thread_cnt)
-        swizzle_pattern = try_recognize(
-            swizzle,
-            [int(it.extent) for it in outer_iters_s],
-            [int(it.stride) for it in outer_iters_s],
-            s_off_template,
-            var_bounds=var_bounds or None,
-        )
-
-    class _SwizzleState:
-        def __init__(self):
-            self.signed_strides = None
-            self.base_off = None
-
-    state = _SwizzleState()
-
     def _decl_tid():
         if tid_axis_name is not None:
             return _axis_decl(tid_axis_name, sctx)
         return _IntImm("int32", 0)
-
-    def _setup_swizzle(tid):
-        if swizzle_pattern is None:
-            return
-        s_off_resolved = s_p.apply(
-            _IntImm("int32", 0),
-            tid,
-            _IntImm("int32", 0),
-            shape=apply_shape,
-        )["m"]
-        state.signed_strides, state.base_off = emit_init(
-            swizzle_pattern,
-            s_off_resolved,
-        )
-
-    if swizzle_pattern is not None:
-
-        def _s_off(f, s_lin):
-            return emit_iter_offset(
-                swizzle_pattern,
-                state.signed_strides,
-                state.base_off,
-                f,
-            )
-    elif swizzle is not None:
-        _sw = swizzle
-
-        def _s_off(f, s_lin):
-            return _sw.apply(s_lin)["m"]
-    else:
-
-        def _s_off(f, s_lin):
-            return s_lin
 
     v0 = _IntImm("int32", 0)
 
@@ -251,40 +166,21 @@ def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
     @T.prim_func(check_well_formed=False)
     def impl():
         tid = _decl_tid()
-        _setup_swizzle(tid)
-        tmp = T.alloc_local((vec_len,), src.dtype)
-        tmp_ptr = tmp.ptr_to([0])
+        # The scratch only shuttles bits, so it is allocated in the PTX
+        # container type rather than the element type.
+        tmp = T.alloc_local((lanes,), reg_dtype)
         # Pass typed ptr_to(...) directly to _ptr_off (caching → byte math,
         # misaligned vec ops); keep a serial loop, T.unroll floods the kernel.
         for f in range(total_outer):
-            s_lin = s_p.apply(f, tid, v0, shape=apply_shape)["m"]
             g_lin = g_p.apply(f, tid, v0, shape=apply_shape)["m"]
-            s_off = _s_off(f, s_lin)
+            s_off = s_apply_layout.apply(f, tid, v0, shape=apply_shape)["m"]
             s_ptr = _ptr_off(s_buf.ptr_to(s_zero), s_off)
             g_ptr = _ptr_off(g_buf.ptr_to(g_zero), g_lin)
             if g_is_src:
-                T.ptx.ld(
-                    g_ptr,
-                    copy_ptx_ld_return_type(ptx_type),
-                    ptx_type,
-                    dst=tmp_ptr,
-                    space="global",
-                    vec=vec,
-                )
-                T.ptx.st(
-                    s_ptr, src=tmp_ptr, space="shared", vec=vec, ptx_type=ptx_type
-                )
+                T.ptx[ld_g](*[tmp[i] for i in range(lanes)], g_ptr)
+                T.ptx[st_s](s_ptr, *[tmp[i] for i in range(lanes)])
             else:
-                T.ptx.ld(
-                    s_ptr,
-                    copy_ptx_ld_return_type(ptx_type),
-                    ptx_type,
-                    dst=tmp_ptr,
-                    space="shared",
-                    vec=vec,
-                )
-                T.ptx.st(
-                    g_ptr, src=tmp_ptr, space="global", vec=vec, ptx_type=ptx_type
-                )
+                T.ptx[ld_s](*[tmp[i] for i in range(lanes)], s_ptr)
+                T.ptx[st_g](g_ptr, *[tmp[i] for i in range(lanes)])
     # fmt: on
     return impl

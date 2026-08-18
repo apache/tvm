@@ -384,5 +384,78 @@ def test_codegen_simdgroup_buffer_data():
     assert "simdgroup_multiply_accumulate(" in source
 
 
+def test_codegen_pointer_byte_offsets_preserve_storage_scope():
+    """Pointer byte offsets should preserve the source Metal address space."""
+
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def kernel():
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "kernel",
+                    "tirx.kernel_launch_params": [],
+                }
+            )
+            shared = T.alloc_buffer((16,), "float16", scope="shared")
+            typed_alias = T.ptr_byte_offset(shared.data, 4, "float16")
+            typed_buffer = T.decl_buffer((14,), "float16", data=typed_alias, scope="shared")
+            void_alias = T.handle_add_byte_offset(shared.data, 8)
+            void_buffer = T.decl_buffer((12,), "float16", data=void_alias, scope="shared")
+            typed_buffer[0] = T.float16(1)
+            void_buffer[0] = T.float16(2)
+
+    metal_codegen = tvm.get_global_func("target.build.metal")
+    module = metal_codegen(Module, tvm.target.Target("metal"))
+    source = module.inspect_source()
+
+    assert "threadgroup half* typed_alias" in source
+    assert "threadgroup void* void_alias" in source
+    assert source.count("threadgroup char*") == 2
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
+def test_pointer_byte_offsets_execute_in_threadgroup_memory():
+    """Pointer byte offsets should execute in Metal threadgroup memory."""
+
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+            for bx in T.thread_binding(1, thread="blockIdx.x"):
+                for tx in T.thread_binding(1, thread="threadIdx.x"):
+                    shared = T.alloc_buffer((16,), "float32", scope="shared")
+                    typed_alias = T.ptr_byte_offset(shared.data, 4, "float32")
+                    typed_buffer = T.decl_buffer((15,), "float32", data=typed_alias, scope="shared")
+                    void_alias = T.handle_add_byte_offset(shared.data, 8)
+                    void_buffer = T.decl_buffer((14,), "float32", data=void_alias, scope="shared")
+                    shared[0] = A[0]
+                    typed_buffer[0] = A[1]
+                    void_buffer[0] = A[2]
+                    B[0] = shared[0]
+                    B[1] = typed_buffer[0]
+                    B[2] = void_buffer[0]
+
+    executable = tvm.compile(Module, target="metal")
+    source = executable.mod.imports[0].inspect_source()
+
+    assert "threadgroup float shared[16]" in source
+    assert "threadgroup float* typed_alias" in source
+    assert "threadgroup void* void_alias" in source
+    assert source.count("threadgroup char*") == 2
+
+    def run_and_check():
+        dev = tvm.metal(0)
+        host_input = np.arange(16, dtype="float32") + 10
+        input_tensor = tvm.runtime.tensor(host_input, dev)
+        output_tensor = tvm.runtime.tensor(np.zeros(16, dtype="float32"), dev)
+        executable(input_tensor, output_tensor)
+        tvm.testing.assert_allclose(output_tensor.numpy()[:3], host_input[:3])
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

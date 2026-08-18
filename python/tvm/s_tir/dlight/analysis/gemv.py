@@ -126,6 +126,10 @@ def normalize(
     ):
         return None
     iter_to_info = {i.var: i for i in block_info.iters}
+    if not access.args or any(
+        split_expr.source.source not in iter_to_info for split_expr in access.args
+    ):
+        return None
     batch_loops, s_loops, r_loops, c_loops = [], [], [], []
     inner_axis = access.args[-1].source.source
     is_inner_reduction = iter_to_info[inner_axis].kind == "R"

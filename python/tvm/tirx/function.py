@@ -31,7 +31,7 @@ from tvm.runtime import Object, Scriptable
 
 from ..runtime._tensor import Tensor
 from . import _ffi_api
-from .buffer import Buffer, is_buffer_var
+from .buffer import Buffer
 from .expr import Expr, Var
 
 
@@ -50,9 +50,6 @@ class PrimFunc(BaseFunc, Scriptable):
     ret_type: tvm.ir.Type
         The return type annotation of the function.
 
-    buffer_map : Map[tvm.tirx.Var, tvm.tirx.Buffer]
-        The buffer binding map.
-
     attrs: Optional[tvm.Attrs]
         Attributes of the function, can be None
 
@@ -60,7 +57,7 @@ class PrimFunc(BaseFunc, Scriptable):
         The location of this itervar in the source code.
     """
 
-    def __init__(self, params, body, ret_type=None, buffer_map=None, attrs=None, span=None):
+    def __init__(self, params, body, ret_type=None, attrs=None, span=None):
         # Legacy compatibility: expand body-carrying leaf stmt wrappers
         # (e.g. DeclBuffer/AllocBuffer forms) into SeqStmt form.
         from .stmt import _normalize_legacy_stmt
@@ -69,17 +66,11 @@ class PrimFunc(BaseFunc, Scriptable):
         if ret_type is None:
             ret_type = tvm.ir.Type.missing()
         param_list = []
-        buffer_map = {} if buffer_map is None else buffer_map
         for x in params:
             x = tvm.runtime.convert(x) if not isinstance(x, Object) else x
-            if is_buffer_var(x):
-                var = Var(x.name, ty="handle")
-                param_list.append(var)
-                buffer_map[var] = x
-            elif isinstance(x, Var):
-                param_list.append(x)
-            else:
+            if not isinstance(x, Var):
                 raise TypeError("params can only contain Var or Buffer")
+            param_list.append(x)
 
         if attrs is None:
             attrs = tvm.ir.make_node("ir.DictAttrs")
@@ -89,7 +80,6 @@ class PrimFunc(BaseFunc, Scriptable):
             param_list,
             body,
             ret_type,
-            buffer_map,
             attrs,
             span,
         )  # type: ignore
@@ -113,10 +103,9 @@ class PrimFunc(BaseFunc, Scriptable):
         return PrimFunc(
             self.params,
             new_body,
-            self.ret_type,
-            self.buffer_map,
-            self.attrs,
-            span,
+            ret_type=self.ret_type,
+            attrs=self.attrs,
+            span=span,
         )
 
     def specialize(self, param_map: Mapping[Var, Expr | Buffer]):

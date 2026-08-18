@@ -186,7 +186,7 @@ def findsource(obj):
         if len(tokens) > 1:
             name = None
             if tokens[0] == "def":
-                name = tokens[1].split(":")[0].split("(")[0] + "<locals>"
+                name = tokens[1].split(":")[0].split("(")[0].split("[")[0] + "<locals>"
             elif tokens[0] == "class":
                 name = tokens[1].split(":")[0].split("(")[0]
             # pop scope if we are less indented

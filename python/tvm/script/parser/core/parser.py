@@ -17,16 +17,17 @@
 """The core parser"""
 
 import abc
+import ast
 import inspect
 from collections import defaultdict
 from collections.abc import Callable
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, TypeVar
 
 import numpy as np
 
 from tvm.error import DiagnosticError
-from tvm.ir import GlobalVar
+from tvm.ir import GlobalVar, Var
 from tvm.runtime import Object
 
 from ...ir_builder import IRBuilder
@@ -40,6 +41,74 @@ DEFAULT_VISIT = {
     "Expression",
     "Pass",
 }
+
+
+def collect_signature_type_vars(parser: "Parser", node: doc.FunctionDef) -> dict[str, Var]:
+    """Collect symbolic variables declared by function type-parameter syntax."""
+
+    annotation_names = set()
+    parameter_names = {arg.arg for arg in node.args.args}
+
+    class AnnotationNameCollector(doc.NodeVisitor):
+        def visit_Name(self, name):  # pylint: disable=invalid-name
+            annotation_names.add(name.id)
+
+        def visit_Constant(self, constant):  # pylint: disable=invalid-name
+            if not isinstance(constant.value, str):
+                return
+            try:
+                expression = ast.parse(constant.value, mode="eval")
+            except SyntaxError:
+                return
+            annotation_names.update(
+                child.id for child in ast.walk(expression) if isinstance(child, ast.Name)
+            )
+
+    name_collector = AnnotationNameCollector()
+    for arg in node.args.args:
+        name_collector.visit(arg.annotation)
+    name_collector.visit(node.returns)
+
+    symbolic_vars = {}
+    for binding_name, value in parser.var_table.get().items():
+        if (
+            binding_name not in annotation_names
+            or binding_name in parameter_names
+            or not isinstance(value, TypeVar)
+        ):
+            continue
+        if value.__name__ != binding_name:
+            parser.report_error(
+                node,
+                f"TypeVar binding {binding_name!r} must match its declared name {value.__name__!r}",
+            )
+        if value.__constraints__ or value.__bound__ is not None:
+            parser.report_error(
+                node,
+                f"Symbolic TypeVar {binding_name!r} must not have constraints or a bound",
+            )
+        symbolic_vars[binding_name] = Var(binding_name, "int64")
+
+    for type_param in node.type_params or []:
+        if not isinstance(type_param, doc.TypeVar):
+            parser.report_error(type_param, "Only PEP 695 TypeVar parameters are supported")
+        # Both a bare parameter and the optional ``int`` bound declare the
+        # int64 PrimVar represented by this type parameter.  The printer uses
+        # the bare spelling, while accepting the bound as explicit input.
+        if type_param.bound is not None and not (
+            isinstance(type_param.bound, doc.Name) and type_param.bound.id == "int"
+        ):
+            parser.report_error(
+                type_param,
+                f"Symbolic TypeVar {type_param.name!r} must be unannotated or annotated as int",
+            )
+        if type_param.default_value is not None:
+            parser.report_error(
+                type_param,
+                f"Symbolic TypeVar {type_param.name!r} must not have a default",
+            )
+        symbolic_vars[type_param.name] = Var(type_param.name, "int64")
+    return symbolic_vars
 
 
 def _deferred(exit_f: Callable[[], None]):
@@ -776,6 +845,18 @@ class Parser(doc.NodeVisitor):
         if func is None:
             self.report_error(node, "The parser does not understand the decorator")
         _dispatch_wrapper(func)(self, node)
+
+    def visit_ImportFrom(self, node: doc.ImportFrom) -> None:  # pylint: disable=invalid-name
+        """Accept postponed annotations emitted by the PEP 695 printer."""
+        is_future_annotations = (
+            node.module == "__future__"
+            and node.level == 0
+            and len(node.names) == 1
+            and node.names[0].name == "annotations"
+            and node.names[0].asname is None
+        )
+        if not is_future_annotations:
+            self.report_error(node, "Only 'from __future__ import annotations' is supported")
 
     def visit_arguments(self, node: doc.arguments) -> Any:
         """The general arguments visiting method.

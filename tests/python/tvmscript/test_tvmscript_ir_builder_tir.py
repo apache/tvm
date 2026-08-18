@@ -43,7 +43,6 @@ def test_ir_builder_tir_primfunc_base():
         params=[],
         body=tirx.Evaluate(0),
         ret_type=None,
-        buffer_map=None,
         attrs=tvm.ir.make_node("ir.DictAttrs", s_tir=True),
     )
 
@@ -80,29 +79,19 @@ def test_ir_builder_tir_primfunc_complete():
     prim_func_actual = ib.get()
 
     # the expected prim_func
-    c_handle, c_buffer = (
-        tirx.Var("c_handle", tvm.ir.PointerType(tvm.ir.PrimType("void"))),
-        tirx.decl_buffer((128, 128), "float32", name="c", layout=None),
-    )
-    d_handle, d_buffer = (
-        tirx.Var("d", tvm.ir.PointerType(tvm.ir.PrimType("void"))),
-        tirx.decl_buffer((64, 64), "int64", name="d", layout=None),
-    )
-    e_handle, e_buffer = (
-        tirx.Var("e_handle", tvm.ir.PointerType(tvm.ir.PrimType("void"))),
-        tirx.decl_buffer((1024,), "int8", name="e", layout=None),
-    )
+    c_buffer = tirx.decl_buffer((128, 128), "float32", name="c", layout=None)
+    d_buffer = tirx.decl_buffer((64, 64), "int64", name="d", layout=None)
+    e_buffer = tirx.decl_buffer((1024,), "int8", name="e", layout=None)
     prim_func_expected = tirx.PrimFunc(
         params=[
             tirx.Var("a", tvm.ir.PointerType(tvm.ir.PrimType("void"))),
             tirx.Var("b", "int64"),
-            c_handle,
-            d_handle,
-            e_handle,
+            c_buffer,
+            d_buffer,
+            e_buffer,
         ],
         body=tirx.Evaluate(0),
         ret_type=tvm.ir.PrimType("int64"),
-        buffer_map={c_handle: c_buffer, d_handle: d_buffer, e_handle: e_buffer},
         attrs=tvm.ir.make_node("ir.DictAttrs", key="value", s_tir=True),
     )
 

@@ -508,6 +508,13 @@ if(USE_CUDA AND USE_NVSHMEM)
   add_library(tvm_nvshmem_objs OBJECT ${_nvshmem_srcs})
   target_link_libraries(tvm_nvshmem_objs PRIVATE tvm_runtime_extra_defs)
   target_include_directories(tvm_nvshmem_objs PUBLIC ${NVSHMEM_INCLUDE_DIR})
+  # CUDA 13 moved libcu++ under include/cccl. NVSHMEM's headers include
+  # <cuda/std/...>, which nvcc resolves on its own -- the host compiler
+  # building this target's .cc sources does not, so name the directory.
+  if(EXISTS "${CUDA_TOOLKIT_ROOT_DIR}/include/cccl")
+    target_include_directories(tvm_nvshmem_objs SYSTEM PUBLIC
+                               "${CUDA_TOOLKIT_ROOT_DIR}/include/cccl")
+  endif()
   find_library(NVSHMEM_HOST nvshmem_host ${NVSHMEM_LIB_DIR})
   find_library(NVSHMEM_DEVICE nvshmem_device ${NVSHMEM_LIB_DIR})
   target_link_libraries(tvm_runtime_extra PRIVATE tvm_nvshmem_objs ${NVSHMEM_HOST} ${NVSHMEM_DEVICE})

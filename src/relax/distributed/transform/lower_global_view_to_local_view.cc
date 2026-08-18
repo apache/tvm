@@ -156,19 +156,23 @@ class DistributedBufferCompactor : StmtExprMutator {
       const std::vector<ShardingSpec>& sharding_specs, PrimFunc prim_func) {
     prim_func = s_tir::RenewDefs(prim_func);
     DistributedBufferCompactor compactor(sharding_specs, prim_func);
-    ffi::Map<Var, BufferVar> new_func_buffer_map;
+    ffi::Array<Var> new_params;
     ffi::Map<BufferVar, BufferVar> replace_buffer_map;
-    for (const auto& pr : prim_func->buffer_map) {
-      BufferVar shard_buffer = compactor.ShardBuffer(pr.second);
-      new_func_buffer_map.Set(pr.first, shard_buffer);
-      if (!shard_buffer.same_as(pr.second)) {
-        replace_buffer_map.Set(pr.second, shard_buffer);
+    for (const Var& param : prim_func->params) {
+      if (!param->ty.as<BufferTypeNode>()) {
+        new_params.push_back(param);
+        continue;
+      }
+      BufferVar buffer(param);
+      BufferVar shard_buffer = compactor.ShardBuffer(buffer);
+      new_params.push_back(shard_buffer.var());
+      if (!shard_buffer.same_as(buffer)) {
+        replace_buffer_map.Set(buffer, shard_buffer);
       }
     }
     Stmt new_body = compactor(prim_func->body);
     new_body = DistBufferReplacer::BufferReplace(new_body, replace_buffer_map);
-    PrimFunc new_func(prim_func->params, new_body, prim_func->ret_type, new_func_buffer_map,
-                      prim_func->attrs, prim_func->span);
+    PrimFunc new_func(new_params, new_body, prim_func->ret_type, prim_func->attrs, prim_func->span);
     return std::make_tuple(new_func, compactor.add_allreduce_kind_);
   }
 
@@ -184,10 +188,10 @@ class DistributedBufferCompactor : StmtExprMutator {
     std::unordered_set<BufferAxis, BufferAxisHash> visited;
     for (int i = 0, j = 0; i < static_cast<int>(prim_func->params.size()); i++) {
       Var param_var = prim_func->params[i];
-      if (!prim_func->buffer_map.count(param_var)) {
+      if (!param_var->ty.as<BufferTypeNode>()) {
         continue;
       }
-      BufferVar param_buffer = prim_func->buffer_map[param_var];
+      BufferVar param_buffer(param_var);
       ShardingSpec spec = sharding_specs_[j++];
 
       for (int mesh_dim = 0; mesh_dim < static_cast<int>(spec.first->shape.size()); mesh_dim++) {
@@ -409,7 +413,7 @@ class LowerTIRToLocalView : public ExprMutator {
     for (size_t i = 0; i < args.size(); ++i) {
       const Expr& arg = args[i];
       const tirx::Var& param = prim_func->params[i];
-      if (prim_func->buffer_map.count(param)) {
+      if (param->ty.as<tirx::BufferTypeNode>()) {
         const auto* ty = GetTypeAs<DTensorTypeNode>(arg);
         TVM_FFI_CHECK(ty, TypeError)
             << "Expected buffer parameter " << param << " to receive a distributed tensor, but "

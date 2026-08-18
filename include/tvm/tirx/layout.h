@@ -448,6 +448,8 @@ class ComposeLayoutNode : public LayoutNode {
   /*! \brief Apply the input coordinate and get the mapped output */
   ffi::Map<ffi::String, PrimExpr> Apply(ffi::Array<PrimExpr> coord) const final;
   ffi::Map<ffi::String, PrimExpr> Apply(PrimExpr coord) const final;
+  ffi::Map<ffi::String, PrimExpr> Apply(const ffi::Array<PrimExpr>& coord,
+                                        const ffi::Array<PrimExpr>& shape) const final;
 
   /*! \brief Turn the layout to canonical form */
   Layout Canonicalize() const final;

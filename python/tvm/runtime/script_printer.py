@@ -17,6 +17,7 @@
 """Configuration of TVMScript printer"""
 
 import os
+import sys
 from collections.abc import Sequence
 
 from tvm_ffi import get_global_func, register_object
@@ -199,6 +200,10 @@ class Scriptable:
         merged_extra: dict = {}
         if extra_config is not None:
             merged_extra.update(extra_config)
+        if "script.use_pep695" not in merged_extra:
+            merged_extra["script.use_pep695"] = merged_extra.get(
+                "relax.use_pep695", sys.version_info >= (3, 12)
+            )
 
         # Only auto-switch if the caller has not already set a tirx.prefix override.
         if "tirx.prefix" not in merged_extra:
@@ -271,6 +276,11 @@ class Scriptable:
         obj_to_underline: list[Object] | None = None,
         obj_to_annotate: dict[Object, str] | None = None,
     ) -> str:
+        merged_extra = dict(extra_config or {})
+        if "script.use_pep695" not in merged_extra:
+            merged_extra["script.use_pep695"] = merged_extra.get(
+                "relax.use_pep695", sys.version_info >= (3, 12)
+            )
         return _relax_script(
             self,
             PrinterConfig(
@@ -286,7 +296,7 @@ class Scriptable:
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
                 show_object_address=show_object_address,
-                extra_config=extra_config,
+                extra_config=merged_extra,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
                 obj_to_underline=obj_to_underline,

@@ -27,7 +27,7 @@ def _check_func_signature_remap(lhs: PrimFunc, rhs: PrimFunc):
     assert lhs != rhs
     for x, y in zip(lhs.params, rhs.params):
         assert x != y
-        assert lhs.buffer_map[x] != rhs.buffer_map[y]
+        assert tvm.tirx.is_buffer_var(x) == tvm.tirx.is_buffer_var(y)
 
 
 def _check_buffer_decl(lhs: Buffer, rhs: Buffer):
@@ -169,7 +169,7 @@ def test_symbolic_func():
     tvm.ir.assert_structural_equal(f1, f2)
 
 
-def test_buffer_map():
+def test_buffer_params():
     @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle):
         m = T.int64()
@@ -183,7 +183,18 @@ def test_buffer_map():
     f1 = main
     f2 = tvm.s_tir.renew_defs(main)
     tvm.ir.assert_structural_equal(f1, f2)
-    assert f1.buffer_map[f1.params[1]].shape[0] != f2.buffer_map[f2.params[1]].shape[0]
+    assert f1.params[1].shape[0] != f2.params[1].shape[0]
+
+
+def test_compound_buffer_param_shape_var():
+    n = tvm.tirx.Var("n", "int32")
+    A = tvm.tirx.decl_buffer((tvm.tirx.max(n, 1),), layout=None)
+    f1 = tvm.tirx.PrimFunc([A], tvm.tirx.Evaluate(n))
+    f2 = tvm.s_tir.renew_defs(f1)
+
+    tvm.ir.assert_structural_equal(f1, f2)
+    assert not f1.body.value.same_as(f2.body.value)
+    assert f2.params[0].shape[0].a.same_as(f2.body.value)
 
 
 def test_gather():

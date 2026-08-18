@@ -16,15 +16,11 @@
 # under the License.
 # ruff: noqa: E501
 # pylint: disable=redefined-builtin, invalid-name
-"""Miscellaneous device helpers.
+"""Profiling, tracing, and debug hooks.
 
-Catch-all for ops that don't fit the (sync / mma / cp_async / memory / math /
-nvshmem) feature buckets:
-
-* PTX register-allocation control: ``setmaxnreg`` / ``mov`` from special reg.
-* Per-thread queries / scheduling hints: ``thread_rank`` / ``nano_sleep``.
-* Profiler timer hooks (``timer_init/start/end/finalize``).
-* Debug helpers: ``printf`` / ``trap`` on assert failure.
+Helpers that observe a running kernel rather than compute anything in it:
+the TIRx profiler timer ring, the official IKET NativeDump event, the
+cycle counter, and the ``printf`` / ``trap`` debug escapes.
 """
 
 import hashlib
@@ -33,94 +29,9 @@ import json
 import tvm
 from tvm.backend.cuda.op import cuda_func_call
 
-from ._schema import device_intrinsic
-from .registry import CODEGEN_REGISTRY, register_codegen
-from .utils import parse_str
-
-# =============================================================================
-# setmaxnreg.{inc,dec}.sync.aligned.u32 — 1 PTX form (.action picks inc/dec).
-# =============================================================================
-
-
-def _ptx_setmaxnreg(inc, nreg):
-    inc = bool(int(inc)) if hasattr(inc, "value") else bool(inc)
-    nreg = int(nreg)
-    action = "inc" if inc else "dec"
-    return (
-        f"tvm_builtin_ptx_setmaxnreg_{action}_{nreg}",
-        f'    asm volatile("setmaxnreg.{action}.sync.aligned.u32 {nreg};");',
-    )
-
-
-device_intrinsic(
-    "ptx_setmaxnreg",
-    n_attrs=2,
-    helper_name=lambda inc, nreg: _ptx_setmaxnreg(inc, nreg)[0],
-    body=lambda inc, nreg: _ptx_setmaxnreg(inc, nreg)[1],
-)
-
-
-# =============================================================================
-# mov.u32/u64 from special register — 1 PTX form (Form 2 of mov.type d, sreg).
-# Each (bits, reg) emits a distinct helper because the special reg name is
-# baked into the PTX text.
-# =============================================================================
-
-
-def _ptx_fetch_register_body(bits):
-    spec = "l" if bits == 64 else "r"
-
-    def _body(reg):
-        reg = parse_str(reg)
-        return (
-            f"    uint{bits}_t x;\n"
-            f'    asm volatile("mov.u{bits} %0, %{reg};" : "={spec}"(x));\n'
-            f"    return (int{bits}_t)x;"
-        )
-
-    return _body
-
-
-for _bits in (32, 64):
-    device_intrinsic(
-        f"ptx_fetch_register_{_bits}",
-        n_attrs=1,
-        helper_name=(
-            lambda *a, bits=_bits: (
-                f"tvm_builtin_ptx_fetch_register_"
-                f"{parse_str(a[-1]).replace('::', '_').replace('.', '_')}"
-            )
-        ),
-        return_type=f"int{_bits}_t",
-        body=_ptx_fetch_register_body(_bits),
-    )
-del _bits
-
-
-@register_codegen("ptx_fetch_register")
-def codegen_ptx_fetch_register(bits, reg):
-    bits = int(bits)
-    reg = parse_str(reg)
-    if bits not in (32, 64):
-        raise ValueError(f"Only support 32/64 bits for ptx_fetch_register, but got {bits}.")
-    result = CODEGEN_REGISTRY[f"tirx.ptx_fetch_register_{bits}"]([reg])
-    return result[0] if isinstance(result, tuple) else result
-
-
-# =============================================================================
-# Per-thread queries / scheduling hints.
-# =============================================================================
-device_intrinsic(
-    "cuda_thread_rank",
-    body=(
-        "    namespace cg = cooperative_groups;\n    return cg::this_thread_block().thread_rank();"
-    ),
-    return_type="int",
-    tvm_return_type="int32",
-    extra_deps=("cooperative_groups",),
-)
-device_intrinsic("cuda_nano_sleep", c_signature="(uint64_t time)", body="    __nanosleep(time);")
-
+from ..codegen.registry import register_codegen
+from ..codegen.schema import device_intrinsic
+from ..codegen.utils import parse_str
 
 # =============================================================================
 # Profiler timer hooks.
@@ -197,14 +108,15 @@ device_intrinsic(
 # Official IKET NativeDump placeholder.
 # =============================================================================
 @register_codegen("cuda_iket_official_event")
-def codegen_cuda_iket_official_event(event_id, source_code):
+def codegen_cuda_iket_official_event(event_id, source_code, payload=None):
     if isinstance(source_code, tvm.tirx.StringImm):
         source_code = source_code.value
     else:
         source_code = parse_str(source_code)
+    args = (event_id,) if payload is None else (event_id, payload)
     return cuda_func_call(
         "tvm_builtin_iket_official_event",
-        event_id,
+        *args,
         source_code=source_code,
         return_type="uint32",
     )

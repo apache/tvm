@@ -121,6 +121,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
+namespace {
+/*!
+ * \brief Whether an integer literal can be represented exactly by `ty`.
+ * \note Mirrors the range checks performed by the IntImm constructor.
+ */
+bool IntImmValueFits(int64_t value, const PrimType& ty) {
+  int bits = ty.bits();
+  if (ty.MatchesCode(DLDataTypeCode::kDLUInt)) {
+    return value >= 0 && (bits >= 64 || value < (int64_t{1} << bits));
+  }
+  if (bits >= 64) return true;
+  return value >= -(int64_t{1} << (bits - 1)) && value < (int64_t{1} << (bits - 1));
+}
+}  // namespace
+
 // For
 For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
          ffi::Optional<IterVar> thread_binding, ffi::Map<ffi::String, Any> annotations,
@@ -141,20 +156,23 @@ For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt bod
   require_scalar_int_dtype(min, "min");
   require_scalar_int_dtype(extent, "extent");
 
-  // When extent, min or step is an IntImm but has narrower dtype than loop_var
-  // we directly promote them without raising errors.
+  // When extent, min or step is an IntImm whose dtype differs from loop_var's
+  // (narrower bits and/or a different signedness code), we directly promote it
+  // to the loop var's dtype as long as the value stays representable.
   auto try_promote_imm_dtype = [&](const PrimExpr& e) -> PrimExpr {
     PrimType e_ty = e.ty();
     PrimType loop_var_ty = loop_var.ty();
+    if (e_ty == loop_var_ty) return e;
+    if (const IntImmNode* a = e.as<IntImmNode>()) {
+      TVM_FFI_ICHECK(IntImmValueFits(a->value, loop_var_ty))
+          << "Literal value " << a->value << " is not representable in the loop variable's dtype ("
+          << loop_var_ty << ")";
+      return IntImm(loop_var_ty, a->value);
+    }
     TVM_FFI_ICHECK(e_ty.bits() <= loop_var_ty.bits())
         << " Loop variable's dtype (" << loop_var_ty
         << ") is narrower than that of `min` or `extent` (" << e_ty << ")";
-    const IntImmNode* a = e.as<IntImmNode>();
-    if (a && e_ty.bits() < loop_var_ty.bits()) {
-      return IntImm(loop_var_ty, a->value);
-    } else {
-      return e;
-    }
+    return e;
   };
 
   min = try_promote_imm_dtype(min);

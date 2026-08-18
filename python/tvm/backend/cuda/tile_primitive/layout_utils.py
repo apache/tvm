@@ -31,6 +31,19 @@ from tvm.arith import Analyzer
 from tvm.tirx.layout import ComposeLayout, S, TileLayout
 
 
+def recompose_swizzle(original_layout, transformed_tile: TileLayout):
+    """Replace a ComposeLayout's tile while preserving its swizzle parameters."""
+    if isinstance(original_layout, ComposeLayout):
+        return ComposeLayout(
+            int(original_layout.per_element),
+            int(original_layout.swizzle_len),
+            int(original_layout.atom_len),
+            transformed_tile,
+            bool(original_layout.swizzle_inner),
+        )
+    return transformed_tile
+
+
 def strip_swizzle_to_tile(layout, get_extents):
     """Strip swizzle off ``layout`` to a TileLayout for perm/group/slice.
 

@@ -261,13 +261,15 @@ ReturnDoc::ReturnDoc(ExprDoc value) {
 }
 
 FunctionDoc::FunctionDoc(IdDoc name, ffi::Array<AssignDoc> args, ffi::Array<ExprDoc> decorators,
-                         ffi::Optional<ExprDoc> return_type, ffi::Array<StmtDoc> body) {
+                         ffi::Optional<ExprDoc> return_type, ffi::Array<StmtDoc> body,
+                         ffi::Array<Doc> type_params) {
   ffi::ObjectPtr<FunctionDocNode> n = ffi::make_object<FunctionDocNode>();
   n->name = name;
   n->args = args;
   n->decorators = decorators;
   n->return_type = return_type;
   n->body = body;
+  n->type_params = type_params;
   this->data_ = std::move(n);
 }
 
@@ -483,8 +485,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("script.printer.FunctionDoc",
                         [](IdDoc name, ffi::Array<AssignDoc> args, ffi::Array<ExprDoc> decorators,
-                           ffi::Optional<ExprDoc> return_type, ffi::Array<StmtDoc> body) {
-                          return FunctionDoc(name, args, decorators, return_type, body);
+                           ffi::Optional<ExprDoc> return_type, ffi::Array<StmtDoc> body,
+                           ffi::Array<Doc> type_params = {}) {
+                          return FunctionDoc(name, args, decorators, return_type, body,
+                                             type_params);
                         });
 }
 

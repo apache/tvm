@@ -559,6 +559,31 @@ def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
     assert mod["main"].attrs["tirx.is_scheduled"] == 1
 
 
+def test_low_batch_gemv_rejects_non_einsum_buffer_access():
+    @T.prim_func(private=True, s_tir=True)
+    def before(
+        var_A: T.handle,
+        var_B: T.handle,
+        var_C: T.handle,
+    ):
+        batch_size = T.int64()
+        A = T.match_buffer(var_A, (batch_size, 8), "float16")
+        B = T.match_buffer(var_B, (4, batch_size + 8), "float16")
+        C = T.match_buffer(var_C, (batch_size, 4), "float16")
+        for i, j, k in T.grid(batch_size, 4, 8):
+            with T.sblock("attention_score"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                T.reads(A[vi, vk], B[vj, T.max(vi + vk - 7, 0)])
+                T.writes(C[vi, vj])
+                with T.init():
+                    C[vi, vj] = T.float16(0)
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, T.max(vi + vk - 7, 0)]
+
+    with Target("webgpu") as target:
+        result = dl.gpu.LowBatchGEMV(4).apply(before, target, False)
+    assert result is None
+
+
 def test_low_batch_gemv_broadcast_epilogue():
     # fmt: off
     @T.prim_func(private=True, s_tir=True)

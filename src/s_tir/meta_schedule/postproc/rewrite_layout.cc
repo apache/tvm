@@ -129,7 +129,7 @@ ffi::Array<BufferVar> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
   for (int64_t index : layout_free_buffer_index) {
     TVM_FFI_ICHECK(static_cast<size_t>(index) < func->params.size());
     const Var& param = func->params[index];
-    layout_free_buffers.push_back(func->buffer_map.at(param));
+    layout_free_buffers.push_back(param.as_or_throw<BufferVar>());
   }
 
   LayoutFreeBufferCollector collector;

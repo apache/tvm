@@ -918,6 +918,63 @@ def test_reduction_op_warp_shuffle_multi_elem(op_type, dtype):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_reduction_op_warp_shuffle_gapped_permuted_storage():
+    """Warp shuffle follows storage coordinates even when physical slots are sparse."""
+    n_lanes = 32
+    local_shape = (2, 2)
+    src_shape = (n_lanes, *local_shape)
+
+    # Per-thread logical coordinates enumerate physical slots [0, 4, 2, 6].
+    # The storage layout therefore has four elements but spans seven slots.
+    src_layout = TileLayout(S[src_shape : (1 @ laneid, 2, 4)])
+    dst_layout = TileLayout(S[local_shape : (2, 4)] + R[n_lanes : 1 @ laneid])
+    storage = src_layout.storage()
+    assert int(storage.size()) == 4
+    assert int(storage.span()) == 7
+    assert [int(storage.apply(i, shape=[4])["m"]) for i in range(4)] == [0, 4, 2, 6]
+
+    # fmt: off
+    @T.prim_func
+    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, src_shape, "float32", layout=TileLayout(S[src_shape]))
+        B = T.match_buffer(B_ptr, local_shape, "float32", layout=TileLayout(S[local_shape]))
+
+        T.device_entry()
+        _cta_id = T.cta_id([1])
+        _warp_id = T.warp_id([1])
+        lane_id = T.lane_id([n_lanes])
+        src_local = T.alloc_buffer([7], "float32", scope="local")
+        dst_local = T.alloc_buffer([7], "float32", scope="local")
+        src_view = src_local.view(*src_shape, layout=src_layout)
+        dst_view = dst_local.view(*local_shape, layout=dst_layout)
+        for i, j in T.grid(*local_shape):
+            src_local[i * 2 + j * 4] = A[lane_id, i, j]
+        Tx.warp.sum(dst_view, src_view)
+        for i, j in T.grid(*local_shape):
+            B[i, j] = dst_local[i * 2 + j * 4]
+        # fmt: on
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.compile(tvm.IRModule({"main": test_func}), target=target, tir_pipeline="tirx")
+
+    rng = np.random.default_rng(0)
+    A_np = rng.random(src_shape, dtype=np.float32)
+    B_np = np.zeros(local_shape, dtype=np.float32)
+    B_ref = A_np.astype("float64").sum(axis=0).astype("float32")
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, dev)
+        B = tvm.runtime.tensor(B_np, dev)
+        mod(A, B)
+        tvm.testing.assert_allclose(B_ref, B.numpy(), atol=1e-4)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_reduction_warp_shuffle_multi_warp_loop():
     """Test intra-warp + cross-warp reduction via T.sum in a for loop with multiple warps.
 

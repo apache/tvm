@@ -336,7 +336,7 @@ def _emit_32x32b_path(
     # assert analyzer.can_prove_equal(local_st[1], 0)
     assert analyzer.can_prove_equal(local_extent[1], width)
 
-    op = T.ptx.tcgen05.ld if direction == "tmem2local" else T.ptx.tcgen05.st
+    emit = _tcgen05_ldst_emitter(direction == "tmem2local", "32x32b", num)
 
     if elem_per_32b == 1:
         # Keep 32-bit fragments in source dtype; b32 helper makes a uint32 view change codegen.
@@ -344,7 +344,7 @@ def _emit_32x32b_path(
         @T.prim_func(check_well_formed=False)
         def impl():
             local_storage = local_buf.view(local_buf.shape[1], layout=TileLayout(S[num]))
-            op(T.uint32(tmem_buf.allocated_addr[0]), *[local_storage[local_st[1]+i] for i in range(num)], shape="32x32b", num=num, row=0, col=offset_32b)  # noqa: E501
+            emit(tmem_buf.allocated_addr[0], 0, offset_32b, [local_storage[local_st[1]+i] for i in range(num)])  # noqa: E501
         # fmt: on
     else:
         # 16-bit fragments are packed two elements per b32 register operand.
@@ -353,7 +353,7 @@ def _emit_32x32b_path(
         def impl():
             local_storage = local_buf.view(local_buf.shape[1] * elem_per_32b, layout=TileLayout(S[num * elem_per_32b]))  # noqa: E501
             local_32b = local_storage.view("uint32")
-            op(T.uint32(tmem_buf.allocated_addr[0]), *[local_32b[local_st[1] // elem_per_32b+i] for i in range(num)], shape="32x32b", num=num, row=0, col=offset_32b)  # noqa: E501
+            emit(tmem_buf.allocated_addr[0], 0, offset_32b, [local_32b[local_st[1] // elem_per_32b+i] for i in range(num)])  # noqa: E501
         # fmt: on
     return impl
 
@@ -443,7 +443,7 @@ def _emit_16xnb_path(
     local_col_off_elems = local_col_off
 
     is_load = direction == "tmem2local"
-    op = T.ptx.tcgen05.ld if is_load else T.ptx.tcgen05.st
+    emit = _tcgen05_ldst_emitter(is_load, shape, num_eff)
     # We intentionally do *not* emit ``.pack::16b`` / ``.unpack::16b`` for
     # 16-bit dtypes. That qualifier would store one 16-bit element per 32-bit
     # TMEM cell (LOW half only, HIGH half wasted) — fine for some CUTLASS
@@ -468,13 +468,37 @@ def _emit_16xnb_path(
         local_reg_base = local_col_off_elems * regs_per_thread_per_slab // width_elems
         for slab in range(n_slabs):
             reg_base = slab * regs_per_thread_per_slab
-            op(
-                T.uint32(tmem_buf.allocated_addr[0]),
-                *[local_32b[local_reg_base + reg_base + i] for i in range(regs_eff)],
-                shape=shape, num=num_eff, row=(sub_slab + slab) * 16, col=col_off_32b,
+            emit(
+                tmem_buf.allocated_addr[0],
+                (sub_slab + slab) * 16,
+                col_off_32b,
+                [local_32b[local_reg_base + reg_base + i] for i in range(regs_eff)],
             )
     # fmt: on
     return impl
+
+
+def _tcgen05_ldst_emitter(is_load, shape, num):
+    """A callable that emits one tcgen05.ld / .st.
+
+    Returns the Call so a traced call site evaluates it; the two instructions
+    mirror each other's operand order, which is why this is not just a chain
+    string. The tmem address is composed at the call site now -- ptx is one
+    instruction per call, so the row/col packing the legacy helper did
+    internally moves out to `T.cuda.get_tmem_addr`.
+    """
+    action = "ld" if is_load else "st"
+    chain = f"tcgen05.{action}.sync.aligned.{shape}.x{num}.b32"
+
+    def emit(taddr, row, col, regs):
+        addr = T.uint32(taddr)
+        if (row, col) != (0, 0):
+            # Only compose when there is something to add: the packing is
+            # (row << 16 | col), so a zero row and column leave the base alone.
+            addr = T.cuda.get_tmem_addr(addr, row, col)
+        return T.ptx[chain](*regs, addr) if is_load else T.ptx[chain](addr, *regs)
+
+    return emit
 
 
 def _emit_datapath_b_path(
@@ -533,18 +557,14 @@ def _emit_datapath_b_path(
     ):
         raise ValueError("datapath B copy must cover the full (64, N) register fragment")
 
-    op = T.ptx.tcgen05.ld if direction == "tmem2local" else T.ptx.tcgen05.st
+    emit = _tcgen05_ldst_emitter(direction == "tmem2local", "32x32b", n_half)
 
     # fmt: off
     @T.prim_func(check_well_formed=False)
     def impl():
         local_storage = local_buf.view(n_half, layout=TileLayout(S[n_half]))
         local_32b = local_storage.view("uint32")
-        op(
-            tmem_buf.allocated_addr[0],
-            *[local_32b[i] for i in range(n_half)],
-            shape="32x32b", num=n_half, row=0, col=0,
-        )
+        emit(tmem_buf.allocated_addr[0], 0, 0, [local_32b[i] for i in range(n_half)])
     # fmt: on
     return impl
 
@@ -555,8 +575,8 @@ def _emit_datapath_b_path(
 # is in local scope, at warpgroup exec scope.
 #
 # Emits: T.ptx.tcgen05.ld / T.ptx.tcgen05.st (async). The caller is
-# responsible for issuing the matching ``T.ptx.tcgen05.wait.ld`` /
-# ``T.ptx.tcgen05.wait.st`` when synchronization is required.
+# responsible for issuing the matching ``T.ptx.tcgen05.wait__ld`` /
+# ``T.ptx.tcgen05.wait__st`` when synchronization is required.
 @register_dispatch(
     "copy_async",
     "cuda",

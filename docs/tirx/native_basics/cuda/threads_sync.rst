@@ -36,8 +36,8 @@ synchronization, mbarriers, reductions, and the PTX data-movement / MMA families
     T.cuda.cta_sum(val, num_warps, scratch.ptr_to([0]))   # block-level reduction
 
     bar = T.alloc_shared((1,), "uint64")
-    T.ptx.mbarrier.init(bar.data, 1)     # mbarrier for async completion
-    T.ptx.mbarrier.try_wait(bar.data, phase)
+    T.ptx.mbarrier.init.shared.b64(bar.data, T.uint32(1))  # mbarrier for async completion
+    T.cuda.mbarrier_wait(bar.data, phase)
 
 A complete, runnable example — a warp all-reduce via ``T.tvm_warp_shuffle_xor``:
 
@@ -62,7 +62,7 @@ The shuffle lowers straight to ``__shfl_xor_sync``:
 
     v_ptr[0] = v_ptr[0] + __shfl_xor_sync(0xFFFFFFFF, v_ptr[0], i_ptr[0], 32);
 
-Other families under ``T.ptx.*`` / ``T.cuda.*``: ``cp_async`` (LDGSTS),
+Other families under ``T.ptx.*`` / ``T.cuda.*``: ``cp.async`` (LDGSTS),
 ``cp_async.bulk.tensor`` (TMA), ``ldmatrix`` / ``stmatrix``, ``tcgen05.*``
 (Blackwell MMA), ``atomic_add``, ``fence`` … See :doc:`../../api/backend` for the
 full ``tvm.backend.cuda`` reference.

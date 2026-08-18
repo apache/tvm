@@ -32,7 +32,7 @@ from tvm.relax.script.builder.frame import BindingBlockFrame
 from tvm.relax.utils import convert_to_expr
 from tvm.script.ir_builder import ir as I
 from tvm.script.ir_builder.base import IRBuilder
-from tvm.script.parser._core import Parser, dispatch, doc
+from tvm.script.parser._core import Parser, collect_signature_type_vars, dispatch, doc
 from tvm.tirx.script import builder as T
 
 from .entry import (
@@ -231,9 +231,11 @@ def collect_symbolic_var_from_prelude(
 
 
 def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> None:
-    symbolic_vars = {}
+    symbolic_vars = collect_signature_type_vars(self, node)
     prim_params = set()
     with self.var_table.with_frame():
+        for var_name, var in symbolic_vars.items():
+            self.var_table.add(var_name, var)
         for arg in node.args.args:
             if arg.annotation is None:
                 self.report_error(arg, "Type annotation is required for function parameters.")

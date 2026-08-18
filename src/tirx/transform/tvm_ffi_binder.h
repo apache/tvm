@@ -62,11 +62,11 @@ namespace tirx {
  * - init_nest: Binds, DeclBuffers for shape/strides arrays, AttrStmts —
  *   all value-loading code that defines variables.
  * - asserts: AssertStmts — all validation checks.
- * - decl_buffers: DeclBuffer for buffer_map entries — buffer declarations.
+ * - decl_buffers: DeclBuffer for buffer-typed parameters — buffer declarations.
  *
  * ## Calling Protocol
  *
- * 1. Construct with function metadata (func_name, params, buffer_map, v_packed_args,
+ * 1. Construct with function metadata (func_name, params, v_packed_args,
  *    v_num_packed_args). The constructor emits arg count and null-pointer checks.
  * 2. Call DecodeAllParams(device_type, device_id)
  *    - Decodes, type-checks, and binds all packed arguments
@@ -100,7 +100,7 @@ class TVMFFIABIBuilder {
     std::vector<Stmt> init_nest;
     /*! \brief Validation checks (all AssertStmts). */
     std::vector<Stmt> asserts;
-    /*! \brief BufferVar declarations for buffer_map entries. */
+    /*! \brief BufferVar declarations for buffer-typed parameters. */
     std::vector<Stmt> decl_buffers;
   };
 
@@ -112,16 +112,14 @@ class TVMFFIABIBuilder {
    *
    * \param func_name The function name.
    * \param params The function parameters.
-   * \param buffer_map The buffer map from parameters to buffers.
    * \param v_packed_args The packed args variable (used for struct_get calls).
    * \param v_num_packed_args The variable holding the actual number of packed args.
    * \param device_type The expected device type expression.
    * \param device_id The device id variable (may be defined during buffer binding).
    */
   TVMFFIABIBuilder(const ffi::String& func_name, const ffi::Array<Var>& params,
-                   const ffi::Map<Var, BufferVar>& buffer_map, const Var& v_packed_args,
-                   const Var& v_num_packed_args, const PrimExpr& device_type,
-                   const PrimExpr& device_id);
+                   const Var& v_packed_args, const Var& v_num_packed_args,
+                   const PrimExpr& device_type, const PrimExpr& device_id);
 
   /*!
    * \brief Decode all packed arguments: type-check, load values, bind buffers.
@@ -391,7 +389,7 @@ class TVMFFIABIBuilder {
   std::vector<Stmt> init_nest_;
   /*! \brief Validation checks: all AssertStmts. */
   std::vector<Stmt> asserts_;
-  /*! \brief BufferVar declarations for buffer_map entries. */
+  /*! \brief BufferVar declarations for buffer-typed parameters. */
   std::vector<Stmt> decl_buffers_;
   /*! \brief Deferred constant-expression assertions for display-var substitution. */
   std::vector<PendingConstAssert> pending_const_asserts_;
@@ -405,8 +403,8 @@ class TVMFFIABIBuilder {
   std::string func_signature_;
   /*! \brief The function parameters. */
   ffi::Array<Var> params_;
-  /*! \brief The buffer map from parameters to buffers. */
-  ffi::Map<Var, BufferVar> buffer_map_;
+  /*! \brief Raw packed-ABI handles decoded for buffer-typed parameters. */
+  std::unordered_map<const VarNode*, Var> buffer_handles_;
   /*! \brief The packed args variable. */
   Var v_packed_args_;
   /*! \brief The expected device type expression. */

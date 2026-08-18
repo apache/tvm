@@ -44,7 +44,9 @@ class ValidateBufferScopes(PyExprVisitor):  # pylint: disable=abstract-method
             pfunc = self.mod[call.args[0]]
             if not self.is_matched:
                 # All scopes should be global in before pass
-                for _, buf in pfunc.buffer_map.items():
+                for buf in pfunc.params:
+                    if not tvm.tirx.is_buffer_var(buf):
+                        continue
                     assert "global" == buf.data.ty.storage_scope, (
                         f"expected to be global scoped, but got {val.data.ty.storage_scope}"
                     )
@@ -54,12 +56,12 @@ class ValidateBufferScopes(PyExprVisitor):  # pylint: disable=abstract-method
                     assert isinstance(arg_ty, relax.TensorType), (
                         f"Expected TensorType but git {type(arg_ty)}"
                     )
-                    buf = pfunc.buffer_map[pfunc.params[idx]]
+                    buf = pfunc.params[idx]
                     assert arg_ty.vdevice.memory_scope == buf.data.ty.storage_scope, (
                         f"scope mismatched after specialization {arg_ty.vdevice.memory_scope} vs {buf.data.ty.storage_scope}"
                     )
                 if isinstance(call.ty_args[0], relax.TensorType):
-                    buf = pfunc.buffer_map[pfunc.params[-1]]
+                    buf = pfunc.params[-1]
                     assert call.ty_args[0].vdevice.memory_scope == buf.data.ty.storage_scope, (
                         f"scope mismatched after specialization {call.ty_args[0].vdevice.memory_scope} vs {buf.data.ty.storage_scope}"
                     )
@@ -68,7 +70,7 @@ class ValidateBufferScopes(PyExprVisitor):  # pylint: disable=abstract-method
                         f"Expected TupleType but git {type(call.ty_args[0])}"
                     )
                     for idx, ty in enumerate(call.ty_args[0].fields):
-                        buf = pfunc.buffer_map[pfunc.params[len(call.args[1]) + idx]]
+                        buf = pfunc.params[len(call.args[1]) + idx]
                         assert ty.vdevice.memory_scope == buf.data.ty.storage_scope, (
                             f"scope mismatched after specialization {ty.vdevice.memory_scope} vs {buf.data.ty.storage_scope}"
                         )
