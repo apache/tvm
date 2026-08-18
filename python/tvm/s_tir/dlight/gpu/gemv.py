@@ -164,13 +164,14 @@ class GEMV(GPUScheduleRule):
                 and shared_mem_usage.value <= max_smem
             )
 
-            # vectorize load A
-            # (TODO) this is now actually problematic since the number of loops is dependent on the
-            # number of dimensions of A_q
             Aq_local = sch.cache_read(rf, read_buffer_index=1, storage_scope="local")
+            num_cache_loops = len(sch.get_loops(block=Aq_local))
             sch.compute_at(Aq_local, r, preserve_unit_loops=True)
-            s_local, r_local = sch.get_loops(block=Aq_local)[-2:]
-            fused_load = sch.fuse(s_local, r_local)
+            cache_loops = sch.get_loops(block=Aq_local)[-num_cache_loops:]
+            if len(cache_loops) == 1:
+                fused_load = cache_loops[0]
+            else:
+                fused_load = sch.fuse(*cache_loops[-2:])
             aq_vec_len = max(1, VEC_LOAD // get_bytes(sch.get(Aq_local).reads[0].buffer.dtype))
             fused_load, vec_load = sch.split(
                 fused_load, factors=[None, aq_vec_len], preserve_unit_iters=True
