@@ -16,6 +16,7 @@
 # under the License.
 """Tests for the table-driven PTX dialect (``T.ptx``)."""
 
+import itertools
 import os
 import re
 import shutil
@@ -1112,15 +1113,34 @@ def test_ptx_logic_shift_dispatch():
             T.device_entry()
             T.ptx.shl.s32(out[0], T.int32(1), T.uint32(2))
 
-    # The LUT byte lives in the instruction text, so it has to be a constant.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="compile-time integer"):
-
-        @T.prim_func
-        def lut_runtime(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
-            T.device_entry()
+    # Open immediates may survive tracing so explicitly-unrolled expressions
+    # can specialize, but a runtime LUT byte still has no register form and is
+    # rejected at CUDA codegen.
+    @T.prim_func
+    def lut_runtime(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (1,), "uint32")
+        T.device_entry()
+        tx = T.thread_id([32])
+        if tx == 0:
             d = T.local_scalar("uint32")
             T.ptx.lop3.b32(d, A[0], A[0], A[0], A[0])
+
+    with pytest.raises((ValueError, tvm.error.InternalError), match="compile-time constants"):
+        _cuda_source(lut_runtime)
+
+    @T.prim_func
+    def lut_unrolled(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (1,), "uint32")
+        T.device_entry()
+        tx = T.thread_id([32])
+        if tx == 0:
+            d = T.local_scalar("uint32")
+            for i in T.unroll(2):
+                T.ptx.lop3.b32(d, A[0], A[0], A[0], i * 128)
+
+    unrolled_src = _cuda_source(lut_unrolled)
+    assert "lop3.b32 %0, %1, %2, %3, 0;" in unrolled_src
+    assert "lop3.b32 %0, %1, %2, %3, 128;" in unrolled_src
 
 
 def test_ptx_data_movement_dispatch():
@@ -2128,6 +2148,36 @@ def _as_render_args(rendering):
     return tokens, predicated, dtypes, imms, sinks
 
 
+def _addr_offset_samples(entry):
+    """Small certification axis for address immediates, separate from modifier products."""
+    from tvm.backend.cuda.ptx.table import renderings
+
+    enabled = [
+        logical_slot
+        for logical_slot, slot in enumerate(s for s in entry.operands if s.kind == "addr")
+        if slot.allow_imm_offset
+    ]
+    if not enabled:
+        return ()
+    representative = _as_render_args(next(iter(renderings(entry))))
+    samples = [
+        (representative, ((logical_slot, offset),))
+        for logical_slot in enabled
+        for offset in (16, -16)
+    ]
+    if len(enabled) > 1:
+        samples.append(
+            (
+                representative,
+                tuple(
+                    (logical_slot, 16 if index % 2 == 0 else -16)
+                    for index, logical_slot in enumerate(enabled)
+                ),
+            )
+        )
+    return tuple(samples)
+
+
 def _sole_instruction(asm_text):
     """The single PTX statement in ``asm_text``, or None if it is not exactly one.
 
@@ -2275,6 +2325,10 @@ def test_ptx_all_variants_render_unique():
                     or f"; {opcode};" in source
                 )
             total += not predicated  # a @p twin is not a separate variant
+        for args, addr_offsets in _addr_offset_samples(entry):
+            _, helper, _ = render_variant(entry, *args, addr_offsets=addr_offsets)
+            assert helper not in names, f"address-offset helper name collision: {helper}"
+            names.add(helper)
     assert total == 200018  # update when the table grows
 
 
@@ -2434,6 +2488,9 @@ def test_ptx_sampled_helpers_assemble():
         for i in rng.sample(range(len(rendered)), min(48, len(rendered))):
             _, _, source = render_variant(entry, *_as_render_args(rendered[i]))
             by_arch.setdefault(arch, []).append(source.replace("__forceinline__ ", ""))
+        for args, addr_offsets in _addr_offset_samples(entry):
+            _, _, source = render_variant(entry, *args, addr_offsets=addr_offsets)
+            by_arch.setdefault(arch, []).append(source.replace("__forceinline__ ", ""))
     for arch, sources in by_arch.items():
         _assert_ptxas_ok("\n".join([_CERT_PRELUDE, *sources]), rdc=True, arch=arch)
 
@@ -2473,13 +2530,21 @@ def test_ptx_all_helpers_certify(shard):
 
     by_arch = {}
     covered = 0
-    for index, (entry, rendering) in enumerate(
-        (TABLE[name], r) for name in sorted(TABLE) for r in renderings(TABLE[name])
-    ):
+    baseline = (
+        (TABLE[name], _as_render_args(rendering), ())
+        for name in sorted(TABLE)
+        for rendering in renderings(TABLE[name])
+    )
+    address_samples = (
+        (TABLE[name], args, addr_offsets)
+        for name in sorted(TABLE)
+        for args, addr_offsets in _addr_offset_samples(TABLE[name])
+    )
+    for index, (entry, args, addr_offsets) in enumerate(itertools.chain(baseline, address_samples)):
         if index % _CERT_SHARDS == shard:
             covered += 1
             arch = entry.cert_arch or PTX_ARCH
-            _, _, src = render_variant(entry, *_as_render_args(rendering))
+            _, _, src = render_variant(entry, *args, addr_offsets=addr_offsets)
             by_arch.setdefault(arch, []).append(src.replace("__forceinline__ ", ""))
     assert covered, "empty shard: lower _CERT_SHARDS"
     for arch, sources in by_arch.items():
