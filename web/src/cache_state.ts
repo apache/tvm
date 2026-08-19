@@ -145,11 +145,18 @@ export class CacheState {
    * Invalidation rule: None required — shape tuples are immutable.
    */
   readonly shapeCache: LRUCache<string, Disposable>;
+  /**
+   * Shape tuples evicted from the LRU cache but retained until instance teardown.
+   *
+   * `makeShapeTuple()` returns borrowed references, so an evicted tuple can still
+   * be in use by a pending GPU dispatch.
+   */
+  private readonly evictedShapeTuples = new Set<Disposable>();
 
   constructor(shapeCacheSize: number = 256) {
     this.shapeCache = new LRUCache<string, Disposable>(
       shapeCacheSize,
-      (_key, value) => value.dispose()
+      (_key, value) => this.evictedShapeTuples.add(value)
     );
   }
 
@@ -168,8 +175,12 @@ export class CacheState {
    */
   dispose(): void {
     for (const obj of this.shapeCache.values()) {
-      obj.dispose();
+      this.evictedShapeTuples.add(obj);
     }
     this.shapeCache.invalidate();
+    for (const obj of this.evictedShapeTuples) {
+      obj.dispose();
+    }
+    this.evictedShapeTuples.clear();
   }
 }
