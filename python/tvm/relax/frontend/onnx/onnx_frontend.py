@@ -1561,6 +1561,7 @@ class Reshape(OnnxOpConverter):
     def _impl_v13(cls, bb, inputs, attr, params):
         data = inputs[0]
         new_shape = get_constant(inputs[1], params)
+        allowzero = attr.get("allowzero", 0)
 
         if isinstance(data, relax.ShapeExpr):
             # Preserve identity flatten for shape values to keep shape-specialized
@@ -1574,9 +1575,23 @@ class Reshape(OnnxOpConverter):
             data = bb.normalize(relax.op.shape_to_tensor(data))
 
         if isinstance(data, relax.Constant) and isinstance(new_shape, relax.Constant):
-            out = _np.reshape(data.data.numpy(), new_shape.data.numpy().tolist())
+            data_array = data.data.numpy()
+            new_shape_values = new_shape.data.numpy().tolist()
+            if not allowzero:
+                new_shape_values = [
+                    data_array.shape[i] if dim == 0 else dim
+                    for i, dim in enumerate(new_shape_values)
+                ]
+            out = _np.reshape(data_array, new_shape_values)
             return relax.const(out, out.dtype)
-        if isinstance(new_shape, relax.Constant):
+        if allowzero:
+            if isinstance(new_shape, relax.ShapeExpr):
+                new_shape = bb.normalize(relax.op.shape_to_tensor(new_shape))
+            new_shape_ndim = _get_known_tensor_length(new_shape)
+            if new_shape_ndim is None:
+                raise ValueError("Reshape requires a statically known output rank.")
+            new_shape = _tensor_to_shape_expr(bb, new_shape, new_shape_ndim, "reshape_dim")
+        elif isinstance(new_shape, relax.Constant):
             new_shape = new_shape.data.numpy().tolist()
         out = relax.op.reshape(data, new_shape)
         return out
