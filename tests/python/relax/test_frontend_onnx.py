@@ -12476,6 +12476,30 @@ def test_dequantizelinear_singleton_qparams_opset10():
     check_correctness(model, inputs={"x": x}, opset=10, check_dtypes=True)
 
 
+@pytest.mark.parametrize(
+    ("op_type", "input_dtype", "output_dtype", "input_value"),
+    [
+        ("QuantizeLinear", TensorProto.FLOAT, TensorProto.UINT8, np.array(1.25, "float32")),
+        ("DequantizeLinear", TensorProto.UINT8, TensorProto.FLOAT, np.array(7, "uint8")),
+    ],
+)
+def test_qdqlinear_scalar_input(op_type, input_dtype, output_dtype, input_value):
+    node = helper.make_node(op_type, ["x", "scale", "zero_point"], ["y"])
+    graph = helper.make_graph(
+        [node],
+        f"{op_type.lower()}_scalar_input",
+        [helper.make_tensor_value_info("x", input_dtype, [])],
+        [helper.make_tensor_value_info("y", output_dtype, [])],
+        initializer=[
+            helper.make_tensor("scale", TensorProto.FLOAT, [], [0.25]),
+            helper.make_tensor("zero_point", TensorProto.UINT8, [], [2]),
+        ],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
+
+    check_correctness(model, inputs={"x": input_value}, opset=18, check_dtypes=True)
+
+
 def test_quantizelinear_optional_zero_point_opset13():
     """ONNX allows missing zero_point input; importer should default it to 0 (uint8)."""
     node = helper.make_node("QuantizeLinear", ["x", "scale"], ["y"])

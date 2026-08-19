@@ -51,8 +51,16 @@ _KERNELS = {
     for kernel_name in sorted({workload["kernel"] for workload in _WORKLOADS})
 }
 _DISTRIBUTED_KERNELS = frozenset(
-    {"allgather_gemm", "deepgemm_fp8_fp4_mega_moe", "gemm_reduce_scatter"}
+    # Both MegaMoE names are listed so the test works across tirx-kernels
+    # checkouts from before and after the sm100_fp8_fp4_mega_moe rename.
+    {
+        "allgather_gemm",
+        "deepgemm_fp8_fp4_mega_moe",
+        "gemm_reduce_scatter",
+        "sm100_fp8_fp4_mega_moe",
+    }
 )
+_MEGA_MOE_KERNELS = frozenset({"deepgemm_fp8_fp4_mega_moe", "sm100_fp8_fp4_mega_moe"})
 _XDIST_CUDA_DEVICE = None
 
 
@@ -157,10 +165,12 @@ def _registry_gpu_lock(kernel_name, config):
                 )
         yield
     finally:
-        torch.cuda.empty_cache()
-        for lock_file in reversed(lock_files):
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-            lock_file.close()
+        try:
+            torch.cuda.empty_cache()
+        finally:
+            for lock_file in reversed(lock_files):
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                lock_file.close()
 
 
 @pytest.mark.parametrize(("kernel_name", "config"), _manifest_kernel_config_cases())
@@ -171,6 +181,11 @@ def test_manifest_tirx_kernel_correctness(kernel_name, config):
     if required_devices > visible_devices:
         pytest.skip(
             f"requires {required_devices} CUDA devices, but only {visible_devices} are visible"
+        )
+    if kernel_name in _MEGA_MOE_KERNELS:
+        pytest.skip(
+            "MegaMoE requires its dedicated multi-process scheduler; this suite's "
+            "processes own CUDA contexts that its physical-device assignment rejects"
         )
     with _registry_gpu_lock(kernel_name, config):
         kernel_runner.run_kernel_test(kernel_name, config, registry=_KERNELS)
