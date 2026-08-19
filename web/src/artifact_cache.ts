@@ -38,6 +38,35 @@ export interface TensorShardEntry {
 }
 
 /**
+ * Return a borrowed view of one tensor record within a shard.
+ *
+ * The returned view aliases the shard and is only valid for as long as the
+ * shard data remains alive. Tensor-cache decoding consumes it synchronously.
+ */
+export function getTensorCacheRecordBytes(
+  shardData: ArrayBuffer | Uint8Array,
+  record: Pick<TensorCacheEntry, "byteOffset" | "nbytes">,
+): Uint8Array {
+  const shardBytes =
+    shardData instanceof Uint8Array ? shardData : new Uint8Array(shardData);
+  const { byteOffset, nbytes } = record;
+  if (!Number.isSafeInteger(byteOffset) || byteOffset < 0) {
+    throw new Error(`Invalid tensor-cache byteOffset: ${byteOffset}`);
+  }
+  if (!Number.isSafeInteger(nbytes) || nbytes < 0) {
+    throw new Error(`Invalid tensor-cache nbytes: ${nbytes}`);
+  }
+  const endOffset = byteOffset + nbytes;
+  if (!Number.isSafeInteger(endOffset) || endOffset > shardBytes.byteLength) {
+    throw new Error(
+      `Tensor-cache record range [${byteOffset}, ${endOffset}) exceeds ` +
+      `shard size ${shardBytes.byteLength}`,
+    );
+  }
+  return shardBytes.subarray(byteOffset, endOffset);
+}
+
+/**
  *   Common Interface for the artifact cache
  */
 export interface ArtifactCacheTemplate {

@@ -39,6 +39,7 @@ import {
   TensorCacheAccessOptions,
   TensorShardEntry,
   createArtifactCache,
+  getTensorCacheRecordBytes,
 } from "./artifact_cache";
 import * as compact from "./compact";
 import * as ctypes from "./ctypes";
@@ -1417,18 +1418,20 @@ export class Instance implements Disposable {
         this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
         throw err;
       }
+      const shardBytes =
+        buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
       const shardRecords = shard.records;
       for (let j = 0; j < shardRecords.length; ++j) {
         try {
           const rec = shardRecords[j];
+          const recSource = getTensorCacheRecordBytes(shardBytes, rec);
           const cpu_arr = this.withNewScope(() => {
             return this.detachFromCurrentScope(
               this.empty(rec.shape, rec.dtype, this.cpu())
             )
           });
-          const recSource = buffer.slice(rec.byteOffset, rec.byteOffset + rec.nbytes);
           // first sync copy to cpu.
-          this.ctx.arrayDecodeStorage(cpu_arr, new Uint8Array(recSource), rec.format, rec.dtype);
+          this.ctx.arrayDecodeStorage(cpu_arr, recSource, rec.format, rec.dtype);
           // then async stream into GPU if needed
           if (device.deviceType === DeviceStrToEnum.cpu) {
             this.tensorCacheUpdate(rec.name, cpu_arr, false);
