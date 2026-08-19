@@ -16,26 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-const fs = require("fs");
-const ts = require("typescript");
-
-const previousTypeScriptLoader = require.extensions[".ts"];
-require.extensions[".ts"] = (module, filename) => {
-  const source = fs.readFileSync(filename, "utf8");
-  const output = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2018 },
-    fileName: filename,
-  }).outputText;
-  module._compile(output, filename);
-};
-
 const { CacheState } = require("../../src/cache_state.ts");
-
-if (previousTypeScriptLoader === undefined) {
-  delete require.extensions[".ts"];
-} else {
-  require.extensions[".ts"] = previousTypeScriptLoader;
-}
 
 test("keeps an evicted shape tuple alive until cache state disposal", () => {
   const cacheState = new CacheState(1);
