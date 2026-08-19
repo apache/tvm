@@ -29,6 +29,7 @@
 
 #include <tvm/target/codegen.h>
 
+#include <cstddef>
 #include <string>
 
 #include "../../../target/source/codegen_c.h"
@@ -98,6 +99,9 @@ class CodeGenWebGPU final : public CodeGenC {
   bool enable_fp16_{false};
   // whether enable subgroups
   bool enable_subgroups_{false};
+
+  /*! \brief Total bytes declared in the WGSL workgroup address space. */
+  size_t workgroup_memory_bytes_{0};
 
   /*! \brief the header stream for function label and enable directive if any, goes before any other
    * declaration */
