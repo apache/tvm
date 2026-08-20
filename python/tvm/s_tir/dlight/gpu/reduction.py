@@ -54,6 +54,44 @@ def _has_reduction_loop(block_info):
     return any([info.kind == "R" for info in block_info.iters])
 
 
+def _suggest_inner_spatial_tx(s_factor: int | tirx.Expr) -> int:
+    """Pick the largest thread extent up to 16 that divides the innermost spatial extent.
+
+    A symbolic extent never compares equal to zero, so it falls through to 1, matching
+    the behaviour this loop had when it was inlined in `_sch_inner_spatial`.
+    """
+    len_tx = 16
+    while len_tx > 1 and s_factor % len_tx != 0:
+        len_tx -= 1
+    return len_tx
+
+
+def _inner_spatial_write_back_is_affine(block_info: SBlockInfo) -> bool:
+    """Whether `_sch_inner_spatial` can keep the write-back block bindings quasi-affine.
+
+    `_sch_inner_spatial` fuses every spatial loop and then splits `len_tx` off the inner
+    end, where `len_tx` is derived from the innermost spatial extent alone. After
+    `rfactor` + `reverse_compute_at`, the write-back block has to recover each original
+    spatial index from the remaining fused outer loop. Each non-unit spatial extent left
+    outside the inner tile contributes one floordiv/floormod component to that recovery,
+    and once three or more components pile up the resulting bindings are no longer
+    recognized as quasi-affine. `bind` then fails the compact-dataflow precondition
+    (local reduction block condition #2) and aborts the whole default schedule chain.
+    """
+    s_doms = [info.dom for info in block_info.iters if info.kind == "S"]
+    if not s_doms:
+        return False
+    # A symbolic extent may be 1 at runtime, but it has to be assumed non-unit here.
+    components = sum(1 for dom in s_doms[:-1] if not isinstance(dom, int) or dom > 1)
+    innermost = s_doms[-1]
+    if not isinstance(innermost, int) or _suggest_inner_spatial_tx(innermost) < innermost:
+        # The inner tile only covers part of the innermost extent, so its leftover
+        # outer part stays in the fused loop as one more component. A symbolic extent
+        # cannot be proven to be tiled exactly, so treat it the same way.
+        components += 1
+    return components < 3
+
+
 class Reduction(GPUScheduleRule):
     """A rule for Reduction."""
 
@@ -82,6 +120,9 @@ class Reduction(GPUScheduleRule):
         block_info = block_infos[0]
         block = block_info.block_rv
         block_stmt = sch.get(block)
+        # `_normalize` mutates `sch`, so decide up-front whether the inner-spatial
+        # schedule is even applicable to this block shape.
+        inner_spatial_ok = _inner_spatial_write_back_is_affine(block_info)
 
         # Step 1. Check reduction block
         if (
@@ -108,6 +149,10 @@ class Reduction(GPUScheduleRule):
                 sch, target, block, c_factor, epilogue, loop_order, s_split_index
             )
         else:
+            if not inner_spatial_ok:
+                # Let GeneralReduction / Fallback handle it instead of raising a
+                # ScheduleError, which would abort the entire schedule chain.
+                return None
             self._sch_inner_spatial(
                 sch, target, block, block_info, c_factor, epilogue, loop_order, s_split_index
             )
@@ -247,14 +292,11 @@ class Reduction(GPUScheduleRule):
     ):
         # pylint: disable=invalid-name
         s, r, _ = sch.get_loops(block)
-        len_tx, len_ty = 16, 16
+        len_ty = 16
         s_factor = [i.dom for i in block_info.iters if i.kind == "S"][-1]
         # get perfect spatial factor, spatial factor should be divide the innermost spatial loop so
         # that the block after r_factor and be reversed compute at the original scope
-        while len_tx > 1:
-            if s_factor % len_tx == 0:
-                break
-            len_tx -= 1
+        len_tx = _suggest_inner_spatial_tx(s_factor)
         _, _ = sch.split(s, factors=[None, len_tx])
         _, ty = sch.split(r, factors=[None, len_ty])
         # Schedule the RF block
