@@ -243,6 +243,15 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
   } else {
     cluster_cta_x_is_linear_rank_ = false;
   }
+  auto max_registers = f->GetAttr<int64_t>(tirx::attr::kMaxRegisters);
+  if (max_registers.has_value()) {
+    TVM_FFI_ICHECK_GT(max_registers.value(), 0);
+    TVM_FFI_ICHECK(!f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMinBlocksPerSM).has_value() &&
+                   !f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMaxBlocksPerCluster).has_value())
+        << tirx::attr::kMaxRegisters << " cannot be combined with CUDA launch bounds";
+    os << " __maxnreg__(" << max_registers.value() << ")";
+    return;
+  }
   if (const IntImmNode* const threadIdx_ext_int = threadIdx_ext.as<IntImmNode>()) {
     if (threadIdx_ext_int->value == 1) {
       // unable to extract the number of threads per block, hence directly return
