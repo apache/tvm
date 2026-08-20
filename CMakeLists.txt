@@ -672,7 +672,11 @@ if(USE_IOS_RPC)
   add_subdirectory("apps/ios_rpc")
 endif()
 
+set(TVM_CXX_STANDARD ${CMAKE_CXX_STANDARD})
+set(CMAKE_CXX_STANDARD 17)
 add_subdirectory(3rdparty/tvm-ffi)
+set(CMAKE_CXX_STANDARD ${TVM_CXX_STANDARD})
+unset(TVM_CXX_STANDARD)
 
 if(TVM_DEBUG_WITH_ABI_CHANGE)
   message(STATUS "Building with debug code that may cause ABI changes...")
