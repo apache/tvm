@@ -203,6 +203,41 @@ def test_tirx_launch_bounds_max_blocks_per_cluster_emits_third_operand():
     assert "tirx.launch_bounds_max_blocks_per_cluster" not in src
 
 
+def test_tirx_max_registers_attr_emits_cuda_maxnreg():
+    @T.prim_func
+    def main(A: T.Buffer((4,), "int32")):
+        T.device_entry()
+        T.attr({"tirx.max_registers": 92})
+        bx = T.cta_id([4])
+        tx = T.thread_id([128])
+        if tx == 0:
+            A[bx] = A[bx] + 1
+
+    src, _ = _get_source(main)
+    assert 'extern "C" __global__ void __maxnreg__(92) main_kernel' in src
+    assert "__launch_bounds__" not in src
+    assert "tirx.max_registers" not in src
+
+
+def test_tirx_max_registers_rejects_launch_bounds():
+    @T.prim_func
+    def main(A: T.Buffer((4,), "int32")):
+        T.device_entry()
+        T.attr(
+            {
+                "tirx.max_registers": 92,
+                "tirx.launch_bounds_min_blocks_per_sm": 1,
+            }
+        )
+        bx = T.cta_id([4])
+        tx = T.thread_id([128])
+        if tx == 0:
+            A[bx] = A[bx] + 1
+
+    with pytest.raises(tvm.error.InternalError, match="cannot be combined with CUDA launch bounds"):
+        _get_source(main)
+
+
 def test_tirx_cuda_kernel_return_zero_codegen_is_void_early_return():
     @T.prim_func
     def main(A: T.Buffer((4,), "int32")):

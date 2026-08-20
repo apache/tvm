@@ -231,9 +231,19 @@ class CUDAWrappedFunc {
               << "Failed to set the allowed dynamic shared memory size to " << wl.dyn_shmem_size;
         }
       }
+      if (wl.cluster_dim(0) * wl.cluster_dim(1) * wl.cluster_dim(2) > 8) {
+        CUresult result = cuFuncSetAttribute(
+            fcache_[device_id], CU_FUNC_ATTRIBUTE_NON_PORTABLE_CLUSTER_SIZE_ALLOWED, 1);
+        if (result != CUDA_SUCCESS) {
+          TVM_FFI_THROW(InternalError)
+              << "Failed to allow non-portable CUDA cluster size (" << wl.cluster_dim(0) << ", "
+              << wl.cluster_dim(1) << ", " << wl.cluster_dim(2) << ")";
+        }
+      }
     }
     CUstream strm = static_cast<CUstream>(TVMFFIEnvGetStream(kDLCUDA, device_id));
-    std::vector<CUlaunchAttribute> attrs;
+    std::array<CUlaunchAttribute, 4> attrs{};
+    unsigned int num_attrs = 0;
 
     // 1) Cluster
     if (wl.cluster_dim(0) != 1 || wl.cluster_dim(1) != 1 || wl.cluster_dim(2) != 1) {
@@ -242,7 +252,7 @@ class CUDAWrappedFunc {
       attr.value.clusterDim.x = wl.cluster_dim(0);
       attr.value.clusterDim.y = wl.cluster_dim(1);
       attr.value.clusterDim.z = wl.cluster_dim(2);
-      attrs.push_back(attr);
+      attrs[num_attrs++] = attr;
     }
 
     // 1b) Preferred cluster (CUDA 12.8+, cudaLaunchAttributePreferredClusterDimension)
@@ -253,7 +263,7 @@ class CUDAWrappedFunc {
       attr.value.clusterDim.x = wl.preferred_cluster_dim(0);
       attr.value.clusterDim.y = wl.preferred_cluster_dim(1);
       attr.value.clusterDim.z = wl.preferred_cluster_dim(2);
-      attrs.push_back(attr);
+      attrs[num_attrs++] = attr;
     }
 
     // 2) Programmatic stream serialization
@@ -261,7 +271,7 @@ class CUDAWrappedFunc {
       CUlaunchAttribute attr{};
       attr.id = CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_STREAM_SERIALIZATION;
       attr.value.programmaticStreamSerializationAllowed = 1;
-      attrs.push_back(attr);
+      attrs[num_attrs++] = attr;
     }
 
     // 3) Cooperative
@@ -269,7 +279,7 @@ class CUDAWrappedFunc {
       CUlaunchAttribute attr{};
       attr.id = CU_LAUNCH_ATTRIBUTE_COOPERATIVE;
       attr.value.cooperative = 1;
-      attrs.push_back(attr);
+      attrs[num_attrs++] = attr;
     }
 
     // 4) Launch
@@ -282,8 +292,8 @@ class CUDAWrappedFunc {
     config.blockDimZ = wl.block_dim(2);
     config.sharedMemBytes = wl.dyn_shmem_size;
     config.hStream = strm;
-    config.attrs = attrs.empty() ? nullptr : attrs.data();
-    config.numAttrs = static_cast<unsigned int>(attrs.size());
+    config.attrs = num_attrs == 0 ? nullptr : attrs.data();
+    config.numAttrs = num_attrs;
 
     CUresult result = cuLaunchKernelEx(&config, fcache_[device_id], void_args, nullptr);
 

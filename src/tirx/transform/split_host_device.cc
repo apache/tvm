@@ -90,15 +90,20 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
   Stmt Extract(Stmt stmt) {
     min_blocks_per_sm_.reset();
     max_blocks_per_cluster_.reset();
+    max_registers_.reset();
     Stmt result = operator()(std::move(stmt));
     TVM_FFI_ICHECK(!max_blocks_per_cluster_.has_value() || min_blocks_per_sm_.has_value())
         << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " requires "
         << tirx::attr::kLaunchBoundsMinBlocksPerSM;
+    TVM_FFI_ICHECK(!max_registers_.has_value() ||
+                   (!min_blocks_per_sm_.has_value() && !max_blocks_per_cluster_.has_value()))
+        << tirx::attr::kMaxRegisters << " cannot be combined with CUDA launch bounds";
     return result;
   }
 
   std::optional<int64_t> min_blocks_per_sm() const { return min_blocks_per_sm_; }
   std::optional<int64_t> max_blocks_per_cluster() const { return max_blocks_per_cluster_; }
+  std::optional<int64_t> max_registers() const { return max_registers_; }
 
  private:
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -126,12 +131,24 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
       }
       max_blocks_per_cluster_ = max_blocks_per_cluster->value;
       return VisitStmt(op->body);
+    } else if (op->attr_key == tirx::attr::kMaxRegisters) {
+      const auto* max_registers = op->value.as<IntImmNode>();
+      TVM_FFI_ICHECK(max_registers) << tirx::attr::kMaxRegisters << " expects an integer value";
+      TVM_FFI_ICHECK_GT(max_registers->value, 0)
+          << tirx::attr::kMaxRegisters << " must be positive";
+      if (max_registers_.has_value()) {
+        TVM_FFI_ICHECK_EQ(max_registers_.value(), max_registers->value)
+            << "Conflicting " << tirx::attr::kMaxRegisters << " values";
+      }
+      max_registers_ = max_registers->value;
+      return VisitStmt(op->body);
     }
     return StmtMutator::VisitStmt_(op);
   }
 
   std::optional<int64_t> min_blocks_per_sm_;
   std::optional<int64_t> max_blocks_per_cluster_;
+  std::optional<int64_t> max_registers_;
 };
 
 class HostDeviceSplitter : public StmtMutator {
@@ -254,6 +271,10 @@ class HostDeviceSplitter : public StmtMutator {
       if (launch_bounds_attr.max_blocks_per_cluster().has_value()) {
         device_func = WithAttr(std::move(device_func), tirx::attr::kLaunchBoundsMaxBlocksPerCluster,
                                launch_bounds_attr.max_blocks_per_cluster().value());
+      }
+      if (launch_bounds_attr.max_registers().has_value()) {
+        device_func = WithAttr(std::move(device_func), tirx::attr::kMaxRegisters,
+                               launch_bounds_attr.max_registers().value());
       }
     }
     auto num_inputs = cur_func_->GetAttr<int64_t>(tvm::attr::kNumInputs);
