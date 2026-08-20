@@ -448,5 +448,41 @@ def test_dispatch_cumsum_gpu(target):
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+@pytest.mark.gpu
+def test_dispatch_cumprod_cuda_large_batch():
+    """Test that GPU scan supports more batches than CUDA's grid-y limit."""
+    target = "cuda"
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor(("m", "n"), "float32")):
+            with R.dataflow():
+                gv = R.cumprod(x, axis=1)
+                R.output(gv)
+            return gv
+
+    np_data = np.ones((65536, 3), dtype="float32")
+    np_data[:, 0] = np.arange(65536) % 7 + 1
+    np_data[:, 1] = 2
+    np_data[:, 2] = 3
+    np_cumprod = np.cumprod(np_data, axis=1)
+
+    with tvm.target.Target(target):
+        mod = DispatchSortScan()(Module)
+        ex = tvm.compile(mod, target)
+
+    def run_and_check():
+        dev = tvm.device_from_target(target)
+        vm = tvm.relax.VirtualMachine(ex, dev)
+        tvm_data = tvm.runtime.tensor(np_data, dev)
+        cumprod = vm["main"](tvm_data)
+        tvm.testing.assert_allclose(cumprod.numpy(), np_cumprod)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
