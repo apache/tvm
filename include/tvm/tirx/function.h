@@ -294,6 +294,16 @@ constexpr const char* kLaunchBoundsMaxBlocksPerCluster =
     "tirx.launch_bounds_max_blocks_per_cluster";
 
 /*!
+ * \brief CUDA maximum registers per thread.
+ *
+ * Emits the CUDA 13 ``__maxnreg__`` kernel qualifier.  This attribute is
+ * mutually exclusive with the launch-bounds attributes.
+ *
+ * Type: IntImm
+ */
+constexpr const char* kMaxRegisters = "tirx.max_registers";
+
+/*!
  * \brief Whether to set noalias rule on the function arguments.
  *
  * Type: IntImm
