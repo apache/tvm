@@ -1179,5 +1179,172 @@ def test_no_reduction_loop_check():
     assert_structural_equal(mod, Before)
 
 
+def test_reduction_4d_non_contiguous_reduce_axis0():
+    # Test reduction with kind-based loop classification in _sch_inner_spatial.
+    # With 3+ spatial dims, `blockIdx.x` alone fully absorbs 2+ of them, so the
+    # write-back block ends up with 2+ degenerate (extent-1) spatial loops; fusing
+    # and binding those would require a non-canonical floordiv/subtraction binding.
+    # `_sch_inner_spatial` detects this and bails, so `Fallback` schedules it instead.
+    # fmt: off
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((4, 8, 16, 32), "float32"), A_red: T.Buffer((8, 16, 32), "float32")):
+            T.func_attr({"tirx.noalias": True})
+            for ax0, ax1, ax2, k in T.grid(8, 16, 32, 4):
+                with T.sblock("A_red"):
+                    v_ax0, v_ax1, v_ax2, v_k = T.axis.remap("SSSR", [ax0, ax1, ax2, k])
+                    T.reads(A[v_k, v_ax0, v_ax1, v_ax2])
+                    T.writes(A_red[v_ax0, v_ax1, v_ax2])
+                    with T.init():
+                        A_red[v_ax0, v_ax1, v_ax2] = T.float32(0)
+                    A_red[v_ax0, v_ax1, v_ax2] = A_red[v_ax0, v_ax1, v_ax2] + A[v_k, v_ax0, v_ax1, v_ax2]
+    # fmt: on
+
+    target = Target("nvidia/geforce-rtx-3090-ti")
+    with target:
+        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+            dl.gpu.Reduction(), dl.gpu.Fallback()
+        )(Before)
+    assert mod["main"].attrs["tirx.is_scheduled"] == 1
+
+
+def test_reduction_4d_non_contiguous_reduce_axis1():
+    # Test reduction with kind-based loop classification on 4D tensor, reduce axis 1.
+    # Same 3+-spatial-dims shape as axis0 above: `_sch_inner_spatial` bails on the
+    # 2+ degenerate write-back loops and `Fallback` schedules it instead.
+    # fmt: off
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((4, 8, 16, 32), "float32"), A_red: T.Buffer((4, 16, 32), "float32")):
+            T.func_attr({"tirx.noalias": True})
+            for ax0, ax1, ax2, k in T.grid(4, 16, 32, 8):
+                with T.sblock("A_red"):
+                    v_ax0, v_ax1, v_ax2, v_k = T.axis.remap("SSSR", [ax0, ax1, ax2, k])
+                    T.reads(A[v_ax0, v_k, v_ax1, v_ax2])
+                    T.writes(A_red[v_ax0, v_ax1, v_ax2])
+                    with T.init():
+                        A_red[v_ax0, v_ax1, v_ax2] = T.float32(0)
+                    A_red[v_ax0, v_ax1, v_ax2] = A_red[v_ax0, v_ax1, v_ax2] + A[v_ax0, v_k, v_ax1, v_ax2]
+    # fmt: on
+
+    target = Target("nvidia/geforce-rtx-3090-ti")
+    with target:
+        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+            dl.gpu.Reduction(), dl.gpu.Fallback()
+        )(Before)
+    assert mod["main"].attrs["tirx.is_scheduled"] == 1
+
+
+def test_reduction_4d_non_contiguous_reduce_axis1_keepdims():
+    # Test reduction with keepdims=True on non-contiguous axis.
+    # Unit dimension inserted at reduce position is collapsed by NormalizePrimFunc.
+    # leaving the same 3+-spatial-dims shape as axis0/axis1 above: `_sch_inner_spatial`
+    # bails on the 2+ degenerate write-back loops and `Fallback` schedules it instead.
+    # fmt: off
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((4, 8, 16, 32), "float32"), A_red: T.Buffer((4, 1, 16, 32), "float32")):
+            T.func_attr({"tirx.noalias": True})
+            for ax0, ax1u, ax1, ax2, k in T.grid(4, 1, 16, 32, 8):
+                with T.sblock("A_red"):
+                    v_ax0, v_ax1u, v_ax1, v_ax2, v_k = T.axis.remap("SSSSR", [ax0, ax1u, ax1, ax2, k])
+                    T.reads(A[v_ax0, v_k, v_ax1, v_ax2])
+                    T.writes(A_red[v_ax0, v_ax1u, v_ax1, v_ax2])
+                    with T.init():
+                        A_red[v_ax0, v_ax1u, v_ax1, v_ax2] = T.float32(0)
+                    A_red[v_ax0, v_ax1u, v_ax1, v_ax2] = A_red[v_ax0, v_ax1u, v_ax1, v_ax2] + A[v_ax0, v_k, v_ax1, v_ax2]
+    # fmt: on
+
+    target = Target("nvidia/geforce-rtx-3090-ti")
+    with target:
+        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+            dl.gpu.Reduction(), dl.gpu.Fallback()
+        )(Before)
+    assert mod["main"].attrs["tirx.is_scheduled"] == 1
+
+
+def test_reduction_4d_non_contiguous_reduce_axis2():
+    # Test reduction with kind-based loop classification on 4D tensor, reduce axis 2.
+    # Same 3+-spatial-dims shape as the other 4D tests above: `_sch_inner_spatial` bails
+    # on the 2+ degenerate write-back loops and `Fallback` schedules it instead.
+    # fmt: off
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((4, 8, 16, 32), "float32"), A_red: T.Buffer((4, 8, 32), "float32")):
+            T.func_attr({"tirx.noalias": True})
+            for ax0, ax1, ax2, k in T.grid(4, 8, 32, 16):
+                with T.sblock("A_red"):
+                    v_ax0, v_ax1, v_ax2, v_k = T.axis.remap("SSSR", [ax0, ax1, ax2, k])
+                    T.reads(A[v_ax0, v_ax1, v_k, v_ax2])
+                    T.writes(A_red[v_ax0, v_ax1, v_ax2])
+                    with T.init():
+                        A_red[v_ax0, v_ax1, v_ax2] = T.float32(0)
+                    A_red[v_ax0, v_ax1, v_ax2] = A_red[v_ax0, v_ax1, v_ax2] + A[v_ax0, v_ax1, v_k, v_ax2]
+    # fmt: on
+
+    target = Target("nvidia/geforce-rtx-3090-ti")
+    with target:
+        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+            dl.gpu.Reduction(), dl.gpu.Fallback()
+        )(Before)
+    assert mod["main"].attrs["tirx.is_scheduled"] == 1
+
+
+def test_reduction_4d_contiguous_reduce_axis3_regression():
+    # Regression guard: contiguous (last-axis) reduction on 4D tensor.
+    # Takes _sch_inner_reduction path (not affected by _sch_inner_spatial changes);
+    # must keep passing to ensure no unintended side effects.
+    # fmt: off
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((4, 8, 16, 32), "float32"), A_red: T.Buffer((4, 8, 16), "float32")):
+            T.func_attr({"tirx.noalias": True})
+            for ax0, ax1, ax2, k in T.grid(4, 8, 16, 32):
+                with T.sblock("A_red"):
+                    v_ax0, v_ax1, v_ax2, v_k = T.axis.remap("SSSR", [ax0, ax1, ax2, k])
+                    T.reads(A[v_ax0, v_ax1, v_ax2, v_k])
+                    T.writes(A_red[v_ax0, v_ax1, v_ax2])
+                    with T.init():
+                        A_red[v_ax0, v_ax1, v_ax2] = T.float32(0)
+                    A_red[v_ax0, v_ax1, v_ax2] = A_red[v_ax0, v_ax1, v_ax2] + A[v_ax0, v_ax1, v_ax2, v_k]
+    # fmt: on
+
+    target = Target("nvidia/geforce-rtx-3090-ti")
+    with target:
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Reduction())(Before)  # pylint: disable=not-callable
+    assert mod["main"].attrs["tirx.is_scheduled"] == 1
+
+
+def test_reduction_3d_non_contiguous_reduce_axis0_regression():
+    # Regression guard: non-contiguous reduction on 3D tensor with 2 spatial dimensions.
+    # Takes _sch_inner_spatial path as 4D tests but with fewer spatial dimensions.
+    # ensures existing working cases remain unaffected by kind-based classification.
+    # fmt: off
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((4, 8, 32), "float32"), A_red: T.Buffer((8, 32), "float32")):
+            T.func_attr({"tirx.noalias": True})
+            for ax0, ax1, k in T.grid(8, 32, 4):
+                with T.sblock("A_red"):
+                    v_ax0, v_ax1, v_k = T.axis.remap("SSR", [ax0, ax1, k])
+                    T.reads(A[v_k, v_ax0, v_ax1])
+                    T.writes(A_red[v_ax0, v_ax1])
+                    with T.init():
+                        A_red[v_ax0, v_ax1] = T.float32(0)
+                    A_red[v_ax0, v_ax1] = A_red[v_ax0, v_ax1] + A[v_k, v_ax0, v_ax1]
+    # fmt: on
+
+    target = Target("nvidia/geforce-rtx-3090-ti")
+    with target:
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Reduction())(Before)  # pylint: disable=not-callable
+    assert mod["main"].attrs["tirx.is_scheduled"] == 1
+
+
 if __name__ == "__main__":
     tvm.testing.main()

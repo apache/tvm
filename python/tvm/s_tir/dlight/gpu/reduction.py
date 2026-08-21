@@ -107,10 +107,16 @@ class Reduction(GPUScheduleRule):
             self._sch_inner_reduction(
                 sch, target, block, c_factor, epilogue, loop_order, s_split_index
             )
-        else:
+        elif (
             self._sch_inner_spatial(
                 sch, target, block, block_info, c_factor, epilogue, loop_order, s_split_index
             )
+            is None
+        ):
+            # `_sch_inner_spatial` bails (returns None) on nest shapes it does not model;
+            # `sch` may already carry partial, unbound edits at that point, so it must not
+            # be handed back as if scheduling succeeded. Let `Fallback` take over instead.
+            return None
         return sch
 
     def _normalize(  # pylint: disable=too-many-branches
@@ -249,6 +255,7 @@ class Reduction(GPUScheduleRule):
         s, r, _ = sch.get_loops(block)
         len_tx, len_ty = 16, 16
         s_factor = [i.dom for i in block_info.iters if i.kind == "S"][-1]
+
         # get perfect spatial factor, spatial factor should be divide the innermost spatial loop so
         # that the block after r_factor and be reversed compute at the original scope
         while len_tx > 1:
@@ -268,10 +275,18 @@ class Reduction(GPUScheduleRule):
         sch.decompose_reduction(rf, r)
         # Schedule the write back block
         sch.reverse_compute_at(block, bx, preserve_unit_loops=True)
-        _, r, *s = sch.get_loops(block)
+        _, r, *s_loops = sch.get_loops(block)
+
+        if len([i for i in block_info.iters if i.kind == "S"]) > 2:
+            return None
+
         if unroll_spatial_factor:
-            assert len(s) == len(loop_order)
-            new_order_s = [s[loop_order[i]] for i in range(len(s))]
+            if len(s_loops) != len(loop_order):
+                # `loop_order` is indexed by the original block's spatial loops; when
+                # `reverse_compute_at` regenerates a different number of them the
+                # premutation is meaningless. Bail rather than mis-permute.
+                return None
+            new_order_s = [s_loops[loop_order[i]] for i in range(len(s_loops))]
             sch.reorder(*new_order_s)
             new_order_s[s_split_index], c = sch.split(
                 new_order_s[s_split_index], factors=[None, unroll_spatial_factor]
@@ -280,7 +295,7 @@ class Reduction(GPUScheduleRule):
             s = sch.fuse(*new_order_s)
             sch.reorder(s, c, r)
         else:
-            s = sch.fuse(*s)
+            s = sch.fuse(*s_loops)
             sch.reorder(s, r)
         sch.bind(s, "threadIdx.x")
         sch.bind(r, "threadIdx.y")
@@ -303,3 +318,4 @@ class Reduction(GPUScheduleRule):
                 tx, _ = sch.split(sch.fuse(*s), factors=[len_tx, None])
                 sch.bind(tx, "threadIdx.x")
         # pylint: enable=invalid-name
+        return sch
