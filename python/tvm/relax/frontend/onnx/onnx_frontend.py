@@ -1788,16 +1788,24 @@ class PRelu(OnnxOpConverter):
         if s_ndim <= ndim:
             non_one_axes = [i for i, ss in enumerate(slope_shape) if ss != 1]
 
-            # Must have only ONE non-broadcast axis
-            if len(non_one_axes) != 1:
-                raise ValueError(
-                    f"Invalid PRelu slope shape (multiple non-broadcast dims): {slope_shape}"
-                )
-            relative_axis = non_one_axes[0]
-            axis = ndim - s_ndim + relative_axis
+            # A single non-broadcast axis can be expressed directly as a
+            # per-axis slope of nn.prelu.
+            if len(non_one_axes) == 1:
+                relative_axis = non_one_axes[0]
+                axis = ndim - s_ndim + relative_axis
 
-            slope = relax.op.reshape(slope, (slope_shape[relative_axis],))
-            return relax.op.nn.prelu(x, slope, axis)
+                slope = relax.op.reshape(slope, (slope_shape[relative_axis],))
+                return relax.op.nn.prelu(x, slope, axis)
+
+            # Multiple non-broadcast axes (including a slope shaped like x):
+            # nn.prelu can only express a single per-axis slope, so lower
+            # PRelu(x, s) = where(x < 0, s * x, x) elementwise instead.
+            dtype = x.ty.dtype.dtype
+            return relax.op.where(
+                relax.op.less(x, relax.const(0, dtype)),
+                relax.op.multiply(x, slope),
+                x,
+            )
 
         raise ValueError(f"Unsupported PRelu slope shape: {slope_shape}")
 
