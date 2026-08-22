@@ -3735,24 +3735,76 @@ class Range(OnnxOpConverter):
         start = get_constant(inputs[0], params)
         limit = get_constant(inputs[1], params)
         delta = get_constant(inputs[2], params)
-        out_dtype = start.ty.dtype
 
-        if isinstance(start, relax.Constant):
-            start = start.data.numpy().tolist()
+        def get_scalar_dtype(x):
+            if tvm.ir.is_prim_expr(x):
+                return str(getattr(x, "dtype", None) or x.ty)
+            return str(x.ty.dtype)
 
-        if isinstance(limit, relax.Constant):
-            limit = limit.data.numpy().tolist()
+        out_dtype = get_scalar_dtype(start)
 
-        assert isinstance(delta, relax.Constant), "Constant delta required for Range."
-        step = delta.data.numpy().tolist()
+        def get_scalar_value(x):
+            if isinstance(x, relax.Constant):
+                value = x.data.numpy()
+                if value.size != 1:
+                    raise ValueError("Range scalar input must have exactly one element.")
+                return value.item()
+            return x
 
-        # If all inputs are constant, compute directly.
-        if isinstance(start, int) and isinstance(limit, int):
-            out_range = _np.arange(start=start, stop=limit, step=step)
+        start = get_scalar_value(start)
+        limit = get_scalar_value(limit)
+        delta = get_scalar_value(delta)
+
+        def is_dynamic_scalar(x):
+            return tvm.ir.is_prim_expr(x) or isinstance(x, relax.Expr)
+
+        if not any(is_dynamic_scalar(x) for x in [start, limit, delta]):
+            out_range = _np.arange(start=start, stop=limit, step=delta)
             return relax.const(out_range, out_dtype)
 
-        # Otherwise compute in graph.
-        return relax.op.arange(start, limit, step, out_dtype)
+        out_dtype_is_float = _relax_dtype_is_floating_point(out_dtype)
+        count_dtype = "float64" if out_dtype_is_float else "int64"
+
+        def scalar_expr(x, dtype):
+            if tvm.ir.is_prim_expr(x):
+                expr_dtype = str(getattr(x, "dtype", None) or x.ty)
+                if expr_dtype != "int64":
+                    x = tirx.Cast("int64", x)
+                x = bb.normalize(relax.op.shape_to_tensor(relax.ShapeExpr([x])))
+                x = bb.normalize(relax.op.reshape(x, ()))
+                if dtype != "int64":
+                    x = bb.normalize(relax.op.astype(x, dtype))
+                return x
+            if isinstance(x, relax.Expr):
+                if str(x.ty.dtype) == dtype:
+                    return x
+                return bb.normalize(relax.op.astype(x, dtype))
+            return relax.const(x, dtype)
+
+        start_count = scalar_expr(start, count_dtype)
+        limit_count = scalar_expr(limit, count_dtype)
+        delta_count = scalar_expr(delta, count_dtype)
+
+        if out_dtype_is_float:
+            count = relax.op.ceil(
+                relax.op.divide(relax.op.subtract(limit_count, start_count), delta_count)
+            )
+        else:
+            count = relax.op.negative(
+                relax.op.floor_divide(relax.op.subtract(start_count, limit_count), delta_count)
+            )
+
+        count = bb.normalize(relax.op.maximum(count, relax.const(0, count_dtype)))
+        count = bb.normalize(relax.op.astype(count, "int64"))
+        count = bb.normalize(relax.op.reshape(count, (1,)))
+        range_len = _tensor_to_shape_expr(bb, count, 1, "range_len").values[0]
+
+        positions = bb.normalize(
+            relax.op.astype(relax.op.arange(0, range_len, 1, "int64"), out_dtype)
+        )
+        start_value = scalar_expr(start, out_dtype)
+        delta_value = scalar_expr(delta, out_dtype)
+        return relax.op.add(relax.op.multiply(positions, delta_value), start_value)
 
 
 class InstanceNormalization(OnnxOpConverter):
