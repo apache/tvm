@@ -35,6 +35,59 @@ def _check(mod_before: IRModule, mod_after: IRModule):
     assert_structural_equal(mod, mod_after)
 
 
+def _make_scalar_argmin(length):
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(x: T.Buffer((T.int64(length),), "float32"), x_red: T.Buffer((), "int64")):
+            T.func_attr({"tirx.noalias": True})
+            x_red_temp_v0 = T.sblock_alloc_buffer((), "int64")
+            x_red_temp_v1 = T.sblock_alloc_buffer(())
+            for k in range(T.int64(length)):
+                with T.sblock("x_red_temp"):
+                    v_k = T.axis.reduce(T.int64(length), k)
+                    T.reads(x[v_k])
+                    T.writes(x_red_temp_v0[()], x_red_temp_v1[()])
+                    with T.init():
+                        x_red_temp_v0[()] = T.int64(-1)
+                        x_red_temp_v1[()] = T.max_value("float32")
+                    value_is_smaller = x_red_temp_v1[()] < x[v_k]
+                    value_is_equal = x_red_temp_v1[()] == x[v_k]
+                    index_is_smaller = x_red_temp_v0[()] < v_k
+                    new_index: T.int64 = T.Select(
+                        value_is_smaller or (value_is_equal and index_is_smaller),
+                        x_red_temp_v0[()],
+                        v_k,
+                    )
+                    new_value: T.float32 = T.Select(
+                        value_is_smaller,
+                        x_red_temp_v1[()],
+                        x[v_k],
+                    )
+                    x_red_temp_v0[()] = new_index
+                    x_red_temp_v1[()] = new_value
+            with T.sblock("x_red"):
+                vi = T.axis.spatial(1, T.int64(0))
+                T.reads(x_red_temp_v0[()])
+                T.writes(x_red[()])
+                x_red[()] = x_red_temp_v0[()]
+
+    return Before
+
+
+def test_scalar_argmin_reduction_value_scope():
+    for length, expected_scope in ((1, "local"), (2, "global"), (3, "global")):
+        target = Target("nvidia/geforce-rtx-3090-ti")
+        with target:
+            mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+                dl.gpu.GeneralReduction(),
+            )(_make_scalar_argmin(length))
+
+        index_temp, value_temp = mod["main"].body.block.alloc_buffers
+        assert index_temp.scope() == "global"
+        assert value_temp.scope() == expected_scope
+
+
 def test_softmax_1():
     # fmt: off
     @I.ir_module(s_tir=True)
