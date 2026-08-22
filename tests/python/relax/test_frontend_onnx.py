@@ -40,7 +40,7 @@ from onnx import ModelProto, TensorProto, helper, numpy_helper
 
 import tvm
 import tvm.testing
-from tvm import relax
+from tvm import relax, te, topi
 from tvm.relax.frontend.onnx import from_onnx
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -8226,6 +8226,421 @@ def test_resize_5d_emits_relax_resize3d():
 
     relax.analysis.post_order_visit(tvm_model["main"].body, _visit)
     assert seen_resize3d
+
+
+@pytest.mark.parametrize(
+    "coord_mode, method",
+    [
+        ("half_pixel", "nearest"),
+        ("pytorch_half_pixel", "nearest"),
+        ("asymmetric", "nearest"),
+        ("half_pixel", "linear"),
+    ],
+)
+def test_resize_noninteger_scales_2d(coord_mode, method):
+    """Non-integer scales must use the original scale in coordinate transformation.
+
+    floor(3 * 2.5) = 7, so the recomputed ratio 3/7 = 0.4286 differs from 1/2.5 = 0.4,
+    causing wrong pixel mapping at boundary positions before the fix.
+    """
+    nearest_mode_kwargs = {}
+    if method == "nearest":
+        nearest_mode_kwargs["nearest_mode"] = "round_prefer_floor"
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "", "scales"],
+        ["Y"],
+        mode=method,
+        coordinate_transformation_mode=coord_mode,
+        **nearest_mode_kwargs,
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_noninteger_2d",
+        inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 3, 3])],
+        initializer=[helper.make_tensor("scales", TensorProto.FLOAT, [4], [1.0, 1.0, 2.5, 2.5])],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 7, 7])],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
+def test_resize_noninteger_scales_1d():
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "", "scales"],
+        ["Y"],
+        mode="nearest",
+        coordinate_transformation_mode="half_pixel",
+        nearest_mode="round_prefer_floor",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_noninteger_1d",
+        inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 5])],
+        initializer=[helper.make_tensor("scales", TensorProto.FLOAT, [3], [1.0, 1.0, 1.5])],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 7])],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
+def test_resize_noninteger_scales_3d():
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "", "scales"],
+        ["Y"],
+        mode="nearest",
+        coordinate_transformation_mode="asymmetric",
+        nearest_mode="floor",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_noninteger_3d",
+        inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 3, 3, 3])],
+        initializer=[
+            helper.make_tensor("scales", TensorProto.FLOAT, [5], [1.0, 1.0, 1.5, 1.5, 1.5])
+        ],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 4, 4, 4])],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
+def test_resize_dynamic_roi_noninteger_scales_1d():
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "roi", "scales"],
+        ["Y"],
+        mode="linear",
+        coordinate_transformation_mode="half_pixel",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_dynamic_roi_noninteger_1d",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 3]),
+            helper.make_tensor_value_info("roi", TensorProto.FLOAT, [6]),
+        ],
+        initializer=[helper.make_tensor("scales", TensorProto.FLOAT, [3], [1.0, 1.0, 2.5])],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 7])],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
+def test_resize_dynamic_roi_noninteger_scales_2d():
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "roi", "scales"],
+        ["Y"],
+        mode="linear",
+        coordinate_transformation_mode="half_pixel",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_dynamic_roi_noninteger_2d",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 3, 3]),
+            helper.make_tensor_value_info("roi", TensorProto.FLOAT, [8]),
+        ],
+        initializer=[helper.make_tensor("scales", TensorProto.FLOAT, [4], [1.0, 1.0, 2.5, 2.5])],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 7, 7])],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
+def test_resize_dynamic_roi_noninteger_scales_3d_anisotropic():
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "roi", "scales"],
+        ["Y"],
+        mode="linear",
+        coordinate_transformation_mode="asymmetric",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_dynamic_roi_noninteger_3d_anisotropic",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 3, 5, 7]),
+            helper.make_tensor_value_info("roi", TensorProto.FLOAT, [10]),
+        ],
+        initializer=[
+            helper.make_tensor("scales", TensorProto.FLOAT, [5], [1.0, 1.0, 1.5, 2.5, 3.5])
+        ],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 4, 12, 24])],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
+def test_resize_asymmetric_nearest_noninteger_scales_2d():
+    """Asymmetric+nearest+floor optimization must not ignore scale override.
+
+    When coordinate_transformation_mode="asymmetric", method="nearest_neighbor",
+    rounding_method="floor", and scales is non-integer, the integer-division optimization
+    must not be applied, The bug: can_convert_multiply_to_intdiv checks only derived ratio
+    (ignoring scale override), causing wrong pixel mapping.
+
+    Example: input 2x2, scale 2.4, output 4x4. Derived ratio 4/2=2.0 triggers optimization,
+    but floor(2*0.4167) != floor(2/2) at same coordinates.
+    """
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "", "scales"],
+        ["Y"],
+        mode="nearest",
+        coordinate_transformation_mode="asymmetric",
+        nearest_mode="floor",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_asymmetric_nearest_noninteger_scales_2d",
+        inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 2, 2])],
+        initializer=[helper.make_tensor("scales", TensorProto.FLOAT, [4], [1.0, 1.0, 2.4, 2.4])],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 4, 4])],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
+def test_resize_asymmetric_nearest_integer_scales_baseline():
+    """Baseline: asymmetric+nearest+floor with integer scale should work correctly.
+
+    This verifies the correctness of the float fallback path when an integer scale override
+    is provided (scale_override is not None). The optimization case (when scale_override is
+    None) is tested separately in TOPI-level tests.
+    """
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "", "scales"],
+        ["Y"],
+        mode="nearest",
+        coordinate_transformation_mode="asymmetric",
+        nearest_mode="floor",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_asymmetric_nearest_integer_scales_2d",
+        inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 2, 2])],
+        initializer=[helper.make_tensor("scales", TensorProto.FLOAT, [4], [1.0, 1.0, 2.0, 2.0])],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 4, 4])],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
+@pytest.mark.parametrize(
+    "input_shape,scales,output_shape",
+    [
+        ([1, 1, 4, 4], [1.0, 1.0, 2.0, 2.0], [1, 1, 8, 8]),
+        ([1, 1, 3, 3], [1.0, 1.0, 3.0, 3.0], [1, 1, 9, 9]),
+    ],
+)
+def test_resize_integer_scales_regression(input_shape, scales, output_shape):
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "", "scales"],
+        ["Y"],
+        mode="nearest",
+        coordinate_transformation_mode="half_pixel",
+        nearest_mode="round_prefer_floor",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_integer_scales",
+        inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, input_shape)],
+        initializer=[helper.make_tensor("scales", TensorProto.FLOAT, [len(scales)], scales)],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, output_shape)],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
+def _build_topi_resize2d_nearest_asymmetric_prim_func(input_shape, size, scales=None):
+    """
+    Parameters
+    ----------
+    input_shape : tuple
+        NCHW input shape, e.g. (1, 1, 2, 2).
+    size: tuple
+        Target (out_h, out_w) spatial size
+    scales: tuple or None
+        If not None, an explicit (scale_h, scale_w) override -- mirroring
+        what the ONNX frontend passes when the ONNX "scales" input (rather
+        than "sizes") drives the resize. Per the guard in `_resize_2d`,
+        supplying this disable the integer-division fast path regardless
+        of whether size[i] / input_shape[i] is itself an integer.
+
+    Returns
+    -------
+    (resized_te_tensor, prim_func) : tuple
+        The TE output tensor (used to read the concrete output shape) and
+        the lowered TIR PrimFunc (used both to run the kernel and to
+        inspect which code path was generated).
+    """
+    data = te.placeholder(input_shape, dtype="float32", name="data")
+    roi = (0.0, 0.0, 0.0, 0.0)
+    resized = topi.image.resize2d(
+        data,
+        roi,
+        size=size,
+        layout="NCHW",
+        method="nearest_neighbor",
+        coordinate_transformation_mode="asymmetric",
+        rounding_method="",
+        scales=scales,
+    )
+    prim_func = te.create_prim_func([data, resized])
+    return resized, prim_func
+
+
+def _run_prim_func(prim_func, input_np, output_shape):
+    """Compile a 1-input/1-output PrimFunc for LLVM and run it on `input_np`."""
+    built = tvm.compile(prim_func, target="llvm")
+    data_nd = tvm.runtime.tensor(input_np.astype("float32"))
+    out_nd = tvm.runtime.tensor(np.zeros(output_shape, dtype="float32"))
+    built(data_nd, out_nd)
+    return out_nd.numpy()
+
+
+def _fast_path_used(prim_func):
+    """Return True if the lowered TIR took the integer-division fast path.
+
+    The fast path computes the source index purely with integer division
+    (`T.Div`, no rounding needed) and never calls `T.floor`. The float
+    fallback always computes `floor(scale * out_index + eps)` and casts it
+    to int, so it always contains `T.floor` and never emits a bare `T.Div`
+    for the index computation. Checking both signals (rather than only the
+    absence of one) keeps the assertion meaningful in both directions.
+    """
+    script = prim_func.script()
+    has_int_div = "T.Div(" in script
+    has_float_floor = "T.floor(" in script
+    assert has_int_div != has_float_floor, (
+        "expected exactly one of the integer-division or floating-point "
+        f"code paths to appear in the lowered TIR, got:\n{script}"
+    )
+    return has_int_div
+
+
+@pytest.mark.parametrize(
+    "input_hw,output_hw",
+    [
+        ((2, 2), (4, 4)),
+        ((3, 3), (6, 6)),
+    ],
+)
+def test_topi_resize2d_int_div_optimization_fires_without_scale_override(input_hw, output_hw):
+    """scale_override=None + integer size ratio => int-div fast path fires.
+
+    This is the primary positive case for the optimization: when
+    `topi.image.resize2d` is called without an explicit `scales` override
+    (i.e. `scales=None`, as happens whenever the ONNX Resize node's output
+    shape is derived from a "sizes" input rather than a "scales" input) and
+    the output/input size ratio is a whole number, `_resize_2d` should
+    select the integer-division fast path (`can_convert_multiply_to_intdiv`
+    returns True and `scale_h`/`scale_w` are both None).
+
+    We verify this two ways:
+      1. The lowered TIR contains `T.Div` and not `T.floor`, proving the
+         fast path -- and not the float fallback -- was actually chosen.
+      2. The numeric output matches ONNX's nearest/asymmetric/floor
+         reference formula `in_x = floor(out_x * (in_size / out_size))`,
+         so the optimization is not merely "fast" but also correct.
+    """
+    in_h, in_w = input_hw
+    out_h, out_w = output_hw
+    input_shape = (1, 1, in_h, in_w)
+
+    resized, prim_func = _build_topi_resize2d_nearest_asymmetric_prim_func(
+        input_shape, (out_h, out_w), scales=None
+    )
+
+    assert _fast_path_used(prim_func), (
+        "expected the integer-division fast path to fire when scale_override "
+        "is None and the size ratio is an integer"
+    )
+
+    input_np = np.arange(np.prod(input_shape), dtype="float32").reshape(input_shape)
+    actual = _run_prim_func(prim_func, input_np, tuple(int(s) for s in resized.shape))
+
+    # Reference: ONNX asymmetric + nearest_neighbor + floor rounding is
+    # `in_idx = floor(out_idx * in_size / out_size)`, clamped to
+    # [0, in_size - 1]. Since in_size / out_size is an integer ratio here,
+    # this is exactly `out_idx // (out_size // in_size)`.
+    def ref_index(out_size, in_size):
+        ratio = out_size // in_size
+        idx = np.arange(out_size) // ratio
+        return np.clip(idx, 0, in_size - 1)
+
+    y_idx = ref_index(out_h, in_h)
+    x_idx = ref_index(out_w, in_w)
+    expected = input_np[:, :, y_idx][:, :, :, x_idx]
+
+    np.testing.assert_array_equal(actual, expected)
+
+
+@pytest.mark.parametrize(
+    "input_hw,output_hw,scale_override",
+    [
+        ((2, 2), (4, 4), (2.4, 2.4)),
+        ((3, 3), (6, 6), (2.5, 2.5)),
+    ],
+)
+def test_topi_resize2d_int_div_optimization_disabled_by_scale_override(
+    input_hw, output_hw, scale_override
+):
+    """A non-integer scale_override disables the int-div fast path."""
+    in_h, in_w = input_hw
+    out_h, out_w = output_hw
+    input_shape = (1, 1, in_h, in_w)
+
+    resized, prim_func = _build_topi_resize2d_nearest_asymmetric_prim_func(
+        input_shape, (out_h, out_w), scales=scale_override
+    )
+
+    assert not _fast_path_used(prim_func), (
+        "expected the integer-division fast path to be disabled when an "
+        "explicit (non-integer) scale_override is supplied"
+    )
+
+    input_np = np.arange(np.prod(input_shape), dtype="float32").reshape(input_shape)
+    actual = _run_prim_func(prim_func, input_np, tuple(int(s) for s in resized.shape))
+
+    epsilon = 1e-5
+
+    def ref_index(out_size, in_size, scale):
+        idx = np.floor(np.arange(out_size) / scale + epsilon).astype(np.int64)
+        return np.clip(idx, 0, in_size - 1)
+
+    y_idx = ref_index(out_h, in_h, scale_override[0])
+    x_idx = ref_index(out_w, in_w, scale_override[1])
+    expected = input_np[:, :, y_idx][:, :, :, x_idx]
+
+    np.testing.assert_array_equal(actual, expected)
+
+    ratio = out_h // in_h
+    naive_idx = np.clip(np.arange(out_h) // ratio, 0, in_h - 1)
+    assert not np.array_equal(naive_idx, y_idx), (
+        "test setup issue: chosen scale_override does not actually  differ "
+        "from the naive integer-ratio index mapping"
+    )
+
+
+def test_topi_resize2d_int_div_fast_path_matches_integer_scale_override():
+    """An *integer* scale_override disables the fast path but agrees with it."""
+    input_shape = (1, 1, 3, 3)
+    output_hw = (6, 6)
+    input_np = np.arange(np.prod(input_shape), dtype="float32").reshape(input_shape)
+
+    fast_resized, fast_prim_func = _build_topi_resize2d_nearest_asymmetric_prim_func(
+        input_shape, output_hw, scales=None
+    )
+    assert _fast_path_used(fast_prim_func)
+    fast_out_shape = tuple(int(s) for s in fast_resized.shape)
+    fast_actual = _run_prim_func(fast_prim_func, input_np, fast_out_shape)
+
+    slow_resized, slow_prim_func = _build_topi_resize2d_nearest_asymmetric_prim_func(
+        input_shape, output_hw, scales=(2.0, 2.0)
+    )
+    assert not _fast_path_used(slow_prim_func)
+    slow_out_shape = tuple(int(s) for s in slow_resized.shape)
+    slow_actual = _run_prim_func(slow_prim_func, input_np, slow_out_shape)
+
+    np.testing.assert_array_equal(fast_actual, slow_actual)
 
 
 def test_einsum():
