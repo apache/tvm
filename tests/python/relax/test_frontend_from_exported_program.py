@@ -5507,6 +5507,51 @@ def test_slice_with_symbolic_end():
     verify_model(SliceStaticModel(), example_args_static, {}, ExpectedStatic)
 
 
+def test_dynamic_scalar_item_in_shape_operations():
+    class DynamicShapeOps(torch.nn.Module):
+        def forward(self, x):
+            lengths = torch.full(
+                (x.shape[0],),
+                x.shape[1],
+                device=x.device,
+                dtype=torch.int64,
+            )
+            max_len = lengths.max().item()
+            positions = torch.arange(max_len, device=x.device)
+            mask = positions.unsqueeze(0).expand(x.shape[0], -1) == lengths.unsqueeze(1)
+            filled = torch.full(
+                (x.shape[0], x.shape[1]),
+                x.shape[1],
+                device=x.device,
+                dtype=torch.int64,
+            )
+            shifted = torch.arange(x.shape[1] + 1, device=x.device)
+            shortened = torch.full_like(lengths, x.shape[1] - 1)
+            return mask, filled, shifted, shortened
+
+    example_args = (torch.randn(1, 4, 3, dtype=torch.float32),)
+    tokens = torch.export.Dim("tokens", min=1, max=8)
+    exported_program = export(
+        DynamicShapeOps(),
+        args=example_args,
+        dynamic_shapes={"x": {1: tokens}},
+    )
+    mod = from_exported_program(exported_program)
+
+    script = mod.script()
+    assert "R.tensor_to_shape" in script
+    assert "R.shape_to_tensor" in script
+
+    executable = relax.build(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(executable, tvm.cpu())
+    for token_count in (4, 6):
+        torch_input = torch.randn(1, token_count, 3)
+        expected = DynamicShapeOps()(torch_input)
+        actual = vm["main"](tvm.runtime.tensor(torch_input.numpy()))
+        for actual_value, expected_value in zip(actual, expected):
+            np.testing.assert_array_equal(actual_value.numpy(), expected_value.numpy())
+
+
 def test_split():
     class Chunk(Module):
         def forward(self, input):
