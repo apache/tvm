@@ -395,5 +395,51 @@ def test_fp8_e4m3_groupwise_scaled_bmm():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+def test_instantiate_matmul_template_regular_gemm(monkeypatch):
+    """Host-side codegen for a regular (non-decode) float16 2D matmul.
+
+    This does not require a CUTLASS-enabled build: it exercises the pure
+    Python template-instantiation logic in ``gen_tensor_op.py`` directly, so
+    it always runs and catches source-generation regressions even on builds
+    that skip the rest of this file for lacking CUTLASS.
+
+    Regression test for two bugs: the regular GEMM template referenced the
+    undefined substitution variable ``${A_arg}`` (the attribute map for this
+    path only provides ``${lhs_arg}``/``${rhs_arg}``, so ``${A_arg}`` was
+    left unsubstituted in the generated source), and the generated headers
+    omitted ``tvm/ffi/container/tensor.h``, which is required for
+    ``AnyView::cast<DLTensor*>()`` to compile in the generated wrapper.
+    """
+    from tvm.contrib.cutlass import gen_tensor_op
+
+    class _FakeCodegenResult:
+        def __init__(self, code, headers):
+            self.code = code
+            self.headers = headers
+
+    monkeypatch.setattr(gen_tensor_op, "CodegenResult", _FakeCodegenResult)
+
+    annotations = {
+        "arg0_shape": [16, 32],
+        "arg1_shape": [32, 64],
+        "arg0_dtype": "float16",
+        "arg1_dtype": "float16",
+        "ret_dtype": "float16",
+        "lda": "K",
+        "ldb": "N",
+        "ldc": "N",
+        "cutlass_op_def": "using Operation_test_op = int;",
+        "cutlass_op_name": "test_op",
+        "op_type": "cutlass.matmul",
+    }
+    result = gen_tensor_op.instantiate_template("cutlass.matmul", annotations, ["arg0", "arg1"])
+
+    assert "${" not in result.code, (
+        f"unsubstituted template variable in generated CUTLASS source:\n{result.code}"
+    )
+    assert "arg0->device.device_id" in result.code
+    assert "tvm/ffi/container/tensor.h" in result.headers
+
+
 if __name__ == "__main__":
     tvm.testing.main()
