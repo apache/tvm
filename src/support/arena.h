@@ -65,6 +65,21 @@ struct ArenaPageHeader {
 };
 
 /*!
+ * \brief A pending destructor call for one arena-allocated, non-trivially
+ *  destructible object. Forms a singly-linked list of all such objects so
+ *  their destructors can be invoked before the arena's pages are freed or
+ *  recycled.
+ */
+struct ArenaDeleter {
+  /*! \brief The next pending destructor call. */
+  ArenaDeleter* next;
+  /*! \brief The object to destroy. */
+  void* obj;
+  /*! \brief Function that destroys obj (a type-erased call to ~T()). */
+  void (*dtor)(void*);
+};
+
+/*!
  * \brief Arena allocator that allocates memory from continuous
  *  chunk and frees them all only during destruction.
  */
@@ -78,7 +93,10 @@ class GenericArena {
   }
 
 #if TVM_ARENA_HAS_DESTRUCTOR
-  ~GenericArena() { this->FreeAll(); }
+  ~GenericArena() {
+    this->RunDeleters();
+    this->FreeAll();
+  }
 #endif
 
   /*! \brief Free all pages. */
@@ -88,6 +106,7 @@ class GenericArena {
   }
   /*! \brief Recycle all the pages in the arena */
   void RecycleAll() {
+    RunDeleters();
     // put all the current list to the free list.
     tail_->next = free_list_;
     // allocate the first in the free list to head
@@ -115,18 +134,39 @@ class GenericArena {
    * \tparam Args Arguments to the constructor.
    *
    * \return The allocated object.
-   * \note The type T must be simple type, or only contain
-   *  memory allocated from the same arena.
-   *  Otherwise the destructor needs to be called explicitly.
+   * \note If T is not trivially destructible, its destructor is recorded and
+   *  invoked automatically when the arena's pages are freed or recycled.
    */
   template <typename T, typename... Args>
   T* make(Args&&... args) {
     T* ptr = allocate_<T>();
     new (ptr) T(forward<Args>(args)...);
+    if constexpr (!std::is_trivially_destructible<T>::value) {
+      RegisterDeleter(ptr);
+    }
     return ptr;
   }
 
  private:
+  /*!
+   * \brief Record ptr's destructor to be called by RunDeleters, before the
+   *  arena's pages are freed or recycled.
+   */
+  template <typename T>
+  void RegisterDeleter(T* ptr) {
+    ArenaDeleter* node = allocate_<ArenaDeleter>();
+    node->obj = ptr;
+    node->dtor = [](void* p) { static_cast<T*>(p)->~T(); };
+    node->next = deleters_;
+    deleters_ = node;
+  }
+  /*! \brief Invoke and clear all pending destructor calls registered so far. */
+  void RunDeleters() {
+    for (ArenaDeleter* d = deleters_; d != nullptr; d = d->next) {
+      d->dtor(d->obj);
+    }
+    deleters_ = nullptr;
+  }
   /*! \brief internal page allocator. */
   PageAllocator alloc_;
   /* \brief The head of the allocated list. */
@@ -135,6 +175,8 @@ class GenericArena {
   ArenaPageHeader* tail_{nullptr};
   /* \brief List of free pages. */
   ArenaPageHeader* free_list_{nullptr};
+  /*! \brief Pending destructor calls for non-trivially-destructible objects. */
+  ArenaDeleter* deleters_{nullptr};
   /*!
    * \brief Align ptr by upper bound.
    * \param offset The offset value.
