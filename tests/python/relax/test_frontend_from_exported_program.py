@@ -5507,6 +5507,26 @@ def test_slice_with_symbolic_end():
     verify_model(SliceStaticModel(), example_args_static, {}, ExpectedStatic)
 
 
+def test_expand_with_new_leading_dimension():
+    class ExpandLeading(torch.nn.Module):
+        def forward(self, x):
+            return x.expand(2, -1, -1)
+
+    tokens = torch.export.Dim("tokens", min=1, max=8)
+    exported_program = export(
+        ExpandLeading(),
+        args=(torch.randn(4, 3),),
+        dynamic_shapes={"x": {0: tokens}},
+    )
+    mod = from_exported_program(exported_program)
+
+    input_shape = mod["main"].params[0].ty.shape.values
+    output_shape = mod["main"].ret_ty.fields[0].shape.values
+    assert tvm.arith.Analyzer().can_prove_equal(output_shape[0], 2)
+    assert tvm.arith.Analyzer().can_prove_equal(output_shape[1], input_shape[0])
+    assert tvm.arith.Analyzer().can_prove_equal(output_shape[2], input_shape[1])
+
+
 def test_split():
     class Chunk(Module):
         def forward(self, input):
