@@ -111,6 +111,7 @@ function createContext(deviceOptions) {
   const gpu = createMockDevice(deviceOptions);
   const memory = {
     loadRawBytes: jest.fn(),
+    viewRawBytes: jest.fn(),
     storeRawBytes: jest.fn(),
   };
   const context = new WebGPUContext(memory, gpu.device);
@@ -179,12 +180,16 @@ test("a host write flushes pending GPU copies before writeBuffer", () => {
 test("an aligned CPU to GPU copy writes the requested bytes", () => {
   const { context, device, queue, memory, destination } = createContext();
   const copyToGPU = context.getDeviceAPI("deviceCopyToGPU");
-  const rawBytes = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
-  memory.loadRawBytes.mockReturnValue(rawBytes);
+  const wasmMemory = new WebAssembly.Memory({ initial: 1 });
+  const rawBytes = new Uint8Array(wasmMemory.buffer, 128, 8);
+  rawBytes.set([1, 2, 3, 4, 5, 6, 7, 8]);
+  memory.viewRawBytes.mockReturnValue(rawBytes);
 
   copyToGPU(128, destination, 12, rawBytes.length);
 
-  expect(memory.loadRawBytes).toHaveBeenCalledWith(128, rawBytes.length);
+  expect(memory.viewRawBytes).toHaveBeenCalledWith(128, rawBytes.length);
+  expect(memory.loadRawBytes).not.toHaveBeenCalled();
+  expect(queue.writeBuffer.mock.calls[0][2].buffer).toBe(wasmMemory.buffer);
   expect(queue.writeBuffer).toHaveBeenCalledWith(
     device.createBuffer.mock.results[1].value,
     12,
@@ -198,11 +203,12 @@ test("an unaligned CPU to GPU copy pads the write to four bytes", () => {
   const { context, device, queue, memory, destination } = createContext();
   const copyToGPU = context.getDeviceAPI("deviceCopyToGPU");
   const rawBytes = new Uint8Array([1, 2, 3]);
-  memory.loadRawBytes.mockReturnValue(rawBytes);
+  memory.viewRawBytes.mockReturnValue(rawBytes);
 
   copyToGPU(256, destination, 4, rawBytes.length);
 
-  expect(memory.loadRawBytes).toHaveBeenCalledWith(256, rawBytes.length);
+  expect(memory.viewRawBytes).toHaveBeenCalledWith(256, rawBytes.length);
+  expect(memory.loadRawBytes).not.toHaveBeenCalled();
   expect(queue.writeBuffer).toHaveBeenCalledTimes(1);
   const [buffer, toOffset, data, dataOffset, nbytes] =
     queue.writeBuffer.mock.calls[0];
@@ -211,6 +217,79 @@ test("an unaligned CPU to GPU copy pads the write to four bytes", () => {
   expect(Array.from(data)).toEqual([1, 2, 3, 0]);
   expect(dataOffset).toBe(0);
   expect(nbytes).toBe(4);
+});
+
+test("a non-four-byte GPU allocation is rounded up for padded writes", () => {
+  const { context, device } = createContext();
+  const allocate = context.getDeviceAPI("deviceAllocDataSpace");
+
+  allocate(3);
+
+  expect(device.createBuffer).toHaveBeenLastCalledWith({
+    size: 4,
+    usage: GPUBufferUsage.STORAGE |
+      GPUBufferUsage.COPY_SRC |
+      GPUBufferUsage.COPY_DST,
+  });
+  expect(context.currAllocatedBytes).toBe(64 + 64 + 4);
+});
+
+test.each([
+  [-1, "destination offset"],
+  [0.5, "destination offset"],
+  [2, "destination offset"],
+])("a CPU to GPU copy rejects invalid offset %p", (offset, message) => {
+  const { context, memory, destination } = createContext();
+  const copyToGPU = context.getDeviceAPI("deviceCopyToGPU");
+
+  expect(() => copyToGPU(128, destination, offset, 4)).toThrow(message);
+  expect(memory.viewRawBytes).not.toHaveBeenCalled();
+});
+
+test.each([
+  [-1, "source offset"],
+  [0.5, "source offset"],
+  [2, "source offset"],
+])("a GPU readback rejects invalid offset %p", (offset, message) => {
+  const { context, source } = createContext();
+  const copyFromGPU = context.getDeviceAPI("deviceCopyFromGPU");
+
+  expect(() => copyFromGPU(source, offset, 128, 4)).toThrow(message);
+});
+
+test("an unaligned GPU readback copies four bytes and stores the logical bytes", async () => {
+  const {
+    context,
+    device,
+    memory,
+    source,
+  } = createContext();
+  const copyFromGPU = context.getDeviceAPI("deviceCopyFromGPU");
+  device.createBuffer.mockImplementationOnce((descriptor) => {
+    const mappedData = new Uint8Array([1, 2, 3, 99]).buffer;
+    return {
+      size: descriptor.size,
+      destroy: jest.fn(),
+      mapAsync: jest.fn(() => Promise.resolve()),
+      getMappedRange: jest.fn(() => mappedData),
+      unmap: jest.fn(),
+    };
+  });
+
+  copyFromGPU(source, 0, 128, 3);
+  await context.sync();
+
+  const copyEncoder = device.createCommandEncoder.mock.results[0].value;
+  expect(copyEncoder.copyBufferToBuffer).toHaveBeenCalledWith(
+    device.createBuffer.mock.results[0].value,
+    0,
+    device.createBuffer.mock.results[2].value,
+    0,
+    4,
+  );
+  expect(memory.storeRawBytes).toHaveBeenCalledTimes(1);
+  expect(memory.storeRawBytes.mock.calls[0][0]).toBe(128);
+  expect(Array.from(memory.storeRawBytes.mock.calls[0][1])).toEqual([1, 2, 3]);
 });
 
 test("a GPU readback flushes pending copies before its own submission", async () => {
