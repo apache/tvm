@@ -270,66 +270,9 @@ class If(ExprWithOp):
         )
 
 
-@tvm_ffi.register_object("relax.expr.Tuple")
-class Tuple(ExprWithOp):
-    """Tuple expression that groups several fields together.
-
-    Parameters
-    ----------
-    fields : Union[List[Expr], typing.Tuple[Expr, ...]]
-        The fields in the tuple.
-
-    span: Optional[Span]
-        Span that points to original source code
-    """
-
-    fields: list[Expr]
-    span: Span | None
-
-    def __init__(self, fields: list[Expr] | tuple[Expr, ...], span: Span | None = None):
-        if isinstance(fields, tvm.relax.Tuple):
-            fields = fields.fields
-        elif isinstance(getattr(fields, "ty", None), tvm.relax.TupleType):
-            fields = [*fields]
-
-        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, span)  # type: ignore
-
-    def __getitem__(self, index: int) -> Expr:
-        if index >= len(self) or index < -len(self):
-            raise IndexError("Tuple index out of range")
-        return self.fields[index]
-
-    def __len__(self) -> int:
-        return len(self.fields)
-
-
-@tvm_ffi.register_object("relax.expr.TupleGetItem")
-class TupleGetItem(ExprWithOp):
-    """Get index-th item from a tuple.
-
-    Parameters
-    ----------
-    tuple_value: Expr
-        The input tuple expression.
-
-    index: int
-        The index.
-
-    span: Optional[Span]
-        Span that points to original source code
-    """
-
-    tuple_value: Expr
-    index: int
-    span: Span | None
-
-    def __init__(self, tuple_value: Expr, index: int, span: Span | None = None):
-        self.__init_handle_by_constructor__(
-            _ffi_api.TupleGetItem,
-            tuple_value,
-            index,
-            span,  # type: ignore
-        )
+# Compatibility aliases. Tuple expressions are owned by the common IR.
+Tuple = tvm.ir.Tuple
+TupleGetItem = tvm.ir.TupleGetItem
 
 
 @tvm_ffi.register_object("relax.expr.ShapeExpr")

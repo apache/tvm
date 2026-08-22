@@ -45,6 +45,73 @@ namespace tvm {
 // Forward-declare VirtualDevice to avoid circular imports.
 class VirtualDevice;
 
+/*! \brief Tuple container */
+class TupleNode : public ExprNode {
+ public:
+  /*! \brief The fields of the tuple. */
+  ffi::Array<Expr> fields;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TupleNode>().def_ro("fields", &TupleNode::fields);
+  }
+
+  // Keep the existing runtime type key for serialized Relax IR compatibility.
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Tuple", TupleNode, ExprNode);
+};
+
+/*! \brief Managed reference to TupleNode. */
+class Tuple : public Expr {
+ public:
+  /*!
+   * \brief Construct a tuple from its fields.
+   * \param fields The fields of the tuple.
+   * \param span The source span of the expression.
+   */
+  TVM_DLL explicit Tuple(ffi::Array<Expr> fields, Span span = Span());
+
+  template <typename ExprType, typename = std::enable_if_t<std::is_base_of_v<Expr, ExprType>>>
+  TVM_DLL explicit Tuple(ffi::Array<ExprType> fields, Span span = Span())
+      : Tuple(fields.Map([](const ExprType& expr) -> Expr { return expr; }), span) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tuple, Expr, TupleNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
+};
+
+/*! \brief Get the index-th field out of a tuple. */
+class TupleGetItemNode : public ExprNode {
+ public:
+  /*! \brief The tuple expression. */
+  Expr tuple;
+  /*! \brief The field index. */
+  int index;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TupleGetItemNode>()
+        .def_ro("tuple_value", &TupleGetItemNode::tuple)
+        .def_ro("index", &TupleGetItemNode::index);
+  }
+
+  // Keep the existing runtime type key for serialized Relax IR compatibility.
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.TupleGetItem", TupleGetItemNode, ExprNode);
+};
+
+/*! \brief Managed reference to TupleGetItemNode. */
+class TupleGetItem : public Expr {
+ public:
+  /*!
+   * \brief Construct a tuple field projection.
+   * \param tuple The tuple to get an element from.
+   * \param index The field index.
+   * \param span The source span of the expression.
+   */
+  TVM_DLL TupleGetItem(Expr tuple, int index, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TupleGetItem, Expr, TupleGetItemNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleGetItemNode);
+};
+
 /*!
  * \brief add operator
  *
