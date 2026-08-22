@@ -4141,6 +4141,19 @@ class Flatten(OnnxOpConverter):
     def _impl_v13(cls, bb, inputs, attr, params):
         axis = attr.get("axis", 1)
         data_shape = list(inputs[0].ty.shape)
+        rank = len(data_shape)
+
+        # ONNX Flatten spec: "The value for axis must be in the range [-r, r], where r
+        # is the rank of the input tensor. Negative value means counting dimensions from
+        # the back." Normalize negative axis and validate the range, matching onnxruntime
+        # which rejects out-of-range axis with a ShapeInferenceError.
+        if axis < 0:
+            axis += rank
+        if not 0 <= axis <= rank:
+            raise ValueError(
+                f"Flatten axis {attr.get('axis', 1)} is out of range [-{rank}, {rank}] "
+                f"for an input of rank {rank}"
+            )
 
         if axis == 0:
             new_shape = (1, -1)
