@@ -44,10 +44,10 @@ namespace tvm {
 namespace support {
 
 namespace {
-template <typename T>              // For lvalues (T is T&),
-T&& forward(T&& param) {           // take/return lvalue refs.
-  return static_cast<T&&>(param);  // For rvalues (T is T),
-}  // take/return rvalue refs.
+template <typename T>
+T&& forward(typename std::remove_reference<T>::type& param) {
+  return static_cast<T&&>(param);
+}
 }  // namespace
 
 /*!
@@ -93,14 +93,12 @@ class GenericArena {
   }
 
 #if TVM_ARENA_HAS_DESTRUCTOR
-  ~GenericArena() {
-    this->RunDeleters();
-    this->FreeAll();
-  }
+  ~GenericArena() { this->FreeAll(); }
 #endif
 
   /*! \brief Free all pages. */
   void FreeAll() {
+    RunDeleters();
     FreePageList(&head_);
     FreePageList(&free_list_);
   }
