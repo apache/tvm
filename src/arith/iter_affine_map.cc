@@ -2175,10 +2175,16 @@ ffi::Array<PrimExpr> IterMapSimplify(const ffi::Array<PrimExpr>& indices,
   if (rewrite.empty() && !is_one(input_pred) && check_level != IterMapLevel::Bijective) {
     // The input predicate may cause detect iter map to fail
     // but we can still detect the iter map without the input predicate
-    // in which case the resulting iter map is valid and can be used for simplification.
-    rewrite = DetectIterMap(indices, input_iters, IntImm::Bool(true), check_level, ana,
-                            /*simplify_trivial_iterators=*/simplify_trivial_iterators)
-                  ->indices;
+    // in which case an unpadded iter map is valid and can be used for
+    // simplification.
+    auto fallback = DetectIterMap(indices, input_iters, IntImm::Bool(true), check_level, ana,
+                                  /*simplify_trivial_iterators=*/simplify_trivial_iterators);
+    // A padded fallback is not equivalent over the original iterator domain unless its
+    // padding predicate is also preserved.  IterMapSimplify only returns expressions, so it
+    // cannot carry that predicate to callers.
+    if (!fallback->indices.empty() && is_zero(fallback->padding_predicate)) {
+      rewrite = fallback->indices;
+    }
   }
 
   if (rewrite.empty()) {
