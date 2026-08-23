@@ -164,11 +164,11 @@ def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> A
 
 
 def _convert_tuple_literal(self: Parser, node: doc.expr, value: Any) -> Any:
-    """Convert an explicit list/tuple value literal to a core IR Tuple.
+    """Convert an explicit list/tuple T.let value to a core IR Tuple.
 
     The generic evaluator deliberately keeps Python containers intact because
-    many TIRx builder APIs use them structurally.  Conversion is therefore
-    restricted to statement visitors that opt in at a value boundary.
+    many TIRx builder APIs use them structurally.  Conversion is restricted to
+    the internal immutable-binding boundary that explicitly opts in below.
     """
     if not isinstance(node, doc.List | doc.Tuple):
         return value
@@ -643,8 +643,6 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
             indices = self.eval_expr(lhs.slice)
         T.buffer_store(self.eval_expr(lhs.value), rhs, indices)
     else:
-        if not isinstance(lhs, doc.List | doc.Tuple):
-            rhs = _convert_tuple_literal(self, node.value, rhs)
         # special case for scalar buffers
         # scalar = xxx <=> scalar.buffer[()] = xxx
         # or for a normal 1-dim buffer with shape (1,)
@@ -1153,7 +1151,7 @@ def visit_return(self: Parser, node: doc.Return) -> None:
     node : doc.Return
         The doc AST return node.
     """
-    value = _convert_tuple_literal(self, node.value, self.eval_expr(node.value))
+    value = self.eval_expr(node.value)
     if value is None:
         self.report_error(node, "Expression to be returned must be a Expr")
     T.Return(value)
