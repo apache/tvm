@@ -18,6 +18,18 @@
  */
 const { CachedCallStack, Memory } = require("../../src/memory");
 
+test("loadU64 reads unsigned values and rejects unsafe integers", () => {
+  const wasmMemory = new WebAssembly.Memory({ initial: 1 });
+  const memory = new Memory(wasmMemory);
+  const words = new Uint32Array(wasmMemory.buffer);
+
+  words.set([0x80000001, 1], 2);
+  expect(memory.loadU64(8)).toBe(0x180000001);
+
+  words.set([0, 0x200000], 2);
+  expect(() => memory.loadU64(8)).toThrow("Cannot represent uint64 value");
+});
+
 test("loadRawBytes returns an owned copy", () => {
   const wasmMemory = new WebAssembly.Memory({ initial: 1 });
   const memory = new Memory(wasmMemory);
