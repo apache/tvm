@@ -171,6 +171,24 @@ def test_expr_constructor():
     )
     assert not expr_deep_equal(x_with_attrs, x_with_other_attrs)
 
+    tuple_arg = tvm.ir.Tuple([attr_arg, tvm.tirx.IntImm("int32", 1)])
+    same_tuple_arg = tvm.ir.Tuple([attr_arg, tvm.tirx.IntImm("int32", 1)])
+    different_tuple_arg = tvm.ir.Tuple([attr_arg, tvm.tirx.IntImm("int32", 2)])
+
+    def call_with(arg):
+        return tvm.ir.Call(
+            "tirx.call_extern",
+            [tvm.tirx.StringImm("tuple_arg"), arg],
+            ret_ty="int32",
+        )
+
+    assert expr_deep_equal(call_with(tuple_arg), call_with(same_tuple_arg))
+    assert not expr_deep_equal(call_with(tuple_arg), call_with(different_tuple_arg))
+    assert not expr_deep_equal(
+        call_with(tuple_arg),
+        call_with(tvm.ir.TupleGetItem(same_tuple_arg, 0)),
+    )
+
     cond0 = tvm.tirx.Var("cond0", "bool")
     cond1 = tvm.tirx.Var("cond1", "bool")
     inner_if = tvm.ir.Call(

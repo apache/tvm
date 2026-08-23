@@ -1240,6 +1240,35 @@ def test_let_annotation_syntax():
     assert_structural_equal(test, from_source(code))
 
 
+def test_tuple_let_binding_and_traversal():
+    @T.prim_func
+    def from_list(x: T.int32, y: T.float32) -> T.int32:
+        pair: T.let = [x, (y,)]
+        return pair[0]
+
+    @T.prim_func
+    def from_tuple(x: T.int32, y: T.float32) -> T.int32:
+        pair: T.let = (x, (y,))
+        return pair[0]
+
+    def tuple_value(func):
+        visited = []
+        tvm.tirx.stmt_functor.post_order_visit(func.body, visited.append)
+        bind = next(node for node in visited if isinstance(node, tvm.tirx.Bind))
+        return bind.value
+
+    list_value = tuple_value(from_list)
+    tuple_value = tuple_value(from_tuple)
+    assert isinstance(list_value, tvm.ir.Tuple)
+    assert isinstance(list_value.fields[1], tvm.ir.Tuple)
+    assert_structural_equal(list_value, tuple_value, map_free_vars=True)
+
+    code = from_list.script()
+    assert "pair: T.let[T.Tuple(T.int32, T.Tuple(T.float32))] = x, (y,)" in code
+    assert from_source(code).script() == code
+    assert_structural_equal(from_list, from_source(code))
+
+
 def test_annotation_syntax_comprehensive():
     """Comprehensive test for scalar annotation, T.let, banned annotations, and bare assignment."""
 
