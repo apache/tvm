@@ -449,6 +449,18 @@ def func_ret(ret_type: Type | None) -> Type:
     return _ffi_api.FuncRet(ret_type)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
+def Tuple(*fields: Type) -> Type:  # pylint: disable=invalid-name
+    """Construct a tuple type for a TIRx function or binding annotation."""
+    normalized_fields = []
+    for field in fields:
+        if callable(field) and not isinstance(field, Expr):
+            field = field()
+        if isinstance(field, Expr):
+            field = field.ty
+        normalized_fields.append(field)
+    return ir.TupleType(normalized_fields)
+
+
 def match_buffer(
     param: Var | BufferLoad | BufferRegion,
     shape: list[Expr] | tuple[Expr] | Expr | Integral = None,
@@ -3355,6 +3367,7 @@ __all__ = [
     "func_name",
     "func_attr",
     "func_ret",
+    "Tuple",
     "match_buffer",
     "sblock",
     "block_name_suffix_context",

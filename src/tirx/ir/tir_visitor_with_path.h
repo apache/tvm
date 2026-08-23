@@ -62,6 +62,10 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
       VisitExpr_(var, path);
     } else if (auto* call = obj.as<CallNode>()) {
       VisitExpr_(call, path);
+    } else if (auto* tuple = obj.as<TupleNode>()) {
+      VisitExpr_(tuple, path);
+    } else if (auto* tuple_get_item = obj.as<TupleGetItemNode>()) {
+      VisitExpr_(tuple_get_item, path);
     } else {
       TVM_FFI_THROW(TypeError) << "Unsupported non-primitive TIR expression " << obj.GetTypeKey();
     }
@@ -147,6 +151,8 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   void VisitExpr_(const VarNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const BufferLoadNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const ProducerLoadNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const TupleNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const TupleGetItemNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const LetNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const CallNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const AddNode* op, ffi::reflection::AccessPath path) override;

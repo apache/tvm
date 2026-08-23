@@ -19,6 +19,7 @@
 import tvm
 import tvm.testing
 from tvm import tirx
+from tvm.ir import Tuple, TupleGetItem
 from tvm.tirx import (
     EQ,
     LT,
@@ -413,6 +414,23 @@ def test_nested_expressions():
     assert counter.var_count == 3  # x, y, z
     assert counter.add_count == 1  # one add
     assert counter.mul_count == 1  # one mul
+
+
+def test_tuple_default_traversal_and_mutation():
+    x = Var("x", ty="int32")
+    y = Var("y", ty="int32")
+    expr = TupleGetItem(Tuple([x, y]), 1)
+
+    counter = SimpleExprCounter()
+    counter.visit_expr(expr)
+    assert counter.var_count == 2
+
+    replacer = VariableReplacer({"x": 1, "y": 2})
+    result = replacer.visit_expr(expr)
+    assert isinstance(result, TupleGetItem)
+    assert isinstance(result.tuple_value, Tuple)
+    assert result.tuple_value.fields[0].value == 1
+    assert result.tuple_value.fields[1].value == 2
 
 
 def test_simple_mutations():

@@ -38,6 +38,12 @@ void ExprVisitor::VisitExpr_(const ProducerLoadNode* op) {
   VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
 }
 
+void ExprVisitor::VisitExpr_(const TupleNode* op) {
+  VisitArray(op->fields, [this](const Expr& e) { this->VisitExpr(e); });
+}
+
+void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) { this->VisitExpr(op->tuple); }
+
 void ExprVisitor::VisitExpr_(const LetNode* op) {
   this->VisitExpr(op->value);
   this->VisitExpr(op->body);
@@ -129,6 +135,18 @@ Expr ExprMutator::VisitExpr_(const ProducerLoadNode* op) {
   } else {
     return ProducerLoad(op->producer, indices);
   }
+}
+
+Expr ExprMutator::VisitExpr_(const TupleNode* op) {
+  ffi::Array<Expr> fields =
+      op->fields.Map([this](const Expr& field) { return this->VisitExpr(field); });
+  return fields.same_as(op->fields) ? ffi::GetRef<tvm::Tuple>(op) : tvm::Tuple(fields, op->span);
+}
+
+Expr ExprMutator::VisitExpr_(const TupleGetItemNode* op) {
+  Expr tuple_value = this->VisitExpr(op->tuple);
+  return tuple_value.same_as(op->tuple) ? ffi::GetRef<TupleGetItem>(op)
+                                        : TupleGetItem(std::move(tuple_value), op->index, op->span);
 }
 
 Expr ExprMutator::VisitExpr_(const LetNode* op) {

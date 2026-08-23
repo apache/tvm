@@ -36,80 +36,11 @@
 namespace tvm {
 namespace relax {
 
-/*! \brief Tuple container */
-class TupleNode : public ExprNode {
- public:
-  /*! \brief the fields of the tuple */
-  tvm::ffi::Array<Expr> fields;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TupleNode>().def_ro("fields", &TupleNode::fields);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Tuple", TupleNode, ExprNode);
-};
-
-class Tuple : public Expr {
- public:
-  /*!
-   * \brief The constructor
-   * \param fields The fields of a tuple.
-   * \param span The source span of the expression.
-   */
-  TVM_DLL explicit Tuple(tvm::ffi::Array<Expr> fields, Span span = Span());
-
-  /*!
-   * \brief Utility constructor to handle conversion to relax::Expr
-   *
-   * If the calling scope already has an array of a specific type of
-   * relax expression (e.g. `ffi::Array<Var>`), it must be converted
-   * into an array of base type.  This constructor handles the
-   * conversion to the base `ffi::Array<relax::Expr>`.
-   *
-   * \tparam ExprType The type of relax expression passed in as an argument.
-   *
-   * \param fields The fields of a tuple.
-   *
-   * \param span The source span of the expression.
-   */
-  template <typename ExprType, typename = std::enable_if_t<std::is_base_of_v<Expr, ExprType>>>
-  TVM_DLL explicit Tuple(tvm::ffi::Array<ExprType> fields, Span span = Span())
-      : Tuple(fields.Map([](const ExprType& expr) -> Expr { return expr; }), span) {}
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tuple, Expr, TupleNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
-};
-
-/*! \brief Get index-th field out of a tuple. */
-class TupleGetItemNode : public ExprNode {
- public:
-  /*! \brief The tuple Expression */
-  Expr tuple;
-  /*! \brief which value to get */
-  int index;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TupleGetItemNode>()
-        .def_ro("tuple_value", &TupleGetItemNode::tuple)
-        .def_ro("index", &TupleGetItemNode::index);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.TupleGetItem", TupleGetItemNode, ExprNode);
-};
-
-class TupleGetItem : public Expr {
- public:
-  /*!
-   * \brief The constructor
-   * \param tuple The tuple to get an element from.
-   * \param index The index for extracting a value in the tuple.
-   * \param span The source span of the expression.
-   */
-  TVM_DLL TupleGetItem(Expr tuple, int index, Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TupleGetItem, Expr, TupleGetItemNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleGetItemNode);
-};
+// Compatibility aliases. Tuple expressions are defined in the common IR.
+using ::tvm::Tuple;
+using ::tvm::TupleGetItem;
+using ::tvm::TupleGetItemNode;
+using ::tvm::TupleNode;
 
 /*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
  */
