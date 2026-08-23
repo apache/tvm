@@ -69,13 +69,14 @@ def test_tuple_type_requires_known_field_types():
     assert tvm.ir.TupleGetItem(value, 0).ty.is_missing()
 
 
-def test_tuple_reflection_preserves_legacy_type_key():
-    value = tvm.ir.Tuple([tvm.ir.Var("x", "int64")])
+def test_tuple_reflection_uses_core_type_key():
+    value = tvm.ir.TupleGetItem(tvm.ir.Tuple([tvm.ir.Var("x", "int64")]), 0)
     serialized = tvm.ir.save_json(value)
     restored = tvm.ir.load_json(serialized)
 
-    assert "relax.expr.Tuple" in {node["type"] for node in json.loads(serialized)["nodes"]}
-    assert isinstance(restored, tvm.ir.Tuple)
+    type_keys = {node["type"] for node in json.loads(serialized)["nodes"]}
+    assert {"ir.Tuple", "ir.TupleGetItem"}.issubset(type_keys)
+    assert isinstance(restored, tvm.ir.TupleGetItem)
     tvm.ir.assert_structural_equal(restored, value, map_free_vars=True)
 
 

@@ -328,7 +328,7 @@ class _ExprWithOp(Expr, Scriptable):
         return result
 
 
-@tvm_ffi.register_object("relax.expr.Tuple")
+@tvm_ffi.register_object("ir.Tuple")
 class Tuple(_ExprWithOp):
     """Tuple expression that groups several fields together.
 
@@ -361,7 +361,7 @@ class Tuple(_ExprWithOp):
         return len(self.fields)
 
 
-@tvm_ffi.register_object("relax.expr.TupleGetItem")
+@tvm_ffi.register_object("ir.TupleGetItem")
 class TupleGetItem(_ExprWithOp):
     """Get the index-th item from a tuple.
 

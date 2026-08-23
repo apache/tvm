@@ -38,7 +38,6 @@
 #include <limits>
 #include <optional>
 #include <string>
-#include <type_traits>
 
 namespace tvm {
 
@@ -56,8 +55,7 @@ class TupleNode : public ExprNode {
     refl::ObjectDef<TupleNode>().def_ro("fields", &TupleNode::fields);
   }
 
-  // Keep the existing runtime type key for serialized Relax IR compatibility.
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Tuple", TupleNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Tuple", TupleNode, ExprNode);
 };
 
 /*! \brief Managed reference to TupleNode. */
@@ -69,10 +67,6 @@ class Tuple : public Expr {
    * \param span The source span of the expression.
    */
   TVM_DLL explicit Tuple(ffi::Array<Expr> fields, Span span = Span());
-
-  template <typename ExprType, typename = std::enable_if_t<std::is_base_of_v<Expr, ExprType>>>
-  TVM_DLL explicit Tuple(ffi::Array<ExprType> fields, Span span = Span())
-      : Tuple(fields.Map([](const ExprType& expr) -> Expr { return expr; }), span) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tuple, Expr, TupleNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
@@ -93,8 +87,7 @@ class TupleGetItemNode : public ExprNode {
         .def_ro("index", &TupleGetItemNode::index);
   }
 
-  // Keep the existing runtime type key for serialized Relax IR compatibility.
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.TupleGetItem", TupleGetItemNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TupleGetItem", TupleGetItemNode, ExprNode);
 };
 
 /*! \brief Managed reference to TupleGetItemNode. */

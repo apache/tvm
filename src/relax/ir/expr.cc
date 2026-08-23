@@ -28,10 +28,6 @@ namespace tvm {
 namespace relax {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  // Keep registration beside the existing Relax nodes to preserve runtime
-  // type-index initialization order for the legacy type keys.
-  TupleNode::RegisterReflection();
-  TupleGetItemNode::RegisterReflection();
   ShapeExprNode::RegisterReflection();
   BindingNode::RegisterReflection();
   DataflowVarNode::RegisterReflection();
