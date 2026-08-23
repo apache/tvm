@@ -2318,6 +2318,27 @@ def test_reshape_allowzero_literal_zero_dimension():
     assert tuple(output.shape) == (0, 2)
 
 
+def test_reshape_allowzero_infers_dimension_without_literal_zero():
+    reshape_node = helper.make_node("Reshape", ["data", "shape"], ["reshaped"], allowzero=1)
+    graph = helper.make_graph(
+        [reshape_node],
+        "reshape_allowzero_infer_dimension_test",
+        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, [3, 4])],
+        initializer=[helper.make_tensor("shape", TensorProto.INT64, [2], [-1, 2])],
+        outputs=[helper.make_tensor_value_info("reshaped", TensorProto.FLOAT, [6, 2])],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="reshape_allowzero_infer_dimension_test",
+        opset_imports=[helper.make_opsetid("", 14)],
+    )
+    data = np.arange(12, dtype="float32").reshape(3, 4)
+
+    output = run_in_tvm(model, {"data": data}, opset=14)
+
+    tvm.testing.assert_allclose(output.numpy(), data.reshape(6, 2))
+
+
 def test_reshape_shape_output():
     def verify_reshape_shape_output(target_shape, output_shape, expected):
         shape_node = helper.make_node("Shape", ["data"], ["shape_out"])

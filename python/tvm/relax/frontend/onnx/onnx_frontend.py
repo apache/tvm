@@ -1584,15 +1584,14 @@ class Reshape(OnnxOpConverter):
                 ]
             out = _np.reshape(data_array, new_shape_values)
             return relax.const(out, out.dtype)
-        if allowzero:
-            if isinstance(new_shape, relax.ShapeExpr):
-                new_shape = bb.normalize(relax.op.shape_to_tensor(new_shape))
-            new_shape_ndim = _get_known_tensor_length(new_shape)
-            if new_shape_ndim is None:
-                raise ValueError("Reshape requires a statically known output rank.")
-            new_shape = _tensor_to_shape_expr(bb, new_shape, new_shape_ndim, "reshape_dim")
-        elif isinstance(new_shape, relax.Constant):
-            new_shape = new_shape.data.numpy().tolist()
+        if isinstance(new_shape, relax.Constant):
+            new_shape_values = new_shape.data.numpy().tolist()
+            if allowzero and 0 in new_shape_values:
+                new_shape = _tensor_to_shape_expr(
+                    bb, new_shape, len(new_shape_values), "reshape_dim"
+                )
+            else:
+                new_shape = new_shape_values
         out = relax.op.reshape(data, new_shape)
         return out
 
