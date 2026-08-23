@@ -80,6 +80,17 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExp
     if (lhs.as<VarNode>()) {
       return false;
     }
+    if (auto* lhs_tuple = lhs.as<TupleNode>()) {
+      auto* rhs_tuple = rhs.as<TupleNode>();
+      return ffi::StructuralEqual()(lhs_tuple->ty, rhs_tuple->ty) &&
+             ArrayDeepEqual(lhs_tuple->fields, rhs_tuple->fields);
+    }
+    if (auto* lhs_get_item = lhs.as<TupleGetItemNode>()) {
+      auto* rhs_get_item = rhs.as<TupleGetItemNode>();
+      return lhs_get_item->index == rhs_get_item->index &&
+             ffi::StructuralEqual()(lhs_get_item->ty, rhs_get_item->ty) &&
+             VisitExpr(lhs_get_item->tuple, rhs_get_item->tuple);
+    }
     if (auto* lhs_call = lhs.as<CallNode>()) {
       auto* rhs_call = rhs.as<CallNode>();
       return ffi::StructuralEqual()(lhs_call->ty, rhs_call->ty) &&

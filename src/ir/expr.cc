@@ -42,9 +42,59 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   VarNode::RegisterReflection();
   GlobalVarNode::RegisterReflection();
   CallNode::RegisterReflection();
+  TupleNode::RegisterReflection();
+  TupleGetItemNode::RegisterReflection();
   IntImmNode::RegisterReflection();
   FloatImmNode::RegisterReflection();
   RangeNode::RegisterReflection();
+}
+
+Tuple::Tuple(ffi::Array<Expr> fields, Span span) {
+  ffi::Optional<Type> tuple_ty = [&]() -> ffi::Optional<Type> {
+    ffi::Array<Type> field_ty;
+    for (const Expr& field : fields) {
+      if (field->ty.IsMissing()) {
+        return std::nullopt;
+      }
+      field_ty.push_back(field->ty);
+    }
+    return TupleType(field_ty);
+  }();
+
+  ffi::ObjectPtr<TupleNode> node = ffi::make_object<TupleNode>();
+  node->fields = std::move(fields);
+  node->span = std::move(span);
+  if (tuple_ty.has_value()) {
+    node->ty = tuple_ty.value();
+  }
+  data_ = std::move(node);
+}
+
+TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
+  TVM_FFI_ICHECK_GE(index, 0) << "Index out of bounds: Tuple " << tuple
+                              << " cannot be accessed with negative index " << index;
+  ffi::ObjectPtr<TupleGetItemNode> node = ffi::make_object<TupleGetItemNode>();
+  if (const auto* tuple_type = tuple->ty.as<TupleTypeNode>()) {
+    TVM_FFI_ICHECK_LT(index, tuple_type->fields.size())
+        << "Index out of bounds: Tuple " << tuple << " is of size " << tuple_type->fields.size()
+        << ", and cannot be accessed with index " << index;
+    node->ty = tuple_type->fields[index];
+  }
+  node->tuple = std::move(tuple);
+  node->index = index;
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("ir.Tuple", [](ffi::Array<Expr> fields, Span span) { return Tuple(fields, span); })
+      .def("ir.TupleGetItem",
+           [](Expr tuple, int index, Span span) { return TupleGetItem(tuple, index, span); })
+      .def("relax.Tuple", [](ffi::Array<Expr> fields, Span span) { return Tuple(fields, span); })
+      .def("relax.TupleGetItem",
+           [](Expr tuple, int index, Span span) { return TupleGetItem(tuple, index, span); });
 }
 
 PrimExpr::PrimExpr(Call call) : PrimExpr(std::move(call).as_or_throw<PrimExpr>()) {}

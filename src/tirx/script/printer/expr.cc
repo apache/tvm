@@ -24,6 +24,18 @@ namespace tvm {
 namespace script {
 namespace printer {
 
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<Tuple>("tirx", [](Tuple tuple, AccessPath tuple_p, IRDocsifier d) -> Doc {
+      return TupleDoc(d->AsDoc<ListDoc>(tuple->fields, tuple_p->Attr("fields"))->elements);
+    });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<TupleGetItem>(
+        "tirx", [](TupleGetItem get_item, AccessPath get_item_p, IRDocsifier d) -> Doc {
+          ExprDoc index = LiteralDoc::Int(get_item->index, get_item_p->Attr("index"));
+          return d->AsDoc<ExprDoc>(get_item->tuple, get_item_p->Attr("tuple"))[{index}];
+        });
+
 ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d) {
   Type type = var->ty;
   AccessPath type_p = var_p->Attr("ty");

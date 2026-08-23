@@ -328,6 +328,63 @@ class _ExprWithOp(Expr, Scriptable):
         return result
 
 
+@tvm_ffi.register_object("ir.Tuple")
+class Tuple(_ExprWithOp):
+    """Tuple expression that groups several fields together.
+
+    Parameters
+    ----------
+    fields : list[Expr] | tuple[Expr, ...]
+        The fields in the tuple.
+
+    span : Span | None
+        Span that points to the original source code.
+    """
+
+    fields: list[Expr]
+    span: Span | None
+
+    def __init__(self, fields: list[Expr] | tuple[Expr, ...], span: Span | None = None):
+        if isinstance(fields, Tuple):
+            fields = fields.fields
+        elif isinstance(getattr(fields, "ty", None), tvm.ir.TupleType):
+            fields = [*fields]
+
+        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, span)
+
+    def __getitem__(self, index: int) -> Expr:
+        if index >= len(self) or index < -len(self):
+            raise IndexError("Tuple index out of range")
+        return self.fields[index]
+
+    def __len__(self) -> int:
+        return len(self.fields)
+
+
+@tvm_ffi.register_object("ir.TupleGetItem")
+class TupleGetItem(_ExprWithOp):
+    """Get the index-th item from a tuple.
+
+    Parameters
+    ----------
+    tuple_value : Expr
+        The input tuple expression.
+
+    index : int
+        The field index.
+
+    span : Span | None
+        Span that points to the original source code.
+    """
+
+    tuple_value: Expr
+    index: int
+    span: Span | None
+
+    def __init__(self, tuple_value: Expr, index: int, span: Span | None = None):
+        self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index, span)
+
+
 @tvm_ffi.register_object("ir.Call")
 class Call(_ExprWithOp):
     """Core function call node."""
