@@ -361,6 +361,14 @@ void TIRVisitorWithPath::VisitExpr_(const ProducerLoadNode* op, AccessPath path)
   Visit(op->indices, path->Attr("indices"));
 }
 
+void TIRVisitorWithPath::VisitExpr_(const TupleNode* op, AccessPath path) {
+  Visit(op->fields, path->Attr("fields"));
+}
+
+void TIRVisitorWithPath::VisitExpr_(const TupleGetItemNode* op, AccessPath path) {
+  Visit(op->tuple, path->Attr("tuple"));
+}
+
 void TIRVisitorWithPath::VisitExpr_(const LetNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
   auto context = WithDef(op->var, path->Attr("var"));

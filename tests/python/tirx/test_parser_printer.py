@@ -1240,6 +1240,90 @@ def test_let_annotation_syntax():
     assert_structural_equal(test, from_source(code))
 
 
+def test_tuple_value_literals_and_roundtrip():
+    @T.prim_func
+    def from_list(x: T.int32, y: T.float32) -> T.Tuple(T.int32, T.float32):
+        return [x, y]
+
+    @T.prim_func
+    def from_tuple(x: T.int32, y: T.float32) -> T.Tuple(T.int32, T.float32):
+        return (x, y)
+
+    list_value = from_list.body.value
+    tuple_value = from_tuple.body.value
+    assert isinstance(list_value, tvm.ir.Tuple)
+    assert isinstance(tuple_value, tvm.ir.Tuple)
+    assert_structural_equal(list_value, tuple_value, map_free_vars=True)
+    assert_structural_equal(
+        list_value.ty, tvm.ir.TupleType([tvm.ir.PrimType("int32"), tvm.ir.PrimType("float32")])
+    )
+
+    code = from_list.script()
+    assert "return (x, y)" in code
+    assert "return [x, y]" not in code
+    assert from_source(code).script() == code
+    assert_structural_equal(from_list, from_source(code))
+
+
+def test_empty_singleton_and_nested_tuple_value_literals():
+    @T.prim_func
+    def empty() -> None:
+        return ()
+
+    @T.prim_func
+    def singleton(x: T.int32) -> T.Tuple(T.int32):
+        return (x,)
+
+    @T.prim_func
+    def nested(x: T.int32) -> T.Tuple(T.int32, T.Tuple(T.int32, T.float32)):
+        return [x, (1, 2.0)]
+
+    assert isinstance(empty.body.value, tvm.ir.Tuple)
+    assert len(empty.body.value.fields) == 0
+    assert isinstance(singleton.body.value, tvm.ir.Tuple)
+    assert len(singleton.body.value.fields) == 1
+    assert isinstance(nested.body.value.fields[1], tvm.ir.Tuple)
+    assert isinstance(nested.body.value.fields[1].fields[0], tvm.tirx.IntImm)
+    assert isinstance(nested.body.value.fields[1].fields[1], tvm.tirx.FloatImm)
+
+    for func in [empty, singleton, nested]:
+        code = func.script()
+        assert from_source(code).script() == code
+        assert_structural_equal(func, from_source(code))
+
+
+def test_tuple_let_binding_and_traversal():
+    @T.prim_func
+    def tuple_bind(x: T.int32) -> T.Tuple(T.int32, T.int32):
+        pair: T.let = [x, x + 1]
+        return pair
+
+    binds = []
+    visited = []
+    tvm.tirx.stmt_functor.post_order_visit(tuple_bind.body, visited.append)
+    binds.extend(node for node in visited if isinstance(node, tvm.tirx.Bind))
+    assert len(binds) == 1
+    assert isinstance(binds[0].value, tvm.ir.Tuple)
+    assert any(isinstance(node, tvm.ir.Tuple) for node in visited)
+
+    code = tuple_bind.script()
+    assert "pair: T.let[T.Tuple(T.int32, T.int32)] = x, x + 1" in code
+    assert from_source(code).script() == code
+    assert_structural_equal(tuple_bind, from_source(code))
+
+
+def test_tuple_conversion_preserves_structural_host_sequences():
+    @T.prim_func
+    def host_sequences(A: T.Buffer((2, 2), "int32")):
+        x, y = [T.int32(), T.int32()]
+        for i, j in T.grid(2, 2):
+            A[i, j] = x + y
+
+    code = host_sequences.script()
+    assert from_source(code).script() == code
+    assert_structural_equal(host_sequences, from_source(code), map_free_vars=True)
+
+
 def test_annotation_syntax_comprehensive():
     """Comprehensive test for scalar annotation, T.let, banned annotations, and bare assignment."""
 

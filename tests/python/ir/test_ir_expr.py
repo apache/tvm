@@ -17,6 +17,7 @@
 
 import json
 
+import pytest
 import tvm_ffi
 
 import tvm
@@ -51,6 +52,21 @@ def test_tuple_projection_and_bounds():
     assert str(value) == "(x, y)"
     assert str(projection) == "(x, y)[1]"
     assert str(tvm.ir.Tuple([])) == "R.tuple()"
+
+    with pytest.raises(IndexError, match="Tuple index out of range"):
+        value[2]
+    with pytest.raises(tvm.error.InternalError, match="Index out of bounds"):
+        tvm.ir.TupleGetItem(value, -1)
+    with pytest.raises(tvm.error.InternalError, match="Index out of bounds"):
+        tvm.ir.TupleGetItem(value, 2)
+
+
+def test_tuple_type_requires_known_field_types():
+    unknown = tvm.ir.Var("unknown")
+    value = tvm.ir.Tuple([tvm.ir.Var("known", "int32"), unknown])
+
+    assert value.ty.is_missing()
+    assert tvm.ir.TupleGetItem(value, 0).ty.is_missing()
 
 
 def test_tuple_reflection_preserves_legacy_type_key():
