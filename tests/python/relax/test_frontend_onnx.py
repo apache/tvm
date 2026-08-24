@@ -362,7 +362,7 @@ def verify_binary_scalar(op_name, attrs={}, domain=None, dtype=TensorProto.INT32
         "Mul": np.multiply,
         "Div": np.divide,
         "Pow": np.power,
-        "Mod": np.mod if attrs.get("fmod", 0) else np.fmod,
+        "Mod": np.fmod if attrs.get("fmod", 0) else np.mod,
     }[op_name]
     expected_value = op(lhs, rhs).astype(dtype_str)
 
@@ -695,6 +695,31 @@ def test_mod(int_mode: bool):
         dtype, fmod = TensorProto.FLOAT, 1
     verify_binary("Mod", [1, 32], [1, 32], [1, 32], attrs={"fmod": fmod}, dtype=dtype)
     verify_binary_scalar("Mod", attrs={"fmod": fmod}, dtype=dtype)
+
+
+@pytest.mark.parametrize(
+    "fmod, dtype, a_vals, b_vals",
+    [
+        (0, TensorProto.INT32, [-5, 5, -5, 5], [3, 3, -3, -3]),
+        (1, TensorProto.INT32, [-5, 5, -5, 5], [3, 3, -3, -3]),
+        (1, TensorProto.FLOAT, [-5.5, 5.5, -5.5, 5.5], [3.0, 3.0, -3.0, -3.0]),
+    ],
+)
+def test_mod_constant_fold_negative_operands(fmod, dtype, a_vals, b_vals):
+    """Mod over two constants is folded at import time. The folded value must
+    match onnxruntime for negative operands, where integer mod (sign follows
+    divisor) and fmod (sign follows dividend) disagree."""
+    a = make_constant_node("a", dtype, [4], a_vals)
+    b = make_constant_node("b", dtype, [4], b_vals)
+    mod_node = helper.make_node("Mod", ["a", "b"], ["c"], fmod=fmod)
+    graph = helper.make_graph(
+        [a, b, mod_node],
+        "mod_constant_fold_test",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("c", dtype, [4])],
+    )
+    model = helper.make_model(graph, producer_name="mod_constant_fold_test")
+    check_correctness(model)
 
 
 SHAPE_PARAMS = [
