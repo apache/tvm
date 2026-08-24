@@ -363,10 +363,12 @@ PrimExpr GetLinearThreadIndex(const LaunchParams& params) {
   return tx + ty * ex + tz * ex * ey;
 }
 
-ffi::Array<PrimExpr> Trivial3DResolve(const LaunchParams& params, const char* prefix, int out_dim) {
+ffi::Array<PrimExpr> Trivial3DResolve(const LaunchParams& params, const char* prefix, int out_dim,
+                                      bool allow_missing = false) {
   ffi::Array<PrimExpr> ret;
   for (int i = 0; i < out_dim; ++i) {
-    ret.push_back(GetThread(std::string(prefix) + static_cast<char>('x' + i), params).first);
+    ret.push_back(
+        GetThread(std::string(prefix) + static_cast<char>('x' + i), params, allow_missing).first);
   }
   return ret;
 }
@@ -379,7 +381,11 @@ ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
     case ScopeBinding::kKernelCta:
       return Trivial3DResolve(params, "blockIdx.", out_dim);
     case ScopeBinding::kClusterCta:
-      return Trivial3DResolve(params, "clusterCtaIdx.", out_dim);
+      // A launch whose cluster is a single CTA binds no clusterCtaIdx var; the
+      // coordinate is then the constant 0, which is what GetThread returns for a
+      // missing tag. blockIdx and threadIdx are always bound, so they keep the
+      // strict lookup.
+      return Trivial3DResolve(params, "clusterCtaIdx.", out_dim, /*allow_missing=*/true);
     case ScopeBinding::kCtaThread:
       return Trivial3DResolve(params, "threadIdx.", out_dim);
     case ScopeBinding::kKernelCluster: {
