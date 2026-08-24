@@ -492,6 +492,7 @@ def test_megamoe_extracted_intrinsics_codegen():
             T.ptx.st.shared.v4.b32(U32.data, U32[0], U32[1], U32[2], U32[3])
             T.ptx.st_bulk.weak.shared__cta(U32.data, T.uint64(16))
             T.ptx.fns.b32(U32[0], U32[0], U32[1], I32[0])
+            T.ptx.movmatrix.sync.aligned.m8n8.trans.b16(U32[1], U32[0])
             T.ptx.stmatrix.sync.aligned.m16n8.x1.trans.shared.b8(U32.data, U32[0])
 
             F32[1] = T.cuda.uint_as_float(U32[0])
@@ -519,6 +520,7 @@ def test_megamoe_extracted_intrinsics_codegen():
         "st.shared.v4.b32",
         "st.bulk.weak.shared::cta",
         "fns.b32",
+        "movmatrix.sync.aligned.m8n8.trans.b16",
         "stmatrix.sync.aligned.m16n8.x1.trans.shared.b8",
         "ld.global.f32",
         "tvm_builtin_cuda_ldg_f32",
