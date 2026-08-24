@@ -20,6 +20,8 @@
 #include <gtest/gtest.h>
 #include <tvm/runtime/logging.h>
 
+#include <memory>
+
 #include "../../src/support/arena.h"
 #include "../../src/support/utils.h"
 
@@ -91,6 +93,21 @@ TEST(ArenaTests, TrivialTypeUnaffected) {
   // No crash/UB freeing an arena that only ever held trivially
   // destructible objects.
   arena.FreeAll();
+}
+
+namespace {
+struct MoveOnlyHolder {
+  explicit MoveOnlyHolder(std::unique_ptr<int> value) : value(std::move(value)) {}
+  std::unique_ptr<int> value;
+};
+}  // namespace
+
+TEST(ArenaTests, MakeAcceptsMoveOnlyArgument) {
+  support::Arena arena;
+  // Regression test: make<T>(std::make_unique<...>(...)) must not be ambiguous with std::forward
+  // via ADL
+  auto* holder = arena.make<MoveOnlyHolder>(std::make_unique<int>(7));
+  EXPECT_EQ(*holder->value, 7);
 }
 
 }  // namespace test

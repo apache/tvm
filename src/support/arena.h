@@ -43,13 +43,6 @@
 namespace tvm {
 namespace support {
 
-namespace {
-template <typename T>
-T&& forward(typename std::remove_reference<T>::type& param) {
-  return static_cast<T&&>(param);
-}
-}  // namespace
-
 /*!
  * \brief An arena page header.
  */
@@ -138,7 +131,7 @@ class GenericArena {
   template <typename T, typename... Args>
   T* make(Args&&... args) {
     T* ptr = allocate_<T>();
-    new (ptr) T(forward<Args>(args)...);
+    new (ptr) T(std::forward<Args>(args)...);
     if constexpr (!std::is_trivially_destructible<T>::value) {
       RegisterDeleter(ptr);
     }
