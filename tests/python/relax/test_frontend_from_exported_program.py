@@ -5507,6 +5507,28 @@ def test_slice_with_symbolic_end():
     verify_model(SliceStaticModel(), example_args_static, {}, ExpectedStatic)
 
 
+def test_derived_input_dimension_without_exported_program_decomposition():
+    class IdentityPair(torch.nn.Module):
+        def forward(self, x, y):
+            return x, y
+
+    frames = torch.export.Dim("frames", min=1, max=8)
+    exported_program = export(
+        IdentityPair(),
+        args=(torch.randn(1, 4, 3), torch.randn(1, 8, 3)),
+        dynamic_shapes=({1: frames}, {1: 2 * frames}),
+    )
+    mod = from_exported_program(
+        exported_program,
+        keep_params_as_input=True,
+        run_ep_decomposition=False,
+    )
+
+    x_shape = mod["main"].params[0].ty.shape.values
+    y_shape = mod["main"].params[1].ty.shape.values
+    assert tvm.arith.Analyzer().can_prove_equal(y_shape[1], x_shape[1] * 2)
+
+
 def test_split():
     class Chunk(Module):
         def forward(self, input):
@@ -8102,19 +8124,18 @@ def test_dynamic_shape_with_addition_constraints():
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(("s0", 4), dtype="float32"), y: R.Tensor(("s0___1", 4), dtype="float32")
-        ) -> R.Tuple(R.Tensor(("s0 + s0___1", 4), dtype="float32")):
+            x: R.Tensor(("s0", 4), dtype="float32"), y: R.Tensor(("1 + s0", 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("s0 + (1 + s0)", 4), dtype="float32")):
             s0 = T.int64()
-            s0___1 = T.int64()
             R.func_attr(
                 {
-                    "tir_var_lower_bound": {"s77": 1, "s77___1": 2},
-                    "tir_var_upper_bound": {"s77": 64, "s77___1": 65},
+                    "tir_var_lower_bound": {"s77": 1},
+                    "tir_var_upper_bound": {"s77": 64},
                 }
             )
             with R.dataflow():
-                lv: R.Tensor((s0 + s0___1, 4), dtype="float32") = R.concat((x, y), axis=0)
-                gv: R.Tuple(R.Tensor((s0 + s0___1, 4), dtype="float32")) = (lv,)
+                lv: R.Tensor((s0 + (1 + s0), 4), dtype="float32") = R.concat((x, y), axis=0)
+                gv: R.Tuple(R.Tensor((s0 + (1 + s0), 4), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
@@ -8136,19 +8157,18 @@ def test_dynamic_shape_with_subtraction_constraints():
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(("s0___1", 4), dtype="float32"), y: R.Tensor(("s0", 4), dtype="float32")
-        ) -> R.Tuple(R.Tensor(("s0___1 + s0", 4), dtype="float32")):
-            s0___1 = T.int64()
+            x: R.Tensor(("1 + s0", 4), dtype="float32"), y: R.Tensor(("s0", 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("1 + s0 + s0", 4), dtype="float32")):
             s0 = T.int64()
             R.func_attr(
                 {
-                    "tir_var_lower_bound": {"s17": 0, "s17___1": 1},
-                    "tir_var_upper_bound": {"s17": 63, "s17___1": 64},
+                    "tir_var_lower_bound": {"s17": 0},
+                    "tir_var_upper_bound": {"s17": 63},
                 }
             )
             with R.dataflow():
-                lv: R.Tensor((s0___1 + s0, 4), dtype="float32") = R.concat((x, y), axis=0)
-                gv: R.Tuple(R.Tensor((s0___1 + s0, 4), dtype="float32")) = (lv,)
+                lv: R.Tensor((1 + s0 + s0, 4), dtype="float32") = R.concat((x, y), axis=0)
+                gv: R.Tuple(R.Tensor((1 + s0 + s0, 4), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
@@ -8170,19 +8190,18 @@ def test_dynamic_shape_with_multiplication_constraints():
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(("s0", 4), dtype="float32"), y: R.Tensor(("s0_2", 4), dtype="float32")
-        ) -> R.Tuple(R.Tensor(("s0 + s0_2", 4), dtype="float32")):
+            x: R.Tensor(("s0", 4), dtype="float32"), y: R.Tensor(("2 * s0", 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("s0 + 2 * s0", 4), dtype="float32")):
             s0 = T.int64()
-            s0_2 = T.int64()
             R.func_attr(
                 {
-                    "tir_var_lower_bound": {"s77": 1, "s77_2": 2},
-                    "tir_var_upper_bound": {"s77": 64, "s77_2": 128},
+                    "tir_var_lower_bound": {"s77": 1},
+                    "tir_var_upper_bound": {"s77": 64},
                 }
             )
             with R.dataflow():
-                lv: R.Tensor((s0 + s0_2, 4), dtype="float32") = R.concat((x, y), axis=0)
-                gv: R.Tuple(R.Tensor((s0 + s0_2, 4), dtype="float32")) = (lv,)
+                lv: R.Tensor((s0 + 2 * s0, 4), dtype="float32") = R.concat((x, y), axis=0)
+                gv: R.Tuple(R.Tensor((s0 + 2 * s0, 4), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 

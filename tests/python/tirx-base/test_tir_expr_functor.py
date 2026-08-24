@@ -18,7 +18,7 @@
 import tvm
 import tvm.testing
 from tvm import tirx as tir
-from tvm.ir import Call, Op
+from tvm.ir import Call, Op, Tuple, TupleGetItem
 from tvm.ir.base import assert_structural_equal
 from tvm.tirx.expr import (
     EQ,
@@ -109,6 +109,19 @@ class ASTPrinter(ExprVisitor):
         self.log.push_scope()
         for idx in op.indices:
             self.visit_expr(idx)
+        self.log.pop_scope()
+
+    def visit_tuple_(self, op: Tuple) -> None:
+        self.log.add("Tuple")
+        self.log.push_scope()
+        for field in op.fields:
+            self.visit_expr(field)
+        self.log.pop_scope()
+
+    def visit_tuple_get_item_(self, op: TupleGetItem) -> None:
+        self.log.add("TupleGetItem")
+        self.log.push_scope()
+        self.visit_expr(op.tuple_value)
         self.log.pop_scope()
 
     def visit_let_(self, op: Let) -> None:
@@ -339,6 +352,16 @@ class ASTPostPrinterMutator(ExprMutator):
         self.log.add("ProducerLoad")
         return result
 
+    def visit_tuple_(self, op: Tuple) -> tir.Expr:
+        result = super().visit_tuple_(op)
+        self.log.add("Tuple")
+        return result
+
+    def visit_tuple_get_item_(self, op: TupleGetItem) -> tir.Expr:
+        result = super().visit_tuple_get_item_(op)
+        self.log.add("TupleGetItem")
+        return result
+
     def visit_let_(self, op: Let) -> tir.Expr:
         result = super().visit_let_(op)
         self.log.add("Let")
@@ -522,6 +545,24 @@ def test_float_imm():
 
 def test_string_imm():
     basic_check(tir.StringImm("hello"), "StringImm", "StringImm")
+
+
+def test_tuple():
+    tuple_node = Tuple([n, tir.IntImm("int32", 10)])
+    basic_check(
+        tuple_node,
+        "\n".join(["Tuple", "\tVar", "\tIntImm"]),
+        "\n".join(["Var", "IntImm", "Tuple"]),
+    )
+
+
+def test_tuple_get_item():
+    tuple_get_item = TupleGetItem(Tuple([n, m]), 1)
+    basic_check(
+        tuple_get_item,
+        "\n".join(["TupleGetItem", "\tTuple", "\t\tVar", "\t\tVar"]),
+        "\n".join(["Var", "Var", "Tuple", "TupleGetItem"]),
+    )
 
 
 def test_add():

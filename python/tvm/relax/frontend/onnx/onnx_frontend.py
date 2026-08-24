@@ -1561,6 +1561,7 @@ class Reshape(OnnxOpConverter):
     def _impl_v13(cls, bb, inputs, attr, params):
         data = inputs[0]
         new_shape = get_constant(inputs[1], params)
+        allowzero = attr.get("allowzero", 0)
 
         if isinstance(data, relax.ShapeExpr):
             # Preserve identity flatten for shape values to keep shape-specialized
@@ -1574,10 +1575,23 @@ class Reshape(OnnxOpConverter):
             data = bb.normalize(relax.op.shape_to_tensor(data))
 
         if isinstance(data, relax.Constant) and isinstance(new_shape, relax.Constant):
-            out = _np.reshape(data.data.numpy(), new_shape.data.numpy().tolist())
+            data_array = data.data.numpy()
+            new_shape_values = new_shape.data.numpy().tolist()
+            if not allowzero:
+                new_shape_values = [
+                    data_array.shape[i] if dim == 0 else dim
+                    for i, dim in enumerate(new_shape_values)
+                ]
+            out = _np.reshape(data_array, new_shape_values)
             return relax.const(out, out.dtype)
         if isinstance(new_shape, relax.Constant):
-            new_shape = new_shape.data.numpy().tolist()
+            new_shape_values = new_shape.data.numpy().tolist()
+            if allowzero and 0 in new_shape_values:
+                new_shape = _tensor_to_shape_expr(
+                    bb, new_shape, len(new_shape_values), "reshape_dim"
+                )
+            else:
+                new_shape = new_shape_values
         out = relax.op.reshape(data, new_shape)
         return out
 
