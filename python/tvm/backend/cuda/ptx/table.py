@@ -6991,6 +6991,25 @@ _ENTRIES = [
             OperandSlot("p", kind="addr", allow_imm_offset=True),
         ),
     ),
+    # movmatrix per PTX ISA 9.7.15.5.14 -- transpose one distributed m8n8
+    # matrix whose 16-bit elements are carried by one b32 register per lane.
+    #
+    #   movmatrix.sync.aligned.m8n8.trans.b16 d, a;
+    InstructionEntry(
+        name="movmatrix",
+        slots=(
+            ModifierSlot("sync", ("sync",)),
+            ModifierSlot("aligned", ("aligned",)),
+            ModifierSlot("shape", ("m8n8",)),
+            ModifierSlot("trans", ("trans",)),
+            ModifierSlot("type", ("b16",)),
+        ),
+        cert_arch="sm_75",
+        operands=(
+            OperandSlot("d", rw="w", dtype="b32"),
+            OperandSlot("a", dtype="b32"),
+        ),
+    ),
     # stmatrix per PTX ISA 9.7.15.5.16 -- the store mirror of ldmatrix. One
     # syntax line; the two shapes split into two entries because their type and
     # target floors differ.
