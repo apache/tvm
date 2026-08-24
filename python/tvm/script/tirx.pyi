@@ -1043,6 +1043,23 @@ class _Chain_mov:
     u64: _Chain_mov
     def __call__(self, *args: Any, pred: Any = None, preserve_dst: bool = False) -> None: ...
 
+class _Chain_movmatrix:
+    """`movmatrix` — sync∈{sync}; aligned∈{aligned}; shape∈{m8n8}; trans∈{trans}; type∈{b16}"""
+
+    aligned: _Chain_movmatrix
+    b16: _Chain_movmatrix
+    m8n8: _Chain_movmatrix
+    sync: _Chain_movmatrix
+    trans: _Chain_movmatrix
+    def __call__(
+        self,
+        d: Any,
+        a: Any,
+        *args: Any,
+        pred: Any = None,
+        preserve_dst: bool = False,
+    ) -> None: ...
+
 class _Chain_mul:
     """`mul` — 4 entries sharing this mnemonic; PTX puts their difference in the operand list,
     so the call selects one. Shapes: (d, a, b)
@@ -2242,6 +2259,7 @@ class _PTX:
     min: _Chain_min
     mma: _Chain_mma
     mov: _Chain_mov
+    movmatrix: _Chain_movmatrix
     mul: _Chain_mul
     mul24: _Chain_mul24
     multimem_ld_reduce: _Chain_multimem_ld_reduce
