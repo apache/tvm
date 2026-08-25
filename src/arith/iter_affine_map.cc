@@ -2021,6 +2021,23 @@ PrimExpr IterMapRewriter::SplitFloorModConst(IterSplitExpr lhs, PrimExpr base, P
 
   // We handle scale!=1 in above code, hence we only consider floormod(x, rhs) below
   // where x=floormod(floordiv(iter, lower_factor), extent) + base
+  PrimExpr source_upper_bound = lhs->source->extent;
+  auto origin_it = padded_origin_map_.find(lhs->source);
+  if (origin_it != padded_origin_map_.end()) {
+    auto padding_it = padded_iter_map_.find(origin_it->second);
+    TVM_FFI_ICHECK(padding_it != padded_iter_map_.end());
+    // Right padding only contains values excluded by padding_predicate_, so it
+    // cannot make the inner floormod wrap over the original iterator domain.
+    // Keep left-padded marks conservative because padding shifts their values.
+    if (is_zero(padding_it->second.left_pad)) {
+      source_upper_bound = origin_it->second->extent;
+    }
+  }
+  bool inner_mod_can_wrap =
+      !analyzer_->CanProve(source_upper_bound <= lhs->lower_factor * lhs->extent);
+  if (inner_mod_can_wrap && !CanProveDivisible(lhs->extent, rhs)) {
+    return PrimExpr();
+  }
   auto pair = PadDividendToDivisor(lhs, base, rhs);
   IterSplitExpr padded = pair.first;
   if (!padded.defined()) {
