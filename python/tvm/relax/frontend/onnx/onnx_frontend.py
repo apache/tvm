@@ -2174,6 +2174,23 @@ class Squeeze(OnnxOpConverter):
         return cls._squeeze(bb, data, axis)
 
     @classmethod
+    def _check_squeeze_axes_are_unit_dims(cls, data, axes):
+        """Raise if any axis to be squeezed has a statically known extent other than 1."""
+        rank = _get_known_tensor_rank(data)
+        if rank is None:
+            return
+        ty = data.ty
+        if not (isinstance(ty, relax.TensorType) and isinstance(ty.shape, relax.ShapeExpr)):
+            return
+        for axis in _normalize_constant_axes(list(axes), rank, "Squeeze"):
+            extent = ty.shape.values[axis]
+            if isinstance(extent, tirx.IntImm) and int(extent.value) != 1:
+                raise ValueError(
+                    f"Squeeze axis {axis} has size {int(extent.value)}, but only "
+                    "axes of size 1 can be squeezed."
+                )
+
+    @classmethod
     def _squeeze(cls, bb, data, axis):
         # If data is constant, perform computation directly.
         if isinstance(data, relax.Constant):
@@ -2201,6 +2218,7 @@ class Squeeze(OnnxOpConverter):
             return relax.op.squeeze(data)
 
         if isinstance(axis, tuple):
+            cls._check_squeeze_axes_are_unit_dims(data, axis)
             return relax.op.squeeze(data, list(axis))
 
         data_ndim = _get_known_tensor_rank(data)

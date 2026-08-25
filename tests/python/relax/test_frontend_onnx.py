@@ -4434,6 +4434,30 @@ def test_squeeze_axes_attribute():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+def test_squeeze_non_unit_axis_raises():
+    # Per the ONNX spec, squeezing an axis whose length is not 1 must raise an error
+    squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
+    shape = [2, 3]
+
+    graph = helper.make_graph(
+        [squeeze_node],
+        "squeeze_non_unit_axis_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, shape),
+        ],
+        initializer=[helper.make_tensor("axes", TensorProto.INT64, [1], [0])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3])],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="squeeze_non_unit_axis_test",
+        opset_imports=[helper.make_opsetid("", 13)],
+    )
+    with pytest.raises(ValueError, match="has size 2"):
+        from_onnx(model, opset=13, keep_params_in_input=True)
+
+
 def test_squeeze_constant():
     def verify_squeeze_constant(axis, expected):
         shape = [1, 2, 1, 3]
