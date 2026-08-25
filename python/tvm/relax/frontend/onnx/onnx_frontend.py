@@ -2468,14 +2468,21 @@ class MultiInputBase(OnnxOpConverter):
         if cls.numpy_op is None or cls.relax_op is None:
             raise NotImplementedError("numpy_op and relax_op must be defined for MultiInputBase")
         if all([isinstance(inp, relax.Constant) for inp in inputs]):
-            # numpy_op is a reduction, so the operands cannot be passed
-            # positionally: the second constant would be taken as ``axis``.
-            # Broadcast and stack first, then reduce over the stack axis, which
-            # is what the non-constant path below builds.
-            np_inputs = _np.broadcast_arrays(*[inp.data.numpy() for inp in inputs])
-            output = cls.numpy_op(  # pylint: disable=not-callable
-                _np.stack(np_inputs, axis=0), axis=0
+            np_inputs = [inp.data.numpy() for inp in inputs]
+            # numpy_op (np.mean/np.sum/np.min/np.max) reduces its first arg,
+            # treating any further positional args as `axis`, so calling it as
+            # numpy_op(*np_inputs) is wrong for the variadic ONNX semantics.
+            # Broadcast to the common shape, stack along a new leading axis,
+            # then reduce along it — mirrors the non-constant path below.
+            input_shapes = [inp.ty.shape for inp in inputs]
+            target_shape = tuple(
+                int(dim)
+                for dim in functools.reduce(compute_broadcast_shape, input_shapes)
             )
+            stacked = _np.stack(
+                [_np.broadcast_to(x, target_shape) for x in np_inputs], axis=0
+            )
+            output = cls.numpy_op(stacked, axis=0)  # pylint: disable=not-callable
             return relax.const(output, output.dtype)
 
         input_shapes = [inp.ty.shape for inp in inputs]

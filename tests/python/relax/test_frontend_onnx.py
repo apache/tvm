@@ -856,6 +856,73 @@ def test_multi_input_all_constant_inputs(op_name, dtype, shapes, values):
     check_correctness(helper.make_model(graph), opset=13)
 
 
+@pytest.mark.parametrize("op_name", ["Min", "Max", "Sum", "Mean"])
+@pytest.mark.parametrize("rank", [0, 1, 2, 3])
+def test_multi_input_constant_rank_axis_bounds(op_name, rank):
+    """All-constant inputs reduce over the new leading stack axis.
+
+    Stacking the inputs along ``axis=0`` yields a tensor of rank ``rank+1``,
+    so the reduction axis must lie in ``[-(rank+1), rank]``. ``axis=0`` equals
+    the lower bound ``-(rank+1)`` and is therefore valid for every rank, while
+    a positive ``axis=rank+1`` is out of bounds and must raise. The importer
+    relies on this in ``MultiInputBase._impl_v1``, so both the numpy invariant
+    and the end-to-end folding result are asserted here.
+    """
+    shape = (2,) * rank
+    stacked = np.stack([np.ones(shape, np.float32), np.ones(shape, np.float32)], axis=0)
+    reduce = {"Min": np.min, "Max": np.max, "Sum": np.sum, "Mean": np.mean}[op_name]
+    assert stacked.ndim == rank + 1
+    for axis in (0, -(rank + 1), rank, -rank):
+        reduce(stacked, axis=axis)  # must not raise
+    for axis in (rank + 1, -(rank + 2)):
+        with pytest.raises((IndexError, ValueError)):
+            reduce(stacked, axis=axis)
+
+    # End-to-end: two identical rank-``rank`` constants fold to the identity.
+    const_nodes = []
+    for name in ("c0", "c1"):
+        const_nodes.append(
+            helper.make_node(
+                "Constant",
+                inputs=[],
+                outputs=[name],
+                value=helper.make_tensor(
+                    f"{name}_v", TensorProto.FLOAT, list(shape), np.ones(shape, np.float32).flatten().tolist()
+                ),
+            )
+        )
+    graph = helper.make_graph(
+        const_nodes + [helper.make_node(op_name, ["c0", "c1"], ["output"])],
+        f"const_rank_{op_name}",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, list(shape))],
+    )
+    check_correctness(helper.make_model(graph), opset=13)
+
+
+@pytest.mark.parametrize("op_name", ["Min", "Max", "Sum", "Mean"])
+@pytest.mark.parametrize("shape", [[], [5], [2, 3]])
+def test_multi_input_constant_single_input(op_name, shape):
+    """A single constant input is returned unchanged (shape preserved)."""
+    if shape:
+        vals = np.arange(np.prod(shape), dtype=np.float32).reshape(shape)
+    else:
+        vals = np.array(1.0, np.float32)
+    node = helper.make_node(
+        "Constant",
+        inputs=[],
+        outputs=["c0"],
+        value=helper.make_tensor("c0_v", TensorProto.FLOAT, shape, vals.flatten().tolist()),
+    )
+    graph = helper.make_graph(
+        [node, helper.make_node(op_name, ["c0"], ["output"])],
+        f"const_single_{op_name}",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, shape)],
+    )
+    check_correctness(helper.make_model(graph), opset=13)
+
+
 @pytest.mark.parametrize("op_name", ["And", "Or", "Xor"])
 def test_binary_bool(op_name: str):
     verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.BOOL)
