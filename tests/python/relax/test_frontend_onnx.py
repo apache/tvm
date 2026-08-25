@@ -3727,12 +3727,28 @@ def test_prelu():
                 R.output(gv)
             return gv
 
+    @I.ir_module
+    class ExpectedMultiAxisSlope:
+        @R.function
+        def main(
+            a: R.Tensor((2, 3, 4, 5), dtype="float32"),
+            b: R.Tensor((4, 5), dtype="float32"),
+        ) -> R.Tensor((2, 3, 4, 5), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 4, 5), dtype="bool") = R.less(a, R.const(0.0, "float32"))
+                lv1: R.Tensor((2, 3, 4, 5), dtype="float32") = R.multiply(a, b)
+                gv: R.Tensor((2, 3, 4, 5), dtype="float32") = R.where(lv, lv1, a)
+                R.output(gv)
+            return gv
+
     _assert_prelu_ir([], ExpectedRankZeroSlope)
     _assert_prelu_ir([1], ExpectedScalarSlope)
     _assert_prelu_ir([1, 1], ExpectedTwoDimScalarSlope)
     _assert_prelu_ir([32], ExpectedChannelSlope)
     _assert_prelu_ir([3, 1, 1], ExpectedBatchSlope)
     _assert_prelu_ir([32, 1, 1], ExpectedLowerRankChannelSlope, input_shape=(1, 32, 16, 16))
+    _assert_prelu_ir([4, 5], ExpectedMultiAxisSlope, input_shape=(2, 3, 4, 5))
 
 
 def test_prelu_lower_rank_slope():
@@ -3757,6 +3773,36 @@ def test_prelu_lower_rank_slope():
         "slope": np.array([0.1, 0.2, 0.3, 0.4], dtype="float32").reshape(slope_shape),
     }
     check_correctness(model, inputs=inputs, opset=16, check_dtypes=True)
+
+
+def test_prelu_multi_axis_slope():
+    """A slope broadcastable across multiple axes (incl. a slope shaped like x) is
+    lowered elementwise to PRelu(x, s) = where(x < 0, s * x, x) since nn.prelu can
+    only express a single per-axis slope."""
+    input_shape = (2, 3, 4, 5)
+    for slope_shape in [(4, 5), (1, 3, 4, 5), (2, 3, 4, 5)]:
+        graph = helper.make_graph(
+            [helper.make_node("PRelu", ["x", "slope"], ["y"])],
+            "prelu_multi_axis_slope_test",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
+                helper.make_tensor_value_info("slope", TensorProto.FLOAT, list(slope_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, input_shape)],
+        )
+        model = helper.make_model(
+            graph,
+            producer_name="prelu_multi_axis_slope_test",
+            opset_imports=[helper.make_opsetid("", 16)],
+        )
+        inputs = {
+            "x": np.linspace(-2.0, 2.0, np.prod(input_shape), dtype="float32").reshape(input_shape),
+            # negative slopes exercise the s * x path on both sides of the sign.
+            "slope": np.linspace(-0.5, 0.8, np.prod(slope_shape), dtype="float32").reshape(
+                slope_shape
+            ),
+        }
+        check_correctness(model, inputs=inputs, opset=16, check_dtypes=True)
 
 
 def test_thresholded_relu():
