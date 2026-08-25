@@ -381,10 +381,9 @@ ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
     case ScopeBinding::kKernelCta:
       return Trivial3DResolve(params, "blockIdx.", out_dim);
     case ScopeBinding::kClusterCta:
-      // A launch whose cluster is a single CTA binds no clusterCtaIdx var; the
-      // coordinate is then the constant 0, which is what GetThread returns for a
-      // missing tag. blockIdx and threadIdx are always bound, so they keep the
-      // strict lookup.
+      // Keep the missing-tag fallback for compatibility with pre-existing IR. A missing
+      // clusterCtaIdx coordinate resolves to the constant zero; blockIdx and threadIdx are
+      // always bound, so they keep the strict lookup.
       return Trivial3DResolve(params, "clusterCtaIdx.", out_dim, /*allow_missing=*/true);
     case ScopeBinding::kCtaThread:
       return Trivial3DResolve(params, "threadIdx.", out_dim);
