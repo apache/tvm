@@ -84,6 +84,7 @@ const char* RoPEModeToString(RoPEMode rope_mode) {
 
 std::string Uint64ToHex(uint64_t value) {
   std::ostringstream os;
+  os.imbue(std::locale::classic());
   os << std::hex << std::setw(16) << std::setfill('0') << value;
   return os.str();
 }
