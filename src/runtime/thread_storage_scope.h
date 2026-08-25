@@ -284,6 +284,7 @@ class LaunchParamConfig {
  public:
   void Init(size_t base, const ffi::Array<ffi::String>& launch_param_tags) {
     base_ = base;
+    use_cluster_launch_ = false;
     std::vector<bool> filled(12, false);
     for (size_t i = 0; i < launch_param_tags.size(); ++i) {
       std::string tag(launch_param_tags[i]);
@@ -297,6 +298,9 @@ class LaunchParamConfig {
         use_cooperative_launch_ = true;
       } else {
         ThreadScope ts = ThreadScope::Create(tag);
+        if (ts.IsClusterCtaIdx()) {
+          use_cluster_launch_ = true;
+        }
         arg_index_map_.push_back(ts.rank * 3 + ts.dim_index);
         filled[ts.rank * 3 + ts.dim_index] = true;
       }
@@ -333,6 +337,8 @@ class LaunchParamConfig {
 
   bool use_cooperative_launch() const { return use_cooperative_launch_; }
 
+  bool use_cluster_launch() const { return use_cluster_launch_; }
+
  private:
   /*! \brief base axis */
   size_t base_;
@@ -346,6 +352,8 @@ class LaunchParamConfig {
   bool use_programmatic_dependent_launch_{false};
   /*! \brief Whether or not use cooperative launch. */
   bool use_cooperative_launch_{false};
+  /*! \brief Whether the kernel declares a cluster-to-CTA scope. */
+  bool use_cluster_launch_{false};
 };
 
 }  // namespace runtime
