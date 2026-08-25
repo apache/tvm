@@ -246,7 +246,7 @@ class CUDAWrappedFunc {
     unsigned int num_attrs = 0;
 
     // 1) Cluster
-    if (wl.cluster_dim(0) != 1 || wl.cluster_dim(1) != 1 || wl.cluster_dim(2) != 1) {
+    if (launch_param_config_.use_cluster_launch()) {
       CUlaunchAttribute attr{};
       attr.id = CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION;
       attr.value.clusterDim.x = wl.cluster_dim(0);
