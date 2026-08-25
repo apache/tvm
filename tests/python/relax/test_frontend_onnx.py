@@ -1730,8 +1730,11 @@ def test_gather_nd(data_shape, indices_shape, batch_dims):
 @pytest.mark.parametrize("axis", [0, 1, 2])
 @pytest.mark.parametrize(("name", "opset"), [("Scatter", 10), ("ScatterElements", 11)])
 def test_scatter(axis: int, name: str, opset: int):
-    if axis != 1:
-        pytest.skip("The current topi impl is wrong, which only works for axis=1")
+    if name == "ScatterElements" and axis != 1:
+        pytest.skip(
+            "ScatterElements with indices smaller than data is lowered via scatter_elements, "
+            "which only works for axis=1"
+        )
     input_shape = [16, 16, 16]
     indices_shape = [8, 8, 8]
     updates_shape = [8, 8, 8]
@@ -1750,6 +1753,47 @@ def test_scatter(axis: int, name: str, opset: int):
     model = helper.make_model(graph, producer_name="scatter_test")
     indices = np.random.randint(0, 16, indices_shape)
     check_correctness(model, inputs={"indices": indices}, opset=opset)
+
+
+def test_scatter_broadcast():
+    """Scatter (opset 9/10) whose indices/updates are smaller than data (size-1
+    broadcast dims) must follow the per-entry semantics of the ONNX spec:
+    output[idx[:axis] + (indices[idx],) + idx[axis+1:]] = updates[idx] for each
+    entry idx in indices' own shape. The previous lowering passed such indices
+    directly to scatter_elements, which silently produced wrong values."""
+    data_shape = (2, 3, 4)
+    rng = np.random.RandomState(0)
+    for axis in [0, 1, 2, -1]:
+        for indices_shape in [(1, 3, 4), (2, 1, 4), (1, 3, 1), (1, 1, 1)]:
+            graph = helper.make_graph(
+                [helper.make_node("Scatter", ["data", "indices", "updates"], ["output"], axis=axis)],
+                "scatter_broadcast_test",
+                inputs=[
+                    helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+                    helper.make_tensor_value_info(
+                        "indices", TensorProto.INT64, list(indices_shape)
+                    ),
+                    helper.make_tensor_value_info(
+                        "updates", TensorProto.FLOAT, list(indices_shape)
+                    ),
+                ],
+                outputs=[
+                    helper.make_tensor_value_info("output", TensorProto.FLOAT, data_shape)
+                ],
+            )
+            model = helper.make_model(
+                graph,
+                producer_name="scatter_broadcast_test",
+                opset_imports=[helper.make_opsetid("", 9)],
+            )
+            inputs = {
+                "data": rng.randn(*data_shape).astype("float32"),
+                "indices": rng.randint(
+                    0, data_shape[axis % len(data_shape)], indices_shape
+                ).astype("int64"),
+                "updates": rng.randn(*indices_shape).astype("float32"),
+            }
+            check_correctness(model, inputs=inputs, opset=9, check_dtypes=True)
 
 
 @pytest.mark.parametrize(
