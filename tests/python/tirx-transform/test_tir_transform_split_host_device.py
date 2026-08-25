@@ -437,6 +437,35 @@ def test_cuda_launch_preserves_flag_metadata():
     assert int(launch.args[-1]) == 16
 
 
+def test_cuda_launch_preserves_singleton_cluster_dimensions():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            with T.attr(T.target("cuda"), "target", 0):
+                T.launch_thread("blockIdx.x", 4)
+                T.launch_thread("clusterCtaIdx.x", 1)
+                T.launch_thread("clusterCtaIdx.y", 1)
+                T.launch_thread("clusterCtaIdx.z", 1)
+                T.launch_thread("threadIdx.x", 32)
+                A[0] = 0.0
+
+    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    kernel = after["main_kernel"]
+    assert list(kernel.attrs["tirx.kernel_launch_params"]) == [
+        "blockIdx.x",
+        "clusterCtaIdx.x",
+        "clusterCtaIdx.y",
+        "clusterCtaIdx.z",
+        "threadIdx.x",
+    ]
+
+    launch = after["main"].body.value
+    assert isinstance(launch, tvm.ir.Call)
+    assert [int(arg) for arg in launch.args[-5:]] == [4, 1, 1, 1, 32]
+
+
 def test_device_scope_region_extracted_as_device_kernel():
     """A bare device_scope is annotated and extracted as a device kernel."""
 

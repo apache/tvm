@@ -776,7 +776,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       }
     };
     auto cluster_cta_it = id_set.find(ScopeBinding::kClusterCta);
-    if (cluster_cta_it == id_set.end() || is_one((*cluster_cta_it).second.fused_extent())) {
+    if (cluster_cta_it == id_set.end()) {
       // no cluster
       add_launch_param(ScopeBinding::kKernelCta, "blockIdx.");
     } else {
