@@ -32,6 +32,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 
+#include <cstring>
 #include <limits>
 
 #include "src/runtime/cpu_device_api.cc"
@@ -194,12 +195,10 @@ void ArrayDecodeBF16ToF32Inplace(Tensor cpu_arr, int64_t encoded_nbytes) {
   uint8_t* data = static_cast<uint8_t*>(cpu_arr->data) + cpu_arr->byte_offset;
   for (size_t i = size; i != 0; --i) {
     const size_t j = i - 1;
-    const uint8_t low = data[2 * j];
-    const uint8_t high = data[2 * j + 1];
-    data[4 * j] = 0;
-    data[4 * j + 1] = 0;
-    data[4 * j + 2] = low;
-    data[4 * j + 3] = high;
+    uint16_t bf16_bits;
+    std::memcpy(&bf16_bits, data + 2 * j, sizeof(bf16_bits));
+    const uint32_t f32_bits = static_cast<uint32_t>(bf16_bits) << 16;
+    std::memcpy(data + 4 * j, &f32_bits, sizeof(f32_bits));
   }
 }
 
