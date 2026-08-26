@@ -484,7 +484,10 @@ void LLVMModuleNode::InitORCJIT() {
 
   // linker
   const auto linkerBuilder =
-#if TVM_LLVM_VERSION >= 210
+#if TVM_LLVM_VERSION >= 230
+      [&](llvm::orc::ExecutionSession& session, llvm::jitlink::JITLinkMemoryManager& mem_mgr)
+      -> llvm::Expected<std::unique_ptr<llvm::orc::ObjectLayer>> {
+#elif TVM_LLVM_VERSION >= 210
       [&](llvm::orc::ExecutionSession& session)
       -> llvm::Expected<std::unique_ptr<llvm::orc::ObjectLayer>> {
 #else
@@ -502,7 +505,11 @@ void LLVMModuleNode::InitORCJIT() {
     auto ObjLinkingLayer =
         std::make_unique<llvm::orc::RTDyldObjectLinkingLayer>(session, std::move(GetMemMgr));
 #else
+#if TVM_LLVM_VERSION >= 230
+    auto ObjLinkingLayer = std::make_unique<llvm::orc::ObjectLinkingLayer>(session, mem_mgr);
+#else
     auto ObjLinkingLayer = std::make_unique<llvm::orc::ObjectLinkingLayer>(session);
+#endif
 #endif
 #if TVM_LLVM_VERSION >= 210
     if (tm_builder.getTargetTriple().isOSBinFormatCOFF()) {

@@ -315,8 +315,10 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
 #if TVM_LLVM_VERSION < 220
   target_options_.UnsafeFPMath = false;
 #endif
+#if TVM_LLVM_VERSION < 230
   target_options_.NoInfsFPMath = false;
   target_options_.NoNaNsFPMath = true;
+#endif
   target_options_.FloatABIType = float_abi;
   if (target.find("mabi") != target.end()) {
     target_options_.MCOptions.ABIName = target.Get("mabi").value().as_or_throw<ffi::String>();
@@ -467,7 +469,11 @@ bool LLVMTargetInfo::IsValidCPU(const std::string& cpu) const {
   if (mc_info) {
 #if TVM_LLVM_VERSION >= 170
     for (const auto& desc : mc_info->getAllProcessorDescriptions()) {
+#if TVM_LLVM_VERSION >= 230
+      if (cpu == desc.key()) {
+#else
       if (cpu == desc.Key) {
+#endif
         return true;
       }
     }
@@ -888,7 +894,11 @@ const ffi::Array<ffi::String> LLVMTargetInfo::GetAllLLVMTargetArches() const {
   auto llvm_instance = CreateLLVMTargetInstance(triple_, true);
   std::unique_ptr<llvm::TargetMachine> target_machine =
       CreateLLVMTargetMachine(llvm_instance, triple_, "", "");
+#if TVM_LLVM_VERSION >= 230
+  const auto* MCInfo = &target_machine->getMCSubtargetInfo();
+#else
   const auto MCInfo = target_machine->getMCSubtargetInfo();
+#endif
 
   if (!MCInfo) {
     return cpu_arches;
@@ -901,7 +911,11 @@ const ffi::Array<ffi::String> LLVMTargetInfo::GetAllLLVMTargetArches() const {
       MCInfo->getAllProcessorDescriptions();
 #endif
   for (const auto& arch : llvm_arches) {
+#if TVM_LLVM_VERSION >= 230
+    cpu_arches.push_back(arch.key());
+#else
     cpu_arches.push_back(arch.Key);
+#endif
   }
 
   return cpu_arches;
@@ -916,7 +930,11 @@ const ffi::Map<ffi::String, ffi::String> LLVMTargetInfo::GetAllLLVMCpuFeatures()
   auto llvm_instance = CreateLLVMTargetInstance(triple_, true);
   std::unique_ptr<llvm::TargetMachine> target_machine =
       CreateLLVMTargetMachine(llvm_instance, triple_, cpu_.c_str(), feats);
+#if TVM_LLVM_VERSION >= 230
+  const auto* MCInfo = &target_machine->getMCSubtargetInfo();
+#else
   const auto MCInfo = target_machine->getMCSubtargetInfo();
+#endif
 
   // get all features for CPU
   llvm::ArrayRef<llvm::SubtargetFeatureKV> llvm_features =
@@ -928,8 +946,13 @@ const ffi::Map<ffi::String, ffi::String> LLVMTargetInfo::GetAllLLVMCpuFeatures()
   // TVM doesn't have an FFI friendly Set, so use a Map instead for now
   ffi::Map<ffi::String, ffi::String> cpu_features;
   for (const auto& feat : llvm_features) {
+#if TVM_LLVM_VERSION >= 230
+    if (MCInfo->checkFeatures("+" + std::string(feat.key()))) {
+      cpu_features.Set(feat.key(), "");
+#else
     if (MCInfo->checkFeatures("+" + std::string(feat.Key))) {
       cpu_features.Set(feat.Key, "");
+#endif
     }
   }
 
