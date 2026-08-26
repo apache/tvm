@@ -250,6 +250,32 @@ def test_compound_floormod_two_regression():
     )
 
 
+def test_nested_floormod_requires_divisible_extents():
+    x = tvm.tirx.Var("x", "int32")
+    flm = tvm.tirx.floormod
+    non_divisible = flm(flm(x, 64), 7)
+
+    # The inner floormod does not wrap at or below its exact domain boundary.
+    assert_iter_map_simplify({non_divisible: flm(x, 7)}, var_dom([(x, 63)]))
+    assert_iter_map_simplify({non_divisible: flm(x, 7)}, var_dom([(x, 64)]))
+
+    # One value beyond the boundary makes the non-divisible inner floormod observable.
+    assert_iter_map_simplify({non_divisible: non_divisible}, var_dom([(x, 65)]))
+    assert_iter_map_simplify({non_divisible: non_divisible}, var_dom([(x, 128)]))
+
+    # A non-zero domain minimum becomes left padding.  Keep these cases
+    # conservative because padding shifts the iterator values.
+    assert_iter_map_simplify(
+        {non_divisible: non_divisible}, {x: tvm.ir.Range.from_min_extent(1, 63)}
+    )
+    assert_iter_map_simplify(
+        {non_divisible: non_divisible}, {x: tvm.ir.Range.from_min_extent(1, 64)}
+    )
+
+    divisible = flm(flm(x, 64), 8)
+    assert_iter_map_simplify({divisible: flm(x, 8)}, var_dom([(x, 128)]))
+
+
 def test_predicate():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
