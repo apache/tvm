@@ -1101,6 +1101,9 @@ llvm::Function* CodeGenLLVM::GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type
                                               llvm::ArrayRef<llvm::Type*> arg_types) {
   llvm::Module* module = module_.get();
 
+#if TVM_LLVM_VERSION >= 230
+  return llvm::Intrinsic::getOrInsertDeclaration(module, id, ret_type, arg_types);
+#else
   if (!llvm::Intrinsic::isOverloaded(id)) {
 #if TVM_LLVM_VERSION >= 200
     return llvm::cast<llvm::Function>(llvm::Intrinsic::getOrInsertDeclaration(module, id, {}));
@@ -1160,6 +1163,7 @@ llvm::Function* CodeGenLLVM::GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type
   }
   // Failed to identify the type.
   return nullptr;
+#endif
 }
 
 void CodeGenLLVM::SetTargetAttributes(llvm::Function* func) {
