@@ -1868,13 +1868,27 @@ export class Instance implements Disposable {
    */
   makeShapeTuple(shape: Array<number>): TVMObject {
     const key = CacheState.computeShapeKey(shape);
-    return this.cacheState.shapeCache.get(key, () => {
+    const cachedTuple = this.cacheState.shapeCache.get(key, () => {
       const shapeArray = shape.map((value) => new Scalar(value, "int"));
       const tuple = this.ctx.makeShapeTuple(...shapeArray);
       // Detach from scope so the cached object survives across scopes.
       this.detachFromCurrentScope(tuple);
       return tuple;
     }) as TVMObject;
+
+    // The cache owns its wrapper and may release it on eviction. Give the
+    // caller an independent strong reference with the usual scope lifetime.
+    const handle = cachedTuple.getHandle();
+    this.lib.checkCall(
+      (this.lib.exports.TVMFFIObjectIncRef as ctypes.FTVMFFIObjectIncRef)(handle)
+    );
+    const callerTuple = new TVMObject(handle, this.lib, this.ctx);
+    try {
+      return this.attachToCurrentScope(callerTuple);
+    } catch (err) {
+      callerTuple.dispose();
+      throw err;
+    }
   }
   /**
    * Get type index from type key.
