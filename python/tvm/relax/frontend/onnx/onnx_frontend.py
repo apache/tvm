@@ -1802,16 +1802,24 @@ class PRelu(OnnxOpConverter):
         if s_ndim <= ndim:
             non_one_axes = [i for i, ss in enumerate(slope_shape) if ss != 1]
 
-            # Must have only ONE non-broadcast axis
-            if len(non_one_axes) != 1:
-                raise ValueError(
-                    f"Invalid PRelu slope shape (multiple non-broadcast dims): {slope_shape}"
-                )
-            relative_axis = non_one_axes[0]
-            axis = ndim - s_ndim + relative_axis
+            # A single non-broadcast axis can be expressed directly as a
+            # per-axis slope of nn.prelu.
+            if len(non_one_axes) == 1:
+                relative_axis = non_one_axes[0]
+                axis = ndim - s_ndim + relative_axis
 
-            slope = relax.op.reshape(slope, (slope_shape[relative_axis],))
-            return relax.op.nn.prelu(x, slope, axis)
+                slope = relax.op.reshape(slope, (slope_shape[relative_axis],))
+                return relax.op.nn.prelu(x, slope, axis)
+
+            # Multiple non-broadcast axes (including a slope shaped like x):
+            # nn.prelu can only express a single per-axis slope, so lower
+            # PRelu(x, s) = where(x < 0, s * x, x) elementwise instead.
+            dtype = x.ty.dtype.dtype
+            return relax.op.where(
+                relax.op.less(x, relax.const(0, dtype)),
+                relax.op.multiply(x, slope),
+                x,
+            )
 
         raise ValueError(f"Unsupported PRelu slope shape: {slope_shape}")
 
@@ -2468,14 +2476,18 @@ class MultiInputBase(OnnxOpConverter):
         if cls.numpy_op is None or cls.relax_op is None:
             raise NotImplementedError("numpy_op and relax_op must be defined for MultiInputBase")
         if all([isinstance(inp, relax.Constant) for inp in inputs]):
-            # numpy_op is a reduction, so the operands cannot be passed
-            # positionally: the second constant would be taken as ``axis``.
-            # Broadcast and stack first, then reduce over the stack axis, which
-            # is what the non-constant path below builds.
-            np_inputs = _np.broadcast_arrays(*[inp.data.numpy() for inp in inputs])
-            output = cls.numpy_op(  # pylint: disable=not-callable
-                _np.stack(np_inputs, axis=0), axis=0
+            np_inputs = [inp.data.numpy() for inp in inputs]
+            # numpy_op (np.mean/np.sum/np.min/np.max) reduces its first arg,
+            # treating any further positional args as `axis`, so calling it as
+            # numpy_op(*np_inputs) is wrong for the variadic ONNX semantics.
+            # Broadcast to the common shape, stack along a new leading axis,
+            # then reduce along it — mirrors the non-constant path below.
+            input_shapes = [inp.ty.shape for inp in inputs]
+            target_shape = tuple(
+                int(dim) for dim in functools.reduce(compute_broadcast_shape, input_shapes)
             )
+            stacked = _np.stack([_np.broadcast_to(x, target_shape) for x in np_inputs], axis=0)
+            output = cls.numpy_op(stacked, axis=0)  # pylint: disable=not-callable
             return relax.const(output, output.dtype)
 
         input_shapes = [inp.ty.shape for inp in inputs]

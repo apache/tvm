@@ -48,6 +48,17 @@ def _int_triple(side, axis):
     return tuple(int(x) for x in side[axis])
 
 
+def _launch_thread_extents(func):
+    extents = {}
+
+    def collect(node):
+        if isinstance(node, tvm.tirx.AttrStmt) and node.attr_key == "thread_extent":
+            extents[str(node.node.thread_tag)] = int(node.value)
+
+    tvm.tirx.stmt_functor.post_order_visit(func.body, collect)
+    return extents
+
+
 L_LANE = T.TileLayout(T.S[32 : 1 @ laneid])
 
 
@@ -412,6 +423,98 @@ def test_lower_scope_id():
         T.evaluate(wg_id + warp_id_in_wg + lane_id + tid_in_wg)
 
     compare(before3, after3, LowerTIRx)
+
+
+def test_lower_ordinary_cta_has_no_cluster_launch_tags():
+    @T.prim_func(private=True)
+    def before() -> None:
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+
+    with tvm.target.Target("cuda"):
+        after = LowerTIRx()(tvm.IRModule({"main": before}))["main"]
+
+    launch_extents = _launch_thread_extents(after)
+    assert launch_extents == {"blockIdx.x": 1, "threadIdx.x": 32}
+
+
+def test_lower_explicit_singleton_cluster_launch_tags_survive_when_unused():
+    @T.prim_func(private=True)
+    def cluster_2d() -> None:
+        T.device_entry()
+        unused_cbx, unused_cby = T.cta_id_in_cluster([1, 1])
+        unused_bx, unused_by = T.cta_id([1, 1])
+        T.thread_id([32])
+
+    @T.prim_func(private=True)
+    def cluster_3d() -> None:
+        T.device_entry()
+        unused_cbx, unused_cby, unused_cbz = T.cta_id_in_cluster([1, 1, 1])
+        unused_bx, unused_by, unused_bz = T.cta_id([1, 1, 1])
+        T.thread_id([32])
+
+    with tvm.target.Target("cuda"):
+        after = LowerTIRx()(tvm.IRModule({"cluster_2d": cluster_2d, "cluster_3d": cluster_3d}))
+
+    assert _launch_thread_extents(after["cluster_2d"]) == {
+        "blockIdx.x": 1,
+        "blockIdx.y": 1,
+        "clusterCtaIdx.x": 1,
+        "clusterCtaIdx.y": 1,
+        "threadIdx.x": 32,
+    }
+    assert _launch_thread_extents(after["cluster_3d"]) == {
+        "blockIdx.x": 1,
+        "blockIdx.y": 1,
+        "blockIdx.z": 1,
+        "clusterCtaIdx.x": 1,
+        "clusterCtaIdx.y": 1,
+        "clusterCtaIdx.z": 1,
+        "threadIdx.x": 32,
+    }
+
+
+def test_lower_multi_cta_cluster_launch_tags_remain_unchanged():
+    @T.prim_func(private=True)
+    def before() -> None:
+        T.device_entry()
+        unused_cbx, unused_cby = T.cta_id_in_cluster([2, 1])
+        unused_bx, unused_by = T.cta_id([2, 1])
+        T.thread_id([32])
+
+    with tvm.target.Target("cuda"):
+        after = LowerTIRx()(tvm.IRModule({"main": before}))["main"]
+
+    assert _launch_thread_extents(after) == {
+        "blockIdx.x": 2,
+        "blockIdx.y": 1,
+        "clusterCtaIdx.x": 2,
+        "clusterCtaIdx.y": 1,
+        "threadIdx.x": 32,
+    }
+
+
+def test_lower_singleton_cluster_preserves_preferred_cluster_tags():
+    @T.prim_func(private=True)
+    def before() -> None:
+        T.device_entry()
+        unused_cbx, unused_cby = T.cta_id_in_cluster([1, 1], preferred=[2, 2])
+        unused_bx, unused_by = T.cta_id([1, 1])
+        T.thread_id([32])
+
+    with tvm.target.Target("cuda"):
+        after = LowerTIRx()(tvm.IRModule({"main": before}))["main"]
+
+    assert _launch_thread_extents(after) == {
+        "blockIdx.x": 1,
+        "blockIdx.y": 1,
+        "clusterCtaIdx.x": 1,
+        "clusterCtaIdx.y": 1,
+        "preferredClusterCtaIdx.x": 2,
+        "preferredClusterCtaIdx.y": 2,
+        "threadIdx.x": 32,
+    }
 
 
 def test_lower_scope_id2():

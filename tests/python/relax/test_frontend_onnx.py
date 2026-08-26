@@ -856,6 +856,76 @@ def test_multi_input_all_constant_inputs(op_name, dtype, shapes, values):
     check_correctness(helper.make_model(graph), opset=13)
 
 
+@pytest.mark.parametrize("op_name", ["Min", "Max", "Sum", "Mean"])
+@pytest.mark.parametrize("rank", [0, 1, 2, 3])
+def test_multi_input_constant_rank_axis_bounds(op_name, rank):
+    """All-constant inputs reduce over the new leading stack axis.
+
+    Stacking the inputs along ``axis=0`` yields a tensor of rank ``rank+1``,
+    so the reduction axis must lie in ``[-(rank+1), rank]``. ``axis=0`` equals
+    the lower bound ``-(rank+1)`` and is therefore valid for every rank, while
+    a positive ``axis=rank+1`` is out of bounds and must raise. The importer
+    relies on this in ``MultiInputBase._impl_v1``, so both the numpy invariant
+    and the end-to-end folding result are asserted here.
+    """
+    shape = (2,) * rank
+    stacked = np.stack([np.ones(shape, np.float32), np.ones(shape, np.float32)], axis=0)
+    reduce = {"Min": np.min, "Max": np.max, "Sum": np.sum, "Mean": np.mean}[op_name]
+    assert stacked.ndim == rank + 1
+    for axis in (0, -(rank + 1), rank, -rank):
+        reduce(stacked, axis=axis)  # must not raise
+    for axis in (rank + 1, -(rank + 2)):
+        with pytest.raises((IndexError, ValueError)):
+            reduce(stacked, axis=axis)
+
+    # End-to-end: two identical rank-``rank`` constants fold to the identity.
+    const_nodes = []
+    for name in ("c0", "c1"):
+        const_nodes.append(
+            helper.make_node(
+                "Constant",
+                inputs=[],
+                outputs=[name],
+                value=helper.make_tensor(
+                    f"{name}_v",
+                    TensorProto.FLOAT,
+                    list(shape),
+                    np.ones(shape, np.float32).flatten().tolist(),
+                ),
+            )
+        )
+    graph = helper.make_graph(
+        [*const_nodes, helper.make_node(op_name, ["c0", "c1"], ["output"])],
+        f"const_rank_{op_name}",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, list(shape))],
+    )
+    check_correctness(helper.make_model(graph), opset=13)
+
+
+@pytest.mark.parametrize("op_name", ["Min", "Max", "Sum", "Mean"])
+@pytest.mark.parametrize("shape", [[], [5], [2, 3]])
+def test_multi_input_constant_single_input(op_name, shape):
+    """A single constant input is returned unchanged (shape preserved)."""
+    if shape:
+        vals = np.arange(np.prod(shape), dtype=np.float32).reshape(shape)
+    else:
+        vals = np.array(1.0, np.float32)
+    node = helper.make_node(
+        "Constant",
+        inputs=[],
+        outputs=["c0"],
+        value=helper.make_tensor("c0_v", TensorProto.FLOAT, shape, vals.flatten().tolist()),
+    )
+    graph = helper.make_graph(
+        [node, helper.make_node(op_name, ["c0"], ["output"])],
+        f"const_single_{op_name}",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, shape)],
+    )
+    check_correctness(helper.make_model(graph), opset=13)
+
+
 @pytest.mark.parametrize("op_name", ["And", "Or", "Xor"])
 def test_binary_bool(op_name: str):
     verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.BOOL)
@@ -3660,12 +3730,28 @@ def test_prelu():
                 R.output(gv)
             return gv
 
+    @I.ir_module
+    class ExpectedMultiAxisSlope:
+        @R.function
+        def main(
+            a: R.Tensor((2, 3, 4, 5), dtype="float32"),
+            b: R.Tensor((4, 5), dtype="float32"),
+        ) -> R.Tensor((2, 3, 4, 5), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 4, 5), dtype="bool") = R.less(a, R.const(0.0, "float32"))
+                lv1: R.Tensor((2, 3, 4, 5), dtype="float32") = R.multiply(a, b)
+                gv: R.Tensor((2, 3, 4, 5), dtype="float32") = R.where(lv, lv1, a)
+                R.output(gv)
+            return gv
+
     _assert_prelu_ir([], ExpectedRankZeroSlope)
     _assert_prelu_ir([1], ExpectedScalarSlope)
     _assert_prelu_ir([1, 1], ExpectedTwoDimScalarSlope)
     _assert_prelu_ir([32], ExpectedChannelSlope)
     _assert_prelu_ir([3, 1, 1], ExpectedBatchSlope)
     _assert_prelu_ir([32, 1, 1], ExpectedLowerRankChannelSlope, input_shape=(1, 32, 16, 16))
+    _assert_prelu_ir([4, 5], ExpectedMultiAxisSlope, input_shape=(2, 3, 4, 5))
 
 
 def test_prelu_lower_rank_slope():
@@ -3690,6 +3776,36 @@ def test_prelu_lower_rank_slope():
         "slope": np.array([0.1, 0.2, 0.3, 0.4], dtype="float32").reshape(slope_shape),
     }
     check_correctness(model, inputs=inputs, opset=16, check_dtypes=True)
+
+
+def test_prelu_multi_axis_slope():
+    """A slope broadcastable across multiple axes (incl. a slope shaped like x) is
+    lowered elementwise to PRelu(x, s) = where(x < 0, s * x, x) since nn.prelu can
+    only express a single per-axis slope."""
+    input_shape = (2, 3, 4, 5)
+    for slope_shape in [(4, 5), (1, 3, 4, 5), (2, 3, 4, 5)]:
+        graph = helper.make_graph(
+            [helper.make_node("PRelu", ["x", "slope"], ["y"])],
+            "prelu_multi_axis_slope_test",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
+                helper.make_tensor_value_info("slope", TensorProto.FLOAT, list(slope_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, input_shape)],
+        )
+        model = helper.make_model(
+            graph,
+            producer_name="prelu_multi_axis_slope_test",
+            opset_imports=[helper.make_opsetid("", 16)],
+        )
+        inputs = {
+            "x": np.linspace(-2.0, 2.0, np.prod(input_shape), dtype="float32").reshape(input_shape),
+            # negative slopes exercise the s * x path on both sides of the sign.
+            "slope": np.linspace(-0.5, 0.8, np.prod(slope_shape), dtype="float32").reshape(
+                slope_shape
+            ),
+        }
+        check_correctness(model, inputs=inputs, opset=16, check_dtypes=True)
 
 
 def test_thresholded_relu():
