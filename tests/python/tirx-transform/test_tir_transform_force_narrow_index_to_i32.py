@@ -341,6 +341,84 @@ def test_right_shift_preserves_sign_extension_after_narrowing():
     tvm.ir.assert_structural_equal(Expected, after)
 
 
+def test_right_shift_dynamic_and_vector_amounts():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((T.int64(6),), "float32"),
+            B: T.Buffer((T.int64(5),), "float32"),
+            n: T.int64,
+            shift: T.int64,
+        ):
+            B[0] = A[T.shift_right(T.truncmod(n - T.int64(8), T.int64(6)), shift)]
+            B[T.Ramp(T.int64(1), T.int64(1), 4)] = A[
+                T.shift_right(
+                    T.Broadcast(T.truncmod(n - T.int64(8), T.int64(6)), 4),
+                    T.Ramp(T.int64(30), T.int64(1), 4),
+                )
+            ]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((6,), "float32"),
+            B: T.Buffer((5,), "float32"),
+            n: T.int32,
+            shift: T.int32,
+        ):
+            B[0] = A[T.shift_right(T.truncmod(n - 8, 6), T.min(shift, 31))]
+            B[T.Ramp(1, 1, 4)] = A[
+                T.shift_right(
+                    T.Broadcast(T.truncmod(n - 8, 6), 4),
+                    T.min(T.Ramp(30, 1, 4), T.Broadcast(31, 4)),
+                )
+            ]
+
+    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
+    tvm.ir.assert_structural_equal(Expected, after)
+
+
+def test_left_shift_dynamic_and_vector_amounts_remain_valid():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((T.int64(1),), "float32"),
+            B: T.Buffer((T.int64(5),), "float32"),
+            n: T.int64,
+            shift: T.int64,
+        ):
+            B[0] = A[T.shift_left(T.truncmod(n, T.int64(1)), shift)]
+            B[T.Ramp(T.int64(1), T.int64(1), 4)] = A[
+                T.shift_left(
+                    T.Broadcast(T.truncmod(n, T.int64(1)), 4),
+                    T.Ramp(T.int64(30), T.int64(1), 4),
+                )
+            ]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((1,), "float32"),
+            B: T.Buffer((5,), "float32"),
+            n: T.int32,
+            shift: T.int32,
+        ):
+            B[0] = A[T.shift_left(T.truncmod(n, 1), T.min(shift, 31))]
+            B[T.Ramp(1, 1, 4)] = A[
+                T.shift_left(
+                    T.Broadcast(T.truncmod(n, 1), 4),
+                    T.min(T.Ramp(30, 1, 4), T.Broadcast(31, 4)),
+                )
+            ]
+
+    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
+    tvm.ir.assert_structural_equal(Expected, after)
+
+
 def test_let_binding():
     @tvm.script.ir_module
     class Before:

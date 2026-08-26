@@ -255,18 +255,28 @@ Expr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
     PrimExpr rhs = op->args[1].as_or_throw<PrimExpr>();
     PrimType before_dtype = before->args[0].as_or_throw<PrimExpr>().ty();
     PrimType after_dtype = lhs.ty();
-    if (const auto* shift = rhs.as<IntImmNode>();
-        shift && before_dtype.code() == DLDataTypeCode::kDLInt &&
-        after_dtype.code() == DLDataTypeCode::kDLInt && before_dtype.bits() > after_dtype.bits() &&
-        shift->value >= after_dtype.bits()) {
+    if (before_dtype.code() == DLDataTypeCode::kDLInt &&
+        after_dtype.code() == DLDataTypeCode::kDLInt && before_dtype.bits() > after_dtype.bits()) {
       // Values are assumed to fit in the narrowed dtype.  An arithmetic right
-      // shift beyond its sign bit therefore has the same value as a shift by
-      // the new sign-bit position (for example, i64 >> 63 becomes i32 >> 31).
-      rhs = IntImm(after_dtype, after_dtype.bits() - 1, op->span);
+      // shift at or beyond its sign bit therefore has the same value as a shift
+      // by the new sign-bit position.  Clamp lane-wise so dynamic and vector
+      // shift amounts remain valid for the narrowed dtype.
+      rhs = min(rhs, MakeConst(rhs.ty(), after_dtype.bits() - 1, op->span), op->span);
     }
     return lhs >> rhs;
   } else if (op->op.same_as(builtin::shift_left())) {
-    return op->args[0].as_or_throw<PrimExpr>() << op->args[1].as_or_throw<PrimExpr>();
+    PrimExpr lhs = op->args[0].as_or_throw<PrimExpr>();
+    PrimExpr rhs = op->args[1].as_or_throw<PrimExpr>();
+    PrimType before_dtype = before->args[0].as_or_throw<PrimExpr>().ty();
+    PrimType after_dtype = lhs.ty();
+    if (before_dtype.code() == DLDataTypeCode::kDLInt &&
+        after_dtype.code() == DLDataTypeCode::kDLInt && before_dtype.bits() > after_dtype.bits()) {
+      // Keep dynamic and vector shift amounts valid for the narrowed dtype.  Under the pass's
+      // representability precondition, a left shift at or beyond the narrowed width can only
+      // produce a representable result when lhs is zero, so clamping does not alter valid cases.
+      rhs = min(rhs, MakeConst(rhs.ty(), after_dtype.bits() - 1, op->span), op->span);
+    }
+    return lhs << rhs;
   } else if (op->op.same_as(builtin::bitwise_and())) {
     return op->args[0].as_or_throw<PrimExpr>() & op->args[1].as_or_throw<PrimExpr>();
   } else if (op->op.same_as(builtin::bitwise_or())) {
