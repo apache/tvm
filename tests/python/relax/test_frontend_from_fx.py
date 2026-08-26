@@ -3618,9 +3618,14 @@ def test_pow_float_integer_exponent(exponent):
         @R.function
         def main(inp_0: R.Tensor((4,), dtype="float32")) -> R.Tensor((4,), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((4,), dtype="float32") = R.multiply(inp_0, inp_0)
-                lv1: R.Tensor((4,), dtype="float32") = R.multiply(inp_0, lv)
-                gv: R.Tensor((4,), dtype="float32") = lv1
+                lv: R.Tensor((4,), dtype="float32") = R.abs(inp_0)
+                lv1: R.Tensor((4,), dtype="float32") = R.power(lv, R.const(3.0, "float32"))
+                lv2: R.Tensor((4,), dtype="bool") = R.less(inp_0, R.const(0, "float32"))
+                lv3: R.Tensor((4,), dtype="float32") = R.negative(lv1)
+                lv4: R.Tensor((4,), dtype="float32") = R.where(lv2, lv3, lv1)
+                lv5: R.Tensor((4,), dtype="bool") = R.equal(inp_0, R.const(0, "float32"))
+                lv6: R.Tensor((4,), dtype="float32") = R.where(lv5, inp_0, lv4)
+                gv: R.Tensor((4,), dtype="float32") = lv6
                 R.output(gv)
             return gv
 
@@ -3640,9 +3645,14 @@ def test_pow_integer_base_float_exponent():
         def main(inp_0: R.Tensor((4,), dtype="int32")) -> R.Tensor((4,), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((4,), dtype="float32") = R.astype(inp_0, dtype="float32")
-                lv1: R.Tensor((4,), dtype="float32") = R.multiply(lv, lv)
-                lv2: R.Tensor((4,), dtype="float32") = R.multiply(lv, lv1)
-                gv: R.Tensor((4,), dtype="float32") = lv2
+                lv1: R.Tensor((4,), dtype="float32") = R.abs(lv)
+                lv2: R.Tensor((4,), dtype="float32") = R.power(lv1, R.const(3.0, "float32"))
+                lv3: R.Tensor((4,), dtype="bool") = R.less(lv, R.const(0, "float32"))
+                lv4: R.Tensor((4,), dtype="float32") = R.negative(lv2)
+                lv5: R.Tensor((4,), dtype="float32") = R.where(lv3, lv4, lv2)
+                lv6: R.Tensor((4,), dtype="bool") = R.equal(lv, R.const(0, "float32"))
+                lv7: R.Tensor((4,), dtype="float32") = R.where(lv6, lv, lv5)
+                gv: R.Tensor((4,), dtype="float32") = lv7
                 R.output(gv)
             return gv
 

@@ -1099,9 +1099,14 @@ def test_pow_float_integer_exponent(exponent):
             input: R.Tensor((4,), dtype="float32"),
         ) -> R.Tuple(R.Tensor((4,), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((4,), dtype="float32") = R.multiply(input, input)
-                lv1: R.Tensor((4,), dtype="float32") = R.multiply(input, lv)
-                gv: R.Tuple(R.Tensor((4,), dtype="float32")) = (lv1,)
+                lv: R.Tensor((4,), dtype="float32") = R.abs(input)
+                lv1: R.Tensor((4,), dtype="float32") = R.power(lv, R.const(3.0, "float32"))
+                lv2: R.Tensor((4,), dtype="bool") = R.less(input, R.const(0, "float32"))
+                lv3: R.Tensor((4,), dtype="float32") = R.negative(lv1)
+                lv4: R.Tensor((4,), dtype="float32") = R.where(lv2, lv3, lv1)
+                lv5: R.Tensor((4,), dtype="bool") = R.equal(input, R.const(0, "float32"))
+                lv6: R.Tensor((4,), dtype="float32") = R.where(lv5, input, lv4)
+                gv: R.Tuple(R.Tensor((4,), dtype="float32")) = (lv6,)
                 R.output(gv)
             return gv
 
@@ -1132,18 +1137,30 @@ def test_pow_float_integer_exponent_large():
             R.Tensor((2,), dtype="float32")
         ):
             with R.dataflow():
-                lv: R.Tensor((2,), dtype="float32") = R.multiply(input, input)
-                lv1: R.Tensor((2,), dtype="float32") = R.multiply(lv, lv)
-                lv2: R.Tensor((2,), dtype="float32") = R.multiply(lv1, lv1)
-                lv3: R.Tensor((2,), dtype="float32") = R.multiply(lv2, lv2)
-                lv4: R.Tensor((2,), dtype="float32") = R.multiply(input, lv3)
-                gv: R.Tuple(R.Tensor((2,), dtype="float32")) = (lv4,)
+                lv: R.Tensor((2,), dtype="float32") = R.abs(input)
+                lv1: R.Tensor((2,), dtype="float32") = R.power(lv, R.const(17.0, "float32"))
+                lv2: R.Tensor((2,), dtype="bool") = R.less(input, R.const(0, "float32"))
+                lv3: R.Tensor((2,), dtype="float32") = R.negative(lv1)
+                lv4: R.Tensor((2,), dtype="float32") = R.where(lv2, lv3, lv1)
+                lv5: R.Tensor((2,), dtype="bool") = R.equal(input, R.const(0, "float32"))
+                lv6: R.Tensor((2,), dtype="float32") = R.where(lv5, input, lv4)
+                gv: R.Tuple(R.Tensor((2,), dtype="float32")) = (lv6,)
                 R.output(gv)
             return gv
 
     example_args = (torch.tensor([-1.25, 0.5], dtype=torch.float32),)
     verify_model(Pow(), example_args, {}, expected)
     verify_model_numerically(Pow(), example_args, rtol=1e-6, atol=1e-6)
+
+
+@pytest.mark.parametrize("exponent", [-3, -3.0])
+def test_pow_float_negative_integer_exponent(exponent):
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(exponent)
+
+    example_args = (torch.tensor([-2.0, -0.0, 0.0, 2.0], dtype=torch.float32),)
+    verify_model_numerically(Pow(), example_args)
 
 
 def test_pow_integer_base_float_exponent():
@@ -1157,9 +1174,14 @@ def test_pow_integer_base_float_exponent():
         def main(input: R.Tensor((4,), dtype="int32")) -> R.Tuple(R.Tensor((4,), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((4,), dtype="float32") = R.astype(input, dtype="float32")
-                lv1: R.Tensor((4,), dtype="float32") = R.multiply(lv, lv)
-                lv2: R.Tensor((4,), dtype="float32") = R.multiply(lv, lv1)
-                gv: R.Tuple(R.Tensor((4,), dtype="float32")) = (lv2,)
+                lv1: R.Tensor((4,), dtype="float32") = R.abs(lv)
+                lv2: R.Tensor((4,), dtype="float32") = R.power(lv1, R.const(3.0, "float32"))
+                lv3: R.Tensor((4,), dtype="bool") = R.less(lv, R.const(0, "float32"))
+                lv4: R.Tensor((4,), dtype="float32") = R.negative(lv2)
+                lv5: R.Tensor((4,), dtype="float32") = R.where(lv3, lv4, lv2)
+                lv6: R.Tensor((4,), dtype="bool") = R.equal(lv, R.const(0, "float32"))
+                lv7: R.Tensor((4,), dtype="float32") = R.where(lv6, lv, lv5)
+                gv: R.Tuple(R.Tensor((4,), dtype="float32")) = (lv7,)
                 R.output(gv)
             return gv
 
@@ -1190,20 +1212,52 @@ def test_pow_integer_base_fractional_exponent():
 
 
 @pytest.mark.parametrize(
-    "dtype, exponent",
+    "dtype, values, exponent",
     [
-        (torch.float16, 2049.0),
-        (torch.bfloat16, 257.0),
-        (torch.float32, 2**53 + 1),
-        (torch.float64, 2**53 + 1),
+        (torch.float16, [0.361, -0.361], 17),
+        (torch.bfloat16, [1.1, -1.1], 100),
+        (torch.float16, [-1.0], 2049.0),
+        (torch.bfloat16, [-1.0], 257.0),
+        (torch.float32, [-1.0], 2**53 + 1),
+        (torch.float64, [-1.0], 2**53 + 1),
     ],
 )
-def test_pow_float_exponent_rounding(dtype, exponent):
+def test_pow_float_exponent_rounding(dtype, values, exponent):
     class Pow(Module):
         def forward(self, input):
             return input.pow(exponent)
 
-    input = torch.tensor([-1.0], dtype=dtype)
+    input = torch.tensor(values, dtype=dtype)
+    expected = Pow()(input)
+    mod = from_exported_program(export(Pow(), args=(input,)))
+    vm = relax.VirtualMachine(relax.build(mod, "llvm"), tvm.cpu())
+    actual = torch.from_dlpack(vm["main"](tvm.runtime.from_dlpack(input))[0])
+
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+
+
+def test_pow_float_odd_exponent_preserves_signed_zero():
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(3)
+
+    input = torch.tensor([-0.0, 0.0], dtype=torch.float32)
+    mod = from_exported_program(export(Pow(), args=(input,)))
+    vm = relax.VirtualMachine(relax.build(mod, "llvm"), tvm.cpu())
+    actual = torch.from_dlpack(vm["main"](tvm.runtime.from_dlpack(input))[0])
+
+    torch.testing.assert_close(actual, input, rtol=0, atol=0)
+    torch.testing.assert_close(torch.signbit(actual), torch.signbit(input))
+
+
+@pytest.mark.parametrize("dtype", [torch.int32, torch.bfloat16])
+@pytest.mark.parametrize("exponent", [False, True])
+def test_pow_boolean_exponent(dtype, exponent):
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(exponent)
+
+    input = torch.tensor([-2, 0, 2], dtype=dtype)
     expected = Pow()(input)
     mod = from_exported_program(export(Pow(), args=(input,)))
     vm = relax.VirtualMachine(relax.build(mod, "llvm"), tvm.cpu())
