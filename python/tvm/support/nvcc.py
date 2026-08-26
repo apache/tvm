@@ -929,6 +929,45 @@ def tvm_callback_cuda_compile(code):
     # caller no longer needs to push/pop a target scope.
     compiler = os.environ.get("TVM_CUDA_COMPILE_MODE", "nvrtc").lower()
 
+    required_threads = []
+    for line in str(code).splitlines():
+        fields = line.strip().split()
+        if len(fields) == 6 and fields[:2] == ["//", "tirx.reqntid"]:
+            kernel_name = fields[2]
+            dimensions = tuple(int(value) for value in fields[3:])
+            if dimensions[1:] != (1, 1):
+                raise ValueError(
+                    "tirx.reqntid currently requires a flat CUDA thread extent, "
+                    f"got {kernel_name} {dimensions}"
+                )
+            required_threads.append((kernel_name, dimensions))
+
+    if required_threads:
+        ptx = compile_cuda(code, target_format="ptx", compiler=compiler).decode()
+        for kernel_name, dimensions in required_threads:
+            entry = f".entry {kernel_name}("
+            entry_begin = ptx.find(entry)
+            if entry_begin < 0:
+                raise RuntimeError(
+                    f"tirx.reqntid kernel {kernel_name!r} is absent from generated PTX"
+                )
+            body_begin = ptx.find("{", entry_begin)
+            if body_begin < 0:
+                raise RuntimeError(f"tirx.reqntid kernel {kernel_name!r} has no PTX body")
+            launch_bound = f".maxntid {dimensions[0]}"
+            bound_begin = ptx.find(launch_bound, entry_begin, body_begin)
+            if bound_begin < 0:
+                raise RuntimeError(
+                    f"tirx.reqntid kernel {kernel_name!r} is missing {launch_bound!r}"
+                )
+            if ptx.find(launch_bound, bound_begin + 1, body_begin) >= 0:
+                raise RuntimeError(
+                    f"tirx.reqntid kernel {kernel_name!r} has duplicate launch bounds"
+                )
+            required = f".reqntid {dimensions[0]}, {dimensions[1]}, {dimensions[2]}"
+            ptx = ptx[:bound_begin] + required + ptx[bound_begin + len(launch_bound) :]
+        return bytearray(ptx.encode())
+
     if compiler == "nvrtc":
         return compile_cuda(code, target_format="cubin", compiler="nvrtc")
     if compiler == "nvcc":
