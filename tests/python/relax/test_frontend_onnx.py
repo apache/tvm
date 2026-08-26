@@ -887,12 +887,15 @@ def test_multi_input_constant_rank_axis_bounds(op_name, rank):
                 inputs=[],
                 outputs=[name],
                 value=helper.make_tensor(
-                    f"{name}_v", TensorProto.FLOAT, list(shape), np.ones(shape, np.float32).flatten().tolist()
+                    f"{name}_v",
+                    TensorProto.FLOAT,
+                    list(shape),
+                    np.ones(shape, np.float32).flatten().tolist(),
                 ),
             )
         )
     graph = helper.make_graph(
-        const_nodes + [helper.make_node(op_name, ["c0", "c1"], ["output"])],
+        [*const_nodes, helper.make_node(op_name, ["c0", "c1"], ["output"])],
         f"const_rank_{op_name}",
         inputs=[],
         outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, list(shape))],

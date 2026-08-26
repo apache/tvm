@@ -2484,12 +2484,9 @@ class MultiInputBase(OnnxOpConverter):
             # then reduce along it — mirrors the non-constant path below.
             input_shapes = [inp.ty.shape for inp in inputs]
             target_shape = tuple(
-                int(dim)
-                for dim in functools.reduce(compute_broadcast_shape, input_shapes)
+                int(dim) for dim in functools.reduce(compute_broadcast_shape, input_shapes)
             )
-            stacked = _np.stack(
-                [_np.broadcast_to(x, target_shape) for x in np_inputs], axis=0
-            )
+            stacked = _np.stack([_np.broadcast_to(x, target_shape) for x in np_inputs], axis=0)
             output = cls.numpy_op(stacked, axis=0)  # pylint: disable=not-callable
             return relax.const(output, output.dtype)
 
