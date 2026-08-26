@@ -1481,8 +1481,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     ########## Symbolic Shape Constraints ##########
 
-    def _symbolic_comparison(self, _: fx.Node) -> relax.Expr:
-        return self.block_builder.emit(relax.const(True, dtype="bool"))
+    def _symbolic_comparison(self, intrinsic_op: Callable) -> Callable:
+        def convert(node: fx.Node) -> relax.Expr:
+            lhs, rhs = self.retrieve_args(node)
+            return self.block_builder.emit(relax.prim_value(intrinsic_op(lhs, rhs)))
+
+        return convert
 
     ########## Higher-Order Ops ##########
 
@@ -2033,14 +2037,15 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "item.default": self._item,
             "sym_size.int": self._sym_size_int,
             "_local_scalar_dense.default": self._item,
-            # symbolic shape constraints (no-ops for compilation)
+            # symbolic shape operations and constraints
             "sym_constrain_range_for_size.default": lambda node: self.env[node.args[0]],
             "_assert_scalar.default": lambda node: self.env[node.args[0]],
-            "ge": self._symbolic_comparison,
-            "le": self._symbolic_comparison,
-            "gt": self._symbolic_comparison,
-            "lt": self._symbolic_comparison,
-            "eq": self._symbolic_comparison,
+            "ge": self._symbolic_comparison(operator.ge),
+            "le": self._symbolic_comparison(operator.le),
+            "gt": self._symbolic_comparison(operator.gt),
+            "lt": self._symbolic_comparison(operator.lt),
+            "eq": self._symbolic_comparison(operator.eq),
+            "ne": self._symbolic_comparison(operator.ne),
             # higher-order ops
             "cond": self._cond,
         }
