@@ -170,10 +170,10 @@ void ArrayDecodeStorage(Tensor cpu_arr, TVMFFIByteArray* bytes, const std::strin
     const uint8_t* bf16 = reinterpret_cast<const uint8_t*>(byte_data);
     uint8_t* data = static_cast<uint8_t*>(cpu_arr->data) + cpu_arr->byte_offset;
     for (size_t i = 0; i < size; ++i) {
-      data[4 * i] = 0;
-      data[4 * i + 1] = 0;
-      data[4 * i + 2] = bf16[2 * i];
-      data[4 * i + 3] = bf16[2 * i + 1];
+      uint16_t bf16_bits;
+      std::memcpy(&bf16_bits, bf16 + 2 * i, sizeof(bf16_bits));
+      const uint32_t f32_bits = static_cast<uint32_t>(bf16_bits) << 16;
+      std::memcpy(data + 4 * i, &f32_bits, sizeof(f32_bits));
     }
   } else {
     cpu_arr.CopyFromBytes(byte_data, byte_size);
