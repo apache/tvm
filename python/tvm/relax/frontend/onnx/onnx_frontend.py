@@ -1402,7 +1402,6 @@ class GatherND(OnnxOpConverter):
 
 
 def _shapes_equal(a: list[tirx.Expr] | None, b: list[tirx.Expr] | None) -> bool:
-
     if a is None or b is None or len(a) != len(b):
         return False
     for x, y in zip(a, b):
