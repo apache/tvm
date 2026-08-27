@@ -15,22 +15,12 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.tirx visitors and mutators
-==============================
+tvm.tirx.layout
+===============
 
-tvm.tirx.expr_functor
----------------------
-.. automodule:: tvm.tirx.expr_functor
-   :members:
-   :no-index:
+Layouts describe how logical tensor coordinates map to storage and execution
+axes.  See :doc:`../layout` for the programming model and worked examples.
 
-tvm.tirx.stmt_functor
----------------------
-.. automodule:: tvm.tirx.stmt_functor
-   :members:
-
-tvm.tirx.functor
-----------------
-.. automodule:: tvm.tirx.functor
+.. automodule:: tvm.tirx.layout
    :members:
    :no-index:

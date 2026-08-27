@@ -18,12 +18,32 @@
 API Reference
 =============
 
-Python API for the ``tvm.tirx`` namespace.
+Python APIs for the TIRx IR, TVMScript dialect, compilation pipeline, and
+backend extension points.  Most examples use separate aliases for the core
+TIRx dialect and its high-level tile primitives::
+
+   from tvm.script import tirx as T
+   from tvm.script.tirx import tile as Tx
+
+The same surfaces can be reached through a single dialect alias: core TIRx is
+``Tx.*``, tile primitives are ``Tx.tile.*``, and CUDA's direct instruction
+dialect is ``Tx.ptx.*``::
+
+   from tvm.script import tirx as Tx
+
+   # Tx.alloc_buffer(...)
+   # Tx.tile.copy(...)
+   # Tx.ptx.mbarrier.init.shared.b64(...)
 
 .. toctree::
    :maxdepth: 1
 
    tirx
+   layout
+   execution
+   script
+   ptx
+   compilation
    analysis
    stmt_functor
    transform

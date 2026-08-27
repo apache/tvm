@@ -15,13 +15,23 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.backend.cuda
-================
+Backend APIs
+============
 
 The CUDA backend — the tile-primitive dispatch, intrinsic builders, the ``T.cuda``
 / ``T.ptx`` script namespaces, and the shared/tensor-memory pools — lives under
-``tvm.backend.cuda``, separate from the TIRx frontend (``tvm.tirx``). Other
-backends sit alongside it (``tvm.backend.rocm`` and so on).
+``tvm.backend.cuda``, separate from the TIRx frontend (``tvm.tirx``). Trainium
+support follows the same ownership model under ``tvm.backend.trn``.  Load hooks
+in ``tvm.backend`` register a backend's script namespaces, compilation pipeline,
+target tags, and tile-primitive implementations.  See :doc:`ptx` for the
+user-facing direct PTX instruction surface and how it differs from ``T.cuda``.
+
+tvm.backend
+***********
+.. automodule:: tvm.backend
+   :members:
+   :imported-members:
+   :no-index:
 
 tvm.backend.cuda
 ****************
@@ -67,6 +77,14 @@ tvm.backend.cuda.cpp
    :no-index:
    :exclude-members: PrimExpr, Op, Call
 
+tvm.backend.cuda.ptx
+********************
+.. automodule:: tvm.backend.cuda.ptx
+   :members:
+   :imported-members:
+   :no-index:
+   :exclude-members: PrimExpr, Op, Call
+
 tvm.backend.cuda.tile_primitive
 *******************************
 .. automodule:: tvm.backend.cuda.tile_primitive
@@ -79,3 +97,55 @@ tvm.backend.cuda.target_tags
    :members:
    :imported-members:
    :exclude-members: PrimExpr, Op, Call
+
+tvm.backend.cuda.transforms
+***************************
+.. automodule:: tvm.backend.cuda.transforms
+   :members:
+   :imported-members:
+   :no-index:
+
+tvm.backend.trn
+***************
+.. automodule:: tvm.backend.trn
+   :members:
+   :imported-members:
+   :no-index:
+
+tvm.backend.trn.layout
+**********************
+.. automodule:: tvm.backend.trn.layout
+   :members:
+   :no-index:
+
+tvm.backend.trn.op
+******************
+.. automodule:: tvm.backend.trn.op
+   :members:
+   :no-index:
+
+tvm.backend.trn.pipeline
+************************
+.. automodule:: tvm.backend.trn.pipeline
+   :members:
+   :no-index:
+
+tvm.backend.trn.script
+**********************
+.. automodule:: tvm.backend.trn.script
+   :members:
+   :no-index:
+
+tvm.backend.trn.tile_primitive
+******************************
+.. automodule:: tvm.backend.trn.tile_primitive
+   :members:
+   :imported-members:
+   :no-index:
+
+tvm.backend.trn.transform
+*************************
+.. automodule:: tvm.backend.trn.transform
+   :members:
+   :imported-members:
+   :no-index:

@@ -73,7 +73,7 @@ mbarrier and writes the result out (from ``test_dsmem.py``):
 
 .. code-block:: python
 
-    from tvm.tirx.lang.pipeline import MBarrier
+    from tvm.backend.cuda.lang.pipeline import MBarrier
 
     shape, dtype, CLUSTER_N = (128, 64), "float16", 2
     src_layout = dst_layout = TileLayout(S[128, 64])

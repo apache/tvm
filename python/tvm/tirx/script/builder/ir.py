@@ -481,14 +481,18 @@ def match_buffer(
     If the param is a var in function parameter, it will create a buffer from DLTensor.
     Else if the param is a subregion of other buffers, then create a subregion match inside a block.
 
-    Example
-    -------
+    Examples
+    --------
     Match buffer from function parameter
+
     .. code-block:: python
+
         A = T.match_buffer(a, (128, 128), dtype="float32")
 
     Match buffer from Buffer subregion
+
     .. code-block:: python
+
         A = T.match_buffer(B[0:128, i * 128 : i * 128 + 128], (128, 128), dtype="float32")
 
     Parameters
@@ -1534,7 +1538,11 @@ bind = Bind
 
 class LetAnnotation:
     """Marker for explicit LetStmt. Created by T.let or T.let[type].
-    Usage in TVMScript:
+
+    Examples
+    --------
+    Usage in TVMScript::
+
         x: T.let[T.int32] = expr   # LetStmt with explicit type
         x: T.let = expr             # LetStmt with auto-typed RHS
     """

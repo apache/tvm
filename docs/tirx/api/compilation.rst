@@ -15,22 +15,18 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.tirx visitors and mutators
-==============================
+Compilation
+===========
 
-tvm.tirx.expr_functor
----------------------
-.. automodule:: tvm.tirx.expr_functor
-   :members:
+tvm.tirx.build
+--------------
+.. currentmodule:: tvm.tirx
+
+.. autofunction:: build
    :no-index:
 
-tvm.tirx.stmt_functor
----------------------
-.. automodule:: tvm.tirx.stmt_functor
-   :members:
-
-tvm.tirx.functor
-----------------
-.. automodule:: tvm.tirx.functor
+tvm.tirx.compilation_pipeline
+-----------------------------
+.. automodule:: tvm.tirx.compilation_pipeline
    :members:
    :no-index:

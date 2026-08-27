@@ -80,7 +80,7 @@ into a tmem accumulator, after TMA-loading A/B into shared (from
 .. code-block:: python
 
     from tvm.tirx.layout import S, TCol, TLane, TileLayout, tid_in_wg as axis_tid_in_wg
-    from tvm.tirx.cuda.tile_primitive.tma_utils import mma_shared_layout
+    from tvm.backend.cuda.tile_primitive.tma_utils import mma_shared_layout
 
     A_smem = T.alloc_buffer((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
     B_smem = T.alloc_buffer((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))

@@ -15,22 +15,17 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.tirx visitors and mutators
-==============================
+Execution scopes and contexts
+=============================
 
-tvm.tirx.expr_functor
----------------------
-.. automodule:: tvm.tirx.expr_functor
+tvm.tirx.exec_scope
+-------------------
+.. automodule:: tvm.tirx.exec_scope
    :members:
    :no-index:
 
-tvm.tirx.stmt_functor
+tvm.tirx.exec_context
 ---------------------
-.. automodule:: tvm.tirx.stmt_functor
-   :members:
-
-tvm.tirx.functor
-----------------
-.. automodule:: tvm.tirx.functor
+.. automodule:: tvm.tirx.exec_context
    :members:
    :no-index:
