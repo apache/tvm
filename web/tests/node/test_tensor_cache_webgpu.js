@@ -94,7 +94,7 @@ function createArtifactCache(manifest, shard) {
   };
 }
 
-test("WebGPU tensor cache uploads pass-through records directly", async () => {
+test("WebGPU tensor cache uploads pass-through records and decodes BF16 in place", async () => {
   const tvm = createInstance();
   const gpu = createMockGPUDevice();
   tvm.initWebGPU(gpu.device);
@@ -150,8 +150,11 @@ test("WebGPU tensor cache uploads pass-through records directly", async () => {
   };
 
   const originalDecode = tvm.ctx.arrayDecodeStorage;
+  const originalInplace = tvm.ctx.arrayDecodeBF16ToF32Inplace;
   const decode = jest.fn((...args) => originalDecode(...args));
+  const inplace = jest.fn((...args) => originalInplace(...args));
   tvm.ctx.arrayDecodeStorage = decode;
+  tvm.ctx.arrayDecodeBF16ToF32Inplace = inplace;
   try {
     await tvm.fetchTensorCache(
       "https://example.test/model/",
@@ -159,9 +162,8 @@ test("WebGPU tensor cache uploads pass-through records directly", async () => {
       { artifactCache: createArtifactCache(manifest, shard) },
     );
 
-    expect(decode).toHaveBeenCalledTimes(1);
-    expect(decode.mock.calls[0][2]).toBe("f32-to-bf16");
-    expect(decode.mock.calls[0][3]).toBe("float32");
+    expect(decode).not.toHaveBeenCalled();
+    expect(inplace).toHaveBeenCalledTimes(1);
     expect(gpu.writes.map((write) => Array.from(write.snapshot))).toEqual([
       [1, 2, 3, 4, 5, 6, 7, 8],
       [9, 10, 11, 12],
@@ -170,6 +172,7 @@ test("WebGPU tensor cache uploads pass-through records directly", async () => {
     ]);
   } finally {
     tvm.ctx.arrayDecodeStorage = originalDecode;
+    tvm.ctx.arrayDecodeBF16ToF32Inplace = originalInplace;
     tvm.tensorCacheClear();
     tvm.dispose();
   }
