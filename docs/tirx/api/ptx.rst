@@ -18,8 +18,9 @@
 Direct PTX Instructions
 =======================
 
-The CUDA backend installs a table-driven PTX instruction namespace on the
-TIRx TVMScript dialect.  Its spelling depends only on the local import alias::
+The CUDA backend makes a table-driven PTX instruction namespace available
+when authoring TIRx with TVMScript.  This is an authoring namespace, not a
+separate IR dialect.  Its spelling depends on the local import alias::
 
    from tvm.script import tirx as T
    T.ptx.add.rn.f32(dst, lhs, rhs)
@@ -27,10 +28,27 @@ TIRx TVMScript dialect.  Its spelling depends only on the local import alias::
    from tvm.script import tirx as Tx
    Tx.ptx.add.rn.f32(dst, lhs, rhs)
 
-``T.ptx`` and ``Tx.ptx`` above are the same object.  This layer represents one
-table-described PTX instruction directly; it is below the layout-aware tile
-primitives (``Tx.*`` with split aliases or ``Tx.tile.*`` with one alias) and
-does not run tile-primitive dispatch.
+``T.ptx`` and ``Tx.ptx`` above are the same object.  With the conventional
+split aliases, however, ``Tx`` names only the tile facade, so direct PTX is
+written through ``T``::
+
+   from tvm.script import tirx as T
+   from tvm.script.tirx import tile as Tx
+
+   T.ptx.add.rn.f32(dst, lhs, rhs)  # Direct PTX.
+   Tx.copy(src, dst)                # Tile primitive.
+
+Thus, writing a PTX instruction does not mean adding ``Tx.`` to arbitrary PTX
+text.  Each successful call constructs one ``tirx.ptx.*`` IR call for a PTX
+form registered in :mod:`tvm.backend.cuda.ptx.table`.  The instruction family,
+modifier combination, operand count, and operand types must match that table;
+unsupported forms are rejected while the IR is constructed.  Adding a missing
+instruction requires extending the table, and may require code-generation
+support if its representation is new.
+
+This layer is below the layout-aware tile primitives (``Tx.*`` with split
+aliases or ``Tx.tile.*`` with one alias) and does not run tile-primitive
+dispatch.
 
 Instruction forms
 -----------------
@@ -40,8 +58,8 @@ underscore, and PTX's ``::`` separator is written as a double underscore::
    T.ptx.ld.acquire.gpu.global_.b32(value, pointer)
    T.ptx.mbarrier.arrive.shared__cluster.b64(barrier, count)
 
-The indexed form preserves exact PTX spelling and is useful for dynamically
-assembled instruction names::
+The indexed form preserves exact registered PTX spelling.  It still performs
+the same table lookup and is not an escape hatch for arbitrary inline PTX::
 
    T.ptx["st.weak.shared::cta.b32"](pointer, value)
 
