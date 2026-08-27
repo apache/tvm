@@ -1591,13 +1591,42 @@ class Where(OnnxOpConverter):
             np_inputs = [inp.data.numpy() for inp in inputs]
             output = _np.where(*np_inputs)
             return relax.const(output, output.dtype)
+
+        # Shape-like path: all inputs are constants or shape expressions (1-D
+        # int64 shape tensors produced by e.g. the Shape op). ONNX Where follows
+        # NumPy-style broadcasting, so broadcast the 1-D element lists to a
+        # common length (a length-1 list is repeated to that length) before
+        # selecting elementwise. The output stays a shape expression so that
+        # downstream shape consumers (e.g. Reshape's shape input) keep working.
         if all([isinstance(inp, relax.Constant | relax.ShapeExpr) for inp in inputs]):
-            condition, x, y = [get_prim_expr_list(inp) for inp in inputs]
-            if len(condition) != len(x) or len(condition) != len(y):
-                raise ValueError("Cannot broadcast condition to x and y")
-            output = [x if c else y for c, x, y in zip(condition, x, y)]
-            return relax.ShapeExpr(output)
-        return relax.op.where(inputs[0], inputs[1], inputs[2])
+            try:
+                condition, x, y = [get_prim_expr_list(inp) for inp in inputs]
+            except ValueError:
+                # Not a 1-D shape-like input (e.g. a rank-2 constant mixed with
+                # a shape tensor): fall through to the tensor path below.
+                condition = x = y = None
+            else:
+                n = max(len(condition), len(x), len(y))
+                if not all(len(v) in (1, n) for v in (condition, x, y)):
+                    raise ValueError(
+                        "Cannot broadcast condition, x and y with lengths "
+                        f"{len(condition)}, {len(x)}, {len(y)}"
+                    )
+                if n > 1:
+                    condition = condition * n if len(condition) == 1 else condition
+                    x = x * n if len(x) == 1 else x
+                    y = y * n if len(y) == 1 else y
+                output = [x if c else y for c, x, y in zip(condition, x, y)]
+                return relax.ShapeExpr(output)
+
+        # General path: at least one input is a runtime tensor. Materialize any
+        # shape expression into an int64 tensor so relax.op.where (which
+        # implements ONNX's NumPy-style broadcasting) operates on tensors only.
+        tensors = [
+            relax.op.shape_to_tensor(inp) if isinstance(inp, relax.ShapeExpr) else inp
+            for inp in inputs
+        ]
+        return relax.op.where(tensors[0], tensors[1], tensors[2])
 
 
 class Clip(OnnxOpConverter):
