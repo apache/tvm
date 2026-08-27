@@ -1592,12 +1592,6 @@ class Where(OnnxOpConverter):
             output = _np.where(*np_inputs)
             return relax.const(output, output.dtype)
 
-        # Shape-like path: all inputs are constants or shape expressions (1-D
-        # int64 shape tensors produced by e.g. the Shape op). ONNX Where follows
-        # NumPy-style broadcasting, so broadcast the 1-D element lists to a
-        # common length (a length-1 list is repeated to that length) before
-        # selecting elementwise. The output stays a shape expression so that
-        # downstream shape consumers (e.g. Reshape's shape input) keep working.
         if all([isinstance(inp, relax.Constant | relax.ShapeExpr) for inp in inputs]):
             try:
                 condition, x, y = [get_prim_expr_list(inp) for inp in inputs]
@@ -1619,10 +1613,6 @@ class Where(OnnxOpConverter):
                 output = [x if c else y for c, x, y in zip(condition, x, y)]
                 return relax.ShapeExpr(output)
 
-        # General path: at least one input is a runtime tensor. Materialize any
-        # shape expression into an int64 tensor so relax.op.where (which
-        # implements ONNX's NumPy-style broadcasting) operates on tensors only.
-        tensors = [
             relax.op.shape_to_tensor(inp) if isinstance(inp, relax.ShapeExpr) else inp
             for inp in inputs
         ]
