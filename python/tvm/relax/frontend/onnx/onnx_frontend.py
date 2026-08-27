@@ -1432,18 +1432,9 @@ class Scatter(OnnxOpConverter):
         indices_shape = indices.ty.shape
         data_shape = data.ty.shape
 
-        # When indices provably has data's exact shape -- including symbolic dims
-        # (the frontend reuses the same tir.Var object for a shared dim name) --
-        # scatter_elements matches ONNX's per-entry semantics and is the direct
-        # lowering.
         if _shapes_equal(indices_shape, data_shape):
             return relax.op.scatter_elements(data, indices, updates, axis=axis)
 
-        # Building the per-entry coordinate grid below requires statically known
-        # indices dims. If the indices shape is dynamic and not provably equal to
-        # data's, the old lowering (scatter_elements) would silently produce
-        # wrong values for broadcast size-1 dims, so refuse rather than
-        # miscompile.
         if indices_shape is None:
             raise ValueError(
                 "Scatter with `indices` of unknown rank is unsupported, as the per-entry "
