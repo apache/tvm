@@ -38,17 +38,125 @@ written through ``T``::
    T.ptx.add.rn.f32(dst, lhs, rhs)  # Direct PTX.
    Tx.copy(src, dst)                # Tile primitive.
 
-Thus, writing a PTX instruction does not mean adding ``Tx.`` to arbitrary PTX
-text.  Each successful call constructs one ``tirx.ptx.*`` IR call for a PTX
-form registered in :mod:`tvm.backend.cuda.ptx.table`.  The instruction family,
-modifier combination, operand count, and operand types must match that table;
-unsupported forms are rejected while the IR is constructed.  Adding a missing
-instruction requires extending the table, and may require code-generation
-support if its representation is new.
+Each ``T.ptx`` or ``Tx.ptx`` call must match a form registered in
+:mod:`tvm.backend.cuda.ptx.table`.  The table validates the instruction family,
+modifier combination, operand count, and operand types while constructing one
+``tirx.ptx.*`` IR call.  A new instruction is added by extending the table and,
+when it needs a new representation, its code-generation support.
 
 This layer is below the layout-aware tile primitives (``Tx.*`` with split
 aliases or ``Tx.tile.*`` with one alias) and does not run tile-primitive
 dispatch.
+
+Supported instruction families
+------------------------------
+The current instruction table has 318 entries across the following 94
+families.  These are the Python attribute names written after ``T.ptx`` or
+``Tx.ptx``; each family accepts only the modifier and operand combinations
+declared by its table entries.
+
+.. hlist::
+   :columns: 4
+
+   * ``abs``
+   * ``activemask``
+   * ``add``
+   * ``and_``
+   * ``applypriority``
+   * ``atom``
+   * ``bar``
+   * ``barrier``
+   * ``bfe``
+   * ``bfi``
+   * ``bfind``
+   * ``bmsk``
+   * ``brev``
+   * ``clusterlaunchcontrol``
+   * ``clz``
+   * ``cnot``
+   * ``copysign``
+   * ``cos``
+   * ``cp``
+   * ``createpolicy``
+   * ``cvt``
+   * ``cvt_pack``
+   * ``cvta``
+   * ``discard``
+   * ``div``
+   * ``dp2a``
+   * ``dp4a``
+   * ``elect_sync``
+   * ``ex2``
+   * ``fence``
+   * ``fma``
+   * ``fns``
+   * ``getctarank``
+   * ``griddepcontrol``
+   * ``isspacep``
+   * ``ld``
+   * ``ldmatrix``
+   * ``ldu``
+   * ``lg2``
+   * ``lop3``
+   * ``mad``
+   * ``mad24``
+   * ``mapa``
+   * ``match``
+   * ``max``
+   * ``mbarrier``
+   * ``min``
+   * ``mma``
+   * ``mov``
+   * ``movmatrix``
+   * ``mul``
+   * ``mul24``
+   * ``multimem_ld_reduce``
+   * ``multimem_red``
+   * ``multimem_st``
+   * ``neg``
+   * ``not_``
+   * ``or_``
+   * ``popc``
+   * ``prefetch``
+   * ``prefetchu``
+   * ``prmt``
+   * ``rcp``
+   * ``red``
+   * ``red_async``
+   * ``redux_sync``
+   * ``rem``
+   * ``rsqrt``
+   * ``sad``
+   * ``selp``
+   * ``set``
+   * ``setmaxnreg``
+   * ``setp``
+   * ``shf``
+   * ``shfl_sync``
+   * ``shl``
+   * ``shr``
+   * ``sin``
+   * ``slct``
+   * ``sqrt``
+   * ``st``
+   * ``st_async``
+   * ``st_bulk``
+   * ``stmatrix``
+   * ``sub``
+   * ``szext``
+   * ``tanh``
+   * ``tcgen05``
+   * ``tensormap_cp_fenceproxy``
+   * ``tensormap_replace``
+   * ``testp``
+   * ``vote_sync``
+   * ``wgmma``
+   * ``xor``
+
+The generated ``tvm/script/tirx.pyi`` stub provides editor completion for the
+valid modifier names and call signatures.  The instruction table is the
+complete source of modifier domains, operand layouts, and combination
+constraints.
 
 Instruction forms
 -----------------
@@ -58,8 +166,8 @@ underscore, and PTX's ``::`` separator is written as a double underscore::
    T.ptx.ld.acquire.gpu.global_.b32(value, pointer)
    T.ptx.mbarrier.arrive.shared__cluster.b64(barrier, count)
 
-The indexed form preserves exact registered PTX spelling.  It still performs
-the same table lookup and is not an escape hatch for arbitrary inline PTX::
+The indexed form accepts the exact PTX spelling of a registered form and uses
+the same table lookup::
 
    T.ptx["st.weak.shared::cta.b32"](pointer, value)
 
