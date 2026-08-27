@@ -1402,13 +1402,7 @@ class GatherND(OnnxOpConverter):
 
 
 def _shapes_equal(a: list[tirx.Expr] | None, b: list[tirx.Expr] | None) -> bool:
-    """Return True when shape `a` provably equals shape `b`.
 
-    Static dims must be numerically equal; symbolic dims must be the same
-    `tir.Var` object (the frontend reuses one Var per shared dim name, so this
-    holds for e.g. two inputs that share a batch dim). Unknown rank or a length
-    mismatch means False.
-    """
     if a is None or b is None or len(a) != len(b):
         return False
     for x, y in zip(a, b):
