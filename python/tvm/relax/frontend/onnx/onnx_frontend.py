@@ -1401,13 +1401,83 @@ class GatherND(OnnxOpConverter):
         return relax.op.gather_nd(inputs[0], inputs[1], batch_dims)
 
 
+def _shapes_equal(a: list[tirx.Expr] | None, b: list[tirx.Expr] | None) -> bool:
+    if a is None or b is None or len(a) != len(b):
+        return False
+    for x, y in zip(a, b):
+        x_static = isinstance(x, tirx.IntImm | int)
+        y_static = isinstance(y, tirx.IntImm | int)
+        if x_static and y_static:
+            if int(x) != int(y):
+                return False
+        elif (not x_static) and (not y_static):
+            if not x.same_as(y):
+                return False
+        else:
+            return False
+    return True
+
+
 class Scatter(OnnxOpConverter):
     """Convert an onnx Scatter node into an equivalent Relax expression."""
 
     @classmethod
     def _impl_v9(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        indices = inputs[1]
+        updates = inputs[2]
         axis = attr.get("axis", 0)
-        return relax.op.scatter_elements(inputs[0], inputs[1], inputs[2], axis=axis)
+
+        indices_shape = indices.ty.shape
+        data_shape = data.ty.shape
+
+        if _shapes_equal(indices_shape, data_shape):
+            return relax.op.scatter_elements(data, indices, updates, axis=axis)
+
+        if indices_shape is None:
+            raise ValueError(
+                "Scatter with `indices` of unknown rank is unsupported, as the per-entry "
+                "coordinate grid cannot be built"
+            )
+        if not all(isinstance(s, tirx.IntImm | int) for s in indices_shape):
+            raise ValueError(
+                "Scatter with dynamic `indices` whose shape is not provably equal to "
+                "`data`'s shape is unsupported: the fallback lowering silently produces "
+                "incorrect results for broadcast size-1 dims"
+            )
+        if data_shape is None:
+            raise ValueError(
+                "Scatter with `data` of unknown rank is unsupported, as the per-entry "
+                "coordinate grid cannot be built"
+            )
+
+        # ONNX Scatter iterates over indices' own shape: for each entry idx,
+        #   output[idx[:axis] + (indices[idx],) + idx[axis+1:]] = updates[idx]
+        # which is exactly scatter_nd with explicit per-entry target positions.
+        # The previous lowering passed a smaller indices (e.g. broadcastable
+        # size-1 dims) directly to scatter_elements, which silently produced
+        # wrong values.
+        rank = len(data_shape)
+        axis = axis % rank
+        # `StructInfo.dtype` is a PrimType, so coerce to a string for numpy/relax.
+        indices_dtype = str(indices.ty.dtype)
+        shape = tuple(int(s) for s in indices_shape)
+        n_entries = int(_np.prod(shape))
+        # (n_entries, rank) coordinate grid of indices' own shape, C-order over
+        # its entries.
+        grid = _np.moveaxis(_np.indices(shape), 0, -1).reshape(n_entries, rank)
+        # Replace the axis column with the flattened indices values. The grid is
+        # cast to the indices dtype (ONNX Scatter permits int32 indices) so that
+        # both branches of `where` share a dtype.
+        target = relax.op.where(
+            relax.const(
+                _np.broadcast_to(_np.eye(rank, dtype="bool")[axis], (n_entries, rank)),
+                "bool",
+            ),
+            relax.op.reshape(indices, (n_entries, 1)),
+            relax.const(grid.astype(indices_dtype), indices_dtype),
+        )
+        return relax.op.scatter_nd(data, target, relax.op.reshape(updates, (n_entries,)))
 
     @classmethod
     def _impl_v11(cls, bb, inputs, attr, params):
