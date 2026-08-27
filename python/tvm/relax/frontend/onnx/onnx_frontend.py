@@ -2271,6 +2271,7 @@ class Squeeze(OnnxOpConverter):
             return relax.op.squeeze(data)
 
         if isinstance(axis, tuple):
+            cls._validate_axes_unit_dims(data, axis)
             return relax.op.squeeze(data, list(axis))
 
         data_ndim = _get_known_tensor_rank(data)
@@ -2286,6 +2287,38 @@ class Squeeze(OnnxOpConverter):
             bb, output_shape_tensor, data_ndim - axes_len, "squeeze_dim"
         )
         return relax.op.reshape(data, output_shape)
+
+    @classmethod
+    def _validate_axes_unit_dims(cls, data, axis):
+        """ONNX Squeeze requires every selected axis to have a size-1 dimension:
+
+        "If an axis is selected with shape entry not equal to one, an error is
+        raised." relax.squeeze silently skips non-unit dims (PyTorch semantics),
+        so validate against the statically known input shape before delegating.
+        """
+
+        shape = getattr(getattr(data, "ty", None), "shape", None)
+        if shape is None:
+            shape = getattr(getattr(data, "struct_info", None), "shape", None)
+        if isinstance(shape, relax.ShapeExpr):
+            shape = shape.values
+        if shape is None:
+            return
+        try:
+            rank = len(shape)
+        except TypeError:
+            return
+        if rank == 0:
+            return
+        for ax in _normalize_constant_axes(list(axis), rank, "Squeeze"):
+            dim = shape[ax]
+            if isinstance(dim, tirx.IntImm):
+                dim = int(dim.value)
+            if isinstance(dim, int) and dim != 1:
+                raise ValueError(
+                    "cannot select an axis to squeeze out which has size not equal "
+                    f"to one: axis {ax} has size {dim}"
+                )
 
 
 class Constant(OnnxOpConverter):

@@ -4730,6 +4730,88 @@ def test_squeeze_dynamic_axes_rank_validation():
         from_onnx(model, opset=13, keep_params_in_input=True)
 
 
+@pytest.mark.parametrize(
+    "data_shape,axes",
+    [
+        ([2, 3], [0]),  # axis 0 has size 2 (not 1)
+        ([1, 2, 3], [1]),  # axis 1 has size 2 (not 1)
+        ([1, 2, 1, 3], [1]),  # only non-unit axis selected
+        ([2, 3, 1], [0, 2]),  # mix of non-unit and unit axes
+        ([2, 3], [-1]),  # negative axis pointing at a non-unit dim
+    ],
+)
+@pytest.mark.parametrize("opset", [11, 13])
+def test_squeeze_non_unit_axis_raises(data_shape, axes, opset):
+    """ONNX Squeeze spec: "If an axis is selected with shape entry not equal to one,
+    an error is raised." The converter must raise instead of silently ignoring the
+    offending axis (relax.squeeze's PyTorch-style no-op). opset <= 11 passes axes as
+    an attribute, opset >= 13 as an input."""
+    node = helper.make_node("Squeeze", ["x"], ["y"])
+    initializer = None
+    if opset >= 13:
+        node.input.append("axes")
+        initializer = [helper.make_tensor("axes", TensorProto.INT64, [len(axes)], axes)]
+    else:
+        node.attribute.append(helper.make_attribute("axes", axes))
+    graph = helper.make_graph(
+        [node],
+        "squeeze_non_unit_axis_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, data_shape)],
+        initializer=initializer,
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, data_shape)],
+    )
+    model = helper.make_model(graph, producer_name="squeeze_non_unit_axis_test")
+    with pytest.raises(ValueError, match="not equal to one"):
+        from_onnx(model, opset=opset, keep_params_in_input=True)
+
+
+def test_squeeze_constant_non_unit_axis_raises():
+    """The constant-data path already raises (np.squeeze raises on a non-unit axis),
+    matching onnx.reference; keep it covered so the two paths stay consistent."""
+    shape = [2, 3]
+    data = np.arange(6, dtype="float32").reshape(shape)
+    constant = make_constant_node("x", onnx.TensorProto.FLOAT, shape, data.flatten().tolist())
+    squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
+    graph = helper.make_graph(
+        [constant, squeeze_node],
+        "squeeze_constant_non_unit_axis_test",
+        inputs=[],
+        initializer=[helper.make_tensor("axes", TensorProto.INT64, [1], [0])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, shape)],
+    )
+    model = helper.make_model(graph, producer_name="squeeze_constant_non_unit_axis_test")
+    with pytest.raises(ValueError, match="not equal to one"):
+        from_onnx(model, opset=13, keep_params_in_input=True)
+
+
+def test_squeeze_valid_axes_correctness():
+    """Squeeze with axes selecting only size-1 dims (and axes=None) still imports and
+    matches onnxruntime, i.e. the axis validation adds no regression."""
+    cases = [
+        ([1, 32, 1, 32], [0, 2], [32, 32]),
+        ([1, 2, 1, 3], [0], [2, 1, 3]),
+        ([2, 1, 3], [1], [2, 3]),
+        ([1, 2, 1], [-1], [1, 2]),
+        ([1, 2, 1, 3], [0, -2], [2, 3]),
+        ([1, 2, 1, 3], None, [2, 3]),
+    ]
+    for data_shape, axes, out_shape in cases:
+        node = helper.make_node("Squeeze", ["x"], ["y"])
+        initializer = None
+        if axes is not None:
+            node.input.append("axes")
+            initializer = [helper.make_tensor("axes", TensorProto.INT64, [len(axes)], axes)]
+        graph = helper.make_graph(
+            [node],
+            "squeeze_valid_axes_test",
+            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, data_shape)],
+            initializer=initializer,
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, out_shape)],
+        )
+        model = helper.make_model(graph, producer_name="squeeze_valid_axes_test")
+        check_correctness(model, opset=13)
+
+
 @pytest.mark.parametrize("axis", [[0]])
 def test_dynamic_shape_squeeze(axis):
     shape_node = helper.make_node("Shape", ["x"], ["y"])
