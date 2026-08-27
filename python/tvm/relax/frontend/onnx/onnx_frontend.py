@@ -2184,7 +2184,12 @@ class Squeeze(OnnxOpConverter):
             return
         for axis in _normalize_constant_axes(list(axes), rank, "Squeeze"):
             extent = ty.shape.values[axis]
-            if isinstance(extent, tirx.IntImm) and int(extent.value) != 1:
+            if not isinstance(extent, tirx.IntImm):
+                raise ValueError(
+                    f"Squeeze axis {axis} has a symbolic extent that cannot be proven to be "
+                    "1 at import time; only statically known unit-size axes can be squeezed."
+                )
+            if int(extent.value) != 1:
                 raise ValueError(
                     f"Squeeze axis {axis} has size {int(extent.value)}, but only "
                     "axes of size 1 can be squeezed."
