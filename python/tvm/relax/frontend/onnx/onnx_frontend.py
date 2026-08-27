@@ -1401,6 +1401,30 @@ class GatherND(OnnxOpConverter):
         return relax.op.gather_nd(inputs[0], inputs[1], batch_dims)
 
 
+def _shapes_equal(a: list[tirx.Expr] | None, b: list[tirx.Expr] | None) -> bool:
+    """Return True when shape `a` provably equals shape `b`.
+
+    Static dims must be numerically equal; symbolic dims must be the same
+    `tir.Var` object (the frontend reuses one Var per shared dim name, so this
+    holds for e.g. two inputs that share a batch dim). Unknown rank or a length
+    mismatch means False.
+    """
+    if a is None or b is None or len(a) != len(b):
+        return False
+    for x, y in zip(a, b):
+        x_static = isinstance(x, (tirx.IntImm, int))
+        y_static = isinstance(y, (tirx.IntImm, int))
+        if x_static and y_static:
+            if int(x) != int(y):
+                return False
+        elif (not x_static) and (not y_static):
+            if not x.same_as(y):
+                return False
+        else:
+            return False
+    return True
+
+
 class Scatter(OnnxOpConverter):
     """Convert an onnx Scatter node into an equivalent Relax expression."""
 
@@ -1414,16 +1438,34 @@ class Scatter(OnnxOpConverter):
         indices_shape = indices.ty.shape
         data_shape = data.ty.shape
 
-        # indices with a dynamic shape: keep the previous lowering.
-        if not all(isinstance(s, (tirx.IntImm, int)) for s in indices_shape):
+        # When indices provably has data's exact shape -- including symbolic dims
+        # (the frontend reuses the same tir.Var object for a shared dim name) --
+        # scatter_elements matches ONNX's per-entry semantics and is the direct
+        # lowering.
+        if _shapes_equal(indices_shape, data_shape):
             return relax.op.scatter_elements(data, indices, updates, axis=axis)
 
-        # When indices has data's exact shape, scatter_elements matches ONNX's
-        # per-entry semantics and is the direct lowering.
-        if all(isinstance(s, (tirx.IntImm, int)) for s in data_shape) and list(
-            indices_shape
-        ) == list(data_shape):
-            return relax.op.scatter_elements(data, indices, updates, axis=axis)
+        # Building the per-entry coordinate grid below requires statically known
+        # indices dims. If the indices shape is dynamic and not provably equal to
+        # data's, the old lowering (scatter_elements) would silently produce
+        # wrong values for broadcast size-1 dims, so refuse rather than
+        # miscompile.
+        if indices_shape is None:
+            raise ValueError(
+                "Scatter with `indices` of unknown rank is unsupported, as the per-entry "
+                "coordinate grid cannot be built"
+            )
+        if not all(isinstance(s, (tirx.IntImm, int)) for s in indices_shape):
+            raise ValueError(
+                "Scatter with dynamic `indices` whose shape is not provably equal to "
+                "`data`'s shape is unsupported: the fallback lowering silently produces "
+                "incorrect results for broadcast size-1 dims"
+            )
+        if data_shape is None:
+            raise ValueError(
+                "Scatter with `data` of unknown rank is unsupported, as the per-entry "
+                "coordinate grid cannot be built"
+            )
 
         # ONNX Scatter iterates over indices' own shape: for each entry idx,
         #   output[idx[:axis] + (indices[idx],) + idx[axis+1:]] = updates[idx]
@@ -1433,19 +1475,23 @@ class Scatter(OnnxOpConverter):
         # wrong values.
         rank = len(data_shape)
         axis = axis % rank
+        # `StructInfo.dtype` is a PrimType, so coerce to a string for numpy/relax.
+        indices_dtype = str(indices.ty.dtype)
         shape = tuple(int(s) for s in indices_shape)
         n_entries = int(_np.prod(shape))
         # (n_entries, rank) coordinate grid of indices' own shape, C-order over
         # its entries.
         grid = _np.moveaxis(_np.indices(shape), 0, -1).reshape(n_entries, rank)
-        # Replace the axis column with the flattened indices values.
+        # Replace the axis column with the flattened indices values. The grid is
+        # cast to the indices dtype (ONNX Scatter permits int32 indices) so that
+        # both branches of `where` share a dtype.
         target = relax.op.where(
             relax.const(
                 _np.broadcast_to(_np.eye(rank, dtype="bool")[axis], (n_entries, rank)),
                 "bool",
             ),
             relax.op.reshape(indices, (n_entries, 1)),
-            relax.const(grid.astype("int64"), "int64"),
+            relax.const(grid.astype(indices_dtype), indices_dtype),
         )
         return relax.op.scatter_nd(data, target, relax.op.reshape(updates, (n_entries,)))
 

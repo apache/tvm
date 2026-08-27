@@ -1755,23 +1755,31 @@ def test_scatter(axis: int, name: str, opset: int):
     check_correctness(model, inputs={"indices": indices}, opset=opset)
 
 
-def test_scatter_broadcast():
+@pytest.mark.parametrize("indices_dtype", ["int32", "int64"])
+def test_scatter_broadcast(indices_dtype):
     """Scatter (opset 9/10) whose indices/updates are smaller than data (size-1
     broadcast dims) must follow the per-entry semantics of the ONNX spec:
     output[idx[:axis] + (indices[idx],) + idx[axis+1:]] = updates[idx] for each
     entry idx in indices' own shape. The previous lowering passed such indices
-    directly to scatter_elements, which silently produced wrong values."""
+    directly to scatter_elements, which silently produced wrong values. Both
+    ONNX-permitted indices dtypes (int32/int64) are covered, since the lowered
+    coordinate grid must match the indices dtype."""
     data_shape = (2, 3, 4)
+    indices_proto = TensorProto.INT32 if indices_dtype == "int32" else TensorProto.INT64
     rng = np.random.RandomState(0)
     for axis in [0, 1, 2, -1]:
         for indices_shape in [(1, 3, 4), (2, 1, 4), (1, 3, 1), (1, 1, 1)]:
             graph = helper.make_graph(
-                [helper.make_node("Scatter", ["data", "indices", "updates"], ["output"], axis=axis)],
+                [
+                    helper.make_node(
+                        "Scatter", ["data", "indices", "updates"], ["output"], axis=axis
+                    )
+                ],
                 "scatter_broadcast_test",
                 inputs=[
                     helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
                     helper.make_tensor_value_info(
-                        "indices", TensorProto.INT64, list(indices_shape)
+                        "indices", indices_proto, list(indices_shape)
                     ),
                     helper.make_tensor_value_info(
                         "updates", TensorProto.FLOAT, list(indices_shape)
@@ -1790,10 +1798,74 @@ def test_scatter_broadcast():
                 "data": rng.randn(*data_shape).astype("float32"),
                 "indices": rng.randint(
                     0, data_shape[axis % len(data_shape)], indices_shape
-                ).astype("int64"),
+                ).astype(indices_dtype),
                 "updates": rng.randn(*indices_shape).astype("float32"),
             }
             check_correctness(model, inputs=inputs, opset=9, check_dtypes=True)
+
+
+def test_scatter_dynamic_shape():
+    """Dynamic-shape Scatter: when indices is structurally provably equal to data
+    (shared symbolic dims) it still lowers via scatter_elements and is correct;
+    a dynamic indices that is *not* provably equal (e.g. a broadcast size-1 dim)
+    must raise instead of silently emitting wrong values."""
+    n = tvm.tirx.Var("N", "int64")
+    rng = np.random.RandomState(1)
+    batch = 5
+
+    # data/indices/updates all share the symbolic batch dim N -> provably equal,
+    # lowered via scatter_elements, correct per ONNX semantics.
+    shape_dict = {"data": [n, 3, 4], "indices": [n, 3, 4], "updates": [n, 3, 4]}
+    graph = helper.make_graph(
+        [helper.make_node("Scatter", ["data", "indices", "updates"], ["output"], axis=0)],
+        "scatter_dynamic_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, ["N", 3, 4]),
+            helper.make_tensor_value_info("indices", TensorProto.INT64, ["N", 3, 4]),
+            helper.make_tensor_value_info("updates", TensorProto.FLOAT, ["N", 3, 4]),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, ["N", 3, 4])],
+    )
+    model = helper.make_model(
+        graph, producer_name="scatter_dynamic_test", opset_imports=[helper.make_opsetid("", 9)]
+    )
+    data = rng.randn(batch, 3, 4).astype("float32")
+    indices = rng.randint(0, batch, size=(batch, 3, 4)).astype("int64")
+    updates = rng.randn(batch, 3, 4).astype("float32")
+    ort_output = onnxruntime.InferenceSession(
+        model.SerializeToString(), providers=["CPUExecutionProvider"]
+    ).run(None, {"data": data, "indices": indices, "updates": updates})[0]
+    tvm_model = from_onnx(model, shape_dict=shape_dict, opset=9)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm.set_input("main", data, indices, updates)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main")
+    np.testing.assert_allclose(ort_output, tvm_output.numpy(), rtol=1e-6, atol=1e-6)
+
+    # A dynamic indices that is not provably equal to data (size-1 broadcast dim)
+    # must raise rather than silently produce wrong values.
+    shape_dict_bad = {"data": [n, 3, 4], "indices": [n, 1, 4], "updates": [n, 1, 4]}
+    graph_bad = helper.make_graph(
+        [helper.make_node("Scatter", ["data", "indices", "updates"], ["output"], axis=0)],
+        "scatter_dynamic_bad_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, ["N", 3, 4]),
+            helper.make_tensor_value_info("indices", TensorProto.INT64, ["N", 1, 4]),
+            helper.make_tensor_value_info("updates", TensorProto.FLOAT, ["N", 1, 4]),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, ["N", 3, 4])],
+    )
+    model_bad = helper.make_model(
+        graph_bad,
+        producer_name="scatter_dynamic_bad_test",
+        opset_imports=[helper.make_opsetid("", 9)],
+    )
+    with pytest.raises(ValueError, match="dynamic"):
+        from_onnx(model_bad, shape_dict=shape_dict_bad, opset=9)
 
 
 @pytest.mark.parametrize(
