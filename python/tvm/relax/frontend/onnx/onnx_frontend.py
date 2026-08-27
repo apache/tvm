@@ -1406,8 +1406,8 @@ def _shapes_equal(a: list[tirx.Expr] | None, b: list[tirx.Expr] | None) -> bool:
     if a is None or b is None or len(a) != len(b):
         return False
     for x, y in zip(a, b):
-        x_static = isinstance(x, (tirx.IntImm, int))
-        y_static = isinstance(y, (tirx.IntImm, int))
+        x_static = isinstance(x, tirx.IntImm | int)
+        y_static = isinstance(y, tirx.IntImm | int)
         if x_static and y_static:
             if int(x) != int(y):
                 return False
@@ -1440,7 +1440,7 @@ class Scatter(OnnxOpConverter):
                 "Scatter with `indices` of unknown rank is unsupported, as the per-entry "
                 "coordinate grid cannot be built"
             )
-        if not all(isinstance(s, (tirx.IntImm, int)) for s in indices_shape):
+        if not all(isinstance(s, tirx.IntImm | int) for s in indices_shape):
             raise ValueError(
                 "Scatter with dynamic `indices` whose shape is not provably equal to "
                 "`data`'s shape is unsupported: the fallback lowering silently produces "
