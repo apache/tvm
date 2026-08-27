@@ -2636,10 +2636,6 @@ class Softplus(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
-        # ONNX Softplus is y = log(exp(x) + 1) with no threshold. Lower the
-        # numerically stable form max(x, 0) + log(1 + exp(-|x|)) instead of
-        # relax.op.nn.softplus with a hardcoded threshold, which clamps the
-        # result to the linear function x and loses precision in float64.
         x = inputs[0]
         dtype = x.ty.dtype
         return relax.op.add(
