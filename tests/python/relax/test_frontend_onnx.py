@@ -1778,16 +1778,12 @@ def test_scatter_broadcast(indices_dtype):
                 "scatter_broadcast_test",
                 inputs=[
                     helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
-                    helper.make_tensor_value_info(
-                        "indices", indices_proto, list(indices_shape)
-                    ),
+                    helper.make_tensor_value_info("indices", indices_proto, list(indices_shape)),
                     helper.make_tensor_value_info(
                         "updates", TensorProto.FLOAT, list(indices_shape)
                     ),
                 ],
-                outputs=[
-                    helper.make_tensor_value_info("output", TensorProto.FLOAT, data_shape)
-                ],
+                outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, data_shape)],
             )
             model = helper.make_model(
                 graph,
@@ -1796,9 +1792,9 @@ def test_scatter_broadcast(indices_dtype):
             )
             inputs = {
                 "data": rng.randn(*data_shape).astype("float32"),
-                "indices": rng.randint(
-                    0, data_shape[axis % len(data_shape)], indices_shape
-                ).astype(indices_dtype),
+                "indices": rng.randint(0, data_shape[axis % len(data_shape)], indices_shape).astype(
+                    indices_dtype
+                ),
                 "updates": rng.randn(*indices_shape).astype("float32"),
             }
             check_correctness(model, inputs=inputs, opset=9, check_dtypes=True)
