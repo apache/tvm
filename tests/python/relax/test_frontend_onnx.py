@@ -1825,6 +1825,7 @@ def test_scatter_dynamic_shape():
     model = helper.make_model(
         graph, producer_name="scatter_dynamic_test", opset_imports=[helper.make_opsetid("", 9)]
     )
+    model.ir_version = 8
     data = rng.randn(batch, 3, 4).astype("float32")
     indices = rng.randint(0, batch, size=(batch, 3, 4)).astype("int64")
     updates = rng.randn(batch, 3, 4).astype("float32")
