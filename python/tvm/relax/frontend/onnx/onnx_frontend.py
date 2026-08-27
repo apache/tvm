@@ -2290,13 +2290,6 @@ class Squeeze(OnnxOpConverter):
 
     @classmethod
     def _validate_axes_unit_dims(cls, data, axis):
-        """ONNX Squeeze requires every selected axis to have a size-1 dimension:
-
-        "If an axis is selected with shape entry not equal to one, an error is
-        raised." relax.squeeze silently skips non-unit dims (PyTorch semantics),
-        so validate against the statically known input shape before delegating.
-        """
-
         shape = getattr(getattr(data, "ty", None), "shape", None)
         if shape is None:
             shape = getattr(getattr(data, "struct_info", None), "shape", None)
