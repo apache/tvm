@@ -2304,7 +2304,9 @@ class _PTX:
     vote_sync: _Chain_vote_sync
     wgmma: _Chain_wgmma
     xor: _Chain_xor
+    SINK: Any
     def addr(self, base: Any, byte_offset: Any) -> Any: ...
+    def pred(self, value: Any) -> Any: ...
     def __getitem__(self, text: str) -> Any: ...
 
 ptx: _PTX

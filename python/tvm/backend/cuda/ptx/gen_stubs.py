@@ -172,7 +172,9 @@ def generate() -> str:
     out.append("class _PTX:")
     for family in sorted(families):
         out.append(f"    {escape_token(family)}: _Chain_{family}")
+    out.append("    SINK: Any")
     out.append("    def addr(self, base: Any, byte_offset: Any) -> Any: ...")
+    out.append("    def pred(self, value: Any) -> Any: ...")
     out.append("    def __getitem__(self, text: str) -> Any: ...")
     out.append("")
     out.append("ptx: _PTX")

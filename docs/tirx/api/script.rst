@@ -60,10 +60,17 @@ These are modules, not fixed language keywords.  Code that prefers a single
      - ``Tx.ptx.*``
      - ``tvm.backend.cuda.ptx``
 
-The high-level tile facade validates tile-only buffer arguments before it
-delegates to the lower-level tile-call constructors.  The direct PTX namespace
-emits individual backend instructions and does not perform tile dispatch; see
-:doc:`ptx`.
+``tvm.script.tirx`` is a syntax and construction frontend for the
+``tvm.tirx`` object model, not a separate IR.  Core builders create nodes such
+as ``tvm.tirx.For``, ``tvm.tirx.BufferLoad``, and ``tvm.ir.Call`` directly.
+
+The high-level tile facade validates tile-only arguments before delegating to
+the raw constructors.  Both entry points create the same
+``tvm.tirx.TilePrimitiveCall`` node; the raw constructors are not a second,
+lower IR.  During ``tvm.tirx.transform.LowerTIRx``, tile-primitive dispatch
+selects a target implementation and replaces each ``TilePrimitiveCall`` with
+ordinary TIRx statements and calls.  The direct PTX namespace creates
+``tirx.ptx.*`` calls immediately and bypasses tile dispatch; see :doc:`ptx`.
 
 Parser entry points
 -------------------
@@ -82,19 +89,227 @@ Core IR builder
 High-level tile primitives
 --------------------------
 .. automodule:: tvm.tirx.script.tile
-   :members:
+   :members: compose_op
    :no-index:
 
-Low-level tile-call constructors
---------------------------------
-``tvm.tirx.script.builder.tirx`` constructs the underlying
-``TilePrimitiveCall`` nodes.  It is useful to parser, builder, and extension
-authors; kernel code should normally use the validated high-level facade above.
+The scope namespaces bind a tile operation to an execution scope.  For example,
+``Tx.copy(...)`` uses thread scope, while ``Tx.warp.copy(...)``,
+``Tx.wg.copy(...)``, and ``Tx.cta.copy(...)`` request wider cooperation.
+
+.. autodata:: tvm.tirx.script.tile.thread
+   :no-index:
+
+.. autodata:: tvm.tirx.script.tile.warp
+   :no-index:
+
+.. autodata:: tvm.tirx.script.tile.wg
+   :no-index:
+
+.. autodata:: tvm.tirx.script.tile.warpgroup
+   :no-index:
+
+.. autodata:: tvm.tirx.script.tile.cta
+   :no-index:
+
+.. autodata:: tvm.tirx.script.tile.cluster
+   :no-index:
+
+``ScopedOp`` objects are callable but are not ordinary Python functions, so
+they are listed explicitly for autodoc.
+
+.. autofunction:: tvm.tirx.script.tile.add
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.binary_chain
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.binary_reduce
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.cast
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.copy
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.copy_async
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.exp
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.exp2
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.log2
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.fdiv
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.fill
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.fma
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.gemm
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.gemm_async
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.max
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.maximum
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.memset
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.min
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.minimum
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.mul
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.permute_layout
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.reciprocal
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.reduce_negate
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.select
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.silu
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.sqrt
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.sub
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.sum
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.unary_reduce
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.tile.zero
+   :no-index:
+
+Raw tile-primitive node constructors
+------------------------------------
+``tvm.tirx.script.builder.tirx`` constructs the same
+``TilePrimitiveCall`` nodes as the validated facade above.  This construction
+surface is useful to parser, builder, and extension authors; kernel code should
+normally use ``tvm.tirx.script.tile``.
 
 .. automodule:: tvm.tirx.script.builder.tirx
    :members:
    :no-index:
    :exclude-members: ScopeNamespace, ScopedOp
+
+As above, the callable ``ScopedOp`` objects need explicit autodoc directives.
+
+.. autofunction:: tvm.tirx.script.builder.tirx.add
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.binary_chain
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.binary_reduce
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.cast
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.copy
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.copy_async
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.exp
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.exp2
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.log2
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.fdiv
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.fill
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.fma
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.gemm
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.gemm_async
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.max
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.maximum
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.memset
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.min
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.minimum
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.mul
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.permute_layout
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.reciprocal
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.reduce_negate
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.select
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.silu
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.sqrt
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.sub
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.sum
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.unary_reduce
+   :no-index:
+
+.. autofunction:: tvm.tirx.script.builder.tirx.zero
+   :no-index:
 
 Dispatch extension points
 -------------------------

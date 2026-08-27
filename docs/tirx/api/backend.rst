@@ -77,6 +77,12 @@ tvm.backend.cuda.cpp
    :no-index:
    :exclude-members: PrimExpr, Op, Call
 
+tvm.backend.cuda.iket
+*********************
+.. automodule:: tvm.backend.cuda.iket
+   :members:
+   :no-index:
+
 tvm.backend.cuda.ptx
 ********************
 .. automodule:: tvm.backend.cuda.ptx
@@ -134,6 +140,13 @@ tvm.backend.trn.script
 **********************
 .. automodule:: tvm.backend.trn.script
    :members:
+   :no-index:
+
+tvm.backend.trn.target_tags
+***************************
+.. automodule:: tvm.backend.trn.target_tags
+   :members:
+   :imported-members:
    :no-index:
 
 tvm.backend.trn.tile_primitive

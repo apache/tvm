@@ -2458,10 +2458,13 @@ def test_ptx_stub_up_to_date():
     from tvm.backend.cuda.ptx import gen_stubs
 
     stub = gen_stubs.STUB_PATH
-    assert stub.read_text(encoding="utf-8") == gen_stubs.generate(), (
+    stub_text = stub.read_text(encoding="utf-8")
+    assert stub_text == gen_stubs.generate(), (
         "python/tvm/script/tirx.pyi is stale; regenerate with "
         "`python -m tvm.backend.cuda.ptx.gen_stubs -o python/tvm/script/tirx.pyi`"
     )
+    assert "    SINK: Any\n" in stub_text
+    assert "    def pred(self, value: Any) -> Any: ...\n" in stub_text
 
 
 @requires_nvcc
