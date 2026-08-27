@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E731, F401, F841
+import pytest
+
 import tvm.testing
 from tvm import relax, tirx
 from tvm.relax.transform import CombineParallelMatmul
@@ -692,6 +694,43 @@ def test_limit_one_dynamic_shape_in_combined_matmul():
     after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
 
     tvm.ir.assert_structural_equal(after, expected)
+
+
+@pytest.mark.parametrize("float32_branch", [0, 1])
+def test_skip_matmuls_with_different_output_dtypes(float32_branch):
+    if float32_branch == 0:
+
+        @R.function(private=True)
+        def before(
+            x: R.Tensor((3, 4), "float16"),
+            w0: R.Tensor((4, 5), "float16"),
+            w1: R.Tensor((4, 6), "float16"),
+        ):
+            with R.dataflow():
+                y0 = R.matmul(x, w0, out_dtype="float32")
+                y1 = R.matmul(x, w1)
+                out = (y0, y1)
+                R.output(out)
+            return out
+
+    else:
+
+        @R.function(private=True)
+        def before(
+            x: R.Tensor((3, 4), "float16"),
+            w0: R.Tensor((4, 5), "float16"),
+            w1: R.Tensor((4, 6), "float16"),
+        ):
+            with R.dataflow():
+                y0 = R.matmul(x, w0)
+                y1 = R.matmul(x, w1, out_dtype="float32")
+                out = (y0, y1)
+                R.output(out)
+            return out
+
+    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
+
+    tvm.ir.assert_structural_equal(after, before)
 
 
 if __name__ == "__main__":
