@@ -3921,6 +3921,59 @@ def test_prelu_multi_axis_slope():
         check_correctness(model, inputs=inputs, opset=16, check_dtypes=True)
 
 
+def test_softplus_large_values():
+    """ONNX Softplus is y = log(exp(x) + 1) for every finite input. The frontend
+    must not clamp the output to the linear function x beyond a hardcoded threshold
+    (it used to pass threshold=20 to relax.op.nn.softplus). Large float32 inputs,
+    including values beyond that threshold, must still match onnxruntime."""
+    for shape in [[3, 32, 32], [5]]:
+        graph = helper.make_graph(
+            [helper.make_node("Softplus", ["x"], ["y"])],
+            "softplus_large_values",
+            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, shape)],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, shape)],
+        )
+        model = helper.make_model(graph, producer_name="softplus_large_values")
+        inputs = {
+            "x": np.linspace(-10.0, 80.0, np.prod(shape), dtype="float32").reshape(shape),
+        }
+        check_correctness(model, inputs=inputs, opset=14, rtol=1e-6, atol=1e-6)
+
+
+def test_softplus_float64_accuracy():
+    """float64 Softplus must equal log(exp(x) + 1) across the threshold region.
+    Regression: the frontend used to clamp to the linear function x for x > 20,
+    losing ~1.9e-9 at x = 20.1. onnxruntime's CPU EP has no float64 Softplus, so
+    the expected value is computed with the numerically stable form
+    max(x, 0) + log1p(exp(-|x|)), which equals log(exp(x) + 1) mathematically."""
+    xs = np.array([19.0, 20.0, 20.1, 21.0, 25.0, 30.0, 40.0], dtype=np.float64)
+    expected = np.maximum(xs, 0.0) + np.log1p(np.exp(-np.abs(xs)))
+
+    graph = helper.make_graph(
+        [helper.make_node("Softplus", ["x"], ["y"])],
+        "softplus_float64",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.DOUBLE, [len(xs)])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.DOUBLE, [len(xs)])],
+    )
+    model = helper.make_model(graph, producer_name="softplus_float64")
+    model.opset_import[0].version = 14
+
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    vm.set_input("main", xs)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main").numpy()
+
+    np.testing.assert_allclose(tvm_output, expected, rtol=1e-12, atol=1e-12)
+
+
 def test_thresholded_relu():
     model = make_unary_model("ThresholdedRelu", [2, 3])
     tvm_model = from_onnx(model, keep_params_in_input=True)
