@@ -1613,9 +1613,12 @@ class Where(OnnxOpConverter):
                 output = [x if c else y for c, x, y in zip(condition, x, y)]
                 return relax.ShapeExpr(output)
 
-            relax.op.shape_to_tensor(inp) if isinstance(inp, relax.ShapeExpr) else inp
-            for inp in inputs
-        ]
+        tensors = []
+        for inp in inputs:
+            if isinstance(inp, relax.ShapeExpr):
+                tensors.append(relax.op.shape_to_tensor(inp))
+            else:
+                tensors.append(inp)
         return relax.op.where(tensors[0], tensors[1], tensors[2])
 
 
