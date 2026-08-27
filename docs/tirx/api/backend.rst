@@ -43,15 +43,64 @@ tvm.backend.cuda
 tvm.backend.cuda.lang
 *********************
 .. automodule:: tvm.backend.cuda.lang
+
+These exports are loaded lazily, so they need explicit autodoc entries:
+
+.. autoclass:: tvm.backend.cuda.lang.BaseTileScheduler
    :members:
-   :imported-members:
-   :exclude-members: PrimExpr, Op, Call
+
+.. autoclass:: tvm.backend.cuda.lang.ClusterPersistentScheduler2D
+   :members:
+
+.. autoclass:: tvm.backend.cuda.lang.FlashAttentionLPTScheduler
+   :members:
+
+.. autoclass:: tvm.backend.cuda.lang.FlashAttentionLinearScheduler
+   :members:
+
+.. autoclass:: tvm.backend.cuda.lang.GroupMajor3D
+   :members:
+
+.. autoclass:: tvm.backend.cuda.lang.IndexedTripleTileScheduler
+   :members:
+
+.. autoclass:: tvm.backend.cuda.lang.MBarrier
+   :members:
+
+.. autoclass:: tvm.backend.cuda.lang.Pipeline
+   :members:
+
+.. autoclass:: tvm.backend.cuda.lang.PipelineState
+   :members:
+
+.. autoclass:: tvm.backend.cuda.lang.RankAwareGroupMajorTileScheduler
+   :members:
+
+.. autoclass:: tvm.backend.cuda.lang.SMEMPool
+   :members:
+
+.. autoclass:: tvm.backend.cuda.lang.SmemDescriptor
+   :members:
+
+.. autoclass:: tvm.backend.cuda.lang.TCGen05Bar
+   :members:
+
+.. autoclass:: tvm.backend.cuda.lang.TMABar
+   :members:
+
+.. autoclass:: tvm.backend.cuda.lang.TMEMPool
+   :members:
+
+.. autoclass:: tvm.backend.cuda.lang.WarpRole
+   :members:
+
+.. autoclass:: tvm.backend.cuda.lang.WarpgroupRole
+   :members:
 
 tvm.backend.cuda.op
 *******************
 .. automodule:: tvm.backend.cuda.op
    :members:
-   :imported-members:
    :exclude-members: PrimExpr, Op, Call, PrimType, PointerType
 
 tvm.backend.cuda.script
@@ -66,6 +115,7 @@ tvm.backend.cuda.codegen
 .. automodule:: tvm.backend.cuda.codegen
    :members:
    :imported-members:
+   :undoc-members:
    :no-index:
    :exclude-members: PrimExpr, Op, Call
 
@@ -85,24 +135,24 @@ tvm.backend.cuda.iket
 
 tvm.backend.cuda.ptx
 ********************
-.. automodule:: tvm.backend.cuda.ptx
-   :members:
-   :imported-members:
-   :no-index:
-   :exclude-members: PrimExpr, Op, Call
+The table-driven direct PTX namespace and its extension API are documented on
+:doc:`ptx`; they are not repeated here.
 
 tvm.backend.cuda.tile_primitive
 *******************************
-.. automodule:: tvm.backend.cuda.tile_primitive
-   :members:
-   :exclude-members: PrimExpr, Op, Call
+This package imports CUDA dispatch implementations for their registration side
+effects.  The stable extension API is documented under
+:ref:`tirx-api-dispatch-extension-points`; individual dispatches are described
+in :doc:`../tile_primitives`.
 
 tvm.backend.cuda.target_tags
 ****************************
 .. automodule:: tvm.backend.cuda.target_tags
-   :members:
-   :imported-members:
-   :exclude-members: PrimExpr, Op, Call
+
+Importing this module registers NVIDIA target strings such as
+``nvidia/nvidia-h100`` and ``nvidia/nvidia-b100``.  Its helper functions are
+private; the imported generic ``tvm.target.register_tag`` function is not part
+of this module's API.
 
 tvm.backend.cuda.transforms
 ***************************
@@ -128,6 +178,7 @@ tvm.backend.trn.op
 ******************
 .. automodule:: tvm.backend.trn.op
    :members:
+   :undoc-members:
    :no-index:
 
 tvm.backend.trn.pipeline
@@ -145,20 +196,31 @@ tvm.backend.trn.script
 tvm.backend.trn.target_tags
 ***************************
 .. automodule:: tvm.backend.trn.target_tags
-   :members:
-   :imported-members:
    :no-index:
+
+Importing this module registers ``aws/trn1/trn1.2xlarge`` and
+``aws/trn1/trn1.32xlarge``.  The imported generic
+``tvm.target.register_tag`` function is not part of this module's API.
 
 tvm.backend.trn.tile_primitive
 ******************************
-.. automodule:: tvm.backend.trn.tile_primitive
-   :members:
-   :imported-members:
-   :no-index:
+This package imports Trainium dispatch implementations for registration side
+effects.  It does not define a separate public API; use the common dispatch
+extension points documented in :doc:`script`.
 
 tvm.backend.trn.transform
 *************************
 .. automodule:: tvm.backend.trn.transform
    :members:
    :imported-members:
+   :no-index:
+
+The two lazily exported pass classes require explicit autodoc entries:
+
+.. autoclass:: tvm.backend.trn.transform.TrnNaiveAllocator
+   :members:
+   :no-index:
+
+.. autoclass:: tvm.backend.trn.transform.TrnPrivateBufferAlloc
+   :members:
    :no-index:

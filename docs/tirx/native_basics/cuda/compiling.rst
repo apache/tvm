@@ -28,9 +28,10 @@ pipeline and returns an ``Executable`` you call directly. The arch (e.g.
     target = tvm.target.Target("cuda")
     exe = tvm.compile(tvm.IRModule({"main": scale}), target=target, tir_pipeline="tirx")
 
-``tir_pipeline="tirx"`` selects the TIRx lowering pipeline (``LowerTIRx`` →
-tile-primitive dispatch → host/device split → finalize). Compiling inside a
-``with target:`` block also works and lets the kernel pick up the target context.
+``tir_pipeline="tirx"`` selects the TIRx lowering pipeline (tile-primitive
+dispatch and cleanup inside ``LowerTIRx`` → host/device split → finalize).
+Compiling inside a ``with target:`` block also works and lets the kernel pick
+up the target context.
 
 Inspecting the result
 ---------------------

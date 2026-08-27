@@ -65,7 +65,7 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
      - statement-level arithmetic simplification (the arith analyzer)
    * - 4
      - ``LowerTIRxOpaque``
-     - lowers remaining opaque TIRx constructs to plain TIR
+     - lowers remaining opaque constructs to lower-level TIRx forms
    * - 5
      - ``FlattenBuffer``
      - flattens multi-dimensional ``BufferLoad`` / ``BufferStore`` to 1-D
@@ -138,8 +138,11 @@ Inside LowerTIRx
   lowers the execution-scope ids (``T.cta_id`` / ``T.thread_id`` / … →
   ``blockIdx`` / ``threadIdx`` via ``launch_thread``).
 
-So after ``LowerTIRx`` the module is plain TIR: no tile primitives, no
-``TileLayout`` indirection, scope ids resolved to thread axes.
+After ``LowerTIRx`` the module remains a ``tvm.tirx.PrimFunc``, but contains no
+tile primitives or ``TileLayout`` indirection, and scope ids have been resolved
+to thread axes.  Later TIRx passes lower the remaining opaque constructs and
+the target code generators consume ``tirx::PrimFunc`` directly; there is no
+conversion to the separate ``tvm.tir`` object model.
 
 A worked example
 ----------------

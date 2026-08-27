@@ -17,6 +17,7 @@
 """Builtin ops in TIRX"""
 
 import functools
+import inspect
 from collections.abc import Callable
 
 import tvm
@@ -64,6 +65,11 @@ class ScopedOp:
     def __init__(self, fn):
         self._fn = fn
         functools.update_wrapper(self, fn)
+        # ``scope`` is supplied by ``__call__`` or ``_bind``, not by callers.
+        signature = inspect.signature(fn)
+        self.__signature__ = signature.replace(
+            parameters=[param for name, param in signature.parameters.items() if name != "scope"]
+        )
 
     def __call__(self, *args, **kwargs):
         return self._fn(*args, scope=ExecScope("thread"), **kwargs)

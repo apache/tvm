@@ -17,6 +17,7 @@
 """Tests for TIRx op namespace split between T, T.tile, and device namespaces."""
 
 import importlib
+import inspect
 import sys
 import types
 
@@ -73,6 +74,21 @@ def test_tx_is_tile_shorthand_only():
     assert not hasattr(Tx, "meta_class")
     assert T.cast is not Tx.cast
     assert T.sqrt is not Tx.sqrt
+
+
+def test_tile_callable_signatures_hide_internal_scope_argument():
+    from tvm.script.ir_builder import tirx as raw_builder
+    from tvm.tirx.script import tile as high_level_tile
+
+    scoped_names = [
+        name
+        for name in high_level_tile.__all__
+        if isinstance(getattr(high_level_tile, name), raw_builder.tile.ScopedOp)
+    ]
+    assert scoped_names
+    for name in scoped_names:
+        assert "scope" not in inspect.signature(getattr(high_level_tile, name)).parameters
+        assert "scope" not in inspect.signature(getattr(raw_builder.tile, name)).parameters
 
 
 def test_tx_rejects_expression_overloads():

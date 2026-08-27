@@ -18,6 +18,11 @@
 tvm.tirx visitors and mutators
 ==============================
 
+``expr_functor`` and ``stmt_functor`` provide lightweight Python traversal
+utilities.  ``functor`` contains the FFI-backed ``PyStmtExprVisitor`` and
+``PyStmtExprMutator`` extension classes.  Their similarly named methods serve
+different base classes; they are not duplicate aliases.
+
 tvm.tirx.expr_functor
 ---------------------
 .. automodule:: tvm.tirx.expr_functor

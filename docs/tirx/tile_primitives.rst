@@ -35,30 +35,41 @@ synchronization, and backend intrinsics).
 Calling convention
 ------------------
 
-Tile primitives are called in TVMScript via ``from tvm.script import tirx as T``,
-on the injected ``Tx`` namespace. The namespace prefix selects the **cooperation
-scope**:
+Tile primitives are normally imported alongside the core TIRx dialect::
+
+    from tvm.script import tirx as T
+    from tvm.script.tirx import tile as Tx
+
+``Tx`` is an ordinary Python module alias, not an injected language keyword.
+The namespace prefix selects the **cooperation scope**:
 
 - ``Tx.<name>(...)`` — unqualified, runs at **thread** scope.
 - ``Tx.warp.<name>`` / ``Tx.wg.<name>`` (alias ``Tx.warpgroup``) / ``Tx.cta.<name>``
   / ``Tx.cluster.<name>`` / ``Tx.thread.<name>`` — bind a wider scope.
 
-Every primitive also accepts, besides its operands: ``scope`` (usually set by the
-namespace), ``workspace: dict[str, Buffer] | None``, ``dispatch: str | None``
-(force a named lowering variant), and ``**kwargs`` collected into a ``config``
-dict that tunes the chosen lowering. Operands are ``Buffer`` / ``BufferRegion``
-values, each carrying a :doc:`TileLayout <layout>` that dispatch reads.
+Most primitive constructors also carry ``workspace: dict[str, Buffer] | None``,
+``dispatch: str | None`` (force a named lowering variant), and ``**kwargs``
+collected into a ``config`` dict that tunes the chosen lowering.  ``ScopedOp``
+fills the underlying ``scope`` argument from the namespace prefix; select a
+scope with ``Tx.warp`` / ``Tx.wg`` / ``Tx.cta`` rather than passing it to the
+callable directly. Operands are ``Buffer`` / ``BufferRegion`` values, each
+carrying a :doc:`TileLayout <layout>` that dispatch reads.
 
-Wiring (three layers): the authoritative op list is the C++ registry
-(``src/tirx/op/tirx.cc``, 29 ops named ``tirx.tile.<name>``); the IR wrapper
-classes are in ``python/tvm/tirx/operator/tile_primitive/ops.py``; the
-user-facing ``Tx.*`` builders are in ``python/tvm/tirx/script/builder/tirx.py``.
+Wiring (four Python/C++ surfaces): the authoritative op list is the C++
+registry (``src/tirx/op/tirx.cc``, 31 ops named ``tirx.tile.<name>``); the IR
+wrapper classes are in ``python/tvm/tirx/operator/tile_primitive/ops.py``; raw
+``TilePrimitiveCall`` constructors are in
+``python/tvm/tirx/script/builder/tirx.py``; and the validated, tile-only
+``Tx.*`` facade is in ``python/tvm/tirx/script/tile.py``.  The two Python call
+surfaces construct the same IR node type.
 
 Primitive catalog
 -----------------
 
-The 29 primitives, grouped. Signatures show the operands plus the common
-``workspace``/``dispatch``/``scope``/``**kwargs`` tail (abbreviated ``...``).
+The 31 primitives, grouped. Signatures show the operands plus the usual
+``workspace``/``dispatch``/``**kwargs`` tail (abbreviated ``...``); ``select``
+and the ``compose_op`` frame have narrower signatures.  The underlying IR node
+also stores a scope, selected through the namespace prefix as described above.
 
 Data movement
 ~~~~~~~~~~~~~~
@@ -94,13 +105,13 @@ Cast and elementwise
 ::
 
     cast(dst, src=None, ...)                         # dtype cast (buffer form)
-    sqrt / exp / exp2(dst, src=None, bias=None, scale=None, ...)
+    sqrt / exp / exp2 / log2(dst, src=None, bias=None, scale=None, ...)
     reciprocal(dst, src=None, ...)                   # dst = 1/src
     silu(dst, src, ...)                              # dst = src*sigmoid(src)
     add / sub / mul / fdiv(dst, src1, src2, ...)     # element-wise arithmetic
     maximum / minimum(dst, src1, src2, ...)          # element-wise max / min
     fma(dst, src, scale, bias, ...)                  # dst = src*scale + bias
-    select(dst, true_value, false_value, pred, scope=None)  # dst = pred ? t : f
+    select(dst, true_value, false_value, pred)              # dst = pred ? t : f
 
 Reductions
 ~~~~~~~~~~
@@ -124,7 +135,7 @@ Dispatch config
 ---------------
 
 A call is materialized as a ``TilePrimitiveCall`` node whose fields carry
-everything dispatch needs (``python/tvm/tirx/stmt.py``):
+everything dispatch needs (``python/tvm/tirx/tile_primitive.py``):
 
 .. list-table::
    :header-rows: 1
@@ -165,10 +176,6 @@ the CUDA backend, by consumer:
      - Used by
      - Type / values
      - Meaning
-   * - ``dispatch``
-     - any primitive
-     - variant name (str)
-     - force a lowering variant (also settable via the ``dispatch=`` kwarg)
    * - ``vec_len``
      - ``copy`` / ``copy_async`` (vectorized variants)
      - int | None
@@ -230,9 +237,9 @@ Dispatch mechanism
 Pipeline
 ~~~~~~~~
 
-Dispatch runs in the ``tirx.TilePrimitiveDispatch`` pass — the sole pass inside
-``LowerTIRx()``, the first stage of the compile pipeline. The C++ mutator
-``TilePrimitiveDispatcher`` walks the IR and, per call:
+Dispatch runs in the ``tirx.TilePrimitiveDispatch`` pass — the first phase
+inside ``LowerTIRx()``, before layout and execution-scope cleanup. The C++
+mutator ``TilePrimitiveDispatcher`` walks the IR and, per call:
 
 #. resolves the ``(inter, intra)`` execution split for the call's scope from the
    active set tracked through control flow (``if wg_id == ...``, ``warp_id``,

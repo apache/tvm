@@ -21,6 +21,34 @@ tvm.tirx.layout
 Layouts describe how logical tensor coordinates map to storage and execution
 axes.  See :doc:`../layout` for the programming model and worked examples.
 
+The primary classes are re-exported from ``tvm.tirx``, but are defined in this
+module:
+
+.. autoclass:: tvm.tirx.layout.Layout
+   :members:
+   :no-index:
+
+.. autoclass:: tvm.tirx.layout.Axis
+   :members:
+   :no-index:
+
+.. autoclass:: tvm.tirx.layout.Iter
+   :members:
+   :no-index:
+
+.. autoclass:: tvm.tirx.layout.TileLayout
+   :members:
+   :no-index:
+
+.. autoclass:: tvm.tirx.layout.ComposeLayout
+   :members:
+   :no-index:
+
+``S[...]`` and ``R[...]`` build shard and replica layout specifications,
+respectively.  Named axes such as ``laneid``, ``warpid``, ``tid_in_wg``,
+``TLane``, and ``TCol`` are resolved lazily by this module.
+
 .. automodule:: tvm.tirx.layout
    :members:
    :no-index:
+   :exclude-members: Axis, ComposeLayout, Iter, Layout, TileLayout

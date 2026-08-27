@@ -27,10 +27,10 @@ TIRx TVMScript dialect.  Its spelling depends only on the local import alias::
    from tvm.script import tirx as Tx
    Tx.ptx.add.rn.f32(dst, lhs, rhs)
 
-``T.ptx`` and ``Tx.ptx`` above are the same object.  This layer emits a single
-PTX instruction directly; it is below the layout-aware tile primitives
-(``Tx.*`` with split aliases or ``Tx.tile.*`` with one alias) and does not run
-tile-primitive dispatch.
+``T.ptx`` and ``Tx.ptx`` above are the same object.  This layer represents one
+table-described PTX instruction directly; it is below the layout-aware tile
+primitives (``Tx.*`` with split aliases or ``Tx.tile.*`` with one alias) and
+does not run tile-primitive dispatch.
 
 Instruction forms
 -----------------
@@ -52,10 +52,10 @@ Predication is keyword-only::
 
 ``T.ptx.pred(value)`` marks a register operand whose PTX type is ``.pred``;
 ``T.ptx.addr(base, byte_offset)`` forms an immediate-offset address for
-instructions that accept one; and ``T.ptx.SINK`` represents PTX's discard
-destination ``_``.  The generated ``tvm/script/tirx.pyi`` stub provides editor
-completion for these helpers, registered instruction families, and modifier
-chains.
+instructions that accept one; and ``T.ptx.SINK`` represents PTX's sink operand
+``_`` in table-marked positions.  The generated ``tvm/script/tirx.pyi`` stub
+provides editor completion for these helpers, registered instruction families,
+and modifier chains.
 
 PTX versus CUDA helpers
 -----------------------
@@ -69,10 +69,8 @@ Namespace API
 -------------
 .. autoclass:: tvm.backend.cuda.ptx.PTXNamespace
    :members:
-   :no-index:
    :special-members: __getitem__
 
 .. automodule:: tvm.backend.cuda.ptx
    :members:
-   :no-index:
    :exclude-members: PTXNamespace

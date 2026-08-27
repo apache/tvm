@@ -501,7 +501,12 @@ def TilePrimitiveDispatch():
 
 
 def LowerTIRx():
-    """Lower TIR to a lower-level IR.
+    """Lower tile primitives, layouts, and execution scopes within TIRx.
+
+    This sequential pass first dispatches each ``TilePrimitiveCall`` to a
+    target implementation, then applies layout and execution-scope cleanup.
+    The result remains a ``tvm.tirx.PrimFunc``; this pass does not convert it
+    to the separate ``tvm.tir`` object model.
 
     Returns
     -------
