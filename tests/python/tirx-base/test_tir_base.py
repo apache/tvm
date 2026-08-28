@@ -128,6 +128,23 @@ def test_stmt_span_not_structural():
     assert tvm_ffi.structural_hash(stmt_a) == tvm_ffi.structural_hash(stmt_b)
 
 
+def test_iter_var_span_reflection():
+    span_a = tvm.ir.Span(tvm.ir.SourceName("a.py"), 1, 1, 1, 2)
+    span_b = tvm.ir.Span(tvm.ir.SourceName("b.py"), 10, 10, 3, 4)
+    domain = tvm.ir.Range(0, 4)
+    variable = tirx.Var("i", "int32")
+    iter_var_a = tirx.IterVar(domain, variable, tirx.IterVar.DataPar, span=span_a)
+    iter_var_b = tirx.IterVar(domain, variable, tirx.IterVar.DataPar, span=span_b)
+
+    assert iter_var_a.span.same_as(span_a)
+    assert iter_var_b.span.same_as(span_b)
+    assert tvm_ffi.structural_equal(iter_var_a, iter_var_b)
+    assert tvm_ffi.structural_hash(iter_var_a) == tvm_ffi.structural_hash(iter_var_b)
+
+    restored = tvm.ir.load_json(tvm.ir.save_json(iter_var_a))
+    assert restored.span.source_name.name == "a.py"
+
+
 def test_return_stmt_functor_traversal_and_mutation():
     x = tirx.Var("x", "int32")
     span = tvm.ir.Span(tvm.ir.SourceName("return_test"), 1, 1, 1, 9)
