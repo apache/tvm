@@ -216,6 +216,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     // operation that actually needs the solver, Bind/EnterConstraint only
     // journal their arguments into scope_stack_.
     scope_stack_.push_back({});
+    scope_side_effects_.push_back({});
     // use rlimit, not timeout to ensure deterministic behavior
     SetRLimit(10000U);
   }
@@ -239,8 +240,9 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     if (rlimit != UINT_MAX) {
       solver->set("rlimit", rlimit);
     }
-    for (const auto& scope : scope_stack_) {
-      for (const Scope& entry : scope) {
+    TVM_FFI_ICHECK_EQ(scope_side_effects_.size(), scope_stack_.size());
+    for (size_t scope_index = 0; scope_index < scope_stack_.size(); ++scope_index) {
+      for (const Scope& entry : scope_stack_[scope_index]) {
         switch (entry.kind) {
           case Scope::BindValue:
             ApplyBindValue(entry.var, entry.value);
@@ -249,7 +251,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
             ApplyBindRange(entry.var, entry.min, entry.extent);
             break;
           case Scope::Constraint:
-            ApplyConstraint(entry.constraint);
+            ApplyConstraint(entry.constraint, entry.is_assume, scope_index);
             break;
         }
       }
@@ -291,37 +293,55 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     PrimExpr min;
     PrimExpr extent;
     PrimExpr constraint;
+    /// Assume-mode constraints keep side-effectful expressions memoized for
+    /// the lifetime of their scope. This flag preserves that behavior during
+    /// deferred replay.
+    bool is_assume = false;
   };
 
   /// @brief scope_stack memorizes existing constraint and bindings
   ///        to generate SMTLIB2 representation with comments
   std::vector<std::vector<Scope>> scope_stack_;
 
+  /// @brief Per-scope memoized side-effect expressions, parallel to scope_stack_.
+  std::vector<std::vector<PrimExpr>> scope_side_effects_;
+
   /// @brief Enter a constraint scope
-  std::function<void()> EnterConstraint(const PrimExpr& constraint) {
+  std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume) {
     scope_stack_.push_back({});
     scope_stack_.back().push_back(
-        Scope{Scope::Constraint, Var(), PrimExpr(), PrimExpr(), PrimExpr(), constraint});
+        Scope{Scope::Constraint, Var(), PrimExpr(), PrimExpr(), PrimExpr(), constraint, is_assume});
+    scope_side_effects_.push_back({});
     if (solver) {
-      ApplyConstraint(constraint);
+      ApplyConstraint(constraint, is_assume, scope_side_effects_.size() - 1);
     }
-    // Exit callback: scopes leave LIFO, so the stack top is this scope. If the
-    // solver materialized while the scope was live, replay pushed a frame for
-    // it, so the pop below stays balanced either way.
+    // Exit callback: scopes leave LIFO. If the solver materialized while this
+    // scope was live, replay pushed its frame and retained its assume memos.
     return [this]() {
       if (solver) solver->pop();
+      for (const PrimExpr& expr : scope_side_effects_.back()) {
+        MemoErase(expr);
+      }
+      scope_side_effects_.pop_back();
       scope_stack_.pop_back();
     };
   }
 
   /// @brief Translate a constraint into the solver (push + assert).
-  void ApplyConstraint(const PrimExpr& constraint) {
+  void ApplyConstraint(const PrimExpr& constraint, bool is_assume, size_t scope_index) {
     solver->push();
+    this->is_assume = is_assume;
     solver->add(VisitBool(constraint));
+    this->is_assume = false;
     auto side_effect_exprs = std::move(side_effect_exprs_);
     side_effect_exprs_.clear();
-    for (const auto& expr : side_effect_exprs) {
-      MemoErase(expr);
+    if (is_assume) {
+      auto& keep = scope_side_effects_[scope_index];
+      keep.insert(keep.end(), side_effect_exprs.begin(), side_effect_exprs.end());
+    } else {
+      for (const PrimExpr& expr : side_effect_exprs) {
+        MemoErase(expr);
+      }
     }
   }
 
@@ -455,6 +475,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
       side_effect_exprs_.clear();
       ctx = other_.ctx;
       scope_stack_ = other_.scope_stack_;
+      scope_side_effects_.assign(scope_stack_.size(), {});
       timeout_ms = other_.timeout_ms;
       rlimit = other_.rlimit;
       return;
@@ -489,6 +510,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     SetRLimit(other_.rlimit);
     // Copy the scope stack, which contains comments for SMTLIB2 generation.
     scope_stack_ = other_.scope_stack_;
+    scope_side_effects_ = other_.scope_side_effects_;
   }
 
   /// @brief Set timeout in milliseconds
@@ -677,22 +699,27 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   using Z3BinOp = z3::expr (*)(const z3::expr&, const z3::expr&);
 
   std::vector<PrimExpr> side_effect_exprs_;
+  bool is_assume = false;
 
-  z3::expr ConvertBool(const PrimExpr& e) {
+  z3::expr ConvertBool(const PrimExpr& e, bool is_assume = false) {
+    this->is_assume = is_assume;
     auto res = VisitBool(e);
     for (auto& expr : side_effect_exprs_) {
       MemoErase(expr);
     }
     side_effect_exprs_.clear();
+    this->is_assume = false;
     return res;
   }
 
-  z3::expr ConvertInt(const PrimExpr& e) {
+  z3::expr ConvertInt(const PrimExpr& e, bool is_assume = false) {
+    this->is_assume = is_assume;
     auto res = VisitInt(e);
     for (auto& expr : side_effect_exprs_) {
       MemoErase(expr);
     }
     side_effect_exprs_.clear();
+    this->is_assume = false;
     return res;
   }
 
@@ -710,6 +737,9 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
       MemoPut(e, res);
       side_effect_exprs_.emplace_back(e);
     } else {
+      if (is_assume) {
+        MemoPut(e, res);
+      }
       side_effect_exprs_.emplace_back(e);
     }
     return res;
@@ -973,8 +1003,8 @@ TVM_DLL void Z3Prover::Bind(const Var& var, const Range& new_range, bool allow_o
 TVM_DLL void Z3Prover::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
   return impl_->Bind(var, expr, allow_override);
 }
-std::function<void()> Z3Prover::EnterConstraint(const PrimExpr& constraint) {
-  return impl_->EnterConstraint(constraint);
+std::function<void()> Z3Prover::EnterConstraint(const PrimExpr& constraint, bool is_assume) {
+  return impl_->EnterConstraint(constraint, is_assume);
 }
 ffi::String Z3Prover::GetSMTLIB2(const ffi::Optional<PrimExpr> expr) {
   if (expr.has_value()) {
@@ -1022,7 +1052,7 @@ TVM_DLL bool Z3Prover::IsEnabled() const { return false; }
 TVM_DLL bool Z3Prover::CanProve(const PrimExpr& expr) { return false; }
 TVM_DLL void Z3Prover::Bind(const Var& var, const Range& new_range, bool allow_override) {}
 TVM_DLL void Z3Prover::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {}
-std::function<void()> Z3Prover::EnterConstraint(const PrimExpr& constraint) {
+std::function<void()> Z3Prover::EnterConstraint(const PrimExpr& constraint, bool is_assume) {
   return []() {};
 }
 ffi::String Z3Prover::GetSMTLIB2(const ffi::Optional<PrimExpr> expr) {
