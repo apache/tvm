@@ -255,7 +255,7 @@ Expr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
     PrimExpr rhs = op->args[1].as_or_throw<PrimExpr>();
     PrimType before_dtype = before->args[0].as_or_throw<PrimExpr>().ty();
     PrimType after_dtype = lhs.ty();
-    if (before_dtype.code() == DLDataTypeCode::kDLInt &&
+    if (ShouldClampShiftAmounts() && before_dtype.code() == DLDataTypeCode::kDLInt &&
         after_dtype.code() == DLDataTypeCode::kDLInt && before_dtype.bits() > after_dtype.bits()) {
       // Values are assumed to fit in the narrowed dtype.  An arithmetic right
       // shift at or beyond its sign bit therefore has the same value as a shift
@@ -269,7 +269,7 @@ Expr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
     PrimExpr rhs = op->args[1].as_or_throw<PrimExpr>();
     PrimType before_dtype = before->args[0].as_or_throw<PrimExpr>().ty();
     PrimType after_dtype = lhs.ty();
-    if (before_dtype.code() == DLDataTypeCode::kDLInt &&
+    if (ShouldClampShiftAmounts() && before_dtype.code() == DLDataTypeCode::kDLInt &&
         after_dtype.code() == DLDataTypeCode::kDLInt && before_dtype.bits() > after_dtype.bits()) {
       // Keep dynamic and vector shift amounts valid for the narrowed dtype.  Under the pass's
       // representability precondition, a left shift at or beyond the narrowed width can only

@@ -18,6 +18,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/node_functor.h>
 #include <tvm/runtime/logging.h>
@@ -381,4 +382,25 @@ TEST(IRF, Substitute) {
     // the expression is not changed
     TVM_FFI_ICHECK(new_expr.same_as(expr));
   }
+}
+
+TEST(IRF, SubstituteWithDataTypeLegalizationPreservesShiftAmounts) {
+  using namespace tvm;
+  using namespace tvm::tirx;
+
+  PrimVar x("x", PrimType::Int(64));
+  PrimVar y("y", PrimType::Int(32));
+  auto f_subst = [&](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
+    if (var.same_as(x)) return PrimExpr(y);
+    return std::nullopt;
+  };
+
+  PrimExpr shift_amount = IntImm::Int64(40);
+  PrimExpr widened_y = cast(PrimType::Int(64), y);
+  PrimExpr actual_left = SubstituteWithDataTypeLegalization(x << shift_amount, f_subst);
+  PrimExpr actual_right = SubstituteWithDataTypeLegalization(x >> shift_amount, f_subst);
+
+  ffi::StructuralEqual structural_equal;
+  EXPECT_TRUE(structural_equal(actual_left, widened_y << shift_amount));
+  EXPECT_TRUE(structural_equal(actual_right, widened_y >> shift_amount));
 }
