@@ -243,9 +243,7 @@ class TestPreserveTakeModeForBatchedWeights(Base):
                 fused_weight = R.reshape(reordered_weight, [16, 2048])
                 fused_output = R.matmul(x, fused_weight)
                 reordered_output = R.reshape(fused_output, [128, 1, 64, 32])
-                tabular_output = R.take(
-                    reordered_output, routing_table, axis=2, mode="clip"
-                )
+                tabular_output = R.take(reordered_output, routing_table, axis=2, mode="clip")
                 out = R.einsum([tabular_output], "ijik->ijk")
                 R.output(out)
             return out
