@@ -187,5 +187,7 @@ def test_manifest_tirx_kernel_correctness(kernel_name, config):
             "MegaMoE requires its dedicated multi-process scheduler; this suite's "
             "processes own CUDA contexts that its physical-device assignment rejects"
         )
+    if getattr(_KERNELS[kernel_name], "KERNEL_META", {}).get("category") == "msa":
+        pytest.skip("MSA references require an isolated CuTeDSL 4.5.3 process")
     with _registry_gpu_lock(kernel_name, config):
         kernel_runner.run_kernel_test(kernel_name, config, registry=_KERNELS)

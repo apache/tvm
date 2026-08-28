@@ -179,6 +179,7 @@ class RuntimeContext implements Disposable {
   tensorCacheRemove: PackedFunc;
   tensorCacheClear: PackedFunc;
   arrayDecodeStorage: PackedFunc;
+  arrayDecodeBF16ToF32Inplace: PackedFunc | undefined;
   paramModuleFromCache: PackedFunc;
   paramModuleFromCacheByName: PackedFunc;
   makeShapeTuple: PackedFunc;
@@ -214,6 +215,7 @@ class RuntimeContext implements Disposable {
     this.tensorCacheUpdate = getGlobalFunc("vm.builtin.tensor_cache.update");
     this.tensorCacheClear = getGlobalFunc("vm.builtin.tensor_cache.clear");
     this.arrayDecodeStorage = getGlobalFunc("tvmjs.array.decode_storage");
+    this.arrayDecodeBF16ToF32Inplace = undefined;
     this.paramModuleFromCache = getGlobalFunc("vm.builtin.param_module_from_cache");
     this.paramModuleFromCacheByName = getGlobalFunc("vm.builtin.param_module_from_cache_by_name");
     this.makeShapeTuple = getGlobalFunc("ffi.Shape");
@@ -237,6 +239,7 @@ class RuntimeContext implements Disposable {
     this.tensorCacheRemove.dispose();
     this.tensorCacheUpdate.dispose();
     this.arrayDecodeStorage.dispose();
+    this.arrayDecodeBF16ToF32Inplace?.dispose();
     this.paramModuleFromCache.dispose();
     this.paramModuleFromCacheByName.dispose();
     this.makeShapeTuple.dispose();
@@ -607,6 +610,22 @@ export class Tensor extends TVMObject {
   }
 
   /**
+   * Return the effective address of a CPU Tensor's storage.
+   * @returns The address in Wasm linear memory.
+   * @internal
+   */
+  getCPUDataAddress(): Pointer {
+    if (this.device.deviceType !== DeviceStrToEnum.cpu) {
+      throw new Error("Can only obtain a linear-memory address for a CPU Tensor");
+    }
+    const address = this.getDataPtr() + this.byteOffset;
+    if (!Number.isSafeInteger(address) || address < 0) {
+      throw new Error("Invalid CPU Tensor storage address");
+    }
+    return address;
+  }
+
+  /**
    * Copy data from another Tensor or javascript array.
    * The number of elements must match.
    *
@@ -953,6 +972,10 @@ export class Instance implements Disposable {
         return this.getGlobalFuncInternal(name, autoAttachToScope);
       }
     );
+    this.ctx.arrayDecodeBF16ToF32Inplace = this.getGlobalFuncInternalOptional(
+      "tvmjs.array.decode_bf16_to_f32_inplace",
+      /*autoAttachToScope=*/ false,
+    );
     this.registerEnvGlobalPackedFuncs();
     this.registerObjectFactoryFuncs();
     this.rng = new LinearCongruentialGenerator();
@@ -1156,6 +1179,17 @@ export class Instance implements Disposable {
   }
 
   private getGlobalFuncInternal(name: string, autoAttachToScope = true): PackedFunc {
+    const ret = this.getGlobalFuncInternalOptional(name, autoAttachToScope);
+    if (ret === undefined) {
+      throw Error("Cannot find global function " + name);
+    }
+    return ret;
+  }
+
+  private getGlobalFuncInternalOptional(
+    name: string,
+    autoAttachToScope = true,
+  ): PackedFunc | undefined {
     const stack = this.lib.getOrAllocCallStack();
     const nameOffset = stack.allocByteArrayForString(name);
     const outOffset = stack.allocPtrArray(1);
@@ -1172,7 +1206,7 @@ export class Instance implements Disposable {
     const handle = this.memory.loadPointer(outPtr);
     this.lib.recycleCallStack(stack);
     if (handle === 0) {
-      throw Error("Cannot find global function " + name);
+      return undefined;
     }
     const ret = this.makePackedFunc(handle);
     if (autoAttachToScope) this.ctx.attachToCurrentScope(ret);
@@ -1357,12 +1391,22 @@ export class Instance implements Disposable {
   ): void {
     const recBytes = getTensorCacheRecordBytes(shardBytes, rec);
     if (cpuArray !== undefined) {
-      this.ctx.arrayDecodeStorage(
-        cpuArray,
-        recBytes,
-        rec.format,
-        rec.dtype,
-      );
+      const isPackedBF16 =
+        rec.format === "f32-to-bf16" && rec.dtype === "float32";
+      if (isPackedBF16 && this.ctx.arrayDecodeBF16ToF32Inplace !== undefined) {
+        this.memory.storeRawBytes(cpuArray.getCPUDataAddress(), recBytes);
+        this.ctx.arrayDecodeBF16ToF32Inplace(
+          cpuArray,
+          new Scalar(recBytes.byteLength, "int64"),
+        );
+      } else {
+        this.ctx.arrayDecodeStorage(
+          cpuArray,
+          recBytes,
+          rec.format,
+          rec.dtype,
+        );
+      }
     }
     if (gpuArray !== undefined) {
       if (cpuArray === undefined) {
@@ -1373,6 +1417,24 @@ export class Instance implements Disposable {
     }
   }
 
+  /** Return the exact byte size of a packed BF16 tensor. */
+  private getPackedBF16Bytes(shape: Array<number>): number {
+    let numElements = 1;
+    for (const dim of shape) {
+      if (!Number.isSafeInteger(dim) || dim < 0) {
+        throw new Error(`Invalid tensor dimension: ${dim}`);
+      }
+      numElements *= dim;
+      if (!Number.isSafeInteger(numElements)) {
+        throw new Error("Tensor element count exceeds JavaScript's safe integer range");
+      }
+    }
+    const nbytes = numElements * 2;
+    if (!Number.isSafeInteger(nbytes)) {
+      throw new Error("Packed BF16 size exceeds JavaScript's safe integer range");
+    }
+    return nbytes;
+  }
 
   /**
    * Fetch list of Tensor into the TensorCache.
@@ -1487,11 +1549,20 @@ export class Instance implements Disposable {
         let gpu_arr: Tensor | undefined;
         try {
           const rec = shardRecords[j];
-          const requiresDecode =
+          const isPackedBF16 =
             rec.format === "f32-to-bf16" && rec.dtype === "float32";
+          if (isPackedBF16) {
+            const expectedBytes = this.getPackedBF16Bytes(rec.shape);
+            if (rec.nbytes !== expectedBytes) {
+              throw new Error(
+                `Packed BF16 record has ${rec.nbytes} bytes, ` +
+                `but shape requires ${expectedBytes}`,
+              );
+            }
+          }
           const directToWebGPU =
             device.deviceType === DeviceStrToEnum.webgpu &&
-            !requiresDecode &&
+            !isPackedBF16 &&
             rec.nbytes % 4 === 0;
 
           if (!directToWebGPU) {
