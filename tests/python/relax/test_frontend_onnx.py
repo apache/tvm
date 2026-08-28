@@ -362,7 +362,7 @@ def verify_binary_scalar(op_name, attrs={}, domain=None, dtype=TensorProto.INT32
         "Mul": np.multiply,
         "Div": np.divide,
         "Pow": np.power,
-        "Mod": np.mod if attrs.get("fmod", 0) else np.fmod,
+        "Mod": np.fmod if attrs.get("fmod", 0) else np.mod,
     }[op_name]
     expected_value = op(lhs, rhs).astype(dtype_str)
 
@@ -695,6 +695,31 @@ def test_mod(int_mode: bool):
         dtype, fmod = TensorProto.FLOAT, 1
     verify_binary("Mod", [1, 32], [1, 32], [1, 32], attrs={"fmod": fmod}, dtype=dtype)
     verify_binary_scalar("Mod", attrs={"fmod": fmod}, dtype=dtype)
+
+
+@pytest.mark.parametrize(
+    "fmod, dtype, a_vals, b_vals",
+    [
+        (0, TensorProto.INT32, [-5, 5, -5, 5], [3, 3, -3, -3]),
+        (1, TensorProto.INT32, [-5, 5, -5, 5], [3, 3, -3, -3]),
+        (1, TensorProto.FLOAT, [-5.5, 5.5, -5.5, 5.5], [3.0, 3.0, -3.0, -3.0]),
+    ],
+)
+def test_mod_constant_fold_negative_operands(fmod, dtype, a_vals, b_vals):
+    """Mod over two constants is folded at import time. The folded value must
+    match onnxruntime for negative operands, where integer mod (sign follows
+    divisor) and fmod (sign follows dividend) disagree."""
+    a = make_constant_node("a", dtype, [4], a_vals)
+    b = make_constant_node("b", dtype, [4], b_vals)
+    mod_node = helper.make_node("Mod", ["a", "b"], ["c"], fmod=fmod)
+    graph = helper.make_graph(
+        [a, b, mod_node],
+        "mod_constant_fold_test",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("c", dtype, [4])],
+    )
+    model = helper.make_model(graph, producer_name="mod_constant_fold_test")
+    check_correctness(model)
 
 
 SHAPE_PARAMS = [
@@ -1539,6 +1564,33 @@ def test_gather():
     _verify_gather([5, 4, 3, 2], [0, 1, 3], [3, 4, 3, 2], ExpectedRank4Axis0)
     _verify_gather([3], 0, [], ExpectedScalarIndex)
     _verify_gather([3, 3], [[0, 2]], [3, 1, 2], ExpectedRank2Axis1, 1)
+
+
+def test_gather_indices_from_shape():
+    """Gather from a tensor using the dimensions of another tensor as indices."""
+    shape_node = helper.make_node("Shape", ["shape_source"], ["indices"])
+    gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=0)
+
+    graph = helper.make_graph(
+        [shape_node, gather_node],
+        "gather_indices_from_shape_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, [4]),
+            helper.make_tensor_value_info("shape_source", TensorProto.FLOAT, [2, 3]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2])],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="gather_indices_from_shape_test",
+        opset_imports=[helper.make_opsetid("", 18)],
+    )
+    input_values = {
+        "data": np.random.randn(4).astype("float32"),
+        "shape_source": np.random.randn(2, 3).astype("float32"),
+    }
+    check_correctness(model, inputs=input_values, opset=18)
 
 
 @pytest.mark.parametrize("index", [0, 2, 3, -1, -4])
@@ -3919,6 +3971,59 @@ def test_prelu_multi_axis_slope():
             ),
         }
         check_correctness(model, inputs=inputs, opset=16, check_dtypes=True)
+
+
+def test_softplus_large_values():
+    """ONNX Softplus is y = log(exp(x) + 1) for every finite input. The frontend
+    must not clamp the output to the linear function x beyond a hardcoded threshold
+    (it used to pass threshold=20 to relax.op.nn.softplus). Large float32 inputs,
+    including values beyond that threshold, must still match onnxruntime."""
+    for shape in [[3, 32, 32], [5]]:
+        graph = helper.make_graph(
+            [helper.make_node("Softplus", ["x"], ["y"])],
+            "softplus_large_values",
+            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, shape)],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, shape)],
+        )
+        model = helper.make_model(graph, producer_name="softplus_large_values")
+        inputs = {
+            "x": np.linspace(-10.0, 80.0, np.prod(shape), dtype="float32").reshape(shape),
+        }
+        check_correctness(model, inputs=inputs, opset=14, rtol=1e-6, atol=1e-6)
+
+
+def test_softplus_float64_accuracy():
+    """float64 Softplus must equal log(exp(x) + 1) across the threshold region.
+    Regression: the frontend used to clamp to the linear function x for x > 20,
+    losing ~1.9e-9 at x = 20.1. onnxruntime's CPU EP has no float64 Softplus, so
+    the expected value is computed with the numerically stable form
+    max(x, 0) + log1p(exp(-|x|)), which equals log(exp(x) + 1) mathematically."""
+    xs = np.array([19.0, 20.0, 20.1, 21.0, 25.0, 30.0, 40.0], dtype=np.float64)
+    expected = np.maximum(xs, 0.0) + np.log1p(np.exp(-np.abs(xs)))
+
+    graph = helper.make_graph(
+        [helper.make_node("Softplus", ["x"], ["y"])],
+        "softplus_float64",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.DOUBLE, [len(xs)])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.DOUBLE, [len(xs)])],
+    )
+    model = helper.make_model(graph, producer_name="softplus_float64")
+    model.opset_import[0].version = 14
+
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    vm.set_input("main", xs)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main").numpy()
+
+    np.testing.assert_allclose(tvm_output, expected, rtol=1e-12, atol=1e-12)
 
 
 def test_thresholded_relu():

@@ -728,10 +728,10 @@ class Mod(BinaryBase):
     @classmethod
     def _impl_v10(cls, bb, inputs, attr, params):
         if attr.get("fmod", 0) == 0:
-            cls.numpy_op = _np.fmod
+            cls.numpy_op = _np.mod
             cls.relax_op = relax.op.floor_mod
         else:
-            cls.numpy_op = _np.mod
+            cls.numpy_op = _np.fmod
             cls.relax_op = relax.op.mod
         return cls.base_impl(bb, inputs, attr, params)
 
@@ -1360,6 +1360,9 @@ class Gather(OnnxOpConverter):
                 return relax.prim_value(shape_val)
 
             data = bb.normalize(relax.op.shape_to_tensor(data))
+
+        if isinstance(indices, relax.ShapeExpr):
+            indices = bb.normalize(relax.op.shape_to_tensor(indices))
 
         indices_dtype = indices.ty.dtype.dtype
         if not indices_dtype.startswith("uint"):
@@ -2659,9 +2662,17 @@ class Softplus(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
-        dtype = inputs[0].ty.dtype
-        threshold = 10.0 if dtype == "float16" else 20.0
-        return relax.op.nn.softplus(inputs[0], threshold=threshold)
+        x = inputs[0]
+        dtype = x.ty.dtype
+        return relax.op.add(
+            relax.op.maximum(x, relax.const(0, dtype)),
+            relax.op.log(
+                relax.op.add(
+                    relax.const(1, dtype),
+                    relax.op.exp(relax.op.negative(relax.op.abs(x))),
+                )
+            ),
+        )
 
 
 class Softsign(OnnxOpConverter):
