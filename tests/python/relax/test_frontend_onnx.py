@@ -362,7 +362,7 @@ def verify_binary_scalar(op_name, attrs={}, domain=None, dtype=TensorProto.INT32
         "Mul": np.multiply,
         "Div": np.divide,
         "Pow": np.power,
-        "Mod": np.mod if attrs.get("fmod", 0) else np.fmod,
+        "Mod": np.fmod if attrs.get("fmod", 0) else np.mod,
     }[op_name]
     expected_value = op(lhs, rhs).astype(dtype_str)
 
@@ -697,6 +697,31 @@ def test_mod(int_mode: bool):
     verify_binary_scalar("Mod", attrs={"fmod": fmod}, dtype=dtype)
 
 
+@pytest.mark.parametrize(
+    "fmod, dtype, a_vals, b_vals",
+    [
+        (0, TensorProto.INT32, [-5, 5, -5, 5], [3, 3, -3, -3]),
+        (1, TensorProto.INT32, [-5, 5, -5, 5], [3, 3, -3, -3]),
+        (1, TensorProto.FLOAT, [-5.5, 5.5, -5.5, 5.5], [3.0, 3.0, -3.0, -3.0]),
+    ],
+)
+def test_mod_constant_fold_negative_operands(fmod, dtype, a_vals, b_vals):
+    """Mod over two constants is folded at import time. The folded value must
+    match onnxruntime for negative operands, where integer mod (sign follows
+    divisor) and fmod (sign follows dividend) disagree."""
+    a = make_constant_node("a", dtype, [4], a_vals)
+    b = make_constant_node("b", dtype, [4], b_vals)
+    mod_node = helper.make_node("Mod", ["a", "b"], ["c"], fmod=fmod)
+    graph = helper.make_graph(
+        [a, b, mod_node],
+        "mod_constant_fold_test",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("c", dtype, [4])],
+    )
+    model = helper.make_model(graph, producer_name="mod_constant_fold_test")
+    check_correctness(model)
+
+
 SHAPE_PARAMS = [
     ([[32, 32], [32, 32]], [32, 32]),
     ([[32, 1], [1, 2]], [32, 2]),
@@ -852,6 +877,76 @@ def test_multi_input_all_constant_inputs(op_name, dtype, shapes, values):
         f"all_constant_{op_name}",
         inputs=[],
         outputs=[helper.make_tensor_value_info("output", dtype, output_shape)],
+    )
+    check_correctness(helper.make_model(graph), opset=13)
+
+
+@pytest.mark.parametrize("op_name", ["Min", "Max", "Sum", "Mean"])
+@pytest.mark.parametrize("rank", [0, 1, 2, 3])
+def test_multi_input_constant_rank_axis_bounds(op_name, rank):
+    """All-constant inputs reduce over the new leading stack axis.
+
+    Stacking the inputs along ``axis=0`` yields a tensor of rank ``rank+1``,
+    so the reduction axis must lie in ``[-(rank+1), rank]``. ``axis=0`` equals
+    the lower bound ``-(rank+1)`` and is therefore valid for every rank, while
+    a positive ``axis=rank+1`` is out of bounds and must raise. The importer
+    relies on this in ``MultiInputBase._impl_v1``, so both the numpy invariant
+    and the end-to-end folding result are asserted here.
+    """
+    shape = (2,) * rank
+    stacked = np.stack([np.ones(shape, np.float32), np.ones(shape, np.float32)], axis=0)
+    reduce = {"Min": np.min, "Max": np.max, "Sum": np.sum, "Mean": np.mean}[op_name]
+    assert stacked.ndim == rank + 1
+    for axis in (0, -(rank + 1), rank, -rank):
+        reduce(stacked, axis=axis)  # must not raise
+    for axis in (rank + 1, -(rank + 2)):
+        with pytest.raises((IndexError, ValueError)):
+            reduce(stacked, axis=axis)
+
+    # End-to-end: two identical rank-``rank`` constants fold to the identity.
+    const_nodes = []
+    for name in ("c0", "c1"):
+        const_nodes.append(
+            helper.make_node(
+                "Constant",
+                inputs=[],
+                outputs=[name],
+                value=helper.make_tensor(
+                    f"{name}_v",
+                    TensorProto.FLOAT,
+                    list(shape),
+                    np.ones(shape, np.float32).flatten().tolist(),
+                ),
+            )
+        )
+    graph = helper.make_graph(
+        [*const_nodes, helper.make_node(op_name, ["c0", "c1"], ["output"])],
+        f"const_rank_{op_name}",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, list(shape))],
+    )
+    check_correctness(helper.make_model(graph), opset=13)
+
+
+@pytest.mark.parametrize("op_name", ["Min", "Max", "Sum", "Mean"])
+@pytest.mark.parametrize("shape", [[], [5], [2, 3]])
+def test_multi_input_constant_single_input(op_name, shape):
+    """A single constant input is returned unchanged (shape preserved)."""
+    if shape:
+        vals = np.arange(np.prod(shape), dtype=np.float32).reshape(shape)
+    else:
+        vals = np.array(1.0, np.float32)
+    node = helper.make_node(
+        "Constant",
+        inputs=[],
+        outputs=["c0"],
+        value=helper.make_tensor("c0_v", TensorProto.FLOAT, shape, vals.flatten().tolist()),
+    )
+    graph = helper.make_graph(
+        [node, helper.make_node(op_name, ["c0"], ["output"])],
+        f"const_single_{op_name}",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, shape)],
     )
     check_correctness(helper.make_model(graph), opset=13)
 
@@ -1471,6 +1566,33 @@ def test_gather():
     _verify_gather([3, 3], [[0, 2]], [3, 1, 2], ExpectedRank2Axis1, 1)
 
 
+def test_gather_indices_from_shape():
+    """Gather from a tensor using the dimensions of another tensor as indices."""
+    shape_node = helper.make_node("Shape", ["shape_source"], ["indices"])
+    gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=0)
+
+    graph = helper.make_graph(
+        [shape_node, gather_node],
+        "gather_indices_from_shape_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, [4]),
+            helper.make_tensor_value_info("shape_source", TensorProto.FLOAT, [2, 3]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2])],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="gather_indices_from_shape_test",
+        opset_imports=[helper.make_opsetid("", 18)],
+    )
+    input_values = {
+        "data": np.random.randn(4).astype("float32"),
+        "shape_source": np.random.randn(2, 3).astype("float32"),
+    }
+    check_correctness(model, inputs=input_values, opset=18)
+
+
 @pytest.mark.parametrize("index", [0, 2, 3, -1, -4])
 def test_gather_shape_dynamic_index(index):
     """Gather a dimension out of a Shape result using a non-constant index.
@@ -1730,8 +1852,11 @@ def test_gather_nd(data_shape, indices_shape, batch_dims):
 @pytest.mark.parametrize("axis", [0, 1, 2])
 @pytest.mark.parametrize(("name", "opset"), [("Scatter", 10), ("ScatterElements", 11)])
 def test_scatter(axis: int, name: str, opset: int):
-    if axis != 1:
-        pytest.skip("The current topi impl is wrong, which only works for axis=1")
+    if name == "ScatterElements" and axis != 1:
+        pytest.skip(
+            "ScatterElements with indices smaller than data is lowered via scatter_elements, "
+            "which only works for axis=1"
+        )
     input_shape = [16, 16, 16]
     indices_shape = [8, 8, 8]
     updates_shape = [8, 8, 8]
@@ -1750,6 +1875,116 @@ def test_scatter(axis: int, name: str, opset: int):
     model = helper.make_model(graph, producer_name="scatter_test")
     indices = np.random.randint(0, 16, indices_shape)
     check_correctness(model, inputs={"indices": indices}, opset=opset)
+
+
+@pytest.mark.parametrize("indices_dtype", ["int32", "int64"])
+def test_scatter_broadcast(indices_dtype):
+    """Scatter (opset 9/10) whose indices/updates are smaller than data (size-1
+    broadcast dims) must follow the per-entry semantics of the ONNX spec:
+    output[idx[:axis] + (indices[idx],) + idx[axis+1:]] = updates[idx] for each
+    entry idx in indices' own shape. The previous lowering passed such indices
+    directly to scatter_elements, which silently produced wrong values. Both
+    ONNX-permitted indices dtypes (int32/int64) are covered, since the lowered
+    coordinate grid must match the indices dtype."""
+    data_shape = (2, 3, 4)
+    indices_proto = TensorProto.INT32 if indices_dtype == "int32" else TensorProto.INT64
+    rng = np.random.RandomState(0)
+    for axis in [0, 1, 2, -1]:
+        for indices_shape in [(1, 3, 4), (2, 1, 4), (1, 3, 1), (1, 1, 1)]:
+            graph = helper.make_graph(
+                [
+                    helper.make_node(
+                        "Scatter", ["data", "indices", "updates"], ["output"], axis=axis
+                    )
+                ],
+                "scatter_broadcast_test",
+                inputs=[
+                    helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+                    helper.make_tensor_value_info("indices", indices_proto, list(indices_shape)),
+                    helper.make_tensor_value_info(
+                        "updates", TensorProto.FLOAT, list(indices_shape)
+                    ),
+                ],
+                outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, data_shape)],
+            )
+            model = helper.make_model(
+                graph,
+                producer_name="scatter_broadcast_test",
+                opset_imports=[helper.make_opsetid("", 9)],
+            )
+            inputs = {
+                "data": rng.randn(*data_shape).astype("float32"),
+                "indices": rng.randint(0, data_shape[axis % len(data_shape)], indices_shape).astype(
+                    indices_dtype
+                ),
+                "updates": rng.randn(*indices_shape).astype("float32"),
+            }
+            check_correctness(model, inputs=inputs, opset=9, check_dtypes=True)
+
+
+def test_scatter_dynamic_shape():
+    """Dynamic-shape Scatter: when indices is structurally provably equal to data
+    (shared symbolic dims) it still lowers via scatter_elements and is correct;
+    a dynamic indices that is *not* provably equal (e.g. a broadcast size-1 dim)
+    must raise instead of silently emitting wrong values."""
+    n = tvm.tirx.Var("N", "int64")
+    rng = np.random.RandomState(1)
+    batch = 5
+
+    # data/indices/updates all share the symbolic batch dim N -> provably equal,
+    # lowered via scatter_elements, correct per ONNX semantics.
+    shape_dict = {"data": [n, 3, 4], "indices": [n, 3, 4], "updates": [n, 3, 4]}
+    graph = helper.make_graph(
+        [helper.make_node("Scatter", ["data", "indices", "updates"], ["output"], axis=0)],
+        "scatter_dynamic_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, ["N", 3, 4]),
+            helper.make_tensor_value_info("indices", TensorProto.INT64, ["N", 3, 4]),
+            helper.make_tensor_value_info("updates", TensorProto.FLOAT, ["N", 3, 4]),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, ["N", 3, 4])],
+    )
+    model = helper.make_model(
+        graph, producer_name="scatter_dynamic_test", opset_imports=[helper.make_opsetid("", 9)]
+    )
+    model.ir_version = 8
+    data = rng.randn(batch, 3, 4).astype("float32")
+    indices = rng.randint(0, batch, size=(batch, 3, 4)).astype("int64")
+    updates = rng.randn(batch, 3, 4).astype("float32")
+    ort_output = onnxruntime.InferenceSession(
+        model.SerializeToString(), providers=["CPUExecutionProvider"]
+    ).run(None, {"data": data, "indices": indices, "updates": updates})[0]
+    tvm_model = from_onnx(model, shape_dict=shape_dict, opset=9)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm.set_input("main", data, indices, updates)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main")
+    np.testing.assert_allclose(ort_output, tvm_output.numpy(), rtol=1e-6, atol=1e-6)
+
+    # A dynamic indices that is not provably equal to data (size-1 broadcast dim)
+    # must raise rather than silently produce wrong values.
+    shape_dict_bad = {"data": [n, 3, 4], "indices": [n, 1, 4], "updates": [n, 1, 4]}
+    graph_bad = helper.make_graph(
+        [helper.make_node("Scatter", ["data", "indices", "updates"], ["output"], axis=0)],
+        "scatter_dynamic_bad_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, ["N", 3, 4]),
+            helper.make_tensor_value_info("indices", TensorProto.INT64, ["N", 1, 4]),
+            helper.make_tensor_value_info("updates", TensorProto.FLOAT, ["N", 1, 4]),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, ["N", 3, 4])],
+    )
+    model_bad = helper.make_model(
+        graph_bad,
+        producer_name="scatter_dynamic_bad_test",
+        opset_imports=[helper.make_opsetid("", 9)],
+    )
+    with pytest.raises(ValueError, match="dynamic"):
+        from_onnx(model_bad, shape_dict=shape_dict_bad, opset=9)
 
 
 @pytest.mark.parametrize(
@@ -2272,6 +2507,71 @@ def test_reshape():
     verify_reshape([7, 32, 32, 8], [224, 256], [224, 256], ExpectedStaticShape)
     verify_reshape([7, 32, 32, 8], [-1, 8192], [7, 8192], ExpectedInferDim)
     verify_reshape([7, 32, 32, 8], [0, 32, 32, 8], [7, 32, 32, 8], ExpectedCopyInputDim)
+
+
+def test_reshape_constant_zero_copy_dimension():
+    data = np.arange(6, dtype="float32").reshape(2, 3)
+    reshape_node = helper.make_node("Reshape", ["data", "shape"], ["reshaped"])
+    graph = helper.make_graph(
+        [reshape_node],
+        "reshape_constant_zero_copy_test",
+        inputs=[],
+        initializer=[
+            numpy_helper.from_array(data, "data"),
+            helper.make_tensor("shape", TensorProto.INT64, [2], [0, 3]),
+        ],
+        outputs=[helper.make_tensor_value_info("reshaped", TensorProto.FLOAT, [2, 3])],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="reshape_constant_zero_copy_test",
+        opset_imports=[helper.make_opsetid("", 14)],
+    )
+
+    output = run_in_tvm(model, opset=14)
+
+    tvm.testing.assert_allclose(output.numpy(), data)
+
+
+def test_reshape_allowzero_literal_zero_dimension():
+    reshape_node = helper.make_node("Reshape", ["data", "shape"], ["reshaped"], allowzero=1)
+    graph = helper.make_graph(
+        [reshape_node],
+        "reshape_allowzero_test",
+        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, [2, 0])],
+        initializer=[helper.make_tensor("shape", TensorProto.INT64, [2], [0, 2])],
+        outputs=[helper.make_tensor_value_info("reshaped", TensorProto.FLOAT, [0, 2])],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="reshape_allowzero_test",
+        opset_imports=[helper.make_opsetid("", 14)],
+    )
+
+    output = run_in_tvm(model, {"data": np.zeros((2, 0), dtype="float32")}, opset=14)
+
+    assert tuple(output.shape) == (0, 2)
+
+
+def test_reshape_allowzero_infers_dimension_without_literal_zero():
+    reshape_node = helper.make_node("Reshape", ["data", "shape"], ["reshaped"], allowzero=1)
+    graph = helper.make_graph(
+        [reshape_node],
+        "reshape_allowzero_infer_dimension_test",
+        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, [3, 4])],
+        initializer=[helper.make_tensor("shape", TensorProto.INT64, [2], [-1, 2])],
+        outputs=[helper.make_tensor_value_info("reshaped", TensorProto.FLOAT, [6, 2])],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="reshape_allowzero_infer_dimension_test",
+        opset_imports=[helper.make_opsetid("", 14)],
+    )
+    data = np.arange(12, dtype="float32").reshape(3, 4)
+
+    output = run_in_tvm(model, {"data": data}, opset=14)
+
+    tvm.testing.assert_allclose(output.numpy(), data.reshape(6, 2))
 
 
 def test_reshape_shape_output():
@@ -3595,12 +3895,28 @@ def test_prelu():
                 R.output(gv)
             return gv
 
+    @I.ir_module
+    class ExpectedMultiAxisSlope:
+        @R.function
+        def main(
+            a: R.Tensor((2, 3, 4, 5), dtype="float32"),
+            b: R.Tensor((4, 5), dtype="float32"),
+        ) -> R.Tensor((2, 3, 4, 5), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 4, 5), dtype="bool") = R.less(a, R.const(0.0, "float32"))
+                lv1: R.Tensor((2, 3, 4, 5), dtype="float32") = R.multiply(a, b)
+                gv: R.Tensor((2, 3, 4, 5), dtype="float32") = R.where(lv, lv1, a)
+                R.output(gv)
+            return gv
+
     _assert_prelu_ir([], ExpectedRankZeroSlope)
     _assert_prelu_ir([1], ExpectedScalarSlope)
     _assert_prelu_ir([1, 1], ExpectedTwoDimScalarSlope)
     _assert_prelu_ir([32], ExpectedChannelSlope)
     _assert_prelu_ir([3, 1, 1], ExpectedBatchSlope)
     _assert_prelu_ir([32, 1, 1], ExpectedLowerRankChannelSlope, input_shape=(1, 32, 16, 16))
+    _assert_prelu_ir([4, 5], ExpectedMultiAxisSlope, input_shape=(2, 3, 4, 5))
 
 
 def test_prelu_lower_rank_slope():
@@ -3625,6 +3941,89 @@ def test_prelu_lower_rank_slope():
         "slope": np.array([0.1, 0.2, 0.3, 0.4], dtype="float32").reshape(slope_shape),
     }
     check_correctness(model, inputs=inputs, opset=16, check_dtypes=True)
+
+
+def test_prelu_multi_axis_slope():
+    """A slope broadcastable across multiple axes (incl. a slope shaped like x) is
+    lowered elementwise to PRelu(x, s) = where(x < 0, s * x, x) since nn.prelu can
+    only express a single per-axis slope."""
+    input_shape = (2, 3, 4, 5)
+    for slope_shape in [(4, 5), (1, 3, 4, 5), (2, 3, 4, 5)]:
+        graph = helper.make_graph(
+            [helper.make_node("PRelu", ["x", "slope"], ["y"])],
+            "prelu_multi_axis_slope_test",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
+                helper.make_tensor_value_info("slope", TensorProto.FLOAT, list(slope_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, input_shape)],
+        )
+        model = helper.make_model(
+            graph,
+            producer_name="prelu_multi_axis_slope_test",
+            opset_imports=[helper.make_opsetid("", 16)],
+        )
+        inputs = {
+            "x": np.linspace(-2.0, 2.0, np.prod(input_shape), dtype="float32").reshape(input_shape),
+            # negative slopes exercise the s * x path on both sides of the sign.
+            "slope": np.linspace(-0.5, 0.8, np.prod(slope_shape), dtype="float32").reshape(
+                slope_shape
+            ),
+        }
+        check_correctness(model, inputs=inputs, opset=16, check_dtypes=True)
+
+
+def test_softplus_large_values():
+    """ONNX Softplus is y = log(exp(x) + 1) for every finite input. The frontend
+    must not clamp the output to the linear function x beyond a hardcoded threshold
+    (it used to pass threshold=20 to relax.op.nn.softplus). Large float32 inputs,
+    including values beyond that threshold, must still match onnxruntime."""
+    for shape in [[3, 32, 32], [5]]:
+        graph = helper.make_graph(
+            [helper.make_node("Softplus", ["x"], ["y"])],
+            "softplus_large_values",
+            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, shape)],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, shape)],
+        )
+        model = helper.make_model(graph, producer_name="softplus_large_values")
+        inputs = {
+            "x": np.linspace(-10.0, 80.0, np.prod(shape), dtype="float32").reshape(shape),
+        }
+        check_correctness(model, inputs=inputs, opset=14, rtol=1e-6, atol=1e-6)
+
+
+def test_softplus_float64_accuracy():
+    """float64 Softplus must equal log(exp(x) + 1) across the threshold region.
+    Regression: the frontend used to clamp to the linear function x for x > 20,
+    losing ~1.9e-9 at x = 20.1. onnxruntime's CPU EP has no float64 Softplus, so
+    the expected value is computed with the numerically stable form
+    max(x, 0) + log1p(exp(-|x|)), which equals log(exp(x) + 1) mathematically."""
+    xs = np.array([19.0, 20.0, 20.1, 21.0, 25.0, 30.0, 40.0], dtype=np.float64)
+    expected = np.maximum(xs, 0.0) + np.log1p(np.exp(-np.abs(xs)))
+
+    graph = helper.make_graph(
+        [helper.make_node("Softplus", ["x"], ["y"])],
+        "softplus_float64",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.DOUBLE, [len(xs)])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.DOUBLE, [len(xs)])],
+    )
+    model = helper.make_model(graph, producer_name="softplus_float64")
+    model.opset_import[0].version = 14
+
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    vm.set_input("main", xs)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main").numpy()
+
+    np.testing.assert_allclose(tvm_output, expected, rtol=1e-12, atol=1e-12)
 
 
 def test_thresholded_relu():
@@ -4251,6 +4650,54 @@ def test_squeeze_axes_attribute():
             return gv
 
     tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_squeeze_non_unit_axis_raises():
+    # Per the ONNX spec, squeezing an axis whose length is not 1 must raise an error
+    squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
+    shape = [2, 3]
+
+    graph = helper.make_graph(
+        [squeeze_node],
+        "squeeze_non_unit_axis_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, shape),
+        ],
+        initializer=[helper.make_tensor("axes", TensorProto.INT64, [1], [0])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3])],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="squeeze_non_unit_axis_test",
+        opset_imports=[helper.make_opsetid("", 13)],
+    )
+    with pytest.raises(ValueError, match="has size 2"):
+        from_onnx(model, opset=13, keep_params_in_input=True)
+
+
+def test_squeeze_symbolic_axis_raises():
+    # Squeezing an axis whose extent is symbolic can't be proven to be 1 at import time
+    squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
+    shape = ["N", 3]
+
+    graph = helper.make_graph(
+        [squeeze_node],
+        "squeeze_symbolic_axis_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, shape),
+        ],
+        initializer=[helper.make_tensor("axes", TensorProto.INT64, [1], [0])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3])],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="squeeze_symbolic_axis_test",
+        opset_imports=[helper.make_opsetid("", 13)],
+    )
+    with pytest.raises(ValueError, match="symbolic extent"):
+        from_onnx(model, opset=13, keep_params_in_input=True)
 
 
 def test_squeeze_constant():
@@ -12519,6 +12966,30 @@ def test_dequantizelinear_singleton_qparams_opset10():
 
     x = rg.integers(low=0, high=255, size=(64,), dtype=np.uint8)
     check_correctness(model, inputs={"x": x}, opset=10, check_dtypes=True)
+
+
+@pytest.mark.parametrize(
+    ("op_type", "input_dtype", "output_dtype", "input_value"),
+    [
+        ("QuantizeLinear", TensorProto.FLOAT, TensorProto.UINT8, np.array(1.25, "float32")),
+        ("DequantizeLinear", TensorProto.UINT8, TensorProto.FLOAT, np.array(7, "uint8")),
+    ],
+)
+def test_qdqlinear_scalar_input(op_type, input_dtype, output_dtype, input_value):
+    node = helper.make_node(op_type, ["x", "scale", "zero_point"], ["y"])
+    graph = helper.make_graph(
+        [node],
+        f"{op_type.lower()}_scalar_input",
+        [helper.make_tensor_value_info("x", input_dtype, [])],
+        [helper.make_tensor_value_info("y", output_dtype, [])],
+        initializer=[
+            helper.make_tensor("scale", TensorProto.FLOAT, [], [0.25]),
+            helper.make_tensor("zero_point", TensorProto.UINT8, [], [2]),
+        ],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
+
+    check_correctness(model, inputs={"x": input_value}, opset=18, check_dtypes=True)
 
 
 def test_quantizelinear_optional_zero_point_opset13():

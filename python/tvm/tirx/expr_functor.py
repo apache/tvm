@@ -24,7 +24,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 import tvm
-from tvm.ir import Expr, Range
+from tvm.ir import Expr, Range, Tuple, TupleGetItem
 from tvm.tirx import IterVar
 
 T = TypeVar("T")
@@ -52,6 +52,8 @@ class ExprFunctor:
             "tirx.Var": self.visit_var_,
             "tirx.BufferLoad": self.visit_buffer_load_,
             "tirx.ProducerLoad": self.visit_producer_load_,
+            "tirx.Tuple": self.visit_tuple_,
+            "tirx.TupleGetItem": self.visit_tuple_get_item_,
             "tirx.Let": self.visit_let_,
             "tirx.Call": self.visit_call_,
             "tirx.Add": self.visit_add_,
@@ -119,6 +121,14 @@ class ExprFunctor:
 
     def visit_producer_load_(self, op):
         """Default visitor for ProducerLoad node."""
+        return self.visit_expr_default_(op)
+
+    def visit_tuple_(self, op):
+        """Default visitor for Tuple node."""
+        return self.visit_expr_default_(op)
+
+    def visit_tuple_get_item_(self, op):
+        """Default visitor for TupleGetItem node."""
         return self.visit_expr_default_(op)
 
     def visit_let_(self, op):
@@ -283,6 +293,14 @@ class ExprVisitor(ExprFunctor):
             self.visit_expr(index)
 
         _visit_array(op.indices, _visit_indices)
+
+    def visit_tuple_(self, op):
+        """Visitor implementation for Tuple."""
+        _visit_array(op.fields, self.visit_expr)
+
+    def visit_tuple_get_item_(self, op):
+        """Visitor implementation for TupleGetItem."""
+        self.visit_expr(op.tuple_value)
 
     def visit_let_(self, op):
         """Visitor implementation for Let."""
@@ -463,6 +481,21 @@ class ExprMutator(ExprFunctor):
             return op
         else:
             return tvm.tirx.ProducerLoad(op.producer, indices)
+
+    def visit_tuple_(self, op):
+        """Mutator implementation for Tuple."""
+        fields = [self.visit_expr(field) for field in op.fields]
+
+        if all(old_field is new_field for old_field, new_field in zip(op.fields, fields)):
+            return op
+        return Tuple(fields, op.span)
+
+    def visit_tuple_get_item_(self, op):
+        """Mutator implementation for TupleGetItem."""
+        tuple_value = self.visit_expr(op.tuple_value)
+        if tuple_value is op.tuple_value:
+            return op
+        return TupleGetItem(tuple_value, op.index, op.span)
 
     def visit_let_(self, op):
         """Mutator implementation for Let."""

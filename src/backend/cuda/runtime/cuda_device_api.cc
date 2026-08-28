@@ -586,10 +586,36 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     // bypass the dtype-derived mapping so the descriptor uses the requested
     // CUtensorMapDataType. Same byte size, different on-load rounding semantics.
     if (force_cu_dtype >= 0) {
-      TVM_FFI_ICHECK_EQ(force_cu_dtype, 11)
-          << "force_cu_dtype only supports CU_TENSOR_MAP_DATA_TYPE_TFLOAT32 (11)";
-      TVM_FFI_ICHECK(tensor_dtype.code == kDLFloat && tensor_dtype.bits == 32)
-          << "CU_TENSOR_MAP_DATA_TYPE_TFLOAT32 requires a scalar float32 tensor_dtype";
+      // The accepted set widens inside the version gate rather than around a
+      // branch, so the preprocessor never straddles a brace.
+#if (CUDA_VERSION >= 12080)
+      const bool is_packed_sub_byte = force_cu_dtype == CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN8B ||
+                                      force_cu_dtype == CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN16B ||
+                                      force_cu_dtype == CU_TENSOR_MAP_DATA_TYPE_16U6_ALIGN16B;
+      const char* accepted = "CU_TENSOR_MAP_DATA_TYPE_TFLOAT32 or a packed sub-byte type";
+#else
+      const bool is_packed_sub_byte = false;
+      const char* accepted = "CU_TENSOR_MAP_DATA_TYPE_TFLOAT32";
+#endif
+      if (force_cu_dtype == CU_TENSOR_MAP_DATA_TYPE_TFLOAT32) {
+        TVM_FFI_ICHECK(tensor_dtype.code == kDLFloat && tensor_dtype.bits == 32)
+            << "CU_TENSOR_MAP_DATA_TYPE_TFLOAT32 requires a scalar float32 tensor_dtype";
+      } else if (is_packed_sub_byte) {
+        // A packed sub-byte payload reaches this API either as its logical
+        // sub-byte dtype or as the byte storage holding it. The caller states
+        // which packing and alignment the TMA should apply; the derived mapping
+        // above can only reach ALIGN16B, so an ALIGN8B tile is expressible only
+        // through this override.
+        bool is_byte_storage =
+            (tensor_dtype.code == kDLUInt || tensor_dtype.code == kDLInt) && tensor_dtype.bits == 8;
+        bool is_sub_byte = tensor_dtype.bits > 0 && tensor_dtype.bits < 8;
+        TVM_FFI_ICHECK(is_byte_storage || is_sub_byte)
+            << "a packed sub-byte CUtensorMapDataType requires sub-byte or 8-bit storage, got "
+            << ffi::DLDataTypeToString(tensor_dtype);
+      } else {
+        TVM_FFI_THROW(InternalError)
+            << "force_cu_dtype accepts " << accepted << ", got " << force_cu_dtype;
+      }
       cu_dtype = static_cast<CUtensorMapDataType>(force_cu_dtype);
     }
 
@@ -602,15 +628,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     auto is_valid_swizzle =
         swizzle_kind == CU_TENSOR_MAP_SWIZZLE_NONE || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_32B ||
         swizzle_kind == CU_TENSOR_MAP_SWIZZLE_64B || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B;
-#ifdef CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B
-    is_valid_swizzle = is_valid_swizzle || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B;
-#endif
-#ifdef CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B_FLIP_8B
-    is_valid_swizzle =
-        is_valid_swizzle || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B_FLIP_8B;
-#endif
-#ifdef CU_TENSOR_MAP_SWIZZLE_128B_ATOM_64B
-    is_valid_swizzle = is_valid_swizzle || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_64B;
+#if (CUDA_VERSION >= 12080)
+    is_valid_swizzle = is_valid_swizzle || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B ||
+                       swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B_FLIP_8B ||
+                       swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_64B;
 #endif
     TVM_FFI_ICHECK(is_valid_swizzle)
         << "Unsupported swizzle enum value: " << static_cast<int>(swizzle_kind);
@@ -628,15 +649,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         << "Unsupported oobFill enum value: " << static_cast<int>(oob_fill_kind);
 
     bool is_packed_16u4_align8 = false;
-#ifdef CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN8B
-    is_packed_16u4_align8 = cu_dtype == CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN8B;
-#endif
     bool is_packed_16u4_align16 = false;
-#ifdef CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN16B
-    is_packed_16u4_align16 = cu_dtype == CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN16B;
-#endif
     bool is_packed_16u6_align16 = false;
-#ifdef CU_TENSOR_MAP_DATA_TYPE_16U6_ALIGN16B
+#if (CUDA_VERSION >= 12080)
+    is_packed_16u4_align8 = cu_dtype == CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN8B;
+    is_packed_16u4_align16 = cu_dtype == CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN16B;
     is_packed_16u6_align16 = cu_dtype == CU_TENSOR_MAP_DATA_TYPE_16U6_ALIGN16B;
 #endif
     auto is_packed_align16 = is_packed_16u4_align16 || is_packed_16u6_align16;
@@ -644,27 +661,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     auto is_floating_dtype = cu_dtype == CU_TENSOR_MAP_DATA_TYPE_FLOAT16 ||
                              cu_dtype == CU_TENSOR_MAP_DATA_TYPE_FLOAT32 ||
                              cu_dtype == CU_TENSOR_MAP_DATA_TYPE_FLOAT64 ||
-                             cu_dtype == CU_TENSOR_MAP_DATA_TYPE_BFLOAT16;
-#ifdef CU_TENSOR_MAP_DATA_TYPE_FLOAT32_FTZ
-    is_floating_dtype = is_floating_dtype || cu_dtype == CU_TENSOR_MAP_DATA_TYPE_FLOAT32_FTZ;
-#endif
-#ifdef CU_TENSOR_MAP_DATA_TYPE_TFLOAT32
-    is_floating_dtype = is_floating_dtype || cu_dtype == CU_TENSOR_MAP_DATA_TYPE_TFLOAT32;
-#endif
-#ifdef CU_TENSOR_MAP_DATA_TYPE_TFLOAT32_FTZ
-    is_floating_dtype = is_floating_dtype || cu_dtype == CU_TENSOR_MAP_DATA_TYPE_TFLOAT32_FTZ;
-#endif
+                             cu_dtype == CU_TENSOR_MAP_DATA_TYPE_BFLOAT16 ||
+                             cu_dtype == CU_TENSOR_MAP_DATA_TYPE_FLOAT32_FTZ ||
+                             cu_dtype == CU_TENSOR_MAP_DATA_TYPE_TFLOAT32 ||
+                             cu_dtype == CU_TENSOR_MAP_DATA_TYPE_TFLOAT32_FTZ;
 
     auto is_128b_swizzle = swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B;
-#ifdef CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B
-    is_128b_swizzle = is_128b_swizzle || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B;
-#endif
-#ifdef CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B_FLIP_8B
-    is_128b_swizzle =
-        is_128b_swizzle || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B_FLIP_8B;
-#endif
-#ifdef CU_TENSOR_MAP_SWIZZLE_128B_ATOM_64B
-    is_128b_swizzle = is_128b_swizzle || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_64B;
+#if (CUDA_VERSION >= 12080)
+    is_128b_swizzle = is_128b_swizzle || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B ||
+                      swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B_FLIP_8B ||
+                      swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_64B;
 #endif
 
     // Host-side validation for documented cuTensorMapEncodeTiled requirements.
@@ -702,7 +708,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     if (is_packed_16u4_align16) {
       bool supported_swizzle =
           swizzle_kind == CU_TENSOR_MAP_SWIZZLE_NONE || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B;
-#ifdef CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B
+#if (CUDA_VERSION >= 12080)
       supported_swizzle = supported_swizzle || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B;
 #endif
       TVM_FFI_ICHECK(supported_swizzle)

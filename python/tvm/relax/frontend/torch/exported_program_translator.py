@@ -2108,10 +2108,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                             None if math.isinf(float(value_range.upper)) else int(value_range.upper)
                         )
 
-                        symbol_name, _ = self._process_derived_symbol(
+                        symbol_name, derived_expr = self._process_derived_symbol(
                             symbol, torch_symbol_to_relax_var
                         )
-                        range_constraints[symbol_name] = (lower, upper)
+                        if derived_expr is None:
+                            range_constraints[symbol_name] = (lower, upper)
 
                     except (OverflowError, AttributeError, TypeError):
                         continue
@@ -2119,14 +2120,17 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         named_buffers = OrderedDict(exported_program.named_buffers())
         for spec in exported_program.graph_signature.input_specs:
             name_hint = spec.arg.name
+            torch_shape = None
+            torch_dtype = None
             if spec.kind is torch.export.graph_signature.InputKind.CONSTANT_TENSOR:
                 torch_shape = exported_program.tensor_constants[spec.target].shape
                 torch_dtype = exported_program.tensor_constants[spec.target].dtype
             elif spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
                 for node in exported_program.graph.find_nodes(op="placeholder", target=spec.target):
-                    if node.name == name_hint and "tensor_meta" in node.meta:
-                        torch_shape = node.meta["tensor_meta"].shape
-                        torch_dtype = node.meta["tensor_meta"].dtype
+                    tensor_meta = node.meta.get("tensor_meta", node.meta.get("val"))
+                    if node.name == name_hint and tensor_meta is not None:
+                        torch_shape = tensor_meta.shape
+                        torch_dtype = tensor_meta.dtype
                         break
             elif spec.kind is torch.export.graph_signature.InputKind.BUFFER:
                 torch_shape = named_buffers[spec.target].shape
@@ -2136,19 +2140,23 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 torch_dtype = exported_program.state_dict[spec.target].dtype
             else:
                 raise ValueError(f"Unsupported input kind: {spec.kind}")
+            if torch_shape is None or torch_dtype is None:
+                raise ValueError(f'Cannot determine shape and dtype for input "{name_hint}"')
 
             relax_shape = []
             for s in torch_shape:
                 if isinstance(s, torch.SymInt):
                     sympy_node = s.node.expr if hasattr(s.node, "expr") else s.node
-                    symbol_name, _ = self._process_derived_symbol(
+                    symbol_name, derived_expr = self._process_derived_symbol(
                         sympy_node, torch_symbol_to_relax_var
                     )
-
-                    shape_var = torch_symbol_to_relax_var.setdefault(
-                        symbol_name, tvm.tirx.Var(symbol_name, "int64")
-                    )
-                    relax_shape.append(shape_var)
+                    if derived_expr is not None:
+                        relax_shape.append(derived_expr)
+                    else:
+                        shape_var = torch_symbol_to_relax_var.setdefault(
+                            symbol_name, tvm.tirx.Var(symbol_name, "int64")
+                        )
+                        relax_shape.append(shape_var)
                 else:
                     relax_shape.append(s)
             dtype = self._convert_data_type(torch_dtype)

@@ -56,6 +56,7 @@ void RegisterTargetKind() {
 
   TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
       .add_attr_option<int64_t>("max_num_threads", refl::DefaultValue(256))
+      .add_attr_option<int64_t>("max_shared_memory_per_block", refl::DefaultValue(32768))
       .add_attr_option<bool>("supports_subgroups", refl::DefaultValue(false))
       .add_attr_option<int64_t>("thread_warp_size", refl::DefaultValue(1))
       .set_target_canonicalizer(UpdateWebGPUAttrs)

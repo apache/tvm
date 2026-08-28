@@ -118,7 +118,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   Expr VisitExpr_(const CastNode* op) override;
   Expr VisitExpr_(const LetNode* op) override;
 
-  std::function<void()> EnterConstraint(const PrimExpr& constraint);
+  std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume);
 
   /*! \brief Enable an optional extension or extensions
    *

@@ -34,7 +34,17 @@ from .base import (
 # Register Type before Expr.  Expr's reflected ``ty`` field otherwise creates
 # an auto-generated Type wrapper before the concrete Python class is available.
 from .type import FuncType, PointerType, PrimType, TupleType, Type
-from .expr import Call, Expr, GlobalVar, Range, Var, is_prim_expr, is_prim_var
+from .expr import (
+    Call,
+    Expr,
+    GlobalVar,
+    Range,
+    Tuple,
+    TupleGetItem,
+    Var,
+    is_prim_expr,
+    is_prim_var,
+)
 from .function import BaseFunc, CallingConv
 from .global_info import GlobalInfo, DummyGlobalInfo, VDevice
 from .module import IRModule

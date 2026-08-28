@@ -488,6 +488,8 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   TVM_FFI_ICHECK(!axes_levels.empty());
   std::vector<NestedScopeInfo> scopes;
   scopes.reserve(axes_levels.size());
+  // Initialize a nested reduction at its outermost reduction level.
+  size_t reduction_init_scope = axes_levels.size() - 1;
   std::unordered_set<Var> defined_axes;
   for (size_t i = 0; i < axes_levels.size(); ++i) {
     NestedScopeInfo cur_scope;
@@ -498,6 +500,9 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
       bool first_times_define =
           std::find(axes_levels[i].begin(), axes_levels[i].end(), axis) != axes_levels[i].end();
       if (first_times_define) {
+        if (axis->iter_type == IterVarType::kCommReduce) {
+          reduction_init_scope = std::min(reduction_init_scope, i);
+        }
         Var loop_var = Var(axis->var->name, index_type);
         Var block_var("v_" + axis->var->name, index_type);
         PrimExpr min = axis->dom->min;
@@ -541,9 +546,13 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   auto leaf = scopes.back();
   ffi::Map<ffi::String, ffi::Any> annotations = GenerateBlockAnnotations(compute_op, info);
   const ReduceNode* reduce = compute_op->body[0].as<ReduceNode>();
+
   if (reduce) {
     PrimExpr expr_body = compute_op->body[0];
-    Stmt init = GenerateInitStmt(leaf.store_indices, buffers, reduce, leaf.axes_remap, info);
+    ffi::Optional<Stmt> init{std::nullopt};
+    if (reduction_init_scope == scopes.size() - 1) {
+      init = GenerateInitStmt(leaf.store_indices, buffers, reduce, leaf.axes_remap, info);
+    }
     Stmt body =
         GenerateBodyStmt(leaf.store_indices, buffers, leaf.axes_remap, expr_body, info, analyzer);
     seq_stmt.push_back(SBlockRealize(/*iter_values=*/leaf.bindings,
@@ -592,11 +601,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
       const auto& block_iters = cur.block_iters;
 
       ffi::Optional<Stmt> init{std::nullopt};
-      if (reduce && std::any_of(block_iters.begin(), block_iters.end(), [](const IterVar& iter) {
-            return iter->iter_type == IterVarType::kCommReduce;
-          })) {
-        // if the reduce axis defined in non-leaf scopes, the nested block is also
-        // a reduction block, thus we should also insert init stmt in the parent level.
+      if (reduce && i - 1 == reduction_init_scope) {
         init = GenerateInitStmt(cur.store_indices, buffers, reduce, cur.axes_remap, info);
       }
 

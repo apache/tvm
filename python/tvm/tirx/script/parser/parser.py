@@ -163,6 +163,34 @@ def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> A
         raise NotImplementedError
 
 
+def _convert_tuple_literal(self: Parser, node: doc.expr, value: Any) -> Any:
+    """Convert an explicit list/tuple T.let value to a core IR Tuple.
+
+    The generic evaluator deliberately keeps Python containers intact because
+    many TIRx builder APIs use them structurally.  Conversion is restricted to
+    the internal immutable-binding boundary that explicitly opts in below.
+    """
+    if not isinstance(node, doc.List | doc.Tuple):
+        return value
+
+    def convert_field(field: Any) -> Expr:
+        if isinstance(field, list | tuple):
+            return tvm.ir.Tuple([convert_field(item) for item in field])
+        if isinstance(field, Expr):
+            return field
+        if isinstance(field, str):
+            return tvm.tirx.StringImm(field)
+        if isinstance(field, bool | int | float):
+            return tvm.tirx.const(field)
+        self.report_error(
+            node,
+            f"Tuple fields must be expressions or scalar literals, got {type(field).__name__}",
+        )
+        raise NotImplementedError
+
+    return convert_field(value)
+
+
 def bind_assign_value(
     self: Parser,
     node: doc.expr,
@@ -759,6 +787,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
         # T.let or T.let[type] -> immutable Bind var
         if rhs is None:
             self.report_error(node, "T.let annotation requires a value")
+        rhs = _convert_tuple_literal(self, node.value, rhs)
         if not isinstance(rhs, Expr):
             if isinstance(rhs, str):
                 rhs = tvm.tirx.StringImm(rhs)

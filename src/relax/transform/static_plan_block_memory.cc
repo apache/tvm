@@ -334,7 +334,11 @@ bool IsInplaceMemoryOp(const Expr& op) {
   static const Op& reshape_op = Op::Get("relax.reshape");
   static const Op& view_op = Op::Get("relax.memory.view");
   static const Op& ensure_zero_offset_op = Op::Get("relax.memory.ensure_zero_offset");
-  return op.same_as(reshape_op) || op.same_as(view_op) || op.same_as(ensure_zero_offset_op);
+  const auto* extern_func = op.as<ExternFuncNode>();
+  bool is_builtin_reshape =
+      extern_func != nullptr && extern_func->global_symbol == "vm.builtin.reshape";
+  return op.same_as(reshape_op) || op.same_as(view_op) || op.same_as(ensure_zero_offset_op) ||
+         is_builtin_reshape;
 }
 
 /*! \brief The base class for the storage allocation visitor. */

@@ -1114,6 +1114,34 @@ def test_gemv_cuda_target_without_max_shared_memory_per_block():
     assert mod["main"].attrs["tirx.is_scheduled"] == 1
 
 
+def test_gemv_rank_one_vector_input():
+    @T.prim_func(private=True, s_tir=True)
+    def before(
+        matrix: T.Buffer((2, 2), "float32"),
+        vector: T.Buffer((2,), "float32"),
+        output: T.Buffer((2,), "float32"),
+    ):
+        T.func_attr({"tirx.noalias": True})
+        for i, k in T.grid(2, 2):
+            with T.sblock("gemv"):
+                vi, vk = T.axis.remap("SR", [i, k])
+                T.reads(matrix[vi, vk], vector[vk])
+                T.writes(output[vi])
+                with T.init():
+                    output[vi] = T.float32(0)
+                output[vi] += matrix[vi, vk] * vector[vk]
+
+    mod = tvm.IRModule({"main": before})
+    with Target("nvidia/geforce-rtx-3090-ti"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
+
+    assert mod["main"].attrs["tirx.is_scheduled"] == 1
+    sch = tvm.s_tir.Schedule(mod)
+    vector_local = sch.get_sblock("vector_local")
+    vector_load_loop = sch.get(sch.get_loops(vector_local)[-1])
+    assert vector_load_loop.kind == tvm.tirx.ForKind.VECTORIZED
+
+
 def test_gemv_broadcast_epilogue():
     # fmt: off
     @T.prim_func(private=True, s_tir=True)
