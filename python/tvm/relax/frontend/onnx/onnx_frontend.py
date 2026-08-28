@@ -3075,7 +3075,7 @@ class Pad(OnnxOpConverter):
             return bb.emit_te(topi.nn.replicate_pad, inputs[0], pad_before, pad_after)
 
     @classmethod
-    def _parse_pads_and_axes(cls, bb, inputs, params):
+    def _parse_pads_and_axes(cls, inputs, params):
         """Split pads and expand the optional axes input to full-rank pads.
 
         Shared by _impl_v11 (opset 11/13, no axes input) and _impl_v18/_impl_v19
