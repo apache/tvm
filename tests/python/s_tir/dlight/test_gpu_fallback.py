@@ -16,7 +16,10 @@
 # under the License.
 # pylint: disable=missing-docstring
 # ruff: noqa: E501, E741, F841
+import pytest
+
 import tvm.testing
+from tvm import s_tir
 from tvm.ir import assert_structural_equal
 from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
@@ -256,6 +259,32 @@ def test_gpu_fallback_ignores_non_gpu_functions():
             dl.gpu.Fallback(),
         )(Before)
     assert_structural_equal(mod, After)
+
+
+def test_schedule_error_propagates_from_rule():
+    # ScheduleError indicates a broken rule and must propagate.
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((128,), "float32"), C: T.Buffer((128,), "float32")):
+            for i in range(128):
+                with T.sblock("copy"):
+                    vi = T.axis.remap("S", [i])
+                    T.reads(A[vi])
+                    T.writes(C[vi])
+                    C[vi] = A[vi] * T.float32(2)
+
+    class BrokenRule(dl.base.ScheduleRule):
+        def apply(self, func, target, tunable):
+            sch = s_tir.Schedule(func)
+            sch.get_sblock("no_such_block")
+            return sch
+
+    with Target("nvidia/geforce-rtx-3090-ti"), pytest.raises(s_tir.ScheduleError):
+        dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+            BrokenRule(),
+            dl.gpu.Fallback(),
+        )(Before)
 
 
 if __name__ == "__main__":
