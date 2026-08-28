@@ -2710,104 +2710,6 @@ def test_gemm_tf32_with_tfloat32_tma():
     )
 
 
-def _run_dense_gemm(
-    A_dtype, B_dtype, C_dtype, K, *, is_AB_tf32=False, tma_dtype_B=None, atol=1e-3, rtol=1e-3
-):
-    M, N = 128, 128
-    A_shape = (M, K)
-    B_shape = (N, K)
-    C_shape = (M, N)
-    A_swizzle, B_swizzle = 3, 3
-    A_layout = mma_shared_layout(A_dtype, A_swizzle, A_shape)
-    B_layout = mma_shared_layout(B_dtype, B_swizzle, B_shape)
-    C_elem_32b = 4 // (tvm.runtime.DataType(C_dtype).bits // 8)
-    cols_alloc = max(32, next_power_of_2(N // C_elem_32b))
-    total_bytes = functools.reduce(operator.mul, A_shape, 1) * (
-        tvm.runtime.DataType(A_dtype).bits // 8
-    ) + functools.reduce(operator.mul, B_shape, 1) * (tvm.runtime.DataType(B_dtype).bits // 8)
-    gemm_kw = {"dispatch": "tcgen05"}
-    if is_AB_tf32:
-        gemm_kw["is_AB_tf32"] = True
-    b_tma_kw = {"dispatch": "tma_auto"}
-    if tma_dtype_B is not None:
-        b_tma_kw["tma_dtype"] = tma_dtype_B
-
-    @T.prim_func
-    def gemm_async(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, A_shape, A_dtype)
-        B = T.match_buffer(B_ptr, B_shape, B_dtype)
-        C = T.match_buffer(C_ptr, C_shape, C_dtype)
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        T.cta_id([1])
-        wg_id = T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
-        A_smem = T.alloc_buffer(A_shape, A_dtype, scope="shared", layout=A_layout)
-        B_smem = T.alloc_buffer(B_shape, B_dtype, scope="shared", layout=B_layout)
-        tmem_addr = T.alloc_shared([1], "uint32")
-        tma_mbar = T.alloc_shared([1], "uint64")
-        mma_mbar = T.alloc_shared([1], "uint64")
-        if tid_in_wg == 0:
-            T.ptx.mbarrier.init.shared.b64(tma_mbar.ptr_to([0]), T.uint32(1))
-            T.ptx.mbarrier.init.shared.b64(mma_mbar.ptr_to([0]), T.uint32(1))
-        T.ptx.fence.proxy.async_.shared__cta()
-        T.cuda.cta_sync()
-        if warp_id == 0:
-            T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
-                T.address_of(tmem_addr), T.uint32(cols_alloc)
-            )
-        T.cuda.cta_sync()
-        tmem = T.decl_buffer(
-            (128, N),
-            C_dtype,
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=TileLayout(S[(128, N) : (1 @ TLane, 1 @ TCol)]),
-        )
-        if tid_in_wg == 0:
-            Tx.copy_async(A_smem[:, :], A[:, :], dispatch="tma_auto", mbar=tma_mbar.ptr_to([0]))
-            Tx.copy_async(B_smem[:, :], B[:, :], mbar=tma_mbar.ptr_to([0]), **b_tma_kw)
-            T.ptx.mbarrier.arrive.expect_tx.shared.b64(tma_mbar.ptr_to([0]), T.uint32(total_bytes))
-        T.cuda.mbarrier_wait(tma_mbar.ptr_to([0]), 0)
-        T.cuda.cta_sync()
-        if tid_in_wg == 0:
-            Tx.gemm_async(tmem[:, :], A_smem[:, :], B_smem[:, :], **gemm_kw)
-            T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
-                mma_mbar.ptr_to([0])
-            )
-        T.cuda.mbarrier_wait(mma_mbar.ptr_to([0]), 0)
-        T.cuda.cta_sync()
-        T.ptx.tcgen05.fence__after_thread_sync()
-        C_reg = T.alloc_local(N, dtype=C_dtype)
-        C_view = C_reg.view(128, N, layout=TileLayout(S[(128, N) : (1 @ axis_tid_in_wg, 1)]))
-        if wg_id == 0:
-            Tx.wg.copy_async(C_view[:, :], tmem[:, :])
-            T.ptx.tcgen05.wait__ld.sync.aligned()
-        T.cuda.cta_sync()
-        Tx.copy(C[tid_in_wg, 0:N], C_reg[:])
-        if warp_id == 0:
-            T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
-            T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(tmem_addr[0], T.uint32(cols_alloc))
-
-    dev = tvm.cuda(0)
-    np.random.seed(0)
-    target = tvm.target.Target("cuda")
-    with target:
-        mod = tvm.compile(tvm.IRModule({"main": gemm_async}), target=target, tir_pipeline="tirx")
-
-    def _rand(shape, dtype):
-        f = np.random.randn(*shape).astype("float32")
-        return f.astype(dtype) if ml_dtypes is not None or "float8" not in dtype else f
-
-    A_np = _rand(A_shape, A_dtype)
-    B_np = _rand(B_shape, B_dtype)
-    C_np = np.zeros(C_shape, dtype=C_dtype)
-    A_t, B_t, C_t = (tvm.runtime.tensor(x, dev) for x in (A_np, B_np, C_np))
-    mod["main"](A_t, B_t, C_t)
-    C_ref = A_np.astype("float32") @ B_np.astype("float32").T
-    np.testing.assert_allclose(C_t.numpy().astype("float32"), C_ref, atol=atol, rtol=rtol)
-
-
 def _build_smem_desc_kernel(smem_desc, weight_stationary=False, pass_descI=False, mma_config=None):
     """Minimal cta_group=1 fp16 gemm_async kernel parametrized on ``smem_desc``."""
     mma_cfg = {} if mma_config is None else mma_config
@@ -2959,7 +2861,7 @@ def _build_explicit_block_scaled_split_n_kernel():
 
 
 def _compile_cuda_source(func):
-    target = tvm.target.Target("cuda")
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
         mod = tvm.compile(
             tvm.IRModule({"main": func}),
@@ -3071,7 +2973,7 @@ def test_gemm_smem_desc_modes_codegen(smem_desc):
 
     Both must emit the MMA; the descriptor-construction fingerprints differ.
     """
-    target = tvm.target.Target("cuda")
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
         mod = tvm.compile(
             tvm.IRModule({"main": _build_smem_desc_kernel(smem_desc)}),
@@ -3092,10 +2994,34 @@ def test_gemm_smem_desc_modes_codegen(smem_desc):
         assert "encode_matrix_descriptor" not in src, "recompute mode must not encode a descriptor"
 
 
+def test_gemm_smem_desc_rejects_unknown_mode():
+    target = tvm.target.Target("cuda")
+    with target:
+        with pytest.raises(RuntimeError, match="smem_desc must be one of"):
+            tvm.compile(
+                tvm.IRModule({"main": _build_smem_desc_kernel("unknown")}),
+                target=target,
+                tir_pipeline="tirx",
+            )
+
+
+def test_gemm_tf32_semantics_requires_float32_storage():
+    target = tvm.target.Target("cuda")
+    with target:
+        with pytest.raises(RuntimeError, match="is_AB_tf32=True requires float32 A and B storage"):
+            tvm.compile(
+                tvm.IRModule(
+                    {"main": _build_smem_desc_kernel("hoist", mma_config={"is_AB_tf32": True})}
+                ),
+                target=target,
+                tir_pipeline="tirx",
+            )
+
+
 def test_gemm_tcgen05_weight_stationary_codegen():
     """FlashMLA head64 requires the tcgen05.mma.ws PTX form."""
 
-    target = tvm.target.Target("cuda")
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
         mod = tvm.compile(
             tvm.IRModule({"main": _build_smem_desc_kernel("hoist", weight_stationary=True)}),
@@ -3203,7 +3129,7 @@ def test_gemm_tcgen05_cta1_m64_accepts_packed_c_layout_ws():
     ``.ws`` datapath organization (PTX ISA 8.8 §9.7.16.10.5 Layout E,
     cta_group::1), so it is accepted with ``weight_stationary=True``."""
 
-    target = tvm.target.Target("cuda")
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
         mod = tvm.compile(
             tvm.IRModule({"main": _build_cta1_m64_packed_c_kernel(weight_stationary=True)}),
@@ -3489,7 +3415,7 @@ def test_gemm_tcgen05_cta1_m64_accepts_batched_c_layout_ws():
     byte-identically to the packed C[M, 2, N//2] form: the two
     describe the same physical Layout-E tile."""
 
-    target = tvm.target.Target("cuda")
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
 
     def _compile(kernel):
         with target:
@@ -3513,7 +3439,7 @@ def test_gemm_tcgen05_cta1_m64_packed_c_infers_weight_stationary():
     inferred with no weight_stationary flag; and an explicit
     weight_stationary=False contradicts the layout and is rejected."""
 
-    target = tvm.target.Target("cuda")
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
         # omitted flag -> .ws inferred, compiles to a .ws MMA
         mod = tvm.compile(

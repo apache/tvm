@@ -39,6 +39,7 @@ All of the following must hold (else the dispatch declines and :doc:`local` runs
             predicate("local_scope", _local_scope_match),       # src & dst local
             predicate("dst_len", _dst_len_ok, expected_len=1),  # reduce to scalar
             predicate("src_ndim", _src_ndim_ok, expected_ndim=1),
+            predicate("reduce_axes", _full_1d_reduction_axes_ok),
             predicate("dtype", _dtype_ok, expected_dtype="float32"),
             predicate("sm_version", sm_version_ok, min_version=100),
             predicate("reduction_len", _reduction_len_ok, min_len=8),
@@ -57,11 +58,13 @@ All of the following must hold (else the dispatch declines and :doc:`local` runs
    * - operands
      - src & dst ``local``, both ``float32``; dst length ``1``; src **1-D** with
        ``≥ 8`` elements
+   * - axes
+     - the only 1-D source axis must be reduced (``0`` or ``-1``)
 
 Demonstration program
 ----------------------
 
-A single thread sums a 32-element ``float32`` register vector on ``sm_100a`` (from
+A single thread sums a 32-element ``float32`` local vector on ``sm_100a`` (from
 ``test_reduction.py``):
 
 .. code-block:: python
@@ -141,5 +144,6 @@ How inputs change the algorithm
    * - accum
      - ``True`` folds the old dst value into the first accumulator slot
    * - anything outside the gate
-     - non-fp32, 2-D src, dst length > 1, pre-Blackwell, or ``< 8`` elements → the
-       dispatch declines and :doc:`local` handles it
+     - non-fp32, 2-D src, a non-reducing axis list, dst length > 1,
+       pre-Blackwell, or ``< 8`` elements → the dispatch declines and
+       :doc:`local` handles it when that variant's requirements hold

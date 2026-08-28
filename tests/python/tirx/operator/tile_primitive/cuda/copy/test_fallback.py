@@ -245,5 +245,38 @@ def test_fallback_emits_gate():
     assert "== 0" in src, "fallback emit didn't produce a tid==0 gate; src:\n" + src[:2000]
 
 
+def test_fallback_rejects_unsupported_cluster_scope_cleanly():
+    shape = (4, 6)
+    layout = TileLayout(S[shape])
+
+    @T.prim_func
+    def kernel() -> None:
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+        src = T.alloc_buffer(shape, "float32", scope="shared", layout=layout)
+        dst = T.alloc_buffer(shape, "float32", scope="shared", layout=layout)
+        Tx.cluster.copy(dst, src)
+
+    target = tvm.target.Target("cuda")
+    with target, pytest.raises(RuntimeError, match="unsupported exec_scope cluster"):
+        tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+
+
+def test_fallback_rejects_tmem_scope_cleanly():
+    @T.prim_func
+    def kernel() -> None:
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([1])
+        src = T.decl_buffer((1,), "float32", scope="tmem", allocated_addr=0)
+        dst = T.alloc_buffer((1,), "float32", scope="local")
+        Tx.copy(dst, src, dispatch="fallback")
+
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    with target, pytest.raises(RuntimeError, match="unsupported memory scopes src=tmem dst=local"):
+        tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+
+
 if __name__ == "__main__":
     tvm.testing.main()

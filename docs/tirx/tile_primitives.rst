@@ -140,7 +140,7 @@ implementations consume the following keys:
    :widths: 28 34 38
 
    * - Primitive / variant
-     - Accepted keys
+     - Keys consumed
      - Notes
    * - ``copy``: ``vec_16b`` / ``vec_32b`` / ``vec_64b`` /
        ``vec_128b`` / ``vec_256b``

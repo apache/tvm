@@ -18,8 +18,15 @@
 
 import pytest
 
+from tvm.ir import assert_structural_equal
+from tvm.ir.type import PointerType, PrimType
+from tvm.script import tirx as T
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import tirx as Tx_builder
+from tvm.tirx import Var
 from tvm.tirx.cuda.lang.alloc_pool import _validate_mma_alloc_shape
 from tvm.tirx.cuda.tile_primitive.tma_utils import SwizzleMode
+from tvm.tirx.layout import tmem_datapath_layout
 
 # ---------------------------------------------------------------------------
 # alloc_tcgen05_mma_AB shape validation: bad inputs raise actionable ValueError instead of
@@ -111,6 +118,28 @@ class TestAllocMmaValidationValid:
         _validate_mma_alloc_shape((128, 32), "bfloat16", SwizzleMode.SWIZZLE_NONE)
         _validate_mma_alloc_shape((3, 5), "bfloat16", SwizzleMode.SWIZZLE_NONE)
         _validate_mma_alloc_shape((128,), "bfloat16", SwizzleMode.SWIZZLE_NONE)
+
+
+def test_tmem_pool_alloc_datapath_layout():
+    """The documented datapath= shorthand builds the corresponding TMEM layout."""
+
+    with IRBuilder():
+        with Tx_builder.prim_func():
+            smem_pool = T.SMEMPool(Var("smem_ptr", PointerType(PrimType("uint8"))))
+            tmem_pool = T.TMEMPool(smem_pool)
+            buf = tmem_pool.alloc((64, 32), "float32", datapath="B")
+
+    assert_structural_equal(buf.layout, tmem_datapath_layout("B", 64, 32))
+
+
+def test_tmem_pool_alloc_rejects_layout_and_datapath():
+    with IRBuilder():
+        with Tx_builder.prim_func():
+            smem_pool = T.SMEMPool(Var("smem_ptr", PointerType(PrimType("uint8"))))
+            tmem_pool = T.TMEMPool(smem_pool)
+            layout = tmem_datapath_layout("B", 64, 32)
+            with pytest.raises(ValueError, match="either layout= or datapath="):
+                tmem_pool.alloc((64, 32), "float32", layout=layout, datapath="B")
 
 
 if __name__ == "__main__":

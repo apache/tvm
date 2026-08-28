@@ -19,7 +19,7 @@ TIRx lowering pipeline
 ======================
 
 ``tvm.compile(mod, target, tir_pipeline="tirx")`` runs an authored TIRx module
-through the **tirx pipeline** — an ordered sequence of TIR passes that turns the
+through the **tirx pipeline** — an ordered sequence of IR passes that turns the
 high-level constructs you write (tile primitives, ``TileLayout``-typed buffers,
 execution-scope ids) into split **host** + **device** functions, which the CUDA
 backend then renders to source. The pipeline is defined in
@@ -100,8 +100,9 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
      - marks the single PrimFunc as the module entry point
    * - 15
      - ``SplitHostDevice``
-     - splits each kernel into a **host** function and a **device** function at the
-       ``launch_thread`` boundary
+     - extracts target-annotated device regions into **device** functions and
+       leaves launch calls in the **host** function; the regions originate from
+       the thread extents produced while lowering ``Tx.device_entry`` and scope ids
    * - 16
      - ``LowerIket``
      - lowers CUDA IKET instrumentation after host/device splitting
@@ -134,12 +135,13 @@ Inside LowerTIRx
 - **``TilePrimitiveDispatch``** replaces every ``TilePrimitiveCall`` (``copy``,
   ``gemm``, ``reduction``, …) with the body emitted by its selected backend
   dispatch — the variant-selection and codegen described in
-  :doc:`tile_dispatch`.
-- **``LowerTIRxCleanup``** runs the ``LayoutApplier``: it resolves every
+  :doc:`tile_dispatch`.  In the same pass it removes the ``device_entry``
+  marker, resolves standalone scope-id definitions to ``Bind`` statements,
+  and wraps the device body in the corresponding thread-extent attributes.
+- **``LowerTIRxCleanup``** then runs the ``LayoutApplier``: it resolves every
   ``TileLayout``-typed buffer access into concrete physical address arithmetic
-  (``addr = data + elem_offset + layout.apply(coord)``), flattens the buffers, and
-  lowers the execution-scope ids (``Tx.cta_id`` / ``Tx.thread_id`` / … →
-  ``blockIdx`` / ``threadIdx`` via ``launch_thread``).
+  (``addr = data + elem_offset + layout.apply(coord)``), flattens the buffers,
+  and removes buffer offsets that have been folded into the resulting views.
 
 After ``LowerTIRx`` the module remains a ``tvm.tirx.PrimFunc``, but contains no
 tile primitives or ``TileLayout`` indirection, and scope ids have been resolved
@@ -172,7 +174,8 @@ Take a one-line scale kernel:
         tx: Tx.let = threadIdx_x
         B_1[threadIdx_x] = A_1[threadIdx_x] * Tx.float32(2.0)
 
-**After ``SplitHostDevice`` + ``MakePackedAPI``** the one function has become two —
+**After ``SplitHostDevice`` and the later ``MakePackedAPI`` pass** the one function
+has become two —
 a host launcher and a device kernel:
 
 .. code-block:: python

@@ -422,8 +422,13 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     )
     assert C_type == "float32", f"tcgen05 schedule expected C_type=float32, got {C_type}"
 
-    # fp32/bf16 storage may still use tf32 MMA semantics via is_AB_tf32.
+    # float32 storage may use tf32 MMA semantics via is_AB_tf32.
     is_AB_tf32 = op_call.config.get("is_AB_tf32", False)
+    if is_AB_tf32 and (A_type != "float32" or B_type != "float32"):
+        raise ValueError(
+            "tcgen05 gemm_async is_AB_tf32=True requires float32 A and B storage, "
+            f"got A={A_type}, B={B_type}"
+        )
     # Emit the PTX ``tcgen05.mma.ws`` weight-stationary form only for kernels
     # that explicitly require that tcgen05 ABI.
     weight_stationary = bool(op_call.config.get("weight_stationary", False))
@@ -1168,6 +1173,12 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     # smem_desc modes: "hoist" (default, encode once after alloc), "local_hoist"
     # (encode at call site, reuse via add_16B_offset), "encode"/"recompute" (per MMA).
     smem_desc_mode = op_call.config.get("smem_desc", "hoist")
+    valid_smem_desc_modes = ("hoist", "local_hoist", "encode", "recompute")
+    if smem_desc_mode not in valid_smem_desc_modes:
+        raise ValueError(
+            "tcgen05 gemm_async smem_desc must be one of "
+            f"{valid_smem_desc_modes}, got {smem_desc_mode!r}"
+        )
     local_hoist = smem_desc_mode == "local_hoist"
     encode_per_mma = smem_desc_mode == "encode"
     use_add = smem_desc_mode not in ("recompute", "encode")

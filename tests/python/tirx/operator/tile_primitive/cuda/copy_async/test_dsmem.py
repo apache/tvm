@@ -174,13 +174,13 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
         src_raw = pool.alloc([src_phys], dtype, align=128)
         src_smem = T.decl_buffer(
             list(shape), dtype, src_raw.data,
-            elem_offset=0, scope="shared.dyn", layout=src_layout,
+            byte_offset=src_raw.byte_offset, scope="shared.dyn", layout=src_layout,
         )
                 # dst_smem: dispatch writes here (on remote CTA), CTA 1 reads
         dst_raw = pool.alloc([dst_phys], dtype, align=128)
         dst_smem = T.decl_buffer(
             list(shape), dtype, dst_raw.data,
-            elem_offset=0, scope="shared.dyn", layout=dst_layout,
+            byte_offset=dst_raw.byte_offset, scope="shared.dyn", layout=dst_layout,
         )
         mbar = MBarrier(pool, 1)
         pool.commit()

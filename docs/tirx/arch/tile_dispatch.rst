@@ -68,9 +68,12 @@ priority, predicates, and implementation.  ``run_dispatch(op_call, sctx)``:
    variant;
 #. sorts candidates by descending priority and then by variant name;
 #. evaluates each candidate's predicates and runs the first implementation that
-   accepts the call;
-#. continues searching when an implementation raises ``DispatchFail``; and
-#. reports every rejection reason when no candidate accepts the call.
+   accepts the call; a predicate exception is recorded as a rejection reason;
+#. continues searching when an implementation raises ``DispatchFail`` or another
+   exception; and
+#. reports every rejection reason when no candidate accepts the call.  If an
+   implementation raised an unexpected exception, the final ``RuntimeError`` is
+   chained from the last such exception so its traceback is retained.
 
 Dispatch is therefore target-specific, priority-ordered, and predicate-guarded,
 with an optional ``dispatch=`` override.  Common predicates validate matching

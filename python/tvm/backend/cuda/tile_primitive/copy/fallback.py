@@ -30,8 +30,34 @@ from tvm.tirx.operator.tile_primitive.registry import DispatchContext
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ._common import _TID_AXIS_FOR_SCOPE
-from .utils import _is_valid_copy
+from .utils import _is_valid_copy, _scope_allowed
 from .vec_auto_reg import _axis_decl
+
+_FALLBACK_ALLOWED_PAIRS = (
+    ("global", "global"),
+    ("global", "shared*"),
+    ("global", "local"),
+    ("shared*", "global"),
+    ("shared*", "shared*"),
+    ("shared*", "local"),
+    ("local", "global"),
+    ("local", "shared*"),
+    ("local", "local"),
+)
+
+
+def _fallback_memory_scopes_supported(op_call: TilePrimitiveCall, sctx: DispatchContext):
+    return _scope_allowed(op_call, sctx, _FALLBACK_ALLOWED_PAIRS)
+
+
+def _fallback_scope_supported(op_call: TilePrimitiveCall, sctx: DispatchContext):
+    del op_call
+    supported = ("thread", "warp", "warpgroup", "cta")
+    ok = sctx.scope_kind in supported
+    return (
+        ok,
+        None if ok else f"unsupported exec_scope {sctx.scope_kind}; expected one of {supported}",
+    )
 
 
 def _region_st_extent(buffer_region):
@@ -114,7 +140,11 @@ def _emit_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFun
     "cuda",
     variant="fallback",
     priority=0,
-    when=[predicate("validate_copy_op", _is_valid_copy)],
+    when=[
+        predicate("exec_scope", _fallback_scope_supported),
+        predicate("memory_scopes", _fallback_memory_scopes_supported),
+        predicate("validate_copy_op", _is_valid_copy),
+    ],
 )
 def copy_schedule_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     return _emit_fallback(op_call, sctx)

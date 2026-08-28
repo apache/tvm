@@ -20,7 +20,8 @@ copy_async → dsmem
 
 The ``dsmem`` variant lowers a ``copy_async`` whose **source and destination are
 both shared** memory but in **different CTAs of a cluster** (distributed shared
-memory). One elected thread on the source CTA maps the destination CTA's shared
+memory). A call already placed in a single-thread execution scope maps the
+destination CTA's shared
 address into its own address space (PTX ``mapa``) and issues a bulk copy
 (``cp.async.bulk.shared::cluster``); the hardware decrements the *destination* CTA's
 mbarrier when the bytes land. Source:
@@ -53,7 +54,8 @@ Three predicates: a valid copy, a single-thread scope, and a shared → shared p
    * - target / priority
      - ``cuda``; priority ``10``
    * - scope
-     - **single thread** issues the copy (the source CTA elects one thread)
+     - the call must already be in a **single-thread** scope; the caller normally
+       selects that thread with control flow
    * - memory pair
      - both ``shared*`` (``_is_shared_to_shared``); the copy targets a *remote* CTA
        via ``remote_cta_id``
@@ -86,10 +88,14 @@ mbarrier and writes the result out (from ``test_dsmem.py``):
         Tx.device_entry()
         cbx = Tx.cta_id_in_cluster([CLUSTER_N]); Tx.cta_id([CLUSTER_N]); tid = Tx.thread_id([1])
         pool = Tx.SMEMPool()
-        src_smem = Tx.decl_buffer(list(shape), dtype, pool.alloc([8192], dtype, align=128).data,
-                                 elem_offset=0, scope="shared.dyn", layout=src_layout)
-        dst_smem = Tx.decl_buffer(list(shape), dtype, pool.alloc([8192], dtype, align=128).data,
-                                 elem_offset=0, scope="shared.dyn", layout=dst_layout)
+        src_raw = pool.alloc([8192], dtype, align=128)
+        src_smem = Tx.decl_buffer(list(shape), dtype, src_raw.data,
+                                 byte_offset=src_raw.byte_offset,
+                                 scope="shared.dyn", layout=src_layout)
+        dst_raw = pool.alloc([8192], dtype, align=128)
+        dst_smem = Tx.decl_buffer(list(shape), dtype, dst_raw.data,
+                                 byte_offset=dst_raw.byte_offset,
+                                 scope="shared.dyn", layout=dst_layout)
         mbar = MBarrier(pool, 1); pool.commit()
         mbar.init(1); Tx.ptx.fence.mbarrier_init.release.cluster(); Tx.cuda.cluster_sync()
         if tid == 0:
@@ -171,8 +177,8 @@ Generated CUDA
     // bulk-copy 16384 bytes local shared -> CTA 1 shared, signalling its mbarrier
     "cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes ..."
 
-One thread on CTA 0 launches the whole 16 KB transfer; CTA 1's mbarrier fires when
-it lands.
+The selected thread on CTA 0 launches the whole 16 KB transfer; CTA 1's mbarrier
+fires when it lands.
 
 How inputs change the algorithm
 -------------------------------

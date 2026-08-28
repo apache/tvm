@@ -131,7 +131,8 @@ Execution scope describes both the active participants and the logical scope of
 a primitive invocation. Control flow such as ``if wg_id == ...``,
 ``warp_id == ...``, or ``cbx == ...`` selects which hardware roles enter a
 region, while predicates such as ``Tx.cuda.elect_sync()`` further select the
-issuing thread.
+issuing lane within each active warp. To obtain one issuer for a wider scope,
+first select one warp and then use ``elect_sync`` inside it.
 
 The primitive namespace is also part of the scope. For example,
 ``Tx.tile.wg.*`` denotes warpgroup-level primitives, while an unqualified
@@ -142,12 +143,12 @@ Tensor layout
 
 Tensor layout, with a storage-first interface, describes how logical
 tensors map to physical resources. A tile may live in global memory, shared
-memory, registers, tensor memory, or accelerator SRAM.
+memory, per-thread local storage, tensor memory, or accelerator SRAM.
 Users declare where each tile lives and how its elements are spread across
-lanes, warps, and registers; tile primitive dispatch reads those declarations to
-choose an implementation. A layout is a storage description, not a
-loop-transformation utility: users may construct a tile's layout, but never use
-layouts to transform loops.
+lanes, warps, and per-thread storage elements; tile primitive dispatch reads
+those declarations to choose an implementation. A layout is a storage
+description, not a loop-transformation utility: users may construct a tile's
+layout, but never use layouts to transform loops.
 
 .. seealso::
 
@@ -218,9 +219,9 @@ Agentic kernel programming
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 TIRx exposes its IR and compiler utilities through TVM FFI across Python, C++,
-and Rust, and offers a structured search space with dense, pre-benchmark
-feedback (well-formedness, synchronization validity, race-freedom, value
-simulation).
+and Rust. Its structured IR supports inspection and well-formedness checks
+before a kernel is benchmarked, while target compilation and execution provide
+the final validation of backend-specific behavior.
 
 .. figure:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/tirx/tirx_agentic.webp
    :align: center

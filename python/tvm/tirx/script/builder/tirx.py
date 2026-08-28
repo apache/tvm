@@ -210,10 +210,12 @@ def sqrt(
         The source buffer region. If omitted, dst is used (in-place).
 
     bias : Optional[Union[BufferRegion, Buffer, FloatImm]]
-        The bias of the sqrt src. Only supported on Trn.
+        Optional bias added before the square root. Support is determined by
+        the selected backend implementation.
 
     scale : Optional[FloatImm]
-        The scale of the sqrt src. Only supported on Trn.
+        Optional scale applied before the bias. Support is determined by the
+        selected backend implementation.
 
     workspace : Optional[Dict[str, Buffer]]
         The workspace of the operator.
@@ -1187,10 +1189,12 @@ def exp(
         The source buffer region. If omitted, dst is used (in-place).
 
     bias : Optional[Union[BufferRegion, Buffer, FloatImm]]
-        The bias of the exp src. Only supported on Trn.
+        Optional bias added before exponentiation. Support is determined by
+        the selected backend implementation.
 
     scale : Optional[FloatImm]
-        The scale of the exp src. Only supported on Trn.
+        Optional scale applied before the bias. Support is determined by the
+        selected backend implementation.
 
     workspace : Dict[str, Buffer]
         The workspace of the operator.

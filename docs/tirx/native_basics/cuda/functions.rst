@@ -80,7 +80,8 @@ pass on the Python side when you call the compiled ``Executable``:
      - a compile-time constant
      - supplied to ``.specialize(...)``, **not** at the call
 
-Tensors may be CUDA ``torch`` tensors (zero-copy via DLPack) or
+Tensors may be CUDA ``torch`` tensors (zero-copy through TVM FFI tensor
+interop) or
 ``tvm.runtime.tensor(...)``. Arguments are positional and match the parameter
 order. For example, a kernel with a scalar parameter::
 
@@ -144,8 +145,9 @@ reads it from the tensor's shape and passes it, and the loop bound uses it
    ``(n,)``), checks that ``b`` agrees, computes the launch configuration, and then
    invokes the device kernel — forwarding the data pointers **and** the resolved
    ``n`` as explicit arguments. Nothing passes ``n`` by hand; the host side derives
-   it from the tensor metadata. The pass that does this is
-   ``tirx.transform.SplitHostDevice`` (followed by ``tirx.transform.MakePackedAPI``).
+   it from the tensor metadata. ``tirx.transform.SplitHostDevice`` extracts the
+   device function, and the later ``tirx.transform.MakePackedAPI`` pass builds
+   the packed host-side argument handling.
 
 You can see it in the IR. **Before** the split, the lowered module is a single
 merged function (trimmed):
@@ -218,12 +220,13 @@ Launch parameters
 ``Tx.device_entry()``
 ~~~~~~~~~~~~~~~~~~~~~
 
-``Tx.device_entry()`` is a flat marker (no ``with``) that splits the function:
-everything **before** it is host code — the ``Tx.match_buffer`` parameter binding
-and any shape reads — and everything **after** it is the **device kernel body**. It
-lowers to an ``AttrStmt("tirx.device_entry", ...)`` and is exactly the boundary the
-host/device split cuts along (the merged-vs-split modules shown above are split
-here).
+``Tx.device_entry()`` is a flat marker (no ``with``) that starts the authored
+device region: parameter binding and shape reads precede it, while the kernel
+body follows it. The parser represents the marker as
+``AttrStmt("tirx.device_entry", ...)``. ``LowerTIRx`` then removes the marker,
+resolves scope ids, and wraps the device body in thread-extent attributes;
+target binding and ``SplitHostDevice`` use those resulting device regions to
+extract the kernel shown above.
 
 Scope ids
 ~~~~~~~~~
@@ -240,8 +243,9 @@ After ``device_entry`` you declare the thread hierarchy with *scope-id* intrinsi
     tx = Tx.thread_id([128])         # cta -> flat thread id
 
 Available ids include ``cta_id``, ``thread_id``, ``warp_id``, ``warpgroup_id``,
-``warp_id_in_wg``, ``lane_id``, ``cluster_id``, ``cta_id_in_cluster``. (The legacy
-``Tx.launch_thread`` exists but native TIRx uses ``device_entry`` + scope-ids.)
+``warp_id_in_wg``, ``thread_id_in_wg``, ``lane_id``, ``cluster_id``,
+``cta_id_in_cluster``, and ``cta_id_in_pair``. (The legacy ``Tx.launch_thread``
+exists but native TIRx uses ``device_entry`` + scope ids.)
 
 **Thread-block clusters** (Hopper/Blackwell) are declared with ``cluster_id``
 (kernel → cluster) and ``cta_id_in_cluster`` (cluster → cta). The

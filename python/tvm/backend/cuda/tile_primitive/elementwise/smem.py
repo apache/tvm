@@ -23,19 +23,21 @@ Each thread takes ``ceildiv(total, vec_chunk * thread_cnt)`` strided chunks.
 
 The shared buffers are indexed multi-dim via ``get_indices(fused, dst_st,
 dst_ext)`` and the buffer's own layout resolves to physical addresses at
-codegen time. Packed-vec emit requires the innermost dim to have stride 1
-(non-swizzle slice) so lanes are physically contiguous; checked in
-``_max_layout_vec``.
+codegen time. ``_max_layout_vec`` bounds the scheduling chunk by dtype,
+logical extent, and the physically contiguous tail shared by all operands;
+this is required by packed implementations that pass a pointer to a pair.
 """
 
 from __future__ import annotations
 
 from tvm.script import tirx as T
 from tvm.tirx import PrimFunc, TilePrimitiveCall
+from tvm.tirx.layout import ComposeLayout, TileLayout
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.dispatcher import fail
 
 from ..common import get_indices, get_st_extent, get_thread_cnt
+from ..copy._common import _alignment_ok, _carve_tail, _extract_tile, _verify_s_tail_contig
 from ._common import (
     _TID_AXIS_FOR_SCOPE,
     _all_threads_active,
@@ -99,8 +101,8 @@ def is_smem_ewise(spec):
 # vec_chunk selection
 # -----------------------------------------------------------------------------
 def _max_layout_vec(plan, total: int, thread_cnt: int) -> int:
-    """Widest vec_chunk dividing all operands' innermost extents AND
-    ``total / thread_cnt``, within dtype-bit candidates ``{128,64,32,16,8}``."""
+    """Widest dtype-sized chunk that divides each logical innermost extent and
+    ``total / thread_cnt``, and has a physically contiguous tail in every layout."""
     max_bits = dtype_bits(plan.dst.buffer.dtype)
     for s in plan.srcs:
         if s.buf_region is not None:
@@ -122,7 +124,58 @@ def _max_layout_vec(plan, total: int, thread_cnt: int) -> int:
         if per_thread % n != 0:
             continue
         if all(i % n == 0 for i in inners):
-            return n
+            physically_contiguous = True
+            for br in buffer_regions(plan):
+                layout = br.buffer.layout
+                if not isinstance(layout, TileLayout | ComposeLayout):
+                    physically_contiguous = False
+                    break
+                if (
+                    isinstance(layout, ComposeLayout)
+                    and int(layout.swizzle_len) > 0
+                    and n > 1 << int(layout.per_element)
+                ):
+                    # A packed pointer must not cross an XOR-swizzle atom.
+                    physically_contiguous = False
+                    break
+                region = [(r.min, r.min + r.extent) for r in br.region]
+                try:
+                    sliced = layout.slice(list(br.buffer.shape), region)
+                    if sliced is None:
+                        physically_contiguous = False
+                        break
+                    sliced = _extract_tile(sliced.canonicalize(), region)
+                    carved = _carve_tail(list(sliced.shard), n)
+                    if carved is None:
+                        physically_contiguous = False
+                        break
+                    carved_layout = TileLayout.from_iters(
+                        carved, list(sliced.replica), dict(sliced.offset)
+                    )
+                    if not _verify_s_tail_contig(carved_layout, n):
+                        physically_contiguous = False
+                        break
+                    tail_product = 1
+                    tail_start = len(carved_layout.shard)
+                    for idx in range(len(carved_layout.shard) - 1, -1, -1):
+                        tail_product *= int(carved_layout.shard[idx].extent)
+                        tail_start = idx
+                        if tail_product >= n:
+                            break
+                    if tail_product != n:
+                        physically_contiguous = False
+                        break
+                    align_terms = [int(it.stride) for it in carved_layout.shard[:tail_start]]
+                    align_terms.extend(carved_layout.offset.values())
+                    if not _alignment_ok(n, align_terms):
+                        physically_contiguous = False
+                        break
+                except (AssertionError, TypeError, ValueError):
+                    # The sliced layout cannot prove a contiguous physical tail.
+                    physically_contiguous = False
+                    break
+            if physically_contiguous:
+                return n
     return 1
 
 

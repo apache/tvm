@@ -19,10 +19,71 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.backend.cuda.tile_primitive.reduction.utils import _validate_reduction_layout
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 from tvm.tirx.layout import R, S, TileLayout, laneid, wg_local_layout
+
+
+def test_reduction_local_rejects_mismatched_destination_size():
+    @T.prim_func
+    def kernel() -> None:
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([1])
+        src = T.alloc_buffer((8,), "float32", scope="local")
+        dst = T.alloc_buffer((2,), "float32", scope="local")
+        Tx.sum(dst, src, axes=(-1,))
+
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    with target, pytest.raises(RuntimeError, match="dst size 2 != expected spatial size 1"):
+        tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+
+
+def test_reduction_sm100_packed_requires_full_1d_axes():
+    @T.prim_func
+    def kernel() -> None:
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([1])
+        src = T.alloc_buffer((8,), "float32", scope="local")
+        dst = T.alloc_buffer((1,), "float32", scope="local")
+        Tx.sum(dst, src, axes=(), dispatch="packed_add_sum")
+
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    with target, pytest.raises(RuntimeError, match="expected a full 1-D reduction"):
+        tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+
+
+def test_reduction_shared_rejects_partial_shuffle_group():
+    layout_src = TileLayout(S[(1, 8)])
+    layout_dst = TileLayout(S[(1,)])
+
+    @T.prim_func
+    def kernel() -> None:
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([12])
+        src = T.alloc_buffer((1, 8), "float32", scope="shared", layout=layout_src)
+        dst = T.alloc_buffer((1,), "float32", scope="shared", layout=layout_dst)
+        Tx.cta.sum(dst, src, axes=(-1,))
+
+    target = tvm.target.Target("cuda")
+    with target, pytest.raises(RuntimeError, match="thread count 12.*shuffle group size 8"):
+        tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+
+
+def test_reduction_layout_rejects_extra_nonunit_destination_dimension():
+    ok, reason = _validate_reduction_layout(
+        TileLayout(S[(4, 2)]),
+        TileLayout(S[(2, 2)]),
+        (4, 2),
+        (2, 2),
+        [1],
+    )
+    assert not ok
+    assert reason == "mismatch dst/src layout for reduction"
 
 
 @pytest.mark.parametrize(
@@ -781,7 +842,8 @@ def test_reduction_local_optimized_packed_add_sum(reduction_len, accum):
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_type", ["sum", "max"])
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
-def test_reduction_op_warp_shuffle(op_type, dtype):
+@pytest.mark.parametrize("accum", [False, True])
+def test_reduction_op_warp_shuffle(op_type, dtype, accum):
     """Test warp-scope shuffle reduce with laneid shard→replica layout pattern.
 
     Case A: full warp reduce (32 lanes → 1 value, replicated to all lanes).
@@ -810,10 +872,12 @@ def test_reduction_op_warp_shuffle(op_type, dtype):
         src_local[0] = A[lane_id]
         src_view = src_local.view(N, layout=src_layout)
         dst_view = dst_local.view(1, layout=dst_layout)
+        if accum:
+            dst_local[0] = T.cast(2.0, dtype)
         if op_type == "sum":
-            Tx.warp.sum(dst_view, src_view)
+            Tx.warp.sum(dst_view, src_view, accum=accum)
         elif op_type == "max":
-            Tx.warp.max(dst_view, src_view)
+            Tx.warp.max(dst_view, src_view, accum=accum)
         B[lane_id] = dst_local[0]
         # fmt: on
 
@@ -829,6 +893,8 @@ def test_reduction_op_warp_shuffle(op_type, dtype):
             ref_val = A_np.astype("float64").sum()
         elif op_type == "max":
             ref_val = A_np.max()
+        if accum:
+            ref_val = ref_val + 2.0 if op_type == "sum" else max(ref_val, 2.0)
 
         B_ref = np.full(N, ref_val, dtype=dtype)
         atol = 1e-4 if dtype == "float32" else 1e-1

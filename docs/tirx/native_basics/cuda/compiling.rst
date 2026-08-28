@@ -20,8 +20,11 @@ Compiling and inspecting
 
 Wrap the ``PrimFunc`` in an ``IRModule`` and compile with
 ``tvm.compile(mod, target=..., tir_pipeline="tirx")``; it runs the TIRx lowering
-pipeline and returns an ``Executable`` you call directly. The arch (e.g.
-``sm_100a``) is auto-detected from the device, so the target ``"cuda"`` is enough.
+pipeline and returns an ``Executable`` you call directly. With an active CUDA
+device, target ``"cuda"`` auto-detects its architecture (for example
+``sm_100a``). If no device is available during compilation, TVM warns and falls
+back to ``sm_50``; specify ``-arch=...`` when cross-compiling or when the emitted
+instructions require a newer architecture.
 
 .. code-block:: python
 

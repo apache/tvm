@@ -52,9 +52,9 @@ dispatch variants.
      - 10
      - warp-collective ``ldmatrix`` / ``stmatrix`` (m8n8 fragments)
    * - :doc:`copy/fallback`
-     - any
+     - global / shared / local
      - 0
-     - scalar single-thread copy (catch-all)
+     - scalar single-thread copy (last resort)
 
 The detailed pages cover the two ``vec_auto`` paths, ``ldstmatrix``, and the
 fallback, including accepted input, lowering algorithm, emitted TIRx IR, and

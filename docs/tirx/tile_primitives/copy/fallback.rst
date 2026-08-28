@@ -18,20 +18,22 @@
 copy → fallback
 ===============
 
-The ``fallback`` variant is the **priority-0 catch-all**: a scalar, single-thread
+The ``fallback`` variant is the **priority-0 last resort**: a scalar, single-thread
 copy that runs only when ``ldstmatrix`` and both ``vec_auto`` paths
 (:doc:`gmem_smem` and :doc:`reg`) have declined.  Explicit ``vec_*`` variants
-are considered only when requested through ``dispatch=``.  The fallback works
-for any valid copy at thread, warp, warpgroup, or CTA scope and is intentionally
-slow, so it emits a ``UserWarning`` when chosen. Source:
+are considered only when requested through ``dispatch=``. The fallback works for
+valid copies among directly addressable global, shared, and local memory at
+thread, warp, warpgroup, or CTA scope. It is intentionally slow, so it emits a
+``UserWarning`` when chosen. Source:
 ``python/tvm/backend/cuda/tile_primitive/copy/fallback.py``.
 
 What it accepts
 ---------------
 
-Any valid CUDA copy at thread, warp, warpgroup, or CTA scope. The only registered
-predicate is ``_is_valid_copy`` (layouts present, equal dtype, equal non-unit
-extents); there is no memory-pair or divisibility restriction. It is registered
+A valid CUDA copy among global, shared, and local memory at thread, warp,
+warpgroup, or CTA scope. The registered predicates check the execution scope,
+the addressable memory pairs, and ``_is_valid_copy`` (layouts present, equal dtype,
+equal non-unit extents). There is no divisibility restriction. It is registered
 at ``priority=0`` so it is the last candidate the dispatcher tries:
 
 .. list-table::
@@ -45,7 +47,8 @@ at ``priority=0`` so it is the last candidate the dispatcher tries:
    * - target / scope
      - ``cuda``; ``thread`` / ``warp`` / ``warpgroup`` / ``cta``
    * - memory pair
-     - any (global / shared / local, either direction)
+     - global / shared / local, in either direction and within the same space;
+       tensor memory is excluded because ordinary buffer loads/stores cannot address it
    * - dtype / shape
      - ``_is_valid_copy`` only — equal dtype and equal non-unit extents
 
@@ -156,6 +159,6 @@ The **scope** decides who runs the loop:
        other threads skip
 
 The **shape** sets the ``Tx.grid`` bounds (the non-unit extents); the loop body is
-always one scalar element copy, regardless of dtype. There is no vectorization, so
-performance does not depend on dtype width — this variant exists for correctness,
-not speed.
+always one scalar element copy, regardless of dtype. The algorithm remains scalar
+for every dtype; element width and the target memory spaces can still affect the
+cost of each load and store. This variant exists for correctness, not speed.

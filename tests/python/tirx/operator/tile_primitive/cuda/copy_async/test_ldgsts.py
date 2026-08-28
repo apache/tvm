@@ -152,5 +152,26 @@ def test_copy_ldgsts_predicate_zero_fill_codegen():
     assert "g_ptr_ptr" not in src
 
 
+@pytest.mark.parametrize(
+    "config,error",
+    [
+        ({"prefetch_size": 32}, "prefetch_size must be -1, 64, 128, or 256"),
+        ({"fill_mode": "nan"}, "fill_mode must be '' or 'zero'"),
+    ],
+)
+def test_copy_ldgsts_rejects_invalid_config(config, error):
+    @T.prim_func
+    def copy_async() -> None:
+        T.device_entry()
+        T.thread_id([1])
+        src = T.alloc_buffer((16,), "uint8", scope="global", layout=TileLayout(S[16]))
+        dst = T.alloc_buffer((16,), "uint8", scope="shared", layout=TileLayout(S[16]))
+        Tx.copy_async(dst, src, dispatch="ldgsts", direct=True, **config)
+
+    target = tvm.target.Target("cuda")
+    with target, pytest.raises(RuntimeError, match=error):
+        tvm.compile(tvm.IRModule({"main": copy_async}), target=target, tir_pipeline="tirx")
+
+
 if __name__ == "__main__":
     tvm.testing.main()

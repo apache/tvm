@@ -18,12 +18,13 @@
 copy_async
 ==========
 
-Asynchronous copy. Every variant emits only the *issue* instruction — the caller is
-responsible for completion (``cp.async`` commit/wait for ``ldgsts``; mbarrier
-arrive/wait for the bulk-tensor and dsmem paths; ``tcgen05.commit`` /
-``tcgen05.wait`` for the tensor-memory paths). Selection is by the source/dest
-memory pair and scope.  CUDA currently registers six variant names; the TMA page
-below covers two of them.
+Asynchronous copy. Every variant emits the transfer's *issue* instruction; the
+caller supplies the matching completion protocol. ``ldgsts`` uses ``cp.async``
+commit/wait, TMA loads and distributed-shared-memory copies signal an mbarrier,
+TMA stores use the bulk async-group commit/wait operations, and tensor-memory
+paths use their ``tcgen05`` commit/wait operations. Selection is by the
+source/destination memory pair and scope. CUDA currently registers six variant
+names; the TMA page below covers two of them.
 
 .. list-table::
    :header-rows: 1

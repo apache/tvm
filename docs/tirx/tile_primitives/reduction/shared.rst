@@ -48,7 +48,9 @@ What it accepts
    * - exec scope
      - ``cta`` / ``warpgroup`` / ``warp`` (shuffle tree) or ``thread`` (sequential)
    * - thread binding
-     - ``threadIdx.x`` present and **1-D** (no ``threadIdx.y`` / ``z``)
+     - ``threadIdx.x`` present and **1-D** (no ``threadIdx.y`` / ``z``). For a
+       collective scope, its thread count must be divisible by the selected
+       power-of-two shuffle-group size
    * - shape
      - ``dst`` size equals the source's spatial extent (product of the non-reduced
        dims)
@@ -128,7 +130,8 @@ How inputs change the algorithm
      - ``sum`` → ``+`` shuffle tree; ``max`` / ``min`` → the corresponding combine
    * - reduction length / thread count
      - set ``group_size = min(next_pow2(reduction_len), 32, thread_cnt)`` and hence
-       the number of shuffle steps
+       the number of shuffle steps; collective dispatch requires
+       ``thread_cnt % group_size == 0``
    * - exec scope
      - ``cta`` / ``warpgroup`` / ``warp`` → shuffle tree (different sync); ``thread``
        → sequential loop

@@ -34,7 +34,7 @@ SM100 packed paths; ``sm100_packed`` is not itself a dispatch name.
      - Lowering
    * - :doc:`reduction/local`
      - 10
-     - register src/dst; sequential thread reduction (+ optional warp shuffle)
+     - local-buffer src/dst; sequential thread reduction (+ optional warp shuffle)
    * - :doc:`reduction/shared`
      - 10
      - shared src/dst; adaptive group-size ``__shfl_xor`` tree

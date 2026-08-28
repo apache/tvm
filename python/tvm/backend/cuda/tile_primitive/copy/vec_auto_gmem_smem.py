@@ -170,7 +170,8 @@ def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
         # container type rather than the element type.
         tmp = T.alloc_local((lanes,), reg_dtype)
         # Pass typed ptr_to(...) directly to _ptr_off (caching → byte math,
-        # misaligned vec ops); keep a serial loop, T.unroll floods the kernel.
+        # misaligned vec ops); keep a serial loop and leave unrolling to ptxas.
+        # Explicit T.unroll floods the kernel.
         for f in range(total_outer):
             g_lin = g_p.apply(f, tid, v0, shape=apply_shape)["m"]
             s_off = s_apply_layout.apply(f, tid, v0, shape=apply_shape)["m"]

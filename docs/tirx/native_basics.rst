@@ -22,17 +22,17 @@ CUDA Programming Guide
 
    Native-level kernel authoring for the **CUDA backend** (the ``"cuda"``
    target): the thread hierarchy, memory scopes, the ``Tx.cuda.*`` / ``Tx.ptx.*``
-   intrinsics, and the compile / run / inspect loop. The complete kernels in
-   these chapters (``scale``, ``add``, ``smem_demo``, ``block_sum``, and the
-   warp all-reduce) are tested end-to-end on a CUDA GPU.
+   intrinsics, and the compile / run / inspect loop. The chapters build from a
+   complete ``scale`` example through shared-memory and warp-level kernels.
 
 What "native level" means
 -------------------------
 
 A native-level TIRx kernel reads like a structured device kernel: you place
-threads yourself, allocate shared/register buffers, write loops and barriers, and
-call device intrinsics directly. There is no automatic scheduling — what you write
-is what is emitted. This is the foundation the tile primitives
+threads yourself, allocate shared/per-thread local buffers, write loops and barriers, and
+call device intrinsics directly. You explicitly choose the orchestration and
+layouts; standard lowering still dispatches primitives, applies layouts, and
+vectorizes or unrolls marked loops. This is the foundation the tile primitives
 (:doc:`tile_primitives`) are built on; everything here is what those primitives
 ultimately lower to, so it is also where you go when a hardware feature does not
 have a primitive yet.

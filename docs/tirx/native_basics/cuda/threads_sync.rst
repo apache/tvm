@@ -32,11 +32,13 @@ synchronization, mbarriers, reductions, and the PTX data-movement / MMA families
 
     Tx.cuda.cta_sync()                    # block barrier (__syncthreads)
     Tx.cuda.warp_sync()                   # __syncwarp
-    Tx.cuda.warpgroup_sync(8)             # warpgroup barrier
+    Tx.cuda.warpgroup_sync(8)             # warpgroup named-barrier ID 8
     Tx.cuda.cta_sum(val, num_warps, scratch.ptr_to([0]))   # block-level reduction
 
     bar = Tx.alloc_shared((1,), "uint64")
-    Tx.ptx.mbarrier.init.shared.b64(bar.data, Tx.uint32(1))  # mbarrier for async completion
+    if Tx.cuda.thread_rank() == 0:  # one thread initializes the CTA-shared barrier
+        Tx.ptx.mbarrier.init.shared.b64(bar.data, Tx.uint32(1))
+    Tx.cuda.cta_sync()  # initialization completes before any thread uses bar
     Tx.cuda.mbarrier_wait(bar.data, phase)
 
 A complete, runnable example — a warp all-reduce via ``Tx.tvm_warp_shuffle_xor``:
@@ -63,7 +65,7 @@ The shuffle lowers straight to ``__shfl_xor_sync``:
     v_ptr[0] = v_ptr[0] + __shfl_xor_sync(0xFFFFFFFF, v_ptr[0], i_ptr[0], 32);
 
 Other families under ``Tx.ptx.*`` / ``Tx.cuda.*``: ``cp.async`` (LDGSTS),
-``cp_async.bulk.tensor`` (TMA), ``ldmatrix`` / ``stmatrix``, ``tcgen05.*``
+``cp.async.bulk.tensor`` (TMA), ``ldmatrix`` / ``stmatrix``, ``tcgen05.*``
 (Blackwell MMA), ``atomic_add``, ``fence`` … See :doc:`../../api/cuda` for CUDA
 helpers and :doc:`../../api/ptx` for the registered PTX forms.
 

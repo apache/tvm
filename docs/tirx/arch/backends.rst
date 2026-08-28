@@ -25,12 +25,13 @@ pipeline additions, and code-generation support under ``tvm.backend``.
 Loading and registration
 ------------------------
 
-``tvm.backend.load`` imports a backend and calls its registration hook.  The
-hook installs four kinds of target-owned behavior:
+``tvm.backend.load`` imports a backend and calls its registration hook.  A
+backend can register the following target-owned behavior:
 
 #. TVMScript namespaces such as ``Tx.cuda``, ``Tx.ptx``, and ``Tx.nki``;
 #. tile-primitive dispatch implementations for that target kind;
-#. target tags and compilation-pipeline entry points; and
+#. target tags and, when the target owns one, compilation-pipeline entry
+   points; and
 #. code-generation helpers that translate backend calls to target source.
 
 Registration imports some modules only for their side effects.  Those modules

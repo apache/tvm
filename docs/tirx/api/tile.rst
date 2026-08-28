@@ -28,8 +28,8 @@ Kernel code calls tile primitives through ``Tx.tile``::
 The scope namespaces bind an operation to an execution scope.
 ``Tx.tile.copy(...)`` uses thread scope, while ``Tx.tile.warp.copy(...)``,
 ``Tx.tile.wg.copy(...)``, and ``Tx.tile.cta.copy(...)`` request wider
-cooperation.  For compatibility and concise kernel code, the dialect also
-re-exports those scope objects at its root: for example, ``Tx.cta.copy(...)``
+cooperation.  The dialect also exposes those scope objects at its root: for
+example, ``Tx.cta.copy(...)``
 and ``Tx.tile.cta.copy(...)`` construct the same call.  This documentation uses
 the explicit ``Tx.tile`` form consistently.  See the
 :doc:`programming guide <../tile_primitives>` for the model, primitive catalog,

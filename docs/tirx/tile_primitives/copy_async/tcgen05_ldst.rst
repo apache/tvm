@@ -25,7 +25,7 @@ the four warps cooperatively move a tensor-memory tile to/from their per-thread
 registers. One registration handles both directions — ``tmem → local`` lowers to
 ``tcgen05.ld``, ``local → tmem`` to ``tcgen05.st`` — and the dispatch picks the
 widest instruction shape the register layout matches. As with the other async
-variants, completion (``tcgen05.wait.ld`` / ``wait.st``) is the caller's. Source:
+variants, completion (``tcgen05.wait.ld`` / ``tcgen05.wait.st``) is the caller's. Source:
 ``python/tvm/backend/cuda/tile_primitive/copy_async/tcgen05_ldst.py``.
 
 What it accepts
@@ -52,7 +52,8 @@ lowering:
    * - Property
      - Requirement
    * - target / priority
-     - ``cuda`` (Blackwell, sm_100+); priority ``10``
+     - ``cuda`` target with ``tcgen05`` support (tested with ``sm_100a``);
+       priority ``10``
    * - scope
      - **warpgroup** (``exec_scope_ok(expected_scopes=["warpgroup"])``) — the four
        warps act together
@@ -60,8 +61,9 @@ lowering:
      - ``(tmem, local)`` or ``(local, tmem)`` — exactly one side is tensor memory
    * - register layout
      - matched against a ``tcgen05_atom_layout`` (``.16x64b`` / ``.16x128b`` /
-       ``.16x256b``) for the fast path; otherwise the ``.32x32b`` fallback.
-       Layout B uses the special ``.32x32b`` logical ``(64, N)`` image
+       ``.16x256b``) first. If no atom matches, a compatible 128-row Layout D
+       may use ``.32x32b``. Layout B instead uses its dedicated ``.32x32b``
+       logical ``(64, N)`` image; incompatible layouts decline
    * - tmem datapath
      - classified ``D`` (M=128 identity), ``F`` (M=64 scattered), or ``B``
        (per-CTA M=64, ``cta_group=2`` column split); an F layout also selects
@@ -112,8 +114,10 @@ is a store (``tcgen05.st``).
 **2. Pick the instruction shape.** The dispatch matches the register layout against
 ``tcgen05_atom_layout`` for ``.16x64b`` / ``.16x128b`` / ``.16x256b``
 (``_match_tcgen05_atom_layout``); the matched shape sets the column factor (2/4/8
-fp32 columns) and the ``num`` count. If nothing matches it falls back to
-``.32x32b`` and probes ``num ∈ {1, 2, 4, 8, …}`` against the column width.
+fp32 columns) and the ``num`` count. If nothing matches, the implementation
+tries ``.32x32b`` only for a compatible 128-row Layout D and probes its legal
+``num`` values against the column width. Other layouts decline instead of
+silently taking that path.
 
 **3. Issue per datapath slab.** For an M=128 Layout D ``.16x*b`` copy the
 fragment spans two 16-row slabs, so the warps issue the atom twice
@@ -136,8 +140,9 @@ Layout B is routed before the ordinary atom matching. Its logical
 ``(64, N)`` fragment is emitted as one physical ``.32x32b.x{N/2}``
 instruction over all 128 lanes.
 
-The dispatch emits **no** wait — the caller issues ``tcgen05.wait.ld()`` /
-``wait.st()`` (as in the demo).
+The dispatch emits **no** wait. When synchronization is required, the caller
+issues ``Tx.ptx.tcgen05.wait__ld.sync.aligned()`` or
+``Tx.ptx.tcgen05.wait__st.sync.aligned()`` (as in the demo).
 
 Selecting the upper F sub-slab
 -------------------------------
@@ -239,7 +244,8 @@ How inputs change the algorithm
      - effect
    * - register layout
      - matches a ``.16x64b`` / ``.16x128b`` / ``.16x256b`` atom → that shape; no
-       match → the ``.32x32b`` fallback (this demo)
+       match → ``.32x32b`` only for the compatible 128-row/Layout D form used by
+       this demo; otherwise dispatch fails
    * - column width / dtype
      - sets ``num`` (the ``.xN`` count) and the registers per thread
        (``elem_per_32b = 32 / dtype_bits``)

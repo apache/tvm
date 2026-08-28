@@ -1218,17 +1218,17 @@ def test_scalar_allocbuffer_annotation_sugar():
 
 
 def test_let_annotation_syntax():
-    """Test explicit LetStmt syntax: T.let[T.int32] and T.let."""
+    """Test explicit Bind syntax: T.let[T.int32] and T.let."""
 
     # fmt: off
     @T.prim_func
     def test():
         blockIdx_x = T.launch_thread("blockIdx.x", 4)
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
-        # Explicit LetStmt with type
+        # Explicit Bind with type
         bx: T.let[T.int32] = blockIdx_x
         tx: T.let[T.int32] = threadIdx_x
-        # Explicit LetStmt with auto-type
+        # Explicit Bind with auto-type
         combined: T.let = bx + tx
         T.device_entry()
         T.evaluate(bx + tx + combined)

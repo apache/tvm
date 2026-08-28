@@ -57,6 +57,7 @@ from ..exec_scope_utils import exec_scope_ok
 from .utils import (
     _dst_len_ok,
     _dtype_ok,
+    _full_1d_reduction_axes_ok,
     _local_scope_match,
     _reduction_len_ok,
     _src_ndim_ok,
@@ -217,6 +218,7 @@ _optimized_local_reduction_predicates = [
     predicate("local_scope", _local_scope_match),
     predicate("dst_len", _dst_len_ok, expected_len=1),
     predicate("src_ndim", _src_ndim_ok, expected_ndim=1),
+    predicate("reduce_axes", _full_1d_reduction_axes_ok),
     predicate("dtype", _dtype_ok, expected_dtype="float32"),
     predicate("sm_version", sm_version_ok, min_version=100),
     predicate("reduction_len", _reduction_len_ok, min_len=8),

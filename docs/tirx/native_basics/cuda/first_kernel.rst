@@ -79,7 +79,7 @@ generated indexing.
 .. note::
 
    The compiled ``Executable`` also accepts CUDA ``torch`` tensors **directly**
-   (zero-copy, via DLPack) — no conversion step needed:
+   through TVM FFI tensor interop, without an explicit conversion step:
 
    .. code-block:: python
 

@@ -1537,14 +1537,14 @@ bind = Bind
 
 
 class LetAnnotation:
-    """Marker for explicit LetStmt. Created by Tx.let or Tx.let[type].
+    """Marker for an explicit immutable Bind. Created by Tx.let or Tx.let[type].
 
     Examples
     --------
     Usage in TVMScript::
 
-        x: Tx.let[Tx.int32] = expr   # LetStmt with explicit type
-        x: Tx.let = expr             # LetStmt with auto-typed RHS
+        x: Tx.let[Tx.int32] = expr   # Bind with explicit type
+        x: Tx.let = expr             # Bind with auto-typed RHS
     """
 
     def __init__(self, type_spec=None):

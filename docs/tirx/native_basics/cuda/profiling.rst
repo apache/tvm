@@ -26,11 +26,13 @@ softmax, the epilogue.
 
 ``tvm.tirx.bench.CudaProfiler`` is a lightweight, in-kernel event tracer for
 exactly this. You bracket regions of device code with ``start`` / ``end``
-markers; at runtime one leader thread per block stamps the GPU global timer into
-a buffer you pass in as an ordinary kernel argument. After the launch you read
-the buffer back and decode it into per-region durations or a Perfetto timeline.
+markers; at runtime one leader thread per ``(block, group)`` track stamps the GPU
+global timer into a buffer you pass in as an ordinary kernel argument. After the
+launch you read the buffer back and decode it into per-region durations or a
+Perfetto timeline.
 
-It is *not* zero cost — every event is a ``%globaltimer`` read plus a global
+It is *not* zero cost — every event reads the low 32 bits through
+``%globaltimer_lo`` and performs a global
 store, and every thread in the region pays a block fence — so it is a
 profiling/debugging tool, not something you leave on in production.
 
@@ -119,28 +121,36 @@ back. Each record is one ``uint64``: the high 32 bits are the timestamp, the low
         if word == 0:
             continue
         ts, tag = word >> 32, word & 0xFFFFFFFF
-        block = (tag >> 12) // NUM_GROUPS
+        block_group = tag >> 12
+        block, group = block_group // NUM_GROUPS, block_group % NUM_GROUPS
         event_idx, event_type = (tag >> 2) & 0x3FF, tag & 0x3   # 0=start 1=end 2=instant 3=finalize
         if event_type == 0:
-            opens[(block, event_idx)] = ts
+            opens[(block, group, event_idx)] = ts
         elif event_type == 1:
-            spans.setdefault(block, []).append((EV_NAMES[event_idx], ts - opens[(block, event_idx)]))
-    for block in sorted(spans):
-        print(f"block {block}:", ", ".join(f"{n}={d}ns" for n, d in spans[block]))
+            key = (block, group)
+            spans.setdefault(key, []).append(
+                (EV_NAMES[event_idx], ts - opens[(block, group, event_idx)])
+            )
+    for block, group in sorted(spans):
+        values = ", ".join(f"{n}={d}ns" for n, d in spans[(block, group)])
+        print(f"block {block} group {group}: {values}")
 
     export_to_perfetto_trace(prof_np, "cudaprofiler.perfetto-trace", EV_NAMES)
 
 Durations are stable to within a few percent (they shift with GPU clocks)::
 
-    block 0: load=32ns, compute=8704ns, store=64ns
-    block 1: load=96ns, compute=8704ns, store=64ns
-    block 2: load=96ns, compute=8704ns, store=64ns
-    block 3: load=96ns, compute=8704ns, store=64ns
+    block 0 group 0: load=32ns, compute=8704ns, store=64ns
+    block 1 group 0: load=96ns, compute=8704ns, store=64ns
+    block 2 group 0: load=96ns, compute=8704ns, store=64ns
+    block 3 group 0: load=96ns, compute=8704ns, store=64ns
 
 ``export_to_perfetto_trace`` writes ``cudaprofiler.perfetto-trace`` from the same
-records; drop it onto https://ui.perfetto.dev for an interactive timeline. Because
-the timestamps come from the global ``%globaltimer`` (not a per-SM cycle counter),
-events from different blocks share one time axis and are directly comparable.
+records; it uses PyTorch for host-side decoding and requires the optional
+``tg4perfetto`` package (install it with
+``pip install git+https://github.com/ihavnoid/tg4perfetto.git``). Drop the result
+onto https://ui.perfetto.dev for an interactive timeline. Because the timestamps
+come from the global timer (not a per-SM cycle counter), events from different
+blocks share one time axis and are directly comparable.
 
 On a real kernel
 ----------------

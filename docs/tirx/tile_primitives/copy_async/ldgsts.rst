@@ -61,7 +61,7 @@ What it accepts
    * - direction
      - **global → shared only** (``_LDGSTS_PAIRS``) — ``cp.async`` is unidirectional
    * - dtype / shape
-     - ``_is_valid_copy``; region element count divides the thread count
+     - ``_is_valid_copy``; region element count is divisible by the thread count
    * - vector width
      - ``cp.async`` only accepts cp_size ∈ {4, 8, 16} bytes, so the candidate set is
        restricted to ``_LDGSTS_VEC_BITS`` = ``{128, 64, 32}`` bits
@@ -71,10 +71,11 @@ What it accepts
 Configuration
 -------------
 
-``ldgsts`` reads four optional config keys.  ``prefetch_size`` adds the PTX
-``.L2::<N>B`` prefetch-size qualifier.  ``predicate`` predicates the issue;
+``ldgsts`` reads four optional config keys. ``prefetch_size`` is ``-1`` by
+default (no qualifier), or ``64``, ``128``, or ``256`` for the corresponding
+PTX ``.L2::<N>B`` qualifier. ``predicate`` defaults to ``-1`` (unpredicated);
 with ``fill_mode="zero"``, a false predicate uses the ``src-size`` form to
-zero-fill the destination.  ``direct=True`` bypasses cooperative partitioning
+zero-fill the destination. ``direct=True`` bypasses cooperative partitioning
 and issues one exact 4-, 8-, or 16-byte copy; that mode requires thread scope
 and a constant-size region.
 
@@ -114,41 +115,41 @@ widest legal width is ``vec = 8`` (``8 × 2 B = 16 B``), giving ``outer = 4``.
 
 .. code-block:: python
 
-    for f in range(total_outer):
+    for f in Tx.unroll(total_outer):
         s_lin = s_p.apply(f, tid, v0, shape=apply_shape)["m"]
         g_lin = g_p.apply(f, tid, v0, shape=apply_shape)["m"]
         s_ptr = _ptr_off(s_buf.ptr_to(s_zero), _s_off(f, s_lin))
         g_ptr = _ptr_off(g_buf.ptr_to(g_zero), g_lin)
-        Tx.evaluate(Tx.s_tir.cp_async_raw(s_ptr, g_ptr, cp_size))   # async; cp_size = vec_bits // 8
+        Tx.ptx[chain](s_ptr, g_ptr, cp_size)   # async; chain includes cache/prefetch modifiers
     # NO cta_sync — commit_group / wait_group / cta_sync are the caller's job
 
-Completion is the caller's responsibility (``cp_async.commit_group()`` then
-``cp_async.wait_group()``); the dispatch only issues the in-flight loads.
+Completion is the caller's responsibility
+(``Tx.ptx.cp.async_.commit_group()`` then
+``Tx.ptx.cp.async_.wait_group(0)``); the dispatch only issues the in-flight
+loads.
 
 Generated TIRx IR
 -----------------
 
 .. code-block:: python
 
-    for f in range(4):                                       # outer = 4
+    for f in Tx.unroll(4):                                   # outer = 4
         s_ptr = pointer_offset(A_smem, ...)
         g_ptr = pointer_offset(A_1, ...)
-        Tx.s_tir.cp_async_raw(s_ptr, g_ptr, 16, Tx.uint64(0), 0, -1, -1, "")   # cp_size = 16 B
+        Tx.ptx["cp.async.cg.shared.global"](s_ptr, g_ptr, 16)  # cp_size = 16 B
 
 Generated CUDA
 --------------
 
 .. code-block:: c++
 
-    // cp.async.cg copies 16 bytes shared <- global, asynchronously
-    tvm_builtin_ptx_cp_async_cg_async_cg_shared_global_16(s_ptr, g_ptr);   // x4 (outer = 4)
-    // ...
-    tvm_builtin_ptx_cp_async_commit_group_async_commit_group();  // asm: cp.async.commit_group;
-    tvm_builtin_ptx_cp_async_wait_group_async_wait_group_0();    // asm: cp.async.wait_group 0;
+    // Core instructions (the generated source wraps these in inline helpers):
+    asm volatile("cp.async.cg.shared.global [%0], [%1], 16;" ...);  // x4 per thread
+    asm volatile("cp.async.commit_group;");
+    asm volatile("cp.async.wait_group 0;");
 
-where the helper is ``asm volatile("cp.async.cg.shared.global [%0], [%1], 16;")``.
-Each thread issues 4 asynchronous 16-byte copies; nothing blocks until the caller's
-``wait_group``.
+Each thread issues four asynchronous 16-byte copies; nothing blocks until the
+caller's ``wait_group``.
 
 How inputs change the algorithm
 -------------------------------

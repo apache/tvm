@@ -118,8 +118,9 @@ vector pointer is naturally aligned. (Only the innermost ``vec`` iter is exclude
 from that check.) For ``float32`` that is ``vec = 4`` (``4 × 4 B = 16 B = 128 bit``),
 giving ``outer = 1024 / (32 × 4) = 8``.
 
-**3. Emit a serial loop** (``vec_auto_gmem_smem.py``) — deliberately a Python ``for`` (so
-ptxas unrolls it), *not* ``Tx.unroll``:
+**3. Emit a serial loop** (``vec_auto_gmem_smem.py``) — deliberately an ordinary
+``range`` loop, *not* ``Tx.unroll``. This leaves any final unrolling decision to
+ptxas:
 
 .. code-block:: python
 

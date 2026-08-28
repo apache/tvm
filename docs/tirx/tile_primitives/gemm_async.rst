@@ -19,10 +19,13 @@ gemm_async
 ==========
 
 ``gemm_async`` lowers a matrix multiply to the **Blackwell asynchronous
-tensor-core** instruction ``tcgen05.mma``. The A and B operands live in **shared
-memory** (named by 64-bit *matrix descriptors*), the accumulator lives in **tensor
-memory**, and one elected thread launches the MMA, which runs asynchronously; the
-caller signals completion with ``tcgen05.commit`` against an mbarrier. It also
+tensor-core** instruction ``tcgen05.mma``. B, and normally A, live in **shared
+memory** and are named by 64-bit *matrix descriptors*; A can instead use the
+tensor-memory operand path. The accumulator lives in **tensor memory**, and one
+thread launches the MMA, which runs asynchronously. A
+single-thread call site has already selected that issuer; a warp-scoped call uses
+``elect_sync`` internally. The caller signals completion with ``tcgen05.commit``
+against an mbarrier. It also
 supports **block-scaled** low precision (fp8 / fp4 with per-block scale factors
 ``SFA`` / ``SFB`` in tensor memory). Source:
 ``python/tvm/backend/cuda/tile_primitive/gemm_async/tcgen05.py``. (For the
@@ -48,14 +51,15 @@ A single predicate — single-thread or warp scope:
    * - Property
      - Requirement
    * - target / scope / priority
-     - ``cuda`` (Blackwell, sm_100+); **single thread or warp**; priority ``10``
+     - ``cuda`` target with ``tcgen05`` support (this implementation is tested
+       with ``sm_100a``); **single thread or warp**; priority ``10``
    * - operands
      - A, B in **shared** (B always; A shared, or tmem for the TMEM-A path); the
        accumulator **C/D in tmem** (``float32``)
    * - dtype
      - dense A/B (same semantic dtype): ``float16``, ``bfloat16``,
        ``float8_e4m3fn``, ``float8_e5m2``, ``tensor_float32``, or ``tf32``.
-       ``is_AB_tf32=True`` selects tf32 semantics for fp32/bf16 storage.
+       ``is_AB_tf32=True`` selects tf32 semantics for ``float32`` A/B storage.
        Block-scaled A/B: ``float8_e4m3fn`` or ``float4_e2m1fn``, with tmem
        ``SFA`` / ``SFB`` of ``float8_e8m0fnu`` or ``float8_e4m3fn``.
        The accumulator is always ``float32``
@@ -84,8 +88,9 @@ A single predicate — single-thread or warp scope:
 Demonstration program
 ----------------------
 
-A warpgroup multiplies a ``128×64`` × ``64×128`` ``float16`` tile (f32 accumulate)
-into a tmem accumulator, after TMA-loading A/B into shared (from
+One selected thread in a warpgroup multiplies a ``128×64`` × ``64×128``
+``float16`` tile (f32 accumulate) into a tmem accumulator, after TMA-loading A/B
+into shared (from
 ``test_gemm_async.py``; setup/readback abbreviated):
 
 .. code-block:: python
@@ -137,8 +142,10 @@ swizzle mode).  ``smem_desc`` selects where that descriptor comes from:
 (with ``MMA_K`` set by dtype: 8 tf32, 16 f16/bf16, 32 fp8, 64 fp4); a
 compile-time *instruction descriptor* packs the shape and dtypes.
 
-**3. Issue the async MMA** in an unrolled ``(mi, ni, ki)`` nest, accumulating into
-the tmem accumulator (``enable_input_d`` turns accumulation on for ``ki > 0``):
+**3. Issue the async MMA** in an unrolled ``(mi, ni, ki)`` nest. The
+``enable_input_d`` input is ``accum or ki != 0``: with ``accum=False``, the first
+K issue overwrites the destination; with ``accum=True``, it also accumulates the
+destination's existing value.
 
 .. code-block:: python
 
@@ -147,7 +154,7 @@ the tmem accumulator (``enable_input_d`` turns accumulation on for ``ki > 0``):
         Tx.cast(Tx.cuda.get_tmem_addr(tmem_addr, mi * M_mma, tmem_col), "uint32"),  # C in tmem
         smem_desc_add_16B_offset(descA, a_off), descB_val, descI,    # A / B descriptors
         *zero_masks,                                                 # disabled output lanes
-        ki != 0,                                                     # accumulate over K
+        accum or ki != 0,                                            # use existing C/D input
     )
 
 For **block-scaled** fp8/fp4 the chain gains ``.block_scale.scale_vec::<n>X``
@@ -238,11 +245,12 @@ How inputs change the algorithm
        addresses and a runtime-encoded or caller-supplied instruction descriptor
    * - cta_group
      - ``1`` → one CTA, ``M ∈ {64, 128}``; ``2`` → two CTAs split the operand,
-       each with per-CTA ``M ∈ {64, 128}`` and half the B rows. The
+       each with per-CTA ``M ∈ {64, 128}`` and half of B's logical N extent. The
        per-CTA M=64 output uses Layout B
    * - M / N / K extents
      - set the ``(mi, ni, ki)`` unrolled loop counts; K iterations accumulate into
-       the same tmem accumulator
+       the same tmem accumulator.  ``accum=True`` preserves and accumulates the
+       value already in that accumulator on the first K iteration
    * - shared swizzle
      - sets the ``swizzle`` mode + ``ldo``/``sdo`` in the matrix descriptors;
        no-swizzle packed layouts are accepted when the selected tile has a

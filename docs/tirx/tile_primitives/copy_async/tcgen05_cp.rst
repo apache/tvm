@@ -94,12 +94,14 @@ shape/layout validation happens in the planner with readable errors:
    * - Property
      - Requirement
    * - target / priority
-     - ``cuda`` (Blackwell, sm_100+); priority ``10``
+     - ``cuda`` target with ``tcgen05`` support (tested with ``sm_100a``);
+       priority ``10``
    * - scope
      - **single thread** issues the copy
    * - memory pair
      - source ``shared*`` → destination ``tmem`` (with ``allocated_addr`` set by
-       a prior ``tcgen05.alloc``); both buffers carry layouts, dtypes match
+       a prior ``tcgen05.alloc``); both buffers carry layouts and their element
+       bit widths match. Equal-width reinterpretation is allowed
    * - tmem layout
      - must slice to one shape's (lane, replica) pattern from the table above
    * - smem layout

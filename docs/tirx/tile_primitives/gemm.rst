@@ -18,12 +18,15 @@
 gemm
 ====
 
-``gemm`` computes ``D = alpha·A@B + beta·C`` at **warp** scope as a fully-unrolled
-nest of warp-collective ``mma.sync.aligned.m16n8k{16,8}`` instructions. A and B
-fragments and the C/D accumulators **all live in registers** — the caller stages A
-and B into register fragments first (typically via :doc:`copy/ldstmatrix`). The
-dispatch tiles M/N/K into ``m16n8k`` atoms and emits one ``mma`` per output tile,
-accumulating over K in place. Source:
+``gemm`` computes ``D = alpha·A@B + beta·C`` as a fully-unrolled nest of
+warp-collective ``mma.sync.aligned.m16n8k{16,8}`` instructions. A warp call is
+the usual form. A full warpgroup or CTA scope is also accepted; each contained
+warp executes the fragment program, and the operand thread-axis tiling determines
+whether those warps own distinct output tiles or repeat the same tile. A and B
+fragments and the C/D accumulators **all live in registers** — the caller stages
+A and B into register fragments first (typically via :doc:`copy/ldstmatrix`).
+The dispatch tiles M/N/K into ``m16n8k`` atoms and emits one ``mma`` per output
+tile, accumulating over K in place. Source:
 ``python/tvm/backend/cuda/tile_primitive/gemm/mma_m16n8k_.py``. (For the
 Blackwell async tensor-core path see :doc:`gemm_async`.)
 
@@ -33,7 +36,7 @@ What it accepts
 .. code-block:: python
 
     # register_dispatch("gemm", "cuda", priority=10, when=[
-    predicate("full_active_lanes", _full_active_lanes),   # whole warp, un-narrowed
+    predicate("full_active_lanes", _full_active_lanes),   # complete warp(s), un-narrowed
     predicate("no_replica", _no_replica),                 # no broadcast axes on D/A/B/C
     # ])
     # in the impl:
@@ -48,16 +51,18 @@ What it accepts
    * - Property
      - Requirement
    * - target / scope / priority
-     - ``cuda``; **warp** (``mma.sync`` is warp-collective — all 32 lanes active,
-       ``_full_active_lanes``); priority ``10``
+     - ``cuda``; ``warp`` / ``warpgroup`` / ``cta`` with every contained warp
+       complete and un-narrowed (``mma.sync`` itself remains warp-collective);
+       priority ``10``. Thread and cluster scopes are rejected
    * - operand scope
      - **A, B, C, D all in registers** (``local``); a shared operand makes the
        dispatch ``fail`` (stage with ldmatrix first)
    * - no replica
      - none of D/A/B/C may carry a broadcast/replica axis (``_no_replica``)
    * - shape
-     - ``M % 16 == 0``, ``N % 8 == 0``, ``K % 8`` (k8) or ``% 16`` (k16) — each
-       dim must tile into the m16n8k fragment frame
+     - ``M % 16 == 0``, ``N % 8 == 0``, and ``K % 8 == 0``. The dispatcher
+       first tries ``m16n8k16`` and then ``m16n8k8``; the selected instruction
+       must tile all operand layouts exactly
    * - dtype
      - inputs ``float16`` / ``bfloat16``; accumulator ``float32``
    * - alpha / beta
@@ -176,6 +181,9 @@ How inputs change the algorithm
    * - beta
      - ``0`` → D zero-initialized; ``1`` → D initialized from C (the ``mma`` itself
        is identical)
+   * - transpose_A / transpose_B
+     - transpose the logical A or B region before shape and layout matching;
+       the transformed operands must still fit the selected ``m16n8k`` frame
    * - operand scope
      - A/B **must** be register fragments; a shared operand makes the dispatch
        ``fail`` (stage via :doc:`copy/ldstmatrix` first)

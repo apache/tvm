@@ -177,6 +177,8 @@ def _validate_reduction_layout(
             dst_dim_info[dst_idx][1], 1
         ):
             continue
+        if check_idx >= len(expected_dst_dim):
+            return False, "mismatch dst/src layout for reduction"
         if not (
             analyzer.can_prove_equal(dst_dim_info[dst_idx][0], expected_dst_dim[check_idx][0])
             and analyzer.can_prove_equal(dst_dim_info[dst_idx][1], expected_dst_dim[check_idx][1])
@@ -244,6 +246,17 @@ def _src_ndim_ok(op: TilePrimitiveCall, sctx: DispatchContext, expected_ndim: in
     src_extent = [r.extent for r in op.input.region]
     ok = len(src_extent) == expected_ndim
     return (ok, None if ok else f"src ndim {len(src_extent)} != {expected_ndim}")
+
+
+def _full_1d_reduction_axes_ok(op: TilePrimitiveCall, sctx: DispatchContext):
+    """Require the packed 1-D fast path to reduce its only source axis."""
+    op = TilePrimitiveCall.downcast(op)
+    try:
+        reduce_dims, _ = _analyze_axes(1, tuple(int(a) for a in op.reduce_axes))
+    except AssertionError as err:
+        return False, str(err)
+    ok = reduce_dims == [0]
+    return (ok, None if ok else f"expected a full 1-D reduction, got axes {op.reduce_axes}")
 
 
 def _local_scope_match(op: TilePrimitiveCall, sctx: DispatchContext):

@@ -104,7 +104,7 @@ def _divides_thread_cnt_ldgsts(
     op_call: TilePrimitiveCall, sctx: DispatchContext
 ) -> tuple[bool, str | None]:
     """Mirror of ``gmem_smem._divides_thread_cnt``: reject copies whose
-    region element count doesn't divide ``thread_cnt`` (and reject
+    region element count isn't divisible by ``thread_cnt`` (and reject
     ``thread_cnt=0`` scopes outright). See that docstring for rationale."""
     op_call = TilePrimitiveCall.downcast(op_call)
     thread_cnt = _thread_cnt(sctx)
@@ -152,6 +152,16 @@ def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     prefetch_size = op_call.config.get("prefetch_size", -1)
     predicate_expr = op_call.config.get("predicate", -1)
     fill_mode = op_call.config.get("fill_mode", "")
+    try:
+        prefetch_size = int(prefetch_size)
+    except (TypeError, ValueError) as err:
+        raise ValueError(
+            f"ldgsts prefetch_size must be -1, 64, 128, or 256, got {prefetch_size}"
+        ) from err
+    if prefetch_size not in (-1, 64, 128, 256):
+        raise ValueError(f"ldgsts prefetch_size must be -1, 64, 128, or 256, got {prefetch_size}")
+    if fill_mode not in ("", "zero"):
+        raise ValueError(f"ldgsts fill_mode must be '' or 'zero', got {fill_mode!r}")
 
     if _config_bool(op_call.config.get("direct", False)):
         if sctx.scope_kind != "thread":

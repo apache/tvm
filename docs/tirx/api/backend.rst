@@ -21,9 +21,10 @@ Backend Extension API
 Backend loading
 ---------------
 
-``tvm.backend`` discovers and loads target-owned Python semantics.  Loading a
-backend installs its TVMScript namespaces, compilation pipeline, target tags,
-and tile-dispatch implementations.
+``tvm.backend`` discovers and loads target-owned Python semantics.  Depending
+on the target, loading a backend registers its TVMScript namespaces,
+tile-dispatch implementations, target tags, compilation-pipeline entry points,
+and code-generation support.
 
 .. automodule:: tvm.backend
    :members:

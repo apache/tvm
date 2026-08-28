@@ -65,9 +65,9 @@ What it accepts
        ``(local, global)`` / ``(global, local)`` — exactly one side is ``local``
    * - register layout
      - ``_r_side_layout_valid``: the ``local`` operand is a non-swizzle
-       ``TileLayout`` whose thread-axis iters have **stride 1**, a register-level
-       subscope no wider than the exec scope, and a **zero sliced thread offset**
-       (the region doesn't split a thread axis)
+       ``TileLayout`` whose thread axes have a register-level subscope no wider
+       than the exec scope and a **zero sliced thread offset** (the region does
+       not start partway through a thread partition)
    * - other side
      - ``_s_side_slice_ok``: the ``shared*`` / ``global`` operand slices cleanly to
        its region
@@ -144,11 +144,11 @@ Generated TIRx IR
 -----------------
 
 ``LowerTIRx`` turns the shared → register copy into a per-thread loop over the
-8-element register bundle (trimmed):
+8-element local bundle (trimmed):
 
 .. code-block:: python
 
-    r_local = Tx.decl_buffer((8,), data=R.data, scope="local")   # 8 regs / lane
+    r_local = Tx.decl_buffer((8,), data=R.data, scope="local")   # 8 fp32 elements / lane
     r_words = r_local.view("uint32")
     for f in range(2):                                           # outer = 8 / vec 4
         s_ptr = pointer_offset(A_smem, ...)                      # this lane's row
@@ -176,7 +176,8 @@ How inputs change the algorithm
 -------------------------------
 
 The register layout's **per-thread element count** (the non-thread extents — here
-``k``) and the **dtype** set the register count, vector width, and round count:
+``k``) and the **dtype** set the local element count, PTX container count, vector
+width, and round count:
 
 .. list-table::
    :header-rows: 1
@@ -184,7 +185,7 @@ The register layout's **per-thread element count** (the non-thread extents — h
 
    * - dtype
      - ``k``
-     - regs / lane
+     - elements / lane
      - ``vec``
      - ``outer = k / vec``
    * - ``float32``

@@ -36,13 +36,13 @@ shared buffers across several dtypes, plus a vectorized ``float32x4`` load/store
         A = Tx.match_buffer(A_ptr, (256,), "float32")
         O = Tx.match_buffer(O_ptr, (256,), "float32")
         Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([64])
-        f16  = Tx.alloc_local((1,), "float16")        # register scalars ...
+        f16  = Tx.alloc_local((1,), "float16")        # per-thread locals ...
         bf16 = Tx.alloc_local((1,), "bfloat16")
         i32  = Tx.alloc_local((1,), "int32")
         u8   = Tx.alloc_local((1,), "uint8")
         b1   = Tx.alloc_local((1,), "bool")
         sm   = Tx.alloc_shared((64,), "float16")      # ... and a shared tile
-        v    = Tx.alloc_local((1,), "float32x4")      # a vector-dtype register (float4)
+        v    = Tx.alloc_local((1,), "float32x4")      # a vector-dtype local (float4)
         v[0] = A.vload([tx * 4], dtype="float32x4")  # vectorized load
         O.vstore([tx * 4], v[0])                     # vectorized store
         # ... (use f16/bf16/i32/u8/b1/sm) ...
@@ -55,18 +55,18 @@ lowers to (generated CUDA, elided):
     nv_bfloat16   bf16_ptr[1];              // bfloat16
     int           i32_ptr[1];               // int32
     uchar         u8_ptr[1];                // uint8
-    signed char   b1_ptr[1];                // bool
+    bool          b1_ptr[1];                // bool
     __shared__ alignas(64) half sm_ptr[64]; // shared float16
     float4        v_ptr[1];                 // float32x4  (vector)
     v_ptr[0]                  = *(float4*)(A_ptr + tx * 4);   // vectorized load
     *(float4*)(O_ptr + tx * 4) = v_ptr[0];                   // vectorized store
 
 A buffer's dtype can itself be a **vector type**: ``Tx.alloc_local((1,), "float32x4")``
-declares a ``float4`` register directly (you index it as ``v[0]``), and a
+declares a per-thread ``float4`` value (you index it as ``v[0]``), and a
 ``float32x4`` ``vload`` / ``vstore`` then moves it as one 16-byte access. The vector
 dtype is not tied to ``vload`` — any buffer or scalar can carry it.
 
-so the dtype → CUDA mapping is:
+The dtype → CUDA mapping is:
 
 .. list-table::
    :header-rows: 1
@@ -80,7 +80,7 @@ so the dtype → CUDA mapping is:
      - ``bfloat16`` → ``nv_bfloat16``
    * - ``int32`` → ``int``
      - ``uint8`` → ``uchar``
-     - ``bool`` → ``signed char``
+     - ``bool`` → ``bool``
    * - ``float32x4`` → ``float4``
      - ``handle`` → ``T*`` (pointer)
      - (vector dtypes → CUDA vector types)

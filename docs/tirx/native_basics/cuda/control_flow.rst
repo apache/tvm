@@ -25,7 +25,7 @@ if
 --
 
 A Python ``if`` / ``else`` becomes a CUDA ``if`` / ``else``. Guard work by a
-thread/lane comparison, or elect a single issuing thread with
+thread/lane comparison, or elect one lane in each active warp with
 ``Tx.cuda.elect_sync()``:
 
 .. code-block:: python
@@ -35,8 +35,8 @@ thread/lane comparison, or elect a single issuing thread with
     else:
         A[tx] = A[tx] + Tx.float32(1.0)
 
-    if Tx.cuda.elect_sync():
-        ...                              # one elected lane (e.g. to issue TMA/MMA)
+    if (warp_id == issuer_warp) & Tx.cuda.elect_sync():
+        ...                              # one lane from the designated warp
 
 .. code-block:: c++
 
@@ -54,7 +54,8 @@ loop
 Loops come in four flavors; a plain Python ``range`` becomes ``Tx.serial``:
 
 - ``Tx.serial(n)`` — a sequential loop (ptxas may still unroll it).
-- ``Tx.unroll(n)`` — fully unrolled (expanded to straight-line statements).
+- ``Tx.unroll(n)`` — marks a loop for full unrolling by the ``UnrollLoop``
+  lowering pass.
 - ``Tx.vectorized(n)`` — a vectorized loop.
 - ``Tx.grid(*extents)`` — a nested loop nest.
 
@@ -71,7 +72,8 @@ Loops come in four flavors; a plain Python ``range`` becomes ``Tx.serial``:
       for (int j = 0; j < 8; ++j)
         B_ptr[i * 8 + j] = max(A_ptr[i * 8 + j], 0.0f);
 
-``Tx.unroll(4)`` instead expands to four straight-line statements with no loop.
+After the TIRx lowering pipeline, ``Tx.unroll(4)`` is expanded to four
+straight-line statements with no loop.
 
 while
 -----
@@ -87,7 +89,7 @@ A ``while`` loop runs until its condition is false. Use a mutable scalar counter
         i += 1
 
 It lowers to a ``while (1)`` with an early-exit ``break`` (the counter is a
-one-element register buffer):
+one-element local buffer that the CUDA toolchain may promote to a register):
 
 .. code-block:: c++
 

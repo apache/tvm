@@ -472,7 +472,7 @@ def _is_static_unicast_cta_mask(cta_mask):
 
 
 def cuda_elect_sync():
-    """TVM intrinsic to call elect.sync"""
+    """Return a predicate selecting one lane from each active warp via ``elect.sync``."""
     return call_intrin("uint32", "tirx.cuda.elect_sync")
 
 

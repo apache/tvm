@@ -596,24 +596,11 @@ __all__ += [
 # sync with the physical scatter, the buffer's TileLayout must encode the
 # scatter directly.
 #
-# We surface this via the factory below. Callers pass the datapath letter
-# (``"D"`` / ``"F"``) and the logical ``(rows, cols)``; the factory returns
-# the appropriate TileLayout. ``tmem_pool.alloc(..., layout=...)`` plumbs
-# this into the buffer's layout so the dispatch can structurally verify
-# atom ↔ datapath compatibility instead of silently accepting mismatches.
-#
-# Supported today:
-#   - ``"D"``: M=128, ``.cta_group::1``, full datapath. Identity row→lane.
-#   - ``"F"``: M=64, non-``.ws``, half datapath (4x1 lane utilization).
-#     Logical row r → physical lane
-#     (r // 16) * 32 + sub_slab * 16 + (r % 16).
-#   - ``"B"``: per-CTA M=64, ``.cta_group::2``, Dense A ("2x2" datapath).
-#     PTX names the CTA-pair shape M=128; each CTA owns a logical ``(64, N)``
-#     accumulator. Its N columns split into two N/2 halves across physical
-#     lanes 0..63 and 64..127:
-#       (r, c) → (TLane=r + 64 * (c // (N/2)), TCol=c % (N/2)).
-#
-# Layouts A / C / E / G are reserved for future expansion.
+# We surface all PTX datapath layouts A--G via the factory below. Callers pass
+# the datapath letter and logical ``(rows, cols)``; the factory returns the
+# matching TileLayout. ``TMEMPool.alloc(..., datapath=...)`` or an explicit
+# ``layout=...`` then attaches it to the buffer so dispatch can structurally
+# verify atom ↔ datapath compatibility instead of silently accepting a mismatch.
 
 
 _TMEM_DATAPATH_ROWS = {"A": 128, "B": 64, "C": 64, "D": 128, "E": 64, "F": 64, "G": 32}
@@ -650,14 +637,15 @@ def tmem_datapath_layout(datapath: str, rows: int, cols: int, sub_slab: int = 0)
         Logical row count of the TMEM buffer. Must match the datapath's M
         dimension: 128 for A/D, 64 for B/C/E/F, 32 for G.
     cols : int
-        Logical column count. Datapath B requires an even count because its
-        columns split into two equal lane halves.
+        Logical column count. Datapaths B and E require an even count because
+        their columns split into two equal lane halves; G requires a multiple
+        of four because its columns split into four quarters.
     sub_slab : int
-        For Layout F, select the lower (``0``) or upper (``1``) 16-lane
+        For Layout C or F, select the lower (``0``) or upper (``1``) 16-lane
         half of each warp's 32-lane TMEM partition. The upper half is useful
         as a 64-row read/write view of the high half-slab of a Layout D
-        accumulator. Layouts D and B already span both halves and therefore
-        only accept ``0``.
+        accumulator. The other layouts already fold over or occupy their full
+        physical lane set and therefore only accept ``0``.
 
     Returns
     -------

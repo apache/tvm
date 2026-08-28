@@ -83,7 +83,7 @@ The ``scope`` argument selects the memory space:
      - dynamic shared memory (pooled — see below)
    * - ``"local"``
      - ``Tx.alloc_local``
-     - per-thread registers
+     - per-thread local storage (usually promoted to registers)
    * - ``"tmem"``
      - (TMEM pool)
      - Blackwell tensor memory (see below)
@@ -92,7 +92,7 @@ The ``scope`` argument selects the memory space:
 
     A = Tx.match_buffer(A_ptr, (M, K), "float16", align=16)   # parameter buffer
     As = Tx.alloc_shared((BM, BK), "float16")                 # new shared tile
-    acc = Tx.alloc_local((4,), "float32")                     # register accumulator
+    acc = Tx.alloc_local((4,), "float32")                     # per-thread accumulator
     view = Tx.decl_buffer((BM, BK), "float16", data=As.data)  # a view over As
 
 **A ptr-based buffer is just metadata over a pointer.** For any non-tmem buffer,
@@ -224,7 +224,7 @@ Pool sugar
 
 ``Tx.SMEMPool`` automates that arena bookkeeping — it bump-allocates the offsets so
 you don't ``decl`` views by hand. Beyond ``alloc`` / ``commit``, it offers
-per-buffer ``align=``, an ``alloc_mma`` helper that builds an MMA-compatible
+per-buffer ``align=``, an ``alloc_tcgen05_mma_AB`` helper that builds an MMA-compatible
 swizzle layout for you, and ``move_base_to`` to rewind the cursor and reuse space:
 
 .. code-block:: python
@@ -232,29 +232,29 @@ swizzle layout for you, and ``move_base_to`` to rewind the cursor and reuse spac
     pool = Tx.SMEMPool()                          # bump allocator over shared.dyn
     As = pool.alloc((BM, BK), "float16", align=128)   # carve a tile
     Bs = pool.alloc((BK, BN), "float16", align=128)
-    Cs = pool.alloc_mma((BM, BN), "float16")     # MMA-compatible, swizzle inferred
+    Cs = pool.alloc_tcgen05_mma_AB((BM, BN), "float16")  # MMA-compatible, swizzle inferred
     pool.commit()                                 # finalize the pool's size
     # pool.move_base_to(offset) rewinds the cursor to reuse space
 
 The TMEM pool (`Tensor memory`_, below) is layered on top of an ``SMEMPool``.
 
-Registers
----------
+Per-thread local storage
+------------------------
 
-Per-thread scratch lives in registers. Allocate it with ``Tx.alloc_local(shape,
-dtype)`` (i.e. ``scope="local"``): it is private to each thread and lowers to a
-local array kept in registers.
+Per-thread scratch uses ``scope="local"``. Allocate it with
+``Tx.alloc_local(shape, dtype)``: it is private to each thread and lowers to a
+local array that nvcc/ptxas can promote to registers when its accesses permit.
 
 .. code-block:: python
 
-    r = Tx.alloc_local((4,), "float32")   # per-thread register array
+    r = Tx.alloc_local((4,), "float32")   # per-thread local array
     for k in Tx.unroll(4):
         r[k] = A[tx, k]
     # ... compute on r[0..3] ...
 
 .. code-block:: c++
 
-    alignas(64) float r_ptr[4];          // per-thread, register-resident
+    alignas(64) float r_ptr[4];          // per-thread array; ptxas may scalarize it
     r_ptr[0] = A_ptr[tx * 4 + 0];
     r_ptr[1] = A_ptr[tx * 4 + 1];
     // ...
@@ -264,31 +264,28 @@ local array kept in registers.
    The ``alignas(64)`` is the *default* buffer alignment — a buffer's
    ``data_alignment`` defaults to ``runtime::kAllocAlignment`` (64 bytes), and the
    CUDA codegen stamps it onto every allocation, including per-thread ``local``
-   arrays where it is meaningless. For these register-resident arrays it has **no
-   performance impact**: a thread-local array with statically-resolvable indices is
-   promoted to registers by nvcc/ptxas (scalar replacement of aggregates, SROA), so
-   it never lives in addressable local memory and the alignment is a no-op. (A
-   dynamically-indexed array that spilled to local memory would actually pick up the
-   over-alignment, but that is the unusual case.) This over-alignment of register
-   locals is a known rough edge we plan to fix (use the dtype's natural alignment
-   for ``local`` scope).
+   arrays. Statically indexed locals are typically promoted to registers by
+   nvcc/ptxas (scalar replacement of aggregates), where the alignment has no
+   runtime effect. Dynamically indexed arrays may instead spill to addressable
+   local memory, so do not rely on register promotion when reasoning about them.
 
 Scalar
 ~~~~~~
 
-A scalar is just a register array with **one element** — strictly, you don't need a
-separate concept. You can allocate a size-1 ``local`` buffer and index ``[0]``:
+A mutable scalar is represented by a ``local`` buffer with **one element** —
+strictly, you don't need a separate concept. You can allocate the buffer and
+index ``[0]``:
 
 .. code-block:: python
 
-    phase = Tx.alloc_local((1,), "int32")   # 1-element register array
+    phase = Tx.alloc_local((1,), "int32")   # one-element local buffer
     phase[0] = 0
     while phase[0] < 4:
         acc = acc + A[tx, phase[0]]
         phase[0] += 1
 
 But writing ``phase[0]`` everywhere is clumsy, so a **scalar** is sugar for exactly
-this — a one-element register buffer you read and write **by name**:
+this — a one-element local buffer you read and write **by name**:
 
 .. code-block:: python
 
@@ -320,12 +317,12 @@ the scope explicitly.)
 ``let``
 ~~~~~~~
 
-A ``Tx.let`` binding is **immutable** — a single ``LetStmt`` (a named value, not a
-buffer). Use it for derived constants:
+A ``Tx.let`` binding is **immutable** — a single TIRx ``Bind`` statement (a named
+value, not a buffer). Use it for derived constants:
 
 .. code-block:: python
 
-    n: Tx.let = M * K               # immutable binding (LetStmt)
+    n: Tx.let = M * K               # immutable Bind
     half: Tx.let[Tx.int32] = N // 2  # ... with an explicit type
 
 It lowers to a **plain scalar C variable** — not a buffer (no array, no ``[0]``).
@@ -343,7 +340,7 @@ common-subexpression temporary) rather than a reference to ``half``.
 
    **Why have an immutable binding at all?** Because the value cannot change, the
    arithmetic analyzer binds the var to it (``analyzer.Bind(var, value)`` when it
-   simplifies a ``LetStmt``), so facts proven about the value — constant bounds, the
+   simplifies a TIRx ``Bind``), so facts proven about the value — constant bounds, the
    modular set (divisibility / alignment), ranges — **propagate through every use**.
    That feeds index simplification, bounds-check elimination, and
    alignment/vectorization decisions. A *mutable* scalar is a memory load
@@ -358,11 +355,12 @@ Tensor memory
 Blackwell *tensor memory* is not a plain scratch scope: it must be explicitly
 reserved and freed with the warp-uniform ``Tx.ptx.tcgen05.alloc`` /
 ``tcgen05.dealloc`` intrinsics, and each tensor is a view into it declared with
-``Tx.decl_buffer(..., scope="tmem", allocated_addr=<column>, layout=<tmem layout>)``.
-The ``allocated_addr`` (a column offset) is mandatory — the tensor-core dispatch
-asserts it — so ``Tx.alloc_buffer(scope="tmem")`` (which does **not** set it) will not
-work. Unlike shared memory, tensor memory is not directly addressable: it is read
-and written only through ``tcgen05`` ``mma`` / ``ld`` / ``st`` / ``cp``.
+``Tx.decl_buffer(..., scope="tmem", allocated_addr=<address>, layout=<tmem layout>)``.
+The ``allocated_addr`` is the allocated tensor-memory base address plus any desired
+column offset. It is mandatory — the tensor-core dispatch asserts it — so
+``Tx.alloc_buffer(scope="tmem")`` (which does **not** set it) will not work. Unlike
+shared memory, tensor memory is not directly addressable: it is read and written
+only through ``tcgen05`` ``mma`` / ``ld`` / ``st`` / ``cp``.
 
 By hand, one warp issues the allocation into a shared slot, you ``decl`` each
 tensor as a view at a column offset, and one warp frees it at the end:
@@ -374,15 +372,15 @@ tensor as a view at a column offset, and one warp frees it at the end:
         Tx.ptx[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
             Tx.address_of(addr), Tx.uint32(512))
     acc = Tx.decl_buffer((CTA_M, 512), "float32", scope="tmem",
-                        allocated_addr=0, layout=tmem_layout)   # view at column 0
+                        allocated_addr=addr[0], layout=tmem_layout)  # allocated base
     # ... use acc as a gemm_async / copy_async operand ...
     if warp_id == alloc_warp:
         Tx.ptx[f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned"]()
         Tx.ptx[f"tcgen05.dealloc.cta_group::{cta_group}.sync.aligned.b32"](
-            addr, Tx.uint32(512))
+            addr[0], Tx.uint32(512))
 
-You manage the column offsets and the ``tmem_layout`` (a datapath D/F/B layout)
-yourself. This is exactly the sequence the pool below emits.
+You add any column offsets to ``addr[0]`` and manage the ``tmem_layout`` (the
+matching datapath A–G layout) yourself. This is the sequence the pool below emits.
 
 Pool
 ~~~~
@@ -426,7 +424,7 @@ or hand you a pointer — they emit no runtime op of their own. The common ones:
    * - ``B.view(*shape, layout=…)``
      - reinterpret the same storage under a new shape/layout (no copy)
    * - ``B.local(*shape, layout=…)``
-     - the calling thread's private register slice of a ``local`` buffer,
+     - the calling thread's private storage slice of a ``local`` buffer,
        in physical storage order by default
    * - ``B.permute(*dims)``
      - a view with axes permuted (a transposed layout)
@@ -475,8 +473,8 @@ sees the 256-element buffer as ``64×4``; ``A.permute(1, 0)`` transposes the axe
     A2_ptr[tx * 4]  /* +3 */                 // view: row-major 64x4 index
     At_ptr[(j * 4) + i]                       // permute: swapped strides
 
-**Registers — ``local``.** Decomposes a thread-axis ``local`` layout into the
-calling thread's register bundle (used pervasively by the tile primitives).
+**Per-thread view — ``local``.** Decomposes a thread-axis ``local`` layout into the
+calling thread's storage bundle (used pervasively by the tile primitives).
 Both forms expose the raw physical storage span by default, including layout
 gaps and offsets: ``R.local()`` infers a flat 1-D span, while
 ``R.local(d0, d1, ...)`` is a row-major reshape whose product must equal that
@@ -490,9 +488,9 @@ no shape infers a one-dimensional shape from the logical storage size:
 .. code-block:: python
 
     R  = Tx.alloc_buffer((32, 8), "float32", scope="local", layout=TileLayout(S[(32, 8) : (1 @ laneid, 1)]))
-    R_flat = R.local()       # this lane's 8 registers, physical order
-    R_2d = R.local(2, 4)     # the same registers, row-major 2x4 reshape
+    R_flat = R.local()       # this lane's 8 local elements, physical order
+    R_2d = R.local(2, 4)     # the same elements, row-major 2x4 reshape
 
 .. code-block:: c++
 
-    alignas(64) float R_flat_ptr[8];          // the lane's private registers
+    alignas(64) float R_flat_ptr[8];          // the lane's private local elements
