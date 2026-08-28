@@ -770,8 +770,11 @@ def test_extended_unary_ops():
             R.Tensor((1, 3, 10, 10), dtype="float32")
         ):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(input, input)
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.abs(input)
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.power(
+                    lv, R.const(2.0, "float32")
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv1,)
                 R.output(gv)
             return gv
 
