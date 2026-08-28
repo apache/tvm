@@ -59,7 +59,7 @@ _LEGACY_RELAX_VAR_JSON = """{
     {"type": "ffi.String", "data": "legacy"},
     {"type": "relax.expr.Var", "data": {"span": 1, "ty": 3, "name_hint": 6}},
     {"type": "ffi.Array", "data": [7, 7]},
-    {"type": "relax.expr.Tuple", "data": {"span": 1, "ty": 5, "fields": 8}}
+    {"type": "ir.Tuple", "data": {"span": 1, "ty": 5, "fields": 8}}
   ],
   "metadata": {"tvm_version": "0.26.dev0"}
 }"""

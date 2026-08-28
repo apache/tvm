@@ -1074,16 +1074,26 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     _SWIZZLE_TO_LAYOUT = {0: 0, 1: 6, 2: 4, 3: 2, 4: 1}
     _krp = Evaluate(tirx_op.tvm_kernel_replace_point())
 
-    def _make_lo_uniform(desc):
-        func_name = "smem_desc_make_lo_uniform_"
-        source_code = f"""
-        __forceinline__ __device__ void {func_name}(uint64_t* desc) {{
-            SmemDescriptor* d = reinterpret_cast<SmemDescriptor*>(desc);
-            d->lo = __shfl_sync(0xffffffff, d->lo, 0);
-        }}
-        """
-        return T.cuda.func_call(
-            func_name, T.address_of(desc), source_code=source_code, return_type="void"
+    def _make_lo_uniform(desc_buf):
+        desc_lo = tvm.tirx.decl_buffer((1,), "uint32", name=f"{desc_buf.name}_lo", scope="local")
+        desc_hi = tvm.tirx.decl_buffer((1,), "uint32", name=f"{desc_buf.name}_hi", scope="local")
+        unpack = T.ptx.mov.b64(desc_lo[0], desc_hi[0], desc_buf[0])
+        shuffle = T.ptx.shfl_sync.idx.b32(
+            desc_lo[0],
+            desc_lo[0],
+            T.uint32(0),
+            T.uint32(0x1F),
+            T.uint32(0xFFFFFFFF),
+        )
+        pack = T.ptx.mov.b64(desc_buf[0], desc_lo[0], desc_hi[0])
+        return SeqStmt(
+            [
+                AllocBuffer(desc_lo),
+                AllocBuffer(desc_hi),
+                Evaluate(unpack),
+                Evaluate(shuffle),
+                Evaluate(pack),
+            ]
         )
 
     def _make_desc(smem_buf, ldo, sdo, swizzle_val, name):
@@ -1103,7 +1113,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         )
         wrap_stmts = [AllocBuffer(desc_buf), Evaluate(encode_call)]
         if warp_scope:
-            wrap_stmts.append(Evaluate(_make_lo_uniform(desc_buf[0])))
+            wrap_stmts.append(_make_lo_uniform(desc_buf))
         wrap_stmts.append(_krp)
         wrap = SeqStmt(wrap_stmts)
         sctx.add_post_buffer_def_stmt(smem_buf, wrap)

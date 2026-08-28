@@ -147,8 +147,40 @@ BRIDGE = {
 }
 
 
+def _normalize_addr_offsets(entry: InstructionEntry, addr_offsets) -> tuple[tuple[int, int], ...]:
+    """Validate and canonicalize ``(logical_address_slot, byte_offset)`` metadata."""
+    address_slots = tuple(slot for slot in entry.operands if slot.kind == "addr")
+    normalized = {}
+    for logical_slot, offset in addr_offsets or ():
+        if isinstance(logical_slot, bool) or not isinstance(logical_slot, int):
+            raise ValueError(f"{entry.name}: address slot index must be an integer")
+        if not 0 <= logical_slot < len(address_slots):
+            raise ValueError(f"{entry.name}: no address slot {logical_slot}")
+        slot = address_slots[logical_slot]
+        if not slot.allow_imm_offset:
+            raise ValueError(
+                f"{entry.name}: operand '{slot.name}' does not support an immediate offset"
+            )
+        if isinstance(offset, bool) or not isinstance(offset, int):
+            raise ValueError(f"{entry.name}: address byte offset must be an integer")
+        if not -(1 << 31) <= offset <= (1 << 31) - 1:
+            raise ValueError(f"{entry.name}: address byte offset {offset} is outside int32 range")
+        if logical_slot in normalized:
+            raise ValueError(f"{entry.name}: duplicate address slot {logical_slot}")
+        if offset:
+            normalized[logical_slot] = offset
+    return tuple(sorted(normalized.items()))
+
+
 def _helper_name(
-    entry: InstructionEntry, written, imms, dtypes, canonical, mod_map, sinks=()
+    entry: InstructionEntry,
+    written,
+    imms,
+    dtypes,
+    canonical,
+    mod_map,
+    sinks=(),
+    addr_offsets=(),
 ) -> str:
     """The helper's C identifier: the instruction's ISA identity, plus a
     signature discriminator only when it is no longer enough.
@@ -184,7 +216,11 @@ def _helper_name(
         f"sink_{name}" + "".join(str(lane) for _, lane in sorted(group))
         for name, group in itertools.groupby(sorted(sinks), key=lambda pair: pair[0])
     ]
-    isa_name = [entry.name, *written, *(imms or ()), *sunk]
+    offset_suffixes = [
+        f"addr{logical_slot}_{'p' if offset > 0 else 'm'}{abs(offset)}"
+        for logical_slot, offset in addr_offsets
+    ]
+    isa_name = [entry.name, *written, *(imms or ()), *offset_suffixes, *sunk]
     discriminator = (
         []
         if all(dtype == canon for dtype, canon in present)
@@ -196,7 +232,14 @@ def _helper_name(
 
 
 def render_variant(
-    entry: InstructionEntry, tokens, predicated=False, dtypes=None, imms=None, sinks=frozenset()
+    entry: InstructionEntry,
+    tokens,
+    predicated=False,
+    dtypes=None,
+    imms=None,
+    sinks=frozenset(),
+    preserve_dst=False,
+    addr_offsets=(),
 ):
     """Render one variant: ``(opcode, helper_name, helper_source)``.
 
@@ -218,10 +261,15 @@ def render_variant(
 
     ``predicated`` is a framework-level axis (never in the table): the helper
     gains a trailing ``uint32_t __pred`` operand, and the instruction is
-    guarded with ``.reg .pred p; setp.ne.b32 p, %N, 0; @p ...``. Only valid
-    for instructions without a destination — see ``InstructionEntry.has_dst``.
+    guarded with ``.reg .pred p; setp.ne.b32 p, %N, 0; @p ...``. A written
+    destination uses the normal write-only binding by default, which states
+    that the caller will not consume the inactive value before selecting or
+    guarding it. ``preserve_dst`` instead binds read-write and retains the old
+    value on the inactive path.
     """
     mod_map = mods(entry, tokens)
+    addr_offsets = _normalize_addr_offsets(entry, addr_offsets)
+    addr_offset_of = dict(addr_offsets)
     written = [tok for tok in tokens if tok]
     opcode = ".".join([entry.ptx_name, *written])
     canonical = canonical_dtypes(entry, tokens)
@@ -232,7 +280,7 @@ def render_variant(
         # derived the same way so dispatch, stubs and certification do not
         # need to know the difference.
         assert not predicated, f"{opcode}: raw entries have no @p twin"
-        helper = _helper_name(entry, written, imms, dtypes, canonical, mod_map, sinks)
+        helper = _helper_name(entry, written, imms, dtypes, canonical, mod_map, sinks, addr_offsets)
         return opcode, helper, entry.raw_render(entry, opcode, helper, tokens, tuple(dtypes))
     # A helper name is the instruction's ISA identity plus, only when it is no
     # longer enough, a signature discriminator. The opcode alone stopped being
@@ -241,10 +289,15 @@ def render_variant(
     # ones that changed collides whenever two operands swap which of them is
     # non-canonical (atom's d and b do exactly that).
     imm_of = dict(zip(imm_slots(entry), imms or (), strict=True))
-    helper = _helper_name(entry, written, imms, dtypes, canonical, mod_map, sinks)
+    helper = _helper_name(entry, written, imms, dtypes, canonical, mod_map, sinks, addr_offsets)
+    assert not preserve_dst or entry.has_dst, "preserve_dst requires a written destination"
     if predicated:
-        assert not entry.has_dst, "@p is only supported on instructions without a destination"
-        helper += "_pred"
+        if entry.has_dst:
+            helper += "_pred_keep" if preserve_dst else "_pred_undef"
+        else:
+            helper += "_pred"
+    else:
+        assert not preserve_dst, "preserve_dst requires predication"
 
     params, inputs, outputs, rendered = [], [], [], []
     pre, post = [], []  # C-side carrier declarations / bit puns
@@ -255,6 +308,7 @@ def render_variant(
     bridge_counts: dict[str, int] = collections.defaultdict(int)
     dtype_of = dict(zip(entry.typed_operands, dtypes, strict=True))
     idx = 0
+    logical_addr_slot = 0
     for slot in entry.operands:
         pname = f"__{slot.name}"
         if slot.kind == "imm":
@@ -300,7 +354,7 @@ def render_variant(
             elif slot.kind == "ptr":
                 params.append(f"const void* {lname}")
                 inputs.append(f'"l"({lname})')
-            elif slot.rw == "rw":
+            elif slot.rw == "rw" or (preserve_dst and slot.rw == "w"):
                 # A register the instruction both reads and writes -- an
                 # in-place accumulator. "+" tells the compiler the prior value
                 # is live, which "=" would declare dead; it is also what makes
@@ -311,7 +365,7 @@ def render_variant(
                     # which has no coherent read-modify-write story; the dtypes
                     # that need one are refused rather than half-supported.
                     raise ValueError(
-                        f"{entry.name}: accumulator '{slot.name}' cannot take dtype "
+                        f"{entry.name}: read-write destination '{slot.name}' cannot take dtype "
                         f"{dtype_of[slot]} (it binds through a carrier)"
                     )
                 params.append(f"{cb.c_type}& {lname}")
@@ -336,9 +390,11 @@ def render_variant(
                 inputs.append(f'"{cb.constraint}"({cb.to_carrier.format(lname)})')
             bridge = BRIDGE.get(operand_type(slot, mod_map)) if slot.kind == "reg" else None
             if bridge is None:
-                regs.append(
-                    f"[%{idx}]" if slot.kind == "addr" and slot.bracket is None else f"%{idx}"
-                )
+                if slot.kind == "addr" and slot.bracket is None:
+                    offset = addr_offset_of.get(logical_addr_slot)
+                    regs.append(f"[%{idx}{f'+{offset}' if offset is not None else ''}]")
+                else:
+                    regs.append(f"%{idx}")
             else:
                 # The C side above bound the carrier; the instruction names a
                 # block-local register of the class the ISA actually asks for,
@@ -347,13 +403,15 @@ def render_variant(
                 reg = template.format(slot=slot.name, n=bridge_counts[template])
                 bridge_counts[template] += 1
                 bridge_decls.append(f".reg {bridge.reg_class} {reg};")
-                if slot.rw in ("r", "rw"):
+                if slot.rw in ("r", "rw") or (preserve_dst and slot.rw == "w"):
                     asm_pre.append(bridge.into.format(reg=reg, idx=idx))
                 if slot.rw in ("w", "rw"):
                     asm_post.append(bridge.out_of.format(reg=reg, idx=idx))
                 regs.append(reg)
             idx += 1
         rendered.append((slot, "{" + ", ".join(regs) + "}" if is_group else regs[0]))
+        if slot.kind == "addr":
+            logical_addr_slot += 1
 
     # Adjacent slots naming the same `pipe` are one operand written `p|q`
     # (setp's two predicate destinations). Merged first, and into a plain text
@@ -365,7 +423,8 @@ def render_variant(
         if key is None:
             piped.extend((slot.bracket, text) for slot, text in members)
         else:
-            piped.append((members[0][0].bracket, "|".join(text for _, text in members)))
+            slot = members[0][0]
+            piped.append((slot.bracket, "|".join(text for _, text in members)))
 
     # Adjacent slots naming the same `bracket` are one composite memory operand:
     # `[tensorMap, {c0, c1}]` is a single PTX operand whose members keep their

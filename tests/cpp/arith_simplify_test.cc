@@ -22,6 +22,7 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
+#include <tvm/tirx/buffer.h>
 
 TEST(Simplify, MinMax) {
   tvm::arith::Analyzer ana;
@@ -94,6 +95,44 @@ TEST(AnalyzerObjectRef, CloneIsIndependent) {
   TVM_FFI_ICHECK(analyzer->CanProve(x < 8));
   TVM_FFI_ICHECK(analyzer->modular_set(x)->coeff == 4);
   TVM_FFI_ICHECK(clone->modular_set(x)->coeff == 8);
+}
+
+TEST(Simplify, AssumeConstraintKeepsBufferLoadStable) {
+  using namespace tvm;
+
+  arith::Analyzer analyzer;
+  tirx::BufferVar buffer = tirx::decl_buffer({1}, PrimType::Int(32));
+  PrimExpr load = tirx::BufferLoad(buffer, {IntImm::Int32(0)});
+  PrimExpr constraint = load > 0;
+
+  {
+    auto exit_scope = analyzer->rewrite_simplify.EnterConstraint(constraint);
+    EXPECT_FALSE(tirx::is_one(analyzer->rewrite_simplify(constraint)));
+    exit_scope();
+  }
+  {
+    auto exit_scope = analyzer->rewrite_simplify.EnterConstraint(constraint, true);
+    EXPECT_TRUE(tirx::is_one(analyzer->rewrite_simplify(constraint)));
+    exit_scope();
+  }
+
+  {
+    With<arith::ConstraintContext> scope(analyzer, constraint, true);
+    if (analyzer->z3_prover.IsEnabled()) {
+      EXPECT_TRUE(analyzer->z3_prover.CanProve(constraint));
+    }
+  }
+
+  if (analyzer->z3_prover.IsEnabled()) {
+    EXPECT_FALSE(analyzer->z3_prover.CanProve(constraint));
+  }
+
+  {
+    With<arith::ConstraintContext> scope(analyzer, constraint);
+    if (analyzer->z3_prover.IsEnabled()) {
+      EXPECT_FALSE(analyzer->z3_prover.CanProve(constraint));
+    }
+  }
 }
 
 TEST(ConstantFold, Broadcast) {

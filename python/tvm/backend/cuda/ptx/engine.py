@@ -40,6 +40,7 @@ per-instruction generated or hand-written code:
 from tvm.backend.cuda.codegen.registry import register_codegen
 from tvm.backend.cuda.codegen.utils import parse_str
 from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
+from tvm.ir import Call
 from tvm.ir.op import register_op_attr
 from tvm.ir.type import PointerType, PrimType
 from tvm.runtime import const
@@ -63,6 +64,22 @@ from .table import (
 # It is also the honest answer: "do not touch my instruction" is exactly the
 # contract a hand-written PTX call wants.
 _EFFECT_OPAQUE = CallEffectKind.Opaque.value
+_EFFECT_PURE = CallEffectKind.Pure.value
+_ADDR_OP_NAME = "tirx.ptx.addr"
+_INT32_MIN = -(1 << 31)
+_INT32_MAX = (1 << 31) - 1
+_INTEGER_DTYPES = frozenset(
+    {
+        "int8",
+        "int16",
+        "int32",
+        "int64",
+        "uint8",
+        "uint16",
+        "uint32",
+        "uint64",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Registration (import time)
@@ -91,6 +108,22 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
         register_codegen(f"ptx.{entry.name}")(_make_codegen(entry))
 
 
+def register_addr() -> None:
+    """Register the pure address-expression op consumed by PTX instructions."""
+    register_op_attr(_ADDR_OP_NAME, "TCallEffectKind", _EFFECT_PURE)
+    register_op_attr(_ADDR_OP_NAME, "TScriptPrinterName", "ptx.addr", level=20)
+    register_op_attr(_ADDR_OP_NAME, "TIRxOpCategory", "device_intrin")
+    register_op_attr(_ADDR_OP_NAME, "TDeviceIntrinsicNamespace", "ptx")
+    register_codegen("ptx.addr")(_unconsumed_addr_codegen)
+
+
+def _unconsumed_addr_codegen(*_args):
+    raise ValueError(
+        "T.ptx.addr(...) must be consumed by a PTX address operand that supports "
+        "immediate byte offsets"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Codegen (compile time): table -> asm volatile helper
 # ---------------------------------------------------------------------------
@@ -109,6 +142,32 @@ def arg_dtype(value) -> str:
     return ty.dtype if isinstance(ty, PrimType) else type(value).__name__
 
 
+def _is_addr_call(value) -> bool:
+    return isinstance(value, Call) and getattr(value.op, "name", None) == _ADDR_OP_NAME
+
+
+def _codegen_addr_offset(entry, slot, value) -> tuple[object, int]:
+    """Unpack one nested ``tirx.ptx.addr`` call at CUDA codegen time."""
+    if not slot.allow_imm_offset:
+        raise ValueError(f"{entry.name}: operand '{slot.name}' does not support T.ptx.addr(...)")
+    if len(value.args) != 2:
+        raise ValueError("malformed tirx.ptx.addr call: expected base and byte_offset")
+    base, offset = value.args
+    if _is_addr_call(base):
+        raise ValueError("T.ptx.addr(...) cannot be nested")
+    if not isinstance(offset, IntImm) or arg_dtype(offset) not in _INTEGER_DTYPES:
+        raise ValueError(
+            f"{entry.name}: T.ptx.addr byte_offset must become a compile-time "
+            "signed int32 constant before CUDA codegen (use an explicitly-unrolled loop)"
+        )
+    offset = int(offset)
+    if not _INT32_MIN <= offset <= _INT32_MAX:
+        raise ValueError(
+            f"{entry.name}: T.ptx.addr byte_offset {offset} is outside signed int32 range"
+        )
+    return base, offset
+
+
 def _make_codegen(entry: InstructionEntry):
     n_slots = len(entry.slots)
 
@@ -118,13 +177,15 @@ def _make_codegen(entry: InstructionEntry):
         # operand layout -- which may depend on them, a register group's length
         # being a function of the modifiers -- is looked up from them (memoized
         # per token combination in the table).
-        # The marker is a comma-joined flag set ("pred" and/or "p<i>"); codegen
-        # only cares about @p, since the register classes are already in the
-        # table. See the arg-layout note in `_emit`.
+        # The marker is a comma-joined flag set ("pred", destination policy,
+        # and/or "p<i>"); codegen only cares about @p and the destination
+        # binding policy, since the register classes are already in the table.
+        # See the arg-layout note in `_emit`.
         flags = parse_str(args[-1]).split(",")
         predicated = "pred" in flags
+        preserve_dst = "keep" in flags
         tokens = [parse_str(a) for a in args[len(args) - n_slots - 1 : -1]]
-        rest = args[: len(args) - n_slots - 1]  # operands, plus pred when present
+        rest = list(args[: len(args) - n_slots - 1])  # operands, plus pred when present
         mod_map = mods(entry, tokens)
         layout = operand_layout(entry, mod_map)
         n_operands = sum(n for _, _, n in layout)
@@ -162,12 +223,47 @@ def _make_codegen(entry: InstructionEntry):
             return operand_dtypes(slot, mod_map)[0]
 
         dtypes = tuple(_slot_dtype(slot, i, n) for slot, i, n in layout if slot.kind == "reg")
-        # Caller-chosen immediates ride the Call as IntImm args but are baked
-        # into the instruction text, so they are read here and NOT forwarded to
-        # the helper (which has no parameter for them).
+        # Caller-chosen immediates ride the Call until device codegen so an
+        # explicitly-unrolled loop may specialize them. They must be IntImm by
+        # this point, then are baked into the instruction text and NOT
+        # forwarded to the helper (which has no parameter for them).
         imm_at = {i for slot, i, _ in layout if slot.kind == "imm"}
-        imms = tuple(str(int(rest[at[i]])) for i in sorted(imm_at))
-        _, helper, source = render_variant(entry, tokens, predicated, dtypes, imms, sinks)
+        imm_values = [rest[at[i]] for i in sorted(imm_at)]
+        if any(not isinstance(value, IntImm) for value in imm_values):
+            raise ValueError(
+                f"{entry.name}: immediate operands must become compile-time constants "
+                "before CUDA codegen (use an explicitly-unrolled loop)"
+            )
+        imms = tuple(str(int(value)) for value in imm_values)
+        # ``tirx.ptx.addr`` is an expression only in the outer PTX call's IR.
+        # The helper still receives the coerced base, while the signed byte
+        # displacement becomes renderer metadata baked into ``[%N+imm]``.
+        addr_offsets = []
+        logical_addr_slot = 0
+        for slot, i, lanes in layout:
+            if slot.kind != "addr":
+                continue
+            if lanes != 1:
+                raise AssertionError(
+                    f"{entry.name}: address operand '{slot.name}' must occupy one register"
+                )
+            value = rest[at[i]]
+            if _is_addr_call(value):
+                base, offset = _codegen_addr_offset(entry, slot, value)
+                rest[at[i]] = base
+                if offset:
+                    addr_offsets.append((logical_addr_slot, offset))
+            logical_addr_slot += 1
+        _, helper, source = render_variant(
+            entry,
+            tokens,
+            predicated,
+            dtypes,
+            imms,
+            sinks,
+            preserve_dst=preserve_dst,
+            addr_offsets=tuple(addr_offsets),
+        )
         # Every helper is void; a destination is an ordinary argument, printed
         # by the C codegen as the lvalue it binds the reference parameter to.
         # A predicate rides after the operands, so everything past n_operands
@@ -205,6 +301,48 @@ class _Sink:
 
 
 SINK = _Sink()
+
+
+class AddrArg:
+    """Temporary trace-time wrapper for ``T.ptx.addr(base, byte_offset)``.
+
+    It deliberately is not a TIR expression. An eligible outer PTX address
+    operand supplies the state space, coerces ``base``, and only then creates
+    the nested pure ``tirx.ptx.addr`` Call.
+    """
+
+    __slots__ = ("base", "byte_offset")
+
+    def __init__(self, base, byte_offset):
+        if isinstance(base, AddrArg):
+            raise ValueError("T.ptx.addr(...) cannot be nested")
+        self.base = base
+        self.byte_offset = _coerce_addr_offset(byte_offset)
+
+    def __repr__(self):
+        return f"T.ptx.addr({self.base!r}, {self.byte_offset!r})"
+
+
+def _coerce_addr_offset(value):
+    """Validate the byte displacement while preserving unrollable expressions."""
+    if isinstance(value, bool):
+        raise ValueError("T.ptx.addr byte_offset must be a signed int32 integer, not bool")
+    if isinstance(value, IntImm):
+        if arg_dtype(value) not in _INTEGER_DTYPES:
+            raise ValueError(
+                f"T.ptx.addr byte_offset must be a signed int32 integer, got {arg_dtype(value)}"
+            )
+        value = int(value)
+    if isinstance(value, int):
+        if not _INT32_MIN <= value <= _INT32_MAX:
+            raise ValueError(f"T.ptx.addr byte_offset {value} is outside signed int32 range")
+        return const(value, "int32")
+    dtype = arg_dtype(value)
+    if dtype in _INTEGER_DTYPES:
+        # An explicitly-unrolled loop may specialize this expression later.
+        # CUDA codegen performs the final IntImm and range checks.
+        return value
+    raise ValueError(f"T.ptx.addr byte_offset must be a scalar integer expression, got {dtype}")
 
 
 class PredArg:
@@ -254,6 +392,17 @@ def _coerce_operand(entry, slot, values, mod_map):
     # unwrapped here: whether the tag is present is the discriminator, so each
     # branch below has to be able to see it.
     values = [v if isinstance(v, PredArg) else getattr(v, "scalar", v) for v in values]
+    addr_args = [v for v in values if isinstance(v, AddrArg)]
+    if addr_args:
+        if slot.kind != "addr" or not slot.allow_imm_offset:
+            raise ValueError(
+                f"{entry.name}: operand '{slot.name}' does not support T.ptx.addr(...)"
+            )
+        if len(addr_args) != len(values):
+            raise ValueError(
+                f"{entry.name}: operand '{slot.name}' cannot mix offset and plain addresses"
+            )
+        return [_coerce_addr_arg(entry, slot, value, mod_map) for value in values]
     is_pred = slot.kind == "reg" and operand_type(slot, mod_map) == "pred"
     tagged = [v for v in values if isinstance(v, PredArg)]
     if tagged and not is_pred:
@@ -268,6 +417,12 @@ def _coerce_operand(entry, slot, values, mod_map):
     if slot.kind in ("addr", "ptr"):
         return [_coerce_address(entry, slot, v, mod_map) for v in values]
     return _coerce_typed(entry, slot, values, mod_map)
+
+
+def _coerce_addr_arg(entry, slot, value, mod_map):
+    base = getattr(value.base, "scalar", value.base)
+    base = _coerce_address(entry, slot, base, mod_map)
+    return call_intrin(base.ty, _ADDR_OP_NAME, base, value.byte_offset)
 
 
 def _coerce_pred_operand(entry, slot, values):
@@ -435,6 +590,20 @@ def _coerce_imm(entry, slot, value):
     if isinstance(value, IntImm):
         value = value.value
     if not isinstance(value, int) or isinstance(value, bool):
+        # Open immediates may be produced by an explicitly-unrolled TIR loop.
+        # Keep the integer expression in the Call; the unroll/simplify pipeline
+        # must turn it into IntImm before the codegen hook bakes it into text.
+        if slot.choices is None and arg_dtype(value) in (
+            "int8",
+            "int16",
+            "int32",
+            "int64",
+            "uint8",
+            "uint16",
+            "uint32",
+            "uint64",
+        ):
+            return value
         raise ValueError(
             f"{entry.name}: operand '{slot.name}' is an immediate in the instruction "
             f"text; it needs a compile-time integer constant, got {type(value).__name__}"
@@ -458,7 +627,7 @@ def _coerce_pred(entry, pred):
     raise ValueError(f"{entry.name}: pred must be a bool/uint32/int32 expression")
 
 
-def _emit(entry, filled, operands, pred=None):
+def _emit(entry, filled, operands, pred=None, preserve_dst=False):
     # Modifiers resolve before the operands are looked at: the attribute chain
     # is parsed before the call happens, and a register group's length may be a
     # function of the modifiers, so the expected arity needs the modifier map.
@@ -477,14 +646,12 @@ def _emit(entry, filled, operands, pred=None):
     if len(operands) != n_args:
         names = ", ".join(f"{slot.name}[{n}]" if n > 1 else slot.name for slot, _, n in layout)
         raise ValueError(f"{entry.name} expects {n_args} operand(s) ({names}), got {len(operands)}")
+    if preserve_dst and not entry.has_dst:
+        raise ValueError(f"{entry.name}: preserve_dst=True requires a written destination")
     if pred is not None:
-        if entry.has_dst:
-            raise ValueError(
-                f"{entry.name}: @p predication is only supported on instructions without a "
-                f"destination (a false predicate leaves the destination unwritten, and the "
-                f'"=" output constraint would discard its prior value)'
-            )
         pred = _coerce_pred(entry, pred)
+    elif preserve_dst:
+        raise ValueError(f"{entry.name}: preserve_dst=True requires pred=...")
     # The sink symbol `_`: a lane the caller discards. It is checked here
     # rather than in `_coerce_operand` because it is not a value at all -- the
     # instruction names the symbol, so the lane leaves no Call argument, and
@@ -528,6 +695,8 @@ def _emit(entry, filled, operands, pred=None):
     # indistinguishable from the integer that shares its carrier. The marker
     # makes the round trip exact; a call with neither prints "" as before.
     flags = ["pred"] if pred is not None else []
+    if preserve_dst:
+        flags.append("keep")
     flags += [
         f"p{i}"
         for slot, i, lanes in layout
@@ -587,7 +756,7 @@ class _InstrChain:
             raise AttributeError(name)
         return _InstrChain(_narrow(self._cands, unescape_token(name)))
 
-    def __call__(self, *args, pred=None):
+    def __call__(self, *args, pred=None, preserve_dst=False):
         # Also accepts the printed round-trip form: trailing modifier-token
         # strings in slot order ("" = omitted slot) followed by the pred
         # marker, and, when the marker says "pred", the predicate as the last
@@ -603,6 +772,8 @@ class _InstrChain:
             flags = marker.split(",") if marker else []
             if "pred" in flags and pred is None and args:
                 args, pred = args[:-1], args[-1]
+            if "keep" in flags:
+                preserve_dst = True
             # Put back what the printed text cannot carry: the sunk lanes
             # (which left no argument at all, so they are re-inserted first, in
             # ascending order, to restore the operand positions) and then the
@@ -631,7 +802,18 @@ class _InstrChain:
         # what lets optional trailing operands dispatch by arity.
         for entry, filled in cands:
             try:
-                hits.append((entry, _emit(entry, filled, operands, pred=pred)))
+                hits.append(
+                    (
+                        entry,
+                        _emit(
+                            entry,
+                            filled,
+                            operands,
+                            pred=pred,
+                            preserve_dst=preserve_dst,
+                        ),
+                    )
+                )
             except ValueError as err:
                 # Keep the exception; a lone candidate re-raises it untouched,
                 # and only the aggregate view needs entry names in front.
@@ -712,6 +894,11 @@ class PTXNamespace:
         """Tag an operand as a ``.pred`` register -- see :class:`PredArg`."""
         return PredArg(value)
 
+    @staticmethod
+    def addr(base, byte_offset):
+        """Form ``[base+byte_offset]`` for an eligible PTX address operand."""
+        return AddrArg(base, byte_offset)
+
     def _family(self, token):
         cands = self._by_family.get(token)
         return _InstrChain(list(cands)) if cands else None
@@ -748,7 +935,7 @@ class PTXNamespace:
 
     def __dir__(self):
         """Family names — drives tab completion."""
-        return sorted(self._family_names() | set(super().__dir__()))
+        return sorted(self._family_names() | {"addr"} | set(super().__dir__()))
 
     def __repr__(self):
         return f"<T.ptx: {len(self._family_names())} instruction families>"

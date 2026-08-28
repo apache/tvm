@@ -87,6 +87,19 @@ export class Memory {
     return this.viewI32[base];
   }
 
+  loadU64(ptr: Pointer): number {
+    if (this.buffer != this.memory.buffer) {
+      this.updateViews();
+    }
+    // WebAssembly is little-endian. Reject values JavaScript cannot represent exactly.
+    const base = ptr >> 2;
+    const value = this.viewU32[base] + this.viewU32[base + 1] * 0x100000000;
+    if (!Number.isSafeInteger(value)) {
+      throw new Error("Cannot represent uint64 value as a JavaScript number");
+    }
+    return value;
+  }
+
   loadF32(ptr: Pointer): number {
     if (this.buffer != this.memory.buffer) {
       this.updateViews();
@@ -136,6 +149,34 @@ export class Memory {
     const result = new Uint8Array(numBytes);
     result.set(this.viewU8.subarray(ptr, ptr + numBytes));
     return result;
+  }
+  /**
+   * Return a borrowed view of raw bytes in Wasm memory.
+   *
+   * The returned view aliases the current WebAssembly.Memory buffer and must
+   * not be retained across a call that can grow the memory.
+   *
+   * @param ptr The head address.
+   * @param numBytes The number of bytes.
+   */
+  viewRawBytes(ptr: Pointer, numBytes: number): Uint8Array {
+    if (this.buffer != this.memory.buffer) {
+      this.updateViews();
+    }
+    if (!Number.isSafeInteger(ptr) || ptr < 0) {
+      throw new Error(`Invalid Wasm memory pointer: ${ptr}`);
+    }
+    if (!Number.isSafeInteger(numBytes) || numBytes < 0) {
+      throw new Error(`Invalid Wasm memory byte length: ${numBytes}`);
+    }
+    const end = ptr + numBytes;
+    if (!Number.isSafeInteger(end) || end > this.viewU8.byteLength) {
+      throw new Error(
+        `Wasm memory range [${ptr}, ${end}) exceeds memory size ` +
+        `${this.viewU8.byteLength}`,
+      );
+    }
+    return this.viewU8.subarray(ptr, end);
   }
   /**
    * Load null-terminated C-string from ptr.

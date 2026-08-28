@@ -78,7 +78,8 @@ def _chain_class(family: str, entries: list[InstructionEntry]) -> str:
         f"{s.name}∈{{{','.join(s.choices)}}}{' (opt)' if s.optional else ''}" for s in entry.slots
     )
     if entry.check is not None and entry.check.__doc__:
-        doc = f"{doc} — {entry.check.__doc__.strip()}" if doc else entry.check.__doc__.strip()
+        check_doc = " ".join(entry.check.__doc__.split())
+        doc = f"{doc} — {check_doc}" if doc else check_doc
     if len(entries) > 1:
         shapes = dict.fromkeys(
             "(" + ", ".join(_operand_params(e)).replace(": Any", "") + ")" for e in entries
@@ -98,8 +99,9 @@ def _chain_class(family: str, entries: list[InstructionEntry]) -> str:
         # spells its operands as the catch-all; a second one would not even
         # parse ("Only one '*' parameter allowed").
         params.append("*args: Any")
-    if not any(e.has_dst for e in entries):
-        params.append("pred: Any = None")
+    params.append("pred: Any = None")
+    if any(e.has_dst for e in entries):
+        params.append("preserve_dst: bool = False")
     signature = f"def __call__({', '.join(params)}) -> None"
     # Emit the shape ruff format would produce, so the generated text needs no
     # formatter to be canonical: a docstring that fits on one line closes on
@@ -121,7 +123,7 @@ def _chain_class(family: str, entries: list[InstructionEntry]) -> str:
             # `T.ptx["tcgen05.ld.sync.aligned.16x64b.x4.b32"](...)`.
             continue
         lines.append(f"    {attr}: {cls}")
-    if len(signature) > 92:  # keep the generated stub within the repo line limit
+    if len(f"    {signature}: ...") > 100:
         joined = ",\n        ".join(params)
         ret = signature[signature.rindex(")") + 1 :]
         signature = f"def __call__(\n        {joined},\n    ){ret}"
@@ -170,6 +172,7 @@ def generate() -> str:
     out.append("class _PTX:")
     for family in sorted(families):
         out.append(f"    {escape_token(family)}: _Chain_{family}")
+    out.append("    def addr(self, base: Any, byte_offset: Any) -> Any: ...")
     out.append("    def __getitem__(self, text: str) -> Any: ...")
     out.append("")
     out.append("ptx: _PTX")

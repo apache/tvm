@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring
+import gc
 import re
 
 import numpy as np
@@ -69,6 +70,37 @@ def _helper_source(src: str, helper_name: str) -> str:
     if next_helper == -1:
         return src[start:]
     return src[start:next_helper]
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_multi_gpu(), reason="need multiple GPUs")
+def test_cuda_module_destructor_preserves_current_device():
+    torch = pytest.importorskip("torch")
+
+    @T.prim_func
+    def main(A: T.Buffer((1,), "int32")):
+        T.device_entry()
+        tx = T.thread_id([1])
+        if tx == 0:
+            A[0] = A[0] + 1
+
+    _, mod = _get_source(main)
+    original_device = torch.cuda.current_device()
+    try:
+        torch.cuda.set_device(0)
+        data = tvm.runtime.tensor(np.zeros(1, dtype="int32"), device=tvm.cuda(0))
+        mod["main"](data)
+        tvm.cuda(0).sync()
+        del data
+        gc.collect()
+
+        torch.cuda.set_device(1)
+        del mod
+        gc.collect()
+
+        assert torch.cuda.current_device() == 1
+    finally:
+        torch.cuda.set_device(original_device)
 
 
 def test_vector_access_ptr_preserves_packed_offset(monkeypatch):
@@ -201,6 +233,41 @@ def test_tirx_launch_bounds_max_blocks_per_cluster_emits_third_operand():
     src, _ = _get_source(main)
     assert 'extern "C" __global__ void __launch_bounds__(384, 1, 1) main_kernel' in src
     assert "tirx.launch_bounds_max_blocks_per_cluster" not in src
+
+
+def test_tirx_max_registers_attr_emits_cuda_maxnreg():
+    @T.prim_func
+    def main(A: T.Buffer((4,), "int32")):
+        T.device_entry()
+        T.attr({"tirx.max_registers": 92})
+        bx = T.cta_id([4])
+        tx = T.thread_id([128])
+        if tx == 0:
+            A[bx] = A[bx] + 1
+
+    src, _ = _get_source(main)
+    assert 'extern "C" __global__ void __maxnreg__(92) main_kernel' in src
+    assert "__launch_bounds__" not in src
+    assert "tirx.max_registers" not in src
+
+
+def test_tirx_max_registers_rejects_launch_bounds():
+    @T.prim_func
+    def main(A: T.Buffer((4,), "int32")):
+        T.device_entry()
+        T.attr(
+            {
+                "tirx.max_registers": 92,
+                "tirx.launch_bounds_min_blocks_per_sm": 1,
+            }
+        )
+        bx = T.cta_id([4])
+        tx = T.thread_id([128])
+        if tx == 0:
+            A[bx] = A[bx] + 1
+
+    with pytest.raises(tvm.error.InternalError, match="cannot be combined with CUDA launch bounds"):
+        _get_source(main)
 
 
 def test_tirx_cuda_kernel_return_zero_codegen_is_void_early_return():
@@ -457,6 +524,7 @@ def test_megamoe_extracted_intrinsics_codegen():
             T.ptx.st.shared.v4.b32(U32.data, U32[0], U32[1], U32[2], U32[3])
             T.ptx.st_bulk.weak.shared__cta(U32.data, T.uint64(16))
             T.ptx.fns.b32(U32[0], U32[0], U32[1], I32[0])
+            T.ptx.movmatrix.sync.aligned.m8n8.trans.b16(U32[1], U32[0])
             T.ptx.stmatrix.sync.aligned.m16n8.x1.trans.shared.b8(U32.data, U32[0])
 
             F32[1] = T.cuda.uint_as_float(U32[0])
@@ -484,6 +552,7 @@ def test_megamoe_extracted_intrinsics_codegen():
         "st.shared.v4.b32",
         "st.bulk.weak.shared::cta",
         "fns.b32",
+        "movmatrix.sync.aligned.m8n8.trans.b16",
         "stmatrix.sync.aligned.m16n8.x1.trans.shared.b8",
         "ld.global.f32",
         "tvm_builtin_cuda_ldg_f32",

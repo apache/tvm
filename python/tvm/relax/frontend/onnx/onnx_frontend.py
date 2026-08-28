@@ -728,10 +728,10 @@ class Mod(BinaryBase):
     @classmethod
     def _impl_v10(cls, bb, inputs, attr, params):
         if attr.get("fmod", 0) == 0:
-            cls.numpy_op = _np.fmod
+            cls.numpy_op = _np.mod
             cls.relax_op = relax.op.floor_mod
         else:
-            cls.numpy_op = _np.mod
+            cls.numpy_op = _np.fmod
             cls.relax_op = relax.op.mod
         return cls.base_impl(bb, inputs, attr, params)
 
@@ -1361,6 +1361,9 @@ class Gather(OnnxOpConverter):
 
             data = bb.normalize(relax.op.shape_to_tensor(data))
 
+        if isinstance(indices, relax.ShapeExpr):
+            indices = bb.normalize(relax.op.shape_to_tensor(indices))
+
         indices_dtype = indices.ty.dtype.dtype
         if not indices_dtype.startswith("uint"):
             data_shape = bb.normalize(relax.op.shape_of(data))
@@ -1401,13 +1404,83 @@ class GatherND(OnnxOpConverter):
         return relax.op.gather_nd(inputs[0], inputs[1], batch_dims)
 
 
+def _shapes_equal(a: list[tirx.Expr] | None, b: list[tirx.Expr] | None) -> bool:
+    if a is None or b is None or len(a) != len(b):
+        return False
+    for x, y in zip(a, b):
+        x_static = isinstance(x, tirx.IntImm | int)
+        y_static = isinstance(y, tirx.IntImm | int)
+        if x_static and y_static:
+            if int(x) != int(y):
+                return False
+        elif (not x_static) and (not y_static):
+            if not x.same_as(y):
+                return False
+        else:
+            return False
+    return True
+
+
 class Scatter(OnnxOpConverter):
     """Convert an onnx Scatter node into an equivalent Relax expression."""
 
     @classmethod
     def _impl_v9(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        indices = inputs[1]
+        updates = inputs[2]
         axis = attr.get("axis", 0)
-        return relax.op.scatter_elements(inputs[0], inputs[1], inputs[2], axis=axis)
+
+        indices_shape = indices.ty.shape
+        data_shape = data.ty.shape
+
+        if _shapes_equal(indices_shape, data_shape):
+            return relax.op.scatter_elements(data, indices, updates, axis=axis)
+
+        if indices_shape is None:
+            raise ValueError(
+                "Scatter with `indices` of unknown rank is unsupported, as the per-entry "
+                "coordinate grid cannot be built"
+            )
+        if not all(isinstance(s, tirx.IntImm | int) for s in indices_shape):
+            raise ValueError(
+                "Scatter with dynamic `indices` whose shape is not provably equal to "
+                "`data`'s shape is unsupported: the fallback lowering silently produces "
+                "incorrect results for broadcast size-1 dims"
+            )
+        if data_shape is None:
+            raise ValueError(
+                "Scatter with `data` of unknown rank is unsupported, as the per-entry "
+                "coordinate grid cannot be built"
+            )
+
+        # ONNX Scatter iterates over indices' own shape: for each entry idx,
+        #   output[idx[:axis] + (indices[idx],) + idx[axis+1:]] = updates[idx]
+        # which is exactly scatter_nd with explicit per-entry target positions.
+        # The previous lowering passed a smaller indices (e.g. broadcastable
+        # size-1 dims) directly to scatter_elements, which silently produced
+        # wrong values.
+        rank = len(data_shape)
+        axis = axis % rank
+        # `StructInfo.dtype` is a PrimType, so coerce to a string for numpy/relax.
+        indices_dtype = str(indices.ty.dtype)
+        shape = tuple(int(s) for s in indices_shape)
+        n_entries = int(_np.prod(shape))
+        # (n_entries, rank) coordinate grid of indices' own shape, C-order over
+        # its entries.
+        grid = _np.moveaxis(_np.indices(shape), 0, -1).reshape(n_entries, rank)
+        # Replace the axis column with the flattened indices values. The grid is
+        # cast to the indices dtype (ONNX Scatter permits int32 indices) so that
+        # both branches of `where` share a dtype.
+        target = relax.op.where(
+            relax.const(
+                _np.broadcast_to(_np.eye(rank, dtype="bool")[axis], (n_entries, rank)),
+                "bool",
+            ),
+            relax.op.reshape(indices, (n_entries, 1)),
+            relax.const(grid.astype(indices_dtype), indices_dtype),
+        )
+        return relax.op.scatter_nd(data, target, relax.op.reshape(updates, (n_entries,)))
 
     @classmethod
     def _impl_v11(cls, bb, inputs, attr, params):
@@ -1561,6 +1634,7 @@ class Reshape(OnnxOpConverter):
     def _impl_v13(cls, bb, inputs, attr, params):
         data = inputs[0]
         new_shape = get_constant(inputs[1], params)
+        allowzero = attr.get("allowzero", 0)
 
         if isinstance(data, relax.ShapeExpr):
             # Preserve identity flatten for shape values to keep shape-specialized
@@ -1574,10 +1648,23 @@ class Reshape(OnnxOpConverter):
             data = bb.normalize(relax.op.shape_to_tensor(data))
 
         if isinstance(data, relax.Constant) and isinstance(new_shape, relax.Constant):
-            out = _np.reshape(data.data.numpy(), new_shape.data.numpy().tolist())
+            data_array = data.data.numpy()
+            new_shape_values = new_shape.data.numpy().tolist()
+            if not allowzero:
+                new_shape_values = [
+                    data_array.shape[i] if dim == 0 else dim
+                    for i, dim in enumerate(new_shape_values)
+                ]
+            out = _np.reshape(data_array, new_shape_values)
             return relax.const(out, out.dtype)
         if isinstance(new_shape, relax.Constant):
-            new_shape = new_shape.data.numpy().tolist()
+            new_shape_values = new_shape.data.numpy().tolist()
+            if allowzero and 0 in new_shape_values:
+                new_shape = _tensor_to_shape_expr(
+                    bb, new_shape, len(new_shape_values), "reshape_dim"
+                )
+            else:
+                new_shape = new_shape_values
         out = relax.op.reshape(data, new_shape)
         return out
 
@@ -1788,16 +1875,24 @@ class PRelu(OnnxOpConverter):
         if s_ndim <= ndim:
             non_one_axes = [i for i, ss in enumerate(slope_shape) if ss != 1]
 
-            # Must have only ONE non-broadcast axis
-            if len(non_one_axes) != 1:
-                raise ValueError(
-                    f"Invalid PRelu slope shape (multiple non-broadcast dims): {slope_shape}"
-                )
-            relative_axis = non_one_axes[0]
-            axis = ndim - s_ndim + relative_axis
+            # A single non-broadcast axis can be expressed directly as a
+            # per-axis slope of nn.prelu.
+            if len(non_one_axes) == 1:
+                relative_axis = non_one_axes[0]
+                axis = ndim - s_ndim + relative_axis
 
-            slope = relax.op.reshape(slope, (slope_shape[relative_axis],))
-            return relax.op.nn.prelu(x, slope, axis)
+                slope = relax.op.reshape(slope, (slope_shape[relative_axis],))
+                return relax.op.nn.prelu(x, slope, axis)
+
+            # Multiple non-broadcast axes (including a slope shaped like x):
+            # nn.prelu can only express a single per-axis slope, so lower
+            # PRelu(x, s) = where(x < 0, s * x, x) elementwise instead.
+            dtype = x.ty.dtype.dtype
+            return relax.op.where(
+                relax.op.less(x, relax.const(0, dtype)),
+                relax.op.multiply(x, slope),
+                x,
+            )
 
         raise ValueError(f"Unsupported PRelu slope shape: {slope_shape}")
 
@@ -2152,6 +2247,28 @@ class Squeeze(OnnxOpConverter):
         return cls._squeeze(bb, data, axis)
 
     @classmethod
+    def _check_squeeze_axes_are_unit_dims(cls, data, axes):
+        """Raise if any axis to be squeezed has a statically known extent other than 1."""
+        rank = _get_known_tensor_rank(data)
+        if rank is None:
+            return
+        ty = data.ty
+        if not (isinstance(ty, relax.TensorType) and isinstance(ty.shape, relax.ShapeExpr)):
+            return
+        for axis in _normalize_constant_axes(list(axes), rank, "Squeeze"):
+            extent = ty.shape.values[axis]
+            if not isinstance(extent, tirx.IntImm):
+                raise ValueError(
+                    f"Squeeze axis {axis} has a symbolic extent that cannot be proven to be "
+                    "1 at import time; only statically known unit-size axes can be squeezed."
+                )
+            if int(extent.value) != 1:
+                raise ValueError(
+                    f"Squeeze axis {axis} has size {int(extent.value)}, but only "
+                    "axes of size 1 can be squeezed."
+                )
+
+    @classmethod
     def _squeeze(cls, bb, data, axis):
         # If data is constant, perform computation directly.
         if isinstance(data, relax.Constant):
@@ -2179,6 +2296,7 @@ class Squeeze(OnnxOpConverter):
             return relax.op.squeeze(data)
 
         if isinstance(axis, tuple):
+            cls._check_squeeze_axes_are_unit_dims(data, axis)
             return relax.op.squeeze(data, list(axis))
 
         data_ndim = _get_known_tensor_rank(data)
@@ -2455,7 +2573,17 @@ class MultiInputBase(OnnxOpConverter):
             raise NotImplementedError("numpy_op and relax_op must be defined for MultiInputBase")
         if all([isinstance(inp, relax.Constant) for inp in inputs]):
             np_inputs = [inp.data.numpy() for inp in inputs]
-            output = cls.numpy_op(*np_inputs)  # pylint: disable=not-callable
+            # numpy_op (np.mean/np.sum/np.min/np.max) reduces its first arg,
+            # treating any further positional args as `axis`, so calling it as
+            # numpy_op(*np_inputs) is wrong for the variadic ONNX semantics.
+            # Broadcast to the common shape, stack along a new leading axis,
+            # then reduce along it — mirrors the non-constant path below.
+            input_shapes = [inp.ty.shape for inp in inputs]
+            target_shape = tuple(
+                int(dim) for dim in functools.reduce(compute_broadcast_shape, input_shapes)
+            )
+            stacked = _np.stack([_np.broadcast_to(x, target_shape) for x in np_inputs], axis=0)
+            output = cls.numpy_op(stacked, axis=0)  # pylint: disable=not-callable
             return relax.const(output, output.dtype)
 
         input_shapes = [inp.ty.shape for inp in inputs]
@@ -2534,9 +2662,17 @@ class Softplus(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
-        dtype = inputs[0].ty.dtype
-        threshold = 10.0 if dtype == "float16" else 20.0
-        return relax.op.nn.softplus(inputs[0], threshold=threshold)
+        x = inputs[0]
+        dtype = x.ty.dtype
+        return relax.op.add(
+            relax.op.maximum(x, relax.const(0, dtype)),
+            relax.op.log(
+                relax.op.add(
+                    relax.const(1, dtype),
+                    relax.op.exp(relax.op.negative(relax.op.abs(x))),
+                )
+            ),
+        )
 
 
 class Softsign(OnnxOpConverter):
