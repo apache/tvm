@@ -583,7 +583,7 @@ def test_cp_async_bulk_tensor_global_to_shared_unicast(dtype, inputs):
             (16, 16),
             "float32",
             [16, 16, 64, 4, 16, 1, 1, 0, 0, 0, 0, 7],
-            r"force_cu_dtype only supports CU_TENSOR_MAP_DATA_TYPE_TFLOAT32",
+            r"force_cu_dtype accepts CU_TENSOR_MAP_DATA_TYPE_TFLOAT32",
         ),
         (
             (16, 16),
