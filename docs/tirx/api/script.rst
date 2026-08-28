@@ -34,23 +34,19 @@ The TIRx dialect is exposed as ``tvm.script.tirx``.  The documentation uses
 
 .. list-table:: TIRx script layers
    :header-rows: 1
-   :widths: 22 22 28 28
+   :widths: 24 28 48
 
    * - Layer
      - Authoring API
-     - Python implementation
      - IR constructed
    * - Core TIRx script
      - ``Tx.*``
-     - ``tvm.tirx.script.builder.ir``
      - TIRx statements and expressions
    * - Tile primitives
      - ``Tx.tile.*``
-     - ``tvm.tirx.script.tile``
      - ``tvm.tirx.TilePrimitiveCall``
    * - Direct CUDA PTX
      - ``Tx.ptx.*``
-     - ``tvm.backend.cuda.ptx``
      - ``tirx.ptx.*`` call
 
 ``tvm.script.tirx`` is a syntax and construction frontend for the
