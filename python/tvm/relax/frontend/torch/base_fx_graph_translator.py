@@ -2581,7 +2581,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         elif isinstance(value, relax.Expr):
             fill_value = value
         else:
-            fill_value = relax.const(value)
+            fill_value = relax.const(value, dtype)
 
         return self.block_builder.emit(relax.op.full_like(x, fill_value, dtype=fill_dtype))
 

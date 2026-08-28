@@ -5630,6 +5630,31 @@ def test_dynamic_scalar_fill_operations():
             np.testing.assert_array_equal(actual_value, expected_value.numpy())
 
 
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+@pytest.mark.parametrize(
+    ("fill_value", "dtype"),
+    [
+        (1 << 40, torch.int64),
+        (1.0 + 2**-40, torch.float64),
+    ],
+)
+def test_full_like_python_fill_value_uses_explicit_dtype(fill_value, dtype):
+    class FullLike(torch.nn.Module):
+        def forward(self, x):
+            return torch.full_like(x, fill_value, dtype=dtype)
+
+    example_args = (torch.randn(2, 3, dtype=torch.float32),)
+    exported_program = export(FullLike(), args=example_args)
+    mod = from_exported_program(exported_program, run_ep_decomposition=False)
+    executable = relax.build(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(executable, tvm.cpu())
+
+    expected = FullLike()(*example_args).numpy()
+    actual = vm["main"](tvm.runtime.tensor(example_args[0].numpy()))[0].numpy()
+    assert actual.dtype == expected.dtype
+    np.testing.assert_array_equal(actual, expected)
+
+
 def test_split():
     class Chunk(Module):
         def forward(self, input):
