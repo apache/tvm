@@ -15,40 +15,47 @@
     specific language governing permissions and limitations
     under the License.
 
-Layout IR
-=========
+Trainium Authoring and Support APIs
+===================================
 
-Layouts describe how logical tensor coordinates map to storage and execution
-axes.  See :doc:`../layout` for the programming model and worked examples.
+NKI authoring namespace
+-----------------------
 
-The primary classes are re-exported from ``tvm.tirx``, but are defined in this
-module:
+The Trainium backend installs ``Tx.nki``.  Its current operations are
+``load``, ``store``, ``tensor_copy``, ``matmul``, ``activation``,
+``activation_reduce``, ``reciprocal``, ``tensorreduce``, ``tensortensor``,
+``tensorscalar``, ``tensorscalar_reduce``, ``scalar_tensor_tensor``,
+``scalar_tensor_scalar``, ``memset``, ``identity``, and ``affine_select``.
 
-.. autoclass:: tvm.tirx.layout.Layout
+.. autoclass:: tvm.backend.trn.script.NKINamespace
    :members:
    :no-index:
 
-.. autoclass:: tvm.tirx.layout.Axis
+Layout helpers
+--------------
+
+.. automodule:: tvm.backend.trn.layout
    :members:
    :no-index:
 
-.. autoclass:: tvm.tirx.layout.Iter
+Compilation pipeline
+--------------------
+
+.. automodule:: tvm.backend.trn.pipeline
    :members:
    :no-index:
 
-.. autoclass:: tvm.tirx.layout.TileLayout
+Transforms
+----------
+
+.. automodule:: tvm.backend.trn.transform
    :members:
    :no-index:
 
-.. autoclass:: tvm.tirx.layout.ComposeLayout
+.. autoclass:: tvm.backend.trn.transform.TrnNaiveAllocator
    :members:
    :no-index:
 
-``S[...]`` and ``R[...]`` build shard and replica layout specifications,
-respectively.  Named axes such as ``laneid``, ``warpid``, ``tid_in_wg``,
-``TLane``, and ``TCol`` are resolved lazily by this module.
-
-.. automodule:: tvm.tirx.layout
+.. autoclass:: tvm.backend.trn.transform.TrnPrivateBufferAlloc
    :members:
    :no-index:
-   :exclude-members: Axis, ComposeLayout, Iter, Layout, TileLayout

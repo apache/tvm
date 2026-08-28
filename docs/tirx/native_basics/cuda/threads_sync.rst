@@ -64,8 +64,8 @@ The shuffle lowers straight to ``__shfl_xor_sync``:
 
 Other families under ``Tx.ptx.*`` / ``Tx.cuda.*``: ``cp.async`` (LDGSTS),
 ``cp_async.bulk.tensor`` (TMA), ``ldmatrix`` / ``stmatrix``, ``tcgen05.*``
-(Blackwell MMA), ``atomic_add``, ``fence`` … See :doc:`../../api/backend` for the
-full ``tvm.backend.cuda`` reference.
+(Blackwell MMA), ``atomic_add``, ``fence`` … See :doc:`../../api/cuda` for CUDA
+helpers and :doc:`../../api/ptx` for the registered PTX forms.
 
 Inlining raw CUDA
 -----------------

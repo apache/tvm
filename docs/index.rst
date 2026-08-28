@@ -67,10 +67,8 @@ driving its costs down.
    :caption: TIRx
 
    tirx/overview
-   tirx/install
-   tirx/native_basics
-   tirx/layout
-   tirx/tile_primitives
+   tirx/get_started/index
+   tirx/programming/index
    tirx/arch/index
    tirx/api/index
 

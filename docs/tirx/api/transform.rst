@@ -16,8 +16,9 @@
     under the License.
 
 
-tvm.tirx.transform
-==================
+Compiler Transforms
+===================
+
 .. automodule:: tvm.tirx.transform
    :members:
    :exclude-members: Attrs, PrimExpr, Op, Call

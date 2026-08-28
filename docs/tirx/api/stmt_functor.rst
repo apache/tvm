@@ -15,8 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.tirx visitors and mutators
-==============================
+Visitors and Mutators
+=====================
 
 ``expr_functor`` and ``stmt_functor`` provide lightweight Python traversal
 utilities.  ``functor`` contains the FFI-backed ``PyStmtExprVisitor`` and

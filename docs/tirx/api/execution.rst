@@ -15,8 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-Execution scopes and contexts
-=============================
+Execution Scope IR
+==================
 
 tvm.tirx.exec_scope
 -------------------

@@ -57,14 +57,6 @@ scope with ``Tx.tile.warp`` / ``Tx.tile.wg`` / ``Tx.tile.cta`` rather than
 passing it to the callable directly. Operands are ``Buffer`` / ``BufferRegion``
 values, each carrying a :doc:`TileLayout <layout>` that dispatch reads.
 
-Wiring (four Python/C++ surfaces): the authoritative op list is the C++
-registry (``src/tirx/op/tirx.cc``, 31 ops named ``tirx.tile.<name>``); the IR
-wrapper classes are in ``python/tvm/tirx/operator/tile_primitive/ops.py``; raw
-``TilePrimitiveCall`` constructors are in
-``python/tvm/tirx/script/builder/tirx.py``; and the validated, tile-only
-``Tx.tile.*`` facade is in ``python/tvm/tirx/script/tile.py``.  The two Python
-call surfaces construct the same IR node type.
-
 Primitive catalog
 -----------------
 
@@ -233,74 +225,12 @@ control flow into ``inter``/``intra`` maps and a ``scope_kind``), the **operand
 layouts** (each ``Buffer.layout``), and the **target** (the dispatch table is
 keyed by its kind, e.g. ``"cuda"``).
 
-Dispatch mechanism
-------------------
-
-Pipeline
-~~~~~~~~
-
-Dispatch runs in the ``tirx.TilePrimitiveDispatch`` pass — the first phase
-inside ``LowerTIRx()``, before layout and execution-scope cleanup. The C++
-mutator ``TilePrimitiveDispatcher`` walks the IR and, per call:
-
-#. resolves the ``(inter, intra)`` execution split for the call's scope from the
-   active set tracked through control flow (``if wg_id == ...``, ``warp_id``,
-   ``Tx.cuda.elect_sync()``);
-#. builds a ``DispatchContext`` carrying ``target``, scope, launch params, value
-   ranges, and the encoded ``inter``/``intra`` + ``scope_kind``;
-#. invokes the global FFI hook ``tirx.f_op_dispatcher`` (Python) with the call
-   and context, which returns a ``PrimFunc``;
-#. splices that ``PrimFunc`` body in place of the call and drains side-effect
-   callbacks (private allocs, device/host init statements).
-
-If any ``TilePrimitiveCall`` survives lowering, a verifier makes it a fatal error.
-
-Selection (``run_dispatch``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The Python dispatcher holds a table ``_DISPATCH_TABLE`` keyed by
-``(Op, target_kind)``. Each entry is a list of *cases*, registered by backends
-via ``@register_dispatch(op_name, target_kind, variant=..., priority=...,
-when=[preds])``. ``run_dispatch(op_call, sctx)``:
-
-#. ``key = (op_call.op, sctx.target.kind.name)``; look up cases. None → error.
-#. If ``op_call.dispatch`` is set, **filter** to that variant (error if unknown).
-#. Sort cases by ``(-priority, variant)`` — highest priority first.
-#. For each case, evaluate its predicates; if any fails, record the reason and
-   continue. If all pass, run the impl; on success return its ``PrimFunc``.
-#. An impl may still **decline** by raising ``DispatchFail`` (e.g. a hardware
-   constraint found while emitting) — the search continues.
-#. If every variant is rejected, raise a ``RuntimeError`` listing each variant's
-   rejection reason.
-
-So dispatch is **keyed by (primitive, target)**, then a **priority-ordered,
-predicate-guarded** case list, with an optional ``dispatch=`` override.
-
-Two recurring predicate helpers: ``validate_copy_op`` (both operands have a
-layout, equal dtype, equal non-unit extents) and ``_all_threads_active`` (the
-exec scope is full — ``laneid`` spans 32, etc., none of it narrowed by an
-enclosing ``if``), so a partial-warp copy is rejected rather than mis-lowered.
-
-Dispatch by primitive
----------------------
-
-Each page below documents one primitive's dispatch in detail — the variants, how
-each is selected, the algorithm it runs, the IR it emits, and when it declines.
-
-.. toctree::
-   :maxdepth: 1
-
-   tile_primitives/copy
-   tile_primitives/copy_async
-   tile_primitives/gemm
-   tile_primitives/gemm_async
-   tile_primitives/elementwise
-   tile_primitives/reduction
-   tile_primitives/permute_layout
-
 See also
 --------
 
 - :doc:`layout` — the ``TileLayout`` model dispatch reads from operands.
+- :doc:`api/tile` — exact ``Tx.tile.*`` signatures.
+- :doc:`arch/tile_dispatch` — dispatch selection, extension points, and the
+  target-specific variants for each primitive.
 - :doc:`overview` — execution scope, tensor layout, and tile primitive dispatch
   as the three core constructs.

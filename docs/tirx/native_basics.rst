@@ -15,8 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-TIRx Basics: CUDA C++/PTX native level
-======================================
+CUDA Programming Guide
+======================
 
 .. note::
 
@@ -56,15 +56,38 @@ kernels reference compile-time parameters inside type annotations (see
     import tvm
     from tvm.script import tirx as Tx
 
+Start here
+----------
+
+If this is your first TIRx kernel, complete
+:doc:`First Kernel <native_basics/cuda/first_kernel>` before using the chapters
+below as a language reference.
+
+Language guide
+--------------
+
 .. toctree::
    :maxdepth: 1
 
-   native_basics/cuda/first_kernel
    native_basics/cuda/functions
-   native_basics/cuda/parser_utils
    native_basics/cuda/data_types
    native_basics/cuda/buffers
    native_basics/cuda/control_flow
+
+CUDA execution and compilation
+------------------------------
+
+.. toctree::
+   :maxdepth: 1
+
    native_basics/cuda/threads_sync
    native_basics/cuda/compiling
+
+Advanced topics
+---------------
+
+.. toctree::
+   :maxdepth: 1
+
+   native_basics/cuda/parser_utils
    native_basics/cuda/profiling

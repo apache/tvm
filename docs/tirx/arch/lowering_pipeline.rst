@@ -131,7 +131,7 @@ Inside LowerTIRx
 - **``TilePrimitiveDispatch``** replaces every ``TilePrimitiveCall`` (``copy``,
   ``gemm``, ``reduction``, …) with the body emitted by its selected backend
   dispatch — the variant-selection and codegen described in
-  :doc:`../tile_primitives`.
+  :doc:`tile_dispatch`.
 - **``LowerTIRxCleanup``** runs the ``LayoutApplier``: it resolves every
   ``TileLayout``-typed buffer access into concrete physical address arithmetic
   (``addr = data + elem_offset + layout.apply(coord)``), flattens the buffers, and

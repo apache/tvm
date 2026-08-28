@@ -15,58 +15,28 @@
     specific language governing permissions and limitations
     under the License.
 
-API Reference
-=============
+Programming Guide
+=================
 
-Python APIs for authoring TIRx kernels, inspecting IR, running compiler passes,
-and extending dispatch or target backends.  Start with the
-:doc:`programming guide <../programming/index>` for task-oriented explanations.
+This guide explains how to write, compile, and inspect TIRx kernels.  Start
+with the CUDA guide for the core language and native programming model, then
+use tensor layouts and tile primitives to express reusable tile-level work.
 
-Authoring APIs
---------------
+The examples use a single alias for the TIRx TVMScript dialect::
 
-.. toctree::
-   :maxdepth: 1
+   from tvm.script import tirx as Tx
 
-   script
-   tile
-
-Target APIs
------------
+Core language constructs are written as ``Tx.*``.  Backend-specific helpers
+and direct CUDA instructions are available through ``Tx.cuda.*`` and
+``Tx.ptx.*``.  Reusable tile operations are written as ``Tx.tile.*``.
 
 .. toctree::
    :maxdepth: 1
 
-   cuda
-   ptx
-   trainium
+   ../native_basics
+   ../layout
+   ../tile_primitives
 
-IR APIs
--------
-
-.. toctree::
-   :maxdepth: 1
-
-   tirx
-   layout
-   execution
-
-Compiler APIs
--------------
-
-.. toctree::
-   :maxdepth: 1
-
-   compilation
-   transform
-   analysis
-   stmt_functor
-
-Extension APIs
---------------
-
-.. toctree::
-   :maxdepth: 1
-
-   tile_dispatch
-   backend
+For exact callable signatures, see the :doc:`API reference <../api/index>`.
+For lowering, dispatch, and backend implementation details, see
+:doc:`Compiler Internals <../arch/index>`.

@@ -71,6 +71,8 @@ once the pattern stabilizes. This is the core design philosophy behind TIRx:
 keep the foundation small and explicit, and let the backend library evolve as
 new accelerator generations arrive.
 
+.. _tirx-programming-model:
+
 The Programming Model
 ---------------------
 
@@ -78,6 +80,47 @@ A TIRx program reads as a structured native kernel: loops, branches, buffers,
 synchronization, pipeline state, backend intrinsics, and hardware roles are
 written directly. Tile primitives appear exactly where a repeated hardware-level
 operation should become reusable and dispatchable.
+
+Authoring layers and IR
+~~~~~~~~~~~~~~~~~~~~~~~
+
+TIRx programs use one TVMScript dialect alias::
+
+   from tvm.script import tirx as Tx
+
+The namespace exposes three authoring layers.  They share the same TIRx
+program, but enter the compiler at different levels:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 30 45
+
+   * - Authoring layer
+     - Syntax
+     - Representation and lowering
+   * - Core language
+     - ``Tx.*``
+     - Creates TIRx statements, expressions, buffers, and control flow.
+   * - Tile primitives
+     - ``Tx.tile.*``
+     - Creates a ``TilePrimitiveCall`` that is replaced by a target-specific
+       implementation during tile dispatch.
+   * - Backend operations
+     - ``Tx.cuda.*`` and ``Tx.ptx.*``
+     - Creates backend calls directly; these calls bypass tile dispatch.
+
+``tvm.script.tirx`` is the construction syntax for the ``tvm.tirx`` object
+model, not a separate IR.  Tile dispatch and layout/scope lowering replace
+high-level TIRx nodes with lower-level TIRx statements and calls.  They do not
+convert the program to the separate ``tvm.tir`` object model.
+
+.. code-block:: text
+
+   Tx.* ──────────────────────────────▶ TIRx statements and expressions ──────┐
+   Tx.tile.* ─▶ TilePrimitiveCall ─▶ target dispatch ─────────────────────────┤
+   Tx.cuda.* / Tx.ptx.* ─────────────▶ backend calls ─────────────────────────┤
+                                                                               ▼
+                                             layout and scope lowering ─▶ codegen
 
 The model has three core ingredients.
 
@@ -191,6 +234,8 @@ Next Steps
 ----------
 
 - :doc:`install` — install TIRx and the kernel library.
-- :doc:`layout` — the tensor layout model with an interactive explorer.
+- :doc:`native_basics/cuda/first_kernel` — write and compile a first CUDA kernel.
+- :doc:`programming/index` — the complete programming guide.
+- :doc:`layout` and :doc:`tile_primitives` — reusable tensor and tile abstractions.
 - :doc:`arch/index` — compiler internals (lowering pipeline, passes, codegen).
-- :doc:`api/index` — the ``tvm.tirx`` Python API.
+- :doc:`api/index` — authoring, IR, compiler, and extension API signatures.

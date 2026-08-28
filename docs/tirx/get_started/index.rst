@@ -15,58 +15,18 @@
     specific language governing permissions and limitations
     under the License.
 
-API Reference
-=============
+Getting Started
+===============
 
-Python APIs for authoring TIRx kernels, inspecting IR, running compiler passes,
-and extending dispatch or target backends.  Start with the
-:doc:`programming guide <../programming/index>` for task-oriented explanations.
-
-Authoring APIs
---------------
+Install TIRx, then build and run a first CUDA kernel.  The first-kernel chapter
+introduces the ``Tx`` authoring alias, buffers, execution scope, compilation,
+launch, and generated-source inspection.
 
 .. toctree::
    :maxdepth: 1
 
-   script
-   tile
+   ../install
+   ../native_basics/cuda/first_kernel
 
-Target APIs
------------
-
-.. toctree::
-   :maxdepth: 1
-
-   cuda
-   ptx
-   trainium
-
-IR APIs
--------
-
-.. toctree::
-   :maxdepth: 1
-
-   tirx
-   layout
-   execution
-
-Compiler APIs
--------------
-
-.. toctree::
-   :maxdepth: 1
-
-   compilation
-   transform
-   analysis
-   stmt_functor
-
-Extension APIs
---------------
-
-.. toctree::
-   :maxdepth: 1
-
-   tile_dispatch
-   backend
+Continue with the :doc:`programming guide <../programming/index>` for the core
+language, CUDA intrinsics, layouts, and tile primitives.

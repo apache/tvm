@@ -15,8 +15,9 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.tirx
-========
+Core TIRx IR
+============
+
 This page lists the core IR nodes and scalar operations in the top-level
 namespace.  Layouts, execution scopes, visitors, compilation helpers, and
 tile-dispatch extensions are documented on their focused pages and excluded
