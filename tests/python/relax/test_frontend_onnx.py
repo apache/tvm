@@ -1817,6 +1817,37 @@ def test_gather_elements(data_shape, indices_shape, axis):
 
 
 @pytest.mark.parametrize(
+    "data_shape, indices_shape, axis",
+    [
+        ([3, 4, 5], [1, 4, 5], 0),
+        ([3, 4, 5], [3, 2, 5], 1),
+        ([3, 4, 5], [3, 4, 2], 2),
+    ],
+)
+def test_gather_elements_negative_indices(data_shape, indices_shape, axis):
+    gather_elements_node = helper.make_node("GatherElements", ["data", "indices"], ["y"], axis=axis)
+
+    graph = helper.make_graph(
+        [gather_elements_node],
+        "gather_elements_negative_indices_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+            helper.make_tensor_value_info("indices", TensorProto.INT64, indices_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, indices_shape)],
+    )
+
+    model = helper.make_model(graph, producer_name="gather_elements_negative_indices_test")
+    input_values = {
+        "data": np.random.randn(*data_shape).astype("float32"),
+        "indices": np.random.randint(-data_shape[axis], data_shape[axis], indices_shape).astype(
+            "int64"
+        ),
+    }
+    check_correctness(model, inputs=input_values)
+
+
+@pytest.mark.parametrize(
     "data_shape, indices_shape, batch_dims",
     [
         ([2, 2], [2, 2], 0),
@@ -1845,6 +1876,39 @@ def test_gather_nd(data_shape, indices_shape, batch_dims):
     input_values = {
         "data": np.random.randn(*data_shape).astype("float32"),
         "indices": np.random.randint(0, 2, indices_shape).astype("int64"),
+    }
+    check_correctness(model, inputs=input_values)
+
+
+@pytest.mark.parametrize(
+    "data_shape, indices_shape, batch_dims",
+    [
+        ([2, 2], [2, 2], 0),
+        ([2, 2], [2, 1], 0),
+        ([2, 2, 2], [1], 0),
+        ([2, 2, 2], [2, 2], 0),
+        ([2, 2, 2], [2, 1, 2], 0),
+        ([2, 2, 2], [2, 2], 1),
+        ([2, 2, 2], [2, 1], 1),
+    ],
+)
+def test_gather_nd_negative_indices(data_shape, indices_shape, batch_dims):
+    gather_nd_node = helper.make_node("GatherND", ["data", "indices"], ["y"], batch_dims=batch_dims)
+
+    graph = helper.make_graph(
+        [gather_nd_node],
+        "gather_nd_negative_indices_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+            helper.make_tensor_value_info("indices", TensorProto.INT64, indices_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, None)],
+    )
+
+    model = helper.make_model(graph, producer_name="gather_nd_negative_indices_test")
+    input_values = {
+        "data": np.random.randn(*data_shape).astype("float32"),
+        "indices": np.random.randint(-2, 2, indices_shape).astype("int64"),
     }
     check_correctness(model, inputs=input_values)
 
@@ -2117,6 +2181,38 @@ def test_scatter_nd(reduction):
     verify_scatter_nd([4, 4, 4], [2, 1], [2, 4, 4])
     verify_scatter_nd([4, 5, 6], [2, 3, 2], [2, 3, 6])
     verify_scatter_nd([10], [5, 1], [5])
+
+
+@pytest.mark.parametrize("reduction", ["none", "add", "mul"])
+def test_scatter_nd_negative_indices(reduction):
+    def verify_scatter_nd_negative_indices(data_shape, indices_shape, updates_shape):
+        scatter_nd_node = helper.make_node(
+            "ScatterND",
+            ["data", "indices", "updates"],
+            ["output"],
+            reduction=reduction,
+        )
+
+        graph = helper.make_graph(
+            [scatter_nd_node],
+            "scatter_nd_negative_indices_test",
+            inputs=[
+                helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+                helper.make_tensor_value_info("indices", TensorProto.INT64, indices_shape),
+                helper.make_tensor_value_info("updates", TensorProto.FLOAT, updates_shape),
+            ],
+            outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, data_shape)],
+        )
+
+        model = helper.make_model(graph, producer_name="scatter_nd_negative_indices_test")
+
+        indices = np.random.randint(-data_shape[0], data_shape[0], indices_shape)
+        check_correctness(model, inputs={"indices": indices}, opset=16)
+
+    verify_scatter_nd_negative_indices([8], [4, 1], [4])
+    verify_scatter_nd_negative_indices([4, 4, 4], [2, 1], [2, 4, 4])
+    verify_scatter_nd_negative_indices([4, 5, 6], [2, 3, 2], [2, 3, 6])
+    verify_scatter_nd_negative_indices([10], [5, 1], [5])
 
 
 def test_compress():
@@ -9763,6 +9859,28 @@ def test_onehot():
     model = helper.make_model(graph, producer_name="one_hot_test")
     values = {
         "indices": np.array([[1, 9], [2, 4]], dtype="int64"),
+    }
+    check_correctness(model, inputs=values)
+
+
+def test_onehot_negative_indices():
+    one_hot_node = helper.make_node("OneHot", ["indices", "depth", "values"], ["y"], axis=1)
+    graph = helper.make_graph(
+        [one_hot_node],
+        "one_hot_negative_indices_test",
+        inputs=[
+            helper.make_tensor_value_info("indices", TensorProto.INT64, [2, 2]),
+        ],
+        initializer=[
+            helper.make_tensor("depth", TensorProto.INT64, [], [10]),
+            helper.make_tensor("values", TensorProto.FLOAT, [2], [3, 1]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 10, 2])],
+    )
+
+    model = helper.make_model(graph, producer_name="one_hot_negative_indices_test")
+    values = {
+        "indices": np.array([[-1, -10], [-2, 4]], dtype="int64"),
     }
     check_correctness(model, inputs=values)
 
