@@ -37,6 +37,6 @@ and direct CUDA instructions are available through ``Tx.cuda.*`` and
    ../layout
    ../tile_primitives
 
-For exact callable signatures, see the :doc:`API reference <../api/index>`.
+For callable reference entries, see the :doc:`API reference <../api/index>`.
 For lowering, dispatch, and backend implementation details, see
 :doc:`Compiler Internals <../arch/index>`.

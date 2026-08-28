@@ -47,8 +47,6 @@ The predicate is lean — scope, a valid copy, and a register↔shared pair:
             ok, msg = check()
             if not ok:
                 return False, msg
-        if DataType(op_call.src.buffer.dtype).bits != 16:
-            return False, "ldmatrix/stmatrix .b16 requires 16-bit elements"
         return True, None
 
 The **real** gate is the layout fit, applied during emit. Both this variant and
@@ -77,9 +75,11 @@ fragments, leaving the :doc:`reg` path in ``vec_auto`` to handle the copy:
    * - memory pair
      - ``_REG_SMEM_PAIRS`` = ``(local, shared*)`` / ``(shared*, local)``
    * - dtype
-     - 16-bit (``.b16``). For each ``.x1`` tile, every lane receives or supplies
-       one 32-bit register containing two 16-bit elements; each shared-memory row
-       starts at a 16-byte-aligned address
+     - the predicate only requires matching source/destination dtypes; it does
+       not inspect their bit width. The emitter always uses ``.b16`` and its
+       layout math assumes eight 16-bit elements per shared row, so callers use
+       16-bit element layouts. Each ``.x1`` tile gives every lane one 32-bit
+       register containing two 16-bit elements
    * - layout fit
      - both operands regroup to ``[T/32, 8, 4, M/(2·num), num, 2]`` with the
        register side equal to the m8n8 fragment pattern and the shared side row- or
@@ -155,17 +155,17 @@ Row-major shared (``s4, s2 == 2, 1``, ``s8`` a positive multiple of 8) → plain
 
 The 8-multiple checks keep every shared-memory row start and every ``m_outer``
 advance aligned to 16 bytes (8 fp16). The warp distributes that row across
-lanes; each lane's destination or source register is 32 bits.
+lanes; each lane's destination or source register word is 32 bits.
 
 **4. Emit one instruction per** ``m_outer`` **tile group.** Each lane contributes
 its shared address (tile offset + ``(laneid % 8) · p``) and ``num`` register
-handles:
+words:
 
 .. code-block:: python
 
     for mm in Tx.unroll(m_outer):
         smem_ptr = _ptr_off(s_buf.ptr_to(s_zero), _smem_off(mm, tile_off + (laneid % 8) * p))
-        handles  = [r_local.ptr_to([...]) for i in range(num)]
+        words = [r_local[...] for i in range(num)]
         chain = f"{direction}matrix.sync.aligned.m8n8.x{num}{trans_seg}.shared.b16"
         if direction == "ld":
             Tx.ptx[chain](*words, smem_ptr)
@@ -206,7 +206,7 @@ How inputs change the algorithm
 -------------------------------
 
 ``num`` (the matrix count that fits) selects the instruction width and the number
-of register handles; ``trans`` (set by the shared layout) selects the transposing
+of register words; ``trans`` (set by the shared layout) selects the transposing
 form:
 
 .. list-table::

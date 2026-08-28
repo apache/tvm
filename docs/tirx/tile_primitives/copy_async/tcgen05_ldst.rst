@@ -192,7 +192,8 @@ Use the public allocation and fragment APIs together:
 
 .. code-block:: python
 
-    accumulator = tmem_pool.alloc((64, N), "float32", datapath="B")
+    accumulator = tmem_pool.alloc_tcgen05_mma_D(
+        (64, N), "float32", M=128, cta_group=2)
     frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
 
     Tx.tile.wg.copy_async(frag[:, :], accumulator[:, :])

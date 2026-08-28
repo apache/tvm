@@ -166,8 +166,8 @@ class IketProfileResult:
 def _profile_error(message: str) -> IketProfileError:
     return IketProfileError(
         f"Official IKET profile validation failed: {message}. "
-        "Use tvm.backend.cuda.iket.profile(command) or call "
-        "tvm.backend.cuda.iket.run(main) from a replayable entry point."
+        "Use tvm.tirx.cuda.iket.profile(command) or call "
+        "tvm.tirx.cuda.iket.run(main) from a replayable entry point."
     )
 
 

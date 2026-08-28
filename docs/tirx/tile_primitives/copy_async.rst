@@ -49,7 +49,7 @@ names; the TMA page below covers two of them.
    * - :doc:`copy_async/tcgen05_cp` (``smem->tmem``)
      - shared → tmem
      - 10
-     - ``tcgen05.cp.32x128b.warpx4`` (matrix-descriptor driven)
+     - one of the registered ``tcgen05.cp`` shapes (matrix-descriptor driven)
    * - :doc:`copy_async/tcgen05_ldst` (``tmem<->local``)
      - tmem ↔ register
      - 10

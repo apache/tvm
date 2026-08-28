@@ -202,11 +202,10 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
 # shared memory. Used for intra-cluster DSMEM copies (shared::cta -> shared::cluster).
 #
 # Before (TilePrimitiveCall):
-#     Tx.tile.copy_async(
+#     Tx.copy_async(
 #         dst_smem[0:128, 0:64],
 #         src_smem[0:128, 0:64],
-#         mbar=mbar,
-#         remote_cta_id=cta_id,
+#         config={"mbar": mbar, "remote_cta_id": cta_id}
 #     )
 #
 # After (emits cp.async.bulk.shared::cluster.shared::cta):

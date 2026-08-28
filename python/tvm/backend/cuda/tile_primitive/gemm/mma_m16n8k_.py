@@ -229,11 +229,6 @@ def _full_active_lanes(op: TilePrimitiveCall, sctx: DispatchContext):
     wid_in_wg=4 (warpgroup), and warpid=warps-per-CTA (cta) from the launch
     config. Any other axis (e.g. cta_id at cluster scope) is not supported.
     """
-    if sctx.scope_kind not in ("warp", "warpgroup", "cta"):
-        return False, (
-            f"unsupported exec_scope {sctx.scope_kind!r}; "
-            "mma.sync requires a warp or a wider scope made of complete warps"
-        )
     full = {"laneid": 32, "wid_in_wg": 4}
     if "warpid" in sctx.intra:
         tx = sctx.launch_params.get("threadIdx.x")

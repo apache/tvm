@@ -32,8 +32,8 @@ def _get_arg(args, kwargs, index, name):
 def _require_buffer_arg(op_name, arg_name, value):
     if not (is_buffer_var(value) or isinstance(value, BufferRegion)):
         raise TypeError(
-            f"Tx.tile.{op_name} is tile-only and expects `{arg_name}` to be a Buffer "
-            f"or BufferRegion; use Tx.{op_name} for expression/builtin calls"
+            f"Tx.{op_name} is tile-only and expects `{arg_name}` to be a Buffer "
+            f"or BufferRegion; use T.{op_name} for expression/builtin calls"
         )
 
 

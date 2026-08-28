@@ -25,7 +25,7 @@ When: dst and src are both local-scope buffers with matching dtype, on CUDA.
     (_emit_reduction_local_thread_wise):
 
 Before:
-    Tx.tile.sum(B_local[0:2, 0:3], A_local[0:2, 0:3, 0:4], [-1], False)
+    Tx.sum(B_local[0:2, 0:3], A_local[0:2, 0:3, 0:4], [-1], False)
 
 After (scheduled PrimFunc, spatial_len=6, reduction_len=4):
     for spa in range(6):
@@ -43,7 +43,7 @@ After (scheduled PrimFunc, spatial_len=6, reduction_len=4):
     accum=True + shuffle: saves old dst before reduce+shuffle, combines after (warp only).
 
 Before:
-    Tx.tile.warp.sum(red_view[0:16, 0:4], acc_view[0:16, 0:128], [-1], False,
+    Tx.warp.sum(red_view[0:16, 0:4], acc_view[0:16, 0:128], [-1], False,
                    thread_reduce=True)
 
 After (scheduled PrimFunc, local_total=2, local_red=32, 2 shuffle steps):
@@ -126,29 +126,23 @@ def _analyze_shuffle_reduce(src_layout, dst_layout):
     return reduce_width, local_elems
 
 
-def _gen_warp_shuffle_reduce(src, dst, reduce_width, local_elems, accum, op_type):
+def _gen_warp_shuffle_reduce(src, dst, reduce_width, local_elems, accum, op_type, init_value):
     """Generate warp shuffle reduce codegen for laneid shard->replica pattern.
 
     Unified for both full warp (reduce_width=32) and partial warp (e.g. reduce_width=8).
     """
     is_same_buffer = src.same_as(dst)
     op_str = _REDUCE_OP_TO_STR[op_type]
-    op_func = reduce_op_table[op_type]
 
     # fmt: off
     @T.prim_func(check_well_formed=False)
     def impl():
         src_local = src.local(local_elems, layout=src.layout.storage())
         dst_local = dst.local(local_elems, layout=dst.layout.storage())
-        old_dst = T.alloc_buffer([1], src.dtype, scope="local")
         for k in T.serial(local_elems):
-            if accum:
-                old_dst[0] = dst_local[k]
             if not is_same_buffer:
                 dst_local[k] = src_local[k]
             dst_local[k] = T.cuda.warp_reduce(dst_local[k], op_str, reduce_width)
-            if accum:
-                dst_local[k] = op_func(dst_local[k], old_dst[0])
     # fmt: on
 
     return impl
@@ -167,23 +161,7 @@ def validate_reduction_local(
     if src.dtype != dst.dtype:
         return False, f"dtype mismatch: src={src.dtype} dst={dst.dtype}"
 
-    reduce_axes = tuple(int(a) for a in op.reduce_axes)
     if sctx.is_thread:
-        # Thread-scope reduction uses the logical regions directly, so its
-        # destination contains exactly one element per spatial coordinate.
-        # Warp/warpgroup view reductions are validated from their layouts
-        # below: their logical destination region can retain thread-replica
-        # dimensions and therefore does not obey this raw element-count rule.
-        src_extent = [r.extent for r in src_br.region]
-        dst_extent = [r.extent for r in dst_br.region]
-        try:
-            _, spatial_dims = _analyze_axes(len(src_extent), reduce_axes)
-        except AssertionError as err:
-            return False, str(err)
-        expected_dst_len = functools.reduce(operator.mul, [src_extent[d] for d in spatial_dims], 1)
-        actual_dst_len = functools.reduce(operator.mul, dst_extent, 1)
-        if not Analyzer().can_prove_equal(expected_dst_len, actual_dst_len):
-            return False, f"dst size {actual_dst_len} != expected spatial size {expected_dst_len}"
         return True, None  # thread-wise reduction
     elif sctx.scope_kind in ["warp", "warpgroup"]:
         if not sctx.is_warp and op.config.get("thread_reduce", False):
@@ -229,6 +207,7 @@ def validate_reduction_local(
 
         # Validate layout compatibility
         # Spatial dims match, reduce dims in dst have local_extent==1
+        reduce_axes = tuple(int(a) for a in op.reduce_axes)
         src_ndim = len(src_br.region)
         try:
             reduce_dims, _ = _analyze_axes(src_ndim, reduce_axes)
@@ -442,7 +421,11 @@ def reduction_local_impl(
                 reduce_width, local_elems = shuffle_info
                 if op_type not in _REDUCE_OP_TO_STR:
                     fail(f"unsupported reduce op: {op_type}")
-                return _gen_warp_shuffle_reduce(src, dst, reduce_width, local_elems, accum, op_type)
+                dtype = src.dtype
+                init_value = reduce_default_value_table(dtype).get(op_type)
+                return _gen_warp_shuffle_reduce(
+                    src, dst, reduce_width, local_elems, accum, op_type, init_value
+                )
         elif config.get("thread_reduce", False):
             fail(
                 "thread_reduce=True is only supported in warp scope; "

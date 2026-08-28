@@ -77,7 +77,11 @@ PTX ``.L2::<N>B`` qualifier. ``predicate`` defaults to ``-1`` (unpredicated);
 with ``fill_mode="zero"``, a false predicate uses the ``src-size`` form to
 zero-fill the destination. ``direct=True`` bypasses cooperative partitioning
 and issues one exact 4-, 8-, or 16-byte copy; that mode requires thread scope
-and a constant-size region.
+and a constant-size region. Only the exact string ``"zero"`` changes the
+operand form; other ``fill_mode`` values follow the ordinary predicated or
+unpredicated branch. The implementation converts ``prefetch_size`` to an
+integer and constructs the PTX spelling, whose table lookup accepts the
+registered qualifiers.
 
 Demonstration program
 ----------------------

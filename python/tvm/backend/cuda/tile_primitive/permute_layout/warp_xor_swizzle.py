@@ -393,7 +393,7 @@ def _impl(op_call, sctx):
 #         # SFA_smem: u32 (PIPE, BLK_SFA//32, 32), layout shard 4D
 #         #   (PIPE, BLK_SFA//128, 4, 32) strides (BLK_SFA, 128, 32, 1)
 #         # SFA_post: same shape; layout shard 4D, strides (BLK_SFA, 128, 1, 4)
-#         Tx.tile.permute_layout(SFA_post[ks, :, :], SFA_smem[ks, :, :])
+#         Tx.permute_layout(SFA_post[ks, :, :], SFA_smem[ks, :, :])
 #
 # After (BLK_SFA=128, P=4, k=2, shift=3):
 #     lane_id = threadIdx.x % 32

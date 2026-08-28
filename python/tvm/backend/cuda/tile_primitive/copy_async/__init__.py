@@ -17,7 +17,7 @@
 
 """Implementation of copy_async operator dispatches for CUDA targets.
 
-Registered op: copy_async (6 variants).
+Registered op: copy_async (4 variants).
 See the @register_dispatch blocks in each submodule for detailed documentation
 with before/after IR examples.
 """

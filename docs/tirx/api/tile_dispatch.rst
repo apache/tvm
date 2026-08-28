@@ -32,15 +32,16 @@ is ``tvm.script.ir_builder.tirx.tile``::
    Tx_builder.tile.copy(dst, src)
 
 Each callable tile operation has a same-name raw constructor.  The authoring
-page provides their signatures without duplicating the full list here.
+page lists the public facade without duplicating the full operation list here.
 
-.. autoclass:: tvm.tirx.script.builder.tirx.ScopedOp
-   :members:
-   :no-index:
+.. py:class:: ScopedOp(fn)
 
-.. autoclass:: tvm.tirx.script.builder.tirx.ScopeNamespace
-   :members:
-   :no-index:
+   Internal callable wrapper that supplies a default thread scope or binds a
+   scope selected through a namespace.
+
+.. py:class:: ScopeNamespace(scope, label)
+
+   Internal resolver that binds the named execution scope to a tile operation.
 
 .. _tirx-api-dispatch-extension-points:
 

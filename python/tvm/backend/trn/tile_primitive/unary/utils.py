@@ -98,7 +98,7 @@ def get_const_bias_tensor(bias, shape, dtype, workspace, sctx):
     """Create or retrieve a constant bias tensor."""
     if "const_bias" not in workspace:
         assert sctx.alloc_only, (
-            "Constant bias tensor must be specified in workspace. Run tvm.backend.trn.transform.TrnPrivateBufferAlloc first."  # noqa: E501
+            "Constant bias tensor must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateBufferAlloc first."  # noqa: E501
         )
         # Create new bias buffer
         bias_buffer = T.buffer(shape, dtype, scope="trn.sbuf", buffer_name="const_bias")

@@ -166,8 +166,9 @@ Predication is keyword-only::
 ``Tx.ptx.addr(base, byte_offset)`` forms an immediate-offset address for
 instructions that accept one; and ``Tx.ptx.SINK`` represents PTX's sink operand
 ``_`` in table-marked positions.  The generated ``tvm/script/tirx.pyi`` stub
-provides editor completion for these helpers, registered instruction families,
-and modifier chains.
+provides editor completion for ``addr``, registered instruction families, and
+modifier chains.  ``pred`` and ``SINK`` are available at runtime but are not
+declared in the current stub.
 
 PTX versus CUDA helpers
 -----------------------

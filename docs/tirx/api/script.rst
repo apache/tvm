@@ -40,4 +40,30 @@ Core IR builder
 .. automodule:: tvm.tirx.script.builder.ir
    :members:
    :no-index:
-   :exclude-members: anylist_getitem, anylist_resetitem, anylist_setitem_call_packed, anylist_setitem_call_cpacked
+   :exclude-members: LetAnnotation, alloc_tcgen05_ldst_frag, anylist_getitem, anylist_resetitem, anylist_setitem_call_packed, anylist_setitem_call_cpacked, match_buffer
+
+.. currentmodule:: tvm.tirx.script.builder.ir
+
+.. py:function:: match_buffer(param, shape=None, dtype="float32", data=None, strides=None, elem_offset=None, scope="global", align=-1, offset_factor=0, layout="default")
+
+   Bind a function parameter or an existing buffer region to a TIRx buffer.
+   ``shape`` is required for a function parameter and is inferred from a
+   ``BufferRegion`` when omitted.  ``layout`` accepts a layout object, a
+   registered layout string, or ``None``.
+
+.. py:class:: LetAnnotation(type_spec=None)
+
+   Marker used by ``Tx.let`` and ``Tx.let[dtype]`` annotations to construct an
+   explicit ``LetStmt``.
+
+.. py:function:: alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype)
+
+   Allocate a local register fragment whose layout matches a
+   ``tcgen05.{ld,st}`` atom. ``instr_shape`` accepts ``"32x32b"``,
+   ``"16x64b"``, ``"16x128b"``, or ``"16x256b"``. For example, a
+   two-CTA Layout-B accumulator and its readback fragment can be allocated as::
+
+      C = tmem_pool.alloc_tcgen05_mma_D(
+          (64, 128), "float32", M=128, cta_group=2)
+      frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (64, 128), "float32")
+      Tx.tile.wg.copy_async(frag[:, :], C[:, :])

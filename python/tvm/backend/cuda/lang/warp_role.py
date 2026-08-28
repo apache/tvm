@@ -46,21 +46,21 @@ class WarpRole:
 
         if <warp_id_var> == <warp_id_val>:
             # if regs specified:
-            Tx.ptx[f"setmaxnreg.{'inc' if <increase> else 'dec'}.sync.aligned.u32"](<regs>)
+            T.ptx[f"setmaxnreg.{'inc' if <increase> else 'dec'}.sync.aligned.u32"](<regs>)
             <user code>
 
     The ``if`` guard narrows the active set to the single warp; individual
     tile-primitive calls inside ``<user code>`` carry their own exec scope via
-    a scope-namespace prefix (e.g. ``Tx.tile.warp.copy(...)``).
+    a scope-namespace prefix (e.g. ``Tx.warp.copy(...)``).
 
     Parameters
     ----------
     warp_id_var : Var
-        The warp_id variable (from ``Tx.warp_id(...)``).
+        The warp_id variable (from ``T.warp_id(...)``).
     warp_id_val : int
         Which warp index this role corresponds to.
     regs : int, optional
-        Register budget (passed to ``Tx.ptx.setmaxnreg``).
+        Register budget (passed to ``T.ptx.setmaxnreg``).
         If None, no setmaxnreg is emitted.
     increase : bool
         Direction for ``setmaxnreg`` (default False = decrease).
@@ -97,23 +97,23 @@ class WarpgroupRole:
 
         if <wg_id_var> == <wg_id_val>:
             # if regs specified:
-            Tx.ptx[f"setmaxnreg.{'inc' if <increase> else 'dec'}.sync.aligned.u32"](<regs>)
+            T.ptx[f"setmaxnreg.{'inc' if <increase> else 'dec'}.sync.aligned.u32"](<regs>)
             <user code>
 
     Generates (range of wg_ids, e.g. ``wg_id_val=(0, 2)``)::
 
         if 0 <= <wg_id_var> and <wg_id_var> < 2:
-            Tx.ptx[f"setmaxnreg.{'inc' if <increase> else 'dec'}.sync.aligned.u32"](<regs>)
+            T.ptx[f"setmaxnreg.{'inc' if <increase> else 'dec'}.sync.aligned.u32"](<regs>)
             <user code>
 
     The ``if`` guard narrows the active set to the target warpgroup(s);
     individual tile-primitive calls inside ``<user code>`` carry their own exec
-    scope via a scope-namespace prefix (e.g. ``Tx.tile.wg.copy(...)``).
+    scope via a scope-namespace prefix (e.g. ``Tx.wg.copy(...)``).
 
     Parameters
     ----------
     wg_id_var : Var
-        The warpgroup_id variable (from ``Tx.warpgroup_id(...)``).
+        The warpgroup_id variable (from ``T.warpgroup_id(...)``).
     wg_id_val : int or tuple[int, int]
         Which warpgroup index (int) or range ``(start, stop)`` this role
         corresponds to.

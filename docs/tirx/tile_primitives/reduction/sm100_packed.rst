@@ -19,11 +19,13 @@ reduction → SM100 packed paths
 ==============================
 
 The registered ``packed_add_sum`` (for ``sum``) and ``3input_maxmin`` (for
-``max`` / ``min``) variants are **Blackwell-only fast paths** at priority **20**,
-so they pre-empt :doc:`local`.  Both accept a thread-scope reduction of a 1-D
-``float32`` vector of at least 8 elements to a scalar.  They use the SM100 packed
-math instructions — ``add.f32x2`` for ``sum``, ``max3.f32`` / ``min3.f32`` for
-``max`` / ``min`` — to fold two (or three) values per instruction. Source:
+``max`` / ``min``) variants are **CUDA SM100+ fast paths** at priority **20**,
+so they pre-empt :doc:`local`.  Both accept a thread-scope operation from a 1-D
+``float32`` vector of at least 8 elements to a scalar. The registration does not
+inspect ``reduce_axes``; the implementation folds the full source region. They
+use the SM100 packed math instructions — ``add.f32x2`` for ``sum``,
+``max3.f32`` / ``min3.f32`` for ``max`` / ``min`` — to fold two (or three)
+values per instruction. Source:
 ``python/tvm/backend/cuda/tile_primitive/reduction/sm100_packed.py``.
 
 What it accepts
@@ -39,7 +41,6 @@ All of the following must hold (else the dispatch declines and :doc:`local` runs
             predicate("local_scope", _local_scope_match),       # src & dst local
             predicate("dst_len", _dst_len_ok, expected_len=1),  # reduce to scalar
             predicate("src_ndim", _src_ndim_ok, expected_ndim=1),
-            predicate("reduce_axes", _full_1d_reduction_axes_ok),
             predicate("dtype", _dtype_ok, expected_dtype="float32"),
             predicate("sm_version", sm_version_ok, min_version=100),
             predicate("reduction_len", _reduction_len_ok, min_len=8),
@@ -52,14 +53,15 @@ All of the following must hold (else the dispatch declines and :doc:`local` runs
    * - Property
      - Requirement
    * - target / priority
-     - ``cuda`` ``sm_100+`` (Blackwell); priority ``20`` (beats ``local``)
+     - ``cuda`` ``sm_100+``; priority ``20`` (beats ``local``)
    * - exec scope
      - ``thread`` only
    * - operands
      - src & dst ``local``, both ``float32``; dst length ``1``; src **1-D** with
        ``≥ 8`` elements
    * - axes
-     - the only 1-D source axis must be reduced (``0`` or ``-1``)
+     - not checked by this variant's predicates; the implementation folds the
+       full 1-D source region
 
 Demonstration program
 ----------------------
@@ -144,6 +146,6 @@ How inputs change the algorithm
    * - accum
      - ``True`` folds the old dst value into the first accumulator slot
    * - anything outside the gate
-     - non-fp32, 2-D src, a non-reducing axis list, dst length > 1,
-       pre-Blackwell, or ``< 8`` elements → the dispatch declines and
-       :doc:`local` handles it when that variant's requirements hold
+     - non-fp32, 2-D src, dst length > 1, pre-SM100, or ``< 8`` elements →
+       the dispatch declines and :doc:`local` handles it when that variant's
+       requirements hold

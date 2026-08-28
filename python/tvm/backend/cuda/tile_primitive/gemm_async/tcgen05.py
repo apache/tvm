@@ -422,13 +422,8 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     )
     assert C_type == "float32", f"tcgen05 schedule expected C_type=float32, got {C_type}"
 
-    # float32 storage may use tf32 MMA semantics via is_AB_tf32.
+    # fp32/bf16 storage may still use tf32 MMA semantics via is_AB_tf32.
     is_AB_tf32 = op_call.config.get("is_AB_tf32", False)
-    if is_AB_tf32 and (A_type != "float32" or B_type != "float32"):
-        raise ValueError(
-            "tcgen05 gemm_async is_AB_tf32=True requires float32 A and B storage, "
-            f"got A={A_type}, B={B_type}"
-        )
     # Emit the PTX ``tcgen05.mma.ws`` weight-stationary form only for kernels
     # that explicitly require that tcgen05 ABI.
     weight_stationary = bool(op_call.config.get("weight_stationary", False))
@@ -1173,12 +1168,6 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     # smem_desc modes: "hoist" (default, encode once after alloc), "local_hoist"
     # (encode at call site, reuse via add_16B_offset), "encode"/"recompute" (per MMA).
     smem_desc_mode = op_call.config.get("smem_desc", "hoist")
-    valid_smem_desc_modes = ("hoist", "local_hoist", "encode", "recompute")
-    if smem_desc_mode not in valid_smem_desc_modes:
-        raise ValueError(
-            "tcgen05 gemm_async smem_desc must be one of "
-            f"{valid_smem_desc_modes}, got {smem_desc_mode!r}"
-        )
     local_hoist = smem_desc_mode == "local_hoist"
     encode_per_mma = smem_desc_mode == "encode"
     use_add = smem_desc_mode not in ("recompute", "encode")
@@ -1497,7 +1486,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
 # Requires A in smem (with TMA-compatible swizzle layout) or tmem, B in smem, accum in tmem.
 #
 # Before (TilePrimitiveCall — regular MMA):
-#     Tx.tile.gemm_async(C_tmem[0:64, 0:256], A_smem[0:64, 0:64], B_smem[0:256, 0:64])
+#     Tx.gemm_async(C_tmem[0:64, 0:256], A_smem[0:64, 0:64], B_smem[0:256, 0:64])
 #     # A: shared float16, B: shared float16, C: tmem float32
 #
 # After (encodes instruction descriptor + calls tcgen05.mma):
@@ -1508,12 +1497,13 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
 #     T.ptx[mma_chain](..., descA_buf[0], descB_buf[0], descI_local, ...)
 #
 # Before (TilePrimitiveCall — block-scaled fp8 MMA):
-#     Tx.tile.gemm_async(C_tmem, A_smem, B_smem,
-#                        SFA=SFA_tmem, SFB=SFB_tmem)
+#     Tx.gemm_async(C_tmem, A_smem, B_smem,
+#                   scale_A=SFA_tmem, scale_B=SFB_tmem)
 #     # A/B: shared float8_e4m3, SFA/SFB: tmem float8_e8m0fnu
 #
 # After (adds scale factor descriptors):
-#     T.ptx[mma_chain](..., descA, descB, descI, sfA_addr, sfB_addr, should_accum)
+#     T.ptx[mma_chain](..., descA, descB, descI,
+#                        scale_A=sfA_desc, scale_B=sfB_desc)
 #
 # Scale factor layout (sf_tmem_layout) must match tcgen05 hardware requirements:
 # rows = M or N, sf_mma_k = ceil(MMA_K / sf_block_size), specific TileLayout

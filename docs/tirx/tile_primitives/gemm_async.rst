@@ -54,30 +54,35 @@ A single predicate — single-thread or warp scope:
      - ``cuda`` target with ``tcgen05`` support (this implementation is tested
        with ``sm_100a``); **single thread or warp**; priority ``10``
    * - operands
-     - A, B in **shared** (B always; A shared, or tmem for the TMEM-A path); the
-       accumulator **C/D in tmem** (``float32``)
+     - B is in **shared**; A is in **shared** or, for the TMEM-A path, **tmem**;
+       the accumulator C/D is in **tmem** (``float32``)
    * - dtype
-     - dense A/B (same semantic dtype): ``float16``, ``bfloat16``,
-       ``float8_e4m3fn``, ``float8_e5m2``, ``tensor_float32``, or ``tf32``.
-       ``is_AB_tf32=True`` selects tf32 semantics for ``float32`` A/B storage.
-       Block-scaled A/B: ``float8_e4m3fn`` or ``float4_e2m1fn``, with tmem
-       ``SFA`` / ``SFB`` of ``float8_e8m0fnu`` or ``float8_e4m3fn``.
+     - without ``is_AB_tf32``, dense A/B use the same dtype: ``float16``,
+       ``bfloat16``, ``float8_e4m3fn``, or ``float8_e5m2``. Typical TF32
+       authoring uses ``float32`` buffers with ``is_AB_tf32=True``; the flag
+       replaces both semantic A/B dtypes with ``tf32`` before validation, so
+       the current implementation does not separately validate the underlying
+       storage dtypes or their equality in that mode.
+       Block-scaled A/B: ``float8_e4m3fn`` with tmem ``SFA`` / ``SFB`` of
+       ``float8_e8m0fnu``, or ``float4_e2m1fn`` with matching
+       ``float8_e8m0fnu`` or ``float8_e4m3fn`` scale factors.
        The accumulator is always ``float32``
    * - shape
-     - per-CTA ``M ∈ {64, 128}``; ``N`` divisible by 8 (cta_group=1) or 16
-       (cta_group=2); ``K`` divisible by ``MMA_K`` = 8 (tf32) / 16 (f16/bf16) /
-       32 (fp8) / 64 (fp4). With cta_group=2, the CTA pair covers twice the
-       per-CTA M
+     - the per-CTA M region is tiled by 64- or 128-row instruction blocks;
+       ``N`` is divisible by 8 (cta_group=1) or 16 (cta_group=2), and ``K`` is
+       divisible by ``MMA_K`` = 8 (tf32) / 16 (f16/bf16) / 32 (fp8) / 64
+       (fp4). With cta_group=2, the CTA pair covers twice the per-CTA M
    * - cta_group
      - ``1`` (one CTA) or ``2`` (two CTAs split the operand)
    * - descriptor mode
      - optional ``smem_desc`` controls shared matrix-descriptor construction:
        ``"hoist"`` (default), ``"local_hoist"``, ``"encode"``, or
-       ``"recompute"``.  ``"encode"`` is currently dense-only
+       ``"recompute"``. ``"encode"`` is currently dense-only. Other strings
+       are not rejected and take the descriptor-add path used by hoisting
    * - explicit instruction tile
-     - ``mma_m`` and ``mma_n`` must be supplied together.  They select a
-       hardware-valid physical instruction tile and are checked against the
-       operand and accumulator layouts
+     - ``mma_m`` and ``mma_n`` must be supplied together. ``mma_m`` must equal
+       ``M * cta_group``; ``mma_n`` must divide N exactly; the resulting
+       physical tile is also checked by the tcgen05 hardware-shape validator
    * - instruction descriptor
      - dense MMA always encodes its descriptor in the dispatcher and rejects
        ``descI``.  Block-scaled MMA may accept a pre-encoded uint32 ``descI``
@@ -166,9 +171,12 @@ the caller's ``tcgen05.commit`` + mbarrier wait close it.
 For row-0 schedules, the lowering folds ``Tx.cuda.get_tmem_addr(base, 0, col)`` to
 ``base + col``.  This keeps the generated issue loop close to hand-written
 FlashMLA kernels while preserving the helper call for nonzero row offsets.
-``weight_stationary=True`` selects the ``tcgen05.mma.ws`` ABI.  The dispatcher
-also infers this mode from the packed M=64 Layout-E accumulator and rejects
-layout/flag combinations that would place tensor-memory rows incorrectly.
+On the dense path, ``weight_stationary=True`` with ``cta_group=1`` selects the
+``tcgen05.mma.ws`` ABI.  The PTX table has no ``.ws.cta_group::2`` form.  The
+dispatcher also infers this mode from the packed M=64 Layout-E accumulator and
+rejects layout/flag combinations that would place tensor-memory rows
+incorrectly. Block-scaled MMA uses its own instruction chain and does not append
+``.ws``.
 
 Accumulator datapaths and readback
 ----------------------------------
@@ -185,7 +193,8 @@ Allocate and read a Layout B result as follows:
 
 .. code-block:: python
 
-    accumulator = tmem_pool.alloc((64, N), "float32", datapath="B")
+    accumulator = tmem_pool.alloc_tcgen05_mma_D(
+        (64, N), "float32", M=128, cta_group=2)
     Tx.tile.gemm_async(
         accumulator[:, :],
         A_smem[:, :],
@@ -244,9 +253,11 @@ How inputs change the algorithm
      - present → ``tcgen05.mma.block_scale`` with SFA/SFB tmem scale-factor
        addresses and a runtime-encoded or caller-supplied instruction descriptor
    * - cta_group
-     - ``1`` → one CTA, ``M ∈ {64, 128}``; ``2`` → two CTAs split the operand,
-       each with per-CTA ``M ∈ {64, 128}`` and half of B's logical N extent. The
-       per-CTA M=64 output uses Layout B
+     - ``1`` → one CTA; ``2`` → two CTAs split the operand and each sees half
+       of B's logical N extent.  The selected physical instruction has
+       cluster-wide M of 64/128 for one CTA or 128/256 for two CTAs; larger
+       operand regions are tiled by those instruction blocks.  The per-CTA
+       M=64 output uses Layout B
    * - M / N / K extents
      - set the ``(mi, ni, ki)`` unrolled loop counts; K iterations accumulate into
        the same tmem accumulator.  ``accum=True`` preserves and accumulates the
@@ -265,6 +276,8 @@ How inputs change the algorithm
        1@TCol)])`` are treated as packed ``N/2`` physical columns, matching
        FlashMLA-style low/high accumulator placement.
    * - ``weight_stationary``
-     - selects the ``tcgen05.mma.ws`` form when explicitly true; it is also
-       inferred for the packed M=64 Layout-E accumulator.  The accumulator and
-       A-operand layouts must match that datapath.
+     - on the dense path with ``cta_group=1``, selects the ``tcgen05.mma.ws``
+       form when explicitly true; it is also inferred for the packed M=64
+       Layout-E accumulator. The accumulator and A-operand layouts must match
+       that datapath. The block-scaled path does not append ``.ws``, and the PTX
+       table does not register a ``.ws.cta_group::2`` form.

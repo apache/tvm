@@ -255,7 +255,7 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
 
     acc_psum_shape = (max_psum_banks, p_size, largest_psum_per_bank)
     if "acc_psum" not in op.workspace:
-        assert sctx.alloc_only, "Accumulation psum buffer must be specified in workspace. Run tvm.backend.trn.transform.TrnPrivateBufferAlloc first."  # noqa: E501
+        assert sctx.alloc_only, "Accumulation psum buffer must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateBufferAlloc first."  # noqa: E501
         acc_psum = T.buffer(
                 acc_psum_shape,
                 "float32",

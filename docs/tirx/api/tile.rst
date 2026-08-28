@@ -64,7 +64,12 @@ Operations
 ----------
 
 ``ScopedOp`` objects are callable but are not ordinary Python functions, so
-they are listed explicitly.
+they are listed explicitly.  Autodoc follows each wrapper to its underlying
+builder function, whose signature includes an internal ``scope`` parameter.
+Kernel authors do not pass that parameter directly: choose a scope through
+``Tx.tile.thread`` / ``warp`` / ``wg`` / ``cta`` / ``cluster``. Bound scope
+objects expose a generic ``(*args, **kwargs)`` Python signature and forward to
+the same underlying operation.
 
 .. autofunction:: tvm.tirx.script.tile.add
    :no-index:

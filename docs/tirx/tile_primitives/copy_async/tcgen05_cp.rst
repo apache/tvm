@@ -98,6 +98,9 @@ shape/layout validation happens in the planner with readable errors:
        priority ``10``
    * - scope
      - **single thread** issues the copy
+   * - CTA group
+     - ``cta_group`` is ``1`` (default) or ``2`` and is forwarded to the PTX
+       instruction
    * - memory pair
      - source ``shared*`` → destination ``tmem`` (with ``allocated_addr`` set by
        a prior ``tcgen05.alloc``); both buffers carry layouts and their element

@@ -30,11 +30,13 @@ thread, warp, warpgroup, or CTA scope. It is intentionally slow, so it emits a
 What it accepts
 ---------------
 
-A valid CUDA copy among global, shared, and local memory at thread, warp,
-warpgroup, or CTA scope. The registered predicates check the execution scope,
-the addressable memory pairs, and ``_is_valid_copy`` (layouts present, equal dtype,
-equal non-unit extents). There is no divisibility restriction. It is registered
-at ``priority=0`` so it is the last candidate the dispatcher tries:
+The registered predicate checks only ``_is_valid_copy`` (layouts present, equal
+dtype, and equal non-unit extents); it has no separate execution-scope or
+memory-pair predicate.  The emitter has an unguarded thread path and first-thread
+paths for warp, warpgroup, and CTA scope.  Because its body uses ordinary buffer
+loads and stores, use it with directly addressable global, shared, or local
+buffers.  There is no divisibility restriction. It is registered at
+``priority=0`` so it is the last candidate the dispatcher tries:
 
 .. list-table::
    :header-rows: 1
@@ -45,10 +47,12 @@ at ``priority=0`` so it is the last candidate the dispatcher tries:
    * - priority
      - ``0`` — only reached after the applicable priority-10 variants decline
    * - target / scope
-     - ``cuda``; ``thread`` / ``warp`` / ``warpgroup`` / ``cta``
+     - ``cuda``; the emitter implements ``thread`` / ``warp`` / ``warpgroup`` /
+       ``cta``. The registration itself has no scope-kind filter
    * - memory pair
-     - global / shared / local, in either direction and within the same space;
-       tensor memory is excluded because ordinary buffer loads/stores cannot address it
+     - no registration-time filter; the scalar body is usable for directly
+       addressable global / shared / local buffers. It cannot ordinarily load
+       from or store to tensor memory
    * - dtype / shape
      - ``_is_valid_copy`` only — equal dtype and equal non-unit extents
 

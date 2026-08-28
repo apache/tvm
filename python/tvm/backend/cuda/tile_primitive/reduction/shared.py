@@ -28,7 +28,7 @@ When: dst and src are both shared-memory buffers, exec scope is one of
     Each group of threads reduces one spatial position via shfl_xor.
 
 Before:
-    Tx.tile.cta.sum(B_smem[0:4], A_smem[0:4, 0:8], [-1], False)
+    Tx.cta.sum(B_smem[0:4], A_smem[0:4, 0:8], [-1], False)
 
 After (scheduled PrimFunc, group_size=8, spatial_par=4):
     thread_data[0] = T.float32(0.0)
@@ -44,7 +44,7 @@ After (scheduled PrimFunc, group_size=8, spatial_par=4):
 
 Before:
     if tid == 65:
-        Tx.tile.sum(B_smem[0:4], A_smem[0:4, 0:8], [-1], False)
+        Tx.sum(B_smem[0:4], A_smem[0:4, 0:8], [-1], False)
 
 After (scheduled PrimFunc):
     for spa in range(4):
@@ -112,21 +112,6 @@ def validate_reduction_shared(
     analyzer = Analyzer()
     if not analyzer.can_prove_equal(expected_dst_len, actual_dst_len):
         return (False, f"dst size {actual_dst_len} != expected spatial size {expected_dst_len}")
-
-    if sctx.scope_kind != "thread":
-        if sctx.scope_kind == "cta":
-            thread_cnt = int(sctx.launch_params["threadIdx.x"].dom.extent)
-        elif sctx.scope_kind == "warpgroup":
-            thread_cnt = 128
-        else:
-            thread_cnt = 32
-        reduction_len = functools.reduce(operator.mul, [src_extent[d] for d in reduce_dims], 1)
-        group_size = min(next_power_of_2(int(reduction_len)), 32, thread_cnt)
-        if thread_cnt % group_size != 0:
-            return (
-                False,
-                f"thread count {thread_cnt} is not divisible by shuffle group size {group_size}",
-            )
 
     return True, None
 

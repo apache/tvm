@@ -95,14 +95,21 @@ memory pools.
 .. autoclass:: tvm.backend.cuda.lang.BaseTileScheduler
    :members:
 
-.. autoclass:: tvm.backend.cuda.lang.ClusterPersistentScheduler2D
-   :members:
+.. py:class:: tvm.backend.cuda.lang.ClusterPersistentScheduler2D(prefix, num_m_tiles, num_n_tiles, num_clusters, l2_group_size=8, cluster_m=1, cluster_n=1, serpentine=False)
+
+   Persistent two-dimensional tile scheduler with group-major or serpentine
+   traversal.  ``init`` selects the first tile for a cluster, ``next_tile`` or
+   ``next_tile_stride`` advances it, and ``valid`` reports whether the current
+   ``m_idx`` / ``n_idx`` is in range.
 
 .. autoclass:: tvm.backend.cuda.lang.FlashAttentionLPTScheduler
    :members:
 
-.. autoclass:: tvm.backend.cuda.lang.FlashAttentionLinearScheduler
-   :members:
+.. py:class:: tvm.backend.cuda.lang.FlashAttentionLinearScheduler(prefix, num_batches, num_heads, num_m_blocks, num_ctas)
+
+   Linear persistent scheduler over ``(batch, head, m_block)`` tasks.
+   ``init`` starts from a CTA index, ``next_tile`` advances by ``num_ctas``,
+   and ``valid`` reports whether work remains.
 
 .. autoclass:: tvm.backend.cuda.lang.GroupMajor3D
    :members:
@@ -136,6 +143,15 @@ memory pools.
 
 .. autoclass:: tvm.backend.cuda.lang.TMEMPool
    :members:
+   :exclude-members: alloc
+
+.. py:method:: TMEMPool.alloc(shape, dtype="float32", *, layout=None, cols=None)
+
+   Allocate a tensor-memory buffer from the pool.  ``layout`` supplies an
+   explicit ``TileLayout``; without it, two-dimensional shapes use the default
+   dense layout.  ``cols`` overrides the inferred tensor-memory column count.
+   Datapath-specific accumulators can instead use
+   ``alloc_tcgen05_mma_D(...)`` / ``alloc_tcgen05_mma_C(...)``.
 
 .. autoclass:: tvm.backend.cuda.lang.WarpRole
    :members:

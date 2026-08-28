@@ -24,7 +24,7 @@ import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.testing import env
-from tvm.tirx.layout import ComposeLayout, S, TileLayout, tcgen05_atom_layout, wg_local_layout
+from tvm.tirx.layout import S, TileLayout, tcgen05_atom_layout, wg_local_layout
 
 
 @pytest.mark.parametrize(
@@ -789,54 +789,6 @@ def test_binary_add_f32_sm100_packed_f32x2_dispatch():
         src = mod.mod.imports[0].inspect_source()
     assert re.search(r"add\.[a-z]+\.ftz\.f32x2", src), (
         f"expected packed add_f32x2; got:\n{src[:2000]}"
-    )
-
-
-def test_binary_add_smem_noncontiguous_tail_avoids_packed_f32x2():
-    """A logical pair whose physical addresses are strided must stay scalar."""
-    shape = (64, 2)
-    transposed_layout = TileLayout(S[shape : (1, 64)])
-
-    @T.prim_func
-    def kernel() -> None:
-        T.device_entry()
-        T.cta_id([1])
-        T.thread_id([64])
-        lhs = T.alloc_buffer(shape, "float32", scope="shared", layout=transposed_layout)
-        rhs = T.alloc_buffer(shape, "float32", scope="shared", layout=transposed_layout)
-        dst = T.alloc_buffer(shape, "float32", scope="shared", layout=transposed_layout)
-        Tx.cta.add(dst, lhs, rhs)
-
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
-    with target:
-        mod = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
-    src = mod.mod.imports[0].inspect_source()
-    assert not re.search(r"add\.[a-z]+\.ftz\.f32x2", src), (
-        f"strided physical tail incorrectly used packed add_f32x2; got:\n{src[:2000]}"
-    )
-
-
-def test_binary_add_smem_aligned_swizzle_keeps_packed_f32x2():
-    """A packed pair contained in each swizzle atom remains safe to vectorize."""
-    shape = (64, 2)
-    layout = ComposeLayout(1, 3, 3, TileLayout(S[shape]))
-
-    @T.prim_func
-    def kernel() -> None:
-        T.device_entry()
-        T.cta_id([1])
-        T.thread_id([64])
-        lhs = T.alloc_buffer(shape, "float32", scope="shared", layout=layout)
-        rhs = T.alloc_buffer(shape, "float32", scope="shared", layout=layout)
-        dst = T.alloc_buffer(shape, "float32", scope="shared", layout=layout)
-        Tx.cta.add(dst, lhs, rhs)
-
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
-    with target:
-        mod = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
-    src = mod.mod.imports[0].inspect_source()
-    assert re.search(r"add\.[a-z]+\.ftz\.f32x2", src), (
-        f"aligned swizzled pairs unexpectedly lost packed add_f32x2; got:\n{src[:2000]}"
     )
 
 

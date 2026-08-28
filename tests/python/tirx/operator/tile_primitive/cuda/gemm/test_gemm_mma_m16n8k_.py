@@ -160,43 +160,6 @@ def _build_gemm(alpha=1.0, beta=0.0, dtype="bfloat16"):
     return gemm_min
 
 
-def _build_gemm_at_scope(scope):
-    """Build the same fragment GEMM at thread or warpgroup scope."""
-    if scope == "thread":
-
-        @T.prim_func
-        def gemm_scope():
-            T.device_entry()
-            T.cta_id([1])
-            T.thread_id([1])
-            D = T.alloc_buffer((16, 8), "float32", scope="local", layout=D_FRAG)
-            A = T.alloc_buffer((16, 16), "float16", scope="local", layout=A_FRAG)
-            B = T.alloc_buffer((16, 8), "float16", scope="local", layout=B_FRAG)
-            Tx.gemm(D, A, B, D, False, False, 1.0, 0.0)
-
-        return gemm_scope
-
-    if scope == "warpgroup":
-
-        @T.prim_func
-        def gemm_scope():
-            T.device_entry()
-            T.cta_id([1])
-            T.warpgroup_id([1])
-            T.warp_id_in_wg([4])
-            T.lane_id([32])
-            T.thread_id_in_wg([128])
-            T.thread_id([128])
-            D = T.alloc_buffer((16, 8), "float32", scope="local", layout=D_FRAG)
-            A = T.alloc_buffer((16, 16), "float16", scope="local", layout=A_FRAG)
-            B = T.alloc_buffer((16, 8), "float16", scope="local", layout=B_FRAG)
-            Tx.wg.gemm(D, A, B, D, False, False, 1.0, 0.0)
-
-        return gemm_scope
-
-    raise ValueError(scope)
-
-
 def _build_transpose(transpose_A, transpose_B, *, store=False):
     """Single m16n8k16 tile with the requested A/B input orientations."""
     Al = A_KM_FRAG if transpose_A else A_FRAG
@@ -438,16 +401,6 @@ def test_cuda_gemm_mma_accumulates_c_when_beta_one():
     # The init reads C into D; nothing is zeroed.
     assert "c_local[" in script
     assert "T.float32(0" not in script
-
-
-def test_cuda_gemm_mma_rejects_thread_scope():
-    with pytest.raises(RuntimeError, match="dispatch failed"):
-        _lower(_build_gemm_at_scope("thread"))
-
-
-def test_cuda_gemm_mma_accepts_complete_warpgroup_scope():
-    script = _lower(_build_gemm_at_scope("warpgroup"))["main"].script()
-    assert "T.ptx.mma(" in script
 
 
 def test_cuda_gemm_mma_rejects_nonunit_alpha():

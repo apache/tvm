@@ -128,7 +128,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   // buffer identity divergence and well-formedness violations.
   //
   // Instead, we keep buffer definitions unchanged and rely on used_in_buffer_def_
-  // to prevent inlining Bind vars that appear in buffer definitions.
+  // to prevent inlining LetStmt vars that appear in buffer definitions.
   BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) override { return buffer; }
 
   Expr VisitExpr(const Expr& expr) final {

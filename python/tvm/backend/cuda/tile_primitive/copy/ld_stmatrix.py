@@ -15,16 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Copy dispatch variant for ldmatrix / stmatrix.
+"""copy dispatch variant: ldmatrix / stmatrix (TBD algorithm).
 
 Handles register ↔ shared copies on CUDA via PTX ``ldmatrix`` / ``stmatrix``.
-Direction (ld vs st) and exec scope (warp / warpgroup / CTA) are decided inside
+Direction (ld vs st) and exec scope (warp / warpgroup) are decided inside
 ``_emit`` from the src/dst scopes and ``sctx.scope_kind``.
 """
 
 from math import prod
 
-from tvm import DataType
 from tvm.script import tirx as T
 from tvm.tirx import PrimFunc
 from tvm.tirx.layout import ComposeLayout, S, TileLayout
@@ -58,7 +57,6 @@ def _compute_r_perm(r):
 
 
 def _is_ldstmatrix(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[bool, str | None]:
-    op_call = TilePrimitiveCall.downcast(op_call)
     if not sctx.is_target("cuda"):
         return False, "non-cuda target"
     if sctx.scope_kind not in ("warp", "warpgroup", "cta"):
@@ -71,11 +69,6 @@ def _is_ldstmatrix(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[b
         ok, msg = check()
         if not ok:
             return False, msg
-    if DataType(op_call.src.buffer.dtype).bits != 16:
-        return (
-            False,
-            f"ldmatrix/stmatrix .b16 requires 16-bit elements, got {op_call.src.buffer.dtype}",
-        )
     return True, None
 
 
@@ -110,13 +103,13 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     # parameters so the selected TileLayout can be wrapped again at emit.
     s_swizzle = s_buf.layout if isinstance(s_buf.layout, ComposeLayout) else None
     if s_swizzle is not None and s_swizzle.per_element < 3:
-        # ldmatrix/stmatrix .b16 addresses an 8-element (16-byte) shared row.
-        # The warp distributes that row across lanes (one b32 register per
-        # lane for each x1 tile). The swizzle preserves the lowest
-        # ``per_element`` bits, so require it to preserve the row chunk.
+        # ldmatrix/stmatrix .b16 reads/writes 8 fp16 = 128b per lane in one
+        # contiguous chunk. The swizzle preserves the lowest ``per_element``
+        # bits of the address (in-chunk offset). For the per-lane 128b unit
+        # to stay contiguous post-swizzle, ``2^per_element >= 8`` ⇒ p >= 3.
         fail(
             f"swizzle per_element={s_swizzle.per_element} < 3 incompatible "
-            f"with .b16 ldmatrix/stmatrix (need 16-byte shared-row integrity)"
+            f"with .b16 ldmatrix/stmatrix (need 8-fp16 chunk integrity)"
         )
     s = _extract_tile(s, s_region)
 
@@ -212,9 +205,9 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
             int(it.stride) > 0 and int(it.stride) % 8 == 0 for it in s_num_iters
         ):
             return None
-        # m_outer (seg 3) iters: each per-mm advance must keep each shared-row
-        # address 16-byte aligned (ldmatrix .b16 addresses 8 fp16 = 16 bytes
-        # per shared row), so the m_outer S-stride must also be a multiple of 8.
+        # m_outer (seg 3) iters: each per-mm advance must keep the per-lane
+        # SMEM address 16-byte aligned (ldmatrix .b16 reads 8 fp16 = 16 bytes
+        # per lane), so the m_outer S-stride must also be a multiple of 8.
         # Without this, mm > 0 iterations land at unaligned addresses and
         # silently read garbage even though the layout group succeeds.
         # Skip extent-1 trivial iters — they contribute no per-mm advance,

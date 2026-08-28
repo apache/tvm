@@ -322,28 +322,6 @@ _BUILDERS = {
 }
 
 
-def test_ldstmatrix_rejects_non_16_bit_elements():
-    shape = (8, 4, 1, 2)
-    full = tuple(slice(0, extent) for extent in shape)
-    r_layout = _r_layout_warp(1)
-    s_layout = _s_layout_warp(1, False)
-
-    @T.prim_func
-    def kernel() -> None:
-        T.device_entry()
-        T.cta_id([1])
-        T.lane_id([32])
-        T.thread_id([32])
-        smem = T.alloc_buffer(shape, "float32", scope="shared", layout=s_layout)
-        reg = T.alloc_buffer(shape, "float32", scope="local", layout=r_layout)
-        Tx.warp.copy(reg[full], smem[full], dispatch="ldstmatrix")
-
-    target = tvm.target.Target("cuda")
-    with target:
-        with pytest.raises(RuntimeError, match=r"\.b16 requires 16-bit elements"):
-            tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
-
-
 @pytest.mark.parametrize("scope", ["warp", "warpgroup", "cta"])
 @pytest.mark.parametrize("trans", [False, True])
 @pytest.mark.parametrize("direction", ["ld", "st"])

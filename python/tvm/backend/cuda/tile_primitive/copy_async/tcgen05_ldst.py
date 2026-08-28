@@ -81,7 +81,7 @@ def _match_tcgen05_atom_layout(buf):
 
 
 # Compatibility matrix between the TMEM buffer's datapath layout and the
-# tcgen05 ld/st atom requested by ``Tx.tile.copy_async``:
+# tcgen05 ld/st atom requested by ``T.copy_async``:
 #
 #   datapath x atom              | accepted? | rationale
 #   ---------------------------- | --------- | --------------------------------

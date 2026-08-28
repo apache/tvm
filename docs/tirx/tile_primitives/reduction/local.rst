@@ -53,10 +53,10 @@ What it accepts
        shuffle path; otherwise ``thread_reduce=True`` optionally adds shuffles
        to the general path. Warpgroup scope rejects ``thread_reduce=True``
    * - shape
-     - axes must be in range. At thread scope, flattened dst size must equal the
-       product of the source's non-reduced extents. Wide-scope view reductions
-       instead require matching spatial layout dimensions; reduced dimensions
-       have dst local extent 1
+     - at thread scope the predicate does not inspect axes or compare source and
+       destination sizes; axis analysis and loop construction happen during
+       emit. Wide-scope view reductions require matching spatial layout
+       dimensions; reduced dimensions have dst local extent 1
 
 Demonstration program
 ----------------------
@@ -99,8 +99,8 @@ source has a full-span ``laneid`` shard and the destination has a power-of-two
 ``laneid`` replica, the implementation copies each lane's corresponding local
 values and applies ``Tx.cuda.warp_reduce`` across the replica width. This path is
 selected automatically, independently of ``thread_reduce``; it does not first
-run the general local-axis loop. With ``accum=True``, the reduced value is then
-combined with the old destination.
+run the general local-axis loop. This specialized path does not branch on the
+``accum`` argument, so it overwrites the destination with the shuffle result.
 
 **General warp/warpgroup view path** (``_emit_reduction_local_view``): reduces
 the source's local reduction axes into each destination position. At warp scope,
@@ -148,4 +148,5 @@ How inputs change the algorithm
    * - axes / shape
      - set the spatial vs reduction loop extents
    * - accum
-     - ``True`` reuses the old dst value instead of the identity
+     - thread-wise and general view paths reuse the old dst value as described
+       above; the specialized shard→replica path ignores this flag

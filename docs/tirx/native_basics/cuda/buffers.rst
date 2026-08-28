@@ -385,8 +385,9 @@ matching datapath A–G layout) yourself. This is the sequence the pool below em
 Pool
 ~~~~
 
-``Tx.TMEMPool`` wraps all of that — the warp-uniform alloc/dealloc, the column
-bump-allocation, and the datapath layout:
+``Tx.TMEMPool`` wraps the warp-uniform alloc/dealloc and column bump-allocation.
+Pass an explicit layout to ``alloc``, or use its operand-specific allocation
+helpers when the MMA datapath determines the layout:
 
 .. code-block:: python
 
@@ -395,7 +396,9 @@ bump-allocation, and the datapath layout:
                            tmem_addr=tmem_addr)
     # Choose the layout required by the instruction that consumes the buffer:
     acc = tmem_pool.alloc((CTA_M, 512), "float32")  # Layout D when CTA_M=128
-    # acc = tmem_pool.alloc((64, N), "float32", datapath="B")  # cta_group=2
+    # Layout B: PTX M=128, cta_group=2, 64 logical rows in this CTA.
+    # acc = tmem_pool.alloc_tcgen05_mma_D(
+    #     (64, N), "float32", M=128, cta_group=2)
     tmem_pool.commit()                               # emits tcgen05.alloc (one warp)
     # ... use acc ...
     tmem_pool.dealloc()                              # emits tcgen05.dealloc (one warp)

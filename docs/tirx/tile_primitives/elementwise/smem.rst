@@ -63,8 +63,8 @@ What it accepts
        ``spec.check_extras`` validates the dtype combo
    * - layout
      - operands have layouts. The partition is synthesized from the scope's
-       thread count; dtype, logical innermost extents, and a physically
-       contiguous tail common to all operands bound the scheduling chunk width
+       thread count; dtype, logical innermost region extents, and elements per
+       thread bound the scheduling chunk width
 
 Demonstration program
 ----------------------
@@ -95,9 +95,10 @@ Algorithm
 **2. Synthesize the partition** from the scope's **thread count** (as
 :doc:`../copy/gmem_smem` does): split the region into ``[outer, threads, vec]``.
 The candidate width must divide the elements per thread and every operand's
-logical innermost region extent, and the sliced layouts must expose that many
-physically contiguous elements. For ``32×32 = 1024`` ``float32`` over 256
-threads, ``vec = 4`` ⇒ ``outer = 1``.
+logical innermost region extent. ``_max_layout_vec`` does not inspect physical
+layout strides when choosing this width. For the dense identity layout in this
+example, ``32×32 = 1024`` ``float32`` over 256 threads gives ``vec = 4`` and
+``outer = 1``.
 
 **3. Apply the op per element.** Instead of a copy, each (thread, round) reads its
 ``vec`` elements, applies the op, and writes back — vectorized:
@@ -138,7 +139,8 @@ How inputs change the algorithm
      - unary → ``sqrtf`` / ``expf`` / … per component; binary → the two inputs
        combined (``a + b``); ``fma`` → ``a * b + c``
    * - dtype
-     - bounds the candidate width; region extents and physical layout
-       contiguity can reduce it, changing the round count
+     - bounds the candidate width; elements per thread and logical innermost
+       region extents can reduce it, changing the round count.  The current
+       width selection does not inspect physical layout contiguity
    * - scope
      - sets the thread axis and count, hence the synthesized partition

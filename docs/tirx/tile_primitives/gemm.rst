@@ -51,9 +51,12 @@ What it accepts
    * - Property
      - Requirement
    * - target / scope / priority
-     - ``cuda``; ``warp`` / ``warpgroup`` / ``cta`` with every contained warp
-       complete and un-narrowed (``mma.sync`` itself remains warp-collective);
-       priority ``10``. Thread and cluster scopes are rejected
+     - ``cuda``; priority ``10``. The predicate has no scope-kind allowlist: it
+       requires every axis present in ``sctx.intra`` to be a complete,
+       zero-offset ``laneid`` / ``wid_in_wg`` / ``warpid`` axis. This admits the
+       normal warp / warpgroup / CTA call sites and rejects unrecognized axes
+       such as a cluster axis. ``mma.sync`` remains warp-collective, so callers
+       use a warp or a wider scope made of complete warps
    * - operand scope
      - **A, B, C, D all in registers** (``local``); a shared operand makes the
        dispatch ``fail`` (stage with ldmatrix first)
@@ -64,7 +67,8 @@ What it accepts
        first tries ``m16n8k16`` and then ``m16n8k8``; the selected instruction
        must tile all operand layouts exactly
    * - dtype
-     - inputs ``float16`` / ``bfloat16``; accumulator ``float32``
+     - A and B are both ``float16`` or both ``bfloat16``; C and D are
+       ``float32``
    * - alpha / beta
      - ``alpha == 1.0``; ``beta ∈ {0.0, 1.0}`` (0 → ``D = A@B``; 1 → ``D = A@B + C``)
 
@@ -131,9 +135,9 @@ accumulate over K in place, one ``mma`` per (m, n) tile:
         for n in Tx.unroll(N_tiles):
             for rM, rN in ...: d_local[m, n, rM, rN] = c_local[...] if use_c else Tx.float32(0)
             for k in Tx.unroll(K_tiles):
-                d_ptrs = [d_local.ptr_to([m, n, rM, rN]) for rM in range(2) for rN in range(2)]  # 4 f32
-                a_ptrs = [a_local.ptr_to([m, k, rM, kHi, 0]) for kHi in range(n_kHi) for rM in range(2)]
-                b_ptrs = [b_local.ptr_to([k, n, kHi, 0]) for kHi in range(n_kHi)]
+                d_regs = [d_local[m, n, rM, rN] for rM in range(2) for rN in range(2)]  # 4 f32
+                a_regs = [a_words[m, k, rM, kHi, 0] for kHi in range(n_kHi) for rM in range(2)]
+                b_regs = [b_words[k, n, kHi, 0] for kHi in range(n_kHi)]
                 mma_chain = (f"mma.sync.aligned.{shape_str}.row.col"
                              f".f32.{a_elem}.{b_elem}.f32")
                 Tx.ptx[mma_chain](*d_regs, *a_regs, *b_regs, *d_regs)   # d = a·b + d

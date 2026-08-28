@@ -61,8 +61,9 @@ Primitive catalog
 -----------------
 
 The C++ registry currently defines 31 operation names.  This programming guide
-groups them by purpose; the :doc:`API reference <api/tile>` is the single source
-for their exact Python signatures.
+groups them by purpose; the :doc:`API reference <api/tile>` lists their current
+Python callables and explains the internal ``scope`` parameter exposed by
+introspection.
 
 .. list-table::
    :header-rows: 1
@@ -130,7 +131,7 @@ everything dispatch needs (``python/tvm/tirx/tile_primitive.py``):
      - cooperation scope (default ``thread``)
 
 ``config`` has **no central schema**.  Each dispatch implementation defines and
-validates the keys it consumes.  Some implementations ignore unrelated keys,
+interprets the keys it consumes.  Some implementations ignore unrelated keys,
 while others (notably the TMA variants) reject unknown keys.  Only ``dispatch``
 is interpreted generically by the dispatcher.  The current target
 implementations consume the following keys:
@@ -194,7 +195,7 @@ See also
 --------
 
 - :doc:`layout` — the ``TileLayout`` model dispatch reads from operands.
-- :doc:`api/tile` — exact ``Tx.tile.*`` signatures.
+- :doc:`api/tile` — current ``Tx.tile.*`` callables and introspected signatures.
 - :doc:`arch/tile_dispatch` — dispatch selection, extension points, and the
   target-specific variants for each primitive.
 - :doc:`overview` — execution scope, tensor layout, and tile primitive dispatch

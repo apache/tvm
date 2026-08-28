@@ -54,79 +54,150 @@ class BaseTileScheduler:
 
 
 class ClusterPersistentScheduler2D(BaseTileScheduler):
-    """Tile scheduler for cluster-based persistent kernels.
+    """
+    Tile scheduler for cluster-based persistent kernels.
 
-    Distributes a 2D tile grid across persistent clusters using group-major
-    ordering for L2 cache locality. Each cluster starts at its ``cluster_id``
-    and strides by ``num_clusters`` to process tiles.
+    Distributes a 2D tile grid across persistent clusters using group-major ordering
+    for L2 cache locality. Each cluster starts at its cluster_id and strides by
+    num_clusters to process tiles.
 
-    In group-major mode:
+    Tile Ordering (group-major for L2 locality):
+    - Tiles are grouped into "L2 groups" of `l2_group_size` rows
+    - Within a group, tiles are visited in column-major order within the group
+    - Groups are processed in row-major order
 
-    - Tiles are grouped into ``l2_group_size`` rows.
-    - Tiles within a group are visited in column-major order.
-    - Groups are processed in row-major order.
-
-    For a 4-by-4 grid with ``l2_group_size=2``, the tile numbers are::
-
+    Example with 4x4 tiles, l2_group_size=2:
         Group 0 (rows 0-1):  0  2  4  6
                              1  3  5  7
         Group 1 (rows 2-3):  8 10 12 14
                              9 11 13 15
 
-    With ``serpentine=True``, the grid is divided into
-    ``l2_group_size``-square blocks. Tiles are visited row-major within each
-    block, while blocks alternate traversal direction for reuse of both input
-    tiles.
+    Serpentine Mode (serpentine=True):
+    - Uses CUTLASS-style 2D block swizzle with serpentine traversal
+    - Grid is divided into swizzle_size x swizzle_size blocks
+    - Within each block, tiles are visited in row-major order
+    - Blocks are traversed in serpentine order (even block-rows forward, odd backward)
+    - This provides better L2 locality by reusing both A and B tiles
+
+    Example with 4x4 tiles, swizzle_size=2, serpentine=True:
+        Block layout:
+          Block(0,0)  Block(0,1)
+          Block(1,0)  Block(1,1)
+
+        Tile numbering with serpentine:
+               n=0  n=1  n=2  n=3
+          m=0   0    1   14   15
+          m=1   2    3   12   13
+          m=2   4    5   10   11
+          m=3   6    7    8    9
+
+        Traversal: Block(0,0) -> Block(1,0) -> Block(1,1) -> Block(0,1)
+                   (serpentine: down in col 0, then up in col 1)
 
     Parameters
     ----------
     prefix : str
-        Prefix for TIR variable names.
+        Prefix for TIR variable names
     num_m_tiles : int | T.ExprLike
-        Total number of tiles in the M dimension. May be a runtime expression.
+        Total number of tiles in M dimension (can be runtime expression)
     num_n_tiles : int
-        Total number of tiles in the N dimension.
+        Total number of tiles in N dimension
     num_clusters : int
-        Number of persistent clusters. This determines the traversal stride.
+        Number of persistent clusters (determines stride)
     l2_group_size : int
-        Number of M-tile rows per L2 locality group. With ``serpentine=True``,
-        this is also the 2D-block swizzle size.
+        Number of M-tile rows per L2 locality group (default: 8)
+        When serpentine=True, this is used as swizzle_size for 2D blocks
     cluster_m : int
-        Cluster dimension in M for hierarchical scheduling.
+        Cluster dimension in M for hierarchical scheduling (default: 1)
     cluster_n : int
-        Cluster dimension in N for hierarchical scheduling.
+        Cluster dimension in N for hierarchical scheduling (default: 1)
     serpentine : bool
-        Whether to use CUTLASS-style 2D block swizzle with serpentine traversal.
+        If True, use CUTLASS-style 2D block swizzle with serpentine traversal (default: False)
 
     Attributes
     ----------
     m_idx : T.local_scalar
-        Current M tile index.
+        Current M tile index (output)
     n_idx : T.local_scalar
-        Current N tile index.
+        Current N tile index (output)
     work_idx : T.local_scalar
-        Global work-item index for this cluster.
+        Global work item index for this cluster
     tile_count : T.local_scalar
-        Number of tiles processed by this cluster so far.
+        Number of tiles processed by this cluster so far
+
+    Usage
+    -----
+    ```python
+    scheduler = ClusterPersistentScheduler2D(
+        "sched", num_m_tiles=M_TILES, num_n_tiles=N_TILES,
+        num_clusters=NUM_CLUSTERS, l2_group_size=8
+    )
+    scheduler.init(cluster_id)  # cluster_id = cta_idx // CLUSTER_SIZE
+
+    while scheduler.valid():
+        m = T.meta_var(scheduler.m_idx)  # current M tile
+        n = T.meta_var(scheduler.n_idx)  # current N tile
+        # ... process tile (m, n) ...
+        scheduler.next_tile()
+    ```
 
     Examples
     --------
-    .. code-block:: python
+    Example 1: Basic persistent kernel
+    ```
+    num_m_tiles=4, num_n_tiles=4, num_clusters=3, l2_group_size=2
+    cluster_m=1, cluster_n=1 (default, no tile subdivision)
 
-        scheduler = ClusterPersistentScheduler2D(
-            "sched",
-            num_m_tiles=M_TILES,
-            num_n_tiles=N_TILES,
-            num_clusters=NUM_CLUSTERS,
-            l2_group_size=8,
-        )
-        scheduler.init(cluster_id)
+    Group-major tile numbering (l2_group_size=2):
+           n=0  n=1  n=2  n=3
+      m=0   0    2    4    6   ┐ L2 group 0
+      m=1   1    3    5    7   ┘
+      m=2   8   10   12   14   ┐ L2 group 1
+      m=3   9   11   13   15   ┘
 
-        while scheduler.valid():
-            m = T.meta_var(scheduler.m_idx)
-            n = T.meta_var(scheduler.n_idx)
-            # Process tile (m, n).
-            scheduler.next_tile()
+    Work distribution (cluster starts at cluster_id, strides by num_clusters=3):
+      cluster 0: work_idx 0,3,6,9,12,15  -> tiles 0,3,6,9,12,15
+      cluster 1: work_idx 1,4,7,10,13    -> tiles 1,4,7,10,13
+      cluster 2: work_idx 2,5,8,11,14    -> tiles 2,5,8,11,14
+
+    Tile grid (which cluster handles each tile):
+           n=0  n=1  n=2  n=3
+      m=0   C0   C2   C1   C0   ┐ L2 group 0
+      m=1   C1   C0   C2   C1   ┘
+      m=2   C2   C1   C0   C2   ┐ L2 group 1
+      m=3   C0   C2   C1   C0   ┘
+
+    Tile sequence per cluster (in execution order):
+      cluster 0: (0,0)->(1,1)->(0,3)->(2,0)->(2,3)->(3,3)
+      cluster 1: (1,0)->(0,2)->(1,3)->(2,1)->(3,2)
+      cluster 2: (0,1)->(1,2)->(2,0)->(3,1)->(2,3)
+    ```
+
+    Example 2: 2SM GEMM (typical B200 config)
+    ```
+    M=1024, N=512, CTA_M=128, MMA_N=128, CLUSTER_M=2, CLUSTER_N=1
+    => M_TILES=8, N_TILES=4
+    => CLUSTER_M_TILES=4, CLUSTER_N_TILES=4 (scheduler at cluster granularity)
+
+    Scheduler params:
+      num_m_tiles=4, num_n_tiles=4, num_clusters=74, l2_group_size=8
+      cluster_m=1, cluster_n=1
+
+    Key: Scheduler outputs CLUSTER-level tiles.
+         All CTAs in same cluster get SAME (m_idx, n_idx) from scheduler.
+         CTAs differentiate via cluster_rank (computed OUTSIDE scheduler):
+           cluster_rank = cta_idx % CLUSTER_SIZE
+           cb_m = cluster_rank % CLUSTER_M   # 0 or 1 for 2SM
+           cb_n = cluster_rank // CLUSTER_M  # 0 for 2SM
+
+    Final CTA tile:
+      cta_m = m_idx * CLUSTER_M + cb_m
+      cta_n = n_idx * CLUSTER_N + cb_n
+
+    Example: cluster 5 gets scheduler tile (1,2)
+      CTA rank=0 (cb_m=0): actual tile (2,2)
+      CTA rank=1 (cb_m=1): actual tile (3,2)
+    ```
     """
 
     def __init__(
@@ -588,8 +659,7 @@ class FlashAttentionLinearScheduler(BaseTileScheduler):
     """Linear 3D scheduler for flash attention (batch, head, m_block).
 
     Used for non-causal attention with simple linear decomposition.
-    Maps ``linear_idx`` to ``(batch_idx, head_idx, m_block_idx)`` using::
-
+    Maps linear_idx -> (batch_idx, head_idx, m_block_idx) using:
         batch = linear_idx // (num_heads * num_m_blocks)
         head = (linear_idx % (num_heads * num_m_blocks)) // num_m_blocks
         m_block = linear_idx % num_m_blocks

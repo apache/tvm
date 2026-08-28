@@ -35,14 +35,15 @@ dispatch variants.
      - Lowering
    * - ``vec_16b`` / ``vec_32b`` / ``vec_64b`` / ``vec_128b`` /
        ``vec_256b``
-     - any supported pair
+     - global ↔ shared/local, or shared ↔ local
      - 20
      - explicit thread-scope transfer of exactly the named width; optional
        global-load cache controls
    * - ``vec_auto``: :doc:`copy/gmem_smem` path
      - global ↔ shared
      - 10
-     - synthesized ``[outer, threads, vec]`` partition, vectorized ``copy_Nb``
+     - synthesized ``[outer, threads, vec]`` partition with direct-PTX vector
+       loads and stores
    * - ``vec_auto``: :doc:`copy/reg` path
      - register ↔ shared/global
      - 10
