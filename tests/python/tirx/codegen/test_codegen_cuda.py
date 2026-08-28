@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring
+import gc
 import re
 
 import numpy as np
@@ -69,6 +70,37 @@ def _helper_source(src: str, helper_name: str) -> str:
     if next_helper == -1:
         return src[start:]
     return src[start:next_helper]
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_multi_gpu(), reason="need multiple GPUs")
+def test_cuda_module_destructor_preserves_current_device():
+    torch = pytest.importorskip("torch")
+
+    @T.prim_func
+    def main(A: T.Buffer((1,), "int32")):
+        T.device_entry()
+        tx = T.thread_id([1])
+        if tx == 0:
+            A[0] = A[0] + 1
+
+    _, mod = _get_source(main)
+    original_device = torch.cuda.current_device()
+    try:
+        torch.cuda.set_device(0)
+        data = tvm.runtime.tensor(np.zeros(1, dtype="int32"), device=tvm.cuda(0))
+        mod["main"](data)
+        tvm.cuda(0).sync()
+        del data
+        gc.collect()
+
+        torch.cuda.set_device(1)
+        del mod
+        gc.collect()
+
+        assert torch.cuda.current_device() == 1
+    finally:
+        torch.cuda.set_device(original_device)
 
 
 def test_vector_access_ptr_preserves_packed_offset(monkeypatch):
