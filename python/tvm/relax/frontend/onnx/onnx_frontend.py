@@ -1361,6 +1361,9 @@ class Gather(OnnxOpConverter):
 
             data = bb.normalize(relax.op.shape_to_tensor(data))
 
+        if isinstance(indices, relax.ShapeExpr):
+            indices = bb.normalize(relax.op.shape_to_tensor(indices))
+
         indices_dtype = indices.ty.dtype.dtype
         if not indices_dtype.startswith("uint"):
             data_shape = bb.normalize(relax.op.shape_of(data))

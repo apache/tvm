@@ -1566,6 +1566,33 @@ def test_gather():
     _verify_gather([3, 3], [[0, 2]], [3, 1, 2], ExpectedRank2Axis1, 1)
 
 
+def test_gather_indices_from_shape():
+    """Gather from a tensor using the dimensions of another tensor as indices."""
+    shape_node = helper.make_node("Shape", ["shape_source"], ["indices"])
+    gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=0)
+
+    graph = helper.make_graph(
+        [shape_node, gather_node],
+        "gather_indices_from_shape_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, [4]),
+            helper.make_tensor_value_info("shape_source", TensorProto.FLOAT, [2, 3]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2])],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="gather_indices_from_shape_test",
+        opset_imports=[helper.make_opsetid("", 18)],
+    )
+    input_values = {
+        "data": np.random.randn(4).astype("float32"),
+        "shape_source": np.random.randn(2, 3).astype("float32"),
+    }
+    check_correctness(model, inputs=input_values, opset=18)
+
+
 @pytest.mark.parametrize("index", [0, 2, 3, -1, -4])
 def test_gather_shape_dynamic_index(index):
     """Gather a dimension out of a Shape result using a non-constant index.
