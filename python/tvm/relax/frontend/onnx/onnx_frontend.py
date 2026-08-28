@@ -2662,9 +2662,17 @@ class Softplus(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
-        dtype = inputs[0].ty.dtype
-        threshold = 10.0 if dtype == "float16" else 20.0
-        return relax.op.nn.softplus(inputs[0], threshold=threshold)
+        x = inputs[0]
+        dtype = x.ty.dtype
+        return relax.op.add(
+            relax.op.maximum(x, relax.const(0, dtype)),
+            relax.op.log(
+                relax.op.add(
+                    relax.const(1, dtype),
+                    relax.op.exp(relax.op.negative(relax.op.abs(x))),
+                )
+            ),
+        )
 
 
 class Softsign(OnnxOpConverter):
