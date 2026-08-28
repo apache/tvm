@@ -7881,16 +7881,12 @@ def test_pad_opset18_axes():
         ]
         if axes is not None:
             node_inputs += ["", "axes"]
-            initializer.append(
-                helper.make_tensor("axes", TensorProto.INT64, (len(axes),), axes)
-            )
+            initializer.append(helper.make_tensor("axes", TensorProto.INT64, (len(axes),), axes))
         node = helper.make_node("Pad", inputs=node_inputs, outputs=["y"], mode=mode)
         graph = helper.make_graph(
             [node],
             "pad_opset18_axes",
-            inputs=[
-                helper.make_tensor_value_info("x", TensorProto.FLOAT, list(input_shape))
-            ],
+            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(input_shape))],
             initializer=initializer,
             outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, None)],
         )
