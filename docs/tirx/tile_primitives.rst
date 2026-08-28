@@ -35,33 +35,35 @@ synchronization, and backend intrinsics).
 Calling convention
 ------------------
 
-Tile primitives are normally imported alongside the core TIRx dialect::
+The examples use one TIRx dialect alias and reach tile primitives through its
+``tile`` namespace::
 
-    from tvm.script import tirx as T
-    from tvm.script.tirx import tile as Tx
+    from tvm.script import tirx as Tx
 
 ``Tx`` is an ordinary Python module alias, not an injected language keyword.
-The namespace prefix selects the **cooperation scope**:
+Under ``Tx.tile``, the next namespace prefix selects the **cooperation
+scope**:
 
-- ``Tx.<name>(...)`` — unqualified, runs at **thread** scope.
-- ``Tx.warp.<name>`` / ``Tx.wg.<name>`` (alias ``Tx.warpgroup``) / ``Tx.cta.<name>``
-  / ``Tx.cluster.<name>`` / ``Tx.thread.<name>`` — bind a wider scope.
+- ``Tx.tile.<name>(...)`` — unqualified, runs at **thread** scope.
+- ``Tx.tile.warp.<name>`` / ``Tx.tile.wg.<name>`` (alias
+  ``Tx.tile.warpgroup``) / ``Tx.tile.cta.<name>`` /
+  ``Tx.tile.cluster.<name>`` / ``Tx.tile.thread.<name>`` — bind a wider scope.
 
 Most primitive constructors also carry ``workspace: dict[str, Buffer] | None``,
 ``dispatch: str | None`` (force a named lowering variant), and ``**kwargs``
 collected into a ``config`` dict that tunes the chosen lowering.  ``ScopedOp``
 fills the underlying ``scope`` argument from the namespace prefix; select a
-scope with ``Tx.warp`` / ``Tx.wg`` / ``Tx.cta`` rather than passing it to the
-callable directly. Operands are ``Buffer`` / ``BufferRegion`` values, each
-carrying a :doc:`TileLayout <layout>` that dispatch reads.
+scope with ``Tx.tile.warp`` / ``Tx.tile.wg`` / ``Tx.tile.cta`` rather than
+passing it to the callable directly. Operands are ``Buffer`` / ``BufferRegion``
+values, each carrying a :doc:`TileLayout <layout>` that dispatch reads.
 
 Wiring (four Python/C++ surfaces): the authoritative op list is the C++
 registry (``src/tirx/op/tirx.cc``, 31 ops named ``tirx.tile.<name>``); the IR
 wrapper classes are in ``python/tvm/tirx/operator/tile_primitive/ops.py``; raw
 ``TilePrimitiveCall`` constructors are in
 ``python/tvm/tirx/script/builder/tirx.py``; and the validated, tile-only
-``Tx.*`` facade is in ``python/tvm/tirx/script/tile.py``.  The two Python call
-surfaces construct the same IR node type.
+``Tx.tile.*`` facade is in ``python/tvm/tirx/script/tile.py``.  The two Python
+call surfaces construct the same IR node type.
 
 Primitive catalog
 -----------------
@@ -243,7 +245,7 @@ mutator ``TilePrimitiveDispatcher`` walks the IR and, per call:
 
 #. resolves the ``(inter, intra)`` execution split for the call's scope from the
    active set tracked through control flow (``if wg_id == ...``, ``warp_id``,
-   ``T.cuda.elect_sync()``);
+   ``Tx.cuda.elect_sync()``);
 #. builds a ``DispatchContext`` carrying ``target``, scope, launch params, value
    ranges, and the encoded ``inter``/``intra`` + ``scope_kind``;
 #. invokes the global FFI hook ``tirx.f_op_dispatcher`` (Python) with the call

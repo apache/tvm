@@ -18,47 +18,40 @@
 TIRx TVMScript
 ==============
 
-The TIRx dialect is exposed as ``tvm.script.tirx``.  Kernel authors normally
-use two aliases: ``T`` for core statements, expressions, and backend
-intrinsics, and ``Tx`` for the validated tile-primitive facade::
-
-   from tvm.script import tirx as T
-   from tvm.script.tirx import tile as Tx
-
-These are modules, not fixed language keywords.  Code that prefers a single
-``Tx`` alias can spell the same three API layers as follows::
+The TIRx dialect is exposed as ``tvm.script.tirx``.  The documentation uses
+``Tx`` as its ordinary Python module alias::
 
    from tvm.script import tirx as Tx
 
    # Core TIRx: loops, buffers, scalar expressions, and statements.
    Tx.alloc_buffer(...)
 
-   # High-level tile primitive; equivalent to Tx.copy(...) with split aliases.
+   # High-level tile primitive.
    Tx.tile.copy(...)
 
-   # Direct CUDA instruction dialect; equivalent to T.ptx.* with split aliases.
+   # Direct CUDA instruction dialect.
    Tx.ptx.mbarrier.init.shared.b64(...)
 
 .. list-table:: TIRx script layers
    :header-rows: 1
-   :widths: 24 25 25 26
+   :widths: 22 22 28 28
 
    * - Layer
-     - Split aliases
-     - Single ``Tx`` alias
+     - Authoring API
      - Python implementation
+     - IR constructed
    * - Core TIRx script
-     - ``T.*``
      - ``Tx.*``
      - ``tvm.tirx.script.builder.ir``
+     - TIRx statements and expressions
    * - Tile primitives
-     - ``Tx.*``
      - ``Tx.tile.*``
      - ``tvm.tirx.script.tile``
+     - ``tvm.tirx.TilePrimitiveCall``
    * - Direct CUDA PTX
-     - ``T.ptx.*``
      - ``Tx.ptx.*``
      - ``tvm.backend.cuda.ptx``
+     - ``tirx.ptx.*`` call
 
 ``tvm.script.tirx`` is a syntax and construction frontend for the
 ``tvm.tirx`` object model, not a separate IR.  Core builders create nodes such
@@ -76,14 +69,14 @@ dispatch; see :doc:`ptx`.
 
 .. code-block:: text
 
-   T.* / Tx.* core builders ───────────────▶ TIRx statements and expressions ─┐
-   Tx.* / Tx.tile.* tile facade ─▶ TilePrimitiveCall ─▶ backend dispatch ─────┤
-   T.ptx.* / Tx.ptx.* ─────────────────────▶ tirx.ptx.* Call ─────────────────┤
-                                                                               ▼
-                                                layout/scope cleanup ─▶ lower-level TIRx
-                                                                               │
-                                                                               ▼
-                                                                    later passes + codegen
+   Tx.* core builders ─────────────────▶ TIRx statements and expressions ──────┐
+   Tx.tile.* facade ─▶ TilePrimitiveCall ─▶ backend dispatch ─────────────────┤
+   Tx.ptx.* ────────────────────────────▶ tirx.ptx.* Call ─────────────────────┤
+                                                                                ▼
+                                                 layout/scope cleanup ─▶ lower-level TIRx
+                                                                                │
+                                                                                ▼
+                                                                     later passes + codegen
 
 Parser entry points
 -------------------
@@ -106,8 +99,9 @@ High-level tile primitives
    :no-index:
 
 The scope namespaces bind a tile operation to an execution scope.  For example,
-``Tx.copy(...)`` uses thread scope, while ``Tx.warp.copy(...)``,
-``Tx.wg.copy(...)``, and ``Tx.cta.copy(...)`` request wider cooperation.
+``Tx.tile.copy(...)`` uses thread scope, while ``Tx.tile.warp.copy(...)``,
+``Tx.tile.wg.copy(...)``, and ``Tx.tile.cta.copy(...)`` request wider
+cooperation.
 
 .. autodata:: tvm.tirx.script.tile.thread
    :no-index:

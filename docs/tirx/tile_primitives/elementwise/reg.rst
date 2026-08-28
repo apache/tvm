@@ -74,17 +74,17 @@ A warp takes the elementwise ``sqrt`` of a ``32×8`` ``float32`` register tile
 
     r_layout = TileLayout(S[(32, 8) : (1 @ laneid, 1)]); fs = (slice(0, 32), slice(0, 8))
 
-    @T.prim_func
-    def k(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (32, 8), "float32"); B = T.match_buffer(B_ptr, (32, 8), "float32")
-        T.device_entry(); T.cta_id([1]); T.lane_id([32]); tid = T.thread_id([32])
-        A_smem = T.alloc_buffer((32, 8), "float32", scope="shared", layout=TileLayout(S[(32, 8)]))
-        Tx.warp.copy(A_smem[fs], A[fs]); T.cuda.cta_sync()
-        R = T.alloc_buffer((32, 8), "float32", scope="local", layout=r_layout)
-        Tx.warp.copy(R[fs], A_smem[fs])
-        Tx.warp.sqrt(R[fs], R[fs])          # elementwise reg dispatch
-        Tx.warp.copy(A_smem[fs], R[fs]); T.cuda.cta_sync()
-        Tx.warp.copy(B[fs], A_smem[fs])
+    @Tx.prim_func
+    def k(A_ptr: Tx.handle, B_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, (32, 8), "float32"); B = Tx.match_buffer(B_ptr, (32, 8), "float32")
+        Tx.device_entry(); Tx.cta_id([1]); Tx.lane_id([32]); tid = Tx.thread_id([32])
+        A_smem = Tx.alloc_buffer((32, 8), "float32", scope="shared", layout=TileLayout(S[(32, 8)]))
+        Tx.tile.warp.copy(A_smem[fs], A[fs]); Tx.cuda.cta_sync()
+        R = Tx.alloc_buffer((32, 8), "float32", scope="local", layout=r_layout)
+        Tx.tile.warp.copy(R[fs], A_smem[fs])
+        Tx.tile.warp.sqrt(R[fs], R[fs])          # elementwise reg dispatch
+        Tx.tile.warp.copy(A_smem[fs], R[fs]); Tx.cuda.cta_sync()
+        Tx.tile.warp.copy(B[fs], A_smem[fs])
 
 Algorithm
 ---------
@@ -102,7 +102,7 @@ Generated TIRx IR
 
 .. code-block:: python
 
-    buffer[f] = T.sqrt(buffer_1[f])      # over each register f in the lane's bundle
+    buffer[f] = Tx.sqrt(buffer_1[f])      # over each register f in the lane's bundle
 
 Generated CUDA
 --------------

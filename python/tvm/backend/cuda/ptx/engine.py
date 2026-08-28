@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Generic engine for the ``T.ptx`` table-driven PTX dialect.
+"""Generic engine for the ``Tx.ptx`` table-driven PTX dialect.
 
 One engine interprets every :class:`~.table.InstructionEntry` — there is no
 per-instruction generated or hand-written code:
@@ -22,19 +22,19 @@ per-instruction generated or hand-written code:
 - :func:`register_table` registers each family as a TVM Op
   (``tirx.ptx.<name>``) with effect/printer attrs, plus one generic codegen
   closure that renders the ``asm volatile`` helper from the table.
-- :class:`PTXNamespace` (surfaced as ``T.ptx``) resolves attribute chains
-  such as ``T.ptx.ld.global_.acquire.gpu.b32(addr)`` against the table:
+- :class:`PTXNamespace` (surfaced as ``Tx.ptx``) resolves attribute chains
+  such as ``Tx.ptx.ld.global_.acquire.gpu.b32(addr)`` against the table:
   the first token names the family, every further token fills a modifier
   slot (order-free). Python keywords are escaped with a trailing underscore
   (``global_``); ``::`` is written as a double underscore (``shared__cta``).
-  The string form ``T.ptx["st.weak.shared::cta.b32"]`` preserves exact PTX
+  The string form ``Tx.ptx["st.weak.shared::cta.b32"]`` preserves exact PTX
   text.
 - Modifiers travel as trailing positional string args of the traced Call
   (never ``Call.attrs`` — that would break TVMScript pretty-printing). Call
   arg layout: ``[operands..., pred?] [slot tokens ("" = omitted)]``; the
   codegen derives predication from the arg count. Destinations are ordinary
   leading operands, so a call is always a statement:
-  ``T.ptx.ld.acquire.gpu.global_.b32(val, ptr)``.
+  ``Tx.ptx.ld.acquire.gpu.global_.b32(val, ptr)``.
 """
 
 from tvm.backend.cuda.codegen.registry import register_codegen
@@ -281,7 +281,7 @@ def _make_codegen(entry: InstructionEntry):
 
 
 class _Sink:
-    """``T.ptx.SINK`` -- the ISA's sink symbol ``_`` at one destination lane.
+    """``Tx.ptx.SINK`` -- the ISA's sink symbol ``_`` at one destination lane.
 
     PTX writes the discard at the operand position (`mov.b64 {_, %0}, %1;`),
     so this is written there too. It is a per-call choice rather than a
@@ -304,7 +304,7 @@ SINK = _Sink()
 
 
 class AddrArg:
-    """Temporary trace-time wrapper for ``T.ptx.addr(base, byte_offset)``.
+    """Temporary trace-time wrapper for ``Tx.ptx.addr(base, byte_offset)``.
 
     It deliberately is not a TIR expression. An eligible outer PTX address
     operand supplies the state space, coerces ``base``, and only then creates
@@ -346,7 +346,7 @@ def _coerce_addr_offset(value):
 
 
 class PredArg:
-    """``T.ptx.pred(x)`` -- "this operand is a ``.pred`` register".
+    """``Tx.ptx.pred(x)`` -- "this operand is a ``.pred`` register".
 
     A trace-time tag, never a conversion: ``value`` is handed to the helper
     untouched, and the ``setp`` that turns the carrier into a predicate is
@@ -362,7 +362,7 @@ class PredArg:
     ``tirx.if_then_else``, which takes ``ir.Expr`` operands. Wrap the whole
     expression instead::
 
-        T.ptx.pred(accumulate if k == 0 else 1)   # not T.ptx.pred(x) if ... else ...
+        Tx.ptx.pred(accumulate if k == 0 else 1)   # not Tx.ptx.pred(x) if ... else ...
 
     A bool-typed expression needs no tag at all: its dtype already names the
     class, so ``tx == 0`` and ``True`` are accepted as they are.
@@ -432,7 +432,7 @@ def _coerce_pred_operand(entry, slot, values):
     class (``%p`` vs ``%r``); the carrier that gets it through inline asm is a
     uint32, which is also every integer operand's carrier, so the class has to
     be *evidenced* at the call instead of inferred from the value. That is what
-    ``T.ptx.pred(x)`` is: the declaration, lifted to the call site. Without it
+    ``Tx.ptx.pred(x)`` is: the declaration, lifted to the call site. Without it
     the two `cp.async` syntax lines that differ only in whether their fourth
     operand is a predicate or a byte count would be indistinguishable.
 
@@ -871,7 +871,7 @@ def _narrow(cands, token):
 
 
 class PTXNamespace:
-    """``T.ptx`` — table-driven PTX instruction namespace."""
+    """``Tx.ptx`` — table-driven PTX instruction namespace."""
 
     def __init__(self, table=None):
         if table is None:
@@ -915,7 +915,7 @@ class PTXNamespace:
         return chain
 
     def __getitem__(self, text):
-        """Exact-PTX-text form, e.g. ``T.ptx["st.weak.shared::cta.b32"]``."""
+        """Exact-PTX-text form, e.g. ``Tx.ptx["st.weak.shared::cta.b32"]``."""
         first, _, rest = text.partition(".")
         chain = self._family(first)
         if chain is None:

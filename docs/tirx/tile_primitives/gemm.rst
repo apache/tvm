@@ -78,25 +78,25 @@ accumulate) — one ``m16n8k16`` atom (from ``test_gemm_mma_m16n8k_.py``):
     B_FRAG_K8 = TileLayout(S[(4, 2, 8) : (1 @ laneid, 1, 4 @ laneid)])
     A_FRAG = A_FRAG_K8.tile_to([16, 16], [16, 8]); B_FRAG = B_FRAG_K8.tile_to([16, 8], [8, 8])
 
-    @T.prim_func
-    def gemm(A_ptr: T.handle, B_ptr: T.handle, D_ptr: T.handle):
-        A_g = T.match_buffer(A_ptr, (16, 16), "float16"); B_g = T.match_buffer(B_ptr, (16, 8), "float16")
-        D_g = T.match_buffer(D_ptr, (16, 8), "float32")
-        T.device_entry(); T.cta_id([1]); T.warp_id([1]); lane = T.lane_id([32])
-        A_f = T.alloc_buffer((16, 16), "float16", scope="local", layout=A_FRAG)
-        B_f = T.alloc_buffer((16, 8),  "float16", scope="local", layout=B_FRAG)
-        D_f = T.alloc_buffer((16, 8),  "float32", scope="local", layout=D_FRAG)
+    @Tx.prim_func
+    def gemm(A_ptr: Tx.handle, B_ptr: Tx.handle, D_ptr: Tx.handle):
+        A_g = Tx.match_buffer(A_ptr, (16, 16), "float16"); B_g = Tx.match_buffer(B_ptr, (16, 8), "float16")
+        D_g = Tx.match_buffer(D_ptr, (16, 8), "float32")
+        Tx.device_entry(); Tx.cta_id([1]); Tx.warp_id([1]); lane = Tx.lane_id([32])
+        A_f = Tx.alloc_buffer((16, 16), "float16", scope="local", layout=A_FRAG)
+        B_f = Tx.alloc_buffer((16, 8),  "float16", scope="local", layout=B_FRAG)
+        D_f = Tx.alloc_buffer((16, 8),  "float32", scope="local", layout=D_FRAG)
         A_reg = A_f.local(8)                              # stage A into the lane's 8 regs
-        for s in T.unroll(8):
+        for s in Tx.unroll(8):
             kp, rM, kHi = s % 2, (s // 2) % 2, s // 4
             A_reg[s] = A_g[lane // 4 + 8 * rM, 2 * (lane % 4) + kp + 8 * kHi]
         B_reg = B_f.local(4)                              # stage B into the lane's 4 regs
-        for s in T.unroll(4):
+        for s in Tx.unroll(4):
             kp, kHi = s % 2, s // 2
             B_reg[s] = B_g[2 * (lane % 4) + kp + 8 * kHi, lane // 4]
-        Tx.warp.gemm(D_f, A_f, B_f, D_f, transpose_A=False, transpose_B=False, alpha=1.0, beta=0.0)
+        Tx.tile.warp.gemm(D_f, A_f, B_f, D_f, transpose_A=False, transpose_B=False, alpha=1.0, beta=0.0)
         D_reg = D_f.local(4)                              # write the 4 result regs out
-        for s in T.unroll(4):
+        for s in Tx.unroll(4):
             rN, rM = s % 2, s // 2
             D_g[lane // 4 + 8 * rM, 2 * (lane % 4) + rN] = D_reg[s]
 
@@ -122,16 +122,16 @@ accumulate over K in place, one ``mma`` per (m, n) tile:
 
 .. code-block:: python
 
-    for m in T.unroll(M_tiles):
-        for n in T.unroll(N_tiles):
-            for rM, rN in ...: d_local[m, n, rM, rN] = c_local[...] if use_c else T.float32(0)
-            for k in T.unroll(K_tiles):
+    for m in Tx.unroll(M_tiles):
+        for n in Tx.unroll(N_tiles):
+            for rM, rN in ...: d_local[m, n, rM, rN] = c_local[...] if use_c else Tx.float32(0)
+            for k in Tx.unroll(K_tiles):
                 d_ptrs = [d_local.ptr_to([m, n, rM, rN]) for rM in range(2) for rN in range(2)]  # 4 f32
                 a_ptrs = [a_local.ptr_to([m, k, rM, kHi, 0]) for kHi in range(n_kHi) for rM in range(2)]
                 b_ptrs = [b_local.ptr_to([k, n, kHi, 0]) for kHi in range(n_kHi)]
                 mma_chain = (f"mma.sync.aligned.{shape_str}.row.col"
                              f".f32.{a_elem}.{b_elem}.f32")
-                T.ptx[mma_chain](*d_regs, *a_regs, *b_regs, *d_regs)   # d = a·b + d
+                Tx.ptx[mma_chain](*d_regs, *a_regs, *b_regs, *d_regs)   # d = a·b + d
 
 Generated TIRx IR
 -----------------
@@ -140,7 +140,7 @@ The single 16×8×16 tile lowers to one ``mma`` (4 D regs, 4 A regs, 2 B regs):
 
 .. code-block:: python
 
-    T.ptx["mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32"](
+    Tx.ptx["mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32"](
         d_local[0], d_local[1], d_local[2], d_local[3], a_local[0], ...)
 
 Generated CUDA

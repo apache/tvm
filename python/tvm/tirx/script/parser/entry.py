@@ -91,10 +91,10 @@ class TIRInline(ScriptMacro):
     """Specialization of ScriptMacro for TIR with Python LEGB scoping.
 
     Two definition paths:
-    1. Outside @T.prim_func (standalone @T.inline): definition_depth is None,
+    1. Outside @Tx.prim_func (standalone @Tx.inline): definition_depth is None,
        closure_vars captured at definition time are used (module globals are
        effectively late-bound since they don't change during parsing).
-    2. Inside @T.prim_func (inline def in parsed body): definition_depth is set
+    2. Inside @Tx.prim_func (inline def in parsed body): definition_depth is set
        to the VarTable frame depth at definition time, and defining_var_table
        stores a reference to the VarTable that was active. At call time,
        defining_var_table.get_at_depth(definition_depth) reads current values
@@ -165,23 +165,23 @@ class TIRInline(ScriptMacro):
 def inline(*args, definition_depth: int | None = None, defining_var_table=None) -> Callable:
     """Decorator for inline function definitions with Python LEGB scoping.
 
-    @T.inline follows Python's lexical scoping with late binding:
+    @Tx.inline follows Python's lexical scoping with late binding:
     - At definition time, record which scopes are visible.
     - At call time, read current values from those scopes.
 
     Example::
 
         import tvm
-        from tvm.script import tirx as T
+        from tvm.script import tirx as Tx
 
         x_value = 128
 
-        @T.inline
+        @Tx.inline
         def capture(A, B):
             B[()] = A[x_value]          # x_value resolved from enclosing scope
 
-        @T.prim_func(s_tir=True)
-        def use(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
+        @Tx.prim_func(s_tir=True)
+        def use(A: Tx.Buffer((1024,), "int32"), B: Tx.Buffer((), "int32")) -> None:
             capture(A, B)               # Produces B[()] = A[128]
     """
 
@@ -216,12 +216,12 @@ class TIRJit:
     """Top-level kernel decorator with compile-time ``.specialize()`` params.
 
     Parses the function body lazily: parsing is deferred until ``.specialize()``
-    supplies concrete values for the params annotated as ``T.constexpr``. The
+    supplies concrete values for the params annotated as ``Tx.constexpr``. The
     return type of ``.specialize()`` is a ``tvm.tirx.PrimFunc``, identical in
-    type to what ``@T.prim_func`` produces today.
+    type to what ``@Tx.prim_func`` produces today.
 
     Constexpr params are removed from the resulting PrimFunc's parameter list;
-    their values are baked into the IR (e.g. into ``T.Buffer((M, K), ...)``
+    their values are baked into the IR (e.g. into ``Tx.Buffer((M, K), ...)``
     shape annotations and into the body).
     """
 
@@ -277,8 +277,8 @@ class TIRJit:
         Parameters
         ----------
         **specialization_kwargs
-            One value per ``T.constexpr``-annotated parameter.  A
-            ``T.Optional`` parameter may additionally be supplied as ``None``
+            One value per ``Tx.constexpr``-annotated parameter.  A
+            ``Tx.Optional`` parameter may additionally be supplied as ``None``
             to remove it from the resulting PrimFunc ABI.  Omitting an
             optional parameter keeps it as a normal runtime parameter.
 
@@ -286,7 +286,7 @@ class TIRJit:
         -------
         PrimFunc
             A concrete TIRx PrimFunc, identical in type to the output of
-            ``@T.prim_func``.
+            ``@Tx.prim_func``.
         """
         specializable_names = self.constexpr_names | self.optional_names
         extra = specialization_kwargs.keys() - specializable_names
@@ -352,29 +352,29 @@ def jit(
 ) -> "TIRJit | Callable":
     """Decorator: capture the kernel and defer parsing until ``.specialize()``.
 
-    Use ``@T.jit`` (instead of ``@T.prim_func``) when the kernel takes
-    compile-time parameters annotated with ``T.constexpr`` or runtime
-    parameters that may be removed with ``T.Optional``. The resulting object
+    Use ``@Tx.jit`` (instead of ``@Tx.prim_func``) when the kernel takes
+    compile-time parameters annotated with ``Tx.constexpr`` or runtime
+    parameters that may be removed with ``Tx.Optional``. The resulting object
     exposes ``.specialize(**specialization_kwargs)``, which returns a
     ``tvm.tirx.PrimFunc``.
 
     Example::
 
-        from tvm.script import tirx as T
+        from tvm.script import tirx as Tx
 
-        @T.jit
+        @Tx.jit
         def add(
-            A: T.Buffer((N,), "float32"),
-            B: T.Buffer((N,), "float32"),
+            A: Tx.Buffer((N,), "float32"),
+            B: Tx.Buffer((N,), "float32"),
             *,
-            N: T.constexpr,
+            N: Tx.constexpr,
         ):
             ...
 
         kernel = add.specialize(N=1024)  # returns a PrimFunc
 
-        @T.jit
-        def guarded(optional: T.Optional(T.handle), out: T.handle):
+        @Tx.jit
+        def guarded(optional: Tx.Optional(Tx.handle), out: Tx.handle):
             if optional is not None:
                 ...
 
@@ -463,11 +463,11 @@ class BufferProxy:
     """Buffer proxy class for constructing tirx buffer."""
 
     def __or__(self, other):
-        """Support ``T.Buffer | None`` union syntax in annotations."""
+        """Support ``Tx.Buffer | None`` union syntax in annotations."""
         return self
 
     def __ror__(self, other):
-        """Support ``None | T.Buffer`` union syntax in annotations."""
+        """Support ``None | Tx.Buffer`` union syntax in annotations."""
         return self
 
     def __call__(
@@ -532,7 +532,7 @@ class PtrProxy:
 class _ConstexprProxy:
     """Sentinel marker for compile-time (specialization-time) parameters.
 
-    Used as a parameter annotation in ``@T.jit`` decorated functions to mark
+    Used as a parameter annotation in ``@Tx.jit`` decorated functions to mark
     a parameter as constexpr — its value is supplied to ``.specialize(**kwargs)``
     rather than at call time, and it is removed from the generated PrimFunc's
     runtime parameter list.
@@ -553,14 +553,14 @@ class _OptionalAnnotation:
 
 
 class _OptionalProxy:
-    """Construct an explicit ``T.Optional(...)`` JIT parameter annotation."""
+    """Construct an explicit ``Tx.Optional(...)`` JIT parameter annotation."""
 
     def __call__(self, annotation: Any) -> _OptionalAnnotation:
         return _OptionalAnnotation(annotation)
 
 
 def _is_explicit_optional_annotation(annotation: Any) -> bool:
-    """Recognize deferred ``T.Optional(...)`` without accepting typing unions."""
+    """Recognize deferred ``Tx.Optional(...)`` without accepting typing unions."""
 
     if not isinstance(annotation, str):
         return False

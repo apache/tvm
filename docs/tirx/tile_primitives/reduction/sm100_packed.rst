@@ -65,15 +65,15 @@ A single thread sums a 32-element ``float32`` register vector on ``sm_100a`` (fr
 
 .. code-block:: python
 
-    @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, [32], "float32", layout=TileLayout(S[(32,)]))
-        B = T.match_buffer(B_ptr, [1], "float32", layout=TileLayout(S[(1,)]))
-        T.device_entry(); T.cta_id([1]); T.thread_id([1])
-        A_local = T.alloc_buffer([32], "float32", scope="local")
-        B_local = T.alloc_buffer([1], "float32", scope="local")
-        for i in T.serial(32): A_local[i] = A[i]
-        Tx.sum(B_local, A_local, accum=False)     # -> sm100_packed (len 32 >= 8, fp32, sm100)
+    @Tx.prim_func
+    def test_func(A_ptr: Tx.handle, B_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, [32], "float32", layout=TileLayout(S[(32,)]))
+        B = Tx.match_buffer(B_ptr, [1], "float32", layout=TileLayout(S[(1,)]))
+        Tx.device_entry(); Tx.cta_id([1]); Tx.thread_id([1])
+        A_local = Tx.alloc_buffer([32], "float32", scope="local")
+        B_local = Tx.alloc_buffer([1], "float32", scope="local")
+        for i in Tx.serial(32): A_local[i] = A[i]
+        Tx.tile.sum(B_local, A_local, accum=False)     # -> sm100_packed (len 32 >= 8, fp32, sm100)
         B[0] = B_local[0]
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
@@ -89,10 +89,10 @@ the accumulator ``8 → 4 → 2 → 1`` with three more ``add.f32x2``:
 .. code-block:: python
 
     # final tree (8 -> 4 -> 2 -> 1); mov.b64 packs/unpacks the float2 lanes
-    T.ptx.mov.b64(acc, local_sum[0], local_sum[1])
-    T.ptx.mov.b64(rhs, local_sum[2], local_sum[3])
-    T.ptx.add.rn.ftz.f32x2(acc, acc, rhs)
-    T.ptx.mov.b64(local_sum[0], local_sum[1], acc)
+    Tx.ptx.mov.b64(acc, local_sum[0], local_sum[1])
+    Tx.ptx.mov.b64(rhs, local_sum[2], local_sum[3])
+    Tx.ptx.add.rn.ftz.f32x2(acc, acc, rhs)
+    Tx.ptx.mov.b64(local_sum[0], local_sum[1], acc)
     # ... same for local_sum[4:8], then fold the two halves together ...
     dst[...] = local_sum[0] + local_sum[1]
 
@@ -104,10 +104,10 @@ Generated TIRx IR
 
 .. code-block:: python
 
-    T.ptx.mov.b64(acc, local_sum[0], local_sum[1])
-    T.ptx.mov.b64(rhs, local_sum[2], local_sum[3])
-    T.ptx.add.rn.ftz.f32x2(acc, acc, rhs)                             # ... the 8->4->2->1 tree
-    T.ptx.mov.b64(local_sum[0], local_sum[1], acc)
+    Tx.ptx.mov.b64(acc, local_sum[0], local_sum[1])
+    Tx.ptx.mov.b64(rhs, local_sum[2], local_sum[3])
+    Tx.ptx.add.rn.ftz.f32x2(acc, acc, rhs)                             # ... the 8->4->2->1 tree
+    Tx.ptx.mov.b64(local_sum[0], local_sum[1], acc)
 
 Generated CUDA
 --------------

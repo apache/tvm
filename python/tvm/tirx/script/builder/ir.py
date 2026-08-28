@@ -487,13 +487,13 @@ def match_buffer(
 
     .. code-block:: python
 
-        A = T.match_buffer(a, (128, 128), dtype="float32")
+        A = Tx.match_buffer(a, (128, 128), dtype="float32")
 
     Match buffer from Buffer subregion
 
     .. code-block:: python
 
-        A = T.match_buffer(B[0:128, i * 128 : i * 128 + 128], (128, 128), dtype="float32")
+        A = Tx.match_buffer(B[0:128, i * 128 : i * 128 + 128], (128, 128), dtype="float32")
 
     Parameters
     ----------
@@ -593,16 +593,16 @@ def device_entry() -> None:
     accumulate into an ``AttrStmt("tirx.device_entry", True, body=...)``;
     the wrapping is closed by the PrimFunc frame at function end.
 
-    Anything written before this marker is host code (e.g. ``T.match_buffer``);
+    Anything written before this marker is host code (e.g. ``Tx.match_buffer``);
     anything after is device code.
 
     Example::
 
-        @T.prim_func
+        @Tx.prim_func
         def kernel(...):
-            A = T.match_buffer(...)
-            T.device_entry()           # device region starts here
-            bx = T.cta_id([SM_COUNT])  # standalone scope-id def
+            A = Tx.match_buffer(...)
+            Tx.device_entry()           # device region starts here
+            bx = Tx.cta_id([SM_COUNT])  # standalone scope-id def
             ...
     """
     attr_frame = _ffi_api.DeviceEntry()  # type: ignore[attr-defined] # pylint: disable=no-member
@@ -612,11 +612,11 @@ def device_entry() -> None:
 
 
 def elected():
-    """Stub that rejects the removed ``T.elected()`` sugar.
+    """Stub that rejects the removed ``Tx.elected()`` sugar.
 
     Write the explicit form instead::
 
-        if T.cuda.elect_sync():
+        if Tx.cuda.elect_sync():
             ...                         # thread is the default scope
     """
     raise RuntimeError(
@@ -842,10 +842,10 @@ def alloc_buffer(
 
     Emits an AllocBuffer statement and returns the Buffer directly::
 
-        buf = T.alloc_buffer((128, 128))
+        buf = Tx.alloc_buffer((128, 128))
 
     For SBlock-level buffer allocation (added to SBlock.alloc_buffers),
-    use T.sblock_alloc_buffer() instead.
+    use Tx.sblock_alloc_buffer() instead.
 
     Parameters
     ----------
@@ -920,7 +920,7 @@ def wg_reg_tile(elem_per_thread: int, dtype: str = "float32") -> Buffer:
 
     Sugar for the recurring pattern::
 
-        T.alloc_buffer(
+        Tx.alloc_buffer(
             (128, elem_per_thread), dtype,
             layout=wg_local_layout(elem_per_thread),
             scope="local",
@@ -1220,7 +1220,7 @@ def serial(
         The dtype of the loop variable, either ``"int32"`` or ``"uint32"``. When
         omitted it is inferred from the bounds. Bounds that do not already have this
         dtype are converted (literals are retyped, other expressions get a Cast).
-        Note ``T.thread_binding`` does not support this; its loop var is always int32.
+        Note ``Tx.thread_binding`` does not support this; its loop var is always int32.
 
     Returns
     -------
@@ -1537,14 +1537,14 @@ bind = Bind
 
 
 class LetAnnotation:
-    """Marker for explicit LetStmt. Created by T.let or T.let[type].
+    """Marker for explicit LetStmt. Created by Tx.let or Tx.let[type].
 
     Examples
     --------
     Usage in TVMScript::
 
-        x: T.let[T.int32] = expr   # LetStmt with explicit type
-        x: T.let = expr             # LetStmt with auto-typed RHS
+        x: Tx.let[Tx.int32] = expr   # LetStmt with explicit type
+        x: Tx.let = expr             # LetStmt with auto-typed RHS
     """
 
     def __init__(self, type_spec=None):
@@ -1580,9 +1580,9 @@ let = LetAnnotation()  # Singleton for T.let (no subscript)
 class LocalVectorAnnotation:
     """Marker for local vector/tensor allocation via type annotation subscript.
 
-    Created when a DtypeConstructor is subscripted, e.g. ``T.float32[N]`` or
-    ``T.float32[M, N]``.  The parser's ``visit_ann_assign`` recognises this
-    object and lowers it to ``T.alloc_local(shape=..., dtype=...)``.
+    Created when a DtypeConstructor is subscripted, e.g. ``Tx.float32[N]`` or
+    ``Tx.float32[M, N]``.  The parser's ``visit_ann_assign`` recognises this
+    object and lowers it to ``Tx.alloc_local(shape=..., dtype=...)``.
     """
 
     __slots__ = ("dtype", "shape")
@@ -1597,10 +1597,10 @@ class DtypeConstructor:
 
     Replaces the plain functions previously returned by ``func_gen``.
 
-    * ``T.float32()``        — same FFI call as before (returns ``Var``).
-    * ``T.float32[N]``       — returns ``LocalVectorAnnotation("float32", (N,))``.
-    * ``T.float32[M, N]``    — returns ``LocalVectorAnnotation("float32", (M, N))``.
-    * ``x: T.float32``       — parser calls this object, gets a ``Var``.
+    * ``Tx.float32()``        — same FFI call as before (returns ``Var``).
+    * ``Tx.float32[N]``       — returns ``LocalVectorAnnotation("float32", (N,))``.
+    * ``Tx.float32[M, N]``    — returns ``LocalVectorAnnotation("float32", (M, N))``.
+    * ``x: Tx.float32``       — parser calls this object, gets a ``Var``.
     """
 
     def __init__(self, ffi_name: str, dtype_str: str):
@@ -1664,12 +1664,12 @@ def attr(
 
     Usage 1 — single attr::
 
-        with T.attr(node, key, value):
+        with Tx.attr(node, key, value):
             ...
 
     Usage 2 — dict sugar (node defaults to ``0``)::
 
-        with T.attr({"key1": value1, "key2": value2}):
+        with Tx.attr({"key1": value1, "key2": value2}):
             ...
 
     Parameters
@@ -1719,7 +1719,7 @@ def hint(message: str = "", **attrs) -> frame.HintFrame:
     Returns
     -------
     res : frame.HintFrame
-        Usable as context manager (with T.hint("msg"):) or bare statement (T.hint("msg")).
+        Usable as context manager (with Tx.hint("msg"):) or bare statement (Tx.hint("msg")).
     """
     return _ffi_api.Hint(message, attrs or {})  # type: ignore[attr-defined] # pylint: disable=no-member
 
@@ -1892,7 +1892,7 @@ def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
 
     Sizes the per-thread storage, allocates ``local`` scope memory, and returns
     a 2-D view of shape ``tensor_shape`` with a matching ``tcgen05_atom_layout``.
-    Pass the result to ``Tx.wg.copy_async`` (with a matching TMEM
+    Pass the result to ``Tx.tile.wg.copy_async`` (with a matching TMEM
     buffer) to trigger the corresponding dispatch path.
 
     Parameters
@@ -1918,17 +1918,17 @@ def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
     Examples
     --------
     M=128 readback (existing dispatch):
-        ``frag = T.alloc_tcgen05_ldst_frag("32x32b", (128, 64), "float32")``
-        ``Tx.wg.copy_async(frag[:, :], tmem[:, 0:64])``
+        ``frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (128, 64), "float32")``
+        ``Tx.tile.wg.copy_async(frag[:, :], tmem[:, 0:64])``
 
     M=64 readback (.16x64b dispatch):
-        ``frag = T.alloc_tcgen05_ldst_frag("16x64b", (64, 64), "float32")``
-        ``Tx.wg.copy_async(frag[:, :], tmem[0:64, 0:64])``
+        ``frag = Tx.alloc_tcgen05_ldst_frag("16x64b", (64, 64), "float32")``
+        ``Tx.tile.wg.copy_async(frag[:, :], tmem[0:64, 0:64])``
 
     Datapath B readback (cta_group=2, per-CTA M=64):
         ``C = tmem_pool.alloc((64, 128), "float32", datapath="B")``
-        ``frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, 128), "float32")``
-        ``Tx.wg.copy_async(frag[:, :], C[:, :])``
+        ``frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (64, 128), "float32")``
+        ``Tx.tile.wg.copy_async(frag[:, :], C[:, :])``
     """
     from tvm.tirx.layout import tcgen05_atom_layout  # local import to avoid cycle
 
@@ -1953,10 +1953,10 @@ def alloc_cast_frag(src, dtype):
     """Allocate a register frag holding ``src`` value-cast to ``dtype``.
 
     Inherits ``src``'s logical shape and its ``(lane, register)`` layout — only
-    the element dtype changes — so ``Tx.cast(dst, src)`` is a per-thread
+    the element dtype changes — so ``Tx.tile.cast(dst, src)`` is a per-thread
     element-wise cast with no cross-lane movement. ``.permute(...)`` the result
     to the axis order a downstream consumer (e.g. ``stmatrix`` via
-    ``Tx.copy(dispatch="ldstmatrix")``) expects.
+    ``Tx.tile.copy(dispatch="ldstmatrix")``) expects.
 
     Parameters
     ----------
@@ -2310,9 +2310,9 @@ def launch_thread(
 
     .. code-block:: python
 
-    from tvm.script.ir_builder import tirx as T
-    brow = T.env_thread("blockIdx.y")
-    T.launch_thread(brow, 1)
+    from tvm.script.ir_builder import tirx as Tx
+    brow = Tx.env_thread("blockIdx.y")
+    Tx.launch_thread(brow, 1)
 
     """
 
@@ -2956,7 +2956,7 @@ else:
         return cls
 
     def meta_class(cls):
-        """Decorator for utility classes used inside @T.prim_func.
+        """Decorator for utility classes used inside @Tx.prim_func.
 
         Instances of decorated classes are treated as parser meta values.
         """

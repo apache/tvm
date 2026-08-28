@@ -71,13 +71,13 @@ canonical SF-transpose, from ``test_permute_layout.py``):
     pre  = TileLayout(S[shape : (blk, 128, 32, 1)])   # source
     post = TileLayout(S[shape : (blk, 128, 1, 4)])    # destination (4↔32 transposed)
 
-    @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, shape, dtype, layout=pre)
-        B_buf = T.match_buffer(B, shape, dtype, layout=post)
-        T.device_entry(); T.cta_id([1]); T.thread_id([32])
-        for s in T.serial(0, pipe):
-            Tx.warp.permute_layout(B_buf[s, 0:1, 0:4, 0:32], A_buf[s, 0:1, 0:4, 0:32])
+    @Tx.prim_func
+    def f(A: Tx.handle, B: Tx.handle):
+        A_buf = Tx.match_buffer(A, shape, dtype, layout=pre)
+        B_buf = Tx.match_buffer(B, shape, dtype, layout=post)
+        Tx.device_entry(); Tx.cta_id([1]); Tx.thread_id([32])
+        for s in Tx.serial(0, pipe):
+            Tx.tile.warp.permute_layout(B_buf[s, 0:1, 0:4, 0:32], A_buf[s, 0:1, 0:4, 0:32])
 
 Algorithm
 ---------
@@ -101,17 +101,17 @@ destination layout:
 
 .. code-block:: python
 
-    regs = T.alloc_buffer((P,), dtype, scope="local")
-    for r in T.unroll(0, P):                                   # read via src layout
+    regs = Tx.alloc_buffer((P,), dtype, scope="local")
+    for r in Tx.unroll(0, P):                                   # read via src layout
         j   = r ^ ((lane_id >> shift) & mask)
         idx = decompose(lane_id + j * 32, extent)
         regs[r] = src_buf[project(idx, src_st)]
-    T.cuda.warp_sync()
-    for r in T.unroll(0, P):                                   # write via dst layout
+    Tx.cuda.warp_sync()
+    for r in Tx.unroll(0, P):                                   # write via dst layout
         j   = r ^ ((lane_id >> shift) & mask)
         idx = decompose(lane_id + j * 32, extent)
         dst_buf[project(idx, dst_st)] = regs[r]
-    T.cuda.warp_sync()
+    Tx.cuda.warp_sync()
 
 Generated TIRx IR
 -----------------
@@ -119,9 +119,9 @@ Generated TIRx IR
 .. code-block:: python
 
     regs[r] = A_buf[s*128 + (r ^ ((tx >> 3) & 3)) % 4 * 32 + tx]   # phase 1 (src order)
-    T.cuda.warp_sync()
+    Tx.cuda.warp_sync()
     B_buf[s*128 + tx * 4 + (r ^ ((tx >> 3) & 3)) % 4] = regs[r]    # phase 2 (dst order)
-    T.cuda.warp_sync()
+    Tx.cuda.warp_sync()
 
 Generated CUDA
 --------------

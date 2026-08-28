@@ -31,18 +31,18 @@ shared buffers across several dtypes, plus a vectorized ``float32x4`` load/store
 
 .. code-block:: python
 
-    @T.prim_func
-    def dtypes(A_ptr: T.handle, O_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (256,), "float32")
-        O = T.match_buffer(O_ptr, (256,), "float32")
-        T.device_entry(); bx = T.cta_id([1]); tx = T.thread_id([64])
-        f16  = T.alloc_local((1,), "float16")        # register scalars ...
-        bf16 = T.alloc_local((1,), "bfloat16")
-        i32  = T.alloc_local((1,), "int32")
-        u8   = T.alloc_local((1,), "uint8")
-        b1   = T.alloc_local((1,), "bool")
-        sm   = T.alloc_shared((64,), "float16")      # ... and a shared tile
-        v    = T.alloc_local((1,), "float32x4")      # a vector-dtype register (float4)
+    @Tx.prim_func
+    def dtypes(A_ptr: Tx.handle, O_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, (256,), "float32")
+        O = Tx.match_buffer(O_ptr, (256,), "float32")
+        Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([64])
+        f16  = Tx.alloc_local((1,), "float16")        # register scalars ...
+        bf16 = Tx.alloc_local((1,), "bfloat16")
+        i32  = Tx.alloc_local((1,), "int32")
+        u8   = Tx.alloc_local((1,), "uint8")
+        b1   = Tx.alloc_local((1,), "bool")
+        sm   = Tx.alloc_shared((64,), "float16")      # ... and a shared tile
+        v    = Tx.alloc_local((1,), "float32x4")      # a vector-dtype register (float4)
         v[0] = A.vload([tx * 4], dtype="float32x4")  # vectorized load
         O.vstore([tx * 4], v[0])                     # vectorized store
         # ... (use f16/bf16/i32/u8/b1/sm) ...
@@ -61,7 +61,7 @@ lowers to (generated CUDA, elided):
     v_ptr[0]                  = *(float4*)(A_ptr + tx * 4);   // vectorized load
     *(float4*)(O_ptr + tx * 4) = v_ptr[0];                   // vectorized store
 
-A buffer's dtype can itself be a **vector type**: ``T.alloc_local((1,), "float32x4")``
+A buffer's dtype can itself be a **vector type**: ``Tx.alloc_local((1,), "float32x4")``
 declares a ``float4`` register directly (you index it as ``v[0]``), and a
 ``float32x4`` ``vload`` / ``vstore`` then moves it as one 16-byte access. The vector
 dtype is not tied to ``vload`` — any buffer or scalar can carry it.
@@ -99,10 +99,10 @@ Pointers (``handle``)
 A buffer's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
 **immutable** (a pointer is never reassigned). That shapes how you obtain one:
 
-- ``T.alloc_buffer(...)`` allocates storage **and** defines its ``data`` pointer.
-- ``T.decl_buffer(..., data=ptr)`` declares a buffer over an existing pointer
+- ``Tx.alloc_buffer(...)`` allocates storage **and** defines its ``data`` pointer.
+- ``Tx.decl_buffer(..., data=ptr)`` declares a buffer over an existing pointer
   ``Var`` ``ptr``.
-- To back a buffer with a pointer **expression** — e.g. ``T.ptx.mapa`` giving
+- To back a buffer with a pointer **expression** — e.g. ``Tx.ptx.mapa`` giving
   another cluster CTA's shared address — convert the ``uint64`` address the
   instruction wrote to a pointer with the intended element type and storage
   scope.  Assigning that pointer expression to an unannotated name
@@ -113,11 +113,11 @@ A buffer's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
 
       from tvm.ir.type import PointerType, PrimType
 
-      mapped = T.alloc_local([1], "uint64")
-      T.ptx.mapa.u64(mapped[0], mbar.ptr_to([0]), T.uint32(0))
+      mapped = Tx.alloc_local([1], "uint64")
+      Tx.ptx.mapa.u64(mapped[0], mbar.ptr_to([0]), Tx.uint32(0))
       ptr_ty = PointerType(PrimType("uint64"), "shared")
-      ptr = T.reinterpret(ptr_ty, mapped[0])
-      remote_mbar = T.decl_buffer([1], "uint64", data=ptr, scope="shared")
+      ptr = Tx.reinterpret(ptr_ty, mapped[0])
+      remote_mbar = Tx.decl_buffer([1], "uint64", data=ptr, scope="shared")
 
   Pointer bindings cannot be reassigned; use a new name for a different
   pointer value.

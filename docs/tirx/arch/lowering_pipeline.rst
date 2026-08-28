@@ -77,11 +77,11 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
      - narrows index/loop ``PrimExpr`` dtypes to 32-bit where provably safe
    * - 8
      - ``VectorizeLoop``
-     - turns ``T.vectorized`` loops into vector ops (skipped if
+     - turns ``Tx.vectorized`` loops into vector ops (skipped if
        ``tir.disable_vectorize``)
    * - 9
      - ``UnrollLoop``
-     - unrolls loops marked ``T.unroll`` (and small constant loops)
+     - unrolls loops marked ``Tx.unroll`` (and small constant loops)
    * - 10
      - ``StmtSimplify``
      - simplify again, now that vectorize/unroll exposed constants
@@ -135,7 +135,7 @@ Inside LowerTIRx
 - **``LowerTIRxCleanup``** runs the ``LayoutApplier``: it resolves every
   ``TileLayout``-typed buffer access into concrete physical address arithmetic
   (``addr = data + elem_offset + layout.apply(coord)``), flattens the buffers, and
-  lowers the execution-scope ids (``T.cta_id`` / ``T.thread_id`` / … →
+  lowers the execution-scope ids (``Tx.cta_id`` / ``Tx.thread_id`` / … →
   ``blockIdx`` / ``threadIdx`` via ``launch_thread``).
 
 After ``LowerTIRx`` the module remains a ``tvm.tirx.PrimFunc``, but contains no
@@ -151,23 +151,23 @@ Take a one-line scale kernel:
 
 .. code-block:: python
 
-    @T.prim_func
-    def scale(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (256,), "float32")
-        B = T.match_buffer(B_ptr, (256,), "float32")
-        T.device_entry(); bx = T.cta_id([1]); tx = T.thread_id([256])
-        B[tx] = A[tx] * T.float32(2.0)
+    @Tx.prim_func
+    def scale(A_ptr: Tx.handle, B_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, (256,), "float32")
+        B = Tx.match_buffer(B_ptr, (256,), "float32")
+        Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([256])
+        B[tx] = A[tx] * Tx.float32(2.0)
 
 **After ``LowerTIRx``** the scope ids are real thread axes and the layout is applied
 (``A_1`` / ``B_1`` are the flattened 1-D views):
 
 .. code-block:: python
 
-    with T.launch_thread("blockIdx.x", 1) as blockIdx_x:
-        threadIdx_x = T.launch_thread("threadIdx.x", 256)
-        bx: T.let = blockIdx_x
-        tx: T.let = threadIdx_x
-        B_1[threadIdx_x] = A_1[threadIdx_x] * T.float32(2.0)
+    with Tx.launch_thread("blockIdx.x", 1) as blockIdx_x:
+        threadIdx_x = Tx.launch_thread("threadIdx.x", 256)
+        bx: Tx.let = blockIdx_x
+        tx: Tx.let = threadIdx_x
+        B_1[threadIdx_x] = A_1[threadIdx_x] * Tx.float32(2.0)
 
 **After ``SplitHostDevice`` + ``MakePackedAPI``** the one function has become two —
 a host launcher and a device kernel:

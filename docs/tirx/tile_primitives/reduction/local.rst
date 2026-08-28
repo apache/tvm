@@ -61,15 +61,15 @@ A single thread reduces a 4-element ``float32`` register vector to a scalar
 
 .. code-block:: python
 
-    @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, [4], "float32", layout=TileLayout(S[(4,)]))
-        B = T.match_buffer(B_ptr, [1], "float32", layout=TileLayout(S[(1,)]))
-        T.device_entry(); T.cta_id([1]); T.thread_id([1])
-        A_local = T.alloc_buffer([4], "float32", scope="local")
-        B_local = T.alloc_buffer([1], "float32", scope="local")
-        for i in T.serial(4): A_local[i] = A[i]
-        Tx.sum(B_local, A_local, accum=False)     # reduction local dispatch
+    @Tx.prim_func
+    def test_func(A_ptr: Tx.handle, B_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, [4], "float32", layout=TileLayout(S[(4,)]))
+        B = Tx.match_buffer(B_ptr, [1], "float32", layout=TileLayout(S[(1,)]))
+        Tx.device_entry(); Tx.cta_id([1]); Tx.thread_id([1])
+        A_local = Tx.alloc_buffer([4], "float32", scope="local")
+        B_local = Tx.alloc_buffer([1], "float32", scope="local")
+        for i in Tx.serial(4): A_local[i] = A[i]
+        Tx.tile.sum(B_local, A_local, accum=False)     # reduction local dispatch
         B[0] = B_local[0]
 
 (4 < 8 elements, so this stays on ``local`` rather than the
@@ -91,7 +91,7 @@ reduction loop accumulating the source — no cross-thread communication:
 
 **Warp-shuffle** (``_gen_warp_shuffle_reduce``): when the dst layout has a
 ``laneid`` replica, each lane first reduces its own elements, then
-``T.cuda.warp_reduce`` folds across lanes — a ``__shfl_xor`` tree over the **full**
+``Tx.cuda.warp_reduce`` folds across lanes — a ``__shfl_xor`` tree over the **full**
 ``0xFFFFFFFF`` mask. (This differs from :doc:`shared`, which uses explicit
 ``tvm_warp_shuffle_xor`` steps over ``__activemask()`` at the *group* width.)
 

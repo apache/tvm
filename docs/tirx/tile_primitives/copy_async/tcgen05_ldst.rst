@@ -80,26 +80,26 @@ fp16):
 
     local_view = TileLayout(S[(128, WIDTH) : (1 @ axis_tid_in_wg, 1)])
 
-    @T.prim_func
-    def copy_async_test(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (128, WIDTH), "float16"); B = T.match_buffer(B_ptr, (128, WIDTH), "float16")
-        T.device_entry()
-        warp_id = T.warp_id([4]); wg_id = T.warpgroup_id([1]); tid = T.thread_id([128])
-        tmem_addr = T.alloc_shared([1], "uint32")
+    @Tx.prim_func
+    def copy_async_test(A_ptr: Tx.handle, B_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, (128, WIDTH), "float16"); B = Tx.match_buffer(B_ptr, (128, WIDTH), "float16")
+        Tx.device_entry()
+        warp_id = Tx.warp_id([4]); wg_id = Tx.warpgroup_id([1]); tid = Tx.thread_id([128])
+        tmem_addr = Tx.alloc_shared([1], "uint32")
         if wg_id == 0:
             if warp_id == 0:
-                T.ptx["tcgen05.alloc.cta_group::1.sync.aligned.shared::cta.b32"](
-                    T.address_of(tmem_addr), T.uint32(32))
-            T.tvm_storage_sync("shared")
-            tmem = T.decl_buffer((128, WIDTH), "float16", scope="tmem", allocated_addr=tmem_addr[0],
+                Tx.ptx["tcgen05.alloc.cta_group::1.sync.aligned.shared::cta.b32"](
+                    Tx.address_of(tmem_addr), Tx.uint32(32))
+            Tx.tvm_storage_sync("shared")
+            tmem = Tx.decl_buffer((128, WIDTH), "float16", scope="tmem", allocated_addr=tmem_addr[0],
                                  layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]))
-            A_reg = T.alloc_local((WIDTH,), "float16"); B_reg = T.alloc_local((WIDTH,), "float16")
+            A_reg = Tx.alloc_local((WIDTH,), "float16"); B_reg = Tx.alloc_local((WIDTH,), "float16")
             A_local = A_reg.view(128, WIDTH, layout=local_view)
             B_local = B_reg.view(128, WIDTH, layout=local_view)
             # ... load A into A_reg, zero B_reg, cta_sync ...
-            Tx.wg.copy_async(tmem[:, :], A_local[:, :]); T.ptx.tcgen05.wait__st.sync.aligned()   # store (local -> tmem)
-            T.cuda.cta_sync()
-            Tx.wg.copy_async(B_local[:, :], tmem[:, :]); T.ptx.tcgen05.wait__ld.sync.aligned()   # load  (tmem -> local)
+            Tx.tile.wg.copy_async(tmem[:, :], A_local[:, :]); Tx.ptx.tcgen05.wait__st.sync.aligned()   # store (local -> tmem)
+            Tx.cuda.cta_sync()
+            Tx.tile.wg.copy_async(B_local[:, :], tmem[:, :]); Tx.ptx.tcgen05.wait__ld.sync.aligned()   # load  (tmem -> local)
             # ... write B_reg out; tcgen05.dealloc ...
 
 Algorithm
@@ -149,14 +149,14 @@ Selecting the upper F sub-slab
 
     from tvm.tirx.layout import tmem_datapath_layout
 
-    lower = T.decl_buffer(
+    lower = Tx.decl_buffer(
         (64, cols),
         "float32",
         scope="tmem",
         allocated_addr=tmem_addr[0],
         layout=tmem_datapath_layout("F", 64, cols, sub_slab=0),
     )
-    upper = T.decl_buffer(
+    upper = Tx.decl_buffer(
         (64, cols),
         "float32",
         scope="tmem",
@@ -164,10 +164,10 @@ Selecting the upper F sub-slab
         layout=tmem_datapath_layout("F", 64, cols, sub_slab=1),
     )
 
-    Tx.wg.copy_async(lower_frag, lower)
-    T.ptx.tcgen05.wait__ld.sync.aligned()
-    Tx.wg.copy_async(upper_frag, upper)
-    T.ptx.tcgen05.wait__ld.sync.aligned()
+    Tx.tile.wg.copy_async(lower_frag, lower)
+    Tx.ptx.tcgen05.wait__ld.sync.aligned()
+    Tx.tile.wg.copy_async(upper_frag, upper)
+    Tx.ptx.tcgen05.wait__ld.sync.aligned()
 
 The lower view emits ``row=0`` and the upper view emits ``row=16`` for
 ``.16x64b``, ``.16x128b``, and ``.16x256b`` atoms. Layout D has 128 rows and
@@ -187,14 +187,14 @@ Use the public allocation and fragment APIs together:
 .. code-block:: python
 
     accumulator = tmem_pool.alloc((64, N), "float32", datapath="B")
-    frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
+    frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
 
-    Tx.wg.copy_async(frag[:, :], accumulator[:, :])
-    T.ptx.tcgen05.wait__ld.sync.aligned()
+    Tx.tile.wg.copy_async(frag[:, :], accumulator[:, :])
+    Tx.ptx.tcgen05.wait__ld.sync.aligned()
 
     # The inverse direction emits tcgen05.st with the same physical image.
-    Tx.wg.copy_async(accumulator[:, :], frag[:, :])
-    T.ptx.tcgen05.wait__st.sync.aligned()
+    Tx.tile.wg.copy_async(accumulator[:, :], frag[:, :])
+    Tx.ptx.tcgen05.wait__st.sync.aligned()
 
 This is a single ``tcgen05.{ld,st}.32x32b.x{N/2}`` issue. ``N`` must be
 even, ``N/2`` must be a valid PTX ``num``, and the fragment is fp32-only.
@@ -211,11 +211,11 @@ For the ``128×8`` fp16 tile the layout takes the ``.32x32b`` path with ``num = 
 
 .. code-block:: python
 
-    T.ptx["tcgen05.st.sync.aligned.32x32b.x4.b32"](         # local -> tmem
-        T.uint32(tmem_addr[0]), local_32b[0], local_32b[1], local_32b[2], local_32b[3])
-    T.ptx["tcgen05.ld.sync.aligned.32x32b.x4.b32"](         # tmem -> local
+    Tx.ptx["tcgen05.st.sync.aligned.32x32b.x4.b32"](         # local -> tmem
+        Tx.uint32(tmem_addr[0]), local_32b[0], local_32b[1], local_32b[2], local_32b[3])
+    Tx.ptx["tcgen05.ld.sync.aligned.32x32b.x4.b32"](         # tmem -> local
         local_32b_1[0], local_32b_1[1], local_32b_1[2], local_32b_1[3],
-        T.uint32(tmem_addr[0]))
+        Tx.uint32(tmem_addr[0]))
 
 Generated CUDA
 --------------

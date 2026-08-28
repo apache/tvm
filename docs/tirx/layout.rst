@@ -307,9 +307,9 @@ fragment API:
 
 .. code-block:: python
 
-    frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
-    Tx.wg.copy_async(frag[:, :], paired_accumulator[:, :])
-    T.ptx.tcgen05.wait__ld.sync.aligned()
+    frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
+    Tx.tile.wg.copy_async(frag[:, :], paired_accumulator[:, :])
+    Tx.ptx.tcgen05.wait__ld.sync.aligned()
 
 The logical ``(64, N)`` fragment is one physical ``.32x32b`` transfer over
 all 128 lanes; each thread owns ``N/2`` contiguous fp32 registers.

@@ -21,7 +21,7 @@ TIRx Basics: CUDA C++/PTX native level
 .. note::
 
    Native-level kernel authoring for the **CUDA backend** (the ``"cuda"``
-   target): the thread hierarchy, memory scopes, the ``T.cuda.*`` / ``T.ptx.*``
+   target): the thread hierarchy, memory scopes, the ``Tx.cuda.*`` / ``Tx.ptx.*``
    intrinsics, and the compile / run / inspect loop. The complete kernels in
    these chapters (``scale``, ``add``, ``smem_demo``, ``block_sum``, and the
    warp all-reduce) are tested end-to-end on a CUDA GPU.
@@ -40,21 +40,21 @@ have a primitive yet.
 The authoring model
 -------------------
 
-- ``@T.prim_func`` (or ``@T.jit`` for compile-time-specialized) kernels, written
-  with ``from tvm.script import tirx as T``;
-- ``T.device_entry()`` plus *scope-id* intrinsics for thread binding;
-- ``T.match_buffer`` parameters and ``T.alloc_*`` scratch buffers;
+- ``@Tx.prim_func`` (or ``@Tx.jit`` for compile-time-specialized) kernels, written
+  with ``from tvm.script import tirx as Tx``;
+- ``Tx.device_entry()`` plus *scope-id* intrinsics for thread binding;
+- ``Tx.match_buffer`` parameters and ``Tx.alloc_*`` scratch buffers;
 - ordinary loops, branches, and scalar math;
 - ``tvm.compile(mod, target=..., tir_pipeline="tirx")`` to build, then call the
   result directly.
 
-All native authoring uses these imports. The ``__future__`` import lets ``@T.jit``
+All native authoring uses these imports. The ``__future__`` import lets ``@Tx.jit``
 kernels reference compile-time parameters inside type annotations (see
 :doc:`native_basics/cuda/functions`); it is harmless for ordinary kernels::
 
     from __future__ import annotations
     import tvm
-    from tvm.script import tirx as T
+    from tvm.script import tirx as Tx
 
 .. toctree::
    :maxdepth: 1

@@ -25,18 +25,18 @@ with one block of 256 threads.
 
     import numpy as np
     import tvm
-    from tvm.script import tirx as T
+    from tvm.script import tirx as Tx
 
-    @T.prim_func
-    def scale(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (256,), "float32")
-        B = T.match_buffer(B_ptr, (256,), "float32")
+    @Tx.prim_func
+    def scale(A_ptr: Tx.handle, B_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, (256,), "float32")
+        B = Tx.match_buffer(B_ptr, (256,), "float32")
 
-        T.device_entry()                 # everything below runs on the device
-        bx = T.cta_id([1])               # 1 block  (blockIdx)
-        tx = T.thread_id([256])          # 256 threads per block (threadIdx)
+        Tx.device_entry()                 # everything below runs on the device
+        bx = Tx.cta_id([1])               # 1 block  (blockIdx)
+        tx = Tx.thread_id([256])          # 256 threads per block (threadIdx)
 
-        B[tx] = A[tx] * T.float32(2.0)
+        B[tx] = A[tx] * Tx.float32(2.0)
 
     # compile for CUDA through the TIRx pipeline -> an Executable
     exe = tvm.compile(tvm.IRModule({"main": scale}),

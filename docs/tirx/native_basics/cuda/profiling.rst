@@ -46,7 +46,7 @@ are a plain ``enum.Enum`` whose integer values start at 0 and index a names list
     from enum import Enum
     import numpy as np
     import tvm
-    from tvm.script import tirx as T
+    from tvm.script import tirx as Tx
     from tvm.tirx.bench import CudaProfiler, export_to_perfetto_trace
 
     NUM_BLOCKS, BLOCK, NUM_GROUPS = 4, 128, 1
@@ -61,14 +61,14 @@ are a plain ``enum.Enum`` whose integer values start at 0 and index a names list
 
     EV_NAMES = ["load", "compute", "store"]
 
-    @T.prim_func
-    def profiled_kernel(out_ptr: T.handle, inp_ptr: T.handle, prof_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (N,), "float32")
-        inp = T.match_buffer(inp_ptr, (N,), "float32")
-        prof = T.match_buffer(prof_ptr, (PROF_SIZE,), "uint64")
-        T.device_entry()
-        bid = T.cta_id([NUM_BLOCKS])
-        tid = T.thread_id([BLOCK])
+    @Tx.prim_func
+    def profiled_kernel(out_ptr: Tx.handle, inp_ptr: Tx.handle, prof_ptr: Tx.handle):
+        out = Tx.match_buffer(out_ptr, (N,), "float32")
+        inp = Tx.match_buffer(inp_ptr, (N,), "float32")
+        prof = Tx.match_buffer(prof_ptr, (PROF_SIZE,), "uint64")
+        Tx.device_entry()
+        bid = Tx.cta_id([NUM_BLOCKS])
+        tid = Tx.thread_id([BLOCK])
         idx = bid * BLOCK + tid
 
         # Construct the profiler inside the kernel; only the leader thread writes.
@@ -77,13 +77,13 @@ are a plain ``enum.Enum`` whose integer values start at 0 and index a names list
         p.init(0)                  # group_id = 0; also stamps the buffer header at slot 0
 
         p.start(Ev.Load)
-        x: T.f32 = inp[idx]
+        x: Tx.f32 = inp[idx]
         p.end(Ev.Load)
 
         p.start(Ev.Compute)
-        acc: T.f32 = T.float32(0)
+        acc: Tx.f32 = Tx.float32(0)
         for _ in range(4000):
-            acc = acc * T.float32(1.0001) + x
+            acc = acc * Tx.float32(1.0001) + x
         p.end(Ev.Compute)
 
         p.start(Ev.Store)
@@ -225,10 +225,10 @@ different amounts of compute, so their tracks have different durations:
     p.start(Ev.Compute)
     if tid < 128:
         for _ in range(1000):           # warp-group 0: light
-            acc = acc * T.float32(1.0001) + x
+            acc = acc * Tx.float32(1.0001) + x
     else:
         for _ in range(5000):           # warp-group 1: heavy
-            acc = acc * T.float32(1.0001) + x
+            acc = acc * Tx.float32(1.0001) + x
     p.end(Ev.Compute)
 
 ::
@@ -264,7 +264,7 @@ track:
 What each call wraps
 --------------------
 
-The methods are thin wrappers around the ``T.cuda.timer_*`` intrinsics, which
+The methods are thin wrappers around the ``Tx.cuda.timer_*`` intrinsics, which
 lower to small ``__device__`` helpers emitted into the generated CUDA. The
 profiler keeps two per-thread ``"local"`` scratch slots — the running tag and
 write cursor — and every record is written by:

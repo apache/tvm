@@ -248,7 +248,7 @@ def cuda_thread_rank():
     referencing user-declared scope_id vars. For example, the idiomatic
     mbarrier.init leader predicate is::
 
-        T.cuda.thread_rank() == 0
+        Tx.cuda.thread_rank() == 0
 
     Returns
     -------
@@ -438,7 +438,7 @@ def ptx_cp_async_legacy(*all_args):
     Offsets are folded into the pointers via ``tvm_access_ptr`` and the call
     lowers through the raw ``tirx.s_tir.cp_async_raw`` op.
 
-    ``T.s_tir.cp_async_raw.legacy`` runs through ``_dtype_forward`` which
+    ``Tx.s_tir.cp_async_raw.legacy`` runs through ``_dtype_forward`` which
     prepends a ``dtype=`` kwarg as a leading positional. The dtype names
     the *element* type of the buffer (offsets are in elements of that
     dtype, not bytes), so this function accepts either 5 or 6 positional
@@ -511,7 +511,7 @@ def ptx_legacy_mma(*all_args, operator=None):
     * ``(accumulator, c_index)`` → folded; passed for both ``d_ptr`` and
       ``c_ptr`` since the accumulator is reused as the output.
 
-    ``T.ptx_legacy.mma`` runs through ``_dtype_forward`` which prepends a
+    ``Tx.ptx_legacy.mma`` runs through ``_dtype_forward`` which prepends a
     ``dtype=`` kwarg as a leading positional, so this function accepts
     either 13 or 14 positional args.
     """
@@ -672,7 +672,7 @@ def ptx_legacy_ldmatrix(*all_args):
     smem_offset)``. Offsets are folded into the pointers via
     ``tvm_access_ptr``.
 
-    ``T.ptx_legacy.ldmatrix`` runs through ``_dtype_forward`` which
+    ``Tx.ptx_legacy.ldmatrix`` runs through ``_dtype_forward`` which
     prepends a ``dtype=`` kwarg as a leading positional naming the buffer
     element type — offsets are in elements of that dtype, not bytes, so
     we forward it to ``tvm_access_ptr`` for correct scaling.

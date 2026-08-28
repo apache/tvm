@@ -18,7 +18,7 @@
 Buffers and memory
 ==================
 
-Parameter buffers are bound with ``T.match_buffer``; scratch buffers are created
+Parameter buffers are bound with ``Tx.match_buffer``; scratch buffers are created
 in the body with one of two declaration APIs (below). Index a buffer with
 ``A[i, j]``, slice it with ``A[m0:m0+BM, 0:BK]`` (a ``BufferRegion``), and take a
 pointer with ``A.ptr_to([i, j])`` or the raw data pointer ``A.data``.
@@ -28,11 +28,11 @@ Declaring buffers
 
 Two fundamental APIs create a buffer:
 
-- ``T.alloc_buffer(shape, dtype, scope=..., ...)`` — **allocates new storage**
-  (emits an ``AllocBuffer`` node) and returns the ``Buffer``. ``T.alloc_shared`` /
-  ``T.alloc_local`` are just ``alloc_buffer`` with ``scope="shared"`` /
+- ``Tx.alloc_buffer(shape, dtype, scope=..., ...)`` — **allocates new storage**
+  (emits an ``AllocBuffer`` node) and returns the ``Buffer``. ``Tx.alloc_shared`` /
+  ``Tx.alloc_local`` are just ``alloc_buffer`` with ``scope="shared"`` /
   ``scope="local"``.
-- ``T.decl_buffer(shape, dtype, data=..., ...)`` — **declares a view** over an
+- ``Tx.decl_buffer(shape, dtype, data=..., ...)`` — **declares a view** over an
   existing pointer ``data`` (no allocation); use it to alias or reinterpret
   storage — a sub-region of a pool, or a tensor-memory address. With ``data=None``
   it allocates, like ``alloc_buffer``.
@@ -76,13 +76,13 @@ The ``scope`` argument selects the memory space:
      - (default)
      - device global memory
    * - ``"shared"``
-     - ``T.alloc_shared``
+     - ``Tx.alloc_shared``
      - static shared memory (``__shared__``)
    * - ``"shared.dyn"``
      - (pool)
      - dynamic shared memory (pooled — see below)
    * - ``"local"``
-     - ``T.alloc_local``
+     - ``Tx.alloc_local``
      - per-thread registers
    * - ``"tmem"``
      - (TMEM pool)
@@ -90,10 +90,10 @@ The ``scope`` argument selects the memory space:
 
 .. code-block:: python
 
-    A = T.match_buffer(A_ptr, (M, K), "float16", align=16)   # parameter buffer
-    As = T.alloc_shared((BM, BK), "float16")                 # new shared tile
-    acc = T.alloc_local((4,), "float32")                     # register accumulator
-    view = T.decl_buffer((BM, BK), "float16", data=As.data)  # a view over As
+    A = Tx.match_buffer(A_ptr, (M, K), "float16", align=16)   # parameter buffer
+    As = Tx.alloc_shared((BM, BK), "float16")                 # new shared tile
+    acc = Tx.alloc_local((4,), "float32")                     # register accumulator
+    view = Tx.decl_buffer((BM, BK), "float16", data=As.data)  # a view over As
 
 **A ptr-based buffer is just metadata over a pointer.** For any non-tmem buffer,
 the declaration is a pointer plus a layout, and indexing resolves to an address::
@@ -109,10 +109,10 @@ arithmetic depending purely on the buffer's metadata. Writing
 
     from tvm.tirx.layout import TileLayout, S
 
-    B = T.match_buffer(p, (4, 8), "float32")                                       # row-major
-    B = T.match_buffer(p, (4, 8), "float32", layout=TileLayout(S[(4, 8):(1, 4)]))  # column-major
-    B = T.match_buffer(p, (4, 8), "float32", elem_offset=64)                       # shifted view
-    B = T.match_buffer(p, (4, 8), "float32", layout=TileLayout(S[(4, 8):(16, 1)])) # row stride 16
+    B = Tx.match_buffer(p, (4, 8), "float32")                                       # row-major
+    B = Tx.match_buffer(p, (4, 8), "float32", layout=TileLayout(S[(4, 8):(1, 4)]))  # column-major
+    B = Tx.match_buffer(p, (4, 8), "float32", elem_offset=64)                       # shifted view
+    B = Tx.match_buffer(p, (4, 8), "float32", layout=TileLayout(S[(4, 8):(16, 1)])) # row stride 16
 
 each makes ``B[i, j]`` lower to a different index in the generated CUDA (the
 ``A[i, j]`` load stays ``i*8 + j`` — only ``B``'s metadata changed):
@@ -133,23 +133,23 @@ Shared memory comes in two flavors — **static** (fixed at compile time) and
 Static
 ~~~~~~
 
-The simplest shared buffer is a **static** one — ``T.alloc_shared`` (that is,
+The simplest shared buffer is a **static** one — ``Tx.alloc_shared`` (that is,
 ``scope="shared"``), sized at compile time. Stage data into it, ``cta_sync`` so the
 whole block sees the writes, then read it back:
 
 .. code-block:: python
 
-    @T.prim_func
-    def smem_demo(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (128,), "float32")
-        B = T.match_buffer(B_ptr, (128,), "float32")
-        T.device_entry()
-        bx = T.cta_id([1])
-        tx = T.thread_id([128])
-        sm = T.alloc_shared((128,), "float32")   # static shared memory
+    @Tx.prim_func
+    def smem_demo(A_ptr: Tx.handle, B_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, (128,), "float32")
+        B = Tx.match_buffer(B_ptr, (128,), "float32")
+        Tx.device_entry()
+        bx = Tx.cta_id([1])
+        tx = Tx.thread_id([128])
+        sm = Tx.alloc_shared((128,), "float32")   # static shared memory
         sm[tx] = A[tx]
-        T.cuda.cta_sync()
-        B[tx] = sm[tx] * T.float32(2.0)
+        Tx.cuda.cta_sync()
+        B[tx] = sm[tx] * Tx.float32(2.0)
 
 It lowers to a plain ``__shared__`` array (generated CUDA, boilerplate elided):
 
@@ -158,9 +158,9 @@ It lowers to a plain ``__shared__`` array (generated CUDA, boilerplate elided):
     extern "C" __global__ void __launch_bounds__(128)
     smem_demo_kernel(float* __restrict__ A_ptr, float* __restrict__ B_ptr) {
       int tx = ((int)threadIdx.x);
-      __shared__ alignas(64) float sm_ptr[128];      // T.alloc_shared
+      __shared__ alignas(64) float sm_ptr[128];      // Tx.alloc_shared
       sm_ptr[tx] = A_ptr[tx];
-      __syncthreads();                               // T.cuda.cta_sync()
+      __syncthreads();                               // Tx.cuda.cta_sync()
       B_ptr[tx] = sm_ptr[tx] * 2.0f;
     }
 
@@ -170,17 +170,17 @@ Dynamic
 **Dynamic** shared memory (``scope="shared.dyn"``) is sized per launch (the
 ``sharedMemBytes`` launch parameter), not at compile time. A kernel may have **only
 one** dynamic-shared allocation — the *arena*. So you allocate it once and ``decl``
-each buffer as a view into it: ``T.decl_buffer`` with ``data=`` the arena pointer
+each buffer as a view into it: ``Tx.decl_buffer`` with ``data=`` the arena pointer
 and an ``elem_offset``:
 
 .. code-block:: python
 
-    arena = T.alloc_buffer((128,), "float32", scope="shared.dyn")   # the one arena
-    As = T.decl_buffer((64,), "float32", data=arena.data, scope="shared.dyn")                 # offset 0
-    Bs = T.decl_buffer((64,), "float32", data=arena.data, elem_offset=64, scope="shared.dyn") # offset 64
+    arena = Tx.alloc_buffer((128,), "float32", scope="shared.dyn")   # the one arena
+    As = Tx.decl_buffer((64,), "float32", data=arena.data, scope="shared.dyn")                 # offset 0
+    Bs = Tx.decl_buffer((64,), "float32", data=arena.data, elem_offset=64, scope="shared.dyn") # offset 64
     As[tx] = A[tx]
     Bs[tx] = B[tx]
-    T.cuda.cta_sync()
+    Tx.cuda.cta_sync()
     C[tx] = As[tx] + Bs[tx]
 
 Both views share the single ``extern __shared__`` arena (generated CUDA,
@@ -213,7 +213,7 @@ with views decl'd at offsets inside it.
        "tirx.kernel_launch_params": ["blockIdx.x", "threadIdx.x", "tirx.use_dyn_shared_memory"]
 
        # host-side launch call  (..., gridDim.x, blockDim.x, dyn_shared_bytes):
-       T.call_packed("dyn_kernel", A.data, B.data, C.data, 1, 64, 512)
+       Tx.call_packed("dyn_kernel", A.data, B.data, C.data, 1, 64, 512)
 
    At run time that ``512`` becomes ``config.sharedMemBytes`` in the
    ``cuLaunchKernelEx`` call. You never set it by hand — it is derived from the
@@ -222,14 +222,14 @@ with views decl'd at offsets inside it.
 Pool sugar
 ~~~~~~~~~~
 
-``T.SMEMPool`` automates that arena bookkeeping — it bump-allocates the offsets so
+``Tx.SMEMPool`` automates that arena bookkeeping — it bump-allocates the offsets so
 you don't ``decl`` views by hand. Beyond ``alloc`` / ``commit``, it offers
 per-buffer ``align=``, an ``alloc_mma`` helper that builds an MMA-compatible
 swizzle layout for you, and ``move_base_to`` to rewind the cursor and reuse space:
 
 .. code-block:: python
 
-    pool = T.SMEMPool()                          # bump allocator over shared.dyn
+    pool = Tx.SMEMPool()                          # bump allocator over shared.dyn
     As = pool.alloc((BM, BK), "float16", align=128)   # carve a tile
     Bs = pool.alloc((BK, BN), "float16", align=128)
     Cs = pool.alloc_mma((BM, BN), "float16")     # MMA-compatible, swizzle inferred
@@ -241,14 +241,14 @@ The TMEM pool (`Tensor memory`_, below) is layered on top of an ``SMEMPool``.
 Registers
 ---------
 
-Per-thread scratch lives in registers. Allocate it with ``T.alloc_local(shape,
+Per-thread scratch lives in registers. Allocate it with ``Tx.alloc_local(shape,
 dtype)`` (i.e. ``scope="local"``): it is private to each thread and lowers to a
 local array kept in registers.
 
 .. code-block:: python
 
-    r = T.alloc_local((4,), "float32")   # per-thread register array
-    for k in T.unroll(4):
+    r = Tx.alloc_local((4,), "float32")   # per-thread register array
+    for k in Tx.unroll(4):
         r[k] = A[tx, k]
     # ... compute on r[0..3] ...
 
@@ -281,7 +281,7 @@ separate concept. You can allocate a size-1 ``local`` buffer and index ``[0]``:
 
 .. code-block:: python
 
-    phase = T.alloc_local((1,), "int32")   # 1-element register array
+    phase = Tx.alloc_local((1,), "int32")   # 1-element register array
     phase[0] = 0
     while phase[0] < 4:
         acc = acc + A[tx, phase[0]]
@@ -292,44 +292,44 @@ this — a one-element register buffer you read and write **by name**:
 
 .. code-block:: python
 
-    phase: T.int32 = 0                 # mutable scalar (sugar for the above)
+    phase: Tx.int32 = 0                 # mutable scalar (sugar for the above)
     while phase < 4:
         acc = acc + A[tx, phase]
         phase += 1
 
-    s = T.local_scalar("int32")        # explicit form; assign by name (s = ..., not s[0])
-    acc: T.float32 = 0.0               # a type-annotated assignment also makes one
+    s = Tx.local_scalar("int32")        # explicit form; assign by name (s = ..., not s[0])
+    acc: Tx.float32 = 0.0               # a type-annotated assignment also makes one
 
 The two are not just similar — they parse to **structurally identical TIRx**. The
-sugar is resolved entirely in the parser: ``phase: T.int32`` *is* that one-element
+sugar is resolved entirely in the parser: ``phase: Tx.int32`` *is* that one-element
 ``local`` buffer, and ``phase`` / ``phase += 1`` *are* ``phase[0]`` /
 ``phase[0] += 1``. ``tvm.ir.assert_structural_equal`` on the two kernels passes, and
 the printer even renders the explicit ``alloc_local`` + ``[0]`` form **back** as the
 scalar form — so once parsing is done there is no difference at all. Both therefore
 lower to the same ``alignas(64) int phase_ptr[1];``; the scalar just lets you drop
-the ``[0]``. (``T.local_scalar`` / ``T.shared_scalar`` / ``T.alloc_scalar`` choose
+the ``[0]``. (``Tx.local_scalar`` / ``Tx.shared_scalar`` / ``Tx.alloc_scalar`` choose
 the scope explicitly.)
 
 .. note::
 
    **Why not a** ``Var``\ **?** A TIRx ``Var`` is *immutable* — a single static
-   binding (it is exactly what ``T.let`` produces, below). A scalar needs to be
+   binding (it is exactly what ``Tx.let`` produces, below). A scalar needs to be
    *mutable* — you reassign it in loops and accumulators — so it must be backed by a
    one-element buffer you can store into repeatedly, not a ``Var``.
 
 ``let``
 ~~~~~~~
 
-A ``T.let`` binding is **immutable** — a single ``LetStmt`` (a named value, not a
+A ``Tx.let`` binding is **immutable** — a single ``LetStmt`` (a named value, not a
 buffer). Use it for derived constants:
 
 .. code-block:: python
 
-    n: T.let = M * K               # immutable binding (LetStmt)
-    half: T.let[T.int32] = N // 2  # ... with an explicit type
+    n: Tx.let = M * K               # immutable binding (LetStmt)
+    half: Tx.let[Tx.int32] = N // 2  # ... with an explicit type
 
 It lowers to a **plain scalar C variable** — not a buffer (no array, no ``[0]``).
-For ``half: T.let = m * 2`` (with a runtime ``m``):
+For ``half: Tx.let = m * 2`` (with a runtime ``m``):
 
 .. code-block:: c++
 
@@ -356,11 +356,11 @@ Tensor memory
 -------------
 
 Blackwell *tensor memory* is not a plain scratch scope: it must be explicitly
-reserved and freed with the warp-uniform ``T.ptx.tcgen05.alloc`` /
+reserved and freed with the warp-uniform ``Tx.ptx.tcgen05.alloc`` /
 ``tcgen05.dealloc`` intrinsics, and each tensor is a view into it declared with
-``T.decl_buffer(..., scope="tmem", allocated_addr=<column>, layout=<tmem layout>)``.
+``Tx.decl_buffer(..., scope="tmem", allocated_addr=<column>, layout=<tmem layout>)``.
 The ``allocated_addr`` (a column offset) is mandatory — the tensor-core dispatch
-asserts it — so ``T.alloc_buffer(scope="tmem")`` (which does **not** set it) will not
+asserts it — so ``Tx.alloc_buffer(scope="tmem")`` (which does **not** set it) will not
 work. Unlike shared memory, tensor memory is not directly addressable: it is read
 and written only through ``tcgen05`` ``mma`` / ``ld`` / ``st`` / ``cp``.
 
@@ -369,17 +369,17 @@ tensor as a view at a column offset, and one warp frees it at the end:
 
 .. code-block:: python
 
-    addr = T.alloc_shared((1,), "uint32")             # slot for the allocated base
+    addr = Tx.alloc_shared((1,), "uint32")             # slot for the allocated base
     if warp_id == alloc_warp:                         # tcgen05.alloc is warp-uniform
-        T.ptx[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
-            T.address_of(addr), T.uint32(512))
-    acc = T.decl_buffer((CTA_M, 512), "float32", scope="tmem",
+        Tx.ptx[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
+            Tx.address_of(addr), Tx.uint32(512))
+    acc = Tx.decl_buffer((CTA_M, 512), "float32", scope="tmem",
                         allocated_addr=0, layout=tmem_layout)   # view at column 0
     # ... use acc as a gemm_async / copy_async operand ...
     if warp_id == alloc_warp:
-        T.ptx[f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned"]()
-        T.ptx[f"tcgen05.dealloc.cta_group::{cta_group}.sync.aligned.b32"](
-            addr, T.uint32(512))
+        Tx.ptx[f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned"]()
+        Tx.ptx[f"tcgen05.dealloc.cta_group::{cta_group}.sync.aligned.b32"](
+            addr, Tx.uint32(512))
 
 You manage the column offsets and the ``tmem_layout`` (a datapath D/F/B layout)
 yourself. This is exactly the sequence the pool below emits.
@@ -387,13 +387,13 @@ yourself. This is exactly the sequence the pool below emits.
 Pool
 ~~~~
 
-``T.TMEMPool`` wraps all of that — the warp-uniform alloc/dealloc, the column
+``Tx.TMEMPool`` wraps all of that — the warp-uniform alloc/dealloc, the column
 bump-allocation, and the datapath layout:
 
 .. code-block:: python
 
     tmem_addr = pool.alloc((1,), "uint32")          # pool = the kernel's smem pool
-    tmem_pool = T.TMEMPool(pool, total_cols=512, cta_group=cta_group,
+    tmem_pool = Tx.TMEMPool(pool, total_cols=512, cta_group=cta_group,
                            tmem_addr=tmem_addr)
     # Choose the layout required by the instruction that consumes the buffer:
     acc = tmem_pool.alloc((CTA_M, 512), "float32")  # Layout D when CTA_M=128
@@ -439,7 +439,7 @@ to an intrinsic or inline function; ``data`` is the base pointer:
 
 .. code-block:: python
 
-    B[tx] = T.cuda.func_call("ld", A.ptr_to([tx]), source_code=SRC, return_type="float32")
+    B[tx] = Tx.cuda.func_call("ld", A.ptr_to([tx]), source_code=SRC, return_type="float32")
 
 .. code-block:: c++
 
@@ -489,7 +489,7 @@ no shape infers a one-dimensional shape from the logical storage size:
 
 .. code-block:: python
 
-    R  = T.alloc_buffer((32, 8), "float32", scope="local", layout=TileLayout(S[(32, 8) : (1 @ laneid, 1)]))
+    R  = Tx.alloc_buffer((32, 8), "float32", scope="local", layout=TileLayout(S[(32, 8) : (1 @ laneid, 1)]))
     R_flat = R.local()       # this lane's 8 registers, physical order
     R_2d = R.local(2, 4)     # the same registers, row-major 2x4 reshape
 

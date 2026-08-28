@@ -82,23 +82,23 @@ into a tmem accumulator, after TMA-loading A/B into shared (from
     from tvm.tirx.layout import S, TCol, TLane, TileLayout, tid_in_wg as axis_tid_in_wg
     from tvm.backend.cuda.tile_primitive.tma_utils import mma_shared_layout
 
-    A_smem = T.alloc_buffer((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
-    B_smem = T.alloc_buffer((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
-    tmem_addr = T.alloc_shared([1], "uint32"); mma_mbar = T.alloc_shared([1], "uint64")
+    A_smem = Tx.alloc_buffer((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
+    B_smem = Tx.alloc_buffer((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
+    tmem_addr = Tx.alloc_shared([1], "uint32"); mma_mbar = Tx.alloc_shared([1], "uint64")
     # ... mbarrier.init, cta_sync ...
     if warp_id == 0:
-        T.ptx["tcgen05.alloc.cta_group::1.sync.aligned.shared::cta.b32"](
-            T.address_of(tmem_addr), T.uint32(512))
-    T.cuda.cta_sync()
-    tmem = T.decl_buffer((128, 512), "float32", scope="tmem", allocated_addr=tmem_addr[0],
+        Tx.ptx["tcgen05.alloc.cta_group::1.sync.aligned.shared::cta.b32"](
+            Tx.address_of(tmem_addr), Tx.uint32(512))
+    Tx.cuda.cta_sync()
+    tmem = Tx.decl_buffer((128, 512), "float32", scope="tmem", allocated_addr=tmem_addr[0],
                          layout=TileLayout(S[(128, 512) : (1 @ TLane, 1 @ TCol)]))
     # ... TMA-load A_smem, B_smem from global, wait ...
     if tid_in_wg == 0:
-        Tx.gemm_async(tmem[0:128, 256:384], A_smem[1:2, :, :], B_smem[2:3, :, :], dispatch="tcgen05")
+        Tx.tile.gemm_async(tmem[0:128, 256:384], A_smem[1:2, :, :], B_smem[2:3, :, :], dispatch="tcgen05")
         # caller signals completion
-        T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
+        Tx.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
             mma_mbar.ptr_to([0]))
-    T.cuda.mbarrier_wait(mma_mbar.ptr_to([0]), 0)
+    Tx.cuda.mbarrier_wait(mma_mbar.ptr_to([0]), 0)
     # ... tcgen05.fence.after_thread_sync(); read tmem back via tcgen05.ld; dealloc ...
 
 Algorithm
@@ -119,8 +119,8 @@ swizzle mode).  ``smem_desc`` selects where that descriptor comes from:
 
 .. code-block:: python
 
-    T.cuda.tcgen05.encode_matrix_descriptor(descA.data, A_smem.ptr_to([0]), ldo, sdo, swizzle)
-    T.cuda.tcgen05.encode_matrix_descriptor(descB.data, B_smem.ptr_to([0]), ldo, sdo, swizzle)
+    Tx.cuda.tcgen05.encode_matrix_descriptor(descA.data, A_smem.ptr_to([0]), ldo, sdo, swizzle)
+    Tx.cuda.tcgen05.encode_matrix_descriptor(descB.data, B_smem.ptr_to([0]), ldo, sdo, swizzle)
 
 **2. Choose the MMA tile.** ``M_mma × N_mma`` are chosen to tile ``M``/``N`` (with
 ``MMA_K`` set by dtype: 16 f16/bf16, 32 fp8, 64 fp4); a compile-time *instruction
@@ -132,8 +132,8 @@ the tmem accumulator (``enable_input_d`` turns accumulation on for ``ki > 0``):
 .. code-block:: python
 
     mma_chain = f"tcgen05.mma.cta_group::{cta_group}.kind::{kind}"
-    T.ptx[mma_chain](
-        T.cast(T.cuda.get_tmem_addr(tmem_addr, mi * M_mma, tmem_col), "uint32"),  # C in tmem
+    Tx.ptx[mma_chain](
+        Tx.cast(Tx.cuda.get_tmem_addr(tmem_addr, mi * M_mma, tmem_col), "uint32"),  # C in tmem
         smem_desc_add_16B_offset(descA, a_off), descB_val, descI,    # A / B descriptors
         *zero_masks,                                                 # disabled output lanes
         ki != 0,                                                     # accumulate over K
@@ -145,7 +145,7 @@ instruction descriptor is encoded at runtime. As with the other async ops, the
 dispatch emits **no** completion — the caller's ``tcgen05.commit`` + mbarrier wait
 close it.
 
-For row-0 schedules, the lowering folds ``T.cuda.get_tmem_addr(base, 0, col)`` to
+For row-0 schedules, the lowering folds ``Tx.cuda.get_tmem_addr(base, 0, col)`` to
 ``base + col``.  This keeps the generated issue loop close to hand-written
 FlashMLA kernels while preserving the helper call for nonzero row offsets.  When
 ``weight_stationary=True`` is passed, the flag is forwarded to the PTX wrapper so
@@ -167,7 +167,7 @@ Allocate and read a Layout B result as follows:
 .. code-block:: python
 
     accumulator = tmem_pool.alloc((64, N), "float32", datapath="B")
-    Tx.gemm_async(
+    Tx.tile.gemm_async(
         accumulator[:, :],
         A_smem[:, :],
         B_smem[:, :],
@@ -175,9 +175,9 @@ Allocate and read a Layout B result as follows:
         cta_group=2,
     )
 
-    frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
-    Tx.wg.copy_async(frag[:, :], accumulator[:, :])
-    T.ptx.tcgen05.wait__ld.sync.aligned()
+    frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
+    Tx.tile.wg.copy_async(frag[:, :], accumulator[:, :])
+    Tx.ptx.tcgen05.wait__ld.sync.aligned()
 
 The fragment is a logical ``(64, N)`` view of one physical
 ``.32x32b`` transfer over all 128 lanes. The gemm write-side layout and
@@ -191,10 +191,10 @@ For the ``128×64 × 64×128`` fp16 tile (swizzle mode 3):
 
 .. code-block:: python
 
-    T.cuda.tcgen05.encode_matrix_descriptor(T.address_of(descA[0]), T.address_of(A_smem[0]), 64, 64, 3)
-    T.cuda.tcgen05.encode_matrix_descriptor(T.address_of(descB[0]), T.address_of(B_smem[0]), 64, 64, 3)
-    T.ptx["tcgen05.mma.cta_group::1.kind::f16"](
-        T.cast(T.cuda.get_tmem_addr(tmem_addr[0], mi * 128, 256 + ni * 128), "uint32"), ...)
+    Tx.cuda.tcgen05.encode_matrix_descriptor(Tx.address_of(descA[0]), Tx.address_of(A_smem[0]), 64, 64, 3)
+    Tx.cuda.tcgen05.encode_matrix_descriptor(Tx.address_of(descB[0]), Tx.address_of(B_smem[0]), 64, 64, 3)
+    Tx.ptx["tcgen05.mma.cta_group::1.kind::f16"](
+        Tx.cast(Tx.cuda.get_tmem_addr(tmem_addr[0], mi * 128, 256 + ni * 128), "uint32"), ...)
 
 Generated CUDA
 --------------

@@ -81,24 +81,23 @@ A warp (32 threads) copies a ``32×32`` ``float32`` tile global → shared and b
 
 .. code-block:: python
 
-    from tvm.script import tirx as T
-    from tvm.script.tirx import tile as Tx
+    from tvm.script import tirx as Tx
     from tvm.tirx.layout import S, TileLayout
 
     shape, dtype = (32, 32), "float32"
     s_layout = TileLayout(S[shape])
     fs = (slice(0, 32), slice(0, 32))
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, shape, dtype)
-        B = T.match_buffer(B_ptr, shape, dtype)
-        T.device_entry()
-        T.cta_id([1]); T.lane_id([32]); T.thread_id([32])
-        A_smem = T.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
-        Tx.warp.copy(A_smem[fs], A[fs])   # global -> shared  (this dispatch)
-        T.cuda.cta_sync()
-        Tx.warp.copy(B[fs], A_smem[fs])   # shared -> global  (this dispatch)
+    @Tx.prim_func
+    def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, shape, dtype)
+        B = Tx.match_buffer(B_ptr, shape, dtype)
+        Tx.device_entry()
+        Tx.cta_id([1]); Tx.lane_id([32]); Tx.thread_id([32])
+        A_smem = Tx.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
+        Tx.tile.warp.copy(A_smem[fs], A[fs])   # global -> shared  (this dispatch)
+        Tx.cuda.cta_sync()
+        Tx.tile.warp.copy(B[fs], A_smem[fs])   # shared -> global  (this dispatch)
 
 Algorithm
 ---------
@@ -118,7 +117,7 @@ from that check.) For ``float32`` that is ``vec = 4`` (``4 × 4 B = 16 B = 128 b
 giving ``outer = 1024 / (32 × 4) = 8``.
 
 **3. Emit a serial loop** (``vec_auto_gmem_smem.py``) — deliberately a Python ``for`` (so
-ptxas unrolls it), *not* ``T.unroll``:
+ptxas unrolls it), *not* ``Tx.unroll``:
 
 .. code-block:: python
 
@@ -128,48 +127,47 @@ ptxas unrolls it), *not* ``T.unroll``:
         s_ptr = _ptr_off(s_buf.ptr_to(s_zero), s_off)
         g_ptr = _ptr_off(g_buf.ptr_to(g_zero), g_lin)
         if g_is_src:
-            copy_op(s_ptr, g_ptr)     # global -> shared
+            Tx.ptx[ld_g](*[tmp[i] for i in range(lanes)], g_ptr)
+            Tx.ptx[st_s](s_ptr, *[tmp[i] for i in range(lanes)])
         else:
-            copy_op(g_ptr, s_ptr)     # shared -> global
+            Tx.ptx[ld_s](*[tmp[i] for i in range(lanes)], s_ptr)
+            Tx.ptx[st_g](g_ptr, *[tmp[i] for i in range(lanes)])
 
 Each ``(f, tid, 0)`` coordinate is flattened by ``layout.apply`` against
 ``[outer, threads, vec]``, so the emit never needs to know how the partition split
-the iters; ``copy_op`` is ``T.cuda.copy_{vec_bits}b`` (here ``copy_128b``).
+the iters.  ``ld_g``, ``st_s``, ``ld_s``, and ``st_g`` are registered direct-PTX
+forms selected for the memory direction and vector width.  A 128-bit transfer uses
+four ``uint32`` registers and the ``v4.u32`` forms.
 
 Generated TIRx IR
 -----------------
 
-Running ``LowerTIRx`` on the program above turns each ``Tx.warp.copy`` into the
+Running ``LowerTIRx`` on the program above turns each ``Tx.tile.warp.copy`` into the
 synthesized loop (global → shared shown, trimmed):
 
 .. code-block:: python
 
-    tid: T.let = threadIdx_x % 32
-    A_smem = T.alloc_shared((1024,))
+    tid: Tx.let = threadIdx_x % 32
+    A_smem = Tx.alloc_shared((1024,))
+    tmp = Tx.alloc_local((4,), "uint32")
     for f in range(8):                              # outer = 8
         s_lin = f * 128 + tid * 4                   # 32 threads × vec 4 = 128 / round
         g_lin = f * 128 + tid * 4
         s_ptr = pointer_offset(A_smem, s_lin)
         g_ptr = pointer_offset(A_1, g_lin)          # A_1 = A.view(1024)
-        T.cuda.copy_bytes(s_ptr, g_ptr, 16)         # 16 B = vec 4 × 4 B
+        Tx.ptx.ld.global_.v4.u32(tmp[0], tmp[1], tmp[2], tmp[3], g_ptr)
+        Tx.ptx.st.shared.v4.u32(s_ptr, tmp[0], tmp[1], tmp[2], tmp[3])
 
-Generated CUDA
---------------
+Generated PTX instructions
+--------------------------
 
-.. code-block:: c++
+The CUDA code generator emits one vector load and one vector store per round::
 
-    extern "C" __global__ void __launch_bounds__(32)
-    kernel_kernel(float* __restrict__ A_ptr, float* __restrict__ B_ptr) {
-      int tid = ((int)threadIdx.x);
-      __shared__ alignas(64) float A_smem_ptr[1024];
-      for (int f = 0; f < 8; ++f) {
-        int   s_off = (f * 128) + (tid * 4);
-        void* s_ptr = tvm_builtin_pointer_offset(&A_smem_ptr[0], s_off);
-        void* g_ptr = tvm_builtin_pointer_offset(&A_ptr[0],      s_off);
-        tvm_builtin_copy_128b(s_ptr, g_ptr);        // 128-bit vector load+store
-      }
-      // ... __syncthreads(); then the shared -> global loop into B_ptr ...
-    }
+    ld.global.v4.u32 {r0, r1, r2, r3}, [g_ptr];
+    st.shared.v4.u32 [s_ptr], {r0, r1, r2, r3};
+
+The shared-to-global direction uses ``ld.shared.v4.u32`` followed by
+``st.global.v4.u32``.
 
 Thread ``tid`` handles elements ``[f·128 + tid·4 .. +4)`` each round; across 8
 rounds and 32 lanes that covers all 1024 elements, each as one 128-bit transfer.
@@ -186,19 +184,19 @@ aligned), which sets the round count. For the same ``32×32`` tile and 32 thread
 
    * - dtype
      - ``vec``
-     - ``copy_bytes``
+     - transfer width
      - ``outer = 1024 / (32 · vec)``
    * - ``float32``
      - 4
-     - 16 (``copy_128b``)
+     - 16 B (``v4.u32``)
      - 8
    * - ``float16``
      - 8
-     - 16 (``copy_128b``)
+     - 16 B (``v4.u32``)
      - 4
    * - ``uint8``
      - 16
-     - 16 (``copy_128b``)
+     - 16 B (``v4.u32``)
      - 2
 
 The **scope** sets which axis names the thread id (``warp`` → ``laneid``,

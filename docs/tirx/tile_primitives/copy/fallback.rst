@@ -65,15 +65,15 @@ divisible by ``32``, so this falls through to ``fallback`` (from
     s_layout = TileLayout(S[shape])
     full = (slice(0, 4), slice(0, 6))
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, shape, dtype)
-        B = T.match_buffer(B_ptr, shape, dtype)
-        T.device_entry(); T.cta_id([1]); T.lane_id([32]); T.thread_id([32])
-        A_smem = T.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
-        Tx.warp.copy(A_smem[full], A[full])    # fallback
-        T.cuda.cta_sync()
-        Tx.warp.copy(B[full], A_smem[full])    # fallback
+    @Tx.prim_func
+    def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, shape, dtype)
+        B = Tx.match_buffer(B_ptr, shape, dtype)
+        Tx.device_entry(); Tx.cta_id([1]); Tx.lane_id([32]); Tx.thread_id([32])
+        A_smem = Tx.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
+        Tx.tile.warp.copy(A_smem[full], A[full])    # fallback
+        Tx.cuda.cta_sync()
+        Tx.tile.warp.copy(B[full], A_smem[full])    # fallback
 
 Algorithm
 ---------
@@ -100,12 +100,12 @@ skips it. For ``thread`` scope there is only one thread, so no guard is emitted:
                 _copy_body(dst, src)
 
 **2. Scalar nested loop over the region.** ``_copy_body`` iterates the non-unit
-extents with ``T.grid`` and copies one element per step — no vectorization, no
+extents with ``Tx.grid`` and copies one element per step — no vectorization, no
 partition:
 
 .. code-block:: python
 
-    with T.grid(*copy_extents) as lvs:        # copy_extents = non-unit dst extents
+    with Tx.grid(*copy_extents) as lvs:        # copy_extents = non-unit dst extents
         dst[_dst_coord(lvs)] = src[_src_coord(lvs)]
 
 Generated TIRx IR
@@ -116,7 +116,7 @@ Generated TIRx IR
 .. code-block:: python
 
     if tid == 0:                              # first_tid (lane 0 for this warp scope)
-        for v_3, v_4 in T.grid(4, 6):
+        for v_3, v_4 in Tx.grid(4, 6):
             A_smem[v_3, v_4] = A[v_3, v_4]
 
 Generated CUDA
@@ -152,7 +152,7 @@ The **scope** decides who runs the loop:
      - only ``first_tid`` (the scope's first thread = lane base + warp offset); all
        other threads skip
 
-The **shape** sets the ``T.grid`` bounds (the non-unit extents); the loop body is
+The **shape** sets the ``Tx.grid`` bounds (the non-unit extents); the loop body is
 always one scalar element copy, regardless of dtype. There is no vectorization, so
 performance does not depend on dtype width — this variant exists for correctness,
 not speed.

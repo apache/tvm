@@ -41,7 +41,7 @@ can be proven statically:
 
 .. code-block:: python
 
-    Tx.copy_async(
+    Tx.tile.copy_async(
         A_smem[:, :],
         A[tile_m : tile_m + 64, tile_k : tile_k + 64],
         dispatch="tma_auto",
@@ -88,13 +88,13 @@ are only known at runtime.
 * Buffer data plus ``elem_offset`` becomes the TensorMap base.
 
 It never regroups, compresses, promotes, shrinks, or splits a copy.  One
-``Tx.copy_async`` call emits exactly one TMA instruction, so a caller must
+``Tx.tile.copy_async`` call emits exactly one TMA instruction, so a caller must
 explicitly tile a wider transfer:
 
 .. code-block:: python
 
-    for atom in T.unroll(8):
-        Tx.copy_async(
+    for atom in Tx.unroll(8):
+        Tx.tile.copy_async(
             O[:, atom * 64 : (atom + 1) * 64],
             O_smem[:, atom * 64 : (atom + 1) * 64],
             dispatch="tma_explicit",
@@ -115,7 +115,7 @@ coordinates in ``{column, row0, row1, row2, row3}`` order:
 
 .. code-block:: python
 
-    Tx.copy_async(
+    Tx.tile.copy_async(
         K_smem[0:4, :],
         K[0:1, :],
         dispatch="tma_explicit",
@@ -135,7 +135,7 @@ the main operand's region and gather coordinates:
 
 .. code-block:: python
 
-    Tx.copy_async(
+    Tx.tile.copy_async(
         K_smem[0:4, :],
         K_main[0:1, :],
         dispatch="tma_explicit",

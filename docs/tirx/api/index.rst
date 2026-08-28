@@ -19,13 +19,7 @@ API Reference
 =============
 
 Python APIs for the TIRx IR, TVMScript dialect, compilation pipeline, and
-backend extension points.  Most examples use separate aliases for the core
-TIRx dialect and its high-level tile primitives::
-
-   from tvm.script import tirx as T
-   from tvm.script.tirx import tile as Tx
-
-The same surfaces can be reached through a single dialect alias: core TIRx is
+backend extension points.  The examples use one ``Tx`` alias: core TIRx is
 ``Tx.*``, tile primitives are ``Tx.tile.*``, and CUDA's direct instruction
 dialect is ``Tx.ptx.*``::
 

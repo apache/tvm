@@ -18,13 +18,14 @@
 Backend APIs
 ============
 
-The CUDA backend — the tile-primitive dispatch, intrinsic builders, the ``T.cuda``
-/ ``T.ptx`` script namespaces, and the shared/tensor-memory pools — lives under
-``tvm.backend.cuda``, separate from the TIRx frontend (``tvm.tirx``). Trainium
-support follows the same ownership model under ``tvm.backend.trn``.  Load hooks
-in ``tvm.backend`` register a backend's script namespaces, compilation pipeline,
-target tags, and tile-primitive implementations.  See :doc:`ptx` for the
-user-facing direct PTX instruction surface and how it differs from ``T.cuda``.
+The CUDA backend — the tile-primitive dispatch, intrinsic builders, the
+``Tx.cuda`` / ``Tx.ptx`` script namespaces, and the shared/tensor-memory pools —
+lives under ``tvm.backend.cuda``, separate from the TIRx frontend
+(``tvm.tirx``). Trainium support follows the same ownership model under
+``tvm.backend.trn``.  Load hooks in ``tvm.backend`` register a backend's script
+namespaces, compilation pipeline, target tags, and tile-primitive
+implementations.  See :doc:`ptx` for the user-facing direct PTX instruction
+surface and how it differs from ``Tx.cuda``.
 
 tvm.backend
 ***********

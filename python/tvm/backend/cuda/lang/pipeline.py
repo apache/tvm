@@ -16,8 +16,8 @@
 # under the License.
 """Reusable pipeline state and mbarrier helpers for SM100 kernels.
 
-These classes emit TIR via @T.inline. Decorate with @T.meta_class so that
-instances are automatically treated as meta values inside @T.prim_func.
+These classes emit TIR via @Tx.inline. Decorate with @Tx.meta_class so that
+instances are automatically treated as meta values inside @Tx.prim_func.
 """
 
 from tvm.script import tirx as T
@@ -89,7 +89,7 @@ def _map_addr_into_cta(ptr, rank):
     what the fused legacy wrapper emitted. ``mapa.u64`` would map the generic
     pointer instead and cost a 64-bit register to carry it.
 
-    Plain Python rather than ``@T.inline``: the mapa call has to be handed to
+    Plain Python rather than ``@Tx.inline``: the mapa call has to be handed to
     the enclosing frame explicitly or it is discarded, and the scratch it
     writes into has to be declared in this scope to bind into the PrimFunc.
     """
@@ -153,14 +153,14 @@ class MBarrier:
         XORed into the phase bit on every ``wait`` / ``arrive``.
     leader : Expr, optional
         Boolean predicate selecting the single thread that runs
-        ``mbarrier.init``. Defaults to ``T.cuda.thread_rank() == 0`` --
+        ``mbarrier.init``. Defaults to ``Tx.cuda.thread_rank() == 0`` --
         thread 0 of the enclosing CTA, which always picks exactly one
         thread regardless of which scope_id vars the caller declared.
         Override only when you want a different CTA-local thread to do
         the init.
 
-        Note: the default deliberately avoids ``T.warp_id()`` /
-        ``T.lane_id()``. Those introduce deferred ``cta->warp`` /
+        Note: the default deliberately avoids ``Tx.warp_id()`` /
+        ``Tx.lane_id()``. Those introduce deferred ``cta->warp`` /
         ``warp->thread`` ScopeIdDefs that the verifier cannot pin down
         unless the kernel header declares the full warp/lane chain (e.g. a
         single-CTA DSMEM kernel that only declares ``thread_id``). It also
@@ -290,8 +290,8 @@ class TCGen05Bar(MBarrier):
     """Barrier signaled by ``tcgen05`` commit.
 
     The caller is responsible for ensuring only one thread issues the
-    commit, e.g. by wrapping the call in ``if T.cuda.elect_sync():`` or by
-    passing ``pred=T.cuda.elect_sync()``. The ``pred`` form emits the
+    commit, e.g. by wrapping the call in ``if Tx.cuda.elect_sync():`` or by
+    passing ``pred=Tx.cuda.elect_sync()``. The ``pred`` form emits the
     predicated instruction (``@p tcgen05.commit``) instead of a branch and
     lets one elected leader predicate be shared across several commits.
     """

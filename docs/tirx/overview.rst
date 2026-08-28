@@ -87,12 +87,12 @@ Execution scope
 Execution scope describes both the active participants and the logical scope of
 a primitive invocation. Control flow such as ``if wg_id == ...``,
 ``warp_id == ...``, or ``cbx == ...`` selects which hardware roles enter a
-region, while predicates such as ``T.cuda.elect_sync()`` further select the
+region, while predicates such as ``Tx.cuda.elect_sync()`` further select the
 issuing thread.
 
-The primitive namespace is also part of the scope. For example, ``Tx.wg.*``
-denotes warpgroup-level primitives, while an unqualified ``Tx.*`` call defaults
-to thread-level invocation.
+The primitive namespace is also part of the scope. For example,
+``Tx.tile.wg.*`` denotes warpgroup-level primitives, while an unqualified
+``Tx.tile.*`` call defaults to thread-level invocation.
 
 Tensor layout
 ~~~~~~~~~~~~~~

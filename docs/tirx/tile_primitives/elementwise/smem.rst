@@ -72,14 +72,14 @@ round):
 
     s_layout = TileLayout(S[(32, 32)]); full = (slice(0, 32), slice(0, 32))
 
-    @T.prim_func
-    def unary_op(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (32, 32), "float32", layout=s_layout)
-        T.device_entry(); T.cta_id([1]); T.warp_id([8]); T.lane_id([32]); T.thread_id([256])
-        A_smem = T.alloc_buffer((32, 32), "float32", scope="shared", layout=s_layout)
-        Tx.cta.copy(A_smem[full], A[full])
-        Tx.cta.sqrt(A_smem[full], A_smem[full])   # elementwise smem dispatch
-        Tx.cta.copy(A[full], A_smem[full])
+    @Tx.prim_func
+    def unary_op(A_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, (32, 32), "float32", layout=s_layout)
+        Tx.device_entry(); Tx.cta_id([1]); Tx.warp_id([8]); Tx.lane_id([32]); Tx.thread_id([256])
+        A_smem = Tx.alloc_buffer((32, 32), "float32", scope="shared", layout=s_layout)
+        Tx.tile.cta.copy(A_smem[full], A[full])
+        Tx.tile.cta.sqrt(A_smem[full], A_smem[full])   # elementwise smem dispatch
+        Tx.tile.cta.copy(A[full], A_smem[full])
 
 Algorithm
 ---------
@@ -101,7 +101,7 @@ Generated TIRx IR
 .. code-block:: python
 
     for f in range(1):                                # outer = 1
-        A_smem[tid * 4 + vec] = T.sqrt(A_smem[tid * 4 + vec])
+        A_smem[tid * 4 + vec] = Tx.sqrt(A_smem[tid * 4 + vec])
 
 Generated CUDA
 --------------

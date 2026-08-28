@@ -26,16 +26,16 @@ if
 
 A Python ``if`` / ``else`` becomes a CUDA ``if`` / ``else``. Guard work by a
 thread/lane comparison, or elect a single issuing thread with
-``T.cuda.elect_sync()``:
+``Tx.cuda.elect_sync()``:
 
 .. code-block:: python
 
     if tx < 128:
-        A[tx] = A[tx] * T.float32(2.0)
+        A[tx] = A[tx] * Tx.float32(2.0)
     else:
-        A[tx] = A[tx] + T.float32(1.0)
+        A[tx] = A[tx] + Tx.float32(1.0)
 
-    if T.cuda.elect_sync():
+    if Tx.cuda.elect_sync():
         ...                              # one elected lane (e.g. to issue TMA/MMA)
 
 .. code-block:: c++
@@ -46,24 +46,24 @@ thread/lane comparison, or elect a single issuing thread with
       A_ptr[tx] = A_ptr[tx] + 1.0f;
     }
 
-For an expression-level choice (no branch), use ``T.if_then_else(cond, a, b)``.
+For an expression-level choice (no branch), use ``Tx.if_then_else(cond, a, b)``.
 
 loop
 ----
 
-Loops come in four flavors; a plain Python ``range`` becomes ``T.serial``:
+Loops come in four flavors; a plain Python ``range`` becomes ``Tx.serial``:
 
-- ``T.serial(n)`` — a sequential loop (ptxas may still unroll it).
-- ``T.unroll(n)`` — fully unrolled (expanded to straight-line statements).
-- ``T.vectorized(n)`` — a vectorized loop.
-- ``T.grid(*extents)`` — a nested loop nest.
+- ``Tx.serial(n)`` — a sequential loop (ptxas may still unroll it).
+- ``Tx.unroll(n)`` — fully unrolled (expanded to straight-line statements).
+- ``Tx.vectorized(n)`` — a vectorized loop.
+- ``Tx.grid(*extents)`` — a nested loop nest.
 
 ``break`` / ``continue`` work inside loops.
 
 .. code-block:: python
 
-    for i, j in T.grid(8, 8):
-        B[i, j] = T.max(A[i, j], T.float32(0.0))
+    for i, j in Tx.grid(8, 8):
+        B[i, j] = Tx.max(A[i, j], Tx.float32(0.0))
 
 .. code-block:: c++
 
@@ -71,7 +71,7 @@ Loops come in four flavors; a plain Python ``range`` becomes ``T.serial``:
       for (int j = 0; j < 8; ++j)
         B_ptr[i * 8 + j] = max(A_ptr[i * 8 + j], 0.0f);
 
-``T.unroll(4)`` instead expands to four straight-line statements with no loop.
+``Tx.unroll(4)`` instead expands to four straight-line statements with no loop.
 
 while
 -----
@@ -81,9 +81,9 @@ A ``while`` loop runs until its condition is false. Use a mutable scalar counter
 
 .. code-block:: python
 
-    i: T.int32 = 0
+    i: Tx.int32 = 0
     while i < 64:
-        A[i] = A[i] + T.float32(1.0)
+        A[i] = A[i] + Tx.float32(1.0)
         i += 1
 
 It lowers to a ``while (1)`` with an early-exit ``break`` (the counter is a

@@ -97,16 +97,16 @@ register, from ``test_ld_stmatrix.py`` (register layout = the m8n8 fragment,
     s_layout = TileLayout(S[(8, 4, num, 2) : (num * 8, 2, 8, 1)])     # row-major
     full = (slice(0, 8), slice(0, 4), slice(0, num), slice(0, 2))
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (M, N), "float16")
-        B = T.match_buffer(B_ptr, (M, N), "float16")
-        T.device_entry(); T.cta_id([1]); T.lane_id([32]); tid = T.thread_id([32])
-        A_smem = T.alloc_buffer((8, 4, num, 2), "float16", scope="shared", layout=s_layout)
+    @Tx.prim_func
+    def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, (M, N), "float16")
+        B = Tx.match_buffer(B_ptr, (M, N), "float16")
+        Tx.device_entry(); Tx.cta_id([1]); Tx.lane_id([32]); tid = Tx.thread_id([32])
+        A_smem = Tx.alloc_buffer((8, 4, num, 2), "float16", scope="shared", layout=s_layout)
         # ... stage A into A_smem (row = tid//4, cp = tid%4) ...
-        T.cuda.cta_sync()
-        R = T.alloc_buffer((8, 4, num, 2), "float16", scope="local", layout=r_layout)
-        Tx.warp.copy(R[full], A_smem[full])     # shared -> register  (ldmatrix)
+        Tx.cuda.cta_sync()
+        R = Tx.alloc_buffer((8, 4, num, 2), "float16", scope="local", layout=r_layout)
+        Tx.tile.warp.copy(R[full], A_smem[full])     # shared -> register  (ldmatrix)
         # ... write R back out to B ...
 
 Algorithm
@@ -149,16 +149,16 @@ handles:
 
 .. code-block:: python
 
-    for mm in T.unroll(m_outer):
+    for mm in Tx.unroll(m_outer):
         smem_ptr = _ptr_off(s_buf.ptr_to(s_zero), _smem_off(mm, tile_off + (laneid % 8) * p))
         handles  = [r_local.ptr_to([...]) for i in range(num)]
         chain = f"{direction}matrix.sync.aligned.m8n8.x{num}{trans_seg}.shared.b16"
         if direction == "ld":
-            T.ptx[chain](*words, smem_ptr)
+            Tx.ptx[chain](*words, smem_ptr)
         else:
-            T.ptx[chain](smem_ptr, *words)   # stmatrix takes the address first
+            Tx.ptx[chain](smem_ptr, *words)   # stmatrix takes the address first
 
-(This is the one copy variant that **does** use ``T.unroll`` — ``m_outer`` is tiny.)
+(This is the one copy variant that **does** use ``Tx.unroll`` — ``m_outer`` is tiny.)
 
 Generated TIRx IR
 -----------------
@@ -167,8 +167,8 @@ For the demo (``num = 2``, ``M = 8`` ⇒ ``m_outer = 1``):
 
 .. code-block:: python
 
-    for mm in T.unroll(1):
-        T.ptx["ldmatrix.sync.aligned.m8n8.x2.shared.b16"](
+    for mm in Tx.unroll(1):
+        Tx.ptx["ldmatrix.sync.aligned.m8n8.x2.shared.b16"](
             r_local[0], r_local[2], smem_ptr)
 
 Generated CUDA
