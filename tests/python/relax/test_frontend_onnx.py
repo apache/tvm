@@ -928,6 +928,138 @@ def test_multi_input_constant_rank_axis_bounds(op_name, rank):
     check_correctness(helper.make_model(graph), opset=13)
 
 
+def test_multi_input_broadcasting_symbolic_shapes():
+    """Multi-input reductions with symbolic shapes should broadcast correctly.
+
+    When dimensions are symbolic (not constant), broadcasting should handle them correctly
+    without raising "Cannot use and / or / not operator to Expr".
+    """
+
+    # Test case 1: Both inputs have same symbolic dimensions
+    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, ["n", 4])
+    y = helper.make_tensor_value_info("y", TensorProto.FLOAT, ["n", 4])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, ["n", 4])
+    graph = helper.make_graph(
+        [helper.make_node("Min", ["x", "y"], ["out"])],
+        "min_symbolic_broadcast",
+        [x, y],
+        [out],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
+
+    onnx.checker.check_model(model)
+
+    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
+
+    @I.ir_module
+    class ExpectedMin:
+        @R.function
+        def main(
+            x: R.Tensor(("n", 4), dtype="float32"),
+            y: R.Tensor(("n", 4), dtype="float32"),
+        ) -> R.Tensor(("n", 4), dtype="float32"):
+            n = T.int64()
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv = R.broadcast_to(x, R.shape((n, 4)))
+                lv1 = R.broadcast_to(y, R.shape((n, 4)))
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv = R.min(lv2, axis=[0], keepdims=False)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, ExpectedMin)
+
+    # Test case 2: Max operator with symbolic dimensions
+    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, ["n", 4])
+    y = helper.make_tensor_value_info("y", TensorProto.FLOAT, ["n", 4])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, ["n", 4])
+    graph = helper.make_graph(
+        [helper.make_node("Max", ["x", "y"], ["out"])],
+        "max_symbolic_broadcast",
+        [x, y],
+        [out],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
+
+    onnx.checker.check_model(model)
+
+    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
+
+    @I.ir_module
+    class ExpectedMax:
+        @R.function
+        def main(
+            x: R.Tensor(("n", 4), dtype="float32"),
+            y: R.Tensor(("n", 4), dtype="float32"),
+        ) -> R.Tensor(("n", 4), dtype="float32"):
+            n = T.int64()
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv = R.broadcast_to(x, R.shape((n, 4)))
+                lv1 = R.broadcast_to(y, R.shape((n, 4)))
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv = R.max(lv2, axis=[0], keepdims=False)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, ExpectedMax)
+
+    # Test case 3: Mixed symbolic and constant dimensions (tests the mixed broadcast branch)
+    # When broadcasting ["n", 1] with ["n", 4], the 1 broadcasts to 4
+    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, ["n", 1])
+    y = helper.make_tensor_value_info("y", TensorProto.FLOAT, ["n", 4])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, ["n", 4])
+    graph = helper.make_graph(
+        [helper.make_node("Min", ["x", "y"], ["out"])],
+        "min_mixed_symbolic_broadcast",
+        [x, y],
+        [out],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
+
+    onnx.checker.check_model(model)
+
+    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
+
+    @I.ir_module
+    class ExpectedMinMixed:
+        @R.function
+        def main(
+            x: R.Tensor(("n", 1), dtype="float32"),
+            y: R.Tensor(("n", 4), dtype="float32"),
+        ) -> R.Tensor(("n", 4), dtype="float32"):
+            n = T.int64()
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv = R.broadcast_to(x, R.shape((n, 4)))
+                lv1 = R.broadcast_to(y, R.shape((n, 4)))
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv = R.min(lv2, axis=[0], keepdims=False)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, ExpectedMinMixed)
+
+    # Test case 4: Different symbolic dimensions should raise ValueError
+    # This verifies that incompatible symbolic dimensions are caught at import time
+    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, ["n", 4])
+    y = helper.make_tensor_value_info("y", TensorProto.FLOAT, ["m", 4])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, ["n", 4])
+    graph = helper.make_graph(
+        [helper.make_node("Min", ["x", "y"], ["out"])],
+        "min_different_symbolic",
+        [x, y],
+        [out],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
+
+    onnx.checker.check_model(model)
+
+    with pytest.raises(ValueError, match="Cannot broadcast symbolic dimensions"):
+        from_onnx(model, opset=18, keep_params_in_input=True)
+
+
 @pytest.mark.parametrize("op_name", ["Min", "Max", "Sum", "Mean"])
 @pytest.mark.parametrize("shape", [[], [5], [2, 3]])
 def test_multi_input_constant_single_input(op_name, shape):
