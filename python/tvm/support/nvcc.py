@@ -292,6 +292,28 @@ def _compile_cuda_nvcc(
         return data
 
 
+def _find_cuda_target_include(cuda_path):
+    """Find the architecture-specific ``targets/<triple>/include`` directory.
+
+    CUDA ships ARM64 server toolkits under ``targets/sbsa-linux``; only the
+    embedded/L4T toolkits use ``targets/aarch64-linux``, so probe both.
+
+    Returns None when no architecture-specific include directory exists.
+    """
+    machine = platform.machine()
+    system = platform.system().lower()
+    if system == "linux" and machine.lower() in ("aarch64", "arm64"):
+        triples = ["sbsa-linux", f"{machine}-{system}"]
+    else:
+        triples = [f"{machine}-{system}"]
+
+    for triple in triples:
+        include_dir = os.path.join(cuda_path, "targets", triple, "include")
+        if os.path.isdir(include_dir):
+            return include_dir
+    return None
+
+
 def _compile_cuda_nvrtc(
     code, target_format=None, arch=None, options=None, path_target=None, use_nvshmem=False
 ):
@@ -481,18 +503,13 @@ namespace std {
         include_paths.append(standard_include)
 
     # Check architecture-specific include directory
-    arch_include = os.path.join(
-        cuda_path,
-        "targets",
-        f"{platform.machine()}-{platform.system().lower()}",
-        "include",
-    )
-    if os.path.isdir(arch_include):
+    arch_include = _find_cuda_target_include(cuda_path)
+    if arch_include:
         include_paths.append(arch_include)
 
     # Check for CCCL include directory (required for cuda/std/cstdint and type_traits)
     # CCCL provides standard library functionality for device code
-    cccl_include = os.path.join(arch_include, "cccl") if os.path.isdir(arch_include) else None
+    cccl_include = os.path.join(arch_include, "cccl") if arch_include else None
     if cccl_include and os.path.isdir(cccl_include):
         include_paths.append(cccl_include)
 
