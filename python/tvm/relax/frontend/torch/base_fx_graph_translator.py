@@ -2506,8 +2506,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(relax.op.full(x.ty.shape, value, dtype))
 
     def _prim_value_to_scalar_tensor(self, value: relax.Expr, dtype: str) -> relax.Var:
-        """Materialize an integer primitive value as a rank-zero tensor."""
-        value_tensor = self.block_builder.emit(relax.op.shape_to_tensor(relax.ShapeExpr([value])))
+        """Materialize an integer or boolean primitive value as a rank-zero tensor."""
+        if not value.ty.matches_code(DataTypeCode.INT, DataTypeCode.UINT, DataTypeCode.BOOL):
+            raise TypeError(f"Cannot materialize primitive value of dtype {value.ty} as a tensor")
+        shape_value = value if str(value.ty) == "int64" else value.astype("int64")
+        value_tensor = self.block_builder.emit(
+            relax.op.shape_to_tensor(relax.ShapeExpr([shape_value]))
+        )
         if dtype != "int64":
             value_tensor = self.block_builder.emit(relax.op.astype(value_tensor, dtype))
         return self.block_builder.emit(relax.op.squeeze(value_tensor, axis=[0]))
@@ -2592,16 +2597,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(relax.op.take(x, index, dim))
 
     def _inplace_masked_fill(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        mask = self.env[node.args[1]]
-        value = node.args[2]
-        rx_value = relax.const(value)
-
-        x_dtype = x.ty.dtype.dtype
+        args = self.retrieve_args(node)
+        x, mask, value = args[:3]
+        x_dtype = str(x.ty.dtype)
         fill_dtype = None
         if isinstance(value, int | float) and (math.isinf(value) or math.isnan(value)):
             if not ("float" in x_dtype or "bfloat16" in x_dtype):
                 fill_dtype = "float32"
+        rx_value = self._convert_scalar_fill_value(value, fill_dtype or x_dtype)
 
         values = self.block_builder.emit(relax.op.full_like(x, rx_value, dtype=fill_dtype))
 
@@ -2637,16 +2640,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         )
 
     def _masked_fill(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        mask = self.env[node.args[1]]
-        value = node.args[2]
-        rx_value = relax.const(value)
-
-        x_dtype = x.ty.dtype.dtype
+        args = self.retrieve_args(node)
+        x, mask, value = args[:3]
+        x_dtype = str(x.ty.dtype)
         fill_dtype = None
         if isinstance(value, int | float) and (math.isinf(value) or math.isnan(value)):
             if not ("float" in x_dtype or "bfloat16" in x_dtype):
                 fill_dtype = "float32"
+        rx_value = self._convert_scalar_fill_value(value, fill_dtype or x_dtype)
 
         values = self.block_builder.emit(relax.op.full_like(x, rx_value, dtype=fill_dtype))
 
@@ -2849,17 +2850,21 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _item(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         shape = self.shape_of(x)
+        dtype = x.ty.dtype
+        analyzer = tvm.arith.Analyzer()
+        has_single_element = shape is not None and all(
+            analyzer.can_prove_equal(dim, 1) for dim in shape
+        )
+        if has_single_element and dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT):
+            scalar = x
+            if str(dtype) != "int64":
+                scalar = self.block_builder.emit(relax.op.astype(scalar, "int64"))
+            scalar = self.block_builder.emit(relax.op.reshape(scalar, [1]))
+            shape_value = self.block_builder.emit(relax.op.tensor_to_shape(scalar))
+            dim = tirx.Var(f"{node.name}_dim", "int64")
+            self.block_builder.match_cast(shape_value, relax.ShapeType([dim]))
+            return dim
         if shape is not None and len(shape) == 0:
-            dtype = str(x.ty.dtype)
-            if dtype in ("int32", "int64"):
-                scalar = x
-                if dtype != "int64":
-                    scalar = self.block_builder.emit(relax.op.astype(scalar, "int64"))
-                scalar = self.block_builder.emit(relax.op.reshape(scalar, [1]))
-                shape_value = self.block_builder.emit(relax.op.tensor_to_shape(scalar))
-                dim = tirx.Var(f"{node.name}_dim", "int64")
-                self.block_builder.match_cast(shape_value, relax.ShapeType([dim]))
-                return dim
             return x
         return self.block_builder.emit(relax.op.take(x, relax.const(0, "int64"), axis=0))
 
