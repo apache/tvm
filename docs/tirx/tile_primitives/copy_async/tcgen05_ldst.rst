@@ -15,11 +15,12 @@
     specific language governing permissions and limitations
     under the License.
 
-copy_async → tcgen05_ldst
-=========================
+copy_async → tmem<->local (tcgen05.ld/st)
+=========================================
 
-The ``tcgen05_ldst`` variant lowers a ``copy_async`` between **tensor memory and
-registers** (Blackwell ``tcgen05.ld`` / ``tcgen05.st``). It is warpgroup-collective:
+The ``tmem<->local`` variant lowers a ``copy_async`` between **tensor memory and
+registers** through the ``tcgen05_ldst`` implementation (Blackwell
+``tcgen05.ld`` / ``tcgen05.st``). It is warpgroup-collective:
 the four warps cooperatively move a tensor-memory tile to/from their per-thread
 registers. One registration handles both directions — ``tmem → local`` lowers to
 ``tcgen05.ld``, ``local → tmem`` to ``tcgen05.st`` — and the dispatch picks the

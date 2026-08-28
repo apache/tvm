@@ -19,17 +19,20 @@ copy → fallback
 ===============
 
 The ``fallback`` variant is the **priority-0 catch-all**: a scalar, single-thread
-copy that runs only when every faster variant (:doc:`gmem_smem`, :doc:`reg`,
-:doc:`ldstmatrix`) has declined. It always works — for any valid copy at any scope
-— and is intentionally slow, so it emits a ``UserWarning`` when chosen. Source:
+copy that runs only when ``ldstmatrix`` and both ``vec_auto`` paths
+(:doc:`gmem_smem` and :doc:`reg`) have declined.  Explicit ``vec_*`` variants
+are considered only when requested through ``dispatch=``.  The fallback works
+for any valid copy at thread, warp, warpgroup, or CTA scope and is intentionally
+slow, so it emits a ``UserWarning`` when chosen. Source:
 ``python/tvm/backend/cuda/tile_primitive/copy/fallback.py``.
 
 What it accepts
 ---------------
 
-Any valid copy. The only gate is ``_is_valid_copy`` (layouts present, equal dtype,
-equal non-unit extents); there is no scope, pair, or divisibility restriction. It is
-registered at ``priority=0`` so it is the last candidate the dispatcher tries:
+Any valid CUDA copy at thread, warp, warpgroup, or CTA scope. The only registered
+predicate is ``_is_valid_copy`` (layouts present, equal dtype, equal non-unit
+extents); there is no memory-pair or divisibility restriction. It is registered
+at ``priority=0`` so it is the last candidate the dispatcher tries:
 
 .. list-table::
    :header-rows: 1
@@ -38,9 +41,9 @@ registered at ``priority=0`` so it is the last candidate the dispatcher tries:
    * - Property
      - Requirement
    * - priority
-     - ``0`` — only reached after all priority-10 variants ``fail`` / decline
+     - ``0`` — only reached after the applicable priority-10 variants decline
    * - target / scope
-     - any (``thread`` / ``warp`` / ``warpgroup`` / ``cta``)
+     - ``cuda``; ``thread`` / ``warp`` / ``warpgroup`` / ``cta``
    * - memory pair
      - any (global / shared / local, either direction)
    * - dtype / shape
@@ -48,9 +51,9 @@ registered at ``priority=0`` so it is the last candidate the dispatcher tries:
 
 A typical reason the fast variants all decline: the region's element count does not
 divide the thread count, so the ``[outer, threads, vec]`` split has no solution
-(``gmem_smem`` declines), and neither side is a register layout (``reg`` /
-``ldstmatrix`` decline). Example: a warp (32 threads) copying a ``4×6 = 24``-element
-tile (``24 ∤ 32``).
+(``vec_auto``'s global/shared path declines), and neither side is a supported
+register-layout pair (its register path and ``ldstmatrix`` decline). Example: a
+warp (32 threads) copying a ``4×6 = 24``-element tile (``24 ∤ 32``).
 
 Demonstration program
 ----------------------

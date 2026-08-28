@@ -28,7 +28,7 @@ When: dst and src are both shared-memory buffers, exec scope is one of
     Each group of threads reduces one spatial position via shfl_xor.
 
 Before:
-    Tx.cta.sum(B_smem[0:4], A_smem[0:4, 0:8], [-1], False)
+    Tx.tile.cta.sum(B_smem[0:4], A_smem[0:4, 0:8], [-1], False)
 
 After (scheduled PrimFunc, group_size=8, spatial_par=4):
     thread_data[0] = T.float32(0.0)
@@ -44,7 +44,7 @@ After (scheduled PrimFunc, group_size=8, spatial_par=4):
 
 Before:
     if tid == 65:
-        Tx.sum(B_smem[0:4], A_smem[0:4, 0:8], [-1], False)
+        Tx.tile.sum(B_smem[0:4], A_smem[0:4, 0:8], [-1], False)
 
 After (scheduled PrimFunc):
     for spa in range(4):

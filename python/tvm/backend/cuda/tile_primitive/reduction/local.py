@@ -25,7 +25,7 @@ When: dst and src are both local-scope buffers with matching dtype, on CUDA.
     (_emit_reduction_local_thread_wise):
 
 Before:
-    Tx.sum(B_local[0:2, 0:3], A_local[0:2, 0:3, 0:4], [-1], False)
+    Tx.tile.sum(B_local[0:2, 0:3], A_local[0:2, 0:3, 0:4], [-1], False)
 
 After (scheduled PrimFunc, spatial_len=6, reduction_len=4):
     for spa in range(6):
@@ -43,7 +43,7 @@ After (scheduled PrimFunc, spatial_len=6, reduction_len=4):
     accum=True + shuffle: saves old dst before reduce+shuffle, combines after (warp only).
 
 Before:
-    Tx.warp.sum(red_view[0:16, 0:4], acc_view[0:16, 0:128], [-1], False,
+    Tx.tile.warp.sum(red_view[0:16, 0:4], acc_view[0:16, 0:128], [-1], False,
                    thread_reduce=True)
 
 After (scheduled PrimFunc, local_total=2, local_red=32, 2 shuffle steps):

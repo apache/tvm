@@ -15,14 +15,15 @@
     specific language governing permissions and limitations
     under the License.
 
-reduction → sm100_packed
-========================
+reduction → SM100 packed paths
+==============================
 
-The ``sm100_packed`` variant is a **Blackwell-only fast path** (priority **20**, so
-it pre-empts :doc:`local`) for a thread-scope reduction of a 1-D ``float32`` vector
-of at least 8 elements to a scalar. It uses the SM100 packed math instructions —
-``add.f32x2`` for ``sum``, ``max3.f32`` / ``min3.f32`` for ``max`` / ``min`` —
-to fold two (or three) lanes of data per instruction. Source:
+The registered ``packed_add_sum`` (for ``sum``) and ``3input_maxmin`` (for
+``max`` / ``min``) variants are **Blackwell-only fast paths** at priority **20**,
+so they pre-empt :doc:`local`.  Both accept a thread-scope reduction of a 1-D
+``float32`` vector of at least 8 elements to a scalar.  They use the SM100 packed
+math instructions — ``add.f32x2`` for ``sum``, ``max3.f32`` / ``min3.f32`` for
+``max`` / ``min`` — to fold two (or three) values per instruction. Source:
 ``python/tvm/backend/cuda/tile_primitive/reduction/sm100_packed.py``.
 
 What it accepts
@@ -73,7 +74,7 @@ A single thread sums a 32-element ``float32`` register vector on ``sm_100a`` (fr
         A_local = Tx.alloc_buffer([32], "float32", scope="local")
         B_local = Tx.alloc_buffer([1], "float32", scope="local")
         for i in Tx.serial(32): A_local[i] = A[i]
-        Tx.tile.sum(B_local, A_local, accum=False)     # -> sm100_packed (len 32 >= 8, fp32, sm100)
+        Tx.tile.sum(B_local, A_local, accum=False)     # -> packed_add_sum
         B[0] = B_local[0]
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})

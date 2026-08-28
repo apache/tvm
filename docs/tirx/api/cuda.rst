@@ -55,9 +55,11 @@ The current ``Tx.cuda`` surface includes:
        ``cta_reduce``, ``cta_sum``, ``cta_max``, ``cta_min``,
        ``reduce_add_sync_u32``, and ``reduce_min_sync_u32``
    * - Descriptors and addresses
-     - ``wgmma.*``, ``tcgen05.*``, ``runtime_instr_desc``, ``get_tmem_addr``,
-       ``cvta_generic_to_shared``, ``smem_addr_from_uint64``,
-       ``sm100_2sm_leader_smem_addr``, and ``mov_sreg``
+     - ``wgmma.noop_barrier``, ``wgmma.encode_matrix_descriptor``,
+       ``tcgen05.encode_matrix_descriptor``, ``tcgen05.encode_instr_descriptor``,
+       ``tcgen05.encode_instr_descriptor_block_scaled``, ``runtime_instr_desc``,
+       ``get_tmem_addr``, ``cvta_generic_to_shared``,
+       ``smem_addr_from_uint64``, ``sm100_2sm_leader_smem_addr``, and ``mov_sreg``
    * - Loads, calls, and diagnostics
      - ``ldg``, ``func_call``, ``printf``, ``trap_when_assert_failed``,
        ``nano_sleep``, ``clock64``, and ``ffs_u32``
@@ -69,8 +71,11 @@ The current ``Tx.cuda`` surface includes:
        ``float22bfloat162_rn_from_float2``, ``bfloat1622float2``, ``hmin2``,
        ``hmax2``, ``fp8x4_e4m3_from_float4``, and ``fdividef``
    * - Instrumentation and compatibility
-     - ``iket.*``, ``timer_init``, ``timer_start``, ``timer_end``,
-       ``timer_finalize``, ``mma_store``, ``mma_fill``, and their legacy forms
+     - ``iket.mark``, ``iket.range_start``, ``iket.range_end``,
+       ``iket.range_push``, ``iket.range_pop``, ``iket.sentinel_token``,
+       ``iket.official_event``, ``timer_init``, ``timer_start``, ``timer_end``,
+       ``timer_finalize``, ``mma_store``, ``mma_fill``, ``mma_store_legacy``,
+       and ``mma_fill_legacy``
 
 NVSHMEM namespace
 -----------------

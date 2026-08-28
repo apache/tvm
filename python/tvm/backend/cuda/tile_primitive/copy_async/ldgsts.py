@@ -19,7 +19,7 @@
 (SASS: ``LDGSTS``).
 
 Shares the partition / layout-alignment algorithm with
-``cuda/copy/vec_auto_gmem_smem.py`` (sync ``T.copy`` global ↔ shared); differs at
+``cuda/copy/vec_auto_gmem_smem.py`` (sync ``Tx.tile.copy`` global ↔ shared); differs at
 emit time only:
 
 * direction: ``cp.async`` is global → shared only (hardware restriction).

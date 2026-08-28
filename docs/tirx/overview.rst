@@ -162,11 +162,13 @@ Tile primitive dispatch selects an implementation according to the primitive,
 the current execution scope, the operand layouts, and the target backend. For
 example:
 
-- A ``copy`` primitive may dispatch to TMA, vectorized loads/stores,
-  tensor-memory movement, accelerator DMA, or another backend-specific
-  implementation.
-- A matrix-multiply primitive may dispatch to WGMMA, ``tcgen05``, a
-  systolic-array instruction, or a backend-specific matmul engine.
+- On CUDA, ``copy`` currently selects fixed-width or automatically vectorized
+  loads/stores, ``ldmatrix`` / ``stmatrix``, or a scalar fallback.  The
+  asynchronous ``copy_async`` primitive has separate ``ldgsts``, TMA,
+  distributed-shared-memory, and tensor-memory variants.
+- On CUDA, ``gemm`` currently selects an ``mma.m16n8k*`` implementation, while
+  ``gemm_async`` selects ``tcgen05``.  Trainium registers its own ``copy``,
+  ``gemm``, reduction, and elementwise implementations.
 
 Once a variant is selected, dispatch generates the loops and addressing to
 apply that instruction across the whole tile.

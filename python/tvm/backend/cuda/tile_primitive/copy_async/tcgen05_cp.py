@@ -61,7 +61,7 @@ in ``test_tcgen05_cp.py``.
 
 Algorithm
 ---------
-Given ``Tx.copy_async(t_region, s_region)`` where t is in tmem (declared with
+Given ``Tx.tile.copy_async(t_region, s_region)`` where t is in tmem (declared with
 the replica pattern of the requested (shape, multicast)), and s is in shared
 memory:
 

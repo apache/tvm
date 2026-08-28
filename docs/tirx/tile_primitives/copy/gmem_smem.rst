@@ -15,20 +15,22 @@
     specific language governing permissions and limitations
     under the License.
 
-copy → gmem_smem
-================
+copy → vec_auto global/shared path
+==================================
 
-The ``gmem_smem`` variant lowers a synchronous ``copy`` between **global and
-shared** memory (either direction) when **neither side is a register**. Because
-neither operand carries a thread partition, the dispatch *synthesizes* one from the
-execution scope: it splits the region into ``[outer, threads, vec]`` and emits a
-serial loop of vectorized loads/stores. Source:
+The ``gmem_smem`` implementation path inside the registered ``vec_auto`` variant
+lowers a synchronous ``copy`` between **global and shared** memory (either
+direction) when **neither side is a register**.  It is not a separate dispatch
+name; automatic selection or ``dispatch="vec_auto"`` reaches this path.  Because
+neither operand carries a thread partition, the implementation synthesizes one
+from the execution scope: it splits the region into ``[outer, threads, vec]`` and
+emits a serial loop of vectorized loads/stores. Source:
 ``python/tvm/backend/cuda/tile_primitive/copy/vec_auto_gmem_smem.py``.
 
 What it accepts
 ---------------
 
-The predicate ``_is_gmem_smem`` gates the variant:
+The predicate ``_is_gmem_smem`` gates this ``vec_auto`` path:
 
 .. code-block:: python
 

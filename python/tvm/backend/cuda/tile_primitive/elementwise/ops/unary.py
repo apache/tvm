@@ -17,7 +17,7 @@
 
 """Unary elementwise ops: zero / fill / reciprocal / sqrt / exp / exp2 / log2 / silu.
 
-All carry the same ``T.<unary>(dst, src[, bias, scale])`` shape (bias / scale
+All carry the same ``Tx.tile.<unary>(dst, src[, bias, scale])`` shape (bias / scale
 optional; ``silu`` ignores bias/scale to preserve legacy behavior).
 """
 
@@ -35,7 +35,7 @@ from . import OpSpec, Plan, SrcSpec
 
 
 def _parse_unary(op: TilePrimitiveCall) -> tuple[Plan | None, str | None]:
-    """T.<unary>(dst, src[, bias, scale]) → Plan."""
+    """Tx.tile.<unary>(dst, src[, bias, scale]) → Plan."""
     _dst: BufferRegion = op.args[0]
     _src = op.args[1]
     _bias = op.args[2] if len(op.args) > 2 else None

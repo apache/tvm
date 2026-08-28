@@ -19,17 +19,17 @@
 
 Cache-semantics config (all variants, read from ``op_call.config``):
 
-- ``cache``: ``None`` (default, plain ``T.ptx.ld``) or ``"nc"`` (load via
-  ``T.ptx.ld.global_.nc``, i.e. PTX ``ld.global.nc``). Requires a global src.
+- ``cache``: ``None`` (default, plain ``Tx.ptx.ld``) or ``"nc"`` (load via
+  ``Tx.ptx.ld.global_.nc``, i.e. PTX ``ld.global.nc``). Requires a global src.
 - ``l1_evict`` / ``l2_evict`` / ``prefetch_size``: L1/L2 cache hint kwargs
-  forwarded verbatim to the emitted load (same values ``T.ptx.ld`` /
-  ``T.ptx.ld.global_.nc`` accept, e.g. ``"L1::no_allocate"``,
+  forwarded verbatim to the emitted load (same values ``Tx.ptx.ld`` /
+  ``Tx.ptx.ld.global_.nc`` accept, e.g. ``"L1::no_allocate"``,
   ``"L2::evict_first"``, ``"L2::256B"``). Requires a global src.
 
 Example::
 
-    Tx.copy(dst_local[0:8], src_global[base : base + 8], dispatch="vec_256b",
-            cache="nc", l1_evict="L1::no_allocate", prefetch_size="L2::256B")
+    Tx.tile.copy(dst_local[0:8], src_global[base : base + 8], dispatch="vec_256b",
+                 cache="nc", l1_evict="L1::no_allocate", prefetch_size="L2::256B")
 """
 
 from tvm.arith.analyzer import Analyzer
@@ -75,7 +75,7 @@ def _ld_cache_config(op_call: TilePrimitiveCall) -> tuple[str | None, dict[str, 
     """Read the cache-semantics config from ``op_call.config``.
 
     Returns ``(cache, hints)``: ``cache`` is ``None`` or ``"nc"``, and
-    ``hints`` maps the ``T.ptx.ld``/``T.ptx.ld.global_.nc`` L1/L2 hint kwargs
+    ``hints`` maps the ``Tx.ptx.ld``/``Tx.ptx.ld.global_.nc`` L1/L2 hint kwargs
     (``l1_evict``, ``l2_evict``, ``prefetch_size``) to their string values.
     """
     cache = op_call.config.get("cache", None)

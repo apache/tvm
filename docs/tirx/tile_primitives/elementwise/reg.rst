@@ -20,7 +20,7 @@ elementwise → reg
 
 The ``reg`` variant lowers an elementwise op (``sqrt``, ``exp``, ``add``,
 ``fma``, …) when **all operands are register** (``local``) buffers. Like the copy
-:doc:`../copy/reg` variant the partition is *induced* by the operands' register
+:doc:`../copy/reg` ``vec_auto`` path the partition is *induced* by the operands' register
 layout — the thread axes are dropped, leaving each thread its private bundle — and
 the op is applied to every register in that bundle. Source:
 ``python/tvm/backend/cuda/tile_primitive/elementwise/reg.py``.

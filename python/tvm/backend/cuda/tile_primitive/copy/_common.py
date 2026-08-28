@@ -16,10 +16,10 @@
 # under the License.
 
 """Shared partition / layout algorithm for synthesized-partition copy
-dispatches (currently ``gmem_smem`` and ``ldgsts``).
+implementation paths (currently ``vec_auto`` global/shared and ``ldgsts``).
 
-``gmem_smem`` (sync ``Tx.copy`` global ↔ shared) and ``ldgsts`` (async
-``Tx.copy_async`` global → shared via cp.async / SASS LDGSTS) share the
+``vec_auto`` (sync ``Tx.tile.copy`` global ↔ shared) and ``ldgsts`` (async
+``Tx.tile.copy_async`` global → shared via cp.async / SASS LDGSTS) share the
 same algorithm to pick a vec-isolating + thread-distributing layout for
 ``G ↔ S`` copies. Only emit-time details differ (which copy instruction
 to call, allowed vec widths). All the layout/partition logic lives here.

@@ -73,7 +73,7 @@ A single thread reduces a 4-element ``float32`` register vector to a scalar
         B[0] = B_local[0]
 
 (4 < 8 elements, so this stays on ``local`` rather than the
-:doc:`sm100_packed` fast path.)
+:doc:`sm100_packed` ``packed_add_sum`` / ``3input_maxmin`` fast paths.)
 
 Algorithm
 ---------

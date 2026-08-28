@@ -103,12 +103,15 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
      - splits each kernel into a **host** function and a **device** function at the
        ``launch_thread`` boundary
    * - 16
+     - ``LowerIket``
+     - lowers CUDA IKET instrumentation after host/device splitting
+   * - 17
      - ``MakePackedAPI``
      - rewrites the host function to the packed-func ABI (the launcher TVM calls)
-   * - 17
+   * - 18
      - ``FP8StorageLegalize``
      - legalizes ``float8`` storage (packing into supported container types)
-   * - 18
+   * - 19
      - ``BF16StorageLegalize``
      - legalizes ``bfloat16`` storage
 

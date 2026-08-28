@@ -53,19 +53,30 @@ A single predicate — single-thread or warp scope:
      - A, B in **shared** (B always; A shared, or tmem for the TMEM-A path); the
        accumulator **C/D in tmem** (``float32``)
    * - dtype
-     - regular: A/B ``float16`` / ``bfloat16``; block-scaled: A/B
-       ``float8_e4m3fn`` / ``float4_e2m1fn`` with ``SFA`` / ``SFB`` scale factors in
-       tmem; accumulator always ``float32``
+     - dense A/B (same semantic dtype): ``float16``, ``bfloat16``,
+       ``float8_e4m3fn``, ``float8_e5m2``, ``tensor_float32``, or ``tf32``.
+       ``is_AB_tf32=True`` selects tf32 semantics for fp32/bf16 storage.
+       Block-scaled A/B: ``float8_e4m3fn`` or ``float4_e2m1fn``, with tmem
+       ``SFA`` / ``SFB`` of ``float8_e8m0fnu`` or ``float8_e4m3fn``.
+       The accumulator is always ``float32``
    * - shape
      - per-CTA ``M ∈ {64, 128}``; ``N`` divisible by 8 (cta_group=1) or 16
-       (cta_group=2); ``K`` divisible by ``MMA_K`` = 16 (f16/bf16) / 32 (fp8) /
-       64 (fp4). With cta_group=2, the CTA pair covers twice the per-CTA M
+       (cta_group=2); ``K`` divisible by ``MMA_K`` = 8 (tf32) / 16 (f16/bf16) /
+       32 (fp8) / 64 (fp4). With cta_group=2, the CTA pair covers twice the
+       per-CTA M
    * - cta_group
      - ``1`` (one CTA) or ``2`` (two CTAs split the operand)
    * - descriptor mode
      - optional ``smem_desc`` controls shared matrix-descriptor construction:
        ``"hoist"`` (default), ``"local_hoist"``, ``"encode"``, or
-       ``"recompute"``
+       ``"recompute"``.  ``"encode"`` is currently dense-only
+   * - explicit instruction tile
+     - ``mma_m`` and ``mma_n`` must be supplied together.  They select a
+       hardware-valid physical instruction tile and are checked against the
+       operand and accumulator layouts
+   * - instruction descriptor
+     - dense MMA always encodes its descriptor in the dispatcher and rejects
+       ``descI``.  Block-scaled MMA may accept a pre-encoded uint32 ``descI``
    * - layout forms
      - swizzled shared layouts, no-swizzle packed shared layouts, regular tmem
        accumulators, and FlashMLA-style packed ``N/2`` tmem accumulator layouts
@@ -122,9 +133,9 @@ swizzle mode).  ``smem_desc`` selects where that descriptor comes from:
     Tx.cuda.tcgen05.encode_matrix_descriptor(descA.data, A_smem.ptr_to([0]), ldo, sdo, swizzle)
     Tx.cuda.tcgen05.encode_matrix_descriptor(descB.data, B_smem.ptr_to([0]), ldo, sdo, swizzle)
 
-**2. Choose the MMA tile.** ``M_mma × N_mma`` are chosen to tile ``M``/``N`` (with
-``MMA_K`` set by dtype: 16 f16/bf16, 32 fp8, 64 fp4); a compile-time *instruction
-descriptor* packs the shape and dtypes.
+**2. Choose the MMA tile.** ``M_mma × N_mma`` are chosen to tile ``M``/``N``
+(with ``MMA_K`` set by dtype: 8 tf32, 16 f16/bf16, 32 fp8, 64 fp4); a
+compile-time *instruction descriptor* packs the shape and dtypes.
 
 **3. Issue the async MMA** in an unrolled ``(mi, ni, ki)`` nest, accumulating into
 the tmem accumulator (``enable_input_d`` turns accumulation on for ``ki > 0``):
@@ -140,16 +151,17 @@ the tmem accumulator (``enable_input_d`` turns accumulation on for ``ki > 0``):
     )
 
 For **block-scaled** fp8/fp4 the chain gains ``.block_scale.scale_vec::<n>X``
-with two extra tmem addresses — ``SFA`` / ``SFB`` — and the scale-factor dtypes; the
-instruction descriptor is encoded at runtime. As with the other async ops, the
-dispatch emits **no** completion — the caller's ``tcgen05.commit`` + mbarrier wait
-close it.
+with two extra tmem addresses — ``SFA`` / ``SFB`` — and the scale-factor dtypes;
+the instruction descriptor is encoded at runtime unless the caller supplies
+``descI``. As with the other async ops, the dispatch emits **no** completion —
+the caller's ``tcgen05.commit`` + mbarrier wait close it.
 
 For row-0 schedules, the lowering folds ``Tx.cuda.get_tmem_addr(base, 0, col)`` to
 ``base + col``.  This keeps the generated issue loop close to hand-written
-FlashMLA kernels while preserving the helper call for nonzero row offsets.  When
-``weight_stationary=True`` is passed, the flag is forwarded to the PTX wrapper so
-the wrapper can select the matching tcgen05 MMA ABI.
+FlashMLA kernels while preserving the helper call for nonzero row offsets.
+``weight_stationary=True`` selects the ``tcgen05.mma.ws`` ABI.  The dispatcher
+also infers this mode from the packed M=64 Layout-E accumulator and rejects
+layout/flag combinations that would place tensor-memory rows incorrectly.
 
 Accumulator datapaths and readback
 ----------------------------------
@@ -218,11 +230,12 @@ How inputs change the algorithm
    * - input
      - effect
    * - dtype
-     - ``float16``/``bfloat16`` → ``kind::f16``, ``MMA_K = 16``; ``fp8`` →
-       ``MMA_K = 32``; ``fp4`` → ``MMA_K = 64`` and the **block-scaled** path
+     - ``tf32`` → ``MMA_K = 8``; ``float16``/``bfloat16`` → ``kind::f16`` and
+       ``MMA_K = 16``; ``fp8`` → ``MMA_K = 32``; ``fp4`` → ``MMA_K = 64`` and
+       the **block-scaled** path
    * - block scaling (SFA/SFB)
      - present → ``tcgen05.mma.block_scale`` with SFA/SFB tmem scale-factor
-       addresses and a runtime-encoded instruction descriptor
+       addresses and a runtime-encoded or caller-supplied instruction descriptor
    * - cta_group
      - ``1`` → one CTA, ``M ∈ {64, 128}``; ``2`` → two CTAs split the operand,
        each with per-CTA ``M ∈ {64, 128}`` and half the B rows. The
@@ -236,13 +249,14 @@ How inputs change the algorithm
        hardware-compatible 16-byte packed stride
    * - ``smem_desc``
      - selects hoisted, call-site-hoisted, per-MMA encoded, or recomputed shared
-       descriptor construction.  The choice changes code shape only; the MMA
-       operands still describe the same selected shared tiles.
+       descriptor construction.  Per-MMA ``"encode"`` is dense-only.  The
+       choice changes code shape only; the MMA operands still describe the same
+       selected shared tiles.
    * - packed tmem accumulator
      - layouts of the form ``TileLayout(S[(M, 2, N//2) : (1@TLane, 64@TLane,
        1@TCol)])`` are treated as packed ``N/2`` physical columns, matching
        FlashMLA-style low/high accumulator placement.
    * - ``weight_stationary``
-     - forwarded to the low-level tcgen05 wrapper for kernels that require that
-       issue ABI; it is a lowering/configuration mode, not a separate PTX
-       instruction mnemonic.
+     - selects the ``tcgen05.mma.ws`` form when explicitly true; it is also
+       inferred for the packed M=64 Layout-E accumulator.  The accumulator and
+       A-operand layouts must match that datapath.

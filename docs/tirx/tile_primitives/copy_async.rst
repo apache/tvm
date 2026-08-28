@@ -22,7 +22,8 @@ Asynchronous copy. Every variant emits only the *issue* instruction — the call
 responsible for completion (``cp.async`` commit/wait for ``ldgsts``; mbarrier
 arrive/wait for the bulk-tensor and dsmem paths; ``tcgen05.commit`` /
 ``tcgen05.wait`` for the tensor-memory paths). Selection is by the source/dest
-memory pair and scope.
+memory pair and scope.  CUDA currently registers six variant names; the TMA page
+below covers two of them.
 
 .. list-table::
    :header-rows: 1
@@ -36,7 +37,7 @@ memory pair and scope.
      - global → shared
      - 20
      - ``cp.async`` (LDGSTS), per-thread vectorized
-   * - :doc:`copy_async/tma`
+   * - :doc:`copy_async/tma` (``tma_auto`` / ``tma_explicit``)
      - global ↔ shared
      - 10
      - ``cp.async.bulk.tensor`` (TMA, descriptor-driven, single-thread)
@@ -44,11 +45,11 @@ memory pair and scope.
      - shared → shared (cross-CTA)
      - 10
      - ``cp.async.bulk`` shared::cluster (``mapa`` remote address)
-   * - :doc:`copy_async/tcgen05_cp`
+   * - :doc:`copy_async/tcgen05_cp` (``smem->tmem``)
      - shared → tmem
      - 10
      - ``tcgen05.cp.32x128b.warpx4`` (matrix-descriptor driven)
-   * - :doc:`copy_async/tcgen05_ldst`
+   * - :doc:`copy_async/tcgen05_ldst` (``tmem<->local``)
      - tmem ↔ register
      - 10
      - ``tcgen05.ld`` / ``tcgen05.st`` (warpgroup, atom-matched)

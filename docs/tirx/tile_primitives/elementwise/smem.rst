@@ -20,7 +20,8 @@ elementwise → smem
 
 The ``smem`` variant lowers an elementwise op (``sqrt``, ``exp``, ``add``,
 ``fma``, …) when **all operands are in shared memory**. Like the copy
-:doc:`../copy/gmem_smem` variant it *synthesizes* a ``[outer, threads, vec]``
+:doc:`../copy/gmem_smem` ``vec_auto`` path it *synthesizes* a
+``[outer, threads, vec]``
 partition from the execution scope, then applies the op to each (vectorized)
 element. Source:
 ``python/tvm/backend/cuda/tile_primitive/elementwise/smem.py``.

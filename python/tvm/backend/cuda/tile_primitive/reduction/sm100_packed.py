@@ -23,7 +23,7 @@ When: thread scope, all local buffers, float32, 1D src with len >= 8,
 SM100+ (uses packed PTX instructions not available on older GPUs).
 
 Before (TilePrimitiveCall -- sum example):
-    Tx.sum(dst_local[0:1], src_local[0:32])   # float32, reduce 32 -> 1 (thread scope)
+    Tx.tile.sum(dst_local[0:1], src_local[0:32])  # float32, reduce 32 -> 1
 
 After -- packed_add_sum (uses add.f32x2 to reduce pairs):
     # Iteratively reduce: 32 -> 16 -> 8 -> 4 -> 2 -> 1

@@ -915,7 +915,7 @@ _TCGEN05_FRAG_ROWS = {
 def tcgen05_atom_layout(instr_shape: str, tensor_shape: tuple[int, int], dtype) -> "TileLayout":
     """Register-side ``TileLayout`` for ``tcgen05.ld``/``tcgen05.st`` atoms.
 
-    Describes the per-warpgroup register tile that ``Tx.copy_async`` produces
+    Describes the per-warpgroup register tile that ``Tx.tile.copy_async`` produces
     when reading a TMEM fragment via ``tcgen05.{ld,st}.<instr_shape>.xN``.
     ``rep`` (the ``.xN`` qualifier) is inferred from ``tensor_shape``.
 

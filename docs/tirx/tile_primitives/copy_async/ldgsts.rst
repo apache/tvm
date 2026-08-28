@@ -22,8 +22,8 @@ The ``ldgsts`` variant lowers ``copy_async`` for a **global → shared** transfe
 the PTX ``cp.async`` (LDGSTS) instruction: each thread issues an *asynchronous*
 vectorized copy that the hardware completes in the background, so the warp can keep
 computing while the load is in flight. It reuses the exact ``[outer, threads, vec]``
-partition of the synchronous :doc:`../copy/gmem_smem` variant; the differences are
-all in *what* is emitted and *when* it completes. Source:
+partition of the synchronous :doc:`../copy/gmem_smem` ``vec_auto`` path; the
+differences are all in *what* is emitted and *when* it completes. Source:
 ``python/tvm/backend/cuda/tile_primitive/copy_async/ldgsts.py``.
 
 What it accepts
@@ -67,6 +67,16 @@ What it accepts
        restricted to ``_LDGSTS_VEC_BITS`` = ``{128, 64, 32}`` bits
    * - priority
      - ``20`` — selected for ``copy_async`` global→shared (vs the bulk/TMA variants)
+
+Configuration
+-------------
+
+``ldgsts`` reads four optional config keys.  ``prefetch_size`` adds the PTX
+``.L2::<N>B`` prefetch-size qualifier.  ``predicate`` predicates the issue;
+with ``fill_mode="zero"``, a false predicate uses the ``src-size`` form to
+zero-fill the destination.  ``direct=True`` bypasses cooperative partitioning
+and issues one exact 4-, 8-, or 16-byte copy; that mode requires thread scope
+and a constant-size region.
 
 Demonstration program
 ----------------------

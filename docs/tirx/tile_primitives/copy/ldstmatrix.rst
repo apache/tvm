@@ -23,7 +23,8 @@ to the warp-collective PTX ``ldmatrix`` / ``stmatrix`` instructions: one
 instruction moves ``num`` 8×8 16-bit matrix tiles between shared memory and the
 warp's registers, with the hardware performing the lane↔element shuffle that an
 MMA fragment needs. It only applies when the register and shared **layouts match
-the m8n8 fragment geometry**; otherwise the copy falls back to :doc:`reg`. Source:
+the m8n8 fragment geometry**; otherwise the copy falls back to the
+:doc:`reg` path in ``vec_auto``. Source:
 ``python/tvm/backend/cuda/tile_primitive/copy/ld_stmatrix.py``.
 
 What it accepts
@@ -49,9 +50,9 @@ The predicate is lean — scope, a valid copy, and a register↔shared pair:
         return True, None
 
 The **real** gate is the layout fit, applied during emit. Both this variant and
-:doc:`reg` are priority 10 and both accept ``local ↔ shared``; ``ldstmatrix`` is
+``vec_auto`` are priority 10 and accept ``local ↔ shared``; ``ldstmatrix`` is
 tried first and **declines** (via ``fail(...)``) if the layouts are not ldmatrix
-fragments, leaving ``reg`` to handle the copy:
+fragments, leaving the :doc:`reg` path in ``vec_auto`` to handle the copy:
 
 .. code-block:: python
 
@@ -217,4 +218,4 @@ form:
 
 A larger M raises ``m_outer`` (more unrolled instructions per lane); the ``st``
 direction emits ``stmatrix`` with the same width/trans logic. If no ``num`` fits,
-the copy is handled by :doc:`reg` instead.
+the copy is handled by the :doc:`reg` path in ``vec_auto`` instead.

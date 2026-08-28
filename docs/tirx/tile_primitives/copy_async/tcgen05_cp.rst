@@ -15,11 +15,11 @@
     specific language governing permissions and limitations
     under the License.
 
-copy_async → tcgen05_cp
-=======================
+copy_async → smem->tmem (tcgen05.cp)
+====================================
 
-The ``tcgen05_cp`` variant lowers a ``copy_async`` from **shared memory to tensor
-memory** (Blackwell ``tmem``) through a generic planner covering every
+The ``smem->tmem`` variant lowers a ``copy_async`` from **shared memory to tensor
+memory** (Blackwell ``tmem``) through the ``tcgen05_cp`` planner, which covers every
 ``tcgen05.cp`` shape. A shared **matrix descriptor** names the source tile; all
 descriptor fields (ldo/sdo/swizzle) and the cp issue sequence are derived from
 the two buffer layouts. The dispatch issues only the copy; the caller signals

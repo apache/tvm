@@ -19,8 +19,8 @@ elementwise
 ===========
 
 Covers ``cast``, ``fill``, the unary ops (``zero``, ``reciprocal``, ``sqrt``,
-``exp``, ``exp2``, ``silu``), the binary ops (``add``, ``sub``, ``mul``,
-``fdiv``), and ``fma``. Every op registers **two** variants — ``reg`` and
+``exp``, ``exp2``, ``log2``, ``silu``), the binary ops (``add``, ``sub``,
+``mul``, ``fdiv``, ``maximum``), and ``fma``. Every op registers **two** variants — ``reg`` and
 ``smem`` — both at priority 10; the operand storage scope (all-register vs
 all-shared) is the mutually-exclusive discriminator. Each op is described by an
 ``OpSpec`` (a ``parse`` that builds the destination + source list, optional dtype

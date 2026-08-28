@@ -1486,7 +1486,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
 # Requires A in smem (with TMA-compatible swizzle layout) or tmem, B in smem, accum in tmem.
 #
 # Before (TilePrimitiveCall — regular MMA):
-#     Tx.gemm_async(C_tmem[0:64, 0:256], A_smem[0:64, 0:64], B_smem[0:256, 0:64])
+#     Tx.tile.gemm_async(C_tmem[0:64, 0:256], A_smem[0:64, 0:64], B_smem[0:256, 0:64])
 #     # A: shared float16, B: shared float16, C: tmem float32
 #
 # After (encodes instruction descriptor + calls tcgen05.mma):
@@ -1497,13 +1497,12 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
 #     T.ptx[mma_chain](..., descA_buf[0], descB_buf[0], descI_local, ...)
 #
 # Before (TilePrimitiveCall — block-scaled fp8 MMA):
-#     Tx.gemm_async(C_tmem, A_smem, B_smem,
-#                   scale_A=SFA_tmem, scale_B=SFB_tmem)
+#     Tx.tile.gemm_async(C_tmem, A_smem, B_smem,
+#                        SFA=SFA_tmem, SFB=SFB_tmem)
 #     # A/B: shared float8_e4m3, SFA/SFB: tmem float8_e8m0fnu
 #
 # After (adds scale factor descriptors):
-#     T.ptx[mma_chain](..., descA, descB, descI,
-#                        scale_A=sfA_desc, scale_B=sfB_desc)
+#     T.ptx[mma_chain](..., descA, descB, descI, sfA_addr, sfB_addr, should_accum)
 #
 # Scale factor layout (sf_tmem_layout) must match tcgen05 hardware requirements:
 # rows = M or N, sf_mma_k = ceil(MMA_K / sf_block_size), specific TileLayout

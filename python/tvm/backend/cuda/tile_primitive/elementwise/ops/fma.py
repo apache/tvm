@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""FMA op: ``Tx.fma(dst, a, b, c)`` → ``dst = a*b + c``.
+"""FMA op: ``Tx.tile.fma(dst, a, b, c)`` → ``dst = a*b + c``.
 
 Attaches ``fma_f32x2`` VecImpl for sm_100+ f32; falls back to scalar
 ``a*b + c`` otherwise.

@@ -18,10 +18,12 @@
 reduction
 =========
 
-Covers ``sum``, ``max``, ``min`` (reduce over ``axes``). Three variants: ``local``
-and ``shared`` (priority 10, discriminated by operand storage scope) and
-``sm100_packed`` (priority 20, which pre-empts the others for the thread-scope
-float32 case on Blackwell).
+Covers ``sum``, ``max``, ``min`` (reduce over ``axes``).  All three operations
+register ``local`` and ``shared`` variants at priority 10, discriminated by
+operand storage scope.  On Blackwell, ``sum`` additionally registers
+``packed_add_sum`` and ``max`` / ``min`` register ``3input_maxmin`` at priority
+20.  The implementation file and detailed page group those two names as the
+SM100 packed paths; ``sm100_packed`` is not itself a dispatch name.
 
 .. list-table::
    :header-rows: 1
@@ -36,7 +38,7 @@ float32 case on Blackwell).
    * - :doc:`reduction/shared`
      - 10
      - shared src/dst; adaptive group-size ``__shfl_xor`` tree
-   * - :doc:`reduction/sm100_packed`
+   * - :doc:`reduction/sm100_packed` (``packed_add_sum`` / ``3input_maxmin``)
      - 20
      - Blackwell thread-scope fp32 ≥8: packed ``add.f32x2`` / ``max3``/``min3``
 

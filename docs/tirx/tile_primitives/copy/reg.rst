@@ -15,15 +15,18 @@
     specific language governing permissions and limitations
     under the License.
 
-copy → reg
-==========
+copy → vec_auto register path
+==============================
 
-The ``reg`` variant lowers a synchronous ``copy`` where **exactly one side is a
-register** (``local``) buffer and the other is ``shared*`` or ``global``. Unlike
-:doc:`gmem_smem`, the partition is **not synthesized** — it is *induced* by the
-register operand's layout: that layout's thread-axis iters already say which thread
-owns which logical coordinate, so the dispatch drops those axes, leaves each thread
-its private bundle of elements, and copies them in a vectorized serial loop. Source:
+The register implementation path inside the registered ``vec_auto`` variant
+lowers a synchronous ``copy`` where **exactly one side is a register** (``local``)
+buffer and the other is ``shared*`` or ``global``.  It is not a separate
+``reg`` dispatch name; automatic selection or ``dispatch="vec_auto"`` reaches
+this path.  Unlike :doc:`gmem_smem`, the partition is **not synthesized** — it is
+*induced* by the register operand's layout: that layout's thread-axis iters
+already say which thread owns which logical coordinate, so the dispatch drops
+those axes, leaves each thread its private bundle of elements, and copies them
+in a vectorized serial loop. Source:
 ``python/tvm/backend/cuda/tile_primitive/copy/vec_auto_reg.py``.
 
 What it accepts

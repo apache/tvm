@@ -54,9 +54,11 @@ def _normalize_scope(scope) -> ExecScope:
 class ScopedOp:
     """Make a tile-primitive op callable at the default ``thread`` scope.
 
-    A bare ``Tx.copy(...)`` emits a call at ``thread`` scope. To cooperate at a
-    wider scope, reach the op through a scope namespace -- ``Tx.warp.copy(...)``,
-    ``Tx.wg.sum(...)``, ``Tx.cta.fill(...)`` (see :class:`ScopeNamespace`).
+    ``Tx.tile.copy(...)`` on the authoring facade, or
+    ``Tx_builder.tile.copy(...)`` on the raw builder, emits a call at ``thread``
+    scope. To cooperate at a wider scope, use a scope namespace such as
+    ``Tx.tile.warp.copy(...)`` or ``Tx.tile.cta.fill(...)`` (see
+    :class:`ScopeNamespace`).
 
     The wrapped ``fn`` must accept a keyword-only ``scope`` parameter that it
     threads into the constructed ``TilePrimitiveCall``.
@@ -85,13 +87,13 @@ class ScopedOp:
 class ScopeNamespace:
     """Bind a cooperation scope to every tile primitive reached through it.
 
-    ``Tx.cluster`` / ``Tx.cta`` / ``Tx.wg`` (warpgroup) / ``Tx.warp`` are the
-    instances exposed on the ``Tx`` surface. Attribute access resolves a
-    tile-primitive op name against the public ``Tx`` surface (registered and
-    dynamic ops alike) and binds this namespace's scope, so
-    ``Tx.warp.copy(dst, src)`` emits a copy at warp scope and
-    ``Tx.cta.sum(out, x)`` reduces at CTA scope. A bare ``Tx.copy(...)`` (no
-    namespace prefix) stays at the default ``thread`` scope.
+    ``Tx.tile.cluster`` / ``Tx.tile.cta`` / ``Tx.tile.wg`` (warpgroup) /
+    ``Tx.tile.warp`` are the instances exposed on the authoring facade.
+    Attribute access resolves a tile-primitive operation and binds this
+    namespace's scope, so ``Tx.tile.warp.copy(dst, src)`` emits a copy at warp
+    scope and ``Tx.tile.cta.sum(out, x)`` reduces at CTA scope.  A bare
+    ``Tx.tile.copy(...)`` stays at the default ``thread`` scope.  The raw
+    builder provides the corresponding ``Tx_builder.tile.*`` spelling.
     """
 
     def __init__(self, scope, label: str):
@@ -117,9 +119,9 @@ class ScopeNamespace:
         return op._bind(self._scope)
 
 
-# Scope-prefix namespaces: ``Tx.warp.copy(...)`` / ``Tx.wg.sum(...)`` /
-# ``Tx.cta.fill(...)`` / ``Tx.cluster.copy(...)``. ``wg`` == warpgroup. A bare
-# ``Tx.copy(...)`` (no prefix) runs at the default ``thread`` scope.
+# Scope-prefix namespaces: ``Tx.tile.warp.copy(...)`` / ``Tx.tile.wg.sum(...)`` /
+# ``Tx.tile.cta.fill(...)`` / ``Tx.tile.cluster.copy(...)``. ``wg`` ==
+# warpgroup. A bare ``Tx.tile.copy(...)`` runs at the default ``thread`` scope.
 cluster = ScopeNamespace("cluster", "cluster")
 cta = ScopeNamespace("cta", "cta")
 wg = ScopeNamespace("warpgroup", "wg")
@@ -471,15 +473,15 @@ def cast(
 ):
     """Cast — overloaded.
 
-    1. ``cast(value, dtype)`` — expression-level cast: returns ``T.cast(value, dtype)``.
+    1. ``cast(value, dtype)`` — expression-level cast: returns ``Tx.cast(value, dtype)``.
        Also accepts ``cast(value, dtype=...)`` as a kwarg form.
     2. ``cast(dst, src, workspace=..., dispatch=...)`` — buffer-level Cast operator.
     """
-    # Expression-level cast: src is a dtype (str / DataType) — emit T.cast(value, dtype).
+    # Expression-level cast: src is a dtype (str / DataType) — emit Tx.cast(value, dtype).
     from tvm import tirx as _tirx
 
-    # Accept ``T.cast(value, dtype=...)`` (kwarg) in addition to the
-    # ``T.cast(value, dtype)`` positional form.
+    # Accept ``Tx.cast(value, dtype=...)`` (kwarg) in addition to the
+    # ``Tx.cast(value, dtype)`` positional form.
     if src is None and "dtype" in kwargs:
         src = kwargs.pop("dtype")
     if src is None or isinstance(src, str) or hasattr(src, "with_lanes"):
