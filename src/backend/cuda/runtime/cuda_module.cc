@@ -74,6 +74,8 @@ class CUDAModuleNode : public ffi::ModuleObj {
   }
   // destructor
   ~CUDAModuleNode() {
+    int previous_device = -1;
+    cudaError_t get_device_err = cudaGetDevice(&previous_device);
     for (size_t i = 0; i < module_.size(); ++i) {
       if (module_[i] != nullptr) {
         cudaError_t set_err = cudaSetDevice(static_cast<int>(i));
@@ -84,6 +86,10 @@ class CUDAModuleNode : public ffi::ModuleObj {
         // Ignore errors during cleanup - context may be shutting down
         (void)result;
       }
+    }
+    if (get_device_err == cudaSuccess) {
+      // Preserve the caller's current device after unloading per-device modules.
+      (void)cudaSetDevice(previous_device);
     }
   }
 
