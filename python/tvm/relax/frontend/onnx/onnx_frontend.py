@@ -728,10 +728,10 @@ class Mod(BinaryBase):
     @classmethod
     def _impl_v10(cls, bb, inputs, attr, params):
         if attr.get("fmod", 0) == 0:
-            cls.numpy_op = _np.fmod
+            cls.numpy_op = _np.mod
             cls.relax_op = relax.op.floor_mod
         else:
-            cls.numpy_op = _np.mod
+            cls.numpy_op = _np.fmod
             cls.relax_op = relax.op.mod
         return cls.base_impl(bb, inputs, attr, params)
 
