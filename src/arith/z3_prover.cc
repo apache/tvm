@@ -207,15 +207,62 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     return result;
   }
 
-  Impl(AnalyzerObj* parent)
-      : analyzer(parent), ctx(GetCurrentZ3Context()), solver(CreateSolver(*ctx)) {
+  Impl(AnalyzerObj* parent) : analyzer(parent), ctx(GetCurrentZ3Context()) {
+    // The solver is created lazily (see Materialize). Analyzers are
+    // constructed in large numbers as cheap scratch objects, and only a tiny
+    // fraction ever reaches the Z3 fallback of CanProve; creating the solver
+    // (and translating every Bind into z3 constraints) eagerly made every
+    // Analyzer pay Z3's initialization cost up front. Until the first
+    // operation that actually needs the solver, Bind/EnterConstraint only
+    // journal their arguments into scope_stack_.
     scope_stack_.push_back({});
+    scope_side_effects_.push_back({});
     // use rlimit, not timeout to ensure deterministic behavior
     SetRLimit(10000U);
   }
 
+  /// @brief Create the solver on first use and replay the recorded journal.
+  ///
+  /// The live scope_stack_ (which also feeds the SMTLIB2 debug output) holds
+  /// exactly the binds and constraints an eagerly-built solver would carry:
+  /// binds append to the innermost scope and scopes pop LIFO, so walking the
+  /// scopes front-to-back replays the surviving entries in the order they
+  /// were recorded. Entries from scopes that already exited were popped
+  /// together with their scope and are correctly absent. The replay performs
+  /// the same MemoPut/solver->add sequence the eager path would have done
+  /// for these entries, so CanProve answers are unchanged.
+  void Materialize() {
+    if (solver) return;
+    solver.emplace(CreateSolver(*ctx));
+    if (timeout_ms != UINT_MAX) {
+      solver->set("timeout", timeout_ms);
+    }
+    if (rlimit != UINT_MAX) {
+      solver->set("rlimit", rlimit);
+    }
+    TVM_FFI_ICHECK_EQ(scope_side_effects_.size(), scope_stack_.size());
+    for (size_t scope_index = 0; scope_index < scope_stack_.size(); ++scope_index) {
+      for (const Scope& entry : scope_stack_[scope_index]) {
+        switch (entry.kind) {
+          case Scope::BindValue:
+            ApplyBindValue(entry.var, entry.value);
+            break;
+          case Scope::BindRange:
+            ApplyBindRange(entry.var, entry.min, entry.extent);
+            break;
+          case Scope::Constraint:
+            ApplyConstraint(entry.constraint, entry.is_assume, scope_index);
+            break;
+        }
+      }
+    }
+  }
+
   /// @brief Create a Free z3 expression from a primitive-valued ExprNode.
   z3::expr Create(const ExprNode* op) {
+    // Expression translation only happens with a live solver: every public
+    // entry point that can reach a visitor materializes first.
+    TVM_FFI_ICHECK(solver.has_value());
     auto ref = ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>();
     PrimType dtype = ref.ty();
     std::string name = ns.GetNewName(ref);
@@ -246,28 +293,56 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     PrimExpr min;
     PrimExpr extent;
     PrimExpr constraint;
+    /// Assume-mode constraints keep side-effectful expressions memoized for
+    /// the lifetime of their scope. This flag preserves that behavior during
+    /// deferred replay.
+    bool is_assume = false;
   };
 
   /// @brief scope_stack memorizes existing constraint and bindings
   ///        to generate SMTLIB2 representation with comments
   std::vector<std::vector<Scope>> scope_stack_;
 
+  /// @brief Per-scope memoized side-effect expressions, parallel to scope_stack_.
+  std::vector<std::vector<PrimExpr>> scope_side_effects_;
+
   /// @brief Enter a constraint scope
-  std::function<void()> EnterConstraint(const PrimExpr& constraint) {
+  std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume) {
     scope_stack_.push_back({});
     scope_stack_.back().push_back(
-        Scope{Scope::Constraint, Var(), PrimExpr(), PrimExpr(), PrimExpr(), constraint});
-    solver->push();
-    solver->add(VisitBool(constraint));
-    auto side_effect_exprs = std::move(side_effect_exprs_);
-    side_effect_exprs_.clear();
-    for (const auto& expr : side_effect_exprs) {
-      MemoErase(expr);
+        Scope{Scope::Constraint, Var(), PrimExpr(), PrimExpr(), PrimExpr(), constraint, is_assume});
+    scope_side_effects_.push_back({});
+    if (solver) {
+      ApplyConstraint(constraint, is_assume, scope_side_effects_.size() - 1);
     }
+    // Exit callback: scopes leave LIFO. If the solver materialized while this
+    // scope was live, replay pushed its frame and retained its assume memos.
     return [this]() {
-      solver->pop();
+      if (solver) solver->pop();
+      for (const PrimExpr& expr : scope_side_effects_.back()) {
+        MemoErase(expr);
+      }
+      scope_side_effects_.pop_back();
       scope_stack_.pop_back();
     };
+  }
+
+  /// @brief Translate a constraint into the solver (push + assert).
+  void ApplyConstraint(const PrimExpr& constraint, bool is_assume, size_t scope_index) {
+    solver->push();
+    this->is_assume = is_assume;
+    solver->add(VisitBool(constraint));
+    this->is_assume = false;
+    auto side_effect_exprs = std::move(side_effect_exprs_);
+    side_effect_exprs_.clear();
+    if (is_assume) {
+      auto& keep = scope_side_effects_[scope_index];
+      keep.insert(keep.end(), side_effect_exprs.begin(), side_effect_exprs.end());
+    } else {
+      for (const PrimExpr& expr : side_effect_exprs) {
+        MemoErase(expr);
+      }
+    }
   }
 
   /// @brief Check trivil bad cases, return true if the expr is a bad case
@@ -318,8 +393,11 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     // Z3 is only a fallback. Any failure (including z3::exception thrown by the
     // solver) must degrade to "cannot prove" instead of escaping to the caller.
     try {
-      if (CheckTrivilBadCases(expr)) return false;
       if (!IsZ3SupportedExpr(expr.get())) return false;
+      // The trivial-bad-case check below consults the memo (IsFreeNode), so
+      // the journal must be replayed first for it to see the bound vars.
+      Materialize();
+      if (CheckTrivilBadCases(expr)) return false;
       z3::expr_vector constr(*ctx);
       constr.push_back(!ConvertBool(expr));
       auto result = solver->check(constr);
@@ -335,6 +413,11 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   void Bind(const Var& var, const PrimExpr& value, bool allow_override = false) {
     if (!IsZ3SupportedExpr(var.get())) return;
     scope_stack_.back().push_back(Scope{Scope::BindValue, var, value});
+    if (!solver) return;  // journaled; translated when the solver materializes
+    ApplyBindValue(var, value);
+  }
+
+  void ApplyBindValue(const Var& var, const PrimExpr& value) {
     // we add the binding whenever the value is pure,
     // because non-pure parts are handling by creating free variables in VisitExpr
     MemoPut(var.as_or_throw<PrimExpr>(), ConvertInt(value));
@@ -345,6 +428,11 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     if (!IsZ3SupportedExpr(var.get())) return;
     scope_stack_.back().push_back(
         Scope{Scope::BindRange, var, PrimExpr(), range->min, range->extent});
+    if (!solver) return;  // journaled; translated when the solver materializes
+    ApplyBindRange(var, range->min, range->extent);
+  }
+
+  void ApplyBindRange(const Var& var, const PrimExpr& min, const PrimExpr& extent) {
     // 1. Create a placeholder for the var, and save it in the memo
     //    if the var is overrided later, we can just update the memo, and the old placeholder will
     //    be ignored
@@ -356,13 +444,13 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     //    instead of adding an unsat constraint, we just skip the range constraint to leave it a
     //    free var
     //
-    //    NOTE: range->min + range->extent builds a fresh AddNode that is not folded, so we must
-    //    test is_const_int on range->min and range->extent individually and add the two constants
+    //    NOTE: min + extent builds a fresh AddNode that is not folded, so we must
+    //    test is_const_int on min and extent individually and add the two constants
     //    in C++. Otherwise this fast path is never taken and we always emit the more expensive
     //    symbolic constraint below.
-    if (tirx::is_const_int(range->min) && tirx::is_const_int(range->extent)) {
-      int64_t min_value = *tirx::as_const_int(range->min);
-      int64_t extent_value = *tirx::as_const_int(range->extent);
+    if (tirx::is_const_int(min) && tirx::is_const_int(extent)) {
+      int64_t min_value = *tirx::as_const_int(min);
+      int64_t extent_value = *tirx::as_const_int(extent);
       int64_t max_value = min_value + extent_value;
       if (min_value < max_value) {
         solver->add(ctx->int_val(min_value) <= var_expr);
@@ -370,12 +458,28 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
       }
     } else {
       PrimExpr prim_var = var.as_or_throw<PrimExpr>();
-      solver->add(ConvertBool(range->extent <= 0 ||
-                              (range->min <= prim_var && prim_var < range->min + range->extent)));
+      solver->add(ConvertBool(extent <= 0 || (min <= prim_var && prim_var < min + extent)));
     }
   }
 
   void CopyFrom(const Self& other_) {
+    if (!other_.solver) {
+      // The source has not materialized: its entire Z3 state is the journal.
+      // Copy it and stay lazy; a later Materialize on this clone rebuilds
+      // the same solver state the source would have built.
+      solver.reset();
+      memo_.clear();
+      z3_pool_.clear();
+      free_slots_.clear();
+      ns = Namespace();
+      side_effect_exprs_.clear();
+      ctx = other_.ctx;
+      scope_stack_ = other_.scope_stack_;
+      scope_side_effects_.assign(scope_stack_.size(), {});
+      timeout_ms = other_.timeout_ms;
+      rlimit = other_.rlimit;
+      return;
+    }
     // Z3 handles cannot move between contexts. Destroy every handle owned by
     // this fresh clone before adopting the source Analyzer's context.
     solver.reset();
@@ -406,22 +510,26 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     SetRLimit(other_.rlimit);
     // Copy the scope stack, which contains comments for SMTLIB2 generation.
     scope_stack_ = other_.scope_stack_;
+    scope_side_effects_ = other_.scope_side_effects_;
   }
 
   /// @brief Set timeout in milliseconds
   void SetTimeoutMs(unsigned timeout_ms) {
     this->timeout_ms = timeout_ms;
+    if (!solver) return;  // stored; applied when the solver materializes
     solver->set("timeout", timeout_ms);
   }
 
   /// @brief Set max steps
   void SetRLimit(unsigned rlimit) {
     this->rlimit = rlimit;
+    if (!solver) return;  // stored; applied when the solver materializes
     solver->set("rlimit", rlimit);
   }
 
   /// @brief Get the SMTLIB2 representation of the current solver state
   ffi::String GetSMTLIB2() {
+    Materialize();
     std::stringstream ss;
     ss << "(set-option :timeout " << timeout_ms << ")\n";
     AddScopeDebugMsg(ss);
@@ -452,6 +560,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   /// @brief Get the SMTLIB2 representation of the current solver state with additional expr trying
   /// to prove
   ffi::String GetSMTLIB2(const PrimExpr& expr) {
+    Materialize();
     std::stringstream ss;
     ss << "(set-option :timeout " << timeout_ms << ")\n";
     AddScopeDebugMsg(ss);
@@ -465,12 +574,14 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
 
   /// @brief Get the statistics of the solver
   ffi::String GetStats() {
+    Materialize();
     std::stringstream ss;
     ss << solver->statistics();
     return ss.str();
   }
 
   ffi::String GetModel(const PrimExpr& expr) {
+    Materialize();
     solver->set("model", true);
     solver->push();
     solver->add(!ConvertBool(expr));
@@ -512,6 +623,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
       return -1;
     }
 
+    Materialize();
     solver->set("model", true);
     solver->push();
 
@@ -587,22 +699,27 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   using Z3BinOp = z3::expr (*)(const z3::expr&, const z3::expr&);
 
   std::vector<PrimExpr> side_effect_exprs_;
+  bool is_assume = false;
 
-  z3::expr ConvertBool(const PrimExpr& e) {
+  z3::expr ConvertBool(const PrimExpr& e, bool is_assume = false) {
+    this->is_assume = is_assume;
     auto res = VisitBool(e);
     for (auto& expr : side_effect_exprs_) {
       MemoErase(expr);
     }
     side_effect_exprs_.clear();
+    this->is_assume = false;
     return res;
   }
 
-  z3::expr ConvertInt(const PrimExpr& e) {
+  z3::expr ConvertInt(const PrimExpr& e, bool is_assume = false) {
+    this->is_assume = is_assume;
     auto res = VisitInt(e);
     for (auto& expr : side_effect_exprs_) {
       MemoErase(expr);
     }
     side_effect_exprs_.clear();
+    this->is_assume = false;
     return res;
   }
 
@@ -620,6 +737,9 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
       MemoPut(e, res);
       side_effect_exprs_.emplace_back(e);
     } else {
+      if (is_assume) {
+        MemoPut(e, res);
+      }
       side_effect_exprs_.emplace_back(e);
     }
     return res;
@@ -883,8 +1003,8 @@ TVM_DLL void Z3Prover::Bind(const Var& var, const Range& new_range, bool allow_o
 TVM_DLL void Z3Prover::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
   return impl_->Bind(var, expr, allow_override);
 }
-std::function<void()> Z3Prover::EnterConstraint(const PrimExpr& constraint) {
-  return impl_->EnterConstraint(constraint);
+std::function<void()> Z3Prover::EnterConstraint(const PrimExpr& constraint, bool is_assume) {
+  return impl_->EnterConstraint(constraint, is_assume);
 }
 ffi::String Z3Prover::GetSMTLIB2(const ffi::Optional<PrimExpr> expr) {
   if (expr.has_value()) {
@@ -932,7 +1052,7 @@ TVM_DLL bool Z3Prover::IsEnabled() const { return false; }
 TVM_DLL bool Z3Prover::CanProve(const PrimExpr& expr) { return false; }
 TVM_DLL void Z3Prover::Bind(const Var& var, const Range& new_range, bool allow_override) {}
 TVM_DLL void Z3Prover::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {}
-std::function<void()> Z3Prover::EnterConstraint(const PrimExpr& constraint) {
+std::function<void()> Z3Prover::EnterConstraint(const PrimExpr& constraint, bool is_assume) {
   return []() {};
 }
 ffi::String Z3Prover::GetSMTLIB2(const ffi::Optional<PrimExpr> expr) {
