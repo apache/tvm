@@ -19,7 +19,7 @@
 import pytest
 
 from tvm.backend.cuda.ptx.render import render_variant
-from tvm.backend.cuda.ptx.table import TABLE, renderings, tokens_for
+from tvm.backend.cuda.ptx.table import TABLE, mods, operand_dtypes, renderings, tokens_for
 
 # (entry name, the modifier slots to write, the instruction that combination emits).
 # Slots are named, not positional: `tokens_for` shifts nothing when a slot is
@@ -276,6 +276,171 @@ def test_cvt_packed_operands_bind_their_carrier():
     _, _, source = render_variant(TABLE["cvt_bf16x2_ue8m0x2"], ("rn", "bf16x2", "ue8m0x2"))
     assert "uint32_t& __d" in source
     assert "uint16_t __a" in source
+
+
+_CVT_RELAXED_DTYPE_CASES = [
+    (
+        "u8",
+        (
+            "uint8",
+            "int8",
+            "uint16",
+            "int16",
+            "uint32",
+            "int32",
+            "uint64",
+            "int64",
+            "uint128",
+            "int128",
+        ),
+        None,
+    ),
+    (
+        "s8",
+        (
+            "int8",
+            "uint8",
+            "int16",
+            "uint16",
+            "int32",
+            "uint32",
+            "int64",
+            "uint64",
+            "int128",
+            "uint128",
+        ),
+        None,
+    ),
+    (
+        "u16",
+        ("uint16", "int16", "uint32", "int32", "uint64", "int64", "uint128", "int128"),
+        None,
+    ),
+    (
+        "s16",
+        ("int16", "uint16", "int32", "uint32", "int64", "uint64", "int128", "uint128"),
+        None,
+    ),
+    ("u32", ("uint32", "int32", "uint64", "int64", "uint128", "int128"), None),
+    ("s32", ("int32", "uint32", "int64", "uint64", "int128", "uint128"), None),
+    ("u64", ("uint64", "int64", "uint128", "int128"), None),
+    ("s64", ("int64", "uint64", "int128", "uint128"), None),
+    (
+        "f16",
+        (
+            "uint16",
+            "int16",
+            "float16",
+            "bfloat16",
+            "uint32",
+            "int32",
+            "uint64",
+            "int64",
+            "uint128",
+            "int128",
+        ),
+        ("uint16", "int16", "float16", "bfloat16"),
+    ),
+    ("bf16", ("uint16",), ("uint16",)),
+    (
+        "f32",
+        ("float32", "uint32", "int32", "uint64", "int64", "uint128", "int128"),
+        ("float32", "uint32", "int32"),
+    ),
+    (
+        "f64",
+        ("float64", "uint64", "int64", "uint128", "int128"),
+        ("float64", "uint64", "int64"),
+    ),
+]
+
+
+@pytest.mark.parametrize("ptx_type,dst_expected,src_expected", _CVT_RELAXED_DTYPE_CASES)
+def test_cvt_generic_scalar_relaxed_carriers(ptx_type, dst_expected, src_expected):
+    """Keep documented relaxation except where ptxas rejects a floating source.
+
+    The native spelling remains first to preserve canonical helper names.
+    Integer instruction types never admit a floating register, and the cvt
+    section explicitly exempts `.bf16` from widening in both directions. PTX
+    9.2 permits wider bit registers for the other floating sources, but ptxas
+    rejects them, so they are not callable interfaces in this backend.
+    """
+    entry = TABLE["cvt"]
+    mod_map = mods(entry, tokens_for(entry, dtype=ptx_type, atype=ptx_type))
+    assert operand_dtypes(entry.operands[0], mod_map) == dst_expected
+    assert operand_dtypes(entry.operands[1], mod_map) == (src_expected or dst_expected)
+
+
+def test_cvt_generic_scalar_bf16_relaxation_is_operand_local():
+    """The cvt exception for .bf16 applies only to the .bf16 operand."""
+    entry = TABLE["cvt"]
+    to_bf16 = mods(entry, tokens_for(entry, rnd="rn", dtype="bf16", atype="u32"))
+    assert operand_dtypes(entry.operands[0], to_bf16) == ("uint16",)
+    assert operand_dtypes(entry.operands[1], to_bf16) == (
+        "uint32",
+        "int32",
+        "uint64",
+        "int64",
+        "uint128",
+        "int128",
+    )
+
+    from_bf16 = mods(entry, tokens_for(entry, rnd="rni", dtype="u32", atype="bf16"))
+    assert operand_dtypes(entry.operands[0], from_bf16) == (
+        "uint32",
+        "int32",
+        "uint64",
+        "int64",
+        "uint128",
+        "int128",
+    )
+    assert operand_dtypes(entry.operands[1], from_bf16) == ("uint16",)
+
+
+def test_cvt_generic_scalar_relaxed_carriers_render_exact_instruction():
+    entry = TABLE["cvt"]
+
+    tokens = tokens_for(entry, dtype="s16", atype="u16")
+    opcode, helper, source = render_variant(entry, tokens, dtypes=("int64", "uint64"))
+    assert opcode == "cvt.s16.u16"
+    assert helper == "tvm_builtin_ptx_cvt_s16_u16_s64_u64"
+    assert "(int64_t& __d, uint64_t __a)" in source
+    assert '"cvt.s16.u16 %0, %1;" : "=l"(__d) : "l"(__a)' in source
+
+    # Destination widening remains supported, while the floating source is
+    # exact-width because ptxas rejects the wider source form permitted by PTX
+    # 9.2 Table 27.
+    tokens = tokens_for(entry, rnd="rn", dtype="f16", atype="f32")
+    opcode, helper, source = render_variant(entry, tokens, dtypes=("uint128", "uint32"))
+    assert opcode == "cvt.rn.f16.f32"
+    assert helper == "tvm_builtin_ptx_cvt_rn_f16_f32_u128_u32"
+    assert "(__uint128_t& __d, uint32_t __a)" in source
+    assert '"cvt.rn.f16.f32 %0, %1;" : "=q"(__d) : "r"(__a)' in source
+
+
+def test_cvt_packed_and_bf16_carriers_are_not_blanket_widened():
+    generic_bf16 = TABLE["cvt"]
+    bf16_map = mods(generic_bf16, tokens_for(generic_bf16, dtype="bf16", atype="bf16"))
+    assert operand_dtypes(generic_bf16.operands[0], bf16_map) == ("uint16",)
+    assert operand_dtypes(generic_bf16.operands[1], bf16_map) == ("uint16",)
+
+    packed = TABLE["cvt_f16x2_f32"]
+    packed_map = mods(packed, tokens_for(packed, rnd="rn", dtype="f16x2", atype="f32"))
+    assert operand_dtypes(packed.operands[0], packed_map) == ("uint32",)
+    assert operand_dtypes(packed.operands[1], packed_map) == ("float32",)
+
+    tf32 = TABLE["cvt_tf32_f32"]
+    tf32_map = mods(tf32, tokens_for(tf32, rnd="rna", dtype="tf32", atype="f32"))
+    assert operand_dtypes(tf32.operands[0], tf32_map) == ("uint32",)
+    assert operand_dtypes(tf32.operands[1], tf32_map) == ("float32",)
+
+
+def test_cvt_bf16_sat_diagnostics_distinguish_isa_and_toolchain():
+    entry = TABLE["cvt"]
+    with pytest.raises(ValueError, match=r"ISA limits floating-point \.sat destinations"):
+        tokens_for(entry, rnd="rn", sat="sat", dtype="bf16", atype="f32")
+    with pytest.raises(ValueError, match=r"toolchain assembles no \.sat when \.bf16 is the source"):
+        tokens_for(entry, sat="sat", dtype="f32", atype="bf16")
 
 
 def test_cvt_e2m1x2_stages_its_b8_operand():

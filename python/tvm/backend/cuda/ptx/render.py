@@ -94,12 +94,12 @@ class Bridge(NamedTuple):
     """How one PTX register class that inline asm cannot bind is reached.
 
     ``C_BINDING`` above answers "what C type carries this value"; this answers
-    the other half, "what does the instruction actually name". Two ISA types
-    need it, for the same reason from opposite ends of the constraint
-    alphabet: ``.pred`` has no letter at all, and ``.b8`` is below the
-    narrowest one (``"h"``). Both are reached the way hand-written PTX reaches
-    them -- declare a register of the real class inside the asm block, and
-    convert between it and the bound carrier.
+    the other half, "what does the instruction actually name". The bridged
+    classes sit outside the constraint alphabet: ``.pred`` has no letter at
+    all, and the byte registers are below the narrowest constraint (``"h"``).
+    They are reached the way hand-written PTX reaches them -- declare a
+    register of the real class inside the asm block, and convert between it
+    and the bound carrier.
 
     ``read``/``write`` are the local register's name (``{slot}`` = the operand
     name, ``{n}`` = how many of this direction the block already declared).
@@ -142,6 +142,12 @@ BRIDGE = {
     # bridge, not a defect to be cleaned up. The C side needs no help: the
     # uint8 row of C_BINDING already carries the uint16 and its casts.
     "e2m1x2": Bridge(
+        ".b8", "raw_{slot}", "raw_{slot}", "cvt.u8.u16 {reg}, %{idx};", "cvt.u16.u8 %{idx}, {reg};"
+    ),
+    # st.async.release's b8/u8/s8 sources share one private .b8 staging
+    # register.  Stores preserve the low eight bits; the instruction suffix
+    # still supplies the public signed/unsigned interpretation.
+    "st_async_b8reg": Bridge(
         ".b8", "raw_{slot}", "raw_{slot}", "cvt.u8.u16 {reg}, %{idx};", "cvt.u16.u8 %{idx}, {reg};"
     ),
 }
