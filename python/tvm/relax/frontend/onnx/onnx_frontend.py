@@ -1678,13 +1678,35 @@ class Where(OnnxOpConverter):
             np_inputs = [inp.data.numpy() for inp in inputs]
             output = _np.where(*np_inputs)
             return relax.const(output, output.dtype)
+
         if all([isinstance(inp, relax.Constant | relax.ShapeExpr) for inp in inputs]):
-            condition, x, y = [get_prim_expr_list(inp) for inp in inputs]
-            if len(condition) != len(x) or len(condition) != len(y):
-                raise ValueError("Cannot broadcast condition to x and y")
-            output = [x if c else y for c, x, y in zip(condition, x, y)]
-            return relax.ShapeExpr(output)
-        return relax.op.where(inputs[0], inputs[1], inputs[2])
+            try:
+                condition, x, y = [get_prim_expr_list(inp) for inp in inputs]
+            except ValueError:
+                # Not a 1-D shape-like input (e.g. a rank-2 constant mixed with
+                # a shape tensor): fall through to the tensor path below.
+                condition = x = y = None
+            else:
+                n = max(len(condition), len(x), len(y))
+                if not all(len(v) in (1, n) for v in (condition, x, y)):
+                    raise ValueError(
+                        "Cannot broadcast condition, x and y with lengths "
+                        f"{len(condition)}, {len(x)}, {len(y)}"
+                    )
+                if n > 1:
+                    condition = condition * n if len(condition) == 1 else condition
+                    x = x * n if len(x) == 1 else x
+                    y = y * n if len(y) == 1 else y
+                output = [x if c else y for c, x, y in zip(condition, x, y)]
+                return relax.ShapeExpr(output)
+
+        tensors = []
+        for inp in inputs:
+            if isinstance(inp, relax.ShapeExpr):
+                tensors.append(relax.op.shape_to_tensor(inp))
+            else:
+                tensors.append(inp)
+        return relax.op.where(tensors[0], tensors[1], tensors[2])
 
 
 class Clip(OnnxOpConverter):

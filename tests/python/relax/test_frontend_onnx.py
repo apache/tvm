@@ -3380,6 +3380,98 @@ def test_equal():
     check_correctness(model)
 
 
+def _make_where_shape_expr_model(t1_shape, cond_vals, y_vals, cond_is_input=False):
+    """Build an ONNX model whose Where input X comes from a Shape op.
+
+    X = Shape(t1) yields the int64 shape tensor of t1 (e.g. [2, 3]); cond and Y
+    are length-1 or length-rank initializers (or cond is a graph input). Where
+    must follow NumPy-style broadcasting over the element lists.
+    """
+    inits, gin, nodes = [], [], []
+    gin.append(helper.make_tensor_value_info("__t", TensorProto.FLOAT, list(t1_shape)))
+    nodes.append(helper.make_node("Shape", ["__t"], ["X"]))
+    if cond_is_input:
+        gin.append(helper.make_tensor_value_info("cond", TensorProto.BOOL, [len(cond_vals)]))
+    else:
+        inits.append(
+            helper.make_tensor(
+                "cond",
+                TensorProto.BOOL,
+                [len(cond_vals)],
+                list(np.array(cond_vals, dtype=np.bool_)),
+            )
+        )
+    inits.append(
+        helper.make_tensor(
+            "Y", TensorProto.INT64, [len(y_vals)], list(np.array(y_vals, dtype=np.int64))
+        )
+    )
+    nodes.append(helper.make_node("Where", ["cond", "X", "Y"], ["Yout"]))
+    graph = helper.make_graph(
+        nodes,
+        "where_shape_expr_test",
+        gin,
+        [helper.make_tensor_value_info("Yout", TensorProto.INT64, [len(t1_shape)])],
+        inits,
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 16)])
+    model.ir_version = 8
+    return model
+
+
+def test_where_shape_expr():
+    """Where with a shape tensor (Shape op output) must import and run.
+
+    Regression: a shape expression mixed with a runtime tensor was passed
+    straight to relax.op.where, which raised 'Op(relax.where) requires argument
+    1 (x1) to be a tensor'. The shape expression must be materialized to an
+    int64 tensor first.
+    """
+    # cond is an initializer (1,) -> broadcasts to (2,); x = Shape((2, 3)) = [2, 3]
+    model = _make_where_shape_expr_model((2, 3), [True], [4, 5])
+    check_correctness(model, inputs={"__t": np.ones((2, 3), dtype="float32")}, opset=16)
+
+    # cond is a graph input (2,); x = Shape((2, 3)); y initializer (2,)
+    model = _make_where_shape_expr_model((2, 3), [True, False], [4, 5], cond_is_input=True)
+    check_correctness(
+        model,
+        inputs={
+            "__t": np.ones((2, 3), dtype="float32"),
+            "cond": np.array([True, False], dtype=np.bool_),
+        },
+        opset=16,
+    )
+
+
+@pytest.mark.parametrize(
+    "cond_vals, y_vals, expected",
+    [
+        ([True], [4, 5], [2, 3]),  # cond (1,) broadcasts to (2,)
+        ([True, False], [4], [2, 4]),  # y (1,) broadcasts to (2,)
+        ([True], [4], [2, 3]),  # both (1,) broadcast to (2,)
+        ([True, False], [4, 5], [2, 5]),  # equal lengths (regression)
+    ],
+)
+def test_where_shape_expr_broadcast(cond_vals, y_vals, expected):
+    """The all-constant/shape-expression fast path must broadcast size-1 dims.
+
+    Regression: length-1 element lists were rejected with 'Cannot broadcast
+    condition to x and y' instead of being broadcast to the common length, so
+    e.g. cond=[True] with x=[2, 3] failed to import.
+    """
+    t1_shape = (2, 3)
+    model = _make_where_shape_expr_model(t1_shape, cond_vals, y_vals)
+    feeds = {"__t": np.ones(t1_shape, dtype="float32")}
+    mod = from_onnx(model, shape_dict={"__t": list(t1_shape)})
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(mod, target="llvm")
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    out = vm["main"](feeds["__t"])
+    np.testing.assert_array_equal(
+        np.array([int(i) for i in out], dtype=np.int64), np.array(expected, dtype=np.int64)
+    )
+
+
 def test_shape():
     shape_node = helper.make_node("Shape", ["data"], ["output"])
 
