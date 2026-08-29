@@ -99,8 +99,6 @@ ffi::String TensorNode::GetNameHint() const {
   return op->num_outputs() == 1 ? op->name : (op->name + ".v" + std::to_string(value_index));
 }
 
-PrimExpr TensorNode::ToPrimExpr() const { return ffi::GetRef<Tensor>(this)(); }
-
 Tensor Operation::output(size_t i) const {
   return Tensor((*this)->output_shape(i), (*this)->output_dtype(i), *this, static_cast<int>(i));
 }

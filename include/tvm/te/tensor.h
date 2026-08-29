@@ -84,8 +84,6 @@ class TensorNode : public OpaqueExprNode {
 
   PrimType GetDataType() const { return dtype; }
 
-  TVM_DLL PrimExpr ToPrimExpr() const;
-
   TVM_DLL ffi::String GetNameHint() const;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
@@ -110,8 +108,6 @@ class Tensor : public OpaqueExpr {
  public:
   TVM_DLL Tensor(ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int value_index);
 
-  /*! \brief Convert a rank-zero Tensor to its scalar load expression. */
-  operator PrimExpr() const { return (*this)->ToPrimExpr(); }
   /*!
    * \brief check if two tensors equals each other.
    * \param other tensor to be checked.
