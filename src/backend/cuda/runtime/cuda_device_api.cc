@@ -24,7 +24,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <tvm/ffi/extra/c_env_api.h>
-#include <tvm/ffi/extra/cuda/base.h>
+#include <tvm/ffi/extra/cuda/device_guard.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
@@ -198,7 +198,10 @@ class CUDADeviceAPI final : public DeviceAPI {
       VLOG(1) << "freeing host memory";
       TVM_FFI_CHECK_CUDA_ERROR(cudaFreeHost(ptr));
     } else {
-      TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev.device_id));
+      // Tensor and workspace cleanup can run from a destructor.  Releasing an
+      // allocation on another device must not change the caller's ambient
+      // CUDA device.
+      ffi::CUDADeviceGuard device_guard(dev.device_id);
       VLOG(1) << "freeing device memory";
       TVM_FFI_CHECK_CUDA_ERROR(cudaFree(ptr));
     }
@@ -253,7 +256,9 @@ class CUDADeviceAPI final : public DeviceAPI {
   }
 
   void FreeStream(Device dev, TVMStreamHandle stream) {
-    TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev.device_id));
+    // FreeStream is also reachable from runtime-object destructors (for
+    // example, PagedAttentionKVCacheObj), so preserve the caller's device.
+    ffi::CUDADeviceGuard device_guard(dev.device_id);
     cudaStream_t cu_stream = static_cast<cudaStream_t>(stream);
     TVM_FFI_CHECK_CUDA_ERROR(cudaStreamDestroy(cu_stream));
   }

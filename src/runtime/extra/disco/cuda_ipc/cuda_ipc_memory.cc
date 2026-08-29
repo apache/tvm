@@ -18,7 +18,7 @@
  */
 
 #include <cuda_runtime.h>
-#include <tvm/ffi/extra/cuda/base.h>
+#include <tvm/ffi/extra/cuda/device_guard.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/disco/cuda_ipc_memory.h>
@@ -119,7 +119,7 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
 
   void DeviceFreeDataSpace(Device dev, void* ptr) final {
     TVM_FFI_ICHECK(dev.device_type == kDLCUDA);
-    TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev.device_id));
+    ffi::CUDADeviceGuard device_guard(dev.device_id);
     nccl::CCLThreadLocalContext* ctx = nccl::CCLThreadLocalContext::Get();
     auto it = ipc_memory_map_.find(ptr);
     TVM_FFI_ICHECK(it != ipc_memory_map_.end());

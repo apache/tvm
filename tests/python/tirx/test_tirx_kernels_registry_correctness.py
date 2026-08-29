@@ -61,6 +61,12 @@ _DISTRIBUTED_KERNELS = frozenset(
     }
 )
 _MEGA_MOE_KERNELS = frozenset({"deepgemm_fp8_fp4_mega_moe", "sm100_fp8_fp4_mega_moe"})
+_BROKEN_REFERENCE_REASONS = {
+    "fast_topk_clusters": (
+        "FlashInfer fast_topk_clusters reference omits an input bounds check and does not "
+        "initialize or reset its shared threshold bin"
+    ),
+}
 _XDIST_CUDA_DEVICE = None
 
 
@@ -84,11 +90,11 @@ def _manifest_kernel_config_cases():
                 f"{kernel_name}::{label} declares num_gpus={workload['num_gpus']}, "
                 f"but its config requires {required_devices}"
             )
-        marks = (
-            pytest.mark.xdist_group(name="distributed_device_zero")
-            if kernel_name in _DISTRIBUTED_KERNELS
-            else ()
-        )
+        marks = []
+        if kernel_name in _DISTRIBUTED_KERNELS:
+            marks.append(pytest.mark.xdist_group(name="distributed_device_zero"))
+        if kernel_name in _BROKEN_REFERENCE_REASONS:
+            marks.append(pytest.mark.skip(reason=_BROKEN_REFERENCE_REASONS[kernel_name]))
         cases.append(pytest.param(kernel_name, config, id=f"{kernel_name}::{label}", marks=marks))
     return cases
 

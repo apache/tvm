@@ -74,6 +74,47 @@ def _helper_source(src: str, helper_name: str) -> str:
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_multi_gpu(), reason="need multiple GPUs")
+def test_cuda_ndarray_destructor_preserves_current_device():
+    torch = pytest.importorskip("torch")
+
+    original_device = torch.cuda.current_device()
+    try:
+        torch.cuda.set_device(0)
+        data = tvm.runtime.tensor(np.zeros(1, dtype="int32"), device=tvm.cuda(0))
+
+        torch.cuda.set_device(1)
+        del data
+        gc.collect()
+
+        assert torch.cuda.current_device() == 1
+    finally:
+        torch.cuda.set_device(original_device)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_multi_gpu(), reason="need multiple GPUs")
+def test_cuda_stream_free_preserves_current_device():
+    torch = pytest.importorskip("torch")
+
+    original_device = torch.cuda.current_device()
+    stream = None
+    try:
+        torch.cuda.set_device(0)
+        stream = tvm.cuda(0).create_raw_stream()
+
+        torch.cuda.set_device(1)
+        tvm.cuda(0).free_raw_stream(stream)
+        stream = None
+
+        assert torch.cuda.current_device() == 1
+    finally:
+        if stream is not None:
+            tvm.cuda(0).free_raw_stream(stream)
+        torch.cuda.set_device(original_device)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_multi_gpu(), reason="need multiple GPUs")
 def test_cuda_module_destructor_preserves_current_device():
     torch = pytest.importorskip("torch")
 
