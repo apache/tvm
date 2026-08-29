@@ -599,14 +599,16 @@ class IntSetAnalyzer {
 /*!
  * \brief Enter a thread-local Z3 context scope.
  *
- * The outermost scope creates a fresh Z3 context. Nested scopes on the same
- * thread reuse that context so all Analyzers created during one compilation
- * can share it.
+ * Deprecated no-op. Every materialized Z3 solver owns a private context,
+ * which subsumes the per-compilation isolation these scopes provided; kept
+ * only until the remaining downstream call sites are removed.
  */
 TVM_DLL void EnterZ3ContextScope();
 
 /*!
  * \brief Exit the current thread-local Z3 context scope.
+ *
+ * Deprecated no-op, see EnterZ3ContextScope.
  */
 TVM_DLL void ExitZ3ContextScope();
 
