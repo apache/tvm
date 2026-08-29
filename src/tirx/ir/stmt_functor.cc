@@ -95,6 +95,11 @@ void StmtExprVisitor::VisitExpr_(const BufferLoadNode* op) {
   ExprVisitor::VisitExpr_(op);
 }
 
+void StmtExprVisitor::VisitExpr_(const BufferRegionNode* op) {
+  this->VisitBufferUse(op->buffer);
+  ExprVisitor::VisitExpr_(op);
+}
+
 void StmtVisitor::VisitStmt_(const AllocBufferNode* op) {
   this->VisitBufferDef(op->buffer, /*alloc_data=*/true);
 }
@@ -462,6 +467,21 @@ Expr StmtExprMutator::VisitExpr_(const BufferLoadNode* op) {
     return PrimExpr(n);
   }
   return expr;
+}
+
+Expr StmtExprMutator::VisitExpr_(const BufferRegionNode* op) {
+  BufferVar new_buf = this->VisitBufferUse(op->buffer);
+  ffi::Array<Range> new_region = op->region.Map([this](const Range& range) {
+    PrimExpr min = this->VisitPrimExpr(range->min);
+    PrimExpr extent = this->VisitPrimExpr(range->extent);
+    return min.same_as(range->min) && extent.same_as(range->extent)
+               ? range
+               : Range::FromMinExtent(std::move(min), std::move(extent));
+  });
+  if (new_buf.same_as(op->buffer) && new_region.same_as(op->region)) {
+    return ffi::GetRef<BufferRegion>(op);
+  }
+  return BufferRegion(std::move(new_buf), std::move(new_region));
 }
 
 Stmt StmtMutator::VisitStmt_(const AllocBufferNode* op) {

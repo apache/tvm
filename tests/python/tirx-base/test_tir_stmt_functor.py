@@ -364,6 +364,8 @@ class ASTPrinterMutator(StmtMutator):
             if a is expr.a and b is expr.b:
                 return expr
             return tir.GT(a, b)
+        elif isinstance(expr, tir.BufferRegion):
+            return self.visit_buffer_region_(expr)
         else:
             self.log.add(f"Expr::{type(expr).__name__}")
             return expr

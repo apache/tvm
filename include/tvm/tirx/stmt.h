@@ -771,9 +771,32 @@ class Continue : public Stmt {
 };
 
 /*!
+ * \brief The type of a multi-dimensional buffer region expression.
+ */
+class BufferRegionTypeNode : public TypeNode {
+ public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BufferRegionTypeNode>();
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferRegionType", BufferRegionTypeNode, TypeNode);
+};
+
+/*!
+ * \brief Managed reference to BufferRegionTypeNode.
+ */
+class BufferRegionType : public Type {
+ public:
+  TVM_DLL BufferRegionType(Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BufferRegionType, Type, BufferRegionTypeNode);
+};
+
+/*!
  * \brief Representing the region of multi-dimensional buffer access.
  */
-class BufferRegionNode : public PrimExprConvertibleNode {
+class BufferRegionNode : public ExprNode {
  public:
   /*! \brief The buffer of the buffer region. */
   BufferVar buffer;
@@ -787,17 +810,15 @@ class BufferRegionNode : public PrimExprConvertibleNode {
         .def_ro("region", &BufferRegionNode::region);
   }
 
-  TVM_DLL PrimExpr ToPrimExpr() const final;
-
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferRegion", BufferRegionNode, PrimExprConvertibleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferRegion", BufferRegionNode, ExprNode);
 };
 
 /*!
  * \brief Managed reference to BufferRegionNode.
  * \sa BufferRegionNode
  */
-class BufferRegion : public PrimExprConvertible {
+class BufferRegion : public Expr {
  public:
   TVM_DLL explicit BufferRegion(BufferVar buffer, ffi::Array<Range> region);
 
@@ -816,7 +837,7 @@ class BufferRegion : public PrimExprConvertible {
    */
   TVM_DLL static BufferRegion FromPoint(BufferVar buffer, ffi::Array<PrimExpr> indices);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferRegion, PrimExprConvertible, BufferRegionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferRegion, Expr, BufferRegionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRegionNode);
 };
 

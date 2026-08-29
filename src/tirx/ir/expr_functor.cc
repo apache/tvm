@@ -36,6 +36,13 @@ void ExprVisitor::VisitExpr_(const BufferLoadNode* op) {
 
 void ExprVisitor::VisitExpr_(const OpaqueExprNode* op) {}
 
+void ExprVisitor::VisitExpr_(const BufferRegionNode* op) {
+  VisitArray(op->region, [this](const Range& range) {
+    this->VisitExpr(range->min);
+    this->VisitExpr(range->extent);
+  });
+}
+
 void ExprVisitor::VisitExpr_(const TupleNode* op) {
   VisitArray(op->fields, [this](const Expr& e) { this->VisitExpr(e); });
 }
@@ -129,6 +136,18 @@ Expr ExprMutator::VisitExpr_(const BufferLoadNode* op) {
 }
 
 Expr ExprMutator::VisitExpr_(const OpaqueExprNode* op) { return ffi::GetRef<OpaqueExpr>(op); }
+
+Expr ExprMutator::VisitExpr_(const BufferRegionNode* op) {
+  ffi::Array<Range> region = op->region.Map([this](const Range& range) {
+    PrimExpr min = this->VisitPrimExpr(range->min);
+    PrimExpr extent = this->VisitPrimExpr(range->extent);
+    return min.same_as(range->min) && extent.same_as(range->extent)
+               ? range
+               : Range::FromMinExtent(std::move(min), std::move(extent));
+  });
+  return region.same_as(op->region) ? ffi::GetRef<BufferRegion>(op)
+                                    : BufferRegion(op->buffer, std::move(region));
+}
 
 Expr ExprMutator::VisitExpr_(const TupleNode* op) {
   ffi::Array<Expr> fields =

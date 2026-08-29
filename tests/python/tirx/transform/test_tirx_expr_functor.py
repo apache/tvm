@@ -65,6 +65,35 @@ class BasicVisitor(ExprVisitor):
     """Default ExprVisitor"""
 
 
+def test_buffer_region_expr_functor_traversal_and_mutation():
+    buffer = tir.decl_buffer((16,), "float32")
+    begin = tir.Var("begin", "int32")
+    replacement = tir.Var("replacement", "int32")
+    region = tir.BufferRegion(buffer, [tvm.ir.Range.from_min_extent(begin, 4)])
+    call = tvm.ir.Call(tvm.ir.GlobalVar("consume_region"), [region])
+
+    class VarCollector(ExprVisitor):
+        def __init__(self):
+            super().__init__()
+            self.vars = []
+
+        def visit_var_(self, op):
+            self.vars.append(op)
+
+    collector = VarCollector()
+    collector(call)
+    assert collector.vars == [begin]
+
+    class ReplaceBegin(ExprMutator):
+        def visit_var_(self, op):
+            return replacement if op.same_as(begin) else op
+
+    updated = ReplaceBegin()(call)
+    assert isinstance(updated.args[0], tir.BufferRegion)
+    assert isinstance(updated.args[0].ty, tir.BufferRegionType)
+    assert updated.args[0].region[0].min.same_as(replacement)
+
+
 class ASTLog:
     """Helper class to log AST"""
 

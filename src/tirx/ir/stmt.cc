@@ -51,6 +51,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ReturnNode::RegisterReflection();
   BreakNode::RegisterReflection();
   ContinueNode::RegisterReflection();
+  BufferRegionTypeNode::RegisterReflection();
   BufferRegionNode::RegisterReflection();
   MatchBufferRegionNode::RegisterReflection();
   SBlockNode::RegisterReflection();
@@ -510,21 +511,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // BufferRegion
-PrimExpr BufferRegionNode::ToPrimExpr() const {
-  // Auto convert to PrimExpr if it is a single point load
-  ffi::Array<PrimExpr> indices;
-  indices.reserve(this->region.size());
-  for (const Range& r : this->region) {
-    if (tvm::tirx::is_one(r->extent)) {
-      indices.push_back(r->min);
-    } else if (r->extent.as<IntImmNode>()) {
-      indices.push_back(tirx::Ramp(r->min, IntImm(r->min.ty(), 1), r->extent));
-    } else {
-      TVM_FFI_THROW(ValueError) << "Cannot convert to BufferLoad: "
-                                << ffi::GetRef<BufferRegion>(this);
-    }
-  }
-  return tirx::BufferLoad(this->buffer, indices);
+BufferRegionType::BufferRegionType(Span span) : Type(ffi::UnsafeInit{}) {
+  ffi::ObjectPtr<BufferRegionTypeNode> node = ffi::make_object<BufferRegionTypeNode>();
+  node->span = std::move(span);
+  data_ = std::move(node);
 }
 
 BufferRegion::BufferRegion(BufferVar buffer, ffi::Array<Range> region) {
@@ -532,6 +522,7 @@ BufferRegion::BufferRegion(BufferVar buffer, ffi::Array<Range> region) {
       << "The dimension between " << buffer << " and region " << region
       << " mismatched, the buffer is " << buffer;
   ffi::ObjectPtr<BufferRegionNode> node = ffi::make_object<BufferRegionNode>();
+  node->ty = BufferRegionType();
   node->buffer = std::move(buffer);
   node->region = std::move(region);
   data_ = std::move(node);
@@ -560,9 +551,10 @@ BufferRegion BufferRegion::FromPoint(BufferVar buffer, ffi::Array<PrimExpr> indi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.BufferRegion", [](BufferVar buffer, ffi::Array<Range> region) {
-    return BufferRegion(buffer, region);
-  });
+  refl::GlobalDef()
+      .def("tirx.BufferRegionType", [](Span span) { return BufferRegionType(span); })
+      .def("tirx.BufferRegion",
+           [](BufferVar buffer, ffi::Array<Range> region) { return BufferRegion(buffer, region); });
 }
 
 // MatchBufferRegion

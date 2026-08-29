@@ -343,6 +343,7 @@ class TVM_DLL StmtExprVisitor : public ExprVisitor, public StmtVisitor {
 
   void VisitExpr(const Expr& e) override { return ExprVisitor::VisitExpr(e); }
   void VisitExpr_(const BufferLoadNode* op) override;
+  void VisitExpr_(const BufferRegionNode* op) override;
 };
 
 /*!
@@ -362,6 +363,7 @@ class TVM_DLL StmtExprMutator : public ExprMutator, public StmtMutator {
   Expr VisitExpr(const Expr& e) override { return ExprMutator::VisitExpr(e); }
   Expr VisitExpr_(const VarNode* op) override;
   Expr VisitExpr_(const BufferLoadNode* op) override;
+  Expr VisitExpr_(const BufferRegionNode* op) override;
 };
 
 /*!

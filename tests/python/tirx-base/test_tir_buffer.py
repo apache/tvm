@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: E741, F401, F841
 
+import pickle
+
 import numpy as np
 import pytest
 
@@ -38,6 +40,21 @@ def test_buffer():
     assert Ab.ty.dtype == tvm.ir.PrimType("float32")
     assert tuple(Ab.ty.shape) == (m, n)
     assert not tvm.tirx.is_buffer_var(m)
+
+
+def test_buffer_region_is_typed_expr_and_call_argument():
+    buffer = tvm.tirx.decl_buffer((16,), "float32")
+    region = buffer[2:10]
+
+    assert isinstance(region, tvm.ir.Expr)
+    assert isinstance(region.ty, tvm.tirx.BufferRegionType)
+
+    call = tvm.ir.Call(tvm.ir.GlobalVar("consume_region"), [region])
+    assert call.args[0].same_as(region)
+
+    restored = pickle.loads(pickle.dumps(call))
+    tvm.ir.assert_structural_equal(restored, call, map_free_vars=True)
+    assert isinstance(restored.args[0].ty, tvm.tirx.BufferRegionType)
 
 
 def test_buffer_compatibility_alias_and_global_var_properties():
