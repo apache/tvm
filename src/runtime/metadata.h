@@ -54,6 +54,8 @@ constexpr const char* kUseDynamicSharedMemoryTag = "tirx.use_dyn_shared_memory";
 constexpr const char* kUseProgramaticDependentLaunch = "tirx.use_programtic_dependent_launch";
 /*! \brief A tag to specify whether or not use cooperative launch */
 constexpr const char* kUseCooperativeLaunch = "tirx.use_cooperative_launch";
+/*! \brief A tag to launch with CUDA's statically required block dimension */
+constexpr const char* kUseRequiredBlockDimension = "tirx.use_required_block_dimension";
 
 }  // namespace launch_param
 

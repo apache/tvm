@@ -296,6 +296,8 @@ class LaunchParamConfig {
         use_programmatic_dependent_launch_ = true;
       } else if (tag == launch_param::kUseCooperativeLaunch) {
         use_cooperative_launch_ = true;
+      } else if (tag == launch_param::kUseRequiredBlockDimension) {
+        use_required_block_dimension_ = true;
       } else {
         ThreadScope ts = ThreadScope::Create(tag);
         if (ts.IsClusterCtaIdx()) {
@@ -337,6 +339,8 @@ class LaunchParamConfig {
 
   bool use_cooperative_launch() const { return use_cooperative_launch_; }
 
+  bool use_required_block_dimension() const { return use_required_block_dimension_; }
+
   bool use_cluster_launch() const { return use_cluster_launch_; }
 
  private:
@@ -352,6 +356,8 @@ class LaunchParamConfig {
   bool use_programmatic_dependent_launch_{false};
   /*! \brief Whether or not use cooperative launch. */
   bool use_cooperative_launch_{false};
+  /*! \brief Whether CUDA should use the kernel's statically required block dimension. */
+  bool use_required_block_dimension_{false};
   /*! \brief Whether the kernel declares a cluster-to-CTA scope. */
   bool use_cluster_launch_{false};
 };

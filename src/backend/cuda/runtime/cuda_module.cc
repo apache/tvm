@@ -250,9 +250,11 @@ class CUDAWrappedFunc {
     CUstream strm = static_cast<CUstream>(TVMFFIEnvGetStream(kDLCUDA, device_id));
     std::array<CUlaunchAttribute, 4> attrs{};
     unsigned int num_attrs = 0;
+    bool use_required_block_dimension = launch_param_config_.use_required_block_dimension();
 
-    // 1) Cluster
-    if (launch_param_config_.use_cluster_launch()) {
+    // 1) Cluster.  __block_size__ fixes this at compile time, and supplying a
+    // runtime cluster attribute for the same kernel is forbidden by CUDA.
+    if (!use_required_block_dimension && launch_param_config_.use_cluster_launch()) {
       CUlaunchAttribute attr{};
       attr.id = CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION;
       attr.value.clusterDim.x = wl.cluster_dim(0);
@@ -262,8 +264,17 @@ class CUDAWrappedFunc {
     }
 
     // 1b) Preferred cluster (CUDA 12.8+, cudaLaunchAttributePreferredClusterDimension)
-    if (wl.preferred_cluster_dim(0) != 1 || wl.preferred_cluster_dim(1) != 1 ||
-        wl.preferred_cluster_dim(2) != 1) {
+    if (use_required_block_dimension) {
+      for (int i = 0; i < 3; ++i) {
+        TVM_FFI_ICHECK(wl.preferred_cluster_dim(i) == 1 ||
+                       wl.preferred_cluster_dim(i) == wl.cluster_dim(i))
+            << "CUDA required block dimensions cannot be combined with a different preferred "
+               "cluster size";
+      }
+    }
+    if (!use_required_block_dimension &&
+        (wl.preferred_cluster_dim(0) != 1 || wl.preferred_cluster_dim(1) != 1 ||
+         wl.preferred_cluster_dim(2) != 1)) {
       CUlaunchAttribute attr{};
       attr.id = CU_LAUNCH_ATTRIBUTE_PREFERRED_CLUSTER_DIMENSION;
       attr.value.clusterDim.x = wl.preferred_cluster_dim(0);
@@ -290,12 +301,31 @@ class CUDAWrappedFunc {
 
     // 4) Launch
     CUlaunchConfig config{};
-    config.gridDimX = wl.grid_dim(0);
-    config.gridDimY = wl.grid_dim(1);
-    config.gridDimZ = wl.grid_dim(2);
-    config.blockDimX = wl.block_dim(0);
-    config.blockDimY = wl.block_dim(1);
-    config.blockDimZ = wl.block_dim(2);
+    if (use_required_block_dimension) {
+#if CUDA_VERSION >= 13000
+      for (int i = 0; i < 3; ++i) {
+        TVM_FFI_ICHECK_EQ(wl.grid_dim(i) % wl.cluster_dim(i), 0U)
+            << "CUDA required block dimension launch needs each logical block-grid dimension "
+               "to be divisible by its compile-time cluster dimension";
+      }
+      config.gridDimX = wl.grid_dim(0) / wl.cluster_dim(0);
+      config.gridDimY = wl.grid_dim(1) / wl.cluster_dim(1);
+      config.gridDimZ = wl.grid_dim(2) / wl.cluster_dim(2);
+      config.blockDimX = CU_LAUNCH_KERNEL_REQUIRED_BLOCK_DIM;
+      config.blockDimY = 1;
+      config.blockDimZ = 1;
+#else
+      TVM_FFI_THROW(InternalError)
+          << "CUDA required block dimensions need CUDA Toolkit 13 or newer";
+#endif
+    } else {
+      config.gridDimX = wl.grid_dim(0);
+      config.gridDimY = wl.grid_dim(1);
+      config.gridDimZ = wl.grid_dim(2);
+      config.blockDimX = wl.block_dim(0);
+      config.blockDimY = wl.block_dim(1);
+      config.blockDimZ = wl.block_dim(2);
+    }
     config.sharedMemBytes = wl.dyn_shmem_size;
     config.hStream = strm;
     config.attrs = num_attrs == 0 ? nullptr : attrs.data();

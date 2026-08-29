@@ -244,6 +244,26 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
     cluster_cta_x_is_linear_rank_ = false;
   }
   auto max_registers = f->GetAttr<int64_t>(tirx::attr::kMaxRegisters);
+  auto required_block_size = f->GetAttr<int64_t>(tirx::attr::kRequiredBlockSize);
+  if (required_block_size.has_value()) {
+    TVM_FFI_ICHECK_EQ(required_block_size.value(), 1);
+    TVM_FFI_ICHECK(!max_registers.has_value() &&
+                   !f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMinBlocksPerSM).has_value() &&
+                   !f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMaxBlocksPerCluster).has_value())
+        << tirx::attr::kRequiredBlockSize
+        << " cannot be combined with CUDA launch bounds or maximum registers";
+    const auto* tx = extractor.threadIdx_x_ext.as<IntImmNode>();
+    const auto* ty = extractor.threadIdx_y_ext.as<IntImmNode>();
+    const auto* tz = extractor.threadIdx_z_ext.as<IntImmNode>();
+    const auto* cx = extractor.clusterCtaIdx_x_ext.as<IntImmNode>();
+    const auto* cy = extractor.clusterCtaIdx_y_ext.as<IntImmNode>();
+    const auto* cz = extractor.clusterCtaIdx_z_ext.as<IntImmNode>();
+    TVM_FFI_ICHECK(tx && ty && tz && cx && cy && cz)
+        << tirx::attr::kRequiredBlockSize << " requires static thread and cluster dimensions";
+    os << " __block_size__((" << tx->value << ", " << ty->value << ", " << tz->value << "), ("
+       << cx->value << ", " << cy->value << ", " << cz->value << "))";
+    return;
+  }
   if (max_registers.has_value()) {
     TVM_FFI_ICHECK_GT(max_registers.value(), 0);
     TVM_FFI_ICHECK(!f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMinBlocksPerSM).has_value() &&
