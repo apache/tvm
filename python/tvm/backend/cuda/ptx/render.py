@@ -126,7 +126,7 @@ BRIDGE = {
     "pred": Bridge(
         ".pred", "ps{n}", "pd{n}", "setp.ne.b32 {reg}, %{idx}, 0;", "selp.b32 %{idx}, 1, 0, {reg};"
     ),
-    # `.e2m1x2`: the ISA types this operand .b8 (9.7.9.22:92 for the
+    # `.e2m1x2`: the ISA types this operand .b8 (9.7.9.21:92 for the
     # destination, :101 for the source). Its general prose says a wider
     # register may be used and names no exception for e2m1x2 (:476-486), but
     # the toolchain disagrees, so the width here is measured, not read:

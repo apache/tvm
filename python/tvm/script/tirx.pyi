@@ -866,7 +866,7 @@ class _Chain_mad24:
     """`mad24` — mode∈{hi,lo}; sat∈{sat} (opt); type∈{u32,s32} — `.sat` on the multiply-add
     lines: `.hi` mode, `.s32` type, nothing else. Both lines spell it as a syntax line of
     its own -- `mad.hi.sat.s32 d, a, b, c;` (ISA 9.7.1.4) and `mad24.hi.sat.s32 d, a, b, c;`
-    (9.7.1.7) -- with the Notes repeating "Applies only to .s32 type in .hi mode".
+    (9.7.1.6) -- with the Notes repeating "Applies only to .s32 type in .hi mode".
     """
 
     hi: _Chain_mad24

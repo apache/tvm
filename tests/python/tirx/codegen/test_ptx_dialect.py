@@ -875,6 +875,27 @@ def test_ptx_relaxed_load_store_typing():
             T.ptx.st.global_.u16(A.ptr_to([0]), T.float32(1))
 
 
+def test_ptx_st_vec_f64_cuda_13_2_carrier_gap():
+    """Keep CUDA 13.2's st.v2.f64 gap local to that source-operand shape."""
+    from tvm.backend.cuda.ptx.table import TABLE, dtype_combos, tokens_for
+
+    st_vec_tokens = tokens_for(TABLE["st_vec"], vec="v2", type="f64")
+    assert dtype_combos(TABLE["st_vec"], st_vec_tokens) == (
+        ("float64", "uint64"),
+        ("uint64", "uint64"),
+        ("int64", "uint64"),
+    )
+
+    for name, tokens in (
+        ("st", tokens_for(TABLE["st"], type="f64")),
+        ("ld_vec", tokens_for(TABLE["ld_vec"], vec="v2", type="f64")),
+        ("ldu_vec", tokens_for(TABLE["ldu_vec"], vec="v2", type="f64")),
+    ):
+        combos = dtype_combos(TABLE[name], tokens)
+        assert any(combo[0] == "uint128" for combo in combos), name
+        assert any(combo[0] == "int128" for combo in combos), name
+
+
 def test_ptx_vec256_cache_policy():
     """Pin the PTX 9.2 256-bit cache-policy arity and exact-width carriers."""
     from tvm.backend.cuda.ptx.render import render_variant
@@ -1862,7 +1883,7 @@ def test_ptx_data_movement_dispatch():
 
 
 def test_ptx_parallel_sync_dispatch():
-    """ISA 9.7.14's warp-level primitives and the atom shapes beside `.op`.
+    """ISA 9.7.13's warp-level primitives and the atom shapes beside `.op`.
 
     The section is where predicates are most load-bearing: they are sources
     (bar.red's `c`), destinations (vote, elect), and both at once. It is also
@@ -2547,7 +2568,7 @@ def test_ptx_helper_source_golden():
     )
     # Two written type tokens, and an accumulator derived from both: c and d
     # are .u32 only when atype and btype both are, so this mixed pair makes
-    # them .s32 (ISA 9.7.1.24).
+    # them .s32 (ISA 9.7.1.23).
     assert render("dp4a", atype="u32", btype="s32") == (
         "__forceinline__ __device__ void tvm_builtin_ptx_dp4a_u32_s32"
         "(int32_t& __d, uint32_t __a, int32_t __b, int32_t __c) {\n"
@@ -2831,7 +2852,7 @@ def test_ptx_helper_source_golden():
         "}\n"
     )
 
-    # Parallel synchronization (ISA 9.7.14). elect.sync's `d|p` is the one
+    # Parallel synchronization (ISA 9.7.13). elect.sync's `d|p` is the one
     # pipe pair the ISA makes mandatory -- ptxas rejects a bare destination --
     # and its halves are two different register classes.
     assert render("elect_sync") == (
@@ -3354,7 +3375,7 @@ def test_ptx_all_variants_render_unique():
             _, helper, _ = render_variant(entry, *args, addr_offsets=addr_offsets)
             assert helper not in names, f"address-offset helper name collision: {helper}"
             names.add(helper)
-    assert total == 661969  # update when the table grows or a ptxas gap narrows it
+    assert total == 660867  # update when the table grows or a ptxas gap narrows it
 
 
 def test_ptx_no_instruction_registered_twice():
