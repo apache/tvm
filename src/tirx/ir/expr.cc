@@ -22,6 +22,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/te/tensor.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
@@ -95,7 +96,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   NotNode::RegisterReflection();
   SelectNode::RegisterReflection();
   BufferLoadNode::RegisterReflection();
-  ProducerLoadNode::RegisterReflection();
   RampNode::RegisterReflection();
   BroadcastNode::RegisterReflection();
   LetNode::RegisterReflection();
@@ -688,10 +688,13 @@ Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<Ite
     TVM_FFI_ICHECK_EQ(init.size(), source.size()) << "Number of inits should match number of exprs";
     for (size_t i = 0; i < init.size(); i++) {
       TVM_FFI_ICHECK(init[i].defined()) << "Init value must be defined";
-      TVM_FFI_ICHECK(init[i]->IsInstance<ProducerLoadNode>() || init[i]->IsInstance<IntImmNode>() ||
-                     init[i]->IsInstance<FloatImmNode>())
-          << "init can only be a IntImm, FloatImm or ProducerLoad, "
-          << "but received " << init[i] << " of type " << init[i]->GetTypeKey();
+      if (te::IsTensorLoad(init[i])) {
+        te::GetTensorFromLoad(init[i].as_or_throw<Call>());
+      } else {
+        TVM_FFI_ICHECK(init[i]->IsInstance<IntImmNode>() || init[i]->IsInstance<FloatImmNode>())
+            << "init can only be an IntImm, FloatImm or Tensor-load Call, "
+            << "but received " << init[i] << " of type " << init[i]->GetTypeKey();
+      }
     }
   }
   n->ExprNode::ty = source[value_index].ty();
@@ -788,24 +791,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                               ffi::Optional<PrimExpr> predicate, Span span) {
     return BufferLoad(buffer, indices, predicate, span);
   });
-}
-
-// ProducerLoad
-ProducerLoad::ProducerLoad(DataProducer producer, ffi::Array<PrimExpr> indices, Span span) {
-  ffi::ObjectPtr<ProducerLoadNode> node = ffi::make_object<ProducerLoadNode>();
-  node->ExprNode::ty = producer->GetDataType();
-  node->producer = std::move(producer);
-  node->indices = std::move(indices);
-  node->span = std::move(span);
-  data_ = std::move(node);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.ProducerLoad",
-                        [](DataProducer producer, ffi::Array<PrimExpr> indices, Span span) {
-                          return ProducerLoad(producer, indices, span);
-                        });
 }
 
 }  // namespace tirx

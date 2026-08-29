@@ -70,6 +70,7 @@ ffi::ObjectPtr<PrimTypeNode> GetCachedPrimTypeNode(DLDataType dtype) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TypeNode::RegisterReflection();
+  OpaqueTypeNode::RegisterReflection();
   PrimTypeNode::RegisterReflection();
   refl::TypeAttrDef<PrimTypeNode>()
       .attr(refl::type_attr::kAnyHash, reinterpret_cast<void*>(&PrimTypeAnyHash))
@@ -90,6 +91,8 @@ Type Type::Missing() {
 }
 
 bool Type::IsMissing() const { return this->same_as(Type::Missing()); }
+
+OpaqueType::OpaqueType() : Type(ffi::UnsafeInit{}) { data_ = ffi::make_object<OpaqueTypeNode>(); }
 
 PrimType::PrimType(DLDataType dtype) : Type(ffi::UnsafeInit{}) {
   bool is_opaque_handle = dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLOpaqueHandle);
@@ -152,6 +155,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("ir.TypeMissing", []() { return Type::Missing(); })
       .def("ir.TypeIsMissing", [](Type type) { return type.IsMissing(); })
+      .def("ir.OpaqueType", []() { return OpaqueType(); })
       .def("ir.PrimType", [](DLDataType dtype) { return PrimType(dtype); });
 }
 

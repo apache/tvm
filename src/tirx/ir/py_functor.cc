@@ -104,8 +104,6 @@ class PyStmtExprVisitorNode : public ffi::Object, public StmtExprVisitor {
   ffi::Function f_visit_var{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const BufferLoadNode* op)` function. */
   ffi::Function f_visit_buffer_load{nullptr};
-  /*! \brief The packed function to the `VisitExpr_(const ProducerLoadNode* op)` function. */
-  ffi::Function f_visit_producer_load{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const LetNode* op)` function. */
   ffi::Function f_visit_let{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const CallNode* op)` function. */
@@ -234,7 +232,6 @@ class PyStmtExprVisitorNode : public ffi::Object, public StmtExprVisitor {
   // Expression functions
   PY_EXPR_VISITOR_DISPATCH(VarNode, f_visit_var);
   PY_EXPR_VISITOR_DISPATCH(BufferLoadNode, f_visit_buffer_load);
-  PY_EXPR_VISITOR_DISPATCH(ProducerLoadNode, f_visit_producer_load);
   PY_EXPR_VISITOR_DISPATCH(LetNode, f_visit_let);
   PY_EXPR_VISITOR_DISPATCH(CallNode, f_visit_call);
   PY_EXPR_VISITOR_DISPATCH(AddNode, f_visit_add);
@@ -271,7 +268,6 @@ class PyStmtExprVisitorNode : public ffi::Object, public StmtExprVisitor {
     // Set dispatch
     IR_EXPR_VISITOR_DEFAULT_DISPATCH(VarNode);
     IR_EXPR_VISITOR_DEFAULT_DISPATCH(BufferLoadNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(ProducerLoadNode);
     IR_EXPR_VISITOR_DEFAULT_DISPATCH(TupleNode);
     IR_EXPR_VISITOR_DEFAULT_DISPATCH(TupleGetItemNode);
     IR_EXPR_VISITOR_DEFAULT_DISPATCH(LetNode);
@@ -353,7 +349,6 @@ class PyStmtExprVisitor : public ffi::ObjectRef {
                                                          ffi::Function f_visit_sblock_realize,  //
                                                          ffi::Function f_visit_var,             //
                                                          ffi::Function f_visit_buffer_load,     //
-                                                         ffi::Function f_visit_producer_load,   //
                                                          ffi::Function f_visit_let,             //
                                                          ffi::Function f_visit_call,            //
                                                          ffi::Function f_visit_add,             //
@@ -403,7 +398,6 @@ class PyStmtExprVisitor : public ffi::ObjectRef {
     // Set expression functions
     n->f_visit_var = std::move(f_visit_var);
     n->f_visit_buffer_load = std::move(f_visit_buffer_load);
-    n->f_visit_producer_load = std::move(f_visit_producer_load);
     n->f_visit_let = std::move(f_visit_let);
     n->f_visit_call = std::move(f_visit_call);
     n->f_visit_add = std::move(f_visit_add);
@@ -455,8 +449,6 @@ class PyStmtExprMutatorNode : public ffi::Object, public StmtExprMutator {
   ffi::Function f_visit_var{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const BufferLoadNode* op)` function. */
   ffi::Function f_visit_buffer_load{nullptr};
-  /*! \brief The packed function to the `VisitExpr_(const ProducerLoadNode* op)` function. */
-  ffi::Function f_visit_producer_load{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const LetNode* op)` function. */
   ffi::Function f_visit_let{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const CallNode* op)` function. */
@@ -585,7 +577,6 @@ class PyStmtExprMutatorNode : public ffi::Object, public StmtExprMutator {
   // Expression functions
   PY_EXPR_MUTATOR_DISPATCH(VarNode, f_visit_var);
   PY_EXPR_MUTATOR_DISPATCH(BufferLoadNode, f_visit_buffer_load);
-  PY_EXPR_MUTATOR_DISPATCH(ProducerLoadNode, f_visit_producer_load);
   PY_EXPR_MUTATOR_DISPATCH(LetNode, f_visit_let);
   PY_EXPR_MUTATOR_DISPATCH(CallNode, f_visit_call);
   PY_EXPR_MUTATOR_DISPATCH(AddNode, f_visit_add);
@@ -622,7 +613,6 @@ class PyStmtExprMutatorNode : public ffi::Object, public StmtExprMutator {
     // Set dispatch
     PY_EXPR_MUTATOR_DEFAULT_DISPATCH(VarNode);
     PY_EXPR_MUTATOR_DEFAULT_DISPATCH(BufferLoadNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(ProducerLoadNode);
     PY_EXPR_MUTATOR_DEFAULT_DISPATCH(TupleNode);
     PY_EXPR_MUTATOR_DEFAULT_DISPATCH(TupleGetItemNode);
     PY_EXPR_MUTATOR_DEFAULT_DISPATCH(LetNode);
@@ -705,7 +695,6 @@ class PyStmtExprMutator : public ffi::ObjectRef {
                                                          ffi::Function f_visit_sblock_realize,  //
                                                          ffi::Function f_visit_var,             //
                                                          ffi::Function f_visit_buffer_load,     //
-                                                         ffi::Function f_visit_producer_load,   //
                                                          ffi::Function f_visit_let,             //
                                                          ffi::Function f_visit_call,            //
                                                          ffi::Function f_visit_add,             //
@@ -755,7 +744,6 @@ class PyStmtExprMutator : public ffi::ObjectRef {
     // Expression functions
     n->f_visit_var = std::move(f_visit_var);
     n->f_visit_buffer_load = std::move(f_visit_buffer_load);
-    n->f_visit_producer_load = std::move(f_visit_producer_load);
     n->f_visit_let = std::move(f_visit_let);
     n->f_visit_call = std::move(f_visit_call);
     n->f_visit_add = std::move(f_visit_add);

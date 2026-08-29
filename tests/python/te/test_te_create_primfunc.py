@@ -383,10 +383,7 @@ def test_constant():
     M = 11
     A = te.placeholder((M,), name="A")
     B = te.compute(tuple(), lambda: 2, name="B")
-    # Manually craft ProducerLoad because `B[]` is not allowed.
-    C = te.compute(
-        (M,), lambda x: A[x] + tvm.tirx.expr.ProducerLoad(B, []), name="C", tag="broadcast"
-    )
+    C = te.compute((M,), lambda x: A[x] + B(), name="C", tag="broadcast")
 
     func = te.create_prim_func([C, A])
     func = tvm.compile(func)

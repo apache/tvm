@@ -164,8 +164,8 @@ ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
   std::unordered_set<Tensor> visited;
   for (auto& e : body) {
     tirx::PostOrderVisit(e, [&ret, &visited](const ffi::ObjectRef& n) {
-      if (auto* pload = n.as<tirx::ProducerLoadNode>()) {
-        Tensor t = pload->producer.as_or_throw<Tensor>();
+      if (auto call = n.as<Call>(); call.has_value() && IsTensorLoad(call.value())) {
+        Tensor t = GetTensorFromLoad(call.value());
         if (!visited.count(t)) {
           ret.push_back(t);
           visited.insert(t);

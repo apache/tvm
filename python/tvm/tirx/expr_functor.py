@@ -24,7 +24,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 import tvm
-from tvm.ir import Expr, Range, Tuple, TupleGetItem
+from tvm.ir import Expr, OpaqueExpr, Range, Tuple, TupleGetItem
 from tvm.tirx import IterVar
 
 T = TypeVar("T")
@@ -51,7 +51,6 @@ class ExprFunctor:
         self._dispatch_map = {
             "tirx.Var": self.visit_var_,
             "tirx.BufferLoad": self.visit_buffer_load_,
-            "tirx.ProducerLoad": self.visit_producer_load_,
             "tirx.Tuple": self.visit_tuple_,
             "tirx.TupleGetItem": self.visit_tuple_get_item_,
             "tirx.Let": self.visit_let_,
@@ -109,6 +108,9 @@ class ExprFunctor:
         if key in self._dispatch_map:
             return self._dispatch_map[key](expr)
 
+        if isinstance(expr, OpaqueExpr):
+            return self.visit_opaque_expr_(expr)
+
         return self.visit_expr_default_(expr)
 
     def visit_var_(self, op):
@@ -119,8 +121,8 @@ class ExprFunctor:
         """Default visitor for BufferLoad node."""
         return self.visit_expr_default_(op)
 
-    def visit_producer_load_(self, op):
-        """Default visitor for ProducerLoad node."""
+    def visit_opaque_expr_(self, op):
+        """Default visitor for an opaque construction-time expression."""
         return self.visit_expr_default_(op)
 
     def visit_tuple_(self, op):
@@ -286,13 +288,9 @@ class ExprVisitor(ExprFunctor):
 
         _visit_array(op.indices, _visit_indices)
 
-    def visit_producer_load_(self, op):
-        """Visitor implementation for ProducerLoad."""
-
-        def _visit_indices(index):
-            self.visit_expr(index)
-
-        _visit_array(op.indices, _visit_indices)
+    def visit_opaque_expr_(self, op):
+        """Visitor implementation for an opaque construction-time expression."""
+        pass
 
     def visit_tuple_(self, op):
         """Visitor implementation for Tuple."""
@@ -309,6 +307,9 @@ class ExprVisitor(ExprFunctor):
 
     def visit_call_(self, op):
         """Visitor implementation for Call."""
+
+        if isinstance(op.op, OpaqueExpr):
+            self.visit_expr(op.op)
 
         def _visit_arg(arg):
             self.visit_expr(arg)
@@ -473,14 +474,9 @@ class ExprMutator(ExprFunctor):
         else:
             return tvm.tirx.BufferLoad(op.buffer, indices, op.predicate)
 
-    def visit_producer_load_(self, op):
-        """Mutator implementation for ProducerLoad."""
-        indices = [self.visit_expr(index) for index in op.indices]
-
-        if all(old_index is new_index for old_index, new_index in zip(op.indices, indices)):
-            return op
-        else:
-            return tvm.tirx.ProducerLoad(op.producer, indices)
+    def visit_opaque_expr_(self, op):
+        """Mutator implementation for an opaque construction-time expression."""
+        return op
 
     def visit_tuple_(self, op):
         """Mutator implementation for Tuple."""
@@ -510,12 +506,13 @@ class ExprMutator(ExprFunctor):
 
     def visit_call_(self, op):
         """Mutator implementation for Call."""
+        call_op = self.visit_expr(op.op) if isinstance(op.op, OpaqueExpr) else op.op
         args = [self.visit_expr(arg) for arg in op.args]
 
-        if all(old_arg is new_arg for old_arg, new_arg in zip(op.args, args)):
+        if call_op is op.op and all(old_arg is new_arg for old_arg, new_arg in zip(op.args, args)):
             return op
         else:
-            return tvm.ir.Call(op.op, args, attrs=op.attrs, span=op.span, ret_ty=op.ty)
+            return tvm.ir.Call(call_op, args, attrs=op.attrs, span=op.span, ret_ty=op.ty)
 
     def _mutate_binary_op(self, op_cls, op):
         """Helper to mutate binary operators."""

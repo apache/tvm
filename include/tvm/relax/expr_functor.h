@@ -156,7 +156,6 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const FunctionNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const CallNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const tirx::BufferLoadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const tirx::ProducerLoadNode* op, Args...) EXPR_FUNCTOR_DISABLED;
   virtual R VisitExpr_(const tirx::LetNode* op, Args...) EXPR_FUNCTOR_DISABLED;
   virtual R VisitExpr_(const tirx::ReduceNode* op, Args...) EXPR_FUNCTOR_DISABLED;
   virtual R VisitExpr_(const tirx::AddNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -211,7 +210,6 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAX_EXPR_FUNCTOR_DISPATCH(GlobalVarNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(FunctionNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(CallNode);
-    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::ProducerLoadNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(tirx::LetNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(tirx::ReduceNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(tirx::BufferLoadNode);

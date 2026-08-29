@@ -146,13 +146,6 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExp
            OptionalDeepEqual(plhs->predicate, prhs->predicate);
   }
 
-  bool VisitExpr_(const ProducerLoadNode* plhs, const PrimExpr& rhs) final {
-    const auto* prhs = rhs.as<ProducerLoadNode>();
-    // run shallow pointer comparison of the producer
-    return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
-           plhs->producer.same_as(prhs->producer) && ArrayDeepEqual(plhs->indices, prhs->indices);
-  }
-
   bool VisitExpr_(const LetNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<LetNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&

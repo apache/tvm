@@ -35,6 +35,11 @@ class Expr(Node):
     ty: "tvm.ir.Type"
 
 
+@tvm_ffi.register_object("ir.OpaqueExpr")
+class OpaqueExpr(Expr):
+    """Base class for opaque values that must be removed from finished IR."""
+
+
 def is_prim_expr(value: object) -> bool:
     """Return whether an expression has a primitive result type."""
     return isinstance(value, Expr) and isinstance(value.ty, tvm.ir.PrimType)

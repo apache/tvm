@@ -54,6 +54,14 @@ class Type(Node, Scriptable):
         return self.is_(other)
 
 
+@tvm_ffi.register_object("ir.OpaqueType")
+class OpaqueType(Type):
+    """Type marker for opaque values that must be removed from finished IR."""
+
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.OpaqueType)
+
+
 @tvm_ffi.register_object("ir.PrimType")
 class PrimType(Type):
     """Primitive data type in the low level IR

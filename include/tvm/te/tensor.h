@@ -66,8 +66,8 @@ class Operation : public ffi::ObjectRef {
   using ContainerType = OperationNode;
 };
 
-/*! \brief Node to represent a tensor */
-class TensorNode : public DataProducerNode {
+/*! \brief Opaque construction-time node that represents a tensor. */
+class TensorNode : public OpaqueExprNode {
  public:
   /*! \brief The shape of the tensor */
   ffi::Array<PrimExpr> shape;
@@ -80,24 +80,22 @@ class TensorNode : public DataProducerNode {
 
   static void RegisterReflection();
 
-  ffi::Array<PrimExpr> GetShape() const final { return shape; }
+  ffi::Array<PrimExpr> GetShape() const { return shape; }
 
-  PrimType GetDataType() const final { return dtype; }
+  PrimType GetDataType() const { return dtype; }
 
-  TVM_DLL PrimExpr ToPrimExpr() const final;
-
-  TVM_DLL ffi::String GetNameHint() const final;
+  TVM_DLL ffi::String GetNameHint() const;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.Tensor", TensorNode, DataProducerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.Tensor", TensorNode, OpaqueExprNode);
 };
 
 /*!
  * \brief Tensor structure representing a possible input,
  *  or intermediate computation result.
  */
-class Tensor : public DataProducer {
+class Tensor : public OpaqueExpr {
  private:
   /*!
    * \brief Helper for indexing operations into tensors
@@ -109,6 +107,7 @@ class Tensor : public DataProducer {
 
  public:
   TVM_DLL Tensor(ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int value_index);
+
   /*!
    * \brief check if two tensors equals each other.
    * \param other tensor to be checked.
@@ -205,8 +204,17 @@ class Tensor : public DataProducer {
    */
   inline Slice operator[](PrimExpr i) const { return Slice(*this, {i}); }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tensor, DataProducer, TensorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tensor, OpaqueExpr, TensorNode);
 };
+
+/*! \brief Return whether an expression is a Call whose callee is a TE Tensor. */
+TVM_DLL bool IsTensorLoad(const Expr& expr);
+
+/*! \brief Recover and validate the Tensor callee of a tensor-load Call. */
+TVM_DLL Tensor GetTensorFromLoad(const Call& call);
+
+/*! \brief Recover and validate the primitive indices of a tensor-load Call. */
+TVM_DLL ffi::Array<PrimExpr> GetTensorLoadIndices(const Call& call);
 
 // Implementations of inline functions
 inline size_t Tensor::ndim() const { return (*this)->shape.size(); }

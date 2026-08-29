@@ -50,7 +50,6 @@ from .expr import (
     Mul,
     Not,
     Or,
-    ProducerLoad,
     Ramp,
     Reduce,
     Select,
@@ -145,7 +144,6 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
         # Expr
         f_visit_var: Callable | None = None,
         f_visit_buffer_load: Callable | None = None,
-        f_visit_producer_load: Callable | None = None,
         f_visit_let: Callable | None = None,
         f_visit_call: Callable | None = None,
         f_visit_add: Callable | None = None,
@@ -198,7 +196,6 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
             # Expr
             f_visit_var,
             f_visit_buffer_load,
-            f_visit_producer_load,
             f_visit_let,
             f_visit_call,
             f_visit_add,
@@ -260,7 +257,6 @@ class PyStmtExprVisitor:
             # Expr
             "visit_var_",
             "visit_buffer_load_",
-            "visit_producer_load_",
             "visit_let_",
             "visit_call_",
             "visit_add_",
@@ -504,19 +500,6 @@ class PyStmtExprVisitor:
         ----------
         op : BufferLoad
             The BufferLoad to be visited.
-        """
-        _ffi_api.PyStmtExprVisitorDefaultVisitExpr(self._outer(), op)  # type: ignore
-
-    def visit_producer_load_(self, op: ProducerLoad) -> None:
-        """Visit ProducerLoad.
-
-        Users can customize this function to overwrite
-        VisitProducerLoad_(const ProducerLoadNode* op) on the C++ side.
-
-        Parameters
-        ----------
-        op : ProducerLoad
-            The ProducerLoad to be visited.
         """
         _ffi_api.PyStmtExprVisitorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
@@ -930,7 +913,6 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
         # Expr
         f_visit_var: Callable | None = None,
         f_visit_buffer_load: Callable | None = None,
-        f_visit_producer_load: Callable | None = None,
         f_visit_let: Callable | None = None,
         f_visit_call: Callable | None = None,
         f_visit_add: Callable | None = None,
@@ -983,7 +965,6 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
             # Expr
             f_visit_var,
             f_visit_buffer_load,
-            f_visit_producer_load,
             f_visit_let,
             f_visit_call,
             f_visit_add,
@@ -1045,7 +1026,6 @@ class PyStmtExprMutator:
             # Expr
             "visit_var_",
             "visit_buffer_load_",
-            "visit_producer_load_",
             "visit_let_",
             "visit_call_",
             "visit_add_",
@@ -1361,24 +1341,6 @@ class PyStmtExprMutator:
         ----------
         op : BufferLoad
             The BufferLoad to be visited.
-
-        Returns
-        -------
-        result : Expr
-            The mutated Expr.
-        """
-        return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
-
-    def visit_producer_load_(self, op: ProducerLoad) -> Expr:
-        """Visit ProducerLoad.
-
-        Users can customize this function to overwrite
-        VisitProducerLoad_(const ProducerLoadNode* op) on the C++ side.
-
-        Parameters
-        ----------
-        op : ProducerLoad
-            The ProducerLoad to be visited.
 
         Returns
         -------

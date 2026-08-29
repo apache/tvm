@@ -34,9 +34,7 @@ void ExprVisitor::VisitExpr_(const BufferLoadNode* op) {
   VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
 }
 
-void ExprVisitor::VisitExpr_(const ProducerLoadNode* op) {
-  VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
-}
+void ExprVisitor::VisitExpr_(const OpaqueExprNode* op) {}
 
 void ExprVisitor::VisitExpr_(const TupleNode* op) {
   VisitArray(op->fields, [this](const Expr& e) { this->VisitExpr(e); });
@@ -50,6 +48,9 @@ void ExprVisitor::VisitExpr_(const LetNode* op) {
 }
 
 void ExprVisitor::VisitExpr_(const CallNode* op) {
+  if (op->op.as<OpaqueExprNode>()) {
+    this->VisitExpr(op->op);
+  }
   VisitArray(op->args, [this](const Expr& e) { this->VisitExpr(e); });
 }
 
@@ -127,15 +128,7 @@ Expr ExprMutator::VisitExpr_(const BufferLoadNode* op) {
   }
 }
 
-Expr ExprMutator::VisitExpr_(const ProducerLoadNode* op) {
-  auto fmutate = [this](const PrimExpr& e) { return this->VisitPrimExpr(e); };
-  ffi::Array<PrimExpr> indices = op->indices.Map(fmutate);
-  if (indices.same_as(op->indices)) {
-    return ffi::GetRef<PrimExpr>(op);
-  } else {
-    return ProducerLoad(op->producer, indices);
-  }
-}
+Expr ExprMutator::VisitExpr_(const OpaqueExprNode* op) { return ffi::GetRef<OpaqueExpr>(op); }
 
 Expr ExprMutator::VisitExpr_(const TupleNode* op) {
   ffi::Array<Expr> fields =
@@ -160,10 +153,14 @@ Expr ExprMutator::VisitExpr_(const LetNode* op) {
 }
 
 Expr ExprMutator::VisitExpr_(const CallNode* op) {
+  Expr call_op = op->op;
+  if (op->op.as<OpaqueExprNode>()) {
+    call_op = this->VisitExpr(op->op);
+  }
   ffi::Array<Expr> args =
       op->args.Map([this](const Expr& arg) -> Expr { return this->VisitExpr(arg); });
 
-  if (args.same_as(op->args)) {
+  if (call_op.same_as(op->op) && args.same_as(op->args)) {
     return ffi::GetRef<Call>(op);
   } else {
     Type result_type = op->ExprNode::ty;
@@ -175,7 +172,7 @@ Expr ExprMutator::VisitExpr_(const CallNode* op) {
       TVM_FFI_ICHECK(buffer_type);
       result_type = buffer_type->DataPointerType();
     }
-    return Call(result_type, op->op, args, op->attrs, op->ty_args, op->span);
+    return Call(result_type, call_op, args, op->attrs, op->ty_args, op->span);
   }
 }
 
