@@ -437,7 +437,7 @@ def test_cuda_launch_preserves_flag_metadata():
     assert int(launch.args[-1]) == 16
 
 
-def test_cuda_required_block_size_becomes_flag_only_launch_metadata():
+def test_cuda_required_block_size_coexists_with_launch_bounds():
     @I.ir_module
     class Before:
         @T.prim_func(s_tir=True)
@@ -445,14 +445,16 @@ def test_cuda_required_block_size_becomes_flag_only_launch_metadata():
             T.func_attr({"target": T.target("cuda", host="llvm")})
             T.attr(T.target("cuda"), "target", 0)
             T.attr(0, "tirx.required_block_size", 1)
-            bx = T.launch_thread("blockIdx.x", 4)
-            tx = T.launch_thread("threadIdx.x", 128)
-            if tx == 0:
-                A[bx] = 0.0
+            with T.attr(0, "tirx.launch_bounds_min_blocks_per_sm", 1):
+                bx = T.launch_thread("blockIdx.x", 4)
+                tx = T.launch_thread("threadIdx.x", 128)
+                if tx == 0:
+                    A[bx] = 0.0
 
     after = tvm.tirx.transform.SplitHostDevice()(Before)
     kernel = after["main_kernel"]
     assert int(kernel.attrs["tirx.required_block_size"]) == 1
+    assert int(kernel.attrs["tirx.launch_bounds_min_blocks_per_sm"]) == 1
     assert list(kernel.attrs["tirx.kernel_launch_params"]) == [
         "blockIdx.x",
         "threadIdx.x",

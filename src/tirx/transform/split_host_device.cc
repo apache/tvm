@@ -99,11 +99,8 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
     TVM_FFI_ICHECK(!max_registers_.has_value() ||
                    (!min_blocks_per_sm_.has_value() && !max_blocks_per_cluster_.has_value()))
         << tirx::attr::kMaxRegisters << " cannot be combined with CUDA launch bounds";
-    TVM_FFI_ICHECK(!required_block_size_.has_value() ||
-                   (!min_blocks_per_sm_.has_value() && !max_blocks_per_cluster_.has_value() &&
-                    !max_registers_.has_value()))
-        << tirx::attr::kRequiredBlockSize
-        << " cannot be combined with CUDA launch bounds or maximum registers";
+    TVM_FFI_ICHECK(!required_block_size_.has_value() || !max_registers_.has_value())
+        << tirx::attr::kRequiredBlockSize << " cannot be combined with maximum registers";
     return result;
   }
 
