@@ -1077,7 +1077,7 @@ def test_multi_input_broadcasting_symbolic_shapes():
     When dimensions are symbolic (not constant), broadcasting should handle them correctly
     without raising "Cannot use and / or / not operator to Expr".
     Conservative rejection prevents silent miscompilation where TOPI cannot correctly handle
-    symbolic source dimensions in broadcast operations.    
+    symbolic source dimensions in broadcast operations.
     """
     # LEVEL 1 - Compile-time: Import and symbolic dimension handling (4 cases)
     _test_symbolic_broadcast_case(
