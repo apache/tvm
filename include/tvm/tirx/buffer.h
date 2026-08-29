@@ -353,49 +353,6 @@ TVM_DLL BufferVar decl_buffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimT
                               Span span = Span());
 
 /*!
- * \brief Base node for data producers.
- *
- *  A DataProducer stores necessary information(e.g. a tensor expression) to produce
- *  a multi-dimensional array. The stored information is opaque to the TIR.
- *  DataProducer can appear in high-level DSLs that are built on top of the TIR.
- *
- *  A valid TIR PrimFunc should not contain any DataProducer, high level DSLs should lower
- *  all DataProducers to Buffers before TIR transformations.
- *
- * \sa tvm::te::Tensor
- */
-class DataProducerNode : public PrimExprConvertibleNode {
- public:
-  /*! \brief destructor. */
-  virtual ~DataProducerNode() {}
-  /*!
-   * \brief Get the shape of the result.
-   * \return The shape.
-   */
-  virtual ffi::Array<PrimExpr> GetShape() const = 0;
-  /*!
-   * \brief Get the raw element dtype of the result.
-   * \return The raw dtype.
-   */
-  virtual PrimType GetDataType() const = 0;
-  /*!
-   * \brief Get the name hint of the data producer.
-   * \return The data type.
-   */
-  virtual ffi::String GetNameHint() const = 0;
-  TVM_FFI_DECLARE_OBJECT_INFO("tirx.DataProducer", DataProducerNode, PrimExprConvertibleNode);
-};
-
-/*!
- * \brief Managed reference to DataProducerNode.
- * \sa DataProducerNode
- */
-class DataProducer : public PrimExprConvertible {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataProducer, PrimExprConvertible, DataProducerNode);
-};
-
-/*!
  * \brief Creates a TIR buffer for the provided parameters.
  * \param shape shape of the buffer
  * \param dtype data type

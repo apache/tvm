@@ -38,7 +38,7 @@ from tvm.ir.base import Span
 from tvm.runtime import DataTypeCode, Object, ObjectConvertible, Scriptable, const
 
 from . import _ffi_api
-from .buffer import Buffer, DataProducer
+from .buffer import Buffer
 
 
 def convert(expr) -> Expr:
@@ -590,7 +590,7 @@ class Reduce(ExprWithOp):
         The value index.
 
     init : list of Expr
-        The initial value for output. This can be an int, float or ProducerLoad
+        The initial value for output. This can be an int, float, or TE tensor-load Call.
 
     span : Optional[Span]
         The location of this expression in the source code.
@@ -1206,36 +1206,6 @@ class BufferLoad(ExprWithOp):
             buffer,
             indices,
             predicate,
-            span,  # type: ignore
-        )
-
-
-@tvm_ffi.register_object("tirx.ProducerLoad")
-class ProducerLoad(ExprWithOp):
-    """Producer load node.
-
-    Parameters
-    ----------
-    producer : DataProducer
-        The buffer to be loaded.
-
-    indices : List[Expr]
-        The buffer indices.
-
-    span : Optional[Span]
-        The location of this expression in the source code.
-    """
-
-    producer: DataProducer
-    indices: list[Expr]
-
-    def __init__(
-        self, producer: DataProducer, indices: list[Expr], span: Span | None = None
-    ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.ProducerLoad,
-            producer,
-            indices,
             span,  # type: ignore
         )
 

@@ -23,7 +23,7 @@ import tvm_ffi
 
 import tvm
 from tvm.ir import PointerType, PrimType, Range, Type
-from tvm.runtime import Object, convert
+from tvm.runtime import convert
 
 from . import _buffer_view, _ffi_api
 
@@ -647,8 +647,3 @@ tvm.ir.Var.data = property(_buffer_data_property)
 # particular, ``isinstance(value, Buffer)`` matches every Var.  Runtime checks
 # must use ``is_buffer_var(value)``.
 Buffer = tvm.ir.Var
-
-
-@tvm_ffi.register_object("tirx.DataProducer")
-class DataProducer(Object):
-    pass
