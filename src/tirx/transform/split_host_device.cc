@@ -91,6 +91,7 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
     min_blocks_per_sm_.reset();
     max_blocks_per_cluster_.reset();
     max_registers_.reset();
+    required_block_size_.reset();
     Stmt result = operator()(std::move(stmt));
     TVM_FFI_ICHECK(!max_blocks_per_cluster_.has_value() || min_blocks_per_sm_.has_value())
         << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " requires "
@@ -98,12 +99,18 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
     TVM_FFI_ICHECK(!max_registers_.has_value() ||
                    (!min_blocks_per_sm_.has_value() && !max_blocks_per_cluster_.has_value()))
         << tirx::attr::kMaxRegisters << " cannot be combined with CUDA launch bounds";
+    TVM_FFI_ICHECK(!required_block_size_.has_value() ||
+                   (!min_blocks_per_sm_.has_value() && !max_blocks_per_cluster_.has_value() &&
+                    !max_registers_.has_value()))
+        << tirx::attr::kRequiredBlockSize
+        << " cannot be combined with CUDA launch bounds or maximum registers";
     return result;
   }
 
   std::optional<int64_t> min_blocks_per_sm() const { return min_blocks_per_sm_; }
   std::optional<int64_t> max_blocks_per_cluster() const { return max_blocks_per_cluster_; }
   std::optional<int64_t> max_registers() const { return max_registers_; }
+  std::optional<int64_t> required_block_size() const { return required_block_size_; }
 
  private:
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -142,6 +149,18 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
       }
       max_registers_ = max_registers->value;
       return VisitStmt(op->body);
+    } else if (op->attr_key == tirx::attr::kRequiredBlockSize) {
+      const auto* required_block_size = op->value.as<IntImmNode>();
+      TVM_FFI_ICHECK(required_block_size)
+          << tirx::attr::kRequiredBlockSize << " expects an integer value";
+      TVM_FFI_ICHECK_EQ(required_block_size->value, 1)
+          << tirx::attr::kRequiredBlockSize << " must be 1";
+      if (required_block_size_.has_value()) {
+        TVM_FFI_ICHECK_EQ(required_block_size_.value(), required_block_size->value)
+            << "Conflicting " << tirx::attr::kRequiredBlockSize << " values";
+      }
+      required_block_size_ = required_block_size->value;
+      return VisitStmt(op->body);
     }
     return StmtMutator::VisitStmt_(op);
   }
@@ -149,6 +168,7 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
   std::optional<int64_t> min_blocks_per_sm_;
   std::optional<int64_t> max_blocks_per_cluster_;
   std::optional<int64_t> max_registers_;
+  std::optional<int64_t> required_block_size_;
 };
 
 class HostDeviceSplitter : public StmtMutator {
@@ -276,6 +296,10 @@ class HostDeviceSplitter : public StmtMutator {
         device_func = WithAttr(std::move(device_func), tirx::attr::kMaxRegisters,
                                launch_bounds_attr.max_registers().value());
       }
+      if (launch_bounds_attr.required_block_size().has_value()) {
+        device_func = WithAttr(std::move(device_func), tirx::attr::kRequiredBlockSize,
+                               launch_bounds_attr.required_block_size().value());
+      }
     }
     auto num_inputs = cur_func_->GetAttr<int64_t>(tvm::attr::kNumInputs);
     if (num_inputs.has_value()) {
@@ -363,6 +387,8 @@ class DeviceInfoCollector : public StmtVisitor {
         }
       }
     }
+    collector.use_required_block_dimension_ =
+        func->GetAttr<int64_t>(tirx::attr::kRequiredBlockSize).value_or(0) == 1;
 
     collector(func->body);
 
@@ -372,6 +398,10 @@ class DeviceInfoCollector : public StmtVisitor {
     }
     if (collector.use_cooperative_launch_) {
       collector.info_.launch_params.push_back(tvm::runtime::launch_param::kUseCooperativeLaunch);
+    }
+    if (collector.use_required_block_dimension_) {
+      collector.info_.launch_params.push_back(
+          tvm::runtime::launch_param::kUseRequiredBlockDimension);
     }
     // The dynamic shared memory is required to be the last of the kernel
     // launch parameters. An explicit tirx.dyn_smem_bytes declaration wins;
@@ -397,7 +427,8 @@ class DeviceInfoCollector : public StmtVisitor {
 
     for (const ffi::String& param : collector.info_.launch_params) {
       if (param == tvm::runtime::launch_param::kUseProgramaticDependentLaunch ||
-          param == tvm::runtime::launch_param::kUseCooperativeLaunch) {
+          param == tvm::runtime::launch_param::kUseCooperativeLaunch ||
+          param == tvm::runtime::launch_param::kUseRequiredBlockDimension) {
         continue;
       }
       collector.info_.launch_args.push_back(collector.GetArgument(param));
@@ -517,6 +548,7 @@ class DeviceInfoCollector : public StmtVisitor {
   // Flag-only launch attributes requested by the original PrimFunc.
   bool use_programmatic_dependent_launch_{false};
   bool use_cooperative_launch_{false};
+  bool use_required_block_dimension_{false};
   // Accumulated Bind definitions for inlining into extent/size expressions.
   ffi::Map<Var, PrimExpr> bind_map_;
 };
