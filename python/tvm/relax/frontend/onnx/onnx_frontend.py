@@ -1329,6 +1329,48 @@ class Cast(OnnxOpConverter):
         return relax.op.astype(inputs[0], to_type)
 
 
+def _normalize_negative_indices(bb, indices, axis_extent):
+    """Map negative indices to idx + axis_extent; skip unsigned indices. axis_extent
+    must be broadcastable against indices and share its dtype.
+    """
+    indices_dtype = indices.ty.dtype.dtype
+    if indices_dtype.startswith("uint"):
+        return indices
+    return bb.normalize(
+        relax.op.where(
+            relax.op.less(indices, relax.const(0, indices_dtype)),
+            relax.op.add(indices, axis_extent),
+            indices,
+        )
+    )
+
+
+def _axis_extent(bb, data, axis, indices_dtype):
+    """Compute data.shape[axis] at runtime, cast to indices_dtype."""
+    data_shape_tensor = bb.normalize(relax.op.shape_to_tensor(relax.op.shape_of(data)))
+    axis_extent = bb.normalize(
+        relax.op.take(data_shape_tensor, relax.const(axis, "int64"), axis=0, mode="wrap")
+    )
+    if indices_dtype != "int64":
+        axis_extent = bb.normalize(relax.op.astype(axis_extent, indices_dtype))
+    return axis_extent
+
+
+def _coord_axis_extents(bb, data, indices, start_axis):
+    """Compute data.shape[start_axis + j] for each coordinate slot j, cast to indices_dtype."""
+    indices_dtype = indices.ty.dtype.dtype
+    coord_len = indices.ty.shape[-1]
+    data_shape_tensor = bb.normalize(relax.op.shape_to_tensor(relax.op.shape_of(data)))
+    axis_extent = bb.normalize(
+        relax.op.strided_slice(
+            data_shape_tensor, axes=[0], begin=[start_axis], end=[start_axis + coord_len]
+        )
+    )
+    if indices_dtype != "int64":
+        axis_extent = bb.normalize(relax.op.astype(axis_extent, indices_dtype))
+    return axis_extent
+
+
 class Gather(OnnxOpConverter):
     """Convert an onnx Gather node into an equivalent Relax expression."""
 
@@ -1365,23 +1407,8 @@ class Gather(OnnxOpConverter):
             indices = bb.normalize(relax.op.shape_to_tensor(indices))
 
         indices_dtype = indices.ty.dtype.dtype
-        if not indices_dtype.startswith("uint"):
-            data_shape = bb.normalize(relax.op.shape_of(data))
-            data_shape_tensor = bb.normalize(relax.op.shape_to_tensor(data_shape))
-            axis_extent = bb.normalize(
-                relax.op.take(data_shape_tensor, relax.const(axis, "int64"), axis=0, mode="wrap")
-            )
-
-            if indices_dtype != "int64":
-                axis_extent = bb.normalize(relax.op.astype(axis_extent, indices_dtype))
-
-            indices = bb.normalize(
-                relax.op.where(
-                    relax.op.less(indices, relax.const(0, indices_dtype)),
-                    relax.op.add(indices, axis_extent),
-                    indices,
-                )
-            )
+        axis_extent = _axis_extent(bb, data, axis, indices_dtype)
+        indices = _normalize_negative_indices(bb, indices, axis_extent)
 
         return relax.op.take(data, indices, axis)
 
@@ -1391,8 +1418,15 @@ class GatherElements(OnnxOpConverter):
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        indices = inputs[1]
         axis = attr.get("axis", 0)
-        return relax.op.gather_elements(inputs[0], inputs[1], axis)
+
+        indices_dtype = indices.ty.dtype.dtype
+        axis_extent = _axis_extent(bb, data, axis, indices_dtype)
+        indices = _normalize_negative_indices(bb, indices, axis_extent)
+
+        return relax.op.gather_elements(data, indices, axis)
 
 
 class GatherND(OnnxOpConverter):
@@ -1400,8 +1434,13 @@ class GatherND(OnnxOpConverter):
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        indices = inputs[1]
         batch_dims = attr.get("batch_dims", 0)
-        return relax.op.gather_nd(inputs[0], inputs[1], batch_dims)
+
+        axis_extent = _coord_axis_extents(bb, data, indices, batch_dims)
+        indices = _normalize_negative_indices(bb, indices, axis_extent)
+        return relax.op.gather_nd(data, indices, batch_dims)
 
 
 def _shapes_equal(a: list[tirx.Expr] | None, b: list[tirx.Expr] | None) -> bool:
@@ -1531,19 +1570,31 @@ class ScatterND(OnnxOpConverter):
     def _reduction_check(attr, valid_reductions: list[str]):
         return _get_onnx_reduction(attr, valid_reductions)
 
+    @staticmethod
+    def _normalize_indices(bb, data, indices):
+        # ScatterND has no batch_dims: coordinate slot j always indexes data axis j.
+        axis_extent = _coord_axis_extents(bb, data, indices, start_axis=0)
+        return _normalize_negative_indices(bb, indices, axis_extent)
+
     @classmethod
     def _impl_v11(cls, bb, inputs, attr, params):
-        return relax.op.scatter_nd(inputs[0], inputs[1], inputs[2])
+        data, indices, updates = inputs
+        indices = cls._normalize_indices(bb, data, indices)
+        return relax.op.scatter_nd(data, indices, updates)
 
     @classmethod
     def _impl_v16(cls, bb, inputs, attr, params):
+        data, indices, updates = inputs
         reduction = cls._reduction_check(attr, ["update", "add", "mul"])
-        return relax.op.scatter_nd(inputs[0], inputs[1], inputs[2], reduction)
+        indices = cls._normalize_indices(bb, data, indices)
+        return relax.op.scatter_nd(data, indices, updates, reduction)
 
     @classmethod
     def _impl_v18(cls, bb, inputs, attr, params):
+        data, indices, updates = inputs
         reduction = cls._reduction_check(attr, ["update", "add", "mul", "min", "max"])
-        return relax.op.scatter_nd(inputs[0], inputs[1], inputs[2], reduction)
+        indices = cls._normalize_indices(bb, data, indices)
+        return relax.op.scatter_nd(data, indices, updates, reduction)
 
 
 class Compress(OnnxOpConverter):
@@ -5077,6 +5128,11 @@ class OneHot(OnnxOpConverter):
             relax.prim_value(off_value),
             relax.prim_value(on_value),
         )
+
+        indices_dtype = indices.ty.dtype.dtype
+        axis_extent = relax.const(depth, indices_dtype)
+        indices = _normalize_negative_indices(bb, indices, axis_extent)
+
         return relax.op.one_hot(indices, on_value, off_value, depth, axis)
 
 
