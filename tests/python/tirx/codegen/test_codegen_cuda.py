@@ -287,7 +287,7 @@ def test_tirx_required_block_size_emits_cuda_block_size():
     assert "tirx.required_block_size" not in src
 
 
-def test_tirx_required_block_size_rejects_launch_controls():
+def test_tirx_required_block_size_emits_launch_bounds_when_requested():
     @T.prim_func
     def main(A: T.Buffer((4,), "int32")):
         T.device_entry()
@@ -302,11 +302,13 @@ def test_tirx_required_block_size_rejects_launch_controls():
         if tx == 0:
             A[bx] = A[bx] + 1
 
-    with pytest.raises(
-        tvm.error.InternalError,
-        match="cannot be combined with CUDA launch bounds or maximum registers",
-    ):
-        _get_source(main)
+    src, _ = _get_source(main)
+    assert (
+        'extern "C" __global__ void __block_size__((128, 1, 1), (1, 1, 1)) '
+        "__launch_bounds__(128, 1) main_kernel" in src
+    )
+    assert "tirx.required_block_size" not in src
+    assert "tirx.launch_bounds_min_blocks_per_sm" not in src
 
 
 def test_tirx_cuda_kernel_return_zero_codegen_is_void_early_return():
