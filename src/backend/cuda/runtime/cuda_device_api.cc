@@ -198,9 +198,21 @@ class CUDADeviceAPI final : public DeviceAPI {
       VLOG(1) << "freeing host memory";
       TVM_FFI_CHECK_CUDA_ERROR(cudaFreeHost(ptr));
     } else {
-      TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev.device_id));
+      // Tensor and workspace cleanup can run from a destructor.  Releasing an
+      // allocation on another device must not change the caller's ambient
+      // CUDA device.
+      int previous_device;
+      TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&previous_device));
+      cudaError_t set_error = cudaSetDevice(dev.device_id);
+      if (set_error != cudaSuccess) {
+        (void)cudaSetDevice(previous_device);
+        TVM_FFI_CHECK_CUDA_ERROR(set_error);
+      }
       VLOG(1) << "freeing device memory";
-      TVM_FFI_CHECK_CUDA_ERROR(cudaFree(ptr));
+      cudaError_t free_error = cudaFree(ptr);
+      cudaError_t restore_error = cudaSetDevice(previous_device);
+      TVM_FFI_CHECK_CUDA_ERROR(free_error);
+      TVM_FFI_CHECK_CUDA_ERROR(restore_error);
     }
   }
 
@@ -253,9 +265,20 @@ class CUDADeviceAPI final : public DeviceAPI {
   }
 
   void FreeStream(Device dev, TVMStreamHandle stream) {
-    TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev.device_id));
+    // FreeStream is also reachable from runtime-object destructors (for
+    // example, PagedAttentionKVCacheObj), so preserve the caller's device.
+    int previous_device;
+    TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&previous_device));
+    cudaError_t set_error = cudaSetDevice(dev.device_id);
+    if (set_error != cudaSuccess) {
+      (void)cudaSetDevice(previous_device);
+      TVM_FFI_CHECK_CUDA_ERROR(set_error);
+    }
     cudaStream_t cu_stream = static_cast<cudaStream_t>(stream);
-    TVM_FFI_CHECK_CUDA_ERROR(cudaStreamDestroy(cu_stream));
+    cudaError_t destroy_error = cudaStreamDestroy(cu_stream);
+    cudaError_t restore_error = cudaSetDevice(previous_device);
+    TVM_FFI_CHECK_CUDA_ERROR(destroy_error);
+    TVM_FFI_CHECK_CUDA_ERROR(restore_error);
   }
 
   void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
