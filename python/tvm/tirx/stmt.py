@@ -36,6 +36,7 @@ import tvm_ffi
 from tvm.ir import Expr, Range, Span, Type, is_prim_expr
 from tvm.runtime import Object, Scriptable, const
 from tvm.tirx import IntImm
+from tvm.tirx.expr import ExprOp
 
 from . import _ffi_api
 from .buffer import Buffer
@@ -624,7 +625,7 @@ class BufferRegionType(Type):
 
 
 @tvm_ffi.register_object("tirx.BufferRegion")
-class BufferRegion(Expr, Scriptable):
+class BufferRegion(ExprOp, Expr, Scriptable):
     """BufferRegion node.
 
     Parameters
@@ -635,6 +636,8 @@ class BufferRegion(Expr, Scriptable):
     region : List[Range]
         The region array of the buffer region
     """
+
+    __hash__ = Expr.__hash__
 
     buffer: Buffer
     region: list[Range]

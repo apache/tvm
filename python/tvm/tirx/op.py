@@ -31,16 +31,17 @@ from tvm.runtime import const
 
 from . import _ffi_api
 from .buffer import Buffer, buffer_data, is_buffer_var
-from .expr import BufferLoad, CommReducer, ExprOp, ExprWithOp, IntImm, Var
-from .stmt import BufferRegion
+from .expr import (
+    BufferLoad,
+    CommReducer,
+    ExprOp,
+    ExprWithOp,
+    IntImm,
+    Var,
+    _convert_to_prim_expr,
+)
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
-
-
-def _convert_to_prim_expr(value):
-    if isinstance(value, BufferRegion):
-        return _ffi_api.BufferRegionToBufferLoad(value)  # type: ignore
-    return value
 
 
 # Insertion order matters: a longer prefix has to be tried before the shorter

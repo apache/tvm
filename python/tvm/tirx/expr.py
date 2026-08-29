@@ -77,6 +77,18 @@ def _is_scalar_operand(value):
     return isinstance(value, ExprOp | int | float) or ir.is_prim_expr(value)
 
 
+def _convert_to_prim_expr(value):
+    from .stmt import BufferRegion  # pylint: disable=import-outside-toplevel
+
+    if isinstance(value, BufferRegion):
+        return _ffi_api.BufferRegionToBufferLoad(value)  # type: ignore
+    return value
+
+
+def _binary_prim_expr_op(op, lhs, rhs, span=None):
+    return op(_convert_to_prim_expr(lhs), _convert_to_prim_expr(rhs), span)
+
+
 class ExprOp:
     """Operator overloading for Expr like expressions."""
 
@@ -84,7 +96,7 @@ class ExprOp:
 
     def expr_ty(self) -> ir.PrimType:
         """Return the compile-time primitive type for expression operators."""
-        ty = getattr(self, "ty", None)
+        ty = getattr(_convert_to_prim_expr(self), "ty", None)
         if isinstance(ty, ir.PrimType):
             return ty
         raise TypeError(f"Cannot determine PrimType for {type(self).__name__}")
@@ -92,129 +104,129 @@ class ExprOp:
     def __add__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
-        return _ffi_api._OpAdd(self, other, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpAdd, self, other)  # type: ignore
 
     def __radd__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
-        return _ffi_api._OpAdd(other, self, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpAdd, other, self)  # type: ignore
 
     def __sub__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
-        return _ffi_api._OpSub(self, other, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpSub, self, other)  # type: ignore
 
     def __rsub__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
-        return _ffi_api._OpSub(other, self, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpSub, other, self)  # type: ignore
 
     def __mul__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
-        return _ffi_api._OpMul(self, other, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpMul, self, other)  # type: ignore
 
     def __rmul__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
-        return _ffi_api._OpMul(other, self, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpMul, other, self)  # type: ignore
 
     def __div__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
-        return _ffi_api._OpDiv(self, other, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpDiv, self, other)  # type: ignore
 
     def __rdiv__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
-        return _ffi_api._OpDiv(other, self, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpDiv, other, self)  # type: ignore
 
     def __truediv__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
-        return _ffi_api._OpDiv(self, other, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpDiv, self, other)  # type: ignore
 
     def __rtruediv__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
-        return _ffi_api._OpDiv(other, self, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpDiv, other, self)  # type: ignore
 
     def __floordiv__(self, other: Expr) -> Expr:
-        return _ffi_api._OpFloorDiv(self, other, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpFloorDiv, self, other)  # type: ignore
 
     def __rfloordiv__(self, other: Expr) -> Expr:
-        return _ffi_api._OpFloorDiv(other, self, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpFloorDiv, other, self)  # type: ignore
 
     def __mod__(self, other: Expr) -> Expr:
-        return _ffi_api._OpFloorMod(self, other, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpFloorMod, self, other)  # type: ignore
 
     def __rmod__(self, other: Expr) -> Expr:
-        return _ffi_api._OpFloorMod(other, self, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpFloorMod, other, self)  # type: ignore
 
     def __neg__(self) -> Expr:
         neg_one = const(-1, self.expr_ty().dtype)
-        return self.__mul__(neg_one)
+        return _ffi_api._OpMul(_convert_to_prim_expr(self), neg_one, None)  # type: ignore
 
     def __lshift__(self, other: Expr) -> Expr:
-        return _ffi_api.left_shift(self, other, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api.left_shift, self, other)  # type: ignore
 
     def __rlshift__(self, other: Expr) -> Expr:
-        return _ffi_api.left_shift(other, self, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api.left_shift, other, self)  # type: ignore
 
     def __rshift__(self, other: Expr) -> Expr:
-        return _ffi_api.right_shift(self, other, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api.right_shift, self, other)  # type: ignore
 
     def __rrshift__(self, other: Expr) -> Expr:
-        return _ffi_api.right_shift(other, self, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api.right_shift, other, self)  # type: ignore
 
     def __and__(self, other: Expr) -> Expr:
-        return _ffi_api.bitwise_and(self, other, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api.bitwise_and, self, other)  # type: ignore
 
     def __rand__(self, other: Expr) -> Expr:
-        return _ffi_api.bitwise_and(other, self, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api.bitwise_and, other, self)  # type: ignore
 
     def __or__(self, other: Expr) -> Expr:
-        return _ffi_api.bitwise_or(self, other, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api.bitwise_or, self, other)  # type: ignore
 
     def __ror__(self, other: Expr) -> Expr:
-        return _ffi_api.bitwise_or(other, self, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api.bitwise_or, other, self)  # type: ignore
 
     def __xor__(self, other: Expr) -> Expr:
-        return _ffi_api.bitwise_xor(self, other, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api.bitwise_xor, self, other)  # type: ignore
 
     def __rxor__(self, other: Expr) -> Expr:
-        return _ffi_api.bitwise_xor(other, self, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api.bitwise_xor, other, self)  # type: ignore
 
     def __invert__(self) -> Expr:
         if _dtype_is_float(self):
             raise RuntimeError("Cannot use ~ operator on float type Expr.")
-        return _ffi_api.bitwise_not(self, None)  # type: ignore
+        return _ffi_api.bitwise_not(_convert_to_prim_expr(self), None)  # type: ignore
 
     def __lt__(self, other: Expr) -> Expr:
-        return _ffi_api._OpLT(self, other, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpLT, self, other)  # type: ignore
 
     def __le__(self, other: Expr) -> Expr:
-        return _ffi_api._OpLE(self, other, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpLE, self, other)  # type: ignore
 
     def __eq__(self, other: Expr) -> Expr:
-        return EqualOp(self, other)
+        return EqualOp(_convert_to_prim_expr(self), _convert_to_prim_expr(other))
 
     def __ne__(self, other: Expr) -> Expr:
-        return NotEqualOp(self, other)
+        return NotEqualOp(_convert_to_prim_expr(self), _convert_to_prim_expr(other))
 
     def __gt__(self, other: Expr) -> Expr:
-        return _ffi_api._OpGT(self, other, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpGT, self, other)  # type: ignore
 
     def __ge__(self, other: Expr) -> Expr:
-        return _ffi_api._OpGE(self, other, None)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpGE, self, other)  # type: ignore
 
     def __nonzero__(self):
         raise ValueError(
@@ -241,7 +253,7 @@ class ExprOp:
         ret : Expr
             The equality expression.
         """
-        return _ffi_api._OpEQ(self, other, span)  # type: ignore
+        return _binary_prim_expr_op(_ffi_api._OpEQ, self, other, span)  # type: ignore
 
     def astype(self, dtype: str | ir.PrimType, span: Span | None = None) -> Expr:
         """Cast the expression to other type.
@@ -259,7 +271,7 @@ class ExprOp:
         expr : Expr
             Expression with new type
         """
-        return _ffi_api._cast(dtype, self, span)  # type: ignore
+        return _ffi_api._cast(dtype, _convert_to_prim_expr(self), span)  # type: ignore
 
 
 _overload_prim_expr.__add__ = ExprOp.__add__
