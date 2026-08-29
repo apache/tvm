@@ -271,6 +271,7 @@ namespace attr {
  *
  * - tvm::runtime::launch_param::kUseProgramaticDependentLaunch
  * - tvm::runtime::launch_param::kUseCooperativeLaunch
+ * - tvm::runtime::launch_param::kUseRequiredBlockDimension
  *
  *   Flag-only launch attributes.  These tags add no packed operand.
  *
@@ -302,6 +303,18 @@ constexpr const char* kLaunchBoundsMaxBlocksPerCluster =
  * Type: IntImm
  */
 constexpr const char* kMaxRegisters = "tirx.max_registers";
+
+/*!
+ * \brief Require CUDA to use the statically-declared block and cluster dimensions.
+ *
+ * Emits the CUDA 13 ``__block_size__`` kernel qualifier.  Unlike
+ * ``__launch_bounds__``, this is an exact launch contract: CUDA derives the
+ * PTX ``.reqntid`` directive from the thread extents, and interprets the
+ * launch grid in clusters using the cluster-CTA extents.
+ *
+ * Type: IntImm (must be 1)
+ */
+constexpr const char* kRequiredBlockSize = "tirx.required_block_size";
 
 /*!
  * \brief Whether to set noalias rule on the function arguments.
