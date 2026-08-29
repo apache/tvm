@@ -18,7 +18,7 @@
  */
 
 #include <cuda_runtime.h>
-#include <tvm/ffi/extra/cuda/base.h>
+#include <tvm/ffi/extra/cuda/device_guard.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/disco/cuda_ipc_memory.h>
@@ -119,28 +119,14 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
 
   void DeviceFreeDataSpace(Device dev, void* ptr) final {
     TVM_FFI_ICHECK(dev.device_type == kDLCUDA);
-    int previous_device;
-    TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&previous_device));
-    cudaError_t set_error = cudaSetDevice(dev.device_id);
-    if (set_error != cudaSuccess) {
-      (void)cudaSetDevice(previous_device);
-      TVM_FFI_CHECK_CUDA_ERROR(set_error);
-    }
-    try {
-      nccl::CCLThreadLocalContext* ctx = nccl::CCLThreadLocalContext::Get();
-      auto it = ipc_memory_map_.find(ptr);
-      TVM_FFI_ICHECK(it != ipc_memory_map_.end());
-      FreeIPCMemory(it->second->remote_data, ctx->worker->worker_id);
-      FreeIPCMemory(it->second->barrier_in, ctx->worker->worker_id);
-      FreeIPCMemory(it->second->barrier_out, ctx->worker->worker_id);
-      ipc_memory_map_.erase(it);
-    } catch (...) {
-      // Preserve the original exception while making a best effort to restore
-      // the worker's ambient device during cleanup.
-      (void)cudaSetDevice(previous_device);
-      throw;
-    }
-    TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(previous_device));
+    ffi::CUDADeviceGuard device_guard(dev.device_id);
+    nccl::CCLThreadLocalContext* ctx = nccl::CCLThreadLocalContext::Get();
+    auto it = ipc_memory_map_.find(ptr);
+    TVM_FFI_ICHECK(it != ipc_memory_map_.end());
+    FreeIPCMemory(it->second->remote_data, ctx->worker->worker_id);
+    FreeIPCMemory(it->second->barrier_in, ctx->worker->worker_id);
+    FreeIPCMemory(it->second->barrier_out, ctx->worker->worker_id);
+    ipc_memory_map_.erase(it);
   }
 
   /*!

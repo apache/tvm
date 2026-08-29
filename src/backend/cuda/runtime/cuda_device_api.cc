@@ -24,7 +24,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <tvm/ffi/extra/c_env_api.h>
-#include <tvm/ffi/extra/cuda/base.h>
+#include <tvm/ffi/extra/cuda/device_guard.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
@@ -201,18 +201,9 @@ class CUDADeviceAPI final : public DeviceAPI {
       // Tensor and workspace cleanup can run from a destructor.  Releasing an
       // allocation on another device must not change the caller's ambient
       // CUDA device.
-      int previous_device;
-      TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&previous_device));
-      cudaError_t set_error = cudaSetDevice(dev.device_id);
-      if (set_error != cudaSuccess) {
-        (void)cudaSetDevice(previous_device);
-        TVM_FFI_CHECK_CUDA_ERROR(set_error);
-      }
+      ffi::CUDADeviceGuard device_guard(dev.device_id);
       VLOG(1) << "freeing device memory";
-      cudaError_t free_error = cudaFree(ptr);
-      cudaError_t restore_error = cudaSetDevice(previous_device);
-      TVM_FFI_CHECK_CUDA_ERROR(free_error);
-      TVM_FFI_CHECK_CUDA_ERROR(restore_error);
+      TVM_FFI_CHECK_CUDA_ERROR(cudaFree(ptr));
     }
   }
 
@@ -267,18 +258,9 @@ class CUDADeviceAPI final : public DeviceAPI {
   void FreeStream(Device dev, TVMStreamHandle stream) {
     // FreeStream is also reachable from runtime-object destructors (for
     // example, PagedAttentionKVCacheObj), so preserve the caller's device.
-    int previous_device;
-    TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&previous_device));
-    cudaError_t set_error = cudaSetDevice(dev.device_id);
-    if (set_error != cudaSuccess) {
-      (void)cudaSetDevice(previous_device);
-      TVM_FFI_CHECK_CUDA_ERROR(set_error);
-    }
+    ffi::CUDADeviceGuard device_guard(dev.device_id);
     cudaStream_t cu_stream = static_cast<cudaStream_t>(stream);
-    cudaError_t destroy_error = cudaStreamDestroy(cu_stream);
-    cudaError_t restore_error = cudaSetDevice(previous_device);
-    TVM_FFI_CHECK_CUDA_ERROR(destroy_error);
-    TVM_FFI_CHECK_CUDA_ERROR(restore_error);
+    TVM_FFI_CHECK_CUDA_ERROR(cudaStreamDestroy(cu_stream));
   }
 
   void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
