@@ -33,11 +33,12 @@ from .base import (
 
 # Register Type before Expr.  Expr's reflected ``ty`` field otherwise creates
 # an auto-generated Type wrapper before the concrete Python class is available.
-from .type import FuncType, PointerType, PrimType, TupleType, Type
+from .type import FuncType, OpaqueType, PointerType, PrimType, TupleType, Type
 from .expr import (
     Call,
     Expr,
     GlobalVar,
+    OpaqueExpr,
     Range,
     Tuple,
     TupleGetItem,

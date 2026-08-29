@@ -19,8 +19,8 @@
 # pylint: disable=invalid-name
 import tvm_ffi
 
+from tvm.ir import OpaqueExpr
 from tvm.runtime import Object, ObjectConvertible, const
-from tvm.tirx import DataProducer
 from tvm.tirx import expr as _expr
 
 from . import _ffi_api, _te_tensor_overload
@@ -249,8 +249,11 @@ class TensorOpBase:
 
 
 @tvm_ffi.register_object("te.Tensor")
-class Tensor(DataProducer, TensorOpBase):
+class Tensor(OpaqueExpr, TensorOpBase):
     """Tensor object, to construct, see function.Tensor"""
+
+    def __repr__(self):
+        return f"Tensor(shape={self.shape}, op.name={self.op.name})"
 
     def __call__(self, *indices):
         ndim = self.ndim
@@ -258,7 +261,7 @@ class Tensor(DataProducer, TensorOpBase):
             raise ValueError(
                 f"Need to provide {ndim} index in tensor but {len(indices)} was provided"
             )
-        return _expr.ProducerLoad(self, indices)
+        return _ffi_api.TensorLoad(self, indices)
 
     def __getitem__(self, indices):
         return TensorSlice(self, indices)

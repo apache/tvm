@@ -204,7 +204,7 @@ constexpr const char* warp_execution = "warp_execution";
 /*!
  * \brief Marks the layout transforms to be used for a tensor.
  *
- * Only applies to a DataProducer, as it should be made part of the
+ * Only applies to a tensor-like input, as it should be made part of the
  * PrimFunc attributes for TIR.
  */
 constexpr const char* layout_transforms = "layout_transforms";

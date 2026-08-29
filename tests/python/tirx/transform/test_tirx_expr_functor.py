@@ -18,7 +18,7 @@
 import tvm
 import tvm.testing
 from tvm import tirx as tir
-from tvm.ir import Call, Op
+from tvm.ir import Call, Op, OpaqueExpr
 from tvm.ir.base import assert_structural_equal
 from tvm.tirx.expr import (
     EQ,
@@ -44,7 +44,6 @@ from tvm.tirx.expr import (
     Mul,
     Not,
     Or,
-    ProducerLoad,
     Ramp,
     Reduce,
     Select,
@@ -104,12 +103,8 @@ class ASTPrinter(ExprVisitor):
             self.visit_expr(idx)
         self.log.pop_scope()
 
-    def visit_producer_load_(self, op: ProducerLoad) -> None:
-        self.log.add("ProducerLoad")
-        self.log.push_scope()
-        for idx in op.indices:
-            self.visit_expr(idx)
-        self.log.pop_scope()
+    def visit_opaque_expr_(self, op: OpaqueExpr) -> None:
+        self.log.add("OpaqueExpr")
 
     def visit_let_(self, op: Let) -> None:
         self.log.add("Let")
@@ -334,9 +329,9 @@ class ASTPostPrinterMutator(ExprMutator):
         self.log.add("BufferLoad")
         return result
 
-    def visit_producer_load_(self, op: ProducerLoad) -> tir.Expr:
-        result = super().visit_producer_load_(op)
-        self.log.add("ProducerLoad")
+    def visit_opaque_expr_(self, op: OpaqueExpr) -> tir.Expr:
+        result = super().visit_opaque_expr_(op)
+        self.log.add("OpaqueExpr")
         return result
 
     def visit_let_(self, op: Let) -> tir.Expr:
@@ -764,6 +759,13 @@ def test_call_visitor_super():
     lv = LeafVisitor()
     lv.visit_expr(add_node)
     assert str(lv.log) == "\n".join(["LeafAdd", "InternalAdd", "InternalVar", "InternalIntImm"])
+
+    tensor_load = tvm.te.placeholder((1,), name="A")(0)
+    basic_check(
+        tensor_load,
+        "\n".join(["Call", "\tOpaqueExpr", "\tIntImm"]),
+        "\n".join(["OpaqueExpr", "IntImm", "Call"]),
+    )
 
 
 def test_call_mutator_super():

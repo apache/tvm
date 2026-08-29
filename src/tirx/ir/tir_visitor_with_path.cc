@@ -357,9 +357,7 @@ void TIRVisitorWithPath::VisitExpr_(const BufferLoadNode* op, AccessPath path) {
   Visit(op->indices, path->Attr("indices"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const ProducerLoadNode* op, AccessPath path) {
-  Visit(op->indices, path->Attr("indices"));
-}
+void TIRVisitorWithPath::VisitExpr_(const OpaqueExprNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::VisitExpr_(const TupleNode* op, AccessPath path) {
   Visit(op->fields, path->Attr("fields"));
@@ -378,6 +376,8 @@ void TIRVisitorWithPath::VisitExpr_(const LetNode* op, AccessPath path) {
 void TIRVisitorWithPath::VisitExpr_(const CallNode* op, AccessPath path) {
   if (auto gvar = op->op.as<GlobalVar>()) {
     Visit(gvar.value(), path->Attr("op"));
+  } else if (op->op.as<OpaqueExprNode>()) {
+    Visit(op->op, path->Attr("op"));
   }
   Visit(op->args, path->Attr("args"));
 }

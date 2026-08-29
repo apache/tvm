@@ -86,6 +86,30 @@ class Type : public ffi::ObjectRef {
 };
 
 /*!
+ * \brief Type marker for opaque construction-time expressions.
+ *
+ * Opaque values may be used while constructing IR, but must be lowered away
+ * before the IR is considered complete.
+ */
+class OpaqueTypeNode final : public TypeNode {
+ public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<OpaqueTypeNode>();
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.OpaqueType", OpaqueTypeNode, TypeNode);
+};
+
+/*! \brief Managed reference to OpaqueTypeNode. */
+class OpaqueType final : public Type {
+ public:
+  TVM_DLL OpaqueType();
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OpaqueType, Type, OpaqueTypeNode);
+};
+
+/*!
  * \brief Primitive data types used in the low-level IR.
  *
  * PrimType represents primitive POD values and the void sentinel.
@@ -317,6 +341,29 @@ class Expr : public ffi::ObjectRef {
   bool operator<(const Expr& other) const = delete;
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Expr, ffi::ObjectRef, ExprNode);
+};
+
+/*!
+ * \brief Base node for opaque construction-time expressions.
+ *
+ * Subclasses are passed through by generic expression visitors and mutators.
+ * They must not remain in finished IR.
+ */
+class OpaqueExprNode : public ExprNode {
+ public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<OpaqueExprNode>();
+  }
+
+  static constexpr const uint32_t _type_child_slots = 1;
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.OpaqueExpr", OpaqueExprNode, ExprNode);
+};
+
+/*! \brief Managed reference to OpaqueExprNode. */
+class OpaqueExpr : public Expr {
+ public:
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(OpaqueExpr, Expr, OpaqueExprNode);
 };
 
 class Call;

@@ -787,9 +787,8 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const ffi::Array<PrimExpr>&
 
   arith::Analyzer analyzer;
   for (size_t i = 0; i < num_slice_axes; ++i) {
-    // Check ProducerLoad to keep backward compatibility for Relax.
-    if (!begin[i]->IsInstance<ProducerLoadNode>() && !end[i]->IsInstance<ProducerLoadNode>() &&
-        !strides[i]->IsInstance<ProducerLoadNode>()) {
+    // Dynamic scalar tensor loads cannot be simplified while inferring shape.
+    if (!te::IsTensorLoad(begin[i]) && !te::IsTensorLoad(end[i]) && !te::IsTensorLoad(strides[i])) {
       out_shape.push_back(
           analyzer->Simplify(GetLength(begin[i], end[i], strides[i], x->shape[i], assume_inbound)));
     } else {

@@ -306,7 +306,12 @@ void ExprVisitor::VisitExpr_(const SeqExprNode* op) {
   VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
-void ExprVisitor::VisitExprFallback_(const ExprNode* op) { this->VisitExprDefault_(op); }
+void ExprVisitor::VisitExprFallback_(const ExprNode* op) {
+  if (op->IsInstance<OpaqueExprNode>()) {
+    return;
+  }
+  this->VisitExprDefault_(op);
+}
 
 void ExprVisitor::VisitExpr_(const StringImmNode* op) { this->VisitSpan(op->span); }
 
@@ -657,7 +662,12 @@ Expr ExprMutatorBase::VisitExpr_(const TupleGetItemNode* op) {
   }
 }
 
-Expr ExprMutatorBase::VisitExprFallback_(const ExprNode* op) { return this->VisitExprDefault_(op); }
+Expr ExprMutatorBase::VisitExprFallback_(const ExprNode* op) {
+  if (op->IsInstance<OpaqueExprNode>()) {
+    return ffi::GetRef<Expr>(op);
+  }
+  return this->VisitExprDefault_(op);
+}
 
 Expr ExprMutatorBase::VisitExpr_(const StringImmNode* op) { return ffi::GetRef<Expr>(op); }
 

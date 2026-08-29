@@ -596,13 +596,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return AssignDoc(lhs, rhs, std::nullopt);
         });
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::ProducerLoad>(  //
-        "", [](tirx::ProducerLoad load, AccessPath p, IRDocsifier d) -> Doc {
-          ExprDoc prefix = IdDoc(load->producer->GetNameHint());
-          return prefix[BufferIndices(load->indices, p->Attr("indices"), d)];
-        });
-
 TVM_SCRIPT_REPR(tirx::BufferRegionNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::BufferLoadNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::BufferStoreNode, ReprPrintTIR);
@@ -611,7 +604,6 @@ TVM_SCRIPT_REPR(tirx::IterNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::TileLayoutNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::ComposeLayoutNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::MatchBufferRegionNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::ProducerLoadNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

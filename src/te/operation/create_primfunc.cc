@@ -45,20 +45,23 @@
 namespace tvm {
 namespace tirx {
 
-/*! \brief The helper mutator that transforms ProducerLoad to BufferLoad */
-class ProducerToBufferTransformer : public StmtExprMutator {
+/*! \brief The helper mutator that transforms Tensor-callee Calls to BufferLoad. */
+class TensorLoadToBufferTransformer : public StmtExprMutator {
  public:
-  explicit ProducerToBufferTransformer(
+  explicit TensorLoadToBufferTransformer(
       const std::unordered_map<te::Tensor, BufferVar>& tensor2buffers)
       : tensor2buffers_(tensor2buffers) {}
 
-  Expr VisitExpr_(const ProducerLoadNode* op) final {
-    auto visited_op = StmtExprMutator::VisitExpr_(op).as_or_throw<ProducerLoad>();
-    te::Tensor tensor = visited_op->producer.as_or_throw<te::Tensor>();
+  Expr VisitExpr_(const CallNode* op) final {
+    Call call = StmtExprMutator::VisitExpr_(op).as_or_throw<Call>();
+    if (!te::IsTensorLoad(call)) {
+      return call;
+    }
+    te::Tensor tensor = te::GetTensorFromLoad(call);
     auto it = tensor2buffers_.find(tensor);
     TVM_FFI_ICHECK(it != tensor2buffers_.end()) << "IndexError: Cannot find the tensor " << tensor;
     const BufferVar& buffer = it->second;
-    return BufferLoad(buffer, visited_op->indices);
+    return BufferLoad(buffer, te::GetTensorLoadIndices(call), std::nullopt, call->span);
   }
 
  private:
@@ -110,8 +113,8 @@ struct CreateFuncInfo {
   ffi::Array<te::Tensor> arg_list;
   /*! \brief The map from each Tensor to its corresponding buffer. */
   std::unordered_map<te::Tensor, BufferVar> tensor2buffers;
-  /*! \brief The transformer from ProducerLoad to BufferLoad. */
-  ProducerToBufferTransformer transformer;
+  /*! \brief The transformer from Tensor-callee Calls to BufferLoad. */
+  TensorLoadToBufferTransformer transformer;
   /*! \brief The buffers should be allocated at function root. */
   ffi::Array<BufferVar> root_alloc;
   /*! \brief The unique name supply to make block name unique. */
@@ -672,7 +675,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
   BufferSubstituter substituter(var_map, input_buffer_map);
   Stmt substituted_body = substituter(extern_op->body);
 
-  ProducerToBufferTransformer transformer(info->tensor2buffers);
+  TensorLoadToBufferTransformer transformer(info->tensor2buffers);
   Stmt body = transformer(substituted_body);
 
   // Step 4. Generate opaque block as body.
@@ -761,9 +764,10 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<te::Tensor>& arg_list,
     TVM_FFI_ICHECK(it != info->tensor2buffers.end());
     parameters.push_back(it->second.var());
   }
+  Stmt body = info->transformer(SeqStmt::Flatten(root_stmts));
   PrimFunc func = WithAttrs(
       PrimFunc(/*params=*/std::move(parameters),
-               /*body=*/SeqStmt::Flatten(root_stmts),
+               /*body=*/std::move(body),
                /*ret_type=*/VoidType()),
       {{"global_symbol", ffi::String("main")}, {"tirx.noalias", true}, {tvm::attr::kSTir, true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
@@ -798,6 +802,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
     func = IndexDataTypeNormalizer(index_dtype_override.value()).Rewrite(std::move(func));
   }
   auto result = LayoutFreePlaceholdersNormalizer().Process(std::move(func));
+  VerifyNoOpaqueArtifacts(result);
   return result;
 }
 
@@ -828,9 +833,10 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_tir_v
       parameters.push_back(var.value());
     }
   }
+  Stmt body = info->transformer(SeqStmt::Flatten(root_stmts));
   PrimFunc func = WithAttrs(
       PrimFunc(/*params=*/std::move(parameters),
-               /*body=*/SeqStmt::Flatten(root_stmts),
+               /*body=*/std::move(body),
                /*ret_type=*/VoidType()),
       {{"global_symbol", ffi::String("main")}, {"tirx.noalias", true}, {tvm::attr::kSTir, true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
@@ -870,6 +876,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_list,
     func = IndexDataTypeNormalizer(index_dtype_override.value()).Rewrite(std::move(func));
   }
   auto result = LayoutFreePlaceholdersNormalizer().Process(std::move(func));
+  VerifyNoOpaqueArtifacts(result);
   return result;
 }
 

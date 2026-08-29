@@ -33,13 +33,20 @@ def test_tensor():
     print(T)
     print(T.op.body)
     assert tuple(T.shape) == (m, n, l)
+    assert isinstance(A, tvm.ir.OpaqueExpr)
+    assert isinstance(A.ty, tvm.ir.OpaqueType)
     assert isinstance(A.op, tvm.te.PlaceholderOp)
     assert A == A
     assert T.op.output(0) == T
     assert T.op.output(0).__hash__() == T.__hash__()
     d = {T.op.output(0): 1}
     assert d[T] == 1
-    assert T[0][0][0].astype("float16").ty == tvm.ir.PrimType("float16")
+    load = T[0][0][0].asobject()
+    assert isinstance(load, tvm.ir.Call)
+    assert load.op.same_as(T)
+    assert list(load.args) == [0, 0, 0]
+    assert load.ty == T.dtype
+    assert load.astype("float16").ty == tvm.ir.PrimType("float16")
 
 
 def test_rank_zero():
@@ -213,6 +220,15 @@ def test_tensor_inputs():
     x = te.placeholder((1,), name="x")
     y = te.compute(x.shape, lambda i: x[i] + x[i])
     assert tuple(y.op.input_tensors) == (x,)
+
+    func = te.create_prim_func([x, y])
+    assert tvm.tirx.analysis.verify_well_formed(func)
+
+    leaked_expr = tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(x(0)))
+    assert not tvm.tirx.analysis.verify_well_formed(leaked_expr, assert_mode=False)
+
+    leaked_type = tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(0)).with_attr("opaque_type", x.ty)
+    assert not tvm.tirx.analysis.verify_well_formed(leaked_type, assert_mode=False)
 
 
 if __name__ == "__main__":
