@@ -2600,10 +2600,10 @@ def _broadcast_shape_dims(ai: int | tirx.Expr, bi: int | tirx.Expr) -> int | tir
             return expr_val
         else:
             # Constant dimension is not 1
-            # The only valid scenarios are: expr_val == 1 or expr_val == const_val
-            # In both cases, the result is const_val (since 1 broadcasts to const_val,
-            # and const_val broadcasts to itself)
-            return const_val
+            raise ValueError(
+                f"Cannot broadcast symbolic dimension {expr_val} with non-1 constant {const_val}: "
+                f"runtime value of symbolic dimension is unknown at compile time."
+            )
 
 
 def compute_broadcast_shape(shape_a, shape_b):
