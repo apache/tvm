@@ -54,8 +54,8 @@ def test_ptx_addr_registration_and_table_capabilities():
     assert "tirx.ptx.addr" in CODEGEN_REGISTRY
 
     addresses = [slot for entry in TABLE.values() for slot in entry.operands if slot.kind == "addr"]
-    assert len(addresses) == 145
-    assert sum(slot.allow_imm_offset for slot in addresses) == 115
+    assert len(addresses) == 160
+    assert sum(slot.allow_imm_offset for slot in addresses) == 130
     assert sum(slot.bracket is not None and not slot.allow_imm_offset for slot in addresses) == 5
     assert sum(slot.space == "tmem" and not slot.allow_imm_offset for slot in addresses) == 25
 
