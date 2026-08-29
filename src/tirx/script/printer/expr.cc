@@ -408,7 +408,8 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
   } else if (call->op.as<GlobalVarNode>()) {
     prefix = d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
   } else {
-    TVM_FFI_THROW(InternalError) << "call: " << call;
+    TVM_FFI_THROW(TypeError) << "Cannot print a Call whose callee has type "
+                             << call->op->GetTypeKey();
   }
   ffi::Array<ExprDoc> args;
   int n_args = call->args.size();

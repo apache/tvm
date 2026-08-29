@@ -38,6 +38,7 @@ namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ExprNode::RegisterReflection();
+  OpaqueExprNode::RegisterReflection();
   BaseFuncNode::RegisterReflection();
   VarNode::RegisterReflection();
   GlobalVarNode::RegisterReflection();

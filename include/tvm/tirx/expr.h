@@ -590,44 +590,6 @@ class BufferLoad : public PrimExpr {
 };
 
 /*!
- * \brief Load value from the result produced by the producer.
- *
- * \note This node only appears in high-level DSLs that are built on top of the TIR.
- *       It should not appear in a valid TIR PrimFunc. A high-level DSL needs to lower
- *       this node before TIR transformations.
- *
- * \sa ProducerLoad, DataProducerNode
- */
-class ProducerLoadNode : public ExprNode {
- public:
-  /*! \brief The buffer producer. */
-  DataProducer producer;
-  /*! \brief The location arguments. */
-  ffi::Array<PrimExpr> indices;
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ProducerLoadNode>()
-        .def_ro("producer", &ProducerLoadNode::producer)
-        .def_ro("indices", &ProducerLoadNode::indices);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.ProducerLoad", ProducerLoadNode, ExprNode);
-};
-
-/*!
- * \brief Managed reference to ProducerLoadNode.
- * \sa ProducerLoadNode
- */
-class ProducerLoad : public PrimExpr {
- public:
-  TVM_DLL explicit ProducerLoad(DataProducer producer, ffi::Array<PrimExpr> indices,
-                                Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ProducerLoad, PrimExpr, ProducerLoadNode);
-  static constexpr bool _type_container_is_exact = true;
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ProducerLoadNode);
-};
-
-/*!
  * \brief Construct a vector with lanes elements
  *        where its i-th element equals base + i * stride.
  *  This is useful to construct a index for a continuous vector load.
@@ -926,8 +888,6 @@ template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, tirx::SelectNode> = true;
 template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, tirx::BufferLoadNode> = true;
-template <>
-inline constexpr bool object_ref_contains_v<PrimExpr, tirx::ProducerLoadNode> = true;
 template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, tirx::RampNode> = true;
 template <>
