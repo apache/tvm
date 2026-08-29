@@ -23,7 +23,6 @@
  */
 
 #include <tvm/ffi/cast.h>
-#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/stmt.h>
@@ -42,29 +41,6 @@ namespace tvm {
 namespace tirx {
 
 using AccessPath = ffi::reflection::AccessPath;
-
-bool VerifyNoOpaqueArtifacts(const ffi::ObjectRef& obj, bool assert_mode) {
-  ffi::String artifact;
-  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-      obj,
-      [&](const OpaqueExpr& expr) -> ffi::Expected<ffi::WalkResult> {
-        artifact = expr->GetTypeKey();
-        return ffi::WalkResult::Interrupt();
-      },
-      [&](const OpaqueType& type) -> ffi::Expected<ffi::WalkResult> {
-        artifact = type->GetTypeKey();
-        return ffi::WalkResult::Interrupt();
-      });
-  if (artifact.empty()) {
-    return true;
-  }
-  if (assert_mode) {
-    TVM_FFI_THROW(InternalError)
-        << "Well-formedness check failed: finished IR contains construction-only opaque artifact "
-        << artifact;
-  }
-  return false;
-}
 
 /*! \brief Verify all Expr inside the block does not contain:
  *    1. loop vars outside the current block.
@@ -370,8 +346,6 @@ class SingleEnvThreadVerifier : public Verifier<SingleEnvThreadVerifier> {
 };
 
 bool VerifyWellFormed(const PrimFunc& func, bool assert_mode) {
-  if (!VerifyNoOpaqueArtifacts(func, assert_mode)) return false;
-
   if (!BlockVarAccessVerifier::Verify(func, assert_mode)) {
     return false;
   }
@@ -385,8 +359,6 @@ bool VerifyWellFormed(const PrimFunc& func, bool assert_mode) {
 }
 
 bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
-  if (!VerifyNoOpaqueArtifacts(mod, assert_mode)) return false;
-
   for (const auto& [gvar, base_func] : mod->functions) {
     if (auto prim_func = base_func.as<PrimFunc>()) {
       bool res = VerifyWellFormed(prim_func.value(), assert_mode);

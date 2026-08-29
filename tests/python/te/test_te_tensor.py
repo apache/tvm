@@ -221,15 +221,6 @@ def test_tensor_inputs():
     y = te.compute(x.shape, lambda i: x[i] + x[i])
     assert tuple(y.op.input_tensors) == (x,)
 
-    func = te.create_prim_func([x, y])
-    assert tvm.tirx.analysis.verify_well_formed(func)
-
-    leaked_expr = tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(x(0)))
-    assert not tvm.tirx.analysis.verify_well_formed(leaked_expr, assert_mode=False)
-
-    leaked_type = tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(0)).with_attr("opaque_type", x.ty)
-    assert not tvm.tirx.analysis.verify_well_formed(leaked_type, assert_mode=False)
-
 
 if __name__ == "__main__":
     test_tensor()

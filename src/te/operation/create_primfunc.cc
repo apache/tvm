@@ -21,6 +21,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/unique_name_supply.h>
@@ -44,6 +45,28 @@
 
 namespace tvm {
 namespace tirx {
+
+namespace {
+
+void VerifyNoOpaqueArtifacts(const PrimFunc& func) {
+  ffi::String artifact;
+  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+      func,
+      [&](const OpaqueExpr& expr) -> ffi::Expected<ffi::WalkResult> {
+        artifact = expr->GetTypeKey();
+        return ffi::WalkResult::Interrupt();
+      },
+      [&](const OpaqueType& type) -> ffi::Expected<ffi::WalkResult> {
+        artifact = type->GetTypeKey();
+        return ffi::WalkResult::Interrupt();
+      });
+  if (!artifact.empty()) {
+    TVM_FFI_THROW(InternalError) << "CreatePrimFunc produced construction-only opaque artifact "
+                                 << artifact;
+  }
+}
+
+}  // namespace
 
 /*! \brief The helper mutator that transforms Tensor-callee Calls to BufferLoad. */
 class TensorLoadToBufferTransformer : public StmtExprMutator {

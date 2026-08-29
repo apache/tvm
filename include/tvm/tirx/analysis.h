@@ -203,14 +203,6 @@ TVM_DLL bool VerifyWellFormed(const PrimFunc& func, bool assert_mode = true);
 TVM_DLL bool VerifyWellFormed(const IRModule& mod, bool assert_mode = true);
 
 /*!
- * \brief Verify that construction-only opaque expressions and types have been erased.
- * \param obj The PrimFunc or IRModule to verify.
- * \param assert_mode Whether to raise an error when an opaque artifact is found.
- * \return Whether the object contains no opaque artifacts.
- */
-TVM_DLL bool VerifyNoOpaqueArtifacts(const ffi::ObjectRef& obj, bool assert_mode = true);
-
-/*!
  * \brief Find the entry function of the given IRModule, i.e, functions marked by
  * `tirx::attr::kIsEntryFunc`, whose name is `main` or being the only PrimeFunc.
  * \param mod The IRModule to find the entry function.
