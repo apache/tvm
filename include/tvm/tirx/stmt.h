@@ -822,6 +822,9 @@ class BufferRegion : public Expr {
  public:
   TVM_DLL explicit BufferRegion(BufferVar buffer, ffi::Array<Range> region);
 
+  /*! \brief Materialize this region as a scalar or vector buffer load. */
+  TVM_DLL PrimExpr ToBufferLoad() const;
+
   /*!
    * \brief Create a BufferRegion which is full region of the given buffer.
    * \param buffer The buffer to generate full BufferRegion.

@@ -32,8 +32,16 @@ from tvm.runtime import const
 from . import _ffi_api
 from .buffer import Buffer, buffer_data, is_buffer_var
 from .expr import BufferLoad, CommReducer, ExprOp, ExprWithOp, IntImm, Var
+from .stmt import BufferRegion
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
+
+
+def _convert_to_prim_expr(value):
+    if isinstance(value, BufferRegion):
+        return _ffi_api.BufferRegionToBufferLoad(value)  # type: ignore
+    return value
+
 
 # Insertion order matters: a longer prefix has to be tried before the shorter
 # one it starts with, or `ptx_legacy_mma` would strip as `ptx` + `legacy_mma`.
@@ -253,6 +261,7 @@ def call_intrin(dtype: str | tvm.ir.Type, func_name, *args, attrs=None, span=Non
     """
     if isinstance(func_name, str):
         func_name = _canonical_device_intrin_name(func_name)
+    args = tuple(_convert_to_prim_expr(arg) for arg in args)
     return Call(func_name, args, attrs=attrs, span=span, ret_ty=dtype)
 
 
@@ -1375,7 +1384,7 @@ def reinterpret(dtype, value, span: Span | None = None) -> Expr:
         dtype = (
             PointerType(tvm.ir.PrimType("void")) if dtype == "handle" else tvm.ir.PrimType(dtype)
         )
-    return _ffi_api.reinterpret(dtype, value, span)  # type: ignore
+    return _ffi_api.reinterpret(dtype, _convert_to_prim_expr(value), span)  # type: ignore
 
 
 def exp(x):

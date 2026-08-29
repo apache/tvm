@@ -517,6 +517,21 @@ BufferRegionType::BufferRegionType(Span span) : Type(ffi::UnsafeInit{}) {
   data_ = std::move(node);
 }
 
+PrimExpr BufferRegion::ToBufferLoad() const {
+  ffi::Array<PrimExpr> indices;
+  indices.reserve((*this)->region.size());
+  for (const Range& r : (*this)->region) {
+    if (tirx::is_one(r->extent)) {
+      indices.push_back(r->min);
+    } else if (r->extent.as<IntImmNode>()) {
+      indices.push_back(Ramp(r->min, IntImm(r->min.ty(), 1), r->extent));
+    } else {
+      TVM_FFI_THROW(ValueError) << "Cannot convert to BufferLoad: " << *this;
+    }
+  }
+  return BufferLoad((*this)->buffer, indices);
+}
+
 BufferRegion::BufferRegion(BufferVar buffer, ffi::Array<Range> region) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), region.size())
       << "The dimension between " << buffer << " and region " << region
@@ -554,7 +569,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("tirx.BufferRegionType", [](Span span) { return BufferRegionType(span); })
       .def("tirx.BufferRegion",
-           [](BufferVar buffer, ffi::Array<Range> region) { return BufferRegion(buffer, region); });
+           [](BufferVar buffer, ffi::Array<Range> region) { return BufferRegion(buffer, region); })
+      .def("tirx.BufferRegionToBufferLoad",
+           [](BufferRegion region) { return region.ToBufferLoad(); });
 }
 
 // MatchBufferRegion

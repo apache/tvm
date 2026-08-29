@@ -2376,6 +2376,7 @@ def buffer_store(
             expr_indices.append(index)
     if isinstance(value, bool) and buffer.ty.dtype == "bool":
         value = IntImm("bool", value)
+    value = _tir_op._convert_to_prim_expr(value)  # pylint: disable=protected-access
     return _ffi_api.BufferStore(  # type: ignore[attr-defined] # pylint: disable=no-member
         buffer, value, expr_indices, predicate
     )
