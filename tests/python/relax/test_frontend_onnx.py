@@ -928,36 +928,60 @@ def test_multi_input_constant_rank_axis_bounds(op_name, rank):
     check_correctness(helper.make_model(graph), opset=13)
 
 
-def test_multi_input_broadcasting_symbolic_shapes():
-    """Multi-input reductions with symbolic shapes should broadcast correctly.
+def _make_onnx_min_max_model(
+    x_shape: list,
+    y_shape: list,
+    out_shape: list,
+    op_name: str = "Min",
+    graph_name: str = "test_graph",
+) -> onnx.ModelProto:
+    """Construct a Min/Max ONNX model.
 
-    When dimensions are symbolic (not constant), broadcasting should handle them correctly
-    without raising "Cannot use and / or / not operator to Expr".
+    Args:
+        x_shape: Shape of the first input tensor
+        y_shape: Shape of the second input tensor
+        out_shape: Shape of the output tensor
+        op_name: The operation name, either "Min" or "Max"
+        graph_name: The name of the ONNX graph
+
+    Returns:
+        An ONNX ModelProto object representing the Min/Max operation.
     """
+    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape)
+    y = helper.make_tensor_value_info("y", TensorProto.FLOAT, y_shape)
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, out_shape)
 
-    # Test case 1: Both inputs have same symbolic dimensions
-    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, ["n", 4])
-    y = helper.make_tensor_value_info("y", TensorProto.FLOAT, ["n", 4])
-    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, ["n", 4])
     graph = helper.make_graph(
-        [helper.make_node("Min", ["x", "y"], ["out"])],
-        "min_symbolic_broadcast",
+        [helper.make_node(op_name, ["x", "y"], ["out"])],
+        graph_name,
         [x, y],
         [out],
     )
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
+    return helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
 
-    onnx.checker.check_model(model)
 
-    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
+def _make_expected_broadcast_ir_min(
+    x_shape: tuple,
+    y_shape: tuple,
+):
+    """Generate expected broadcast IR module for Min operation.
+
+    Args:
+        x_shape: Shape of the first input tensor
+        y_shape: Shape of the second input tensor
+
+    Returns:
+        Expected IR module for the Min operation.
+    """
+    output_shape = (x_shape[0], 4)
 
     @I.ir_module
     class ExpectedMin:
         @R.function
         def main(
-            x: R.Tensor(("n", 4), dtype="float32"),
-            y: R.Tensor(("n", 4), dtype="float32"),
-        ) -> R.Tensor(("n", 4), dtype="float32"):
+            x: R.Tensor(x_shape, dtype="float32"),
+            y: R.Tensor(y_shape, dtype="float32"),
+        ) -> R.Tensor(output_shape, dtype="float32"):
             n = T.int64()
             R.func_attr({"num_input": 2})
             with R.dataflow():
@@ -968,31 +992,31 @@ def test_multi_input_broadcasting_symbolic_shapes():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, ExpectedMin)
+    return ExpectedMin
 
-    # Test case 2: Max operator with symbolic dimensions
-    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, ["n", 4])
-    y = helper.make_tensor_value_info("y", TensorProto.FLOAT, ["n", 4])
-    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, ["n", 4])
-    graph = helper.make_graph(
-        [helper.make_node("Max", ["x", "y"], ["out"])],
-        "max_symbolic_broadcast",
-        [x, y],
-        [out],
-    )
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
 
-    onnx.checker.check_model(model)
+def _make_expected_broadcast_ir_max(
+    x_shape: tuple,
+    y_shape: tuple,
+):
+    """Generate expected broadcast IR module for Max operation.
 
-    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
+    Args:
+        x_shape: Shape of the first input tensor
+        y_shape: Shape of the second input tensor
+
+    Returns:
+        Expected IR module for the Max operation.
+    """
+    output_shape = (x_shape[0], 4)
 
     @I.ir_module
     class ExpectedMax:
         @R.function
         def main(
-            x: R.Tensor(("n", 4), dtype="float32"),
-            y: R.Tensor(("n", 4), dtype="float32"),
-        ) -> R.Tensor(("n", 4), dtype="float32"):
+            x: R.Tensor(x_shape, dtype="float32"),
+            y: R.Tensor(y_shape, dtype="float32"),
+        ) -> R.Tensor(output_shape, dtype="float32"):
             n = T.int64()
             R.func_attr({"num_input": 2})
             with R.dataflow():
@@ -1003,61 +1027,120 @@ def test_multi_input_broadcasting_symbolic_shapes():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, ExpectedMax)
+    return ExpectedMax
 
-    # Test case 3: Mixed symbolic and constant dimensions (tests the mixed broadcast branch)
-    # When broadcasting ["n", 1] with ["n", 4], the 1 broadcasts to 4
-    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, ["n", 1])
-    y = helper.make_tensor_value_info("y", TensorProto.FLOAT, ["n", 4])
-    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, ["n", 4])
-    graph = helper.make_graph(
-        [helper.make_node("Min", ["x", "y"], ["out"])],
-        "min_mixed_symbolic_broadcast",
-        [x, y],
-        [out],
-    )
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
 
+def _test_symbolic_broadcast_case(
+    x_shape: list,
+    y_shape: list,
+    out_shape: list,
+    op_name: str,
+    graph_name: str,
+    should_pass: bool = True,
+    error_pattern: str | None = None,
+):
+    """Execute a single symbolic broadcast test case.
+
+    Args:
+        x_shape: Shape of the first input tensor
+        y_shape: Shape of the second input tensor
+        out_shape: Shape of the output tensor
+        op_name: The operation name, either "Min" or "Max"
+        graph_name: The name of the ONNX graph
+        should_pass: Whether the test is expected to pass or raise an error
+        error_pattern: The expected error message pattern if should_pass is False
+    """
+    model = _make_onnx_min_max_model(x_shape, y_shape, out_shape, op_name, graph_name)
     onnx.checker.check_model(model)
 
-    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
+    if should_pass:
+        tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
+        if op_name == "Min":
+            expected = _make_expected_broadcast_ir_min(tuple(x_shape), tuple(y_shape))
+        else:
+            expected = _make_expected_broadcast_ir_max(tuple(x_shape), tuple(y_shape))
+        tvm.ir.assert_structural_equal(tvm_model, expected)
+    else:
+        with pytest.raises(ValueError, match=error_pattern):
+            from_onnx(model, opset=18, keep_params_in_input=True)
 
-    @I.ir_module
-    class ExpectedMinMixed:
-        @R.function
-        def main(
-            x: R.Tensor(("n", 1), dtype="float32"),
-            y: R.Tensor(("n", 4), dtype="float32"),
-        ) -> R.Tensor(("n", 4), dtype="float32"):
-            n = T.int64()
-            R.func_attr({"num_input": 2})
-            with R.dataflow():
-                lv = R.broadcast_to(x, R.shape((n, 4)))
-                lv1 = R.broadcast_to(y, R.shape((n, 4)))
-                lv2 = R.stack((lv, lv1), axis=0)
-                gv = R.min(lv2, axis=[0], keepdims=False)
-                R.output(gv)
-            return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, ExpectedMinMixed)
+def test_multi_input_broadcasting_symbolic_shapes():
+    """Comprehensive test for symbolic shape broadcasting in Min/Max operations.
 
-    # Test case 4: Different symbolic dimensions should raise ValueError
-    # This verifies that incompatible symbolic dimensions are caught at import time
-    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, ["n", 4])
-    y = helper.make_tensor_value_info("y", TensorProto.FLOAT, ["m", 4])
-    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, ["n", 4])
-    graph = helper.make_graph(
-        [helper.make_node("Min", ["x", "y"], ["out"])],
-        "min_different_symbolic",
-        [x, y],
-        [out],
+    Tests four levels:
+    1. LEVEL 1 - Compile-time: Import and symbolic dimension handling (4 cases)
+    2. LEVEL 2 - Shape lowering: Pass through LegalizeOps pipeline
+    3. LEVEL 3 - IR verification: Check broadcast_to operations
+    4. LEVEL 4 - Conservative rejection: Verify symbolic vs non-1 constant is rejected
+
+    When dimensions are symbolic (not constant), broadcasting should handle them correctly
+    without raising "Cannot use and / or / not operator to Expr".
+    Conservative rejection prevents silent miscompilation where TOPI cannot correctly handle
+    symbolic source dimensions in broadcast operations.    
+    """
+    # LEVEL 1 - Compile-time: Import and symbolic dimension handling (4 cases)
+    _test_symbolic_broadcast_case(
+        x_shape=["n", 4],
+        y_shape=["n", 4],
+        out_shape=["n", 4],
+        op_name="Min",
+        graph_name="min_symbolic_broadcast",
     )
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
 
-    onnx.checker.check_model(model)
+    _test_symbolic_broadcast_case(
+        x_shape=["n", 4],
+        y_shape=["n", 4],
+        out_shape=["n", 4],
+        op_name="Max",
+        graph_name="max_symbolic_broadcast",
+    )
 
-    with pytest.raises(ValueError, match="Cannot broadcast symbolic dimensions"):
-        from_onnx(model, opset=18, keep_params_in_input=True)
+    _test_symbolic_broadcast_case(
+        x_shape=["n", 1],
+        y_shape=["n", 4],
+        out_shape=["n", 4],
+        op_name="Min",
+        graph_name="min_mixed_symbolic_broadcast",
+    )
+
+    _test_symbolic_broadcast_case(
+        x_shape=["n", 4],
+        y_shape=["m", 4],
+        out_shape=["n", 4],
+        op_name="Min",
+        graph_name="min_different_symbolic",
+        should_pass=False,
+        error_pattern="Cannot broadcast symbolic dimensions",
+    )
+
+    # LEVEL 2 - Shape lowering: Pass through LegalizeOps pipeline
+    model_lower = _make_onnx_min_max_model(
+        ["n", 4], ["n", 4], ["n", 4], "Min", "min_shape_lower_test"
+    )
+    onnx.checker.check_model(model_lower)
+
+    tvm_model = from_onnx(model_lower, opset=18, keep_params_in_input=True)
+
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+
+    tvm_model, _ = relax.frontend.detach_params(tvm_model)
+
+    # LEVEL 3 - IR verification: Check broadcast_to operations
+    ir_str = str(tvm_model)
+    assert "broadcast" in ir_str, "IR should contain broadcast operation"
+
+    # LEVEL 4 - Conservative rejection: Verify symbolic vs non-1 constant is rejected
+    _test_symbolic_broadcast_case(
+        x_shape=["n", 4],
+        y_shape=[2, 4],
+        out_shape=[2, 4],
+        op_name="Min",
+        graph_name="min_symbolic_vs_constant",
+        should_pass=False,
+        error_pattern="runtime value of symbolic dimension is unknown",
+    )
 
 
 @pytest.mark.parametrize("op_name", ["Min", "Max", "Sum", "Mean"])
