@@ -1029,7 +1029,7 @@ def test_wgmma_ss_nt():
             T.cuda.wgmma.encode_matrix_descriptor(T.address_of(descB), B_smem.data, *B_encode_args)  # noqa: F821
             T.ptx.wgmma.fence.sync.aligned()
             T.ptx[mma_chain](*get_accum_list(C_local, C_elems), descA, descB,  # noqa: F821
-                              0, 1, 1, int(transA), int(transB))
+                              False, 1, 1, int(transA), int(transB))
             T.ptx.wgmma.commit_group.sync.aligned()
             T.ptx.wgmma.wait_group.sync.aligned(0)
 
@@ -1194,7 +1194,7 @@ def test_wgmma_rs_nt():
             T.cuda.wgmma.encode_matrix_descriptor(T.address_of(descB), B_smem.data, *B_encode_args)  # noqa: F821
             T.ptx.wgmma.fence.sync.aligned()
             T.ptx[mma_chain](*get_accum_list(C_local, C_elems), *get_A_list(A_local_b32, A_elems_b32),  # noqa: E501
-                              descB, 0, 1, 1, int(transB))  # noqa: F821
+                              descB, False, 1, 1, int(transB))  # noqa: F821
             T.ptx.wgmma.commit_group.sync.aligned()
             T.ptx.wgmma.wait_group.sync.aligned(0)
 
