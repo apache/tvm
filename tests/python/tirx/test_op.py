@@ -73,15 +73,6 @@ def test_tile_primitive_call_pickle_roundtrip():
     assert_structural_equal(restored.scope, call.scope)
 
 
-def test_compose_op_retains_statement_arguments():
-    buffer = decl_buffer((16,), "float32", scope="local")
-    inner = _test("fill", buffer[:], 1.0)
-    composed = _test("compose_op", inner)
-
-    assert isinstance(composed.args[0], TilePrimitiveCall)
-    assert composed.args[0].same_as(inner)
-
-
 def test_buffer_replacer_no_shared_default():
     """Regression test for F4: BufferReplacer default dicts must not be shared."""
     from tvm.tirx.transform.common import BufferReplacer

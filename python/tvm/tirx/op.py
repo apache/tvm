@@ -253,9 +253,6 @@ def call_intrin(dtype: str | tvm.ir.Type, func_name, *args, attrs=None, span=Non
     """
     if isinstance(func_name, str):
         func_name = _canonical_device_intrin_name(func_name)
-    args = [
-        arg.to_prim_expr() if isinstance(arg, tvm.ir.PrimExprConvertible) else arg for arg in args
-    ]
     return Call(func_name, args, attrs=attrs, span=span, ret_ty=dtype)
 
 
@@ -360,6 +357,9 @@ def call_llvm_intrin(dtype, name, *args, span=None):
         llvm_id = name
     if llvm_id == 0:
         raise ValueError(f"Unknown llvm intrinsic function {name}")
+    args = tuple(
+        arg.to_prim_expr() if isinstance(arg, tvm.ir.PrimExprConvertible) else arg for arg in args
+    )
     return call_intrin(
         dtype,
         Op.get("tirx.call_llvm_intrin"),
@@ -402,6 +402,9 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
         llvm_id = name
     if llvm_id == 0:
         raise ValueError(f"Unknown llvm intrinsic function {name}")
+    args = tuple(
+        arg.to_prim_expr() if isinstance(arg, tvm.ir.PrimExprConvertible) else arg for arg in args
+    )
     return call_intrin(
         dtype,
         Op.get("tirx.call_llvm_pure_intrin"),
