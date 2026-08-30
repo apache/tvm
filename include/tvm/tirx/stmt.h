@@ -775,8 +775,6 @@ class Continue : public Stmt {
  */
 class BufferRegionTypeNode : public PrimExprConvertibleTypeNode {
  public:
-  TVM_DLL PrimExpr ConvertToPrimExpr(Expr expr) const final;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BufferRegionTypeNode>();

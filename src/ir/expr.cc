@@ -118,8 +118,12 @@ std::optional<PrimExpr> TypeTraits<PrimExpr>::TryCastFromAnyView(const TVMFFIAny
   }
   Expr expr = details::ObjectUnsafe::ObjectRefFromObjectPtr<Expr>(
       details::ObjectUnsafe::ObjectPtrFromUnowned<ExprNode>(src->v_obj));
-  if (const auto* type = expr->ty.as<PrimExprConvertibleTypeNode>()) {
-    return type->ConvertToPrimExpr(std::move(expr));
+  if (!expr->ty.as<PrimExprConvertibleTypeNode>()) {
+    return std::nullopt;
+  }
+  static const reflection::TypeAttrColumn converters(kPrimExprConversionTypeAttr);
+  if (auto converter = converters[src->type_index].try_cast<Function>()) {
+    return (*converter)(std::move(expr)).cast<PrimExpr>();
   }
   return std::nullopt;
 }

@@ -35,6 +35,7 @@ namespace tvm {
 namespace tirx {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
   StmtNode::RegisterReflection();
   BindNode::RegisterReflection();
 
@@ -53,6 +54,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ContinueNode::RegisterReflection();
   BufferRegionTypeNode::RegisterReflection();
   BufferRegionNode::RegisterReflection();
+  refl::TypeAttrDef<BufferRegionNode>().def(
+      kPrimExprConversionTypeAttr, [](BufferRegion region) { return region.ToBufferLoad(); });
   MatchBufferRegionNode::RegisterReflection();
   SBlockNode::RegisterReflection();
   SBlockRealizeNode::RegisterReflection();
@@ -515,10 +518,6 @@ BufferRegionType::BufferRegionType(Span span) : PrimExprConvertibleType(ffi::Uns
   ffi::ObjectPtr<BufferRegionTypeNode> node = ffi::make_object<BufferRegionTypeNode>();
   node->span = std::move(span);
   data_ = std::move(node);
-}
-
-PrimExpr BufferRegionTypeNode::ConvertToPrimExpr(Expr expr) const {
-  return std::move(expr).as_or_throw<BufferRegion>().ToBufferLoad();
 }
 
 PrimExpr BufferRegion::ToBufferLoad() const {

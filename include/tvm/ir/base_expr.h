@@ -37,9 +37,6 @@
 
 namespace tvm {
 
-class Expr;
-class PrimExpr;
-
 /*!
  * \brief Type is the base type of all types.
  *
@@ -93,8 +90,6 @@ class Type : public ffi::ObjectRef {
  */
 class PrimExprConvertibleTypeNode : public TypeNode {
  public:
-  virtual PrimExpr ConvertToPrimExpr(Expr expr) const = 0;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimExprConvertibleTypeNode>();
@@ -103,6 +98,8 @@ class PrimExprConvertibleTypeNode : public TypeNode {
   static constexpr const uint32_t _type_child_slots = 1;
   TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExprConvertibleType", PrimExprConvertibleTypeNode, TypeNode);
 };
+
+inline constexpr const char* kPrimExprConversionTypeAttr = "__tvm_ffi_to_prim_expr__";
 
 /*! \brief Managed reference to PrimExprConvertibleTypeNode. */
 class PrimExprConvertibleType : public Type {
