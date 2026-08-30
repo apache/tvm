@@ -5583,6 +5583,86 @@ def test_split():
     verify_model(Chunk(), example_args, {}, Expected)
 
 
+def test_split_int_split_size():
+    """x.split(int, dim) must produce chunks of size `split_size` (the last one
+    smaller when the dimension is not divisible), matching PyTorch.
+
+    The frontend used to convert the int per-chunk size into a section count and
+    pass it as relax.op.split's int argument, which means "split into N equal
+    sections"; that yields wrong chunk shapes whenever
+    ceil(D / ceil(D / split_size)) != split_size (e.g. split_size > D/2). The
+    int branch now builds cumulative cut positions, the same as the list/tuple
+    form.
+    """
+
+    class Split6(Module):
+        def forward(self, input):
+            return input.split(6, dim=0)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(input: R.Tensor((10,), dtype="float32")) -> R.Tuple(
+            R.Tensor((6,), dtype="float32"),
+            R.Tensor((4,), dtype="float32"),
+        ):
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((6,), dtype="float32"),
+                    R.Tensor((4,), dtype="float32"),
+                ) = R.split(input, indices_or_sections=[6], axis=0)
+                lv1: R.Tensor((6,), dtype="float32") = lv[0]
+                lv2: R.Tensor((4,), dtype="float32") = lv[1]
+                gv: R.Tuple(
+                    R.Tensor((6,), dtype="float32"),
+                    R.Tensor((4,), dtype="float32"),
+                ) = (lv1, lv2)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.arange(10, dtype=torch.float32) + 1,)
+    verify_model(Split6(), example_args, {}, Expected)
+
+    # Differential check against native PyTorch for non-divisible sizes and dims.
+    class SplitModel(Module):
+        def __init__(self, split_size, dim):
+            super().__init__()
+            self.split_size = split_size
+            self.dim = dim
+
+        def forward(self, input):
+            return input.split(self.split_size, dim=self.dim)
+
+    def run_tvm(model, args):
+        exported_program = export(model, args=args)
+        mod = from_exported_program(exported_program)
+        ex = relax.build(mod, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+        out = vm["main"](*[tvm.runtime.tensor(a.numpy()) for a in args])
+        if hasattr(out, "numpy"):
+            return [out.numpy()]
+        return [o.numpy() for o in out]
+
+    for shape, split_size, dim in [
+        ((10,), 6, 0),
+        ((10,), 7, 0),
+        ((10,), 8, 0),
+        ((10,), 9, 0),
+        ((12,), 7, 0),
+        ((12, 8), 5, 1),
+        ((3, 10), 6, -1),
+    ]:
+        x = torch.arange(1, int(np.prod(shape)) + 1, dtype=torch.float32).reshape(shape)
+        refs = [r.numpy() for r in x.split(split_size, dim)]
+        outs = run_tvm(SplitModel(split_size, dim), (x,))
+        assert [r.shape for r in refs] == [o.shape for o in outs], (
+            f"split shape={shape} s={split_size} dim={dim}: "
+            f"torch {[r.shape for r in refs]} vs tvm {[o.shape for o in outs]}"
+        )
+        for r, o in zip(refs, outs):
+            tvm.testing.assert_allclose(o, r, rtol=1e-7, atol=1e-7)
+
+
 def test_squeeze():
     class Squeeze1(Module):
         def forward(self, input):

@@ -4070,7 +4070,7 @@ def test_split():
                     R.Tensor((1, 1, 10, 10), dtype="float32"),
                     R.Tensor((1, 1, 10, 10), dtype="float32"),
                     R.Tensor((1, 1, 10, 10), dtype="float32"),
-                ) = R.split(input_1, indices_or_sections=3, axis=1)
+                ) = R.split(input_1, indices_or_sections=[1, 2], axis=1)
                 gv: R.Tuple(
                     R.Tensor((1, 1, 10, 10), dtype="float32"),
                     R.Tensor((1, 1, 10, 10), dtype="float32"),
