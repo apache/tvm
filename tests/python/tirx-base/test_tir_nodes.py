@@ -433,9 +433,9 @@ def test_buffer_store_predicate_invalid_scalability():
     index = tvm.tirx.expr.Ramp(0, 1, 4 * tvm.tirx.vscale())
     predicate = tvm.tirx.expr.Broadcast(tvm.tirx.IntImm("int1", 1), 4)
 
-    err_msg = "Predicate mask dtype and value dtype must both be scalable."
+    err_msg = "Mask dtype and stored value dtype must both be scalable or both fixed-length."
     with pytest.raises(RuntimeError, match=err_msg):
-        tvm.tirx.BufferStore(b, value, [index], predicate)
+        b.vstore([index], value, predicate)
 
 
 def test_buffer_store_predicate_invalid_lanes():
@@ -444,12 +444,9 @@ def test_buffer_store_predicate_invalid_lanes():
     index = tvm.tirx.expr.Ramp(0, 1, 4 * tvm.tirx.vscale())
     predicate = tvm.tirx.expr.Broadcast(tvm.tirx.IntImm("int1", 1), 8 * tvm.tirx.vscale())
 
-    err_msg = (
-        "Got a predicate mask with 8 lanes, but trying to store a "
-        "value with 4 lanes. The number of lanes must match."
-    )
+    err_msg = "Mask lane count must match the stored value lane count."
     with pytest.raises(RuntimeError, match=err_msg):
-        tvm.tirx.BufferStore(b, value, [index], predicate)
+        b.vstore([index], value, predicate)
 
 
 def test_buffer_store_predicate_elements_invalid_type():
@@ -458,9 +455,9 @@ def test_buffer_store_predicate_elements_invalid_type():
     index = tvm.tirx.expr.Ramp(0, 1, 4 * tvm.tirx.vscale())
     predicate = tvm.tirx.expr.Broadcast(1, 4 * tvm.tirx.vscale())
 
-    err_msg = "Predicate mask elements must be boolean values, but got int32."
+    err_msg = "Mask elements must be boolean values, but got T.int32."
     with pytest.raises(RuntimeError, match=err_msg):
-        tvm.tirx.BufferStore(b, value, [index], predicate)
+        b.vstore([index], value, predicate)
 
 
 def test_buffer_load_predicate_elements_invalid_type():
@@ -468,9 +465,9 @@ def test_buffer_load_predicate_elements_invalid_type():
     index = tvm.tirx.expr.Ramp(0, 1, 4 * tvm.tirx.vscale())
     predicate = tvm.tirx.expr.Broadcast(1, 4 * tvm.tirx.vscale())
 
-    err_msg = "Predicate mask elements must be boolean values, but got int32."
+    err_msg = "Mask elements must be boolean values, but got T.int32."
     with pytest.raises(RuntimeError, match=err_msg):
-        tvm.tirx.BufferLoad(b, [index], predicate)
+        b.vload([index], predicate=predicate)
 
 
 def test_buffer_store_predicate_invalid_scalability():
@@ -478,9 +475,9 @@ def test_buffer_store_predicate_invalid_scalability():
     index = tvm.tirx.expr.Ramp(0, 1, 4 * tvm.tirx.vscale())
     predicate = tvm.tirx.expr.Broadcast(tvm.tirx.IntImm("int1", 1), 4)
 
-    err_msg = "Predicate mask dtype and load indices must both be scalable."
+    err_msg = "Mask dtype and accessed value dtype must both be scalable or both fixed-length."
     with pytest.raises(RuntimeError, match=err_msg):
-        tvm.tirx.BufferLoad(b, [index], predicate)
+        b.vload([index], predicate=predicate)
 
 
 def test_buffer_store_predicate_invalid_lanes():
@@ -488,12 +485,9 @@ def test_buffer_store_predicate_invalid_lanes():
     index = tvm.tirx.expr.Ramp(0, 1, 4 * tvm.tirx.vscale())
     predicate = tvm.tirx.expr.Broadcast(tvm.tirx.IntImm("int1", 1), 8 * tvm.tirx.vscale())
 
-    err_msg = (
-        "Got a predicate mask with 8 lanes, but trying to load a "
-        "vector with 4 lanes. The number of lanes must match."
-    )
+    err_msg = "Mask lane count must match the accessed value lane count."
     with pytest.raises(RuntimeError, match=err_msg):
-        tvm.tirx.BufferLoad(b, [index], predicate)
+        b.vload([index], predicate=predicate)
 
 
 def test_scalable_vec_cast():

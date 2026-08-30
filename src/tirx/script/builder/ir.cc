@@ -833,7 +833,10 @@ void BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
     }
     value = tvm::cast(lhs_dtype, value);
   }
-  tvm::tirx::BufferStore store(buffer, value, indices, predicate);
+  tvm::tirx::Stmt store =
+      predicate.has_value()
+          ? tvm::tirx::MakeMaskedBufferStore(buffer, value, indices, predicate.value())
+          : tvm::tirx::Stmt(tvm::tirx::BufferStore(buffer, value, indices));
   if (lhs_dtype != rhs_dtype) {
     if (lhs_dtype.code() != rhs_dtype.code()) {
       if ((lhs_dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) &&

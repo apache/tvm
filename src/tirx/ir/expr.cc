@@ -748,38 +748,15 @@ void BufferLoadNode::LegalizeDType() {
   }
 }
 
-BufferLoad::BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices,
-                       ffi::Optional<PrimExpr> predicate, Span span) {
+BufferLoad::BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices, Span span) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
       << "BufferVar " << buffer.name() << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
       << "-dimensional indices provided.";
 
-  if (predicate.has_value()) {
-    PrimType predicate_ty = predicate.value().ty();
-    bool is_index_scalable = indices.empty() ? false : indices.back().ty().IsScalableVector();
-    bool is_predicate_scalable = predicate_ty.IsScalableVector();
-    TVM_FFI_ICHECK_EQ(is_index_scalable, is_predicate_scalable)
-        << "Predicate mask dtype and load indices must both be scalable.";
-
-    int16_t buffer_encoded_lanes = static_cast<int16_t>(buffer->dtype->dtype.lanes);
-    int buffer_lanes = buffer_encoded_lanes < -1 ? -buffer_encoded_lanes : buffer_encoded_lanes;
-    int index_lanes = indices.empty() ? 1 : GetLanesOrVScaleFactor(indices.back().ty());
-    int predicate_lanes = GetLanesOrVScaleFactor(predicate_ty);
-    TVM_FFI_ICHECK_EQ(index_lanes * buffer_lanes, predicate_lanes)
-        << "Got a predicate mask with " << predicate_lanes
-        << " lanes, but trying to load a vector with " << index_lanes
-        << " lanes. The number of lanes must match.";
-
-    TVM_FFI_ICHECK(predicate_ty.MatchesCode(DLDataTypeCode::kDLBool) ||
-                   predicate_ty.MatchesElementType(DLDataTypeCode::kDLUInt, 1))
-        << "Predicate mask elements must be boolean values, but got " << predicate_ty->dtype << ".";
-  }
-
   ffi::ObjectPtr<BufferLoadNode> node = ffi::make_object<BufferLoadNode>();
   node->buffer = std::move(buffer);
   node->indices = std::move(indices);
-  node->predicate = std::move(predicate);
   node->span = std::move(span);
   node->LegalizeDType();
   data_ = std::move(node);
@@ -787,10 +764,65 @@ BufferLoad::BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.BufferLoad", [](BufferVar buffer, ffi::Array<PrimExpr> indices,
-                                              ffi::Optional<PrimExpr> predicate, Span span) {
-    return BufferLoad(buffer, indices, predicate, span);
-  });
+  refl::GlobalDef()
+      .def("tirx.BufferLoad", [](BufferVar buffer, ffi::Array<PrimExpr> indices,
+                                 Span span) { return BufferLoad(buffer, indices, span); })
+      .def("tirx.MaskedBufferLoad",
+           [](BufferVar buffer, ffi::Array<PrimExpr> indices, PrimExpr predicate, Span span) {
+             return MakeMaskedBufferLoad(buffer, indices, predicate, span);
+           });
+}
+
+namespace {
+void ValidateMask(const PrimExpr& predicate, const PrimType& value_ty) {
+  PrimType predicate_ty = predicate.ty();
+  TVM_FFI_ICHECK_EQ(value_ty.IsScalableVector(), predicate_ty.IsScalableVector())
+      << "Mask dtype and accessed value dtype must both be scalable or both fixed-length.";
+  TVM_FFI_ICHECK_EQ(GetLanesOrVScaleFactor(value_ty), GetLanesOrVScaleFactor(predicate_ty))
+      << "Mask lane count must match the accessed value lane count.";
+  PrimType element_ty = predicate_ty.WithLanes(1);
+  TVM_FFI_ICHECK(element_ty.MatchesCode(DLDataTypeCode::kDLBool) ||
+                 element_ty.MatchesElementType(DLDataTypeCode::kDLUInt, 1))
+      << "Mask elements must be boolean values, but got " << element_ty << ".";
+}
+}  // namespace
+
+MaskedBufferLoad::MaskedBufferLoad(Call call) : call(std::move(call)) {
+  TVM_FFI_ICHECK(this->call->op.same_as(builtin::masked_load()))
+      << "Expected a tirx.masked_load Call";
+  TVM_FFI_ICHECK_GE(this->call->args.size(), 2U)
+      << "tirx.masked_load expects a buffer, its indices, and a mask";
+  const auto* buffer_var = this->call->args.front().as<VarNode>();
+  TVM_FFI_ICHECK(buffer_var != nullptr && buffer_var->ty.as<BufferTypeNode>() != nullptr)
+      << "tirx.masked_load first argument must be a BufferVar";
+  buffer = GetBufferVar(buffer_var);
+  TVM_FFI_ICHECK_EQ(this->call->args.size(), buffer->shape.size() + 2)
+      << "tirx.masked_load index count must match buffer rank";
+  indices.reserve(buffer->shape.size());
+  for (size_t i = 0; i < buffer->shape.size(); ++i) {
+    indices.push_back(this->call->args[i + 1].as_or_throw<PrimExpr>());
+  }
+  predicate = this->call->args.back().as_or_throw<PrimExpr>();
+  BufferLoad load(buffer, indices, this->call->span);
+  TVM_FFI_ICHECK(this->call->ty == load->ty)
+      << "tirx.masked_load result type must match the corresponding buffer load";
+  ValidateMask(predicate, load.ty());
+}
+
+std::optional<MaskedBufferLoad> MaskedBufferLoad::TryMatch(const Expr& expr) {
+  auto call = expr.as<Call>();
+  if (!call.has_value() || !call.value()->op.same_as(builtin::masked_load())) return std::nullopt;
+  return MaskedBufferLoad(call.value());
+}
+
+PrimExpr MakeMaskedBufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices, PrimExpr predicate,
+                              Span span) {
+  BufferLoad load(buffer, indices, span);
+  ValidateMask(predicate, load.ty());
+  ffi::Array<Expr> args{buffer.var()};
+  for (const PrimExpr& index : indices) args.push_back(index);
+  args.push_back(predicate);
+  return Call(load->ty, builtin::masked_load(), args, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
 }  // namespace tirx

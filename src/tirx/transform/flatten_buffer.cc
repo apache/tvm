@@ -248,6 +248,29 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
+    Call call = ffi::GetRef<Call>(op);
+    if (auto load = MaskedBufferLoad::TryMatch(call)) {
+      BufferVar original = load->buffer;
+      auto indices =
+          load->indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
+      PrimExpr predicate = this->VisitPrimExpr(load->predicate);
+      buffers_used_.insert(original);
+      const FlatInfo& info = Lookup(original);
+      return MakeMaskedBufferLoad(info.flattened, FoldIndices(info, indices), predicate, op->span);
+    }
+    if (op->op.same_as(builtin::masked_store())) {
+      MaskedBufferStore store(call);
+      BufferVar original = store.buffer;
+      PrimExpr value = this->VisitPrimExpr(store.value);
+      auto indices =
+          store.indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
+      PrimExpr predicate = this->VisitPrimExpr(store.predicate);
+      buffers_used_.insert(original);
+      const FlatInfo& info = Lookup(original);
+      Stmt stmt = MakeMaskedBufferStore(info.flattened, value, FoldIndices(info, indices),
+                                        predicate, op->span);
+      return stmt.as_or_throw<Evaluate>()->value;
+    }
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>()) {
         if (var.value()->ty.as<BufferTypeNode>()) {

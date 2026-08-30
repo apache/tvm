@@ -260,7 +260,43 @@ void StorageAccessVisitor::VisitStmt_(const WhileNode* op) {
 }
 
 void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
-  if (op->op.same_as(builtin::address_of())) {
+  Call call = ffi::GetRef<Call>(op);
+  if (auto load = MaskedBufferLoad::TryMatch(call)) {
+    Var buf = ResolveBuffer(load->buffer.var());
+    StorageScope scope = StorageScope::Create(load->buffer.scope());
+    if (Enabled(buf.get(), scope)) {
+      TVM_FFI_ICHECK(allow_append_) << call << " " << scope.to_string();
+      AccessEntry e;
+      e.threads = env_threads();
+      e.buffer = buf;
+      e.dtype = load->call->ty.as_or_throw<PrimType>().WithLanes(1);
+      for (const PrimExpr& index : load->indices) {
+        e.touched.push_back(arith::IntSet::Vector(index));
+      }
+      e.type = kRead;
+      e.scope = scope;
+      curr_stmt_.access.emplace_back(std::move(e));
+    }
+    StmtExprVisitor::VisitExpr_(op);
+  } else if (op->op.same_as(builtin::masked_store())) {
+    MaskedBufferStore store(call);
+    Var buf = ResolveBuffer(store.buffer.var());
+    StorageScope scope = StorageScope::Create(store.buffer.scope());
+    if (Enabled(buf.get(), scope)) {
+      TVM_FFI_ICHECK(allow_append_) << call << " " << scope.to_string();
+      AccessEntry e;
+      e.threads = env_threads();
+      e.buffer = buf;
+      e.dtype = store.value.ty().WithLanes(1);
+      for (const PrimExpr& index : store.indices) {
+        e.touched.push_back(arith::IntSet::Vector(index));
+      }
+      e.type = kWrite;
+      e.scope = scope;
+      curr_stmt_.access.emplace_back(std::move(e));
+    }
+    StmtExprVisitor::VisitExpr_(op);
+  } else if (op->op.same_as(builtin::address_of())) {
     if (const auto* load = op->args[0].as<BufferLoadNode>()) {
       // Taking an address does not read the buffer value.  Visit only the
       // load's children so index expressions still contribute accesses.

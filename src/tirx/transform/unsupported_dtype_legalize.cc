@@ -365,15 +365,9 @@ class ComputeLegalizer : public StmtExprMutator {
     auto fmutate = [this](const PrimExpr& e) { return this->VisitPrimExpr(e); };
 
     ffi::Array<PrimExpr> indices = op->indices.Map(fmutate);
-    ffi::Optional<PrimExpr> predicate = std::nullopt;
-    if (op->predicate.has_value()) {
-      predicate = this->VisitPrimExpr(op->predicate.value());
-    }
-
     BufferVar new_buf = GetRemappedBuffer(op->buffer);
 
-    if (value.same_as(op->value) && indices.same_as(op->indices) &&
-        predicate.same_as(op->predicate) && new_buf.same_as(op->buffer)) {
+    if (value.same_as(op->value) && indices.same_as(op->indices) && new_buf.same_as(op->buffer)) {
       return ffi::GetRef<Stmt>(op);
     } else {
       if (MatchType(new_buf->dtype)) {
@@ -388,7 +382,7 @@ class ComputeLegalizer : public StmtExprMutator {
         TVM_FFI_ICHECK(MatchType(value.ty()));
         value = DTypeConversion(value, new_buf->dtype.WithLanes(value.ty().lanes()));
       }
-      return BufferStore(new_buf, value, indices, predicate);
+      return BufferStore(new_buf, value, indices);
     }
   }
 
@@ -477,7 +471,7 @@ class ComputeLegalizer : public StmtExprMutator {
     if (new_buf.same_as(op->buffer)) {
       return ret;
     } else {
-      return BufferLoad(new_buf, op->indices, op->predicate);
+      return BufferLoad(new_buf, op->indices);
     }
   }
 
@@ -648,18 +642,13 @@ class StorageLegalizer : public StmtExprMutator {
     PrimExpr value = this->ChangeToUInt(VisitPrimExpr(op->value));
     BufferVar new_buf = GetRemappedBuffer(op->buffer);
     auto indices = op->indices.Map([this](PrimExpr expr) { return this->VisitPrimExpr(expr); });
-    ffi::Optional<PrimExpr> predicate = std::nullopt;
-    if (op->predicate.has_value()) {
-      predicate = this->VisitPrimExpr(op->predicate.value());
-    }
-    if (new_buf.same_as(op->buffer) && indices.same_as(op->indices) &&
-        predicate.same_as(op->predicate) && value.same_as(op->value)) {
+    if (new_buf.same_as(op->buffer) && indices.same_as(op->indices) && value.same_as(op->value)) {
       return ffi::GetRef<Stmt>(op);
     } else {
       if (MatchType(op->value.ty())) {
         TVM_FFI_ICHECK(new_buf->dtype.MatchesCode(DLDataTypeCode::kDLUInt));
       }
-      return BufferStore(new_buf, value, indices, predicate);
+      return BufferStore(new_buf, value, indices);
     }
   }
 
@@ -688,7 +677,7 @@ class StorageLegalizer : public StmtExprMutator {
     if (new_buf.same_as(op->buffer)) {
       return ret;
     } else {
-      return BufferLoad(new_buf, op->indices, op->predicate);
+      return BufferLoad(new_buf, op->indices);
     }
   }
 

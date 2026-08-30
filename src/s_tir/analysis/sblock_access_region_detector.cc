@@ -210,6 +210,32 @@ void BlockReadWriteDetector::VisitStmt_(const BindNode* op) {
 }
 
 void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
+  auto update_masked_access = [this](const BufferVar& buffer, const ffi::Array<PrimExpr>& indices,
+                                     std::vector<BufferVar>* buffers,
+                                     std::vector<std::vector<arith::IntSet>>* regions) {
+    std::vector<arith::IntSet> relaxed_region;
+    for (PrimExpr index : indices) {
+      PrimExpr remapped_index = Substitute(index, let_bindings_);
+      while (!remapped_index.same_as(index)) {
+        index = remapped_index;
+        remapped_index = Substitute(index, let_bindings_);
+      }
+      relaxed_region.push_back(arith::EvalSet(arith::IntSet::Vector(remapped_index), dom_map_));
+    }
+    Update(buffers, regions, buffer, relaxed_region);
+  };
+  Call call = ffi::GetRef<Call>(op);
+  if (auto load = MaskedBufferLoad::TryMatch(call)) {
+    update_masked_access(load->buffer, load->indices, &read_buffers_, &read_regions_);
+    StmtExprVisitor::VisitExpr_(op);
+    return;
+  }
+  if (op->op.same_as(builtin::masked_store())) {
+    MaskedBufferStore store(call);
+    update_masked_access(store.buffer, store.indices, &writes_buffers_, &write_regions_);
+    StmtExprVisitor::VisitExpr_(op);
+    return;
+  }
   if (op->op.same_as(builtin::tvm_access_ptr())) {
     const VarNode* buffer_var = op->args[1].as<VarNode>();
     if (const auto* data = op->args[1].as<CallNode>();

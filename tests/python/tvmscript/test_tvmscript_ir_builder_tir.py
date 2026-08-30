@@ -456,7 +456,7 @@ def test_ir_builder_tir_buffer_store_predicate():
         T.buffer_store(buffer_a, value, [index], predicate)
 
     ir_actual = ib.get()
-    ir_expected = tirx.BufferStore(buffer_a, value, [index], predicate)
+    ir_expected = buffer_a.vstore([index], value, predicate)
     assert_structural_equal(ir_actual, ir_expected, map_free_vars=True)
 
 

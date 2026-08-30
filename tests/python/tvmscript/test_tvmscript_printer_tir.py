@@ -1014,15 +1014,13 @@ def test_predicated_buffer_load_store():
         a: tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
         b: tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
     }
-    buffer_load = tirx.BufferLoad(
-        buffer=buffers[b],
-        indices=[0, tirx.Ramp(0, 4, 4)],
+    buffer_load = buffers[b].vload(
+        begin=[0, tirx.Ramp(0, 4, 4)],
         predicate=tirx.Broadcast(tirx.IntImm("bool", 0), 4),
     )
-    body = tirx.BufferStore(
-        buffer=buffers[a],
+    body = buffers[a].vstore(
+        begin=[0, tirx.Ramp(0, 2, 4)],
         value=buffer_load,
-        indices=[0, tirx.Ramp(0, 2, 4)],
         predicate=tirx.Broadcast(tirx.IntImm("bool", 0), 4),
     )
     func = tirx.PrimFunc(

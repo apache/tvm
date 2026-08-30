@@ -1871,7 +1871,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
   // Pass all indices into BufferAccessHelper.  In CodeGenLLVM,
   // non-flat indices will result in an error in CreateBufferPtr, but
   // a subclass may override CreateBufferPtr.
-  BufferAccessHelper(op->buffer, op->indices, op->predicate, access_dtype, make_load);
+  BufferAccessHelper(op->buffer, op->indices, std::nullopt, access_dtype, make_load);
 
   llvm::Value* ret;
   if (loads.size() == 1) {
@@ -1890,6 +1890,53 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
   const ffi::Array<Expr>& args = op->args;
+  if (op->op.same_as(builtin::masked_load())) {
+    MaskedBufferLoad load(ffi::GetRef<Call>(op));
+    PrimType value_dtype = load.call->ty.as_or_throw<PrimType>();
+    PrimType access_dtype = BufferAccessType(value_dtype);
+    std::vector<llvm::Value*> loads;
+    auto make_load = [this, &loads](TypedPointer buffer_ptr, int /*subelement_i*/,
+                                    llvm::Value* predicate, int alignment, bool is_volatile) {
+      TVM_FFI_ICHECK(!is_volatile)
+          << "The masked load intrinsic does not support declaring load as volatile.";
+      llvm::Instruction* value = builder_->CreateMaskedLoad(buffer_ptr.type, buffer_ptr.addr,
+                                                            llvm::Align(alignment), predicate);
+      loads.push_back(value);
+      return value;
+    };
+    BufferAccessHelper(load.buffer, load.indices, load.predicate, access_dtype, make_load);
+    llvm::Value* ret =
+        loads.size() == 1 ? loads[0] : llvm::UndefValue::get(DTypeToLLVMType(access_dtype));
+    for (size_t i = 0; loads.size() > 1 && i < loads.size(); ++i) {
+      ret = builder_->CreateInsertElement(ret, loads[i], ConstInt32(i));
+    }
+    return access_dtype.same_as(value_dtype) ? ret : CreateCast(access_dtype, value_dtype, ret);
+  }
+  if (op->op.same_as(builtin::masked_store())) {
+    MaskedBufferStore store(ffi::GetRef<Call>(op));
+    PrimType value_dtype = store.value.ty();
+    llvm::Value* value = MakeValue(store.value);
+    PrimType access_dtype = BufferAccessType(value_dtype);
+    if (!access_dtype.same_as(value_dtype)) {
+      value = CreateCast(value_dtype, access_dtype, value);
+      value_dtype = access_dtype;
+    }
+    llvm::Instruction* last_store = nullptr;
+    auto make_store = [this, value, &last_store](TypedPointer buffer_ptr, int subelement_i,
+                                                 llvm::Value* predicate, int alignment,
+                                                 bool is_volatile) {
+      TVM_FFI_ICHECK(!is_volatile)
+          << "The masked store intrinsic does not support declaring store as volatile.";
+      llvm::Value* to_store =
+          subelement_i == -1 ? value : builder_->CreateExtractElement(value, subelement_i);
+      last_store =
+          builder_->CreateMaskedStore(to_store, buffer_ptr.addr, llvm::Align(alignment), predicate);
+      return last_store;
+    };
+    BufferAccessHelper(store.buffer, store.indices, store.predicate, value_dtype, make_store);
+    TVM_FFI_ICHECK(last_store != nullptr);
+    return last_store;
+  }
   if (op->op.same_as(builtin::buffer_data())) {
     TVM_FFI_ICHECK_EQ(args.size(), 1U);
     return MakeValue(args[0]);
@@ -2037,7 +2084,7 @@ void CodeGenLLVM::VisitStmt_(const BufferStoreNode* op) {
   // Pass all indices into BufferAccessHelper.  In CodeGenLLVM,
   // non-flat indices will result in an error in CreateBufferPtr, but
   // a subclass may override CreateBufferPtr.
-  BufferAccessHelper(op->buffer, op->indices, op->predicate, value_dtype, make_store);
+  BufferAccessHelper(op->buffer, op->indices, std::nullopt, value_dtype, make_store);
 }
 
 void CodeGenLLVM::VisitStmt_(const ForNode* op) {

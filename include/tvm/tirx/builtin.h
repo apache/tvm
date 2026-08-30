@@ -771,6 +771,12 @@ TVM_DLL const Op& vscale();
  */
 TVM_DLL const Op& get_active_lane_mask();
 
+/*! \brief Masked buffer load, represented as a checked special Call. */
+TVM_DLL const Op& masked_load();
+
+/*! \brief Masked buffer store, represented as a checked special Call. */
+TVM_DLL const Op& masked_store();
+
 /*! \brief Annotate a predicate not be considered as target condition of loop partition. */
 TVM_DLL const Op& ignore_loop_partition();
 /*!

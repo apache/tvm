@@ -84,7 +84,7 @@ class TensorLoadToBufferTransformer : public StmtExprMutator {
     auto it = tensor2buffers_.find(tensor);
     TVM_FFI_ICHECK(it != tensor2buffers_.end()) << "IndexError: Cannot find the tensor " << tensor;
     const BufferVar& buffer = it->second;
-    return BufferLoad(buffer, te::GetTensorLoadIndices(call), std::nullopt, call->span);
+    return BufferLoad(buffer, te::GetTensorLoadIndices(call), call->span);
   }
 
  private:
@@ -111,7 +111,7 @@ class BufferSubstituter : public StmtExprMutator {
     auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     auto it = buffer_map_.find(load->buffer.get());
     if (it != buffer_map_.end()) {
-      return BufferLoad(it->second, load->indices, load->predicate, load->span);
+      return BufferLoad(it->second, load->indices, load->span);
     }
     return load;
   }
@@ -120,7 +120,7 @@ class BufferSubstituter : public StmtExprMutator {
     auto store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     auto it = buffer_map_.find(store->buffer.get());
     if (it != buffer_map_.end()) {
-      return BufferStore(it->second, store->value, store->indices, store->predicate, store->span);
+      return BufferStore(it->second, store->value, store->indices, store->span);
     }
     return store;
   }

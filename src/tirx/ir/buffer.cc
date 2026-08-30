@@ -397,7 +397,10 @@ PrimExpr BufferVar::vload(ffi::Array<PrimExpr> begin, PrimType value_dtype,
       indices.Set(indices.size() - 1, Ramp(base, 1, factor));
     }
   }
-  return BufferLoad(*this, indices, predicate);
+  if (predicate.has_value()) {
+    return MakeMaskedBufferLoad(*this, indices, predicate.value());
+  }
+  return BufferLoad(*this, indices);
 }
 
 Stmt BufferVar::vstore(ffi::Array<PrimExpr> begin, PrimExpr value,
@@ -423,7 +426,10 @@ Stmt BufferVar::vstore(ffi::Array<PrimExpr> begin, PrimExpr value,
       indices.Set(indices.size() - 1, Ramp(base, 1, factor));
     }
   }
-  return BufferStore(*this, value, indices, predicate);
+  if (predicate.has_value()) {
+    return MakeMaskedBufferStore(*this, value, indices, predicate.value());
+  }
+  return BufferStore(*this, value, indices);
 }
 
 ffi::String BufferVar::scope() const { return (*this)->storage_scope; }

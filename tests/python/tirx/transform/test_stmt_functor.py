@@ -1217,7 +1217,7 @@ def test_op_call_pointer_config_visited_and_mutated():
         def visit_buffer_load_(self, op):
             new_op = super().visit_buffer_load_(op)
             if op.buffer.same_as(mbar_buffer):
-                return tir.BufferLoad(replacement, new_op.indices, new_op.predicate)
+                return tir.BufferLoad(replacement, new_op.indices)
             return new_op
 
     updated = ReplaceMbarLoad().visit_stmt(op_call)

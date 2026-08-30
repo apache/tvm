@@ -214,20 +214,18 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     return TryPredicateBufferAccess(store);
   }
 
-  template <typename AccessNode>
-  AccessNode TryPredicateBufferAccess(AccessNode node) {
+  ffi::Optional<PrimExpr> GetLaneMask(const ffi::Array<PrimExpr>& indices) {
     num_accesses_analyzed_ += 1;
 
     // Do not try to predicate non-vectorized accesses
-    ffi::Array<PrimExpr> indices = node->indices;
     if (!indices.size() || !indices[0]->IsInstance<RampNode>()) {
-      return node;
+      return std::nullopt;
     }
-    Ramp ramp = node->indices[0].template as_or_throw<Ramp>();
+    Ramp ramp = indices[0].as_or_throw<Ramp>();
 
     if (!ffi::StructuralEqual()(ramp->stride, stride_) ||
         !ffi::StructuralEqual()(ramp->lanes, lanes_)) {
-      return node;
+      return std::nullopt;
     }
 
     bool same_base = ffi::StructuralEqual()(ramp->base, base_);
@@ -236,7 +234,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
       // memory base.  This covers accesses such as A[offset + i] guarded by
       // a predicate over i.
       if (!allow_offset_predication_) {
-        return node;
+        return std::nullopt;
       }
     }
 
@@ -249,15 +247,22 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
                              .as_or_throw<PrimExpr>();
 
     num_accesses_rewritten_ += 1;
-    auto writer = node.CopyOnWrite();
-    if (node->predicate.has_value() && allow_offset_predication_) {
-      // BufferVar predicates are uint1 lane masks, so mask merging uses bitwise
-      // and rather than logical &&.
-      writer->predicate = node->predicate.value() & lane_mask;
-    } else {
-      writer->predicate = lane_mask;
+    return lane_mask;
+  }
+
+  Expr TryPredicateBufferAccess(BufferLoad load) {
+    if (auto mask = GetLaneMask(load->indices)) {
+      return MakeMaskedBufferLoad(load->buffer, load->indices, mask.value(), load->span);
     }
-    return node;
+    return load;
+  }
+
+  Stmt TryPredicateBufferAccess(BufferStore store) {
+    if (auto mask = GetLaneMask(store->indices)) {
+      return MakeMaskedBufferStore(store->buffer, store->value, store->indices, mask.value(),
+                                   store->span);
+    }
+    return store;
   }
 
   /*! \brief The variable base expr of the predicate. */

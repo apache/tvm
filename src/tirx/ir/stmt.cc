@@ -422,7 +422,7 @@ TVM_FFI_INLINE int GetLanesOrVScaleFactor(const PrimType& ty) {
 }
 
 BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
-                         ffi::Optional<PrimExpr> predicate, Span span) {
+                         Span span) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
       << "BufferVar " << buffer.name() << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
@@ -442,12 +442,6 @@ BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> 
   TVM_FFI_ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
       << "Index dtype and buffer dtype can't both be scalable.";
 
-  if (predicate.has_value()) {
-    bool is_predicate_dtype_scalable = predicate.value().ty().IsScalableVector();
-    TVM_FFI_ICHECK_EQ(is_value_dtype_scalable, is_predicate_dtype_scalable)
-        << "Predicate mask dtype and value dtype must both be scalable.";
-  }
-
   if (is_index_scalable || is_buffer_dtype_scalable) {
     TVM_FFI_ICHECK(is_value_dtype_scalable) << "Can't store non-scalable data into scalable buffer";
   }
@@ -460,21 +454,6 @@ BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> 
       << "Cannot store value with " << value_dtype_lanes << ", expected value with "
       << index_lanes * buffer_lanes << " (" << index_lanes << " index lanes * " << buffer_lanes
       << " buffer element lanes)";
-
-  if (predicate.has_value()) {
-    PrimType predicate_ty = predicate.value().ty();
-    int predicate_dtype_lanes = GetLanesOrVScaleFactor(predicate_ty);
-    TVM_FFI_ICHECK_EQ(value_dtype_lanes, predicate_dtype_lanes)
-        << "Got a predicate mask with " << predicate_dtype_lanes
-        << " lanes, but trying to store a value with " << value_dtype_lanes
-        << " lanes. The number of lanes must match.";
-
-    PrimType predicate_element_ty = predicate_ty.WithLanes(1);
-    TVM_FFI_ICHECK(predicate_element_ty.MatchesCode(DLDataTypeCode::kDLBool) ||
-                   predicate_element_ty.MatchesElementType(DLDataTypeCode::kDLUInt, 1))
-        << "Predicate mask elements must be boolean values, but got "
-        << ffi::DLDataTypeToString(predicate_element_ty->dtype) << ".";
-  }
 
   PrimType buffer_dtype = PrimType::Void();
   if (is_index_scalable || is_buffer_dtype_scalable) {
@@ -495,18 +474,71 @@ BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> 
   node->buffer = std::move(buffer);
   node->value = std::move(value);
   node->indices = std::move(indices);
-  node->predicate = std::move(predicate);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.BufferStore",
-                        [](BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
-                           ffi::Optional<PrimExpr> predicate, Span span) {
-                          return BufferStore(buffer, value, indices, predicate, span);
-                        });
+  refl::GlobalDef()
+      .def("tirx.BufferStore", [](BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
+                                  Span span) { return BufferStore(buffer, value, indices, span); })
+      .def(
+          "tirx.MaskedBufferStore",
+          [](BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices, PrimExpr predicate,
+             Span span) { return MakeMaskedBufferStore(buffer, value, indices, predicate, span); });
+}
+
+namespace {
+void ValidateStoreMask(const PrimExpr& predicate, const PrimType& value_ty) {
+  PrimType predicate_ty = predicate.ty();
+  TVM_FFI_ICHECK_EQ(value_ty.IsScalableVector(), predicate_ty.IsScalableVector())
+      << "Mask dtype and stored value dtype must both be scalable or both fixed-length.";
+  TVM_FFI_ICHECK_EQ(GetLanesOrVScaleFactor(value_ty), GetLanesOrVScaleFactor(predicate_ty))
+      << "Mask lane count must match the stored value lane count.";
+  PrimType element_ty = predicate_ty.WithLanes(1);
+  TVM_FFI_ICHECK(element_ty.MatchesCode(DLDataTypeCode::kDLBool) ||
+                 element_ty.MatchesElementType(DLDataTypeCode::kDLUInt, 1))
+      << "Mask elements must be boolean values, but got " << element_ty << ".";
+}
+}  // namespace
+
+MaskedBufferStore::MaskedBufferStore(Call call) : call(std::move(call)) {
+  TVM_FFI_ICHECK(this->call->op.same_as(builtin::masked_store()))
+      << "Expected a tirx.masked_store Call";
+  TVM_FFI_ICHECK_GE(this->call->args.size(), 3U)
+      << "tirx.masked_store expects a buffer, value, indices, and a mask";
+  const auto* buffer_var = this->call->args.front().as<VarNode>();
+  TVM_FFI_ICHECK(buffer_var != nullptr && buffer_var->ty.as<BufferTypeNode>() != nullptr)
+      << "tirx.masked_store first argument must be a BufferVar";
+  buffer = GetBufferVar(buffer_var);
+  TVM_FFI_ICHECK_EQ(this->call->args.size(), buffer->shape.size() + 3)
+      << "tirx.masked_store index count must match buffer rank";
+  value = this->call->args[1].as_or_throw<PrimExpr>();
+  indices.reserve(buffer->shape.size());
+  for (size_t i = 0; i < buffer->shape.size(); ++i) {
+    indices.push_back(this->call->args[i + 2].as_or_throw<PrimExpr>());
+  }
+  predicate = this->call->args.back().as_or_throw<PrimExpr>();
+  BufferStore store(buffer, value, indices, this->call->span);
+  TVM_FFI_ICHECK(this->call->ty == PrimType::Void()) << "tirx.masked_store must return void";
+  ValidateStoreMask(predicate, value.ty());
+}
+
+std::optional<MaskedBufferStore> MaskedBufferStore::TryMatch(const Expr& expr) {
+  auto call = expr.as<Call>();
+  if (!call.has_value() || !call.value()->op.same_as(builtin::masked_store())) return std::nullopt;
+  return MaskedBufferStore(call.value());
+}
+
+Stmt MakeMaskedBufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
+                           PrimExpr predicate, Span span) {
+  BufferStore store(buffer, value, indices, span);
+  ValidateStoreMask(predicate, value.ty());
+  ffi::Array<Expr> args{buffer.var(), value};
+  for (const PrimExpr& index : indices) args.push_back(index);
+  args.push_back(predicate);
+  return Evaluate(Call(PrimType::Void(), builtin::masked_store(), args, {}, {}, span), span);
 }
 
 // BufferRegion

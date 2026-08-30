@@ -180,9 +180,6 @@ void ExprVisitor::VisitExpr_(const tirx::BufferLoadNode* op) {
   for (const PrimExpr& index : op->indices) {
     this->VisitExpr(index);
   }
-  if (op->predicate.has_value()) {
-    this->VisitExpr(op->predicate.value());
-  }
   VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
@@ -536,16 +533,10 @@ Expr ExprMutatorBase::VisitExpr_(const CallNode* call_node) {
 Expr ExprMutatorBase::VisitExpr_(const tirx::BufferLoadNode* op) {
   ffi::Array<PrimExpr> indices = op->indices.Map(
       [this](const PrimExpr& e) { return this->VisitExpr(e).as_or_throw<PrimExpr>(); });
-  ffi::Optional<PrimExpr> predicate = op->predicate;
-  if (predicate.has_value()) {
-    predicate = this->VisitExpr(predicate.value()).as_or_throw<PrimExpr>();
-  }
-  bool predicate_unchanged =
-      !op->predicate.has_value() || predicate.value().same_as(op->predicate.value());
-  if (indices.same_as(op->indices) && predicate_unchanged) {
+  if (indices.same_as(op->indices)) {
     return ffi::GetRef<Expr>(op);
   }
-  return tirx::BufferLoad(op->buffer, indices, predicate, op->span);
+  return tirx::BufferLoad(op->buffer, indices, op->span);
 }
 
 #define RELAX_MUTATE_TIRX_BINOP(OP)                              \

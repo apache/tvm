@@ -40,6 +40,7 @@
 #include <algorithm>
 #include <iostream>
 #include <limits>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -548,14 +549,11 @@ class BufferLoadNode : public ExprNode {
   BufferVar buffer;
   /*! \brief The indices location to be loaded. */
   ffi::Array<PrimExpr> indices;
-  /*! \brief The predicate mask for loading values. */
-  ffi::Optional<PrimExpr> predicate;
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BufferLoadNode>()
         .def_ro("buffer", &BufferLoadNode::buffer, refl::AttachFieldFlag::SEqHashDefRecursive())
-        .def_ro("indices", &BufferLoadNode::indices)
-        .def_ro("predicate", &BufferLoadNode::predicate);
+        .def_ro("indices", &BufferLoadNode::indices);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferLoad", BufferLoadNode, ExprNode);
 
@@ -582,12 +580,27 @@ class BufferLoadNode : public ExprNode {
  */
 class BufferLoad : public PrimExpr {
  public:
-  TVM_DLL explicit BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices,
-                              ffi::Optional<PrimExpr> predicate = std::nullopt, Span span = Span());
+  TVM_DLL explicit BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferLoad, PrimExpr, BufferLoadNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferLoadNode);
 };
+
+/*! \brief Checked non-node view of a tirx.masked_load Call. */
+class MaskedBufferLoad {
+ public:
+  TVM_DLL explicit MaskedBufferLoad(Call call);
+  TVM_DLL static std::optional<MaskedBufferLoad> TryMatch(const Expr& expr);
+
+  Call call;
+  BufferVar buffer;
+  ffi::Array<PrimExpr> indices;
+  PrimExpr predicate;
+};
+
+/*! \brief Construct a validated tirx.masked_load Call. */
+TVM_DLL PrimExpr MakeMaskedBufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices,
+                                      PrimExpr predicate, Span span = Span());
 
 /*!
  * \brief Construct a vector with lanes elements

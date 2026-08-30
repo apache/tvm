@@ -145,20 +145,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     scope_.push_back(StmtEntry());
     // visit subexpr
     StmtExprVisitor::VisitStmt_(op);
-    // Add write access.
-    const VarNode* buffer_var =
-        buffer_aliases_.Get(op->buffer.var()).value_or(op->buffer.var()).get();
-    auto it = alloc_info_.find(buffer_var);
-    if (it != alloc_info_.end() && it->second.alloc) {
-      TVM_FFI_ICHECK_LT(it->second.level, scope_.size());
-      scope_[it->second.level].touched.push_back(buffer_var);
-
-      TVM_FFI_ICHECK_EQ(1, it->second.num_physical_dimensions)
-          << "BufferVar " << op->buffer.name() << " is allocated with "
-          << it->second.num_physical_dimensions
-          << " physical dimensions, but is accessed as having "
-          << "1 physical dimension" << std::endl;
-    }
+    RecordAccess(op->buffer);
     StmtEntry e = scope_.back();
     scope_.pop_back();
     if (e.touched.size() != 0) {
@@ -168,22 +155,21 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    // Add write access.
     StmtExprVisitor::VisitExpr_(op);
+    RecordAccess(op->buffer);
+  }
 
-    const VarNode* buffer_var =
-        buffer_aliases_.Get(op->buffer.var()).value_or(op->buffer.var()).get();
-    auto it = alloc_info_.find(buffer_var);
-    if (it != alloc_info_.end() && it->second.alloc) {
-      TVM_FFI_ICHECK_LT(it->second.level, scope_.size())
-          << "Load memory in places other than store.";
-      scope_[it->second.level].touched.push_back(buffer_var);
-
-      TVM_FFI_ICHECK_EQ(1, it->second.num_physical_dimensions)
-          << "BufferVar " << op->buffer.name() << " is allocated with "
-          << it->second.num_physical_dimensions
-          << " physical dimensions, but is accessed as having "
-          << "1 physical dimension" << std::endl;
+  void VisitExpr_(const CallNode* op) final {
+    Call call = ffi::GetRef<Call>(op);
+    ffi::Optional<BufferVar> buffer = std::nullopt;
+    if (auto load = MaskedBufferLoad::TryMatch(call)) {
+      buffer = load->buffer;
+    } else if (op->op.same_as(builtin::masked_store())) {
+      buffer = MaskedBufferStore(call).buffer;
+    }
+    StmtExprVisitor::VisitExpr_(op);
+    if (buffer.has_value()) {
+      RecordAccess(buffer.value());
     }
   }
 
@@ -277,6 +263,19 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       e.stmt = op;
       linear_seq_.push_back(e);
     }
+  }
+
+  void RecordAccess(const BufferVar& buffer) {
+    const VarNode* buffer_var = buffer_aliases_.Get(buffer.var()).value_or(buffer.var()).get();
+    auto it = alloc_info_.find(buffer_var);
+    if (it == alloc_info_.end() || !it->second.alloc) return;
+    TVM_FFI_ICHECK_LT(it->second.level, scope_.size())
+        << "Buffer access occurs outside a statement scope.";
+    scope_[it->second.level].touched.push_back(buffer_var);
+    TVM_FFI_ICHECK_EQ(1, it->second.num_physical_dimensions)
+        << "BufferVar " << buffer.name() << " is allocated with "
+        << it->second.num_physical_dimensions << " physical dimensions, but is accessed as having "
+        << "1 physical dimension" << std::endl;
   }
 
   // linearized access sequence.
@@ -549,7 +548,26 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
   Expr VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::tvm_access_ptr())) {
+    Call call = ffi::GetRef<Call>(op);
+    if (auto load = MaskedBufferLoad::TryMatch(call)) {
+      auto indices =
+          load->indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
+      PrimExpr predicate = this->VisitPrimExpr(load->predicate);
+      BufferLoad access(load->buffer, indices, op->span);
+      access = VisitBufferAccess(std::move(access));
+      return MakeMaskedBufferLoad(access->buffer, access->indices, predicate, op->span);
+    } else if (op->op.same_as(builtin::masked_store())) {
+      MaskedBufferStore store(call);
+      PrimExpr value = this->VisitPrimExpr(store.value);
+      auto indices =
+          store.indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
+      PrimExpr predicate = this->VisitPrimExpr(store.predicate);
+      BufferStore access(store.buffer, value, indices, op->span);
+      access = VisitBufferAccess(std::move(access));
+      Stmt stmt = MakeMaskedBufferStore(access->buffer, access->value, access->indices, predicate,
+                                        op->span);
+      return stmt.as_or_throw<Evaluate>()->value;
+    } else if (op->op.same_as(builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       PrimExpr dtype_marker = op->args[0].as_or_throw<PrimExpr>();
       PrimType dtype = dtype_marker.ty();
@@ -1311,7 +1329,15 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::tvm_access_ptr())) {
+    Call call = ffi::GetRef<Call>(op);
+    if (auto load = MaskedBufferLoad::TryMatch(call)) {
+      OnArrayAccess(load->call->ty.as_or_throw<PrimType>(), load->buffer.get(), load->indices,
+                    /*is_buffer_load=*/true);
+    } else if (op->op.same_as(builtin::masked_store())) {
+      MaskedBufferStore store(call);
+      OnArrayAccess(store.value.ty(), store.buffer.get(), store.indices,
+                    /*is_buffer_load=*/false);
+    } else if (op->op.same_as(builtin::tvm_access_ptr())) {
       PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
       auto buffer_var = GetBufferDataVar(op->args[1]);
       PrimExpr index = op->args[2].as_or_throw<PrimExpr>();
@@ -1699,6 +1725,36 @@ class VectorTypeRewriter : public StmtExprMutator {
     return modified;
   }
 
+  ffi::Optional<Expr> RewriteMaskedCall(const CallNode* op) {
+    Call call = ffi::GetRef<Call>(op);
+    if (auto load = MaskedBufferLoad::TryMatch(call)) {
+      auto indices =
+          load->indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
+      PrimExpr predicate = this->VisitPrimExpr(load->predicate);
+      BufferLoad access(load->buffer, indices, op->span);
+      auto [modified, shuffle_index] = VisitBufferAccess(access);
+      TVM_FFI_ICHECK_LT(shuffle_index, 0)
+          << "A masked vector load cannot be rewritten into a scalar shuffle.";
+      if (!modified.same_as(access)) modified.CopyOnWrite()->LegalizeDType();
+      return MakeMaskedBufferLoad(modified->buffer, modified->indices, predicate, op->span);
+    }
+    if (op->op.same_as(builtin::masked_store())) {
+      MaskedBufferStore store(call);
+      PrimExpr value = this->VisitPrimExpr(store.value);
+      auto indices =
+          store.indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
+      PrimExpr predicate = this->VisitPrimExpr(store.predicate);
+      BufferStore access(store.buffer, value, indices, op->span);
+      auto [modified, shuffle_index] = VisitBufferAccess(std::move(access));
+      TVM_FFI_ICHECK_LT(shuffle_index, 0)
+          << "A masked vector store cannot be rewritten into a scalar shuffle.";
+      Stmt stmt = MakeMaskedBufferStore(modified->buffer, modified->value, modified->indices,
+                                        predicate, op->span);
+      return stmt.as_or_throw<Evaluate>()->value;
+    }
+    return std::nullopt;
+  }
+
   Stmt VisitStmt_(const BindNode* op) final {
     auto it = rewrite_map_.find(op->var.get());
     Expr value = this->VisitExpr(op->value);
@@ -1764,6 +1820,9 @@ class VectorTypeRewriter : public StmtExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
+    if (auto rewritten = RewriteMaskedCall(op)) {
+      return rewritten.value();
+    }
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
