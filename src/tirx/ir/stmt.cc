@@ -511,10 +511,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // BufferRegion
-BufferRegionType::BufferRegionType(Span span) : Type(ffi::UnsafeInit{}) {
+BufferRegionType::BufferRegionType(Span span) : PrimExprConvertibleType(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<BufferRegionTypeNode> node = ffi::make_object<BufferRegionTypeNode>();
   node->span = std::move(span);
   data_ = std::move(node);
+}
+
+PrimExpr BufferRegionTypeNode::ConvertToPrimExpr(Expr expr) const {
+  return std::move(expr).as_or_throw<BufferRegion>().ToBufferLoad();
 }
 
 PrimExpr BufferRegion::ToBufferLoad() const {
@@ -569,9 +573,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("tirx.BufferRegionType", [](Span span) { return BufferRegionType(span); })
       .def("tirx.BufferRegion",
-           [](BufferVar buffer, ffi::Array<Range> region) { return BufferRegion(buffer, region); })
-      .def("tirx.BufferRegionToBufferLoad",
-           [](BufferRegion region) { return region.ToBufferLoad(); });
+           [](BufferVar buffer, ffi::Array<Range> region) { return BufferRegion(buffer, region); });
 }
 
 // MatchBufferRegion

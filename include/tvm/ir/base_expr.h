@@ -37,6 +37,9 @@
 
 namespace tvm {
 
+class Expr;
+class PrimExpr;
+
 /*!
  * \brief Type is the base type of all types.
  *
@@ -83,6 +86,29 @@ class Type : public ffi::ObjectRef {
   TVM_DLL bool IsMissing() const;
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Type, ffi::ObjectRef, TypeNode);
+};
+
+/*!
+ * \brief Base type for expressions that can be converted to PrimExpr at typed FFI boundaries.
+ */
+class PrimExprConvertibleTypeNode : public TypeNode {
+ public:
+  virtual PrimExpr ConvertToPrimExpr(Expr expr) const = 0;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PrimExprConvertibleTypeNode>();
+  }
+
+  static constexpr const uint32_t _type_child_slots = 1;
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExprConvertibleType", PrimExprConvertibleTypeNode, TypeNode);
+};
+
+/*! \brief Managed reference to PrimExprConvertibleTypeNode. */
+class PrimExprConvertibleType : public Type {
+ public:
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimExprConvertibleType, Type,
+                                                PrimExprConvertibleTypeNode);
 };
 
 /*!
@@ -537,9 +563,10 @@ struct TypeTraits<PrimExpr>
   using Base::GetMismatchTypeInfo;
   using Base::MoveFromAnyAfterCheck;
   using Base::MoveToAny;
-  using Base::TryCastFromAnyView;
   using Base::TypeSchema;
   using Base::TypeStr;
+
+  TVM_DLL static std::optional<PrimExpr> TryCastFromAnyView(const TVMFFIAny* src);
 
   TVM_DLL static PrimExpr ConvertFallbackValue(StrictBool value);
   TVM_DLL static PrimExpr ConvertFallbackValue(int64_t value);

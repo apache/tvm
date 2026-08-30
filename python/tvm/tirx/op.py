@@ -34,12 +34,9 @@ from .buffer import Buffer, buffer_data, is_buffer_var
 from .expr import (
     BufferLoad,
     CommReducer,
-    ExprOp,
     ExprWithOp,
     IntImm,
     Var,
-    _binary_prim_expr_op,
-    _convert_to_prim_expr,
 )
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
@@ -73,15 +70,9 @@ def _canonical_device_intrin_name(func_name: str) -> str:
 
 def _primexpr_ty(expr):
     """Return the runtime primitive type of an expression."""
-    expr = _convert_to_prim_expr(expr)
     if isinstance(expr, tvm.ir.PrimType):
         return expr
-    ty = getattr(expr, "ty", None)
-    if isinstance(ty, tvm.ir.PrimType):
-        return ty
-    if isinstance(expr, ExprOp):
-        return expr.expr_ty()
-    raise TypeError(f"Cannot determine Expr type for {type(expr).__name__}")
+    return _ffi_api._PrimExprType(expr)  # type: ignore
 
 
 def _primexpr_dtype(expr):
@@ -264,7 +255,6 @@ def call_intrin(dtype: str | tvm.ir.Type, func_name, *args, attrs=None, span=Non
     """
     if isinstance(func_name, str):
         func_name = _canonical_device_intrin_name(func_name)
-    args = tuple(_convert_to_prim_expr(arg) for arg in args)
     return Call(func_name, args, attrs=attrs, span=span, ret_ty=dtype)
 
 
@@ -1387,7 +1377,7 @@ def reinterpret(dtype, value, span: Span | None = None) -> Expr:
         dtype = (
             PointerType(tvm.ir.PrimType("void")) if dtype == "handle" else tvm.ir.PrimType(dtype)
         )
-    return _ffi_api.reinterpret(dtype, _convert_to_prim_expr(value), span)  # type: ignore
+    return _ffi_api.reinterpret(dtype, value, span)  # type: ignore
 
 
 def exp(x):
@@ -1942,7 +1932,7 @@ def bitwise_and(x, y, span=None):
     res : Expr
         The result.
     """
-    return _binary_prim_expr_op(_ffi_api.bitwise_and, x, y, span)
+    return _ffi_api.bitwise_and(x, y, span)
 
 
 def bitwise_not(x, span=None):
@@ -1961,7 +1951,7 @@ def bitwise_not(x, span=None):
     res : Expr
         The result.
     """
-    return _ffi_api.bitwise_not(_convert_to_prim_expr(x), span)
+    return _ffi_api.bitwise_not(x, span)
 
 
 def bitwise_or(x, y, span=None):
@@ -1983,7 +1973,7 @@ def bitwise_or(x, y, span=None):
     res : Expr
         The result.
     """
-    return _binary_prim_expr_op(_ffi_api.bitwise_or, x, y, span)
+    return _ffi_api.bitwise_or(x, y, span)
 
 
 def bitwise_xor(x, y, span=None):
@@ -2005,7 +1995,7 @@ def bitwise_xor(x, y, span=None):
     res : Expr
         The result.
     """
-    return _binary_prim_expr_op(_ffi_api.bitwise_xor, x, y, span)
+    return _ffi_api.bitwise_xor(x, y, span)
 
 
 def round(x, span=None):
@@ -2284,7 +2274,7 @@ def power(x, y, span=None):
     z : Expr
         The result.
     """
-    return _binary_prim_expr_op(_ffi_api._OpPow, x, y, span)  # type: ignore
+    return _ffi_api._OpPow(x, y, span)  # type: ignore
 
 
 def pow(x, y, span=None):
@@ -2306,7 +2296,7 @@ def pow(x, y, span=None):
     z : Expr
         The result.
     """
-    return _binary_prim_expr_op(_ffi_api._OpPow, x, y, span)  # type: ignore
+    return _ffi_api._OpPow(x, y, span)  # type: ignore
 
 
 def popcount(x):
@@ -2417,7 +2407,7 @@ def shift_left(x, y, span=None):
     z : Expr
         The result.
     """
-    return _binary_prim_expr_op(_ffi_api.left_shift, x, y, span)
+    return _ffi_api.left_shift(x, y, span)
 
 
 def shift_right(x, y, span=None):
@@ -2436,7 +2426,7 @@ def shift_right(x, y, span=None):
     z : Expr
         The result.
     """
-    return _binary_prim_expr_op(_ffi_api.right_shift, x, y, span)
+    return _ffi_api.right_shift(x, y, span)
 
 
 def fmod(x, y):
@@ -2490,9 +2480,9 @@ def if_then_else(cond, t, f, span=None):
     if some lanes in the vector have different conditions.
     """
     return _ffi_api._OpIfThenElse(
-        _convert_to_prim_expr(cond),
-        _convert_to_prim_expr(t),
-        _convert_to_prim_expr(f),
+        cond,
+        t,
+        f,
         span,
     )  # type: ignore
 
@@ -2519,7 +2509,7 @@ def div(a, b, span=None):
     ----
     When operands are integers, returns truncdiv(a, b, span).
     """
-    return _binary_prim_expr_op(_ffi_api._OpDiv, a, b, span)  # type: ignore
+    return _ffi_api._OpDiv(a, b, span)  # type: ignore
 
 
 def indexdiv(a, b, span=None):
@@ -2547,7 +2537,7 @@ def indexdiv(a, b, span=None):
     This function may take advantage of operands'
     non-negativeness.
     """
-    return _binary_prim_expr_op(_ffi_api._OpIndexDiv, a, b, span)  # type: ignore
+    return _ffi_api._OpIndexDiv(a, b, span)  # type: ignore
 
 
 def indexmod(a, b, span=None):
@@ -2575,7 +2565,7 @@ def indexmod(a, b, span=None):
     This function may take advantage of operands'
     non-negativeness.
     """
-    return _binary_prim_expr_op(_ffi_api._OpIndexMod, a, b, span)  # type: ignore
+    return _ffi_api._OpIndexMod(a, b, span)  # type: ignore
 
 
 def truncdiv(a, b, span=None):
@@ -2601,7 +2591,7 @@ def truncdiv(a, b, span=None):
     ----
     This is the default integer division behavior in C.
     """
-    return _binary_prim_expr_op(_ffi_api._OpTruncDiv, a, b, span)  # type: ignore
+    return _ffi_api._OpTruncDiv(a, b, span)  # type: ignore
 
 
 def truncmod(a, b, span=None):
@@ -2627,7 +2617,7 @@ def truncmod(a, b, span=None):
     ----
     This is the default integer division behavior in C.
     """
-    return _binary_prim_expr_op(_ffi_api._OpTruncMod, a, b, span)  # type: ignore
+    return _ffi_api._OpTruncMod(a, b, span)  # type: ignore
 
 
 def floordiv(a, b, span=None):
@@ -2649,7 +2639,7 @@ def floordiv(a, b, span=None):
     res : Expr
         The result expression.
     """
-    return _binary_prim_expr_op(_ffi_api._OpFloorDiv, a, b, span)  # type: ignore
+    return _ffi_api._OpFloorDiv(a, b, span)  # type: ignore
 
 
 def logaddexp(a, b, span=None):
@@ -2671,7 +2661,7 @@ def logaddexp(a, b, span=None):
     res : Expr
         The result expression.
     """
-    return _binary_prim_expr_op(_ffi_api._OpLogAddExp, a, b, span)  # type: ignore
+    return _ffi_api._OpLogAddExp(a, b, span)  # type: ignore
 
 
 def floormod(a, b, span=None):
@@ -2693,7 +2683,7 @@ def floormod(a, b, span=None):
     res : Expr
         The result expression.
     """
-    return _binary_prim_expr_op(_ffi_api._OpFloorMod, a, b, span)  # type: ignore
+    return _ffi_api._OpFloorMod(a, b, span)  # type: ignore
 
 
 def ceildiv(lhs, rhs, span=None):
@@ -2713,7 +2703,7 @@ def ceildiv(lhs, rhs, span=None):
     op : tvm.Expr
         The result Expr of ceildiv operaton.
     """
-    return _binary_prim_expr_op(_ffi_api._OpCeilDiv, lhs, rhs, span)  # type: ignore
+    return _ffi_api._OpCeilDiv(lhs, rhs, span)  # type: ignore
 
 
 def comm_reducer(fcombine, fidentity, name="reduce"):

@@ -54,6 +54,7 @@ class Type(Node, Scriptable):
         return self.is_(other)
 
 
+@tvm_ffi.register_object("ir.PrimExprConvertibleType")
 class PrimExprConvertibleType(Type):
     """Marker for non-primitive expressions accepted by primitive operators."""
 

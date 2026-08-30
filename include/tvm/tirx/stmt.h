@@ -773,24 +773,28 @@ class Continue : public Stmt {
 /*!
  * \brief The type of a multi-dimensional buffer region expression.
  */
-class BufferRegionTypeNode : public TypeNode {
+class BufferRegionTypeNode : public PrimExprConvertibleTypeNode {
  public:
+  TVM_DLL PrimExpr ConvertToPrimExpr(Expr expr) const final;
+
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BufferRegionTypeNode>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferRegionType", BufferRegionTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferRegionType", BufferRegionTypeNode,
+                                    PrimExprConvertibleTypeNode);
 };
 
 /*!
  * \brief Managed reference to BufferRegionTypeNode.
  */
-class BufferRegionType : public Type {
+class BufferRegionType : public PrimExprConvertibleType {
  public:
   TVM_DLL BufferRegionType(Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BufferRegionType, Type, BufferRegionTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BufferRegionType, PrimExprConvertibleType,
+                                                BufferRegionTypeNode);
 };
 
 /*!

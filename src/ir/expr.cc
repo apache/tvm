@@ -108,6 +108,22 @@ PrimExpr PrimExpr::ConvertFallbackValue(ffi::String value) { return tirx::String
 
 namespace ffi {
 
+std::optional<PrimExpr> TypeTraits<PrimExpr>::TryCastFromAnyView(const TVMFFIAny* src) {
+  if (auto value = Base::TryCastFromAnyView(src)) {
+    return value;
+  }
+  if (src->type_index < TypeIndex::kTVMFFIStaticObjectBegin ||
+      !details::IsObjectInstance<ExprNode>(src->type_index)) {
+    return std::nullopt;
+  }
+  Expr expr = details::ObjectUnsafe::ObjectRefFromObjectPtr<Expr>(
+      details::ObjectUnsafe::ObjectPtrFromUnowned<ExprNode>(src->v_obj));
+  if (const auto* type = expr->ty.as<PrimExprConvertibleTypeNode>()) {
+    return type->ConvertToPrimExpr(std::move(expr));
+  }
+  return std::nullopt;
+}
+
 PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(StrictBool value) {
   return IntImm::Bool(value);
 }

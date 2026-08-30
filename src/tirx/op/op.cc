@@ -1297,6 +1297,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("tirx.trunc", tvm::trunc)
       .def("tirx._cast",
            [](PrimType dtype, PrimExpr value, Span span) { return tvm::cast(dtype, value, span); })
+      .def("tirx._PrimExprType", [](PrimExpr value) { return value.ty(); })
       .def("tirx.reinterpret",
            [](Type dtype, Expr value, Span span) { return tvm::reinterpret(dtype, value, span); });
 }
