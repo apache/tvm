@@ -58,6 +58,7 @@ import tvm_ffi
 
 import tvm
 from tvm import relax, tirx, topi
+from tvm.ir import Expr as TvmExpr
 from tvm.ir import IRModule
 from tvm.ir.supply import UniqueNameSupply
 from tvm.runtime import DataType, DataTypeCode
@@ -2618,6 +2619,66 @@ class Sqrt(OnnxOpConverter):
         return relax.op.sqrt(inputs[0])
 
 
+def _normalize_shape_dim(dim: int | tirx.Expr) -> int | tirx.Expr:
+    """Normalize a shape dimension, converting IntImm to int if needed."""
+    if isinstance(dim, tirx.IntImm):
+        return int(dim.value)
+    return dim
+
+
+def _broadcast_shape_dims(ai: int | tirx.Expr, bi: int | tirx.Expr) -> int | tirx.Expr:
+    """Broadcast two shape dimensions according to ONNX broadcasting rules.
+
+    Handles both constant and symbolic dimensions. Returns the broadcasted dimension.
+    Raises ValueError if the dimensions are incompatible.
+
+    Broadcasting rules:
+    - If one dimension is 1, broadcast to the other dimension
+    - If both dimensions are equal (same value or same symbolic variable), use that dimension
+    - Otherwise, dimensions are incompatible
+    """
+    ai = _normalize_shape_dim(ai)
+    bi = _normalize_shape_dim(bi)
+
+    # Check if either dimension is symbolic (Expr)
+    ai_is_expr = isinstance(ai, TvmExpr)
+    bi_is_expr = isinstance(bi, TvmExpr)
+
+    if not ai_is_expr and not bi_is_expr:
+        # Both are constants: unchanged from original
+        if ai == bi or ai == 1 or bi == 1:
+            return max(ai, bi)
+        else:
+            raise ValueError(f"Cannot broadcast {ai} and {bi}")
+    elif ai_is_expr and bi_is_expr:
+        # Both are symbolic: Check if they're the same variable
+        # If so, return one of them; otherwise, cannot determine at import time
+        is_equal = tvm_ffi.structural_equal(ai, bi)
+
+        if is_equal:
+            return ai
+        else:
+            raise ValueError(
+                f"Cannot broadcast symbolic dimensions {ai} and {bi} - "
+                "both are symbolic but structurally different. "
+                "ONNX frontend requires dimensions names to match for symbolic shapes."
+            )
+    else:
+        # One is symbolic, one is constant
+        const_val = bi if ai_is_expr else ai
+        expr_val = ai if ai_is_expr else bi
+
+        if const_val == 1:
+            # Constant dimension is 1, broadcast to symbolic dimension
+            return expr_val
+        else:
+            # Constant dimension is not 1
+            raise ValueError(
+                f"Cannot broadcast symbolic dimension {expr_val} with non-1 constant {const_val}: "
+                f"runtime value of symbolic dimension is unknown at compile time."
+            )
+
+
 def compute_broadcast_shape(shape_a, shape_b):
     """Compute target shape for Multidirectional Broadcasting"""
     rank = max(len(shape_a), len(shape_b))
@@ -2627,10 +2688,7 @@ def compute_broadcast_shape(shape_a, shape_b):
 
     target = []
     for ai, bi in zip(a, b):
-        if ai == bi or ai == 1 or bi == 1:
-            target.append(max(ai, bi))
-        else:
-            raise ValueError(f"Cannot broadcast {ai} and {bi}")
+        target.append(_broadcast_shape_dims(ai, bi))
     return tuple(target)
 
 
