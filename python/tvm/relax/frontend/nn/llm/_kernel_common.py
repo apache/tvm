@@ -444,7 +444,142 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
     return init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, softmax_update_valid_length, advance_tile_batch, paged_store_output_lse, softmax_update_causal_padded_left
 
 
-def _get_prefill_kernel_config(h_kv, h_q, d, dtype, target: Target):
+def _get_prefill_shared_memory_usage(
+    tile_x, tile_z, d, dtype, *, d_v=None, merged_kv=False
+):
+    """Return shared bytes, where ``d`` is Q/K width and ``d_v`` is V/output width.
+
+    ``merged_kv`` denotes MLA's single shared KV buffer. Otherwise K and V occupy
+    separate buffers, and ``d_v`` defaults to ``d`` for standard attention.
+    """
+    if d_v is None:
+        d_v = d
+    dtype_bytes = (DataType(dtype).bits + 7) // 8
+    kv_elements = tile_z * d if merged_kv else tile_z * (d + d_v)
+    qkv_bytes = (tile_x * d + kv_elements) * dtype_bytes
+    softmax_bytes = (tile_x * tile_z + 3 * tile_x) * 4
+    return qkv_bytes + softmax_bytes
+
+
+def _get_prefill_vector_size(extent, load_vec):
+    """Return the scheduler's vector width for a contiguous extent."""
+    return min(load_vec, extent & ~(extent - 1))
+
+
+def _get_prefill_tile_size(x, y, num_threads):
+    """Return the scheduler's per-thread 2D tile, or ``None`` if none is legal."""
+    if (x * y) % num_threads != 0:
+        return None
+    elements_per_thread = (x * y) // num_threads
+    inner_y = math.ceil(math.sqrt(elements_per_thread))
+    while inner_y <= elements_per_thread:
+        if elements_per_thread % inner_y == 0:
+            inner_x = elements_per_thread // inner_y
+            if y % inner_y == 0 and x % inner_x == 0:
+                return inner_x, inner_y
+        inner_y += 1
+    return None
+
+
+def _get_prefill_load_config(x, y, num_threads, load_vec):
+    """Return ``(vector width, tile x, tile y)`` for a scheduled load, if legal."""
+    if (x * y) % num_threads != 0:
+        return None
+    elements_per_thread = (x * y) // num_threads
+    vec_size = min(
+        _get_prefill_vector_size(y, load_vec),
+        _get_prefill_vector_size(elements_per_thread, load_vec),
+    )
+    tile = _get_prefill_tile_size(x, y // vec_size, num_threads)
+    if tile is None:
+        return None
+    return vec_size, *tile
+
+
+def _is_prefill_kernel_config_legal(
+    tile_x, tile_y, tile_z, d_v, load_vec, bdx, num_warps, merged_kv
+):
+    """Check the factorization assumptions made by the prefill schedulers."""
+    num_threads = bdx * num_warps
+    return all(
+        (
+            _get_prefill_tile_size(tile_x, tile_z, num_threads) is not None,
+            _get_prefill_tile_size(tile_x, d_v, num_threads) is not None,
+            _get_prefill_load_config(tile_x, tile_y, num_threads, load_vec) is not None,
+            _get_prefill_load_config(tile_z, tile_y, num_threads, load_vec) is not None,
+            merged_kv
+            or _get_prefill_load_config(tile_z, d_v, num_threads, load_vec) is not None,
+        )
+    )
+
+
+def _fit_prefill_config_to_shared_memory(
+    tile_x,
+    tile_y,
+    tile_z,
+    d,
+    d_v,
+    dtype,
+    load_vec,
+    bdx,
+    num_warps,
+    merged_kv,
+    max_shared_memory_per_block,
+):
+    """Reduce the key tile until the prefill kernel fits shared memory."""
+    if (
+        _get_prefill_shared_memory_usage(
+            tile_x, tile_z, d, dtype, d_v=d_v, merged_kv=merged_kv
+        )
+        <= max_shared_memory_per_block
+        and _is_prefill_kernel_config_legal(
+            tile_x, tile_y, tile_z, d_v, load_vec, bdx, num_warps, merged_kv
+        )
+    ):
+        return num_warps, tile_z
+
+    candidate_num_warps = sorted({num_warps, min(num_warps, 2), 1}, reverse=True)
+    for warps in candidate_num_warps:
+        for candidate_tile_z in range(tile_z, 0, -1):
+            if not _is_prefill_kernel_config_legal(
+                tile_x,
+                tile_y,
+                candidate_tile_z,
+                d_v,
+                load_vec,
+                bdx,
+                warps,
+                merged_kv,
+            ):
+                continue
+            if (
+                _get_prefill_shared_memory_usage(
+                    tile_x,
+                    candidate_tile_z,
+                    d,
+                    dtype,
+                    d_v=d_v,
+                    merged_kv=merged_kv,
+                )
+                <= max_shared_memory_per_block
+            ):
+                return warps, candidate_tile_z
+
+    required = _get_prefill_shared_memory_usage(
+        tile_x, tile_z, d, dtype, d_v=d_v, merged_kv=merged_kv
+    )
+    raise ValueError(
+        "Unable to find a legal prefill tile within the target's shared-memory limit: "
+        f"initial tile requires {required} bytes, target allows "
+        f"{max_shared_memory_per_block} bytes"
+    )
+
+
+def _get_prefill_kernel_config(
+    h_kv, h_q, d, dtype, target: Target, *, d_v=None, merged_kv=False
+):
+    if d_v is None:
+        d_v = d
     NUM_BLKS = 16
     LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
     group_size = h_q // h_kv
@@ -463,13 +598,28 @@ def _get_prefill_kernel_config(h_kv, h_q, d, dtype, target: Target):
     while (tile_x * tile_y) % (bdx * num_warps) != 0:
         tile_y += original_tile_y
 
-    # Otherwise we would exceed the per-workgroup storage limit on WebGPU and Metal.
+    # Preserve the established WebGPU config, which targets WebGPU's portable limits.
     if (
-        target.kind.name in ("webgpu", "metal")
+        target.kind.name == "webgpu"
         and ((d + 127) // 128) * ((DataType(dtype).bits + 15) // 16) >= 4
     ):
         tile_z = 8
         num_warps = 2
+    if target.kind.name == "metal":
+        max_shared_memory_per_block = int(target.attrs["max_shared_memory_per_block"])
+        num_warps, tile_z = _fit_prefill_config_to_shared_memory(
+            tile_x,
+            tile_y,
+            tile_z,
+            d,
+            d_v,
+            dtype,
+            LOAD_VEC,
+            bdx,
+            num_warps,
+            merged_kv,
+            max_shared_memory_per_block,
+        )
     if target.kind.name == "opencl" and (
         ("android" in str(target.host)) or ("adreno" in str(target.attrs))
     ):
@@ -477,6 +627,14 @@ def _get_prefill_kernel_config(h_kv, h_q, d, dtype, target: Target):
         NUM_BLKS = group_size * 8
 
     check_thread_limits(target, bdx=bdx, bdy=num_warps, bdz=1, gdz=1)
+    if not _is_prefill_kernel_config_legal(
+        tile_x, tile_y, tile_z, d_v, LOAD_VEC, bdx, num_warps, merged_kv
+    ):
+        raise ValueError(
+            "Prefill tile is incompatible with the scheduler's thread factorization: "
+            f"tile=({tile_x}, {tile_y}, {tile_z}, {d_v}), "
+            f"threads={bdx * num_warps}"
+        )
 
     return NUM_BLKS, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z
 
@@ -484,30 +642,15 @@ def _get_prefill_kernel_config(h_kv, h_q, d, dtype, target: Target):
 def _schedule_prefill_kernel(sch: s_tir.Schedule, load_vec, bdx, num_warps, tile_x, tile_y, tile_z, transform_k_load: bool, merged_qk_load: bool) -> tvm.s_tir.Schedule:
     get_extent = lambda *lps: [int(sch.get(lp).extent) for lp in lps]
 
-    def get_vecsize(extent):
-        return min(load_vec, (extent & ~(extent - 1)))
-
-    def getxy_vecsize(x, y, t):
-        assert (x * y) % t == 0
-        return min(get_vecsize(y), get_vecsize(x * y // t))
-
-    def get_tile_size(x, y, t):
-        cnt = (x * y) // t
-        assert (x * y) % t == 0
-        tile_y = math.ceil(math.sqrt(cnt))
-        while (cnt % tile_y != 0 or y % tile_y != 0 or x % (cnt // tile_y) != 0) and tile_y <= cnt:
-            tile_y += 1
-        assert tile_y <= cnt
-        tile_x = cnt // tile_y
-        return tile_x, tile_y
-
     def apply_to_qkv_load(sch: s_tir.Schedule, block):
         loop_x, loop_y = sch.get_loops(block)[-2:]
         x_extent, y_extent = get_extent(loop_x, loop_y)
-        vec_size = getxy_vecsize(x_extent, y_extent, bdx * num_warps)
+        load_config = _get_prefill_load_config(
+            x_extent, y_extent, bdx * num_warps, load_vec
+        )
+        assert load_config is not None
+        vec_size, tile_x, tile_y = load_config
         yo, yv = sch.split(loop_y, [None, vec_size])
-        yo_extent = y_extent // vec_size
-        tile_x, tile_y = get_tile_size(x_extent, yo_extent, (bdx * num_warps))
         xo, xi = sch.split(loop_x, [tile_x, None])
         yo, yi = sch.split(yo, [tile_y, None])
         sch.reorder(xi, yi, xo, yo)
@@ -522,7 +665,7 @@ def _schedule_prefill_kernel(sch: s_tir.Schedule, load_vec, bdx, num_warps, tile
         xo, xi = sch.split(loop_x, factors=[None, tile[0]])
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
         sch.reorder(xo, yo, xi, yi)
-        yiv_extent = get_vecsize(tile[1])
+        yiv_extent = _get_prefill_vector_size(tile[1], load_vec)
         yio, yiv = sch.split(yi, [None, yiv_extent])
         sch.unroll(yio)
         sch.vectorize(yiv)
@@ -546,7 +689,7 @@ def _schedule_prefill_kernel(sch: s_tir.Schedule, load_vec, bdx, num_warps, tile
             sch.reorder(ko, xi, yi, ki)
         else:
             sch.reorder(ko, ki, xi, yi)
-        yiv_extent = get_vecsize(tile[1])
+        yiv_extent = _get_prefill_vector_size(tile[1], load_vec)
         yio, yiv = sch.split(yi, [None, yiv_extent])
         sch.unroll(yio)
         sch.vectorize(yiv)
@@ -561,8 +704,9 @@ def _schedule_prefill_kernel(sch: s_tir.Schedule, load_vec, bdx, num_warps, tile
 
     if transform_k_load and not merged_qk_load:
         sch.transform_layout("K_load", ("write", 0), lambda i, j: (j, i))
-    tile_s = get_tile_size(tile_x, tile_z, bdx * num_warps)
-    tile_o = get_tile_size(tile_x, tile_y, bdx * num_warps)
+    tile_s = _get_prefill_tile_size(tile_x, tile_z, bdx * num_warps)
+    tile_o = _get_prefill_tile_size(tile_x, tile_y, bdx * num_warps)
+    assert tile_s is not None and tile_o is not None
     apply_to_gemm(sch, sch.get_sblock("S_gemm"), tile_s, k_major=True)
     apply_to_gemm(sch, sch.get_sblock("O_gemm"), tile_o, k_major=False)
     apply_to_so_ewise(sch, sch.get_sblock("S_store"), tile_s)
