@@ -645,6 +645,12 @@ class BufferRegion(ExprOp, Expr, Scriptable):
     def __init__(self, buffer: Buffer, region: list[Range]) -> None:
         self.__init_handle_by_constructor__(_ffi_api.BufferRegion, buffer, region)  # type: ignore
 
+    def __eq__(self, other) -> bool:
+        return Object.__eq__(self, other)
+
+    def __ne__(self, other) -> bool:
+        return Object.__ne__(self, other)
+
     def __getitem__(self, indices):
         from ..arith import Analyzer
 
