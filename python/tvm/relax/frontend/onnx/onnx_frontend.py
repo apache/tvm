@@ -3206,7 +3206,12 @@ class Pad(OnnxOpConverter):
             return bb.emit_te(topi.nn.replicate_pad, inputs[0], pad_before, pad_after)
 
     @classmethod
-    def _impl_v11(cls, bb, inputs, attr, params):
+    def _parse_pads_and_axes(cls, inputs, params):
+        """Split pads and expand the optional axes input to full-rank pads.
+
+        Shared by _impl_v11 (opset 11/13, no axes input) and _impl_v18/_impl_v19
+        (Pad-18 introduced the optional axes input; Pad-19 adds mode="wrap").
+        """
         pads = get_constant(inputs[1], params)
         constant_value = get_constant(inputs[2], params)
         if constant_value is not None:
@@ -3214,42 +3219,12 @@ class Pad(OnnxOpConverter):
         else:
             constant_value = 0.0
 
-        if isinstance(pads, relax.Constant):
-            pad_before, pad_after = _np.split(pads.data.numpy(), 2)
-            pad_before = _np.ndarray.tolist(pad_before)
-            pad_after = _np.ndarray.tolist(pad_after)
-        else:
+        if not isinstance(pads, relax.Constant):
             raise ValueError("Dynamic pads are not supported yet.")
 
-        pad_mode = attr.get("mode", b"constant").decode("utf-8")
-        if pad_mode not in ["constant", "edge", "reflect"]:
-            raise tvm.error.OpAttributeInvalid(
-                "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
-            )
-
-        if pad_mode == "constant":
-            return bb.emit_te(topi.nn.pad, inputs[0], pad_before, pad_after, constant_value)
-        elif pad_mode == "reflect":
-            return bb.emit_te(topi.nn.mirror_pad, inputs[0], pad_before, pad_after, "REFLECT")
-        else:
-            # edge mode - replicate border values
-            return bb.emit_te(topi.nn.replicate_pad, inputs[0], pad_before, pad_after)
-
-    @classmethod
-    def _impl_v19(cls, bb, inputs, attr, params):
-        pads = get_constant(inputs[1], params)
-        constant_value = get_constant(inputs[2], params)
-        if constant_value is not None:
-            constant_value = constant_value.data.numpy().item()
-        else:
-            constant_value = 0.0
-
-        if isinstance(pads, relax.Constant):
-            pad_before, pad_after = _np.split(pads.data.numpy(), 2)
-            pad_before = _np.ndarray.tolist(pad_before)
-            pad_after = _np.ndarray.tolist(pad_after)
-        else:
-            raise ValueError("Dynamic pads are not supported yet.")
+        pad_before, pad_after = _np.split(pads.data.numpy(), 2)
+        pad_before = _np.ndarray.tolist(pad_before)
+        pad_after = _np.ndarray.tolist(pad_after)
 
         axes_input = inputs[3] if len(inputs) > 3 else None
         if axes_input is not None:
@@ -3276,8 +3251,13 @@ class Pad(OnnxOpConverter):
                 full_after[ax] = pad_after[i]
             pad_before, pad_after = full_before, full_after
 
+        return pad_before, pad_after, constant_value
+
+    @classmethod
+    def _lower_pad(cls, bb, inputs, attr, params, allowed_modes):
+        pad_before, pad_after, constant_value = cls._parse_pads_and_axes(inputs, params)
         pad_mode = attr.get("mode", b"constant").decode("utf-8")
-        if pad_mode not in ["constant", "edge", "reflect", "wrap"]:
+        if pad_mode not in allowed_modes:
             raise tvm.error.OpAttributeInvalid(
                 "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
             )
@@ -3291,6 +3271,21 @@ class Pad(OnnxOpConverter):
         else:
             # edge mode - replicate border values
             return bb.emit_te(topi.nn.replicate_pad, inputs[0], pad_before, pad_after)
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        return cls._lower_pad(bb, inputs, attr, params, {"constant", "edge", "reflect"})
+
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        # Pad-18 introduced the optional axes input but only constant/reflect/edge
+        # modes; mode="wrap" was added in Pad-19, so it is rejected here.
+        return cls._lower_pad(bb, inputs, attr, params, {"constant", "edge", "reflect"})
+
+    @classmethod
+    def _impl_v19(cls, bb, inputs, attr, params):
+        # Pad-19 adds mode="wrap" on top of the Pad-18 axes input.
+        return cls._lower_pad(bb, inputs, attr, params, {"constant", "edge", "reflect", "wrap"})
 
 
 class Tile(OnnxOpConverter):

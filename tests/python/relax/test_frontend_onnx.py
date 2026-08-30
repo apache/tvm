@@ -8272,6 +8272,47 @@ def test_pad(dynamic):
         )
 
 
+def test_pad_opset18_axes():
+    """Pad-18 introduced the optional axes input but not mode="wrap" (Pad-19 only).
+    opset-18 axes must lower correctly for constant/reflect/edge modes (matching
+    onnxruntime), and mode="wrap" must be rejected for opset 18."""
+
+    def make_model(input_shape, pads, axes, mode, opset=18):
+        node_inputs = ["x", "pads"]
+        initializer = [
+            helper.make_tensor("pads", TensorProto.INT64, (len(pads),), pads),
+        ]
+        if axes is not None:
+            node_inputs += ["", "axes"]
+            initializer.append(helper.make_tensor("axes", TensorProto.INT64, (len(axes),), axes))
+        node = helper.make_node("Pad", inputs=node_inputs, outputs=["y"], mode=mode)
+        graph = helper.make_graph(
+            [node],
+            "pad_opset18_axes",
+            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(input_shape))],
+            initializer=initializer,
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, None)],
+        )
+        return helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    # opset-18 axes work for constant/reflect/edge modes.
+    for shape, pads, axes, mode in [
+        ((1, 3, 4), [1, 2], [1], "constant"),
+        ((1, 3, 4), [1, 2], [1], "reflect"),
+        ((1, 3, 4), [2, 1], [2], "edge"),
+        ((2, 3, 4), [0, 1, 0, 1], [0, 2], "reflect"),
+        ((1, 3, 4), [1, 2], [-1], "reflect"),
+    ]:
+        model = make_model(shape, pads, axes, mode, opset=18)
+        inputs = {"x": np.arange(np.prod(shape), dtype="float32").reshape(shape) + 1.0}
+        check_correctness(model, inputs=inputs, opset=18)
+
+    # mode="wrap" was only added in Pad-19 and must be rejected for opset 18.
+    model = make_model((1, 3, 4), [2, 2], [2], "wrap", opset=18)
+    with pytest.raises(tvm.error.OpAttributeInvalid):
+        from_onnx(model, opset=18, keep_params_in_input=True)
+
+
 @pytest.mark.parametrize("dynamic", [True, False])
 def test_pad_v2(dynamic):
     if dynamic:
