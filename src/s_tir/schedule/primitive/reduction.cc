@@ -157,14 +157,55 @@ class LoopHeightError : public ScheduleError {
   SBlock block_;
 };
 
-PrimExpr RemakePredicate(PrimExpr pred, const std::unordered_set<const VarNode*>& discarded_loops) {
-  if (is_one(pred)) return IntImm::Bool(true);
-  auto f = [&](const VarNode* var) { return discarded_loops.count(var); };
-  if (const auto* and_node = pred.as<AndNode>()) {
-    return RemakePredicate(and_node->a, discarded_loops) &&
-           RemakePredicate(and_node->b, discarded_loops);
+class NonSeparablePredicateError : public ScheduleError {
+ public:
+  explicit NonSeparablePredicateError(IRModule mod, SBlock block, PrimExpr predicate_clause)
+      : mod_(std::move(mod)),
+        block_(std::move(block)),
+        predicate_clause_(std::move(predicate_clause)) {}
+
+  ffi::String FastErrorString() const final {
+    return "ScheduleError: decompose_reduction requires separable predicate clauses";
   }
-  return UsesVar(pred, f) ? IntImm::Bool(true) : pred;
+
+  ffi::String DetailRenderTemplate() const final {
+    std::ostringstream os;
+    os << "ScheduleError: decompose_reduction requires separable predicate clauses for block "
+          "{0}. Predicate clause "
+       << predicate_clause_
+       << " depends on both a loop retained by the initialization and a loop removed from it. "
+          "Rewrite the predicate as a conjunction of clauses that each depend only on retained "
+          "loops or only on removed loops.";
+    return os.str();
+  }
+
+  IRModule mod() const final { return mod_; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
+
+  IRModule mod_;
+  SBlock block_;
+  PrimExpr predicate_clause_;
+};
+
+PrimExpr RewriteInitPredicate(PrimExpr pred,
+                              const std::unordered_set<const VarNode*>& discarded_loops,
+                              const std::unordered_set<const VarNode*>& retained_loops,
+                              const IRModule& mod, const SBlock& block) {
+  if (is_one(pred)) return IntImm::Bool(true);
+  if (const auto* and_node = pred.as<AndNode>()) {
+    return RewriteInitPredicate(and_node->a, discarded_loops, retained_loops, mod, block) &&
+           RewriteInitPredicate(and_node->b, discarded_loops, retained_loops, mod, block);
+  }
+  auto uses_var_in = [&pred](const std::unordered_set<const VarNode*>& vars) {
+    return UsesVar(pred, [&vars](const VarNode* var) { return vars.count(var); });
+  };
+  if (!uses_var_in(discarded_loops)) {
+    return pred;
+  }
+  if (uses_var_in(retained_loops)) {
+    throw NonSeparablePredicateError(mod, block, pred);
+  }
+  return IntImm::Bool(true);
 }
 
 StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
@@ -235,6 +276,10 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   //         If the loop is used in the init block binding, then it is chosen.
   //         Otherwise, it is discarded.
   std::unordered_set<const VarNode*> discarded_loops;
+  std::unordered_set<const VarNode*> retained_loops;
+  for (const StmtSRef& ancestor_loop_sref : loops) {
+    retained_loops.insert(ancestor_loop_sref->StmtAs<ForNode>()->loop_var.get());
+  }
   std::vector<int> chosen_loops;
   for (int i = static_cast<int>(loops.size()) - 1; i >= 0; --i) {
     const VarNode* loop_var = loops[i]->StmtAs<ForNode>()->loop_var.get();
@@ -248,15 +293,20 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
       discarded = false;
       break;
     }
-    if (discarded) discarded_loops.insert(loop_var);
+    if (discarded) {
+      discarded_loops.insert(loop_var);
+      retained_loops.erase(loop_var);
+    }
     // Only scan loops not higher than the given loop
     if (loops[i].same_as(loop_sref)) {
       break;
     }
   }
-  // Step 4. After scanning loops, make a new predicate in the init block realize
-  //         We discard predicate that is related to discarded loops
-  init_realize->predicate = RemakePredicate(realize->predicate, discarded_loops);
+  // Step 4. Derive the predicate for the init block realize.  Omit conjunction clauses that
+  //         depend only on discarded loops.  Reject clauses that couple retained and discarded
+  //         loops, because they cannot be projected safely.
+  init_realize->predicate = RewriteInitPredicate(
+      realize->predicate, discarded_loops, retained_loops, self->mod, ffi::GetRef<SBlock>(block));
   // Step 5. Create new loops above init block
   std::unordered_map<Var, Var> loop_var_map;
   Stmt body = SBlockRealize(init_realize);
