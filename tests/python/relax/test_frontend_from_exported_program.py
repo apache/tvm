@@ -3349,9 +3349,7 @@ def test_einsum_repeated_subscript():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((3, 3), dtype="float32")) -> R.Tuple(
-            R.Tensor((3,), dtype="float32")
-        ):
+        def main(x: R.Tensor((3, 3), dtype="float32")) -> R.Tuple(R.Tensor((3,), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((3, 3), dtype="float32") = R.permute_dims(x, axes=[0, 1])
                 lv1: R.Tensor((3, 3), dtype="float32") = R.strided_slice(
@@ -3384,9 +3382,7 @@ def test_einsum_repeated_subscript():
 
     verify_model_numerically(TraceEinsum(), (torch.randn(4, 4),))
     verify_model_numerically(BatchedDiagEinsum(), (torch.randn(2, 3, 3),))
-    verify_model_numerically(
-        AttentionEinsum(), (torch.randn(3, 3, 4, 3), torch.randn(3, 3, 4, 3))
-    )
+    verify_model_numerically(AttentionEinsum(), (torch.randn(3, 3, 4, 3), torch.randn(3, 3, 4, 3)))
 
     class DirectDiagonal(Module):
         def __init__(self):
