@@ -25,7 +25,6 @@ import tvm
 from ..runtime import Object, Scriptable
 from . import _ffi_api, _overload_prim_expr, _tensor_expr_overload
 from .base import Node, Span
-from .type import PrimExprConvertibleType
 
 
 @tvm_ffi.register_object("ir.Expr")
@@ -52,8 +51,8 @@ def is_prim_var(value: object) -> bool:
 
 
 def is_prim_expr_convertible(value: object) -> bool:
-    """Return whether an expression's type opts into primitive operators."""
-    return isinstance(value, Expr) and isinstance(value.ty, PrimExprConvertibleType)
+    """Return whether an expression supports conversion at primitive FFI boundaries."""
+    return isinstance(value, PrimExprConvertible)
 
 
 def _supports_prim_expr_ops(value: object) -> bool:
@@ -339,6 +338,11 @@ class ExprWithOp(Expr, Scriptable):
         if result is NotImplemented:
             raise TypeError("Tensor expression overload __getitem__ is not registered")
         return result
+
+
+@tvm_ffi.register_object("ir.PrimExprConvertible")
+class PrimExprConvertible(ExprWithOp):
+    """Expression that converts to PrimExpr at typed FFI boundaries."""
 
 
 @tvm_ffi.register_object("ir.Tuple")

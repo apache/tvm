@@ -773,32 +773,30 @@ class Continue : public Stmt {
 /*!
  * \brief The type of a multi-dimensional buffer region expression.
  */
-class BufferRegionTypeNode : public PrimExprConvertibleTypeNode {
+class BufferRegionTypeNode : public TypeNode {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BufferRegionTypeNode>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferRegionType", BufferRegionTypeNode,
-                                    PrimExprConvertibleTypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferRegionType", BufferRegionTypeNode, TypeNode);
 };
 
 /*!
  * \brief Managed reference to BufferRegionTypeNode.
  */
-class BufferRegionType : public PrimExprConvertibleType {
+class BufferRegionType : public Type {
  public:
   TVM_DLL BufferRegionType(Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BufferRegionType, PrimExprConvertibleType,
-                                                BufferRegionTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BufferRegionType, Type, BufferRegionTypeNode);
 };
 
 /*!
  * \brief Representing the region of multi-dimensional buffer access.
  */
-class BufferRegionNode : public ExprNode {
+class BufferRegionNode : public PrimExprConvertibleNode {
  public:
   /*! \brief The buffer of the buffer region. */
   BufferVar buffer;
@@ -812,20 +810,19 @@ class BufferRegionNode : public ExprNode {
         .def_ro("region", &BufferRegionNode::region);
   }
 
+  TVM_DLL PrimExpr ToPrimExpr() const final;
+
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferRegion", BufferRegionNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferRegion", BufferRegionNode, PrimExprConvertibleNode);
 };
 
 /*!
  * \brief Managed reference to BufferRegionNode.
  * \sa BufferRegionNode
  */
-class BufferRegion : public Expr {
+class BufferRegion : public PrimExprConvertible {
  public:
   TVM_DLL explicit BufferRegion(BufferVar buffer, ffi::Array<Range> region);
-
-  /*! \brief Materialize this region as a scalar or vector buffer load. */
-  TVM_DLL PrimExpr ToBufferLoad() const;
 
   /*!
    * \brief Create a BufferRegion which is full region of the given buffer.
@@ -842,7 +839,7 @@ class BufferRegion : public Expr {
    */
   TVM_DLL static BufferRegion FromPoint(BufferVar buffer, ffi::Array<PrimExpr> indices);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferRegion, Expr, BufferRegionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferRegion, PrimExprConvertible, BufferRegionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRegionNode);
 };
 

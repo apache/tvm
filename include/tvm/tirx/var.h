@@ -162,12 +162,6 @@ class IterVarNode : public PrimExprConvertibleNode {
    *  set this if this is bound already to a known thread tag.
    */
   ffi::String thread_tag;
-  /*!
-   * \brief Span that points to the original source code.
-   *        Reserved debug information.
-   */
-  mutable Span span;
-
   PrimExpr ToPrimExpr() const final { return var; }
 
   static void RegisterReflection() {
@@ -176,9 +170,7 @@ class IterVarNode : public PrimExprConvertibleNode {
         .def_ro("dom", &IterVarNode::dom)
         .def_ro("var", &IterVarNode::var, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("iter_type", &IterVarNode::iter_type)
-        .def_ro("thread_tag", &IterVarNode::thread_tag)
-        .def_ro("span", &IterVarNode::span, refl::DefaultValue(Span()),
-                refl::AttachFieldFlag::SEqHashIgnore());
+        .def_ro("thread_tag", &IterVarNode::thread_tag);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;

@@ -70,7 +70,6 @@ ffi::ObjectPtr<PrimTypeNode> GetCachedPrimTypeNode(DLDataType dtype) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TypeNode::RegisterReflection();
-  PrimExprConvertibleTypeNode::RegisterReflection();
   OpaqueTypeNode::RegisterReflection();
   PrimTypeNode::RegisterReflection();
   refl::TypeAttrDef<PrimTypeNode>()

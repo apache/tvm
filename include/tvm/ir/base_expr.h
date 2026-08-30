@@ -86,29 +86,6 @@ class Type : public ffi::ObjectRef {
 };
 
 /*!
- * \brief Base type for expressions that can be converted to PrimExpr at typed FFI boundaries.
- */
-class PrimExprConvertibleTypeNode : public TypeNode {
- public:
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PrimExprConvertibleTypeNode>();
-  }
-
-  static constexpr const uint32_t _type_child_slots = 1;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExprConvertibleType", PrimExprConvertibleTypeNode, TypeNode);
-};
-
-inline constexpr const char* kPrimExprConversionTypeAttr = "__tvm_ffi_to_prim_expr__";
-
-/*! \brief Managed reference to PrimExprConvertibleTypeNode. */
-class PrimExprConvertibleType : public Type {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimExprConvertibleType, Type,
-                                                PrimExprConvertibleTypeNode);
-};
-
-/*!
  * \brief Type marker for opaque construction-time expressions.
  *
  * Opaque values may be used while constructing IR, but must be lowered away
@@ -458,21 +435,24 @@ class PrimExpr : public TypedExpr<PrimType> {
  * This is useful for the FFI to convert the expressions to PrimExpr.
  * \sa PrimExpr
  */
-class PrimExprConvertibleNode : public ffi::Object {
+class PrimExprConvertibleNode : public ExprNode {
  public:
   virtual ~PrimExprConvertibleNode() {}
   virtual PrimExpr ToPrimExpr() const = 0;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExprConvertible", PrimExprConvertibleNode, ffi::Object);
+  static constexpr const uint32_t _type_child_slots = 2;
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExprConvertible", PrimExprConvertibleNode, ExprNode);
 };
 
 /*!
  * \brief Managed reference to PrimExprConvertibleNode.
  * \sa PrimExprConvertibleNode
  */
-class PrimExprConvertible : public ffi::ObjectRef {
+class PrimExprConvertible : public Expr {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExprConvertible, ffi::ObjectRef,
-                                             PrimExprConvertibleNode);
+  bool operator==(const PrimExprConvertible& other) const { return this->same_as(other); }
+  bool operator!=(const PrimExprConvertible& other) const { return !(*this == other); }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExprConvertible, Expr, PrimExprConvertibleNode);
 };
 
 namespace ffi {
@@ -563,7 +543,7 @@ struct TypeTraits<PrimExpr>
   using Base::TypeSchema;
   using Base::TypeStr;
 
-  TVM_DLL static std::optional<PrimExpr> TryCastFromAnyView(const TVMFFIAny* src);
+  using Base::TryCastFromAnyView;
 
   TVM_DLL static PrimExpr ConvertFallbackValue(StrictBool value);
   TVM_DLL static PrimExpr ConvertFallbackValue(int64_t value);

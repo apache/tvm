@@ -33,7 +33,7 @@ from typing import Any
 
 import tvm_ffi
 
-from tvm.ir import Expr, ExprWithOp, PrimExprConvertibleType, Range, Span, is_prim_expr
+from tvm.ir import Expr, PrimExprConvertible, Range, Span, Type, is_prim_expr
 from tvm.runtime import Object, Scriptable, const
 from tvm.tirx import IntImm
 
@@ -616,7 +616,7 @@ class Evaluate(Stmt):
 
 
 @tvm_ffi.register_object("tirx.BufferRegionType")
-class BufferRegionType(PrimExprConvertibleType):
+class BufferRegionType(Type):
     """The structural type of a :class:`BufferRegion` expression."""
 
     def __init__(self, span: Span | None = None) -> None:
@@ -624,7 +624,7 @@ class BufferRegionType(PrimExprConvertibleType):
 
 
 @tvm_ffi.register_object("tirx.BufferRegion")
-class BufferRegion(ExprWithOp):
+class BufferRegion(PrimExprConvertible):
     """BufferRegion node.
 
     Parameters

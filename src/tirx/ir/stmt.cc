@@ -35,7 +35,6 @@ namespace tvm {
 namespace tirx {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
   StmtNode::RegisterReflection();
   BindNode::RegisterReflection();
 
@@ -54,8 +53,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ContinueNode::RegisterReflection();
   BufferRegionTypeNode::RegisterReflection();
   BufferRegionNode::RegisterReflection();
-  refl::TypeAttrDef<BufferRegionNode>().def(
-      kPrimExprConversionTypeAttr, [](BufferRegion region) { return region.ToBufferLoad(); });
   MatchBufferRegionNode::RegisterReflection();
   SBlockNode::RegisterReflection();
   SBlockRealizeNode::RegisterReflection();
@@ -514,25 +511,26 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // BufferRegion
-BufferRegionType::BufferRegionType(Span span) : PrimExprConvertibleType(ffi::UnsafeInit{}) {
+BufferRegionType::BufferRegionType(Span span) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<BufferRegionTypeNode> node = ffi::make_object<BufferRegionTypeNode>();
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
-PrimExpr BufferRegion::ToBufferLoad() const {
+PrimExpr BufferRegionNode::ToPrimExpr() const {
   ffi::Array<PrimExpr> indices;
-  indices.reserve((*this)->region.size());
-  for (const Range& r : (*this)->region) {
+  indices.reserve(this->region.size());
+  for (const Range& r : this->region) {
     if (tirx::is_one(r->extent)) {
       indices.push_back(r->min);
     } else if (r->extent.as<IntImmNode>()) {
       indices.push_back(Ramp(r->min, IntImm(r->min.ty(), 1), r->extent));
     } else {
-      TVM_FFI_THROW(ValueError) << "Cannot convert to BufferLoad: " << *this;
+      TVM_FFI_THROW(ValueError) << "Cannot convert to BufferLoad: "
+                                << ffi::GetRef<BufferRegion>(this);
     }
   }
-  return BufferLoad((*this)->buffer, indices);
+  return BufferLoad(this->buffer, indices);
 }
 
 BufferRegion::BufferRegion(BufferVar buffer, ffi::Array<Range> region) {
