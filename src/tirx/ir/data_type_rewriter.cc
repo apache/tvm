@@ -251,9 +251,32 @@ Expr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
   }
   PrimExpr prim_e = e.as_or_throw<PrimExpr>();
   if (op->op.same_as(builtin::shift_right())) {
-    return op->args[0].as_or_throw<PrimExpr>() >> op->args[1].as_or_throw<PrimExpr>();
+    PrimExpr lhs = op->args[0].as_or_throw<PrimExpr>();
+    PrimExpr rhs = op->args[1].as_or_throw<PrimExpr>();
+    PrimType before_dtype = before->args[0].as_or_throw<PrimExpr>().ty();
+    PrimType after_dtype = lhs.ty();
+    if (ShouldClampShiftAmounts() && before_dtype.code() == DLDataTypeCode::kDLInt &&
+        after_dtype.code() == DLDataTypeCode::kDLInt && before_dtype.bits() > after_dtype.bits()) {
+      // Values are assumed to fit in the narrowed dtype.  An arithmetic right
+      // shift at or beyond its sign bit therefore has the same value as a shift
+      // by the new sign-bit position.  Clamp lane-wise so dynamic and vector
+      // shift amounts remain valid for the narrowed dtype.
+      rhs = min(rhs, MakeConst(rhs.ty(), after_dtype.bits() - 1, op->span), op->span);
+    }
+    return lhs >> rhs;
   } else if (op->op.same_as(builtin::shift_left())) {
-    return op->args[0].as_or_throw<PrimExpr>() << op->args[1].as_or_throw<PrimExpr>();
+    PrimExpr lhs = op->args[0].as_or_throw<PrimExpr>();
+    PrimExpr rhs = op->args[1].as_or_throw<PrimExpr>();
+    PrimType before_dtype = before->args[0].as_or_throw<PrimExpr>().ty();
+    PrimType after_dtype = lhs.ty();
+    if (ShouldClampShiftAmounts() && before_dtype.code() == DLDataTypeCode::kDLInt &&
+        after_dtype.code() == DLDataTypeCode::kDLInt && before_dtype.bits() > after_dtype.bits()) {
+      // Keep dynamic and vector shift amounts valid for the narrowed dtype.  Under the pass's
+      // representability precondition, a left shift at or beyond the narrowed width can only
+      // produce a representable result when lhs is zero, so clamping does not alter valid cases.
+      rhs = min(rhs, MakeConst(rhs.ty(), after_dtype.bits() - 1, op->span), op->span);
+    }
+    return lhs << rhs;
   } else if (op->op.same_as(builtin::bitwise_and())) {
     return op->args[0].as_or_throw<PrimExpr>() & op->args[1].as_or_throw<PrimExpr>();
   } else if (op->op.same_as(builtin::bitwise_or())) {
@@ -593,10 +616,14 @@ Expr IndexDataTypeRewriter::VisitExpr_(const CallNode* op) {
     is_condition_ = true;
     PrimExpr cond = VisitPrimExpr(op->args[0].as_or_throw<PrimExpr>());
     is_condition_ = is_condition;
-    return Call(op->ty.as_or_throw<PrimType>(), op->op,
-                {cond, VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>()),
-                 VisitPrimExpr(op->args[2].as_or_throw<PrimExpr>())},
-                op->attrs, {}, op->span)
+    PrimExpr true_value = VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>());
+    PrimExpr false_value = VisitPrimExpr(op->args[2].as_or_throw<PrimExpr>());
+    PrimType true_dtype = true_value.ty();
+    PrimType false_dtype = false_value.ty();
+    PrimType dtype = true_dtype.WithBits(std::max(true_dtype.bits(), false_dtype.bits()));
+    if (true_dtype != dtype) true_value = cast(dtype, true_value);
+    if (false_dtype != dtype) false_value = cast(dtype, false_value);
+    return Call(dtype, op->op, {cond, true_value, false_value}, op->attrs, {}, op->span)
         .as_or_throw<PrimExpr>();
   }
   return Parent::VisitExpr_(op);
