@@ -65,8 +65,6 @@ def _primexpr_ty(expr):
     """Return the runtime primitive type of an expression."""
     if isinstance(expr, tvm.ir.PrimType):
         return expr
-    if isinstance(expr, tvm.ir.PrimExprConvertible):
-        expr = expr.to_prim_expr()
     ty = getattr(expr, "ty", None)
     if isinstance(ty, tvm.ir.PrimType):
         return ty

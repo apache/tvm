@@ -35,7 +35,7 @@ import tvm.ir._overload_prim_expr as _overload_prim_expr
 from tvm import ir
 from tvm.ir import Expr
 from tvm.ir.base import Span
-from tvm.runtime import DataTypeCode, Object, ObjectConvertible, Scriptable, const
+from tvm.runtime import DataTypeCode, Object, ObjectConvertible, Scriptable
 
 from . import _ffi_api
 from .buffer import Buffer
@@ -56,20 +56,18 @@ def div_ambiguity_error() -> RuntimeError:
 def _dtype_is_int(value):
     if isinstance(value, int):
         return True
-    if isinstance(value, ir.PrimExprConvertible):
-        value = value.to_prim_expr()
     if isinstance(value, ExprOp) or ir.is_prim_expr(value):
-        return value.expr_ty().matches_code(DataTypeCode.INT)
+        ty = value.expr_ty()
+        return isinstance(ty, ir.PrimType) and ty.matches_code(DataTypeCode.INT)
     return False
 
 
 def _dtype_is_float(value):
     if isinstance(value, float):
         return True
-    if isinstance(value, ir.PrimExprConvertible):
-        value = value.to_prim_expr()
     if isinstance(value, ExprOp) or ir.is_prim_expr(value):
-        return value.expr_ty().matches_code(DataTypeCode.FLOAT)
+        ty = value.expr_ty()
+        return isinstance(ty, ir.PrimType) and ty.matches_code(DataTypeCode.FLOAT)
     return False
 
 
@@ -164,9 +162,7 @@ class ExprOp:
         return _ffi_api._OpFloorMod(other, self, None)  # type: ignore
 
     def __neg__(self) -> Expr:
-        value = self.to_prim_expr() if isinstance(self, ir.PrimExprConvertible) else self
-        neg_one = const(-1, value.expr_ty().dtype)
-        return _ffi_api._OpMul(value, neg_one, None)  # type: ignore
+        return _ffi_api._OpMul(self, -1, None)  # type: ignore
 
     def __lshift__(self, other: Expr) -> Expr:
         return _ffi_api.left_shift(self, other, None)  # type: ignore

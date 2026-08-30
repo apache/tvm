@@ -29,9 +29,9 @@ def _register_expr_op(ty: type):  # pylint: disable=invalid-name
     ty._dispatch_type = ty  # pylint: disable=protected-access
 
     def _expr_ty(expr):
-        if isinstance(expr, tvm.ir.PrimExprConvertible):
-            expr = expr.to_prim_expr()
-        ty = expr.ty if tvm.ir.is_prim_expr(expr) else expr.expr_ty()
+        ty = expr.ty if tvm.ir.is_prim_expr(expr) else None
+        if not isinstance(ty, PrimType):
+            ty = expr.expr_ty()
         if not isinstance(ty, PrimType):
             raise TypeError(f"Expected a PrimType expression, but got {ty}")
         return ty
