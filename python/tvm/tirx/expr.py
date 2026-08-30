@@ -54,6 +54,7 @@ def div_ambiguity_error() -> RuntimeError:
 
 
 def _dtype_is_int(value):
+    value = _convert_to_prim_expr(value)
     if isinstance(value, int):
         return True
     if isinstance(value, ExprOp):
@@ -64,6 +65,7 @@ def _dtype_is_int(value):
 
 
 def _dtype_is_float(value):
+    value = _convert_to_prim_expr(value)
     if isinstance(value, float):
         return True
     if isinstance(value, ExprOp):
@@ -74,7 +76,11 @@ def _dtype_is_float(value):
 
 
 def _is_scalar_operand(value):
-    return isinstance(value, ExprOp | int | float) or ir.is_prim_expr(value)
+    return (
+        isinstance(value, ExprOp | int | float)
+        or ir.is_prim_expr(value)
+        or ir.is_prim_expr_convertible(value)
+    )
 
 
 def _convert_to_prim_expr(value):
@@ -94,12 +100,12 @@ class ExprOp:
 
     # TODO(tkonolige): use inspect to add source information to these objects
 
-    def expr_ty(self) -> ir.PrimType:
-        """Return the compile-time primitive type for expression operators."""
-        ty = getattr(_convert_to_prim_expr(self), "ty", None)
-        if isinstance(ty, ir.PrimType):
+    def expr_ty(self) -> ir.Type:
+        """Return the expression's compile-time type."""
+        ty = getattr(self, "ty", None)
+        if isinstance(ty, ir.Type):
             return ty
-        raise TypeError(f"Cannot determine PrimType for {type(self).__name__}")
+        raise TypeError(f"Cannot determine Expr type for {type(self).__name__}")
 
     def __add__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
@@ -172,8 +178,9 @@ class ExprOp:
         return _binary_prim_expr_op(_ffi_api._OpFloorMod, other, self)  # type: ignore
 
     def __neg__(self) -> Expr:
-        neg_one = const(-1, self.expr_ty().dtype)
-        return _ffi_api._OpMul(_convert_to_prim_expr(self), neg_one, None)  # type: ignore
+        value = _convert_to_prim_expr(self)
+        neg_one = const(-1, value.ty.dtype)
+        return _ffi_api._OpMul(value, neg_one, None)  # type: ignore
 
     def __lshift__(self, other: Expr) -> Expr:
         return _binary_prim_expr_op(_ffi_api.left_shift, self, other)  # type: ignore

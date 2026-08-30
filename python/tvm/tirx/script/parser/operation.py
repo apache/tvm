@@ -22,13 +22,14 @@ from tvm.ir import PrimType
 from tvm.runtime import DataTypeCode
 from tvm.script.parser._core import OpMethod, doc, register_op
 from tvm.tirx import IntImm
-from tvm.tirx.expr import FloatImm
+from tvm.tirx.expr import FloatImm, _convert_to_prim_expr
 
 
 def _register_expr_op(ty: type):  # pylint: disable=invalid-name
     ty._dispatch_type = ty  # pylint: disable=protected-access
 
     def _expr_ty(expr):
+        expr = _convert_to_prim_expr(expr)
         ty = expr.ty if tvm.ir.is_prim_expr(expr) else None
         if not isinstance(ty, PrimType):
             ty = expr.expr_ty()

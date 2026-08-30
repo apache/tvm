@@ -33,10 +33,9 @@ from typing import Any
 
 import tvm_ffi
 
-from tvm.ir import Expr, Range, Span, Type, is_prim_expr
+from tvm.ir import Expr, ExprWithOp, PrimExprConvertibleType, Range, Span, is_prim_expr
 from tvm.runtime import Object, Scriptable, const
 from tvm.tirx import IntImm
-from tvm.tirx.expr import ExprOp
 
 from . import _ffi_api
 from .buffer import Buffer
@@ -617,7 +616,7 @@ class Evaluate(Stmt):
 
 
 @tvm_ffi.register_object("tirx.BufferRegionType")
-class BufferRegionType(Type):
+class BufferRegionType(PrimExprConvertibleType):
     """The structural type of a :class:`BufferRegion` expression."""
 
     def __init__(self, span: Span | None = None) -> None:
@@ -625,7 +624,7 @@ class BufferRegionType(Type):
 
 
 @tvm_ffi.register_object("tirx.BufferRegion")
-class BufferRegion(ExprOp, Expr, Scriptable):
+class BufferRegion(ExprWithOp):
     """BufferRegion node.
 
     Parameters
@@ -637,19 +636,11 @@ class BufferRegion(ExprOp, Expr, Scriptable):
         The region array of the buffer region
     """
 
-    __hash__ = Expr.__hash__
-
     buffer: Buffer
     region: list[Range]
 
     def __init__(self, buffer: Buffer, region: list[Range]) -> None:
         self.__init_handle_by_constructor__(_ffi_api.BufferRegion, buffer, region)  # type: ignore
-
-    def __eq__(self, other) -> bool:
-        return Object.__eq__(self, other)
-
-    def __ne__(self, other) -> bool:
-        return Object.__ne__(self, other)
 
     def __getitem__(self, indices):
         from ..arith import Analyzer
