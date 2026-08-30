@@ -359,7 +359,7 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
   std::string vid = AllocVarID(op->buffer.get());
 
   this->PrintIndent();
-  // Compute constant_size from buffer shape
+  // Compute a compile-time upper bound on the number of buffer elements.
   size_t constant_size = 1;
   arith::Analyzer analyzer;
   for (const auto& dim : op->buffer->shape) {
@@ -367,6 +367,7 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
     int64_t dim_size = dim_imm ? dim_imm->value : analyzer->const_int_bound(dim)->max_value;
     if (dim_imm == nullptr) {
       const auto* dtype_max = max_value(dim.ty()).as<IntImmNode>();
+      // An integer dtype's intrinsic maximum is not a program-derived allocation bound.
       TVM_FFI_ICHECK(dtype_max && dim_size < dtype_max->value)
           << "Metal allocation extent requires a finite compile-time upper bound, but got " << dim;
     }
