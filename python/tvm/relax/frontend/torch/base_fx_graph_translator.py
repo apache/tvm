@@ -1280,7 +1280,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         einsum contraction ``...zz->...z`` (the repeated ``z`` label runs
         over both trailing axes simultaneously).
         """
-        import torch  # type: ignore
 
         args = self.retrieve_args(node)
         x = args[0]
