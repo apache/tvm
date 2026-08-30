@@ -255,6 +255,14 @@ def call_intrin(dtype: str | tvm.ir.Type, func_name, *args, attrs=None, span=Non
     """
     if isinstance(func_name, str):
         func_name = _canonical_device_intrin_name(func_name)
+    if any(tvm.ir.is_prim_expr_convertible(arg) for arg in args):
+        if isinstance(func_name, str):
+            func_name = Op.get(func_name)
+        if not isinstance(dtype, tvm.ir.Type):
+            dtype = PointerType(PrimType("void")) if dtype == "handle" else PrimType(dtype)
+        if attrs is not None and isinstance(attrs, dict):
+            attrs = tvm.ir.DictAttrs(attrs)
+        return _ffi_api._CallPrimExpr(dtype, func_name, args, attrs, span)  # type: ignore
     return Call(func_name, args, attrs=attrs, span=span, ret_ty=dtype)
 
 
@@ -1377,6 +1385,8 @@ def reinterpret(dtype, value, span: Span | None = None) -> Expr:
         dtype = (
             PointerType(tvm.ir.PrimType("void")) if dtype == "handle" else tvm.ir.PrimType(dtype)
         )
+    if tvm.ir.is_prim_expr_convertible(value):
+        return _ffi_api._reinterpret_prim(dtype, value, span)  # type: ignore
     return _ffi_api.reinterpret(dtype, value, span)  # type: ignore
 
 
