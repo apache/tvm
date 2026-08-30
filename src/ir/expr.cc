@@ -90,6 +90,8 @@ TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
+      .def("ir.PrimExprConvertibleToPrimExpr",
+           [](PrimExprConvertible value) { return value->ToPrimExpr(); })
       .def("ir.Tuple", [](ffi::Array<Expr> fields, Span span) { return Tuple(fields, span); })
       .def("ir.TupleGetItem",
            [](Expr tuple, int index, Span span) { return TupleGetItem(tuple, index, span); })

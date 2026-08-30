@@ -31,16 +31,9 @@ from tvm.runtime import const
 
 from . import _ffi_api
 from .buffer import Buffer, buffer_data, is_buffer_var
-from .expr import (
-    BufferLoad,
-    CommReducer,
-    ExprWithOp,
-    IntImm,
-    Var,
-)
+from .expr import BufferLoad, CommReducer, ExprOp, ExprWithOp, IntImm, Var
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
-
 
 # Insertion order matters: a longer prefix has to be tried before the shorter
 # one it starts with, or `ptx_legacy_mma` would strip as `ptx` + `legacy_mma`.
@@ -72,7 +65,14 @@ def _primexpr_ty(expr):
     """Return the runtime primitive type of an expression."""
     if isinstance(expr, tvm.ir.PrimType):
         return expr
-    return _ffi_api._PrimExprType(expr)  # type: ignore
+    if isinstance(expr, tvm.ir.PrimExprConvertible):
+        expr = expr.to_prim_expr()
+    ty = getattr(expr, "ty", None)
+    if isinstance(ty, tvm.ir.PrimType):
+        return ty
+    if isinstance(expr, ExprOp):
+        return expr.expr_ty()
+    raise TypeError(f"Cannot determine primitive expression type for {type(expr).__name__}")
 
 
 def _primexpr_dtype(expr):
@@ -255,14 +255,9 @@ def call_intrin(dtype: str | tvm.ir.Type, func_name, *args, attrs=None, span=Non
     """
     if isinstance(func_name, str):
         func_name = _canonical_device_intrin_name(func_name)
-    if any(tvm.ir.is_prim_expr_convertible(arg) for arg in args):
-        if isinstance(func_name, str):
-            func_name = Op.get(func_name)
-        if not isinstance(dtype, tvm.ir.Type):
-            dtype = PointerType(PrimType("void")) if dtype == "handle" else PrimType(dtype)
-        if attrs is not None and isinstance(attrs, dict):
-            attrs = tvm.ir.DictAttrs(attrs)
-        return _ffi_api._CallPrimExpr(dtype, func_name, args, attrs, span)  # type: ignore
+    args = [
+        arg.to_prim_expr() if isinstance(arg, tvm.ir.PrimExprConvertible) else arg for arg in args
+    ]
     return Call(func_name, args, attrs=attrs, span=span, ret_ty=dtype)
 
 
@@ -1385,8 +1380,8 @@ def reinterpret(dtype, value, span: Span | None = None) -> Expr:
         dtype = (
             PointerType(tvm.ir.PrimType("void")) if dtype == "handle" else tvm.ir.PrimType(dtype)
         )
-    if tvm.ir.is_prim_expr_convertible(value):
-        return _ffi_api._reinterpret_prim(dtype, value, span)  # type: ignore
+    if isinstance(value, tvm.ir.PrimExprConvertible):
+        value = value.to_prim_expr()
     return _ffi_api.reinterpret(dtype, value, span)  # type: ignore
 
 
@@ -2489,12 +2484,7 @@ def if_then_else(cond, t, f, span=None):
     Unlike Select, if_then_else cannot be vectorized
     if some lanes in the vector have different conditions.
     """
-    return _ffi_api._OpIfThenElse(
-        cond,
-        t,
-        f,
-        span,
-    )  # type: ignore
+    return _ffi_api._OpIfThenElse(cond, t, f, span)  # type: ignore
 
 
 def div(a, b, span=None):

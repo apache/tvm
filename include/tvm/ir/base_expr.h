@@ -540,10 +540,9 @@ struct TypeTraits<PrimExpr>
   using Base::GetMismatchTypeInfo;
   using Base::MoveFromAnyAfterCheck;
   using Base::MoveToAny;
+  using Base::TryCastFromAnyView;
   using Base::TypeSchema;
   using Base::TypeStr;
-
-  using Base::TryCastFromAnyView;
 
   TVM_DLL static PrimExpr ConvertFallbackValue(StrictBool value);
   TVM_DLL static PrimExpr ConvertFallbackValue(int64_t value);

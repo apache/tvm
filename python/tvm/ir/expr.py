@@ -50,13 +50,8 @@ def is_prim_var(value: object) -> bool:
     return isinstance(value, Var) and type(value) is Var and is_prim_expr(value)
 
 
-def is_prim_expr_convertible(value: object) -> bool:
-    """Return whether an expression supports conversion at primitive FFI boundaries."""
-    return isinstance(value, PrimExprConvertible)
-
-
 def _supports_prim_expr_ops(value: object) -> bool:
-    return is_prim_expr(value) or is_prim_expr_convertible(value)
+    return is_prim_expr(value) or isinstance(value, PrimExprConvertible)
 
 
 @tvm_ffi.register_object("ir.GlobalVar")
@@ -109,7 +104,7 @@ class GlobalVar(Expr):
         raise RuntimeError(f"Do not know how to handle GlobalVar.__call__ for types {arg_types}")
 
 
-class ExprWithOp(Expr, Scriptable):
+class _ExprWithOp(Expr, Scriptable):
     """Common type-directed operator behavior for core expressions."""
 
     __hash__ = Expr.__hash__
@@ -341,12 +336,16 @@ class ExprWithOp(Expr, Scriptable):
 
 
 @tvm_ffi.register_object("ir.PrimExprConvertible")
-class PrimExprConvertible(ExprWithOp):
+class PrimExprConvertible(_ExprWithOp):
     """Expression that converts to PrimExpr at typed FFI boundaries."""
+
+    def to_prim_expr(self):
+        """Convert this expression to its primitive representation."""
+        return _ffi_api.PrimExprConvertibleToPrimExpr(self)
 
 
 @tvm_ffi.register_object("ir.Tuple")
-class Tuple(ExprWithOp):
+class Tuple(_ExprWithOp):
     """Tuple expression that groups several fields together.
 
     Parameters
@@ -379,7 +378,7 @@ class Tuple(ExprWithOp):
 
 
 @tvm_ffi.register_object("ir.TupleGetItem")
-class TupleGetItem(ExprWithOp):
+class TupleGetItem(_ExprWithOp):
     """Get the index-th item from a tuple.
 
     Parameters
@@ -403,7 +402,7 @@ class TupleGetItem(ExprWithOp):
 
 
 @tvm_ffi.register_object("ir.Call")
-class Call(ExprWithOp):
+class Call(_ExprWithOp):
     """Core function call node."""
 
     op: Expr
@@ -442,7 +441,7 @@ class Call(ExprWithOp):
 
 
 @tvm_ffi.register_object("ir.Var")
-class Var(ExprWithOp):
+class Var(_ExprWithOp):
     """A canonical local variable in the IR.
 
     Parameters

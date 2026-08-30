@@ -56,16 +56,20 @@ def div_ambiguity_error() -> RuntimeError:
 def _dtype_is_int(value):
     if isinstance(value, int):
         return True
-    if isinstance(value, ExprOp) or ir.is_prim_expr(value) or ir.is_prim_expr_convertible(value):
-        return _ffi_api._PrimExprType(value).matches_code(DataTypeCode.INT)  # type: ignore
+    if isinstance(value, ir.PrimExprConvertible):
+        value = value.to_prim_expr()
+    if isinstance(value, ExprOp) or ir.is_prim_expr(value):
+        return value.expr_ty().matches_code(DataTypeCode.INT)
     return False
 
 
 def _dtype_is_float(value):
     if isinstance(value, float):
         return True
-    if isinstance(value, ExprOp) or ir.is_prim_expr(value) or ir.is_prim_expr_convertible(value):
-        return _ffi_api._PrimExprType(value).matches_code(DataTypeCode.FLOAT)  # type: ignore
+    if isinstance(value, ir.PrimExprConvertible):
+        value = value.to_prim_expr()
+    if isinstance(value, ExprOp) or ir.is_prim_expr(value):
+        return value.expr_ty().matches_code(DataTypeCode.FLOAT)
     return False
 
 
@@ -73,7 +77,7 @@ def _is_scalar_operand(value):
     return (
         isinstance(value, ExprOp | int | float)
         or ir.is_prim_expr(value)
-        or ir.is_prim_expr_convertible(value)
+        or isinstance(value, ir.PrimExprConvertible)
     )
 
 
@@ -160,8 +164,9 @@ class ExprOp:
         return _ffi_api._OpFloorMod(other, self, None)  # type: ignore
 
     def __neg__(self) -> Expr:
-        neg_one = const(-1, _ffi_api._PrimExprType(self).dtype)  # type: ignore
-        return _ffi_api._OpMul(self, neg_one, None)  # type: ignore
+        value = self.to_prim_expr() if isinstance(self, ir.PrimExprConvertible) else self
+        neg_one = const(-1, value.expr_ty().dtype)
+        return _ffi_api._OpMul(value, neg_one, None)  # type: ignore
 
     def __lshift__(self, other: Expr) -> Expr:
         return _ffi_api.left_shift(self, other, None)  # type: ignore

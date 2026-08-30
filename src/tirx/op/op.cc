@@ -1297,25 +1297,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("tirx.trunc", tvm::trunc)
       .def("tirx._cast",
            [](PrimType dtype, PrimExpr value, Span span) { return tvm::cast(dtype, value, span); })
-      .def("tirx._PrimExprType", [](PrimExpr value) { return value.ty(); })
-      .def("tirx._CallPrimExpr",
-           [](Type ret_ty, Expr op, ffi::Array<ffi::Any> args, Attrs attrs, Span span) {
-             ffi::Array<Expr> expr_args;
-             expr_args.reserve(args.size());
-             for (const ffi::Any& arg : args) {
-               if (auto prim_arg = arg.try_cast<PrimExpr>()) {
-                 expr_args.push_back(std::move(prim_arg.value()));
-               } else {
-                 expr_args.push_back(arg.cast<Expr>());
-               }
-             }
-             return Call(std::move(ret_ty), std::move(op), std::move(expr_args), std::move(attrs),
-                         {}, std::move(span));
-           })
-      .def("tirx._reinterpret_prim",
-           [](PrimType dtype, PrimExpr value, Span span) {
-             return tvm::reinterpret(std::move(dtype), std::move(value), std::move(span));
-           })
       .def("tirx.reinterpret",
            [](Type dtype, Expr value, Span span) { return tvm::reinterpret(dtype, value, span); });
 }
