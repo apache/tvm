@@ -76,6 +76,9 @@ class DataTypeLegalizer : public StmtExprMutator {
   Expr VisitExpr_(const CastNode* op) override;
   Expr VisitExpr_(const LetNode* op) override;
 
+  /*! \brief Whether to clamp shift amounts after narrowing signed integers. */
+  virtual bool ShouldClampShiftAmounts() const { return false; }
+
   using StmtExprMutator::VisitExpr_;
   using StmtExprMutator::VisitStmt_;
 
