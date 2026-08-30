@@ -1481,8 +1481,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     ########## Symbolic Shape Constraints ##########
 
-    def _symbolic_comparison(self, _: fx.Node) -> relax.Expr:
-        return self.block_builder.emit(relax.const(True, dtype="bool"))
+    def _symbolic_comparison(self, intrinsic_op: Callable) -> Callable:
+        def convert(node: fx.Node) -> relax.Expr:
+            lhs, rhs = self.retrieve_args(node)
+            return self.block_builder.emit(relax.prim_value(intrinsic_op(lhs, rhs)))
+
+        return convert
 
     ########## Higher-Order Ops ##########
 
@@ -1754,6 +1758,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "logical_xor.default": self._logical_xor,
             "log_softmax.int": self._log_softmax,
             "_log_softmax.default": self._log_softmax,
+            "neg": lambda node: operator.neg(self.retrieve_args(node)[0]),
             "neg.default": self._unary_op(relax.op.negative),
             "pad.default": self._pad,
             "constant_pad_nd.default": self._constant_pad_nd,
@@ -1792,6 +1797,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "triu.default": self._tril_triu(relax.op.triu),
             "trunc.default": self._unary_op(relax.op.trunc),
             # binary
+            "add": self._binary_op(relax.op.add, operator.add),
             "add.Tensor": self._binary_op(relax.op.add, operator.add),
             "add.Scalar": self._binary_op(relax.op.add, operator.add),
             "add_.Tensor": self._binary_op(relax.op.add, operator.add),
@@ -1810,6 +1816,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "eq.Scalar": self._binary_op(relax.op.equal, operator.eq),
             "eq.Tensor": self._binary_op(relax.op.equal, operator.eq),
             "floor_divide.default": self._binary_op(relax.op.floor_divide, operator.floordiv),
+            "floordiv": self._binary_op(relax.op.floor_divide, operator.floordiv),
             "fmod.Scalar": self._fmod,
             "fmod.Tensor": self._fmod,
             "logaddexp.default": self._binary_op(relax.op.log_add_exp, torch.logaddexp),
@@ -1835,6 +1842,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "minimum.default": self._binary_op(relax.op.minimum, torch.minimum),
             "remainder.Tensor": self._binary_op(relax.op.floor_mod, operator.mod),
             "remainder.Scalar": self._binary_op(relax.op.floor_mod, operator.mod),
+            "mod": self._binary_op(relax.op.floor_mod, operator.mod),
             "mul": self._binary_op(relax.op.multiply, operator.mul),
             "mul.Tensor": self._binary_op(relax.op.multiply, operator.mul),
             "mul.Scalar": self._binary_op(relax.op.multiply, operator.mul),
@@ -1847,6 +1855,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "pow.Scalar": self._binary_op(relax.op.power, operator.pow),
             "pow.Tensor_Scalar": self._pow,
             "pow.Tensor_Tensor": self._binary_op(relax.op.power, operator.pow),
+            "sub": self._binary_op(relax.op.subtract, operator.sub),
             "sub.Tensor": self._binary_op(relax.op.subtract, operator.sub),
             "sub.Scalar": self._binary_op(relax.op.subtract, operator.sub),
             "__and__.Tensor": self._binary_op(relax.op.bitwise_and, operator.and_),
@@ -2031,13 +2040,15 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "item.default": self._item,
             "sym_size.int": self._sym_size_int,
             "_local_scalar_dense.default": self._item,
-            # symbolic shape constraints (no-ops for compilation)
+            # symbolic shape operations and constraints
             "sym_constrain_range_for_size.default": lambda node: self.env[node.args[0]],
             "_assert_scalar.default": lambda node: self.env[node.args[0]],
-            "ge": self._symbolic_comparison,
-            "le": self._symbolic_comparison,
-            "gt": self._symbolic_comparison,
-            "lt": self._symbolic_comparison,
+            "ge": self._symbolic_comparison(operator.ge),
+            "le": self._symbolic_comparison(operator.le),
+            "gt": self._symbolic_comparison(operator.gt),
+            "lt": self._symbolic_comparison(operator.lt),
+            "eq": self._symbolic_comparison(operator.eq),
+            "ne": self._symbolic_comparison(operator.ne),
             # higher-order ops
             "cond": self._cond,
         }
