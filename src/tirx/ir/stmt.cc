@@ -422,7 +422,7 @@ TVM_FFI_INLINE int GetLanesOrVScaleFactor(const PrimType& ty) {
 }
 
 BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
-                         ffi::Optional<PrimExpr> predicate, Span span) {
+                         Span span) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
       << "BufferVar " << buffer.name() << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
@@ -442,12 +442,6 @@ BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> 
   TVM_FFI_ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
       << "Index dtype and buffer dtype can't both be scalable.";
 
-  if (predicate.has_value()) {
-    bool is_predicate_dtype_scalable = predicate.value().ty().IsScalableVector();
-    TVM_FFI_ICHECK_EQ(is_value_dtype_scalable, is_predicate_dtype_scalable)
-        << "Predicate mask dtype and value dtype must both be scalable.";
-  }
-
   if (is_index_scalable || is_buffer_dtype_scalable) {
     TVM_FFI_ICHECK(is_value_dtype_scalable) << "Can't store non-scalable data into scalable buffer";
   }
@@ -460,21 +454,6 @@ BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> 
       << "Cannot store value with " << value_dtype_lanes << ", expected value with "
       << index_lanes * buffer_lanes << " (" << index_lanes << " index lanes * " << buffer_lanes
       << " buffer element lanes)";
-
-  if (predicate.has_value()) {
-    PrimType predicate_ty = predicate.value().ty();
-    int predicate_dtype_lanes = GetLanesOrVScaleFactor(predicate_ty);
-    TVM_FFI_ICHECK_EQ(value_dtype_lanes, predicate_dtype_lanes)
-        << "Got a predicate mask with " << predicate_dtype_lanes
-        << " lanes, but trying to store a value with " << value_dtype_lanes
-        << " lanes. The number of lanes must match.";
-
-    PrimType predicate_element_ty = predicate_ty.WithLanes(1);
-    TVM_FFI_ICHECK(predicate_element_ty.MatchesCode(DLDataTypeCode::kDLBool) ||
-                   predicate_element_ty.MatchesElementType(DLDataTypeCode::kDLUInt, 1))
-        << "Predicate mask elements must be boolean values, but got "
-        << ffi::DLDataTypeToString(predicate_element_ty->dtype) << ".";
-  }
 
   PrimType buffer_dtype = PrimType::Void();
   if (is_index_scalable || is_buffer_dtype_scalable) {
@@ -495,7 +474,6 @@ BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> 
   node->buffer = std::move(buffer);
   node->value = std::move(value);
   node->indices = std::move(indices);
-  node->predicate = std::move(predicate);
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -504,9 +482,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.BufferStore",
                         [](BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
-                           ffi::Optional<PrimExpr> predicate, Span span) {
-                          return BufferStore(buffer, value, indices, predicate, span);
-                        });
+                           Span span) { return BufferStore(buffer, value, indices, span); });
 }
 
 // BufferRegion

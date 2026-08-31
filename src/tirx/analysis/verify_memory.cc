@@ -98,6 +98,14 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
     HandleLoadStoreToVariable(op->buffer.var());
     return StmtExprVisitor::VisitStmt_(op);
   }
+
+  void VisitExpr_(const CallNode* op) final {
+    if ((op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) &&
+        !op->args.empty()) {
+      HandleLoadStoreToVariable(op->args[0].as_or_throw<Var>());
+    }
+    StmtExprVisitor::VisitExpr_(op);
+  }
   //@}
 
   /// Check if the value of a Variable comes from function argument.

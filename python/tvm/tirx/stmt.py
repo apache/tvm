@@ -288,11 +288,6 @@ class BufferStore(Stmt):
     indices : List[Expr]
         The indices location to be stored.
 
-    predicate : Optional[Expr]
-        A vector mask of boolean values indicating which lanes of a vector are to be
-        stored. The number lanes of the mask must be equal to the number of lanes in
-        value.
-
     span : Optional[Span]
         The location of the stmt in the source code.
     """
@@ -300,7 +295,6 @@ class BufferStore(Stmt):
     buffer: Buffer
     value: Expr
     indices: list[Expr]
-    predicate: Expr | None
     span: Span | None
 
     def __init__(
@@ -308,7 +302,6 @@ class BufferStore(Stmt):
         buffer: Buffer,
         value: Expr,
         indices: list[Expr],
-        predicate: Expr | None = None,
         span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
@@ -316,7 +309,6 @@ class BufferStore(Stmt):
             buffer,
             value,
             indices,
-            predicate,
             span,  # type: ignore
         )
 
