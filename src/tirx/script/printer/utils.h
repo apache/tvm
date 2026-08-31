@@ -123,6 +123,12 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
           if (load->buffer.same_as(buffer)) {
             found = true;
           }
+        } else if (const auto* call = node.as<CallNode>()) {
+          if (call->op.same_as(tirx::builtin::masked_load()) && !call->args.empty()) {
+            if (auto var = call->args[0].as<Var>(); var && var.value().same_as(buffer.var())) {
+              found = true;
+            }
+          }
         }
       });
       return found;

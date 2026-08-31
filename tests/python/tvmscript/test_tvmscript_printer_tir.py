@@ -1100,6 +1100,20 @@ def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32"))
     _assert_print(main, expected_output)
 
 
+def test_masked_load_prevents_scalar_allocation_init_fusion():
+    from tvm.script import tirx as T
+
+    @T.prim_func(s_tir=True)
+    def main():
+        A = T.alloc_buffer((1,), "float32x4")
+        A[0] = T.masked_load("float32x4", A, 0, T.Broadcast(T.bool(True), 4))
+
+    source = main.script()
+    assert "A = T.alloc_buffer" in source
+    assert "A[0] = T.masked_load" in source
+    tvm.ir.assert_structural_equal(tvm.script.from_source(source), main)
+
+
 def test_vload_with_explicit_scalable_data_type():
     from tvm.script import tirx as T
 
