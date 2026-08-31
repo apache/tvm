@@ -288,11 +288,9 @@ class ComputeLegalizer : public StmtExprMutator {
         return Call(type, op->op, args, op->attrs, op->ty_args, op->span);
       }
       if (MatchType(buffer->dtype)) {
-        int index_lanes = indices.empty() ? 1 : indices.back().ty().lanes();
-        PrimType legalized_dtype = buffer->dtype.WithLanes(index_lanes * buffer->dtype.lanes());
-        value = CastTargetToDType(value, legalized_dtype);
+        value = CastTargetToDType(value, BufferLoad(buffer, indices).ty());
       }
-      PrimType storage_dtype = buffer->dtype.WithLanes(value.ty().lanes());
+      PrimType storage_dtype = BufferLoad(buffer, indices).ty();
       if (value.ty() != storage_dtype) {
         TVM_FFI_ICHECK(MatchType(value.ty()));
         value = DTypeConversion(value, storage_dtype);
@@ -408,12 +406,9 @@ class ComputeLegalizer : public StmtExprMutator {
       return ffi::GetRef<Stmt>(op);
     } else {
       if (MatchType(new_buf->dtype)) {
-        int index_lanes = indices.size() ? indices.back().ty().lanes() : 1;
-        int buffer_lanes = new_buf->dtype.lanes();
-        PrimType legalized_dtype = new_buf->dtype.WithLanes(index_lanes * buffer_lanes);
-        value = CastTargetToDType(value, legalized_dtype);
+        value = CastTargetToDType(value, BufferLoad(new_buf, indices).ty());
       }
-      PrimType storage_dtype = new_buf->dtype.WithLanes(value.ty().lanes());
+      PrimType storage_dtype = BufferLoad(new_buf, indices).ty();
       if (value.ty() != storage_dtype) {
         // this happens when buffer get rewritten to f32
         // but values remain as fp8/bf16
