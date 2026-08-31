@@ -22,6 +22,7 @@ from collections.abc import Callable
 import tvm
 import tvm.tirx.operator as tirx_op
 from tvm.ir import Op
+from tvm.ir.expr import _realize_operand
 from tvm.tirx import Buffer, BufferRegion, Expr, LambdaExpr, buffer_data, is_buffer_var
 from tvm.tirx.exec_scope import _SCOPE_KIND_TO_NAME, ExecScope
 from tvm.tirx.expr import FloatImm, IntImm
@@ -123,16 +124,14 @@ thread = ScopeNamespace("thread", "thread")
 
 
 def _is_buffer_or_region(x):
-    if isinstance(x, tvm.ir.SubscriptProxy):
-        x = x.to_expr()
+    x = _realize_operand(x)
     return is_buffer_var(x) or isinstance(x, BufferRegion)
 
 
 def _to_region(buffer: BufferRegion | Buffer):
-    if isinstance(buffer, tvm.ir.SubscriptProxy):
-        buffer = buffer.to_expr()
+    buffer = _realize_operand(buffer)
     if is_buffer_var(buffer):
-        return buffer[tuple(slice(None) for _ in buffer.ty.shape)].to_expr()
+        return _realize_operand(buffer[tuple(slice(None) for _ in buffer.ty.shape)])
     assert isinstance(buffer, BufferRegion)
     return buffer
 

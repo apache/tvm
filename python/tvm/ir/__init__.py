@@ -37,6 +37,7 @@ from .type import FuncType, OpaqueType, PointerType, PrimType, TupleType, Type
 from .expr import (
     Call,
     Expr,
+    ExprOperand,
     GlobalVar,
     OpaqueExpr,
     Range,

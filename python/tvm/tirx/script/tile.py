@@ -18,7 +18,7 @@
 
 import functools
 
-from tvm.ir import SubscriptProxy
+from tvm.ir.expr import _realize_operand
 from tvm.tirx import BufferRegion, is_buffer_var
 
 from .builder import tirx as _builder
@@ -31,8 +31,7 @@ def _get_arg(args, kwargs, index, name):
 
 
 def _require_buffer_arg(op_name, arg_name, value):
-    if isinstance(value, SubscriptProxy):
-        value = value.to_expr()
+    value = _realize_operand(value)
     if not (is_buffer_var(value) or isinstance(value, BufferRegion)):
         raise TypeError(
             f"Tx.{op_name} is tile-only and expects `{arg_name}` to be a Buffer "

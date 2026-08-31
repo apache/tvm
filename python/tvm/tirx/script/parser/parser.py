@@ -24,6 +24,7 @@ from typing import Any, TypeVar
 
 import tvm
 from tvm.ir import Expr, GlobalVar, PointerType, PrimType, TensorLoad
+from tvm.ir.expr import _realize_operand
 from tvm.script.ir_builder import ir as I
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.base import IRBuilderFrame as Frame
@@ -221,8 +222,7 @@ def bind_assign_value(
     res : Any
         The bound value.
     """
-    if isinstance(value, tvm.ir.SubscriptProxy):
-        value = value.to_expr()
+    value = _realize_operand(value)
     if var_name in (prim_var_declarations or set()):
         # A quoted Buffer shape may have already created this PrimVar.  In that
         # case ``n = T.int32()`` is match-like syntax: bind the Python name to
