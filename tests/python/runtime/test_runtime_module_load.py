@@ -45,8 +45,7 @@ print("Finish runtime checking...")
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
-@pytest.mark.parametrize("target", ["llvm", {"kind": "llvm", "jit": "orcjit"}])
-def test_dso_module_load(target):
+def test_dso_module_load():
     dtype = "int64"
     temp = utils.tempdir()
 
@@ -65,7 +64,7 @@ def test_dso_module_load(target):
         mod = tvm.IRModule.from_expr(
             tvm.tirx.PrimFunc([Ab], stmt).with_attr("global_symbol", "main")
         )
-        m = tvm.tirx.build(mod, target=target)
+        m = tvm.tirx.build(mod, target="llvm")
         for name in names:
             m.write_to_file(name)
 

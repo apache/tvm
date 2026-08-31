@@ -97,11 +97,6 @@ def test_target_llvm_options():
     )
 
 
-def test_target_llvm_jit_options():
-    target = tvm.target.Target({"kind": "llvm", "jit": "orcjit"})
-    assert target.attrs["jit"] == "orcjit"
-
-
 def test_target_llvm_vector_width():
     target = tvm.target.Target({"kind": "llvm", "vector-width": 256})
     assert target.attrs["vector-width"] == 256

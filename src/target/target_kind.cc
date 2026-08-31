@@ -131,8 +131,6 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<int64_t>("opt-level")
     // LLVM command line flags, see below
     .add_attr_option<ffi::Array<ffi::String>>("cl-opt")
-    // LLVM JIT engine mcjit/orcjit
-    .add_attr_option<ffi::String>("jit")
     // TVM & LLVM custom vector bit width
     .add_attr_option<int64_t>("vector-width")
     .set_default_keys({"cpu"})

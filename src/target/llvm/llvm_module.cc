@@ -104,7 +104,10 @@ class LLVMModuleNode final : public ffi::ModuleObj {
 
   // The LLVM scope object.
   std::unique_ptr<LLVMInstance> llvm_instance_;
-  // The package-owned JITDylib, initialized lazily from the retained LLVM module.
+  // JIT execution is provided by the separately installed apache-tvm-ffi-orcjit package. TVM
+  // only emits the retained LLVM module as object-file bytes and transfers them to the package.
+  // Dropping this reference releases the package JITDylib; a returned package Function retains
+  // that dylib independently when the function outlives this LLVMModule.
   ffi::Optional<ffi::Module> tvm_ffi_orcjit_module_;
   // The retained module IR used for inspection and object emission.
   std::unique_ptr<llvm::Module> module_;

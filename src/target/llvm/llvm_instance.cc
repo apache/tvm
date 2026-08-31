@@ -262,19 +262,6 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
     }
   }
 
-  // LLVM JIT engine options
-  if (const auto& v =
-          target.Get("jit").value_or(nullptr).as_or_throw<ffi::Optional<ffi::String>>()) {
-    ffi::String value = v.value();
-    if (value == "mcjit") {
-      TVM_FFI_THROW(InternalError) << "LLVM MCJIT has been removed; use the `orcjit` JIT engine.";
-    }
-    if (value != "orcjit") {
-      TVM_FFI_THROW(InternalError)
-          << "invalid jit option " << value << " (the only supported value is `orcjit`).";
-    }
-  }
-
   // TVM & LLVM vector width options
   if (const auto& w =
           target.Get("vector-width").value_or(nullptr).as_or_throw<ffi::Optional<int64_t>>()) {
