@@ -375,8 +375,7 @@ BufferVar BufferVar::GetFlattenedBuffer() const {
   }
 }
 
-PrimExpr BufferVar::vload(ffi::Array<PrimExpr> begin, PrimType value_dtype,
-                          ffi::Optional<PrimExpr> predicate) const {
+PrimExpr BufferVar::vload(ffi::Array<PrimExpr> begin, PrimType value_dtype) const {
   const BufferTypeNode* n = operator->();
   TVM_FFI_ICHECK(n != nullptr);
   PrimType buffer_dtype(n->dtype);
@@ -397,11 +396,10 @@ PrimExpr BufferVar::vload(ffi::Array<PrimExpr> begin, PrimType value_dtype,
       indices.Set(indices.size() - 1, Ramp(base, 1, factor));
     }
   }
-  return BufferLoad(*this, indices, predicate);
+  return BufferLoad(*this, indices);
 }
 
-Stmt BufferVar::vstore(ffi::Array<PrimExpr> begin, PrimExpr value,
-                       ffi::Optional<PrimExpr> predicate) const {
+Stmt BufferVar::vstore(ffi::Array<PrimExpr> begin, PrimExpr value) const {
   const BufferTypeNode* n = operator->();
   TVM_FFI_ICHECK(n != nullptr);
   PrimType value_dtype = value.ty();
@@ -423,7 +421,7 @@ Stmt BufferVar::vstore(ffi::Array<PrimExpr> begin, PrimExpr value,
       indices.Set(indices.size() - 1, Ramp(base, 1, factor));
     }
   }
-  return BufferStore(*this, value, indices, predicate);
+  return BufferStore(*this, value, indices);
 }
 
 ffi::String BufferVar::scope() const { return (*this)->storage_scope; }
@@ -581,10 +579,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("tirx.BufferGetFlattenedBuffer", &BufferVar::GetFlattenedBuffer)
       .def_method("tirx.BufferOffsetOf", &BufferVar::OffsetOf)
       .def_method("tirx.BufferOffsetOfp", &BufferVar::OffsetOf_p)
-      .def_method(
-          "tirx.BufferVLoad",
-          static_cast<PrimExpr (BufferVar::*)(ffi::Array<PrimExpr>, PrimType,
-                                              ffi::Optional<PrimExpr>) const>(&BufferVar::vload))
+      .def_method("tirx.BufferVLoad", &BufferVar::vload)
       .def_method("tirx.BufferVStore", &BufferVar::vstore)
       .def_method("tirx.BufferStorageScope", &BufferVar::scope)
       .def_method("tirx.BufferWithAllocatedAddr", &BufferVar::with_allocated_addr)

@@ -784,8 +784,7 @@ Var EnvThread(ffi::String thread_tag, PrimType dtype) {
   return var;
 }
 
-void BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
-                 ffi::Optional<PrimExpr> predicate = std::nullopt) {
+void BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices) {
   PrimType buffer_dtype = buffer->dtype;
   PrimType index_ty = indices.empty() ? PrimType::Int(32) : indices.back().ty();
   bool is_index_scalable = !indices.empty() && index_ty.IsScalableVector();
@@ -833,7 +832,7 @@ void BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
     }
     value = tvm::cast(lhs_dtype, value);
   }
-  tvm::tirx::BufferStore store(buffer, value, indices, predicate);
+  tvm::tirx::Stmt store = tvm::tirx::BufferStore(buffer, value, indices);
   if (lhs_dtype != rhs_dtype) {
     if (lhs_dtype.code() != rhs_dtype.code()) {
       if ((lhs_dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) &&

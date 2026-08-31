@@ -1044,7 +1044,7 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
         # Ignore docstrings
         pass
     elif isinstance(res, tvm.tirx.stmt.BufferStore):
-        T.buffer_store(res.buffer, res.value, res.indices, res.predicate)
+        T.buffer_store(res.buffer, res.value, res.indices)
     elif is_buffer_var(res):
         # ``T.match_buffer(...)`` used as a bare statement (no LHS) — the
         # buffer object is discarded; the underlying side effect (the

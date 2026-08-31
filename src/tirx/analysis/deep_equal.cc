@@ -142,8 +142,7 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExp
     const auto* prhs = rhs.as<BufferLoadNode>();
     // we run pointer comparison of the buffer
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
-           plhs->buffer.same_as(prhs->buffer) && ArrayDeepEqual(plhs->indices, prhs->indices) &&
-           OptionalDeepEqual(plhs->predicate, prhs->predicate);
+           plhs->buffer.same_as(prhs->buffer) && ArrayDeepEqual(plhs->indices, prhs->indices);
   }
 
   bool VisitExpr_(const LetNode* plhs, const PrimExpr& rhs) final {

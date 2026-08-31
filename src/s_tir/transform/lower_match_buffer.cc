@@ -63,7 +63,7 @@ class MatchBufferLower : public StmtExprMutator {
     for (const auto& kv : match_buffers_) {
       orig_buffers.push_back(kv.first);
     }
-    Stmt stmt = StmtExprMutator ::VisitStmt_(op);
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     // Add remapped buffer keys to match_buffers_
     for (const BufferVar& orig_buf : orig_buffers) {
       if (auto remap_it = buffer_remap_.find(orig_buf); remap_it != buffer_remap_.end()) {
@@ -107,6 +107,14 @@ class MatchBufferLower : public StmtExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
+    if ((op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) &&
+        !op->args.empty()) {
+      if (auto var = op->args[0].as<Var>(); var && var.value()->ty.as<BufferTypeNode>()) {
+        BufferVar buffer(var.value());
+        TVM_FFI_ICHECK(!match_buffers_.count(buffer))
+            << "Predicated buffer access is not currently supported in lower match buffer pass.";
+      }
+    }
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
@@ -137,8 +145,6 @@ class MatchBufferLower : public StmtExprMutator {
       auto n = CopyOnWrite(op);
       n->indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
       n->buffer = source->buffer;
-      TVM_FFI_ICHECK(!op->predicate.has_value())
-          << "Predicated buffer store is not currently supported in lower match buffer pass.";
       return Stmt(n);
     }
   }
@@ -157,8 +163,6 @@ class MatchBufferLower : public StmtExprMutator {
       const BufferVar& buffer = (*it).first;
       const BufferRegion& source = (*it).second;
       ffi::Array<PrimExpr> indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
-      TVM_FFI_ICHECK(!op->predicate.has_value())
-          << "Predicated buffer load is not currently supported in lower match buffer pass.";
       return BufferLoad(source->buffer, indices);
     }
   }

@@ -210,6 +210,34 @@ void BlockReadWriteDetector::VisitStmt_(const BindNode* op) {
 }
 
 void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
+  auto update_masked_access = [this](const BufferVar& buffer, const ffi::Array<PrimExpr>& indices,
+                                     std::vector<BufferVar>* buffers,
+                                     std::vector<std::vector<arith::IntSet>>* regions) {
+    std::vector<arith::IntSet> relaxed_region;
+    for (PrimExpr index : indices) {
+      PrimExpr remapped_index = Substitute(index, let_bindings_);
+      while (!remapped_index.same_as(index)) {
+        index = remapped_index;
+        remapped_index = Substitute(index, let_bindings_);
+      }
+      relaxed_region.push_back(arith::EvalSet(arith::IntSet::Vector(remapped_index), dom_map_));
+    }
+    Update(buffers, regions, buffer, relaxed_region);
+  };
+  if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
+    bool is_load = op->op.same_as(builtin::masked_load());
+    BufferVar buffer(op->args[0].as_or_throw<Var>());
+    ffi::Array<PrimExpr> indices;
+    for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
+      indices.push_back(op->args[i].as_or_throw<PrimExpr>());
+    }
+    update_masked_access(buffer, indices, is_load ? &read_buffers_ : &writes_buffers_,
+                         is_load ? &read_regions_ : &write_regions_);
+    for (size_t i = 1; i < op->args.size(); ++i) {
+      VisitExpr(op->args[i]);
+    }
+    return;
+  }
   if (op->op.same_as(builtin::tvm_access_ptr())) {
     const VarNode* buffer_var = op->args[1].as<VarNode>();
     if (const auto* data = op->args[1].as<CallNode>();

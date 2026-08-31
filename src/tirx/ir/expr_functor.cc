@@ -124,7 +124,7 @@ Expr ExprMutator::VisitExpr_(const BufferLoadNode* op) {
   if (indices.same_as(op->indices)) {
     return ffi::GetRef<PrimExpr>(op);
   } else {
-    return BufferLoad(op->buffer, indices, op->predicate);
+    return BufferLoad(op->buffer, indices);
   }
 }
 

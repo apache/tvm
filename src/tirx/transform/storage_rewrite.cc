@@ -145,20 +145,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     scope_.push_back(StmtEntry());
     // visit subexpr
     StmtExprVisitor::VisitStmt_(op);
-    // Add write access.
-    const VarNode* buffer_var =
-        buffer_aliases_.Get(op->buffer.var()).value_or(op->buffer.var()).get();
-    auto it = alloc_info_.find(buffer_var);
-    if (it != alloc_info_.end() && it->second.alloc) {
-      TVM_FFI_ICHECK_LT(it->second.level, scope_.size());
-      scope_[it->second.level].touched.push_back(buffer_var);
-
-      TVM_FFI_ICHECK_EQ(1, it->second.num_physical_dimensions)
-          << "BufferVar " << op->buffer.name() << " is allocated with "
-          << it->second.num_physical_dimensions
-          << " physical dimensions, but is accessed as having "
-          << "1 physical dimension" << std::endl;
-    }
+    RecordAccess(op->buffer);
     StmtEntry e = scope_.back();
     scope_.pop_back();
     if (e.touched.size() != 0) {
@@ -168,23 +155,8 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    // Add write access.
     StmtExprVisitor::VisitExpr_(op);
-
-    const VarNode* buffer_var =
-        buffer_aliases_.Get(op->buffer.var()).value_or(op->buffer.var()).get();
-    auto it = alloc_info_.find(buffer_var);
-    if (it != alloc_info_.end() && it->second.alloc) {
-      TVM_FFI_ICHECK_LT(it->second.level, scope_.size())
-          << "Load memory in places other than store.";
-      scope_[it->second.level].touched.push_back(buffer_var);
-
-      TVM_FFI_ICHECK_EQ(1, it->second.num_physical_dimensions)
-          << "BufferVar " << op->buffer.name() << " is allocated with "
-          << it->second.num_physical_dimensions
-          << " physical dimensions, but is accessed as having "
-          << "1 physical dimension" << std::endl;
-    }
+    RecordAccess(op->buffer);
   }
 
   void VisitStmt_(const EvaluateNode* op) final {
@@ -277,6 +249,19 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       e.stmt = op;
       linear_seq_.push_back(e);
     }
+  }
+
+  void RecordAccess(const BufferVar& buffer) {
+    const VarNode* buffer_var = buffer_aliases_.Get(buffer.var()).value_or(buffer.var()).get();
+    auto it = alloc_info_.find(buffer_var);
+    if (it == alloc_info_.end() || !it->second.alloc) return;
+    TVM_FFI_ICHECK_LT(it->second.level, scope_.size())
+        << "Buffer access occurs outside a statement scope.";
+    scope_[it->second.level].touched.push_back(buffer_var);
+    TVM_FFI_ICHECK_EQ(1, it->second.num_physical_dimensions)
+        << "BufferVar " << buffer.name() << " is allocated with "
+        << it->second.num_physical_dimensions << " physical dimensions, but is accessed as having "
+        << "1 physical dimension" << std::endl;
   }
 
   // linearized access sequence.
@@ -549,7 +534,31 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
   Expr VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::tvm_access_ptr())) {
+    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
+      bool is_load = op->op.same_as(builtin::masked_load());
+      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      PrimExpr value;
+      if (!is_load) value = this->VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>());
+      ffi::Array<PrimExpr> indices;
+      for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
+        indices.push_back(this->VisitPrimExpr(op->args[i].as_or_throw<PrimExpr>()));
+      }
+      if (is_load) {
+        BufferLoad access(buffer, indices, op->span);
+        access = VisitBufferAccess(std::move(access));
+        ffi::Array<Expr> args{access->buffer.var()};
+        for (const PrimExpr& index : access->indices) args.push_back(index);
+        args.push_back(this->VisitExpr(op->args.back()));
+        return Call(access->ty, op->op, args, op->attrs, op->ty_args, op->span);
+      } else {
+        BufferStore access(buffer, value, indices, op->span);
+        access = VisitBufferAccess(std::move(access));
+        ffi::Array<Expr> args{access->buffer.var(), access->value};
+        for (const PrimExpr& index : access->indices) args.push_back(index);
+        args.push_back(this->VisitExpr(op->args.back()));
+        return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
+      }
+    } else if (op->op.same_as(builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       PrimExpr dtype_marker = op->args[0].as_or_throw<PrimExpr>();
       PrimType dtype = dtype_marker.ty();
@@ -1311,7 +1320,17 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::tvm_access_ptr())) {
+    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
+      bool is_load = op->op.same_as(builtin::masked_load());
+      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      PrimType dtype =
+          is_load ? op->ty.as_or_throw<PrimType>() : op->args[1].as_or_throw<PrimExpr>().ty();
+      ffi::Array<PrimExpr> indices;
+      for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
+        indices.push_back(op->args[i].as_or_throw<PrimExpr>());
+      }
+      OnArrayAccess(dtype, buffer.get(), indices, is_load);
+    } else if (op->op.same_as(builtin::tvm_access_ptr())) {
       PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
       auto buffer_var = GetBufferDataVar(op->args[1]);
       PrimExpr index = op->args[2].as_or_throw<PrimExpr>();
@@ -1699,6 +1718,42 @@ class VectorTypeRewriter : public StmtExprMutator {
     return modified;
   }
 
+  ffi::Optional<Expr> RewriteMaskedCall(const CallNode* op) {
+    if (op->op.same_as(builtin::masked_load())) {
+      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      ffi::Array<PrimExpr> indices;
+      for (size_t i = 1; i + 1 < op->args.size(); ++i) {
+        indices.push_back(this->VisitPrimExpr(op->args[i].as_or_throw<PrimExpr>()));
+      }
+      BufferLoad access(buffer, indices, op->span);
+      auto [modified, shuffle_index] = VisitBufferAccess(access);
+      TVM_FFI_ICHECK_LT(shuffle_index, 0)
+          << "A masked vector load cannot be rewritten into a scalar shuffle.";
+      if (!modified.same_as(access)) modified.CopyOnWrite()->LegalizeDType();
+      ffi::Array<Expr> args{modified->buffer.var()};
+      for (const PrimExpr& index : modified->indices) args.push_back(index);
+      args.push_back(this->VisitExpr(op->args.back()));
+      return Call(modified->ty, op->op, args, op->attrs, op->ty_args, op->span);
+    }
+    if (op->op.same_as(builtin::masked_store())) {
+      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      PrimExpr value = this->VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>());
+      ffi::Array<PrimExpr> indices;
+      for (size_t i = 2; i + 1 < op->args.size(); ++i) {
+        indices.push_back(this->VisitPrimExpr(op->args[i].as_or_throw<PrimExpr>()));
+      }
+      BufferStore access(buffer, value, indices, op->span);
+      auto [modified, shuffle_index] = VisitBufferAccess(std::move(access));
+      TVM_FFI_ICHECK_LT(shuffle_index, 0)
+          << "A masked vector store cannot be rewritten into a scalar shuffle.";
+      ffi::Array<Expr> args{modified->buffer.var(), modified->value};
+      for (const PrimExpr& index : modified->indices) args.push_back(index);
+      args.push_back(this->VisitExpr(op->args.back()));
+      return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
+    }
+    return std::nullopt;
+  }
+
   Stmt VisitStmt_(const BindNode* op) final {
     auto it = rewrite_map_.find(op->var.get());
     Expr value = this->VisitExpr(op->value);
@@ -1764,6 +1819,9 @@ class VectorTypeRewriter : public StmtExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
+    if (auto rewritten = RewriteMaskedCall(op)) {
+      return rewritten.value();
+    }
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<BufferTypeNode>()) {

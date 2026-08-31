@@ -292,8 +292,6 @@ class StmtVisitor(StmtFunctor):
         """Visitor implementation for BufferStore."""
         self.visit_expr(op.value)
         _visit_array(op.indices, lambda x: self.visit_expr(x))
-        if op.predicate is not None:
-            self.visit_expr(op.predicate)
 
     def visit_assert_(self, op):
         """Visitor implementation for AssertStmt."""
@@ -546,14 +544,12 @@ class StmtMutator(StmtFunctor):
         """Mutator implementation for BufferStore."""
         value = self.visit_expr(op.value)
         indices = [self.visit_expr(idx) for idx in op.indices]
-        predicate = self.visit_expr(op.predicate) if op.predicate is not None else None
-
         indices_changed = any(old is not new for old, new in zip(op.indices, indices))
 
-        if value is op.value and not indices_changed and predicate is op.predicate:
+        if value is op.value and not indices_changed:
             return op
 
-        return tvm.tirx.BufferStore(op.buffer, value, indices, predicate, op.span)
+        return tvm.tirx.BufferStore(op.buffer, value, indices, op.span)
 
     def visit_buffer_realize_(self, op):
         """Mutator implementation for BufferRealize."""

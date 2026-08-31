@@ -771,6 +771,22 @@ TVM_DLL const Op& vscale();
  */
 TVM_DLL const Op& get_active_lane_mask();
 
+/*!
+ * \brief Masked buffer load.
+ *
+ * Arguments are the buffer variable, one or more indices, and a trailing boolean lane mask.
+ * The result type is the vector type loaded from the selected lanes.
+ */
+TVM_DLL const Op& masked_load();
+
+/*!
+ * \brief Masked buffer store.
+ *
+ * Arguments are the buffer variable, value, one or more indices, and a trailing boolean lane
+ * mask. The result type is void.
+ */
+TVM_DLL const Op& masked_store();
+
 /*! \brief Annotate a predicate not be considered as target condition of loop partition. */
 TVM_DLL const Op& ignore_loop_partition();
 /*!

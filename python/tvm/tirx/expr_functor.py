@@ -472,7 +472,7 @@ class ExprMutator(ExprFunctor):
         if all(old_index is new_index for old_index, new_index in zip(op.indices, indices)):
             return op
         else:
-            return tvm.tirx.BufferLoad(op.buffer, indices, op.predicate)
+            return tvm.tirx.BufferLoad(op.buffer, indices)
 
     def visit_opaque_expr_(self, op):
         """Mutator implementation for an opaque construction-time expression."""

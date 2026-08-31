@@ -363,6 +363,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
       std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                        llvm::Value* predicate, int alignment, bool is_volatile)>
           make_instruction);
+  llvm::Value* CreateMaskedLoad(const CallNode* op);
+  llvm::Value* CreateMaskedStore(const CallNode* op);
   const VarNode* GetBufferPhysicalRoot(const VarNode* buffer) const;
   // Initialize target
   virtual void InitTarget();

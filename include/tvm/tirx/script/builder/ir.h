@@ -498,11 +498,8 @@ Var EnvThread(ffi::String thread_tag, PrimType dtype = PrimType::Int(32));
  * \param buffer The buffer.
  * \param value The value to be stored.
  * \param indices The indices location to be stored.
- * \param predicate A vector mask of boolean values indicating which lanes of a vector are to be
- * stored. The number lanes of the mask must be equal to the number of lanes in value.
  */
-void BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
-                 ffi::Optional<PrimExpr> predicate);
+void BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices);
 
 /*!
  * \brief Evaluate the input expression.

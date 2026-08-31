@@ -207,16 +207,13 @@ class BufferStoreNode : public StmtNode {
   PrimExpr value;
   /*! \brief The indices location to be stored. */
   ffi::Array<PrimExpr> indices;
-  /*! \brief The predicate mask for storing values. */
-  ffi::Optional<PrimExpr> predicate;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BufferStoreNode>()
         .def_ro("buffer", &BufferStoreNode::buffer, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("value", &BufferStoreNode::value)
-        .def_ro("indices", &BufferStoreNode::indices)
-        .def_ro("predicate", &BufferStoreNode::predicate);
+        .def_ro("indices", &BufferStoreNode::indices);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferStore", BufferStoreNode, StmtNode);
 };
@@ -228,7 +225,6 @@ class BufferStoreNode : public StmtNode {
 class BufferStore : public Stmt {
  public:
   TVM_DLL explicit BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
-                               ffi::Optional<PrimExpr> predicate = std::nullopt,
                                Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferStore, Stmt, BufferStoreNode);

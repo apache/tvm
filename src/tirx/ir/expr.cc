@@ -748,38 +748,15 @@ void BufferLoadNode::LegalizeDType() {
   }
 }
 
-BufferLoad::BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices,
-                       ffi::Optional<PrimExpr> predicate, Span span) {
+BufferLoad::BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices, Span span) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
       << "BufferVar " << buffer.name() << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
       << "-dimensional indices provided.";
 
-  if (predicate.has_value()) {
-    PrimType predicate_ty = predicate.value().ty();
-    bool is_index_scalable = indices.empty() ? false : indices.back().ty().IsScalableVector();
-    bool is_predicate_scalable = predicate_ty.IsScalableVector();
-    TVM_FFI_ICHECK_EQ(is_index_scalable, is_predicate_scalable)
-        << "Predicate mask dtype and load indices must both be scalable.";
-
-    int16_t buffer_encoded_lanes = static_cast<int16_t>(buffer->dtype->dtype.lanes);
-    int buffer_lanes = buffer_encoded_lanes < -1 ? -buffer_encoded_lanes : buffer_encoded_lanes;
-    int index_lanes = indices.empty() ? 1 : GetLanesOrVScaleFactor(indices.back().ty());
-    int predicate_lanes = GetLanesOrVScaleFactor(predicate_ty);
-    TVM_FFI_ICHECK_EQ(index_lanes * buffer_lanes, predicate_lanes)
-        << "Got a predicate mask with " << predicate_lanes
-        << " lanes, but trying to load a vector with " << index_lanes
-        << " lanes. The number of lanes must match.";
-
-    TVM_FFI_ICHECK(predicate_ty.MatchesCode(DLDataTypeCode::kDLBool) ||
-                   predicate_ty.MatchesElementType(DLDataTypeCode::kDLUInt, 1))
-        << "Predicate mask elements must be boolean values, but got " << predicate_ty->dtype << ".";
-  }
-
   ffi::ObjectPtr<BufferLoadNode> node = ffi::make_object<BufferLoadNode>();
   node->buffer = std::move(buffer);
   node->indices = std::move(indices);
-  node->predicate = std::move(predicate);
   node->span = std::move(span);
   node->LegalizeDType();
   data_ = std::move(node);
@@ -787,10 +764,10 @@ BufferLoad::BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.BufferLoad", [](BufferVar buffer, ffi::Array<PrimExpr> indices,
-                                              ffi::Optional<PrimExpr> predicate, Span span) {
-    return BufferLoad(buffer, indices, predicate, span);
-  });
+  refl::GlobalDef().def("tirx.BufferLoad",
+                        [](BufferVar buffer, ffi::Array<PrimExpr> indices, Span span) {
+                          return BufferLoad(buffer, indices, span);
+                        });
 }
 
 }  // namespace tirx
