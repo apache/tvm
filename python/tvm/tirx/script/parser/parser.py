@@ -644,7 +644,7 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         T.buffer_store(self.eval_expr(lhs.value), rhs, indices)
     else:
         # special case for scalar buffers
-        # scalar = xxx <=> scalar.buffer[()] = xxx
+        # scalar = xxx <=> scalar.source[()] = xxx
         # or for a normal 1-dim buffer with shape (1,)
         # buffer = xxx <=> buffer[()] = xxx
         # Try to resolve lhs as a buffer/scalar variable. eval_expr may raise

@@ -1462,7 +1462,7 @@ def test_lower_alloc_decl_buffer_outside_of_parser():
     def int_var1(val):
         buf = T.local_scalar("int32")
         if val is not None:
-            T.buffer_store(buf.buffer, val, 0)
+            T.buffer_store(buf.source, val, 0)
         return buf
 
     def int_var2(val):

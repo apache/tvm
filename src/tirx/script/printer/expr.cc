@@ -112,7 +112,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
         if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(buffer)) {
           // special case for scalar buffer
           if (buffer.IsScalar()) {
-            return doc.value()->Attr("buffer");
+            return doc.value()->Attr("source");
           }
           return doc.value();
         }

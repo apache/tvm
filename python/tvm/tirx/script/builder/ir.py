@@ -1986,11 +1986,6 @@ else:
         def __getattr__(self, name: str) -> Any:
             return getattr(self.scalar, name)
 
-        @property
-        def buffer(self) -> Buffer:
-            """The backing buffer used by this scalar wrapper."""
-            return self.scalar.source
-
         def __add__(self, other):
             return self.scalar + other
 

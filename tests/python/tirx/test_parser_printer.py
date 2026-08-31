@@ -743,7 +743,7 @@ def test_alloc_apis():
         def init(self):
             self.Ta = self.Ta + T.float16(1)
             self.Tb = self.Tb + T.float16(2)
-            self.idx.buffer[0] = T.int32(0)
+            self.idx.source[0] = T.int32(0)
             self.idx = self.idx + T.int32(1)
             self.inner_pool2 = self.inner_pool2 + T.float16(1)
             T.evaluate(T.address_of(self.Ta))
@@ -773,7 +773,7 @@ def test_alloc_apis():
         A[0] = C
         A[0] = C + D  # noqa: F821
         A[1] = B[0] * C
-        D.buffer[0] = D + T.float16(1)  # noqa: F821
+        D.source[0] = D + T.float16(1)  # noqa: F821
         D = D + T.float16(1)  # noqa: F821
         C = D
         T.evaluate(E)
@@ -784,14 +784,15 @@ def test_alloc_apis():
         C += D
         D += E + C + D
         T.evaluate(T.address_of(C))
-        T.evaluate(C.buffer.access_ptr("rw", offset=0))
-        T.evaluate(C.buffer.data)
+        T.evaluate(C.source.access_ptr("rw", offset=0))
+        T.evaluate(C.source.data)
         T.evaluate(D)
         T.evaluate(T.address_of(D))
         # fmt: on
 
     code = test.script()
     print(code)
+    assert ".buffer" not in code
     assert from_source(code).script() == code
 
 
@@ -2685,7 +2686,7 @@ def test_vector_annotation_with_python_variable_size():
 def test_roundtrip_tmem_decl_buffer():
     """DeclBuffer with tmem scope: data kwarg must be suppressed, allocated_addr
     must print as Expr (not Array), and scalar buffer index must not get
-    a .buffer suffix."""
+    a .source suffix."""
 
     # fmt: off
     @T.prim_func
