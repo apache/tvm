@@ -39,11 +39,15 @@ class Expr(Node):
             # Tuple subscription is eager so Python's legacy sequence protocol
             # observes IndexError and terminates tuple iteration/unpacking.
             try:
-                return SubscriptProxy(self, index).to_expr()
+                return _ffi_api.SubscriptExprRealize(self, [SubscriptProxy._convert_index(index)])
             except RuntimeError as err:
                 if "Index out of bounds" in err.args[0]:
                     raise IndexError from err
                 raise
+        if self.ty.is_missing():
+            # Preserve Relax's pre-normalization tuple access: operator calls
+            # have a missing result type until the block builder infers it.
+            return TupleGetItem(self, index)
         if is_prim_expr(self):
             raise TypeError("A primitive-valued expression cannot be indexed")
         return SubscriptProxy(self, index)
@@ -348,14 +352,12 @@ class ExprOperand:
         return _tensor_expr_overload.__ge__(self, other)
 
     def __nonzero__(self):
-        self = _realize_operand(self)
         raise ValueError(
             "Cannot use and / or / not operator to Expr, hint: use tvm.tirx.all / "
             "tvm.tirx.any, if it is None checking, use node is not None"
         )
 
     def __bool__(self):
-        self = _realize_operand(self)
         return self.__nonzero__()
 
     def equal(self, other, span=None):
@@ -397,7 +399,11 @@ class _ExprWithOp(ExprOperand, Expr, Scriptable):
 
 
 class SubscriptProxy(ExprOperand, ObjectConvertible):
-    """An immutable, lazily-realized subscription of an :class:`Expr`."""
+    """An immutable, lazily-realized subscription of an :class:`Expr`.
+
+    Point subscriptions may be chained to accumulate dimensions.  A proxy
+    containing a slice must be realized before applying a region subscript.
+    """
 
     __slots__ = ("_result", "_slice", "_source")
     __hash__ = object.__hash__
@@ -460,8 +466,7 @@ class SubscriptProxy(ExprOperand, ObjectConvertible):
         return self.to_expr().ty
 
     def same_as(self, other):
-        self, other = _realize_operand(self), _realize_operand(other)
-        return self.same_as(other)
+        return self.to_expr().same_as(_realize_operand(other))
 
     def __repr__(self):
         return f"SubscriptProxy({self._source!r}, {self._slice!r})"

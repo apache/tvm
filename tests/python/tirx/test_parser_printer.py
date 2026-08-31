@@ -2190,7 +2190,7 @@ def test_buffer_chunk_ir():
 
     # chunk((None, None, 2))[:, :, 1] narrows dim 2 (extent 16) to chunk 1 of 2
     # → [8:16] (k = 16 // 2 = 8); rank preserved, dims 0/1 pass through as ':'.
-    reg = A.chunk((None, None, 2))[:, :, 1].to_expr()
+    reg = A.chunk((None, None, 2))[:, :, 1]
     assert isinstance(reg, BufferRegion)
     assert len(reg.region) == 3  # rank-preserving: no extra extent-1 chunk dim
     assert (int(reg.region[2].min), int(reg.region[2].extent)) == (8, 8)
@@ -2203,7 +2203,7 @@ def test_buffer_chunk_ir():
 
     # chunk((None, 4))[:, 2] on the swizzle-carrying compose layout: dim 1
     # (extent 512) → chunk 2 of 4 → [256:384] (k = 128), byte-identical slice.
-    reg_c = C.chunk((None, 4))[:, 2].to_expr()
+    reg_c = C.chunk((None, 4))[:, 2]
     assert (int(reg_c.region[1].min), int(reg_c.region[1].extent)) == (256, 128)
     assert_structural_equal(reg_c, C[:, 256:384])
 
