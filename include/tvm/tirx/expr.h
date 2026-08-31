@@ -40,7 +40,6 @@
 #include <algorithm>
 #include <iostream>
 #include <limits>
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -585,22 +584,6 @@ class BufferLoad : public PrimExpr {
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferLoadNode);
 };
-
-/*! \brief Checked non-node view of a tirx.masked_load Call. */
-class MaskedBufferLoad {
- public:
-  TVM_DLL explicit MaskedBufferLoad(Call call);
-  TVM_DLL static std::optional<MaskedBufferLoad> TryMatch(const Expr& expr);
-
-  Call call;
-  BufferVar buffer;
-  ffi::Array<PrimExpr> indices;
-  PrimExpr predicate;
-};
-
-/*! \brief Construct a validated tirx.masked_load Call. */
-TVM_DLL PrimExpr MakeMaskedBufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices,
-                                      PrimExpr predicate, Span span = Span());
 
 /*!
  * \brief Construct a vector with lanes elements

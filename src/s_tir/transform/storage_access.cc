@@ -261,37 +261,23 @@ void StorageAccessVisitor::VisitStmt_(const WhileNode* op) {
 
 void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
   Call call = ffi::GetRef<Call>(op);
-  if (auto load = MaskedBufferLoad::TryMatch(call)) {
-    Var buf = ResolveBuffer(load->buffer.var());
-    StorageScope scope = StorageScope::Create(load->buffer.scope());
+  if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
+    bool is_load = op->op.same_as(builtin::masked_load());
+    BufferVar buffer(op->args[0].as_or_throw<Var>());
+    PrimType value_dtype =
+        is_load ? op->ty.as_or_throw<PrimType>() : op->args[1].as_or_throw<PrimExpr>().ty();
+    Var buf = ResolveBuffer(buffer.var());
+    StorageScope scope = StorageScope::Create(buffer.scope());
     if (Enabled(buf.get(), scope)) {
       TVM_FFI_ICHECK(allow_append_) << call << " " << scope.to_string();
       AccessEntry e;
       e.threads = env_threads();
       e.buffer = buf;
-      e.dtype = load->call->ty.as_or_throw<PrimType>().WithLanes(1);
-      for (const PrimExpr& index : load->indices) {
-        e.touched.push_back(arith::IntSet::Vector(index));
+      e.dtype = value_dtype.WithLanes(1);
+      for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
+        e.touched.push_back(arith::IntSet::Vector(op->args[i].as_or_throw<PrimExpr>()));
       }
-      e.type = kRead;
-      e.scope = scope;
-      curr_stmt_.access.emplace_back(std::move(e));
-    }
-    StmtExprVisitor::VisitExpr_(op);
-  } else if (op->op.same_as(builtin::masked_store())) {
-    MaskedBufferStore store(call);
-    Var buf = ResolveBuffer(store.buffer.var());
-    StorageScope scope = StorageScope::Create(store.buffer.scope());
-    if (Enabled(buf.get(), scope)) {
-      TVM_FFI_ICHECK(allow_append_) << call << " " << scope.to_string();
-      AccessEntry e;
-      e.threads = env_threads();
-      e.buffer = buf;
-      e.dtype = store.value.ty().WithLanes(1);
-      for (const PrimExpr& index : store.indices) {
-        e.touched.push_back(arith::IntSet::Vector(index));
-      }
-      e.type = kWrite;
+      e.type = is_load ? kRead : kWrite;
       e.scope = scope;
       curr_stmt_.access.emplace_back(std::move(e));
     }

@@ -117,15 +117,25 @@ def test_bf16_masked_load_store_will_legalize():
                 B = T.decl_buffer((16,), "bfloat16")
                 C = T.decl_buffer((16,), "bfloat16", data=Cptr)
                 mask = T.Broadcast(T.bool(True), 4)
-                B.vstore(
-                    [T.Ramp(0, 1, 4)],
-                    A.vload([T.Ramp(0, 1, 4)], predicate=mask),
-                    predicate=mask,
+                T.evaluate(
+                    T.call_intrin(
+                        "void",
+                        "tirx.masked_store",
+                        B,
+                        T.call_intrin("bfloat16x4", "tirx.masked_load", A, T.Ramp(0, 1, 4), mask),
+                        T.Ramp(0, 1, 4),
+                        mask,
+                    )
                 )
-                C.vstore(
-                    [T.Ramp(0, 1, 4)],
-                    B.vload([T.Ramp(0, 1, 4)], predicate=mask),
-                    predicate=mask,
+                T.evaluate(
+                    T.call_intrin(
+                        "void",
+                        "tirx.masked_store",
+                        C,
+                        T.call_intrin("bfloat16x4", "tirx.masked_load", B, T.Ramp(0, 1, 4), mask),
+                        T.Ramp(0, 1, 4),
+                        mask,
+                    )
                 )
 
         return Before

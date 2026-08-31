@@ -158,8 +158,10 @@ bool EnableBufferLevelPredication(Target target) {
  * After:
  * for i_0 in T.serial(4):
  *  predicate = T.get_active_lane_mask("uint1x4", i_0 * 4, 14)
- *  A_load = T.meta_var(A.vload([T.Ramp(i_0 * 4, 1, 4)], predicate=predicate))
- *  B.vstore([T.Ramp(i_0 * 4, 1, 4)], A_load, predicate=predicate)
+ *  A_load = T.meta_var(T.call_intrin("float32x4", "tirx.masked_load", A,
+ *                                    T.Ramp(i_0 * 4, 1, 4), predicate))
+ *  T.evaluate(T.call_intrin("void", "tirx.masked_store", B, A_load,
+ *                           T.Ramp(i_0 * 4, 1, 4), predicate))
  */
 class TryPredicateBufferAccesses : public StmtExprMutator {
  public:
@@ -252,15 +254,21 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
 
   Expr TryPredicateBufferAccess(BufferLoad load) {
     if (auto mask = GetLaneMask(load->indices)) {
-      return MakeMaskedBufferLoad(load->buffer, load->indices, mask.value(), load->span);
+      ffi::Array<Expr> args{load->buffer.var()};
+      for (const PrimExpr& index : load->indices) args.push_back(index);
+      args.push_back(mask.value());
+      return Call(load->ty, builtin::masked_load(), args, {}, {}, load->span);
     }
     return load;
   }
 
   Stmt TryPredicateBufferAccess(BufferStore store) {
     if (auto mask = GetLaneMask(store->indices)) {
-      return MakeMaskedBufferStore(store->buffer, store->value, store->indices, mask.value(),
-                                   store->span);
+      ffi::Array<Expr> args{store->buffer.var(), store->value};
+      for (const PrimExpr& index : store->indices) args.push_back(index);
+      args.push_back(mask.value());
+      return Evaluate(Call(PrimType::Void(), builtin::masked_store(), args, {}, {}, store->span),
+                      store->span);
     }
     return store;
   }

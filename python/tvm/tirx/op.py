@@ -3003,6 +3003,16 @@ def get_active_lane_mask(dtype, base, limit):
     return call_intrin(dtype, "tirx.get_active_lane_mask", base, limit)
 
 
+def masked_load(dtype, buffer, *indices_and_mask):
+    """Load vector lanes selected by a predicate mask."""
+    return call_intrin(dtype, "tirx.masked_load", buffer, *indices_and_mask)
+
+
+def masked_store(buffer, value, *indices_and_mask):
+    """Store vector lanes selected by a predicate mask."""
+    return call_intrin("void", "tirx.masked_store", buffer, value, *indices_and_mask)
+
+
 def get_vscale_expr(dtype: str | tvm_ffi.dtype, min_size: int = 128) -> Expr:
     """
     Create a datatype dependent scalable expression.

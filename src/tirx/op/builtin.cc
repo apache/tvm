@@ -380,7 +380,9 @@ TIR_DEFINE_BUILTIN_FUNC(get_active_lane_mask)
                                          static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
 
 TIR_DEFINE_BUILTIN_FUNC(masked_load)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kReadState));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kReadState))
+    .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
+                                         static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
 
 TIR_DEFINE_BUILTIN_FUNC(masked_store)
     .set_attr<TCallEffectKind>("TCallEffectKind",

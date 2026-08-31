@@ -1888,55 +1888,73 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
   return ret;
 }
 
+llvm::Value* CodeGenLLVM::CreateMaskedLoad(const CallNode* op) {
+  TVM_FFI_ICHECK_GE(op->args.size(), 3U);
+  BufferVar buffer(op->args[0].as_or_throw<Var>());
+  ffi::Array<PrimExpr> indices;
+  for (size_t i = 1; i + 1 < op->args.size(); ++i) {
+    indices.push_back(op->args[i].as_or_throw<PrimExpr>());
+  }
+  PrimExpr predicate = op->args.back().as_or_throw<PrimExpr>();
+  PrimType value_dtype = op->ty.as_or_throw<PrimType>();
+  PrimType access_dtype = BufferAccessType(value_dtype);
+  std::vector<llvm::Value*> loads;
+  auto make_load =
+      [this, &loads](TypedPointer buffer_ptr, int /*subelement_i*/, llvm::Value* predicate,
+                     int alignment, bool is_volatile) {
+        TVM_FFI_ICHECK(!is_volatile)
+            << "The masked load intrinsic does not support declaring load as volatile.";
+        llvm::Instruction* value = builder_->CreateMaskedLoad(buffer_ptr.type, buffer_ptr.addr,
+                                                              llvm::Align(alignment), predicate);
+        loads.push_back(value);
+        return value;
+      };
+  BufferAccessHelper(buffer, indices, predicate, access_dtype, make_load);
+  llvm::Value* ret =
+      loads.size() == 1 ? loads[0] : llvm::UndefValue::get(DTypeToLLVMType(access_dtype));
+  for (size_t i = 0; loads.size() > 1 && i < loads.size(); ++i) {
+    ret = builder_->CreateInsertElement(ret, loads[i], ConstInt32(i));
+  }
+  return access_dtype.same_as(value_dtype) ? ret : CreateCast(access_dtype, value_dtype, ret);
+}
+
+llvm::Value* CodeGenLLVM::CreateMaskedStore(const CallNode* op) {
+  TVM_FFI_ICHECK_GE(op->args.size(), 4U);
+  BufferVar buffer(op->args[0].as_or_throw<Var>());
+  PrimExpr value_expr = op->args[1].as_or_throw<PrimExpr>();
+  ffi::Array<PrimExpr> indices;
+  for (size_t i = 2; i + 1 < op->args.size(); ++i) {
+    indices.push_back(op->args[i].as_or_throw<PrimExpr>());
+  }
+  PrimExpr predicate = op->args.back().as_or_throw<PrimExpr>();
+  PrimType value_dtype = value_expr.ty();
+  llvm::Value* value = MakeValue(value_expr);
+  PrimType access_dtype = BufferAccessType(value_dtype);
+  if (!access_dtype.same_as(value_dtype)) {
+    value = CreateCast(value_dtype, access_dtype, value);
+    value_dtype = access_dtype;
+  }
+  llvm::Instruction* last_store = nullptr;
+  auto make_store =
+      [this, value, &last_store](TypedPointer buffer_ptr, int subelement_i, llvm::Value* predicate,
+                                 int alignment, bool is_volatile) {
+        TVM_FFI_ICHECK(!is_volatile)
+            << "The masked store intrinsic does not support declaring store as volatile.";
+        llvm::Value* to_store =
+            subelement_i == -1 ? value : builder_->CreateExtractElement(value, subelement_i);
+        last_store = builder_->CreateMaskedStore(to_store, buffer_ptr.addr, llvm::Align(alignment),
+                                                 predicate);
+        return last_store;
+      };
+  BufferAccessHelper(buffer, indices, predicate, value_dtype, make_store);
+  TVM_FFI_ICHECK(last_store != nullptr);
+  return last_store;
+}
+
 llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
   const ffi::Array<Expr>& args = op->args;
-  if (op->op.same_as(builtin::masked_load())) {
-    MaskedBufferLoad load(ffi::GetRef<Call>(op));
-    PrimType value_dtype = load.call->ty.as_or_throw<PrimType>();
-    PrimType access_dtype = BufferAccessType(value_dtype);
-    std::vector<llvm::Value*> loads;
-    auto make_load = [this, &loads](TypedPointer buffer_ptr, int /*subelement_i*/,
-                                    llvm::Value* predicate, int alignment, bool is_volatile) {
-      TVM_FFI_ICHECK(!is_volatile)
-          << "The masked load intrinsic does not support declaring load as volatile.";
-      llvm::Instruction* value = builder_->CreateMaskedLoad(buffer_ptr.type, buffer_ptr.addr,
-                                                            llvm::Align(alignment), predicate);
-      loads.push_back(value);
-      return value;
-    };
-    BufferAccessHelper(load.buffer, load.indices, load.predicate, access_dtype, make_load);
-    llvm::Value* ret =
-        loads.size() == 1 ? loads[0] : llvm::UndefValue::get(DTypeToLLVMType(access_dtype));
-    for (size_t i = 0; loads.size() > 1 && i < loads.size(); ++i) {
-      ret = builder_->CreateInsertElement(ret, loads[i], ConstInt32(i));
-    }
-    return access_dtype.same_as(value_dtype) ? ret : CreateCast(access_dtype, value_dtype, ret);
-  }
-  if (op->op.same_as(builtin::masked_store())) {
-    MaskedBufferStore store(ffi::GetRef<Call>(op));
-    PrimType value_dtype = store.value.ty();
-    llvm::Value* value = MakeValue(store.value);
-    PrimType access_dtype = BufferAccessType(value_dtype);
-    if (!access_dtype.same_as(value_dtype)) {
-      value = CreateCast(value_dtype, access_dtype, value);
-      value_dtype = access_dtype;
-    }
-    llvm::Instruction* last_store = nullptr;
-    auto make_store = [this, value, &last_store](TypedPointer buffer_ptr, int subelement_i,
-                                                 llvm::Value* predicate, int alignment,
-                                                 bool is_volatile) {
-      TVM_FFI_ICHECK(!is_volatile)
-          << "The masked store intrinsic does not support declaring store as volatile.";
-      llvm::Value* to_store =
-          subelement_i == -1 ? value : builder_->CreateExtractElement(value, subelement_i);
-      last_store =
-          builder_->CreateMaskedStore(to_store, buffer_ptr.addr, llvm::Align(alignment), predicate);
-      return last_store;
-    };
-    BufferAccessHelper(store.buffer, store.indices, store.predicate, value_dtype, make_store);
-    TVM_FFI_ICHECK(last_store != nullptr);
-    return last_store;
-  }
+  if (op->op.same_as(builtin::masked_load())) return CreateMaskedLoad(op);
+  if (op->op.same_as(builtin::masked_store())) return CreateMaskedStore(op);
   if (op->op.same_as(builtin::buffer_data())) {
     TVM_FFI_ICHECK_EQ(args.size(), 1U);
     return MakeValue(args[0]);

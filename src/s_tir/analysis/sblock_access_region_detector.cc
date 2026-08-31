@@ -224,15 +224,15 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
     }
     Update(buffers, regions, buffer, relaxed_region);
   };
-  Call call = ffi::GetRef<Call>(op);
-  if (auto load = MaskedBufferLoad::TryMatch(call)) {
-    update_masked_access(load->buffer, load->indices, &read_buffers_, &read_regions_);
-    StmtExprVisitor::VisitExpr_(op);
-    return;
-  }
-  if (op->op.same_as(builtin::masked_store())) {
-    MaskedBufferStore store(call);
-    update_masked_access(store.buffer, store.indices, &writes_buffers_, &write_regions_);
+  if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
+    bool is_load = op->op.same_as(builtin::masked_load());
+    BufferVar buffer(op->args[0].as_or_throw<Var>());
+    ffi::Array<PrimExpr> indices;
+    for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
+      indices.push_back(op->args[i].as_or_throw<PrimExpr>());
+    }
+    update_masked_access(buffer, indices, is_load ? &read_buffers_ : &writes_buffers_,
+                         is_load ? &read_regions_ : &write_regions_);
     StmtExprVisitor::VisitExpr_(op);
     return;
   }

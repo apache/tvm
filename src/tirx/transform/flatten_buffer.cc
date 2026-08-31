@@ -248,28 +248,20 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
-    Call call = ffi::GetRef<Call>(op);
-    if (auto load = MaskedBufferLoad::TryMatch(call)) {
-      BufferVar original = load->buffer;
-      auto indices =
-          load->indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
-      PrimExpr predicate = this->VisitPrimExpr(load->predicate);
+    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
+      bool is_load = op->op.same_as(builtin::masked_load());
+      BufferVar original(op->args[0].as_or_throw<Var>());
+      ffi::Array<PrimExpr> indices;
+      for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
+        indices.push_back(this->VisitPrimExpr(op->args[i].as_or_throw<PrimExpr>()));
+      }
       buffers_used_.insert(original);
       const FlatInfo& info = Lookup(original);
-      return MakeMaskedBufferLoad(info.flattened, FoldIndices(info, indices), predicate, op->span);
-    }
-    if (op->op.same_as(builtin::masked_store())) {
-      MaskedBufferStore store(call);
-      BufferVar original = store.buffer;
-      PrimExpr value = this->VisitPrimExpr(store.value);
-      auto indices =
-          store.indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
-      PrimExpr predicate = this->VisitPrimExpr(store.predicate);
-      buffers_used_.insert(original);
-      const FlatInfo& info = Lookup(original);
-      Stmt stmt = MakeMaskedBufferStore(info.flattened, value, FoldIndices(info, indices),
-                                        predicate, op->span);
-      return stmt.as_or_throw<Evaluate>()->value;
+      ffi::Array<Expr> args{info.flattened.var()};
+      if (!is_load) args.push_back(this->VisitExpr(op->args[1]));
+      for (const PrimExpr& index : FoldIndices(info, indices)) args.push_back(index);
+      args.push_back(this->VisitExpr(op->args.back()));
+      return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
     }
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>()) {

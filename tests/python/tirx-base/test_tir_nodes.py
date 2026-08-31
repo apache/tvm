@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F811, F841
+# ruff: noqa: F841
 import numpy as np
 import pytest
 
@@ -425,69 +425,6 @@ def test_buffer_store_scalable_vec():
 
     assert isinstance(store, tvm.tirx.BufferStore)
     assert store.value.ty.dtype == "int32xvscalex4"
-
-
-def test_buffer_store_predicate_invalid_scalability():
-    b = tvm.tirx.decl_buffer((24,), "int32")
-    value = tvm.tirx.expr.Broadcast(1, 4 * tvm.tirx.vscale())
-    index = tvm.tirx.expr.Ramp(0, 1, 4 * tvm.tirx.vscale())
-    predicate = tvm.tirx.expr.Broadcast(tvm.tirx.IntImm("int1", 1), 4)
-
-    err_msg = "Mask dtype and stored value dtype must both be scalable or both fixed-length."
-    with pytest.raises(RuntimeError, match=err_msg):
-        b.vstore([index], value, predicate)
-
-
-def test_buffer_store_predicate_invalid_lanes():
-    b = tvm.tirx.decl_buffer((24,), "int32")
-    value = tvm.tirx.expr.Broadcast(1, 4 * tvm.tirx.vscale())
-    index = tvm.tirx.expr.Ramp(0, 1, 4 * tvm.tirx.vscale())
-    predicate = tvm.tirx.expr.Broadcast(tvm.tirx.IntImm("int1", 1), 8 * tvm.tirx.vscale())
-
-    err_msg = "Mask lane count must match the stored value lane count."
-    with pytest.raises(RuntimeError, match=err_msg):
-        b.vstore([index], value, predicate)
-
-
-def test_buffer_store_predicate_elements_invalid_type():
-    b = tvm.tirx.decl_buffer((24,), "int32")
-    value = tvm.tirx.expr.Broadcast(1, 4 * tvm.tirx.vscale())
-    index = tvm.tirx.expr.Ramp(0, 1, 4 * tvm.tirx.vscale())
-    predicate = tvm.tirx.expr.Broadcast(1, 4 * tvm.tirx.vscale())
-
-    err_msg = "Mask elements must be boolean values, but got T.int32."
-    with pytest.raises(RuntimeError, match=err_msg):
-        b.vstore([index], value, predicate)
-
-
-def test_buffer_load_predicate_elements_invalid_type():
-    b = tvm.tirx.decl_buffer((24,), "int32")
-    index = tvm.tirx.expr.Ramp(0, 1, 4 * tvm.tirx.vscale())
-    predicate = tvm.tirx.expr.Broadcast(1, 4 * tvm.tirx.vscale())
-
-    err_msg = "Mask elements must be boolean values, but got T.int32."
-    with pytest.raises(RuntimeError, match=err_msg):
-        b.vload([index], predicate=predicate)
-
-
-def test_buffer_store_predicate_invalid_scalability():
-    b = tvm.tirx.decl_buffer((24,), "int32")
-    index = tvm.tirx.expr.Ramp(0, 1, 4 * tvm.tirx.vscale())
-    predicate = tvm.tirx.expr.Broadcast(tvm.tirx.IntImm("int1", 1), 4)
-
-    err_msg = "Mask dtype and accessed value dtype must both be scalable or both fixed-length."
-    with pytest.raises(RuntimeError, match=err_msg):
-        b.vload([index], predicate=predicate)
-
-
-def test_buffer_store_predicate_invalid_lanes():
-    b = tvm.tirx.decl_buffer((24,), "int32")
-    index = tvm.tirx.expr.Ramp(0, 1, 4 * tvm.tirx.vscale())
-    predicate = tvm.tirx.expr.Broadcast(tvm.tirx.IntImm("int1", 1), 8 * tvm.tirx.vscale())
-
-    err_msg = "Mask lane count must match the accessed value lane count."
-    with pytest.raises(RuntimeError, match=err_msg):
-        b.vload([index], predicate=predicate)
 
 
 def test_scalable_vec_cast():

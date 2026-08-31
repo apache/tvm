@@ -193,10 +193,15 @@ def test_vectorize_if_scalable_extent():
                     T.float32(1), extent
                 )
             else:
-                A.vstore(
-                    [T.Ramp(0, 1, T.vscale() * 4)],
-                    T.Broadcast(T.float32(2), T.vscale() * 4),
-                    predicate=T.get_active_lane_mask("uint1xvscalex4", 0, n),
+                T.evaluate(
+                    T.call_intrin(
+                        "void",
+                        "tirx.masked_store",
+                        A,
+                        T.Broadcast(T.float32(2), T.vscale() * 4),
+                        T.Ramp(0, 1, T.vscale() * 4),
+                        T.get_active_lane_mask("uint1xvscalex4", 0, n),
+                    )
                 )
 
     with tvm.target.Target(target):
@@ -537,16 +542,24 @@ def test_vectorize_and_predicate_all_buffer_loads_stores():
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i_0 in range(4):
             load_a = T.meta_var(
-                A.vload(
-                    [T.Ramp(i_0 * 4, 1, 4)],
-                    predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                T.call_intrin(
+                    "float32x4",
+                    "tirx.masked_load",
+                    A,
+                    T.Ramp(i_0 * 4, 1, 4),
+                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
                 )
             )
             add_1 = T.meta_var(load_a + T.Broadcast(T.float32(1), 4))
-            B.vstore(
-                [T.Ramp(i_0 * 4, 1, 4)],
-                add_1,
-                predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+            T.evaluate(
+                T.call_intrin(
+                    "void",
+                    "tirx.masked_store",
+                    B,
+                    add_1,
+                    T.Ramp(i_0 * 4, 1, 4),
+                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                )
             )
 
     mod = tvm.IRModule.from_expr(before)
@@ -601,15 +614,25 @@ def test_vectorize_and_predicate_multiple_access_statements():
         B = T.match_buffer(b, (16,), "float32")
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i_0 in range(4):
-            A.vstore(
-                [T.Ramp(i_0 * 4, 1, 4)],
-                T.Broadcast(T.float32(2), 4),
-                predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+            T.evaluate(
+                T.call_intrin(
+                    "void",
+                    "tirx.masked_store",
+                    A,
+                    T.Broadcast(T.float32(2), 4),
+                    T.Ramp(i_0 * 4, 1, 4),
+                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                )
             )
-            B.vstore(
-                [T.Ramp(i_0 * 4, 1, 4)],
-                T.Broadcast(T.float32(1), 4),
-                predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+            T.evaluate(
+                T.call_intrin(
+                    "void",
+                    "tirx.masked_store",
+                    B,
+                    T.Broadcast(T.float32(1), 4),
+                    T.Ramp(i_0 * 4, 1, 4),
+                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                )
             )
 
     before_mod = tvm.IRModule.from_expr(before)
@@ -703,16 +726,24 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_func_attr_target():
         T.func_attr({"global_symbol": "main", "tirx.noalias": True, "target": sve_target})
         for i_0 in range(4):
             load_a = T.meta_var(
-                A.vload(
-                    [T.Ramp(i_0 * 4, 1, 4)],
-                    predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                T.call_intrin(
+                    "float32x4",
+                    "tirx.masked_load",
+                    A,
+                    T.Ramp(i_0 * 4, 1, 4),
+                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
                 )
             )
             add_1 = T.meta_var(load_a + T.Broadcast(T.float32(1), 4))
-            B.vstore(
-                [T.Ramp(i_0 * 4, 1, 4)],
-                add_1,
-                predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+            T.evaluate(
+                T.call_intrin(
+                    "void",
+                    "tirx.masked_store",
+                    B,
+                    add_1,
+                    T.Ramp(i_0 * 4, 1, 4),
+                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                )
             )
 
     mod = tvm.IRModule.from_expr(before)
@@ -740,16 +771,24 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_attr_scope_target()
         with T.attr(sve_target, "target", 0):
             for i_0 in range(4):
                 load_a = T.meta_var(
-                    A.vload(
-                        [T.Ramp(i_0 * 4, 1, 4)],
-                        predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                    T.call_intrin(
+                        "float32x4",
+                        "tirx.masked_load",
+                        A,
+                        T.Ramp(i_0 * 4, 1, 4),
+                        T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
                     )
                 )
                 add_1 = T.meta_var(load_a + T.Broadcast(T.float32(1), 4))
-                B.vstore(
-                    [T.Ramp(i_0 * 4, 1, 4)],
-                    add_1,
-                    predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                T.evaluate(
+                    T.call_intrin(
+                        "void",
+                        "tirx.masked_store",
+                        B,
+                        add_1,
+                        T.Ramp(i_0 * 4, 1, 4),
+                        T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                    )
                 )
 
     mod = tvm.IRModule.from_expr(before)

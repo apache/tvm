@@ -301,22 +301,6 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1);
     return d->AsDoc<ExprDoc>(call->args[0], call_p->Attr("args")->ArrayItem(0))->Attr("data");
   }
-  if (auto load = tirx::MaskedBufferLoad::TryMatch(call)) {
-    ExprDoc buffer = d->AsDoc<ExprDoc>(load->buffer, call_p->Attr("args")->ArrayItem(0));
-    ExprDoc indices = d->AsDoc<ExprDoc>(load->indices, call_p->Attr("args"));
-    ExprDoc predicate =
-        d->AsDoc<ExprDoc>(load->predicate, call_p->Attr("args")->ArrayItem(call->args.size() - 1));
-    return buffer->Attr("vload")->Call({indices}, {"predicate"}, {predicate});
-  }
-  if (call->op.same_as(tirx::builtin::masked_store())) {
-    tirx::MaskedBufferStore store(call);
-    ExprDoc buffer = d->AsDoc<ExprDoc>(store.buffer, call_p->Attr("args")->ArrayItem(0));
-    ExprDoc value = d->AsDoc<ExprDoc>(store.value, call_p->Attr("args")->ArrayItem(1));
-    ExprDoc indices = d->AsDoc<ExprDoc>(store.indices, call_p->Attr("args"));
-    ExprDoc predicate =
-        d->AsDoc<ExprDoc>(store.predicate, call_p->Attr("args")->ArrayItem(call->args.size() - 1));
-    return buffer->Attr("vstore")->Call({indices, value}, {"predicate"}, {predicate});
-  }
   ffi::Optional<PrimType> call_prim_type = call->ty.as<PrimType>();
   auto get_call_type_doc = [&](AccessPath type_p) -> ExprDoc {
     if (call_prim_type.has_value()) {

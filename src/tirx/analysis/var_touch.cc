@@ -54,16 +54,6 @@ class VarTouchVisitor : public StmtExprVisitor {
     ExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const CallNode* op) final {
-    Call call = ffi::GetRef<Call>(op);
-    if (auto load = MaskedBufferLoad::TryMatch(call)) {
-      Handle(load->buffer.get());
-    } else if (auto store = MaskedBufferStore::TryMatch(call)) {
-      Handle(store->buffer.get());
-    }
-    StmtExprVisitor::VisitExpr_(op);
-  }
-
   void Handle(const VarNode* var) {
     if (var_set_(var)) use_var_ = true;
   }

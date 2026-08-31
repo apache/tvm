@@ -159,20 +159,6 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     RecordAccess(op->buffer);
   }
 
-  void VisitExpr_(const CallNode* op) final {
-    Call call = ffi::GetRef<Call>(op);
-    ffi::Optional<BufferVar> buffer = std::nullopt;
-    if (auto load = MaskedBufferLoad::TryMatch(call)) {
-      buffer = load->buffer;
-    } else if (op->op.same_as(builtin::masked_store())) {
-      buffer = MaskedBufferStore(call).buffer;
-    }
-    StmtExprVisitor::VisitExpr_(op);
-    if (buffer.has_value()) {
-      RecordAccess(buffer.value());
-    }
-  }
-
   void VisitStmt_(const EvaluateNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
@@ -548,25 +534,30 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
   Expr VisitExpr_(const CallNode* op) final {
-    Call call = ffi::GetRef<Call>(op);
-    if (auto load = MaskedBufferLoad::TryMatch(call)) {
-      auto indices =
-          load->indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
-      PrimExpr predicate = this->VisitPrimExpr(load->predicate);
-      BufferLoad access(load->buffer, indices, op->span);
-      access = VisitBufferAccess(std::move(access));
-      return MakeMaskedBufferLoad(access->buffer, access->indices, predicate, op->span);
-    } else if (op->op.same_as(builtin::masked_store())) {
-      MaskedBufferStore store(call);
-      PrimExpr value = this->VisitPrimExpr(store.value);
-      auto indices =
-          store.indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
-      PrimExpr predicate = this->VisitPrimExpr(store.predicate);
-      BufferStore access(store.buffer, value, indices, op->span);
-      access = VisitBufferAccess(std::move(access));
-      Stmt stmt = MakeMaskedBufferStore(access->buffer, access->value, access->indices, predicate,
-                                        op->span);
-      return stmt.as_or_throw<Evaluate>()->value;
+    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
+      bool is_load = op->op.same_as(builtin::masked_load());
+      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      PrimExpr value;
+      if (!is_load) value = this->VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>());
+      ffi::Array<PrimExpr> indices;
+      for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
+        indices.push_back(this->VisitPrimExpr(op->args[i].as_or_throw<PrimExpr>()));
+      }
+      if (is_load) {
+        BufferLoad access(buffer, indices, op->span);
+        access = VisitBufferAccess(std::move(access));
+        ffi::Array<Expr> args{access->buffer.var()};
+        for (const PrimExpr& index : access->indices) args.push_back(index);
+        args.push_back(this->VisitExpr(op->args.back()));
+        return Call(access->ty, op->op, args, op->attrs, op->ty_args, op->span);
+      } else {
+        BufferStore access(buffer, value, indices, op->span);
+        access = VisitBufferAccess(std::move(access));
+        ffi::Array<Expr> args{access->buffer.var(), access->value};
+        for (const PrimExpr& index : access->indices) args.push_back(index);
+        args.push_back(this->VisitExpr(op->args.back()));
+        return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
+      }
     } else if (op->op.same_as(builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       PrimExpr dtype_marker = op->args[0].as_or_throw<PrimExpr>();
@@ -1329,14 +1320,16 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    Call call = ffi::GetRef<Call>(op);
-    if (auto load = MaskedBufferLoad::TryMatch(call)) {
-      OnArrayAccess(load->call->ty.as_or_throw<PrimType>(), load->buffer.get(), load->indices,
-                    /*is_buffer_load=*/true);
-    } else if (op->op.same_as(builtin::masked_store())) {
-      MaskedBufferStore store(call);
-      OnArrayAccess(store.value.ty(), store.buffer.get(), store.indices,
-                    /*is_buffer_load=*/false);
+    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
+      bool is_load = op->op.same_as(builtin::masked_load());
+      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      PrimType dtype =
+          is_load ? op->ty.as_or_throw<PrimType>() : op->args[1].as_or_throw<PrimExpr>().ty();
+      ffi::Array<PrimExpr> indices;
+      for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
+        indices.push_back(op->args[i].as_or_throw<PrimExpr>());
+      }
+      OnArrayAccess(dtype, buffer.get(), indices, is_load);
     } else if (op->op.same_as(builtin::tvm_access_ptr())) {
       PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
       auto buffer_var = GetBufferDataVar(op->args[1]);
@@ -1726,31 +1719,37 @@ class VectorTypeRewriter : public StmtExprMutator {
   }
 
   ffi::Optional<Expr> RewriteMaskedCall(const CallNode* op) {
-    Call call = ffi::GetRef<Call>(op);
-    if (auto load = MaskedBufferLoad::TryMatch(call)) {
-      auto indices =
-          load->indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
-      PrimExpr predicate = this->VisitPrimExpr(load->predicate);
-      BufferLoad access(load->buffer, indices, op->span);
+    if (op->op.same_as(builtin::masked_load())) {
+      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      ffi::Array<PrimExpr> indices;
+      for (size_t i = 1; i + 1 < op->args.size(); ++i) {
+        indices.push_back(this->VisitPrimExpr(op->args[i].as_or_throw<PrimExpr>()));
+      }
+      BufferLoad access(buffer, indices, op->span);
       auto [modified, shuffle_index] = VisitBufferAccess(access);
       TVM_FFI_ICHECK_LT(shuffle_index, 0)
           << "A masked vector load cannot be rewritten into a scalar shuffle.";
       if (!modified.same_as(access)) modified.CopyOnWrite()->LegalizeDType();
-      return MakeMaskedBufferLoad(modified->buffer, modified->indices, predicate, op->span);
+      ffi::Array<Expr> args{modified->buffer.var()};
+      for (const PrimExpr& index : modified->indices) args.push_back(index);
+      args.push_back(this->VisitExpr(op->args.back()));
+      return Call(modified->ty, op->op, args, op->attrs, op->ty_args, op->span);
     }
     if (op->op.same_as(builtin::masked_store())) {
-      MaskedBufferStore store(call);
-      PrimExpr value = this->VisitPrimExpr(store.value);
-      auto indices =
-          store.indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
-      PrimExpr predicate = this->VisitPrimExpr(store.predicate);
-      BufferStore access(store.buffer, value, indices, op->span);
+      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      PrimExpr value = this->VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>());
+      ffi::Array<PrimExpr> indices;
+      for (size_t i = 2; i + 1 < op->args.size(); ++i) {
+        indices.push_back(this->VisitPrimExpr(op->args[i].as_or_throw<PrimExpr>()));
+      }
+      BufferStore access(buffer, value, indices, op->span);
       auto [modified, shuffle_index] = VisitBufferAccess(std::move(access));
       TVM_FFI_ICHECK_LT(shuffle_index, 0)
           << "A masked vector store cannot be rewritten into a scalar shuffle.";
-      Stmt stmt = MakeMaskedBufferStore(modified->buffer, modified->value, modified->indices,
-                                        predicate, op->span);
-      return stmt.as_or_throw<Evaluate>()->value;
+      ffi::Array<Expr> args{modified->buffer.var(), modified->value};
+      for (const PrimExpr& index : modified->indices) args.push_back(index);
+      args.push_back(this->VisitExpr(op->args.back()));
+      return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
     }
     return std::nullopt;
   }

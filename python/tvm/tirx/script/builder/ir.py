@@ -2336,7 +2336,6 @@ def buffer_store(
     buffer: Buffer,  # pylint: disable=redefined-outer-name
     value: Expr,
     indices: list[Expr | slice],
-    predicate: Expr | None = None,
 ) -> None:
     """Buffer store node.
 
@@ -2351,10 +2350,6 @@ def buffer_store(
     indices : List[Union[Expr, slice]]
         The indices location to be stored.
 
-    predicate : Optional[Expr]
-        A vector mask of boolean values indicating which lanes of a vector are to be
-        stored. The number lanes of the mask must be equal to the number of lanes in
-        value.
     """
     from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
 
@@ -2377,7 +2372,7 @@ def buffer_store(
     if isinstance(value, bool) and buffer.ty.dtype == "bool":
         value = IntImm("bool", value)
     return _ffi_api.BufferStore(  # type: ignore[attr-defined] # pylint: disable=no-member
-        buffer, value, expr_indices, predicate
+        buffer, value, expr_indices
     )
 
 
@@ -3223,6 +3218,8 @@ vectorlow = _dtype_forward(_tir_op.vectorlow)
 vectorhigh = _dtype_forward(_tir_op.vectorhigh)
 vectorcombine = _dtype_forward(_tir_op.vectorcombine)
 get_active_lane_mask = _dtype_forward(_tir_op.get_active_lane_mask)
+masked_load = _dtype_forward(_tir_op.masked_load)
+masked_store = _op_wrapper(_tir_op.masked_store)
 dp4a = _dtype_forward(_tir_op.dp4a)
 
 
@@ -3589,6 +3586,8 @@ __all__ = [
     "Range",
     "vscale",
     "get_active_lane_mask",
+    "masked_load",
+    "masked_store",
     "call_kernel",
     "ignore_loop_partition",
 ]

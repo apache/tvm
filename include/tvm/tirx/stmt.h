@@ -361,23 +361,6 @@ class Evaluate : public Stmt {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(EvaluateNode);
 };
 
-/*! \brief Checked non-node view of a tirx.masked_store Call. */
-class MaskedBufferStore {
- public:
-  TVM_DLL explicit MaskedBufferStore(Call call);
-  TVM_DLL static std::optional<MaskedBufferStore> TryMatch(const Expr& expr);
-
-  Call call;
-  BufferVar buffer;
-  PrimExpr value;
-  ffi::Array<PrimExpr> indices;
-  PrimExpr predicate;
-};
-
-/*! \brief Construct a validated Evaluate(tirx.masked_store(...)). */
-TVM_DLL Stmt MakeMaskedBufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
-                                   PrimExpr predicate, Span span = Span());
-
 /*! \brief Sequence statement. */
 class SeqStmt : public Stmt {
  public:

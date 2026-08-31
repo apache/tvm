@@ -993,8 +993,27 @@ def test_predicated_load_store():
         A = T.match_buffer(a, (128, 128), "float32")
         B = T.match_buffer(b, (256, 256), "float32")
         T.func_attr({"global_symbol": "func"})
-        a_load = T.meta_var(A.vload([0, T.Ramp(0, 4, 4)], predicate=T.Broadcast(T.bool(False), 4)))
-        A.vstore([0, T.Ramp(0, 2, 4)], a_load, predicate=T.Broadcast(T.bool(False), 4))
+        a_load = T.meta_var(
+            T.call_intrin(
+                "float32x4",
+                "tirx.masked_load",
+                A,
+                0,
+                T.Ramp(0, 4, 4),
+                T.Broadcast(T.bool(False), 4),
+            )
+        )
+        T.evaluate(
+            T.call_intrin(
+                "void",
+                "tirx.masked_store",
+                A,
+                a_load,
+                0,
+                T.Ramp(0, 2, 4),
+                T.Broadcast(T.bool(False), 4),
+            )
+        )
 
     expected_output = """
 # from tvm.script import tirx as T
@@ -1002,7 +1021,7 @@ def test_predicated_load_store():
 
 @T.prim_func(s_tir=True)
 def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
-    A.vstore([0, T.Ramp(0, 2, 4)], A.vload([0, T.Ramp(0, 4, 4)], predicate=T.Broadcast(T.bool(False), 4)), predicate=T.Broadcast(T.bool(False), 4))
+    T.masked_store(A, T.masked_load("float32x4", A, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4)), 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))
     """
     _assert_print(main, expected_output)
 
@@ -1014,14 +1033,24 @@ def test_predicated_buffer_load_store():
         a: tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
         b: tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
     }
-    buffer_load = buffers[b].vload(
-        begin=[0, tirx.Ramp(0, 4, 4)],
-        predicate=tirx.Broadcast(tirx.IntImm("bool", 0), 4),
+    buffer_load = tirx.call_intrin(
+        "float32x4",
+        "tirx.masked_load",
+        buffers[b],
+        0,
+        tirx.Ramp(0, 4, 4),
+        tirx.Broadcast(tirx.IntImm("bool", 0), 4),
     )
-    body = buffers[a].vstore(
-        begin=[0, tirx.Ramp(0, 2, 4)],
-        value=buffer_load,
-        predicate=tirx.Broadcast(tirx.IntImm("bool", 0), 4),
+    body = tirx.Evaluate(
+        tirx.call_intrin(
+            "void",
+            "tirx.masked_store",
+            buffers[a],
+            buffer_load,
+            0,
+            tirx.Ramp(0, 2, 4),
+            tirx.Broadcast(tirx.IntImm("bool", 0), 4),
+        )
     )
     func = tirx.PrimFunc(
         params=[buffers[a], buffers[b]],
@@ -1035,7 +1064,7 @@ def test_predicated_buffer_load_store():
 
 @T.prim_func(private=True, s_tir=True)
 def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
-    A.vstore([0, T.Ramp(0, 2, 4)], B.vload([0, T.Ramp(0, 4, 4)], predicate=T.Broadcast(T.bool(False), 4)), predicate=T.Broadcast(T.bool(False), 4))
+    T.masked_store(A, T.masked_load("float32x4", B, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4)), 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))
     """
     _assert_print(func, expected_output)
 
@@ -1049,8 +1078,16 @@ def test_predicated_scalable_load_store():
         B = T.match_buffer(b, (256, 256), "float32")
         T.func_attr({"global_symbol": "func"})
         mask = T.meta_var(T.get_active_lane_mask("uint1xvscalex4", 0, 13))
-        a_load = T.meta_var(A.vload([0, T.Ramp(0, 4, T.vscale() * 4)], predicate=mask))
-        A.vstore([0, T.Ramp(0, 2, T.vscale() * 4)], a_load, predicate=mask)
+        a_load = T.meta_var(
+            T.call_intrin(
+                "float32xvscalex4", "tirx.masked_load", A, 0, T.Ramp(0, 4, T.vscale() * 4), mask
+            )
+        )
+        T.evaluate(
+            T.call_intrin(
+                "void", "tirx.masked_store", A, a_load, 0, T.Ramp(0, 2, T.vscale() * 4), mask
+            )
+        )
 
     expected_output = """
 # from tvm.script import tirx as T
@@ -1058,7 +1095,7 @@ def test_predicated_scalable_load_store():
 
 @T.prim_func(s_tir=True)
 def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
-    A.vstore([0, T.Ramp(0, 2, T.vscale() * 4)], A.vload([0, T.Ramp(0, 4, T.vscale() * 4)], predicate=T.get_active_lane_mask("uint1xvscalex4", 0, 13)), predicate=T.get_active_lane_mask("uint1xvscalex4", 0, 13))
+    T.masked_store(A, T.masked_load("float32xvscalex4", A, 0, T.Ramp(0, 4, T.vscale() * 4), T.get_active_lane_mask("uint1xvscalex4", 0, 13)), 0, T.Ramp(0, 2, T.vscale() * 4), T.get_active_lane_mask("uint1xvscalex4", 0, 13))
     """
     _assert_print(main, expected_output)
 

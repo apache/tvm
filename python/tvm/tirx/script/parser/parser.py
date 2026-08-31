@@ -1044,8 +1044,7 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
         # Ignore docstrings
         pass
     elif isinstance(res, tvm.tirx.stmt.Evaluate):
-        # Statement-valued helpers such as Buffer.vstore(predicate=...) return
-        # an already-formed Evaluate of a special side-effecting Call.
+        # Statement-valued helpers may return an already-formed Evaluate.
         T.evaluate(res.value)
     elif isinstance(res, tvm.tirx.stmt.BufferStore):
         T.buffer_store(res.buffer, res.value, res.indices)

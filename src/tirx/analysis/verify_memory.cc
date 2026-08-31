@@ -100,11 +100,9 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    Call call = ffi::GetRef<Call>(op);
-    if (auto load = MaskedBufferLoad::TryMatch(call)) {
-      HandleLoadStoreToVariable(load->buffer.var());
-    } else if (auto store = MaskedBufferStore::TryMatch(call)) {
-      HandleLoadStoreToVariable(store->buffer.var());
+    if ((op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) &&
+        !op->args.empty()) {
+      HandleLoadStoreToVariable(op->args[0].as_or_throw<Var>());
     }
     StmtExprVisitor::VisitExpr_(op);
   }

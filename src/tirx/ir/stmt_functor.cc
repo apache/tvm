@@ -23,7 +23,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -90,24 +89,6 @@ void StmtVisitor::VisitBufferDef(const BufferVar& buffer, bool alloc_data) {
 // re-visited at each use site, as the use site may be in a different scope
 // where the buffer's shape variables are not defined.
 void StmtVisitor::VisitBufferUse(const BufferVar& buffer) {}
-
-void StmtExprVisitor::VisitExpr_(const CallNode* op) {
-  Call call = ffi::GetRef<Call>(op);
-  if (auto load = MaskedBufferLoad::TryMatch(call)) {
-    this->VisitBufferUse(load->buffer);
-    VisitArray(load->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
-    this->VisitExpr(load->predicate);
-    return;
-  }
-  if (auto store = MaskedBufferStore::TryMatch(call)) {
-    this->VisitBufferUse(store->buffer);
-    this->VisitExpr(store->value);
-    VisitArray(store->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
-    this->VisitExpr(store->predicate);
-    return;
-  }
-  ExprVisitor::VisitExpr_(op);
-}
 
 void StmtExprVisitor::VisitExpr_(const BufferLoadNode* op) {
   this->VisitBufferUse(op->buffer);
@@ -468,35 +449,6 @@ Expr StmtExprMutator::VisitExpr_(const VarNode* op) {
     return VisitBufferUse(BufferVar(var)).var();
   }
   return var;
-}
-
-Expr StmtExprMutator::VisitExpr_(const CallNode* op) {
-  Call call = ffi::GetRef<Call>(op);
-  if (auto load = MaskedBufferLoad::TryMatch(call)) {
-    BufferVar buffer = this->VisitBufferUse(load->buffer);
-    ffi::Array<PrimExpr> indices =
-        load->indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
-    PrimExpr predicate = this->VisitPrimExpr(load->predicate);
-    if (buffer.same_as(load->buffer) && indices.same_as(load->indices) &&
-        predicate.same_as(load->predicate)) {
-      return call;
-    }
-    return MakeMaskedBufferLoad(buffer, indices, predicate, op->span);
-  }
-  if (auto store = MaskedBufferStore::TryMatch(call)) {
-    BufferVar buffer = this->VisitBufferUse(store->buffer);
-    PrimExpr value = this->VisitPrimExpr(store->value);
-    ffi::Array<PrimExpr> indices =
-        store->indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
-    PrimExpr predicate = this->VisitPrimExpr(store->predicate);
-    if (buffer.same_as(store->buffer) && value.same_as(store->value) &&
-        indices.same_as(store->indices) && predicate.same_as(store->predicate)) {
-      return call;
-    }
-    Stmt stmt = MakeMaskedBufferStore(buffer, value, indices, predicate, op->span);
-    return stmt.as_or_throw<Evaluate>()->value;
-  }
-  return ExprMutator::VisitExpr_(op);
 }
 
 Expr StmtExprMutator::VisitExpr_(const BufferLoadNode* op) {

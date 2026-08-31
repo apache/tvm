@@ -265,16 +265,6 @@ class LCADetector : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const CallNode* op) final {
-    Call call = ffi::GetRef<Call>(op);
-    if (auto load = MaskedBufferLoad::TryMatch(call)) {
-      UpdateBufferLCA(load->buffer.get(), ancestor_scopes_.back());
-    } else if (auto store = MaskedBufferStore::TryMatch(call)) {
-      UpdateBufferLCA(store->buffer.get(), ancestor_scopes_.back());
-    }
-    StmtExprVisitor::VisitExpr_(op);
-  }
-
   // Works for Load/Store and opaque access.
   void VisitExpr_(const VarNode* op) final { VisitBufferVar(op); }
 

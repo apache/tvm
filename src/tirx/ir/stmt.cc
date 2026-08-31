@@ -480,65 +480,9 @@ BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("tirx.BufferStore", [](BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
-                                  Span span) { return BufferStore(buffer, value, indices, span); })
-      .def(
-          "tirx.MaskedBufferStore",
-          [](BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices, PrimExpr predicate,
-             Span span) { return MakeMaskedBufferStore(buffer, value, indices, predicate, span); });
-}
-
-namespace {
-void ValidateStoreMask(const PrimExpr& predicate, const PrimType& value_ty) {
-  PrimType predicate_ty = predicate.ty();
-  TVM_FFI_ICHECK_EQ(value_ty.IsScalableVector(), predicate_ty.IsScalableVector())
-      << "Mask dtype and stored value dtype must both be scalable or both fixed-length.";
-  TVM_FFI_ICHECK_EQ(GetLanesOrVScaleFactor(value_ty), GetLanesOrVScaleFactor(predicate_ty))
-      << "Mask lane count must match the stored value lane count.";
-  PrimType element_ty = predicate_ty.WithLanes(1);
-  TVM_FFI_ICHECK(element_ty.MatchesCode(DLDataTypeCode::kDLBool) ||
-                 element_ty.MatchesElementType(DLDataTypeCode::kDLUInt, 1))
-      << "Mask elements must be boolean values, but got " << element_ty << ".";
-}
-}  // namespace
-
-MaskedBufferStore::MaskedBufferStore(Call call) : call(std::move(call)) {
-  TVM_FFI_ICHECK(this->call->op.same_as(builtin::masked_store()))
-      << "Expected a tirx.masked_store Call";
-  TVM_FFI_ICHECK_GE(this->call->args.size(), 3U)
-      << "tirx.masked_store expects a buffer, value, indices, and a mask";
-  const auto* buffer_var = this->call->args.front().as<VarNode>();
-  TVM_FFI_ICHECK(buffer_var != nullptr && buffer_var->ty.as<BufferTypeNode>() != nullptr)
-      << "tirx.masked_store first argument must be a BufferVar";
-  buffer = GetBufferVar(buffer_var);
-  TVM_FFI_ICHECK_EQ(this->call->args.size(), buffer->shape.size() + 3)
-      << "tirx.masked_store index count must match buffer rank";
-  value = this->call->args[1].as_or_throw<PrimExpr>();
-  indices.reserve(buffer->shape.size());
-  for (size_t i = 0; i < buffer->shape.size(); ++i) {
-    indices.push_back(this->call->args[i + 2].as_or_throw<PrimExpr>());
-  }
-  predicate = this->call->args.back().as_or_throw<PrimExpr>();
-  BufferStore store(buffer, value, indices, this->call->span);
-  TVM_FFI_ICHECK(this->call->ty == PrimType::Void()) << "tirx.masked_store must return void";
-  ValidateStoreMask(predicate, value.ty());
-}
-
-std::optional<MaskedBufferStore> MaskedBufferStore::TryMatch(const Expr& expr) {
-  auto call = expr.as<Call>();
-  if (!call.has_value() || !call.value()->op.same_as(builtin::masked_store())) return std::nullopt;
-  return MaskedBufferStore(call.value());
-}
-
-Stmt MakeMaskedBufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
-                           PrimExpr predicate, Span span) {
-  BufferStore store(buffer, value, indices, span);
-  ValidateStoreMask(predicate, value.ty());
-  ffi::Array<Expr> args{buffer.var(), value};
-  for (const PrimExpr& index : indices) args.push_back(index);
-  args.push_back(predicate);
-  return Evaluate(Call(PrimType::Void(), builtin::masked_store(), args, {}, {}, span), span);
+  refl::GlobalDef().def("tirx.BufferStore",
+                        [](BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
+                           Span span) { return BufferStore(buffer, value, indices, span); });
 }
 
 // BufferRegion
