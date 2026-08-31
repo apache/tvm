@@ -282,9 +282,10 @@ kernel that list is ``["blockIdx.x", "threadIdx.x"]``; the host launcher compute
 each one's extent (from the scope-id extents and any symbolic shapes) and supplies
 them alongside the kernel arguments.
 
-The block size also drives the kernel's ``__launch_bounds__``. The first argument
-(max threads per block) is set automatically from the thread extent. To also set
-the second argument — the minimum blocks per SM, an occupancy hint — add
+By default, the block size also drives the kernel's ``__launch_bounds__``. The
+first argument (max threads per block) is set automatically from the thread
+extent. To also set the second argument — the minimum blocks per SM, an
+occupancy hint — add
 ``Tx.attr({"tirx.launch_bounds_min_blocks_per_sm": N})`` in the device region (note:
 ``Tx.attr``, not ``func_attr``):
 
@@ -301,51 +302,95 @@ the second argument — the minimum blocks per SM, an occupancy hint — add
 
 Without the attr the second argument is omitted (just ``__launch_bounds__(256)``).
 
+Some kernels require an exact block and cluster shape instead of an advisory
+maximum. Set ``tirx.required_block_size`` to ``1`` to make the thread and
+cluster extents a compile-time launch contract:
+
+.. code-block:: python
+
+    Tx.device_entry()
+    Tx.attr({"tirx.required_block_size": 1})
+    bx, by = Tx.cta_id([4, 2])
+    _, cy = Tx.cta_id_in_cluster([1, 2])
+    tx = Tx.thread_id([128])
+    ...
+
+.. code-block:: c++
+
+    extern "C" __global__ void __block_size__((128, 1, 1), (1, 2, 1)) kernel(...) { ... }
+
+This requires CUDA Toolkit 13 or newer. All thread and cluster dimensions must
+be static; CUDA lowers ``__block_size__`` to PTX ``.reqntid`` and checks the
+same dimensions at launch. A preferred cluster dimension must be absent or
+equal to the required cluster dimension, and each logical block-grid dimension
+must be divisible by its cluster dimension.
+
+``tirx.required_block_size`` can be combined with the launch-bounds attributes
+when an occupancy hint is also needed; code generation then emits both
+``__block_size__`` and ``__launch_bounds__``. It cannot be combined with
+``tirx.max_registers``.
+
 At run time the kernel is launched through the **CUDA Driver API**. TVM's CUDA
 runtime loads the module (``cuModuleLoadData``), fetches the function
 (``cuModuleGetFunction``, cached), and calls ``cuLaunchKernelEx`` with a
 ``CUlaunchConfig``. Besides the grid/block dims, dynamic shared size, and stream,
 the config carries a list of launch *attributes* — the thread-block **cluster
 dimension** and **preferred cluster dimension** (Hopper/Blackwell), plus optional
-programmatic-dependent-launch and cooperative-launch flags. From
-``src/backend/cuda/runtime/cuda_module.cc``:
+programmatic-dependent-launch and cooperative-launch flags. Kernels with
+``tirx.required_block_size`` instead use CUDA's required-block sentinel; their
+compile-time cluster shape replaces the ordinary runtime cluster attribute. In
+outline, ``src/backend/cuda/runtime/cuda_module.cc`` follows this path:
 
 .. code-block:: c++
 
-    std::vector<CUlaunchAttribute> attrs;
+    std::array<CUlaunchAttribute, 4> attrs{};
+    unsigned int num_attrs = 0;
+    bool use_required_block_dimension =
+        launch_param_config_.use_required_block_dimension();
 
     // 1) thread-block cluster dimension
-    if (wl.cluster_dim(0) != 1 || wl.cluster_dim(1) != 1 || wl.cluster_dim(2) != 1) {
+    if (!use_required_block_dimension &&
+        launch_param_config_.use_cluster_launch()) {
       CUlaunchAttribute attr{};
       attr.id = CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION;
       attr.value.clusterDim.x = wl.cluster_dim(0);
       attr.value.clusterDim.y = wl.cluster_dim(1);
       attr.value.clusterDim.z = wl.cluster_dim(2);
-      attrs.push_back(attr);
+      attrs[num_attrs++] = attr;
     }
     // 1b) preferred cluster dimension (CUDA 12.8+); (2) programmatic stream
     //     serialization and (3) cooperative launch are appended the same way
-    if (wl.preferred_cluster_dim(0) != 1 || wl.preferred_cluster_dim(1) != 1 ||
-        wl.preferred_cluster_dim(2) != 1) {
+    if (!use_required_block_dimension &&
+        (wl.preferred_cluster_dim(0) != 1 || wl.preferred_cluster_dim(1) != 1 ||
+         wl.preferred_cluster_dim(2) != 1)) {
       CUlaunchAttribute attr{};
       attr.id = CU_LAUNCH_ATTRIBUTE_PREFERRED_CLUSTER_DIMENSION;
       attr.value.clusterDim.x = wl.preferred_cluster_dim(0);
       attr.value.clusterDim.y = wl.preferred_cluster_dim(1);
       attr.value.clusterDim.z = wl.preferred_cluster_dim(2);
-      attrs.push_back(attr);
+      attrs[num_attrs++] = attr;
     }
 
     CUlaunchConfig config{};
-    config.gridDimX = wl.grid_dim(0);
-    config.gridDimY = wl.grid_dim(1);
-    config.gridDimZ = wl.grid_dim(2);
-    config.blockDimX = wl.block_dim(0);
-    config.blockDimY = wl.block_dim(1);
-    config.blockDimZ = wl.block_dim(2);
+    if (use_required_block_dimension) {
+      config.gridDimX = wl.grid_dim(0) / wl.cluster_dim(0);
+      config.gridDimY = wl.grid_dim(1) / wl.cluster_dim(1);
+      config.gridDimZ = wl.grid_dim(2) / wl.cluster_dim(2);
+      config.blockDimX = CU_LAUNCH_KERNEL_REQUIRED_BLOCK_DIM;
+      config.blockDimY = 1;
+      config.blockDimZ = 1;
+    } else {
+      config.gridDimX = wl.grid_dim(0);
+      config.gridDimY = wl.grid_dim(1);
+      config.gridDimZ = wl.grid_dim(2);
+      config.blockDimX = wl.block_dim(0);
+      config.blockDimY = wl.block_dim(1);
+      config.blockDimZ = wl.block_dim(2);
+    }
     config.sharedMemBytes = wl.dyn_shmem_size;
     config.hStream = strm;
-    config.attrs = attrs.empty() ? nullptr : attrs.data();
-    config.numAttrs = static_cast<unsigned int>(attrs.size());
+    config.attrs = num_attrs == 0 ? nullptr : attrs.data();
+    config.numAttrs = num_attrs;
 
     CUresult result = cuLaunchKernelEx(&config, fcache_[device_id], void_args, nullptr);
 
