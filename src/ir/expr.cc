@@ -51,15 +51,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RangeNode::RegisterReflection();
 }
 
-TensorLoad::TensorLoad(Type result_ty, Expr source, ffi::Array<PrimExpr> indices, Span span) {
-  ffi::ObjectPtr<TensorLoadNode> node = ffi::make_object<TensorLoadNode>();
-  node->ty = std::move(result_ty);
-  node->source = std::move(source);
-  node->indices = std::move(indices);
-  node->span = std::move(span);
-  data_ = std::move(node);
-}
-
 Tuple::Tuple(ffi::Array<Expr> fields, Span span) {
   ffi::Optional<Type> tuple_ty = [&]() -> ffi::Optional<Type> {
     ffi::Array<Type> field_ty;

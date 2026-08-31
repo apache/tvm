@@ -126,8 +126,6 @@ class TensorLoadNode : public ExprNode {
 /*! \brief Managed reference to TensorLoadNode. */
 class TensorLoad : public PrimExpr {
  public:
-  TVM_DLL TensorLoad(Type result_ty, Expr source, ffi::Array<PrimExpr> indices, Span span = Span());
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorLoad, PrimExpr, TensorLoadNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TensorLoadNode);

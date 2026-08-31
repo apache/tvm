@@ -749,7 +749,12 @@ TensorLoad BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices, Span span)
     }
   }
 
-  return TensorLoad(std::move(result_ty), std::move(buffer), std::move(indices), std::move(span));
+  ffi::ObjectPtr<TensorLoadNode> node = ffi::make_object<TensorLoadNode>();
+  node->ty = std::move(result_ty);
+  node->source = std::move(buffer);
+  node->indices = std::move(indices);
+  node->span = std::move(span);
+  return TensorLoad(std::move(node));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
