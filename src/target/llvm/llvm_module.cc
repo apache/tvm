@@ -49,6 +49,7 @@
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/string.h>
@@ -313,11 +314,13 @@ void LLVMModuleNode::EnsureOrcJITModule() {
   if (tvm_ffi_orcjit_module_.has_value()) {
     return;
   }
-  ffi::Optional<ffi::Function> create_orcjit_module =
-      ffi::Function::GetGlobal("tvm.codegen.llvm.CreateOrcJITModule");
-  TVM_FFI_CHECK(create_orcjit_module.has_value(), InternalError)
+  ffi::Optional<ffi::Function> get_default_session =
+      ffi::Function::GetGlobal("tvm_ffi_orcjit.GlobalDefaultSession");
+  ffi::Optional<ffi::Function> load_module =
+      ffi::Function::GetGlobal("tvm_ffi_orcjit.SessionLoadModule");
+  TVM_FFI_CHECK(get_default_session.has_value() && load_module.has_value(), InternalError)
       << "LLVMModule execution requires the separately installed apache-tvm-ffi-orcjit "
-         "package and its 'tvm.codegen.llvm.CreateOrcJITModule' compatibility function. "
+         "package and its global execution-session functions. "
          "Install it with `pip install 'apache-tvm-ffi-orcjit>=0.1.1'`.";
 
   With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
@@ -338,8 +341,10 @@ void LLVMModuleNode::EnsureOrcJITModule() {
       << "Cannot emit LLVM object for apache-tvm-ffi-orcjit";
   pass.run(*object_module);
 
-  ffi::Module dylib =
-      create_orcjit_module.value()(ffi::Bytes(object.data(), object.size())).cast<ffi::Module>();
+  ffi::ObjectRef session = get_default_session.value()().cast<ffi::ObjectRef>();
+  ffi::Array<ffi::Variant<ffi::String, ffi::Bytes>> objects = {
+      ffi::Bytes(object.data(), object.size())};
+  ffi::Module dylib = load_module.value()(session, objects, ffi::String("")).cast<ffi::Module>();
   for (const ffi::Any& imported_module : imports()) {
     dylib->ImportModule(imported_module.cast<ffi::Module>());
   }
