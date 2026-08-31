@@ -503,10 +503,10 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
       }
       indices.push_back(var.value()->name);
     }
-    if (buffer_indices_map.find(load->source.as_or_throw<tvm::tirx::BufferVar>().name()) ==
-            buffer_indices_map.end() &&
-        !check_)
-      buffer_indices_map.Set(load->source.as_or_throw<tvm::tirx::BufferVar>().name(), indices);
+    BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
+    if (buffer_indices_map.find(buffer.name()) == buffer_indices_map.end() && !check_) {
+      buffer_indices_map.Set(buffer.name(), indices);
+    }
     StmtExprVisitor::VisitExpr_(load);
   }
 

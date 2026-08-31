@@ -80,8 +80,8 @@ class Var2BufferCollector : public StmtExprVisitor {
   }
 
   void VisitExpr_(const TensorLoadNode* op) final {
-    var2buffer_[op->source.as_or_throw<tvm::tirx::BufferVar>().var()].insert(
-        op->source.as_or_throw<tvm::tirx::BufferVar>());
+    BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
+    var2buffer_[buffer.var()].insert(buffer);
     StmtExprVisitor::VisitExpr_(op);
   }
 
@@ -152,13 +152,12 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   void VisitExpr_(const TensorLoadNode* op) final {
-    auto explicit_it =
-        explicit_access_annotations_.find(op->source.as_or_throw<tvm::tirx::BufferVar>());
+    BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
+    auto explicit_it = explicit_access_annotations_.find(buffer);
     if (explicit_it != explicit_access_annotations_.end()) {
       VisitBufferAccess(explicit_it->second);
     } else {
-      VisitBufferAccess(
-          BufferRegion::FromPoint(op->source.as_or_throw<tvm::tirx::BufferVar>(), op->indices));
+      VisitBufferAccess(BufferRegion::FromPoint(buffer, op->indices));
     }
     StmtExprVisitor::VisitExpr_(op);
   }
@@ -584,9 +583,10 @@ class BufferCompactor : public StmtExprMutator {
 
   Expr VisitExpr_(const TensorLoadNode* _op) final {
     TensorLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<TensorLoad>();
+    BufferVar original_buffer = _op->source.as_or_throw<tvm::tirx::BufferVar>();
     BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
     ffi::Array<PrimExpr> indices = load->indices;
-    RewriteBufferAccess(_op->source.as_or_throw<tvm::tirx::BufferVar>(), &buffer, &indices);
+    RewriteBufferAccess(original_buffer, &buffer, &indices);
     return BufferLoad(buffer, indices, load->span);
   }
 

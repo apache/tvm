@@ -320,8 +320,58 @@ class TensorLoadTypeVerifier : public Verifier<TensorLoadTypeVerifier> {
       return;
     }
 
+    bool valid_indices = buffer.value()->shape.size() == op->indices.size();
+    auto valid_rank = Verify(valid_indices);
+    valid_rank << "ValueError: TIR TensorLoad at " << path << " indexes "
+               << buffer.value()->shape.size() << "-dimensional buffer " << buffer.value().name()
+               << " with " << op->indices.size() << " indices.";
+    if (!valid_indices) {
+      Visit(op->indices, path->Attr("indices"));
+      return;
+    }
+
+    for (size_t i = 0; i + 1 < op->indices.size(); ++i) {
+      bool is_scalar = op->indices[i].ty().IsScalar();
+      auto valid_index = Verify(is_scalar);
+      valid_index << "TypeError: TIR TensorLoad index " << i << " at "
+                  << path->Attr("indices")->ArrayItem(i)
+                  << " must be scalar because only the final index may be vector-valued.";
+      valid_indices = valid_indices && is_scalar;
+    }
+    if (!valid_indices) {
+      Visit(op->indices, path->Attr("indices"));
+      return;
+    }
+
+    ffi::Optional<PrimType> index_ty = op->indices.empty()
+                                           ? ffi::Optional<PrimType>(buffer.value()->dtype)
+                                           : op->indices.back().ty().as<PrimType>();
+    AccessPath final_index_path = op->indices.empty()
+                                      ? path->Attr("indices")
+                                      : path->Attr("indices")->ArrayItem(op->indices.size() - 1);
+    auto valid_index_type = Verify(index_ty.has_value());
+    valid_index_type << "TypeError: TIR TensorLoad final index at " << final_index_path
+                     << " must have a primitive type.";
+    if (!index_ty.has_value()) {
+      Visit(op->indices, path->Attr("indices"));
+      return;
+    }
+
+    bool scalable_compatible = op->indices.empty() || !(buffer.value()->dtype.IsScalableVector() &&
+                                                        index_ty.value().IsScalableVector());
+    auto valid_scalability = Verify(scalable_compatible);
+    valid_scalability << "TypeError: TIR TensorLoad at " << path
+                      << " cannot combine a scalable buffer dtype with a scalable index.";
+    if (!scalable_compatible) {
+      Visit(op->indices, path->Attr("indices"));
+      return;
+    }
+
     TensorLoad expected = BufferLoad(buffer.value(), op->indices, op->span);
-    auto valid_type = Verify(op->ty == expected->ty);
+    ffi::Optional<PrimType> asserted_ty = op->ty.as<PrimType>();
+    ffi::Optional<PrimType> expected_ty = expected->ty.as<PrimType>();
+    auto valid_type = Verify(asserted_ty.has_value() && expected_ty.has_value() &&
+                             asserted_ty.value() == expected_ty.value());
     valid_type << "TypeError: TIR TensorLoad at " << path << " asserts result type " << op->ty
                << ", but its source and indices imply " << expected->ty << ".";
     TIRVisitorWithPath::VisitExpr_(op, path);

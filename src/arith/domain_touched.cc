@@ -101,16 +101,11 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
   using Parent::VisitStmt_;
 
   void VisitExpr_(const TensorLoadNode* op) final {
+    BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
     // Record load-exclusive buffer access
-    Touch(&std::get<LoadAccess>(
-               buffer_access_map_[op->source.as_or_throw<tvm::tirx::BufferVar>().get()])
-               .set,
-          op->indices);
+    Touch(&std::get<LoadAccess>(buffer_access_map_[buffer.get()]).set, op->indices);
     // Record load-store inclusive buffer access
-    Touch(&std::get<CombinedAccess>(
-               buffer_access_map_[op->source.as_or_throw<tvm::tirx::BufferVar>().get()])
-               .set,
-          op->indices);
+    Touch(&std::get<CombinedAccess>(buffer_access_map_[buffer.get()]).set, op->indices);
     Parent::VisitExpr_(op);
   }
 

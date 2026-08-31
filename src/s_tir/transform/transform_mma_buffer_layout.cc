@@ -140,7 +140,10 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         n->indices = std::move(new_indices);
       } else if (store->buffer.scope() == "m16n8k8.matrixA" ||
                  store->buffer.scope() == "m16n8k8.matrixB") {
-        n->buffer = buffer_map_[store->buffer];
+        TVM_FFI_ICHECK(false)
+            << "TransformMmaBufferLayout requires " << store->buffer.scope()
+            << " buffers to be accessed through opaque ldmatrix/mma_sync operations, but found "
+               "an explicit BufferStore.";
       }
     }
     return store;
@@ -148,16 +151,21 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
 
   Expr VisitExpr_(const TensorLoadNode* op) {
     TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
-    if (buffer_map_.count(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
+    BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
+    if (buffer_map_.count(buffer)) {
       ffi::Array<PrimExpr> indices = load->indices;
-      if (load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "m16n8k8.matrixC") {
+      if (buffer.scope() == "m16n8k8.matrixC") {
         const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
         TVM_FFI_ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
         indices = index_map->MapIndices(load->indices, analyzer);
+      } else {
+        TVM_FFI_ICHECK(false)
+            << "TransformMmaBufferLayout requires " << buffer.scope()
+            << " buffers to be accessed through opaque ldmatrix/mma_sync operations, but found "
+               "an explicit TensorLoad.";
       }
-      return BufferLoad(buffer_map_[load->source.as_or_throw<tvm::tirx::BufferVar>()], indices,
-                        load->span);
+      return BufferLoad(buffer_map_[buffer], indices, load->span);
     }
     return load;
   }

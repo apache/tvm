@@ -538,8 +538,8 @@ class AutoPadder {
      * \param op the buffer load
      */
     void VisitExpr_(const TensorLoadNode* op) final {
-      runtime::StorageScope scope =
-          runtime::StorageScope::Create(op->source.as_or_throw<tvm::tirx::BufferVar>().scope());
+      BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
+      runtime::StorageScope scope = runtime::StorageScope::Create(buffer.scope());
       if (scope.rank == runtime::StorageRank::kShared) {
         ffi::Array<PrimExpr> substitued_indices;
         arith::Analyzer analyzer;
@@ -549,15 +549,12 @@ class AutoPadder {
         std::vector<std::vector<int>> iter_space =
             PatternCollector::CollectIterationSpace(substitued_indices, var_range_, data_bits_);
         if (!iter_space.empty()) {
-          self->iter_spaces_[op->source.as_or_throw<tvm::tirx::BufferVar>().get()].push_back(
-              iter_space);
+          self->iter_spaces_[buffer.get()].push_back(iter_space);
         }
         if (vector_length_ != -1 &&
             CheckVarContiguous(substitued_indices.back(), vector_var, substitute_map_)) {
-          int64_t m =
-              self->padding_min_.Get(op->source.as_or_throw<tvm::tirx::BufferVar>()).value_or(1);
-          self->padding_min_.Set(op->source.as_or_throw<tvm::tirx::BufferVar>(),
-                                 std::max(static_cast<int64_t>(vector_length_), m));
+          int64_t m = self->padding_min_.Get(buffer).value_or(1);
+          self->padding_min_.Set(buffer, std::max(static_cast<int64_t>(vector_length_), m));
         }
       }
       StmtExprVisitor::VisitExpr_(op);

@@ -211,14 +211,11 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const BufferStoreNode* op) override {
     BufferStore store = Parent::VisitStmt_(op).as_or_throw<BufferStore>();
     if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
-      if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(store->buffer) &&
-          ArrayDeepEqual(load->indices, store->indices) &&
-          tirx::ExprDeepEqual()(load->source.as_or_throw<tvm::tirx::BufferVar>()->elem_offset,
-                                store->buffer->elem_offset) &&
-          ArrayDeepEqual(load->source.as_or_throw<tvm::tirx::BufferVar>()->shape,
-                         store->buffer->shape) &&
-          ArrayDeepEqual(load->source.as_or_throw<tvm::tirx::BufferVar>()->strides,
-                         store->buffer->strides)) {
+      BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
+      if (buffer.same_as(store->buffer) && ArrayDeepEqual(load->indices, store->indices) &&
+          tirx::ExprDeepEqual()(buffer->elem_offset, store->buffer->elem_offset) &&
+          ArrayDeepEqual(buffer->shape, store->buffer->shape) &&
+          ArrayDeepEqual(buffer->strides, store->buffer->strides)) {
         return Evaluate(0);
       }
     }

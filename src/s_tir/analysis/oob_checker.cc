@@ -81,8 +81,9 @@ class OOBCheckerVisitor final : public arith::IRVisitorWithAnalyzer {
     IRVisitorWithAnalyzer::VisitStmt_(node);
   }
   void VisitExpr_(const TensorLoadNode* node) final {
-    for (size_t i = 0; i < node->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size(); i++) {
-      CheckBounds(node, node->source.as_or_throw<tvm::tirx::BufferVar>(), i);
+    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    for (size_t i = 0; i < buffer->shape.size(); i++) {
+      CheckBounds(node, buffer, i);
     }
     IRVisitorWithAnalyzer::VisitExpr_(node);
   }
