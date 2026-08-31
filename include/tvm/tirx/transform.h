@@ -269,7 +269,7 @@ TVM_DLL Pass InlinePrivateFunctions();
 TVM_DLL Pass PointerValueTypeRewrite();
 
 /*!
- * \brief Flatten the multi-dimensional BufferLoad and BufferStore to single dimensional
+ * \brief Flatten the multi-dimensional TensorLoad and BufferStore to single dimensional
  *        BufferLoad/BufferStore for the TIR not contains opaque block.
  * \return The pass.
  */

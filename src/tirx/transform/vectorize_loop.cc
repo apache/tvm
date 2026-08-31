@@ -206,8 +206,8 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
   }
 
  private:
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     return TryPredicateBufferAccess(load);
   }
 
@@ -273,9 +273,9 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     return lane_mask;
   }
 
-  Expr TryPredicateBufferAccess(BufferLoad load) {
+  Expr TryPredicateBufferAccess(TensorLoad load) {
     if (auto mask = GetLaneMask(load->indices)) {
-      ffi::Array<Expr> args{load->buffer.var()};
+      ffi::Array<Expr> args{load->source.as_or_throw<tvm::tirx::BufferVar>().var()};
       for (const PrimExpr& index : load->indices) args.push_back(index);
       args.push_back(mask.value());
       return Call(load->ty, builtin::masked_load(), args, {}, {}, load->span);
@@ -324,8 +324,8 @@ class VecAllocAccess : public StmtExprMutator {
   VecAllocAccess(const VarNode* buf, Var var, PrimExpr var_lanes)
       : buf_(buf), var_(var), var_lanes_(var_lanes) {}
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     return UpdateBufferAccess(load);
   }
 
@@ -388,6 +388,34 @@ class VecAllocAccess : public StmtExprMutator {
     writer->buffer = buf;
     writer->indices = indices;
     return node;
+  }
+
+  TensorLoad UpdateBufferAccess(TensorLoad node) {
+    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    if (buffer.get() != buf_) return node;
+    BufferVar buf;
+    auto it = buffer_map_.find(buffer.get());
+    if (it != buffer_map_.end()) {
+      buf = it->second;
+    } else {
+      ffi::Array<PrimExpr> shape = buffer->shape;
+      shape.Set(shape.size() - 1, analyzer_->Simplify(shape.back() * var_lanes_));
+      ffi::Array<PrimExpr> strides = buffer->strides;
+      for (size_t i = 0; i < strides.size(); ++i) {
+        PrimExpr stride = strides[i];
+        if (i + 1 != strides.size()) stride *= var_lanes_;
+        strides.Set(i, analyzer_->Simplify(stride));
+      }
+      auto type = CopyBufferType(buffer);
+      type->shape = shape;
+      type->strides = strides;
+      buf = RebuildBufferVar(buffer, std::move(type));
+      buffer_map_[buffer.get()] = buf;
+    }
+    ffi::Array<PrimExpr> indices = node->indices;
+    indices.Set(indices.size() - 1,
+                analyzer_->Simplify(indices.back() * var_lanes_ + var_.as_or_throw<PrimExpr>()));
+    return BufferLoad(buf, indices, node->span);
   }
 
   // buffer var
@@ -751,16 +779,14 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
     }
   }
   // BufferLoad
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    auto load = ffi::GetRef<BufferLoad>(op);
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    auto load = ffi::GetRef<TensorLoad>(op);
 
     auto fmutate = [this](const PrimExpr& index) { return this->VisitPrimExpr(index); };
     ffi::Array<PrimExpr> indices = op->indices.Map(fmutate);
 
     if (!indices.same_as(op->indices)) {
-      auto writer = load.CopyOnWrite();
-      writer->indices = indices;
-      writer->LegalizeDType();
+      return BufferLoad(op->source.as_or_throw<tvm::tirx::BufferVar>(), indices, op->span);
     }
 
     return load;

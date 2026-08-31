@@ -553,8 +553,8 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
                        (layout != "row_major") ? t_val : f_val);
     return spirv::Value();
   } else if (op->op.same_as(builtin::address_of())) {
-    const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
-    Var buffer_var = load->buffer.var();
+    const TensorLoadNode* load = op->args[0].as<TensorLoadNode>();
+    Var buffer_var = load->source.as_or_throw<tvm::tirx::BufferVar>().var();
     const VarNode* buffer_node = buffer_var.get();
     PrimExpr index = load->indices[0];
     PrimType ele_dtype = GetElementDataType(buffer_node);
@@ -596,9 +596,9 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const BroadcastNode* op) {
   return builder_->Concat(values);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const BufferLoadNode* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const TensorLoadNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
-  Var buffer_var = op->buffer.var();
+  Var buffer_var = op->source.as_or_throw<tvm::tirx::BufferVar>().var();
   PrimExpr prim_index = op->indices[0];
 
   PrimType desired_read_type = op->ty.as_or_throw<PrimType>();

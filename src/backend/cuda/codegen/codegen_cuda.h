@@ -91,7 +91,7 @@ class CodeGenCUDA final : public CodeGenC {
 
  private:
   // Handle volatile loads
-  void HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
+  void HandleVolatileLoads(const std::string& value, const TensorLoadNode* op,
                            std::ostream& os) final;
 
   // Whether scope such as "__shared__" or "__constant__"  is part of type.

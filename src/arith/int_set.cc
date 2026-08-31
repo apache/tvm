@@ -585,14 +585,14 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
     return IntervalSet(min_value, max_value);
   }
 
-  IntervalSet VisitExpr_(const BufferLoadNode* op) final {
+  IntervalSet VisitExpr_(const TensorLoadNode* op) final {
     PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (!op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
-      DLOG(WARNING) << "cannot evaluate set BufferLoad which loads from a " << op_ty->dtype
+      DLOG(WARNING) << "cannot evaluate set TensorLoad which loads from a " << op_ty->dtype
                     << " buffer";
       return IntervalSet::Everything();
     }
-    // If the indices do not contain any variables to be relaxed, return the BufferLoad itself.
+    // If the indices do not contain any variables to be relaxed, return the TensorLoad itself.
     // Otherwise return `IntervalSet::everything()` since we have no knowledge on the buffer data.
     for (const PrimExpr& index : op->indices) {
       if (UsesVar(index, [dom_map = &this->dom_map_](const VarNode* var) {

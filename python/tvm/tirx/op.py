@@ -24,7 +24,7 @@ from tvm_ffi import Array
 
 import tvm
 from tvm import tirx
-from tvm.ir import Call, Expr, Op, PointerType, PrimType
+from tvm.ir import Call, Expr, Op, PointerType, PrimType, TensorLoad
 from tvm.ir.base import Span
 from tvm.ir.type import TensorMapType
 from tvm.runtime import const
@@ -669,12 +669,12 @@ def _buffer_element_pointer_type(buffer: Buffer) -> PointerType:
     return PointerType(buffer.ty.dtype, buffer.ty.storage_scope)
 
 
-def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Expr:
+def address_of(obj: Buffer | TensorLoad | Var, span: Span | None = None) -> Expr:
     """Returns the address of a buffer element or addressable variable.
 
     Parameters
     ----------
-    obj: Union[Buffer, BufferLoad, Var]
+    obj: Union[Buffer, TensorLoad, Var]
         The buffer, buffer load, or addressable variable.
 
     span : Optional[Span]
@@ -700,12 +700,12 @@ def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Expr
         if not isinstance(obj.ty, tvm.ir.PrimType):
             raise TypeError(f"address_of expects a scalar or TensorMap Var, but got {obj.ty}")
         return Call("tirx.address_of", [obj], span=span, ret_ty=PointerType(obj.ty))
-    elif isinstance(obj, BufferLoad):
+    elif isinstance(obj, TensorLoad):
         return Call(
             "tirx.address_of",
             [obj],
             span=span,
-            ret_ty=_buffer_element_pointer_type(obj.buffer),
+            ret_ty=_buffer_element_pointer_type(obj.source),
         )
     else:
         raise ValueError(f"Invalid object type: {type(obj)}")

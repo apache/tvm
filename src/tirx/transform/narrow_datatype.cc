@@ -107,7 +107,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const BufferLoadNode* op) {
+  void VisitExpr_(const TensorLoadNode* op) {
     int tmp = bits_;
     bits_ = target_bits_;
     StmtExprVisitor::VisitExpr_(op);

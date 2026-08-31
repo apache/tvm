@@ -165,9 +165,10 @@ class LoopUnroller : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const TensorLoadNode* op) final {
     if (unroll_local_access_) {
-      auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
+      auto storage_scope =
+          runtime::StorageScope::Create(op->source.as_or_throw<tvm::tirx::BufferVar>().scope());
       if (storage_scope.rank == runtime::StorageRank::kLocal ||
           storage_scope.rank == runtime::StorageRank::kWarp) {
         VarLocalAccessMarker marker(&var_touched_local_);

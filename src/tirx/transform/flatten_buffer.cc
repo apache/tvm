@@ -240,9 +240,12 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     return store;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    BufferVar original_buffer = op->buffer;
-    BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    BufferVar original_buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
+    // Mutate the indices while keeping the original source opaque.  The base
+    // statement mutator remaps buffer sources immediately, but this pass also
+    // changes their rank, so reconstruction must wait until after FoldIndices.
+    TensorLoad load = ExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     load = VisitBufferAccess(load, original_buffer);
     return load;
   }
@@ -291,6 +294,12 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     writer->buffer = info.flattened;
     writer->indices = flattened_indices;
     return node;
+  }
+
+  TensorLoad VisitBufferAccess(TensorLoad node, const BufferVar& original_buffer) {
+    buffers_used_.insert(original_buffer);
+    const FlatInfo& info = Lookup(original_buffer);
+    return BufferLoad(info.flattened, FoldIndices(info, node->indices), node->span);
   }
 
   BufferRegion MutateBufferRegion(BufferRegion region) {

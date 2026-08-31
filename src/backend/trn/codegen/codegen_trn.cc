@@ -341,12 +341,12 @@ void CodeGenTrainium::VisitStmt_(const EvaluateNode* op) {
   }
 }
 
-void CodeGenTrainium::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {
+void CodeGenTrainium::VisitExpr_(const TensorLoadNode* op, std::ostream& os) {
   std::string buffer_str;
-  if (buffer_idmap_.count(op->buffer)) {
-    buffer_str = buffer_idmap_[op->buffer];
+  if (buffer_idmap_.count(op->source.as_or_throw<tvm::tirx::BufferVar>())) {
+    buffer_str = buffer_idmap_[op->source.as_or_throw<tvm::tirx::BufferVar>()];
   } else {
-    buffer_str = GetVarID(op->buffer.get());
+    buffer_str = GetVarID(op->source.as_or_throw<tvm::tirx::BufferVar>().get());
   }
   os << buffer_str << "[";
   os << PrintIndices(op->indices);

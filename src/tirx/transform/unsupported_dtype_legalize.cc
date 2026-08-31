@@ -106,9 +106,9 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
     this->PopulateBufferRemap(op->buffer);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
+  void VisitExpr_(const TensorLoadNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
-    this->PopulateBufferRemap(op->buffer);
+    this->PopulateBufferRemap(op->source.as_or_throw<tvm::tirx::BufferVar>());
   }
 
   void VisitStmt_(const AllocBufferNode* op) final {
@@ -496,12 +496,12 @@ class ComputeLegalizer : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const TensorLoadNode* op) final {
     PrimExpr ret = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
-    op = ret.as<BufferLoadNode>();
+    op = ret.as<TensorLoadNode>();
 
-    BufferVar new_buf = GetRemappedBuffer(op->buffer);
-    if (new_buf.same_as(op->buffer)) {
+    BufferVar new_buf = GetRemappedBuffer(op->source.as_or_throw<tvm::tirx::BufferVar>());
+    if (new_buf.same_as(op->source.as_or_throw<tvm::tirx::BufferVar>())) {
       return ret;
     } else {
       return BufferLoad(new_buf, op->indices);
@@ -703,11 +703,11 @@ class StorageLegalizer : public StmtExprMutator {
     return ret;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const TensorLoadNode* op) final {
     PrimExpr ret = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
-    op = ret.as<BufferLoadNode>();
-    BufferVar new_buf = GetRemappedBuffer(op->buffer);
-    if (new_buf.same_as(op->buffer)) {
+    op = ret.as<TensorLoadNode>();
+    BufferVar new_buf = GetRemappedBuffer(op->source.as_or_throw<tvm::tirx::BufferVar>());
+    if (new_buf.same_as(op->source.as_or_throw<tvm::tirx::BufferVar>())) {
       return ret;
     } else {
       return BufferLoad(new_buf, op->indices);
