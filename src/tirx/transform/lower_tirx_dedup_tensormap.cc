@@ -43,7 +43,7 @@ inline bool IsTensorMapAlloca(const BindNode* bind) {
   if (const auto* call = bind->value.as<CallNode>()) {
     if (IsBuiltin(call, builtin::tvm_stack_alloca())) {
       if (call->args.size() == 2) {
-        if (const auto* type_str = call->args[0].as<StringImmNode>()) {
+        if (const auto* type_str = call->args[0].as<prim::StringImmNode>()) {
           return type_str->value == "tensormap";
         }
       }
@@ -57,7 +57,7 @@ inline const CallNode* AsCuTensorMapEncode(const EvaluateNode* eval) {
   const CallNode* call = eval->value.as<CallNode>();
   if (!call || !call->op.same_as(builtin::tvm_call_packed())) return nullptr;
   if (call->args.empty()) return nullptr;
-  if (const auto* s = call->args[0].as<StringImmNode>()) {
+  if (const auto* s = call->args[0].as<prim::StringImmNode>()) {
     if (s->value == "runtime.cuTensorMapEncodeTiled") return call;
   }
   return nullptr;

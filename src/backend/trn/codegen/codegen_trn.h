@@ -68,13 +68,13 @@ class CodeGenTrainium final : public CodeGenC {
   void VisitExpr_(const TensorLoadNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const CallNode* op, std::ostream& os) final;        // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;    // NOLINT(*)
-  void VisitExpr_(const CastNode* op, std::ostream& os) final;        // NOLINT(*)
-  void VisitExpr_(const FloorDivNode* op, std::ostream& os) final;    // NOLINT(*)
-  void VisitExpr_(const FloorModNode* op, std::ostream& os) final;    // NOLINT(*)
+  void VisitExpr_(const prim::CastNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const prim::FloorDivNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const prim::FloorModNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitStmt_(const DeclBufferNode* op) final;                    // NOLINT(*)
   void VisitStmt_(const IfThenElseNode* op) final;                    // NOLINT(*)
-  void VisitExpr_(const AndNode* op, std::ostream& os) final;         // NOLINT(*)
-  void VisitExpr_(const OrNode* op, std::ostream& os) final;          // NOLINT(*)
+  void VisitExpr_(const prim::AndNode* op, std::ostream& os) final;   // NOLINT(*)
+  void VisitExpr_(const prim::OrNode* op, std::ostream& os) final;    // NOLINT(*)
 
  private:
   Target target_;

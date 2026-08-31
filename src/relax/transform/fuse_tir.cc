@@ -81,23 +81,23 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
     }                                                                    \
   }
 
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(AddNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(SubNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(MulNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(DivNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(ModNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(EQNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(NENode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(LTNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(LENode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(GTNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(GENode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(AndNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(OrNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(MinNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(MaxNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(FloorDivNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(FloorModNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::AddNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::SubNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::MulNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::DivNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::ModNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::EQNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::NENode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::LTNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::LENode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::GTNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::GENode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::AndNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::OrNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::MinNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::MaxNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::FloorDivNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::FloorModNode);
 
   void VisitExpr_(const IntImmNode* op, const PrimExpr& other) {
     const auto* rhs = other.as<IntImmNode>();
@@ -118,8 +118,8 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
     }
   }
 
-  void VisitExpr_(const CastNode* op, const PrimExpr& other) {
-    const auto* rhs = other.as<CastNode>();
+  void VisitExpr_(const prim::CastNode* op, const PrimExpr& other) {
+    const auto* rhs = other.as<prim::CastNode>();
     if (!rhs) {
       TVM_FFI_THROW(InternalError)
           << "Parameter expression " << ffi::GetRef<PrimExpr>(op) << " expected an cast to "
@@ -146,8 +146,8 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
     }
   }
 
-  void VisitExpr_(const SelectNode* op, const PrimExpr& other) {
-    const auto* rhs = other.as<SelectNode>();
+  void VisitExpr_(const prim::SelectNode* op, const PrimExpr& other) {
+    const auto* rhs = other.as<prim::SelectNode>();
     if (rhs) {
       VisitExpr(op->true_value, rhs->true_value);
       VisitExpr(op->false_value, rhs->false_value);

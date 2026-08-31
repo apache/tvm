@@ -23,8 +23,8 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/expr.h>
 
 namespace tvm {
 namespace te {

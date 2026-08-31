@@ -28,9 +28,9 @@
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/tirx/buffer.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt.h>
 
 #include <string>

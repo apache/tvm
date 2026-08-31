@@ -25,10 +25,11 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <string>
@@ -50,7 +51,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /// Verify if ComputeOp is valid with respect to Reduce operations.
 static void VerifyComputeOp(const ComputeOpNode* op);
 
-static inline void AssertReduceEqual(const tirx::ReduceNode* a, const tirx::ReduceNode* b) {
+static inline void AssertReduceEqual(const te::ReduceNode* a, const te::ReduceNode* b) {
   const char* shared_text =
       "When a TE compute node produces multiple outputs, "
       "each of which is a reduction, "
@@ -141,8 +142,8 @@ ComputeOp::ComputeOp(std::string name, std::string tag, ffi::Map<ffi::String, ff
   n->attrs = std::move(attrs);
   n->axis = std::move(axis);
   n->body = std::move(body);
-  if (n->body[0]->IsInstance<tirx::ReduceNode>()) {
-    const tirx::ReduceNode* reduce = n->body[0].as<tirx::ReduceNode>();
+  if (n->body[0]->IsInstance<te::ReduceNode>()) {
+    const te::ReduceNode* reduce = n->body[0].as<te::ReduceNode>();
     n->reduce_axis = reduce->axis;
   }
   VerifyComputeOp(n.get());
@@ -162,7 +163,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
   ffi::Array<Tensor> ret;
   std::unordered_set<Tensor> visited;
-  for (auto& e : body) {
+  auto visit = [&ret, &visited](const PrimExpr& e) {
     tirx::PostOrderVisit(e, [&ret, &visited](const ffi::ObjectRef& n) {
       if (auto call = n.as<Call>(); call.has_value() && IsTensorLoad(call.value())) {
         Tensor t = GetTensorFromLoad(call.value());
@@ -172,6 +173,19 @@ ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
         }
       }
     });
+  };
+  for (const PrimExpr& e : body) {
+    if (const auto* reduce = e.as<te::ReduceNode>()) {
+      for (const IterVar& axis : reduce->axis) {
+        visit(axis->dom->min);
+        visit(axis->dom->extent);
+      }
+      for (const PrimExpr& source : reduce->source) visit(source);
+      for (const PrimExpr& init : reduce->init) visit(init);
+      visit(reduce->condition);
+    } else {
+      visit(e);
+    }
   }
   return ret;
 }
@@ -193,7 +207,7 @@ class ComputeVerifier final : protected tirx::ExprVisitor {
   /// Special member functions
   //@{
   explicit ComputeVerifier(const ComputeOpNode* compute)
-      : compute_(compute), reduce_(compute->body[0].as<tirx::ReduceNode>()) {}
+      : compute_(compute), reduce_(compute->body[0].as<te::ReduceNode>()) {}
   virtual ~ComputeVerifier() = default;
   ComputeVerifier(const ComputeVerifier&) = delete;
   ComputeVerifier(ComputeVerifier&&) = delete;
@@ -205,7 +219,7 @@ class ComputeVerifier final : protected tirx::ExprVisitor {
   void Run() {
     for (const PrimExpr e : compute_->body) {
       // Check for consistency of top level reductions
-      const tirx::ReduceNode* reduce = e.as<tirx::ReduceNode>();
+      const te::ReduceNode* reduce = e.as<te::ReduceNode>();
       TVM_FFI_ICHECK((reduce && reduce_) || (!reduce && !reduce_))
           << "All ComputeOp should be consistent "
           << "with being Reduce operation or not.";
@@ -228,16 +242,27 @@ class ComputeVerifier final : protected tirx::ExprVisitor {
     --level_;
   }
 
-  void VisitExpr_(const tirx::ReduceNode* op) final {
-    // Check for non top level reductions
+  void VisitExpr_(const OpaqueExprNode* op) final {
+    const auto* reduce =
+        op->IsInstance<te::ReduceNode>() ? static_cast<const te::ReduceNode*>(op) : nullptr;
+    if (reduce == nullptr) {
+      ExprVisitor::VisitExpr_(op);
+      return;
+    }
+
     TVM_FFI_ICHECK(0 == level_) << "Reductions are only allowed at the top level of compute. "
                                 << "Please create another tensor for further composition.";
+    for (const PrimExpr& expr : reduce->combiner->result) this->VisitExpr(expr);
+    for (const PrimExpr& expr : reduce->combiner->identity_element) this->VisitExpr(expr);
+    for (const PrimExpr& expr : reduce->source) this->VisitExpr(expr);
+    for (const PrimExpr& expr : reduce->init) this->VisitExpr(expr);
+    this->VisitExpr(reduce->condition);
   }
   //@}
 
  private:
   const ComputeOpNode* compute_{nullptr};    ///< ComputeOpNode to verify
-  const tirx::ReduceNode* reduce_{nullptr};  ///< Top level Reduce operation
+  const te::ReduceNode* reduce_{nullptr};    ///< Top level Reduce operation
   int level_{0};                             ///< Level of op being processed
 };
 }  // namespace

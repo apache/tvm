@@ -26,9 +26,9 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/type.h>
 #include <tvm/te/tensor.h>
-#include <tvm/tirx/expr.h>
 
 #include <cmath>
 
@@ -105,7 +105,7 @@ PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm::Int32(value)) {}
 
 PrimExpr::PrimExpr(float value) : PrimExpr(FloatImm(PrimType::Float(32), value)) {}
 
-PrimExpr PrimExpr::ConvertFallbackValue(ffi::String value) { return tirx::StringImm(value); }
+PrimExpr PrimExpr::ConvertFallbackValue(ffi::String value) { return prim::StringImm(value); }
 
 namespace ffi {
 

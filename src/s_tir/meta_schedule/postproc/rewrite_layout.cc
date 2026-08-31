@@ -27,6 +27,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -248,6 +249,7 @@ bool RewriteLayout(const Schedule& sch) {
 }  // namespace s_tir
 
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 /*! \brief Layout Rewrite. */
 class RewriteLayoutNode : public PostprocNode {

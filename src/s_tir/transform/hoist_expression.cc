@@ -24,9 +24,9 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <queue>
@@ -41,6 +41,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 enum class HoistedConditionals : int {
@@ -371,7 +372,7 @@ class HoistInfoCollector : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::if_then_else())) {
+    if (op->op.same_as(prim::builtin::if_then_else())) {
       PrimExpr cond = op->args[0].as_or_throw<PrimExpr>();
       AttemptHoistConditional(cond, HoistedConditionals::kIfElseExpr);
     }

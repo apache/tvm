@@ -19,6 +19,37 @@
 import json
 
 
+_PRIM_TYPE_KEY_RENAMES = {
+    "tirx.StringImm": "ir.prim.StringImm",
+    "tirx.Cast": "ir.prim.Cast",
+    "tirx.Add": "ir.prim.Add",
+    "tirx.Sub": "ir.prim.Sub",
+    "tirx.Mul": "ir.prim.Mul",
+    "tirx.Div": "ir.prim.Div",
+    "tirx.Mod": "ir.prim.Mod",
+    "tirx.FloorDiv": "ir.prim.FloorDiv",
+    "tirx.FloorMod": "ir.prim.FloorMod",
+    "tirx.Min": "ir.prim.Min",
+    "tirx.Max": "ir.prim.Max",
+    "tirx.EQ": "ir.prim.EQ",
+    "tirx.NE": "ir.prim.NE",
+    "tirx.LT": "ir.prim.LT",
+    "tirx.LE": "ir.prim.LE",
+    "tirx.GT": "ir.prim.GT",
+    "tirx.GE": "ir.prim.GE",
+    "tirx.And": "ir.prim.And",
+    "tirx.Or": "ir.prim.Or",
+    "tirx.Not": "ir.prim.Not",
+    "tirx.Select": "ir.prim.Select",
+    "tirx.Let": "ir.prim.Let",
+    "tirx.Ramp": "ir.prim.Ramp",
+    "tirx.Broadcast": "ir.prim.Broadcast",
+    "tirx.Shuffle": "ir.prim.Shuffle",
+    "tirx.CommReducer": "te.CommReducer",
+    "tirx.Reduce": "te.Reduce",
+}
+
+
 def get_version(jgraph):
     """
     Get the tvm version from the json graph.
@@ -90,6 +121,7 @@ def upgrade_json(json_str):
     # written before the canonical Var field was renamed to `name`.  Rewriting
     # nodes in place preserves node indices and shared references.
     for node in data.get("nodes", []):
+        node["type"] = _PRIM_TYPE_KEY_RENAMES.get(node.get("type"), node.get("type"))
         if node.get("type") == "relax.expr.Var":
             node["type"] = "ir.Var"
         elif node.get("type") == "tirx.Var":

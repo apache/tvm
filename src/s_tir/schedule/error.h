@@ -18,7 +18,9 @@
  */
 #ifndef TVM_S_TIR_SCHEDULE_ERROR_H_
 #define TVM_S_TIR_SCHEDULE_ERROR_H_
+
 #include <tvm/ffi/error.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/schedule/state.h>
 
 #include <string>
@@ -26,6 +28,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Error that happens during TensorIR scheduling */

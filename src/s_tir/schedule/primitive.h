@@ -19,6 +19,7 @@
 #ifndef TVM_S_TIR_SCHEDULE_PRIMITIVE_H_
 #define TVM_S_TIR_SCHEDULE_PRIMITIVE_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/random_engine.h>
 #include <tvm/s_tir/schedule/state.h>
 
@@ -26,6 +27,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /******** Schedule: Sampling ********/

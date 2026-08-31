@@ -42,9 +42,9 @@
 #include <llvm/Support/Casting.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
@@ -199,33 +199,33 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
   }
   // override codegen
   llvm::Value* VisitExpr_(const VarNode* op) override;
-  llvm::Value* VisitExpr_(const CastNode* op) override;
+  llvm::Value* VisitExpr_(const prim::CastNode* op) override;
   llvm::Value* VisitExpr_(const IntImmNode* op) override;
   llvm::Value* VisitExpr_(const FloatImmNode* op) override;
-  llvm::Value* VisitExpr_(const StringImmNode* op) override;
-  llvm::Value* VisitExpr_(const AddNode* op) override;
-  llvm::Value* VisitExpr_(const SubNode* op) override;
-  llvm::Value* VisitExpr_(const MulNode* op) override;
-  llvm::Value* VisitExpr_(const DivNode* op) override;
-  llvm::Value* VisitExpr_(const ModNode* op) override;
-  llvm::Value* VisitExpr_(const MinNode* op) override;
-  llvm::Value* VisitExpr_(const MaxNode* op) override;
-  llvm::Value* VisitExpr_(const LTNode* op) override;
-  llvm::Value* VisitExpr_(const LENode* op) override;
-  llvm::Value* VisitExpr_(const GTNode* op) override;
-  llvm::Value* VisitExpr_(const GENode* op) override;
-  llvm::Value* VisitExpr_(const EQNode* op) override;
-  llvm::Value* VisitExpr_(const NENode* op) override;
-  llvm::Value* VisitExpr_(const AndNode* op) override;
-  llvm::Value* VisitExpr_(const OrNode* op) override;
-  llvm::Value* VisitExpr_(const NotNode* op) override;
-  llvm::Value* VisitExpr_(const SelectNode* op) override;
-  llvm::Value* VisitExpr_(const LetNode* op) override;
+  llvm::Value* VisitExpr_(const prim::StringImmNode* op) override;
+  llvm::Value* VisitExpr_(const prim::AddNode* op) override;
+  llvm::Value* VisitExpr_(const prim::SubNode* op) override;
+  llvm::Value* VisitExpr_(const prim::MulNode* op) override;
+  llvm::Value* VisitExpr_(const prim::DivNode* op) override;
+  llvm::Value* VisitExpr_(const prim::ModNode* op) override;
+  llvm::Value* VisitExpr_(const prim::MinNode* op) override;
+  llvm::Value* VisitExpr_(const prim::MaxNode* op) override;
+  llvm::Value* VisitExpr_(const prim::LTNode* op) override;
+  llvm::Value* VisitExpr_(const prim::LENode* op) override;
+  llvm::Value* VisitExpr_(const prim::GTNode* op) override;
+  llvm::Value* VisitExpr_(const prim::GENode* op) override;
+  llvm::Value* VisitExpr_(const prim::EQNode* op) override;
+  llvm::Value* VisitExpr_(const prim::NENode* op) override;
+  llvm::Value* VisitExpr_(const prim::AndNode* op) override;
+  llvm::Value* VisitExpr_(const prim::OrNode* op) override;
+  llvm::Value* VisitExpr_(const prim::NotNode* op) override;
+  llvm::Value* VisitExpr_(const prim::SelectNode* op) override;
+  llvm::Value* VisitExpr_(const prim::LetNode* op) override;
   llvm::Value* VisitExpr_(const TensorLoadNode* op) override;
   llvm::Value* VisitExpr_(const CallNode* op) override;
-  llvm::Value* VisitExpr_(const RampNode* op) override;
-  llvm::Value* VisitExpr_(const ShuffleNode* op) override;
-  llvm::Value* VisitExpr_(const BroadcastNode* op) override;
+  llvm::Value* VisitExpr_(const prim::RampNode* op) override;
+  llvm::Value* VisitExpr_(const prim::ShuffleNode* op) override;
+  llvm::Value* VisitExpr_(const prim::BroadcastNode* op) override;
   // stmt
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
@@ -574,7 +574,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
   // deep comparison of PrimExpr
   ExprDeepEqual deep_equal_;
   // binding of let variables. Enables duplicate var defs that map to same value
-  std::unordered_map<Var, const LetNode*> let_binding_;
+  std::unordered_map<Var, const prim::LetNode*> let_binding_;
   // debug info for function being compiled
   llvm::DISubprogram* di_subprogram_{nullptr};
   // Cache potential common path ops to slightly improve lookup time.

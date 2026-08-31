@@ -25,10 +25,10 @@
 #define TVM_TIR_ANALYSIS_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>

@@ -23,10 +23,11 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
@@ -36,6 +37,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 namespace {
@@ -45,7 +47,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -75,8 +77,9 @@ class ExprTouched final : public StmtExprVisitor {
   }
   void VisitExpr_(const VarNode* op) final { HandleUseVar(op); }
   void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
-      bool is_load = op->op.same_as(builtin::masked_load());
+    if (op->op.same_as(tirx::builtin::masked_load()) ||
+        op->op.same_as(tirx::builtin::masked_store())) {
+      bool is_load = op->op.same_as(tirx::builtin::masked_load());
       const VarNode* buffer = op->args[0].as_or_throw<Var>().get();
       if (is_load) {
         HandleUseVar(buffer);
@@ -86,7 +89,7 @@ class ExprTouched final : public StmtExprVisitor {
       for (size_t i = 1; i < op->args.size(); ++i) {
         this->VisitExpr(op->args[i]);
       }
-    } else if (op->op.same_as(builtin::tvm_access_ptr())) {
+    } else if (op->op.same_as(tirx::builtin::tvm_access_ptr())) {
       const auto* rw_mask = op->args[4].as<IntImmNode>();
       auto buffer = GetBufferDataVar(op->args[1]);
       if (!buffer.has_value()) {
@@ -251,8 +254,9 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   }
   // Expression.
   Expr VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
-      bool is_load = op->op.same_as(builtin::masked_load());
+    if (op->op.same_as(tirx::builtin::masked_load()) ||
+        op->op.same_as(tirx::builtin::masked_store())) {
+      bool is_load = op->op.same_as(tirx::builtin::masked_load());
       BufferVar buffer(op->args[0].as_or_throw<Var>());
       PrimExpr value;
       if (!is_load) value = this->VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>());
@@ -273,7 +277,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       for (const PrimExpr& index : access->indices) args.push_back(index);
       args.push_back(predicate);
       return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
-    } else if (op->op.same_as(builtin::buffer_data())) {
+    } else if (op->op.same_as(tirx::builtin::buffer_data())) {
       auto buffer = GetBufferDataVar(ffi::GetRef<Call>(op)).value();
       auto it = alloc_remap_.find(buffer.get());
       if (it == alloc_remap_.end()) {
@@ -281,7 +285,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       }
       visit_touched_var_ = true;
       return GetRemappedBuffer(BufferVar(buffer), it->second).data();
-    } else if (op->op.same_as(builtin::tvm_access_ptr())) {
+    } else if (op->op.same_as(tirx::builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
       auto buffer = GetBufferDataVar(op->args[1]);
@@ -300,7 +304,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
                       : op->args[1];
 
       return Call(op->ty, op->op, {op->args[0], data, offset, extent, op->args[4]});
-    } else if (op->op.same_as(builtin::tvm_context_id())) {
+    } else if (op->op.same_as(tirx::builtin::tvm_context_id())) {
       return allow_share_ ? Expr(ffi::GetRef<Call>(op)) : Expr(var_);
     } else {
       return StmtExprMutator::VisitExpr_(op);

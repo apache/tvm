@@ -49,39 +49,39 @@ class ExprFunctor:
 
     def __init__(self):
         self._dispatch_map = {
-            "tirx.Var": self.visit_var_,
-            "tirx.TensorLoad": self.visit_buffer_load_,
-            "tirx.Tuple": self.visit_tuple_,
-            "tirx.TupleGetItem": self.visit_tuple_get_item_,
-            "tirx.Let": self.visit_let_,
-            "tirx.Call": self.visit_call_,
-            "tirx.Add": self.visit_add_,
-            "tirx.Sub": self.visit_sub_,
-            "tirx.Mul": self.visit_mul_,
-            "tirx.Div": self.visit_div_,
-            "tirx.Mod": self.visit_mod_,
-            "tirx.FloorDiv": self.visit_floordiv_,
-            "tirx.FloorMod": self.visit_floormod_,
-            "tirx.Min": self.visit_min_,
-            "tirx.Max": self.visit_max_,
-            "tirx.EQ": self.visit_eq_,
-            "tirx.NE": self.visit_ne_,
-            "tirx.LT": self.visit_lt_,
-            "tirx.LE": self.visit_le_,
-            "tirx.GT": self.visit_gt_,
-            "tirx.GE": self.visit_ge_,
-            "tirx.And": self.visit_and_,
-            "tirx.Or": self.visit_or_,
-            "tirx.Reduce": self.visit_reduce_,
-            "tirx.Cast": self.visit_cast_,
-            "tirx.Not": self.visit_not_,
-            "tirx.Select": self.visit_select_,
-            "tirx.Ramp": self.visit_ramp_,
-            "tirx.Broadcast": self.visit_broadcast_,
-            "tirx.Shuffle": self.visit_shuffle_,
-            "tirx.IntImm": self.visit_int_imm_,
-            "tirx.FloatImm": self.visit_float_imm_,
-            "tirx.StringImm": self.visit_string_imm_,
+            "Var": self.visit_var_,
+            "TensorLoad": self.visit_buffer_load_,
+            "Tuple": self.visit_tuple_,
+            "TupleGetItem": self.visit_tuple_get_item_,
+            "Let": self.visit_let_,
+            "Call": self.visit_call_,
+            "Add": self.visit_add_,
+            "Sub": self.visit_sub_,
+            "Mul": self.visit_mul_,
+            "Div": self.visit_div_,
+            "Mod": self.visit_mod_,
+            "FloorDiv": self.visit_floordiv_,
+            "FloorMod": self.visit_floormod_,
+            "Min": self.visit_min_,
+            "Max": self.visit_max_,
+            "EQ": self.visit_eq_,
+            "NE": self.visit_ne_,
+            "LT": self.visit_lt_,
+            "LE": self.visit_le_,
+            "GT": self.visit_gt_,
+            "GE": self.visit_ge_,
+            "And": self.visit_and_,
+            "Or": self.visit_or_,
+            "Reduce": self.visit_reduce_,
+            "Cast": self.visit_cast_,
+            "Not": self.visit_not_,
+            "Select": self.visit_select_,
+            "Ramp": self.visit_ramp_,
+            "Broadcast": self.visit_broadcast_,
+            "Shuffle": self.visit_shuffle_,
+            "IntImm": self.visit_int_imm_,
+            "FloatImm": self.visit_float_imm_,
+            "StringImm": self.visit_string_imm_,
         }
 
     def visit_expr(self, expr: Expr):
@@ -104,7 +104,6 @@ class ExprFunctor:
         if key.endswith("Node"):
             key = key[:-4]
 
-        key = "tirx." + key
         if key in self._dispatch_map:
             return self._dispatch_map[key](expr)
 
@@ -502,7 +501,7 @@ class ExprMutator(ExprFunctor):
         if var is op.var and value is op.value and body is op.body:
             return op
         else:
-            return tvm.tirx.Let(var, value, body)
+            return tvm.ir.prim.Let(var, value, body)
 
     def visit_call_(self, op):
         """Mutator implementation for Call."""
@@ -526,71 +525,71 @@ class ExprMutator(ExprFunctor):
 
     def visit_add_(self, op):
         """Mutator implementation for Add."""
-        return self._mutate_binary_op(tvm.tirx.Add, op)
+        return self._mutate_binary_op(tvm.ir.prim.Add, op)
 
     def visit_sub_(self, op):
         """Mutator implementation for Sub."""
-        return self._mutate_binary_op(tvm.tirx.Sub, op)
+        return self._mutate_binary_op(tvm.ir.prim.Sub, op)
 
     def visit_mul_(self, op):
         """Mutator implementation for Mul."""
-        return self._mutate_binary_op(tvm.tirx.Mul, op)
+        return self._mutate_binary_op(tvm.ir.prim.Mul, op)
 
     def visit_div_(self, op):
         """Mutator implementation for Div."""
-        return self._mutate_binary_op(tvm.tirx.Div, op)
+        return self._mutate_binary_op(tvm.ir.prim.Div, op)
 
     def visit_mod_(self, op):
         """Mutator implementation for Mod."""
-        return self._mutate_binary_op(tvm.tirx.Mod, op)
+        return self._mutate_binary_op(tvm.ir.prim.Mod, op)
 
     def visit_floordiv_(self, op):
         """Mutator implementation for FloorDiv."""
-        return self._mutate_binary_op(tvm.tirx.FloorDiv, op)
+        return self._mutate_binary_op(tvm.ir.prim.FloorDiv, op)
 
     def visit_floormod_(self, op):
         """Mutator implementation for FloorMod."""
-        return self._mutate_binary_op(tvm.tirx.FloorMod, op)
+        return self._mutate_binary_op(tvm.ir.prim.FloorMod, op)
 
     def visit_min_(self, op):
         """Mutator implementation for Min."""
-        return self._mutate_binary_op(tvm.tirx.Min, op)
+        return self._mutate_binary_op(tvm.ir.prim.Min, op)
 
     def visit_max_(self, op):
         """Mutator implementation for Max."""
-        return self._mutate_binary_op(tvm.tirx.Max, op)
+        return self._mutate_binary_op(tvm.ir.prim.Max, op)
 
     def visit_eq_(self, op):
         """Mutator implementation for EQ."""
-        return self._mutate_binary_op(tvm.tirx.EQ, op)
+        return self._mutate_binary_op(tvm.ir.prim.EQ, op)
 
     def visit_ne_(self, op):
         """Mutator implementation for NE."""
-        return self._mutate_binary_op(tvm.tirx.NE, op)
+        return self._mutate_binary_op(tvm.ir.prim.NE, op)
 
     def visit_lt_(self, op):
         """Mutator implementation for LT."""
-        return self._mutate_binary_op(tvm.tirx.LT, op)
+        return self._mutate_binary_op(tvm.ir.prim.LT, op)
 
     def visit_le_(self, op):
         """Mutator implementation for LE."""
-        return self._mutate_binary_op(tvm.tirx.LE, op)
+        return self._mutate_binary_op(tvm.ir.prim.LE, op)
 
     def visit_gt_(self, op):
         """Mutator implementation for GT."""
-        return self._mutate_binary_op(tvm.tirx.GT, op)
+        return self._mutate_binary_op(tvm.ir.prim.GT, op)
 
     def visit_ge_(self, op):
         """Mutator implementation for GE."""
-        return self._mutate_binary_op(tvm.tirx.GE, op)
+        return self._mutate_binary_op(tvm.ir.prim.GE, op)
 
     def visit_and_(self, op):
         """Mutator implementation for And."""
-        return self._mutate_binary_op(tvm.tirx.And, op)
+        return self._mutate_binary_op(tvm.ir.prim.And, op)
 
     def visit_or_(self, op):
         """Mutator implementation for Or."""
-        return self._mutate_binary_op(tvm.tirx.Or, op)
+        return self._mutate_binary_op(tvm.ir.prim.Or, op)
 
     def visit_int_imm_(self, op):
         """Mutator implementation for IntImm."""
@@ -633,7 +632,7 @@ class ExprMutator(ExprFunctor):
         if axis_unchanged and source_unchanged and init_unchanged and condition_unchanged:
             return op
         else:
-            return tvm.tirx.Reduce(op.combiner, source, axis, condition, op.value_index, init)
+            return tvm.te.Reduce(op.combiner, source, axis, condition, op.value_index, init)
 
     def visit_cast_(self, op):
         """Mutator implementation for Cast."""
@@ -642,7 +641,7 @@ class ExprMutator(ExprFunctor):
         if value is op.value:
             return op
         else:
-            return tvm.tirx.Cast(op.ty, value)
+            return tvm.ir.prim.Cast(op.ty, value)
 
     def visit_not_(self, op):
         """Mutator implementation for Not."""
@@ -651,7 +650,7 @@ class ExprMutator(ExprFunctor):
         if a is op.a:
             return op
         else:
-            return tvm.tirx.Not(a)
+            return tvm.ir.prim.Not(a)
 
     def visit_select_(self, op):
         """Mutator implementation for Select."""
@@ -666,7 +665,7 @@ class ExprMutator(ExprFunctor):
         ):
             return op
         else:
-            return tvm.tirx.Select(condition, true_value, false_value)
+            return tvm.ir.prim.Select(condition, true_value, false_value)
 
     def visit_ramp_(self, op):
         """Mutator implementation for Ramp."""
@@ -677,7 +676,7 @@ class ExprMutator(ExprFunctor):
         if base is op.base and stride is op.stride and lanes is op.lanes:
             return op
         else:
-            return tvm.tirx.Ramp(base, stride, lanes)
+            return tvm.ir.prim.Ramp(base, stride, lanes)
 
     def visit_broadcast_(self, op):
         """Mutator implementation for Broadcast."""
@@ -687,7 +686,7 @@ class ExprMutator(ExprFunctor):
         if value is op.value and lanes is op.lanes:
             return op
         else:
-            return tvm.tirx.Broadcast(value, lanes)
+            return tvm.ir.prim.Broadcast(value, lanes)
 
     def visit_shuffle_(self, op):
         """Mutator implementation for Shuffle."""
@@ -698,4 +697,4 @@ class ExprMutator(ExprFunctor):
         if vectors_unchanged:
             return op
         else:
-            return tvm.tirx.Shuffle(vectors, op.indices)
+            return tvm.ir.prim.Shuffle(vectors, op.indices)

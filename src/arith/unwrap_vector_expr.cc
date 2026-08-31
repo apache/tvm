@@ -26,9 +26,10 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
 
@@ -43,9 +44,9 @@ class Scalarizer : public ExprMutator {
  public:
   explicit Scalarizer(PrimExpr lane) : lane_(lane) {}
 
-  Expr VisitExpr_(const RampNode* op) final { return op->base + lane_ * op->stride; }
+  Expr VisitExpr_(const prim::RampNode* op) final { return op->base + lane_ * op->stride; }
 
-  Expr VisitExpr_(const BroadcastNode* op) final { return op->value; }
+  Expr VisitExpr_(const prim::BroadcastNode* op) final { return op->value; }
 
   Expr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
@@ -57,7 +58,7 @@ class Scalarizer : public ExprMutator {
       return ExprMutator::VisitExpr_(op);
     }
   }
-  Expr VisitExpr_(const LetNode* op) final {
+  Expr VisitExpr_(const prim::LetNode* op) final {
     PrimType value_ty = op->value.ty();
     if (value_ty.lanes() == 1) {
       return ExprMutator::VisitExpr_(op);
@@ -74,7 +75,7 @@ class Scalarizer : public ExprMutator {
     PrimExpr body = this->VisitPrimExpr(op->body);
 
     let_var_remap_.erase(op->var.get());
-    return Let(op->var, value, body);
+    return prim::Let(op->var, value, body);
   }
 
  private:

@@ -829,7 +829,7 @@ void CodeGenCUDA::PrintVecElemStore(const std::string& vec, const PrimType& t, i
 }
 
 void CodeGenCUDA::PrintStorageSync(const CallNode* op) {
-  const std::string& sync = op->args[0].as<StringImmNode>()->value;
+  const std::string& sync = op->args[0].as<prim::StringImmNode>()->value;
   if (sync == "warp") {
     // DO nothing.
   } else if (sync == "shared" || sync == "shared.dyn") {
@@ -908,7 +908,7 @@ void CodeGenCUDA::AddUtilFunction(const std::string& func_name, const std::strin
   this->util_funcs_.insert({func_name, code});
 }
 
-void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
+void CodeGenCUDA::VisitExpr_(const prim::CastNode* op, std::ostream& os) {
   PrimType from_ty = op->value.ty();
   PrimType target_ty = op->ty.as_or_throw<PrimType>();
   TVM_FFI_ICHECK_EQ(target_ty.lanes(), from_ty.lanes());
@@ -1030,8 +1030,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     for (size_t i = 1; i < num_args + 1; i++) {
       args.push_back(this->PrintExpr(op->args[i]));
     }
-    std::string source_code = op->args[num_args + 1].as<StringImmNode>()->value;
-    std::string func_name = op->args[0].as<StringImmNode>()->value;
+    std::string source_code = op->args[num_args + 1].as<prim::StringImmNode>()->value;
+    std::string func_name = op->args[0].as<prim::StringImmNode>()->value;
     os << func_name << "(";
     for (size_t i = 0; i < num_args; i++) {
       const auto& arg = args[i];
@@ -1110,7 +1110,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->PrintExpr(op->args[4], os);
     os << "], ";
     this->PrintExpr(op->args[6], os);
-    if (const StringImmNode* str = op->args[7].as<StringImmNode>()) {
+    if (const prim::StringImmNode* str = op->args[7].as<prim::StringImmNode>()) {
       os << ", nvcuda::wmma::mem_" << str->value;
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid parameters";
@@ -1168,11 +1168,11 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // to the plain ones here.
     class LowerFloorDivMod : public ExprMutator {
      public:
-      Expr VisitExpr_(const FloorDivNode* op) {
-        return tirx::Div(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
+      Expr VisitExpr_(const prim::FloorDivNode* op) {
+        return prim::Div(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
       }
-      Expr VisitExpr_(const FloorModNode* op) {
-        return tirx::Mod(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
+      Expr VisitExpr_(const prim::FloorModNode* op) {
+        return prim::Mod(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
       }
     };
 
@@ -1200,12 +1200,12 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     //       c_ptr_var, c_offset, saturate, [bit_op]
     codegen_tags_.insert("mma");
     TVM_FFI_ICHECK(op->args.size() == 13U || op->args.size() == 14U);
-    std::string shape = op->args[0].as_or_throw<StringImm>()->value;
-    std::string A_layout = op->args[1].as_or_throw<StringImm>()->value;
-    std::string B_layout = op->args[2].as_or_throw<StringImm>()->value;
-    std::string A_dtype = op->args[3].as_or_throw<StringImm>()->value;
-    std::string B_dtype = op->args[4].as_or_throw<StringImm>()->value;
-    std::string C_dtype = op->args[5].as_or_throw<StringImm>()->value;
+    std::string shape = op->args[0].as_or_throw<prim::StringImm>()->value;
+    std::string A_layout = op->args[1].as_or_throw<prim::StringImm>()->value;
+    std::string B_layout = op->args[2].as_or_throw<prim::StringImm>()->value;
+    std::string A_dtype = op->args[3].as_or_throw<prim::StringImm>()->value;
+    std::string B_dtype = op->args[4].as_or_throw<prim::StringImm>()->value;
+    std::string C_dtype = op->args[5].as_or_throw<prim::StringImm>()->value;
     std::string a_ref = this->PrintExpr(op->args[6]);
     std::string a_bias = this->PrintExpr(op->args[7]);
     std::string b_ref = this->PrintExpr(op->args[8]);
@@ -1213,7 +1213,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string c_ref = this->PrintExpr(op->args[10]);
     std::string c_bias = this->PrintExpr(op->args[11]);
     bool saturate = op->args[12].as_or_throw<IntImm>()->value;
-    std::string bit_op = op->args.size() > 13 ? op->args[13].as_or_throw<StringImm>()->value : "";
+    std::string bit_op =
+        op->args.size() > 13 ? op->args[13].as_or_throw<prim::StringImm>()->value : "";
     this->stream << PrintMMAAssembly(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref,
                                      a_bias, b_ref, b_bias, c_ref, c_bias, bit_op, saturate);
   } else if (IsOp(op, ptx_ldmatrix_legacy_op, "tirx.ptx_legacy.ldmatrix")) {
@@ -1224,7 +1225,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // to PrimExpr whose IntImmNode value tells us the literal.
     bool trans = op->args[0].as_or_throw<IntImm>()->value != 0;
     int num = op->args[1].as_or_throw<IntImm>()->value;
-    std::string type_str = op->args[2].as_or_throw<StringImm>()->value;
+    std::string type_str = op->args[2].as_or_throw<prim::StringImm>()->value;
     std::string local_ptr = this->PrintExpr(op->args[3]);
     std::string local_offset = this->PrintExpr(op->args[4]);
     std::string smem_ptr = this->PrintExpr(op->args[5]);
@@ -1269,11 +1270,11 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
 
     class LowerFloorDivMod : public ExprMutator {
      public:
-      Expr VisitExpr_(const FloorDivNode* op) {
-        return tirx::Div(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
+      Expr VisitExpr_(const prim::FloorDivNode* op) {
+        return prim::Div(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
       }
-      Expr VisitExpr_(const FloorModNode* op) {
-        return tirx::Mod(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
+      Expr VisitExpr_(const prim::FloorModNode* op) {
+        return prim::Mod(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
       }
     };
 
@@ -1395,16 +1396,16 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         value =
             Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
         tirx::PrimVar temp_var("temp_var", PrimType::UInt(16));
-        value = tirx::Let(temp_var, value,
-                          tirx::Cast(PrimType::UInt(8),
+        value = prim::Let(temp_var, value,
+                          prim::Cast(PrimType::UInt(8),
                                      (temp_var & IntImm(PrimType::UInt(16), 0xF)) |
                                          ((temp_var >> 4) & IntImm(PrimType::UInt(16), 0xF0))));
       } else {
-        value = tirx::Cast(
+        value = prim::Cast(
             PrimType::UInt(16),
             Call(PrimType::UInt(8), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>());
         tirx::PrimVar temp_var("temp_var", PrimType::UInt(16));
-        value = tirx::Let(temp_var, value,
+        value = prim::Let(temp_var, value,
                           (temp_var & IntImm(PrimType::UInt(16), 0xF)) |
                               ((temp_var & IntImm(PrimType::UInt(16), 0xF0)) << 4));
       }
@@ -1416,18 +1417,18 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         value =
             Call(PrimType::UInt(32), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
         tirx::PrimVar temp_var("temp_var", PrimType::UInt(32));
-        value = tirx::Let(temp_var, value,
-                          tirx::Cast(PrimType::UInt(16),
+        value = prim::Let(temp_var, value,
+                          prim::Cast(PrimType::UInt(16),
                                      (temp_var & IntImm(PrimType::UInt(32), 0xF)) |
                                          ((temp_var >> 4) & IntImm(PrimType::UInt(32), 0xF0)) |
                                          ((temp_var >> 8) & IntImm(PrimType::UInt(32), 0xF00)) |
                                          ((temp_var >> 12) & IntImm(PrimType::UInt(32), 0xF000))));
       } else {
-        value = tirx::Cast(PrimType::UInt(32),
+        value = prim::Cast(PrimType::UInt(32),
                            Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value})
                                .as_or_throw<PrimExpr>());
         tirx::PrimVar temp_var("temp_var", PrimType::UInt(32));
-        value = tirx::Let(temp_var, value,
+        value = prim::Let(temp_var, value,
                           (temp_var & IntImm(PrimType::UInt(32), 0xF)) |
                               ((temp_var & IntImm(PrimType::UInt(32), 0xF0)) << 4) |
                               ((temp_var & IntImm(PrimType::UInt(32), 0xF00)) << 8) |
@@ -1599,11 +1600,11 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
 void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == s_tir::attr::fragment_shape) {
     const VarNode* buffer = op->node.as<VarNode>();
-    const StringImmNode* shape_str = op->value.as<StringImmNode>();
+    const prim::StringImmNode* shape_str = op->value.as<prim::StringImmNode>();
     fragment_shapes[buffer] = shape_str->value;
   } else if (op->attr_key == s_tir::attr::fragment_layout) {
     const VarNode* buffer = op->node.as<VarNode>();
-    const StringImmNode* layout_str = op->value.as<StringImmNode>();
+    const prim::StringImmNode* layout_str = op->value.as<prim::StringImmNode>();
     fragment_layouts[buffer] = layout_str->value;
   } else if (op->attr_key == s_tir::attr::async_commit_queue_scope) {
     const IntImmNode* queue_id = op->value.as<IntImmNode>();
@@ -1612,9 +1613,10 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
     this->VisitStmt(op->body);
     static const Op& ptx_cp_async_commit_group_op = Op::Get("tirx.ptx.cp_async_commit_group");
     // ptx Call layout: [operands...] [slot tokens] [pred marker ""].
-    auto commit_group = Call(PrimType::Void(), ptx_cp_async_commit_group_op,
-                             {StringImm("async"), StringImm("commit_group"), StringImm("")})
-                            .as_or_throw<PrimExpr>();
+    auto commit_group =
+        Call(PrimType::Void(), ptx_cp_async_commit_group_op,
+             {prim::StringImm("async"), prim::StringImm("commit_group"), prim::StringImm("")})
+            .as_or_throw<PrimExpr>();
     this->PrintIndent();
     this->VisitExpr(commit_group, this->stream);
     this->stream << ";\n";
@@ -1630,7 +1632,8 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
     // count is a role="imm" operand baked into the instruction text, so it must
     // already be a compile-time constant here (the pipeline pass guarantees it).
     auto wait_group = Call(PrimType::Void(), ptx_cp_async_wait_group_op,
-                           {wait_cnt, StringImm("async"), StringImm("wait_group"), StringImm("")})
+                           {wait_cnt, prim::StringImm("async"), prim::StringImm("wait_group"),
+                            prim::StringImm("")})
                           .as_or_throw<PrimExpr>();
     this->PrintIndent();
     this->VisitExpr(wait_group, this->stream);
@@ -1747,7 +1750,7 @@ void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
   }
 }
 
-void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
+void CodeGenCUDA::VisitExpr_(const prim::RampNode* op, std::ostream& os) {
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   int lanes = op_ty.lanes();
   if (lanes <= 4) {
@@ -1782,7 +1785,7 @@ void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
   os << sret;
 }
 
-void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCUDA::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   int lanes = op_ty.lanes();
   if ((op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && op_ty.bits() == 8 &&
@@ -1905,7 +1908,7 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
   os << ')';
 }
 
-void CodeGenCUDA::VisitExpr_(const SelectNode* op, std::ostream& os) {
+void CodeGenCUDA::VisitExpr_(const prim::SelectNode* op, std::ostream& os) {
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   // Non-vector cases.
   if (!op_ty.IsFixedLengthVector()) {

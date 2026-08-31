@@ -75,6 +75,38 @@ class TensorLoadToBufferTransformer : public StmtExprMutator {
       const std::unordered_map<te::Tensor, BufferVar>& tensor2buffers)
       : tensor2buffers_(tensor2buffers) {}
 
+  Expr VisitExpr_(const OpaqueExprNode* op) final {
+    const auto* reduce =
+        op->IsInstance<te::ReduceNode>() ? static_cast<const te::ReduceNode*>(op) : nullptr;
+    if (reduce == nullptr) {
+      return StmtExprMutator::VisitExpr_(op);
+    }
+
+    auto fitervar = [this](const IterVar& iter_var) {
+      Range dom = iter_var->dom;
+      PrimExpr min = this->VisitPrimExpr(dom->min);
+      PrimExpr extent = this->VisitPrimExpr(dom->extent);
+      if (min.same_as(dom->min) && extent.same_as(dom->extent)) {
+        return iter_var;
+      }
+      return IterVar(Range::FromMinExtent(min, extent), iter_var->var, iter_var->iter_type,
+                     iter_var->thread_tag);
+    };
+    ffi::Array<IterVar> axis = reduce->axis.Map(fitervar);
+
+    auto fexpr = [this](const PrimExpr& expr) { return this->VisitPrimExpr(expr); };
+    ffi::Array<PrimExpr> source = reduce->source.Map(fexpr);
+    ffi::Array<PrimExpr> init = reduce->init.Map(fexpr);
+    PrimExpr condition = this->VisitPrimExpr(reduce->condition);
+
+    if (axis.same_as(reduce->axis) && source.same_as(reduce->source) &&
+        init.same_as(reduce->init) && condition.same_as(reduce->condition)) {
+      return ffi::GetRef<PrimExpr>(reduce);
+    }
+    return te::Reduce(reduce->combiner, source, axis, condition, reduce->value_index, init,
+                      reduce->span);
+  }
+
   Expr VisitExpr_(const CallNode* op) final {
     Call call = StmtExprMutator::VisitExpr_(op).as_or_throw<Call>();
     if (!te::IsTensorLoad(call)) {
@@ -274,8 +306,8 @@ NestedIterLevels GenerateNestedIterLevels(const ffi::Array<IterVar>& axes,
 ffi::Array<BufferVar> GenerateOutputBuffers(const te::ComputeOp& compute_op, CreateFuncInfo* info) {
   // Step 1. Collect output tensors in TE operation.
   ffi::Array<te::Tensor> tensors;
-  if (compute_op->body[0]->IsInstance<ReduceNode>()) {
-    auto f_reducer_equal = [](const ReduceNode* a, const ReduceNode* b) -> bool {
+  if (compute_op->body[0]->IsInstance<te::ReduceNode>()) {
+    auto f_reducer_equal = [](const te::ReduceNode* a, const te::ReduceNode* b) -> bool {
       ffi::StructuralEqual eq;
       return eq(a->combiner, b->combiner) &&    //
              eq(a->source, b->source) &&        //
@@ -285,10 +317,10 @@ ffi::Array<BufferVar> GenerateOutputBuffers(const te::ComputeOp& compute_op, Cre
     };
     PrimExpr expr_body = compute_op->body[0];
     tensors.push_back(compute_op.output(0));
-    const tirx::ReduceNode* reduce = expr_body.as<tirx::ReduceNode>();
+    const te::ReduceNode* reduce = expr_body.as<te::ReduceNode>();
     // specially handle reduction inline for multiplre reductions.
     for (size_t k = 1; k < compute_op->body.size(); ++k) {
-      const tirx::ReduceNode* reduce_ = compute_op->body[k].as<tirx::ReduceNode>();
+      const te::ReduceNode* reduce_ = compute_op->body[k].as<te::ReduceNode>();
       TVM_FFI_ICHECK(reduce_);
       TVM_FFI_ICHECK(f_reducer_equal(reduce_, reduce))
           << "The Reduce inputs of ComputeOp should have the same attribute except value_index, "
@@ -359,7 +391,7 @@ ffi::Map<ffi::String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& co
  * \returns Init stmt.
  **/
 Stmt GenerateInitStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<BufferVar>& buffers,
-                      const ReduceNode* reduce, const ffi::Map<Var, PrimExpr>& var_map,
+                      const te::ReduceNode* reduce, const ffi::Map<Var, PrimExpr>& var_map,
                       CreateFuncInfo* info) {
   // helper to transform the expr and remap iters to the block domain
   auto f_transform_and_remap = [&](const PrimExpr& e) {
@@ -396,7 +428,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
     return Substitute(info->transformer(e).as_or_throw<PrimExpr>(), var_map);
   };
   Stmt body;
-  if (const auto* reduce = expr_body.as<ReduceNode>()) {
+  if (const auto* reduce = expr_body.as<te::ReduceNode>()) {
     // Case 1. Reduce compute
     int n_buffers = buffers.size();
 
@@ -571,7 +603,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   ffi::Array<Stmt> seq_stmt;
   auto leaf = scopes.back();
   ffi::Map<ffi::String, ffi::Any> annotations = GenerateBlockAnnotations(compute_op, info);
-  const ReduceNode* reduce = compute_op->body[0].as<ReduceNode>();
+  const te::ReduceNode* reduce = compute_op->body[0].as<te::ReduceNode>();
 
   if (reduce) {
     PrimExpr expr_body = compute_op->body[0];

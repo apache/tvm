@@ -108,28 +108,28 @@ class DistSBlockInfoCollector : public StmtExprVisitor {
     return false;
   }
 
-  void VisitExpr_(const AddNode* op) final {
+  void VisitExpr_(const prim::AddNode* op) final {
     if (IsReduceBufferAccess(op->a) || IsReduceBufferAccess(op->b)) {
       reduce_kind = "sum";
     }
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const MulNode* op) final {
+  void VisitExpr_(const prim::MulNode* op) final {
     if (IsReduceBufferAccess(op->a) || IsReduceBufferAccess(op->b)) {
       reduce_kind = "prod";
     }
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const MinNode* op) final {
+  void VisitExpr_(const prim::MinNode* op) final {
     if (IsReduceBufferAccess(op->a) || IsReduceBufferAccess(op->b)) {
       reduce_kind = "min";
     }
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const MaxNode* op) final {
+  void VisitExpr_(const prim::MaxNode* op) final {
     if (IsReduceBufferAccess(op->a) || IsReduceBufferAccess(op->b)) {
       reduce_kind = "max";
     }

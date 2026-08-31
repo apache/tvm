@@ -63,7 +63,7 @@ inline PrimExpr Tensor::IndexTensor(ffi::Array<PrimExpr> indices,
   if (support_negative_indices) {
     for (size_t i = 0; i < shape.size(); i++) {
       PrimExpr new_index =
-          Select(indices[i] < IntImm(indices[i].ty(), 0), indices[i] + shape[i], indices[i]);
+          prim::Select(indices[i] < IntImm(indices[i].ty(), 0), indices[i] + shape[i], indices[i]);
       indices.Set(i, new_index);
     }
   }

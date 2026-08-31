@@ -168,7 +168,7 @@ bool IsValidUTF8(const std::string& value) {
 std::string GetName(const CallNode* call, size_t index = 0) {
   TVM_FFI_CHECK(call->args.size() > index, ValueError)
       << call->op.as<Op>().value()->name << " requires a literal event name";
-  const auto* name = call->args[index].as<StringImmNode>();
+  const auto* name = call->args[index].as<prim::StringImmNode>();
   TVM_FFI_CHECK(name != nullptr, TypeError)
       << call->op.as<Op>().value()->name << " requires a string-literal event name";
   std::string result = name->value;
@@ -1120,14 +1120,14 @@ class InstrumentOfficialKernel : public StmtExprMutator {
   PrimExpr Event(PrimExpr event_id) const {
     static const Op& event_op = Op::Get("tirx.cuda.iket_official_event");
     return Call(PrimType::UInt(32), event_op,
-                {cast(PrimType::UInt(32), event_id), StringImm(device_source_)});
+                {cast(PrimType::UInt(32), event_id), prim::StringImm(device_source_)});
   }
 
   PrimExpr Event(PrimExpr event_id, PrimExpr payload) const {
     static const Op& event_op = Op::Get("tirx.cuda.iket_official_event");
     return Call(
         PrimType::UInt(32), event_op,
-        {cast(PrimType::UInt(32), event_id), StringImm(device_source_), std::move(payload)});
+        {cast(PrimType::UInt(32), event_id), prim::StringImm(device_source_), std::move(payload)});
   }
 
   PrimExpr NormalizePayload(PrimExpr payload, PayloadType type) const {

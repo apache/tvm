@@ -65,18 +65,18 @@ class CodeGenOpenCL final : public CodeGenC {
 
   // overload visitor
   void VisitStmt_(const AllocBufferNode* op) final;                  // NOLINT(*)
-  void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const RampNode* op, std::ostream& os) final;       // NOLINT(*)
+  void VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const prim::RampNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
 
   // overload min and max to avoid ambiguous call errors
-  void VisitExpr_(const MinNode* op, std::ostream& os) final;
-  void VisitExpr_(const MaxNode* op, std::ostream& os) final;
-  void VisitExpr_(const AndNode* op, std::ostream& os) final;
-  void VisitExpr_(const OrNode* op, std::ostream& os) final;
-  void VisitExpr_(const SelectNode* op, std::ostream& os) final;
-  void VisitExpr_(const ModNode* op, std::ostream& os) final;
+  void VisitExpr_(const prim::MinNode* op, std::ostream& os) final;
+  void VisitExpr_(const prim::MaxNode* op, std::ostream& os) final;
+  void VisitExpr_(const prim::AndNode* op, std::ostream& os) final;
+  void VisitExpr_(const prim::OrNode* op, std::ostream& os) final;
+  void VisitExpr_(const prim::SelectNode* op, std::ostream& os) final;
+  void VisitExpr_(const prim::ModNode* op, std::ostream& os) final;
 
  private:
   // whether enable fp16 and fp64 extension

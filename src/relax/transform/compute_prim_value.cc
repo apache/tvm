@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
@@ -62,32 +63,32 @@ class PrimExprComputeInjector : public ExprMutator {
   }
 
   RELAX_LIFT_PRIM_EXPR(TensorLoadNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::AddNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::SubNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::MulNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::DivNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::ModNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::FloorDivNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::FloorModNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::MinNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::MaxNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::EQNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::NENode);
-  RELAX_LIFT_PRIM_EXPR(tirx::LTNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::LENode);
-  RELAX_LIFT_PRIM_EXPR(tirx::GTNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::GENode);
-  RELAX_LIFT_PRIM_EXPR(tirx::AndNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::OrNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::CastNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::NotNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::SelectNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::RampNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::BroadcastNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::ShuffleNode);
+  RELAX_LIFT_PRIM_EXPR(prim::AddNode);
+  RELAX_LIFT_PRIM_EXPR(prim::SubNode);
+  RELAX_LIFT_PRIM_EXPR(prim::MulNode);
+  RELAX_LIFT_PRIM_EXPR(prim::DivNode);
+  RELAX_LIFT_PRIM_EXPR(prim::ModNode);
+  RELAX_LIFT_PRIM_EXPR(prim::FloorDivNode);
+  RELAX_LIFT_PRIM_EXPR(prim::FloorModNode);
+  RELAX_LIFT_PRIM_EXPR(prim::MinNode);
+  RELAX_LIFT_PRIM_EXPR(prim::MaxNode);
+  RELAX_LIFT_PRIM_EXPR(prim::EQNode);
+  RELAX_LIFT_PRIM_EXPR(prim::NENode);
+  RELAX_LIFT_PRIM_EXPR(prim::LTNode);
+  RELAX_LIFT_PRIM_EXPR(prim::LENode);
+  RELAX_LIFT_PRIM_EXPR(prim::GTNode);
+  RELAX_LIFT_PRIM_EXPR(prim::GENode);
+  RELAX_LIFT_PRIM_EXPR(prim::AndNode);
+  RELAX_LIFT_PRIM_EXPR(prim::OrNode);
+  RELAX_LIFT_PRIM_EXPR(prim::CastNode);
+  RELAX_LIFT_PRIM_EXPR(prim::NotNode);
+  RELAX_LIFT_PRIM_EXPR(prim::SelectNode);
+  RELAX_LIFT_PRIM_EXPR(prim::RampNode);
+  RELAX_LIFT_PRIM_EXPR(prim::BroadcastNode);
+  RELAX_LIFT_PRIM_EXPR(prim::ShuffleNode);
   RELAX_LIFT_PRIM_EXPR(tvm::IntImmNode);
   RELAX_LIFT_PRIM_EXPR(tvm::FloatImmNode);
-  RELAX_LIFT_PRIM_EXPR(tirx::StringImmNode);
+  RELAX_LIFT_PRIM_EXPR(prim::StringImmNode);
 
 #undef RELAX_LIFT_PRIM_EXPR
 
@@ -96,7 +97,7 @@ class PrimExprComputeInjector : public ExprMutator {
   PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final { return expr; }
 
   Expr LiftPrimValue(const PrimExpr& node) {
-    if (node->IsInstance<tirx::IntImmNode>() || node->IsInstance<VarNode>()) {
+    if (node->IsInstance<IntImmNode>() || node->IsInstance<VarNode>()) {
       return node;
     }
 

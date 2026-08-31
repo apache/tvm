@@ -32,6 +32,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace backend {
 namespace adreno {
 using namespace tvm::tirx;
@@ -79,11 +80,11 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
       ffi::Array<Expr> args;
       args.push_back(StringImm(storage_scope));
       args.push_back(IntImm::Int64(3));
-      args.push_back(Call(PointerType(PrimType::Int(64)), builtin::tvm_stack_make_shape(),
+      args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm::Int64(channel_size));
-      stmt = DeclBuffer(
-          op->buffer, Call(op->buffer.DataPointerType(), builtin::nd_mem_alloc_with_scope(), args));
+      stmt = DeclBuffer(op->buffer, Call(op->buffer.DataPointerType(),
+                                         tirx::builtin::nd_mem_alloc_with_scope(), args));
     }
     return stmt;
   }

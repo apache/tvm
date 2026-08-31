@@ -21,8 +21,8 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr.h>
 
 #include <optional>
 #include <vector>

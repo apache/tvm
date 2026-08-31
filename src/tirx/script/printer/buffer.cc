@@ -360,7 +360,7 @@ ffi::Array<Doc> BufferIndices(const ffi::Array<PrimExpr>& indices, const AccessP
   ffi::Array<Doc> indices_doc;
   indices_doc.reserve(n);
   for (int i = 0; i < n; ++i) {
-    if (const auto* ramp = indices[i].as<tirx::RampNode>()) {
+    if (const auto* ramp = indices[i].as<prim::RampNode>()) {
       if (const auto* stride = ramp->stride.as<IntImmNode>()) {
         AccessPath ramp_p = p->Attr("indices")->ArrayItem(i);
         AccessPath stride_p = ramp_p->Attr("stride");

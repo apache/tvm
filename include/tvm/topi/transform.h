@@ -25,6 +25,7 @@
 #define TVM_TOPI_TRANSFORM_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/data_layout.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/index_map.h>
@@ -46,7 +47,6 @@
 
 #include "tvm/ffi/dtype.h"
 #include "tvm/ir/expr.h"
-#include "tvm/tirx/expr.h"
 #include "tvm/tirx/op.h"
 #include "tvm/tirx/var.h"
 
@@ -1353,7 +1353,7 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
     auto c = condition(InputIndexFromBroadcast(ovars, condition, c_bh.vars1, c_bh.all_vars));
     auto true_val = x(InputIndexFromBroadcast(ovars, x, x_bh.vars1, x_bh.all_vars));
     auto false_val = y(InputIndexFromBroadcast(ovars, y, y_bh.vars1, y_bh.all_vars));
-    return tvm::tirx::Select(c != 0, true_val, false_val);
+    return tvm::prim::Select(c != 0, true_val, false_val);
   };
 
   return compute(oshape, select, name, tag);
@@ -2105,7 +2105,7 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
         }
 
         auto idx = iter_vars[true_axis];
-        return tirx::Select(indices(indices_indices) == idx.as_or_throw<PrimExpr>(), on_value_cast,
+        return prim::Select(indices(indices_indices) == idx.as_or_throw<PrimExpr>(), on_value_cast,
                             off_value_cast);
       },
       name, tag);

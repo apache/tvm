@@ -28,8 +28,8 @@
 
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>  // For the ExprDeepEqual analysis
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>  // For the class StmtExprVisitor

@@ -24,6 +24,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/te/operation.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -232,35 +233,42 @@ class PyStmtExprVisitorNode : public ffi::Object, public StmtExprVisitor {
   // Expression functions
   PY_EXPR_VISITOR_DISPATCH(VarNode, f_visit_var);
   PY_EXPR_VISITOR_DISPATCH(TensorLoadNode, f_visit_buffer_load);
-  PY_EXPR_VISITOR_DISPATCH(LetNode, f_visit_let);
+  PY_EXPR_VISITOR_DISPATCH(prim::LetNode, f_visit_let);
   PY_EXPR_VISITOR_DISPATCH(CallNode, f_visit_call);
-  PY_EXPR_VISITOR_DISPATCH(AddNode, f_visit_add);
-  PY_EXPR_VISITOR_DISPATCH(SubNode, f_visit_sub);
-  PY_EXPR_VISITOR_DISPATCH(MulNode, f_visit_mul);
-  PY_EXPR_VISITOR_DISPATCH(DivNode, f_visit_div);
-  PY_EXPR_VISITOR_DISPATCH(ModNode, f_visit_mod);
-  PY_EXPR_VISITOR_DISPATCH(FloorDivNode, f_visit_floor_div);
-  PY_EXPR_VISITOR_DISPATCH(FloorModNode, f_visit_floor_mod);
-  PY_EXPR_VISITOR_DISPATCH(MinNode, f_visit_min);
-  PY_EXPR_VISITOR_DISPATCH(MaxNode, f_visit_max);
-  PY_EXPR_VISITOR_DISPATCH(EQNode, f_visit_eq);
-  PY_EXPR_VISITOR_DISPATCH(NENode, f_visit_ne);
-  PY_EXPR_VISITOR_DISPATCH(LTNode, f_visit_lt);
-  PY_EXPR_VISITOR_DISPATCH(LENode, f_visit_le);
-  PY_EXPR_VISITOR_DISPATCH(GTNode, f_visit_gt);
-  PY_EXPR_VISITOR_DISPATCH(GENode, f_visit_ge);
-  PY_EXPR_VISITOR_DISPATCH(AndNode, f_visit_and);
-  PY_EXPR_VISITOR_DISPATCH(OrNode, f_visit_or);
-  PY_EXPR_VISITOR_DISPATCH(ReduceNode, f_visit_reduce);
-  PY_EXPR_VISITOR_DISPATCH(CastNode, f_visit_cast);
-  PY_EXPR_VISITOR_DISPATCH(NotNode, f_visit_not);
-  PY_EXPR_VISITOR_DISPATCH(SelectNode, f_visit_select);
-  PY_EXPR_VISITOR_DISPATCH(RampNode, f_visit_ramp);
-  PY_EXPR_VISITOR_DISPATCH(BroadcastNode, f_visit_broadcast);
-  PY_EXPR_VISITOR_DISPATCH(ShuffleNode, f_visit_shuffle);
+  PY_EXPR_VISITOR_DISPATCH(prim::AddNode, f_visit_add);
+  PY_EXPR_VISITOR_DISPATCH(prim::SubNode, f_visit_sub);
+  PY_EXPR_VISITOR_DISPATCH(prim::MulNode, f_visit_mul);
+  PY_EXPR_VISITOR_DISPATCH(prim::DivNode, f_visit_div);
+  PY_EXPR_VISITOR_DISPATCH(prim::ModNode, f_visit_mod);
+  PY_EXPR_VISITOR_DISPATCH(prim::FloorDivNode, f_visit_floor_div);
+  PY_EXPR_VISITOR_DISPATCH(prim::FloorModNode, f_visit_floor_mod);
+  PY_EXPR_VISITOR_DISPATCH(prim::MinNode, f_visit_min);
+  PY_EXPR_VISITOR_DISPATCH(prim::MaxNode, f_visit_max);
+  PY_EXPR_VISITOR_DISPATCH(prim::EQNode, f_visit_eq);
+  PY_EXPR_VISITOR_DISPATCH(prim::NENode, f_visit_ne);
+  PY_EXPR_VISITOR_DISPATCH(prim::LTNode, f_visit_lt);
+  PY_EXPR_VISITOR_DISPATCH(prim::LENode, f_visit_le);
+  PY_EXPR_VISITOR_DISPATCH(prim::GTNode, f_visit_gt);
+  PY_EXPR_VISITOR_DISPATCH(prim::GENode, f_visit_ge);
+  PY_EXPR_VISITOR_DISPATCH(prim::AndNode, f_visit_and);
+  PY_EXPR_VISITOR_DISPATCH(prim::OrNode, f_visit_or);
+  PY_EXPR_VISITOR_DISPATCH(prim::CastNode, f_visit_cast);
+  PY_EXPR_VISITOR_DISPATCH(prim::NotNode, f_visit_not);
+  PY_EXPR_VISITOR_DISPATCH(prim::SelectNode, f_visit_select);
+  PY_EXPR_VISITOR_DISPATCH(prim::RampNode, f_visit_ramp);
+  PY_EXPR_VISITOR_DISPATCH(prim::BroadcastNode, f_visit_broadcast);
+  PY_EXPR_VISITOR_DISPATCH(prim::ShuffleNode, f_visit_shuffle);
   PY_EXPR_VISITOR_DISPATCH(IntImmNode, f_visit_int_imm);
   PY_EXPR_VISITOR_DISPATCH(FloatImmNode, f_visit_float_imm);
-  PY_EXPR_VISITOR_DISPATCH(StringImmNode, f_visit_string_imm);
+  PY_EXPR_VISITOR_DISPATCH(prim::StringImmNode, f_visit_string_imm);
+
+  void VisitExpr_(const OpaqueExprNode* op) override {
+    if (op->IsInstance<te::ReduceNode>() && f_visit_reduce != nullptr) {
+      f_visit_reduce(op);
+    } else {
+      StmtExprVisitor::VisitExpr_(op);
+    }
+  }
 
  private:
   static FExprType InitExprVTable() {
@@ -270,35 +278,34 @@ class PyStmtExprVisitorNode : public ffi::Object, public StmtExprVisitor {
     IR_EXPR_VISITOR_DEFAULT_DISPATCH(TensorLoadNode);
     IR_EXPR_VISITOR_DEFAULT_DISPATCH(TupleNode);
     IR_EXPR_VISITOR_DEFAULT_DISPATCH(TupleGetItemNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(LetNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::LetNode);
     IR_EXPR_VISITOR_DEFAULT_DISPATCH(CallNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(AddNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(SubNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(MulNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(DivNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(ModNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(FloorDivNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(FloorModNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(MinNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(MaxNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(EQNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(NENode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(LTNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(LENode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(GTNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(GENode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(AndNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(OrNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(ReduceNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(CastNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(NotNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(SelectNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(RampNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(ShuffleNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(BroadcastNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::AddNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::SubNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::MulNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::DivNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::ModNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::FloorDivNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::FloorModNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::MinNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::MaxNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::EQNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::NENode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::LTNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::LENode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::GTNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::GENode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::AndNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::OrNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::CastNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::NotNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::SelectNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::RampNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::ShuffleNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::BroadcastNode);
     IR_EXPR_VISITOR_DEFAULT_DISPATCH(IntImmNode);
     IR_EXPR_VISITOR_DEFAULT_DISPATCH(FloatImmNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(StringImmNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(prim::StringImmNode);
     vtable.Finalize();
     return vtable;
   }
@@ -577,35 +584,41 @@ class PyStmtExprMutatorNode : public ffi::Object, public StmtExprMutator {
   // Expression functions
   PY_EXPR_MUTATOR_DISPATCH(VarNode, f_visit_var);
   PY_EXPR_MUTATOR_DISPATCH(TensorLoadNode, f_visit_buffer_load);
-  PY_EXPR_MUTATOR_DISPATCH(LetNode, f_visit_let);
+  PY_EXPR_MUTATOR_DISPATCH(prim::LetNode, f_visit_let);
   PY_EXPR_MUTATOR_DISPATCH(CallNode, f_visit_call);
-  PY_EXPR_MUTATOR_DISPATCH(AddNode, f_visit_add);
-  PY_EXPR_MUTATOR_DISPATCH(SubNode, f_visit_sub);
-  PY_EXPR_MUTATOR_DISPATCH(MulNode, f_visit_mul);
-  PY_EXPR_MUTATOR_DISPATCH(DivNode, f_visit_div);
-  PY_EXPR_MUTATOR_DISPATCH(ModNode, f_visit_mod);
-  PY_EXPR_MUTATOR_DISPATCH(FloorDivNode, f_visit_floor_div);
-  PY_EXPR_MUTATOR_DISPATCH(FloorModNode, f_visit_floor_mod);
-  PY_EXPR_MUTATOR_DISPATCH(MinNode, f_visit_min);
-  PY_EXPR_MUTATOR_DISPATCH(MaxNode, f_visit_max);
-  PY_EXPR_MUTATOR_DISPATCH(EQNode, f_visit_eq);
-  PY_EXPR_MUTATOR_DISPATCH(NENode, f_visit_ne);
-  PY_EXPR_MUTATOR_DISPATCH(LTNode, f_visit_lt);
-  PY_EXPR_MUTATOR_DISPATCH(LENode, f_visit_le);
-  PY_EXPR_MUTATOR_DISPATCH(GTNode, f_visit_gt);
-  PY_EXPR_MUTATOR_DISPATCH(GENode, f_visit_ge);
-  PY_EXPR_MUTATOR_DISPATCH(AndNode, f_visit_and);
-  PY_EXPR_MUTATOR_DISPATCH(OrNode, f_visit_or);
-  PY_EXPR_MUTATOR_DISPATCH(ReduceNode, f_visit_reduce);
-  PY_EXPR_MUTATOR_DISPATCH(CastNode, f_visit_cast);
-  PY_EXPR_MUTATOR_DISPATCH(NotNode, f_visit_not);
-  PY_EXPR_MUTATOR_DISPATCH(SelectNode, f_visit_select);
-  PY_EXPR_MUTATOR_DISPATCH(RampNode, f_visit_ramp);
-  PY_EXPR_MUTATOR_DISPATCH(BroadcastNode, f_visit_broadcast);
-  PY_EXPR_MUTATOR_DISPATCH(ShuffleNode, f_visit_shuffle);
+  PY_EXPR_MUTATOR_DISPATCH(prim::AddNode, f_visit_add);
+  PY_EXPR_MUTATOR_DISPATCH(prim::SubNode, f_visit_sub);
+  PY_EXPR_MUTATOR_DISPATCH(prim::MulNode, f_visit_mul);
+  PY_EXPR_MUTATOR_DISPATCH(prim::DivNode, f_visit_div);
+  PY_EXPR_MUTATOR_DISPATCH(prim::ModNode, f_visit_mod);
+  PY_EXPR_MUTATOR_DISPATCH(prim::FloorDivNode, f_visit_floor_div);
+  PY_EXPR_MUTATOR_DISPATCH(prim::FloorModNode, f_visit_floor_mod);
+  PY_EXPR_MUTATOR_DISPATCH(prim::MinNode, f_visit_min);
+  PY_EXPR_MUTATOR_DISPATCH(prim::MaxNode, f_visit_max);
+  PY_EXPR_MUTATOR_DISPATCH(prim::EQNode, f_visit_eq);
+  PY_EXPR_MUTATOR_DISPATCH(prim::NENode, f_visit_ne);
+  PY_EXPR_MUTATOR_DISPATCH(prim::LTNode, f_visit_lt);
+  PY_EXPR_MUTATOR_DISPATCH(prim::LENode, f_visit_le);
+  PY_EXPR_MUTATOR_DISPATCH(prim::GTNode, f_visit_gt);
+  PY_EXPR_MUTATOR_DISPATCH(prim::GENode, f_visit_ge);
+  PY_EXPR_MUTATOR_DISPATCH(prim::AndNode, f_visit_and);
+  PY_EXPR_MUTATOR_DISPATCH(prim::OrNode, f_visit_or);
+  PY_EXPR_MUTATOR_DISPATCH(prim::CastNode, f_visit_cast);
+  PY_EXPR_MUTATOR_DISPATCH(prim::NotNode, f_visit_not);
+  PY_EXPR_MUTATOR_DISPATCH(prim::SelectNode, f_visit_select);
+  PY_EXPR_MUTATOR_DISPATCH(prim::RampNode, f_visit_ramp);
+  PY_EXPR_MUTATOR_DISPATCH(prim::BroadcastNode, f_visit_broadcast);
+  PY_EXPR_MUTATOR_DISPATCH(prim::ShuffleNode, f_visit_shuffle);
   PY_EXPR_MUTATOR_DISPATCH(IntImmNode, f_visit_int_imm);
   PY_EXPR_MUTATOR_DISPATCH(FloatImmNode, f_visit_float_imm);
-  PY_EXPR_MUTATOR_DISPATCH(StringImmNode, f_visit_string_imm);
+  PY_EXPR_MUTATOR_DISPATCH(prim::StringImmNode, f_visit_string_imm);
+
+  Expr VisitExpr_(const OpaqueExprNode* op) override {
+    if (op->IsInstance<te::ReduceNode>() && f_visit_reduce != nullptr) {
+      return f_visit_reduce(op).cast<Expr>();
+    }
+    return StmtExprMutator::VisitExpr_(op);
+  }
 
  private:
   static FExprType InitExprVTable() {
@@ -615,35 +628,34 @@ class PyStmtExprMutatorNode : public ffi::Object, public StmtExprMutator {
     PY_EXPR_MUTATOR_DEFAULT_DISPATCH(TensorLoadNode);
     PY_EXPR_MUTATOR_DEFAULT_DISPATCH(TupleNode);
     PY_EXPR_MUTATOR_DEFAULT_DISPATCH(TupleGetItemNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(LetNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::LetNode);
     PY_EXPR_MUTATOR_DEFAULT_DISPATCH(CallNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(AddNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(SubNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(MulNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(DivNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(ModNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(FloorDivNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(FloorModNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(MinNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(MaxNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(EQNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(NENode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(LTNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(LENode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(GTNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(GENode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(AndNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(OrNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(ReduceNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(CastNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(NotNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(SelectNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(RampNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(ShuffleNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(BroadcastNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::AddNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::SubNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::MulNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::DivNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::ModNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::FloorDivNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::FloorModNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::MinNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::MaxNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::EQNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::NENode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::LTNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::LENode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::GTNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::GENode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::AndNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::OrNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::CastNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::NotNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::SelectNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::RampNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::ShuffleNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::BroadcastNode);
     PY_EXPR_MUTATOR_DEFAULT_DISPATCH(IntImmNode);
     PY_EXPR_MUTATOR_DEFAULT_DISPATCH(FloatImmNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(StringImmNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(prim::StringImmNode);
     vtable.Finalize();
     return vtable;
   }

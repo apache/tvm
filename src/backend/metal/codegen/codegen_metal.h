@@ -54,8 +54,8 @@ class CodeGenMetal final : public CodeGenC {
   // overload visitor
   void VisitStmt_(const BindNode* op) final;                         // NOLINT(*)
   void VisitStmt_(const AllocBufferNode* op) final;                  // NOLINT(*)
-  void VisitExpr_(const SelectNode* op, std::ostream& os) final;     // NOLINT(*)
-  void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
+  void VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
 

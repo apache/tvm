@@ -28,9 +28,10 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/transform.h>
 
@@ -193,7 +194,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   }
 
   Expr VisitExpr_(const CallNode* op) override {
-    if (op->op.same_as(builtin::if_then_else())) {
+    if (op->op.same_as(prim::builtin::if_then_else())) {
       if (ffi::Optional<bool> cond = ProveCondition(op->args[0].as_or_throw<PrimExpr>())) {
         if (cond.value()) {
           return this->VisitExpr(op->args[1]);

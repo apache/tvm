@@ -25,6 +25,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
@@ -134,7 +135,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   // Override visitor behaviors
   Entry VisitExprDefault_(const ffi::Object* op) final { return Everything(); }
 
-  Entry VisitExpr_(const LetNode* op) final {
+  Entry VisitExpr_(const prim::LetNode* op) final {
     auto it = var_map_.find(op->var);
     // if the var has not been binded, update the info.
     if (it == var_map_.end()) {
@@ -147,25 +148,25 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     }
   }
 
-  Entry VisitExpr_(const CastNode* op) final { return VisitExpr(op->value); }
+  Entry VisitExpr_(const prim::CastNode* op) final { return VisitExpr(op->value); }
 
   Entry VisitExpr_(const IntImmNode* op) final { return Entry(0, op->value); }
 
-  Entry VisitExpr_(const AddNode* op) final {
+  Entry VisitExpr_(const prim::AddNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     int64_t coeff = ZeroAwareGCD(a.coeff, b.coeff);
     return Entry(coeff, a.base + b.base);
   }
 
-  Entry VisitExpr_(const SubNode* op) final {
+  Entry VisitExpr_(const prim::SubNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     int64_t coeff = ZeroAwareGCD(a.coeff, b.coeff);
     return Entry(coeff, a.base - b.base);
   }
 
-  Entry VisitExpr_(const MulNode* op) final {
+  Entry VisitExpr_(const prim::MulNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     // Simplification rule, x, y, z are in Z
@@ -196,7 +197,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     return Everything();
   }
 
-  Entry VisitExpr_(const DivNode* op) final {
+  Entry VisitExpr_(const prim::DivNode* op) final {
     Entry b = VisitExpr(op->b);
     if (b.is_const()) {
       return DivByConst(op->a, b.base, false);
@@ -204,7 +205,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     return Everything();
   }
 
-  Entry VisitExpr_(const FloorDivNode* op) final {
+  Entry VisitExpr_(const prim::FloorDivNode* op) final {
     Entry b = VisitExpr(op->b);
     if (b.is_const()) {
       return DivByConst(op->a, b.base, true);
@@ -212,19 +213,19 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     return Everything();
   }
 
-  Entry VisitExpr_(const MinNode* op) final {
+  Entry VisitExpr_(const prim::MinNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     return Union(a, b);
   }
 
-  Entry VisitExpr_(const MaxNode* op) final {
+  Entry VisitExpr_(const prim::MaxNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     return Union(a, b);
   }
 
-  Entry VisitExpr_(const SelectNode* op) final {
+  Entry VisitExpr_(const prim::SelectNode* op) final {
     Entry a = VisitExpr(op->true_value);
     Entry b = VisitExpr(op->false_value);
     return Union(a, b);
@@ -241,7 +242,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     return Everything();
   }
 
-  Entry VisitExpr_(const FloorModNode* op) final {
+  Entry VisitExpr_(const prim::FloorModNode* op) final {
     Entry b = VisitExpr(op->b);
     if (b.is_const()) {
       return ModByConst(op->a, b.base, true);
@@ -249,7 +250,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     return Everything();
   }
 
-  Entry VisitExpr_(const ModNode* op) final {
+  Entry VisitExpr_(const prim::ModNode* op) final {
     Entry b = VisitExpr(op->b);
     if (b.is_const()) {
       return ModByConst(op->a, b.base, false);
@@ -260,11 +261,11 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   Entry VisitExpr_(const CallNode* op) final {
     // only special handle >> which can be
     // used for index calculation.
-    if (op->op.same_as(tirx::builtin::shift_right())) {
+    if (op->op.same_as(prim::builtin::shift_right())) {
       return VisitRightShift(op);
-    } else if (op->op.same_as(tirx::builtin::bitwise_and())) {
+    } else if (op->op.same_as(prim::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
-    } else if (op->op.same_as(tirx::builtin::shift_left())) {
+    } else if (op->op.same_as(prim::builtin::shift_left())) {
       return VisitLeftShift(op);
     } else {
       return Everything();

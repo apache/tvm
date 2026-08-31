@@ -27,11 +27,12 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/ffi/container/tuple.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/with_context.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/op.h>
@@ -133,7 +134,7 @@ inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
   if (dtype.lanes() != 1) {
     PrimType offset_ty = offset.ty();
     offset = offset * IntImm(offset_ty, dtype.lanes());
-    offset = Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
+    offset = prim::Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
   }
 
   ffi::Array<PrimExpr> shape = {offset + 1};
@@ -209,7 +210,7 @@ inline PrimExpr ConstInt32(size_t index) {
  * \return Call representing the allocated pointer
  */
 inline Call StackAlloca(Type ret_type, std::string type, size_t num) {
-  ffi::Array<PrimExpr> args = {StringImm(type), ConstInt32(num)};
+  ffi::Array<PrimExpr> args = {prim::StringImm(type), ConstInt32(num)};
   return Call(std::move(ret_type), builtin::tvm_stack_alloca(), args);
 }
 

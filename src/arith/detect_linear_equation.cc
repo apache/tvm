@@ -24,8 +24,8 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -62,7 +62,7 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const Pri
     return true;
   }
 
-  LinearEqEntry VisitExpr_(const AddNode* op, const PrimExpr& e) final {
+  LinearEqEntry VisitExpr_(const prim::AddNode* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
     LinearEqEntry a = VisitExpr(op->a, op->a);
     LinearEqEntry b = VisitExpr(op->b, op->b);
@@ -72,7 +72,7 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const Pri
     return ret;
   }
 
-  LinearEqEntry VisitExpr_(const SubNode* op, const PrimExpr& e) final {
+  LinearEqEntry VisitExpr_(const prim::SubNode* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
     LinearEqEntry a = VisitExpr(op->a, op->a);
     LinearEqEntry b = VisitExpr(op->b, op->b);
@@ -82,7 +82,7 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const Pri
     return ret;
   }
 
-  LinearEqEntry VisitExpr_(const MulNode* op, const PrimExpr& e) final {
+  LinearEqEntry VisitExpr_(const prim::MulNode* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
     LinearEqEntry a = VisitExpr(op->a, op->a);
     LinearEqEntry b = VisitExpr(op->b, op->b);
@@ -194,21 +194,21 @@ bool DetectClipBound(const PrimExpr& cond,
   // canonical form: exp >= 0
   bool is_eq = false;
   PrimExpr canonical;
-  if (const LTNode* op = cond.as<LTNode>()) {
+  if (const prim::LTNode* op = cond.as<prim::LTNode>()) {
     PrimType a_ty = op->a.ty();
     if (!a_ty.MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->b - op->a - MakeConst(a_ty, 1);
-  } else if (const LENode* op = cond.as<LENode>()) {
+  } else if (const prim::LENode* op = cond.as<prim::LENode>()) {
     if (!op->a.ty().MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->b - op->a;
-  } else if (const GTNode* op = cond.as<GTNode>()) {
+  } else if (const prim::GTNode* op = cond.as<prim::GTNode>()) {
     PrimType a_ty = op->a.ty();
     if (!a_ty.MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->a - op->b - MakeConst(a_ty, 1);
-  } else if (const GENode* op = cond.as<GENode>()) {
+  } else if (const prim::GENode* op = cond.as<prim::GENode>()) {
     if (!op->a.ty().MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->a - op->b;
-  } else if (const EQNode* op = cond.as<EQNode>()) {
+  } else if (const prim::EQNode* op = cond.as<prim::EQNode>()) {
     if (!op->a.ty().MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->a - op->b;
     is_eq = true;
@@ -271,7 +271,7 @@ void SplitCommExpr(const PrimExpr& e, std::vector<PrimExpr>* ret) {
 ffi::Array<PrimExpr> DetectClipBound(const PrimExpr& e, const ffi::Array<PrimVar>& vars) {
   std::vector<PrimExpr> splits;
   Analyzer analyzer;
-  SplitCommExpr<tirx::AndNode>(analyzer->Simplify(e), &splits);
+  SplitCommExpr<prim::AndNode>(analyzer->Simplify(e), &splits);
   std::unordered_map<const VarNode*, IntervalEntry> rmap;
   for (PrimVar v : vars) {
     rmap[v.get()] = IntervalEntry();

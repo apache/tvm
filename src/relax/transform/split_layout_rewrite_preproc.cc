@@ -301,7 +301,7 @@ class SplitLayoutRewritePreproc : public ExprMutator {
       preproc_args.push_back(call_tir_args[info.buffer_index]);
       tirx::BufferVar rewritten_buffer = info.post_rewrite_buffer;
       for (const auto& shape_expr : rewritten_buffer->shape) {
-        TVM_FFI_ICHECK(shape_expr.as<tirx::IntImmNode>())
+        TVM_FFI_ICHECK(shape_expr.as<IntImmNode>())
             << "Currently does not support rewrite buffer with "
                "dynamic shape.";
       }

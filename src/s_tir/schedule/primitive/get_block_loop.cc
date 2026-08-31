@@ -23,6 +23,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 ffi::Array<StmtSRef> GetSBlocks(const ScheduleState& self, const ffi::String& name,

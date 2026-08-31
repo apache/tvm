@@ -184,7 +184,7 @@ void ExprVisitor::VisitExpr_(const TensorLoadNode* op) {
 }
 
 #define RELAX_VISIT_TIRX_BINOP(OP)                   \
-  void ExprVisitor::VisitExpr_(const tirx::OP* op) { \
+  void ExprVisitor::VisitExpr_(const prim::OP* op) { \
     this->VisitSpan(op->span);                       \
     this->VisitExpr(op->a);                          \
     this->VisitExpr(op->b);                          \
@@ -211,19 +211,19 @@ RELAX_VISIT_TIRX_BINOP(OrNode);
 
 #undef RELAX_VISIT_TIRX_BINOP
 
-void ExprVisitor::VisitExpr_(const tirx::CastNode* op) {
+void ExprVisitor::VisitExpr_(const prim::CastNode* op) {
   this->VisitSpan(op->span);
   this->VisitExpr(op->value);
   VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
-void ExprVisitor::VisitExpr_(const tirx::NotNode* op) {
+void ExprVisitor::VisitExpr_(const prim::NotNode* op) {
   this->VisitSpan(op->span);
   this->VisitExpr(op->a);
   VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
-void ExprVisitor::VisitExpr_(const tirx::SelectNode* op) {
+void ExprVisitor::VisitExpr_(const prim::SelectNode* op) {
   this->VisitSpan(op->span);
   this->VisitExpr(op->condition);
   this->VisitExpr(op->true_value);
@@ -231,7 +231,7 @@ void ExprVisitor::VisitExpr_(const tirx::SelectNode* op) {
   VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
-void ExprVisitor::VisitExpr_(const tirx::RampNode* op) {
+void ExprVisitor::VisitExpr_(const prim::RampNode* op) {
   this->VisitSpan(op->span);
   this->VisitExpr(op->base);
   this->VisitExpr(op->stride);
@@ -239,14 +239,14 @@ void ExprVisitor::VisitExpr_(const tirx::RampNode* op) {
   VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
-void ExprVisitor::VisitExpr_(const tirx::BroadcastNode* op) {
+void ExprVisitor::VisitExpr_(const prim::BroadcastNode* op) {
   this->VisitSpan(op->span);
   this->VisitExpr(op->value);
   this->VisitExpr(op->lanes);
   VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
-void ExprVisitor::VisitExpr_(const tirx::ShuffleNode* op) {
+void ExprVisitor::VisitExpr_(const prim::ShuffleNode* op) {
   this->VisitSpan(op->span);
   for (const PrimExpr& vector : op->vectors) {
     this->VisitExpr(vector);
@@ -261,7 +261,7 @@ void ExprVisitor::VisitExpr_(const tvm::IntImmNode* op) { this->VisitSpan(op->sp
 
 void ExprVisitor::VisitExpr_(const tvm::FloatImmNode* op) { this->VisitSpan(op->span); }
 
-void ExprVisitor::VisitExpr_(const tirx::StringImmNode* op) { this->VisitSpan(op->span); }
+void ExprVisitor::VisitExpr_(const prim::StringImmNode* op) { this->VisitSpan(op->span); }
 
 void ExprVisitor::VisitExpr_(const IfNode* op) {
   this->VisitSpan(op->span);
@@ -540,13 +540,13 @@ Expr ExprMutatorBase::VisitExpr_(const TensorLoadNode* op) {
 }
 
 #define RELAX_MUTATE_TIRX_BINOP(OP)                              \
-  Expr ExprMutatorBase::VisitExpr_(const tirx::OP##Node* op) {   \
+  Expr ExprMutatorBase::VisitExpr_(const prim::OP##Node* op) {   \
     PrimExpr a = this->VisitExpr(op->a).as_or_throw<PrimExpr>(); \
     PrimExpr b = this->VisitExpr(op->b).as_or_throw<PrimExpr>(); \
     if (a.same_as(op->a) && b.same_as(op->b)) {                  \
       return ffi::GetRef<Expr>(op);                              \
     }                                                            \
-    return tirx::OP(a, b, op->span);                             \
+    return prim::OP(a, b, op->span);                             \
   }
 
 RELAX_MUTATE_TIRX_BINOP(Add);
@@ -569,19 +569,19 @@ RELAX_MUTATE_TIRX_BINOP(Or);
 
 #undef RELAX_MUTATE_TIRX_BINOP
 
-Expr ExprMutatorBase::VisitExpr_(const tirx::CastNode* op) {
+Expr ExprMutatorBase::VisitExpr_(const prim::CastNode* op) {
   PrimExpr value = this->VisitExpr(op->value).as_or_throw<PrimExpr>();
   return value.same_as(op->value)
              ? ffi::GetRef<Expr>(op)
-             : Expr(tirx::Cast(op->ty.as_or_throw<PrimType>(), value, op->span));
+             : Expr(prim::Cast(op->ty.as_or_throw<PrimType>(), value, op->span));
 }
 
-Expr ExprMutatorBase::VisitExpr_(const tirx::NotNode* op) {
+Expr ExprMutatorBase::VisitExpr_(const prim::NotNode* op) {
   PrimExpr a = this->VisitExpr(op->a).as_or_throw<PrimExpr>();
-  return a.same_as(op->a) ? ffi::GetRef<Expr>(op) : Expr(tirx::Not(a, op->span));
+  return a.same_as(op->a) ? ffi::GetRef<Expr>(op) : Expr(prim::Not(a, op->span));
 }
 
-Expr ExprMutatorBase::VisitExpr_(const tirx::SelectNode* op) {
+Expr ExprMutatorBase::VisitExpr_(const prim::SelectNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition).as_or_throw<PrimExpr>();
   PrimExpr true_value = this->VisitExpr(op->true_value).as_or_throw<PrimExpr>();
   PrimExpr false_value = this->VisitExpr(op->false_value).as_or_throw<PrimExpr>();
@@ -589,29 +589,29 @@ Expr ExprMutatorBase::VisitExpr_(const tirx::SelectNode* op) {
       false_value.same_as(op->false_value)) {
     return ffi::GetRef<Expr>(op);
   }
-  return tirx::Select(condition, true_value, false_value, op->span);
+  return prim::Select(condition, true_value, false_value, op->span);
 }
 
-Expr ExprMutatorBase::VisitExpr_(const tirx::RampNode* op) {
+Expr ExprMutatorBase::VisitExpr_(const prim::RampNode* op) {
   PrimExpr base = this->VisitExpr(op->base).as_or_throw<PrimExpr>();
   PrimExpr stride = this->VisitExpr(op->stride).as_or_throw<PrimExpr>();
   PrimExpr lanes = this->VisitExpr(op->lanes).as_or_throw<PrimExpr>();
   if (base.same_as(op->base) && stride.same_as(op->stride) && lanes.same_as(op->lanes)) {
     return ffi::GetRef<Expr>(op);
   }
-  return tirx::Ramp(base, stride, lanes, op->span);
+  return prim::Ramp(base, stride, lanes, op->span);
 }
 
-Expr ExprMutatorBase::VisitExpr_(const tirx::BroadcastNode* op) {
+Expr ExprMutatorBase::VisitExpr_(const prim::BroadcastNode* op) {
   PrimExpr value = this->VisitExpr(op->value).as_or_throw<PrimExpr>();
   PrimExpr lanes = this->VisitExpr(op->lanes).as_or_throw<PrimExpr>();
   if (value.same_as(op->value) && lanes.same_as(op->lanes)) {
     return ffi::GetRef<Expr>(op);
   }
-  return tirx::Broadcast(value, lanes, op->span);
+  return prim::Broadcast(value, lanes, op->span);
 }
 
-Expr ExprMutatorBase::VisitExpr_(const tirx::ShuffleNode* op) {
+Expr ExprMutatorBase::VisitExpr_(const prim::ShuffleNode* op) {
   ffi::Array<PrimExpr> vectors = op->vectors.Map(
       [this](const PrimExpr& e) { return this->VisitExpr(e).as_or_throw<PrimExpr>(); });
   ffi::Array<PrimExpr> indices = op->indices.Map(
@@ -619,14 +619,14 @@ Expr ExprMutatorBase::VisitExpr_(const tirx::ShuffleNode* op) {
   if (vectors.same_as(op->vectors) && indices.same_as(op->indices)) {
     return ffi::GetRef<Expr>(op);
   }
-  return tirx::Shuffle(vectors, indices, op->span);
+  return prim::Shuffle(vectors, indices, op->span);
 }
 
 Expr ExprMutatorBase::VisitExpr_(const tvm::IntImmNode* op) { return ffi::GetRef<Expr>(op); }
 
 Expr ExprMutatorBase::VisitExpr_(const tvm::FloatImmNode* op) { return ffi::GetRef<Expr>(op); }
 
-Expr ExprMutatorBase::VisitExpr_(const tirx::StringImmNode* op) { return ffi::GetRef<Expr>(op); }
+Expr ExprMutatorBase::VisitExpr_(const prim::StringImmNode* op) { return ffi::GetRef<Expr>(op); }
 
 Expr ExprMutatorBase::VisitExpr_(const IfNode* op) {
   Expr guard = this->VisitExpr(op->cond);

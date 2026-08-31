@@ -275,7 +275,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
 
   static PrimExpr RemoveCast(PrimExpr e) {
     for (;;) {
-      if (const auto* cast = e.as<tirx::CastNode>()) {
+      if (const auto* cast = e.as<prim::CastNode>()) {
         e = cast->value;
       } else {
         break;
@@ -287,8 +287,8 @@ class PatternKindAnalyzer : public StmtExprVisitor {
   /*! \brief Checking if the stmt is multiply add. E.g. C[i, j] += A[i, k] * B[j, k] */
   static bool IsFMA(const Stmt& body) {
     if (const auto* store = body.as<BufferStoreNode>()) {
-      if (const auto* add = RemoveCast(store->value).as<tirx::AddNode>()) {
-        if (const auto* mul = RemoveCast(add->b).as<tirx::MulNode>()) {
+      if (const auto* add = RemoveCast(store->value).as<prim::AddNode>()) {
+        if (const auto* mul = RemoveCast(add->b).as<prim::MulNode>()) {
           const auto* store_lhs = RemoveCast(add->a).as<TensorLoadNode>();
           if (!store_lhs ||
               !store->buffer.same_as(store_lhs->source.as_or_throw<tvm::tirx::BufferVar>()) ||

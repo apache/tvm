@@ -276,4 +276,9 @@ struct TypeTraits<tirx::PrimVar> : public ObjectRefTypeTraitsBase<tirx::PrimVar>
 
 }  // namespace tvm::ffi
 
+namespace std {
+template <>
+struct hash<::tvm::tirx::IterVar> : public ::tvm::ffi::ObjectPtrHash {};
+}  // namespace std
+
 #endif  // TVM_TIR_VAR_H_

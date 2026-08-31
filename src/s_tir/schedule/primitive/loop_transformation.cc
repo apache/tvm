@@ -22,6 +22,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Append a new predicate to the each child of type BlockRealize (not recursively) */

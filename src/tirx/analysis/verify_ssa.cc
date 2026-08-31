@@ -26,8 +26,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
@@ -49,7 +49,7 @@ class SSAVerifier final : public StmtExprVisitor {
     if (!is_ssa_) return;
     StmtExprVisitor::VisitStmt(n);
   }
-  void VisitExpr_(const LetNode* op) final {
+  void VisitExpr_(const prim::LetNode* op) final {
     // Weaker SSA condition
     // A single var can be binded in multiple lets
     // but they have to bind to the same value.

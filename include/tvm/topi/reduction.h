@@ -294,10 +294,10 @@ inline FCommReduce MakeCommReducer(FCombine fcombine, FIdentity fidentity,
     auto id_elem = fidentity(dtypes);
     auto cond = condition != nullptr ? *condition : IntImm::Bool(true);
 
-    auto combiner = tvm::tirx::CommReducer(lhs, rhs, result, id_elem);
+    auto combiner = tvm::te::CommReducer(lhs, rhs, result, id_elem);
     ffi::Array<PrimExpr> outputs;
     for (size_t i = 0; i < exprs.size(); ++i) {
-      outputs.push_back(tvm::tirx::Reduce(combiner, exprs, axis, cond, static_cast<int>(i), {}));
+      outputs.push_back(tvm::te::Reduce(combiner, exprs, axis, cond, static_cast<int>(i), {}));
     }
     return outputs;
   };
@@ -480,8 +480,8 @@ inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
     }
 
     PrimExpr update_index = is_smaller || (is_same && proper_index);
-    result.push_back(tvm::tirx::Select(update_index, lhs[0], rhs[0]));  // idx
-    result.push_back(tvm::tirx::Select(is_smaller, lhs[1], rhs[1]));    // val
+    result.push_back(tvm::prim::Select(update_index, lhs[0], rhs[0]));  // idx
+    result.push_back(tvm::prim::Select(is_smaller, lhs[1], rhs[1]));    // val
     return result;
   };
   auto fidentity = [&](std::vector<PrimType> types) {
@@ -542,8 +542,8 @@ inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
     }
 
     PrimExpr update_index = is_bigger || (is_same && proper_index);
-    result.push_back(tvm::tirx::Select(update_index, lhs[0], rhs[0]));  // idx
-    result.push_back(tvm::tirx::Select(is_bigger, lhs[1], rhs[1]));     // val
+    result.push_back(tvm::prim::Select(update_index, lhs[0], rhs[0]));  // idx
+    result.push_back(tvm::prim::Select(is_bigger, lhs[1], rhs[1]));     // val
     return result;
   };
   auto fidentity = [&](std::vector<PrimType> types) {

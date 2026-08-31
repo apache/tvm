@@ -33,6 +33,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 class PTXRewriter : public StmtMutator {
@@ -66,7 +67,7 @@ class PTXRewriter : public StmtMutator {
     const CallNode* call = load_value.as<CallNode>();
     if (call != nullptr) {
       const OpNode* op = call->op.as<OpNode>();
-      if (op != nullptr && op->name == "tirx.if_then_else") {
+      if (op != nullptr && op->name == "ir.prim.if_then_else") {
         PrimExpr predicate = call->args[0].as_or_throw<PrimExpr>();
         PrimExpr lhs = call->args[1].as_or_throw<PrimExpr>();
         PrimExpr rhs = call->args[2].as_or_throw<PrimExpr>();

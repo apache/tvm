@@ -27,9 +27,9 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/cow.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tirx/buffer.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 
 #include <string>
@@ -40,6 +40,105 @@
 namespace tvm {
 /*! \brief Tensor expression language DSL. */
 namespace te {
+
+// Reduce operator
+/*!
+ * \brief A commutative reducer node to represent a commutative
+ *  binary operator with identity element
+ */
+class CommReducerNode : public ffi::Object {
+ public:
+  /*! \brief The left argument of reducer */
+  ffi::Array<tirx::PrimVar> lhs;
+  /*! \brief The right argument of reducer */
+  ffi::Array<tirx::PrimVar> rhs;
+  /*! \brief The result of reducer */
+  ffi::Array<PrimExpr> result;
+  /*!
+   * \brief The identity element of reducer, which leaves other
+   *  elements unchanged when combined with it, with respect to
+   *  the binary operation of this reducer uses.
+   */
+  ffi::Array<PrimExpr> identity_element;
+  /*! \brief Function call operator to combine a and b */
+  ffi::Array<PrimExpr> operator()(ffi::Array<PrimExpr> a, ffi::Array<PrimExpr> b) const;
+  /*!
+   * \brief Span that points to the original source code.
+   *        Reserved debug information.
+   */
+  mutable Span span;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<CommReducerNode>()
+        .def_ro("lhs", &CommReducerNode::lhs, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("rhs", &CommReducerNode::rhs, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("result", &CommReducerNode::result)
+        .def_ro("identity_element", &CommReducerNode::identity_element)
+        .def_ro("span", &CommReducerNode::span, refl::AttachFieldFlag::SEqHashIgnore());
+  }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.CommReducer", CommReducerNode, ffi::Object);
+};
+
+/*!
+ * \brief Managed reference to CommReducerNode
+ * \sa CommReducerNode
+ */
+class CommReducer : public ffi::ObjectRef {
+ public:
+  TVM_DLL CommReducer(ffi::Array<tirx::PrimVar> lhs, ffi::Array<tirx::PrimVar> rhs,
+                      ffi::Array<PrimExpr> result, ffi::Array<PrimExpr> identity_element,
+                      Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CommReducer, ffi::ObjectRef, CommReducerNode);
+};
+
+/*! \brief Reduction operator */
+class ReduceNode : public OpaqueExprNode {
+ public:
+  /*! \brief The commutative combiner */
+  CommReducer combiner;
+  /*! \brief The source operand */
+  ffi::Array<PrimExpr> source;
+  /*! \brief The init operand */
+  ffi::Array<PrimExpr> init;
+  /*! \brief The reduction axis */
+  ffi::Array<tirx::IterVar> axis;
+  /*!
+   * \brief Predicate on the reduction
+   *  Only add the body to reduction if condition is true.
+   */
+  PrimExpr condition;
+  /*! \brief the index of this reduce node */
+  int value_index;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ReduceNode>()
+        .def_ro("combiner", &ReduceNode::combiner)
+        .def_ro("source", &ReduceNode::source)
+        .def_ro("init", &ReduceNode::init)
+        .def_ro("axis", &ReduceNode::axis)
+        .def_ro("condition", &ReduceNode::condition)
+        .def_ro("value_index", &ReduceNode::value_index);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.Reduce", ReduceNode, OpaqueExprNode);
+};
+
+/*!
+ * \brief Managed reference to ReduceNode
+ * \sa ReduceNode
+ */
+class Reduce : public PrimExpr {
+ public:
+  TVM_DLL Reduce(CommReducer combiner, ffi::Array<PrimExpr> src, ffi::Array<tirx::IterVar> rdom,
+                 PrimExpr condition, int value_index, ffi::Array<PrimExpr> init,
+                 Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Reduce, PrimExpr, ReduceNode);
+  static constexpr bool _type_container_is_exact = true;
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ReduceNode);
+};
 
 /*!
  * \brief Temporary data structure to store union
@@ -409,5 +508,12 @@ inline const OperationNode* Operation::operator->() const {
   return static_cast<const OperationNode*>(get());
 }
 }  // namespace te
+
+namespace ffi {
+
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, te::ReduceNode> = true;
+
+}  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_TE_OPERATION_H_

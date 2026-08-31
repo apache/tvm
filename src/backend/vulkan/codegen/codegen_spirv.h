@@ -25,9 +25,9 @@
 #define TVM_TARGET_VULKAN_CODEGEN_SPIRV_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -77,33 +77,33 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const Expr&)>,
   spirv::Value MakeValue(const Expr& e) { return VisitExpr(e); }
   // override codegen
   spirv::Value VisitExpr_(const VarNode* op) override;
-  spirv::Value VisitExpr_(const CastNode* op) override;
+  spirv::Value VisitExpr_(const prim::CastNode* op) override;
   spirv::Value VisitExpr_(const IntImmNode* op) override;
   spirv::Value VisitExpr_(const FloatImmNode* op) override;
-  spirv::Value VisitExpr_(const StringImmNode* op) override;
-  spirv::Value VisitExpr_(const AddNode* op) override;
-  spirv::Value VisitExpr_(const SubNode* op) override;
-  spirv::Value VisitExpr_(const MulNode* op) override;
-  spirv::Value VisitExpr_(const DivNode* op) override;
-  spirv::Value VisitExpr_(const ModNode* op) override;
-  spirv::Value VisitExpr_(const MinNode* op) override;
-  spirv::Value VisitExpr_(const MaxNode* op) override;
-  spirv::Value VisitExpr_(const LTNode* op) override;
-  spirv::Value VisitExpr_(const LENode* op) override;
-  spirv::Value VisitExpr_(const GTNode* op) override;
-  spirv::Value VisitExpr_(const GENode* op) override;
-  spirv::Value VisitExpr_(const EQNode* op) override;
-  spirv::Value VisitExpr_(const NENode* op) override;
-  spirv::Value VisitExpr_(const AndNode* op) override;
-  spirv::Value VisitExpr_(const OrNode* op) override;
-  spirv::Value VisitExpr_(const NotNode* op) override;
-  spirv::Value VisitExpr_(const SelectNode* op) override;
-  spirv::Value VisitExpr_(const LetNode* op) override;
+  spirv::Value VisitExpr_(const prim::StringImmNode* op) override;
+  spirv::Value VisitExpr_(const prim::AddNode* op) override;
+  spirv::Value VisitExpr_(const prim::SubNode* op) override;
+  spirv::Value VisitExpr_(const prim::MulNode* op) override;
+  spirv::Value VisitExpr_(const prim::DivNode* op) override;
+  spirv::Value VisitExpr_(const prim::ModNode* op) override;
+  spirv::Value VisitExpr_(const prim::MinNode* op) override;
+  spirv::Value VisitExpr_(const prim::MaxNode* op) override;
+  spirv::Value VisitExpr_(const prim::LTNode* op) override;
+  spirv::Value VisitExpr_(const prim::LENode* op) override;
+  spirv::Value VisitExpr_(const prim::GTNode* op) override;
+  spirv::Value VisitExpr_(const prim::GENode* op) override;
+  spirv::Value VisitExpr_(const prim::EQNode* op) override;
+  spirv::Value VisitExpr_(const prim::NENode* op) override;
+  spirv::Value VisitExpr_(const prim::AndNode* op) override;
+  spirv::Value VisitExpr_(const prim::OrNode* op) override;
+  spirv::Value VisitExpr_(const prim::NotNode* op) override;
+  spirv::Value VisitExpr_(const prim::SelectNode* op) override;
+  spirv::Value VisitExpr_(const prim::LetNode* op) override;
   spirv::Value VisitExpr_(const CallNode* op) override;
-  spirv::Value VisitExpr_(const RampNode* op) override;
-  spirv::Value VisitExpr_(const BroadcastNode* op) override;
+  spirv::Value VisitExpr_(const prim::RampNode* op) override;
+  spirv::Value VisitExpr_(const prim::BroadcastNode* op) override;
   spirv::Value VisitExpr_(const TensorLoadNode* op) override;
-  spirv::Value VisitExpr_(const ShuffleNode* op) override;
+  spirv::Value VisitExpr_(const prim::ShuffleNode* op) override;
   // stmt
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
@@ -229,7 +229,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const Expr&)>,
   ExprDeepEqual deep_equal_;
 
   // binding of let variables. Enables duplicate var defs that map to same value
-  std::unordered_map<Var, const LetNode*> let_binding_;
+  std::unordered_map<Var, const prim::LetNode*> let_binding_;
 
   // Running total of the number of bytes of shared memory used.
   // Checked against the max_shared_memory_per_group
