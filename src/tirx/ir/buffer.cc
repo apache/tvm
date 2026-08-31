@@ -29,6 +29,7 @@
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt.h>
 
 #include <iterator>
 #include <list>
@@ -39,7 +40,73 @@
 namespace tvm {
 namespace tirx {
 
-TVM_FFI_STATIC_INIT_BLOCK() { BufferTypeNode::RegisterReflection(); }
+namespace {
+
+ffi::ObjectRef RealizeBufferSubscript(
+    Expr value,
+    ffi::Array<ffi::Variant<
+        ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
+        PrimExpr>>
+        slice) {
+  BufferVar buffer = value.as_or_throw<BufferVar>();
+  BufferType buffer_ty = buffer.type();
+  TVM_FFI_CHECK_LE(slice.size(), buffer_ty->shape.size(), IndexError)
+      << "Too many indices for a " << buffer_ty->shape.size() << "-dimensional buffer";
+
+  bool all_points = slice.size() == buffer_ty->shape.size();
+  for (const auto& item : slice) {
+    if (auto descriptor = item.as<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
+                                             ffi::Optional<PrimExpr>>>()) {
+      all_points = false;
+      ffi::Optional<PrimExpr> step = descriptor.value().get<2>();
+      TVM_FFI_CHECK(!step.has_value() || is_one(step.value()), ValueError)
+          << "Buffer slices with a non-unit step are not supported";
+    }
+  }
+
+  if (all_points) {
+    ffi::Array<PrimExpr> indices;
+    indices.reserve(slice.size());
+    for (const auto& item : slice) {
+      indices.push_back(item.as<PrimExpr>().value());
+    }
+    return BufferLoad(buffer, indices);
+  }
+
+  // Any slice or omitted trailing dimension denotes a region.  Rejecting
+  // steps makes the old behavior, where a stride could be silently dropped,
+  // unrepresentable rather than giving it dimension-dependent semantics.
+  arith::Analyzer analyzer;
+  ffi::Array<Range> region;
+  region.reserve(buffer_ty->shape.size());
+  for (size_t i = 0; i < slice.size(); ++i) {
+    if (auto point = slice[i].as<PrimExpr>()) {
+      region.push_back(Range::FromMinExtent(point.value(), IntImm(point.value().ty(), 1)));
+    } else {
+      auto descriptor = slice[i]
+                            .as<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
+                                           ffi::Optional<PrimExpr>>>()
+                            .value();
+      PrimExpr start = descriptor.get<0>().value_or(IntImm(buffer_ty->shape[i].ty(), 0));
+      PrimExpr stop = descriptor.get<1>().value_or(buffer_ty->shape[i]);
+      // Preserve the sole simplification performed by the former Python path.
+      region.push_back(Range::FromMinExtent(start, analyzer->Simplify(stop - start)));
+    }
+  }
+  for (size_t i = slice.size(); i < buffer_ty->shape.size(); ++i) {
+    region.push_back(
+        Range::FromMinExtent(IntImm(buffer_ty->shape[i].ty(), 0), buffer_ty->shape[i]));
+  }
+  return BufferRegion(buffer, region);
+}
+
+}  // namespace
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  BufferTypeNode::RegisterReflection();
+  refl::TypeAttrDef<BufferTypeNode>().def("__subscript_expr_realize__", RealizeBufferSubscript);
+}
 
 using IndexMod = tirx::FloorModNode;
 using IndexDiv = tirx::FloorDivNode;

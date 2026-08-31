@@ -381,6 +381,16 @@ ffi::Array<Doc> BufferIndices(const ffi::Array<PrimExpr>& indices, const AccessP
   return indices_doc;
 }
 
+ffi::Array<Doc> BufferLoadIndices(const ffi::Array<PrimExpr>& indices, const AccessPath& p,
+                                  const IRDocsifier& d) {
+  ffi::Array<Doc> indices_doc;
+  indices_doc.reserve(indices.size());
+  for (size_t i = 0; i < indices.size(); ++i) {
+    indices_doc.push_back(d->AsDoc<ExprDoc>(indices[i], p->Attr("indices")->ArrayItem(i)));
+  }
+  return indices_doc;
+}
+
 ffi::Array<Doc> BufferSlices(const ffi::Array<Range>& region, const AccessPath& p,
                              const IRDocsifier& d) {
   int n = region.size();
@@ -445,7 +455,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             return doc.value();
           }
 
-          return buffer[BufferIndices(load->indices, p->Attr("indices"), d)];
+          return buffer[BufferLoadIndices(load->indices, p->Attr("indices"), d)];
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
