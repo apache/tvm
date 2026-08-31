@@ -22,7 +22,7 @@ import tvm_ffi
 
 import tvm
 
-from ..runtime import Object, Scriptable
+from ..runtime import Object, ObjectConvertible, Scriptable
 from . import _ffi_api, _overload_prim_expr, _tensor_expr_overload
 from .base import Node, Span
 
@@ -33,6 +33,29 @@ class Expr(Node):
 
     span: Span | None
     ty: "tvm.ir.Type"
+
+    def __getitem__(self, index):
+        if isinstance(self.ty, tvm.ir.TupleType):
+            # Tuple subscription is eager so Python's legacy sequence protocol
+            # observes IndexError and terminates tuple iteration/unpacking.
+            try:
+                return _ffi_api.SubscriptExprRealize(self, [SubscriptProxy._convert_index(index)])
+            except RuntimeError as err:
+                if "Index out of bounds" in err.args[0]:
+                    raise IndexError from err
+                raise
+        if self.ty.is_missing():
+            # Preserve Relax's pre-normalization tuple access: operator calls
+            # have a missing result type until the block builder infers it.
+            return TupleGetItem(self, index)
+        if isinstance(self.ty, tvm.relax.TensorType):
+            # Relax tensor subscription retains its legacy TupleGetItem
+            # semantics.  Realize each step eagerly so x[i][j] remains two
+            # nested tuple-item accesses rather than one multi-axis slice.
+            return SubscriptProxy(self, index).to_expr()
+        if is_prim_expr(self):
+            raise TypeError("A primitive-valued expression cannot be indexed")
+        return SubscriptProxy(self, index)
 
 
 @tvm_ffi.register_object("ir.OpaqueExpr")
@@ -83,6 +106,8 @@ class GlobalVar(Expr):
         """
         from .type import PointerType
 
+        args = tuple(_realize_operand(arg) for arg in args)
+
         def is_tir_arg(x):
             return (
                 isinstance(x, Number)
@@ -100,98 +125,124 @@ class GlobalVar(Expr):
         raise RuntimeError(f"Do not know how to handle GlobalVar.__call__ for types {arg_types}")
 
 
-class _ExprWithOp(Expr, Scriptable):
-    """Common type-directed operator behavior for core expressions."""
+def _realize_operand(value):
+    return value._operand() if isinstance(value, ExprOperand) else value
 
-    __hash__ = Expr.__hash__
+
+class ExprOperand:
+    """Python operator surface for anything that denotes an expression."""
+
+    __slots__ = ()
+    __hash__ = object.__hash__
+
+    def _operand(self) -> Expr:
+        raise NotImplementedError
 
     def expr_ty(self):
         """Return this expression's primitive result type."""
+        self = _realize_operand(self)
         if is_prim_expr(self):
             return self.ty
         raise TypeError(f"Expected a primitive-valued expression, but result type is {self.ty}")
 
     def __add__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__add__(self, other)
         return _tensor_expr_overload.__add__(self, other)
 
     def __radd__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__radd__(self, other)
         return _tensor_expr_overload.__radd__(self, other)
 
     def __sub__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__sub__(self, other)
         return _tensor_expr_overload.__sub__(self, other)
 
     def __rsub__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rsub__(self, other)
         return _tensor_expr_overload.__rsub__(self, other)
 
     def __mul__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__mul__(self, other)
         return _tensor_expr_overload.__mul__(self, other)
 
     def __rmul__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rmul__(self, other)
         return _tensor_expr_overload.__rmul__(self, other)
 
     def __div__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__div__(self, other)
         return _tensor_expr_overload.__div__(self, other)
 
     def __rdiv__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rdiv__(self, other)
         return _tensor_expr_overload.__rdiv__(self, other)
 
     def __truediv__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__truediv__(self, other)
         return _tensor_expr_overload.__truediv__(self, other)
 
     def __rtruediv__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rtruediv__(self, other)
         return _tensor_expr_overload.__rtruediv__(self, other)
 
     def __floordiv__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__floordiv__(self, other)
         return _tensor_expr_overload.__floordiv__(self, other)
 
     def __rfloordiv__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rfloordiv__(self, other)
         return _tensor_expr_overload.__rfloordiv__(self, other)
 
     def __mod__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__mod__(self, other)
         return _tensor_expr_overload.__mod__(self, other)
 
     def __rmod__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rmod__(self, other)
         return _tensor_expr_overload.__rmod__(self, other)
 
     def __pow__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return NotImplemented
         return _tensor_expr_overload.__pow__(self, other)
 
     def __rpow__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return NotImplemented
         return _tensor_expr_overload.__rpow__(self, other)
 
     def __neg__(self):
+        self = _realize_operand(self)
         if is_prim_expr(self):
             result = _overload_prim_expr.__neg__(self)
             if result is NotImplemented:
@@ -203,56 +254,67 @@ class _ExprWithOp(Expr, Scriptable):
         return result
 
     def __lshift__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__lshift__(self, other)
         return NotImplemented
 
     def __rlshift__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rlshift__(self, other)
         return NotImplemented
 
     def __rshift__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rshift__(self, other)
         return NotImplemented
 
     def __rrshift__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rrshift__(self, other)
         return NotImplemented
 
     def __and__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__and__(self, other)
         return NotImplemented
 
     def __rand__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rand__(self, other)
         return NotImplemented
 
     def __or__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__or__(self, other)
         return NotImplemented
 
     def __ror__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__ror__(self, other)
         return NotImplemented
 
     def __xor__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__xor__(self, other)
         return NotImplemented
 
     def __rxor__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rxor__(self, other)
         return NotImplemented
 
     def __invert__(self):
+        self = _realize_operand(self)
         if is_prim_expr(self):
             result = _overload_prim_expr.__invert__(self)
             if result is NotImplemented:
@@ -261,31 +323,37 @@ class _ExprWithOp(Expr, Scriptable):
         return NotImplemented
 
     def __lt__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__lt__(self, other)
         return _tensor_expr_overload.__lt__(self, other)
 
     def __le__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__le__(self, other)
         return _tensor_expr_overload.__le__(self, other)
 
     def __eq__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__eq__(self, other)
         return Object.__eq__(self, other)
 
     def __ne__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__ne__(self, other)
         return Object.__ne__(self, other)
 
     def __gt__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__gt__(self, other)
         return _tensor_expr_overload.__gt__(self, other)
 
     def __ge__(self, other):
+        self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__ge__(self, other)
         return _tensor_expr_overload.__ge__(self, other)
@@ -300,12 +368,14 @@ class _ExprWithOp(Expr, Scriptable):
         return self.__nonzero__()
 
     def equal(self, other, span=None):
+        self, other = _realize_operand(self), _realize_operand(other)
         result = _overload_prim_expr.equal(self, other, span)
         if result is NotImplemented:
             raise TypeError("Primitive expression overload equal is not registered")
         return result
 
     def astype(self, dtype, span=None):
+        self = _realize_operand(self)
         if is_prim_expr(self):
             result = _overload_prim_expr.astype(self, dtype, span)
             if result is NotImplemented:
@@ -317,6 +387,7 @@ class _ExprWithOp(Expr, Scriptable):
         return result
 
     def __call__(self, *args, attrs=None):
+        self, args = _realize_operand(self), tuple(_realize_operand(arg) for arg in args)
         if is_prim_expr(self):
             raise TypeError("A primitive-valued expression cannot be called")
         result = _tensor_expr_overload.__call__(self, *args, attrs=attrs)
@@ -324,13 +395,88 @@ class _ExprWithOp(Expr, Scriptable):
             raise TypeError("Tensor expression overload __call__ is not registered")
         return result
 
+
+class _ExprWithOp(ExprOperand, Expr, Scriptable):
+    """Common type-directed operator behavior for core expressions."""
+
+    __hash__ = Expr.__hash__
+
+    def _operand(self) -> Expr:
+        return self
+
+
+class SubscriptProxy(ExprOperand, ObjectConvertible):
+    """An immutable, lazily-realized subscription of an :class:`Expr`.
+
+    Point subscriptions may be chained to accumulate dimensions.  A proxy
+    containing a slice must be realized before applying a region subscript.
+    """
+
+    __slots__ = ("_result", "_slice", "_source")
+    __hash__ = object.__hash__
+
+    def __init__(self, source: Expr, index):
+        if isinstance(source, SubscriptProxy):
+            if any(isinstance(item, slice) for item in source._slice):
+                raise TypeError("Cannot chain a subscription after a slice")
+            self._source = source._source
+            self._slice = source._slice + self._flatten(index)
+        else:
+            _ffi_api.SubscriptExprCheck(source)
+            self._source = source
+            self._slice = self._flatten(index)
+        self._result = None
+
+    @staticmethod
+    def _flatten(index):
+        return tuple(index) if isinstance(index, tuple | list) else (index,)
+
+    @staticmethod
+    def _convert_index(index):
+        def convert(value):
+            value = _realize_operand(value)
+            if value is None or is_prim_expr(value):
+                return value
+            return tvm.tirx.const(value)
+
+        if isinstance(index, slice):
+            return (convert(index.start), convert(index.stop), convert(index.step))
+        if index is Ellipsis or index is None:
+            raise TypeError("Ellipsis and newaxis are not supported in expression subscriptions")
+        return convert(index)
+
+    def _operand(self) -> Object:
+        return self.to_expr()
+
     def __getitem__(self, index):
-        if is_prim_expr(self):
-            raise TypeError("A primitive-valued expression cannot be indexed")
-        result = _tensor_expr_overload.__getitem__(self, index)
-        if result is NotImplemented:
-            raise TypeError("Tensor expression overload __getitem__ is not registered")
-        return result
+        return SubscriptProxy(self, index)
+
+    def to_expr(self) -> Object:
+        """Realize and cache the subscribed IR object."""
+        if self._result is None:
+            result = _ffi_api.SubscriptExprRealize(
+                self._source, [self._convert_index(index) for index in self._slice]
+            )
+            if not isinstance(result, Object):
+                raise TypeError("__subscript_expr_realize__ must return an Object")
+            self._result = result
+        return self._result
+
+    def asobject(self) -> Object:
+        return self.to_expr()
+
+    def __tvm_ffi_object__(self) -> Object:
+        return self.to_expr()
+
+    @property
+    def ty(self):
+        return self.to_expr().ty
+
+    def same_as(self, other):
+        return self.to_expr().same_as(_realize_operand(other))
+
+    def __repr__(self):
+        return f"SubscriptProxy({self._source!r}, {self._slice!r})"
 
 
 @tvm_ffi.register_object("ir.Tuple")

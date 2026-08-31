@@ -56,7 +56,7 @@ def test_1d():
             B[i] = A[i]
 
     A, B = [param for param in func.params if tvm.tirx.is_buffer_var(param)]
-    expected = (A[0:1024], B[0:1024])
+    expected = (A[0:1024].to_expr(), B[0:1024].to_expr())
     _check_memcpy_results(func, expected)
 
 
@@ -118,7 +118,7 @@ def test_1d_input_2d_output_fused_loop():
             B[i // 32, i % 32] = A[i]
 
     A, B = [param for param in func.params if tvm.tirx.is_buffer_var(param)]
-    expected = (A[0:1024], B[0:32, 0:32])
+    expected = (A[0:1024].to_expr(), B[0:32, 0:32].to_expr())
     _check_memcpy_results(func, expected)
 
 
@@ -131,7 +131,7 @@ def test_2d_input_1d_output_fused_loop():
             B[i] = A[i // 32, i % 32]
 
     A, B = [param for param in func.params if tvm.tirx.is_buffer_var(param)]
-    expected = (A[0:32, 0:32], B[0:1024])
+    expected = (A[0:32, 0:32].to_expr(), B[0:1024].to_expr())
     _check_memcpy_results(func, expected)
 
 

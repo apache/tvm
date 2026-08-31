@@ -31,10 +31,27 @@ namespace tvm {
 namespace relax {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
   AnyTypeNode::RegisterReflection();
   ShapeTypeNode::RegisterReflection();
   TensorTypeNode::RegisterReflection();
   FuncTypeNode::RegisterReflection();
+  refl::TypeAttrDef<TensorTypeNode>().def(
+      "__subscript_expr_realize__",
+      [](Expr value,
+         ffi::Array<ffi::Variant<
+             ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
+             PrimExpr>>
+             slice) -> ffi::ObjectRef {
+        TVM_FFI_CHECK_EQ(slice.size(), 1, IndexError)
+            << "A Relax expression requires exactly one index";
+        auto index = slice[0].as<PrimExpr>();
+        TVM_FFI_CHECK(index.has_value(), TypeError) << "A Relax expression requires a point index";
+        const auto* imm = index.value().as<IntImmNode>();
+        TVM_FFI_CHECK(imm != nullptr, TypeError)
+            << "A Relax expression requires a constant integer index";
+        return TupleGetItem(value, static_cast<int>(imm->value));
+      });
 }
 
 AnyType::AnyType(Span span) : Type(ffi::UnsafeInit{}) {

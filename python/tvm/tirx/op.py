@@ -26,6 +26,7 @@ import tvm
 from tvm import tirx
 from tvm.ir import Call, Expr, Op, PointerType, PrimType, TensorLoad
 from tvm.ir.base import Span
+from tvm.ir.expr import _realize_operand
 from tvm.ir.type import TensorMapType
 from tvm.runtime import const
 
@@ -685,6 +686,7 @@ def address_of(obj: Buffer | TensorLoad | Var, span: Span | None = None) -> Expr
     call : Expr
         The call expression.
     """
+    obj = _realize_operand(obj)
     if is_buffer_var(obj):
         n_dim = len(obj.ty.shape)
         buffer_load = BufferLoad(obj, [0] * n_dim)

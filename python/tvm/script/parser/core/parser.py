@@ -627,7 +627,14 @@ class Parser(doc.NodeVisitor):
             for k, v in extra_vars.items():
                 var_values[k] = v
         var_values[ScriptMacro.parser_object_name] = self
-        return eval_expr(self, node, var_values)
+        value = eval_expr(self, node, var_values)
+
+        # Subscription proxies are an expression-construction detail.  Keep
+        # them lazy while evaluating a compound Python expression, then
+        # normalize once at the parser boundary before statement dispatch.
+        from tvm.ir.expr import _realize_operand  # pylint: disable=import-outside-toplevel
+
+        return _realize_operand(value)
 
     def _duplicate_lhs_check(self, target: doc.expr) -> bool | set[str]:
         """Check whether duplicate lhs exists in assignment.
