@@ -216,6 +216,27 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     return TryPredicateBufferAccess(store);
   }
 
+  Expr VisitExpr_(const CallNode* op) final {
+    Call call = StmtExprMutator::VisitExpr_(op).as_or_throw<Call>();
+    if (!call->op.same_as(builtin::masked_load()) && !call->op.same_as(builtin::masked_store())) {
+      return call;
+    }
+
+    bool is_load = call->op.same_as(builtin::masked_load());
+    ffi::Array<PrimExpr> indices;
+    for (size_t i = is_load ? 1 : 2; i + 1 < call->args.size(); ++i) {
+      indices.push_back(call->args[i].as_or_throw<PrimExpr>());
+    }
+    if (auto lane_mask = GetLaneMask(indices)) {
+      PrimExpr predicate = call->args.back().as_or_throw<PrimExpr>();
+      predicate = allow_offset_predication_ ? predicate & lane_mask.value() : lane_mask.value();
+      ffi::Array<Expr> args = call->args;
+      args.Set(args.size() - 1, predicate);
+      return Call(call->ty, call->op, args, call->attrs, call->ty_args, call->span);
+    }
+    return call;
+  }
+
   ffi::Optional<PrimExpr> GetLaneMask(const ffi::Array<PrimExpr>& indices) {
     num_accesses_analyzed_ += 1;
 

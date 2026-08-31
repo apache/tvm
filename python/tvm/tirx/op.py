@@ -3004,12 +3004,48 @@ def get_active_lane_mask(dtype, base, limit):
 
 
 def masked_load(dtype, buffer, *indices_and_mask):
-    """Load vector lanes selected by a predicate mask."""
+    """Load vector lanes selected by a predicate mask.
+
+    Parameters
+    ----------
+    dtype : str
+        The vector data type to load.
+
+    buffer : Buffer
+        The buffer to load.
+
+    indices_and_mask : Expr
+        The buffer indices followed by a boolean lane mask. The mask must match the
+        lane count and scalability of the loaded vector.
+
+    Returns
+    -------
+    call : Expr
+        A ``tirx.masked_load`` call with result type ``dtype``.
+    """
     return call_intrin(dtype, "tirx.masked_load", buffer, *indices_and_mask)
 
 
 def masked_store(buffer, value, *indices_and_mask):
-    """Store vector lanes selected by a predicate mask."""
+    """Store vector lanes selected by a predicate mask.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The buffer to update.
+
+    value : Expr
+        The vector value to store.
+
+    indices_and_mask : Expr
+        The buffer indices followed by a boolean lane mask. The mask must match the
+        lane count and scalability of ``value``.
+
+    Returns
+    -------
+    call : Expr
+        A void-typed ``tirx.masked_store`` call.
+    """
     return call_intrin("void", "tirx.masked_store", buffer, value, *indices_and_mask)
 
 

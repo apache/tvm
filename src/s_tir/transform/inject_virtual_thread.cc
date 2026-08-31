@@ -75,7 +75,18 @@ class ExprTouched final : public StmtExprVisitor {
   }
   void VisitExpr_(const VarNode* op) final { HandleUseVar(op); }
   void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::tvm_access_ptr())) {
+    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
+      bool is_load = op->op.same_as(builtin::masked_load());
+      const VarNode* buffer = op->args[0].as_or_throw<Var>().get();
+      if (is_load) {
+        HandleUseVar(buffer);
+      } else {
+        HandleWriteVar(buffer);
+      }
+      for (size_t i = 1; i < op->args.size(); ++i) {
+        this->VisitExpr(op->args[i]);
+      }
+    } else if (op->op.same_as(builtin::tvm_access_ptr())) {
       const auto* rw_mask = op->args[4].as<IntImmNode>();
       auto buffer = GetBufferDataVar(op->args[1]);
       if (!buffer.has_value()) {
@@ -240,7 +251,29 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   }
   // Expression.
   Expr VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::buffer_data())) {
+    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
+      bool is_load = op->op.same_as(builtin::masked_load());
+      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      PrimExpr value;
+      if (!is_load) value = this->VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>());
+      ffi::Array<PrimExpr> indices;
+      for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
+        indices.push_back(this->VisitPrimExpr(op->args[i].as_or_throw<PrimExpr>()));
+      }
+      PrimExpr predicate = this->VisitPrimExpr(op->args.back().as_or_throw<PrimExpr>());
+      if (is_load) {
+        BufferLoad access = VisitBufferAccess(BufferLoad(buffer, indices, op->span));
+        ffi::Array<Expr> args{access->buffer.var()};
+        for (const PrimExpr& index : access->indices) args.push_back(index);
+        args.push_back(predicate);
+        return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
+      }
+      BufferStore access = VisitBufferAccess(BufferStore(buffer, value, indices, op->span));
+      ffi::Array<Expr> args{access->buffer.var(), access->value};
+      for (const PrimExpr& index : access->indices) args.push_back(index);
+      args.push_back(predicate);
+      return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
+    } else if (op->op.same_as(builtin::buffer_data())) {
       auto buffer = GetBufferDataVar(ffi::GetRef<Call>(op)).value();
       auto it = alloc_remap_.find(buffer.get());
       if (it == alloc_remap_.end()) {

@@ -641,6 +641,37 @@ def test_vectorize_and_predicate_multiple_access_statements():
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_vectorize_nested_predicates_preserve_both_masks():
+    rvv_target = tvm.target.Target(
+        {"kind": "llvm", "mtriple": "riscv64-unknown-linux-gnu", "mattr": ["+v"]}
+    )
+
+    @T.prim_func(s_tir=True)
+    def before(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+        for i_0 in T.serial(4):
+            for i_1 in T.vectorized(4):
+                if i_0 * 4 + i_1 < 15:
+                    if i_0 * 4 + i_1 < 14:
+                        A[i_0 * 4 + i_1] = T.float32(1)
+                    B[i_0 * 4 + i_1] = T.float32(2)
+
+    with tvm.target.Target(rvv_target):
+        after = tvm.tirx.transform.VectorizeLoop()(tvm.IRModule.from_expr(before))["before"]
+
+    predicates = []
+
+    def collect_predicates(node):
+        if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.masked_store":
+            predicates.append(node.args[-1])
+
+    tvm.tirx.stmt_functor.post_order_visit(after.body, collect_predicates)
+    assert len(predicates) == 2
+    assert any(
+        isinstance(predicate, tvm.ir.Call) and predicate.op.name == "tirx.bitwise_and"
+        for predicate in predicates
+    )
+
+
 def test_vectorize_and_predicate_invalid_conditions():
     @T.prim_func(s_tir=True)
     def before(a: T.handle, b: T.handle):

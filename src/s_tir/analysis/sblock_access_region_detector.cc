@@ -233,7 +233,9 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
     }
     update_masked_access(buffer, indices, is_load ? &read_buffers_ : &writes_buffers_,
                          is_load ? &read_regions_ : &write_regions_);
-    StmtExprVisitor::VisitExpr_(op);
+    for (size_t i = 1; i < op->args.size(); ++i) {
+      VisitExpr(op->args[i]);
+    }
     return;
   }
   if (op->op.same_as(builtin::tvm_access_ptr())) {

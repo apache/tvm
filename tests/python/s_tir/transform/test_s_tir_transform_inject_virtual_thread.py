@@ -213,5 +213,40 @@ def test_vthread_vectorized():
     assert allocate_node.buffer.ty.dtype == "int32x4"
 
 
+def test_vthread_rewrites_masked_accesses():
+    @T.prim_func(s_tir=True)
+    def before_func():
+        vthread = T.env_thread("vthread")
+        T.launch_thread(vthread, 2)
+        B = T.alloc_buffer((4,), "float32", scope="shared")
+        mask = T.meta_var(T.Broadcast(T.bool(True), 4))
+        loaded = T.meta_var(T.masked_load("float32x4", B, T.Ramp(0, 1, 4), mask))
+        value = T.meta_var(loaded + T.Broadcast(T.Cast("float32", vthread), 4))
+        T.masked_store(B, value, T.Ramp(0, 1, 4), mask)
+
+    after = tvm.s_tir.transform.InjectVirtualThread()(
+        tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
+    )["main"]
+    masked_calls = []
+
+    def visitor(node):
+        if isinstance(node, tvm.ir.Call) and node.op.name in {
+            "tirx.masked_load",
+            "tirx.masked_store",
+        }:
+            masked_calls.append(node)
+
+    tvm.tirx.stmt_functor.post_order_visit(after.body, visitor)
+    assert len(masked_calls) == 4
+    assert all(list(call.args[0].ty.shape) == [8] for call in masked_calls)
+    analyzer = tvm.arith.Analyzer()
+    assert sorted(int(analyzer.simplify(call.args[-2].base)) for call in masked_calls) == [
+        0,
+        0,
+        4,
+        4,
+    ]
+
+
 if __name__ == "__main__":
     tvm.testing.main()
