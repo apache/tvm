@@ -18,9 +18,13 @@
 Compiler Internals
 ==================
 
-Internals of the TIRx compiler, for contributors.
+These pages describe the lowering sequence, tile-variant selection, and target
+backend integration.  They are intended for compiler and backend contributors;
+public callable interfaces are listed in the :doc:`API reference <../api/index>`.
 
 .. toctree::
    :maxdepth: 1
 
    lowering_pipeline
+   tile_dispatch
+   backends

@@ -26,11 +26,13 @@ softmax, the epilogue.
 
 ``tvm.tirx.bench.CudaProfiler`` is a lightweight, in-kernel event tracer for
 exactly this. You bracket regions of device code with ``start`` / ``end``
-markers; at runtime one leader thread per block stamps the GPU global timer into
-a buffer you pass in as an ordinary kernel argument. After the launch you read
-the buffer back and decode it into per-region durations or a Perfetto timeline.
+markers; at runtime one leader thread per ``(block, group)`` track stamps the GPU
+global timer into a buffer you pass in as an ordinary kernel argument. After the
+launch you read the buffer back and decode it into per-region durations or a
+Perfetto timeline.
 
-It is *not* zero cost — every event is a ``%globaltimer`` read plus a global
+It is *not* zero cost — every event reads the low 32 bits through
+``%globaltimer_lo`` and performs a global
 store, and every thread in the region pays a block fence — so it is a
 profiling/debugging tool, not something you leave on in production.
 
@@ -46,7 +48,7 @@ are a plain ``enum.Enum`` whose integer values start at 0 and index a names list
     from enum import Enum
     import numpy as np
     import tvm
-    from tvm.script import tirx as T
+    from tvm.script import tirx as Tx
     from tvm.tirx.bench import CudaProfiler, export_to_perfetto_trace
 
     NUM_BLOCKS, BLOCK, NUM_GROUPS = 4, 128, 1
@@ -61,14 +63,14 @@ are a plain ``enum.Enum`` whose integer values start at 0 and index a names list
 
     EV_NAMES = ["load", "compute", "store"]
 
-    @T.prim_func
-    def profiled_kernel(out_ptr: T.handle, inp_ptr: T.handle, prof_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (N,), "float32")
-        inp = T.match_buffer(inp_ptr, (N,), "float32")
-        prof = T.match_buffer(prof_ptr, (PROF_SIZE,), "uint64")
-        T.device_entry()
-        bid = T.cta_id([NUM_BLOCKS])
-        tid = T.thread_id([BLOCK])
+    @Tx.prim_func
+    def profiled_kernel(out_ptr: Tx.handle, inp_ptr: Tx.handle, prof_ptr: Tx.handle):
+        out = Tx.match_buffer(out_ptr, (N,), "float32")
+        inp = Tx.match_buffer(inp_ptr, (N,), "float32")
+        prof = Tx.match_buffer(prof_ptr, (PROF_SIZE,), "uint64")
+        Tx.device_entry()
+        bid = Tx.cta_id([NUM_BLOCKS])
+        tid = Tx.thread_id([BLOCK])
         idx = bid * BLOCK + tid
 
         # Construct the profiler inside the kernel; only the leader thread writes.
@@ -77,13 +79,13 @@ are a plain ``enum.Enum`` whose integer values start at 0 and index a names list
         p.init(0)                  # group_id = 0; also stamps the buffer header at slot 0
 
         p.start(Ev.Load)
-        x: T.f32 = inp[idx]
+        x: Tx.f32 = inp[idx]
         p.end(Ev.Load)
 
         p.start(Ev.Compute)
-        acc: T.f32 = T.float32(0)
+        acc: Tx.f32 = Tx.float32(0)
         for _ in range(4000):
-            acc = acc * T.float32(1.0001) + x
+            acc = acc * Tx.float32(1.0001) + x
         p.end(Ev.Compute)
 
         p.start(Ev.Store)
@@ -119,28 +121,36 @@ back. Each record is one ``uint64``: the high 32 bits are the timestamp, the low
         if word == 0:
             continue
         ts, tag = word >> 32, word & 0xFFFFFFFF
-        block = (tag >> 12) // NUM_GROUPS
+        block_group = tag >> 12
+        block, group = block_group // NUM_GROUPS, block_group % NUM_GROUPS
         event_idx, event_type = (tag >> 2) & 0x3FF, tag & 0x3   # 0=start 1=end 2=instant 3=finalize
         if event_type == 0:
-            opens[(block, event_idx)] = ts
+            opens[(block, group, event_idx)] = ts
         elif event_type == 1:
-            spans.setdefault(block, []).append((EV_NAMES[event_idx], ts - opens[(block, event_idx)]))
-    for block in sorted(spans):
-        print(f"block {block}:", ", ".join(f"{n}={d}ns" for n, d in spans[block]))
+            key = (block, group)
+            spans.setdefault(key, []).append(
+                (EV_NAMES[event_idx], ts - opens[(block, group, event_idx)])
+            )
+    for block, group in sorted(spans):
+        values = ", ".join(f"{n}={d}ns" for n, d in spans[(block, group)])
+        print(f"block {block} group {group}: {values}")
 
     export_to_perfetto_trace(prof_np, "cudaprofiler.perfetto-trace", EV_NAMES)
 
 Durations are stable to within a few percent (they shift with GPU clocks)::
 
-    block 0: load=32ns, compute=8704ns, store=64ns
-    block 1: load=96ns, compute=8704ns, store=64ns
-    block 2: load=96ns, compute=8704ns, store=64ns
-    block 3: load=96ns, compute=8704ns, store=64ns
+    block 0 group 0: load=32ns, compute=8704ns, store=64ns
+    block 1 group 0: load=96ns, compute=8704ns, store=64ns
+    block 2 group 0: load=96ns, compute=8704ns, store=64ns
+    block 3 group 0: load=96ns, compute=8704ns, store=64ns
 
 ``export_to_perfetto_trace`` writes ``cudaprofiler.perfetto-trace`` from the same
-records; drop it onto https://ui.perfetto.dev for an interactive timeline. Because
-the timestamps come from the global ``%globaltimer`` (not a per-SM cycle counter),
-events from different blocks share one time axis and are directly comparable.
+records; it uses PyTorch for host-side decoding and requires the optional
+``tg4perfetto`` package (install it with
+``pip install git+https://github.com/ihavnoid/tg4perfetto.git``). Drop the result
+onto https://ui.perfetto.dev for an interactive timeline. Because the timestamps
+come from the global timer (not a per-SM cycle counter), events from different
+blocks share one time axis and are directly comparable.
 
 On a real kernel
 ----------------
@@ -225,10 +235,10 @@ different amounts of compute, so their tracks have different durations:
     p.start(Ev.Compute)
     if tid < 128:
         for _ in range(1000):           # warp-group 0: light
-            acc = acc * T.float32(1.0001) + x
+            acc = acc * Tx.float32(1.0001) + x
     else:
         for _ in range(5000):           # warp-group 1: heavy
-            acc = acc * T.float32(1.0001) + x
+            acc = acc * Tx.float32(1.0001) + x
     p.end(Ev.Compute)
 
 ::
@@ -264,7 +274,7 @@ track:
 What each call wraps
 --------------------
 
-The methods are thin wrappers around the ``T.cuda.timer_*`` intrinsics, which
+The methods are thin wrappers around the ``Tx.cuda.timer_*`` intrinsics, which
 lower to small ``__device__`` helpers emitted into the generated CUDA. The
 profiler keeps two per-thread ``"local"`` scratch slots — the running tag and
 write cursor — and every record is written by:

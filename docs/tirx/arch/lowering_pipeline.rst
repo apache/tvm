@@ -19,7 +19,7 @@ TIRx lowering pipeline
 ======================
 
 ``tvm.compile(mod, target, tir_pipeline="tirx")`` runs an authored TIRx module
-through the **tirx pipeline** — an ordered sequence of TIR passes that turns the
+through the **tirx pipeline** — an ordered sequence of IR passes that turns the
 high-level constructs you write (tile primitives, ``TileLayout``-typed buffers,
 execution-scope ids) into split **host** + **device** functions, which the CUDA
 backend then renders to source. The pipeline is defined in
@@ -65,7 +65,7 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
      - statement-level arithmetic simplification (the arith analyzer)
    * - 4
      - ``LowerTIRxOpaque``
-     - lowers remaining opaque TIRx constructs to plain TIR
+     - lowers remaining opaque constructs to lower-level TIRx forms
    * - 5
      - ``FlattenBuffer``
      - flattens multi-dimensional ``BufferLoad`` / ``BufferStore`` to 1-D
@@ -77,11 +77,11 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
      - narrows index/loop ``PrimExpr`` dtypes to 32-bit where provably safe
    * - 8
      - ``VectorizeLoop``
-     - turns ``T.vectorized`` loops into vector ops (skipped if
+     - turns ``Tx.vectorized`` loops into vector ops (skipped if
        ``tir.disable_vectorize``)
    * - 9
      - ``UnrollLoop``
-     - unrolls loops marked ``T.unroll`` (and small constant loops)
+     - unrolls loops marked ``Tx.unroll`` (and small constant loops)
    * - 10
      - ``StmtSimplify``
      - simplify again, now that vectorize/unroll exposed constants
@@ -100,15 +100,19 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
      - marks the single PrimFunc as the module entry point
    * - 15
      - ``SplitHostDevice``
-     - splits each kernel into a **host** function and a **device** function at the
-       ``launch_thread`` boundary
+     - extracts target-annotated device regions into **device** functions and
+       leaves launch calls in the **host** function; the regions originate from
+       the thread extents produced while lowering ``Tx.device_entry`` and scope ids
    * - 16
+     - ``LowerIket``
+     - lowers CUDA IKET instrumentation after host/device splitting
+   * - 17
      - ``MakePackedAPI``
      - rewrites the host function to the packed-func ABI (the launcher TVM calls)
-   * - 17
+   * - 18
      - ``FP8StorageLegalize``
      - legalizes ``float8`` storage (packing into supported container types)
-   * - 18
+   * - 19
      - ``BF16StorageLegalize``
      - legalizes ``bfloat16`` storage
 
@@ -131,15 +135,19 @@ Inside LowerTIRx
 - **``TilePrimitiveDispatch``** replaces every ``TilePrimitiveCall`` (``copy``,
   ``gemm``, ``reduction``, …) with the body emitted by its selected backend
   dispatch — the variant-selection and codegen described in
-  :doc:`../tile_primitives`.
-- **``LowerTIRxCleanup``** runs the ``LayoutApplier``: it resolves every
+  :doc:`tile_dispatch`.  In the same pass it removes the ``device_entry``
+  marker, resolves standalone scope-id definitions to ``Bind`` statements,
+  and wraps the device body in the corresponding thread-extent attributes.
+- **``LowerTIRxCleanup``** then runs the ``LayoutApplier``: it resolves every
   ``TileLayout``-typed buffer access into concrete physical address arithmetic
-  (``addr = data + elem_offset + layout.apply(coord)``), flattens the buffers, and
-  lowers the execution-scope ids (``T.cta_id`` / ``T.thread_id`` / … →
-  ``blockIdx`` / ``threadIdx`` via ``launch_thread``).
+  (``addr = data + elem_offset + layout.apply(coord)``), flattens the buffers,
+  and removes buffer offsets that have been folded into the resulting views.
 
-So after ``LowerTIRx`` the module is plain TIR: no tile primitives, no
-``TileLayout`` indirection, scope ids resolved to thread axes.
+After ``LowerTIRx`` the module remains a ``tvm.tirx.PrimFunc``, but contains no
+tile primitives or ``TileLayout`` indirection, and scope ids have been resolved
+to thread axes.  Later TIRx passes lower the remaining opaque constructs and
+the target code generators consume ``tirx::PrimFunc`` directly; there is no
+conversion to the separate ``tvm.tir`` object model.
 
 A worked example
 ----------------
@@ -148,25 +156,26 @@ Take a one-line scale kernel:
 
 .. code-block:: python
 
-    @T.prim_func
-    def scale(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (256,), "float32")
-        B = T.match_buffer(B_ptr, (256,), "float32")
-        T.device_entry(); bx = T.cta_id([1]); tx = T.thread_id([256])
-        B[tx] = A[tx] * T.float32(2.0)
+    @Tx.prim_func
+    def scale(A_ptr: Tx.handle, B_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, (256,), "float32")
+        B = Tx.match_buffer(B_ptr, (256,), "float32")
+        Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([256])
+        B[tx] = A[tx] * Tx.float32(2.0)
 
 **After ``LowerTIRx``** the scope ids are real thread axes and the layout is applied
 (``A_1`` / ``B_1`` are the flattened 1-D views):
 
 .. code-block:: python
 
-    with T.launch_thread("blockIdx.x", 1) as blockIdx_x:
-        threadIdx_x = T.launch_thread("threadIdx.x", 256)
-        bx: T.let = blockIdx_x
-        tx: T.let = threadIdx_x
-        B_1[threadIdx_x] = A_1[threadIdx_x] * T.float32(2.0)
+    with Tx.launch_thread("blockIdx.x", 1) as blockIdx_x:
+        threadIdx_x = Tx.launch_thread("threadIdx.x", 256)
+        bx: Tx.let = blockIdx_x
+        tx: Tx.let = threadIdx_x
+        B_1[threadIdx_x] = A_1[threadIdx_x] * Tx.float32(2.0)
 
-**After ``SplitHostDevice`` + ``MakePackedAPI``** the one function has become two —
+**After ``SplitHostDevice`` and the later ``MakePackedAPI`` pass** the one function
+has become two —
 a host launcher and a device kernel:
 
 .. code-block:: python

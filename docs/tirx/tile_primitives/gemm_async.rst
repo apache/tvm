@@ -19,10 +19,13 @@ gemm_async
 ==========
 
 ``gemm_async`` lowers a matrix multiply to the **Blackwell asynchronous
-tensor-core** instruction ``tcgen05.mma``. The A and B operands live in **shared
-memory** (named by 64-bit *matrix descriptors*), the accumulator lives in **tensor
-memory**, and one elected thread launches the MMA, which runs asynchronously; the
-caller signals completion with ``tcgen05.commit`` against an mbarrier. It also
+tensor-core** instruction ``tcgen05.mma``. B, and normally A, live in **shared
+memory** and are named by 64-bit *matrix descriptors*; A can instead use the
+tensor-memory operand path. The accumulator lives in **tensor memory**, and one
+thread launches the MMA, which runs asynchronously. A
+single-thread call site has already selected that issuer; a warp-scoped call uses
+``elect_sync`` internally. The caller signals completion with ``tcgen05.commit``
+against an mbarrier. It also
 supports **block-scaled** low precision (fp8 / fp4 with per-block scale factors
 ``SFA`` / ``SFB`` in tensor memory). Source:
 ``python/tvm/backend/cuda/tile_primitive/gemm_async/tcgen05.py``. (For the
@@ -48,24 +51,41 @@ A single predicate — single-thread or warp scope:
    * - Property
      - Requirement
    * - target / scope / priority
-     - ``cuda`` (Blackwell, sm_100+); **single thread or warp**; priority ``10``
+     - ``cuda`` target with ``tcgen05`` support (this implementation is tested
+       with ``sm_100a``); **single thread or warp**; priority ``10``
    * - operands
-     - A, B in **shared** (B always; A shared, or tmem for the TMEM-A path); the
-       accumulator **C/D in tmem** (``float32``)
+     - B is in **shared**; A is in **shared** or, for the TMEM-A path, **tmem**;
+       the accumulator C/D is in **tmem** (``float32``)
    * - dtype
-     - regular: A/B ``float16`` / ``bfloat16``; block-scaled: A/B
-       ``float8_e4m3fn`` / ``float4_e2m1fn`` with ``SFA`` / ``SFB`` scale factors in
-       tmem; accumulator always ``float32``
+     - without ``is_AB_tf32``, dense A/B use the same dtype: ``float16``,
+       ``bfloat16``, ``float8_e4m3fn``, or ``float8_e5m2``. Typical TF32
+       authoring uses ``float32`` buffers with ``is_AB_tf32=True``; the flag
+       replaces both semantic A/B dtypes with ``tf32`` before validation, so
+       the current implementation does not separately validate the underlying
+       storage dtypes or their equality in that mode.
+       Block-scaled A/B: ``float8_e4m3fn`` with tmem ``SFA`` / ``SFB`` of
+       ``float8_e8m0fnu``, or ``float4_e2m1fn`` with matching
+       ``float8_e8m0fnu`` or ``float8_e4m3fn`` scale factors.
+       The accumulator is always ``float32``
    * - shape
-     - per-CTA ``M ∈ {64, 128}``; ``N`` divisible by 8 (cta_group=1) or 16
-       (cta_group=2); ``K`` divisible by ``MMA_K`` = 16 (f16/bf16) / 32 (fp8) /
-       64 (fp4). With cta_group=2, the CTA pair covers twice the per-CTA M
+     - the per-CTA M region is tiled by 64- or 128-row instruction blocks;
+       ``N`` is divisible by 8 (cta_group=1) or 16 (cta_group=2), and ``K`` is
+       divisible by ``MMA_K`` = 8 (tf32) / 16 (f16/bf16) / 32 (fp8) / 64
+       (fp4). With cta_group=2, the CTA pair covers twice the per-CTA M
    * - cta_group
      - ``1`` (one CTA) or ``2`` (two CTAs split the operand)
    * - descriptor mode
      - optional ``smem_desc`` controls shared matrix-descriptor construction:
        ``"hoist"`` (default), ``"local_hoist"``, ``"encode"``, or
-       ``"recompute"``
+       ``"recompute"``. ``"encode"`` is currently dense-only. Other strings
+       are not rejected and take the descriptor-add path used by hoisting
+   * - explicit instruction tile
+     - ``mma_m`` and ``mma_n`` must be supplied together. ``mma_m`` must equal
+       ``M * cta_group``; ``mma_n`` must divide N exactly; the resulting
+       physical tile is also checked by the tcgen05 hardware-shape validator
+   * - instruction descriptor
+     - dense MMA always encodes its descriptor in the dispatcher and rejects
+       ``descI``.  Block-scaled MMA may accept a pre-encoded uint32 ``descI``
    * - layout forms
      - swizzled shared layouts, no-swizzle packed shared layouts, regular tmem
        accumulators, and FlashMLA-style packed ``N/2`` tmem accumulator layouts
@@ -73,32 +93,33 @@ A single predicate — single-thread or warp scope:
 Demonstration program
 ----------------------
 
-A warpgroup multiplies a ``128×64`` × ``64×128`` ``float16`` tile (f32 accumulate)
-into a tmem accumulator, after TMA-loading A/B into shared (from
+One selected thread in a warpgroup multiplies a ``128×64`` × ``64×128``
+``float16`` tile (f32 accumulate) into a tmem accumulator, after TMA-loading A/B
+into shared (from
 ``test_gemm_async.py``; setup/readback abbreviated):
 
 .. code-block:: python
 
     from tvm.tirx.layout import S, TCol, TLane, TileLayout, tid_in_wg as axis_tid_in_wg
-    from tvm.tirx.cuda.tile_primitive.tma_utils import mma_shared_layout
+    from tvm.backend.cuda.tile_primitive.tma_utils import mma_shared_layout
 
-    A_smem = T.alloc_buffer((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
-    B_smem = T.alloc_buffer((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
-    tmem_addr = T.alloc_shared([1], "uint32"); mma_mbar = T.alloc_shared([1], "uint64")
+    A_smem = Tx.alloc_buffer((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
+    B_smem = Tx.alloc_buffer((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
+    tmem_addr = Tx.alloc_shared([1], "uint32"); mma_mbar = Tx.alloc_shared([1], "uint64")
     # ... mbarrier.init, cta_sync ...
     if warp_id == 0:
-        T.ptx["tcgen05.alloc.cta_group::1.sync.aligned.shared::cta.b32"](
-            T.address_of(tmem_addr), T.uint32(512))
-    T.cuda.cta_sync()
-    tmem = T.decl_buffer((128, 512), "float32", scope="tmem", allocated_addr=tmem_addr[0],
+        Tx.ptx["tcgen05.alloc.cta_group::1.sync.aligned.shared::cta.b32"](
+            Tx.address_of(tmem_addr), Tx.uint32(512))
+    Tx.cuda.cta_sync()
+    tmem = Tx.decl_buffer((128, 512), "float32", scope="tmem", allocated_addr=tmem_addr[0],
                          layout=TileLayout(S[(128, 512) : (1 @ TLane, 1 @ TCol)]))
     # ... TMA-load A_smem, B_smem from global, wait ...
     if tid_in_wg == 0:
-        Tx.gemm_async(tmem[0:128, 256:384], A_smem[1:2, :, :], B_smem[2:3, :, :], dispatch="tcgen05")
+        Tx.tile.gemm_async(tmem[0:128, 256:384], A_smem[1:2, :, :], B_smem[2:3, :, :], dispatch="tcgen05")
         # caller signals completion
-        T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
+        Tx.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
             mma_mbar.ptr_to([0]))
-    T.cuda.mbarrier_wait(mma_mbar.ptr_to([0]), 0)
+    Tx.cuda.mbarrier_wait(mma_mbar.ptr_to([0]), 0)
     # ... tcgen05.fence.after_thread_sync(); read tmem back via tcgen05.ld; dealloc ...
 
 Algorithm
@@ -119,37 +140,43 @@ swizzle mode).  ``smem_desc`` selects where that descriptor comes from:
 
 .. code-block:: python
 
-    T.cuda.tcgen05.encode_matrix_descriptor(descA.data, A_smem.ptr_to([0]), ldo, sdo, swizzle)
-    T.cuda.tcgen05.encode_matrix_descriptor(descB.data, B_smem.ptr_to([0]), ldo, sdo, swizzle)
+    Tx.cuda.tcgen05.encode_matrix_descriptor(descA.data, A_smem.ptr_to([0]), ldo, sdo, swizzle)
+    Tx.cuda.tcgen05.encode_matrix_descriptor(descB.data, B_smem.ptr_to([0]), ldo, sdo, swizzle)
 
-**2. Choose the MMA tile.** ``M_mma × N_mma`` are chosen to tile ``M``/``N`` (with
-``MMA_K`` set by dtype: 16 f16/bf16, 32 fp8, 64 fp4); a compile-time *instruction
-descriptor* packs the shape and dtypes.
+**2. Choose the MMA tile.** ``M_mma × N_mma`` are chosen to tile ``M``/``N``
+(with ``MMA_K`` set by dtype: 8 tf32, 16 f16/bf16, 32 fp8, 64 fp4); a
+compile-time *instruction descriptor* packs the shape and dtypes.
 
-**3. Issue the async MMA** in an unrolled ``(mi, ni, ki)`` nest, accumulating into
-the tmem accumulator (``enable_input_d`` turns accumulation on for ``ki > 0``):
+**3. Issue the async MMA** in an unrolled ``(mi, ni, ki)`` nest. The
+``enable_input_d`` input is ``accum or ki != 0``: with ``accum=False``, the first
+K issue overwrites the destination; with ``accum=True``, it also accumulates the
+destination's existing value.
 
 .. code-block:: python
 
     mma_chain = f"tcgen05.mma.cta_group::{cta_group}.kind::{kind}"
-    T.ptx[mma_chain](
-        T.cast(T.cuda.get_tmem_addr(tmem_addr, mi * M_mma, tmem_col), "uint32"),  # C in tmem
+    Tx.ptx[mma_chain](
+        Tx.cast(Tx.cuda.get_tmem_addr(tmem_addr, mi * M_mma, tmem_col), "uint32"),  # C in tmem
         smem_desc_add_16B_offset(descA, a_off), descB_val, descI,    # A / B descriptors
         *zero_masks,                                                 # disabled output lanes
-        ki != 0,                                                     # accumulate over K
+        accum or ki != 0,                                            # use existing C/D input
     )
 
 For **block-scaled** fp8/fp4 the chain gains ``.block_scale.scale_vec::<n>X``
-with two extra tmem addresses — ``SFA`` / ``SFB`` — and the scale-factor dtypes; the
-instruction descriptor is encoded at runtime. As with the other async ops, the
-dispatch emits **no** completion — the caller's ``tcgen05.commit`` + mbarrier wait
-close it.
+with two extra tmem addresses — ``SFA`` / ``SFB`` — and the scale-factor dtypes;
+the instruction descriptor is encoded at runtime unless the caller supplies
+``descI``. As with the other async ops, the dispatch emits **no** completion —
+the caller's ``tcgen05.commit`` + mbarrier wait close it.
 
-For row-0 schedules, the lowering folds ``T.cuda.get_tmem_addr(base, 0, col)`` to
+For row-0 schedules, the lowering folds ``Tx.cuda.get_tmem_addr(base, 0, col)`` to
 ``base + col``.  This keeps the generated issue loop close to hand-written
-FlashMLA kernels while preserving the helper call for nonzero row offsets.  When
-``weight_stationary=True`` is passed, the flag is forwarded to the PTX wrapper so
-the wrapper can select the matching tcgen05 MMA ABI.
+FlashMLA kernels while preserving the helper call for nonzero row offsets.
+On the dense path, ``weight_stationary=True`` with ``cta_group=1`` selects the
+``tcgen05.mma.ws`` ABI.  The PTX table has no ``.ws.cta_group::2`` form.  The
+dispatcher also infers this mode from the packed M=64 Layout-E accumulator and
+rejects layout/flag combinations that would place tensor-memory rows
+incorrectly. Block-scaled MMA uses its own instruction chain and does not append
+``.ws``.
 
 Accumulator datapaths and readback
 ----------------------------------
@@ -166,8 +193,9 @@ Allocate and read a Layout B result as follows:
 
 .. code-block:: python
 
-    accumulator = tmem_pool.alloc((64, N), "float32", datapath="B")
-    Tx.gemm_async(
+    accumulator = tmem_pool.alloc_tcgen05_mma_D(
+        (64, N), "float32", M=128, cta_group=2)
+    Tx.tile.gemm_async(
         accumulator[:, :],
         A_smem[:, :],
         B_smem[:, :],
@@ -175,9 +203,9 @@ Allocate and read a Layout B result as follows:
         cta_group=2,
     )
 
-    frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
-    Tx.wg.copy_async(frag[:, :], accumulator[:, :])
-    T.ptx.tcgen05.wait__ld.sync.aligned()
+    frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
+    Tx.tile.wg.copy_async(frag[:, :], accumulator[:, :])
+    Tx.ptx.tcgen05.wait__ld.sync.aligned()
 
 The fragment is a logical ``(64, N)`` view of one physical
 ``.32x32b`` transfer over all 128 lanes. The gemm write-side layout and
@@ -191,10 +219,10 @@ For the ``128×64 × 64×128`` fp16 tile (swizzle mode 3):
 
 .. code-block:: python
 
-    T.cuda.tcgen05.encode_matrix_descriptor(T.address_of(descA[0]), T.address_of(A_smem[0]), 64, 64, 3)
-    T.cuda.tcgen05.encode_matrix_descriptor(T.address_of(descB[0]), T.address_of(B_smem[0]), 64, 64, 3)
-    T.ptx["tcgen05.mma.cta_group::1.kind::f16"](
-        T.cast(T.cuda.get_tmem_addr(tmem_addr[0], mi * 128, 256 + ni * 128), "uint32"), ...)
+    Tx.cuda.tcgen05.encode_matrix_descriptor(Tx.address_of(descA[0]), Tx.address_of(A_smem[0]), 64, 64, 3)
+    Tx.cuda.tcgen05.encode_matrix_descriptor(Tx.address_of(descB[0]), Tx.address_of(B_smem[0]), 64, 64, 3)
+    Tx.ptx["tcgen05.mma.cta_group::1.kind::f16"](
+        Tx.cast(Tx.cuda.get_tmem_addr(tmem_addr[0], mi * 128, 256 + ni * 128), "uint32"), ...)
 
 Generated CUDA
 --------------
@@ -218,31 +246,38 @@ How inputs change the algorithm
    * - input
      - effect
    * - dtype
-     - ``float16``/``bfloat16`` → ``kind::f16``, ``MMA_K = 16``; ``fp8`` →
-       ``MMA_K = 32``; ``fp4`` → ``MMA_K = 64`` and the **block-scaled** path
+     - ``tf32`` → ``MMA_K = 8``; ``float16``/``bfloat16`` → ``kind::f16`` and
+       ``MMA_K = 16``; ``fp8`` → ``MMA_K = 32``; ``fp4`` → ``MMA_K = 64`` and
+       the **block-scaled** path
    * - block scaling (SFA/SFB)
      - present → ``tcgen05.mma.block_scale`` with SFA/SFB tmem scale-factor
-       addresses and a runtime-encoded instruction descriptor
+       addresses and a runtime-encoded or caller-supplied instruction descriptor
    * - cta_group
-     - ``1`` → one CTA, ``M ∈ {64, 128}``; ``2`` → two CTAs split the operand,
-       each with per-CTA ``M ∈ {64, 128}`` and half the B rows. The
-       per-CTA M=64 output uses Layout B
+     - ``1`` → one CTA; ``2`` → two CTAs split the operand and each sees half
+       of B's logical N extent.  The selected physical instruction has
+       cluster-wide M of 64/128 for one CTA or 128/256 for two CTAs; larger
+       operand regions are tiled by those instruction blocks.  The per-CTA
+       M=64 output uses Layout B
    * - M / N / K extents
      - set the ``(mi, ni, ki)`` unrolled loop counts; K iterations accumulate into
-       the same tmem accumulator
+       the same tmem accumulator.  ``accum=True`` preserves and accumulates the
+       value already in that accumulator on the first K iteration
    * - shared swizzle
      - sets the ``swizzle`` mode + ``ldo``/``sdo`` in the matrix descriptors;
        no-swizzle packed layouts are accepted when the selected tile has a
        hardware-compatible 16-byte packed stride
    * - ``smem_desc``
      - selects hoisted, call-site-hoisted, per-MMA encoded, or recomputed shared
-       descriptor construction.  The choice changes code shape only; the MMA
-       operands still describe the same selected shared tiles.
+       descriptor construction.  Per-MMA ``"encode"`` is dense-only.  The
+       choice changes code shape only; the MMA operands still describe the same
+       selected shared tiles.
    * - packed tmem accumulator
      - layouts of the form ``TileLayout(S[(M, 2, N//2) : (1@TLane, 64@TLane,
        1@TCol)])`` are treated as packed ``N/2`` physical columns, matching
        FlashMLA-style low/high accumulator placement.
    * - ``weight_stationary``
-     - forwarded to the low-level tcgen05 wrapper for kernels that require that
-       issue ABI; it is a lowering/configuration mode, not a separate PTX
-       instruction mnemonic.
+     - on the dense path with ``cta_group=1``, selects the ``tcgen05.mma.ws``
+       form when explicitly true; it is also inferred for the packed M=64
+       Layout-E accumulator. The accumulator and A-operand layouts must match
+       that datapath. The block-scaled path does not append ``.ws``, and the PTX
+       table does not register a ``.ws.cta_group::2`` form.

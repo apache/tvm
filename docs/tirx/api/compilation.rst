@@ -15,58 +15,18 @@
     specific language governing permissions and limitations
     under the License.
 
-API Reference
-=============
+Compilation
+===========
 
-Python APIs for authoring TIRx kernels, inspecting IR, running compiler passes,
-and extending dispatch or target backends.  Start with the
-:doc:`programming guide <../programming/index>` for task-oriented explanations.
-
-Authoring APIs
+tvm.tirx.build
 --------------
+.. currentmodule:: tvm.tirx
 
-.. toctree::
-   :maxdepth: 1
+.. autofunction:: build
+   :no-index:
 
-   script
-   tile
-
-Target APIs
------------
-
-.. toctree::
-   :maxdepth: 1
-
-   cuda
-   ptx
-   trainium
-
-IR APIs
--------
-
-.. toctree::
-   :maxdepth: 1
-
-   tirx
-   layout
-   execution
-
-Compiler APIs
--------------
-
-.. toctree::
-   :maxdepth: 1
-
-   compilation
-   transform
-   analysis
-   stmt_functor
-
-Extension APIs
---------------
-
-.. toctree::
-   :maxdepth: 1
-
-   tile_dispatch
-   backend
+tvm.tirx.compilation_pipeline
+-----------------------------
+.. automodule:: tvm.tirx.compilation_pipeline
+   :members:
+   :no-index:

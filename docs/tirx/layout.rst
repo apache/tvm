@@ -108,9 +108,11 @@ axis ``a_t`` — yielding the set ``L(x)``:
 
    L(x)[a] = D(x)[a] + O[a] + \sum_{t\,:\,a_t = a} r_t\, s_t .
 
-A shape is *admitted* by a layout when its total size equals
-``∏_k e_k``; the same layout then works for any such shape (the flatten/split
-re-derives the per-iter components).
+When a shape's total size equals ``∏_k e_k``, flattening and splitting covers
+the complete shard coordinate space exactly once; the same layout can therefore
+be reshaped to any dimensions with that total size. ``CompatibleWithShape``
+does not currently enforce this equality, so authors must avoid combinations
+whose logical extent would run beyond the intended shard coordinate space.
 
 Case study: NVIDIA tensor-core tile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -259,8 +261,49 @@ routed placement) in the same tensor-memory address space.
 TMEM datapath layouts
 ~~~~~~~~~~~~~~~~~~~~~
 
-``tmem_datapath_layout`` provides the canonical row placement for supported
+``tmem_datapath_layout`` provides the canonical per-CTA placement for all seven
 ``tcgen05`` MMA datapaths:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 22 23 45
+
+   * - Layout
+     - Instruction case
+     - Per-CTA logical rows
+     - Placement
+   * - A
+     - M=256, CTA group 2
+     - 128
+     - identity row-to-lane mapping
+   * - B
+     - M=128, CTA group 2, dense A
+     - 64
+     - fold two column halves across two 64-lane halves; even columns required
+   * - C
+     - M=128, CTA group 2, sparse A
+     - 64
+     - scatter 16 rows into each warp's 32-lane slab
+   * - D
+     - M=128, CTA group 1
+     - 128
+     - identity row-to-lane mapping
+   * - E
+     - M=64, ``.ws``
+     - 64
+     - the same column-half folding as B; even columns required
+   * - F
+     - M=64, non-``.ws``
+     - 64
+     - the same 16-row-per-warp scattering as C
+   * - G
+     - M=32, ``.ws``
+     - 32
+     - fold four column quarters across four 32-lane slabs; columns must be
+       divisible by four
+
+The examples below show D, F, and B, the layouts used by the current copy
+walkthroughs:
 
 .. code-block:: python
 
@@ -272,8 +315,8 @@ TMEM datapath layouts
     paired = tmem_datapath_layout("B", 64, cols)
 
 Layout D maps logical row ``r`` directly to ``TLane = r`` and spans both
-16-lane halves of every warp's 32-lane TMEM partition. Layout F maps its 64
-logical rows according to
+16-lane halves of every warp's 32-lane TMEM partition. Layouts C and F map
+their 64 logical rows according to
 
 .. math::
 
@@ -282,7 +325,7 @@ logical rows according to
      + 16\,\mathrm{sub\_slab}
      + (r \bmod 16).
 
-Thus F with ``sub_slab=0`` and ``sub_slab=1`` can describe lower- and
+Thus C/F with ``sub_slab=0`` and ``sub_slab=1`` can describe lower- and
 upper-half aliases of the same 128-row Layout D allocation. The
 ``tcgen05_ldst`` copy dispatch recognizes the layout and emits the matching
 ``row=0`` or ``row=16`` instruction. Layout D already occupies both halves,
@@ -307,9 +350,9 @@ fragment API:
 
 .. code-block:: python
 
-    frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
-    Tx.wg.copy_async(frag[:, :], paired_accumulator[:, :])
-    T.ptx.tcgen05.wait__ld.sync.aligned()
+    frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
+    Tx.tile.wg.copy_async(frag[:, :], paired_accumulator[:, :])
+    Tx.ptx.tcgen05.wait__ld.sync.aligned()
 
 The logical ``(64, N)`` fragment is one physical ``.32x32b`` transfer over
 all 128 lanes; each thread owns ``N/2`` contiguous fp32 registers.
@@ -348,8 +391,8 @@ Store a tile row-major and the conflict is structural. Take an ``(8, 64)``
 ``float16`` tile (``S[(8,64):(64@m,1@m)]`` — element ``(i, j)`` at address
 ``m = 64i + j``). One row is ``64 × 2 = 128`` bytes = exactly one bank line, so
 walking *down a column* (fixed ``j``, increasing ``i``) jumps the address by a
-whole bank line and lands on the **same bank** every time — a 32-way column
-conflict. Swizzle scatters those accesses across banks.
+whole bank line and lands on the **same bank** every time — an 8-way conflict
+for this eight-row example. Swizzle scatters those accesses across banks.
 
 The transform
 ~~~~~~~~~~~~~
@@ -415,10 +458,12 @@ and (``b = 2``) ``bank = ⌊addr/2⌋ mod 32``. Reading column ``j = 0`` down th
 distinct banks, no conflict**. Without the swizzle the same column is
 ``bank = ⌊j/2⌋`` for every row — a single bank, fully serialized.
 
-**Key:** the 128B/``float16`` case above is just one instance — with swizzle, a
-read of any **8×16B column is conflict-free, under any format** (32B / 64B / 128B).
-The ``B`` parameter is chosen per swizzle width precisely so the eight 16-byte rows
-of a column always scatter across distinct banks.
+The swizzle width controls how many of these rows are separated. For the same
+``float16`` column, 32B mode (``B=1``) reaches two distinct banks and leaves a
+4-way conflict; 64B mode (``B=2``) reaches four banks and leaves a 2-way
+conflict; 128B mode (``B=3``) reaches all eight banks and is conflict-free.
+Conflict freedom therefore depends on the access shape, dtype, layout, and
+swizzle width; choosing any nonzero swizzle mode is not by itself sufficient.
 
 In the interactive demo, pick a dtype and a swizzle mode (``none`` / ``32B`` /
 ``64B`` / ``128B``) in the *Swizzle (SMEM)* control. The physical panel switches

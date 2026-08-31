@@ -18,8 +18,8 @@
 Defining a function
 ===================
 
-A kernel is a ``@T.prim_func`` (like ``scale`` in :doc:`first_kernel`), or a
-``@T.jit`` when it has compile-time parameters (see the last section). This
+A kernel is a ``@Tx.prim_func`` (like ``scale`` in :doc:`first_kernel`), or a
+``@Tx.jit`` when it has compile-time parameters (see the last section). This
 chapter covers the parameter list — how to declare buffers, what types you can
 pass, symbolic shapes, and the ``prim_func`` / ``jit`` distinction.
 
@@ -28,30 +28,30 @@ Declaring buffer parameters
 
 There are two equivalent ways to take a tensor parameter:
 
-- **Handle + match_buffer.** Take a ``T.handle`` (an opaque data pointer) and bind
-  it in the body with ``T.match_buffer``. This is the explicit form and the one
+- **Handle + match_buffer.** Take a ``Tx.handle`` (an opaque data pointer) and bind
+  it in the body with ``Tx.match_buffer``. This is the explicit form and the one
   that exposes every descriptor field — ``layout``, ``elem_offset``, ``scope``,
   ``align``, and symbolic shapes:
 
   .. code-block:: python
 
-      @T.prim_func
-      def f(A_ptr: T.handle, B_ptr: T.handle):
-          A = T.match_buffer(A_ptr, (256,), "float32", align=16)
-          B = T.match_buffer(B_ptr, (256,), "float32")
+      @Tx.prim_func
+      def f(A_ptr: Tx.handle, B_ptr: Tx.handle):
+          A = Tx.match_buffer(A_ptr, (256,), "float32", align=16)
+          B = Tx.match_buffer(B_ptr, (256,), "float32")
           ...
 
-- **T.Buffer annotation.** Annotate the parameter directly. This is the concise
+- **Tx.Buffer annotation.** Annotate the parameter directly. This is the concise
   form — equivalent to a handle bound with ``match_buffer`` using the defaults:
 
   .. code-block:: python
 
-      @T.prim_func
-      def f(A: T.Buffer((256,), "float32"), B: T.Buffer((256,), "float32")):
+      @Tx.prim_func
+      def f(A: Tx.Buffer((256,), "float32"), B: Tx.Buffer((256,), "float32")):
           ...
 
-Both give you a ``Buffer`` you index with ``A[i]`` / ``A[i, j]``. Use ``T.Buffer``
-for the common case; drop to ``T.handle`` + ``match_buffer`` when you need a custom
+Both give you a ``Buffer`` you index with ``A[i]`` / ``A[i, j]``. Use ``Tx.Buffer``
+for the common case; drop to ``Tx.handle`` + ``match_buffer`` when you need a custom
 layout/offset/scope/alignment or a :ref:`symbolic shape <symbolic-shapes>`.
 
 What the parameter list accepts
@@ -67,28 +67,29 @@ pass on the Python side when you call the compiled ``Executable``:
    * - Annotation
      - Is
      - Pass at call time
-   * - ``T.Buffer((d0, d1), dtype)``
+   * - ``Tx.Buffer((d0, d1), dtype)``
      - a tensor parameter (shape + dtype fixed)
      - a tensor on the right device
-   * - ``T.handle``
+   * - ``Tx.handle``
      - an opaque data pointer (bind with ``match_buffer``)
      - a tensor
-   * - ``T.int32`` / ``T.float32`` / …
+   * - ``Tx.int32`` / ``Tx.float32`` / …
      - a runtime scalar
      - a Python ``int`` / ``float``
-   * - ``T.constexpr`` (``@T.jit`` only)
+   * - ``Tx.constexpr`` (``@Tx.jit`` only)
      - a compile-time constant
      - supplied to ``.specialize(...)``, **not** at the call
 
-Tensors may be CUDA ``torch`` tensors (zero-copy via DLPack) or
+Tensors may be CUDA ``torch`` tensors (zero-copy through TVM FFI tensor
+interop) or
 ``tvm.runtime.tensor(...)``. Arguments are positional and match the parameter
 order. For example, a kernel with a scalar parameter::
 
-    @T.prim_func
-    def scal(A_ptr: T.handle, B_ptr: T.handle, s: T.float32):
-        A = T.match_buffer(A_ptr, (256,), "float32")
-        B = T.match_buffer(B_ptr, (256,), "float32")
-        T.device_entry(); bx = T.cta_id([1]); tx = T.thread_id([256])
+    @Tx.prim_func
+    def scal(A_ptr: Tx.handle, B_ptr: Tx.handle, s: Tx.float32):
+        A = Tx.match_buffer(A_ptr, (256,), "float32")
+        B = Tx.match_buffer(B_ptr, (256,), "float32")
+        Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([256])
         B[tx] = A[tx] * s
 
     exe(a, b, 3.0)        # pass the scalar as a Python float
@@ -99,20 +100,20 @@ Symbolic shapes
 ---------------
 
 For a size that varies at run time, declare a free symbolic extent with
-``T.int32()`` and use it in the buffer shape. Its value is **inferred from the
+``Tx.int32()`` and use it in the buffer shape. Its value is **inferred from the
 passed tensor** at run time, so a *single compiled kernel* handles any size:
 
 .. code-block:: python
 
-    @T.prim_func
-    def scale_dyn(a: T.handle, b: T.handle):
-        n = T.int32()                          # free symbolic extent
-        A = T.match_buffer(a, (n,), "float32")
-        B = T.match_buffer(b, (n,), "float32")
-        T.device_entry()
-        bx = T.cta_id([1]); tx = T.thread_id([1])
+    @Tx.prim_func
+    def scale_dyn(a: Tx.handle, b: Tx.handle):
+        n = Tx.int32()                          # free symbolic extent
+        A = Tx.match_buffer(a, (n,), "float32")
+        B = Tx.match_buffer(b, (n,), "float32")
+        Tx.device_entry()
+        bx = Tx.cta_id([1]); tx = Tx.thread_id([1])
         for i in range(n):                     # loop / launch bounds may use n
-            B[i] = A[i] * T.float32(2.0)
+            B[i] = A[i] * Tx.float32(2.0)
 
     exe = tvm.compile(tvm.IRModule({"main": scale_dyn}),
                       target=tvm.target.Target("cuda"), tir_pipeline="tirx")
@@ -144,22 +145,23 @@ reads it from the tensor's shape and passes it, and the loop bound uses it
    ``(n,)``), checks that ``b`` agrees, computes the launch configuration, and then
    invokes the device kernel — forwarding the data pointers **and** the resolved
    ``n`` as explicit arguments. Nothing passes ``n`` by hand; the host side derives
-   it from the tensor metadata. The pass that does this is
-   ``tirx.transform.SplitHostDevice`` (followed by ``tirx.transform.MakePackedAPI``).
+   it from the tensor metadata. ``tirx.transform.SplitHostDevice`` extracts the
+   device function, and the later ``tirx.transform.MakePackedAPI`` pass builds
+   the packed host-side argument handling.
 
 You can see it in the IR. **Before** the split, the lowered module is a single
 merged function (trimmed):
 
 .. code-block:: python
 
-    @T.prim_func
-    def main(a: T.handle, b: T.handle):
-        n = T.int32()
-        A = T.match_buffer(a, (n,))
-        B = T.match_buffer(b, (n,))
-        with T.launch_thread("blockIdx.x", 1), T.launch_thread("threadIdx.x", 1):
+    @Tx.prim_func
+    def main(a: Tx.handle, b: Tx.handle):
+        n = Tx.int32()
+        A = Tx.match_buffer(a, (n,))
+        B = Tx.match_buffer(b, (n,))
+        with Tx.launch_thread("blockIdx.x", 1), Tx.launch_thread("threadIdx.x", 1):
             for i in range(n):
-                B[i] = A[i] * T.float32(2.0)
+                B[i] = A[i] * Tx.float32(2.0)
 
 **After** ``SplitHostDevice``, it is two functions — a device kernel that takes
 ``n`` as a parameter, and a host ``main`` that calls it, forwarding ``n`` (the
@@ -167,43 +169,43 @@ trailing ``1, 1`` are the grid/block launch dims):
 
 .. code-block:: python
 
-    @T.prim_func   # device
-    def scale_dyn_kernel(A_ptr: T.handle("float32"), B_ptr: T.handle("float32"), n: T.int32):
+    @Tx.prim_func   # device
+    def scale_dyn_kernel(A_ptr: Tx.handle("float32"), B_ptr: Tx.handle("float32"), n: Tx.int32):
         ...
         for i in range(n):
-            B[i] = A[i] * T.float32(2.0)
+            B[i] = A[i] * Tx.float32(2.0)
 
-    @T.prim_func   # host
-    def main(a: T.handle, b: T.handle):
-        n = T.int32()
-        A = T.match_buffer(a, (n,))
-        B = T.match_buffer(b, (n,))
-        T.call_packed("scale_dyn_kernel", A.data, B.data, n, 1, 1)   # n forwarded
+    @Tx.prim_func   # host
+    def main(a: Tx.handle, b: Tx.handle):
+        n = Tx.int32()
+        A = Tx.match_buffer(a, (n,))
+        B = Tx.match_buffer(b, (n,))
+        Tx.call_packed("scale_dyn_kernel", A.data, B.data, n, 1, 1)   # n forwarded
 
 ``MakePackedAPI`` then fills in where ``n`` comes from — reading it from the
 argument's shape (essentially ``n = a.shape[0]``) — and adds the dtype / shape /
 device checks (e.g. asserting ``B.shape[0] == n``)::
 
-    n = T.Cast("int32", T.tvm_struct_get(a_shape, 0, 17, "int64"))   # = a.shape[0]
+    n = Tx.Cast("int32", Tx.tvm_struct_get(a_shape, 0, 17, "int64"))   # = a.shape[0]
 
-``@T.prim_func`` vs ``@T.jit``
-------------------------------
+``@Tx.prim_func`` vs ``@Tx.jit``
+--------------------------------
 
-- ``@T.prim_func`` parses the function immediately into a ``PrimFunc``. Sizes are
+- ``@Tx.prim_func`` parses the function immediately into a ``PrimFunc``. Sizes are
   whatever you wrote — concrete ints, or runtime-symbolic vars (above).
-- ``@T.jit`` **defers** parsing until you call ``.specialize(**constexpr)``:
-  parameters annotated ``T.constexpr`` are baked in as compile-time constants and
+- ``@Tx.jit`` **defers** parsing until you call ``.specialize(**constexpr)``:
+  parameters annotated ``Tx.constexpr`` are baked in as compile-time constants and
   the result is an ordinary ``PrimFunc``. Use it when you want sizes/flags fixed at
   compile time (so the compiler can unroll, statically size shared memory, etc.).
-  Referencing a constexpr inside an annotation (e.g. ``T.Buffer((N,), ...)``)
+  Referencing a constexpr inside an annotation (e.g. ``Tx.Buffer((N,), ...)``)
   requires ``from __future__ import annotations`` at the top of the file.
 
 .. code-block:: python
 
-    @T.jit
-    def add(A: T.Buffer((N,), "float32"), B: T.Buffer((N,), "float32"),
-            C: T.Buffer((N,), "float32"), *, N: T.constexpr):
-        T.device_entry(); bx = T.cta_id([1]); tx = T.thread_id([N])
+    @Tx.jit
+    def add(A: Tx.Buffer((N,), "float32"), B: Tx.Buffer((N,), "float32"),
+            C: Tx.Buffer((N,), "float32"), *, N: Tx.constexpr):
+        Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([N])
         C[tx] = A[tx] + B[tx]
 
     kernel = add.specialize(N=256)   # -> a PrimFunc with N = 256 baked in
@@ -215,15 +217,16 @@ time.
 Launch parameters
 -----------------
 
-``T.device_entry()``
+``Tx.device_entry()``
 ~~~~~~~~~~~~~~~~~~~~~
 
-``T.device_entry()`` is a flat marker (no ``with``) that splits the function:
-everything **before** it is host code — the ``T.match_buffer`` parameter binding
-and any shape reads — and everything **after** it is the **device kernel body**. It
-lowers to an ``AttrStmt("tirx.device_entry", ...)`` and is exactly the boundary the
-host/device split cuts along (the merged-vs-split modules shown above are split
-here).
+``Tx.device_entry()`` is a flat marker (no ``with``) that starts the authored
+device region: parameter binding and shape reads precede it, while the kernel
+body follows it. The parser represents the marker as
+``AttrStmt("tirx.device_entry", ...)``. ``LowerTIRx`` then removes the marker,
+resolves scope ids, and wraps the device body in thread-extent attributes;
+target binding and ``SplitHostDevice`` use those resulting device regions to
+extract the kernel shown above.
 
 Scope ids
 ~~~~~~~~~
@@ -233,15 +236,16 @@ After ``device_entry`` you declare the thread hierarchy with *scope-id* intrinsi
 
 .. code-block:: python
 
-    T.device_entry()
-    bx, by = T.cta_id([GM, GN])     # blockIdx.x / .y  (grid extents)
-    warp_id = T.warp_id([4])        # cta -> warp
-    lane_id = T.lane_id([32])       # warp -> thread
-    tx = T.thread_id([128])         # cta -> flat thread id
+    Tx.device_entry()
+    bx, by = Tx.cta_id([GM, GN])     # blockIdx.x / .y  (grid extents)
+    warp_id = Tx.warp_id([4])        # cta -> warp
+    lane_id = Tx.lane_id([32])       # warp -> thread
+    tx = Tx.thread_id([128])         # cta -> flat thread id
 
 Available ids include ``cta_id``, ``thread_id``, ``warp_id``, ``warpgroup_id``,
-``warp_id_in_wg``, ``lane_id``, ``cluster_id``, ``cta_id_in_cluster``. (The legacy
-``T.launch_thread`` exists but native TIRx uses ``device_entry`` + scope-ids.)
+``warp_id_in_wg``, ``thread_id_in_wg``, ``lane_id``, ``cluster_id``,
+``cta_id_in_cluster``, and ``cta_id_in_pair``. (The legacy ``Tx.launch_thread``
+exists but native TIRx uses ``device_entry`` + scope ids.)
 
 **Thread-block clusters** (Hopper/Blackwell) are declared with ``cluster_id``
 (kernel → cluster) and ``cta_id_in_cluster`` (cluster → cta). The
@@ -250,8 +254,8 @@ argument sets the *preferred* cluster dimension (CUDA 12.8+):
 
 .. code-block:: python
 
-    cid  = T.cluster_id([NUM_CLUSTERS])                  # kernel -> cluster (grid of clusters)
-    rank = T.cta_id_in_cluster([CLUSTER_SIZE],           # cluster -> cta
+    cid  = Tx.cluster_id([NUM_CLUSTERS])                  # kernel -> cluster (grid of clusters)
+    rank = Tx.cta_id_in_cluster([CLUSTER_SIZE],           # cluster -> cta
                                preferred=[CLUSTER_SIZE])
     # -> cluster_dim = CLUSTER_SIZE, preferred_cluster_dim = CLUSTER_SIZE
 
@@ -278,17 +282,18 @@ kernel that list is ``["blockIdx.x", "threadIdx.x"]``; the host launcher compute
 each one's extent (from the scope-id extents and any symbolic shapes) and supplies
 them alongside the kernel arguments.
 
-The block size also drives the kernel's ``__launch_bounds__``. The first argument
-(max threads per block) is set automatically from the thread extent. To also set
-the second argument — the minimum blocks per SM, an occupancy hint — add
-``T.attr({"tirx.launch_bounds_min_blocks_per_sm": N})`` in the device region (note:
-``T.attr``, not ``func_attr``):
+By default, the block size also drives the kernel's ``__launch_bounds__``. The
+first argument (max threads per block) is set automatically from the thread
+extent. To also set the second argument — the minimum blocks per SM, an
+occupancy hint — add
+``Tx.attr({"tirx.launch_bounds_min_blocks_per_sm": N})`` in the device region (note:
+``Tx.attr``, not ``func_attr``):
 
 .. code-block:: python
 
-    T.device_entry()
-    T.attr({"tirx.launch_bounds_min_blocks_per_sm": 2})   # second launch-bounds arg
-    bx = T.cta_id([1]); tx = T.thread_id([256])
+    Tx.device_entry()
+    Tx.attr({"tirx.launch_bounds_min_blocks_per_sm": 2})   # second launch-bounds arg
+    bx = Tx.cta_id([1]); tx = Tx.thread_id([256])
     ...
 
 .. code-block:: c++
@@ -297,51 +302,95 @@ the second argument — the minimum blocks per SM, an occupancy hint — add
 
 Without the attr the second argument is omitted (just ``__launch_bounds__(256)``).
 
+Some kernels require an exact block and cluster shape instead of an advisory
+maximum. Set ``tirx.required_block_size`` to ``1`` to make the thread and
+cluster extents a compile-time launch contract:
+
+.. code-block:: python
+
+    Tx.device_entry()
+    Tx.attr({"tirx.required_block_size": 1})
+    bx, by = Tx.cta_id([4, 2])
+    _, cy = Tx.cta_id_in_cluster([1, 2])
+    tx = Tx.thread_id([128])
+    ...
+
+.. code-block:: c++
+
+    extern "C" __global__ void __block_size__((128, 1, 1), (1, 2, 1)) kernel(...) { ... }
+
+This requires CUDA Toolkit 13 or newer. All thread and cluster dimensions must
+be static; CUDA lowers ``__block_size__`` to PTX ``.reqntid`` and checks the
+same dimensions at launch. A preferred cluster dimension must be absent or
+equal to the required cluster dimension, and each logical block-grid dimension
+must be divisible by its cluster dimension.
+
+``tirx.required_block_size`` can be combined with the launch-bounds attributes
+when an occupancy hint is also needed; code generation then emits both
+``__block_size__`` and ``__launch_bounds__``. It cannot be combined with
+``tirx.max_registers``.
+
 At run time the kernel is launched through the **CUDA Driver API**. TVM's CUDA
 runtime loads the module (``cuModuleLoadData``), fetches the function
 (``cuModuleGetFunction``, cached), and calls ``cuLaunchKernelEx`` with a
 ``CUlaunchConfig``. Besides the grid/block dims, dynamic shared size, and stream,
 the config carries a list of launch *attributes* — the thread-block **cluster
 dimension** and **preferred cluster dimension** (Hopper/Blackwell), plus optional
-programmatic-dependent-launch and cooperative-launch flags. From
-``src/backend/cuda/runtime/cuda_module.cc``:
+programmatic-dependent-launch and cooperative-launch flags. Kernels with
+``tirx.required_block_size`` instead use CUDA's required-block sentinel; their
+compile-time cluster shape replaces the ordinary runtime cluster attribute. In
+outline, ``src/backend/cuda/runtime/cuda_module.cc`` follows this path:
 
 .. code-block:: c++
 
-    std::vector<CUlaunchAttribute> attrs;
+    std::array<CUlaunchAttribute, 4> attrs{};
+    unsigned int num_attrs = 0;
+    bool use_required_block_dimension =
+        launch_param_config_.use_required_block_dimension();
 
     // 1) thread-block cluster dimension
-    if (wl.cluster_dim(0) != 1 || wl.cluster_dim(1) != 1 || wl.cluster_dim(2) != 1) {
+    if (!use_required_block_dimension &&
+        launch_param_config_.use_cluster_launch()) {
       CUlaunchAttribute attr{};
       attr.id = CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION;
       attr.value.clusterDim.x = wl.cluster_dim(0);
       attr.value.clusterDim.y = wl.cluster_dim(1);
       attr.value.clusterDim.z = wl.cluster_dim(2);
-      attrs.push_back(attr);
+      attrs[num_attrs++] = attr;
     }
     // 1b) preferred cluster dimension (CUDA 12.8+); (2) programmatic stream
     //     serialization and (3) cooperative launch are appended the same way
-    if (wl.preferred_cluster_dim(0) != 1 || wl.preferred_cluster_dim(1) != 1 ||
-        wl.preferred_cluster_dim(2) != 1) {
+    if (!use_required_block_dimension &&
+        (wl.preferred_cluster_dim(0) != 1 || wl.preferred_cluster_dim(1) != 1 ||
+         wl.preferred_cluster_dim(2) != 1)) {
       CUlaunchAttribute attr{};
       attr.id = CU_LAUNCH_ATTRIBUTE_PREFERRED_CLUSTER_DIMENSION;
       attr.value.clusterDim.x = wl.preferred_cluster_dim(0);
       attr.value.clusterDim.y = wl.preferred_cluster_dim(1);
       attr.value.clusterDim.z = wl.preferred_cluster_dim(2);
-      attrs.push_back(attr);
+      attrs[num_attrs++] = attr;
     }
 
     CUlaunchConfig config{};
-    config.gridDimX = wl.grid_dim(0);
-    config.gridDimY = wl.grid_dim(1);
-    config.gridDimZ = wl.grid_dim(2);
-    config.blockDimX = wl.block_dim(0);
-    config.blockDimY = wl.block_dim(1);
-    config.blockDimZ = wl.block_dim(2);
+    if (use_required_block_dimension) {
+      config.gridDimX = wl.grid_dim(0) / wl.cluster_dim(0);
+      config.gridDimY = wl.grid_dim(1) / wl.cluster_dim(1);
+      config.gridDimZ = wl.grid_dim(2) / wl.cluster_dim(2);
+      config.blockDimX = CU_LAUNCH_KERNEL_REQUIRED_BLOCK_DIM;
+      config.blockDimY = 1;
+      config.blockDimZ = 1;
+    } else {
+      config.gridDimX = wl.grid_dim(0);
+      config.gridDimY = wl.grid_dim(1);
+      config.gridDimZ = wl.grid_dim(2);
+      config.blockDimX = wl.block_dim(0);
+      config.blockDimY = wl.block_dim(1);
+      config.blockDimZ = wl.block_dim(2);
+    }
     config.sharedMemBytes = wl.dyn_shmem_size;
     config.hStream = strm;
-    config.attrs = attrs.empty() ? nullptr : attrs.data();
-    config.numAttrs = static_cast<unsigned int>(attrs.size());
+    config.attrs = num_attrs == 0 ? nullptr : attrs.data();
+    config.numAttrs = num_attrs;
 
     CUresult result = cuLaunchKernelEx(&config, fcache_[device_id], void_args, nullptr);
 

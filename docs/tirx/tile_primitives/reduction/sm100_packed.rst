@@ -15,14 +15,17 @@
     specific language governing permissions and limitations
     under the License.
 
-reduction → sm100_packed
-========================
+reduction → SM100 packed paths
+==============================
 
-The ``sm100_packed`` variant is a **Blackwell-only fast path** (priority **20**, so
-it pre-empts :doc:`local`) for a thread-scope reduction of a 1-D ``float32`` vector
-of at least 8 elements to a scalar. It uses the SM100 packed math instructions —
-``add.f32x2`` for ``sum``, ``max3.f32`` / ``min3.f32`` for ``max`` / ``min`` —
-to fold two (or three) lanes of data per instruction. Source:
+The registered ``packed_add_sum`` (for ``sum``) and ``3input_maxmin`` (for
+``max`` / ``min``) variants are **CUDA SM100+ fast paths** at priority **20**,
+so they pre-empt :doc:`local`.  Both accept a thread-scope operation from a 1-D
+``float32`` vector of at least 8 elements to a scalar. The registration does not
+inspect ``reduce_axes``; the implementation folds the full source region. They
+use the SM100 packed math instructions — ``add.f32x2`` for ``sum``,
+``max3.f32`` / ``min3.f32`` for ``max`` / ``min`` — to fold two (or three)
+values per instruction. Source:
 ``python/tvm/backend/cuda/tile_primitive/reduction/sm100_packed.py``.
 
 What it accepts
@@ -50,30 +53,33 @@ All of the following must hold (else the dispatch declines and :doc:`local` runs
    * - Property
      - Requirement
    * - target / priority
-     - ``cuda`` ``sm_100+`` (Blackwell); priority ``20`` (beats ``local``)
+     - ``cuda`` ``sm_100+``; priority ``20`` (beats ``local``)
    * - exec scope
      - ``thread`` only
    * - operands
      - src & dst ``local``, both ``float32``; dst length ``1``; src **1-D** with
        ``≥ 8`` elements
+   * - axes
+     - not checked by this variant's predicates; the implementation folds the
+       full 1-D source region
 
 Demonstration program
 ----------------------
 
-A single thread sums a 32-element ``float32`` register vector on ``sm_100a`` (from
+A single thread sums a 32-element ``float32`` local vector on ``sm_100a`` (from
 ``test_reduction.py``):
 
 .. code-block:: python
 
-    @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, [32], "float32", layout=TileLayout(S[(32,)]))
-        B = T.match_buffer(B_ptr, [1], "float32", layout=TileLayout(S[(1,)]))
-        T.device_entry(); T.cta_id([1]); T.thread_id([1])
-        A_local = T.alloc_buffer([32], "float32", scope="local")
-        B_local = T.alloc_buffer([1], "float32", scope="local")
-        for i in T.serial(32): A_local[i] = A[i]
-        Tx.sum(B_local, A_local, accum=False)     # -> sm100_packed (len 32 >= 8, fp32, sm100)
+    @Tx.prim_func
+    def test_func(A_ptr: Tx.handle, B_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, [32], "float32", layout=TileLayout(S[(32,)]))
+        B = Tx.match_buffer(B_ptr, [1], "float32", layout=TileLayout(S[(1,)]))
+        Tx.device_entry(); Tx.cta_id([1]); Tx.thread_id([1])
+        A_local = Tx.alloc_buffer([32], "float32", scope="local")
+        B_local = Tx.alloc_buffer([1], "float32", scope="local")
+        for i in Tx.serial(32): A_local[i] = A[i]
+        Tx.tile.sum(B_local, A_local, accum=False)     # -> packed_add_sum
         B[0] = B_local[0]
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
@@ -89,10 +95,10 @@ the accumulator ``8 → 4 → 2 → 1`` with three more ``add.f32x2``:
 .. code-block:: python
 
     # final tree (8 -> 4 -> 2 -> 1); mov.b64 packs/unpacks the float2 lanes
-    T.ptx.mov.b64(acc, local_sum[0], local_sum[1])
-    T.ptx.mov.b64(rhs, local_sum[2], local_sum[3])
-    T.ptx.add.rn.ftz.f32x2(acc, acc, rhs)
-    T.ptx.mov.b64(local_sum[0], local_sum[1], acc)
+    Tx.ptx.mov.b64(acc, local_sum[0], local_sum[1])
+    Tx.ptx.mov.b64(rhs, local_sum[2], local_sum[3])
+    Tx.ptx.add.rn.ftz.f32x2(acc, acc, rhs)
+    Tx.ptx.mov.b64(local_sum[0], local_sum[1], acc)
     # ... same for local_sum[4:8], then fold the two halves together ...
     dst[...] = local_sum[0] + local_sum[1]
 
@@ -104,10 +110,10 @@ Generated TIRx IR
 
 .. code-block:: python
 
-    T.ptx.mov.b64(acc, local_sum[0], local_sum[1])
-    T.ptx.mov.b64(rhs, local_sum[2], local_sum[3])
-    T.ptx.add.rn.ftz.f32x2(acc, acc, rhs)                             # ... the 8->4->2->1 tree
-    T.ptx.mov.b64(local_sum[0], local_sum[1], acc)
+    Tx.ptx.mov.b64(acc, local_sum[0], local_sum[1])
+    Tx.ptx.mov.b64(rhs, local_sum[2], local_sum[3])
+    Tx.ptx.add.rn.ftz.f32x2(acc, acc, rhs)                             # ... the 8->4->2->1 tree
+    Tx.ptx.mov.b64(local_sum[0], local_sum[1], acc)
 
 Generated CUDA
 --------------
@@ -140,5 +146,6 @@ How inputs change the algorithm
    * - accum
      - ``True`` folds the old dst value into the first accumulator slot
    * - anything outside the gate
-     - non-fp32, 2-D src, dst length > 1, pre-Blackwell, or ``< 8`` elements → the
-       dispatch declines and :doc:`local` handles it
+     - non-fp32, 2-D src, dst length > 1, pre-SM100, or ``< 8`` elements →
+       the dispatch declines and :doc:`local` handles it when that variant's
+       requirements hold

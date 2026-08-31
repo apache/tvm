@@ -15,27 +15,40 @@
     specific language governing permissions and limitations
     under the License.
 
-Visitors and Mutators
-=====================
+Layout IR
+=========
 
-``expr_functor`` and ``stmt_functor`` provide lightweight Python traversal
-utilities.  ``functor`` contains the FFI-backed ``PyStmtExprVisitor`` and
-``PyStmtExprMutator`` extension classes.  Their similarly named methods serve
-different base classes; they are not duplicate aliases.
+Layouts describe how logical tensor coordinates map to storage and execution
+axes.  See :doc:`../layout` for the programming model and worked examples.
 
-tvm.tirx.expr_functor
----------------------
-.. automodule:: tvm.tirx.expr_functor
+The primary classes are re-exported from ``tvm.tirx``, but are defined in this
+module:
+
+.. autoclass:: tvm.tirx.layout.Layout
    :members:
    :no-index:
 
-tvm.tirx.stmt_functor
----------------------
-.. automodule:: tvm.tirx.stmt_functor
-   :members:
-
-tvm.tirx.functor
-----------------
-.. automodule:: tvm.tirx.functor
+.. autoclass:: tvm.tirx.layout.Axis
    :members:
    :no-index:
+
+.. autoclass:: tvm.tirx.layout.Iter
+   :members:
+   :no-index:
+
+.. autoclass:: tvm.tirx.layout.TileLayout
+   :members:
+   :no-index:
+
+.. autoclass:: tvm.tirx.layout.ComposeLayout
+   :members:
+   :no-index:
+
+``S[...]`` and ``R[...]`` build shard and replica layout specifications,
+respectively.  Named axes such as ``laneid``, ``warpid``, ``tid_in_wg``,
+``TLane``, and ``TCol`` are resolved lazily by this module.
+
+.. automodule:: tvm.tirx.layout
+   :members:
+   :no-index:
+   :exclude-members: Axis, ComposeLayout, Iter, Layout, TileLayout

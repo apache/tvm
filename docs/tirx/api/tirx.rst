@@ -15,9 +15,18 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.tirx
---------
+Core TIRx IR
+============
+
+This page lists the core IR nodes and scalar operations in the top-level
+namespace.  Layouts, execution scopes, visitors, compilation helpers, and
+tile-dispatch extensions are documented on their focused pages and excluded
+here so the same objects are not expanded twice.
+
 .. automodule:: tvm.tirx
    :members:
    :imported-members:
-   :exclude-members: Expr, PrimExpr, Op, Call, Var, const
+   :exclude-members: Call, ComposeLayout, DispatchContext, ExecScope, Expr,
+      ExprFunctor, Layout, Op, PrimExpr, PyStmtExprMutator, PyStmtExprVisitor,
+      ScopeIdDef, TileLayout, Var, build, const, get_default_tir_pipeline,
+      get_tir_pipeline, register_tir_pipeline
