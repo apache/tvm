@@ -41,6 +41,7 @@ from tvm.backend.cuda.codegen.registry import register_codegen
 from tvm.backend.cuda.codegen.utils import parse_str
 from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
 from tvm.ir import Call, TensorLoad
+from tvm.ir.expr import _realize_operand
 from tvm.ir.op import register_op_attr
 from tvm.ir.type import PointerType, PrimType
 from tvm.runtime import const
@@ -481,6 +482,7 @@ def _coerce_pred_operand(entry, slot, values):
 
 def _coerce_typed(entry, slot, values, mod_map):
     """Coerce a dtype-carrying register operand (``rw`` any)."""
+    values = [_realize_operand(value) for value in values]
     allowed = operand_dtypes(slot, mod_map)
     token = operand_type(slot, mod_map)
     if slot.rw in ("w", "rw"):

@@ -2194,7 +2194,7 @@ def test_buffer_chunk_ir():
     assert isinstance(reg, BufferRegion)
     assert len(reg.region) == 3  # rank-preserving: no extra extent-1 chunk dim
     assert (int(reg.region[2].min), int(reg.region[2].extent)) == (8, 8)
-    assert_structural_equal(reg, A[:, :, 8:16])
+    assert_structural_equal(reg, A[:, :, 8:16].to_expr())
 
     # a None dim passes an int pick straight through (int → extent-1 region),
     # while the chunked dim still narrows to its picked chunk.
@@ -2257,11 +2257,30 @@ def test_buffer_slice_region():
     from tvm.tirx.stmt import BufferRegion
 
     buf = tvm.tirx.decl_buffer((128, 64), "float16")
-    br = buf[32:64, 0:32]
+    br = buf[32:64, 0:32].to_expr()
     assert isinstance(br, BufferRegion)
     assert br.buffer.same_as(buf)
     assert int(br.region[0].extent) == 32
     assert int(br.region[1].extent) == 32
+
+
+def test_global_call_realizes_buffer_elements():
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(private=True, s_tir=True)
+        def add(a: T.float32, b: T.float32) -> T.float32:
+            return a + b
+
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((16,), "float32"),
+            B: T.Buffer((16,), "float32"),
+            C: T.Buffer((16,), "float32"),
+        ):
+            for i in range(16):
+                C[i] = Module.add(A[i], B[i])
+
+    assert isinstance(Module["main"], tvm.tirx.PrimFunc)
 
 
 def test_buffer_region_slice():
@@ -2270,7 +2289,7 @@ def test_buffer_region_slice():
 
     buf = tvm.tirx.decl_buffer((128, 64), "float16")
 
-    br1 = buf[32:64, 0:32]
+    br1 = buf[32:64, 0:32].to_expr()
     assert isinstance(br1, BufferRegion)
 
     # BufferRegion chained slice

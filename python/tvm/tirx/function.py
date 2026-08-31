@@ -324,6 +324,10 @@ class IndexMap(Object):
 
         mapping = mapping_function(*args, **kwargs)
 
+        from tvm.ir.expr import _realize_operand  # pylint: disable=import-outside-toplevel
+
+        mapping = _realize_operand(mapping)
+
         initial_indices = args + list(kwargs.values())
 
         final_indices = []
@@ -339,6 +343,7 @@ class IndexMap(Object):
 
         if is_iterable:
             for val in mapping:
+                val = _realize_operand(val)
                 if tvm.ir.is_prim_expr(val):
                     final_indices.append(val)
                 else:
