@@ -288,7 +288,7 @@ std::string CodeGenC::GetBufferRef(const PrimType& t, const VarNode* buffer, Pri
     // float4_e2m1fn: sizeof(__nv_fp4_e2m1) = 1 byte, but data is packed
     // 2 elements per byte.  Divide element index by 2 to get byte offset.
     // This returns an lvalue so it works for address_of() and stores.
-    // Nibble extraction (for loads) is handled in VisitExpr_(BufferLoadNode*).
+    // Nibble extraction (for loads) is handled in VisitExpr_(TensorLoadNode*).
     os << "*(" << ptr_cast(t) << "(" << vid << " + " << index_str << " / 2))";
   } else if (t == buffer_element_dtype) {
     os << buffer_str << "[" << index_str << "]";
@@ -764,31 +764,34 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       }
       os << result;
     } else if (op->op.same_as(builtin::address_of())) {
-      const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
+      const TensorLoadNode* load = op->args[0].as<TensorLoadNode>();
       TVM_FFI_ICHECK(op->args.size() == 1);
       if (load) {
         TVM_FFI_ICHECK_EQ(load->indices.size(), 1)
             << "CodeGenC only supports flat memory allocations.";
         PrimExpr index = load->indices[0];
-        // A vector BufferLoad uses a Ramp to describe its lane indices.  The
+        // A vector TensorLoad uses a Ramp to describe its lane indices.  The
         // address of that load is the address of its first lane.
         if (const RampNode* ramp = index.as<RampNode>()) {
           index = ramp->base;
         }
-        const VarNode* data = load->buffer.get();
-        if (pointer_offset_vars_.count(data) && HandleTypeMatch(data, load->buffer->dtype) &&
+        const VarNode* data = load->source.as_or_throw<tvm::tirx::BufferVar>().get();
+        if (pointer_offset_vars_.count(data) &&
+            HandleTypeMatch(data, load->source.as_or_throw<tvm::tirx::BufferVar>()->dtype) &&
             !IsVolatile(data)) {
           os << "(" << GetVarID(data) << " + ";
           this->PrintExpr(index, os);
           os << ")";
         } else {
-          os << "(&(" << GetBufferRef(load->ty.as_or_throw<PrimType>(), load->buffer.get(), index)
+          os << "(&("
+             << GetBufferRef(load->ty.as_or_throw<PrimType>(),
+                             load->source.as_or_throw<tvm::tirx::BufferVar>().get(), index)
              << "))";
         }
       } else {
         auto* var = op->args[0].as<tirx::VarNode>();
         TVM_FFI_ICHECK(var)
-            << "Builtin address_of() expects the argument to be a BufferLoad or Var, but "
+            << "Builtin address_of() expects the argument to be a TensorLoad or Var, but "
             << "received argument " << op->args[0];
         if (auto* ptr = var->ty.as<PointerTypeNode>()) {
           if (ptr->element_type.as<TensorMapTypeNode>()) {
@@ -953,18 +956,19 @@ void CodeGenC::VisitStmt_(const DeclBufferNode* op) {
   RegisterHandleType(op->buffer.get(), op->buffer->dtype);
 }
 
-void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const TensorLoadNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
 
   PrimType value_ty = op->ty.as_or_throw<PrimType>();
   PrimExpr index = op->indices[0];
-  Var buffer_var = op->buffer.var();
-  const PrimType& element_ty = op->buffer->dtype;
+  Var buffer_var = op->source.as_or_throw<tvm::tirx::BufferVar>().var();
+  const PrimType& element_ty = op->source.as_or_throw<tvm::tirx::BufferVar>()->dtype;
 
   int lanes = value_ty.lanes();
   // delcare type.
   if (value_ty.lanes() == element_ty.lanes()) {
-    std::string ref = GetBufferRef(op->ty.as_or_throw<PrimType>(), op->buffer.get(), index);
+    std::string ref = GetBufferRef(op->ty.as_or_throw<PrimType>(),
+                                   op->source.as_or_throw<tvm::tirx::BufferVar>().get(), index);
     if (value_ty.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn) && value_ty.lanes() == 1) {
       // GetBufferRef returns an lvalue: *(ptr + index/2), which reads the
       // full byte.  Extract the correct nibble (low for even, high for odd).
@@ -995,7 +999,9 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
       can_vector_load = false;
     }
     if (can_vector_load) {
-      std::string ref = GetVecLoad(op->ty.as_or_throw<PrimType>(), op->buffer.get(), base.Eval());
+      std::string ref =
+          GetVecLoad(op->ty.as_or_throw<PrimType>(),
+                     op->source.as_or_throw<tvm::tirx::BufferVar>().get(), base.Eval());
       HandleVolatileLoads(ref, op, os);
     } else {
       std::ostringstream svalue_expr;

@@ -23,7 +23,7 @@ from functools import partial
 from typing import Any, TypeVar
 
 import tvm
-from tvm.ir import Expr, GlobalVar, PointerType, PrimType
+from tvm.ir import Expr, GlobalVar, PointerType, PrimType, TensorLoad
 from tvm.script.ir_builder import ir as I
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.base import IRBuilderFrame as Frame
@@ -228,9 +228,9 @@ def bind_assign_value(
         if _get_signature_match_var(self, var_name) is not None:
             return _reuse_signature_match_var(self, node, var_name, value)
     if isinstance(value, T.scalar_wrapper):  # pylint: disable=protected-access
-        # special case for scalar, name the buffer, but the var is used as BufferLoad
-        assert isinstance(value.scalar, T.BufferLoad)
-        IRBuilder.name(var_name, value.scalar.buffer)
+        # special case for scalar, name the buffer, but the var is used as TensorLoad
+        assert isinstance(value.scalar, TensorLoad)
+        IRBuilder.name(var_name, value.scalar.source)
         return value.scalar
     if isinstance(value, I.meta_var):
         return value.value
@@ -280,8 +280,8 @@ def bind_assign_value(
         else:
             # x = expr -> scalar (auto-typed from value)
             scalar = T.local_scalar(dtype=str(value.ty.dtype))
-            IRBuilder.name(var_name, scalar.scalar.buffer)
-            T.buffer_store(scalar.scalar.buffer, value, [0])
+            IRBuilder.name(var_name, scalar.scalar.source)
+            T.buffer_store(scalar.scalar.source, value, [0])
             return scalar.scalar
 
 
@@ -644,7 +644,7 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         T.buffer_store(self.eval_expr(lhs.value), rhs, indices)
     else:
         # special case for scalar buffers
-        # scalar = xxx <=> scalar.buffer[()] = xxx
+        # scalar = xxx <=> scalar.source[()] = xxx
         # or for a normal 1-dim buffer with shape (1,)
         # buffer = xxx <=> buffer[()] = xxx
         # Try to resolve lhs as a buffer/scalar variable. eval_expr may raise
@@ -662,11 +662,11 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         # that genuine errors (e.g. wrong shape, bad store) are not swallowed.
         # Only TypeError from FFI type mismatch (e.g. rhs is a meta_var, not
         # a Expr or auto-convertible scalar) triggers fallthrough.
-        if isinstance(lhs_value, T.scalar_wrapper | T.BufferLoad) or is_buffer_var(lhs_value):
+        if isinstance(lhs_value, T.scalar_wrapper | TensorLoad) or is_buffer_var(lhs_value):
             if isinstance(lhs_value, T.scalar_wrapper):
-                buffer = lhs_value.scalar.buffer
+                buffer = lhs_value.scalar.source
             else:
-                buffer = lhs_value.buffer if isinstance(lhs_value, T.BufferLoad) else lhs_value
+                buffer = lhs_value.source if isinstance(lhs_value, TensorLoad) else lhs_value
             if len(buffer.ty.shape) == 1 and bool(buffer.ty.shape[0] == 1):
                 # only 1-dim buffer with shape (1,) can be assigned directly
                 # Note that shape can be a Expr, so we only judge by
@@ -747,11 +747,11 @@ def visit_aug_assign(self: Parser, node: doc.AugAssign) -> None:
             lhs_value = self.eval_expr(lhs_copy)
         except Exception:  # pylint: disable=broad-except
             pass
-        if isinstance(lhs_value, T.scalar_wrapper | T.BufferLoad) or is_buffer_var(lhs_value):
+        if isinstance(lhs_value, T.scalar_wrapper | TensorLoad) or is_buffer_var(lhs_value):
             if isinstance(lhs_value, T.scalar_wrapper):
-                buffer = lhs_value.scalar.buffer
+                buffer = lhs_value.scalar.source
             else:
-                buffer = lhs_value.buffer if isinstance(lhs_value, T.BufferLoad) else lhs_value
+                buffer = lhs_value.source if isinstance(lhs_value, TensorLoad) else lhs_value
             if len(buffer.ty.shape) == 1 and bool(buffer.ty.shape[0] == 1):
                 try:
                     T.buffer_store(buffer, rhs, [0])
@@ -819,7 +819,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
         scalar = T.local_scalar(dtype=str(ann_var.ty))
         self.eval_assign(target=lhs, source=scalar, bind_value=bind_assign_value)
         if rhs is not None:
-            T.buffer_store(scalar.scalar.buffer, rhs, [0])
+            T.buffer_store(scalar.scalar.source, rhs, [0])
 
 
 @dispatch.register(token="tirx", type_name="With")

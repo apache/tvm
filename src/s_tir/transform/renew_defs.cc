@@ -171,7 +171,7 @@ class RenewDefMutator : public StmtExprMutator {
   BufferVar DefineBuffer(const BufferVar& buffer) {
     auto it = remap_.find(buffer);
     if (it != remap_.end()) {
-      return (*it).second.as_or_throw<BufferVar>();
+      return (*it).second.as_or_throw<tvm::tirx::BufferVar>();
     }
 
     auto redefine_if_is_var = [this](const Expr& expr) -> Expr {
@@ -209,7 +209,7 @@ class RenewDefMutator : public StmtExprMutator {
     // remap it without creating new var definitions.
     auto it = remap_.find(buffer);
     if (it != remap_.end()) {
-      return (*it).second.as_or_throw<BufferVar>();
+      return (*it).second.as_or_throw<tvm::tirx::BufferVar>();
     }
     auto visit_expr = [this](const PrimExpr& e) -> PrimExpr { return this->VisitPrimExpr(e); };
     ffi::Array<PrimExpr> shape = buffer->shape.Map(visit_expr);

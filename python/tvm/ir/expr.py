@@ -390,6 +390,24 @@ class TupleGetItem(_ExprWithOp):
         self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index, span)
 
 
+@tvm_ffi.register_object("ir.TensorLoad")
+class TensorLoad(_ExprWithOp):
+    """An indexed load from an expression source.
+
+    TensorLoad objects are constructed by a dialect-specific helper that
+    validates the source and derives the result type.
+    """
+
+    source: Expr
+    indices: list[Expr]
+    span: Span | None
+
+    def __init__(self, *args, **kwargs):
+        raise TypeError(
+            "TensorLoad cannot be constructed directly; use a dialect-specific load helper"
+        )
+
+
 @tvm_ffi.register_object("ir.Call")
 class Call(_ExprWithOp):
     """Core function call node."""

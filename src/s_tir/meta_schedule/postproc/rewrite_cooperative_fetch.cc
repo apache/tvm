@@ -94,7 +94,7 @@ size_t GetMaxUsedDtypeBytes(SBlock block) {
   tirx::PostOrderVisit(block->body, [&](const ffi::ObjectRef& obj) {
     if (const auto* store = obj.as<tirx::BufferStoreNode>()) {
       max_bytes = std::max(max_bytes, store->value.ty().StorageBytes());
-    } else if (const auto* load = obj.as<tirx::BufferLoadNode>()) {
+    } else if (const auto* load = obj.as<TensorLoadNode>()) {
       max_bytes = std::max(max_bytes, load->ty.as_or_throw<PrimType>().StorageBytes());
     } else if (const auto* call = obj.as<CallNode>()) {
       static const Op& q_multiply_shift_per_axis_op = Op::Get("tirx.q_multiply_shift_per_axis");

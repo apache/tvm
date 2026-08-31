@@ -489,7 +489,7 @@ class BuiltinLower : public StmtExprMutator {
           {ConstInt32(stack_begin + i)}));
     }
     PrimExpr offset = ConstInt32(stack_begin);
-    BufferLoad load(scope.stack_shape, {offset});
+    TensorLoad load = BufferLoad(scope.stack_shape, {offset});
     return Call(scope.stack_shape.DataPointerType(), builtin::address_of(), {load});
   }
   // make array

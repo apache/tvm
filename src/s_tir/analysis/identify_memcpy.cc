@@ -71,8 +71,8 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
         .str();
   }
 
-  BufferLoad load;
-  if (auto opt = store->value.as<BufferLoad>()) {
+  TensorLoad load;
+  if (auto opt = store->value.as<TensorLoad>()) {
     load = opt.value();
   } else {
     return static_cast<const std::stringstream&>(
@@ -86,7 +86,8 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   // non-flat physical indices are target-dependent, only handle cases
   // where the buffer will be flattened to a 1-d physical buffer.
   ffi::Array<PrimExpr> flattened_dst = store->buffer.OffsetOf(store->indices);
-  ffi::Array<PrimExpr> flattened_src = load->buffer.OffsetOf(load->indices);
+  ffi::Array<PrimExpr> flattened_src =
+      load->source.as_or_throw<tvm::tirx::BufferVar>().OffsetOf(load->indices);
 
   if (flattened_dst.size() != 1 || flattened_src.size() != 1) {
     return static_cast<const std::stringstream&>(
@@ -271,7 +272,9 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
     }
   }
 
-  BufferRegion src_region(load->buffer, arith::DomainTouched(loop, load->buffer, true, true));
+  BufferRegion src_region(
+      load->source.as_or_throw<tvm::tirx::BufferVar>(),
+      arith::DomainTouched(loop, load->source.as_or_throw<tvm::tirx::BufferVar>(), true, true));
   BufferRegion dst_region(store->buffer, arith::DomainTouched(loop, store->buffer, true, true));
 
   return MemCpyDetails{src_region, dst_region};

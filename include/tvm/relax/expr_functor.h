@@ -155,7 +155,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const GlobalVarNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const FunctionNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const CallNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const tirx::BufferLoadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const TensorLoadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const tirx::LetNode* op, Args...) EXPR_FUNCTOR_DISABLED;
   virtual R VisitExpr_(const tirx::ReduceNode* op, Args...) EXPR_FUNCTOR_DISABLED;
   virtual R VisitExpr_(const tirx::AddNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -212,7 +212,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAX_EXPR_FUNCTOR_DISPATCH(CallNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(tirx::LetNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(tirx::ReduceNode);
-    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::BufferLoadNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(TensorLoadNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(tirx::AddNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(tirx::SubNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(tirx::MulNode);
@@ -271,7 +271,7 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   void VisitExpr_(const GlobalVarNode* op) override;
   void VisitExpr_(const FunctionNode* op) override;
   void VisitExpr_(const CallNode* op) override;
-  void VisitExpr_(const tirx::BufferLoadNode* op) override;
+  void VisitExpr_(const TensorLoadNode* op) override;
   void VisitExpr_(const tirx::AddNode* op) override;
   void VisitExpr_(const tirx::SubNode* op) override;
   void VisitExpr_(const tirx::MulNode* op) override;
@@ -426,7 +426,7 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
   Expr VisitExpr_(const GlobalVarNode* op) override;
   Expr VisitExpr_(const FunctionNode* op) override;
   Expr VisitExpr_(const CallNode* op) override;
-  Expr VisitExpr_(const tirx::BufferLoadNode* op) override;
+  Expr VisitExpr_(const TensorLoadNode* op) override;
   Expr VisitExpr_(const tirx::AddNode* op) override;
   Expr VisitExpr_(const tirx::SubNode* op) override;
   Expr VisitExpr_(const tirx::MulNode* op) override;

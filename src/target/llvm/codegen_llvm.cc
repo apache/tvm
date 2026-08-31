@@ -1408,7 +1408,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(builtin::tvm_storage_sync())) {
     return CreateStorageSync(op);
   } else if (op->op.same_as(builtin::address_of())) {
-    const BufferLoadNode* load = args[0].as<BufferLoadNode>();
+    const TensorLoadNode* load = args[0].as<TensorLoadNode>();
     TVM_FFI_ICHECK(args.size() == 1 && load);
 
     ffi::Array<PrimExpr> indices = load->indices;
@@ -1422,7 +1422,8 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     }
 
     TypedPointer buffer_ptr =
-        CreateBufferPtr(MakeValue(load->buffer.var()), load->buffer->dtype, indices_val,
+        CreateBufferPtr(MakeValue(load->source.as_or_throw<tvm::tirx::BufferVar>().var()),
+                        load->source.as_or_throw<tvm::tirx::BufferVar>()->dtype, indices_val,
                         PrimType(load->ty.as_or_throw<PrimType>()->dtype));
     return buffer_ptr.addr;
   } else if (op->op.same_as(builtin::reinterpret()) && args[0].as<PrimExpr>() &&
@@ -1845,7 +1846,7 @@ void CodeGenLLVM::BufferAccessHelper(
   }
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const TensorLoadNode* op) {
   PrimType value_dtype = op->ty.as_or_throw<PrimType>();
   PrimType access_dtype = BufferAccessType(value_dtype);
 
@@ -1871,7 +1872,8 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
   // Pass all indices into BufferAccessHelper.  In CodeGenLLVM,
   // non-flat indices will result in an error in CreateBufferPtr, but
   // a subclass may override CreateBufferPtr.
-  BufferAccessHelper(op->buffer, op->indices, std::nullopt, access_dtype, make_load);
+  BufferAccessHelper(op->source.as_or_throw<tvm::tirx::BufferVar>(), op->indices, std::nullopt,
+                     access_dtype, make_load);
 
   llvm::Value* ret;
   if (loads.size() == 1) {

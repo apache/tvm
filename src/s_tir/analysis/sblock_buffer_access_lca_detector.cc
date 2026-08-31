@@ -255,8 +255,8 @@ class LCADetector : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    UpdateBufferLCA(op->buffer.get(), ancestor_scopes_.back());
+  void VisitExpr_(const TensorLoadNode* op) final {
+    UpdateBufferLCA(op->source.as_or_throw<tvm::tirx::BufferVar>().get(), ancestor_scopes_.back());
     StmtExprVisitor::VisitExpr_(op);
   }
 

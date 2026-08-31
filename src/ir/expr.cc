@@ -45,6 +45,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   CallNode::RegisterReflection();
   TupleNode::RegisterReflection();
   TupleGetItemNode::RegisterReflection();
+  TensorLoadNode::RegisterReflection();
   IntImmNode::RegisterReflection();
   FloatImmNode::RegisterReflection();
   RangeNode::RegisterReflection();

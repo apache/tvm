@@ -28,7 +28,7 @@ using namespace tvm::tirx;
 
 /*!
  * \brief Check if buffer indices are all Vars and expr
- * \param buffer_access The BufferLoad or BufferStore
+ * \param buffer_access The TensorLoad or BufferStore
  * \return The indices if the indices are all Vars, otherwise std::nullopt
  */
 ffi::Optional<ffi::Array<Var>> CheckTrivialBufferIndices(
@@ -361,9 +361,10 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const BufferLoadNode* old_load_ptr) final {
-    BufferLoad load = ExprMutator::VisitExpr_(old_load_ptr).as_or_throw<BufferLoad>();
-    if (ffi::Optional<BufferVar> buffer = buffer_map_.Get(load->buffer)) {
+  Expr VisitExpr_(const TensorLoadNode* old_load_ptr) final {
+    TensorLoad load = ExprMutator::VisitExpr_(old_load_ptr).as_or_throw<TensorLoad>();
+    if (ffi::Optional<BufferVar> buffer =
+            buffer_map_.Get(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
       return BufferLoad(buffer.value(), load->indices);
     } else {
       return load;

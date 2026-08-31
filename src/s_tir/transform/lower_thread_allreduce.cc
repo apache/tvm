@@ -147,8 +147,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    const VarNode* allocation = GetAllocationKey(op->buffer.get());
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    const VarNode* allocation =
+        GetAllocationKey(op->source.as_or_throw<tvm::tirx::BufferVar>().get());
     if (auto it = load_remap_.find(allocation); it != load_remap_.end()) {
       for (const auto& index : op->indices) {
         TVM_FFI_ICHECK(is_zero(index));
@@ -156,11 +157,11 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       return it->second;
     }
 
-    BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     op = load.get();
 
-    if (auto opt = GetRemappedBuffer(load->buffer)) {
-      load.CopyOnWrite()->buffer = opt.value();
+    if (auto opt = GetRemappedBuffer(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
+      return BufferLoad(opt.value(), load->indices, load->span);
     }
     return load;
   }
@@ -170,13 +171,13 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
 
     if (auto it = load_remap_.find(allocation); it != load_remap_.end()) {
-      const auto* replacement = it->second.as<BufferLoadNode>();
+      const auto* replacement = it->second.as<TensorLoadNode>();
       TVM_FFI_ICHECK(replacement);
       for (const auto& index : store->indices) {
         TVM_FFI_ICHECK(is_zero(index));
       }
       auto* writer = store.CopyOnWrite();
-      writer->buffer = replacement->buffer;
+      writer->buffer = replacement->source.as_or_throw<tvm::tirx::BufferVar>();
       writer->indices = replacement->indices;
     } else if (auto opt = GetRemappedBuffer(store->buffer)) {
       store.CopyOnWrite()->buffer = opt.value();
@@ -225,7 +226,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       if (auto cast = arg.as<CastNode>()) {
         arg = cast->value;
       }
-      buffers[idx] = arg.as_or_throw<BufferLoad>()->buffer;
+      buffers[idx] = arg.as_or_throw<TensorLoad>()->source.as_or_throw<tvm::tirx::BufferVar>();
     }
 
     std::unordered_set<const VarNode*> reduce_set;
@@ -349,7 +350,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         // This avoids to emit predicated stores, as all threads are
         // uniformly writing the same result.
         for (size_t i = 0; i < size; ++i) {
-          BufferVar buf = reduce_results[i].as_or_throw<BufferLoad>()->buffer;
+          BufferVar buf = reduce_results[i]
+                              .as_or_throw<TensorLoad>()
+                              ->source.as_or_throw<tvm::tirx::BufferVar>();
           PrimExpr val = BufferLoad(buf, {zero_index});
           TVM_FFI_ICHECK_EQ(val.ty(), dtypes[i]);
           PrimExpr splat = WarpShuffle(builtin::tvm_warp_shuffle(), new_alloc_bufs.back(), val,
@@ -381,7 +384,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         std::vector<Stmt> write_staging_buf;
         write_staging_buf.reserve(size);
         for (size_t i = 0; i < size; ++i) {
-          new_alloc_bufs.push_back(reduce_results[i].as_or_throw<BufferLoad>()->buffer);
+          new_alloc_bufs.push_back(reduce_results[i]
+                                       .as_or_throw<TensorLoad>()
+                                       ->source.as_or_throw<tvm::tirx::BufferVar>());
           write_staging_buf.push_back(BufferStore(
               /*buffer=*/staging_shared_bufs[i],
               /*value=*/reduce_results[i],
@@ -407,7 +412,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         std::vector<Stmt> write_result;
         write_result.reserve(size);
         for (size_t i = 0; i < size; ++i) {
-          new_alloc_bufs.push_back(reduce_results[i].as_or_throw<BufferLoad>()->buffer);
+          new_alloc_bufs.push_back(reduce_results[i]
+                                       .as_or_throw<TensorLoad>()
+                                       ->source.as_or_throw<tvm::tirx::BufferVar>());
           BufferVar broadcast_shared_buf = decl_buffer(
               /*shape=*/{IntImm(reduce_index.ty(), group_extent)},
               /*dtype=*/buffers[i]->dtype, /*name=*/"red_result", /*storage_scope=*/"shared");
@@ -424,7 +431,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       for (size_t i = 0; i < size; ++i) {
         const VarNode* alloc_key = GetAllocationKey(buffers[i].get());
         TVM_FFI_ICHECK(!load_remap_.count(alloc_key));
-        BufferVar buf = reduce_results[i].as_or_throw<BufferLoad>()->buffer;
+        BufferVar buf =
+            reduce_results[i].as_or_throw<TensorLoad>()->source.as_or_throw<tvm::tirx::BufferVar>();
         TVM_FFI_ICHECK_EQ(reduce_results[i].ty(), dtypes[i]);
         load_remap_[alloc_key] = reduce_results[i];
 
@@ -460,8 +468,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         const VarNode* alloc_key = GetAllocationKey(buffers[idx].get());
         TVM_FFI_ICHECK(!load_remap_.count(alloc_key));
         PrimExpr pred = MakeConst(PrimType::Bool(static_cast<int16_t>(dtypes[idx].lanes())), true);
-        BufferLoad load(shared_bufs[idx],
-                        {BufIndex(IntImm(reduce_index.ty(), 0), group_index, reduce_extent)});
+        TensorLoad load = BufferLoad(
+            shared_bufs[idx], {BufIndex(IntImm(reduce_index.ty(), 0), group_index, reduce_extent)});
         TVM_FFI_ICHECK_EQ(load.ty(), dtypes[idx]);
         load_remap_[alloc_key] = load;
         alloc_remap_[alloc_key] = shared_bufs[idx];
@@ -544,7 +552,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       ffi::Array<PrimExpr> a, b;
       for (int i = 0; i < n_buffers; ++i) {
         BufferVar shared_buf = shared_bufs[i];
-        BufferLoad val(shared_buf, zero_indices);
+        TensorLoad val = BufferLoad(shared_buf, zero_indices);
         TVM_FFI_ICHECK_EQ(val.ty(), dtypes[i]);
         a.push_back(val);
 
@@ -565,7 +573,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         Stmt s = BufferStore(local_buf, other, zero_indices);
         seq->push_back(s);
 
-        BufferLoad load = BufferLoad(local_buf, zero_indices);
+        TensorLoad load = BufferLoad(local_buf, zero_indices);
         TVM_FFI_ICHECK_EQ(load.ty(), dtypes[i]);
         b.push_back(load);
       }
@@ -623,12 +631,12 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     auto fload = [&](int offset) {
       ffi::Array<PrimExpr> a, b;
       for (size_t i = 0; i < size; ++i) {
-        BufferLoad b_load(shared_bufs[i],
-                          {BufIndex(reduce_index + offset, group_index, reduce_extent)});
+        TensorLoad b_load = BufferLoad(
+            shared_bufs[i], {BufIndex(reduce_index + offset, group_index, reduce_extent)});
         TVM_FFI_ICHECK_EQ(b_load.ty(), dtypes[i]);
         b.push_back(b_load);
 
-        BufferLoad a_load(shared_bufs[i], {buf_index});
+        TensorLoad a_load = BufferLoad(shared_bufs[i], {buf_index});
         TVM_FFI_ICHECK_EQ(a_load.ty(), dtypes[i]);
         a.push_back(a_load);
       }
@@ -889,7 +897,7 @@ namespace transform {
  *
  * In flat IR, AllocBuffer nodes may be visited before the alloc_remap_ is populated
  * (since MakeAllreduce runs when Evaluate is visited, which is later in the flat sequence).
- * Handles AllocBuffer, DeclBuffer, and BufferLoad nodes whose remappings
+ * Handles AllocBuffer, DeclBuffer, and TensorLoad nodes whose remappings
  * were not available during the main traversal.
  */
 class DeferredRemapper : public StmtExprMutator {

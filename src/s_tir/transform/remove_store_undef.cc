@@ -77,7 +77,7 @@ class StoreUndefLocator : public StmtExprVisitor {
     TVM_FFI_ICHECK(!idx_undef) << "Error: T.undef() may not be used in buffer indices";
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
+  void VisitExpr_(const TensorLoadNode* op) final {
     // Check indices for undef.  Undef in buffer indices is always an error.
     bool idx_undef = false;
     std::swap(has_undef_, idx_undef);

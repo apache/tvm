@@ -40,11 +40,11 @@ per-instruction generated or hand-written code:
 from tvm.backend.cuda.codegen.registry import register_codegen
 from tvm.backend.cuda.codegen.utils import parse_str
 from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
-from tvm.ir import Call
+from tvm.ir import Call, TensorLoad
 from tvm.ir.op import register_op_attr
 from tvm.ir.type import PointerType, PrimType
 from tvm.runtime import const
-from tvm.tirx.expr import BufferLoad, CallEffectKind, IntImm
+from tvm.tirx.expr import CallEffectKind, IntImm
 from tvm.tirx.op import call_intrin, reinterpret
 
 from .render import render_variant
@@ -448,7 +448,7 @@ def _coerce_pred_operand(entry, slot, values):
         # The 0/1 materialization of a .pred result: a "=r" uint32 the caller
         # receives through a reference parameter, so it needs a writable
         # uint32 lvalue exactly like any other destination.
-        if not isinstance(value, BufferLoad) or arg_dtype(value) != "uint32":
+        if not isinstance(value, TensorLoad) or arg_dtype(value) != "uint32":
             raise ValueError(
                 f"{entry.name}: operand '{slot.name}' is a .pred result and must be "
                 f"a writable uint32 scalar or buffer element (declare it first, "
@@ -486,10 +486,10 @@ def _coerce_typed(entry, slot, values, mod_map):
     if slot.rw in ("w", "rw"):
         # A PTX destination is a register the caller declared, so every lane has
         # to be a writable lvalue: a scalar (`x: T.float32`) or a buffer element.
-        # Both are BufferLoad nodes, which the C codegen prints as the lvalue
+        # Both are buffer-backed TensorLoad nodes, which the C codegen prints as the lvalue
         # bound to the helper's reference parameter.
         for value in values:
-            if not isinstance(value, BufferLoad):
+            if not isinstance(value, TensorLoad):
                 raise ValueError(
                     f"{entry.name}: destination '{slot.name}' must be a writable scalar or "
                     f"buffer element (declare it first, e.g. `d: T.{allowed[0]}`), got "

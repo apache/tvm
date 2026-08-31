@@ -50,7 +50,7 @@ class ExprFunctor:
     def __init__(self):
         self._dispatch_map = {
             "tirx.Var": self.visit_var_,
-            "tirx.BufferLoad": self.visit_buffer_load_,
+            "tirx.TensorLoad": self.visit_buffer_load_,
             "tirx.Tuple": self.visit_tuple_,
             "tirx.TupleGetItem": self.visit_tuple_get_item_,
             "tirx.Let": self.visit_let_,
@@ -118,7 +118,7 @@ class ExprFunctor:
         return None
 
     def visit_buffer_load_(self, op):
-        """Default visitor for BufferLoad node."""
+        """Default visitor for a buffer-backed TensorLoad node."""
         return self.visit_expr_default_(op)
 
     def visit_opaque_expr_(self, op):
@@ -472,7 +472,7 @@ class ExprMutator(ExprFunctor):
         if all(old_index is new_index for old_index, new_index in zip(op.indices, indices)):
             return op
         else:
-            return tvm.tirx.BufferLoad(op.buffer, indices)
+            return tvm.tirx.BufferLoad(op.source, indices)
 
     def visit_opaque_expr_(self, op):
         """Mutator implementation for an opaque construction-time expression."""

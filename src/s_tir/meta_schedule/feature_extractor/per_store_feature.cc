@@ -263,7 +263,7 @@ Pass SimplifyForFeatureExtraction() {
     static bool HasBufferLoad(const PrimExpr& expr) {
       bool found = false;
       PostOrderVisit(expr, [&found](const ffi::ObjectRef& node) {
-        if (node->IsInstance<BufferLoadNode>()) {
+        if (node->IsInstance<TensorLoadNode>()) {
           found = true;
         }
       });
@@ -798,8 +798,8 @@ void Feature::Init(const BufferStoreNode* store, int n_loops) {
     info.multi_indices.push_back({store->indices.begin(), store->indices.end()});
   }
   PostOrderVisit(store->value, [&buffer_info](const ffi::ObjectRef& obj) -> void {
-    if (const BufferLoadNode* load = obj.as<BufferLoadNode>()) {
-      BufferVar buffer = load->buffer;
+    if (const TensorLoadNode* load = obj.as<TensorLoadNode>()) {
+      BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
       Info& info = buffer_info[buffer];
       switch (info.access_type) {
         case AccessType::kRead:

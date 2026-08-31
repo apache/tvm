@@ -208,16 +208,14 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const BufferLoadNode* _op) final {
-    BufferLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<BufferLoad>();
-    const BufferVar& buffer = SubstituteBuffer(load->buffer);
-    if (buffer.same_as(load->buffer)) {
+  Expr VisitExpr_(const TensorLoadNode* _op) final {
+    TensorLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<TensorLoad>();
+    const BufferVar& buffer = SubstituteBuffer(load->source.as_or_throw<tvm::tirx::BufferVar>());
+    if (buffer.same_as(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
       return load;
 
     } else {
-      auto n = ffi::make_object<BufferLoadNode>(*load.get());
-      n->buffer = buffer;
-      return BufferLoad(n);
+      return BufferLoad(buffer, load->indices, load->span);
     }
   }
 

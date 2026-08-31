@@ -107,9 +107,9 @@ class BufferSubstituter : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
-    auto it = buffer_map_.find(load->buffer.get());
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+    auto it = buffer_map_.find(load->source.as_or_throw<tvm::tirx::BufferVar>().get());
     if (it != buffer_map_.end()) {
       return BufferLoad(it->second, load->indices, load->span);
     }

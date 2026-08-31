@@ -50,9 +50,9 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
 
 }  // namespace
 
-void StorageAccessVisitor::VisitExpr_(const BufferLoadNode* op) {
-  Var buf = ResolveBuffer(op->buffer.var());
-  StorageScope scope = StorageScope::Create(op->buffer.scope());
+void StorageAccessVisitor::VisitExpr_(const TensorLoadNode* op) {
+  Var buf = ResolveBuffer(op->source.as_or_throw<tvm::tirx::BufferVar>().var());
+  StorageScope scope = StorageScope::Create(op->source.as_or_throw<tvm::tirx::BufferVar>().scope());
   if (Enabled(buf.get(), scope)) {
     TVM_FFI_ICHECK(allow_append_) << op << " " << scope.to_string();
     AccessEntry e;
@@ -283,7 +283,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
     }
     StmtExprVisitor::VisitExpr_(op);
   } else if (op->op.same_as(builtin::address_of())) {
-    if (const auto* load = op->args[0].as<BufferLoadNode>()) {
+    if (const auto* load = op->args[0].as<TensorLoadNode>()) {
       // Taking an address does not read the buffer value.  Visit only the
       // load's children so index expressions still contribute accesses.
       StmtExprVisitor::VisitExpr_(load);

@@ -118,7 +118,7 @@ inline Call AddressOffset(Var handle, PrimType dtype, int offset) {
   auto pointer_type = handle->ty.as_or_throw<PointerType>();
   BufferVar dummy_buf(handle->name,
                       BufferType(pointer_type->storage_scope, dtype, shape, {}, 0, 0, 0));
-  BufferLoad buf_load(dummy_buf, {offset_expr});
+  TensorLoad buf_load = BufferLoad(dummy_buf, {offset_expr});
 
   return Call(handle->ty, builtin::address_of(), {buf_load});
 }
@@ -140,7 +140,7 @@ inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
   auto pointer_type = handle->ty.as_or_throw<PointerType>();
   BufferVar dummy_buf(handle->name, BufferType(pointer_type->storage_scope, dtype.WithLanes(1),
                                                shape, {}, 0, 0, 0));
-  BufferLoad buf_load(dummy_buf, {offset});
+  TensorLoad buf_load = BufferLoad(dummy_buf, {offset});
 
   return Call(handle->ty, builtin::address_of(), {buf_load});
 }

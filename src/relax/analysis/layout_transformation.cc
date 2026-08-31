@@ -510,9 +510,10 @@ class BlockAnalyzer : public StmtExprVisitor {
     access_info.Update(detected_spatial_layout);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    BufferVar read_buffer = op->buffer;
-    BufferAccessInfo& access_info = buffer_access_info_[op->buffer];
+  void VisitExpr_(const TensorLoadNode* op) final {
+    BufferVar read_buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
+    BufferAccessInfo& access_info =
+        buffer_access_info_[op->source.as_or_throw<tvm::tirx::BufferVar>()];
 
     auto detected_spatial_layout = DetectBufferAccessIterMap(op->indices);
 

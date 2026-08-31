@@ -55,10 +55,10 @@ class BufferReadPosCollector : public StmtExprVisitor {
     std::swap(cur_realize_, outer_block_realize);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    TVM_FFI_ICHECK(cur_realize_.defined()) << "BufferLoad occurred outside of any block";
+  void VisitExpr_(const TensorLoadNode* op) final {
+    TVM_FFI_ICHECK(cur_realize_.defined()) << "TensorLoad occurred outside of any block";
 
-    const BufferVar& buffer = op->buffer;
+    const BufferVar& buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
     if (buffer_ == buffer.get()) {
       ffi::Map<Var, PrimExpr> subst_map;
       for (size_t i = 0; i < cur_realize_->iter_values.size(); i++) {
@@ -129,7 +129,7 @@ ffi::Array<BufferVar> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
   for (int64_t index : layout_free_buffer_index) {
     TVM_FFI_ICHECK(static_cast<size_t>(index) < func->params.size());
     const Var& param = func->params[index];
-    layout_free_buffers.push_back(param.as_or_throw<BufferVar>());
+    layout_free_buffers.push_back(param.as_or_throw<tvm::tirx::BufferVar>());
   }
 
   LayoutFreeBufferCollector collector;

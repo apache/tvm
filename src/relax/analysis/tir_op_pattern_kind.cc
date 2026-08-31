@@ -67,8 +67,8 @@ class PatternKindAnalyzer : public StmtExprVisitor {
     StmtVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    loads_.push_back(ffi::GetRef<BufferLoad>(op));
+  void VisitExpr_(const TensorLoadNode* op) final {
+    loads_.push_back(ffi::GetRef<TensorLoad>(op));
     ExprVisitor::VisitExpr_(op);
   }
 
@@ -97,7 +97,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
     // Step 3. Checking load store indices pattern
     OpPatternKind index_pair_pattern = kElemWise;
     bool has_elem_wise = false;
-    for (const BufferLoad& load : loads_) {
+    for (const TensorLoad& load : loads_) {
       // Since elemwise is stricter than broadcast and broadcast is stricter than injective,
       // while the order amount enums: kElemWise < kBroadcast < kInjective.
       // We can simply use `std::max` to detect these three patterns.
@@ -183,7 +183,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    * It's elemwise pattern iff load indices and store indices are the same.
    * E.g A[i, j] = B[i, j]
    */
-  static bool IsElemwisePattern(const BufferStore& store, const BufferLoad& load) {
+  static bool IsElemwisePattern(const BufferStore& store, const TensorLoad& load) {
     return IsSameArray(store->indices, load->indices);
   }
 
@@ -194,12 +194,13 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    *      A[i, j] = B[i, k] is not broadcast since `k` are not in the store indices.
    *      A[i, j] = B[j, i] is not broadcast the load indices are not in the same order as store's
    */
-  static bool IsBroadcastPattern(const BufferStore& store, const BufferLoad& load) {
-    size_t ndim_load_buf = load->buffer->shape.size();
+  static bool IsBroadcastPattern(const BufferStore& store, const TensorLoad& load) {
+    size_t ndim_load_buf = load->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size();
     size_t ndim_store_buf = store->buffer->shape.size();
 
     for (size_t i = 0, j = 0; i < ndim_load_buf; ++i) {
-      if (is_const_int(load->buffer->shape[i], 1) && is_const_int(load->indices[i], 0)) {
+      if (is_const_int(load->source.as_or_throw<tvm::tirx::BufferVar>()->shape[i], 1) &&
+          is_const_int(load->indices[i], 0)) {
         // Skip unit load dimensions
         // E.g. A[i, j] = B[1, j] is still broadcast
         continue;
@@ -225,7 +226,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    * E.g. A[i, j] = B[j, i] is injective.
    *      A[i, j] = B[i - j] is injective since the load index vars are only i, j
    */
-  static bool IsInjectivePattern(const BufferStore& store, const BufferLoad& load) {
+  static bool IsInjectivePattern(const BufferStore& store, const TensorLoad& load) {
     std::unordered_set<const tirx::VarNode*> vars;
     for (const PrimExpr& store_index : store->indices) {
       if (auto var = store_index.as<tirx::PrimVar>()) {
@@ -250,7 +251,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    * E.g. Store = A[i, j] and Load = B[i, j, k] allow data reuse.
    *      Store = A[i, j] and Load = B[i, j + k] allow data reuse.
    */
-  static bool IsAllowReusePattern(const BufferStore& store, const BufferLoad& load) {
+  static bool IsAllowReusePattern(const BufferStore& store, const TensorLoad& load) {
     std::unordered_set<const tirx::VarNode*> vars;
     for (const PrimExpr& index : store->indices) {
       if (auto var = index.as<tirx::PrimVar>()) {
@@ -288,19 +289,20 @@ class PatternKindAnalyzer : public StmtExprVisitor {
     if (const auto* store = body.as<BufferStoreNode>()) {
       if (const auto* add = RemoveCast(store->value).as<tirx::AddNode>()) {
         if (const auto* mul = RemoveCast(add->b).as<tirx::MulNode>()) {
-          const auto* store_lhs = RemoveCast(add->a).as<tirx::BufferLoadNode>();
-          if (!store_lhs || !store->buffer.same_as(store_lhs->buffer) ||
+          const auto* store_lhs = RemoveCast(add->a).as<TensorLoadNode>();
+          if (!store_lhs ||
+              !store->buffer.same_as(store_lhs->source.as_or_throw<tvm::tirx::BufferVar>()) ||
               !IsSameArray(store->indices, store_lhs->indices)) {
             return false;
           }
-          const auto* lhs = RemoveCast(mul->a).as<tirx::BufferLoadNode>();
-          const auto* rhs = RemoveCast(mul->b).as<tirx::BufferLoadNode>();
+          const auto* lhs = RemoveCast(mul->a).as<TensorLoadNode>();
+          const auto* rhs = RemoveCast(mul->b).as<TensorLoadNode>();
           if (!lhs || !rhs) {
             return false;
           }
           return IsAllowReusePattern(ffi::GetRef<BufferStore>(store),
-                                     ffi::GetRef<BufferLoad>(lhs)) &&
-                 IsAllowReusePattern(ffi::GetRef<BufferStore>(store), ffi::GetRef<BufferLoad>(rhs));
+                                     ffi::GetRef<TensorLoad>(lhs)) &&
+                 IsAllowReusePattern(ffi::GetRef<BufferStore>(store), ffi::GetRef<TensorLoad>(rhs));
         }
       }
     }
@@ -341,8 +343,8 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    * \note We only support one BufferStore node in a block (usually generated by TE compute)
    */
   ffi::Optional<BufferStore> store_;
-  /*! \brief The BufferLoad nodes in the current block. */
-  ffi::Array<BufferLoad> loads_;
+  /*! \brief The TensorLoad nodes in the current block. */
+  ffi::Array<TensorLoad> loads_;
   /*! \brief The result of op pattern. */
   OpPatternKind kind_ = kElemWise;
   /*! \brief The buffers from function params. I.e. the input and output buffers. */
@@ -416,19 +418,19 @@ bool HasReshapePattern(const PrimFunc& func) {
 
       // Step 1. Get the load/store pattern of the block body.
       // To detect the reshape pattern, we require the block body to be a
-      // BufferStore, which has a BufferLoad as value.
+      // BufferStore, which has a TensorLoad as value.
       const auto* buffer_store = block->body.as<BufferStoreNode>();
       if (buffer_store == nullptr) {
         return;
       }
-      const auto* buffer_load = buffer_store->value.as<BufferLoadNode>();
+      const auto* buffer_load = buffer_store->value.as<TensorLoadNode>();
       if (buffer_load == nullptr) {
         return;
       }
       // Further, we require the buffer being stored and being loaded to
       // match the parameter of the PrimFunc, namely `dst_buffer_` and `src_buffer_`.
       if (!(buffer_store->buffer.same_as(dst_buffer_) &&
-            buffer_load->buffer.same_as(src_buffer_))) {
+            buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(src_buffer_))) {
         return;
       }
 

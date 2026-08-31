@@ -61,7 +61,7 @@ class PTXRewriter : public StmtMutator {
     Stmt result = StmtMutator::VisitStmt_(store);
     BufferVar load_buffer = store->buffer;
     PrimExpr load_value = store->value;
-    // const BufferLoadNode* gload = load_value.as<BufferLoadNode>(); // take
+    // const TensorLoadNode* gload = load_value.as<TensorLoadNode>(); // take
     // the place of instance of
     const CallNode* call = load_value.as<CallNode>();
     if (call != nullptr) {
@@ -71,10 +71,10 @@ class PTXRewriter : public StmtMutator {
         PrimExpr lhs = call->args[1].as_or_throw<PrimExpr>();
         PrimExpr rhs = call->args[2].as_or_throw<PrimExpr>();
         PrimExpr global_addr, local_addr;
-        const BufferLoadNode* load = lhs.as<BufferLoadNode>();
+        const TensorLoadNode* load = lhs.as<TensorLoadNode>();
         PrimExpr imm_value = rhs;
         if (load == nullptr) {
-          load = rhs.as<BufferLoadNode>();
+          load = rhs.as<TensorLoadNode>();
           imm_value = lhs;
           if (load == nullptr) {
             return result;
@@ -92,7 +92,8 @@ class PTXRewriter : public StmtMutator {
         BufferStore local_addr_store(addr_buffer, local_addr, {IntImm::Int32(1)});
         BufferStore predicate_store(predicate_buffer, predicate, {IntImm::Int32(0)});
         PrimExpr new_lhs, new_rhs, new_predicate, new_indice;
-        new_lhs = BufferLoad(load->buffer, {BufferLoad(addr_buffer, {IntImm::Int32(0)})});
+        new_lhs = BufferLoad(load->source.as_or_throw<tvm::tirx::BufferVar>(),
+                             {BufferLoad(addr_buffer, {IntImm::Int32(0)})});
         new_rhs = IntImm::Int32(0);
         new_predicate = BufferLoad(predicate_buffer, {IntImm::Int32(0)});
         new_indice = BufferLoad(addr_buffer, {IntImm::Int32(1)});

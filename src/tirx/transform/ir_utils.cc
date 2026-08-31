@@ -216,8 +216,8 @@ class IRConvertSSA final : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     auto output = VisitBufferAccess(std::move(node));
     return output;
   }
@@ -287,6 +287,15 @@ class IRConvertSSA final : public StmtExprMutator {
     }
 
     return node;
+  }
+
+  TensorLoad VisitBufferAccess(TensorLoad node) {
+    BufferVar buffer = node->source.as_or_throw<BufferVar>();
+    BufferVar new_buf = GetRemappedBuffer(buffer);
+    if (new_buf.same_as(buffer)) {
+      return node;
+    }
+    return BufferLoad(new_buf, node->indices, node->span);
   }
 
   Var GetRemappedVar(Var var) {
@@ -455,7 +464,7 @@ class IRConvertSSA final : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<AllocBufferNode>();
     // Use GetRemappedBuffer so that the AllocBuffer's buffer is the same
-    // object as the one used by BufferStore/BufferLoad in subsequent siblings.
+    // object as the one used by BufferStore/TensorLoad in subsequent siblings.
     BufferVar new_buf = GetRemappedBuffer(op->buffer);
     if (!new_buf.same_as(op->buffer)) {
       auto node = stmt.as_or_throw<AllocBuffer>();

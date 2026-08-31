@@ -110,7 +110,7 @@ def test_lower_nested_access_ptr():
     assert not access_ptr_calls
     assert len(address_calls) == 1
     load = address_calls[0].args[0]
-    assert isinstance(load, tvm.tirx.BufferLoad)
+    assert isinstance(load, tvm.ir.TensorLoad)
     assert int(tvm.arith.Analyzer().simplify(load.indices[0])) == 5
 
     targets = ["c"]
@@ -152,10 +152,10 @@ def test_lower_vector_access_ptr():
     assert lowered.ty == access_ptr.ty
 
     load = lowered.args[0]
-    assert isinstance(load, tvm.tirx.BufferLoad)
-    assert load.buffer.same_as(alias.buffer)
-    assert not load.buffer.same_as(buffer)
-    assert load.buffer.ty.dtype == tvm.ir.PrimType("float32")
+    assert isinstance(load, tvm.ir.TensorLoad)
+    assert load.source.same_as(alias.buffer)
+    assert not load.source.same_as(buffer)
+    assert load.source.ty.dtype == tvm.ir.PrimType("float32")
     assert len(load.indices) == 1
     ramp = load.indices[0]
     assert isinstance(ramp, tvm.tirx.Ramp)
@@ -185,8 +185,8 @@ def test_lower_buffer_data_access_ptr_preserves_buffer_identity():
     assert isinstance(lowered, tvm.ir.Call)
     assert lowered.op.name == "tirx.address_of"
     load = lowered.args[0]
-    assert isinstance(load, tvm.tirx.BufferLoad)
-    assert load.buffer.same_as(buffer)
+    assert isinstance(load, tvm.ir.TensorLoad)
+    assert load.source.same_as(buffer)
     assert int(load.indices[0]) == 3
 
 
@@ -204,8 +204,8 @@ def test_lower_access_ptr_uses_flat_alias_for_non_1d_buffer(shape):
     assert isinstance(alias, tvm.tirx.DeclBuffer)
     assert len(alias.buffer.ty.shape) == 1
     load = lowered.seq[1].value.args[0]
-    assert isinstance(load, tvm.tirx.BufferLoad)
-    assert load.buffer.same_as(alias.buffer)
+    assert isinstance(load, tvm.ir.TensorLoad)
+    assert load.source.same_as(alias.buffer)
     assert len(load.indices) == 1
 
 

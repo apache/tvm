@@ -23,7 +23,7 @@ from collections.abc import Callable
 import tvm_ffi
 
 from tvm import tirx as _tirx
-from tvm.ir import Call, Op, is_prim_expr
+from tvm.ir import Call, Op, TensorLoad, is_prim_expr
 from tvm.ir.utils import derived_object
 from tvm.runtime import Object
 
@@ -152,7 +152,7 @@ class ExprFunctor:
             ret = self.visit_function_(expr)
         elif isinstance(expr, Call):  # type: ignore
             ret = self.visit_call_(expr)
-        elif isinstance(expr, _tirx.BufferLoad):
+        elif isinstance(expr, TensorLoad):
             ret = self.visit_buffer_load_(expr)
         elif isinstance(expr, _tirx.Add):
             ret = self.visit_add_(expr)
@@ -256,7 +256,7 @@ class ExprFunctor:
     def visit_call_(self, op: Call):
         raise NotImplementedError()
 
-    def visit_buffer_load_(self, op: _tirx.BufferLoad):
+    def visit_buffer_load_(self, op: TensorLoad):
         return self.visit_expr_fallback_(op)
 
     def visit_add_(self, op: _tirx.Add):

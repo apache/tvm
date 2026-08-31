@@ -1024,14 +1024,14 @@ class CacheReadRewriter : public StmtExprMutator {
     return ret;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* load) override {
-    if (load->buffer.same_as(info_->read_buffer) && current_block_consumes) {
-      ffi::ObjectPtr<BufferLoadNode> n = ffi::make_object<BufferLoadNode>(*load);
-      n->buffer = info_->write_buffer;
+  Expr VisitExpr_(const TensorLoadNode* load) override {
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->read_buffer) &&
+        current_block_consumes) {
+      ffi::Array<PrimExpr> indices = load->indices;
       if (!cache_full_region_) {
-        n->indices = RewriteIndices(load->indices);
+        indices = RewriteIndices(load->indices);
       }
-      return PrimExpr(n);
+      return BufferLoad(info_->write_buffer, indices, load->span);
     }
     return ExprMutator::VisitExpr_(load);
   }
@@ -1117,12 +1117,10 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
     };
   }
 
-  Expr VisitExpr_(const BufferLoadNode* load) final {
-    if (load->buffer.same_as(info_->read_buffer) && current_block_consumes) {
-      ffi::ObjectPtr<BufferLoadNode> n = ffi::make_object<BufferLoadNode>(*load);
-      n->buffer = info_->write_buffer;
-      n->indices = new_indices_;
-      return PrimExpr(n);
+  Expr VisitExpr_(const TensorLoadNode* load) final {
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->read_buffer) &&
+        current_block_consumes) {
+      return BufferLoad(info_->write_buffer, new_indices_, load->span);
     }
     return ExprMutator::VisitExpr_(load);
   }
@@ -1308,14 +1306,13 @@ class CacheWriteRewriter : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const BufferLoadNode* load) override {
-    if (load->buffer.same_as(info_->write_buffer)) {
-      ffi::ObjectPtr<BufferLoadNode> n = ffi::make_object<BufferLoadNode>(*load);
-      n->buffer = info_->read_buffer;
+  Expr VisitExpr_(const TensorLoadNode* load) override {
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->write_buffer)) {
+      ffi::Array<PrimExpr> indices = load->indices;
       if (!cache_full_region_) {
-        n->indices = RewriteIndices(n->indices);
+        indices = RewriteIndices(indices);
       }
-      return PrimExpr(n);
+      return BufferLoad(info_->read_buffer, indices, load->span);
     }
     return ExprMutator::VisitExpr_(load);
   }
@@ -1418,12 +1415,9 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
     }
   }
 
-  Expr VisitExpr_(const BufferLoadNode* load) final {
-    if (load->buffer.same_as(info_->write_buffer)) {
-      ffi::ObjectPtr<BufferLoadNode> n = ffi::make_object<BufferLoadNode>(*load);
-      n->buffer = info_->read_buffer;
-      n->indices = new_indices_;
-      return PrimExpr(n);
+  Expr VisitExpr_(const TensorLoadNode* load) final {
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->write_buffer)) {
+      return BufferLoad(info_->read_buffer, new_indices_, load->span);
     }
     return ExprMutator::VisitExpr_(load);
   }
@@ -1487,14 +1481,14 @@ class InvalidBufferAccessError : public ScheduleError {
   InvalidBufferAccessError(IRModule mod, BufferVar buffer, SBlock block, ErrorKind kind)
       : mod_(std::move(mod)), buffer_(std::move(buffer)), block_(std::move(block)), kind_(kind) {}
   ffi::String FastErrorString() const final {
-    return "ScheduleError: The target buffer should be accessed via BufferLoad or BufferStore. The "
+    return "ScheduleError: The target buffer should be accessed via TensorLoad or BufferStore. The "
            "indices should be the same if there are multiple accesses to the target buffer.";
   }
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "The target buffer " << buffer_.name()
-       << " should be accessed in the leaf block {0} via BufferLoad or BufferStore. The indices "
+       << " should be accessed in the leaf block {0} via TensorLoad or BufferStore. The indices "
           "should be the same if there are multiple accesses to the target buffer. ";
     if (kind_ == ErrorKind::kNoAccess) {
       os << "No buffer accesses found.";
@@ -1533,9 +1527,9 @@ class ReIndexCollector : public StmtExprVisitor {
   explicit ReIndexCollector(const IRModule& mod, const BufferVar& buffer, const SBlock& block)
       : mod_(mod), buffer_(buffer), block_(block) {}
 
-  void VisitExpr_(const BufferLoadNode* load) final {
+  void VisitExpr_(const TensorLoadNode* load) final {
     StmtExprVisitor::VisitExpr_(load);
-    if (load->buffer.same_as(buffer_)) {
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
       CheckAndUpdateBufferAccessIndices(load->indices);
     }
   }
@@ -1651,13 +1645,18 @@ class ReIndexRewriter : public StmtExprMutator {
     }
     return node;
   }
+  TensorLoad VisitBufferAccess(TensorLoad node) {
+    return node->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)
+               ? BufferLoad(new_buffer_, indices_, node->span)
+               : node;
+  }
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     BufferStore buffer_store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     return VisitBufferAccess(std::move(buffer_store));
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad buffer_load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    TensorLoad buffer_load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     return VisitBufferAccess(std::move(buffer_load));
   }
 

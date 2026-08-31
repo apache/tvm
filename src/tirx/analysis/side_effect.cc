@@ -38,7 +38,7 @@ class ExprSideEffect : public ExprVisitor {
     ExprVisitor::VisitExpr(e);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
+  void VisitExpr_(const TensorLoadNode* op) final {
     this->UpdateEffect(CallEffectKind::kReadState);
     ExprVisitor::VisitExpr_(op);
   }

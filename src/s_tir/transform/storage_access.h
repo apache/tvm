@@ -82,7 +82,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
     std::vector<AccessEntry> access;
   };
   // override visitor pattern
-  void VisitExpr_(const BufferLoadNode* op) final;
+  void VisitExpr_(const TensorLoadNode* op) final;
   void VisitStmt_(const BufferStoreNode* op) final;
   void VisitStmt_(const DeclBufferNode* op) final;
   void VisitStmt_(const EvaluateNode* op) final;

@@ -108,11 +108,11 @@ def test_expr_constructor():
     buffer_var = tvm.tirx.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
     buffer = tvm.tirx.decl_buffer([16], "float32", data=buffer_var)
     x = tvm.tirx.BufferLoad(buffer, [1])
-    assert isinstance(x, tvm.tirx.BufferLoad)
+    assert isinstance(x, tvm.ir.TensorLoad)
     assert x.ty == tvm.ir.PrimType("float32")
-    assert x.buffer == buffer
-    assert x.buffer.data.args[0].same_as(buffer)
-    assert x.buffer.data.ty == tvm.tirx.buffer_data_pointer_type(buffer)
+    assert x.source == buffer
+    assert x.source.data.args[0].same_as(buffer)
+    assert x.source.data.ty == tvm.tirx.buffer_data_pointer_type(buffer)
     assert list(x.indices) == [1]
 
     x = tvm.tirx.Ramp(1, 2, 10)

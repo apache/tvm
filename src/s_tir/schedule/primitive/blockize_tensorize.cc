@@ -796,8 +796,8 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> impl2desc;
   TVM_FFI_ICHECK_EQ(intrin_desc->params.size(), intrin_impl->params.size());
   for (int i = 0, n = intrin_desc->params.size(); i < n; ++i) {
-    BufferVar desc = intrin_desc->params[i].as_or_throw<BufferVar>();
-    BufferVar impl = intrin_impl->params[i].as_or_throw<BufferVar>();
+    BufferVar desc = intrin_desc->params[i].as_or_throw<tvm::tirx::BufferVar>();
+    BufferVar impl = intrin_impl->params[i].as_or_throw<tvm::tirx::BufferVar>();
     impl2desc[impl] = desc;
   }
   std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> impl2cur;
@@ -821,7 +821,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   ffi::Array<MatchBufferRegion> match_buffer_regions;
   match_buffer_regions.reserve(intrin_impl->params.size());
   for (int i = 0, n = intrin_impl->params.size(); i < n; ++i) {
-    BufferVar impl = intrin_impl->params[i].as_or_throw<BufferVar>();
+    BufferVar impl = intrin_impl->params[i].as_or_throw<tvm::tirx::BufferVar>();
     const BufferVar& cur = impl2cur.at(impl);
     const ffi::Array<Range>& old_region = impl2region.at(impl);
     const std::vector<PrimExpr>& indices_base = comparator.buffer_indices_.at(cur);

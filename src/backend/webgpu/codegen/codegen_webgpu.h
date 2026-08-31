@@ -68,7 +68,7 @@ class CodeGenWebGPU final : public CodeGenC {
   // overload visitor
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;   // NOLINT(*)
   void VisitExpr_(const CallNode* op, std::ostream& os) final;        // NOLINT(*)
-  void VisitExpr_(const BufferLoadNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const TensorLoadNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const CastNode* op, std::ostream& os) final;        // NOLINT(*)
   void VisitExpr_(const SelectNode* op, std::ostream& os) final;      // NOLINT(*)
   void VisitExpr_(const LetNode* op, std::ostream& os) final;         // NOLINT(*)

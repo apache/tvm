@@ -534,15 +534,15 @@ class ComputeInliner : public BaseInliner {
   using BaseInliner::VisitExpr_;
   using BaseInliner::VisitStmt_;
 
-  Expr VisitExpr_(const BufferLoadNode* _load) final {
-    BufferLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<BufferLoad>();
-    if (!load->buffer.same_as(inlined_buffer_)) {
+  Expr VisitExpr_(const TensorLoadNode* _load) final {
+    TensorLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<TensorLoad>();
+    if (!load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(inlined_buffer_)) {
       return load;
     }
     return ReplaceInlinedBuffer(std::move(load));
   }
 
-  PrimExpr ReplaceInlinedBuffer(BufferLoad load) {
+  PrimExpr ReplaceInlinedBuffer(TensorLoad load) {
     SetIndexSubstitution(load->indices);
     return Substitute(store_value_, idx_sub_);
   }
@@ -588,9 +588,11 @@ class ReverseComputeInliner : public BaseInliner {
       return (*it).second;
     }
 
-    Expr VisitExpr_(const BufferLoadNode* _load) final {
-      BufferLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<BufferLoad>();
-      return load->buffer.same_as(self_->inlined_buffer_) ? self_->producer_rhs_ : load;
+    Expr VisitExpr_(const TensorLoadNode* _load) final {
+      TensorLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<TensorLoad>();
+      return load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(self_->inlined_buffer_)
+                 ? self_->producer_rhs_
+                 : load;
     }
 
     ReverseComputeInliner* self_;
@@ -609,9 +611,9 @@ class ReverseComputeInliner : public BaseInliner {
       return (*it).second;
     }
 
-    Expr VisitExpr_(const BufferLoadNode* _load) final {
-      BufferLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<BufferLoad>();
-      return load->buffer.same_as(self_->inlined_buffer_)
+    Expr VisitExpr_(const TensorLoadNode* _load) final {
+      TensorLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<TensorLoad>();
+      return load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(self_->inlined_buffer_)
                  ? StmtExprMutator::VisitExpr(
                        BufferLoad(self_->inlined_store_->buffer, self_->inlined_store_->indices))
                  : load;
@@ -647,9 +649,9 @@ class ReverseComputeInliner : public BaseInliner {
       // Failure: block body is not BufferStore
       return false;
     }
-    std::vector<const BufferLoadNode*> loads = ExtractBufferLoad(inlined_buffer_, inlined_store_);
+    std::vector<const TensorLoadNode*> loads = ExtractBufferLoad(inlined_buffer_, inlined_store_);
     if (loads.size() == 0) {
-      // Failure: no BufferLoad from the `inlined_buffer_`
+      // Failure: no TensorLoad from the `inlined_buffer_`
       return false;
     }
 
@@ -663,7 +665,7 @@ class ReverseComputeInliner : public BaseInliner {
       }
     }
 
-    for (const BufferLoadNode* load : loads) {
+    for (const TensorLoadNode* load : loads) {
       if (!UpdateAndCheckIndexExprs(load->indices)) {
         return false;
       }
@@ -678,7 +680,7 @@ class ReverseComputeInliner : public BaseInliner {
         /*simplify_trivial_iterators=*/false);
     buffer_load_iter_map_ = res->indices;
     if (buffer_load_iter_map_.empty()) {
-      // Failure: indices of BufferLoad are not bijective affine
+      // Failure: indices of TensorLoad are not bijective affine
       return false;
     }
 
@@ -830,17 +832,17 @@ class ReverseComputeInliner : public BaseInliner {
    * \param from The BufferStore statement to be extracted from
    * \return A list of `BufferLoad` expressions
    */
-  static std::vector<const BufferLoadNode*> ExtractBufferLoad(const BufferVar& buffer,
+  static std::vector<const TensorLoadNode*> ExtractBufferLoad(const BufferVar& buffer,
                                                               const BufferStoreNode* from) {
     struct Extractor : public ExprVisitor {
-      void VisitExpr_(const BufferLoadNode* load) final {
-        if (load->buffer.get() == buffer) {
+      void VisitExpr_(const TensorLoadNode* load) final {
+        if (load->source.as_or_throw<tvm::tirx::BufferVar>().get() == buffer) {
           result.push_back(load);
         }
         ExprVisitor::VisitExpr_(load);
       }
       const VarNode* buffer;
-      std::vector<const BufferLoadNode*> result;
+      std::vector<const TensorLoadNode*> result;
     } extractor;
     extractor.buffer = buffer.get();
     for (const PrimExpr& expr : from->indices) {
@@ -1025,19 +1027,19 @@ class ReductionEpilogueFuser : public BaseInliner {
  private:
   bool IsReductionBlock(const SBlockNode* block);
   void ExtractEpilogueInfo();
-  // Helper function to extract BufferLoad nodes from BufferStore
-  static std::vector<const BufferLoadNode*> ExtractBufferLoad(const BufferVar& buffer,
+  // Helper function to extract TensorLoad nodes from BufferStore
+  static std::vector<const TensorLoadNode*> ExtractBufferLoad(const BufferVar& buffer,
                                                               const BufferStoreNode* from) {
     struct Extractor : public ExprVisitor {
-      void VisitExpr_(const BufferLoadNode* load) final {
-        if (load->buffer.same_as(buffer)) {
+      void VisitExpr_(const TensorLoadNode* load) final {
+        if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
           result.push_back(load);
         }
         // Continue visiting child nodes (indices)
         ExprVisitor::VisitExpr_(load);
       }
       BufferVar buffer;
-      std::vector<const BufferLoadNode*> result;
+      std::vector<const TensorLoadNode*> result;
     } extractor;
     extractor.buffer = buffer;
     // Visit indices first (though they typically don't contain BufferLoad)
@@ -1054,7 +1056,7 @@ class ReductionEpilogueFuser : public BaseInliner {
   // Generalized approach: store the entire epilogue expression
   PrimExpr epilogue_expression_{
       nullptr};  // The entire epilogue expression (e.g., temp + C, max(temp + C, 0))
-  const BufferLoadNode* reduction_buffer_load_{
+  const TensorLoadNode* reduction_buffer_load_{
       nullptr};                                // The reduction buffer load in epilogue expression
   BufferVar epilogue_output_buffer_{nullptr};  // Output buffer D
   ffi::Array<PrimExpr> epilogue_output_indices_{nullptr};  // Indices of D[vi, vj]
@@ -1077,9 +1079,9 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
   }
 
   // 3. Check if epilogue reads from reduction buffer
-  std::vector<const BufferLoadNode*> loads = ExtractBufferLoad(inlined_buffer_, inlined_store_);
+  std::vector<const TensorLoadNode*> loads = ExtractBufferLoad(inlined_buffer_, inlined_store_);
   if (loads.size() == 0) {
-    // Failure: no BufferLoad from the reduction buffer
+    // Failure: no TensorLoad from the reduction buffer
     return false;
   }
 
@@ -1122,8 +1124,8 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
         }
 
        private:
-        void VisitExpr_(const BufferLoadNode* op) final {
-          if (op->buffer.same_as(buffer_)) {
+        void VisitExpr_(const TensorLoadNode* op) final {
+          if (op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
             found_ = true;
             return;
           }
@@ -1217,9 +1219,9 @@ void ReductionEpilogueFuser::ExtractEpilogueInfo() {
   // Generalized approach: extract all non-reduction buffers from epilogue expression
   // Find all buffers in epilogue expression (except the reduction buffer)
   struct BufferExtractor : public ExprVisitor {
-    void VisitExpr_(const BufferLoadNode* load) final {
-      if (!load->buffer.same_as(reduction_buffer)) {
-        other_buffers.insert(load->buffer.get());
+    void VisitExpr_(const TensorLoadNode* load) final {
+      if (!load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(reduction_buffer)) {
+        other_buffers.insert(load->source.as_or_throw<tvm::tirx::BufferVar>().get());
       }
       ExprVisitor::VisitExpr_(load);
     }
@@ -1278,9 +1280,9 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
     InitSubstituter(const BufferVar& target_buffer, PrimExpr identity_elem)
         : target_buffer_(target_buffer), identity_elem_(identity_elem) {}
 
-    Expr VisitExpr_(const BufferLoadNode* op) final {
-      BufferLoad load = ExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
-      if (load->buffer.same_as(target_buffer_)) {
+    Expr VisitExpr_(const TensorLoadNode* op) final {
+      TensorLoad load = ExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+      if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(target_buffer_)) {
         return identity_elem_;
       }
       return load;
@@ -1333,9 +1335,9 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
           ReductionUpdateReplacer(const BufferVar& old_buf, const BufferVar& new_buf)
               : old_buffer_(old_buf), new_buffer_(new_buf) {}
 
-          Expr VisitExpr_(const BufferLoadNode* op) final {
-            BufferLoad load = ExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
-            if (load->buffer.same_as(old_buffer_)) {
+          Expr VisitExpr_(const TensorLoadNode* op) final {
+            TensorLoad load = ExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+            if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)) {
               return BufferLoad(new_buffer_, load->indices);
             }
             return load;
@@ -1361,9 +1363,9 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
                 replacement_(replacement),
                 found_target_load_(false) {}
 
-          Expr VisitExpr_(const BufferLoadNode* op) final {
-            BufferLoad load = ExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
-            if (load->buffer.same_as(target_buffer_)) {
+          Expr VisitExpr_(const TensorLoadNode* op) final {
+            TensorLoad load = ExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+            if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(target_buffer_)) {
               found_target_load_ = true;
               // Check if parent is Add (will be checked in VisitExpr_(const AddNode*))
               return replacement_;
@@ -1390,8 +1392,9 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
               bool other_is_reduction = false;
               if (found_in_a) {
                 // Check if b is from reduction buffer
-                if (const auto* load_b = b.as<BufferLoadNode>()) {
-                  other_is_reduction = load_b->buffer.same_as(reduction_buffer_);
+                if (const auto* load_b = b.as<TensorLoadNode>()) {
+                  other_is_reduction =
+                      load_b->source.as_or_throw<tvm::tirx::BufferVar>().same_as(reduction_buffer_);
                 }
                 if (!other_is_reduction) {
                   // b is the bias addend, remove it
@@ -1399,8 +1402,9 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
                 }
               } else {  // found_in_b
                 // Check if a is from reduction buffer
-                if (const auto* load_a = a.as<BufferLoadNode>()) {
-                  other_is_reduction = load_a->buffer.same_as(reduction_buffer_);
+                if (const auto* load_a = a.as<TensorLoadNode>()) {
+                  other_is_reduction =
+                      load_a->source.as_or_throw<tvm::tirx::BufferVar>().same_as(reduction_buffer_);
                 }
                 if (!other_is_reduction) {
                   // a is the bias addend, remove it
@@ -1434,9 +1438,9 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
       return store;
     }
 
-    Expr VisitExpr_(const BufferLoadNode* op) final {
-      BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
-      if (load->buffer.same_as(old_buffer_)) {
+    Expr VisitExpr_(const TensorLoadNode* op) final {
+      TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+      if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)) {
         return BufferLoad(new_buffer_, load->indices);
       }
       return load;

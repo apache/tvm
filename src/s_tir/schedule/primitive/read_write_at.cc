@@ -99,12 +99,10 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* _load) final {
-    BufferLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<BufferLoad>();
-    if (load->buffer.same_as(src_)) {
-      ffi::ObjectPtr<BufferLoadNode> new_load = ffi::make_object<BufferLoadNode>(*load.get());
-      new_load->buffer = dst_;
-      return BufferLoad(new_load);
+  Expr VisitExpr_(const TensorLoadNode* _load) final {
+    TensorLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<TensorLoad>();
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(src_)) {
+      return BufferLoad(dst_, load->indices, load->span);
     }
     return load;
   }

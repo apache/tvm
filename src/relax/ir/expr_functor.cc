@@ -175,7 +175,7 @@ void ExprVisitor::VisitExpr_(const CallNode* op) {
   VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
-void ExprVisitor::VisitExpr_(const tirx::BufferLoadNode* op) {
+void ExprVisitor::VisitExpr_(const TensorLoadNode* op) {
   this->VisitSpan(op->span);
   for (const PrimExpr& index : op->indices) {
     this->VisitExpr(index);
@@ -530,13 +530,13 @@ Expr ExprMutatorBase::VisitExpr_(const CallNode* call_node) {
   }
 }
 
-Expr ExprMutatorBase::VisitExpr_(const tirx::BufferLoadNode* op) {
+Expr ExprMutatorBase::VisitExpr_(const TensorLoadNode* op) {
   ffi::Array<PrimExpr> indices = op->indices.Map(
       [this](const PrimExpr& e) { return this->VisitExpr(e).as_or_throw<PrimExpr>(); });
   if (indices.same_as(op->indices)) {
     return ffi::GetRef<Expr>(op);
   }
-  return tirx::BufferLoad(op->buffer, indices, op->span);
+  return tirx::BufferLoad(op->source.as_or_throw<tirx::BufferVar>(), indices, op->span);
 }
 
 #define RELAX_MUTATE_TIRX_BINOP(OP)                              \

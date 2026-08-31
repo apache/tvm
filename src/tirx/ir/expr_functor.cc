@@ -30,7 +30,7 @@ namespace tirx {
 
 void ExprVisitor::VisitExpr_(const VarNode* op) {}
 
-void ExprVisitor::VisitExpr_(const BufferLoadNode* op) {
+void ExprVisitor::VisitExpr_(const TensorLoadNode* op) {
   VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
 }
 
@@ -118,13 +118,13 @@ void ExprVisitor::VisitExpr_(const BroadcastNode* op) { this->VisitExpr(op->valu
 
 Expr ExprMutator::VisitExpr_(const VarNode* op) { return ffi::GetRef<Var>(op); }
 
-Expr ExprMutator::VisitExpr_(const BufferLoadNode* op) {
+Expr ExprMutator::VisitExpr_(const TensorLoadNode* op) {
   auto fmutate = [this](const PrimExpr& e) { return this->VisitPrimExpr(e); };
   ffi::Array<PrimExpr> indices = op->indices.Map(fmutate);
   if (indices.same_as(op->indices)) {
     return ffi::GetRef<PrimExpr>(op);
   } else {
-    return BufferLoad(op->buffer, indices);
+    return BufferLoad(op->source.as_or_throw<tvm::tirx::BufferVar>(), indices, op->span);
   }
 }
 

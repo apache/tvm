@@ -127,11 +127,11 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
       {loops[n - 1]->loop_var, IntSet::FromMinExtent(loops[n - 1]->min, loops[n - 1]->extent)},
       {loops[n - 2]->loop_var, IntSet::FromMinExtent(loops[n - 2]->min, loops[n - 2]->extent)},
   };
-  // TODO(tian): the assumption that the RHS of BufferStore is BufferLoad may not be accurate
+  // TODO(tian): the assumption that the RHS of BufferStore is TensorLoad may not be accurate
   const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
-  const BufferLoadNode* buf_load = TVM_TYPE_AS(buf_store->value, BufferLoadNode);
+  const TensorLoadNode* buf_load = TVM_TYPE_AS(buf_store->value, TensorLoadNode);
 
-  BufferVar src_buffer = buf_load->buffer;
+  BufferVar src_buffer = buf_load->source.as_or_throw<tvm::tirx::BufferVar>();
   BufferVar tgt_buffer = buf_store->buffer;
   std::string layout = tgt_buffer.scope() == "wmma.matrix_a" ? "row_major" : "col_major";
   BufferVar new_src_buffer(
@@ -224,19 +224,21 @@ Stmt RewriteWmmaStore(Stmt stmt) {
       {loops[n - 1]->loop_var, IntSet::FromMinExtent(loops[n - 1]->min, loops[n - 1]->extent)},
       {loops[n - 2]->loop_var, IntSet::FromMinExtent(loops[n - 2]->min, loops[n - 2]->extent)},
   };
-  // TODO(tian): the assumption that the RHS of BufferStore is BufferLoad may not be accurate
+  // TODO(tian): the assumption that the RHS of BufferStore is TensorLoad may not be accurate
   const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
-  const BufferLoadNode* buf_load = nullptr;
+  const TensorLoadNode* buf_load = nullptr;
   PostOrderVisit(buf_store->value, [&](const ffi::ObjectRef& obj) {
-    const BufferLoadNode* load = obj.as<BufferLoadNode>();
-    if (load && load->buffer.scope() == "wmma.accumulator") {
-      TVM_FFI_ICHECK(buf_load == nullptr || buf_load->buffer.same_as(load->buffer))
+    const TensorLoadNode* load = obj.as<TensorLoadNode>();
+    if (load && load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "wmma.accumulator") {
+      TVM_FFI_ICHECK(buf_load == nullptr ||
+                     buf_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
+                         load->source.as_or_throw<tvm::tirx::BufferVar>()))
           << "More than one source buffer of wmma accumulator found";
       buf_load = load;
     }
     return true;
   });
-  BufferVar src_buffer = buf_load->buffer;
+  BufferVar src_buffer = buf_load->source.as_or_throw<tvm::tirx::BufferVar>();
   BufferVar tgt_buffer = buf_store->buffer;
 
   PrimType dtype_ty = src_buffer->dtype;
@@ -435,11 +437,13 @@ Stmt RewriteMmaStore(Stmt stmt) {
 
   // Step 2. Find matrixC buffer
   const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
-  const BufferLoadNode* buf_load = nullptr;
+  const TensorLoadNode* buf_load = nullptr;
   PostOrderVisit(buf_store->value, [&](const ffi::ObjectRef& obj) {
-    const BufferLoadNode* load = obj.as<BufferLoadNode>();
-    if (load && load->buffer.scope() == "m16n8k8.matrixC") {
-      TVM_FFI_ICHECK(buf_load == nullptr || buf_load->buffer.same_as(load->buffer))
+    const TensorLoadNode* load = obj.as<TensorLoadNode>();
+    if (load && load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "m16n8k8.matrixC") {
+      TVM_FFI_ICHECK(buf_load == nullptr ||
+                     buf_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
+                         load->source.as_or_throw<tvm::tirx::BufferVar>()))
           << "More than one source buffer of mma accumulator found";
       buf_load = load;
     }
@@ -455,7 +459,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
   // https://docs.nvidia.com/cuda/archive/11.1.0/pdf/ptx_isa_7.1.pdf
 
   // Step 3.1. Generate new buffer
-  BufferVar src_buffer = buf_load->buffer;
+  BufferVar src_buffer = buf_load->source.as_or_throw<tvm::tirx::BufferVar>();
   BufferVar tgt_buffer = buf_store->buffer;
   PrimType dtype_ty = src_buffer->dtype;
   const PrimType& dtype = dtype_ty;

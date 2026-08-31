@@ -385,8 +385,8 @@ bool TensorizeComparator::VisitExpr_(const VarNode* op, const PrimExpr& other) {
   return it != equal_map_.end() && it->second.same_as(other);
 }
 
-bool TensorizeComparator::VisitExpr_(const BufferLoadNode* op, const PrimExpr& other) {
-  const auto* rhs = other.as<BufferLoadNode>();
+bool TensorizeComparator::VisitExpr_(const TensorLoadNode* op, const PrimExpr& other) {
+  const auto* rhs = other.as<TensorLoadNode>();
   return CompareBufferAccess(op, rhs);
 }
 
@@ -625,10 +625,17 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
   return true;
 }
 
-// Comparator for BufferStoreNode and BufferLoadNode
+// Comparator for BufferStoreNode and TensorLoadNode
+inline BufferVar GetBufferAccessBuffer(const BufferStoreNode* op) { return op->buffer; }
+inline BufferVar GetBufferAccessBuffer(const TensorLoadNode* op) {
+  return op->source.as_or_throw<tvm::tirx::BufferVar>();
+}
+
 template <typename T>
 bool TensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
-  if (!CompareBuffer(lhs->buffer, rhs->buffer)) return false;
+  BufferVar lhs_buffer = GetBufferAccessBuffer(lhs);
+  BufferVar rhs_buffer = GetBufferAccessBuffer(rhs);
+  if (!CompareBuffer(lhs_buffer, rhs_buffer)) return false;
   int offset = static_cast<int>(lhs->indices.size()) - static_cast<int>(rhs->indices.size());
   if (offset < 0) {
     if (assert_mode_) {
@@ -640,7 +647,7 @@ bool TensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
     }
     return false;
   }
-  auto it = buffer_indices_.find(lhs->buffer);
+  auto it = buffer_indices_.find(lhs_buffer);
   TVM_FFI_ICHECK(it != buffer_indices_.end());
   const std::vector<PrimExpr>& indices_base = (*it).second;
   TVM_FFI_ICHECK_EQ(indices_base.size(), rhs->indices.size() + offset);
@@ -775,17 +782,19 @@ bool AutoTensorizeComparator::VisitStmt_(const BufferStoreNode* op, const Stmt& 
   return CompareBufferAccess(op, rhs) && VisitExpr(op->value, rhs->value);
 }
 
-bool AutoTensorizeComparator::VisitExpr_(const BufferLoadNode* op, const PrimExpr& other) {
-  const auto* rhs = other.as<BufferLoadNode>();
+bool AutoTensorizeComparator::VisitExpr_(const TensorLoadNode* op, const PrimExpr& other) {
+  const auto* rhs = other.as<TensorLoadNode>();
   return CompareBufferAccess(op, rhs);
 }
 
 template <typename T>
 bool AutoTensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
-  if (!CompareBuffer(lhs->buffer, rhs->buffer)) return false;
-  auto it_lhs = lhs_buffer_indices_map_.find(lhs->buffer);
+  BufferVar lhs_buffer = GetBufferAccessBuffer(lhs);
+  BufferVar rhs_buffer = GetBufferAccessBuffer(rhs);
+  if (!CompareBuffer(lhs_buffer, rhs_buffer)) return false;
+  auto it_lhs = lhs_buffer_indices_map_.find(lhs_buffer);
   if (it_lhs == lhs_buffer_indices_map_.end()) {
-    if (rhs_buffer_indices_map_.find(rhs->buffer) != rhs_buffer_indices_map_.end()) {
+    if (rhs_buffer_indices_map_.find(rhs_buffer) != rhs_buffer_indices_map_.end()) {
       return false;
     }
     std::vector<PrimExpr> lhs_indices;
@@ -804,10 +813,10 @@ bool AutoTensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
     for (const auto& index : rhs->indices) {
       if (!index.template as<PrimVar>() && !is_scalar_access(rhs->indices, index)) return false;
     }
-    lhs_buffer_indices_map_[lhs->buffer] = lhs_indices;
-    rhs_buffer_indices_map_[rhs->buffer] = rhs->indices;
+    lhs_buffer_indices_map_[lhs_buffer] = lhs_indices;
+    rhs_buffer_indices_map_[rhs_buffer] = rhs->indices;
   } else {
-    auto it_rhs = rhs_buffer_indices_map_.find(rhs->buffer);
+    auto it_rhs = rhs_buffer_indices_map_.find(rhs_buffer);
     if (it_rhs == rhs_buffer_indices_map_.end()) {
       return false;
     }

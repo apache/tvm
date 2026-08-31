@@ -220,22 +220,23 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return store;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const TensorLoadNode* op) final {
     // Rewrite load from shared or shared.dyn to global
-    auto load = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<BufferLoad>();
+    auto load = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<TensorLoad>();
 
-    if (!permute_ || load->buffer->shape.size() < 2) {
+    if (!permute_ || load->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size() < 2) {
       return load;
     }
 
-    auto scope = StorageScope::Create(load->buffer.scope());
+    auto scope = StorageScope::Create(load->source.as_or_throw<tvm::tirx::BufferVar>().scope());
     if (scope.rank != StorageRank::kShared) {
       return load;
     }
 
-    auto load_node = load.CopyOnWrite();
-    load_node->indices = HandleBufferIndices(load_node->buffer, load_node->indices);
-    return load;
+    return BufferLoad(
+        load->source.as_or_throw<tvm::tirx::BufferVar>(),
+        HandleBufferIndices(load->source.as_or_throw<tvm::tirx::BufferVar>(), load->indices),
+        load->span);
   }
 
   Expr HandleAccessPtrAndOffset(Expr access_ptr, ffi::Optional<PrimExpr> offset = std::nullopt) {

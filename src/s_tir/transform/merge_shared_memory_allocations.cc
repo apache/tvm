@@ -213,10 +213,10 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
+  void VisitExpr_(const TensorLoadNode* op) final {
     // Add read access.
     StmtExprVisitor::VisitExpr_(op);
-    const VarNode* buf = ResolveAlias(op->buffer.get());
+    const VarNode* buf = ResolveAlias(op->source.as_or_throw<tvm::tirx::BufferVar>().get());
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.buffer.defined()) {
       TVM_FFI_ICHECK_LT(it->second.level, scope_.size())
@@ -229,7 +229,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
 
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::address_of())) {
-      if (const auto* load = op->args[0].as<BufferLoadNode>()) {
+      if (const auto* load = op->args[0].as<TensorLoadNode>()) {
         for (const auto& index : load->indices) {
           this->VisitExpr(index);
         }
@@ -498,8 +498,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
     return node;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     return VisitBufferAccess(std::move(node));
   }
 
@@ -525,6 +525,20 @@ class SharedMemoryRewriter : public StmtExprMutator {
     }
 
     return node;
+  }
+
+  TensorLoad VisitBufferAccess(TensorLoad node) {
+    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    if (!IsAppropriateSharedMemory(buffer) || scope_stack_.empty() ||
+        !ResolveAllocation(buffer.get(), scope_stack_.back())) {
+      return node;
+    }
+    TVM_FFI_ICHECK_EQ(node->indices.size(), 1)
+        << "MergeSharedMemoryAllocations expects flat memory buffers, and is to be run after "
+           "FlattenBuffer";
+    ffi::Array<PrimExpr> indices = {node->indices[0] +
+                                    this->GetBufferOffset(buffer.var(), buffer->dtype->dtype)};
+    return BufferLoad(GetUpdatedBuffer(buffer), indices, node->span);
   }
 
   BufferVar GetUpdatedBuffer(BufferVar buffer) {

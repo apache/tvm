@@ -375,11 +375,13 @@ class RollingBufferRewriter : public StmtExprMutator {
     return stmt;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad stmt = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
-    if (stmt->buffer.same_as(info_->old_buffer)) {
-      BufferLoadNode* n = stmt.CopyOnWrite();
-      RewriteBufferAccess(&n->buffer, &n->indices);
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    TensorLoad stmt = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+    if (stmt->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->old_buffer)) {
+      BufferVar buffer = stmt->source.as_or_throw<tvm::tirx::BufferVar>();
+      ffi::Array<PrimExpr> indices = stmt->indices;
+      RewriteBufferAccess(&buffer, &indices);
+      return BufferLoad(buffer, indices, stmt->span);
     }
     return stmt;
   }

@@ -198,11 +198,11 @@ class AutoPadder {
           : buffer_map_(buffer_map) {}
 
      private:
-      Expr VisitExpr_(const BufferLoadNode* _op) final {
-        BufferLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<BufferLoad>();
-        BufferLoadNode* op = load.CopyOnWrite();
-        if (buffer_map_.count(op->buffer)) {
-          op->buffer = buffer_map_[op->buffer];
+      Expr VisitExpr_(const TensorLoadNode* _op) final {
+        TensorLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<TensorLoad>();
+        BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
+        if (buffer_map_.count(buffer)) {
+          return BufferLoad(buffer_map_[buffer], load->indices, load->span);
         }
         return load;
       }
@@ -537,8 +537,9 @@ class AutoPadder {
      * The iteration space would be {{0, 1}, {0, 4, ..., 60}}.
      * \param op the buffer load
      */
-    void VisitExpr_(const BufferLoadNode* op) final {
-      runtime::StorageScope scope = runtime::StorageScope::Create(op->buffer.scope());
+    void VisitExpr_(const TensorLoadNode* op) final {
+      BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
+      runtime::StorageScope scope = runtime::StorageScope::Create(buffer.scope());
       if (scope.rank == runtime::StorageRank::kShared) {
         ffi::Array<PrimExpr> substitued_indices;
         arith::Analyzer analyzer;
@@ -548,12 +549,12 @@ class AutoPadder {
         std::vector<std::vector<int>> iter_space =
             PatternCollector::CollectIterationSpace(substitued_indices, var_range_, data_bits_);
         if (!iter_space.empty()) {
-          self->iter_spaces_[op->buffer.get()].push_back(iter_space);
+          self->iter_spaces_[buffer.get()].push_back(iter_space);
         }
         if (vector_length_ != -1 &&
             CheckVarContiguous(substitued_indices.back(), vector_var, substitute_map_)) {
-          int64_t m = self->padding_min_.Get(op->buffer).value_or(1);
-          self->padding_min_.Set(op->buffer, std::max(static_cast<int64_t>(vector_length_), m));
+          int64_t m = self->padding_min_.Get(buffer).value_or(1);
+          self->padding_min_.Set(buffer, std::max(static_cast<int64_t>(vector_length_), m));
         }
       }
       StmtExprVisitor::VisitExpr_(op);
