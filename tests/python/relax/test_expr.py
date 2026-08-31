@@ -379,6 +379,57 @@ def test_call_raises_error_for_missing_operator():
         rx.Call(None, [])
 
 
+def test_shared_operator_surface_preserves_relax_semantics():
+    tensor_ty = rx.TensorType([2], "float32")
+    x = rx.Var("x", tensor_ty)
+    y = rx.Var("y", tensor_ty)
+
+    assert (x == x) is True
+    assert (x != x) is False
+    assert (x == y) is False
+    assert (x != y) is True
+    assert isinstance(hash(x), int)
+
+    assert isinstance(x + y, tvm.ir.Call)
+    assert isinstance(-x, tvm.ir.Call)
+    assert isinstance(x.astype("float16"), tvm.ir.Call)
+
+    with pytest.raises(ValueError, match="Cannot use and"):
+        bool(x)
+
+
+def test_shared_operator_surface_rejects_non_tensor_relax_values():
+    shape = rx.ShapeExpr([1, 2])
+    message = "Operator overloading is not supported for expression type"
+
+    assert (shape == shape) is True
+    assert (shape != shape) is False
+    with pytest.raises(ValueError, match="Cannot use and"):
+        bool(shape)
+
+    for operation in (
+        lambda: shape + shape,
+        lambda: -shape,
+        lambda: shape.equal(shape),
+        lambda: shape.astype("float32"),
+    ):
+        with pytest.raises(TypeError, match=message):
+            operation()
+
+
+def test_shared_operator_surface_calls_function_typed_values():
+    tensor_ty = rx.TensorType([2], "float32")
+    arg = rx.Var("arg", tensor_ty)
+    func_ty = rx.FuncType([tensor_ty], tensor_ty)
+
+    for func in (rx.Var("func", func_ty), rx.ExternFunc("extern_func", func_ty)):
+        call = func(arg)
+        assert isinstance(call, tvm.ir.Call)
+        assert call.op.same_as(func)
+        assert len(call.args) == 1
+        assert call.args[0].same_as(arg)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
 

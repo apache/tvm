@@ -87,9 +87,11 @@ Type.is_base_of = _relax_type_is_base_of  # type: ignore[attr-defined]
 _op_ffi_api = None  # pylint: disable=invalid-name
 
 
-def _binary_op_helper(lhs: "ExprWithOp", rhs: "ExprWithOp", op: Callable) -> "ExprWithOp":
+def _binary_op_helper(lhs: Expr, rhs: Expr, op: Callable):
     if not isinstance(lhs, Expr):  # type: ignore
         raise ValueError("lhs must be Expr")
+    if not isinstance(lhs.ty, tvm.relax.TensorType):
+        return NotImplemented
     if isinstance(rhs, Expr):  # type: ignore
         return op(lhs, rhs)
     elif isinstance(rhs, Number):
@@ -98,117 +100,14 @@ def _binary_op_helper(lhs: "ExprWithOp", rhs: "ExprWithOp", op: Callable) -> "Ex
         raise TypeError(f"type {type(rhs)} not supported")
 
 
-def _binary_rhs_helper(rhs: "ExprWithOp") -> "ExprWithOp":
+def _binary_rhs_helper(rhs: Expr):
     if isinstance(rhs, Number):
         raise TypeError(f"Please convert {rhs} with `const` first")
     raise TypeError(f"type {type(rhs)} not supported")
 
 
-class ExprWithOp(Expr, Scriptable):
-    """Basetype of all relax expressions that defines op overloading."""
-
-    def astype(self, dtype: str | DataType) -> "ExprWithOp":
-        """Cast the content type of the current data to dtype.
-
-        Parameters
-        ----------
-        dtype : str
-            The target data type.
-
-        Note
-        ----
-        This function only works for TensorType Exprs.
-
-        Returns
-        -------
-        result : ExprWithOp
-            The result expression.
-        """
-        return _op_ffi_api.astype(self, dtype)  # type: ignore
-
-    def __neg__(self) -> "ExprWithOp":
-        return _op_ffi_api.negative(self)  # type: ignore
-
-    def __lt__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.less)  # type: ignore
-
-    def __gt__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.greater)  # type: ignore
-
-    def __ge__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.greater_equal)  # type: ignore
-
-    def __le__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.less_equal)  # type: ignore
-
-    # NOTE: Cannot override __eq__ and __ne__, which will influence object equal
-
-    def __add__(self, other: Expr) -> "ExprWithOp":
-        if isinstance(self.ty, tvm.relax.TupleType) and isinstance(other, tuple):
-            return tuple([*self, *other])
-
-        return _binary_op_helper(self, other, _op_ffi_api.add)  # type: ignore
-
-    def __radd__(self, other: Expr) -> "ExprWithOp":
-        return self.__add__(other)
-
-    def __sub__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.subtract)  # type: ignore
-
-    def __rsub__(self, other: Expr) -> "ExprWithOp":
-        return _binary_rhs_helper(other)
-
-    def __mul__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.multiply)  # type: ignore
-
-    def __rmul__(self, other: Expr) -> "ExprWithOp":
-        return self.__mul__(other)
-
-    def __truediv__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.divide)  # type: ignore
-
-    def __rtruediv__(self, other: Expr) -> "ExprWithOp":
-        return _binary_rhs_helper(other)
-
-    def __floordiv__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.floor_divide)  # type: ignore
-
-    def __rfloordiv__(self, other: Expr) -> "ExprWithOp":
-        return _binary_rhs_helper(other)
-
-    def __mod__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.mod)  # type: ignore
-
-    def __rmod__(self, other: Expr) -> "ExprWithOp":
-        return _binary_rhs_helper(other)
-
-    def __pow__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.power)  # type: ignore
-
-    def __rpow__(self, other: Expr) -> "ExprWithOp":
-        return _binary_rhs_helper(other)
-
-    def __call__(self, *args: list[Expr], attrs: dict[str, Any] | None = None) -> "ExprWithOp":
-        """Call the variable (if it represents a function).
-
-        Parameters
-        ----------
-        args: List[Expr]
-            The arguments to the call.
-
-        attr: Optional[Dict[str, object]]
-            The additional attributes to the call.
-
-        Returns
-        -------
-        call: ExprWithOp
-            A call taking the variable as a function.
-        """
-        return tvm.ir.Call(self, args, attrs=attrs)
-
-
 @tvm_ffi.register_object("relax.expr.If")
-class If(ExprWithOp):
+class If(tvm.ir.ExprWithOp):
     """A conditional expression in Relax.
 
     Parameters
@@ -247,7 +146,7 @@ TupleGetItem = tvm.ir.TupleGetItem
 
 
 @tvm_ffi.register_object("relax.expr.ShapeExpr")
-class ShapeExpr(ExprWithOp):
+class ShapeExpr(tvm.ir.ExprWithOp):
     """A shape expression which allows users to construct a shape containing Expr.
 
     Parameters
@@ -288,7 +187,7 @@ def make_shape(shape: list[Any] | tuple[Any, ...]) -> ShapeExpr:
 
 
 @tvm_ffi.register_object("relax.expr.Constant")
-class Constant(ExprWithOp):
+class Constant(tvm.ir.ExprWithOp):
     """Constant Tensor
 
     Parameters
@@ -488,7 +387,7 @@ class DataflowBlock(BindingBlock):
 
 
 @tvm_ffi.register_object("relax.expr.SeqExpr")
-class SeqExpr(ExprWithOp):
+class SeqExpr(tvm.ir.ExprWithOp):
     """A sequence of binding blocks followed by an expression."""
 
     blocks: list[BindingBlock]
@@ -639,7 +538,7 @@ class Function(BaseFunc, Scriptable):
 
 
 @tvm_ffi.register_object("relax.expr.ExternFunc")
-class ExternFunc(BaseFunc, ExprWithOp):
+class ExternFunc(BaseFunc):
     """extern function, which represents a PackedFunc."""
 
     global_symbol: String

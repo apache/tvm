@@ -182,14 +182,31 @@ def _register_op_make():
             return tuple([*lhs, *rhs])
         return expr._binary_op_helper(lhs, rhs, _ffi_api.add)
 
-    def _rhs(_lhs, rhs):
+    def _rhs(lhs, rhs):
+        if not isinstance(lhs.ty, expr.tvm.relax.TensorType):
+            return NotImplemented
         return expr._binary_rhs_helper(rhs)
 
-    _tensor_expr_overload.astype = lambda lhs, dtype, _span=None: _ffi_api.astype(lhs, dtype)
-    _tensor_expr_overload.__call__ = lambda func, *args, attrs=None: expr.tvm.ir.Call(
-        func, args, attrs=attrs
+    def _unary(lhs, op):
+        if not isinstance(lhs.ty, expr.tvm.relax.TensorType):
+            return NotImplemented
+        return op(lhs)
+
+    def _call(func, *args, attrs=None):
+        if not (
+            isinstance(func.ty, expr.tvm.ir.FuncType | expr.tvm.relax.FuncType)
+            or func.ty.is_missing()
+        ):
+            return NotImplemented
+        return expr.tvm.ir.Call(func, args, attrs=attrs)
+
+    _tensor_expr_overload.astype = lambda lhs, dtype, _span=None: (
+        _ffi_api.astype(lhs, dtype)
+        if isinstance(lhs.ty, expr.tvm.relax.TensorType)
+        else NotImplemented
     )
-    _tensor_expr_overload.__neg__ = lambda lhs: _ffi_api.negative(lhs)
+    _tensor_expr_overload.__call__ = _call
+    _tensor_expr_overload.__neg__ = lambda lhs: _unary(lhs, _ffi_api.negative)
     _tensor_expr_overload.__lt__ = lambda lhs, rhs: expr._binary_op_helper(lhs, rhs, _ffi_api.less)
     _tensor_expr_overload.__le__ = lambda lhs, rhs: expr._binary_op_helper(
         lhs, rhs, _ffi_api.less_equal
