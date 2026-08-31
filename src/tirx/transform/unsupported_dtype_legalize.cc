@@ -129,12 +129,22 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
+    Call call = ffi::GetRef<Call>(op);
+    ffi::Optional<BufferVar> masked_buffer = std::nullopt;
+    if (auto load = MaskedBufferLoad::TryMatch(call)) {
+      masked_buffer = load->buffer;
+    } else if (auto store = MaskedBufferStore::TryMatch(call)) {
+      masked_buffer = store->buffer;
+    }
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
       if (auto buffer = op->args[0].as<Var>()) {
         opaque_var_access_.insert(buffer.value());
       }
     }
     StmtExprVisitor::VisitExpr_(op);
+    if (masked_buffer.has_value()) {
+      this->PopulateBufferRemap(masked_buffer.value());
+    }
   }
 
   void VisitExpr_(const VarNode* op) final {
@@ -265,6 +275,40 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
+    Call call = ffi::GetRef<Call>(op);
+    if (auto load = MaskedBufferLoad::TryMatch(call)) {
+      BufferVar buffer = GetRemappedBuffer(load->buffer);
+      auto indices =
+          load->indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
+      PrimExpr predicate = this->VisitPrimExpr(load->predicate);
+      if (buffer.same_as(load->buffer) && indices.same_as(load->indices) &&
+          predicate.same_as(load->predicate)) {
+        return call;
+      }
+      return MakeMaskedBufferLoad(buffer, indices, predicate, op->span);
+    }
+    if (auto store = MaskedBufferStore::TryMatch(call)) {
+      PrimExpr value = this->VisitPrimExpr(store->value);
+      auto indices =
+          store->indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
+      PrimExpr predicate = this->VisitPrimExpr(store->predicate);
+      BufferVar buffer = GetRemappedBuffer(store->buffer);
+      if (value.same_as(store->value) && indices.same_as(store->indices) &&
+          predicate.same_as(store->predicate) && buffer.same_as(store->buffer)) {
+        return call;
+      }
+      if (MatchType(buffer->dtype)) {
+        int index_lanes = indices.empty() ? 1 : indices.back().ty().lanes();
+        PrimType legalized_dtype = buffer->dtype.WithLanes(index_lanes * buffer->dtype.lanes());
+        value = CastTargetToDType(value, legalized_dtype);
+      }
+      if (value.ty() != buffer->dtype) {
+        TVM_FFI_ICHECK(MatchType(value.ty()));
+        value = DTypeConversion(value, buffer->dtype.WithLanes(value.ty().lanes()));
+      }
+      Stmt stmt = MakeMaskedBufferStore(buffer, value, indices, predicate, op->span);
+      return stmt.as_or_throw<Evaluate>()->value;
+    }
     if (!op->ty.as<PrimTypeNode>()) {
       return StmtExprMutator::VisitExpr_(op);
     }
@@ -682,6 +726,26 @@ class StorageLegalizer : public StmtExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
+    Call call = ffi::GetRef<Call>(op);
+    if (auto load = MaskedBufferLoad::TryMatch(call)) {
+      BufferVar buffer = GetRemappedBuffer(load->buffer);
+      auto indices =
+          load->indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
+      PrimExpr predicate = this->VisitPrimExpr(load->predicate);
+      return MakeMaskedBufferLoad(buffer, indices, predicate, op->span);
+    }
+    if (auto store = MaskedBufferStore::TryMatch(call)) {
+      PrimExpr value = this->ChangeToUInt(this->VisitPrimExpr(store->value));
+      BufferVar buffer = GetRemappedBuffer(store->buffer);
+      auto indices =
+          store->indices.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
+      PrimExpr predicate = this->VisitPrimExpr(store->predicate);
+      if (MatchType(store->value.ty())) {
+        TVM_FFI_ICHECK(buffer->dtype.MatchesCode(DLDataTypeCode::kDLUInt));
+      }
+      Stmt stmt = MakeMaskedBufferStore(buffer, value, indices, predicate, op->span);
+      return stmt.as_or_throw<Evaluate>()->value;
+    }
     if (const auto* pointer_type = op->ty.as<PointerTypeNode>()) {
       Expr ret = StmtExprMutator::VisitExpr_(op);
       const auto* element_type = pointer_type->element_type.as<PrimTypeNode>();
