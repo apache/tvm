@@ -95,7 +95,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OrNode::RegisterReflection();
   NotNode::RegisterReflection();
   SelectNode::RegisterReflection();
-  BufferLoadNode::RegisterReflection();
   RampNode::RegisterReflection();
   BroadcastNode::RegisterReflection();
   LetNode::RegisterReflection();
@@ -718,15 +717,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // BufferLoad
-void BufferLoadNode::LegalizeDType() {
+TensorLoad BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices, Span span) {
+  TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
+      << "BufferVar " << buffer.name() << " is " << buffer->shape.size()
+      << "-dimensional, cannot be indexed with the " << indices.size()
+      << "-dimensional indices provided.";
+
   for (int i = 0; i < static_cast<int>(indices.size()) - 1; i++) {
     TVM_FFI_ICHECK(indices[i].ty().IsScalar())
         << "Only the last index of a buffer access may be a vector type.";
   }
 
-  if (indices.empty()) {
-    this->ExprNode::ty = buffer->dtype;
-  } else {
+  PrimType result_ty = buffer->dtype;
+  if (!indices.empty()) {
     PrimType index_ty = indices.back().ty();
     int16_t buffer_encoded_lanes = static_cast<int16_t>(buffer->dtype->dtype.lanes);
     bool is_buffer_dtype_scalable = buffer_encoded_lanes < -1;
@@ -736,30 +739,17 @@ void BufferLoadNode::LegalizeDType() {
         << "Index dtype and buffer dtype can't both be scalable.";
 
     if (is_index_scalable) {
-      this->ExprNode::ty =
-          PrimType::ScalableVector(buffer->dtype.code(), buffer->dtype.bits(),
-                                   index_ty.VScaleFactor() * buffer->dtype.lanes());
+      result_ty = PrimType::ScalableVector(buffer->dtype.code(), buffer->dtype.bits(),
+                                           index_ty.VScaleFactor() * buffer->dtype.lanes());
     } else if (is_buffer_dtype_scalable) {
-      this->ExprNode::ty = PrimType::ScalableVector(buffer->dtype.code(), buffer->dtype.bits(),
-                                                    -buffer_encoded_lanes * index_ty.lanes());
+      result_ty = PrimType::ScalableVector(buffer->dtype.code(), buffer->dtype.bits(),
+                                           -buffer_encoded_lanes * index_ty.lanes());
     } else {
-      this->ExprNode::ty = buffer->dtype.WithLanes(index_ty.lanes() * buffer->dtype.lanes());
+      result_ty = buffer->dtype.WithLanes(index_ty.lanes() * buffer->dtype.lanes());
     }
   }
-}
 
-BufferLoad::BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices, Span span) {
-  TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
-      << "BufferVar " << buffer.name() << " is " << buffer->shape.size()
-      << "-dimensional, cannot be indexed with the " << indices.size()
-      << "-dimensional indices provided.";
-
-  ffi::ObjectPtr<BufferLoadNode> node = ffi::make_object<BufferLoadNode>();
-  node->buffer = std::move(buffer);
-  node->indices = std::move(indices);
-  node->span = std::move(span);
-  node->LegalizeDType();
-  data_ = std::move(node);
+  return TensorLoad(std::move(result_ty), std::move(buffer), std::move(indices), std::move(span));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

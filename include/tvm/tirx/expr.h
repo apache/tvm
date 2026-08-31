@@ -533,57 +533,13 @@ class Select : public PrimExpr {
 };
 
 /*!
- * \brief Load value from the high dimension buffer.
+ * \brief Construct a TensorLoad from a BufferVar.
  *
- * \code
- *
- *  value = buffer[i, j];
- *
- * \endcode
- * \sa BufferStore
+ * This is the sole typed construction path for tirx loads.  The result type
+ * is derived from the buffer element type and index lanes, and every tirx
+ * TensorLoad is required to have a BufferVar source.
  */
-class BufferLoadNode : public ExprNode {
- public:
-  /*! \brief The buffer variable. */
-  BufferVar buffer;
-  /*! \brief The indices location to be loaded. */
-  ffi::Array<PrimExpr> indices;
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BufferLoadNode>()
-        .def_ro("buffer", &BufferLoadNode::buffer, refl::AttachFieldFlag::SEqHashDefRecursive())
-        .def_ro("indices", &BufferLoadNode::indices);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferLoad", BufferLoadNode, ExprNode);
-
- private:
-  /*! \brief Set the dtype based on the buffer/indices
-   *
-   * Usually, the BufferLoad's dtype will be the same dtype as the
-   * buffer.  This may have a different number of lanes than the
-   * buffer's dtype if index values have more than 1 lane.
-   *
-   * This function should only be called during construction and after
-   * CopyOnWrite.  Friend class used here to restrict usage.
-   */
-  void LegalizeDType();
-  friend class BufferLoad;
-  friend class CustomDatatypesLowerer;
-  friend class VectorTypeRewriter;
-  friend class Vectorizer;
-};
-
-/*!
- * \brief Managed reference to BufferLoadNode.
- * \sa BufferLoadNode
- */
-class BufferLoad : public PrimExpr {
- public:
-  TVM_DLL explicit BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferLoad, PrimExpr, BufferLoadNode);
-  static constexpr bool _type_container_is_exact = true;
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferLoadNode);
-};
+TVM_DLL TensorLoad BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices, Span span = Span());
 
 /*!
  * \brief Construct a vector with lanes elements
@@ -882,8 +838,6 @@ template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, tirx::NotNode> = true;
 template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, tirx::SelectNode> = true;
-template <>
-inline constexpr bool object_ref_contains_v<PrimExpr, tirx::BufferLoadNode> = true;
 template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, tirx::RampNode> = true;
 template <>

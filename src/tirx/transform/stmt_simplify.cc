@@ -121,10 +121,10 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   // Do not simplify buffer definition fields (shape, strides, elem_offset).
   //
   // The simplifier's VisitExpr override calls analyzer_->Simplify() directly,
-  // bypassing the normal ExprMutator dispatch. This means BufferLoad expressions
-  // inside values (e.g., BufferStore value) skip VisitExpr_(BufferLoadNode*) and
+  // bypassing the normal ExprMutator dispatch. This means TensorLoad expressions
+  // inside values (e.g., BufferStore value) skip VisitExpr_(TensorLoadNode*) and
   // thus skip VisitBufferUse. If VisitBufferDef remaps buffers at DeclBuffer sites,
-  // the BufferLoad use sites won't pick up the remap, causing DeclBuffer/BufferLoad
+  // the TensorLoad use sites won't pick up the remap, causing DeclBuffer/BufferLoad
   // buffer identity divergence and well-formedness violations.
   //
   // Instead, we keep buffer definitions unchanged and rely on used_in_buffer_def_
@@ -205,16 +205,20 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     return Parent::VisitExpr_(op);
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) override { return Parent::VisitExpr_(op); }
+  Expr VisitExpr_(const TensorLoadNode* op) override { return Parent::VisitExpr_(op); }
 
   // eliminate useless stores
   Stmt VisitStmt_(const BufferStoreNode* op) override {
     BufferStore store = Parent::VisitStmt_(op).as_or_throw<BufferStore>();
-    if (const BufferLoadNode* load = store->value.as<BufferLoadNode>()) {
-      if (load->buffer.same_as(store->buffer) && ArrayDeepEqual(load->indices, store->indices) &&
-          tirx::ExprDeepEqual()(load->buffer->elem_offset, store->buffer->elem_offset) &&
-          ArrayDeepEqual(load->buffer->shape, store->buffer->shape) &&
-          ArrayDeepEqual(load->buffer->strides, store->buffer->strides)) {
+    if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
+      if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(store->buffer) &&
+          ArrayDeepEqual(load->indices, store->indices) &&
+          tirx::ExprDeepEqual()(load->source.as_or_throw<tvm::tirx::BufferVar>()->elem_offset,
+                                store->buffer->elem_offset) &&
+          ArrayDeepEqual(load->source.as_or_throw<tvm::tirx::BufferVar>()->shape,
+                         store->buffer->shape) &&
+          ArrayDeepEqual(load->source.as_or_throw<tvm::tirx::BufferVar>()->strides,
+                         store->buffer->strides)) {
         return Evaluate(0);
       }
     }

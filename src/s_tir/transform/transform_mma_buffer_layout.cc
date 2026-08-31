@@ -146,21 +146,18 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) {
-    BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
-    if (buffer_map_.count(load->buffer)) {
-      auto* n = load.CopyOnWrite();
-      if (load->buffer.scope() == "m16n8k8.matrixC") {
+  Expr VisitExpr_(const TensorLoadNode* op) {
+    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+    if (buffer_map_.count(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
+      ffi::Array<PrimExpr> indices = load->indices;
+      if (load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "m16n8k8.matrixC") {
         const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
         TVM_FFI_ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
-        auto new_indices = index_map->MapIndices(load->indices, analyzer);
-        n->buffer = buffer_map_[load->buffer];
-        n->indices = std::move(new_indices);
-      } else if (load->buffer.scope() == "m16n8k8.matrixA" ||
-                 load->buffer.scope() == "m16n8k8.matrixB") {
-        n->buffer = buffer_map_[load->buffer];
+        indices = index_map->MapIndices(load->indices, analyzer);
       }
+      return BufferLoad(buffer_map_[load->source.as_or_throw<tvm::tirx::BufferVar>()], indices,
+                        load->span);
     }
     return load;
   }

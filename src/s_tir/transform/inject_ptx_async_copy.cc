@@ -52,18 +52,21 @@ class PTXAsyncCopyInjector : public StmtMutator {
     return StmtMutator::VisitStmt_(attr);
   }
 
-  Stmt InjectPTX(const BufferLoadNode* load, const BufferStoreNode* store, bool predicated = false,
+  Stmt InjectPTX(const TensorLoadNode* load, const BufferStoreNode* store, bool predicated = false,
                  PrimExpr predicate_value = PrimExpr()) {
-    if (load->buffer.scope() == "global") {
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "global") {
       TVM_FFI_ICHECK(load->indices.size() == 1 && store->indices.size() == 1);
       TVM_FFI_ICHECK(load->indices[0].ty().lanes() == store->indices[0].ty().lanes());
 
       const int indices_lanes = load->indices[0].ty().lanes();
-      const int bytes = indices_lanes * static_cast<int>(load->buffer->dtype.StorageBytes());
+      const int bytes =
+          indices_lanes *
+          static_cast<int>(load->source.as_or_throw<tvm::tirx::BufferVar>()->dtype.StorageBytes());
 
       if (bytes == 4 || bytes == 8 || bytes == 16) {
         auto dst_elem_type = GetPointerType(store->buffer.DataPointerType());
-        auto src_elem_type = GetPointerType(load->buffer.DataPointerType());
+        auto src_elem_type =
+            GetPointerType(load->source.as_or_throw<tvm::tirx::BufferVar>().DataPointerType());
         TVM_FFI_ICHECK(dst_elem_type.has_value() && src_elem_type.has_value())
             << "Both store and load buffer should have a pointer type annotation.";
 
@@ -85,7 +88,8 @@ class PTXAsyncCopyInjector : public StmtMutator {
           auto src_offset = load->indices[0];
           auto dst_offset = store->indices[0];
           ffi::Array<Expr> args = {store->buffer.data(), mul(dst_offset, PrimExpr(index_factor)),
-                                   load->buffer.data(), src_offset, PrimExpr(bytes)};
+                                   load->source.as_or_throw<tvm::tirx::BufferVar>().data(),
+                                   src_offset, PrimExpr(bytes)};
           // use arguments size to indicate whether or not to use predicated cp.async
           if (predicated) {
             args.push_back(predicate_value);
@@ -123,7 +127,8 @@ class PTXAsyncCopyInjector : public StmtMutator {
             static const Op& ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
             return Evaluate(Call(store->buffer->dtype, ptx_cp_async_op,
                                  {store->buffer.data(), mul(dst_offset, PrimExpr(index_factor)),
-                                  load->buffer.data(), src_offset, PrimExpr(bytes)})
+                                  load->source.as_or_throw<tvm::tirx::BufferVar>().data(),
+                                  src_offset, PrimExpr(bytes)})
                                 .as_or_throw<PrimExpr>());
           }
         } else {
@@ -152,11 +157,11 @@ class PTXAsyncCopyInjector : public StmtMutator {
 
           if (src_offset.defined() && dst_offset.defined()) {
             static const Op& ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
-            return Evaluate(
-                Call(store->buffer->dtype, ptx_cp_async_op,
-                     {store->buffer.data(), mul(dst_offset, PrimExpr(index_factor)),
-                      load->buffer.data(), src_offset, PrimExpr(bytes), predicate_value})
-                    .as_or_throw<PrimExpr>());
+            return Evaluate(Call(store->buffer->dtype, ptx_cp_async_op,
+                                 {store->buffer.data(), mul(dst_offset, PrimExpr(index_factor)),
+                                  load->source.as_or_throw<tvm::tirx::BufferVar>().data(),
+                                  src_offset, PrimExpr(bytes), predicate_value})
+                                .as_or_throw<PrimExpr>());
           }
         }
       }
@@ -166,12 +171,12 @@ class PTXAsyncCopyInjector : public StmtMutator {
 
   Stmt VisitStmt_(const BufferStoreNode* store) {
     if (in_async && (store->buffer.scope() == "shared" || store->buffer.scope() == "shared.dyn")) {
-      if (auto* load = store->value.as<BufferLoadNode>()) {
+      if (auto* load = store->value.as<TensorLoadNode>()) {
         return InjectPTX(load, store);
       } else if (auto* call = store->value.as<CallNode>()) {
         // tirx.if_then_else is a call to tirx::builtin::if_then_else()
         if (call->op.same_as(builtin::if_then_else()) && call->args.size() == 3) {
-          if (auto* load = call->args[1].as<BufferLoadNode>()) {
+          if (auto* load = call->args[1].as<TensorLoadNode>()) {
             // Only default value of 0 is supported since 0 is the default value used by cp.async
             // ptx. @see section 9.7.8.22.3. of
             // https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#asynchronous-memory-operations

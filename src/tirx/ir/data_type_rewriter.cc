@@ -498,16 +498,15 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BufferStoreNode* op) {
   return store;
 }
 
-Expr IndexDataTypeRewriter::VisitExpr_(const BufferLoadNode* op) {
-  BufferLoad load = ffi::GetRef<BufferLoad>(op);
+Expr IndexDataTypeRewriter::VisitExpr_(const TensorLoadNode* op) {
+  TensorLoad load = ffi::GetRef<TensorLoad>(op);
 
-  BufferVar new_buffer = VisitBufferUse(op->buffer);
+  BufferVar new_buffer = VisitBufferUse(op->source.as_or_throw<tvm::tirx::BufferVar>());
   auto indices = VisitIndices(op->indices);
 
-  if (!new_buffer.same_as(op->buffer) || !indices.same_as(op->indices)) {
-    auto writer = load.CopyOnWrite();
-    writer->indices = indices;
-    writer->buffer = new_buffer;
+  if (!new_buffer.same_as(op->source.as_or_throw<tvm::tirx::BufferVar>()) ||
+      !indices.same_as(op->indices)) {
+    return BufferLoad(new_buffer, indices, op->span);
   }
 
   return load;

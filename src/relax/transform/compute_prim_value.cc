@@ -61,7 +61,7 @@ class PrimExprComputeInjector : public ExprMutator {
     return LiftPrimValue(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>()); \
   }
 
-  RELAX_LIFT_PRIM_EXPR(tirx::BufferLoadNode);
+  RELAX_LIFT_PRIM_EXPR(TensorLoadNode);
   RELAX_LIFT_PRIM_EXPR(tirx::AddNode);
   RELAX_LIFT_PRIM_EXPR(tirx::SubNode);
   RELAX_LIFT_PRIM_EXPR(tirx::MulNode);

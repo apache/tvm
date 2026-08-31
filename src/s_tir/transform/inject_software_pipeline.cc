@@ -311,19 +311,18 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
-    auto it = buffer_remap_.find(load->buffer);
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+    auto it = buffer_remap_.find(load->source.as_or_throw<tvm::tirx::BufferVar>());
     if (it == buffer_remap_.end()) {
       return load;
     }
     const BufferVar& new_buffer = (*it).second;
-    auto* n = load.CopyOnWrite();
-    n->buffer = new_buffer;
     PrimExpr version =
         floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_buffer->shape[0]);
-    n->indices.insert(n->indices.begin(), version);
-    return load;
+    ffi::Array<PrimExpr> indices = load->indices;
+    indices.insert(indices.begin(), version);
+    return BufferLoad(new_buffer, indices, load->span);
   }
 
   Expr VisitExpr_(const CallNode* op) final {

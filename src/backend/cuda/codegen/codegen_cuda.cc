@@ -1310,9 +1310,10 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string reg = this->PrintExpr(op->args[0]);
     // get guard
     std::string guard = this->PrintExpr(op->args[1]);
-    const BufferLoadNode* addr_buffer = op->args[2].as<BufferLoadNode>();
+    const TensorLoadNode* addr_buffer = op->args[2].as<TensorLoadNode>();
     std::string global_addr = this->PrintExpr(addr_buffer->indices[0]);
-    std::string global_buffer = this->PrintExpr(addr_buffer->buffer.data());
+    std::string global_buffer =
+        this->PrintExpr(addr_buffer->source.as_or_throw<tvm::tirx::BufferVar>().data());
     std::string local_addr = this->PrintExpr(op->args[3]);
     this->stream << "asm volatile (\n";
     this->stream << "\"{.reg .pred p;\\n\"\n";
@@ -2083,7 +2084,7 @@ int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const VarNode
     return 0;
 }
 
-void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
+void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const TensorLoadNode* op,
                                       std::ostream& os) {
   // Cast away volatile qualifier for fp16 types. That is, only loads and
   // stores are volatile. The loaded objects are not marked as volatile.
@@ -2091,7 +2092,7 @@ void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const BufferLoad
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if ((op_ty.MatchesElementType(DLDataTypeCode::kDLFloat, 16) ||
        op_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) &&
-      IsVolatile(op->buffer.get())) {
+      IsVolatile(op->source.as_or_throw<tvm::tirx::BufferVar>().get())) {
     os << "(";
     PrintType(op_ty, os);
     os << ")(" << value << ")";

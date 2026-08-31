@@ -1049,14 +1049,15 @@ class WriteBackBlockCreator : public BaseBlockCreator {
   void CreateRegion(const ffi::Array<PrimExpr>& buf_loads, bool is_read) {
     ffi::Array<BufferRegion>& buf_regions = is_read ? read_regions_ : write_regions_;
     for (const PrimExpr& expr : buf_loads) {
-      const auto* buf_load = expr.as<BufferLoadNode>();
+      const auto* buf_load = expr.as<TensorLoadNode>();
       TVM_FFI_ICHECK(buf_load != nullptr);
       ffi::Array<Range> region;
       region.reserve(buf_load->indices.size());
       for (const PrimExpr& index : buf_load->indices) {
         region.push_back(Range::FromMinExtent(index, MakeConst(index.ty(), 1)));
       }
-      buf_regions.push_back(BufferRegion(buf_load->buffer, std::move(region)));
+      buf_regions.push_back(
+          BufferRegion(buf_load->source.as_or_throw<tvm::tirx::BufferVar>(), std::move(region)));
     }
   }
 

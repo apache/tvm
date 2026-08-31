@@ -49,8 +49,8 @@ class VarTouchVisitor : public StmtExprVisitor {
     StmtVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    Handle(op->buffer.get());
+  void VisitExpr_(const TensorLoadNode* op) final {
+    Handle(op->source.as_or_throw<tvm::tirx::BufferVar>().get());
     ExprVisitor::VisitExpr_(op);
   }
 

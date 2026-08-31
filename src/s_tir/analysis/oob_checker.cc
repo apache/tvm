@@ -76,21 +76,21 @@ class OOBCheckerVisitor final : public arith::IRVisitorWithAnalyzer {
  public:
   void VisitStmt_(const BufferStoreNode* node) final {
     for (size_t i = 0; i < node->buffer->shape.size(); i++) {
-      CheckBounds(node, i);
+      CheckBounds(node, node->buffer, i);
     }
     IRVisitorWithAnalyzer::VisitStmt_(node);
   }
-  void VisitExpr_(const BufferLoadNode* node) final {
-    for (size_t i = 0; i < node->buffer->shape.size(); i++) {
-      CheckBounds(node, i);
+  void VisitExpr_(const TensorLoadNode* node) final {
+    for (size_t i = 0; i < node->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size(); i++) {
+      CheckBounds(node, node->source.as_or_throw<tvm::tirx::BufferVar>(), i);
     }
     IRVisitorWithAnalyzer::VisitExpr_(node);
   }
 
   template <class T>
-  void CheckBounds(const T* node, size_t i) {
+  void CheckBounds(const T* node, const BufferVar& buffer, size_t i) {
     auto ind_bounds = analyzer_->int_set(node->indices[i]);
-    auto shape_bounds = analyzer_->int_set(node->buffer->shape[i]);
+    auto shape_bounds = analyzer_->int_set(buffer->shape[i]);
     // We would expect that
     // `analyzer_.CanProve(node->indices[i] < 0 || node->indices[i] >= node->buffer->shape[i])`
     // would be the way to check if any out of bounds access occurs here, but `CanProve` checks if
@@ -104,7 +104,7 @@ class OOBCheckerVisitor final : public arith::IRVisitorWithAnalyzer {
     // us to the following check: are the bounds of the index outside the bounds of the shape.
     if (analyzer_->CanProve(ind_bounds.max() >= shape_bounds.min()) ||
         analyzer_->CanProve(ind_bounds.min() < 0)) {
-      errors.push_back({node->buffer, i, node->indices[i], ind_bounds, shape_bounds});
+      errors.push_back({buffer, i, node->indices[i], ind_bounds, shape_bounds});
     }
   }
 

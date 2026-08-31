@@ -81,11 +81,11 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
     TVM_FFI_ICHECK(store);
 
     // Step 2. Checking the rhs of buffer store is a BufferLoad
-    const auto* load = store->value.as<BufferLoadNode>();
+    const auto* load = store->value.as<TensorLoadNode>();
     TVM_FFI_ICHECK(load);
 
     // Step 3. Update BufferVar
-    buf_map_.Set(load->buffer, store->buffer);
+    buf_map_.Set(load->source.as_or_throw<tvm::tirx::BufferVar>(), store->buffer);
     rewritten_buffers_.insert(store->buffer);
 
     // Step 4. Set block body as no_op
@@ -99,9 +99,11 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
       TVM_FFI_ICHECK(ind.as<PrimVar>());
       load_indices.push_back(ind.as_or_throw<PrimVar>());
     }
-    buffer_var_to_index_map_[load->buffer.get()] = IndexMap(load_indices, store->indices);
+    buffer_var_to_index_map_[load->source.as_or_throw<tvm::tirx::BufferVar>().get()] =
+        IndexMap(load_indices, store->indices);
 
-    buffer_var_to_rewritten_shape_[load->buffer.get()] = store->buffer->shape;
+    buffer_var_to_rewritten_shape_[load->source.as_or_throw<tvm::tirx::BufferVar>().get()] =
+        store->buffer->shape;
 
     return Stmt(n);
   }

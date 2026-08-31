@@ -229,7 +229,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
     ExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) {
+  void VisitExpr_(const TensorLoadNode* op) {
     PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (op_ty.IsFixedLengthVector()) {
       if (ElementBytes(op_ty) > max_vector_bytes_) {

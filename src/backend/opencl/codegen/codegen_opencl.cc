@@ -461,17 +461,17 @@ void CodeGenOpenCL::VisitStmt_(const AllocBufferNode* op) {
 void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
   if (op->op.same_as(builtin::address_of())) {
     // Overload tvm_address_of to add storage scope (e.g. __global).
-    const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
+    const TensorLoadNode* load = op->args[0].as<TensorLoadNode>();
     TVM_FFI_ICHECK(op->args.size() == 1 && load);
     TVM_FFI_ICHECK_EQ(load->indices.size(), 1)
         << "CodeGenOpenCL only supports flat memory allocations.";
     os << "((";
-    auto it = alloc_storage_scope_.find(load->buffer.get());
+    auto it = alloc_storage_scope_.find(load->source.as_or_throw<tvm::tirx::BufferVar>().get());
     if (it != alloc_storage_scope_.end()) {
       PrintStorageScope(it->second, os);
     }
     this->PrintType(load->ty.as_or_throw<PrimType>().WithLanes(1), os);
-    os << " *)" << this->GetVarID(load->buffer.get()) << " + ";
+    os << " *)" << this->GetVarID(load->source.as_or_throw<tvm::tirx::BufferVar>().get()) << " + ";
     this->PrintExpr(load->indices[0], os);
     os << ')';
   } else if (op->op.same_as(builtin::texture2d_store())) {

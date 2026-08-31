@@ -79,8 +79,9 @@ class Var2BufferCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    var2buffer_[op->buffer.var()].insert(op->buffer);
+  void VisitExpr_(const TensorLoadNode* op) final {
+    var2buffer_[op->source.as_or_throw<tvm::tirx::BufferVar>().var()].insert(
+        op->source.as_or_throw<tvm::tirx::BufferVar>());
     StmtExprVisitor::VisitExpr_(op);
   }
 
@@ -150,12 +151,14 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     VisitExpr(op->value);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    auto explicit_it = explicit_access_annotations_.find(op->buffer);
+  void VisitExpr_(const TensorLoadNode* op) final {
+    auto explicit_it =
+        explicit_access_annotations_.find(op->source.as_or_throw<tvm::tirx::BufferVar>());
     if (explicit_it != explicit_access_annotations_.end()) {
       VisitBufferAccess(explicit_it->second);
     } else {
-      VisitBufferAccess(BufferRegion::FromPoint(op->buffer, op->indices));
+      VisitBufferAccess(
+          BufferRegion::FromPoint(op->source.as_or_throw<tvm::tirx::BufferVar>(), op->indices));
     }
     StmtExprVisitor::VisitExpr_(op);
   }
@@ -579,11 +582,12 @@ class BufferCompactor : public StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* _op) final {
-    BufferLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<BufferLoad>();
-    BufferLoadNode* op = load.CopyOnWrite();
-    RewriteBufferAccess(_op->buffer, &op->buffer, &op->indices);
-    return load;
+  Expr VisitExpr_(const TensorLoadNode* _op) final {
+    TensorLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<TensorLoad>();
+    BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
+    ffi::Array<PrimExpr> indices = load->indices;
+    RewriteBufferAccess(_op->source.as_or_throw<tvm::tirx::BufferVar>(), &buffer, &indices);
+    return BufferLoad(buffer, indices, load->span);
   }
 
   Stmt VisitStmt_(const SBlockNode* op) final {

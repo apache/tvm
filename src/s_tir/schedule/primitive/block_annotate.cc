@@ -335,9 +335,9 @@ class DTypeMutator : private ReplaceBufferMutator {
     return node;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
-    auto it = buffer_var_map_.find(node->buffer.get());
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    TensorLoad node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+    auto it = buffer_var_map_.find(node->source.as_or_throw<tvm::tirx::BufferVar>().get());
     if (it != buffer_var_map_.end()) {
       return Cast(src_dtype_, BufferLoad(it->second, node->indices));
     }

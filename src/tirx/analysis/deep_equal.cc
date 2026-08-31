@@ -138,11 +138,13 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExp
     return plhs == rhs.get();
   }
 
-  bool VisitExpr_(const BufferLoadNode* plhs, const PrimExpr& rhs) final {
-    const auto* prhs = rhs.as<BufferLoadNode>();
+  bool VisitExpr_(const TensorLoadNode* plhs, const PrimExpr& rhs) final {
+    const auto* prhs = rhs.as<TensorLoadNode>();
     // we run pointer comparison of the buffer
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
-           plhs->buffer.same_as(prhs->buffer) && ArrayDeepEqual(plhs->indices, prhs->indices);
+           plhs->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
+               prhs->source.as_or_throw<tvm::tirx::BufferVar>()) &&
+           ArrayDeepEqual(plhs->indices, prhs->indices);
   }
 
   bool VisitExpr_(const LetNode* plhs, const PrimExpr& rhs) final {

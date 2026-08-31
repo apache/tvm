@@ -209,13 +209,14 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
     return std::move(store);
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const TensorLoadNode* op) final {
     PrimType load_ty = op->ty.as_or_throw<PrimType>();
     bool load_returns_bool = load_ty.MatchesCode(DLDataTypeCode::kDLBool);
-    BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     load = VisitBufferAccess(load);
     if (load_returns_bool) {
-      TVM_FFI_ICHECK_EQ(load->buffer->dtype->dtype, (DLDataType{kDLInt, 8, 1}))
+      TVM_FFI_ICHECK_EQ(load->source.as_or_throw<tvm::tirx::BufferVar>()->dtype->dtype,
+                        (DLDataType{kDLInt, 8, 1}))
           << "Expected int8 backing array for boolean tensor";
       load.CopyOnWrite()->ExprNode::ty = PrimType::Int(8);
       return tvm::cast(PrimType::Bool(), load);
@@ -283,6 +284,14 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
     return node;
   }
 
+  TensorLoad VisitBufferAccess(TensorLoad node) {
+    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    TVM_FFI_ICHECK(buffer.defined());
+    if (!buffer->layout.has_value()) return node;
+    return BufferLoad(GetFlattenedBuffer(buffer), GetSimplifiedElemOffset(buffer, node->indices),
+                      node->span);
+  }
+
   std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
 };
 
@@ -293,7 +302,7 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
  private:
   Expr VisitExpr_(const CallNode* call) final {
     if (call->op.same_as(tirx::builtin::buffer_offset())) {
-      auto buffer_load = call->args[0].as_or_throw<BufferLoad>();
+      auto buffer_load = call->args[0].as_or_throw<TensorLoad>();
       TVM_FFI_ICHECK_EQ(buffer_load->indices.size(), 1) << "Expected a single index";
       return buffer_load->indices[0];
     }
@@ -325,8 +334,8 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
     return std::move(store);
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     load = VisitBufferAccess(load);
     return std::move(load);
   }
@@ -341,6 +350,13 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
       return node;
     }
     return node;
+  }
+
+  TensorLoad VisitBufferAccess(TensorLoad node) {
+    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    TVM_FFI_ICHECK(buffer.defined());
+    auto it = buffer_remap_.find(buffer);
+    return it == buffer_remap_.end() ? node : BufferLoad(it->second, node->indices, node->span);
   }
 
   std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;

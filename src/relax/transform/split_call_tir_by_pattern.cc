@@ -318,8 +318,8 @@ class ForMatcher : public TensorizeComparator {
     return CompareBufferAccess(op, rhs) && VisitExpr(op->value, rhs->value);
   }
 
-  bool VisitExpr_(const BufferLoadNode* op, const PrimExpr& other) {
-    const auto* rhs = other.as<BufferLoadNode>();
+  bool VisitExpr_(const TensorLoadNode* op, const PrimExpr& other) {
+    const auto* rhs = other.as<TensorLoadNode>();
     return CompareBufferAccess(op, rhs);
   }
 
@@ -354,6 +354,15 @@ class ForMatcher : public TensorizeComparator {
   template <typename T>
   bool CompareBufferAccess(const T* lhs, const T* rhs) {
     if (!CompareBuffer(lhs->buffer, rhs->buffer)) return false;
+    return CompareArray(lhs->indices, rhs->indices, &ForMatcher::VisitExpr);
+  }
+
+  bool CompareBufferAccess(const TensorLoadNode* lhs, const TensorLoadNode* rhs) {
+    if (rhs == nullptr) return false;
+    if (!CompareBuffer(lhs->source.as_or_throw<BufferVar>(),
+                       rhs->source.as_or_throw<BufferVar>())) {
+      return false;
+    }
     return CompareArray(lhs->indices, rhs->indices, &ForMatcher::VisitExpr);
   }
 

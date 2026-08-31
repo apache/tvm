@@ -34,7 +34,7 @@ from tvm_ffi.core import String
 
 from tvm import DataType, ir
 from tvm import tirx as tir
-from tvm.ir import Call, Type, is_prim_expr
+from tvm.ir import Call, TensorLoad, Type, is_prim_expr
 from tvm.ir import register_op_attr as _register_op_attr
 from tvm.ir.base import deprecated
 from tvm.runtime import convert
@@ -461,7 +461,7 @@ def Tuple(*fields: Type) -> Type:  # pylint: disable=invalid-name
 
 
 def match_buffer(
-    param: Var | BufferLoad | BufferRegion,
+    param: Var | TensorLoad | BufferRegion,
     shape: list[Expr] | tuple[Expr] | Expr | Integral = None,
     dtype: str = "float32",
     data: Var = None,
@@ -492,7 +492,7 @@ def match_buffer(
 
     Parameters
     ----------
-    param : Union[Var, BufferLoad, BufferRegion]
+    param : Union[Var, TensorLoad, BufferRegion]
         The parameter of the PrimFunc to match.
 
     shape : Union[List[Expr], Tuple[Expr], Expr, Integral]
@@ -768,12 +768,12 @@ def where(predicate: Expr | int) -> None:
     _ffi_api.Where(predicate)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def reads(*buffer_slices: list[BufferRegion | BufferLoad]) -> None:
+def reads(*buffer_slices: list[BufferRegion | TensorLoad]) -> None:
     """The block buffer region reading statement.
 
     Parameters
     ----------
-    buffer_slices : List[Union[BufferRegion, BufferLoad]]
+    buffer_slices : List[Union[BufferRegion, TensorLoad]]
         The array of buffer regions to read.
     """
     if len(buffer_slices) == 1:
@@ -788,12 +788,12 @@ def reads(*buffer_slices: list[BufferRegion | BufferLoad]) -> None:
     _ffi_api.Reads(buffer_slices)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def writes(*buffer_slices: list[BufferRegion | BufferLoad]) -> None:
+def writes(*buffer_slices: list[BufferRegion | TensorLoad]) -> None:
     """The block buffer region writing statement.
 
     Parameters
     ----------
-    buffer_slices : List[Union[BufferRegion, BufferLoad]]
+    buffer_slices : List[Union[BufferRegion, TensorLoad]]
         The array of buffer regions to write.
     """
     if len(buffer_slices) == 1:
@@ -1979,12 +1979,17 @@ else:
     class scalar_wrapper:
         """Internal wrapper to allow IRBuilder auto-naming on scalar assignment."""
 
-        def __init__(self, scalar: BufferLoad):
-            assert isinstance(scalar, BufferLoad)
+        def __init__(self, scalar: TensorLoad):
+            assert isinstance(scalar, TensorLoad)
             self.scalar = scalar
 
         def __getattr__(self, name: str) -> Any:
             return getattr(self.scalar, name)
+
+        @property
+        def buffer(self) -> Buffer:
+            """The backing buffer used by this scalar wrapper."""
+            return self.scalar.source
 
         def __add__(self, other):
             return self.scalar + other
@@ -2065,7 +2070,7 @@ else:
             return ~self.scalar
 
 
-def alloc_scalar(dtype: str = "float32", scope: str = "global") -> BufferLoad:
+def alloc_scalar(dtype: str = "float32", scope: str = "global") -> TensorLoad:
     """Allocate a zero-dimensional buffer (scalar)."""
     buf = alloc_buffer(shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]))
     assert is_buffer_var(buf)
@@ -2075,7 +2080,7 @@ def alloc_scalar(dtype: str = "float32", scope: str = "global") -> BufferLoad:
     return scalar_wrapper(scalar)
 
 
-def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> BufferLoad:
+def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> TensorLoad:
     """Declare a zero-dimensional buffer (scalar) from a pointer."""
     buf = decl_buffer(
         shape=(1,),
@@ -2095,12 +2100,12 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> Buffe
     return scalar_wrapper(scalar)
 
 
-def shared_scalar(dtype: str = "float32") -> BufferLoad:
+def shared_scalar(dtype: str = "float32") -> TensorLoad:
     """Allocate a zero-dimensional buffer in shared memory."""
     return alloc_scalar(dtype=dtype, scope="shared")
 
 
-def local_scalar(dtype: str = "float32") -> BufferLoad:
+def local_scalar(dtype: str = "float32") -> TensorLoad:
     """Allocate a zero-dimensional buffer in local memory."""
     return alloc_scalar(dtype=dtype, scope="local")
 
@@ -2121,9 +2126,9 @@ def _sanitize_meta_name_part(value: Any, fallback: str) -> str:
 
 def _meta_resource_for_value(value: Any) -> Any | None:
     if isinstance(value, scalar_wrapper):
-        return value.scalar.buffer
-    if isinstance(value, BufferLoad):
-        return value.buffer
+        return value.scalar.source
+    if isinstance(value, TensorLoad):
+        return value.source
     if is_buffer_var(value):
         return value
     return None

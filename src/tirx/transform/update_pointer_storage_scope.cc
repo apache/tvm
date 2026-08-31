@@ -78,6 +78,13 @@ Node UpdatePointerStorageScope::UpdateBufferAccess(Node node) {
   return node;
 }
 
+template <>
+TensorLoad UpdatePointerStorageScope::UpdateBufferAccess(TensorLoad node) {
+  BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+  BufferVar new_buffer = GetUpdatedBuffer(buffer);
+  return new_buffer.same_as(buffer) ? node : BufferLoad(new_buffer, node->indices, node->span);
+}
+
 BufferVar UpdatePointerStorageScope::GetUpdatedBuffer(BufferVar buf) {
   auto it = new_var_remap_.find(buf.get());
   if (it != new_var_remap_.end()) {
@@ -96,8 +103,8 @@ Stmt UpdatePointerStorageScope::VisitStmt_(const DeclBufferNode* op) {
   return UpdateBufferAccess(node);
 }
 
-Expr UpdatePointerStorageScope::VisitExpr_(const BufferLoadNode* op) {
-  auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+Expr UpdatePointerStorageScope::VisitExpr_(const TensorLoadNode* op) {
+  auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
   return UpdateBufferAccess(node);
 }
 

@@ -44,7 +44,7 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
     if (op->op.same_as(builtin::if_then_else())) {
       return VisitExpr(op->args[0].as_or_throw<PrimExpr>());
     } else if (op->op.same_as(builtin::address_of())) {
-      if (const auto* load = op->args[0].as<BufferLoadNode>()) {
+      if (const auto* load = op->args[0].as<TensorLoadNode>()) {
         for (const auto& index : load->indices) {
           if (VisitExpr(index)) {
             return true;
@@ -67,7 +67,7 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
       return true;
     }
   }
-  bool VisitExpr_(const BufferLoadNode* op) {
+  bool VisitExpr_(const TensorLoadNode* op) {
     // Load is considered unsafe.
     return true;
   }

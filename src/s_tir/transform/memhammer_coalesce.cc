@@ -229,7 +229,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
           Substitute(inverse_mapping[loop_vars[j++].as_or_throw<Var>()], substitute_map));
     }
   }
-  BufferLoad new_buf_load = BufferLoad(read_region->buffer, read_index);
+  TensorLoad new_buf_load = BufferLoad(read_region->buffer, read_index);
   BufferStore new_buf_store = BufferStore(write_region->buffer, new_buf_load, write_index);
   Stmt ret = new_buf_store;
   // Step 3.3 construct loop body

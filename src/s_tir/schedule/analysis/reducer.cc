@@ -245,12 +245,14 @@ class PatternMatcher : public ExprVisitor {
     match_success_ = ptr != nullptr && op->value == ptr->value;
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    const auto* ptr = expr_to_match_.as<BufferLoadNode>();
+  void VisitExpr_(const TensorLoadNode* op) final {
+    const auto* ptr = expr_to_match_.as<TensorLoadNode>();
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
-      if (!op->buffer.same_as(ptr->buffer) || op->indices.size() != ptr->indices.size()) {
+      if (!op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
+              ptr->source.as_or_throw<tvm::tirx::BufferVar>()) ||
+          op->indices.size() != ptr->indices.size()) {
         match_success_ = false;
       } else {
         Expr tmp = expr_to_match_;
@@ -654,7 +656,7 @@ std::tuple<CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAn
 
 bool MatchReducer(const CommReducer& reducer, const ffi::Array<PrimExpr>& identities,
                   const ffi::Array<PrimExpr>& combined_values,
-                  const ffi::Array<BufferLoad>& buf_loads, ffi::Array<PrimExpr>* lhs,
+                  const ffi::Array<TensorLoad>& buf_loads, ffi::Array<PrimExpr>* lhs,
                   ffi::Array<PrimExpr>* rhs) {
   ExprDeepEqual equal;
   TVM_FFI_ICHECK_EQ(identities.size(), combined_values.size());
@@ -692,7 +694,7 @@ bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
                           const ffi::Array<BufferStore>& combiners, CommReducer* result_reducer,
                           ffi::Array<PrimExpr>* lhs, ffi::Array<PrimExpr>* rhs) {
   int n = identities.size();
-  ffi::Array<BufferLoad> buf_loads;
+  ffi::Array<TensorLoad> buf_loads;
   ffi::Array<PrimExpr> stored_values;
   buf_loads.reserve(n);
   stored_values.reserve(n);

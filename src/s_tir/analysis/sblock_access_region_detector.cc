@@ -125,7 +125,7 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   void VisitStmt_(const DeclBufferNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const BindNode* op) override;
-  void VisitExpr_(const BufferLoadNode* op) override;
+  void VisitExpr_(const TensorLoadNode* op) override;
   void VisitExpr_(const VarNode* op) override;
   void VisitExpr_(const CallNode* op) override;
 };
@@ -161,7 +161,7 @@ ffi::Array<BufferRegion> BlockReadWriteDetector::CollectOpaques() {
 
 void BlockReadWriteDetector::VisitExpr_(const VarNode* op) { UpdateOpaque(ffi::GetRef<Var>(op)); }
 
-void BlockReadWriteDetector::VisitExpr_(const BufferLoadNode* op) {
+void BlockReadWriteDetector::VisitExpr_(const TensorLoadNode* op) {
   std::vector<arith::IntSet> relaxed_region;
   for (PrimExpr index : op->indices) {
     PrimExpr remapped_index = Substitute(index, let_bindings_);
@@ -171,7 +171,8 @@ void BlockReadWriteDetector::VisitExpr_(const BufferLoadNode* op) {
     }
     relaxed_region.push_back(arith::EvalSet(arith::IntSet::Vector(remapped_index), dom_map_));
   }
-  Update(&read_buffers_, &read_regions_, op->buffer, relaxed_region);
+  Update(&read_buffers_, &read_regions_, op->source.as_or_throw<tvm::tirx::BufferVar>(),
+         relaxed_region);
   ExprVisitor::VisitExpr_(op);
 }
 

@@ -56,7 +56,7 @@ static Expr LowerAccessPtr(const CallNode* call,
 
   // An access pointer may itself be used as the base of another access
   // pointer.  Fold those offsets before constructing the synthetic
-  // BufferLoad so lowering never assumes that args[1] is immediately a Var.
+  // TensorLoad so lowering never assumes that args[1] is immediately a Var.
   Expr buffer = call->args[1];
   while (const auto* inner = buffer.as<CallNode>()) {
     if (!inner->op.same_as(builtin::tvm_access_ptr())) break;
@@ -119,7 +119,7 @@ static Expr LowerAccessPtr(const CallNode* call,
                   BufferType(storage_scope, scalar_dtype, {scalar_extent}, {}, 0, 0, 0));
     buffer_aliases->push_back({access_buffer, access_data});
   }
-  BufferLoad buf_load(access_buffer, {offset});
+  TensorLoad buf_load = BufferLoad(access_buffer, {offset});
   return Call(call->ty, builtin::address_of(), {buf_load});
 }
 

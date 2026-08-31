@@ -58,12 +58,11 @@ class DistBufferReplacer : public StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* _load) final {
-    BufferLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<BufferLoad>();
-    if (buffer_map_.count(load->buffer)) {
-      ffi::ObjectPtr<BufferLoadNode> new_load = ffi::make_object<BufferLoadNode>(*load.get());
-      new_load->buffer = buffer_map_[load->buffer];
-      return BufferLoad(new_load);
+  Expr VisitExpr_(const TensorLoadNode* _load) final {
+    TensorLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<TensorLoad>();
+    if (buffer_map_.count(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
+      return BufferLoad(buffer_map_[load->source.as_or_throw<tvm::tirx::BufferVar>()],
+                        load->indices, load->span);
     }
     return load;
   }
@@ -87,8 +86,8 @@ class DistSBlockInfoCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    buffer_access_indices[op->buffer].push_back(op->indices);
+  void VisitExpr_(const TensorLoadNode* op) final {
+    buffer_access_indices[op->source.as_or_throw<tvm::tirx::BufferVar>()].push_back(op->indices);
     StmtExprVisitor::VisitExpr_(op);
   }
 
@@ -103,8 +102,8 @@ class DistSBlockInfoCollector : public StmtExprVisitor {
   }
 
   bool IsReduceBufferAccess(const PrimExpr& expr) {
-    if (const auto* buffer_load = expr.as<BufferLoadNode>()) {
-      return buffer_load->buffer.same_as(reduce_buffer_);
+    if (const auto* buffer_load = expr.as<TensorLoadNode>()) {
+      return buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(reduce_buffer_);
     }
     return false;
   }

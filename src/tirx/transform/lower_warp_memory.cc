@@ -371,10 +371,10 @@ class WarpAccessRewriter : protected StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) override {
-    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) override {
+    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
 
-    if (load->buffer.get() != buffer_) {
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().get() != buffer_) {
       return load;
     }
 
@@ -388,9 +388,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
         << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->indices[0]
         << " local_index=" << local_index;
 
-    auto writer = load.CopyOnWrite();
-    writer->buffer = new_buffer_;
-    writer->indices = {local_index};
+    load = BufferLoad(new_buffer_, {local_index}, load->span);
 
     if (analyzer_->CanProveEqual(group, warp_index_.as_or_throw<PrimExpr>())) {
       return load;

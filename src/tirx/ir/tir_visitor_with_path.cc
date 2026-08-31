@@ -352,8 +352,8 @@ void TIRVisitorWithPath::VisitStmt_(const ScopeIdDefStmtNode* op, AccessPath pat
 
 void TIRVisitorWithPath::VisitExpr_(const VarNode* op, AccessPath path) {}
 
-void TIRVisitorWithPath::VisitExpr_(const BufferLoadNode* op, AccessPath path) {
-  VisitBufferUse(op->buffer, path->Attr("buffer"));
+void TIRVisitorWithPath::VisitExpr_(const TensorLoadNode* op, AccessPath path) {
+  VisitBufferUse(op->source.as_or_throw<tvm::tirx::BufferVar>(), path->Attr("source"));
   Visit(op->indices, path->Attr("indices"));
 }
 

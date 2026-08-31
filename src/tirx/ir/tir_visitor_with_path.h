@@ -151,7 +151,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
 
   using ExprFunctor::VisitExpr;
   void VisitExpr_(const VarNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const BufferLoadNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const TensorLoadNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const OpaqueExprNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const TupleNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const TupleGetItemNode* op, ffi::reflection::AccessPath path) override;

@@ -247,7 +247,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
  * it must not appear in a BufferLoad, BufferStore, or BufferRegion outside that declaration's
  * scope.
  *
- * All buffers that appear in BufferLoad or BufferStore must have a prior declaration.
+ * All buffers that appear in TensorLoad or BufferStore must have a prior declaration.
  */
 class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier> {
  public:
@@ -304,6 +304,30 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier> {
       previously_defined_;
 };
 
+/*! \brief Verify the asserted type of each tirx buffer load. */
+class TensorLoadTypeVerifier : public Verifier<TensorLoadTypeVerifier> {
+ public:
+  using Verifier::Verifier;
+
+ private:
+  void VisitExpr_(const TensorLoadNode* op, AccessPath path) override {
+    auto buffer = op->source.as<BufferVar>();
+    auto valid_source = Verify(buffer.has_value());
+    valid_source << "TypeError: TIR TensorLoad source at " << path->Attr("source")
+                 << " must be a BufferVar.";
+    if (!buffer.has_value()) {
+      Visit(op->indices, path->Attr("indices"));
+      return;
+    }
+
+    TensorLoad expected = BufferLoad(buffer.value(), op->indices, op->span);
+    auto valid_type = Verify(op->ty == expected->ty);
+    valid_type << "TypeError: TIR TensorLoad at " << path << " asserts result type " << op->ty
+               << ", but its source and indices imply " << expected->ty << ".";
+    TIRVisitorWithPath::VisitExpr_(op, path);
+  }
+};
+
 /* \brief Verify unique tirx::Var for each environment thread
  *
  * Environment threads, such as CUDA's `threadIdx.x`, are defined in
@@ -354,6 +378,8 @@ bool VerifyWellFormed(const PrimFunc& func, bool assert_mode) {
 
   if (!UndefinedBufferVerifier::Verify(func, assert_mode)) return false;
 
+  if (!TensorLoadTypeVerifier::Verify(func, assert_mode)) return false;
+
   // TODO(Siyuan): add more checks here.
   return true;
 }
@@ -371,6 +397,8 @@ bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
   if (!UndefinedVarVerifier::Verify(mod, assert_mode)) return false;
 
   if (!UndefinedBufferVerifier::Verify(mod, assert_mode)) return false;
+
+  if (!TensorLoadTypeVerifier::Verify(mod, assert_mode)) return false;
 
   return true;
 }

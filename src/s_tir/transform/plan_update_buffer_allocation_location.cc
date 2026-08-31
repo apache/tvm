@@ -86,9 +86,9 @@ class BufferAllocateOrderCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    if (!find(op->buffer)) {
-      buffer_alloc_recorder_.push_back(op->buffer);
+  void VisitExpr_(const TensorLoadNode* op) final {
+    if (!find(op->source.as_or_throw<tvm::tirx::BufferVar>())) {
+      buffer_alloc_recorder_.push_back(op->source.as_or_throw<tvm::tirx::BufferVar>());
     }
     StmtExprVisitor::VisitExpr_(op);
   }

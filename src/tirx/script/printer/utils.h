@@ -119,8 +119,8 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
     auto value_refs_buffer = [](const PrimExpr& value, const tirx::BufferVar& buffer) {
       bool found = false;
       tirx::PostOrderVisit(value, [&](const ffi::ObjectRef& node) {
-        if (const auto* load = node.as<tirx::BufferLoadNode>()) {
-          if (load->buffer.same_as(buffer)) {
+        if (const auto* load = node.as<TensorLoadNode>()) {
+          if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
             found = true;
           }
         } else if (const auto* call = node.as<CallNode>()) {

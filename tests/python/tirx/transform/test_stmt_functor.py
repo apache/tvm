@@ -1204,7 +1204,7 @@ def test_op_call_pointer_config_visited_and_mutated():
             self.buffers = []
 
         def visit_buffer_load_(self, op):
-            self.buffers.append(op.buffer)
+            self.buffers.append(op.source)
             return super().visit_buffer_load_(op)
 
     collector = LoadCollector()
@@ -1216,14 +1216,14 @@ def test_op_call_pointer_config_visited_and_mutated():
     class ReplaceMbarLoad(StmtExprMutator):
         def visit_buffer_load_(self, op):
             new_op = super().visit_buffer_load_(op)
-            if op.buffer.same_as(mbar_buffer):
+            if op.source.same_as(mbar_buffer):
                 return tir.BufferLoad(replacement, new_op.indices)
             return new_op
 
     updated = ReplaceMbarLoad().visit_stmt(op_call)
     mbar_load = updated.config["mbar"].args[0]
-    assert isinstance(mbar_load, tir.BufferLoad)
-    assert mbar_load.buffer.same_as(replacement)
+    assert isinstance(mbar_load, tvm.ir.TensorLoad)
+    assert mbar_load.source.same_as(replacement)
 
 
 def test_op_call_nested_config_visited_and_substituted():

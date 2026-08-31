@@ -132,7 +132,7 @@ Type GetType(const PrimExpr& expr) {
       TVM_FFI_ICHECK_EQ(address_of->args.size(), 1)
           << "Builtin address_of() expects a single argument, but received arguments "
           << address_of->args;
-      auto* address = address_of->args[0].as<BufferLoadNode>();
+      auto* address = address_of->args[0].as<TensorLoadNode>();
       if (address) {
         return PointerType(address->ty.as_or_throw<PrimType>());
       }
@@ -147,7 +147,7 @@ Type GetType(const PrimExpr& expr) {
       }
 
       TVM_FFI_ICHECK(false)
-          << "Builtin address_of() expects the argument to be a BufferLoad or Var, but "
+          << "Builtin address_of() expects the argument to be a TensorLoad or Var, but "
           << "received argument " << address_of->args[0];
     }
   }

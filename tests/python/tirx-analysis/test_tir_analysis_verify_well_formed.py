@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F841
 
+import json
+
 import pytest
 
 import tvm
@@ -475,6 +477,27 @@ def test_error_undeclared_buffer_in_schedulable_tir():
         (ValueError, tvm.error.InternalError), match="buffer B.*without a prior DeclBuffer"
     ):
         tvm.tirx.analysis.verify_well_formed(prim_func)
+
+
+def test_tensor_load_asserted_type_matches_source_and_indices():
+    @T.prim_func
+    def func():
+        buffer = T.alloc_buffer((4,), "float32")
+        T.evaluate(buffer[0])
+
+    graph = json.loads(tvm.ir.save_json(func))
+    load = next(node for node in graph["nodes"] if node["type"] == "ir.TensorLoad")
+    int32_type_index = next(
+        index
+        for index, node in enumerate(graph["nodes"])
+        if node["type"] == "ir.PrimType" and node["data"]["dtype"] == "int32"
+    )
+    load["data"]["ty"] = int32_type_index
+    malformed = tvm.ir.load_json(json.dumps(graph))
+
+    assert not tvm.tirx.analysis.verify_well_formed(malformed, assert_mode=False)
+    with pytest.raises(tvm.error.InternalError, match="asserts result type"):
+        tvm.tirx.analysis.verify_well_formed(malformed)
 
 
 if __name__ == "__main__":

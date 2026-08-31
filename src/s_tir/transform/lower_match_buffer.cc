@@ -149,11 +149,11 @@ class MatchBufferLower : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const TensorLoadNode* op) final {
     // Save the original buffer before base class mutation may remap it
-    BufferVar orig_buffer = op->buffer;
+    BufferVar orig_buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
     PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
-    op = expr.as<BufferLoadNode>();
+    op = expr.as<TensorLoadNode>();
     TVM_FFI_ICHECK(op != nullptr);
 
     auto it = match_buffers_.find(orig_buffer);

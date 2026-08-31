@@ -152,9 +152,15 @@ class ReplaceBufferMutator : public StmtExprMutator {
     return node;
   }
 
+  TensorLoad VisitBufferAccess(TensorLoad node) {
+    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    auto it = buffer_var_map_.find(buffer.get());
+    return it != buffer_var_map_.end() ? BufferLoad(it->second, node->indices, node->span) : node;
+  }
+
   Stmt VisitStmt_(const BufferStoreNode* op) override;
 
-  Expr VisitExpr_(const BufferLoadNode* op) override;
+  Expr VisitExpr_(const TensorLoadNode* op) override;
 
   virtual MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer);
 
@@ -253,7 +259,7 @@ class BlockBufferAccessSimplifier : public arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const SBlockNode* op) final;
   Stmt VisitStmt_(const BufferStoreNode* op) final;
-  Expr VisitExpr_(const BufferLoadNode* op) final;
+  Expr VisitExpr_(const TensorLoadNode* op) final;
 };
 
 }  // namespace s_tir

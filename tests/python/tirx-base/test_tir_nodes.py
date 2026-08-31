@@ -341,9 +341,13 @@ def test_scoped_storage_vars():
 def test_buffer_load_store():
     b = tvm.tirx.decl_buffer((10,), "float32")
     x = tvm.tirx.BufferLoad(b, [0])
-    assert isinstance(x, tvm.tirx.BufferLoad)
+    assert isinstance(x, tvm.ir.TensorLoad)
+    assert callable(tvm.tirx.BufferLoad)
     assert x.ty.dtype == "float32"
-    assert x.buffer == b
+    assert x.source == b
+    assert not hasattr(x, "buffer")
+    with pytest.raises(TypeError, match="cannot be constructed directly"):
+        tvm.ir.TensorLoad(b, [0])
     s = tvm.tirx.BufferStore(b, 0.1, [0])
     assert isinstance(s, tvm.tirx.BufferStore)
 
@@ -413,7 +417,7 @@ def test_buffer_load_scalable_vec():
     index = tvm.tirx.expr.Ramp(1, 1, 8 * tvm.tirx.vscale())
     load = tvm.tirx.BufferLoad(buf, [index])
 
-    assert isinstance(load, tvm.tirx.BufferLoad)
+    assert isinstance(load, tvm.ir.TensorLoad)
     assert load.ty.dtype == "float32xvscalex8"
 
 

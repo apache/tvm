@@ -123,9 +123,9 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
     buffer_access_indices_.push_back({op->buffer, op->indices});
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
+  void VisitExpr_(const TensorLoadNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
-    buffer_access_indices_.push_back({op->buffer, op->indices});
+    buffer_access_indices_.push_back({op->source.as_or_throw<tvm::tirx::BufferVar>(), op->indices});
   }
 
   bool Match(PrimExpr a, PrimExpr buffer_shape_a, PrimExpr b, PrimExpr buffer_shape_b,

@@ -152,10 +152,10 @@ BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
       }
     }
     TVM_FFI_THROW(InternalError) << "ValueError: Can not bind non-input param to buffer.";
-  } else if (const auto* buffer_load = param.as<tvm::tirx::BufferLoadNode>()) {
+  } else if (const auto* buffer_load = param.as<TensorLoadNode>()) {
     SBlockFrame frame = FindSBlockFrame("T.match_buffer");
     frame->match_buffers.push_back(tvm::tirx::MatchBufferRegion(
-        buffer, BufferRegionFromLoad(ffi::GetRef<tvm::tirx::BufferLoad>(buffer_load))));
+        buffer, BufferRegionFromLoad(ffi::GetRef<tvm::TensorLoad>(buffer_load))));
   } else if (const auto* buffer_region = param.as<tvm::tirx::BufferRegionNode>()) {
     SBlockFrame frame = FindSBlockFrame("T.match_buffer");
     frame->match_buffers.push_back(
@@ -293,7 +293,7 @@ void Reads(ffi::Array<ffi::ObjectRef> buffer_slices) {
   for (const ffi::ObjectRef& obj : buffer_slices) {
     if (auto buffer_region = obj.as<BufferRegion>()) {
       reads.push_back(buffer_region.value());
-    } else if (auto buffer_load = obj.as<BufferLoad>()) {
+    } else if (auto buffer_load = obj.as<TensorLoad>()) {
       reads.push_back(BufferRegionFromLoad(buffer_load.value()));
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid type for buffer reads.";
@@ -313,7 +313,7 @@ void Writes(ffi::Array<ffi::ObjectRef> buffer_slices) {
   for (const ffi::ObjectRef& obj : buffer_slices) {
     if (auto buffer_region = obj.as<BufferRegion>()) {
       writes.push_back(buffer_region.value());
-    } else if (auto buffer_load = obj.as<BufferLoad>()) {
+    } else if (auto buffer_load = obj.as<TensorLoad>()) {
       writes.push_back(BufferRegionFromLoad(buffer_load.value()));
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid type for buffer writes.";
@@ -921,11 +921,10 @@ Var Ptr(PrimType dtype, ffi::String storage_scope = "global") {
 using tvm::script::ir_builder::details::Namer;
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<tvm::tirx::BufferLoadNode>([](const ffi::ObjectRef& node,
-                                                ffi::String name) -> void {
+    .set_dispatch<TensorLoadNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
       using namespace tvm::tirx;
-      BufferLoadNode* buffer = const_cast<BufferLoadNode*>(node.as<BufferLoadNode>());
-      Namer::Name(buffer->buffer, name);
+      TensorLoadNode* buffer = const_cast<TensorLoadNode*>(node.as<TensorLoadNode>());
+      Namer::Name(buffer->source.as_or_throw<tvm::tirx::BufferVar>(), name);
     });
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)

@@ -22,7 +22,7 @@ from collections.abc import Callable
 
 import tvm_ffi
 
-from tvm.ir import Call, Expr
+from tvm.ir import Call, Expr, TensorLoad
 from tvm.ir.utils import derived_object
 
 from . import _ffi_api
@@ -36,7 +36,6 @@ from .expr import (
     Add,
     And,
     Broadcast,
-    BufferLoad,
     Cast,
     Div,
     FloatImm,
@@ -490,16 +489,16 @@ class PyStmtExprVisitor:
         """
         _ffi_api.PyStmtExprVisitorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_buffer_load_(self, op: BufferLoad) -> None:
-        """Visit BufferLoad.
+    def visit_buffer_load_(self, op: TensorLoad) -> None:
+        """Visit a buffer-backed TensorLoad.
 
-        Users can customize this function to overwrite VisitBufferLoad_(const BufferLoadNode* op)
+        Users can customize this function to overwrite VisitBufferLoad_(const TensorLoadNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : BufferLoad
-            The BufferLoad to be visited.
+        op : TensorLoad
+            The TensorLoad to be visited.
         """
         _ffi_api.PyStmtExprVisitorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
@@ -1331,16 +1330,16 @@ class PyStmtExprMutator:
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_buffer_load_(self, op: BufferLoad) -> Expr:
-        """Visit BufferLoad.
+    def visit_buffer_load_(self, op: TensorLoad) -> Expr:
+        """Visit a buffer-backed TensorLoad.
 
-        Users can customize this function to overwrite VisitBufferLoad_(const BufferLoadNode* op)
+        Users can customize this function to overwrite VisitBufferLoad_(const TensorLoadNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : BufferLoad
-            The BufferLoad to be visited.
+        op : TensorLoad
+            The TensorLoad to be visited.
 
         Returns
         -------

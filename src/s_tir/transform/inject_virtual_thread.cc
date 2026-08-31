@@ -69,8 +69,8 @@ class ExprTouched final : public StmtExprVisitor {
     if (expr_touched_ && !check_write_) return;
     StmtExprVisitor::VisitStmt(n);
   }
-  void VisitExpr_(const BufferLoadNode* op) final {
-    HandleUseVar(op->buffer.get());
+  void VisitExpr_(const TensorLoadNode* op) final {
+    HandleUseVar(op->source.as_or_throw<tvm::tirx::BufferVar>().get());
     StmtExprVisitor::VisitExpr_(op);
   }
   void VisitExpr_(const VarNode* op) final { HandleUseVar(op); }
@@ -262,8 +262,8 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       }
       PrimExpr predicate = this->VisitPrimExpr(op->args.back().as_or_throw<PrimExpr>());
       if (is_load) {
-        BufferLoad access = VisitBufferAccess(BufferLoad(buffer, indices, op->span));
-        ffi::Array<Expr> args{access->buffer.var()};
+        TensorLoad access = VisitBufferAccess(BufferLoad(buffer, indices, op->span));
+        ffi::Array<Expr> args{access->source.as_or_throw<tvm::tirx::BufferVar>().var()};
         for (const PrimExpr& index : access->indices) args.push_back(index);
         args.push_back(predicate);
         return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
@@ -311,8 +311,8 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     return StmtExprMutator::VisitStmt_(op);
   }
   // BufferLoad
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     return VisitBufferAccess(std::move(node));
   }
   // BufferStore
@@ -338,6 +338,19 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     }
 
     return node;
+  }
+
+  TensorLoad VisitBufferAccess(TensorLoad node) {
+    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    if (touched_var_.count(buffer.get())) {
+      visit_touched_var_ = true;
+    }
+    auto it = alloc_remap_.find(buffer.get());
+    if (it == alloc_remap_.end()) return node;
+    TVM_FFI_ICHECK_EQ(node->indices.size(), 1)
+        << "InjectVirtualThread expects rewritten allocations to be flat memory.";
+    return BufferLoad(GetRemappedBuffer(buffer, it->second),
+                      {RewriteIndex(node->indices[0], it->second)}, node->span);
   }
 
   BufferVar GetRemappedBuffer(BufferVar buf, PrimExpr alloc_extent) {

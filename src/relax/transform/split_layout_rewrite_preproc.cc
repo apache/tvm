@@ -189,7 +189,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
       const BufferVar& preproc_buffer = op->reads[0]->buffer;
       int buffer_index = -1;
       for (size_t i = 0; i < original_func_->params.size(); ++i) {
-        BufferVar buffer = original_func_->params[i].as_or_throw<BufferVar>();
+        BufferVar buffer = original_func_->params[i].as_or_throw<tvm::tirx::BufferVar>();
         if (buffer == preproc_buffer) {
           buffer_index = i;
           break;

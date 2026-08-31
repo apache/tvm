@@ -137,7 +137,7 @@ class FlopEstimator : private ExprFunctor<TResult(const Expr& n)>,
     return result;
   }
 
-  TResult VisitExpr_(const BufferLoadNode* op) override { return TResult(); }
+  TResult VisitExpr_(const TensorLoadNode* op) override { return TResult(); }
   TResult VisitStmt_(const AttrStmtNode* op) override {
     TResult result = VisitStmt(op->body);
     result += VisitExpr(op->value);

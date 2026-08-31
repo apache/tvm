@@ -201,11 +201,14 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
 
     // If the stored value is a load from the same location, the
     // statement is a no-op, regardless of contextual information.
-    if (const BufferLoadNode* load = store->value.as<BufferLoadNode>()) {
-      if (load->buffer.same_as(store->buffer) &&
-          analyzer_->CanProveEqual(load->buffer->elem_offset, store->buffer->elem_offset) &&
-          ArrayValueEqual(load->buffer->shape, store->buffer->shape) &&
-          ArrayValueEqual(load->buffer->strides, store->buffer->strides) &&
+    if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
+      if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(store->buffer) &&
+          analyzer_->CanProveEqual(load->source.as_or_throw<tvm::tirx::BufferVar>()->elem_offset,
+                                   store->buffer->elem_offset) &&
+          ArrayValueEqual(load->source.as_or_throw<tvm::tirx::BufferVar>()->shape,
+                          store->buffer->shape) &&
+          ArrayValueEqual(load->source.as_or_throw<tvm::tirx::BufferVar>()->strides,
+                          store->buffer->strides) &&
           ArrayValueEqual(load->indices, store->indices)) {
         return only_side_effects();
       }

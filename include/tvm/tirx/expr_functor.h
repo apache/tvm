@@ -115,7 +115,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   }
   // Functions that can be overriden by subclass
   virtual R VisitExpr_(const VarNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const BufferLoadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const TensorLoadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const OpaqueExprNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const TupleNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const TupleGetItemNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -159,7 +159,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     FType vtable;
     // Set dispatch
     IR_EXPR_FUNCTOR_DISPATCH(VarNode);
-    IR_EXPR_FUNCTOR_DISPATCH(BufferLoadNode);
+    IR_EXPR_FUNCTOR_DISPATCH(TensorLoadNode);
     IR_EXPR_FUNCTOR_DISPATCH(OpaqueExprNode);
     IR_EXPR_FUNCTOR_DISPATCH(TupleNode);
     IR_EXPR_FUNCTOR_DISPATCH(TupleGetItemNode);
@@ -211,7 +211,7 @@ class TVM_DLL ExprVisitor : public ExprFunctor<void(const Expr&)> {
   using ExprFunctor::VisitExpr;
   // list of functions to override.
   void VisitExpr_(const VarNode* op) override;
-  void VisitExpr_(const BufferLoadNode* op) override;
+  void VisitExpr_(const TensorLoadNode* op) override;
   void VisitExpr_(const OpaqueExprNode* op) override;
   void VisitExpr_(const TupleNode* op) override;
   void VisitExpr_(const TupleGetItemNode* op) override;
@@ -259,7 +259,7 @@ class TVM_DLL ExprMutator : protected ExprFunctor<Expr(const Expr&)> {
   PrimExpr VisitPrimExpr(const PrimExpr& expr) { return VisitExpr(expr).as_or_throw<PrimExpr>(); }
   // list of functions to override.
   Expr VisitExpr_(const VarNode* op) override;
-  Expr VisitExpr_(const BufferLoadNode* op) override;
+  Expr VisitExpr_(const TensorLoadNode* op) override;
   Expr VisitExpr_(const OpaqueExprNode* op) override;
   Expr VisitExpr_(const TupleNode* op) override;
   Expr VisitExpr_(const TupleGetItemNode* op) override;

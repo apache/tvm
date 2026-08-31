@@ -90,8 +90,8 @@ void StmtVisitor::VisitBufferDef(const BufferVar& buffer, bool alloc_data) {
 // where the buffer's shape variables are not defined.
 void StmtVisitor::VisitBufferUse(const BufferVar& buffer) {}
 
-void StmtExprVisitor::VisitExpr_(const BufferLoadNode* op) {
-  this->VisitBufferUse(op->buffer);
+void StmtExprVisitor::VisitExpr_(const TensorLoadNode* op) {
+  this->VisitBufferUse(op->source.as_or_throw<tvm::tirx::BufferVar>());
   ExprVisitor::VisitExpr_(op);
 }
 
@@ -451,15 +451,14 @@ Expr StmtExprMutator::VisitExpr_(const VarNode* op) {
   return var;
 }
 
-Expr StmtExprMutator::VisitExpr_(const BufferLoadNode* op) {
-  BufferVar new_buf = this->VisitBufferUse(op->buffer);
+Expr StmtExprMutator::VisitExpr_(const TensorLoadNode* op) {
+  BufferVar old_buf = op->source.as_or_throw<tvm::tirx::BufferVar>();
+  BufferVar new_buf = this->VisitBufferUse(old_buf);
   PrimExpr expr = ExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
-  op = expr.as<BufferLoadNode>();
+  op = expr.as<TensorLoadNode>();
   TVM_FFI_ICHECK(op != nullptr);
-  if (!new_buf.same_as(op->buffer)) {
-    auto n = ffi::make_object<BufferLoadNode>(*op);
-    n->buffer = std::move(new_buf);
-    return PrimExpr(n);
+  if (!new_buf.same_as(old_buf)) {
+    return BufferLoad(std::move(new_buf), op->indices, op->span);
   }
   return expr;
 }

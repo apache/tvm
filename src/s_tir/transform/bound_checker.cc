@@ -108,9 +108,9 @@ class BoundChecker : public StmtExprMutator {
     return ffi::GetRef<Stmt>(op);
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    if (CanInstrument(op->indices, op->buffer.var())) {
-      Collect(op->indices, op->buffer.var());
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    if (CanInstrument(op->indices, op->source.as_or_throw<tvm::tirx::BufferVar>().var())) {
+      Collect(op->indices, op->source.as_or_throw<tvm::tirx::BufferVar>().var());
     }
     return StmtExprMutator::VisitExpr_(op);
   }

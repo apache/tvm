@@ -36,7 +36,7 @@ using namespace tvm::tirx;
  *
  * There are four ways that transformation may be handled.  Each
  * updates the buffer shape and the indices used to acces the buffer
- * in BufferStore/BufferLoad nodes, but differ in how they handle the
+ * in BufferStore/TensorLoad nodes, but differ in how they handle the
  * `pad_value`.  In order of preference, the different strategies are
  * as follows:
  *
@@ -834,11 +834,13 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
     return Parent::VisitStmt_(op);
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad buffer_load = Parent::VisitExpr_(op).as_or_throw<BufferLoad>();
-    if (buffer_load->buffer.same_as(old_buffer_)) {
-      auto* n = buffer_load.CopyOnWrite();
-      RewriteBufferAccess(&n->buffer, &n->indices);
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    TensorLoad buffer_load = Parent::VisitExpr_(op).as_or_throw<TensorLoad>();
+    if (buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)) {
+      BufferVar buffer = buffer_load->source.as_or_throw<tvm::tirx::BufferVar>();
+      ffi::Array<PrimExpr> indices = buffer_load->indices;
+      RewriteBufferAccess(&buffer, &indices);
+      return BufferLoad(buffer, indices, buffer_load->span);
     }
     return buffer_load;
   }
@@ -1042,30 +1044,31 @@ class TransformationPaddingExpressionError : public ScheduleError {
   struct Visitor : ExprVisitor {
     explicit Visitor(const BufferVar& buffer) : buffer_(buffer) {}
 
-    void VisitExpr_(const BufferLoadNode* op) final {
-      if (!op->buffer.same_as(buffer_)) {
-        illegal_load = ffi::GetRef<BufferLoad>(op);
+    void VisitExpr_(const TensorLoadNode* op) final {
+      if (!op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
+        illegal_load = ffi::GetRef<TensorLoad>(op);
       }
       ExprVisitor::VisitExpr_(op);
     }
 
     const BufferVar& buffer_;
-    ffi::Optional<BufferLoad> illegal_load;
+    ffi::Optional<TensorLoad> illegal_load;
   };
 
   TransformationPaddingExpressionError(IRModule mod, BufferVar buffer, IndexMap pad_value,
-                                       BufferLoad illegal_load)
+                                       TensorLoad illegal_load)
       : mod_(mod), buffer_(buffer), pad_value_(pad_value), illegal_load_(illegal_load) {}
 
   ffi::String FastErrorString() const final {
     std::ostringstream ss;
-    ss << "ScheduleError: Pad value may not contain load from " << illegal_load_->buffer.name();
+    ss << "ScheduleError: Pad value may not contain load from "
+       << illegal_load_->source.as_or_throw<tvm::tirx::BufferVar>().name();
     return ss.str();
   }
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream ss;
-    ss << "ScheduleError: Pad value may only contain BufferLoad from the transformed buffer "
+    ss << "ScheduleError: Pad value may only contain TensorLoad from the transformed buffer "
        << buffer_.name() << ", but pad_value " << pad_value_ << " contains expression "
        << illegal_load_;
     return ss.str();
@@ -1077,7 +1080,7 @@ class TransformationPaddingExpressionError : public ScheduleError {
   IRModule mod_;
   BufferVar buffer_;
   IndexMap pad_value_;
-  BufferLoad illegal_load_;
+  TensorLoad illegal_load_;
 };
 
 class TransformationIntroducesPaddingError : public ScheduleError {

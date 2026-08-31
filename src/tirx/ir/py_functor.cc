@@ -102,7 +102,7 @@ class PyStmtExprVisitorNode : public ffi::Object, public StmtExprVisitor {
   ffi::Function f_visit_expr{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const VarNode* op)` function. */
   ffi::Function f_visit_var{nullptr};
-  /*! \brief The packed function to the `VisitExpr_(const BufferLoadNode* op)` function. */
+  /*! \brief The packed function to the `VisitExpr_(const TensorLoadNode* op)` function. */
   ffi::Function f_visit_buffer_load{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const LetNode* op)` function. */
   ffi::Function f_visit_let{nullptr};
@@ -231,7 +231,7 @@ class PyStmtExprVisitorNode : public ffi::Object, public StmtExprVisitor {
   PY_STMT_VISITOR_DISPATCH(SBlockRealizeNode, f_visit_sblock_realize);
   // Expression functions
   PY_EXPR_VISITOR_DISPATCH(VarNode, f_visit_var);
-  PY_EXPR_VISITOR_DISPATCH(BufferLoadNode, f_visit_buffer_load);
+  PY_EXPR_VISITOR_DISPATCH(TensorLoadNode, f_visit_buffer_load);
   PY_EXPR_VISITOR_DISPATCH(LetNode, f_visit_let);
   PY_EXPR_VISITOR_DISPATCH(CallNode, f_visit_call);
   PY_EXPR_VISITOR_DISPATCH(AddNode, f_visit_add);
@@ -267,7 +267,7 @@ class PyStmtExprVisitorNode : public ffi::Object, public StmtExprVisitor {
     FExprType vtable;
     // Set dispatch
     IR_EXPR_VISITOR_DEFAULT_DISPATCH(VarNode);
-    IR_EXPR_VISITOR_DEFAULT_DISPATCH(BufferLoadNode);
+    IR_EXPR_VISITOR_DEFAULT_DISPATCH(TensorLoadNode);
     IR_EXPR_VISITOR_DEFAULT_DISPATCH(TupleNode);
     IR_EXPR_VISITOR_DEFAULT_DISPATCH(TupleGetItemNode);
     IR_EXPR_VISITOR_DEFAULT_DISPATCH(LetNode);
@@ -447,7 +447,7 @@ class PyStmtExprMutatorNode : public ffi::Object, public StmtExprMutator {
   ffi::Function f_visit_expr{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const VarNode* op)` function. */
   ffi::Function f_visit_var{nullptr};
-  /*! \brief The packed function to the `VisitExpr_(const BufferLoadNode* op)` function. */
+  /*! \brief The packed function to the `VisitExpr_(const TensorLoadNode* op)` function. */
   ffi::Function f_visit_buffer_load{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const LetNode* op)` function. */
   ffi::Function f_visit_let{nullptr};
@@ -576,7 +576,7 @@ class PyStmtExprMutatorNode : public ffi::Object, public StmtExprMutator {
   PY_STMT_MUTATOR_DISPATCH(SBlockRealizeNode, f_visit_sblock_realize);
   // Expression functions
   PY_EXPR_MUTATOR_DISPATCH(VarNode, f_visit_var);
-  PY_EXPR_MUTATOR_DISPATCH(BufferLoadNode, f_visit_buffer_load);
+  PY_EXPR_MUTATOR_DISPATCH(TensorLoadNode, f_visit_buffer_load);
   PY_EXPR_MUTATOR_DISPATCH(LetNode, f_visit_let);
   PY_EXPR_MUTATOR_DISPATCH(CallNode, f_visit_call);
   PY_EXPR_MUTATOR_DISPATCH(AddNode, f_visit_add);
@@ -612,7 +612,7 @@ class PyStmtExprMutatorNode : public ffi::Object, public StmtExprMutator {
     FExprType vtable;
     // Set dispatch
     PY_EXPR_MUTATOR_DEFAULT_DISPATCH(VarNode);
-    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(BufferLoadNode);
+    PY_EXPR_MUTATOR_DEFAULT_DISPATCH(TensorLoadNode);
     PY_EXPR_MUTATOR_DEFAULT_DISPATCH(TupleNode);
     PY_EXPR_MUTATOR_DEFAULT_DISPATCH(TupleGetItemNode);
     PY_EXPR_MUTATOR_DEFAULT_DISPATCH(LetNode);
