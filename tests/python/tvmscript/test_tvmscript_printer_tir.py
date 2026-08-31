@@ -1129,7 +1129,7 @@ def test_vload_with_explicit_scalable_data_type():
 
 @T.prim_func(s_tir=True)
 def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
-    B[0:T.vscale() * 4] = A[0:T.vscale() * 4]
+    B[0:T.vscale() * 4] = A[T.Ramp(0, 1, T.vscale() * 4)]
     """
     _assert_print(main, expected_output)
 
@@ -1149,7 +1149,7 @@ def test_vectorize_llvm_pure_intrin():
 
 @T.prim_func(s_tir=True)
 def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
-    A[0:4] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", B[0:4])
+    A[0:4] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", B[T.Ramp(0, 1, 4)])
     """
     _assert_print(main, expected_output)
 
