@@ -413,8 +413,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ExprDoc value = d->AsDoc<ExprDoc>(store->value, p->Attr("value"));
 
           // special case for scalar buffers
-          if ((store->buffer.IsScalar(true) || store->buffer.IsScalar(false)) &&
-              !store->predicate.has_value()) {
+          if (store->buffer.IsScalar(true) || store->buffer.IsScalar(false)) {
             // TVM_FFI_ICHECK(store->indices.size() == 1 && tirx::is_zero(store->indices[0]))
             //     << "1-dim buffer with shape (1,) store with indices other than [0] is not "
             //        "supported";
@@ -422,14 +421,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             TVM_FFI_ICHECK(doc.has_value())
                 << "buffer is not defined in the environment: " << store->buffer;
             return AssignDoc(doc.value(), value, std::nullopt);
-          }
-
-          // Use .vstore(...) syntax when there is a predicate
-          if (store->predicate.has_value()) {
-            ExprDoc indices = d->AsDoc<ExprDoc>(store->indices, p->Attr("indices"));
-            ExprDoc predicate = d->AsDoc<ExprDoc>(store->predicate, p->Attr("predicate"));
-            return ExprStmtDoc(
-                buffer->Attr("vstore")->Call({indices, value}, {"predicate"}, {predicate}));
           }
 
           return AssignDoc(
@@ -443,21 +434,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ExprDoc buffer = d->AsDoc<ExprDoc>(load->buffer, p->Attr("buffer"));
 
           // special case for scalar
-          if ((load->buffer.IsScalar(true) || load->buffer.IsScalar(false)) &&
-              !load->predicate.has_value()) {
+          if (load->buffer.IsScalar(true) || load->buffer.IsScalar(false)) {
             // TVM_FFI_ICHECK(load->indices.size() == 1 && tirx::is_zero(load->indices[0]))
             //     << "Scalar buffer load with indices other than [0] is not supported";
             ffi::Optional<ExprDoc> doc = d->GetVarDoc(load->buffer);
             TVM_FFI_ICHECK(doc.has_value())
                 << "Scalar buffer is not defined in the environment: " << load->buffer;
             return doc.value();
-          }
-
-          // Use .vload(...) syntax when there is a predicate
-          if (load->predicate.has_value()) {
-            ExprDoc indices = d->AsDoc<ExprDoc>(load->indices, p->Attr("indices"));
-            ExprDoc predicate = d->AsDoc<ExprDoc>(load->predicate, p->Attr("predicate"));
-            return buffer->Attr("vload")->Call({indices}, {"predicate"}, {predicate});
           }
 
           return buffer[BufferIndices(load->indices, p->Attr("indices"), d)];

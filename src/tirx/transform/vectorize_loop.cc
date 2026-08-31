@@ -158,8 +158,10 @@ bool EnableBufferLevelPredication(Target target) {
  * After:
  * for i_0 in T.serial(4):
  *  predicate = T.get_active_lane_mask("uint1x4", i_0 * 4, 14)
- *  A_load = T.meta_var(A.vload([T.Ramp(i_0 * 4, 1, 4)], predicate=predicate))
- *  B.vstore([T.Ramp(i_0 * 4, 1, 4)], A_load, predicate=predicate)
+ *  A_load = T.meta_var(T.call_intrin("float32x4", "tirx.masked_load", A,
+ *                                    T.Ramp(i_0 * 4, 1, 4), predicate))
+ *  T.evaluate(T.call_intrin("void", "tirx.masked_store", B, A_load,
+ *                           T.Ramp(i_0 * 4, 1, 4), predicate))
  */
 class TryPredicateBufferAccesses : public StmtExprMutator {
  public:
@@ -214,20 +216,39 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     return TryPredicateBufferAccess(store);
   }
 
-  template <typename AccessNode>
-  AccessNode TryPredicateBufferAccess(AccessNode node) {
+  Expr VisitExpr_(const CallNode* op) final {
+    Call call = StmtExprMutator::VisitExpr_(op).as_or_throw<Call>();
+    if (!call->op.same_as(builtin::masked_load()) && !call->op.same_as(builtin::masked_store())) {
+      return call;
+    }
+
+    bool is_load = call->op.same_as(builtin::masked_load());
+    ffi::Array<PrimExpr> indices;
+    for (size_t i = is_load ? 1 : 2; i + 1 < call->args.size(); ++i) {
+      indices.push_back(call->args[i].as_or_throw<PrimExpr>());
+    }
+    if (auto lane_mask = GetLaneMask(indices)) {
+      PrimExpr predicate = call->args.back().as_or_throw<PrimExpr>();
+      predicate = allow_offset_predication_ ? predicate & lane_mask.value() : lane_mask.value();
+      ffi::Array<Expr> args = call->args;
+      args.Set(args.size() - 1, predicate);
+      return Call(call->ty, call->op, args, call->attrs, call->ty_args, call->span);
+    }
+    return call;
+  }
+
+  ffi::Optional<PrimExpr> GetLaneMask(const ffi::Array<PrimExpr>& indices) {
     num_accesses_analyzed_ += 1;
 
     // Do not try to predicate non-vectorized accesses
-    ffi::Array<PrimExpr> indices = node->indices;
     if (!indices.size() || !indices[0]->IsInstance<RampNode>()) {
-      return node;
+      return std::nullopt;
     }
-    Ramp ramp = node->indices[0].template as_or_throw<Ramp>();
+    Ramp ramp = indices[0].as_or_throw<Ramp>();
 
     if (!ffi::StructuralEqual()(ramp->stride, stride_) ||
         !ffi::StructuralEqual()(ramp->lanes, lanes_)) {
-      return node;
+      return std::nullopt;
     }
 
     bool same_base = ffi::StructuralEqual()(ramp->base, base_);
@@ -236,7 +257,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
       // memory base.  This covers accesses such as A[offset + i] guarded by
       // a predicate over i.
       if (!allow_offset_predication_) {
-        return node;
+        return std::nullopt;
       }
     }
 
@@ -249,15 +270,28 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
                              .as_or_throw<PrimExpr>();
 
     num_accesses_rewritten_ += 1;
-    auto writer = node.CopyOnWrite();
-    if (node->predicate.has_value() && allow_offset_predication_) {
-      // BufferVar predicates are uint1 lane masks, so mask merging uses bitwise
-      // and rather than logical &&.
-      writer->predicate = node->predicate.value() & lane_mask;
-    } else {
-      writer->predicate = lane_mask;
+    return lane_mask;
+  }
+
+  Expr TryPredicateBufferAccess(BufferLoad load) {
+    if (auto mask = GetLaneMask(load->indices)) {
+      ffi::Array<Expr> args{load->buffer.var()};
+      for (const PrimExpr& index : load->indices) args.push_back(index);
+      args.push_back(mask.value());
+      return Call(load->ty, builtin::masked_load(), args, {}, {}, load->span);
     }
-    return node;
+    return load;
+  }
+
+  Stmt TryPredicateBufferAccess(BufferStore store) {
+    if (auto mask = GetLaneMask(store->indices)) {
+      ffi::Array<Expr> args{store->buffer.var(), store->value};
+      for (const PrimExpr& index : store->indices) args.push_back(index);
+      args.push_back(mask.value());
+      return Evaluate(Call(PrimType::Void(), builtin::masked_store(), args, {}, {}, store->span),
+                      store->span);
+    }
+    return store;
   }
 
   /*! \brief The variable base expr of the predicate. */

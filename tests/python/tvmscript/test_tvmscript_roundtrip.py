@@ -2456,9 +2456,24 @@ def predicated_buffer_load_store():
         B = T.match_buffer(b, (8,), "float32")
         for i_0 in range(4):
             load_a = T.meta_var(
-                A.vload([T.Ramp(i_0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
+                T.call_intrin(
+                    "float32x4",
+                    "tirx.masked_load",
+                    A,
+                    T.Ramp(i_0, 1, 4),
+                    T.Broadcast(T.bool(True), 4),
+                )
             )
-            B.vstore([T.Ramp(0, 2, 4)], load_a, predicate=T.Broadcast(T.bool(True), 4))
+            T.evaluate(
+                T.call_intrin(
+                    "void",
+                    "tirx.masked_store",
+                    B,
+                    load_a,
+                    T.Ramp(0, 2, 4),
+                    T.Broadcast(T.bool(True), 4),
+                )
+            )
 
     return func
 

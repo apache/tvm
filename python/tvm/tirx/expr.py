@@ -1186,9 +1186,6 @@ class BufferLoad(ExprWithOp):
     span : Optional[Span]
         The location of this expression in the source code.
 
-    predicate : Optional[Expr]
-        A vector mask of boolean values indicating which lanes of a vector are to be
-        loaded. The number lanes of the mask must be equal to the number of lanes being loaded.
     """
 
     buffer: Buffer
@@ -1198,14 +1195,12 @@ class BufferLoad(ExprWithOp):
         self,
         buffer: Buffer,
         indices: list[Expr],
-        predicate: Expr | None = None,
         span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.BufferLoad,
             buffer,
             indices,
-            predicate,
             span,  # type: ignore
         )
 

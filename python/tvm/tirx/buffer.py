@@ -148,7 +148,7 @@ class _BufferMethods:
             extent,  # type: ignore
         )
 
-    def vload(self, begin, dtype=None, predicate=None):
+    def vload(self, begin, dtype=None):
         """Generate an Expr that loads dtype from begin index.
 
         Parameters
@@ -160,10 +160,6 @@ class _BufferMethods:
             The data type to be loaded,
             can be vector type which have lanes that is multiple of Buffer.dtype
 
-        predicate : Optional[Expr]
-            A vector mask of boolean values indicating which lanes of a vector are to be
-            loaded. The number lanes of the mask must be equal to the number of lanes being loaded.
-
         Returns
         -------
         load : Expr
@@ -171,9 +167,9 @@ class _BufferMethods:
         """
         begin = (begin,) if isinstance(begin, int) or tvm.ir.is_prim_expr(begin) else begin
         dtype = dtype if dtype else self.ty.dtype
-        return _ffi_api.BufferVLoad(self, begin, dtype, predicate)  # type: ignore
+        return _ffi_api.BufferVLoad(self, begin, dtype)  # type: ignore
 
-    def vstore(self, begin, value, predicate=None):
+    def vstore(self, begin, value):
         """Generate a Stmt that store value into begin index.
 
         Parameters
@@ -184,18 +180,13 @@ class _BufferMethods:
         value : Expr
             The value to be stored.
 
-        predicate : Optional[Expr]
-            A vector mask of boolean values indicating which lanes of a vector are to be
-            stored. The number lanes of the mask must be equal to the number of lanes in
-            value.
-
         Returns
         -------
         store : Stmt
             The corresponding store stmt.
         """
         begin = (begin,) if isinstance(begin, int) or tvm.ir.is_prim_expr(begin) else begin
-        return _ffi_api.BufferVStore(self, begin, value, predicate)  # type: ignore
+        return _ffi_api.BufferVStore(self, begin, value)  # type: ignore
 
     def scope(self):
         """Return the storage scope associated with this buffer.
