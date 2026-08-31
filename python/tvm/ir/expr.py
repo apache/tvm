@@ -48,6 +48,11 @@ class Expr(Node):
             # Preserve Relax's pre-normalization tuple access: operator calls
             # have a missing result type until the block builder infers it.
             return TupleGetItem(self, index)
+        if isinstance(self.ty, tvm.relax.TensorType):
+            # Relax tensor subscription retains its legacy TupleGetItem
+            # semantics.  Realize each step eagerly so x[i][j] remains two
+            # nested tuple-item accesses rather than one multi-axis slice.
+            return SubscriptProxy(self, index).to_expr()
         if is_prim_expr(self):
             raise TypeError("A primitive-valued expression cannot be indexed")
         return SubscriptProxy(self, index)
@@ -100,6 +105,8 @@ class GlobalVar(Expr):
             A call taking the variable as a function.
         """
         from .type import PointerType
+
+        args = tuple(_realize_operand(arg) for arg in args)
 
         def is_tir_arg(x):
             return (

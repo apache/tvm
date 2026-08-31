@@ -329,6 +329,7 @@ def buffer(
         The declared buffer.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
+    shape = tuple(_realize_operand(dim) for dim in shape)
     if strides is not None:
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:
@@ -1847,6 +1848,7 @@ def decl_buffer(
         The declared buffer.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
+    shape = tuple(_realize_operand(dim) for dim in shape)
     if strides is not None:
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:

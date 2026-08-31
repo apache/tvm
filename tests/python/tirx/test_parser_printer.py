@@ -2264,6 +2264,25 @@ def test_buffer_slice_region():
     assert int(br.region[1].extent) == 32
 
 
+def test_global_call_realizes_buffer_elements():
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(private=True, s_tir=True)
+        def add(a: T.float32, b: T.float32) -> T.float32:
+            return a + b
+
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((16,), "float32"),
+            B: T.Buffer((16,), "float32"),
+            C: T.Buffer((16,), "float32"),
+        ):
+            for i in range(16):
+                C[i] = Module.add(A[i], B[i])
+
+    assert isinstance(Module["main"], tvm.tirx.PrimFunc)
+
+
 def test_buffer_region_slice():
     """Verify BufferRegion slicing returns BufferRegion."""
     from tvm.tirx.stmt import BufferRegion
