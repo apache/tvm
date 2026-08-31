@@ -90,6 +90,7 @@ def test_public_operator_base_is_the_only_dialect_operator_surface():
         tvm.runtime.Scriptable,
     )
     assert tvm.ir.BaseFunc.__bases__ == (tvm.ir.ExprWithOp,)
+    assert tvm.ir.TensorLoad.__bases__ == (tvm.ir.ExprWithOp,)
 
     tirx_direct_bases = (
         tirx_expr.ConstExpr,
@@ -99,7 +100,6 @@ def test_public_operator_base_is_the_only_dialect_operator_surface():
         tirx_expr.Reduce,
         tirx_expr.Cast,
         tirx_expr.Select,
-        tirx_expr.BufferLoad,
         tirx_expr.Ramp,
         tirx_expr.Broadcast,
         tirx_expr.Shuffle,

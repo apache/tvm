@@ -563,7 +563,7 @@ class TupleGetItem(ExprWithOp):
 
 
 @tvm_ffi.register_object("ir.TensorLoad")
-class TensorLoad(_ExprWithOp):
+class TensorLoad(ExprWithOp):
     """An indexed load from an expression source.
 
     TensorLoad objects are constructed by a dialect-specific helper that
