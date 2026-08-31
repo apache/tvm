@@ -65,7 +65,7 @@ class CodeGenTrainium final : public CodeGenC {
   void VisitStmt_(const BufferStoreNode* op) final;                   // NOLINT(*)=
   void VisitStmt_(const EvaluateNode* op) final;                      // NOLINT(*)
   std::string PrintIndices(const ffi::Array<PrimExpr>& indices);      // NOLINT(*)
-  void VisitExpr_(const BufferLoadNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const TensorLoadNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const CallNode* op, std::ostream& os) final;        // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;    // NOLINT(*)
   void VisitExpr_(const CastNode* op, std::ostream& os) final;        // NOLINT(*)

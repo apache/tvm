@@ -1171,9 +1171,8 @@ class Select(ExprWithOp):
         )
 
 
-@tvm_ffi.register_object("tirx.BufferLoad")
-class BufferLoad(ExprWithOp):
-    """Buffer load node.
+def BufferLoad(buffer: Buffer, indices: list[Expr], span: Span | None = None) -> tvm.ir.TensorLoad:
+    """Construct a validated buffer load.
 
     Parameters
     ----------
@@ -1188,21 +1187,7 @@ class BufferLoad(ExprWithOp):
 
     """
 
-    buffer: Buffer
-    indices: list[Expr]
-
-    def __init__(
-        self,
-        buffer: Buffer,
-        indices: list[Expr],
-        span: Span | None = None,
-    ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.BufferLoad,
-            buffer,
-            indices,
-            span,  # type: ignore
-        )
+    return _ffi_api.BufferLoad(buffer, indices, span)
 
 
 @tvm_ffi.register_object("tirx.Ramp")

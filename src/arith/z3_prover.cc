@@ -735,7 +735,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     if (memo_.count(e)) {
       return false;
     }
-    return e->IsInstance<CallNode>() || e->IsInstance<BufferLoadNode>() ||
+    return e->IsInstance<CallNode>() || e->IsInstance<TensorLoadNode>() ||
            e->IsInstance<ReduceNode>() ||
            (e->IsInstance<CastNode>() && !IsZ3SupportedExpr(e.as_or_throw<Cast>()->value.get()));
   }
@@ -796,7 +796,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     }
   }
   z3::expr VisitExpr_(const VarNode* op) override { return Create(op); }
-  z3::expr VisitExpr_(const BufferLoadNode* op) override { return Create(op); }
+  z3::expr VisitExpr_(const TensorLoadNode* op) override { return Create(op); }
   z3::expr VisitExpr_(const ReduceNode* op) override { return Create(op); }
   z3::expr VisitExpr_(const MinNode* op) override {
     auto a = VisitInt(op->a);

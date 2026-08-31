@@ -89,8 +89,8 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    HandleLoadStoreToVariable(op->buffer.var());
+  void VisitExpr_(const TensorLoadNode* op) final {
+    HandleLoadStoreToVariable(op->source.as_or_throw<tvm::tirx::BufferVar>().var());
     return StmtExprVisitor::VisitExpr_(op);
   }
 

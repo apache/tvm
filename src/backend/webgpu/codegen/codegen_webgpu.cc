@@ -581,7 +581,7 @@ void CodeGenWebGPU::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // N
   os << temp.str();
 }
 
-void CodeGenWebGPU::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenWebGPU::VisitExpr_(const TensorLoadNode* op, std::ostream& os) {  // NOLINT(*)
   // NOTE: direct impl of load/store for correctness
   // Each printing stmt must stand on their own after all preprocessing steps
   // to ensure correctness in the case of nested-expression
@@ -590,8 +590,8 @@ void CodeGenWebGPU::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  //
 
   PrimType value_ty = op->ty.as_or_throw<PrimType>();
   PrimExpr index = op->indices[0];
-  Var buffer_var = op->buffer.var();
-  const PrimType& element_ty = op->buffer->dtype;
+  Var buffer_var = op->source.as_or_throw<tvm::tirx::BufferVar>().var();
+  const PrimType& element_ty = op->source.as_or_throw<tvm::tirx::BufferVar>()->dtype;
 
   int lanes = value_ty.lanes();
   std::string buffer_vid = GetVarID(buffer_var.get());

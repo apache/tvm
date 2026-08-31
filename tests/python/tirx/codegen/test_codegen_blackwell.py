@@ -71,7 +71,7 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
     # instruction has no remote operand of its own, it just takes the mapped
     # address.
     mapped_dst, mapped_ptr, _rank = mapa_calls[0].args[:3]
-    assert isinstance(mapped_dst, tvm.tirx.BufferLoad)
+    assert isinstance(mapped_dst, tvm.ir.TensorLoad)
     assert mapped_ptr is not None
     assert len(arrive_calls) == n_arrives
 

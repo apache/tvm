@@ -259,14 +259,14 @@ class CSEPlanner : public StmtExprVisitor {
   /*!
    * \brief Check if an expression node type is forbidden for CSE.
    *
-   * Call nodes may have side effects. BufferLoad nodes depend on memory
+   * Call nodes may have side effects. TensorLoad nodes depend on memory
    * state and cannot be safely hoisted or deduplicated.
    *
    * \param expr The expression to check.
    * \return true if the expression is a Call or BufferLoad.
    */
   static bool IsForbiddenNode(const PrimExpr& expr) {
-    return (expr.as<CallNode>() != nullptr || expr.as<BufferLoadNode>() != nullptr);
+    return (expr.as<CallNode>() != nullptr || expr.as<TensorLoadNode>() != nullptr);
   }
 
   /*!

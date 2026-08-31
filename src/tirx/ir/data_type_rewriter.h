@@ -110,7 +110,7 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   Stmt VisitStmt_(const SBlockNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
   Stmt VisitStmt_(const AttrStmtNode* op) override;
-  Expr VisitExpr_(const BufferLoadNode* op) override;
+  Expr VisitExpr_(const TensorLoadNode* op) override;
   ffi::Array<PrimExpr> VisitIndices(ffi::Array<PrimExpr> indices);
   Stmt VisitStmt_(const IfThenElseNode* op) override;
   Stmt VisitStmt_(const BindNode* op) override;
