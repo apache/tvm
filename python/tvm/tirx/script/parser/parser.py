@@ -221,6 +221,8 @@ def bind_assign_value(
     res : Any
         The bound value.
     """
+    if isinstance(value, tvm.ir.SubscriptProxy):
+        value = value.to_expr()
     if var_name in (prim_var_declarations or set()):
         # A quoted Buffer shape may have already created this PrimVar.  In that
         # case ``n = T.int32()`` is match-like syntax: bind the Python name to

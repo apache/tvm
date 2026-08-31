@@ -40,6 +40,7 @@ from .expr import (
     GlobalVar,
     OpaqueExpr,
     Range,
+    SubscriptProxy,
     TensorLoad,
     Tuple,
     TupleGetItem,

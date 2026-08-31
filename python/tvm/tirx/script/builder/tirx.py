@@ -123,12 +123,16 @@ thread = ScopeNamespace("thread", "thread")
 
 
 def _is_buffer_or_region(x):
+    if isinstance(x, tvm.ir.SubscriptProxy):
+        x = x.to_expr()
     return is_buffer_var(x) or isinstance(x, BufferRegion)
 
 
 def _to_region(buffer: BufferRegion | Buffer):
+    if isinstance(buffer, tvm.ir.SubscriptProxy):
+        buffer = buffer.to_expr()
     if is_buffer_var(buffer):
-        return buffer[[slice(None, None, None) for _ in range(len(buffer.ty.shape))]]
+        return buffer[tuple(slice(None) for _ in buffer.ty.shape)].to_expr()
     assert isinstance(buffer, BufferRegion)
     return buffer
 

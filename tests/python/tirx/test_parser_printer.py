@@ -2190,11 +2190,11 @@ def test_buffer_chunk_ir():
 
     # chunk((None, None, 2))[:, :, 1] narrows dim 2 (extent 16) to chunk 1 of 2
     # → [8:16] (k = 16 // 2 = 8); rank preserved, dims 0/1 pass through as ':'.
-    reg = A.chunk((None, None, 2))[:, :, 1]
+    reg = A.chunk((None, None, 2))[:, :, 1].to_expr()
     assert isinstance(reg, BufferRegion)
     assert len(reg.region) == 3  # rank-preserving: no extra extent-1 chunk dim
     assert (int(reg.region[2].min), int(reg.region[2].extent)) == (8, 8)
-    assert_structural_equal(reg, A[:, :, 8:16])
+    assert_structural_equal(reg, A[:, :, 8:16].to_expr())
 
     # a None dim passes an int pick straight through (int → extent-1 region),
     # while the chunked dim still narrows to its picked chunk.
@@ -2203,7 +2203,7 @@ def test_buffer_chunk_ir():
 
     # chunk((None, 4))[:, 2] on the swizzle-carrying compose layout: dim 1
     # (extent 512) → chunk 2 of 4 → [256:384] (k = 128), byte-identical slice.
-    reg_c = C.chunk((None, 4))[:, 2]
+    reg_c = C.chunk((None, 4))[:, 2].to_expr()
     assert (int(reg_c.region[1].min), int(reg_c.region[1].extent)) == (256, 128)
     assert_structural_equal(reg_c, C[:, 256:384])
 
@@ -2257,7 +2257,7 @@ def test_buffer_slice_region():
     from tvm.tirx.stmt import BufferRegion
 
     buf = tvm.tirx.decl_buffer((128, 64), "float16")
-    br = buf[32:64, 0:32]
+    br = buf[32:64, 0:32].to_expr()
     assert isinstance(br, BufferRegion)
     assert br.buffer.same_as(buf)
     assert int(br.region[0].extent) == 32
@@ -2270,7 +2270,7 @@ def test_buffer_region_slice():
 
     buf = tvm.tirx.decl_buffer((128, 64), "float16")
 
-    br1 = buf[32:64, 0:32]
+    br1 = buf[32:64, 0:32].to_expr()
     assert isinstance(br1, BufferRegion)
 
     # BufferRegion chained slice

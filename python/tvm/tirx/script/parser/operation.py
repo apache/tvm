@@ -19,7 +19,7 @@
 import tvm
 from tvm import tirx
 from tvm.ir import PrimType
-from tvm.runtime import DataTypeCode
+from tvm.runtime import DataTypeCode, ObjectConvertible
 from tvm.script.parser._core import OpMethod, doc, register_op
 from tvm.tirx import IntImm
 from tvm.tirx.expr import FloatImm
@@ -27,6 +27,9 @@ from tvm.tirx.expr import FloatImm
 
 def _register_expr_op(ty: type):  # pylint: disable=invalid-name
     ty._dispatch_type = ty  # pylint: disable=protected-access
+
+    def _realize(expr):
+        return expr.asobject() if isinstance(expr, ObjectConvertible) else expr
 
     def _expr_ty(expr):
         ty = expr.ty if tvm.ir.is_prim_expr(expr) else None
@@ -37,6 +40,7 @@ def _register_expr_op(ty: type):  # pylint: disable=invalid-name
         return ty
 
     def _and(a, b):
+        a, b = _realize(a), _realize(b)
         if isinstance(a, bool):
             a = IntImm("bool", a)
         if isinstance(b, bool):
@@ -47,6 +51,7 @@ def _register_expr_op(ty: type):  # pylint: disable=invalid-name
             return tirx.And(a, b)
 
     def _or(a, b):
+        a, b = _realize(a), _realize(b)
         if isinstance(a, bool):
             a = IntImm("bool", a)
         if isinstance(b, bool):
@@ -64,6 +69,7 @@ def _register_expr_op(ty: type):  # pylint: disable=invalid-name
         return dtype_str[0:index]
 
     def _auto_broadcast(a, b, op):
+        a, b = _realize(a), _realize(b)
         if isinstance(a, int):
             if tvm.ir.is_prim_expr(b) or hasattr(b, "expr_ty"):
                 b_ty = _expr_ty(b)
@@ -165,3 +171,4 @@ def _register_expr_op(ty: type):  # pylint: disable=invalid-name
 
 _register_expr_op(tirx.Expr)
 _register_expr_op(tirx.IterVar)
+_register_expr_op(tvm.ir.SubscriptProxy)

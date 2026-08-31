@@ -22,7 +22,7 @@ import tvm_ffi
 
 import tvm
 
-from ..runtime import Object, Scriptable
+from ..runtime import Object, ObjectConvertible, Scriptable
 from . import _ffi_api, _overload_prim_expr, _tensor_expr_overload
 from .base import Node, Span
 
@@ -33,6 +33,18 @@ class Expr(Node):
 
     span: Span | None
     ty: "tvm.ir.Type"
+
+    def __getitem__(self, index):
+        if isinstance(self.ty, tvm.ir.TupleType):
+            try:
+                return TupleGetItem(self, index)
+            except RuntimeError as err:
+                if "Index out of bounds" in err.args[0]:
+                    raise IndexError from err
+                raise
+        if is_prim_expr(self):
+            raise TypeError("A primitive-valued expression cannot be indexed")
+        return SubscriptProxy(self, index)
 
 
 @tvm_ffi.register_object("ir.OpaqueExpr")
@@ -48,6 +60,90 @@ def is_prim_expr(value: object) -> bool:
 def is_prim_var(value: object) -> bool:
     """Return whether a value is an ordinary variable with a primitive type."""
     return isinstance(value, Var) and type(value) is Var and is_prim_expr(value)
+
+
+class SubscriptProxy(ObjectConvertible):
+    """An immutable, lazily-realized subscription of an :class:`Expr`.
+
+    Chained subscriptions accumulate into a single key.  The key is realized
+    through the source type's ``__subscript_expr_realize__`` attribute only
+    when an IR object is required by the FFI or requested with :meth:`to_expr`.
+    """
+
+    __slots__ = ("_result", "_slice", "_source")
+    __hash__ = object.__hash__
+
+    def __init__(self, source: Expr, index):
+        if isinstance(source, SubscriptProxy):
+            self._source = source._source
+            self._slice = source._slice + self._flatten(index)
+        else:
+            self._source = source
+            self._slice = self._flatten(index)
+        self._result = None
+
+    @staticmethod
+    def _flatten(index):
+        return tuple(index) if isinstance(index, tuple | list) else (index,)
+
+    @staticmethod
+    def _convert_index(index):
+        def convert(value):
+            if isinstance(value, SubscriptProxy):
+                value = value.to_expr()
+            if value is None or is_prim_expr(value):
+                return value
+            return tvm.tirx.const(value)
+
+        if isinstance(index, slice):
+            return (convert(index.start), convert(index.stop), convert(index.step))
+        if index is Ellipsis or index is None:
+            raise TypeError("Ellipsis and newaxis are not supported in expression subscriptions")
+        return convert(index)
+
+    def __getitem__(self, index):
+        return SubscriptProxy(self, index)
+
+    def to_expr(self) -> Object:
+        """Realize and cache the subscribed IR object."""
+        if self._result is None:
+            result = _ffi_api.SubscriptExprRealize(
+                self._source, [self._convert_index(index) for index in self._slice]
+            )
+            if not isinstance(result, Object):
+                raise TypeError("__subscript_expr_realize__ must return an Object")
+            self._result = result
+        return self._result
+
+    def asobject(self) -> Object:
+        return self.to_expr()
+
+    def __tvm_ffi_object__(self) -> Object:
+        return self.to_expr()
+
+    @property
+    def ty(self):
+        return self.to_expr().ty
+
+    def same_as(self, other):
+        if isinstance(other, SubscriptProxy):
+            other = other.to_expr()
+        return self.to_expr().same_as(other)
+
+    def __repr__(self):
+        return f"SubscriptProxy({self._source!r}, {self._slice!r})"
+
+
+def _forward_subscript_operator(name):
+    def forwarded(self, *args, **kwargs):
+        args = tuple(arg.to_expr() if isinstance(arg, SubscriptProxy) else arg for arg in args)
+        kwargs = {
+            key: value.to_expr() if isinstance(value, SubscriptProxy) else value
+            for key, value in kwargs.items()
+        }
+        return getattr(self.to_expr(), name)(*args, **kwargs)
+
+    return forwarded
 
 
 @tvm_ffi.register_object("ir.GlobalVar")
@@ -324,13 +420,13 @@ class _ExprWithOp(Expr, Scriptable):
             raise TypeError("Tensor expression overload __call__ is not registered")
         return result
 
-    def __getitem__(self, index):
-        if is_prim_expr(self):
-            raise TypeError("A primitive-valued expression cannot be indexed")
-        result = _tensor_expr_overload.__getitem__(self, index)
-        if result is NotImplemented:
-            raise TypeError("Tensor expression overload __getitem__ is not registered")
-        return result
+
+# A proxy should behave like its realized expression at Python operator
+# boundaries, while remaining a lightweight ObjectConvertible itself.
+for _name, _operator in _ExprWithOp.__dict__.items():
+    if callable(_operator) and _name not in {"__hash__", "__getitem__"}:
+        setattr(SubscriptProxy, _name, _forward_subscript_operator(_name))
+del _name, _operator
 
 
 @tvm_ffi.register_object("ir.Tuple")

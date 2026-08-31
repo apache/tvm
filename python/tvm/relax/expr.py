@@ -223,17 +223,21 @@ class ExprWithOp(Expr, Scriptable):
         result: ExprWithOp
             The result expression.
         """
-        try:
-            return TupleGetItem(self, index)
-        except RuntimeError as err:
-            # For Python objects with __getitem__, but without
-            # __len__, tuple unpacking is done by iterating over
-            # sequential indices until IndexError is raised.
-            # Therefore, convert from RuntimeError to IndexError for
-            # compatibility.
-            if "Index out of bounds" in err.args[0]:
-                raise IndexError from err
-            raise
+        if isinstance(self.ty, tvm.ir.TupleType):
+            try:
+                return TupleGetItem(self, index)
+            except RuntimeError as err:
+                # For Python objects with __getitem__, but without
+                # __len__, tuple unpacking is done by iterating over
+                # sequential indices until IndexError is raised.
+                # Therefore, convert from RuntimeError to IndexError for
+                # compatibility.
+                if "Index out of bounds" in err.args[0]:
+                    raise IndexError from err
+                raise
+        if isinstance(self.ty, tvm.relax.TensorType):
+            return tvm.ir.SubscriptProxy(self, index)
+        raise TypeError(f"Expression of type {self.ty} cannot be indexed")
 
 
 @tvm_ffi.register_object("relax.expr.If")

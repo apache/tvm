@@ -22,7 +22,7 @@ from numbers import Integral
 import tvm_ffi
 
 import tvm
-from tvm.ir import PointerType, PrimType, Range, Type
+from tvm.ir import PointerType, PrimType, Type
 from tvm.runtime import convert
 
 from . import _buffer_view, _ffi_api
@@ -458,59 +458,6 @@ class _BufferMethods:
         """
         return _buffer_view.chunk(self, spec)
 
-    def __getitem__(self, indices):
-        if not is_buffer_var(self):
-            return _ORIGINAL_VAR_GETITEM(self, indices)
-
-        from ..arith import Analyzer  # pylint: disable=import-outside-toplevel
-        from .expr import BufferLoad, Ramp  # pylint: disable=import-outside-toplevel
-        from .stmt import BufferRegion  # pylint: disable=import-outside-toplevel
-
-        if not isinstance(indices, tuple | list):
-            indices = [indices]
-        has_slice = any(isinstance(i, slice) for i in indices)
-        has_step = any(
-            isinstance(i, slice) and (i.step is not None and i.step != 1) for i in indices
-        )
-        has_implicit_slice = len(indices) < len(self.ty.shape)
-        analyzer = Analyzer()
-        if (has_slice and not has_step) or has_implicit_slice:
-            region = []
-            for i, index in enumerate(indices):
-                if isinstance(index, slice):
-                    start = 0 if index.start is None else index.start
-                    stop = self.ty.shape[i] if index.stop is None else index.stop
-                    region.append(Range.from_min_extent(start, analyzer.simplify(stop - start)))
-                else:
-                    region.append(
-                        Range.from_min_extent(
-                            index,
-                            tvm.tirx.expr.IntImm(index.ty, 1) if tvm.ir.is_prim_expr(index) else 1,
-                        )
-                    )
-            if has_implicit_slice:
-                for i in range(len(indices), len(self.ty.shape)):
-                    region.append(Range.from_min_extent(0, self.ty.shape[i]))
-            return BufferRegion(self, region)
-        else:
-            expr_indices = []
-            for i, index in enumerate(indices):
-                if isinstance(index, slice):
-                    start = 0 if index.start is None else index.start
-                    stop = self.ty.shape[i] if index.stop is None else index.stop
-                    step = 1 if index.step is None else index.step
-                    # We should ensure the dtype of start is the same with that of step.
-                    if tvm.ir.is_prim_expr(start) and isinstance(step, int):
-                        step = tvm.tirx.expr.IntImm(start.ty, step)
-                    lanes = analyzer.simplify((stop - start + step - 1) // step)
-                    if lanes == 1:
-                        expr_indices.append(start)
-                    else:
-                        expr_indices.append(Ramp(start, step, int(lanes)))
-                else:
-                    expr_indices.append(index)
-            return BufferLoad(self, expr_indices)
-
 
 def decl_buffer(
     shape,
@@ -581,9 +528,8 @@ def buffer_data_pointer_type(buffer):
 # ``tvm.tirx`` therefore augments ``tvm.ir.Var`` process-wide with the legacy
 # buffer operation and metadata surface.  Non-buffer Vars reject the metadata
 # properties with AttributeError, preserving correct ``hasattr`` behavior.
-_ORIGINAL_VAR_GETITEM = tvm.ir.Var.__getitem__
 for _name, _value in _BufferMethods.__dict__.items():
-    if _name.startswith("__") and _name != "__getitem__":
+    if _name.startswith("__"):
         continue
     if callable(_value) or isinstance(_value, property):
         setattr(tvm.ir.Var, _name, _value)

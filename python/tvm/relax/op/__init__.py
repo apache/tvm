@@ -185,19 +185,10 @@ def _register_op_make():
     def _rhs(_lhs, rhs):
         return expr._binary_rhs_helper(rhs)
 
-    def _getitem(value, index):
-        try:
-            return expr.TupleGetItem(value, index)
-        except RuntimeError as err:
-            if "Index out of bounds" in err.args[0]:
-                raise IndexError from err
-            raise
-
     _tensor_expr_overload.astype = lambda lhs, dtype, _span=None: _ffi_api.astype(lhs, dtype)
     _tensor_expr_overload.__call__ = lambda func, *args, attrs=None: expr.tvm.ir.Call(
         func, args, attrs=attrs
     )
-    _tensor_expr_overload.__getitem__ = _getitem
     _tensor_expr_overload.__neg__ = lambda lhs: _ffi_api.negative(lhs)
     _tensor_expr_overload.__lt__ = lambda lhs, rhs: expr._binary_op_helper(lhs, rhs, _ffi_api.less)
     _tensor_expr_overload.__le__ = lambda lhs, rhs: expr._binary_op_helper(

@@ -527,6 +527,8 @@ def match_buffer(
     res : Buffer
         The matched buffer.
     """
+    if isinstance(param, ir.SubscriptProxy):
+        param = param.to_expr()
     if shape is None:
         if isinstance(param, BufferRegion):
             dtype = param.buffer.ty.dtype
@@ -2069,7 +2071,7 @@ def alloc_scalar(dtype: str = "float32", scope: str = "global") -> TensorLoad:
     """Allocate a zero-dimensional buffer (scalar)."""
     buf = alloc_buffer(shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]))
     assert is_buffer_var(buf)
-    scalar = buf[0]
+    scalar = buf[0].to_expr()
     if _current_meta_construction_scope() is not None:
         return scalar
     return scalar_wrapper(scalar)
@@ -2089,7 +2091,7 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> Tenso
         layout=TileLayout(S[1]),
     )
     assert is_buffer_var(buf)
-    scalar = buf[0]
+    scalar = buf[0].to_expr()
     if _current_meta_construction_scope() is not None:
         return scalar
     return scalar_wrapper(scalar)

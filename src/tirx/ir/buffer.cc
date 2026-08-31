@@ -29,6 +29,7 @@
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt.h>
 
 #include <iterator>
 #include <list>
@@ -39,7 +40,89 @@
 namespace tvm {
 namespace tirx {
 
-TVM_FFI_STATIC_INIT_BLOCK() { BufferTypeNode::RegisterReflection(); }
+namespace {
+
+ffi::ObjectRef RealizeBufferSubscript(
+    Expr value,
+    ffi::Array<ffi::Variant<ffi::Tuple<ffi::Optional<PrimExpr>, PrimExpr, ffi::Optional<PrimExpr>>,
+                            PrimExpr>>
+        slice) {
+  BufferVar buffer = value.as_or_throw<BufferVar>();
+  BufferType buffer_ty = buffer.type();
+  TVM_FFI_CHECK_LE(slice.size(), buffer_ty->shape.size(), IndexError)
+      << "Too many indices for a " << buffer_ty->shape.size() << "-dimensional buffer";
+
+  // A contiguous slice, including omitted trailing dimensions, denotes a
+  // region.  A strided slice instead denotes a vector load.
+  bool has_slice = false;
+  bool has_step = false;
+  for (const auto& item : slice) {
+    if (auto descriptor =
+            item.as<ffi::Tuple<ffi::Optional<PrimExpr>, PrimExpr, ffi::Optional<PrimExpr>>>()) {
+      has_slice = true;
+      ffi::Optional<PrimExpr> step = descriptor.value().get<2>();
+      has_step = has_step || (step.has_value() && !is_one(step.value()));
+    }
+  }
+
+  arith::Analyzer analyzer;
+  bool has_implicit_slice = slice.size() < buffer_ty->shape.size();
+  if ((has_slice && !has_step) || has_implicit_slice) {
+    TVM_FFI_CHECK(!has_step, ValueError)
+        << "A strided buffer slice cannot omit trailing dimensions";
+    ffi::Array<Range> region;
+    region.reserve(buffer_ty->shape.size());
+    for (size_t i = 0; i < slice.size(); ++i) {
+      if (auto point = slice[i].as<PrimExpr>()) {
+        region.push_back(Range::FromMinExtent(point.value(), IntImm(point.value().ty(), 1)));
+      } else {
+        auto descriptor =
+            slice[i]
+                .as<ffi::Tuple<ffi::Optional<PrimExpr>, PrimExpr, ffi::Optional<PrimExpr>>>()
+                .value();
+        PrimExpr start = descriptor.get<0>().value_or(IntImm(buffer_ty->shape[i].ty(), 0));
+        PrimExpr stop = descriptor.get<1>();
+        if (!stop.defined()) stop = buffer_ty->shape[i];
+        // Match the existing Python Buffer indexing behavior: simplify only
+        // the slice extent that was already simplified there.
+        region.push_back(Range::FromMinExtent(start, analyzer->Simplify(stop - start)));
+      }
+    }
+    for (size_t i = slice.size(); i < buffer_ty->shape.size(); ++i) {
+      region.push_back(
+          Range::FromMinExtent(IntImm(buffer_ty->shape[i].ty(), 0), buffer_ty->shape[i]));
+    }
+    return BufferRegion(buffer, region);
+  }
+
+  ffi::Array<PrimExpr> indices;
+  indices.reserve(slice.size());
+  for (size_t i = 0; i < slice.size(); ++i) {
+    if (auto point = slice[i].as<PrimExpr>()) {
+      indices.push_back(point.value());
+    } else {
+      auto descriptor =
+          slice[i]
+              .as<ffi::Tuple<ffi::Optional<PrimExpr>, PrimExpr, ffi::Optional<PrimExpr>>>()
+              .value();
+      PrimExpr start = descriptor.get<0>().value_or(IntImm(buffer_ty->shape[i].ty(), 0));
+      PrimExpr stop = descriptor.get<1>();
+      if (!stop.defined()) stop = buffer_ty->shape[i];
+      PrimExpr step = descriptor.get<2>().value_or(IntImm(start.ty(), 1));
+      PrimExpr lanes = analyzer->Simplify(ceildiv(stop - start, step));
+      indices.push_back(is_one(lanes) ? start : PrimExpr(Ramp(start, step, lanes)));
+    }
+  }
+  return BufferLoad(buffer, indices);
+}
+
+}  // namespace
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  BufferTypeNode::RegisterReflection();
+  refl::TypeAttrDef<BufferTypeNode>().def("__subscript_expr_realize__", RealizeBufferSubscript);
+}
 
 using IndexMod = tirx::FloorModNode;
 using IndexDiv = tirx::FloorDivNode;
