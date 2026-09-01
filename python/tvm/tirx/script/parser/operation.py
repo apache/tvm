@@ -19,7 +19,6 @@
 import tvm
 from tvm import tirx
 from tvm.ir import PrimType
-from tvm.ir.expr import _realize_operand
 from tvm.runtime import DataTypeCode
 from tvm.script.parser._core import OpMethod, doc, register_op
 from tvm.tirx import IntImm
@@ -38,7 +37,6 @@ def _register_expr_op(ty: type):  # pylint: disable=invalid-name
         return ty
 
     def _and(a, b):
-        a, b = _realize_operand(a), _realize_operand(b)
         if isinstance(a, bool):
             a = IntImm("bool", a)
         if isinstance(b, bool):
@@ -49,7 +47,6 @@ def _register_expr_op(ty: type):  # pylint: disable=invalid-name
             return tirx.And(a, b)
 
     def _or(a, b):
-        a, b = _realize_operand(a), _realize_operand(b)
         if isinstance(a, bool):
             a = IntImm("bool", a)
         if isinstance(b, bool):
@@ -67,7 +64,6 @@ def _register_expr_op(ty: type):  # pylint: disable=invalid-name
         return dtype_str[0:index]
 
     def _auto_broadcast(a, b, op):
-        a, b = _realize_operand(a), _realize_operand(b)
         if isinstance(a, int):
             if tvm.ir.is_prim_expr(b) or hasattr(b, "expr_ty"):
                 b_ty = _expr_ty(b)
@@ -169,4 +165,3 @@ def _register_expr_op(ty: type):  # pylint: disable=invalid-name
 
 _register_expr_op(tirx.Expr)
 _register_expr_op(tirx.IterVar)
-_register_expr_op(tvm.ir.SubscriptProxy)

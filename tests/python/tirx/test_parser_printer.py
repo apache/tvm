@@ -2194,7 +2194,7 @@ def test_buffer_chunk_ir():
     assert isinstance(reg, BufferRegion)
     assert len(reg.region) == 3  # rank-preserving: no extra extent-1 chunk dim
     assert (int(reg.region[2].min), int(reg.region[2].extent)) == (8, 8)
-    assert_structural_equal(reg, A[:, :, 8:16].to_expr())
+    assert_structural_equal(reg, A[:, :, 8:16])
 
     # a None dim passes an int pick straight through (int → extent-1 region),
     # while the chunked dim still narrows to its picked chunk.
@@ -2257,11 +2257,19 @@ def test_buffer_slice_region():
     from tvm.tirx.stmt import BufferRegion
 
     buf = tvm.tirx.decl_buffer((128, 64), "float16")
-    br = buf[32:64, 0:32].to_expr()
+    br = buf[32:64, 0:32]
     assert isinstance(br, BufferRegion)
     assert br.buffer.same_as(buf)
     assert int(br.region[0].extent) == 32
     assert int(br.region[1].extent) == 32
+
+    load = buf[1, 2]
+    assert isinstance(load, tvm.ir.TensorLoad)
+
+    partial = buf[1]
+    assert isinstance(partial, BufferRegion)
+    with pytest.raises(TypeError):
+        _ = partial[2]
 
 
 def test_global_call_realizes_buffer_elements():
@@ -2281,25 +2289,6 @@ def test_global_call_realizes_buffer_elements():
                 C[i] = Module.add(A[i], B[i])
 
     assert isinstance(Module["main"], tvm.tirx.PrimFunc)
-
-
-def test_buffer_region_slice():
-    """Verify BufferRegion slicing returns BufferRegion."""
-    from tvm.tirx.stmt import BufferRegion
-
-    buf = tvm.tirx.decl_buffer((128, 64), "float16")
-
-    br1 = buf[32:64, 0:32].to_expr()
-    assert isinstance(br1, BufferRegion)
-
-    # BufferRegion chained slice
-    br3 = br1[0:16, 0:16]
-    assert isinstance(br3, BufferRegion)
-    assert br3.buffer.same_as(buf), "chained region slice must reference root buffer"
-    assert int(br3.region[0].min) == 32
-    assert int(br3.region[0].extent) == 16
-    assert int(br3.region[1].min) == 0
-    assert int(br3.region[1].extent) == 16
 
 
 def test_roundtrip_serial_unroll_false():
