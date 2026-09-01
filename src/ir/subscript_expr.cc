@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file subscript_proxy.cc
+ * \file subscript_expr.cc
  * \brief Type-directed realization for Python expression subscription.
  */
 #include <tvm/ffi/function.h>

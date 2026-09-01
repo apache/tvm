@@ -48,7 +48,11 @@ class Expr(Node):
         except RuntimeError as err:
             # Preserve eager tuple iteration/unpacking through Python's legacy
             # sequence protocol, which stops only after observing IndexError.
-            if "Index out of bounds" in err.args[0]:
+            if (
+                isinstance(self.ty, tvm.ir.TupleType)
+                and err.args
+                and "Index out of bounds" in str(err.args[0])
+            ):
                 raise IndexError from err
             raise
 

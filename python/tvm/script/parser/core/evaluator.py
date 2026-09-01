@@ -148,7 +148,7 @@ class ExprEvaluator:
             The doc AST name node with intermediate name for intermediate result.
         """
         if self.parser is not None:
-            value = self.parser.annotate_current_source_span(value, node)
+            value = self.parser.annotate_current_source_span(value)
         name = f"__tvm_tmp_value_{self.new_value_count}"
         self.new_value_count += 1
         self.value_table[name] = value
