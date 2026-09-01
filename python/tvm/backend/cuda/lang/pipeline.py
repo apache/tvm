@@ -205,7 +205,9 @@ class MBarrier:
             # reuses the one mapa the view did.
             _mbarrier_arrive_remote(self.buf.ptr_to([stage]), pred, count)
         elif remote is None:
-            self._arrive(self.buf.ptr_to([stage]))
+            # Keep local arrival as the default; remote arrival must pay for
+            # address mapping explicitly.
+            self._arrive(self.buf.ptr_to([stage]), pred, count)
         else:
             # Split of the legacy fused wrapper: map the address into the
             # target CTA, then arrive on it. Plain Python so the mapa scratch
@@ -216,15 +218,13 @@ class MBarrier:
             )
 
     @T.inline
-    def _arrive(self, bar):
-        # Local-CTA arrive. To arrive on a remote CTA's mbarrier in a cluster
-        # kernel, callers must pass ``remote=`` explicitly (e.g.
-        # ``bar.arrive(stage, remote=0)``) or use
-        # ``MBarrier.remote_view(rank).arrive(stage)``. Defaulting the
-        # cross-CTA path was both surprising (``bar.arrive(stage)`` silently
-        # ``mapa``ed across the cluster) and a per-call cost of ~3 PTX ops on
-        # every single-CTA kernel.
-        T.ptx.mbarrier.arrive.shared.b64(bar, T.uint32(1))
+    def _arrive(self, bar, pred=None, count=None):
+        if pred is None:
+            T.ptx.mbarrier.arrive.shared.b64(bar, T.uint32(1 if count is None else count))
+        else:
+            T.ptx.mbarrier.arrive.shared.b64(
+                bar, T.uint32(1 if count is None else count), pred=pred
+            )
 
     def ptr_to(self, idx):
         return self.buf.ptr_to(idx)
