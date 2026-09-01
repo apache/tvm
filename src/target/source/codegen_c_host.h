@@ -100,11 +100,12 @@ class CodeGenCHost : public CodeGenC {
    * \brief Print ternary conditional operator implementing binary `op`
    * Forces the operands to be in SSA form.
    * \param op binary operator being expressed
-   * \param compare string representation of comparison operator
+   * \param compare string representation of the strict comparison operator
+   * \param reverse_compare string representation of the reverse non-strict comparison operator
    * \param os stream reference to print into
    */
   template <typename T>
-  inline void PrintTernaryCondExpr(const T* op, const char* compare,
+  inline void PrintTernaryCondExpr(const T* op, const char* compare, const char* reverse_compare,
                                    std::ostream& os);  // NOLINT(*)
 };
 

@@ -147,6 +147,28 @@ def test_tir_special_floatimms(dtype, literal):
     compare_float_value(x.value, literal, "imm value should match feed value")
 
 
+def test_tir_min_max_floatimm_const_fold():
+    dtype = "float32"
+    uint_dtype = "uint32"
+    lhs_nan, rhs_nan = np.array([0x7FC00011, 0x7FC00022], dtype=uint_dtype).view(dtype)
+    cases = {
+        "lhs_nan": (lhs_nan, 1.0, "lhs"),
+        "rhs_nan": (1.0, rhs_nan, "rhs"),
+        "both_nan": (lhs_nan, rhs_nan, "lhs"),
+        "signed_zero_tie": (0.0, -0.0, "rhs"),
+    }
+
+    for operation_name, operation in [("min", tirx.min), ("max", tirx.max)]:
+        for case, (lhs_value, rhs_value, expected_side) in cases.items():
+            lhs = tirx.const(lhs_value, dtype)
+            rhs = tirx.const(rhs_value, dtype)
+            result = operation(lhs, rhs)
+            expected = lhs if expected_side == "lhs" else rhs
+            result_bits = np.asarray(result.value, dtype=dtype).view(uint_dtype).item()
+            expected_bits = np.asarray(expected.value, dtype=dtype).view(uint_dtype).item()
+            assert result_bits == expected_bits, f"{operation_name}: {case}"
+
+
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_tir_too_large_literal_f64():
     # Behavior check: if literal f64 value is out of dtype range, the
