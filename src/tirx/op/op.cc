@@ -42,7 +42,17 @@
 
 namespace tvm {
 
-using namespace tirx;
+namespace builtin = tirx::builtin;
+using tirx::CallEffectKind;
+using tirx::is_const_int;
+using tirx::IterVar;
+using tirx::MakeConst;
+using tirx::PrimVar;
+using tirx::TCallEffectKind;
+using tirx::TGlobalSymbol;
+using tirx::TIRxOpCategory;
+using tirx::TScriptPrinterName;
+using tirx::TVectorizable;
 
 namespace {
 // File-local helper: true if `expr` is a call to prim::builtin::vscale().
