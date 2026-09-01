@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/type.h>
 
 // clang-format off
 #include <algorithm>
