@@ -130,6 +130,43 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         raise ValueError(f"Unsupported type: {type(tensor)}")
 
     @staticmethod
+    def _static_dim(value):
+        """Return ``value`` as a Python int when it is a compile-time constant, else ``None``."""
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, int):
+            return value
+        const = getattr(value, "value", None)
+        if isinstance(const, int) and not isinstance(const, bool):
+            return const
+        return None
+
+    def _torch_reshape_dims(self, x, dims):
+        """Adapt a PyTorch target shape for ``relax.op.reshape``.
+
+        PyTorch reads a literal ``0`` in a target shape as a real zero-sized dimension.
+        ``relax.op.reshape`` reads it as "copy the corresponding input dimension", which is
+        ONNX ``Reshape`` with ``allowzero=0``. When the input is statically empty, the
+        dimension PyTorch asks for can be written as ``-1`` instead, whose inference
+        yields ``0``.
+
+        Every other case is left untouched. In particular, for a non-empty input PyTorch
+        rejects a zero in the target shape outright, and rewriting it to ``-1`` there would
+        silently produce a shape rather than surface the error.
+        """
+        dims = list(dims)
+        target = [self._static_dim(d) for d in dims]
+        if 0 not in target or -1 in target:
+            return dims
+        shape = self.shape_of(x)
+        if shape is None:
+            return dims
+        if 0 not in [self._static_dim(d) for d in shape]:
+            return dims
+        dims[target.index(0)] = -1
+        return dims
+
+    @staticmethod
     def _promote_common_dtype(lhs_dtype: str | None, rhs_dtype: str | None) -> str | None:
         """Return the promoted dtype following PyTorch rules, or None if unsupported."""
         import torch  # type: ignore
@@ -1946,7 +1983,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             + [flattened]
             + [shape[i] for i in range(end_dim + 1, len(shape))]
         )
-        return self.block_builder.emit(relax.op.reshape(x, new_shape))
+        return self.block_builder.emit(relax.op.reshape(x, self._torch_reshape_dims(x, new_shape)))
 
     def _flatten(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -2286,14 +2323,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if current_shape is not None and list(current_shape) == list(dims):
             return x
 
-        return self.block_builder.emit(relax.op.reshape(x, dims))
+        return self.block_builder.emit(relax.op.reshape(x, self._torch_reshape_dims(x, dims)))
 
     def _reshape_as(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
         other = args[1]
         dims = self.shape_of(other)
-        return self.block_builder.emit(relax.op.reshape(x, dims))
+        return self.block_builder.emit(relax.op.reshape(x, self._torch_reshape_dims(x, dims)))
 
     def _scatter(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]

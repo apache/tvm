@@ -5072,6 +5072,15 @@ def test_flatten():
     verify_model(Flatten(), example_args, {}, expected1)
 
 
+def test_flatten_zero_sized_dim():
+    class Flatten(Module):
+        def forward(self, x):
+            return torch.flatten(x)
+
+    verify_model_numerically(Flatten(), (torch.randn(2, 0, 4, dtype=torch.float32),))
+    verify_model_numerically(Flatten(), (torch.randn(2, 3, 0, dtype=torch.float32),))
+
+
 def test_meshgrid():
     class Meshgrid1(Module):
         def forward(self, input1, input2):
@@ -5231,6 +5240,19 @@ def test_reshape_as():
         torch.randn(2, 12, dtype=torch.float32),
     )
     verify_model(ReshapeAs(), example_args, {}, expected1)
+
+
+def test_reshape_zero_sized_dim():
+    class Reshape(Module):
+        def forward(self, x):
+            return x.reshape(0, 4)
+
+    class ReshapeTrailing(Module):
+        def forward(self, x):
+            return x.reshape(3, 0)
+
+    verify_model_numerically(Reshape(), (torch.randn(2, 0, 4, dtype=torch.float32),))
+    verify_model_numerically(ReshapeTrailing(), (torch.randn(0, 3, dtype=torch.float32),))
 
 
 def test_roll():
@@ -6940,6 +6962,14 @@ def test_unflatten():
 
     verify_model(Unflatten(), example_args, {}, Expected)
     verify_model(Unflatten1(), example_args, {}, Expected)
+
+
+def test_unflatten_zero_sized_dim():
+    class Unflatten(Module):
+        def forward(self, x):
+            return x.unflatten(0, (2, -1))
+
+    verify_model_numerically(Unflatten(), (torch.randn(2, 0, dtype=torch.float32),))
 
 
 def test_gather():
