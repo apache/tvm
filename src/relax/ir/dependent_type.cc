@@ -42,7 +42,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
          ffi::Array<ffi::Variant<
              ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
              PrimExpr>>
-             slice) -> ffi::ObjectRef {
+             slice,
+         Span span) -> ffi::ObjectRef {
         TVM_FFI_CHECK_EQ(slice.size(), 1, IndexError)
             << "A Relax expression requires exactly one index";
         auto index = slice[0].as<PrimExpr>();
@@ -50,7 +51,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         const auto* imm = index.value().as<IntImmNode>();
         TVM_FFI_CHECK(imm != nullptr, TypeError)
             << "A Relax expression requires a constant integer index";
-        return TupleGetItem(value, static_cast<int>(imm->value));
+        return TupleGetItem(value, static_cast<int>(imm->value), span);
       });
 }
 

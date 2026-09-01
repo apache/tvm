@@ -1356,12 +1356,13 @@ def test_ptx_comparison_selection_dispatch():
         q = T.local_scalar("uint32")
         d = T.local_scalar("uint32")
         f = T.local_scalar("float32")
-        T.ptx.setp.lt.s32(p, A[0], A[1])  # one destination
+        p_buffer = T.alloc_local((1,), "uint32")
+        T.ptx.setp.lt.s32(p_buffer[0], A[0], A[1])  # one destination
         T.ptx.setp.lt.s32(p, q, A[0], A[1])  # ... two: `p|q`, chosen by arity
         T.ptx.setp.lt.and_.s32(p, A[0], A[1], T.ptx.pred(q))  # ... plus a BoolOp
         T.ptx.setp.gt.or_.s32(p, q, A[2], A[3], T.ptx.pred(d))  # ... and both
         T.ptx.set.lt.u32.f32(d, f, f)  # writes a value, not a predicate
-        T.ptx.selp.b32(d, d, p, T.ptx.pred(q))  # predicate selects
+        T.ptx.selp.b32(d, d, p, T.ptx.pred(p_buffer[0]))  # predicate selects
         T.ptx.slct.ftz.b32.f32(d, d, p, f)  # a sign selects
         # slct treats d/a/b independently as bit-size values. This mixes all
         # three 32-bit carrier classes while c remains exactly .s32.
