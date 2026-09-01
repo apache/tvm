@@ -366,10 +366,14 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
     const auto* dim_imm = dim.as<IntImmNode>();
     int64_t dim_size = dim_imm ? dim_imm->value : analyzer->const_int_bound(dim)->max_value;
     if (dim_imm == nullptr) {
-      const auto* dtype_max = max_value(dim.ty()).as<IntImmNode>();
       // An integer dtype's intrinsic maximum is not a program-derived allocation bound.
-      TVM_FFI_ICHECK(dtype_max && dim_size < dtype_max->value)
+      TVM_FFI_ICHECK(dim_size != arith::ConstIntBound::kPosInf)
           << "Metal allocation extent requires a finite compile-time upper bound, but got " << dim;
+      if (const auto* dtype_max = max_value(dim.ty()).as<IntImmNode>()) {
+        TVM_FFI_ICHECK_LT(dim_size, dtype_max->value)
+            << "Metal allocation extent requires a finite compile-time upper bound, but got "
+            << dim;
+      }
     }
     TVM_FFI_ICHECK_GT(dim_size, 0)
         << "Metal allocation extent requires a positive compile-time upper bound, but got " << dim;

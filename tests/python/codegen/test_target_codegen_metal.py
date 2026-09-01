@@ -410,11 +410,57 @@ def test_bounded_symbolic_stack_allocation():
     assert "thread float scratch[128]" in source
 
 
+def test_bounded_uint64_symbolic_stack_allocation():
+    @I.ir_module
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(n: T.uint64):
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "main",
+                    "target": T.target("metal"),
+                    "tirx.kernel_launch_params": [],
+                    "tirx.is_global_func": True,
+                }
+            )
+            scratch = T.alloc_buffer((T.min(n, T.uint64(64)),), "float32", scope="local")
+            T.evaluate(scratch.data)
+
+    source = _build_metal(Module).inspect_source()
+    assert "thread float scratch[64]" in source
+
+
 def test_unbounded_symbolic_stack_allocation_rejected():
     @I.ir_module
     class Module:
         @T.prim_func(s_tir=True)
         def main(n: T.int32):
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "main",
+                    "target": T.target("metal"),
+                    "tirx.kernel_launch_params": [],
+                    "tirx.is_global_func": True,
+                }
+            )
+            scratch = T.alloc_buffer((n,), "float32", scope="local")
+            scratch[0] = 1.0
+            T.evaluate(scratch[0])
+
+    with pytest.raises(
+        tvm.error.InternalError,
+        match="Metal allocation extent requires a finite compile-time upper bound",
+    ):
+        _build_metal(Module)
+
+
+def test_unbounded_uint64_symbolic_stack_allocation_rejected():
+    @I.ir_module
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(n: T.uint64):
             T.func_attr(
                 {
                     "calling_conv": 2,
