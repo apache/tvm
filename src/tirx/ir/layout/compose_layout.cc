@@ -42,7 +42,7 @@ PrimExpr ApplyFullSwizzle(const ComposeLayoutNode* layout, const PrimExpr& m) {
   PrimVar quotient_once("compose_q", quotient.ty());
   PrimExpr body =
       analyzer->Simplify((swizzle(quotient_once) << layout->per_element) + floormod(m_once, base));
-  return Let(m_once, m, Let(quotient_once, quotient, body));
+  return prim::Let(m_once, m, prim::Let(quotient_once, quotient, body));
 }
 
 void AddExpr(std::optional<PrimExpr>* sum, const PrimExpr& term, const arith::Analyzer& analyzer) {
@@ -84,12 +84,12 @@ void CollectOffsetTerms(const PrimExpr& expr, int sign, std::vector<PrimExpr>* d
     }
     return;
   }
-  if (const auto* add = simplified.as<AddNode>()) {
+  if (const auto* add = simplified.as<prim::AddNode>()) {
     CollectOffsetTerms(add->a, sign, dynamic_terms, constant, valid, analyzer);
     CollectOffsetTerms(add->b, sign, dynamic_terms, constant, valid, analyzer);
     return;
   }
-  if (const auto* sub = simplified.as<SubNode>()) {
+  if (const auto* sub = simplified.as<prim::SubNode>()) {
     CollectOffsetTerms(sub->a, sign, dynamic_terms, constant, valid, analyzer);
     CollectOffsetTerms(sub->b, -sign, dynamic_terms, constant, valid, analyzer);
     return;
@@ -109,7 +109,7 @@ std::optional<PrimExpr> DivideExactTerm(const PrimExpr& term, int64_t divisor,
     return IntImm(simplified.ty(), imm->value / divisor);
   }
 
-  if (const auto* mul = simplified.as<MulNode>()) {
+  if (const auto* mul = simplified.as<prim::MulNode>()) {
     const IntImmNode* factor = mul->a.as<IntImmNode>();
     PrimExpr value = mul->b;
     if (factor == nullptr) {

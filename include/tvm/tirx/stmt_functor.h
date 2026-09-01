@@ -27,7 +27,7 @@
 #define TVM_TIRX_STMT_FUNCTOR_H_
 
 #include <tvm/ir/node_functor.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>

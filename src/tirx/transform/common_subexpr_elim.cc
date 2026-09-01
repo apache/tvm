@@ -68,9 +68,9 @@
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
@@ -284,12 +284,12 @@ class CSEPlanner : public StmtExprVisitor {
    * \return true if the expression can participate in CSE.
    */
   static bool IsEligible(const PrimExpr& expr) {
-    if (expr.as<IntImmNode>() || expr.as<FloatImmNode>() || expr.as<StringImmNode>() ||
+    if (expr.as<IntImmNode>() || expr.as<FloatImmNode>() || expr.as<prim::StringImmNode>() ||
         expr.as<VarNode>()) {
       return false;
     }
     if (IsForbiddenNode(expr)) return false;
-    if (expr.as<RampNode>() || expr.as<BroadcastNode>()) return false;
+    if (expr.as<prim::RampNode>() || expr.as<prim::BroadcastNode>()) return false;
     // Reject bool-typed expressions. Boolean predicates almost always feed an
     // if / Select / assert, where reading the condition inline is clearer than
     // going through a `cse_v: bool = (a < b)` temporary, and where downstream
@@ -477,34 +477,34 @@ class CSEPlanner : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);                       \
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->a, op->b}); \
   }
-  CSE_VISIT_BINARY(AddNode)
-  CSE_VISIT_BINARY(SubNode)
-  CSE_VISIT_BINARY(MulNode)
-  CSE_VISIT_BINARY(DivNode)
-  CSE_VISIT_BINARY(ModNode)
-  CSE_VISIT_BINARY(FloorDivNode)
-  CSE_VISIT_BINARY(FloorModNode)
-  CSE_VISIT_BINARY(MinNode)
-  CSE_VISIT_BINARY(MaxNode)
-  CSE_VISIT_BINARY(EQNode)
-  CSE_VISIT_BINARY(NENode)
-  CSE_VISIT_BINARY(LTNode)
-  CSE_VISIT_BINARY(LENode)
-  CSE_VISIT_BINARY(GTNode)
-  CSE_VISIT_BINARY(GENode)
-  CSE_VISIT_BINARY(AndNode)
-  CSE_VISIT_BINARY(OrNode)
+  CSE_VISIT_BINARY(prim::AddNode)
+  CSE_VISIT_BINARY(prim::SubNode)
+  CSE_VISIT_BINARY(prim::MulNode)
+  CSE_VISIT_BINARY(prim::DivNode)
+  CSE_VISIT_BINARY(prim::ModNode)
+  CSE_VISIT_BINARY(prim::FloorDivNode)
+  CSE_VISIT_BINARY(prim::FloorModNode)
+  CSE_VISIT_BINARY(prim::MinNode)
+  CSE_VISIT_BINARY(prim::MaxNode)
+  CSE_VISIT_BINARY(prim::EQNode)
+  CSE_VISIT_BINARY(prim::NENode)
+  CSE_VISIT_BINARY(prim::LTNode)
+  CSE_VISIT_BINARY(prim::LENode)
+  CSE_VISIT_BINARY(prim::GTNode)
+  CSE_VISIT_BINARY(prim::GENode)
+  CSE_VISIT_BINARY(prim::AndNode)
+  CSE_VISIT_BINARY(prim::OrNode)
 #undef CSE_VISIT_BINARY
 
-  void VisitExpr_(const NotNode* op) override {
+  void VisitExpr_(const prim::NotNode* op) override {
     StmtExprVisitor::VisitExpr_(op);
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->a});
   }
-  void VisitExpr_(const CastNode* op) override {
+  void VisitExpr_(const prim::CastNode* op) override {
     StmtExprVisitor::VisitExpr_(op);
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->value});
   }
-  void VisitExpr_(const SelectNode* op) override {
+  void VisitExpr_(const prim::SelectNode* op) override {
     StmtExprVisitor::VisitExpr_(op);
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->condition, op->true_value, op->false_value});
   }
@@ -517,7 +517,7 @@ class CSEPlanner : public StmtExprVisitor {
    * extracting expressions that may reference the Let-bound variable
    * to a position before the containing statement where it is undefined.
    */
-  void VisitExpr_(const LetNode* op) override {
+  void VisitExpr_(const prim::LetNode* op) override {
     VisitExpr(op->value);
     ++let_depth_;
     VisitExpr(op->body);

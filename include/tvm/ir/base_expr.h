@@ -356,7 +356,7 @@ class OpaqueExprNode : public ExprNode {
     refl::ObjectDef<OpaqueExprNode>();
   }
 
-  static constexpr const uint32_t _type_child_slots = 1;
+  static constexpr const uint32_t _type_child_slots = 2;
   TVM_FFI_DECLARE_OBJECT_INFO("ir.OpaqueExpr", OpaqueExprNode, ExprNode);
 };
 

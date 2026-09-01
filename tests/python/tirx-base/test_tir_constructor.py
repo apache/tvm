@@ -192,12 +192,12 @@ def test_expr_constructor():
     cond0 = tvm.tirx.Var("cond0", "bool")
     cond1 = tvm.tirx.Var("cond1", "bool")
     inner_if = tvm.ir.Call(
-        "tirx.if_then_else",
+        "ir.prim.if_then_else",
         [cond1, tvm.tirx.IntImm("int32", 1), tvm.tirx.IntImm("int32", 0)],
         ret_ty="int32",
     )
     outer_if = tvm.ir.Call(
-        "tirx.if_then_else",
+        "ir.prim.if_then_else",
         [cond0, inner_if, tvm.tirx.IntImm("int32", 0)],
         attrs={"keep": True},
         ret_ty="int32",

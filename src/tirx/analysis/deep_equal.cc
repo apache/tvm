@@ -147,8 +147,8 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExp
            ArrayDeepEqual(plhs->indices, prhs->indices);
   }
 
-  bool VisitExpr_(const LetNode* plhs, const PrimExpr& rhs) final {
-    const auto* prhs = rhs.as<LetNode>();
+  bool VisitExpr_(const prim::LetNode* plhs, const PrimExpr& rhs) final {
+    const auto* prhs = rhs.as<prim::LetNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
            VisitExpr(plhs->var, prhs->var) && VisitExpr(plhs->value, prhs->value) &&
            VisitExpr(plhs->body, prhs->body);
@@ -161,74 +161,66 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExp
            ffi::StructuralEqual()(plhs->attrs, prhs->attrs);
   }
 
-  bool VisitExpr_(const ReduceNode* plhs, const PrimExpr& rhs) final {
-    const auto* prhs = rhs.as<ReduceNode>();
-    return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
-           plhs->combiner.same_as(prhs->combiner) && ArrayDeepEqual(plhs->source, prhs->source) &&
-           ArrayDeepEqual(plhs->init, prhs->init) && ArrayDeepEqual(plhs->axis, prhs->axis) &&
-           VisitExpr(plhs->condition, prhs->condition) && plhs->value_index == prhs->value_index;
-  }
-
-  bool VisitExpr_(const CastNode* plhs, const PrimExpr& rhs) final {
-    const auto* prhs = rhs.as<CastNode>();
+  bool VisitExpr_(const prim::CastNode* plhs, const PrimExpr& rhs) final {
+    const auto* prhs = rhs.as<prim::CastNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
            VisitExpr(plhs->value, prhs->value);
   }
 
-  bool VisitExpr_(const NotNode* plhs, const PrimExpr& rhs) final {
-    const auto* prhs = rhs.as<NotNode>();
+  bool VisitExpr_(const prim::NotNode* plhs, const PrimExpr& rhs) final {
+    const auto* prhs = rhs.as<prim::NotNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
            VisitExpr(plhs->a, prhs->a);
   }
 
-  bool VisitExpr_(const SelectNode* plhs, const PrimExpr& rhs) final {
-    const auto* prhs = rhs.as<SelectNode>();
+  bool VisitExpr_(const prim::SelectNode* plhs, const PrimExpr& rhs) final {
+    const auto* prhs = rhs.as<prim::SelectNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
            VisitExpr(plhs->condition, prhs->condition) &&
            VisitExpr(plhs->true_value, prhs->true_value) &&
            VisitExpr(plhs->false_value, prhs->false_value);
   }
 
-  bool VisitExpr_(const RampNode* plhs, const PrimExpr& rhs) final {
-    const auto* prhs = rhs.as<RampNode>();
+  bool VisitExpr_(const prim::RampNode* plhs, const PrimExpr& rhs) final {
+    const auto* prhs = rhs.as<prim::RampNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
            VisitExpr(plhs->base, prhs->base) && VisitExpr(plhs->stride, prhs->stride) &&
            VisitExpr(plhs->lanes, prhs->lanes);
   }
 
-  bool VisitExpr_(const ShuffleNode* plhs, const PrimExpr& rhs) final {
-    const auto* prhs = rhs.as<ShuffleNode>();
+  bool VisitExpr_(const prim::ShuffleNode* plhs, const PrimExpr& rhs) final {
+    const auto* prhs = rhs.as<prim::ShuffleNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
            ArrayDeepEqual(plhs->vectors, prhs->vectors) &&
            ArrayDeepEqual(plhs->indices, prhs->indices);
   }
 
-  bool VisitExpr_(const BroadcastNode* plhs, const PrimExpr& rhs) final {
-    const auto* prhs = rhs.as<BroadcastNode>();
+  bool VisitExpr_(const prim::BroadcastNode* plhs, const PrimExpr& rhs) final {
+    const auto* prhs = rhs.as<prim::BroadcastNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
            VisitExpr(plhs->value, prhs->value) && VisitExpr(plhs->lanes, prhs->lanes);
   }
 
-  DEFINE_DEEP_EQUAL_BIN_EXPR(AddNode)
-  DEFINE_DEEP_EQUAL_BIN_EXPR(SubNode)
-  DEFINE_DEEP_EQUAL_BIN_EXPR(MulNode)
-  DEFINE_DEEP_EQUAL_BIN_EXPR(DivNode)
-  DEFINE_DEEP_EQUAL_BIN_EXPR(ModNode)
-  DEFINE_DEEP_EQUAL_BIN_EXPR(FloorDivNode)
-  DEFINE_DEEP_EQUAL_BIN_EXPR(FloorModNode)
-  DEFINE_DEEP_EQUAL_BIN_EXPR(MinNode)
-  DEFINE_DEEP_EQUAL_BIN_EXPR(MaxNode)
-  DEFINE_DEEP_EQUAL_BIN_EXPR(EQNode)
-  DEFINE_DEEP_EQUAL_BIN_EXPR(NENode)
-  DEFINE_DEEP_EQUAL_BIN_EXPR(LTNode)
-  DEFINE_DEEP_EQUAL_BIN_EXPR(LENode)
-  DEFINE_DEEP_EQUAL_BIN_EXPR(GTNode)
-  DEFINE_DEEP_EQUAL_BIN_EXPR(GENode)
-  DEFINE_DEEP_EQUAL_BIN_EXPR(AndNode)
-  DEFINE_DEEP_EQUAL_BIN_EXPR(OrNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::AddNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::SubNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::MulNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::DivNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::ModNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::FloorDivNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::FloorModNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::MinNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::MaxNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::EQNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::NENode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::LTNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::LENode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::GTNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::GENode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::AndNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::OrNode)
   DEFINE_DEEP_EQUAL_IMM_EXPR(IntImmNode)
   DEFINE_DEEP_EQUAL_IMM_EXPR(FloatImmNode)
-  DEFINE_DEEP_EQUAL_IMM_EXPR(StringImmNode)
+  DEFINE_DEEP_EQUAL_IMM_EXPR(prim::StringImmNode)
 };
 
 bool ExprDeepEqual::operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {

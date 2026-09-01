@@ -24,6 +24,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -219,7 +221,7 @@ class ComputeLegalizer : public StmtExprMutator {
   virtual bool MatchType(const Type& type) const = 0;
 
  protected:
-  Expr VisitExpr_(const CastNode* op) final {
+  Expr VisitExpr_(const prim::CastNode* op) final {
     auto op_val = PromoteToTarget(this->VisitPrimExpr(op->value));
 
     // all casts to matched data type (fp8/bf16) becomes f32
@@ -235,7 +237,7 @@ class ComputeLegalizer : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const SelectNode* op) final {
+  Expr VisitExpr_(const prim::SelectNode* op) final {
     PrimExpr condition = this->VisitPrimExpr(op->condition);
     PrimExpr true_value = PromoteToTarget(this->VisitPrimExpr(op->true_value));
     PrimExpr false_value = PromoteToTarget(this->VisitPrimExpr(op->false_value));
@@ -243,26 +245,26 @@ class ComputeLegalizer : public StmtExprMutator {
         false_value.same_as(op->false_value)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      return Select(condition, true_value, false_value);
+      return prim::Select(condition, true_value, false_value);
     }
   }
 
-  Expr VisitExpr_(const BroadcastNode* op) final {
+  Expr VisitExpr_(const prim::BroadcastNode* op) final {
     PrimExpr value = PromoteToTarget(this->VisitPrimExpr(op->value));
     if (value.same_as(op->value)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      return Broadcast(value, op->lanes);
+      return prim::Broadcast(value, op->lanes);
     }
   }
 
-  Expr VisitExpr_(const ShuffleNode* op) final {
+  Expr VisitExpr_(const prim::ShuffleNode* op) final {
     auto fexpr = [this](const PrimExpr& e) { return PromoteToTarget(this->VisitPrimExpr(e)); };
     auto vectors = op->vectors.Map(fexpr);
     if (vectors.same_as(op->vectors)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      return Shuffle(vectors, op->indices);
+      return prim::Shuffle(vectors, op->indices);
     }
   }
 
@@ -346,7 +348,7 @@ class ComputeLegalizer : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const LetNode* op) final {
+  Expr VisitExpr_(const prim::LetNode* op) final {
     PrimExpr value = PromoteToTarget(op->value);
     Var var = op->var;
     if (value.ty() != op->value.ty()) {
@@ -359,22 +361,22 @@ class ComputeLegalizer : public StmtExprMutator {
     if (value.same_as(op->value) && var.same_as(op->var) && body.same_as(op->body)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      return Let(var, value, body);
+      return prim::Let(var, value, body);
     }
   }
 
-  DEFINE_BIOP_EXPR_LEGALIZE(AddNode, operator+);
-  DEFINE_BIOP_EXPR_LEGALIZE(SubNode, operator-);
-  DEFINE_BIOP_EXPR_LEGALIZE(MulNode, operator*);
-  DEFINE_BIOP_EXPR_LEGALIZE(DivNode, div);
-  DEFINE_BIOP_EXPR_LEGALIZE(MinNode, min);
-  DEFINE_BIOP_EXPR_LEGALIZE(MaxNode, max);
-  DEFINE_BIOP_EXPR_LEGALIZE(LTNode, operator<);  // NOLINT(*)
-  DEFINE_BIOP_EXPR_LEGALIZE(LENode, operator<=);
-  DEFINE_BIOP_EXPR_LEGALIZE(GTNode, operator>);  // NOLINT(*)
-  DEFINE_BIOP_EXPR_LEGALIZE(GENode, operator>=);
-  DEFINE_BIOP_EXPR_LEGALIZE(EQNode, operator==);
-  DEFINE_BIOP_EXPR_LEGALIZE(NENode, operator!=);
+  DEFINE_BIOP_EXPR_LEGALIZE(prim::AddNode, operator+);
+  DEFINE_BIOP_EXPR_LEGALIZE(prim::SubNode, operator-);
+  DEFINE_BIOP_EXPR_LEGALIZE(prim::MulNode, operator*);
+  DEFINE_BIOP_EXPR_LEGALIZE(prim::DivNode, div);
+  DEFINE_BIOP_EXPR_LEGALIZE(prim::MinNode, min);
+  DEFINE_BIOP_EXPR_LEGALIZE(prim::MaxNode, max);
+  DEFINE_BIOP_EXPR_LEGALIZE(prim::LTNode, operator<);  // NOLINT(*)
+  DEFINE_BIOP_EXPR_LEGALIZE(prim::LENode, operator<=);
+  DEFINE_BIOP_EXPR_LEGALIZE(prim::GTNode, operator>);  // NOLINT(*)
+  DEFINE_BIOP_EXPR_LEGALIZE(prim::GENode, operator>=);
+  DEFINE_BIOP_EXPR_LEGALIZE(prim::EQNode, operator==);
+  DEFINE_BIOP_EXPR_LEGALIZE(prim::NENode, operator!=);
 
   Stmt VisitStmt_(const BindNode* op) final {
     auto prim_value = op->value.as<PrimExpr>();
@@ -432,7 +434,7 @@ class ComputeLegalizer : public StmtExprMutator {
       if (it != var_remap_.end()) {
         return AttrStmt(it->second, op->attr_key, op->value, op->body);
       }
-    } else if (auto reducer = op->node.as<CommReducerNode>()) {
+    } else if (auto reducer = op->node.as<te::CommReducerNode>()) {
       auto legalized_identity_elements = reducer->identity_element.Map(
           [this](PrimExpr expr) { return this->VisitPrimExpr(expr); });
 
@@ -466,8 +468,8 @@ class ComputeLegalizer : public StmtExprMutator {
         }
         return var;
       });
-      return AttrStmt(CommReducer(legalized_lhs, legalized_rhs, legalized_results,
-                                  legalized_identity_elements, reducer->span),
+      return AttrStmt(te::CommReducer(legalized_lhs, legalized_rhs, legalized_results,
+                                      legalized_identity_elements, reducer->span),
                       op->attr_key, op->value, op->body);
     }
     return ret;
@@ -517,7 +519,7 @@ class ComputeLegalizer : public StmtExprMutator {
   PrimExpr PromoteToTarget(PrimExpr value) {
     PrimType value_ty = value.ty();
     if (!MatchType(value_ty)) return value;
-    if (const CastNode* cast = value.as<CastNode>()) {
+    if (const prim::CastNode* cast = value.as<prim::CastNode>()) {
       if (cast->value.ty() == promote_dtype_.WithLanes(value_ty.lanes())) return cast->value;
     }
     return DTypeConversion(value, promote_dtype_.WithLanes(value_ty.lanes()));
@@ -648,7 +650,7 @@ class StorageLegalizer : public StmtExprMutator {
     return DeclBuffer(buf, std::move(data), op->span);
   }
 
-  Expr VisitExpr_(const LetNode* op) final {
+  Expr VisitExpr_(const prim::LetNode* op) final {
     PrimExpr value = VisitPrimExpr(op->value);
     Var var = RemapVarDef(op->var);
     PrimExpr body = VisitPrimExpr(op->body);
@@ -656,7 +658,7 @@ class StorageLegalizer : public StmtExprMutator {
     if (value.same_as(op->value) && var.same_as(op->var) && body.same_as(op->body)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      return Let(var, value, body);
+      return prim::Let(var, value, body);
     }
   }
 

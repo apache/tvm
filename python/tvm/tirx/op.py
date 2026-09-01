@@ -2981,7 +2981,7 @@ def vscale():
     call : Expr
         Call to the vscale intrinsic
     """
-    return call_intrin("int32", "tirx.vscale")
+    return call_intrin("int32", "ir.prim.vscale")
 
 
 def get_active_lane_mask(dtype, base, limit):

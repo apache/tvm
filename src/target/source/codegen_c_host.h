@@ -24,6 +24,8 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_C_HOST_H_
 #define TVM_TARGET_SOURCE_CODEGEN_C_HOST_H_
 
+#include <tvm/ir/prim/expr.h>
+
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -32,7 +34,6 @@
 
 #include "codegen_c.h"
 #include "tvm/target/codegen.h"
-#include "tvm/tirx/expr.h"
 
 namespace tvm {
 namespace codegen {
@@ -61,12 +62,12 @@ class CodeGenCHost : public CodeGenC {
   void PrintFuncPrefix(std::ostream& os) final;               // NOLINT(*)
 
   // overload visitor functions
-  void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const CallNode* op, std::ostream& os) override;    // NOLINT(*)
+  void VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os) override;          // NOLINT(*)
   // overload min and max to use the ternary operator, so we don't rely on the
   // standard library implementations
-  void VisitExpr_(const MinNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const MaxNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const prim::MinNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const prim::MaxNode* op, std::ostream& os) final;  // NOLINT(*)
 
   void VisitStmt_(const AssertStmtNode* op) final;  // NOLINT(*)
 

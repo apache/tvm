@@ -26,12 +26,13 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -1383,7 +1384,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const LetNode* op) final {
+  void VisitExpr_(const prim::LetNode* op) final {
     HandleLetNode(op->var);
     StmtExprVisitor::VisitExpr_(op);
   }
@@ -1508,7 +1509,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     // does not apply any masking, then this array access could be
     // vectorized.
     if (indices.size()) {
-      const RampNode* ramp_index = indices[indices.size() - 1].as<RampNode>();
+      const prim::RampNode* ramp_index = indices[indices.size() - 1].as<prim::RampNode>();
       if (ramp_index && is_one(ramp_index->stride)) {
         if (ramp_index->lanes->IsInstance<IntImmNode>()) {
           int lanes = static_cast<int>(ramp_index->lanes.as_or_throw<IntImm>()->value);
@@ -1677,7 +1678,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
     ffi::Array<PrimExpr> indices = node->indices;
     const PrimExpr& last_dim_index = indices[indices.size() - 1];
-    const RampNode* ramp_index = indices[indices.size() - 1].as<RampNode>();
+    const prim::RampNode* ramp_index = indices[indices.size() - 1].as<prim::RampNode>();
 
     if (node->buffer->dtype.IsScalableVector() || last_dim_index.ty().IsScalableVector()) {
       // Scalable types are not currently supported in storage_rewrite. Scalable buffer
@@ -1691,7 +1692,8 @@ class VectorTypeRewriter : public StmtExprMutator {
       if (lanes != info.factor()) {
         TVM_FFI_ICHECK(info.factor() && lanes % info.factor() == 0);
         int new_lanes = lanes / info.factor();
-        new_index = Ramp(new_index * new_lanes, ramp_index->stride, new_lanes, ramp_index->span);
+        new_index =
+            prim::Ramp(new_index * new_lanes, ramp_index->stride, new_lanes, ramp_index->span);
       }
       indices.Set(indices.size() - 1, new_index);
     } else if (last_dim_index.ty().lanes() == 1 && info.factor() > 1) {
@@ -1724,7 +1726,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
     ffi::Array<PrimExpr> indices = node->indices;
     const PrimExpr& last_dim_index = indices.back();
-    const RampNode* ramp_index = last_dim_index.as<RampNode>();
+    const prim::RampNode* ramp_index = last_dim_index.as<prim::RampNode>();
     if (buffer->dtype.IsScalableVector() || last_dim_index.ty().IsScalableVector()) {
       return {node, shuffle_index};
     }
@@ -1735,7 +1737,8 @@ class VectorTypeRewriter : public StmtExprMutator {
       if (lanes != info.factor()) {
         TVM_FFI_ICHECK(info.factor() && lanes % info.factor() == 0);
         int new_lanes = lanes / info.factor();
-        new_index = Ramp(new_index * new_lanes, ramp_index->stride, new_lanes, ramp_index->span);
+        new_index =
+            prim::Ramp(new_index * new_lanes, ramp_index->stride, new_lanes, ramp_index->span);
       }
       indices.Set(indices.size() - 1, new_index);
     } else if (last_dim_index.ty().lanes() == 1 && info.factor() > 1) {
@@ -1760,7 +1763,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
     } else {
       if (shuffle_index >= 0) {
-        return Shuffle::ExtractElement(std::move(modified), shuffle_index);
+        return prim::Shuffle::ExtractElement(std::move(modified), shuffle_index);
       }
       return modified;
     }

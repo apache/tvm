@@ -46,7 +46,7 @@ std::string tvm_qhl_ahf_pow = "tvm_vect_qhmath_hvx_pow_ahf";
 std::string tvm_qhl_ahf_sqrt = "tvm_vect_qhmath_hvx_sqrt_ahf";
 
 inline PrimExpr TVMExternCall(const CallNode* call, const std::string& fname) {
-  ffi::Array<PrimExpr> new_args = {tirx::StringImm(fname)};
+  ffi::Array<PrimExpr> new_args = {prim::StringImm(fname)};
   for (PrimExpr arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
     new_args.push_back(arg);
   }
@@ -152,7 +152,7 @@ TVM_REGISTER_OP("tirx.tanh")
       PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
       PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
       // MakeConst can handle both vector and scalar types.
-      PrimExpr tanh_x = tirx::Select(x >= tirx::MakeConst(x_ty, 0), tanh_pos, tanh_neg);
+      PrimExpr tanh_x = prim::Select(x >= tirx::MakeConst(x_ty, 0), tanh_pos, tanh_neg);
       return tanh_x;
     });
 
@@ -207,8 +207,8 @@ TVM_REGISTER_OP("tirx.sigmoid")
 
       PrimExpr MinBound = tirx::MakeConst(x_ty, -8);
       PrimExpr MaxBound = tirx::MakeConst(x_ty, 8);
-      const PrimExpr v1 = tirx::Max(x, MinBound);
-      const PrimExpr v2 = tirx::Min(v1, MaxBound);
+      const PrimExpr v1 = prim::Max(x, MinBound);
+      const PrimExpr v2 = prim::Min(v1, MaxBound);
 
       ffi::Array<tvm::PrimExpr> new_args = {v2};
       const Call new_call =

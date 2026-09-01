@@ -55,26 +55,26 @@ class DataTypeLegalizer : public StmtExprMutator {
   Stmt VisitStmt_(const SBlockNode* op) override;
   Stmt VisitStmt_(const BindNode* op) override;
   Expr VisitExpr_(const VarNode* op) override;
-  Expr VisitExpr_(const SelectNode* op) override;
-  Expr VisitExpr_(const RampNode* op) override;
-  Expr VisitExpr_(const AddNode* op) override;
-  Expr VisitExpr_(const SubNode* op) override;
-  Expr VisitExpr_(const MulNode* op) override;
-  Expr VisitExpr_(const DivNode* op) override;
-  Expr VisitExpr_(const ModNode* op) override;
-  Expr VisitExpr_(const FloorDivNode* op) override;
-  Expr VisitExpr_(const FloorModNode* op) override;
-  Expr VisitExpr_(const MinNode* op) override;
-  Expr VisitExpr_(const MaxNode* op) override;
-  Expr VisitExpr_(const EQNode* op) override;
-  Expr VisitExpr_(const NENode* op) override;
-  Expr VisitExpr_(const LTNode* op) override;
-  Expr VisitExpr_(const LENode* op) override;
-  Expr VisitExpr_(const GTNode* op) override;
-  Expr VisitExpr_(const GENode* op) override;
+  Expr VisitExpr_(const prim::SelectNode* op) override;
+  Expr VisitExpr_(const prim::RampNode* op) override;
+  Expr VisitExpr_(const prim::AddNode* op) override;
+  Expr VisitExpr_(const prim::SubNode* op) override;
+  Expr VisitExpr_(const prim::MulNode* op) override;
+  Expr VisitExpr_(const prim::DivNode* op) override;
+  Expr VisitExpr_(const prim::ModNode* op) override;
+  Expr VisitExpr_(const prim::FloorDivNode* op) override;
+  Expr VisitExpr_(const prim::FloorModNode* op) override;
+  Expr VisitExpr_(const prim::MinNode* op) override;
+  Expr VisitExpr_(const prim::MaxNode* op) override;
+  Expr VisitExpr_(const prim::EQNode* op) override;
+  Expr VisitExpr_(const prim::NENode* op) override;
+  Expr VisitExpr_(const prim::LTNode* op) override;
+  Expr VisitExpr_(const prim::LENode* op) override;
+  Expr VisitExpr_(const prim::GTNode* op) override;
+  Expr VisitExpr_(const prim::GENode* op) override;
   Expr VisitExpr_(const CallNode* op) override;
-  Expr VisitExpr_(const CastNode* op) override;
-  Expr VisitExpr_(const LetNode* op) override;
+  Expr VisitExpr_(const prim::CastNode* op) override;
+  Expr VisitExpr_(const prim::LetNode* op) override;
 
   /*! \brief Whether to clamp shift amounts after narrowing signed integers. */
   virtual bool ShouldClampShiftAmounts() const { return false; }
@@ -114,14 +114,14 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   ffi::Array<PrimExpr> VisitIndices(ffi::Array<PrimExpr> indices);
   Stmt VisitStmt_(const IfThenElseNode* op) override;
   Stmt VisitStmt_(const BindNode* op) override;
-  Expr VisitExpr_(const EQNode* op) override;
-  Expr VisitExpr_(const NENode* op) override;
-  Expr VisitExpr_(const LTNode* op) override;
-  Expr VisitExpr_(const LENode* op) override;
-  Expr VisitExpr_(const GTNode* op) override;
-  Expr VisitExpr_(const GENode* op) override;
+  Expr VisitExpr_(const prim::EQNode* op) override;
+  Expr VisitExpr_(const prim::NENode* op) override;
+  Expr VisitExpr_(const prim::LTNode* op) override;
+  Expr VisitExpr_(const prim::LENode* op) override;
+  Expr VisitExpr_(const prim::GTNode* op) override;
+  Expr VisitExpr_(const prim::GENode* op) override;
   Expr VisitExpr_(const CallNode* op) override;
-  Expr VisitExpr_(const SelectNode* op) override;
+  Expr VisitExpr_(const prim::SelectNode* op) override;
 
   Stmt VisitStmt_(const ForNode* op) override;
 
@@ -153,7 +153,7 @@ class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
   using Parent::VisitStmt_;
   Expr VisitExpr_(const IntImmNode* op) override;
   Expr VisitExpr_(const VarNode* op) override;
-  Expr VisitExpr_(const CastNode* op) override;
+  Expr VisitExpr_(const prim::CastNode* op) override;
 
   /*! \brief Specifies which data type we can rewrite */
   virtual bool CanRewriteDType(PrimType dtype) const;

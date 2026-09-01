@@ -390,7 +390,7 @@ void CodeGenOpenCL::PrintVecElemLoadExpr(const PrimType& t, int i, const std::st
 }
 
 void CodeGenOpenCL::PrintStorageSync(const CallNode* op) {
-  const std::string& sync = op->args[0].as<StringImmNode>()->value;
+  const std::string& sync = op->args[0].as<prim::StringImmNode>()->value;
   if (sync == "warp") {
     this->PrintIndent();
     this->stream << "barrier(CLK_LOCAL_MEM_FENCE);\n";
@@ -541,7 +541,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     ss << "))))";
 
     std::string rhs = SSAGetID(ss.str(), op_ty.WithLanes(data_lanes));
-    if (auto ramp = op->args.back().as<RampNode>()) {
+    if (auto ramp = op->args.back().as<prim::RampNode>()) {
       if (ramp->base.as<IntImmNode>() && *tirx::as_const_int(ramp->base) == 0 &&
           *tirx::as_const_int(ramp->lanes) == data_lanes &&
           *tirx::as_const_int(ramp->stride) == 1) {
@@ -566,7 +566,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
       os << "]";
     }
   } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
-    auto func = op->args[0].as_or_throw<StringImm>();
+    auto func = op->args[0].as_or_throw<prim::StringImm>();
     // Enable atomics extension if used.
     if (func->value == "atomic_add" &&
         op->ty.as_or_throw<PrimType>().code() == DLDataTypeCode::kDLFloat) {
@@ -587,7 +587,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
   }
 }
 
-void CodeGenOpenCL::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   int lanes = op->ty.as_or_throw<PrimType>().lanes();
   os << "((";
@@ -600,7 +600,7 @@ void CodeGenOpenCL::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // 
   os << "))";
 }
 
-void CodeGenOpenCL::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::VisitExpr_(const prim::RampNode* op, std::ostream& os) {  // NOLINT(*)
   os << "((";
   PrintType(op->ty.as_or_throw<PrimType>(), os);
   os << ")(";
@@ -643,15 +643,15 @@ inline void PrintBinaryExpr(const T* op, const char* opstr, std::ostream& os, Co
   }
 }
 
-void CodeGenOpenCL::VisitExpr_(const MinNode* op, std::ostream& os) {
+void CodeGenOpenCL::VisitExpr_(const prim::MinNode* op, std::ostream& os) {
   PrintBinaryExpr(op, "min", os, this);
 }
 
-void CodeGenOpenCL::VisitExpr_(const MaxNode* op, std::ostream& os) {
+void CodeGenOpenCL::VisitExpr_(const prim::MaxNode* op, std::ostream& os) {
   PrintBinaryExpr(op, "max", os, this);
 }
 
-void CodeGenOpenCL::VisitExpr_(const ModNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::VisitExpr_(const prim::ModNode* op, std::ostream& os) {  // NOLINT(*)
   std::string opstr;
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if (op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
@@ -681,7 +681,7 @@ void CodeGenOpenCL::VisitExpr_(const ModNode* op, std::ostream& os) {  // NOLINT
   }
 }
 
-void CodeGenOpenCL::VisitExpr_(const AndNode* op, std::ostream& os) {
+void CodeGenOpenCL::VisitExpr_(const prim::AndNode* op, std::ostream& os) {
   std::ostringstream oss;
   os << "(";
   this->PrintExpr(op->a, oss);
@@ -693,7 +693,7 @@ void CodeGenOpenCL::VisitExpr_(const AndNode* op, std::ostream& os) {
   os << ")";
 }
 
-void CodeGenOpenCL::VisitExpr_(const OrNode* op, std::ostream& os) {
+void CodeGenOpenCL::VisitExpr_(const prim::OrNode* op, std::ostream& os) {
   std::ostringstream oss;
   os << "(";
   this->PrintExpr(op->a, oss);
@@ -705,7 +705,7 @@ void CodeGenOpenCL::VisitExpr_(const OrNode* op, std::ostream& os) {
   os << ")";
 }
 
-void CodeGenOpenCL::VisitExpr_(const SelectNode* op, std::ostream& os) {
+void CodeGenOpenCL::VisitExpr_(const prim::SelectNode* op, std::ostream& os) {
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   std::ostringstream oss;
   os << "select(";

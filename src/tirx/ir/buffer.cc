@@ -23,11 +23,12 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 
@@ -109,8 +110,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::TypeAttrDef<BufferTypeNode>().def("__subscript_expr_realize__", RealizeBufferSubscript);
 }
 
-using IndexMod = tirx::FloorModNode;
-using IndexDiv = tirx::FloorDivNode;
+using IndexMod = prim::FloorModNode;
+using IndexDiv = prim::FloorDivNode;
 
 BufferType::BufferType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
                        ffi::Array<PrimExpr> strides, PrimExpr elem_offset, int data_alignment,
@@ -165,7 +166,7 @@ inline std::vector<const PrimExpr*> ExprSplitAddition(const PrimExpr& expr) {
   while (!split_buffer.empty()) {
     const PrimExpr* top_ele = split_buffer.top();
     split_buffer.pop();
-    auto expr_add_match = top_ele->as<AddNode>();
+    auto expr_add_match = top_ele->as<prim::AddNode>();
     if (expr_add_match) {
       split_buffer.push(&expr_add_match->b);
       split_buffer.push(&expr_add_match->a);
@@ -189,13 +190,13 @@ inline std::pair<bool, PrimExpr> MergeMulModInner(arith::AnalyzerObj* analyzer,
                                                   const PrimExpr& mod_l_expr,
                                                   const PrimExpr& mod_r_expr) {
   using namespace tirx;
-  const MulNode* mult_ptr = mult_expr.as<MulNode>();
+  const prim::MulNode* mult_ptr = mult_expr.as<prim::MulNode>();
   if (!mult_ptr) return std::make_pair(false, PrimExpr());
   PrimExpr mult_outer = mult_ptr->b;
   const PrimExpr* inner = &(mult_ptr->a);
   // 1. Calculate the outer multiplier
   while (true) {
-    mult_ptr = inner->as<MulNode>();
+    mult_ptr = inner->as<prim::MulNode>();
     if (mult_ptr) {
       inner = &(mult_ptr->a);
       mult_outer = mult_ptr->b * mult_outer;
@@ -216,8 +217,8 @@ inline std::pair<bool, PrimExpr> MergeMulModInner(arith::AnalyzerObj* analyzer,
 
   while (true) {
     auto inner_div_ptr = search_ptr->as<IndexDiv>();
-    auto inner_mult_ptr = search_ptr->as<MulNode>();
-    auto inner_add_ptr = search_ptr->as<AddNode>();
+    auto inner_mult_ptr = search_ptr->as<prim::MulNode>();
+    auto inner_add_ptr = search_ptr->as<prim::AddNode>();
     if (!inner_div_ptr && !inner_mult_ptr && !inner_add_ptr) {
       return std::make_pair(false, PrimExpr());
     } else if (inner_div_ptr) {
@@ -261,7 +262,7 @@ inline void MergeMulModInsertElements(const std::vector<const PrimExpr*>& eles,
   *has_mod = false;
   for (const PrimExpr* ele : eles) {
     auto mod_ptr = ele->as<IndexMod>();
-    auto mult_ptr = ele->as<MulNode>();
+    auto mult_ptr = ele->as<prim::MulNode>();
     if (mod_ptr) {
       *has_mod = true;
       mod_exprs->emplace_back(std::make_pair(std::move(mod_ptr->a), std::move(mod_ptr->b)));
@@ -404,7 +405,7 @@ inline ffi::Array<PrimExpr> BufferOffset(const BufferTypeNode* n, ffi::Array<Pri
   if (dtype.lanes() != 1) {
     PrimExpr last_offset = offsets[offsets.size() - 1];
     PrimExpr stride = MakeConst(last_offset.ty(), 1);
-    offsets.Set(offsets.size() - 1, tirx::Ramp(last_offset, stride, dtype.lanes()));
+    offsets.Set(offsets.size() - 1, prim::Ramp(last_offset, stride, dtype.lanes()));
   }
 
   return offsets;
@@ -461,7 +462,7 @@ PrimExpr BufferVar::vload(ffi::Array<PrimExpr> begin, PrimType value_dtype) cons
     int factor = value_dtype.lanes() / buffer_dtype.lanes();
     PrimType base_ty = base.ty();
     if (factor > 1 && !base_ty.IsFixedLengthVector() && !base_ty.IsScalableVector()) {
-      indices.Set(indices.size() - 1, Ramp(base, 1, factor));
+      indices.Set(indices.size() - 1, prim::Ramp(base, 1, factor));
     }
   }
   return BufferLoad(*this, indices);
@@ -486,7 +487,7 @@ Stmt BufferVar::vstore(ffi::Array<PrimExpr> begin, PrimExpr value) const {
     int factor = value_dtype.lanes() / buffer_dtype.lanes();
     PrimType base_ty = base.ty();
     if (factor > 1 && !base_ty.IsFixedLengthVector() && !base_ty.IsScalableVector()) {
-      indices.Set(indices.size() - 1, Ramp(base, 1, factor));
+      indices.Set(indices.size() - 1, prim::Ramp(base, 1, factor));
     }
   }
   return BufferStore(*this, value, indices);

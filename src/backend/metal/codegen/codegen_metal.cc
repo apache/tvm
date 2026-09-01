@@ -291,7 +291,7 @@ void CodeGenMetal::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*
 }
 
 void CodeGenMetal::PrintStorageSync(const CallNode* op) {
-  const std::string& sync = op->args[0].as<StringImmNode>()->value;
+  const std::string& sync = op->args[0].as<prim::StringImmNode>()->value;
   if (sync == "warp") {
     this->PrintIndent();
     this->stream << "simdgroup_barrier(mem_flags::mem_threadgroup);\n";
@@ -395,12 +395,12 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
   }
 }
 
-void CodeGenMetal::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenMetal::VisitExpr_(const prim::SelectNode* op, std::ostream& os) {  // NOLINT(*)
   os << "select(" << PrintExpr(op->false_value) << ", " << PrintExpr(op->true_value) << ", "
      << PrintExpr(op->condition) << ")";
 }
 
-void CodeGenMetal::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenMetal::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   int lanes = op->ty.as_or_throw<PrimType>().lanes();
   PrintType(op->ty.as_or_throw<PrimType>(), os);
