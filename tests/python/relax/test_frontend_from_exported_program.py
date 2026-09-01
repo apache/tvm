@@ -7784,23 +7784,56 @@ def test_argsort():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((5, 3), dtype="float32")) -> R.Tuple(R.Tensor((5, 3), dtype="int32")):
+        def main(x: R.Tensor((5, 3), dtype="float32")) -> R.Tuple(R.Tensor((5, 3), dtype="int64")):
             with R.dataflow():
-                lv: R.Tensor((5, 3), dtype="int32") = R.argsort(
-                    x, axis=1, descending=True, dtype="int32"
+                lv: R.Tensor((5, 3), dtype="int64") = R.argsort(
+                    x, axis=1, descending=True, dtype="int64"
                 )
                 lv1: R.Tensor((5, 3), dtype="float32") = R.gather_elements(x, lv, axis=1)
-                lv2: R.Tuple(R.Tensor((5, 3), dtype="float32"), R.Tensor((5, 3), dtype="int32")) = (
+                lv2: R.Tuple(R.Tensor((5, 3), dtype="float32"), R.Tensor((5, 3), dtype="int64")) = (
                     lv1,
                     lv,
                 )
-                lv3: R.Tensor((5, 3), dtype="int32") = lv2[1]
-                gv: R.Tuple(R.Tensor((5, 3), dtype="int32")) = (lv3,)
+                lv3: R.Tensor((5, 3), dtype="int64") = lv2[1]
+                gv: R.Tuple(R.Tensor((5, 3), dtype="int64")) = (lv3,)
                 R.output(gv)
             return gv
 
     example_args = (torch.randn(5, 3, dtype=torch.float32),)
     verify_model(Argsort(), example_args, {}, Expected)
+
+
+def test_sort():
+    class Sort(Module):
+        def forward(self, x):
+            return torch.sort(x, dim=1, descending=True)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((5, 3), dtype="float32")) -> R.Tuple(
+            R.Tensor((5, 3), dtype="float32"), R.Tensor((5, 3), dtype="int64")
+        ):
+            with R.dataflow():
+                lv: R.Tensor((5, 3), dtype="int64") = R.argsort(
+                    x, axis=1, descending=True, dtype="int64"
+                )
+                lv1: R.Tensor((5, 3), dtype="float32") = R.gather_elements(x, lv, axis=1)
+                lv2: R.Tuple(R.Tensor((5, 3), dtype="float32"), R.Tensor((5, 3), dtype="int64")) = (
+                    lv1,
+                    lv,
+                )
+                lv3: R.Tensor((5, 3), dtype="float32") = lv2[0]
+                lv4: R.Tensor((5, 3), dtype="int64") = lv2[1]
+                gv: R.Tuple(R.Tensor((5, 3), dtype="float32"), R.Tensor((5, 3), dtype="int64")) = (
+                    lv3,
+                    lv4,
+                )
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(5, 3, dtype=torch.float32),)
+    verify_model(Sort(), example_args, {}, Expected)
 
 
 def test_topk():
