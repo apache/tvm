@@ -1230,7 +1230,7 @@ def test_multi_input_unknown_static_shape(op_name, num_inputs):
         "Slice", ["x", "starts", "ends", "axes"], ["sliced"], name="slice0"
     )
     other_names = [f"y{i}" for i in range(num_inputs - 1)]
-    op_node = helper.make_node(op_name, ["sliced"] + other_names, ["output"], name="op0")
+    op_node = helper.make_node(op_name, ["sliced", *other_names], ["output"], name="op0")
 
     graph = helper.make_graph(
         [slice_node, op_node],
@@ -1241,10 +1241,7 @@ def test_multi_input_unknown_static_shape(op_name, num_inputs):
             helper.make_tensor_value_info("ends", TensorProto.INT64, [1]),
             helper.make_tensor_value_info("axes", TensorProto.INT64, [1]),
         ]
-        + [
-            helper.make_tensor_value_info(name, TensorProto.FLOAT, [2, 3])
-            for name in other_names
-        ],
+        + [helper.make_tensor_value_info(name, TensorProto.FLOAT, [2, 3]) for name in other_names],
         outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [2, 3])],
     )
     model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
@@ -1823,20 +1820,28 @@ def test_castlike_nan_inf_to_int8():
     check_correctness(model, inputs=inputs, opset=15, check_dtypes=True)
 
 
-def test_castlike_shape_expr_data():
+@pytest.mark.parametrize("symbolic", [False, True], ids=["static", "symbolic"])
+def test_castlike_shape_expr_data(symbolic: bool):
     shape_node = helper.make_node("Shape", ["data"], ["data_shape"])
     castlike_node = helper.make_node("CastLike", ["data_shape", "like"], ["output"])
+    data_shape = ["n", 3] if symbolic else [2, 3]
     graph = helper.make_graph(
         [shape_node, castlike_node],
         "castlike_shape_data_test",
         inputs=[
-            helper.make_tensor_value_info("data", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
             helper.make_tensor_value_info("like", TensorProto.FLOAT, [1]),
         ],
         outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [2])],
     )
     model = helper.make_model(graph, producer_name="castlike_shape_data_test")
-    check_correctness(model, opset=15, check_dtypes=True)
+    inputs = None
+    if symbolic:
+        inputs = {
+            "data": np.ones((2, 3), dtype="float32"),
+            "like": np.zeros((1,), dtype="float32"),
+        }
+    check_correctness(model, inputs=inputs, opset=15, check_dtypes=True)
 
 
 def test_castlike_shape_expr_target():
@@ -4258,7 +4263,7 @@ def test_shape_start_end_scalar():
 
 def test_trilu():
     def verify_trilu(upper: bool):
-        node = helper.make_node("Trilu", ["x"], ["y"], upper=upper)
+        node = helper.make_node("Trilu", ["x", ""], ["y"], upper=upper)
         graph = helper.make_graph(
             [node],
             "trilu_test",
@@ -4332,17 +4337,25 @@ def test_trilu_initializer_with_params_in_input():
 
 @pytest.mark.parametrize("upper", [True, False])
 def test_trilu_dynamic_k_ir(upper: bool):
-    graph = helper.make_graph(
-        [
-            helper.make_node("Trilu", inputs=["x", "k"], outputs=["y"], upper=upper),
-        ],
-        "trilu_dynamic_k_graph",
-        inputs=[
+    if upper:
+        nodes = [helper.make_node("Trilu", inputs=["x", "k"], outputs=["y"], upper=True)]
+        inputs = [
             helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
             helper.make_tensor_value_info("k", TensorProto.INT64, []),
-        ],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3])],
-    )
+        ]
+        outputs = [helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3])]
+    else:
+        index = numpy_helper.from_array(np.array(0, dtype="int64"), name="index")
+        nodes = [
+            helper.make_node("Shape", ["x"], ["x_shape"]),
+            helper.make_node("Constant", [], ["index"], value=index),
+            helper.make_node("Gather", ["x_shape", "index"], ["k"]),
+            helper.make_node("Trilu", ["x", "k"], ["y"], upper=False),
+        ]
+        inputs = [helper.make_tensor_value_info("x", TensorProto.FLOAT, ["m", 3])]
+        outputs = [helper.make_tensor_value_info("y", TensorProto.FLOAT, ["m", 3])]
+
+    graph = helper.make_graph(nodes, "trilu_dynamic_k_graph", inputs, outputs)
     model = helper.make_model(graph, producer_name="trilu_dynamic_k_graph")
     tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
 
@@ -4375,21 +4388,20 @@ def test_trilu_dynamic_k_ir(upper: bool):
         @I.ir_module
         class ExpectedTril:
             @R.function
-            def main(
-                x: R.Tensor((2, 3), dtype="float32"),
-                k: R.Tensor((), dtype="int64"),
-            ) -> R.Tensor((2, 3), dtype="float32"):
-                R.func_attr({"num_input": 2})
+            def main(x: R.Tensor(("m", 3), dtype="float32")) -> R.Tensor(("m", 3), dtype="float32"):
+                R.func_attr({"num_input": 1})
+                m = T.int64()
                 with R.dataflow():
-                    lv: R.Tensor((3,), dtype="int64") = R.arange(0, 3, 1, dtype="int64")
-                    lv1: R.Tensor((1, 3), dtype="int64") = R.reshape(lv, R.shape([1, 3]))
-                    lv2: R.Tensor((2,), dtype="int64") = R.arange(0, 2, 1, dtype="int64")
-                    lv3: R.Tensor((2, 1), dtype="int64") = R.reshape(lv2, R.shape([2, 1]))
-                    lv4: R.Tensor((2, 3), dtype="int64") = R.subtract(lv1, lv3)
-                    lv5: R.Tensor((), dtype="int64") = R.astype(k, dtype="int64")
-                    lv6: R.Tensor((2, 3), dtype="bool") = R.less_equal(lv4, lv5)
-                    lv7: R.Tensor((2, 3), dtype="bool") = R.broadcast_to(lv6, R.shape([2, 3]))
-                    gv: R.Tensor((2, 3), dtype="float32") = R.where(lv7, x, R.const(0.0, "float32"))
+                    lv: R.Tensor((1,), dtype="int64") = R.shape_to_tensor(R.shape([m]))
+                    lv1: R.Tensor((3,), dtype="int64") = R.arange(0, 3, 1, dtype="int64")
+                    lv2: R.Tensor((1, 3), dtype="int64") = R.reshape(lv1, R.shape([1, 3]))
+                    lv3: R.Tensor((m,), dtype="int64") = R.arange(0, m, 1, dtype="int64")
+                    lv4: R.Tensor((m, 1), dtype="int64") = R.reshape(lv3, R.shape([m, 1]))
+                    lv5: R.Tensor((m, 3), dtype="int64") = R.subtract(lv2, lv4)
+                    lv6: R.Tensor((), dtype="int64") = R.squeeze(lv, axis=[0])
+                    lv7: R.Tensor((m, 3), dtype="bool") = R.less_equal(lv5, lv6)
+                    lv8: R.Tensor((m, 3), dtype="bool") = R.broadcast_to(lv7, R.shape([m, 3]))
+                    gv: R.Tensor((m, 3), dtype="float32") = R.where(lv8, x, R.const(0.0, "float32"))
                     R.output(gv)
                 return gv
 
