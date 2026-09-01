@@ -22,9 +22,9 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/exec_context.h>
-#include <tvm/tirx/expr.h>
 
 #include <algorithm>
 #include <cstdlib>

@@ -22,8 +22,8 @@
  */
 #include "codegen_trn.h"
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -398,8 +398,8 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
   } else if (is_op(nki_activation_op, "tirx.nki.activation")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 5);
     // nki_activation(result, data, opcode, bias, scale)
-    TVM_FFI_ICHECK(opcode_map_.count(op->args[2].as<StringImmNode>()->value));
-    std::string nki_op = opcode_map_[op->args[2].as<StringImmNode>()->value];
+    TVM_FFI_ICHECK(opcode_map_.count(op->args[2].as<prim::StringImmNode>()->value));
+    std::string nki_op = opcode_map_[op->args[2].as<prim::StringImmNode>()->value];
     os << PrintExpr(op->args[0]) << " = nisa.activation(op=" << nki_op
        << ", data=" << PrintExpr(op->args[1]) << ",";
     os << "bias=" << PrintExpr(op->args[3]) << ", scale=" << PrintExpr(op->args[4]);
@@ -409,15 +409,15 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
   } else if (is_op(nki_tensortensor_op, "tirx.nki.tensortensor")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 4);
     // nki_tensortensor(result, data1, data2, opcode)
-    TVM_FFI_ICHECK(opcode_map_.count(op->args[3].as<StringImmNode>()->value));
-    std::string nki_op = opcode_map_[op->args[3].as<StringImmNode>()->value];
+    TVM_FFI_ICHECK(opcode_map_.count(op->args[3].as<prim::StringImmNode>()->value));
+    std::string nki_op = opcode_map_[op->args[3].as<prim::StringImmNode>()->value];
     os << PrintExpr(op->args[0]) << " = nisa.tensor_tensor(" << PrintExpr(op->args[1]) << ", ";
     os << PrintExpr(op->args[2]) << ", op=" << nki_op;
   } else if (is_op(nki_tensorscalar_op, "tirx.nki.tensorscalar")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 5);
     // nki_tensorscalar(result, operand0, operand1, opcode, reverse)
-    TVM_FFI_ICHECK(opcode_map_.count(op->args[3].as<StringImmNode>()->value));
-    std::string nki_op = opcode_map_[op->args[3].as<StringImmNode>()->value];
+    TVM_FFI_ICHECK(opcode_map_.count(op->args[3].as<prim::StringImmNode>()->value));
+    std::string nki_op = opcode_map_[op->args[3].as<prim::StringImmNode>()->value];
     bool reverse = op->args[4].as<IntImmNode>()->value != 0;
     os << PrintExpr(op->args[0]) << " = nisa.tensor_scalar(" << PrintExpr(op->args[1])
        << ", operand0=";
@@ -432,8 +432,8 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
     TVM_FFI_ICHECK(op->args.size() >= 5)
         << "nki_tensorreduce expects at least 5 arguments, but got " << op->args.size();
     // nki_tensorreduce(result, data, opcode, negate, *axes)
-    TVM_FFI_ICHECK(opcode_map_.count(op->args[2].as<StringImmNode>()->value));
-    std::string nki_op = opcode_map_[op->args[2].as<StringImmNode>()->value];
+    TVM_FFI_ICHECK(opcode_map_.count(op->args[2].as<prim::StringImmNode>()->value));
+    std::string nki_op = opcode_map_[op->args[2].as<prim::StringImmNode>()->value];
     bool negate = op->args[3].as<IntImmNode>()->value != 0;
     Array<PrimExpr> axes;
     for (size_t i = 4; i < op->args.size(); ++i) {
@@ -445,10 +445,10 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
     TVM_FFI_ICHECK(op->args.size() == 7)
         << "nki_activation_reduce expects 7 arguments, but got " << op->args.size();
     // nki_activation_reduce(reduce_res, act_res, data, opcode, reduce_opcode, bias, scale)
-    TVM_FFI_ICHECK(opcode_map_.count(op->args[3].as<StringImmNode>()->value));
-    std::string nki_op = opcode_map_[op->args[3].as<StringImmNode>()->value];
-    TVM_FFI_ICHECK(opcode_map_.count(op->args[4].as<StringImmNode>()->value));
-    std::string reduce_nki_op = opcode_map_[op->args[4].as<StringImmNode>()->value];
+    TVM_FFI_ICHECK(opcode_map_.count(op->args[3].as<prim::StringImmNode>()->value));
+    std::string nki_op = opcode_map_[op->args[3].as<prim::StringImmNode>()->value];
+    TVM_FFI_ICHECK(opcode_map_.count(op->args[4].as<prim::StringImmNode>()->value));
+    std::string reduce_nki_op = opcode_map_[op->args[4].as<prim::StringImmNode>()->value];
     os << PrintExpr(op->args[1]) << " = nisa.activation_reduce(data=" << PrintExpr(op->args[2])
        << ", op=" << nki_op;
     os << ", reduce_op=" << reduce_nki_op << ", reduce_res=" << PrintExpr(op->args[0])
@@ -458,10 +458,10 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
         << "nki_tensorscalar_reduce expects 7 arguments, but got " << op->args.size();
     // nki_tensorscalar_reduce(reduce_res, tensorscalar_res, operand0, operand1, opcode,
     // reduce_opcode, reverse)
-    TVM_FFI_ICHECK(opcode_map_.count(op->args[4].as<StringImmNode>()->value));
-    std::string nki_op = opcode_map_[op->args[4].as<StringImmNode>()->value];
-    TVM_FFI_ICHECK(opcode_map_.count(op->args[5].as<StringImmNode>()->value));
-    std::string reduce_nki_op = opcode_map_[op->args[5].as<StringImmNode>()->value];
+    TVM_FFI_ICHECK(opcode_map_.count(op->args[4].as<prim::StringImmNode>()->value));
+    std::string nki_op = opcode_map_[op->args[4].as<prim::StringImmNode>()->value];
+    TVM_FFI_ICHECK(opcode_map_.count(op->args[5].as<prim::StringImmNode>()->value));
+    std::string reduce_nki_op = opcode_map_[op->args[5].as<prim::StringImmNode>()->value];
     bool reverse = op->args[6].as<IntImmNode>()->value != 0;
     os << PrintExpr(op->args[1]) << " = nisa.tensor_scalar_reduce(data=" << PrintExpr(op->args[2])
        << ", op0=" << nki_op << ", operand0=" << PrintExpr(op->args[3])
@@ -481,10 +481,10 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
     TVM_FFI_ICHECK_EQ(op->args.size(), 8);
     // nki_scalar_tensor_tensor(result, data, operand0, operand1, opcode0, opcode1, reverse0,
     // reverse1)
-    TVM_FFI_ICHECK(opcode_map_.count(op->args[4].as<StringImmNode>()->value));
-    std::string nki_op0 = opcode_map_[op->args[4].as<StringImmNode>()->value];
-    TVM_FFI_ICHECK(opcode_map_.count(op->args[5].as<StringImmNode>()->value));
-    std::string nki_op1 = opcode_map_[op->args[5].as<StringImmNode>()->value];
+    TVM_FFI_ICHECK(opcode_map_.count(op->args[4].as<prim::StringImmNode>()->value));
+    std::string nki_op0 = opcode_map_[op->args[4].as<prim::StringImmNode>()->value];
+    TVM_FFI_ICHECK(opcode_map_.count(op->args[5].as<prim::StringImmNode>()->value));
+    std::string nki_op1 = opcode_map_[op->args[5].as<prim::StringImmNode>()->value];
     bool reverse0 = op->args[6].as<IntImmNode>()->value != 0;
     bool reverse1 = op->args[7].as<IntImmNode>()->value != 0;
     os << PrintExpr(op->args[0]) << " = nisa.scalar_tensor_tensor(data=" << PrintExpr(op->args[1])
@@ -495,10 +495,10 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
     TVM_FFI_ICHECK_EQ(op->args.size(), 8);
     // nki_scalar_tensor_scalar(result, data, operand0, operand1, opcode0, opcode1, reverse0,
     // reverse1)
-    TVM_FFI_ICHECK(opcode_map_.count(op->args[4].as<StringImmNode>()->value));
-    std::string nki_op0 = opcode_map_[op->args[4].as<StringImmNode>()->value];
-    TVM_FFI_ICHECK(opcode_map_.count(op->args[5].as<StringImmNode>()->value));
-    std::string nki_op1 = opcode_map_[op->args[5].as<StringImmNode>()->value];
+    TVM_FFI_ICHECK(opcode_map_.count(op->args[4].as<prim::StringImmNode>()->value));
+    std::string nki_op0 = opcode_map_[op->args[4].as<prim::StringImmNode>()->value];
+    TVM_FFI_ICHECK(opcode_map_.count(op->args[5].as<prim::StringImmNode>()->value));
+    std::string nki_op1 = opcode_map_[op->args[5].as<prim::StringImmNode>()->value];
     bool reverse0 = op->args[6].as<IntImmNode>()->value != 0;
     bool reverse1 = op->args[7].as<IntImmNode>()->value != 0;
     os << PrintExpr(op->args[0]) << " = nisa.tensor_scalar(data=" << PrintExpr(op->args[1])
@@ -594,16 +594,16 @@ void CodeGenTrainium::VisitExpr_(const VarNode* op, std::ostream& os) {  // NOLI
   ctx_.buffer_index++;
 }
 
-void CodeGenTrainium::VisitExpr_(const CastNode* op, std::ostream& os) {
+void CodeGenTrainium::VisitExpr_(const prim::CastNode* op, std::ostream& os) {
   ctx_.dst_dtype = op->ty.as_or_throw<PrimType>();
   CodeGenTrainium::VisitExpr(op->value, os);
 }
 
-void CodeGenTrainium::VisitExpr_(const FloorDivNode* op, std::ostream& os) {
+void CodeGenTrainium::VisitExpr_(const prim::FloorDivNode* op, std::ostream& os) {
   os << PrintExpr(op->a) << " // " << PrintExpr(op->b);
 }
 
-void CodeGenTrainium::VisitExpr_(const FloorModNode* op, std::ostream& os) {
+void CodeGenTrainium::VisitExpr_(const prim::FloorModNode* op, std::ostream& os) {
   os << PrintExpr(op->a) << " % " << PrintExpr(op->b);
 }
 
@@ -700,11 +700,11 @@ void CodeGenTrainium::VisitStmt_(const IfThenElseNode* op) {
   }
 }
 
-void CodeGenTrainium::VisitExpr_(const AndNode* op, std::ostream& os) {
+void CodeGenTrainium::VisitExpr_(const prim::AndNode* op, std::ostream& os) {
   os << PrintExpr(op->a) << " & " << PrintExpr(op->b);
 }
 
-void CodeGenTrainium::VisitExpr_(const OrNode* op, std::ostream& os) {
+void CodeGenTrainium::VisitExpr_(const prim::OrNode* op, std::ostream& os) {
   os << PrintExpr(op->a) << " | " << PrintExpr(op->b);
 }
 

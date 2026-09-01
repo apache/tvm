@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
@@ -35,7 +36,7 @@
 
 #include "./functor_common.h"
 #include "tvm/ir/expr.h"
-#include "tvm/tirx/expr.h"
+#include "tvm/ir/prim/expr.h"
 #include "tvm/tirx/stmt.h"
 #include "tvm/tirx/var.h"
 
@@ -127,7 +128,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
   return StmtExprMutator::VisitStmt_(op);
 }
 
-Expr DataTypeLegalizer::VisitExpr_(const LetNode* op) {
+Expr DataTypeLegalizer::VisitExpr_(const prim::LetNode* op) {
   PrimExpr value = this->VisitPrimExpr(op->value);
   Var var = op->var;
 
@@ -141,7 +142,7 @@ Expr DataTypeLegalizer::VisitExpr_(const LetNode* op) {
   if (value.same_as(op->value) && new_body.same_as(op->body)) {
     return ffi::GetRef<PrimExpr>(op);
   } else {
-    return Let(var, value, new_body, op->span);
+    return prim::Let(var, value, new_body, op->span);
   }
 }
 
@@ -173,7 +174,7 @@ Expr DataTypeLegalizer::VisitExpr_(const VarNode* op) {
   return ffi::GetRef<Var>(op);
 }
 
-Expr DataTypeLegalizer::VisitExpr_(const SelectNode* op) {
+Expr DataTypeLegalizer::VisitExpr_(const prim::SelectNode* op) {
   PrimExpr condition = this->VisitPrimExpr(op->condition);
   PrimExpr true_value = this->VisitPrimExpr(op->true_value);
   PrimExpr false_value = this->VisitPrimExpr(op->false_value);
@@ -187,11 +188,11 @@ Expr DataTypeLegalizer::VisitExpr_(const SelectNode* op) {
     PrimType dtype = true_dtype.WithBits(bits);
     if (true_dtype != dtype) true_value = cast(dtype, true_value);
     if (false_dtype != dtype) false_value = cast(dtype, false_value);
-    return Select(condition, true_value, false_value);
+    return prim::Select(condition, true_value, false_value);
   }
 }
 
-Expr DataTypeLegalizer::VisitExpr_(const RampNode* op) {
+Expr DataTypeLegalizer::VisitExpr_(const prim::RampNode* op) {
   PrimExpr base = VisitPrimExpr(op->base);
   PrimExpr stride = VisitPrimExpr(op->stride);
   if (base.same_as(op->base) && stride.same_as(op->stride) && base.ty() == stride.ty()) {
@@ -205,11 +206,13 @@ Expr DataTypeLegalizer::VisitExpr_(const RampNode* op) {
     PrimType dtype = base_dtype.WithBits(bits);
     if (base_dtype->dtype != dtype->dtype) base = cast(dtype, base);
     if (stride_dtype->dtype != dtype->dtype) stride = cast(dtype, stride);
-    return Ramp(base, stride, op->lanes);
+    return prim::Ramp(base, stride, op->lanes);
   }
 }
 
-Expr DataTypeLegalizer::VisitExpr_(const CastNode* op) { return StmtExprMutator::VisitExpr_(op); }
+Expr DataTypeLegalizer::VisitExpr_(const prim::CastNode* op) {
+  return StmtExprMutator::VisitExpr_(op);
+}
 
 #define TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)       \
   Expr DataTypeLegalizer::VisitExpr_(const OP* op) {                \
@@ -222,21 +225,21 @@ Expr DataTypeLegalizer::VisitExpr_(const CastNode* op) { return StmtExprMutator:
     }                                                               \
   }
 
-TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(AddNode, operator+);
-TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(SubNode, operator-);
-TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MulNode, operator*);
-TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(DivNode, div);
-TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(ModNode, truncmod);
-TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorDivNode, floordiv);
-TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorModNode, floormod);
-TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MinNode, min);
-TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MaxNode, max);
-TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);
-TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=);
-TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=);
-TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<);  // NOLINT(*)
-TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>);  // NOLINT(*)
-TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::AddNode, operator+);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::SubNode, operator-);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::MulNode, operator*);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::DivNode, div);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::ModNode, truncmod);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::FloorDivNode, floordiv);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::FloorModNode, floormod);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::MinNode, min);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::MaxNode, max);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::EQNode, operator==);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::NENode, operator!=);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::LENode, operator<=);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::LTNode, operator<);  // NOLINT(*)
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::GTNode, operator>);  // NOLINT(*)
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::GENode, operator>=);
 
 #undef TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH
 
@@ -250,7 +253,7 @@ Expr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
     return e;
   }
   PrimExpr prim_e = e.as_or_throw<PrimExpr>();
-  if (op->op.same_as(builtin::shift_right())) {
+  if (op->op.same_as(prim::builtin::shift_right())) {
     PrimExpr lhs = op->args[0].as_or_throw<PrimExpr>();
     PrimExpr rhs = op->args[1].as_or_throw<PrimExpr>();
     PrimType before_dtype = before->args[0].as_or_throw<PrimExpr>().ty();
@@ -264,7 +267,7 @@ Expr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
       rhs = min(rhs, MakeConst(rhs.ty(), after_dtype.bits() - 1, op->span), op->span);
     }
     return lhs >> rhs;
-  } else if (op->op.same_as(builtin::shift_left())) {
+  } else if (op->op.same_as(prim::builtin::shift_left())) {
     PrimExpr lhs = op->args[0].as_or_throw<PrimExpr>();
     PrimExpr rhs = op->args[1].as_or_throw<PrimExpr>();
     PrimType before_dtype = before->args[0].as_or_throw<PrimExpr>().ty();
@@ -277,18 +280,18 @@ Expr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
       rhs = min(rhs, MakeConst(rhs.ty(), after_dtype.bits() - 1, op->span), op->span);
     }
     return lhs << rhs;
-  } else if (op->op.same_as(builtin::bitwise_and())) {
+  } else if (op->op.same_as(prim::builtin::bitwise_and())) {
     return op->args[0].as_or_throw<PrimExpr>() & op->args[1].as_or_throw<PrimExpr>();
-  } else if (op->op.same_as(builtin::bitwise_or())) {
+  } else if (op->op.same_as(prim::builtin::bitwise_or())) {
     return op->args[0].as_or_throw<PrimExpr>() | op->args[1].as_or_throw<PrimExpr>();
-  } else if (op->op.same_as(builtin::bitwise_xor())) {
+  } else if (op->op.same_as(prim::builtin::bitwise_xor())) {
     return op->args[0].as_or_throw<PrimExpr>() ^ op->args[1].as_or_throw<PrimExpr>();
   }
   static const Op& pow_op = Op::Get("tirx.pow");
   static const Op& clz_op = Op::Get("tirx.clz");
   if (op->op.same_as(pow_op)) {
     return pow(op->args[0].as_or_throw<PrimExpr>(), op->args[1].as_or_throw<PrimExpr>());
-  } else if (op->op.same_as(builtin::if_then_else())) {
+  } else if (op->op.same_as(prim::builtin::if_then_else())) {
     return Call(op->ty.as_or_throw<PrimType>(), op->op,
                 {op->args[0].as_or_throw<PrimExpr>(), op->args[1].as_or_throw<PrimExpr>(),
                  op->args[2].as_or_throw<PrimExpr>()},
@@ -601,16 +604,16 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BindNode* op) {
     return result;                                                                   \
   }
 
-TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);
-TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=);
-TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=);
-TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<);  // NOLINT(*)
-TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>);  // NOLINT(*)
-TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
+TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::EQNode, operator==);
+TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::NENode, operator!=);
+TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::LENode, operator<=);
+TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::LTNode, operator<);  // NOLINT(*)
+TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::GTNode, operator>);  // NOLINT(*)
+TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::GENode, operator>=);
 
 Expr IndexDataTypeRewriter::VisitExpr_(const CallNode* op) {
   // handle if_then_else condition
-  if (op->op.same_as(builtin::if_then_else())) {
+  if (op->op.same_as(prim::builtin::if_then_else())) {
     bool is_condition = is_condition_;
     is_condition_ = true;
     PrimExpr cond = VisitPrimExpr(op->args[0].as_or_throw<PrimExpr>());
@@ -628,7 +631,7 @@ Expr IndexDataTypeRewriter::VisitExpr_(const CallNode* op) {
   return Parent::VisitExpr_(op);
 }
 
-Expr IndexDataTypeRewriter::VisitExpr_(const SelectNode* op) {
+Expr IndexDataTypeRewriter::VisitExpr_(const prim::SelectNode* op) {
   bool is_condition = true;
   std::swap(is_condition_, is_condition);
   PrimExpr condition = this->VisitPrimExpr(op->condition);
@@ -646,7 +649,7 @@ Expr IndexDataTypeRewriter::VisitExpr_(const SelectNode* op) {
     PrimType dtype = true_dtype.WithBits(bits);
     if (true_dtype->dtype != dtype->dtype) true_value = cast(dtype, true_value);
     if (false_dtype->dtype != dtype->dtype) false_value = cast(dtype, false_value);
-    return Select(condition, true_value, false_value);
+    return prim::Select(condition, true_value, false_value);
   }
 }
 
@@ -713,14 +716,14 @@ Expr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
   return DataTypeLegalizer::VisitExpr_(op);
 }
 
-Expr IndexDataTypeNormalizer::VisitExpr_(const CastNode* op) {
+Expr IndexDataTypeNormalizer::VisitExpr_(const prim::CastNode* op) {
   // Unwrap the cast only when the dtype of this cast is integer dtype.
   // When the dtype of this cast is not integer dtype, it means that this cast
   // has some other purpose, and we should not unwrap the cast.
   PrimType dtype = op->ty.as_or_throw<PrimType>();
   if (is_enabled_ && CanRewriteDType(dtype)) {
     PrimExpr value = this->VisitPrimExpr(op->value);
-    return value.ty() == target_data_type_ ? value : Cast(target_data_type_, value);
+    return value.ty() == target_data_type_ ? value : prim::Cast(target_data_type_, value);
   }
   return IndexDataTypeRewriter::VisitExpr_(op);
 }

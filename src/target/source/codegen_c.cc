@@ -530,7 +530,7 @@ void CodeGenC::VisitExpr_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*
 void CodeGenC::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
-void CodeGenC::VisitExpr_(const StringImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::StringImmNode* op, std::ostream& os) {  // NOLINT(*)
   os << "\"" << op->value << "\"";
 }
 
@@ -574,7 +574,7 @@ inline void PrintBinaryIntrinsic(const CallNode* op, const char* opstr,
                         op->args[1].as_or_throw<PrimExpr>(), os);
   }
 }
-void CodeGenC::VisitExpr_(const CastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::CastNode* op, std::ostream& os) {  // NOLINT(*)
   std::stringstream value;
   this->PrintExpr(op->value, value);
   os << CastFromTo(value.str(), op->value.ty(), op->ty.as_or_throw<PrimType>());
@@ -582,19 +582,19 @@ void CodeGenC::VisitExpr_(const CastNode* op, std::ostream& os) {  // NOLINT(*)
 void CodeGenC::VisitExpr_(const VarNode* op, std::ostream& os) {  // NOLINT(*)
   os << GetVarID(op);
 }
-void CodeGenC::VisitExpr_(const AddNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::AddNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "+", os, this);
 }
-void CodeGenC::VisitExpr_(const SubNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::SubNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "-", os, this);
 }
-void CodeGenC::VisitExpr_(const MulNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::MulNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "*", os, this);
 }
-void CodeGenC::VisitExpr_(const DivNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::DivNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "/", os, this);
 }
-void CodeGenC::VisitExpr_(const ModNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::ModNode* op, std::ostream& os) {  // NOLINT(*)
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if (op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     PrintBinaryExpr(op, "%", os, this);
@@ -613,37 +613,37 @@ void CodeGenC::VisitExpr_(const ModNode* op, std::ostream& os) {  // NOLINT(*)
     }
   }
 }
-void CodeGenC::VisitExpr_(const MinNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::MinNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "min", os, this);
 }
-void CodeGenC::VisitExpr_(const MaxNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::MaxNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "max", os, this);
 }
-void CodeGenC::VisitExpr_(const EQNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::EQNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "==", os, this);
 }
-void CodeGenC::VisitExpr_(const NENode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::NENode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "!=", os, this);
 }
-void CodeGenC::VisitExpr_(const LTNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::LTNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "<", os, this);
 }
-void CodeGenC::VisitExpr_(const LENode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::LENode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "<=", os, this);
 }
-void CodeGenC::VisitExpr_(const GTNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::GTNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, ">", os, this);
 }
-void CodeGenC::VisitExpr_(const GENode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::GENode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, ">=", os, this);
 }
-void CodeGenC::VisitExpr_(const AndNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::AndNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "&&", os, this);
 }
-void CodeGenC::VisitExpr_(const OrNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::OrNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "||", os, this);
 }
-void CodeGenC::VisitExpr_(const NotNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::NotNode* op, std::ostream& os) {  // NOLINT(*)
   os << '!';
   PrintExpr(op->a, os);
 }
@@ -690,7 +690,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << "break;";
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       TVM_FFI_ICHECK_GE(op->args.size(), 1U);
-      auto func = op->args[0].as_or_throw<StringImm>();
+      auto func = op->args[0].as_or_throw<prim::StringImm>();
       ffi::Array<Expr> args = op->args;
       this->PrintCallExtern(op->ty, func->value, args, true, os);
 
@@ -714,7 +714,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       // call extern if the op itself have a global symbol.
       ffi::Array<Expr> args = op->args;
       this->PrintCallExtern(op->ty, op_attr_global_symbol_[call_op], args, false, os);
-    } else if (op->op.same_as(builtin::bitwise_and())) {
+    } else if (op->op.same_as(prim::builtin::bitwise_and())) {
       PrintBinaryIntrinsic(op, " & ", os, this);
     } else if (op->op.same_as(builtin::large_uint_imm())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
@@ -722,20 +722,20 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       uint64_t high = static_cast<uint64_t>(op->args[1].as_or_throw<IntImm>()->value);
       uint64_t val = (high << 32U) | low;
       PrintUIntConst(op->ty.as_or_throw<PrimType>(), val, os, this);
-    } else if (op->op.same_as(builtin::bitwise_xor())) {
+    } else if (op->op.same_as(prim::builtin::bitwise_xor())) {
       PrintBinaryIntrinsic(op, " ^ ", os, this);
-    } else if (op->op.same_as(builtin::bitwise_or())) {
+    } else if (op->op.same_as(prim::builtin::bitwise_or())) {
       PrintBinaryIntrinsic(op, " | ", os, this);
-    } else if (op->op.same_as(builtin::bitwise_not())) {
+    } else if (op->op.same_as(prim::builtin::bitwise_not())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
       os << "(~";
       this->PrintExpr(op->args[0], os);
       os << ')';
-    } else if (op->op.same_as(builtin::shift_left())) {
+    } else if (op->op.same_as(prim::builtin::shift_left())) {
       PrintBinaryIntrinsic(op, " << ", os, this);
-    } else if (op->op.same_as(builtin::shift_right())) {
+    } else if (op->op.same_as(prim::builtin::shift_right())) {
       PrintBinaryIntrinsic(op, " >> ", os, this);
-    } else if (op->op.same_as(builtin::if_then_else())) {
+    } else if (op->op.same_as(prim::builtin::if_then_else())) {
       // conditional that skips eval if cond evals to false
       std::string result = name_supply_->FreshName("condval");
       std::string cond = PrintExpr(op->args[0]);
@@ -772,7 +772,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
         PrimExpr index = load->indices[0];
         // A vector TensorLoad uses a Ramp to describe its lane indices.  The
         // address of that load is the address of its first lane.
-        if (const RampNode* ramp = index.as<RampNode>()) {
+        if (const prim::RampNode* ramp = index.as<prim::RampNode>()) {
           index = ramp->base;
         }
         const VarNode* data = load->source.as_or_throw<tvm::tirx::BufferVar>().get();
@@ -881,7 +881,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << ")";
     } else if (op->op.same_as(builtin::lookup_param())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
-      const StringImmNode* str = op->args[0].as<StringImmNode>();
+      const prim::StringImmNode* str = op->args[0].as<prim::StringImmNode>();
       TVM_FFI_ICHECK(str != nullptr);
       os << "__tvm_param__" << str->value;
     } else if (op->op.same_as(builtin::tvm_thread_invariant())) {
@@ -984,7 +984,7 @@ void CodeGenC::VisitExpr_(const TensorLoadNode* op, std::ostream& os) {  // NOLI
     bool can_vector_load = false;
     arith::PVar<PrimExpr> base;
     if (arith::ramp(base, 1, value_ty.lanes()).Match(index)) {
-      const RampNode* ramp = index.as<RampNode>();
+      const prim::RampNode* ramp = index.as<prim::RampNode>();
       TVM_FFI_ICHECK(ramp);
       arith::ModularSet me = arith::Analyzer()->modular_set(ramp->base);
       // The condition: {k * coeff + base} divisible by the alignment for any k
@@ -1089,7 +1089,7 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
   }
 }
 
-void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::LetNode* op, std::ostream& os) {  // NOLINT(*)
   auto it = let_binding_.find(op->var);
   if (it != let_binding_.end()) {
     TVM_FFI_ICHECK(deep_equal_(it->second->value, op->value))
@@ -1123,7 +1123,7 @@ void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK(removed);
 }
 
-void CodeGenC::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::RampNode* op, std::ostream& os) {  // NOLINT(*)
   // NOTE: C have comma expression so cannot use (int2)(v0, v1)
   // instead should use int2(v0, v1)
   PrintType(op->ty.as_or_throw<PrimType>(), os);
@@ -1137,7 +1137,7 @@ void CodeGenC::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLINT(*)
   os << ")";
 }
 
-void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::ShuffleNode* op, std::ostream& os) {  // NOLINT(*)
   // Shuffle support
   // vec = concat(vectors)
   // result = (vec[indices[0]], vec[indices[1]], ...)
@@ -1208,11 +1208,11 @@ void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {  // NOLINT(
   }
 }
 
-void CodeGenC::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_THROW(InternalError) << "Broadcast: not supported ";
 }
 
-void CodeGenC::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const prim::SelectNode* op, std::ostream& os) {  // NOLINT(*)
   os << "(";
   PrintExpr(op->condition, os);
   os << " ? ";
@@ -1279,7 +1279,7 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
       }
     }
   } else if (op->attr_key == tirx::attr::pragma_import_c) {
-    const StringImmNode* value = op->value.as<StringImmNode>();
+    const prim::StringImmNode* value = op->value.as<prim::StringImmNode>();
     TVM_FFI_ICHECK(value != nullptr);
     decl_stream << value->value;
   }

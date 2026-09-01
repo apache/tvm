@@ -25,11 +25,12 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/transform.h>
 
@@ -66,7 +67,7 @@ static Expr LowerAccessPtr(const CallNode* call,
         << "Nested tvm_access_ptr calls must use the same element type";
     PrimExpr inner_offset = inner->args[2].as_or_throw<PrimExpr>();
     if (inner_offset.ty() != offset.ty()) {
-      inner_offset = Cast(offset.ty(), inner_offset);
+      inner_offset = prim::Cast(offset.ty(), inner_offset);
     }
     offset = inner_offset + offset;
     buffer = inner->args[1];
@@ -88,7 +89,7 @@ static Expr LowerAccessPtr(const CallNode* call,
     PrimType offset_ty = offset.ty();
     offset = offset * IntImm(offset_ty, dtype.lanes());
     scalar_extent = offset + IntImm(offset_ty, dtype.lanes());
-    offset = Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
+    offset = prim::Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
   }
 
   PrimType scalar_dtype = dtype.WithLanes(1);
@@ -199,10 +200,10 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  Expr VisitExpr_(const AddNode* op) final {
-    if (const MulNode* mb = op->b.as<MulNode>()) {
+  Expr VisitExpr_(const prim::AddNode* op) final {
+    if (const prim::MulNode* mb = op->b.as<prim::MulNode>()) {
       return MakeFMA(mb->a, mb->b, op->a, op);
-    } else if (const MulNode* ma = op->a.as<MulNode>()) {
+    } else if (const prim::MulNode* ma = op->a.as<prim::MulNode>()) {
       return MakeFMA(ma->a, ma->b, op->b, op);
     }
     return IRMutatorWithAnalyzer::VisitExpr_(op);
@@ -210,10 +211,10 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
   // We use floordiv for integer analysis,
   // but will need to lower them to native truncdiv instructions
-  Expr VisitExpr_(const FloorDivNode* op) final {
+  Expr VisitExpr_(const prim::FloorDivNode* op) final {
     auto e = ffi::GetRef<PrimExpr>(op);
     PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<PrimExpr>();
-    op = ret.as<FloorDivNode>();
+    op = ret.as<prim::FloorDivNode>();
     if (op == nullptr) return ret;
     int shift;
     PrimType dtype = op->ty.as_or_throw<PrimType>();
@@ -247,7 +248,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         // equivalent to rdiv + (rmod >= 0 ? 0: -1);
         return rdiv + (rmod >> IntImm(dtype, dtype.bits() - 1));
       } else {
-        return tirx::Select(rmod >= 0, rdiv, rdiv - MakeConst(dtype, 1));
+        return prim::Select(rmod >= 0, rdiv, rdiv - MakeConst(dtype, 1));
       }
 
     } else {
@@ -262,17 +263,17 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         // b >= 0 => (rmod >=0 ? rdiv : rdiv - 1)
         // b < 0  => (rmod <= 0 ? rdiv : rdiv - 1)
         PrimExpr let_rdiv =
-            tirx::Let(rdiv, truncdiv(op->a, op->b),
-                      tirx::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rdiv,
+            prim::Let(rdiv, truncdiv(op->a, op->b),
+                      prim::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rdiv,
                                    rdiv - MakeConst(dtype, 1)));
-        return Let(rmod, truncmod(op->a, op->b), let_rdiv);
+        return prim::Let(rmod, truncmod(op->a, op->b), let_rdiv);
       }
     }
   }
 
-  Expr VisitExpr_(const FloorModNode* op) final {
+  Expr VisitExpr_(const prim::FloorModNode* op) final {
     PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<PrimExpr>();
-    op = ret.as<FloorModNode>();
+    op = ret.as<prim::FloorModNode>();
     if (op == nullptr) return ret;
     // Lower floordiv to native truncdiv.
     int shift;
@@ -309,7 +310,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         // -> rmod >= 0 ? 0 : b
         return rmod + (op->b & (rmod >> IntImm(dtype, dtype.bits() - 1)));
       } else {
-        return tirx::Select(rmod >= 0, rmod, rmod + op->b);
+        return prim::Select(rmod >= 0, rmod, rmod + op->b);
       }
 
     } else {
@@ -326,14 +327,14 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         // b > 0 && rmod < 0  -> rmod + b
         // b < 0 && rmod < 0 -> rmod
         // b < 0 && rmod > 0 -> rmod + b
-        return Let(
-            rmod, truncmod(op->a, op->b),
-            Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod, rmod + op->b));
+        return prim::Let(rmod, truncmod(op->a, op->b),
+                         prim::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod,
+                                      rmod + op->b));
       }
     }
   }
 
-  Expr VisitExpr_(const MaxNode* op) final {
+  Expr VisitExpr_(const prim::MaxNode* op) final {
     using namespace arith;
     PVar<PrimExpr> x, y;
     PVar<IntImm> c;
@@ -345,7 +346,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  Expr VisitExpr_(const EQNode* op) final {
+  Expr VisitExpr_(const prim::EQNode* op) final {
     using namespace arith;
     PVar<PrimExpr> x, y;
     auto e = ffi::GetRef<PrimExpr>(op);
@@ -355,7 +356,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  Expr VisitExpr_(const NENode* op) final {
+  Expr VisitExpr_(const prim::NENode* op) final {
     using namespace arith;
     PVar<PrimExpr> x, y;
     auto e = ffi::GetRef<PrimExpr>(op);
@@ -371,8 +372,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     // For some targets, LLVM will generate more efficient FMA
     // instruction with the latter. For example, vmla vs. vmlal
     // on ARM.
-    if (const BroadcastNode* bcast = e.as<BroadcastNode>()) {
-      if (const CastNode* cast = bcast->value.as<CastNode>()) {
+    if (const prim::BroadcastNode* bcast = e.as<prim::BroadcastNode>()) {
+      if (const prim::CastNode* cast = bcast->value.as<prim::CastNode>()) {
         auto should_swap = [&]() {
           PrimType cast_ty = cast->ty.as_or_throw<PrimType>();
           PrimType value_ty = cast->value.ty();
@@ -394,15 +395,16 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         };
 
         if (should_swap()) {
-          PrimExpr new_bcast = Broadcast(cast->value, bcast->lanes);
-          return Cast(bcast->ty.as_or_throw<PrimType>(), new_bcast);
+          PrimExpr new_bcast = prim::Broadcast(cast->value, bcast->lanes);
+          return prim::Cast(bcast->ty.as_or_throw<PrimType>(), new_bcast);
         }
       }
     }
     return e;
   }
 
-  PrimExpr MakeFMA(const PrimExpr& a, const PrimExpr& b, const PrimExpr& c, const AddNode* op) {
+  PrimExpr MakeFMA(const PrimExpr& a, const PrimExpr& b, const PrimExpr& c,
+                   const prim::AddNode* op) {
     // emit fma instruction: a * b + c
     PrimExpr lhs = SwapBroadcastCast(a);
     PrimExpr rhs = SwapBroadcastCast(b);
@@ -413,8 +415,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       if (r.defined()) return this->VisitPrimExpr(r);
     } else {
       if (!lhs.same_as(a) || !rhs.same_as(b)) {
-        PrimExpr mul = this->VisitPrimExpr(Mul(lhs, rhs));
-        return Add(mul, this->VisitPrimExpr(c));
+        PrimExpr mul = this->VisitPrimExpr(prim::Mul(lhs, rhs));
+        return prim::Add(mul, this->VisitPrimExpr(c));
       }
     }
     return IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<PrimExpr>();

@@ -667,7 +667,7 @@ def test_vectorize_nested_predicates_preserve_both_masks():
     tvm.tirx.stmt_functor.post_order_visit(after.body, collect_predicates)
     assert len(predicates) == 2
     assert any(
-        isinstance(predicate, tvm.ir.Call) and predicate.op.name == "tirx.bitwise_and"
+        isinstance(predicate, tvm.ir.Call) and predicate.op.name == "ir.prim.bitwise_and"
         for predicate in predicates
     )
 

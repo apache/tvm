@@ -24,8 +24,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 
 #include "const_fold.h"
@@ -99,7 +99,7 @@ void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
       symbol = symbol * val;
     }
   };
-  UnpackReduction<tirx::MulNode>(symbol_scale, fcollect_prod);
+  UnpackReduction<prim::MulNode>(symbol_scale, fcollect_prod);
   if (cscale <= 0) return;
   // override the constant int bound by marking it as non-negative
   // NOTE: there might be future opportunities of more bound hint
@@ -150,7 +150,7 @@ void ConstraintContext::ExitWithScope() {
 }
 
 bool AnalyzerObj::CanProveGreaterEqual(const PrimExpr& expr, int64_t lower_bound) {
-  if (const auto* ptr = expr.as<tirx::IntImmNode>()) {
+  if (const auto* ptr = expr.as<IntImmNode>()) {
     return ptr->value >= lower_bound;
   }
   auto bd = this->const_int_bound(this->rewrite_simplify(expr));
@@ -159,7 +159,7 @@ bool AnalyzerObj::CanProveGreaterEqual(const PrimExpr& expr, int64_t lower_bound
 }
 
 bool AnalyzerObj::CanProveLess(const PrimExpr& expr, int64_t upper_bound) {
-  if (const auto* ptr = expr.as<tirx::IntImmNode>()) {
+  if (const auto* ptr = expr.as<IntImmNode>()) {
     return ptr->value < upper_bound;
   }
   auto bd = this->const_int_bound(this->rewrite_simplify(expr));
@@ -190,7 +190,7 @@ bool AnalyzerObj::CanProveLessEqualThanSymbolicShapeValue(const PrimExpr& lhs,
       cscale *= ptr->value;
     }
   };
-  UnpackReduction<tirx::MulNode>(shape, fcollect);
+  UnpackReduction<prim::MulNode>(shape, fcollect);
   PrimExpr const_shape_bound = IntImm(shape.ty(), std::abs(cscale));
   if (this->CanProve(lhs <= const_shape_bound, ProofStrength::kSymbolicBound)) return true;
   return false;
@@ -212,19 +212,19 @@ bool AnalyzerObj::CanProve(const PrimExpr& expr, ProofStrength strength) {
     // This strategy can only be called from top-level and not from sub-analyzers.
     ffi::Optional<PrimExpr> pos_diff;
     int lower_bound = 0;
-    if (const auto* ptr_lt = expr.as<tirx::LTNode>()) {
+    if (const auto* ptr_lt = expr.as<prim::LTNode>()) {
       pos_diff = ptr_lt->b - ptr_lt->a;
       lower_bound = 1;
     }
-    if (const auto* ptr_le = expr.as<tirx::LENode>()) {
+    if (const auto* ptr_le = expr.as<prim::LENode>()) {
       pos_diff = ptr_le->b - ptr_le->a;
       lower_bound = 0;
     }
-    if (const auto* ptr_gt = expr.as<tirx::GTNode>()) {
+    if (const auto* ptr_gt = expr.as<prim::GTNode>()) {
       pos_diff = ptr_gt->a - ptr_gt->b;
       lower_bound = 1;
     }
-    if (const auto* ptr_ge = expr.as<tirx::GENode>()) {
+    if (const auto* ptr_ge = expr.as<prim::GENode>()) {
       pos_diff = ptr_ge->a - ptr_ge->b;
       lower_bound = 0;
     }

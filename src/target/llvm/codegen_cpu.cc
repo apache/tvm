@@ -554,7 +554,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // $xxx_compute_ functions are not global. They should be marked as static (via InternalLinkage)
   // to call them correctly on MIPS platform (CALL16 issue)
   // Linkage ld Error: CALL16 reloc at 0x290 not against global symbol
-  const StringImmNode* value = op->value.as<StringImmNode>();
+  const prim::StringImmNode* value = op->value.as<prim::StringImmNode>();
   TVM_FFI_ICHECK(value != nullptr);
   llvm::Function* fcompute = llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
                                                     MakeStringRef(value->value), module_.get());
@@ -778,7 +778,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<Expr>&
                                                          const Type& r_type, const int64_t begin,
                                                          const int64_t end, bool use_env_lookup) {
   std::string func_name = [&]() {
-    auto ptr = args[0].as<StringImmNode>();
+    auto ptr = args[0].as<prim::StringImmNode>();
     TVM_FFI_ICHECK(ptr) << "Expected first argument of Call to be "
                         << "a string containing the callee's name, "
                         << "but instead contained " << args[0];
@@ -1088,7 +1088,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     return ConstInt32(0);
   } else if (op->op.same_as(builtin::tvm_stack_alloca())) {
     TVM_FFI_ICHECK_EQ(args.size(), 2U);
-    std::string type = args[0].as<StringImm>().value()->value;
+    std::string type = args[0].as<prim::StringImm>().value()->value;
     return WithFunctionEntry([&]() -> llvm::AllocaInst* {
       const int64_t* pval = as_const_int(args[1].as_or_throw<PrimExpr>());
       TVM_FFI_ICHECK(pval) << "require stack alloca to contain constant value";
@@ -1171,7 +1171,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
           llvm::FunctionCallee(ftype_tvm_parallel_barrier_, RuntimeTVMParallelBarrier());
       builder_->CreateCall(bar_callee, {MakeValue(parallel_env_.task_id), parallel_env_.penv});
     } else if (op->attr_key == tirx::attr::pragma_import_llvm) {
-      const StringImmNode* value = op->value.as<StringImmNode>();
+      const prim::StringImmNode* value = op->value.as<prim::StringImmNode>();
       TVM_FFI_ICHECK(value != nullptr);
       this->HandleImport(value->value);
       this->VisitStmt(op->body);

@@ -26,6 +26,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/pattern.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/builtin.h>
@@ -748,7 +749,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         PrimExpr value = resolved[i];
         PrimType bind_var_ty = bind_var->ty.as_or_throw<PrimType>();
         if (bind_var_ty != value.ty()) {
-          value = Cast(bind_var_ty, value);
+          value = prim::Cast(bind_var_ty, value);
         }
         scope_binds->push_back({bind_var, value});
         if (is_implicit(bind_var)) {
@@ -1141,10 +1142,10 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   bool TryExtractModuloTarget(const PrimExpr& expr, ScopeIdTarget* target, int64_t* modulus) {
     PrimExpr lhs;
     PrimExpr rhs;
-    if (const auto* mod = expr.as<ModNode>()) {
+    if (const auto* mod = expr.as<prim::ModNode>()) {
       lhs = mod->a;
       rhs = mod->b;
-    } else if (const auto* floormod = expr.as<FloorModNode>()) {
+    } else if (const auto* floormod = expr.as<prim::FloorModNode>()) {
       lhs = floormod->a;
       rhs = floormod->b;
     } else {
@@ -1175,41 +1176,41 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   }
 
   bool TryPushComparisonPredicate(const PrimExpr& pred) {
-    if (const auto* eq = pred.as<EQNode>()) {
+    if (const auto* eq = pred.as<prim::EQNode>()) {
       return TryPushLinearEquality(eq->a, eq->b) || TryPushModuloEquality(eq->a, eq->b);
     }
-    if (const auto* lt = pred.as<LTNode>()) {
+    if (const auto* lt = pred.as<prim::LTNode>()) {
       return TryPushLinearCompare(lt->a, lt->b, /*inclusive=*/false, /*lhs_less_rhs=*/true);
     }
-    if (const auto* le = pred.as<LENode>()) {
+    if (const auto* le = pred.as<prim::LENode>()) {
       return TryPushLinearCompare(le->a, le->b, /*inclusive=*/true, /*lhs_less_rhs=*/true);
     }
-    if (const auto* gt = pred.as<GTNode>()) {
+    if (const auto* gt = pred.as<prim::GTNode>()) {
       return TryPushLinearCompare(gt->a, gt->b, /*inclusive=*/false, /*lhs_less_rhs=*/false);
     }
-    if (const auto* ge = pred.as<GENode>()) {
+    if (const auto* ge = pred.as<prim::GENode>()) {
       return TryPushLinearCompare(ge->a, ge->b, /*inclusive=*/true, /*lhs_less_rhs=*/false);
     }
     return false;
   }
 
   bool TryExtractComparisonRange(const PrimExpr& pred, ScopeIdRange* range) {
-    if (const auto* eq = pred.as<EQNode>()) {
+    if (const auto* eq = pred.as<prim::EQNode>()) {
       return TryExtractLinearEqualityRange(eq->a, eq->b, range);
     }
-    if (const auto* lt = pred.as<LTNode>()) {
+    if (const auto* lt = pred.as<prim::LTNode>()) {
       return TryExtractLinearCompareRange(lt->a, lt->b, /*inclusive=*/false,
                                           /*lhs_less_rhs=*/true, range);
     }
-    if (const auto* le = pred.as<LENode>()) {
+    if (const auto* le = pred.as<prim::LENode>()) {
       return TryExtractLinearCompareRange(le->a, le->b, /*inclusive=*/true,
                                           /*lhs_less_rhs=*/true, range);
     }
-    if (const auto* gt = pred.as<GTNode>()) {
+    if (const auto* gt = pred.as<prim::GTNode>()) {
       return TryExtractLinearCompareRange(gt->a, gt->b, /*inclusive=*/false,
                                           /*lhs_less_rhs=*/false, range);
     }
-    if (const auto* ge = pred.as<GENode>()) {
+    if (const auto* ge = pred.as<prim::GENode>()) {
       return TryExtractLinearCompareRange(ge->a, ge->b, /*inclusive=*/true,
                                           /*lhs_less_rhs=*/false, range);
     }
@@ -1217,11 +1218,11 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   }
 
   static bool IsBitwiseAndCall(const CallNode* call) {
-    return call->op.same_as(tirx::builtin::bitwise_and()) && call->args.size() == 2;
+    return call->op.same_as(prim::builtin::bitwise_and()) && call->args.size() == 2;
   }
 
   void FlattenConjuncts(const PrimExpr& pred, std::vector<PrimExpr>* out) const {
-    if (const auto* and_node = pred.as<AndNode>()) {
+    if (const auto* and_node = pred.as<prim::AndNode>()) {
       FlattenConjuncts(and_node->a, out);
       FlattenConjuncts(and_node->b, out);
       return;
@@ -1444,7 +1445,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
   int PushPredicateCtx(const PrimExpr& pred) {
     if (ctx_stack_.empty()) return 0;
-    if (const auto* and_node = pred.as<AndNode>()) {
+    if (const auto* and_node = pred.as<prim::AndNode>()) {
       (void)and_node;
       return PushConjunctivePredicateCtx(pred);
     }
@@ -1467,7 +1468,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   }
 
   PrimExpr RewriteFilterCalls(const PrimExpr& pred) const {
-    if (const auto* and_node = pred.as<AndNode>()) {
+    if (const auto* and_node = pred.as<prim::AndNode>()) {
       PrimExpr a = RewriteFilterCalls(and_node->a);
       PrimExpr b = RewriteFilterCalls(and_node->b);
       if (a.same_as(and_node->a) && b.same_as(and_node->b)) {

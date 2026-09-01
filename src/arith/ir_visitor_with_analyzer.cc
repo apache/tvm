@@ -23,6 +23,7 @@
 #include "ir_visitor_with_analyzer.h"
 
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
@@ -77,7 +78,7 @@ void IRVisitorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
     if (op->else_case) {
       constraint_scope_.WithNewScope([&]() {
         constraint_scope_.Current().Emplace(analyzer_,
-                                            analyzer_->rewrite_simplify(Not(real_condition)));
+                                            analyzer_->rewrite_simplify(prim::Not(real_condition)));
         this->VisitStmt(op->else_case.value());
       });
     }
@@ -107,7 +108,7 @@ void IRVisitorWithAnalyzer::VisitStmt_(const SeqStmtNode* op) {
 
 void IRVisitorWithAnalyzer::VisitExpr_(const CallNode* op) {
   // add condition context to if_then_else
-  static const Op& if_then_else_op = Op::Get("tirx.if_then_else");
+  static const Op& if_then_else_op = Op::Get("ir.prim.if_then_else");
   if (op->op.same_as(if_then_else_op)) {
     PrimExpr cond = op->args[0].as_or_throw<PrimExpr>();
     this->VisitExpr(cond);
@@ -116,7 +117,7 @@ void IRVisitorWithAnalyzer::VisitExpr_(const CallNode* op) {
       this->VisitExpr(op->args[1]);
     });
     constraint_scope_.WithNewScope([&]() {
-      constraint_scope_.Current().Emplace(analyzer_, analyzer_->rewrite_simplify(Not(cond)));
+      constraint_scope_.Current().Emplace(analyzer_, analyzer_->rewrite_simplify(prim::Not(cond)));
       this->VisitExpr(op->args[2]);
     });
   } else {
@@ -124,22 +125,15 @@ void IRVisitorWithAnalyzer::VisitExpr_(const CallNode* op) {
   }
 }
 
-void IRVisitorWithAnalyzer::VisitExpr_(const LetNode* op) {
+void IRVisitorWithAnalyzer::VisitExpr_(const prim::LetNode* op) {
   this->VisitExpr(op->value);
   analyzer_->Bind(op->var, op->value);
   this->VisitExpr(op->body);
 }
 
-void IRVisitorWithAnalyzer::VisitExpr_(const ReduceNode* op) {
-  for (const IterVar& iv : op->axis) {
-    analyzer_->Bind(iv->var, iv->dom);
-  }
-  StmtExprVisitor::VisitExpr_(op);
-}
-
 PrimExpr IRVisitorWithAnalyzer::ExtractRealCondition(PrimExpr condition) const {
   if (auto call = condition.as<CallNode>()) {
-    if (call->op.same_as(builtin::likely())) {
+    if (call->op.same_as(prim::builtin::likely())) {
       return call->args[0].as_or_throw<PrimExpr>();
     }
   }

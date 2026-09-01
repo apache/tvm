@@ -22,12 +22,13 @@
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/script/builder/ir.h>
 #include <tvm/tirx/tile_primitive.h>
@@ -523,7 +524,7 @@ PrimExpr ConvertLoopBound(const PrimExpr& e, const PrimType& var_ty) {
   if (const auto* imm = e.as<IntImmNode>()) {
     return tvm::IntImm(var_ty, imm->value);
   }
-  return tvm::tirx::Cast(var_ty, e);
+  return tvm::prim::Cast(var_ty, e);
 }
 
 #define TVM_TIRX_IR_BUILDER_FOR_FRAME(Method, Kind)                                        \
@@ -635,10 +636,10 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
                    ffi::Array<ffi::String> message_parts) {
   ffi::ObjectPtr<AssertFrameNode> n = ffi::make_object<AssertFrameNode>();
   n->condition = condition;
-  n->error_kind = tvm::tirx::StringImm(error_kind);
-  ffi::Array<tvm::tirx::StringImm> parts;
+  n->error_kind = tvm::prim::StringImm(error_kind);
+  ffi::Array<tvm::prim::StringImm> parts;
   for (const auto& p : message_parts) {
-    parts.push_back(tvm::tirx::StringImm(p));
+    parts.push_back(tvm::prim::StringImm(p));
   }
   n->message_parts = parts;
   return AssertFrame(n);

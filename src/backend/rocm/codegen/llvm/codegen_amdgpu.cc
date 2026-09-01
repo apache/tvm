@@ -192,7 +192,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 
   llvm::Value* CreateStorageSync(const CallNode* op) final {
-    const std::string& sync = op->args[0].as<StringImmNode>()->value;
+    const std::string& sync = op->args[0].as<prim::StringImmNode>()->value;
     if (sync == "warp") {
       return nullptr;
     } else if (sync == "shared") {

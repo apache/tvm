@@ -25,6 +25,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr_functor.h>
 
@@ -131,7 +132,7 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     var_map_[var] = info;
   }
 
-  Entry VisitExpr_(const LetNode* op) final {
+  Entry VisitExpr_(const prim::LetNode* op) final {
     auto it = var_map_.find(op->var);
     // if the var has not been binded, update the info.
     if (it == var_map_.end()) {
@@ -179,7 +180,7 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     return res;
   }
 
-  Entry VisitExpr_(const RampNode* op) final {
+  Entry VisitExpr_(const prim::RampNode* op) final {
     // op = {base + i * stride | 0 <= i < lanes}
     // Entry(op) = Union(Entry(base + i * stride) | 0 <= i < lanes)
     // Note that `base + i * stride` is linear w.r.t. `i`
@@ -189,9 +190,9 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     return Union(a, b);
   }
 
-  Entry VisitExpr_(const BroadcastNode* op) final { return VisitExpr(op->value); }
+  Entry VisitExpr_(const prim::BroadcastNode* op) final { return VisitExpr(op->value); }
 
-  Entry VisitExpr_(const CastNode* op) final {
+  Entry VisitExpr_(const prim::CastNode* op) final {
     Entry a;
 
     // int(ceil(log2(cast(n,"float64")))) is used as the
@@ -234,7 +235,7 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
 
   Entry VisitExpr_(const IntImmNode* op) final { return MakeBound(op->value, op->value); }
 
-  Entry VisitExpr_(const AddNode* op) final {
+  Entry VisitExpr_(const prim::AddNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     Entry ret;
@@ -244,7 +245,7 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     return ret;
   }
 
-  Entry VisitExpr_(const SubNode* op) final {
+  Entry VisitExpr_(const prim::SubNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     Entry ret;
@@ -254,19 +255,19 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     return ret;
   }
 
-  Entry VisitExpr_(const MulNode* op) final {
+  Entry VisitExpr_(const prim::MulNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     return BinaryOpBoundary(a, b, InfAwareMul);
   }
 
-  Entry VisitExpr_(const DivNode* op) final {
+  Entry VisitExpr_(const prim::DivNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
     return HandleDivision(a, b, op->ty.as_or_throw<PrimType>(), InfAwareDiv);
   }
 
-  Entry VisitExpr_(const ModNode* op) final {
+  Entry VisitExpr_(const prim::ModNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
 
@@ -356,13 +357,13 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     }
   }
 
-  Entry VisitExpr_(const FloorDivNode* op) final {
+  Entry VisitExpr_(const prim::FloorDivNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
     return HandleDivision(a, b, op->ty.as_or_throw<PrimType>(), InfAwareFloorDiv);
   }
 
-  Entry VisitExpr_(const FloorModNode* op) final {
+  Entry VisitExpr_(const prim::FloorModNode* op) final {
     /* let a / b = x + y, where x is integer, y \in [0, 1)
      * floormod(a, b) = a - floordiv(a, b) * b
      * floordiv(a, b) = x
@@ -444,7 +445,7 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     }
   }
 
-  Entry VisitExpr_(const MinNode* op) final {
+  Entry VisitExpr_(const prim::MinNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     Entry ret;
@@ -453,7 +454,7 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     return ret;
   }
 
-  Entry VisitExpr_(const MaxNode* op) final {
+  Entry VisitExpr_(const prim::MaxNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     Entry ret;
@@ -462,7 +463,7 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     return ret;
   }
 
-  Entry VisitExpr_(const SelectNode* op) final {
+  Entry VisitExpr_(const prim::SelectNode* op) final {
     Entry a = VisitExpr(op->true_value);
     Entry b = VisitExpr(op->false_value);
     return Union(a, b);
@@ -472,11 +473,11 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     // only special handle >> and & which can be
     // used for index calculation.
 
-    if (op->op.same_as(tirx::builtin::shift_right())) {
+    if (op->op.same_as(prim::builtin::shift_right())) {
       return VisitRightShift(op);
-    } else if (op->op.same_as(tirx::builtin::shift_left())) {
+    } else if (op->op.same_as(prim::builtin::shift_left())) {
       return VisitLeftShift(op);
-    } else if (op->op.same_as(tirx::builtin::bitwise_and())) {
+    } else if (op->op.same_as(prim::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
     } else {
       return Everything(op->ty.as_or_throw<PrimType>());
@@ -636,7 +637,7 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
       return kNegInf;
     }
     if (y == kPosInf || y == kNegInf) return y;
-    if (WillOverflow<AddNode>(x, y, kNegInf, kPosInf)) {
+    if (WillOverflow<prim::AddNode>(x, y, kNegInf, kPosInf)) {
       if (x > 0) return kPosInf;
       return kNegInf;
     }
@@ -649,7 +650,7 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
    * \return the result.
    */
   static int64_t InfAwareMul(int64_t x, int64_t y) {
-    if (!WillOverflow<MulNode>(x, y, kNegInf, kPosInf)) return x * y;
+    if (!WillOverflow<prim::MulNode>(x, y, kNegInf, kPosInf)) return x * y;
     if ((x > 0 && y > 0) || (x < 0 && y < 0)) return kPosInf;
     return kNegInf;
   }
@@ -843,7 +844,7 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
    * This expression is used as the implementation of
    * topi.math.ceil_log2, and can appear in iteration bounds.
    */
-  static ffi::Optional<PrimExpr> FindCeilLog2Arg(const CastNode* op) {
+  static ffi::Optional<PrimExpr> FindCeilLog2Arg(const prim::CastNode* op) {
     static const Op& ceil_op = Op::Get("tirx.ceil");
     static const Op& log2_op = Op::Get("tirx.log2");
     if (op->ty.as_or_throw<PrimType>().code() == DLDataTypeCode::kDLInt) {

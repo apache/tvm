@@ -26,6 +26,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/support/io.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/transform.h>
@@ -136,7 +137,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
         if (ts.rank == 1) {
           TVM_FFI_ICHECK_GE(ts.dim_index, 0) << "vthread should have been optimized out by here";
           TVM_FFI_ICHECK_LT(ts.dim_index, 3);
-          auto* sizeptr = op->value.as<tirx::IntImmNode>();
+          auto* sizeptr = op->value.as<IntImmNode>();
           TVM_FFI_ICHECK(sizeptr) << "CodeGenWebGPU: only allows constant thread group size "
                                   << " get " << op->value;
           info_.workgroup_size[ts.dim_index] = static_cast<uint32_t>(sizeptr->value);
@@ -404,7 +405,7 @@ void CodeGenWebGPU::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(
 }
 
 void CodeGenWebGPU::PrintStorageSync(const CallNode* op) {
-  const std::string& sync = op->args[0].as<StringImmNode>()->value;
+  const std::string& sync = op->args[0].as<prim::StringImmNode>()->value;
   if (sync == "warp") {
     this->PrintIndent();
     this->stream << "workgroupBarrier();\n";
@@ -436,7 +437,7 @@ void CodeGenWebGPU::PrintVecElemStore(const std::string& vec, const PrimType& t,
   stream << vec << "[" << i << "] = " << value << ";\n";
 }
 
-void CodeGenWebGPU::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenWebGPU::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   int lanes = op->ty.as_or_throw<PrimType>().lanes();
   PrintType(op->ty.as_or_throw<PrimType>(), os);
@@ -464,21 +465,21 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
     os << ">(";
     this->PrintExpr(op->args[0], os);
     os << ")";
-  } else if (op->op.same_as(builtin::shift_right())) {
+  } else if (op->op.same_as(prim::builtin::shift_right())) {
     os << '(';
     this->PrintExpr(op->args[0], os);
     os << ">>";
     // WebGPU requires shift bits to be u32.
     this->PrintExpr(EnforceU32(op->args[1].as_or_throw<PrimExpr>()), os);
     os << ')';
-  } else if (op->op.same_as(builtin::shift_left())) {
+  } else if (op->op.same_as(prim::builtin::shift_left())) {
     os << '(';
     this->PrintExpr(op->args[0], os);
     os << "<<";
     // WebGPU requires shift bits to be u32.
     this->PrintExpr(EnforceU32(op->args[1].as_or_throw<PrimExpr>()), os);
     os << ')';
-  } else if (op->op.same_as(builtin::if_then_else())) {
+  } else if (op->op.same_as(prim::builtin::if_then_else())) {
     // conditional that skips eval if cond evals to false
     std::string result = name_supply_->FreshName("condval");
     std::string cond = PrintExpr(op->args[0]);
@@ -516,17 +517,17 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
   }
 }
 
-void CodeGenWebGPU::VisitExpr_(const CastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenWebGPU::VisitExpr_(const prim::CastNode* op, std::ostream& os) {  // NOLINT(*)
   PrintType(op->ty.as_or_throw<PrimType>(), os);
   os << "(" << PrintExpr(op->value) << ")";
 }
 
-void CodeGenWebGPU::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenWebGPU::VisitExpr_(const prim::SelectNode* op, std::ostream& os) {  // NOLINT(*)
   os << "select(" << PrintExpr(op->false_value) << ", " << PrintExpr(op->true_value) << ", "
      << PrintExpr(op->condition) << ")";
 }
 
-void CodeGenWebGPU::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenWebGPU::VisitExpr_(const prim::LetNode* op, std::ostream& os) {  // NOLINT(*)
   // use ssa form.
   if (print_ssa_form_) {
     std::string value = PrintExpr(op->value);

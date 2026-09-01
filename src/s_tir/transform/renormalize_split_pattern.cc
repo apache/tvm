@@ -34,6 +34,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using namespace arith;
@@ -148,7 +149,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
   Expr VisitExpr_(const LTNode* op) {
     PrimExpr a = VisitPrimExpr(op->a);
     PrimExpr b = VisitPrimExpr(op->b);
-    PrimExpr ret = tirx::LT(a, b);
+    PrimExpr ret = prim::LT(a, b);
     // Pattern var to match any expression
     PVar<PrimExpr> x;
     // Pattern var match IntImm

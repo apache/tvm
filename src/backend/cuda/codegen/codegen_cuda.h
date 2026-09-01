@@ -24,8 +24,8 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
 #define TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/target/codegen.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 
 #include <string>
@@ -71,12 +71,12 @@ class CodeGenCUDA final : public CodeGenC {
   std::string CastFromTo(std::string value, const PrimType& from, const PrimType& target) final;
   void AddUtilFunction(const std::string& name, const std::string& code);
   // overload visitor
-  void VisitExpr_(const RampNode* op, std::ostream& os) final;       // NOLINT(*)
-  void VisitExpr_(const SelectNode* op, std::ostream& os) final;     // NOLINT(*)
-  void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const prim::RampNode* op, std::ostream& os) final;       // NOLINT(*)
+  void VisitExpr_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
+  void VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;
   void VisitExpr_(const CallNode* op, std::ostream& os) final;
-  void VisitExpr_(const CastNode* op, std::ostream& os) final;
+  void VisitExpr_(const prim::CastNode* op, std::ostream& os) final;
   void VisitStmt_(const EvaluateNode* op) final;
   void VisitStmt_(const ReturnNode* op) final;
   void VisitStmt_(const AllocBufferNode* op) final;

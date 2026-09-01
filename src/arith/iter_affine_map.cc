@@ -24,8 +24,8 @@
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -330,11 +330,11 @@ class IterMapRewriter : public ExprMutator {
   }
 
   Expr VisitExpr_(const VarNode* op) final;
-  Expr VisitExpr_(const AddNode* op) final;
-  Expr VisitExpr_(const SubNode* op) final;
-  Expr VisitExpr_(const MulNode* op) final;
-  Expr VisitExpr_(const FloorDivNode* op) final;
-  Expr VisitExpr_(const FloorModNode* op) final;
+  Expr VisitExpr_(const prim::AddNode* op) final;
+  Expr VisitExpr_(const prim::SubNode* op) final;
+  Expr VisitExpr_(const prim::MulNode* op) final;
+  Expr VisitExpr_(const prim::FloorDivNode* op) final;
+  Expr VisitExpr_(const prim::FloorModNode* op) final;
 
  private:
   /* \brief Preprocessing common to both FloorDiv and FloorMod
@@ -799,7 +799,7 @@ class IterMapRewriter : public ExprMutator {
           ++symbol_prod_count;
         }
       };
-      UnpackReduction<tirx::MulNode>(split->scale, fcollect);
+      UnpackReduction<prim::MulNode>(split->scale, fcollect);
       if (cscale != 1) {
         res = res * IntImm(res.ty(), cscale);
       }
@@ -884,7 +884,7 @@ class IterMapRewriter : public ExprMutator {
       if (match_source.has_value() && !match_source.same_as(expr->args[i]->source)) continue;
       int reduce_size = 0;
       auto fcollect = [&](const PrimExpr&) { ++reduce_size; };
-      UnpackReduction<tirx::MulNode>(expr->args[i]->scale, fcollect);
+      UnpackReduction<prim::MulNode>(expr->args[i]->scale, fcollect);
       if (base_index == -1 || reduce_size < min_reduce_size) {
         min_reduce_size = reduce_size;
         base_index = static_cast<int>(i);
@@ -1363,10 +1363,10 @@ bool MatchBoundConstraints(PrimExpr pred, ffi::Map<PrimVar, Range>* input_iters,
         rhs_expr = 0;
         std::function<void(const PrimExpr&, bool)> f_extract =
             [&lhs_expr, &rhs_expr, f_use_itervar, &f_extract](const PrimExpr& part, bool sign) {
-              if (const AddNode* add = part.as<AddNode>()) {
+              if (const prim::AddNode* add = part.as<prim::AddNode>()) {
                 f_extract(add->a, sign);
                 f_extract(add->b, sign);
-              } else if (const SubNode* sub = part.as<SubNode>()) {
+              } else if (const prim::SubNode* sub = part.as<prim::SubNode>()) {
                 f_extract(sub->a, sign);
                 f_extract(sub->b, !sign);
               } else if (UsesVar(part, f_use_itervar)) {
@@ -1570,7 +1570,7 @@ Expr IterMapRewriter::VisitExpr_(const VarNode* op) {
   return var;
 }
 
-Expr IterMapRewriter::VisitExpr_(const AddNode* op) {
+Expr IterMapRewriter::VisitExpr_(const prim::AddNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Parent::VisitExpr_(op);
   }
@@ -1578,13 +1578,13 @@ Expr IterMapRewriter::VisitExpr_(const AddNode* op) {
   PrimExpr b = this->DirectMutate(op->b);
 
   // const folding
-  if (auto const_res = TryConstFold<Add>(a, b)) return const_res.value();
+  if (auto const_res = TryConstFold<prim::Add>(a, b)) return const_res.value();
   // does not contain iter map.
   if (!a->IsInstance<IterMapExprNode>() && !b->IsInstance<IterMapExprNode>()) {
     if (op->a.same_as(a) && op->b.same_as(b)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      return Add(a, b);
+      return prim::Add(a, b);
     }
   }
 
@@ -1603,7 +1603,7 @@ Expr IterMapRewriter::VisitExpr_(const AddNode* op) {
   return ret;
 }
 
-Expr IterMapRewriter::VisitExpr_(const SubNode* op) {
+Expr IterMapRewriter::VisitExpr_(const prim::SubNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Parent::VisitExpr_(op);
   }
@@ -1612,14 +1612,14 @@ Expr IterMapRewriter::VisitExpr_(const SubNode* op) {
   PrimExpr b = this->DirectMutate(op->b);
 
   // const folding
-  if (auto const_res = TryConstFold<Sub>(a, b)) return const_res.value();
+  if (auto const_res = TryConstFold<prim::Sub>(a, b)) return const_res.value();
 
   // does not contain iter map.
   if (!a->IsInstance<IterMapExprNode>() && !b->IsInstance<IterMapExprNode>()) {
     if (op->a.same_as(a) && op->b.same_as(b)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      return Sub(a, b);
+      return prim::Sub(a, b);
     }
   }
 
@@ -1638,7 +1638,7 @@ Expr IterMapRewriter::VisitExpr_(const SubNode* op) {
   return ret;
 }
 
-Expr IterMapRewriter::VisitExpr_(const MulNode* op) {
+Expr IterMapRewriter::VisitExpr_(const prim::MulNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Parent::VisitExpr_(op);
   }
@@ -1647,21 +1647,21 @@ Expr IterMapRewriter::VisitExpr_(const MulNode* op) {
   PrimExpr b = this->DirectMutate(op->b);
 
   // const folding
-  if (auto const_res = TryConstFold<Mul>(a, b)) return const_res.value();
+  if (auto const_res = TryConstFold<prim::Mul>(a, b)) return const_res.value();
 
   // does not contain iter map.
   if (!a->IsInstance<IterMapExprNode>() && !b->IsInstance<IterMapExprNode>()) {
     if (op->a.same_as(a) && op->b.same_as(b)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      return Mul(a, b);
+      return prim::Mul(a, b);
     }
   }
 
   if (a->IsInstance<IterMapExprNode>() && b->IsInstance<IterMapExprNode>()) {
     // cannot multiply two iterators, mark as unresolved.
     ErrorLogger(this) << "Product of two iterators cannot be represented as an IterMap, "
-                      << "occurs in " << ffi::GetRef<Mul>(op);
+                      << "occurs in " << ffi::GetRef<prim::Mul>(op);
     return ffi::GetRef<PrimExpr>(op);
   }
 
@@ -1951,7 +1951,7 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
   }
 }
 
-Expr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
+Expr IterMapRewriter::VisitExpr_(const prim::FloorDivNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Parent::VisitExpr_(op);
   }
@@ -1960,14 +1960,14 @@ Expr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
   PrimExpr b = this->DirectMutate(op->b);
 
   // const folding
-  if (auto const_res = TryConstFold<FloorDiv>(a, b)) return const_res.value();
+  if (auto const_res = TryConstFold<prim::FloorDiv>(a, b)) return const_res.value();
 
   // does not contain iter map.
   if (!a->IsInstance<IterMapExprNode>() && !b->IsInstance<IterMapExprNode>()) {
     if (op->a.same_as(a) && op->b.same_as(b)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      return FloorDiv(a, b);
+      return prim::FloorDiv(a, b);
     }
   }
 
@@ -2052,7 +2052,7 @@ PrimExpr IterMapRewriter::SplitFloorModConst(IterSplitExpr lhs, PrimExpr base, P
                        /* scale = */ padded->scale);
 }
 
-Expr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
+Expr IterMapRewriter::VisitExpr_(const prim::FloorModNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Parent::VisitExpr_(op);
   }
@@ -2061,14 +2061,14 @@ Expr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
   PrimExpr b = this->DirectMutate(op->b);
 
   // const folding
-  if (auto const_res = TryConstFold<FloorMod>(a, b)) return const_res.value();
+  if (auto const_res = TryConstFold<prim::FloorMod>(a, b)) return const_res.value();
 
   // does not contain iter map.
   if (!a->IsInstance<IterMapExprNode>() && !b->IsInstance<IterMapExprNode>()) {
     if (op->a.same_as(a) && op->b.same_as(b)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      return FloorMod(a, b);
+      return prim::FloorMod(a, b);
     }
   }
 
