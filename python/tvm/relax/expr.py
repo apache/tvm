@@ -87,10 +87,14 @@ Type.is_base_of = _relax_type_is_base_of  # type: ignore[attr-defined]
 _op_ffi_api = None  # pylint: disable=invalid-name
 
 
+def _is_tensor_or_missing_type(ty: Type) -> bool:
+    return isinstance(ty, tvm.relax.TensorType) or ty.is_missing()
+
+
 def _binary_op_helper(lhs: Expr, rhs: Expr, op: Callable):
     if not isinstance(lhs, Expr):  # type: ignore
         raise ValueError("lhs must be Expr")
-    if not isinstance(lhs.ty, tvm.relax.TensorType):
+    if not _is_tensor_or_missing_type(lhs.ty):
         return NotImplemented
     if isinstance(rhs, Expr):  # type: ignore
         return op(lhs, rhs)

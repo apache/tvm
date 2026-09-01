@@ -183,12 +183,12 @@ def _register_op_make():
         return expr._binary_op_helper(lhs, rhs, _ffi_api.add)
 
     def _rhs(lhs, rhs):
-        if not isinstance(lhs.ty, expr.tvm.relax.TensorType):
+        if not expr._is_tensor_or_missing_type(lhs.ty):
             return NotImplemented
         return expr._binary_rhs_helper(rhs)
 
     def _unary(lhs, op):
-        if not isinstance(lhs.ty, expr.tvm.relax.TensorType):
+        if not expr._is_tensor_or_missing_type(lhs.ty):
             return NotImplemented
         return op(lhs)
 
@@ -201,9 +201,7 @@ def _register_op_make():
         return expr.tvm.ir.Call(func, args, attrs=attrs)
 
     _tensor_expr_overload.astype = lambda lhs, dtype, _span=None: (
-        _ffi_api.astype(lhs, dtype)
-        if isinstance(lhs.ty, expr.tvm.relax.TensorType)
-        else NotImplemented
+        _ffi_api.astype(lhs, dtype) if expr._is_tensor_or_missing_type(lhs.ty) else NotImplemented
     )
     _tensor_expr_overload.__call__ = _call
     _tensor_expr_overload.__neg__ = lambda lhs: _unary(lhs, _ffi_api.negative)
