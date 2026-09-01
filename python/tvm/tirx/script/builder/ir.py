@@ -37,7 +37,6 @@ from tvm import tirx as tir
 from tvm.ir import Call, TensorLoad, Type, is_prim_expr
 from tvm.ir import register_op_attr as _register_op_attr
 from tvm.ir.base import deprecated
-from tvm.ir.expr import _realize_operand
 from tvm.runtime import convert
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.ir import meta_var
@@ -329,7 +328,7 @@ def buffer(
         The declared buffer.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    shape = tuple(_realize_operand(dim) for dim in shape)
+    shape = tuple(shape)
     if strides is not None:
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:
@@ -529,7 +528,6 @@ def match_buffer(
     res : Buffer
         The matched buffer.
     """
-    param = _realize_operand(param)
     if shape is None:
         if isinstance(param, BufferRegion):
             dtype = param.buffer.ty.dtype
@@ -1848,7 +1846,7 @@ def decl_buffer(
         The declared buffer.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    shape = tuple(_realize_operand(dim) for dim in shape)
+    shape = tuple(shape)
     if strides is not None:
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:
@@ -2073,7 +2071,7 @@ def alloc_scalar(dtype: str = "float32", scope: str = "global") -> TensorLoad:
     """Allocate a zero-dimensional buffer (scalar)."""
     buf = alloc_buffer(shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]))
     assert is_buffer_var(buf)
-    scalar = _realize_operand(buf[0])
+    scalar = buf[0]
     if _current_meta_construction_scope() is not None:
         return scalar
     return scalar_wrapper(scalar)
@@ -2093,7 +2091,7 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> Tenso
         layout=TileLayout(S[1]),
     )
     assert is_buffer_var(buf)
-    scalar = _realize_operand(buf[0])
+    scalar = buf[0]
     if _current_meta_construction_scope() is not None:
         return scalar
     return scalar_wrapper(scalar)

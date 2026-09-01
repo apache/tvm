@@ -41,7 +41,6 @@ from tvm.backend.cuda.codegen.registry import register_codegen
 from tvm.backend.cuda.codegen.utils import parse_str
 from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
 from tvm.ir import Call, TensorLoad
-from tvm.ir.expr import _realize_operand
 from tvm.ir.op import register_op_attr
 from tvm.ir.type import PointerType, PrimType
 from tvm.runtime import const
@@ -444,7 +443,7 @@ def _coerce_pred_operand(entry, slot, values):
     like any other, and no syntax line offers a non-predicate alternative at
     the same position.
     """
-    (value,) = [_realize_operand(value) for value in values]
+    (value,) = values
     if slot.rw != "r":
         # The 0/1 materialization of a .pred result: a "=r" uint32 the caller
         # receives through a reference parameter, so it needs a writable
@@ -457,7 +456,7 @@ def _coerce_pred_operand(entry, slot, values):
             )
         return values
     if isinstance(value, PredArg):
-        value = _realize_operand(getattr(value.value, "scalar", value.value))
+        value = getattr(value.value, "scalar", value.value)
         if isinstance(value, bool | int):
             return [const(int(value), "uint32")]
         ty = getattr(value, "ty", None)
@@ -482,7 +481,6 @@ def _coerce_pred_operand(entry, slot, values):
 
 def _coerce_typed(entry, slot, values, mod_map):
     """Coerce a dtype-carrying register operand (``rw`` any)."""
-    values = [_realize_operand(value) for value in values]
     allowed = operand_dtypes(slot, mod_map)
     token = operand_type(slot, mod_map)
     if slot.rw in ("w", "rw"):
