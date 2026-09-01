@@ -2268,8 +2268,29 @@ def test_buffer_slice_region():
 
     partial = buf[1]
     assert isinstance(partial, BufferRegion)
-    with pytest.raises(TypeError):
-        _ = partial[2]
+
+    narrowed = br[4:12, 2:10]
+    assert isinstance(narrowed, BufferRegion)
+    assert narrowed.buffer.same_as(buf)
+    assert [(int(dim.min), int(dim.extent)) for dim in narrowed.region] == [
+        (36, 8),
+        (2, 8),
+    ]
+
+    chained_load = br[3, 4]
+    assert isinstance(chained_load, tvm.ir.TensorLoad)
+    assert chained_load.source.same_as(buf)
+    assert [int(index) for index in chained_load.indices] == [35, 4]
+
+    point_then_region = br[3]
+    assert isinstance(point_then_region, BufferRegion)
+    assert [(int(dim.min), int(dim.extent)) for dim in point_then_region.region] == [
+        (35, 1),
+        (0, 32),
+    ]
+
+    with pytest.raises(ValueError, match="non-unit step"):
+        _ = br[::2]
 
 
 def test_global_call_realizes_buffer_elements():

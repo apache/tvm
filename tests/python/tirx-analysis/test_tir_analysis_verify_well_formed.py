@@ -47,6 +47,18 @@ def test_pass_simple():
     assert tvm.tirx.analysis.verify_well_formed(tvm.IRModule.from_expr(element_wise))
 
 
+def test_buffer_region_bounds_are_visited():
+    data = tvm.tirx.Var(
+        "data", tvm.ir.PointerType(tvm.ir.PrimType("int32"), storage_scope="global")
+    )
+    buffer = tvm.tirx.decl_buffer([4], "int32", data=data)
+    undefined = tvm.tirx.Var("undefined", "int32")
+    region = tvm.tirx.BufferRegion(buffer, [tvm.ir.Range.from_min_extent(undefined, 4)])
+    block = tvm.tirx.SBlock([], [region], [], "region", tvm.tirx.Evaluate(0))
+    func = tvm.tirx.PrimFunc([buffer], block)
+    assert not tvm.tirx.analysis.verify_well_formed(func, assert_mode=False)
+
+
 def test_fail_use_out_loop_var():
     @T.prim_func(check_well_formed=False, s_tir=True)
     def element_wise(

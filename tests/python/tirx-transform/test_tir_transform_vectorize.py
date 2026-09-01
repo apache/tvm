@@ -79,7 +79,7 @@ def test_vectorize_vector_scalable_error():
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer((25,), "float32")):
             for j in T.vectorized(T.vscale() * 4):
-                A[j * 4 : j * 4 + 4] = T.Broadcast(T.float32(1), 4)
+                A[T.ramp(j * 4, 1, 4)] = T.Broadcast(T.float32(1), 4)
 
     error_msg = "Creating scalable vectors from existing vectors is not supported."
     with tvm.target.Target(sve_target):
@@ -106,7 +106,7 @@ def test_vectorize_vector_scalable_error3():
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer((25,), "float32")):
             for j in T.vectorized(4):
-                A[j * T.vscale() * 4 : j * T.vscale() * 4 + T.vscale() * 4] = T.Broadcast(
+                A[T.ramp(j * T.vscale() * 4, 1, T.vscale() * 4)] = T.Broadcast(
                     T.float32(1), T.vscale() * 4
                 )
 
@@ -122,7 +122,7 @@ def test_vectorize_vector_scalable_error4():
         @T.prim_func(private=True, s_tir=True)
         def main(A: T.Buffer((25,), "float32")):
             for j in T.vectorized(T.vscale() * 4):
-                A[j * T.vscale() * 4 : j * T.vscale() * 4 + T.vscale() * 4] = T.Broadcast(
+                A[T.ramp(j * T.vscale() * 4, 1, T.vscale() * 4)] = T.Broadcast(
                     T.float32(1), T.vscale() * 4
                 )
 

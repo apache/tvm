@@ -61,6 +61,16 @@ def _canonical_device_intrin_name(func_name: str) -> str:
     return func_name
 
 
+def _reject_buffer_region(value, api_name):
+    """Reject region metadata where a call argument must denote a runtime value."""
+    if isinstance(value, tirx.BufferRegion):
+        raise TypeError(
+            f"tirx.{api_name} does not accept BufferRegion arguments; "
+            "construct a BufferLoad with explicit indices"
+        )
+    return value
+
+
 def _primexpr_ty(expr):
     """Return the runtime primitive type of an expression."""
     if isinstance(expr, tvm.ir.PrimType):
@@ -135,7 +145,10 @@ def call_packed_lowered(*args, span=None):
     --------
     te.extern : Create tensor with extern function call.
     """
-    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
+    call_args = [
+        _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "call_packed_lowered")
+        for x in args
+    ]
     return Call(Op.get("tirx.tvm_call_packed_lowered"), call_args, span=span, ret_ty="int32")
 
 
@@ -161,7 +174,10 @@ def call_cpacked_lowered(*args, span=None):
     --------
     te.extern : Create tensor with extern function call.
     """
-    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
+    call_args = [
+        _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "call_cpacked_lowered")
+        for x in args
+    ]
     return Call(Op.get("tirx.tvm_call_cpacked_lowered"), call_args, span=span, ret_ty="int32")
 
 
@@ -192,7 +208,10 @@ def call_packed(*args, span=None):
     --------
     te.extern : Create tensor with extern function call.
     """
-    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
+    call_args = [
+        _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "call_packed")
+        for x in args
+    ]
     return Call(Op.get("tirx.tvm_call_packed"), call_args, span=span, ret_ty="int32")
 
 
@@ -219,7 +238,10 @@ def call_cpacked(*args, span=None):
     --------
     te.extern : Create tensor with extern function call.
     """
-    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
+    call_args = [
+        _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "call_cpacked")
+        for x in args
+    ]
     return Call(Op.get("tirx.tvm_call_cpacked"), call_args, span=span, ret_ty="int32")
 
 
@@ -253,6 +275,7 @@ def call_intrin(dtype: str | tvm.ir.Type, func_name, *args, attrs=None, span=Non
     """
     if isinstance(func_name, str):
         func_name = _canonical_device_intrin_name(func_name)
+    args = tuple(_reject_buffer_region(arg, "call_intrin") for arg in args)
     return Call(func_name, args, attrs=attrs, span=span, ret_ty=dtype)
 
 
@@ -280,7 +303,7 @@ def call_pure_extern(dtype, func_name, *args, span=None):
     """
     return Call(
         Op.get("tirx.call_pure_extern"),
-        [func_name, *args],
+        [func_name, *(_reject_buffer_region(arg, "call_pure_extern") for arg in args)],
         span=span,
         ret_ty=dtype,
     )
@@ -310,7 +333,7 @@ def call_extern(dtype, func_name, *args, span=None):
     """
     return Call(
         Op.get("tirx.call_extern"),
-        [func_name, *args],
+        [func_name, *(_reject_buffer_region(arg, "call_extern") for arg in args)],
         span=span,
         ret_ty=dtype,
     )
@@ -530,6 +553,7 @@ def call_tir(global_var: tvm.ir.GlobalVar, *args):
         The call expression.
     """
     assert isinstance(global_var, tvm.ir.GlobalVar)
+    args = tuple(_reject_buffer_region(arg, "call_tir") for arg in args)
 
     dtype = "void"
     if global_var.ty is not None:
@@ -1288,7 +1312,9 @@ def trace(args, trace_action="tvm.default_trace_action"):
     """
     if not isinstance(args, list):
         raise Exception("tvm.tirx.trace consumes the args as list type")
-    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
+    call_args = [
+        _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "trace") for x in args
+    ]
     call_args.insert(0, tvm.tirx.StringImm(trace_action))
     tracing_value = args[-1]
     ret_ty = tracing_value.ty if isinstance(tracing_value, Expr) else tracing_value.dtype

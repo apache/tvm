@@ -99,7 +99,7 @@ ffi::ObjectRef RealizeBufferSubscript(
     region.push_back(
         Range::FromMinExtent(IntImm(buffer_ty->shape[i].ty(), 0), buffer_ty->shape[i]));
   }
-  return BufferRegion(buffer, region);
+  return BufferRegion(buffer, region, span);
 }
 
 }  // namespace
