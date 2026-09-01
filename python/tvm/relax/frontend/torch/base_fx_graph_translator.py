@@ -2330,7 +2330,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 cum_sum = 0 if not n_section else n_section[-1]
                 n_section.append(s + cum_sum)
         else:
-            n_section = (self.shape_of(x)[dim].value + split_size - 1) // split_size
+            # torch.split(x, s, dim) splits dim into chunks of size s, with the
+            # last chunk smaller if D % s != 0. relax.op.split's integer argument
+            # is the number of *equal* sections, so passing ceil(D / s) yields
+            # wrong shapes whenever ceil(D / ceil(D / s)) != s (e.g. s > D/2).
+            # Convert the per-chunk size to the cumulative cut positions instead,
+            # mirroring the list/tuple branch above.
+            dim_size = self.shape_of(x)[dim].value
+            num_chunks = (dim_size + split_size - 1) // split_size
+            n_section = [split_size * i for i in range(1, num_chunks)]
         return self.block_builder.emit(relax.op.split(x, n_section, dim))
 
     def _squeeze(self, node: fx.Node) -> relax.Var:
