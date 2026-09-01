@@ -24,7 +24,7 @@ from tvm_ffi import Array
 
 import tvm
 from tvm import tirx
-from tvm.ir import Call, Expr, Op, PointerType, PrimType, TensorLoad
+from tvm.ir import Call, Expr, ExprWithOp, Op, PointerType, PrimType, TensorLoad
 from tvm.ir.base import Span
 from tvm.ir.expr import _realize_operand
 from tvm.ir.type import TensorMapType
@@ -32,7 +32,7 @@ from tvm.runtime import const
 
 from . import _ffi_api
 from .buffer import Buffer, buffer_data, is_buffer_var
-from .expr import BufferLoad, CommReducer, ExprOp, ExprWithOp, IntImm, Var
+from .expr import BufferLoad, CommReducer, ExprOp, IntImm, Var
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
 

@@ -414,29 +414,21 @@ class IntImmEnum(ObjectConvertible):
         return IntImm("int32", self.value, self.span)  # type: ignore
 
 
-class ExprWithOp(ExprOp, Expr, Scriptable):
-    """Helper base class to inherit from Expr."""
-
-    # In Python3, We have to explicitly tell interpreter to retain __hash__ if we overide __eq__
-    # https://docs.python.org/3.1/reference/datamodel.html#object.__hash__
-    __hash__ = Expr.__hash__
-
-
-class ConstExpr(ExprWithOp):
+class ConstExpr(ir.ExprWithOp):
     pass
 
 
-class BinaryOpExpr(ExprWithOp):
+class BinaryOpExpr(ir.ExprWithOp):
     a: Expr
     b: Expr
 
 
-class CmpExpr(ExprWithOp):
+class CmpExpr(ir.ExprWithOp):
     a: Expr
     b: Expr
 
 
-class LogicalExpr(ExprWithOp):
+class LogicalExpr(ir.ExprWithOp):
     pass
 
 
@@ -569,7 +561,7 @@ class CommReducer(Object, Scriptable):
 
 
 @tvm_ffi.register_object("tirx.Reduce")
-class Reduce(ExprWithOp):
+class Reduce(ir.ExprWithOp):
     """Reduce node.
 
     Parameters
@@ -738,7 +730,7 @@ class StringImm(ConstExpr):
 
 
 @tvm_ffi.register_object("tirx.Cast")
-class Cast(ExprWithOp):
+class Cast(ir.ExprWithOp):
     """Cast expression.
 
     Parameters
@@ -1124,7 +1116,7 @@ class Not(LogicalExpr):
 
 
 @tvm_ffi.register_object("tirx.Select")
-class Select(ExprWithOp):
+class Select(ir.ExprWithOp):
     """Select node.
 
     Note
@@ -1191,7 +1183,7 @@ def BufferLoad(buffer: Buffer, indices: list[Expr], span: Span | None = None) ->
 
 
 @tvm_ffi.register_object("tirx.Ramp")
-class Ramp(ExprWithOp):
+class Ramp(ir.ExprWithOp):
     """Ramp node.
 
     Parameters
@@ -1224,7 +1216,7 @@ class Ramp(ExprWithOp):
 
 
 @tvm_ffi.register_object("tirx.Broadcast")
-class Broadcast(ExprWithOp):
+class Broadcast(ir.ExprWithOp):
     """Broadcast node.
 
     Parameters
@@ -1247,7 +1239,7 @@ class Broadcast(ExprWithOp):
 
 
 @tvm_ffi.register_object("tirx.Shuffle")
-class Shuffle(ExprWithOp):
+class Shuffle(ir.ExprWithOp):
     """Shuffle node.
 
     Parameters
@@ -1286,7 +1278,7 @@ class CallEffectKind:
 
 
 @tvm_ffi.register_object("tirx.Let")
-class Let(ExprWithOp):
+class Let(ir.ExprWithOp):
     """Let node.
 
     Parameters
