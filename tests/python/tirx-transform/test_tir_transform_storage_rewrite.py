@@ -386,7 +386,7 @@ def test_decl_buffer_is_not_vectorized():
                 "dummy_func", dtype=T.handle("int32").ty
             )
             A = T.decl_buffer([8], "int32", data=A_data)
-            A[0:8] = T.broadcast(42, 8)
+            A[T.ramp(0, 1, 8)] = T.broadcast(42, 8)
 
     After = tvm.tirx.transform.StorageRewrite()(Before)
     tvm.ir.assert_structural_equal(After, Before)

@@ -49,6 +49,7 @@ class ExprFunctor:
 
     def __init__(self):
         self._dispatch_map = {
+            "tirx.BufferRegion": self.visit_buffer_region_,
             "Var": self.visit_var_,
             "TensorLoad": self.visit_buffer_load_,
             "Tuple": self.visit_tuple_,
@@ -122,6 +123,10 @@ class ExprFunctor:
 
     def visit_opaque_expr_(self, op):
         """Default visitor for an opaque construction-time expression."""
+        return self.visit_expr_default_(op)
+
+    def visit_buffer_region_(self, op):
+        """Default visitor for BufferRegion node."""
         return self.visit_expr_default_(op)
 
     def visit_tuple_(self, op):
@@ -290,6 +295,12 @@ class ExprVisitor(ExprFunctor):
     def visit_opaque_expr_(self, op):
         """Visitor implementation for an opaque construction-time expression."""
         pass
+
+    def visit_buffer_region_(self, op):
+        """Visitor implementation for BufferRegion."""
+        for region in op.region:
+            self.visit_expr(region.min)
+            self.visit_expr(region.extent)
 
     def visit_tuple_(self, op):
         """Visitor implementation for Tuple."""
@@ -476,6 +487,21 @@ class ExprMutator(ExprFunctor):
     def visit_opaque_expr_(self, op):
         """Mutator implementation for an opaque construction-time expression."""
         return op
+
+    def visit_buffer_region_(self, op):
+        """Mutator implementation for BufferRegion."""
+
+        def mutate_range(old):
+            new_min = self.visit_expr(old.min)
+            new_extent = self.visit_expr(old.extent)
+            if new_min is old.min and new_extent is old.extent:
+                return old
+            return Range.from_min_extent(new_min, new_extent)
+
+        region = [mutate_range(r) for r in op.region]
+        if all(old is new for old, new in zip(op.region, region)):
+            return op
+        return tvm.tirx.BufferRegion(op.buffer, region)
 
     def visit_tuple_(self, op):
         """Mutator implementation for Tuple."""
