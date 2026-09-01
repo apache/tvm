@@ -60,15 +60,23 @@ def test_nearbyint():
     tvm.testing.assert_allclose(a_rounded.numpy(), np.rint(a.numpy()))
 
 
-def test_round_ties_to_even():
-    """Test that tir.round uses ties-to-even (banker's rounding) semantics."""
+# Covers the host targets the regression can recur on: the C host lowers
+# through src/target/intrin_rule.cc (the path #19368 left behind and #20131
+# fixed), llvm through llvm.nearbyint. Device backends have their own
+# lowering rules and belong in their own codegen tests.
+@pytest.mark.parametrize("target", ["c", "llvm"])
+def test_round_ties_to_even(target):
+    """Test that tirx.round uses ties-to-even (banker's rounding) semantics."""
+    if target != "c" and not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+
     m = te.var("m")
     A = te.placeholder((m,), name="A")
     A_rounded = te.compute((m,), lambda *i: tvm.tirx.round(A(*i)), name="A")
 
     mod = te.create_prim_func([A, A_rounded])
     sch = tvm.s_tir.Schedule(mod)
-    func = tvm.compile(sch.mod, target="llvm")
+    func = tvm.compile(sch.mod, target=target)
 
     dev = tvm.cpu(0)
     # Midpoint values where ties-to-even and ties-away differ
