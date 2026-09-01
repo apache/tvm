@@ -38,6 +38,7 @@ from .expr import (
     Call,
     Expr,
     ExprOperand,
+    ExprWithOp,
     GlobalVar,
     OpaqueExpr,
     Range,
