@@ -19,7 +19,7 @@
 # pylint: disable=invalid-name
 import tvm_ffi
 
-from tvm.ir import OpaqueExpr
+from tvm.ir import OpaqueExpr, is_prim_expr
 from tvm.runtime import Object, ObjectConvertible, const
 from tvm.tirx import expr as _expr
 
@@ -271,7 +271,7 @@ class Tensor(OpaqueExpr, TensorOpBase):
 
     def __eq__(self, other):
         if not isinstance(other, Tensor):
-            if isinstance(other, _expr.ExprOp):
+            if isinstance(other, _expr.ExprOp) or is_prim_expr(other):
                 return _expr.EqualOp(self, other)
             return False
         if self.ndim == 0 and other.ndim == 0:
