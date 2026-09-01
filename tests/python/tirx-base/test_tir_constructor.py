@@ -214,6 +214,35 @@ def test_expr_constructor():
     assert x.body == v
 
 
+def test_operator_base_categories_have_primitive_type():
+    var = tvm.tirx.Var("x", "int32")
+    buffer = tvm.tirx.decl_buffer([4], "float32")
+    expressions = [
+        tvm.tirx.IntImm("int32", 1),
+        tvm.tirx.Add(var, 1),
+        tvm.tirx.LT(var, 1),
+        tvm.tirx.And(var < 1, var < 2),
+        tvm.tirx.Reduce(
+            None,
+            [1],
+            [tvm.tirx.IterVar((0, 1), "i", tvm.tirx.IterVar.CommReduce)],
+            None,
+            0,
+        ),
+        tvm.tirx.Cast("float32", var),
+        tvm.tirx.Select(var < 1, var, 1),
+        tvm.tirx.BufferLoad(buffer, [0]),
+        tvm.tirx.Ramp(0, 1, 4),
+        tvm.tirx.Broadcast(var, 4),
+        tvm.tirx.Shuffle([tvm.tirx.Broadcast(var, 2)], [0]),
+        tvm.tirx.Let(var, 1, var),
+    ]
+
+    for expression in expressions:
+        assert isinstance(expression, tvm.ir.ExprWithOp)
+        assert isinstance(expression.ty, tvm.ir.PrimType)
+
+
 def test_stmt_constructor():
     v = tvm.tirx.Var("aa", "int32")
     nop = tvm.tirx.Evaluate(1)
