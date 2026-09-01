@@ -18,7 +18,6 @@
 
 import json
 
-
 _PRIM_TYPE_KEY_RENAMES = {
     "tirx.StringImm": "ir.prim.StringImm",
     "tirx.Cast": "ir.prim.Cast",

@@ -67,13 +67,13 @@ class CodeGenWebGPU final : public CodeGenC {
 
   // overload visitor
   void VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const CallNode* op, std::ostream& os) final;        // NOLINT(*)
-  void VisitExpr_(const TensorLoadNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const prim::CastNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const prim::SelectNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const prim::LetNode* op, std::ostream& os) final;     // NOLINT(*)
-  void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;    // NOLINT(*)
-  void VisitExpr_(const IntImmNode* op, std::ostream& os) final;      // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os) final;             // NOLINT(*)
+  void VisitExpr_(const TensorLoadNode* op, std::ostream& os) final;       // NOLINT(*)
+  void VisitExpr_(const prim::CastNode* op, std::ostream& os) final;       // NOLINT(*)
+  void VisitExpr_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
+  void VisitExpr_(const prim::LetNode* op, std::ostream& os) final;        // NOLINT(*)
+  void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;         // NOLINT(*)
+  void VisitExpr_(const IntImmNode* op, std::ostream& os) final;           // NOLINT(*)
 
   // stmt printing
   void VisitStmt_(const BindNode* op) final;

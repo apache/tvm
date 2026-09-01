@@ -261,9 +261,9 @@ class ComputeVerifier final : protected tirx::ExprVisitor {
   //@}
 
  private:
-  const ComputeOpNode* compute_{nullptr};    ///< ComputeOpNode to verify
-  const te::ReduceNode* reduce_{nullptr};    ///< Top level Reduce operation
-  int level_{0};                             ///< Level of op being processed
+  const ComputeOpNode* compute_{nullptr};  ///< ComputeOpNode to verify
+  const te::ReduceNode* reduce_{nullptr};  ///< Top level Reduce operation
+  int level_{0};                           ///< Level of op being processed
 };
 }  // namespace
 

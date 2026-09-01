@@ -63,7 +63,7 @@ class CodeGenCHost : public CodeGenC {
 
   // overload visitor functions
   void VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const CallNode* op, std::ostream& os) override;    // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os) override;          // NOLINT(*)
   // overload min and max to use the ternary operator, so we don't rely on the
   // standard library implementations
   void VisitExpr_(const prim::MinNode* op, std::ostream& os) final;  // NOLINT(*)
