@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/buffer.h>
+#include <tvm/tirx/buffer_region.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
 
@@ -765,56 +766,6 @@ class Continue : public Stmt {
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Continue, Stmt, ContinueNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ContinueNode);
-};
-
-/*!
- * \brief Representing the region of multi-dimensional buffer access.
- */
-class BufferRegionNode : public PrimExprConvertibleNode {
- public:
-  /*! \brief The buffer of the buffer region. */
-  BufferVar buffer;
-  /*! \brief The region array of the buffer region. */
-  ffi::Array<Range> region;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BufferRegionNode>()
-        .def_ro("buffer", &BufferRegionNode::buffer, refl::AttachFieldFlag::SEqHashDefRecursive())
-        .def_ro("region", &BufferRegionNode::region);
-  }
-
-  TVM_DLL PrimExpr ToPrimExpr() const final;
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferRegion", BufferRegionNode, PrimExprConvertibleNode);
-};
-
-/*!
- * \brief Managed reference to BufferRegionNode.
- * \sa BufferRegionNode
- */
-class BufferRegion : public PrimExprConvertible {
- public:
-  TVM_DLL explicit BufferRegion(BufferVar buffer, ffi::Array<Range> region);
-
-  /*!
-   * \brief Create a BufferRegion which is full region of the given buffer.
-   * \param buffer The buffer to generate full BufferRegion.
-   * \return The BufferRegion which covers all region of the given buffer
-   */
-  TVM_DLL static BufferRegion FullRegion(BufferVar buffer);
-
-  /*!
-   * \brief Create a BufferRegion which is a single point of the given buffer.
-   * \param buffer The buffer to generate single point BufferRegion.
-   * \param indices The access point indices of the buffer
-   * \return The BufferRegion which is the single point of the given buffer.
-   */
-  TVM_DLL static BufferRegion FromPoint(BufferVar buffer, ffi::Array<PrimExpr> indices);
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferRegion, PrimExprConvertible, BufferRegionNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRegionNode);
 };
 
 /*!

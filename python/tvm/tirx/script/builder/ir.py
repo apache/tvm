@@ -2390,6 +2390,11 @@ def evaluate(value: Expr) -> None:
         value = StringImm(value)
     if isinstance(value, bool):
         value = IntImm("bool", value)
+    if isinstance(value, tir.BufferRegion):
+        raise TypeError(
+            "T.evaluate does not accept BufferRegion values; "
+            "construct a BufferLoad with explicit indices"
+        )
     return _ffi_api.Evaluate(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
