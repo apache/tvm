@@ -444,7 +444,7 @@ def _coerce_pred_operand(entry, slot, values):
     like any other, and no syntax line offers a non-predicate alternative at
     the same position.
     """
-    (value,) = values
+    (value,) = [_realize_operand(value) for value in values]
     if slot.rw != "r":
         # The 0/1 materialization of a .pred result: a "=r" uint32 the caller
         # receives through a reference parameter, so it needs a writable
@@ -457,7 +457,7 @@ def _coerce_pred_operand(entry, slot, values):
             )
         return values
     if isinstance(value, PredArg):
-        value = getattr(value.value, "scalar", value.value)
+        value = _realize_operand(getattr(value.value, "scalar", value.value))
         if isinstance(value, bool | int):
             return [const(int(value), "uint32")]
         ty = getattr(value, "ty", None)

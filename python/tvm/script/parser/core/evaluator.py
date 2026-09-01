@@ -131,7 +131,7 @@ class ExprEvaluator:
             return result.value
         raise TypeError(f"Unexpected result type: {type(result)}")
 
-    def _add_intermediate_result(self, value: Any) -> doc.Name:
+    def _add_intermediate_result(self, value: Any, node: doc.AST) -> doc.Name:
         """Add intermediate result during evaluation into value table.
 
         Parameters
@@ -139,13 +139,16 @@ class ExprEvaluator:
         value : Any
             The intermediate result.
 
+        node : doc.AST
+            The AST node that produced the intermediate result.
+
         Returns
         -------
         name : doc.Name
             The doc AST name node with intermediate name for intermediate result.
         """
         if self.parser is not None:
-            value = self.parser.annotate_current_source_span(value)
+            value = self.parser.annotate_current_source_span(value, node)
         name = f"__tvm_tmp_value_{self.new_value_count}"
         self.new_value_count += 1
         self.value_table[name] = value
@@ -193,13 +196,13 @@ class ExprEvaluator:
                 value = self._eval_bool_op(node)
             except Exception as err:  # pylint: disable=broad-except
                 self.parser.report_error(node, err)
-            return self._add_intermediate_result(value)
+            return self._add_intermediate_result(value, node)
         if isinstance(node, doc.IfExp):
             try:
                 value = self._eval_if_exp(node)
             except Exception as err:  # pylint: disable=broad-except
                 self.parser.report_error(node, err)
-            return self._add_intermediate_result(value)
+            return self._add_intermediate_result(value, node)
 
         args = []
         if (
@@ -262,7 +265,7 @@ class ExprEvaluator:
 
         if isinstance(node, doc.ListComp | doc.SetComp | doc.DictComp):
             value = self._eval_expr(node)
-            return self._add_intermediate_result(value)
+            return self._add_intermediate_result(value, node)
 
         fields = {}
         for field in node.__class__._FIELDS:  # pylint: disable=protected-access
@@ -284,7 +287,7 @@ class ExprEvaluator:
                 value = self._eval_expr(node.__class__(**fields))
         except Exception as err:  # pylint: disable=broad-except
             self.parser.report_error(node, err)
-        return self._add_intermediate_result(value)
+        return self._add_intermediate_result(value, node)
 
     def _eval_lambda(self, node: doc.Lambda) -> Any:
         """The doc AST lambda node evaluating method.
@@ -303,7 +306,7 @@ class ExprEvaluator:
             value = self._eval_expr(node)
         except Exception as err:  # pylint: disable=broad-except
             self.parser.report_error(node, err)
-        return self._add_intermediate_result(value)
+        return self._add_intermediate_result(value, node)
 
     def _eval_bool_op(self, node: doc.BoolOp) -> Any:
         """The doc AST boolean operator node evaluating method.

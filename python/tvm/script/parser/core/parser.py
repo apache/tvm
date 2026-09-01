@@ -596,8 +596,12 @@ class Parser(doc.NodeVisitor):
         with IRBuilder.current().with_source_span(self.diag.source.to_span(node)):
             yield
 
-    def annotate_current_source_span(self, value: Any) -> Any:
+    def annotate_current_source_span(self, value: Any, node: doc.AST | None = None) -> Any:
         """Attach the active parser span to an expression result, when applicable."""
+        from tvm.ir.expr import SubscriptProxy  # pylint: disable=import-outside-toplevel
+
+        if isinstance(value, SubscriptProxy) and node is not None:
+            return value.with_span(self.diag.source.to_span(node))
         if isinstance(value, Object) and IRBuilder.is_in_scope():
             return IRBuilder.current()._set_current_source_span(value)  # pylint: disable=protected-access
         return value
@@ -634,7 +638,7 @@ class Parser(doc.NodeVisitor):
         # normalize once at the parser boundary before statement dispatch.
         from tvm.ir.expr import _realize_operand  # pylint: disable=import-outside-toplevel
 
-        return _realize_operand(value)
+        return self.annotate_current_source_span(_realize_operand(value), node)
 
     def _duplicate_lhs_check(self, target: doc.expr) -> bool | set[str]:
         """Check whether duplicate lhs exists in assignment.

@@ -39,7 +39,9 @@ class Expr(Node):
             # Tuple subscription is eager so Python's legacy sequence protocol
             # observes IndexError and terminates tuple iteration/unpacking.
             try:
-                return _ffi_api.SubscriptExprRealize(self, [SubscriptProxy._convert_index(index)])
+                return _ffi_api.SubscriptExprRealize(
+                    self, [SubscriptProxy._convert_index(index)], None
+                )
             except RuntimeError as err:
                 if "Index out of bounds" in err.args[0]:
                     raise IndexError from err
@@ -412,7 +414,7 @@ class SubscriptProxy(ExprOperand, ObjectConvertible):
     containing a slice must be realized before applying a region subscript.
     """
 
-    __slots__ = ("_result", "_slice", "_source")
+    __slots__ = ("_result", "_slice", "_source", "_span")
     __hash__ = object.__hash__
 
     def __init__(self, source: Expr, index):
@@ -421,11 +423,22 @@ class SubscriptProxy(ExprOperand, ObjectConvertible):
                 raise TypeError("Cannot chain a subscription after a slice")
             self._source = source._source
             self._slice = source._slice + self._flatten(index)
+            self._span = source._span
         else:
             _ffi_api.SubscriptExprCheck(source)
             self._source = source
             self._slice = self._flatten(index)
+            self._span = None
         self._result = None
+
+    def with_span(self, span: Span) -> "SubscriptProxy":
+        """Return an unrealized proxy carrying its frontend source span."""
+        result = object.__new__(SubscriptProxy)
+        result._source = self._source
+        result._slice = self._slice
+        result._span = span
+        result._result = None
+        return result
 
     @staticmethod
     def _flatten(index):
@@ -455,7 +468,9 @@ class SubscriptProxy(ExprOperand, ObjectConvertible):
         """Realize and cache the subscribed IR object."""
         if self._result is None:
             result = _ffi_api.SubscriptExprRealize(
-                self._source, [self._convert_index(index) for index in self._slice]
+                self._source,
+                [self._convert_index(index) for index in self._slice],
+                self._span,
             )
             if not isinstance(result, Object):
                 raise TypeError("__subscript_expr_realize__ must return an Object")
