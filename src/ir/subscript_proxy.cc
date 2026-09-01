@@ -19,7 +19,7 @@
 
 /*!
  * \file subscript_proxy.cc
- * \brief Type-directed realization for the Python frontend's SubscriptProxy.
+ * \brief Type-directed realization for Python expression subscription.
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -47,12 +47,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             << "A tuple expression requires a constant integer index";
         return TupleGetItem(value, static_cast<int>(imm->value), span);
       });
-  refl::GlobalDef().def("ir.SubscriptExprCheck", [](Expr value) {
-    TVM_FFI_CHECK(value.defined(), TypeError) << "Cannot subscript an undefined expression";
-    static refl::TypeAttrColumn realize_column("__subscript_expr_realize__");
-    TVM_FFI_CHECK(realize_column[value->ty->type_index()] != nullptr, TypeError)
-        << "Type " << value->ty->GetTypeKey() << " does not support subscript";
-  });
   refl::GlobalDef().def(
       "ir.SubscriptExprRealize", [](Expr value, SubscriptSlice slice, Span span) -> ffi::ObjectRef {
         TVM_FFI_CHECK(value.defined(), TypeError) << "Cannot subscript an undefined expression";

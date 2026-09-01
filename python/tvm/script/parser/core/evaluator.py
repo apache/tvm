@@ -416,9 +416,6 @@ class ExprEvaluator:
             The evaluation result.
         """
         test = self._eval_expr(self._visit(node.test))
-        from tvm.ir.expr import _realize_operand  # pylint: disable=import-outside-toplevel
-
-        test = _realize_operand(test)
         if isinstance(test, bool):
             selected = node.body if test else node.orelse
             return self._eval_expr(self._visit(selected))
