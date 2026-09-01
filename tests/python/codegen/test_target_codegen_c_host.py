@@ -197,9 +197,7 @@ def test_round():
         # semantics every other backend and the constant folder use) differs
         # from ties-away-from-zero. np.random.rand never produces them, so the
         # random tail alone cannot exercise the tie rule.
-        midpoints = np.array(
-            [0.5, 1.5, 2.5, 3.5, -0.5, -1.5, -2.5, -3.5], dtype="float32"
-        )
+        midpoints = np.array([0.5, 1.5, 2.5, 3.5, -0.5, -1.5, -2.5, -3.5], dtype="float32")
         a_np = np.concatenate(
             [midpoints, np.random.rand(n - len(midpoints)).astype("float32")]
         ).astype("float32")
