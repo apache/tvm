@@ -66,6 +66,8 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
       VisitExpr_(tuple, path);
     } else if (auto* tuple_get_item = obj.as<TupleGetItemNode>()) {
       VisitExpr_(tuple_get_item, path);
+    } else if (auto* buffer_region = obj.as<BufferRegionNode>()) {
+      VisitExpr_(buffer_region, path);
     } else if (obj.as<OpaqueExprNode>()) {
       VisitExpr(obj, path);
     } else {
@@ -152,6 +154,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   using ExprFunctor::VisitExpr;
   void VisitExpr_(const VarNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const TensorLoadNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const BufferRegionNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const OpaqueExprNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const TupleNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const TupleGetItemNode* op, ffi::reflection::AccessPath path) override;

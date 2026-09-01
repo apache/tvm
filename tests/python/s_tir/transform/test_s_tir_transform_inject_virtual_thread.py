@@ -165,17 +165,17 @@ def test_vthread_simplified():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)
         B = T.alloc_buffer((4,), "int32", scope="shared")
-        B[0:4] = T.broadcast(vthread, 4)
+        B[T.ramp(0, 1, 4)] = T.broadcast(vthread, 4)
 
     @T.prim_func(s_tir=True)
     def expected_func():
         B = T.alloc_buffer((16,), "int32", scope="shared")
         # The indices for B should each be a single Ramp node, and
         # should not be the sum of a Ramp and Broadcast node.
-        B[T.Mul(0, 4) : T.Mul(0, 4) + 4] = T.broadcast(0, 4)
-        B[T.Mul(1, 4) : T.Mul(1, 4) + 4] = T.broadcast(1, 4)
-        B[T.Mul(2, 4) : T.Mul(2, 4) + 4] = T.broadcast(2, 4)
-        B[T.Mul(3, 4) : T.Mul(3, 4) + 4] = T.broadcast(3, 4)
+        B[T.ramp(T.Mul(0, 4), 1, 4)] = T.broadcast(0, 4)
+        B[T.ramp(T.Mul(1, 4), 1, 4)] = T.broadcast(1, 4)
+        B[T.ramp(T.Mul(2, 4), 1, 4)] = T.broadcast(2, 4)
+        B[T.ramp(T.Mul(3, 4), 1, 4)] = T.broadcast(3, 4)
 
     before_mod = tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
     after_mod = tvm.s_tir.transform.InjectVirtualThread()(before_mod)
@@ -192,7 +192,7 @@ def test_vthread_vectorized():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)
         B = T.alloc_buffer((4,), "int32", scope="shared")
-        B[0:4] = T.broadcast(vthread, 4)
+        B[T.ramp(0, 1, 4)] = T.broadcast(vthread, 4)
 
     before_mod = tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
     intermediate_mod = tvm.s_tir.transform.InjectVirtualThread()(before_mod)

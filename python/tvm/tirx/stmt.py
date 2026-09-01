@@ -33,7 +33,7 @@ from typing import Any
 
 import tvm_ffi
 
-from tvm.ir import Expr, Range, Span
+from tvm.ir import Expr, Range, Span, Type
 from tvm.runtime import Object, Scriptable, const
 
 from . import _ffi_api
@@ -606,8 +606,16 @@ class Evaluate(Stmt):
         self.__init_handle_by_constructor__(_ffi_api.Evaluate, value, span)  # type: ignore
 
 
+@tvm_ffi.register_object("tirx.BufferRegionType")
+class BufferRegionType(Type):
+    """The structural type of a :class:`BufferRegion` expression."""
+
+    def __init__(self) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.BufferRegionType)  # type: ignore
+
+
 @tvm_ffi.register_object("tirx.BufferRegion")
-class BufferRegion(Object, Scriptable):
+class BufferRegion(Expr, Scriptable):
     """BufferRegion node.
 
     Parameters

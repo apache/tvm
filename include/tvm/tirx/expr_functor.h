@@ -27,6 +27,7 @@
 
 #include <tvm/ir/node_functor.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/tirx/buffer_region.h>
 
 #include <utility>
 
@@ -117,6 +118,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const VarNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const TensorLoadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const OpaqueExprNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const BufferRegionNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const TupleNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const TupleGetItemNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const prim::LetNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -160,6 +162,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     IR_EXPR_FUNCTOR_DISPATCH(VarNode);
     IR_EXPR_FUNCTOR_DISPATCH(TensorLoadNode);
     IR_EXPR_FUNCTOR_DISPATCH(OpaqueExprNode);
+    IR_EXPR_FUNCTOR_DISPATCH(BufferRegionNode);
     IR_EXPR_FUNCTOR_DISPATCH(TupleNode);
     IR_EXPR_FUNCTOR_DISPATCH(TupleGetItemNode);
     IR_EXPR_FUNCTOR_DISPATCH(prim::LetNode);
@@ -211,6 +214,7 @@ class TVM_DLL ExprVisitor : public ExprFunctor<void(const Expr&)> {
   void VisitExpr_(const VarNode* op) override;
   void VisitExpr_(const TensorLoadNode* op) override;
   void VisitExpr_(const OpaqueExprNode* op) override;
+  void VisitExpr_(const BufferRegionNode* op) override;
   void VisitExpr_(const TupleNode* op) override;
   void VisitExpr_(const TupleGetItemNode* op) override;
   void VisitExpr_(const prim::LetNode* op) override;
@@ -258,6 +262,7 @@ class TVM_DLL ExprMutator : protected ExprFunctor<Expr(const Expr&)> {
   Expr VisitExpr_(const VarNode* op) override;
   Expr VisitExpr_(const TensorLoadNode* op) override;
   Expr VisitExpr_(const OpaqueExprNode* op) override;
+  Expr VisitExpr_(const BufferRegionNode* op) override;
   Expr VisitExpr_(const TupleNode* op) override;
   Expr VisitExpr_(const TupleGetItemNode* op) override;
   Expr VisitExpr_(const prim::LetNode* op) override;

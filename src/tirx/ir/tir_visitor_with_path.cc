@@ -357,6 +357,10 @@ void TIRVisitorWithPath::VisitExpr_(const TensorLoadNode* op, AccessPath path) {
   Visit(op->indices, path->Attr("indices"));
 }
 
+void TIRVisitorWithPath::VisitExpr_(const BufferRegionNode* op, AccessPath path) {
+  Visit(ffi::GetRef<BufferRegion>(op), path);
+}
+
 void TIRVisitorWithPath::VisitExpr_(const OpaqueExprNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::VisitExpr_(const TupleNode* op, AccessPath path) {
