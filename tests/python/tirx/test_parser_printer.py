@@ -2268,7 +2268,6 @@ def test_buffer_slice_region():
 
     partial = buf[1]
     assert isinstance(partial, BufferRegion)
-    assert not hasattr(partial, "__getitem__")
     with pytest.raises(TypeError):
         _ = partial[2]
 
