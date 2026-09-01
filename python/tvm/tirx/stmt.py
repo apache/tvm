@@ -33,9 +33,8 @@ from typing import Any
 
 import tvm_ffi
 
-from tvm.ir import Expr, Range, Span, is_prim_expr
+from tvm.ir import Expr, Range, Span
 from tvm.runtime import Object, Scriptable, const
-from tvm.tirx import IntImm
 
 from . import _ffi_api
 from .buffer import Buffer
@@ -625,40 +624,6 @@ class BufferRegion(Object, Scriptable):
 
     def __init__(self, buffer: Buffer, region: list[Range]) -> None:
         self.__init_handle_by_constructor__(_ffi_api.BufferRegion, buffer, region)  # type: ignore
-
-    def __getitem__(self, indices):
-        from ..arith import Analyzer
-
-        if not isinstance(indices, tuple | list):
-            indices = [indices]
-
-        has_step = any(
-            isinstance(i, slice) and (i.step is not None and i.step != 1) for i in indices
-        )
-        if has_step:
-            raise ValueError("BufferRegion slicing does not support steps")
-
-        analyzer = Analyzer()
-        new_region = []
-        for i, index in enumerate(indices):
-            old_range = self.region[i]
-            if isinstance(index, slice):
-                start = 0 if index.start is None else index.start
-                stop = old_range.extent if index.stop is None else index.stop
-                new_min = old_range.min + start
-                new_extent = analyzer.simplify(stop - start)
-                new_region.append(Range.from_min_extent(new_min, new_extent))
-            else:
-                new_min = old_range.min + index
-                new_region.append(
-                    Range.from_min_extent(
-                        new_min, IntImm(index.ty, 1) if is_prim_expr(index) else 1
-                    )
-                )
-        # Fill remaining dimensions with their original ranges
-        for i in range(len(indices), len(self.region)):
-            new_region.append(self.region[i])
-        return BufferRegion(self.buffer, new_region)
 
 
 @tvm_ffi.register_object("tirx.MatchBufferRegion")

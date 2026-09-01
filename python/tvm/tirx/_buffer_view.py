@@ -572,9 +572,7 @@ class ChunkIndexer:
             else:
                 size = buf.shape[dim] // int(count)
                 translated.append(slice(pick * size, (pick + 1) * size))
-        # ``chunk`` is a view helper whose documented result is a region, not
-        # the lazy subscription proxy used by ordinary expression indexing.
-        return buf[tuple(translated)].to_expr()
+        return buf[tuple(translated)]
 
 
 class TileIndexer:
