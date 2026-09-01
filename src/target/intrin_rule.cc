@@ -33,6 +33,18 @@ namespace codegen {
 namespace intrin {
 using tirx::FLowerIntrinsic;
 
+// `tirx.round` is ties-to-even (see include/tvm/tirx/op.h), and constant
+// folding implements it with std::nearbyint. The C library's round()/roundf()
+// is ties-AWAY-from-zero, so lowering through FloatSuffix would disagree with
+// the folder and with every other backend. Rename to nearbyint before the
+// float suffix is applied, as the CUDA rule already does.
+struct FloatSuffixTiesToEven {
+  std::string operator()(const PrimType& ty, std::string name) const {
+    if (name == "round") name = "nearbyint";
+    return FloatSuffix()(ty, name);
+  }
+};
+
 TVM_REGISTER_OP("tirx.exp")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
@@ -115,7 +127,8 @@ TVM_REGISTER_OP("tirx.ceil")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tirx.round")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
+                               DispatchPureExtern<FloatSuffixTiesToEven>);
 
 TVM_REGISTER_OP("tirx.nearbyint")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
