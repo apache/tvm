@@ -38,6 +38,15 @@ using tirx::FLowerIntrinsic;
 // is ties-AWAY-from-zero, so lowering through FloatSuffix would disagree with
 // the folder and with every other backend. Rename to nearbyint before the
 // float suffix is applied, as the CUDA rule already does.
+//
+// Like nearbyint in general, this honours the current floating-point
+// environment: it is ties-to-even under the default FE_TONEAREST. The only
+// other backend a host fesetround() can reach is llvm, which lowers to
+// llvm.nearbyint (also mode-sensitive; llvm.roundeven is the
+// mode-independent one). Every other backend that registers tirx.round --
+// cuda, nvptx, rocm, hexagon, metal, opencl, vulkan, webgpu -- emits code
+// for a separate device whose rounding mode is fixed at RNE, so the
+// host's mode cannot reach it, whichever intrinsic the rule names.
 struct FloatSuffixTiesToEven {
   std::string operator()(const PrimType& ty, std::string name) const {
     if (name == "round") name = "nearbyint";
