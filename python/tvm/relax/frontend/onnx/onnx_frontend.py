@@ -1263,6 +1263,7 @@ class Cast(OnnxOpConverter):
             if all([isinstance(x, tirx.IntImm) for x in shape]):
                 shape = [int(x) for x in shape]
                 return relax.const(shape, to_type)
+            inputs = [bb.normalize(relax.op.shape_to_tensor(shape))]
         if isinstance(inputs[0], relax.Constant):
             output = inputs[0].data.numpy().astype(to_type)
             return relax.const(output, to_type)
@@ -1876,12 +1877,16 @@ class Trilu(OnnxOpConverter):
     def _impl_v14(cls, bb, inputs, attr, params):
         upper = attr.get("upper", True)
         x = inputs[0]
-        k = inputs[1] if len(inputs) > 1 else 0
+        k = inputs[1] if len(inputs) > 1 else None
 
-        if len(inputs) > 1:
+        if k is None:
+            k = 0
+        else:
             k = get_constant(k, params)
         if isinstance(k, relax.Constant):
             k = int(k.data.numpy().item())
+        if isinstance(k, tirx.IntImm):
+            k = int(k)
         if isinstance(k, int):
             if upper:
                 return relax.op.triu(x, k)
@@ -1893,7 +1898,12 @@ class Trilu(OnnxOpConverter):
         row_idx = relax.op.reshape(relax.op.arange(0, m, dtype="int64"), (m, 1))
         col_idx = relax.op.reshape(relax.op.arange(0, n, dtype="int64"), (1, n))
         diff = relax.op.subtract(col_idx, row_idx)
-        k_int64 = relax.op.astype(k, "int64")
+        if tvm.ir.is_prim_expr(k):
+            shape_value = k if str(k.ty) == "int64" else k.astype("int64")
+            k_int64 = bb.normalize(relax.op.shape_to_tensor(relax.ShapeExpr([shape_value])))
+            k_int64 = bb.normalize(relax.op.squeeze(k_int64, axis=[0]))
+        else:
+            k_int64 = relax.op.astype(k, "int64")
         if upper:
             mask = relax.op.greater_equal(diff, k_int64)
         else:
