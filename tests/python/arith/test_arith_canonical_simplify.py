@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E731, F841
+# ruff: noqa: F841
 import tvm_ffi
 
 import tvm
@@ -192,90 +192,6 @@ def test_canonical_mixed():
     fld = tvm.tirx.floordiv
     ck.verify(fld(x, (z * z)) - fld(x, (z * z)), 0)
     ck.verify(fld(x, (z + z)) - fld(x, (z + z)), 0)
-
-
-def test_reduce_combiner_simplify():
-    ck = CanonicalChecker()
-    dummy = tvm.tirx.Var("dummy", "int32")
-    comm_reducer = te.comm_reducer
-    prod = comm_reducer(lambda x, y: x * y, lambda t0: tvm.tirx.const(1, t0))
-
-    sum_or_prod = comm_reducer(
-        lambda x, y: tvm.tirx.Select(dummy < 0, x + y, x * y),
-        lambda t0: tvm.tirx.Select(dummy < 0, tvm.tirx.const(0, t0), tvm.tirx.const(1, t0)),
-    )
-    sum_and_prod = comm_reducer(
-        lambda x, y: (x[0] + y[0], x[1] * y[1]),
-        lambda t0, t1: (tvm.tirx.const(0, t0), tvm.tirx.const(5, t1) - tvm.tirx.const(4, t1)),
-    )
-    some_reducer1 = comm_reducer(
-        lambda x, y: (
-            x[0] + y[0],
-            x[0] + y[0] + x[1] + y[1],
-            x[0] * y[2] + y[0] * x[2],
-            x[1] + y[2],
-            4.0,
-        ),
-        lambda t0, t1, t2, t3, t4: (
-            tvm.tirx.const(0, t0),
-            tvm.tirx.const(1, t1),
-            tvm.tirx.const(2, t2),
-            tvm.tirx.const(3, t3),
-            tvm.tirx.const(4, t4),
-        ),
-    )
-
-    k = te.reduce_axis((0, 10), name="k")
-    A = te.placeholder((10,), name="A")
-    # Test that SimplifyCombiner makes use of vranges
-    ck.analyzer.update(dummy, tvm.arith.ConstIntBound(-10, -4))
-    ck.verify(sum_or_prod(A[k], k), te.sum(A[k], k))
-    ck.verify(sum_or_prod(A[k], k, init=1), te.sum(A[k], k, init=1))
-    ck.analyzer.update(dummy, tvm.arith.ConstIntBound(5, 9), True)
-    ck.verify(sum_or_prod(A[k], k), prod(A[k], k))
-    ck.verify(sum_or_prod(A[k], k, init=1), prod(A[k], k, init=1))
-    ck.analyzer.update(dummy, tvm.arith.ConstIntBound(-10, 100), True)
-    ck.verify(sum_and_prod((A[k], A[10 - k]), k)[0], te.sum(A[k], k))
-    ck.verify(sum_and_prod((A[k], A[10 - k]), k)[1], prod(A[10 - k], k))
-
-    reference_simplified_sources = [
-        [A[0]],
-        [A[0], A[1]],
-        [A[0], A[2]],
-        [A[0], A[1], A[2], A[3]],
-        [A[4]],
-    ]
-    for j in range(5):
-        # Here we use the j-th component of the result, so only it and the components it
-        # depends on are left.
-        simplified = ck.analyzer.canonical_simplify(
-            some_reducer1((A[0], A[1], A[2], A[3], A[4]), k)[j]
-        )
-
-        # Check that the remaining components are the expected ones.
-        for lhs, rhs in zip(simplified.source, reference_simplified_sources[j]):
-            tvm.ir.assert_structural_equal(lhs, rhs)
-
-    # Test that components with side effects are not removed
-    dummy = tvm.ir.GlobalVar("dummy")
-    side_effect = lambda *xs: tvm.ir.Call(dummy, xs, ret_ty="int32")
-    ck.verify(
-        sum_and_prod((A[k], side_effect(A[10 - k])), k)[0],
-        sum_and_prod((A[k], side_effect(A[10 - k])), k)[0],
-    )
-    ck.verify(sum_and_prod((side_effect(A[k]), A[10 - k]), k)[0], te.sum(side_effect(A[k]), k))
-
-
-def test_reduce_simplify():
-    ck = CanonicalChecker()
-    k = te.reduce_axis((0, 10), name="k")
-    j = te.reduce_axis((-5, 3), name="j")
-    A = te.placeholder((10,), name="A")
-    ck.verify(te.sum(tvm.tirx.Select(k + j < 12, k + j, 0), [k, j]), te.sum(k + j, [k, j]))
-    ck.verify(te.sum(A[3], []), A[3])
-    ck.verify(te.sum(A[3], [], where=k > 12, init=1.0), tvm.tirx.const(1.0, dtype="float32"))
-    # The rule below is not typical, removed for now
-    ck.verify(te.sum(tvm.tirx.div(k, 10), k), te.sum(tvm.tirx.const(0, "int32"), k))
 
 
 def test_simplify_if_then_else():

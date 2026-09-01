@@ -28,6 +28,8 @@ For example, you can use addexp.a to get the left operand of an Add node.
   assert(y.a == x)
 """
 
+import functools
+
 import tvm_ffi
 
 import tvm.ir._ffi_api
@@ -41,8 +43,11 @@ from tvm.runtime import DataTypeCode, Object, ObjectConvertible, Scriptable, con
 from . import _ffi_api
 from .buffer import Buffer
 
-_TE_COMM_REDUCER = tvm_ffi.get_global_func("te.CommReducer")
-_TE_REDUCE = tvm_ffi.get_global_func("te.Reduce")
+
+@functools.cache
+def _get_te_constructor(name: str):
+    """Get a TE constructor lazily, while caching it across constructions."""
+    return tvm_ffi.get_global_func(f"te.{name}")
 
 
 def convert(expr) -> Expr:
@@ -555,7 +560,7 @@ class CommReducer(Object, Scriptable):
         span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _TE_COMM_REDUCER,
+            _get_te_constructor("CommReducer"),
             lhs,
             rhs,
             result,
@@ -611,7 +616,7 @@ class Reduce(ir.ExprWithOp):
     ) -> None:
         init = [] if init is None else init
         self.__init_handle_by_constructor__(
-            _TE_REDUCE,
+            _get_te_constructor("Reduce"),
             combiner,
             src,
             rdom,
