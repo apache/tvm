@@ -30,10 +30,11 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
@@ -342,24 +343,24 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
         return true;
       }
       // cast('xxx', free_var) == constant
-      if (auto cast = lhs.as<CastNode>()) {
+      if (auto cast = lhs.as<prim::CastNode>()) {
         if (IsFreeNode(cast->value) && rhs->IsInstance<IntImmNode>()) {
           return true;
         }
       }
       // constant == cast('xxx', free_var)
-      if (auto cast = rhs.as<CastNode>()) {
+      if (auto cast = rhs.as<prim::CastNode>()) {
         if (IsFreeNode(cast->value) && lhs->IsInstance<IntImmNode>()) {
           return true;
         }
       }
       return false;
     };
-    if (auto eq = expr.as<EQNode>()) {
+    if (auto eq = expr.as<prim::EQNode>()) {
       auto lhs = eq->a;
       auto rhs = eq->b;
       return checkTrivilCmp(lhs, rhs);
-    } else if (auto ne = expr.as<NENode>()) {
+    } else if (auto ne = expr.as<prim::NENode>()) {
       auto lhs = ne->a;
       auto rhs = ne->b;
       return checkTrivilCmp(lhs, rhs);
@@ -736,8 +737,8 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
       return false;
     }
     return e->IsInstance<CallNode>() || e->IsInstance<TensorLoadNode>() ||
-           e->IsInstance<ReduceNode>() ||
-           (e->IsInstance<CastNode>() && !IsZ3SupportedExpr(e.as_or_throw<Cast>()->value.get()));
+           (e->IsInstance<prim::CastNode>() &&
+            !IsZ3SupportedExpr(e.as_or_throw<prim::Cast>()->value.get()));
   }
 
   /// @brief Check if the expression type is supported by z3 integer operations.
@@ -780,13 +781,13 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     }
   }
 
-  z3::expr VisitExpr_(const LetNode* op) override {
+  z3::expr VisitExpr_(const prim::LetNode* op) override {
     if (IsZ3SupportedExpr(op->var.get())) {
       MemoPut(op->var.as_or_throw<PrimExpr>(), VisitInt(op->value));
     }
     return VisitExpr(op->body);
   }
-  z3::expr VisitExpr_(const CastNode* op) override {
+  z3::expr VisitExpr_(const prim::CastNode* op) override {
     // if the inner dtype is valid, we just visit it
     if (IsZ3SupportedExpr(op->value.get()) && IsZ3SupportedExpr(op)) {
       return VisitInt(op->value);
@@ -797,13 +798,12 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   }
   z3::expr VisitExpr_(const VarNode* op) override { return Create(op); }
   z3::expr VisitExpr_(const TensorLoadNode* op) override { return Create(op); }
-  z3::expr VisitExpr_(const ReduceNode* op) override { return Create(op); }
-  z3::expr VisitExpr_(const MinNode* op) override {
+  z3::expr VisitExpr_(const prim::MinNode* op) override {
     auto a = VisitInt(op->a);
     auto b = VisitInt(op->b);
     return z3::ite(a < b, a, b);
   }
-  z3::expr VisitExpr_(const MaxNode* op) override {
+  z3::expr VisitExpr_(const prim::MaxNode* op) override {
     auto a = VisitInt(op->a);
     auto b = VisitInt(op->b);
     return z3::ite(a > b, a, b);
@@ -828,45 +828,53 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   static z3::expr floormod(const z3::expr& a, const z3::expr& b) {
     return z3::ite(b > 0, a % b, -((-a) % b));
   }
-  z3::expr VisitExpr_(const AddNode* op) override {
+  z3::expr VisitExpr_(const prim::AddNode* op) override {
     return VisitArith(z3::operator+, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const SubNode* op) override {
+  z3::expr VisitExpr_(const prim::SubNode* op) override {
     return VisitArith(z3::operator-, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const MulNode* op) override {
+  z3::expr VisitExpr_(const prim::MulNode* op) override {
     return VisitArith(z3::operator*, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const DivNode* op) override { return VisitArith(truncdiv, op, op->a, op->b); }
-  z3::expr VisitExpr_(const ModNode* op) override { return VisitArith(truncmod, op, op->a, op->b); }
-  z3::expr VisitExpr_(const FloorDivNode* op) override {
+  z3::expr VisitExpr_(const prim::DivNode* op) override {
+    return VisitArith(truncdiv, op, op->a, op->b);
+  }
+  z3::expr VisitExpr_(const prim::ModNode* op) override {
+    return VisitArith(truncmod, op, op->a, op->b);
+  }
+  z3::expr VisitExpr_(const prim::FloorDivNode* op) override {
     return VisitArith(floordiv, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const FloorModNode* op) override {
+  z3::expr VisitExpr_(const prim::FloorModNode* op) override {
     return VisitArith(floormod, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const EQNode* op) override {
+  z3::expr VisitExpr_(const prim::EQNode* op) override {
     return VisitArith(z3::operator==, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const NENode* op) override {
+  z3::expr VisitExpr_(const prim::NENode* op) override {
     return VisitArith(z3::operator!=, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const LTNode* op) override {
+  z3::expr VisitExpr_(const prim::LTNode* op) override {
     return VisitArith(z3::operator<, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const LENode* op) override {
+  z3::expr VisitExpr_(const prim::LENode* op) override {
     return VisitArith(z3::operator<=, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const GTNode* op) override {
+  z3::expr VisitExpr_(const prim::GTNode* op) override {
     return VisitArith(z3::operator>, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const GENode* op) override {
+  z3::expr VisitExpr_(const prim::GENode* op) override {
     return VisitArith(z3::operator>=, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const AndNode* op) override { return VisitBool(op->a) && VisitBool(op->b); }
-  z3::expr VisitExpr_(const OrNode* op) override { return VisitBool(op->a) || VisitBool(op->b); }
-  z3::expr VisitExpr_(const NotNode* op) override { return !VisitBool(op->a); }
-  z3::expr VisitExpr_(const SelectNode* op) override {
+  z3::expr VisitExpr_(const prim::AndNode* op) override {
+    return VisitBool(op->a) && VisitBool(op->b);
+  }
+  z3::expr VisitExpr_(const prim::OrNode* op) override {
+    return VisitBool(op->a) || VisitBool(op->b);
+  }
+  z3::expr VisitExpr_(const prim::NotNode* op) override { return !VisitBool(op->a); }
+  z3::expr VisitExpr_(const prim::SelectNode* op) override {
     return z3::ite(VisitBool(op->condition), VisitInt(op->true_value), VisitInt(op->false_value));
   }
   z3::expr VisitExpr_(const IntImmNode* op) override { return ctx->int_val(op->value); }
@@ -874,19 +882,19 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   // Bitwise operations
   z3::expr VisitExpr_(const CallNode* op) override {
     // Check if this is a bitwise operation
-    if (op->op.same_as(tirx::builtin::bitwise_and())) {
+    if (op->op.same_as(prim::builtin::bitwise_and())) {
       return VisitBitwiseOp(z3::operator&, op);
-    } else if (op->op.same_as(tirx::builtin::bitwise_or())) {
+    } else if (op->op.same_as(prim::builtin::bitwise_or())) {
       return VisitBitwiseOp(z3::operator|, op);
-    } else if (op->op.same_as(tirx::builtin::bitwise_xor())) {
+    } else if (op->op.same_as(prim::builtin::bitwise_xor())) {
       return VisitBitwiseOp(z3::operator^, op);
-    } else if (op->op.same_as(tirx::builtin::bitwise_not())) {
+    } else if (op->op.same_as(prim::builtin::bitwise_not())) {
       return VisitBitwiseNotOp(op);
-    } else if (op->op.same_as(tirx::builtin::shift_left())) {
+    } else if (op->op.same_as(prim::builtin::shift_left())) {
       return VisitShiftOp(z3::shl, op);
-    } else if (op->op.same_as(tirx::builtin::shift_right())) {
+    } else if (op->op.same_as(prim::builtin::shift_right())) {
       return VisitShiftOp(z3::ashr, op);
-    } else if (op->op.same_as(tirx::builtin::if_then_else()) && op->args.size() == 3 &&
+    } else if (op->op.same_as(prim::builtin::if_then_else()) && op->args.size() == 3 &&
                IsZ3SupportedExpr(op->args[1].get()) && IsZ3SupportedExpr(op->args[2].get())) {
       // tir.if_then_else(cond, a, b) is a select-like ternary.
       return z3::ite(VisitBool(op->args[0].as_or_throw<PrimExpr>()),
@@ -1014,7 +1022,7 @@ TVM_DLL Z3Prover::~Z3Prover() { delete impl_; }
 #else  // TVM_USE_Z3
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/op.h>
 
 #include "tvm/ffi/string.h"

@@ -24,11 +24,13 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
+#include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
@@ -39,6 +41,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 namespace {
@@ -48,7 +51,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -76,7 +79,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       thread_extents_.pop_back();
       return ret;
     } else if (op->attr_key == s_tir::attr::reduce_scope) {
-      const CommReducerNode* combiner = op->node.as<CommReducerNode>();
+      const te::CommReducerNode* combiner = op->node.as<te::CommReducerNode>();
       TVM_FFI_ICHECK(combiner);
       reduce_combiner_.push_back(combiner);
       Stmt ret = StmtExprMutator::VisitStmt_(op);
@@ -90,7 +93,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<EvaluateNode>();
     const CallNode* call = op->value.as<CallNode>();
-    if (call && call->op.same_as(builtin::tvm_thread_allreduce())) {
+    if (call && call->op.same_as(tirx::builtin::tvm_thread_allreduce())) {
       return MakeAllreduce(call);
     } else {
       return stmt;
@@ -200,7 +203,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   // make allreduce.
   Stmt MakeAllreduce(const CallNode* call) {
     TVM_FFI_ICHECK(!reduce_combiner_.empty());
-    const CommReducerNode* combiner = reduce_combiner_.back();
+    const te::CommReducerNode* combiner = reduce_combiner_.back();
     size_t size = combiner->result.size();
 
     const IntImmNode* size_of_args = call->args[0].as<IntImmNode>();
@@ -338,8 +341,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     PrimExpr zero_index = IntImm(reduce_index.ty(), 0);
     if (IsWarpReduction(dtypes, group_extent, reduce_extent, contiguous_reduce_extent)) {
       std::vector<PrimExpr> reduce_results;
-      PrimExpr mask =
-          Call(PrimType::UInt(32), builtin::tvm_warp_activemask(), {}).as_or_throw<PrimExpr>();
+      PrimExpr mask = Call(PrimType::UInt(32), tirx::builtin::tvm_warp_activemask(), {})
+                          .as_or_throw<PrimExpr>();
 
       if (reduce_extent <= warp_size_) {
         std::tie(reduce_results, new_alloc_bufs) =
@@ -355,8 +358,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
                               ->source.as_or_throw<tvm::tirx::BufferVar>();
           PrimExpr val = BufferLoad(buf, {zero_index});
           TVM_FFI_ICHECK_EQ(val.ty(), dtypes[i]);
-          PrimExpr splat = WarpShuffle(builtin::tvm_warp_shuffle(), new_alloc_bufs.back(), val,
-                                       reduce_extent * group_index);
+          PrimExpr splat = WarpShuffle(tirx::builtin::tvm_warp_shuffle(), new_alloc_bufs.back(),
+                                       val, reduce_extent * group_index);
           seq.push_back(BufferStore(buf, splat, {zero_index}));
         }
       } else {
@@ -495,7 +498,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   std::pair<std::vector<PrimExpr>, std::vector<BufferVar>> MakeWarpAllreduce(
       std::vector<PrimExpr> src_values,                  //
       std::vector<PrimType> dtypes,                      //
-      const CommReducerNode* combiner,                   //
+      const te::CommReducerNode* combiner,               //
       PrimExpr reduce_index, int reduce_extent,          //
       PrimExpr group_index,                              //
       PrimExpr mask, ffi::Optional<PrimExpr> predicate,  //
@@ -568,7 +571,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         //
         // The former may cause dead lock as there is a divergent
         // branch with a warp sync call inside.
-        PrimExpr other = WarpShuffle(builtin::tvm_warp_shuffle_down(), mask_buffer, val, offset);
+        PrimExpr other =
+            WarpShuffle(tirx::builtin::tvm_warp_shuffle_down(), mask_buffer, val, offset);
         BufferVar local_buf = local_bufs[i];
         Stmt s = BufferStore(local_buf, other, zero_indices);
         seq->push_back(s);
@@ -613,7 +617,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
 
   // make allreduce.
-  Stmt MakeBufAllreduce(const CommReducerNode* combiner, const std::vector<PrimType>& dtypes,
+  Stmt MakeBufAllreduce(const te::CommReducerNode* combiner, const std::vector<PrimType>& dtypes,
                         const ffi::Array<BufferVar>& shared_bufs, PrimExpr reduce_index,
                         PrimExpr group_index, int reduce_extent, int group_extent,
                         int contiguous_reduce_extent) {
@@ -757,7 +761,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
   // sync thread op.
   static Stmt SyncThread(const std::string& sync) {
-    return Evaluate(Call(PrimType::Int(32), builtin::tvm_storage_sync(), {StringImm(sync)})
+    return Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(), {StringImm(sync)})
                         .as_or_throw<PrimExpr>());
   }
 
@@ -864,7 +868,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
   // surrounding scope of thread extent.
   std::vector<const AttrStmtNode*> thread_extents_;
-  std::vector<const CommReducerNode*> reduce_combiner_;
+  std::vector<const te::CommReducerNode*> reduce_combiner_;
   // The load remap
   std::unordered_map<const VarNode*, PrimExpr> load_remap_;
   // Internal analyzer

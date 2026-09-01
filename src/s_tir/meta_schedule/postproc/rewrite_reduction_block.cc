@@ -23,6 +23,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief The visitor that finds all the reduction block to be decomposed */
@@ -109,6 +110,7 @@ int FindDecomposePoint(const StmtSRef& block_sref) {
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief Rewrite reduction block by moving the init block out */

@@ -19,6 +19,7 @@
 #include "./ir_comparator.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/tirx/builtin.h>
 
 #include "../../tirx/analysis/check_contains.h"
@@ -26,21 +27,22 @@
 namespace tvm {
 
 namespace {
-// File-local helper: true if `expr` is a call to tirx::builtin::vscale().
+// File-local helper: true if `expr` is a call to prim::builtin::vscale().
 bool IsVScaleCall(const PrimExpr& expr) {
   if (const auto* call = expr.as<CallNode>()) {
-    return call->op.same_as(tirx::builtin::vscale());
+    return call->op.same_as(prim::builtin::vscale());
   }
   return false;
 }
 
-// File-local helper: true if `expr` contains a call to tirx::builtin::vscale().
+// File-local helper: true if `expr` contains a call to prim::builtin::vscale().
 bool ContainsVscaleCall(const PrimExpr& expr) {
   return tirx::CheckContains::ExprContains(expr, IsVScaleCall);
 }
 }  // namespace
 
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /******** Tensorize Comparator ********/

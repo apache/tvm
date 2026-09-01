@@ -26,10 +26,11 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -41,6 +42,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 // TODO(Lunderberg): Move this pass to be before
@@ -79,7 +81,7 @@ class BoundChecker : public StmtExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
-    if (process_store_ && op->op.same_as(builtin::if_then_else())) {
+    if (process_store_ && op->op.same_as(prim::builtin::if_then_else())) {
       unsafe_rewritten_ = true;
     }
     return StmtExprMutator::VisitExpr_(op);

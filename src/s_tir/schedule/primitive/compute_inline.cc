@@ -23,6 +23,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 static const char kErrBodyInline[] = R"(The body of the inlined block should be in form of

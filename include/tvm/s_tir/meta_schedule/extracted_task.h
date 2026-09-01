@@ -23,6 +23,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/target/target.h>
 
 namespace tvm {
@@ -36,6 +37,7 @@ class Tensor;
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief A tuning task extracted from the high-level IR */

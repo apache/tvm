@@ -24,6 +24,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -175,7 +176,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                   /*5:*/
                   Call(
                       /*dtype=*/new_src_buffer.data()->ty,
-                      /*op=*/builtin::tvm_access_ptr(),
+                      /*op=*/tirx::builtin::tvm_access_ptr(),
                       /*args=*/
                       ffi::Array<Expr>{
                           /*0:*/ TypeAnnotation(new_src_buffer->dtype),
@@ -274,7 +275,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                                   /*5:*/
                                   Call(
                                       /*data=*/new_tgt_buffer.data()->ty,
-                                      /*op=*/builtin::tvm_access_ptr(),
+                                      /*op=*/tirx::builtin::tvm_access_ptr(),
                                       ffi::Array<Expr>{
                                           /*0:*/ TypeAnnotation(new_tgt_buffer->dtype),
                                           /*1:*/ new_tgt_buffer.data(),

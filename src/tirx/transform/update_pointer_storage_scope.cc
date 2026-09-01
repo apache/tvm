@@ -24,7 +24,7 @@
 #include "update_pointer_storage_scope.h"
 
 #include <tvm/ffi/cast.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>

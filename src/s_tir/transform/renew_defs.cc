@@ -31,6 +31,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 #define STMT_REGENERATE_VAR_DEF(NODE, FIELD)                                       \

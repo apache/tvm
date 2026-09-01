@@ -24,6 +24,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/tir_pattern.h>
 #include <tvm/relax/transform.h>
@@ -102,7 +103,7 @@ class ForMatcher : public TensorizeComparator {
       if (pattern_vars_.count(rhs_var)) {
         // special case for pattern vars
         if (!lhs.as<PrimVar>()) {
-          if (lhs->IsInstance<tirx::IntImmNode>() || lhs->IsInstance<tirx::FloatImmNode>()) {
+          if (lhs->IsInstance<IntImmNode>() || lhs->IsInstance<FloatImmNode>()) {
             ffi::Optional<PrimExpr> value = QueryEvaluatedSymbols(rhs_var);
             if (value.has_value()) {
               if (!analyzer_->CanProveEqual(lhs, value.value())) return false;
@@ -117,7 +118,7 @@ class ForMatcher : public TensorizeComparator {
       }
     }
     // pattern_var * expr
-    if (const auto* rhs_ptr = rhs.as<MulNode>()) {
+    if (const auto* rhs_ptr = rhs.as<prim::MulNode>()) {
       auto operand_a = rhs_ptr->a.as<PrimVar>();
       auto operand_b = rhs_ptr->b.as<PrimVar>();
       if (operand_a && pattern_vars_.count(operand_a.value())) {
@@ -148,7 +149,7 @@ class ForMatcher : public TensorizeComparator {
       }
     }
     // pattern_Var + expr
-    if (const auto* rhs_ptr = rhs.as<AddNode>()) {
+    if (const auto* rhs_ptr = rhs.as<prim::AddNode>()) {
       auto operand_a = rhs_ptr->a.as<PrimVar>();
       auto operand_b = rhs_ptr->b.as<PrimVar>();
       if (operand_a && pattern_vars_.count(operand_a.value())) {
@@ -181,8 +182,8 @@ class ForMatcher : public TensorizeComparator {
     return TensorizeComparator::VisitExpr(lhs, rhs);
   }
 
-  bool VisitExpr_(const tirx::AddNode* add, const PrimExpr& other) final {
-    const auto* rhs = other.as<AddNode>();
+  bool VisitExpr_(const prim::AddNode* add, const PrimExpr& other) final {
+    const auto* rhs = other.as<prim::AddNode>();
     if (rhs == nullptr) return false;
     {
       this->evaluated_symbols.push_back(SymbolMap());
@@ -207,8 +208,8 @@ class ForMatcher : public TensorizeComparator {
     return false;
   }
 
-  bool VisitExpr_(const tirx::MulNode* mul, const PrimExpr& other) final {
-    const auto* rhs = other.as<MulNode>();
+  bool VisitExpr_(const prim::MulNode* mul, const PrimExpr& other) final {
+    const auto* rhs = other.as<prim::MulNode>();
     if (rhs == nullptr) return false;
     {
       this->evaluated_symbols.push_back(SymbolMap());

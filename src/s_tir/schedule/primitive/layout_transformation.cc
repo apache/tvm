@@ -29,6 +29,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 
 using namespace tvm::tirx;
 
@@ -49,7 +50,7 @@ using namespace tvm::tirx;
  * analyzed block has no write stages for the transformed buffer.
  * This buffer is an input and the caller is responsible for ensuring
  * that the padding contains the specified `pad_value`.  The generated
- * prologue contains `builtin::assume()` calls that will expose this
+ * prologue contains `tirx::builtin::assume()` calls that will expose this
  * known value during scheduling/simplification, but will be removed
  * during lowering.
  *
@@ -491,7 +492,8 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     PrimExpr pad_value_at_index =
         pad_value.value()->MapIndices(indices, ffi::GetRef<arith::Analyzer>(analyzer))[0];
     PrimExpr expr = (!padding_predicate) || (BufferLoad(new_buffer, indices) == pad_value_at_index);
-    Stmt stmt = Evaluate(Call(PrimType::Bool(), builtin::assume(), {expr}).as_or_throw<PrimExpr>());
+    Stmt stmt =
+        Evaluate(Call(PrimType::Bool(), tirx::builtin::assume(), {expr}).as_or_throw<PrimExpr>());
 
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer.name() << "_assumptions";

@@ -96,8 +96,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // AssertStmt
-AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
-                       ffi::Array<StringImm> message_parts, Span span) {
+AssertStmt::AssertStmt(PrimExpr condition, prim::StringImm error_kind,
+                       ffi::Array<prim::StringImm> message_parts, Span span) {
   TVM_FFI_ICHECK(condition.defined());
   PrimType condition_ty = condition.ty();
   TVM_FFI_ICHECK(condition_ty.MatchesCode(DLDataTypeCode::kDLBool))
@@ -115,10 +115,10 @@ AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.AssertStmt", [](PrimExpr condition, StringImm error_kind,
-                                              ffi::Array<StringImm> message_parts, Span span) {
-    return AssertStmt(condition, error_kind, message_parts, span);
-  });
+  refl::GlobalDef().def(
+      "tirx.AssertStmt",
+      [](PrimExpr condition, prim::StringImm error_kind, ffi::Array<prim::StringImm> message_parts,
+         Span span) { return AssertStmt(condition, error_kind, message_parts, span); });
 }
 
 namespace {
@@ -494,7 +494,7 @@ PrimExpr BufferRegionNode::ToPrimExpr() const {
     if (tvm::tirx::is_one(r->extent)) {
       indices.push_back(r->min);
     } else if (r->extent.as<IntImmNode>()) {
-      indices.push_back(tirx::Ramp(r->min, IntImm(r->min.ty(), 1), r->extent));
+      indices.push_back(prim::Ramp(r->min, IntImm(r->min.ty(), 1), r->extent));
     } else {
       TVM_FFI_THROW(ValueError) << "Cannot convert to BufferLoad: "
                                 << ffi::GetRef<BufferRegion>(this);
@@ -524,7 +524,7 @@ BufferRegion BufferRegion::FullRegion(BufferVar buffer) {
 BufferRegion BufferRegion::FromPoint(BufferVar buffer, ffi::Array<PrimExpr> indices) {
   ffi::Array<Range> region;
   for (const PrimExpr& index : indices) {
-    if (const RampNode* ramp_index = index.as<RampNode>()) {
+    if (const prim::RampNode* ramp_index = index.as<prim::RampNode>()) {
       region.push_back(
           Range::FromMinExtent(ramp_index->base, ramp_index->stride * ramp_index->lanes));
     } else {

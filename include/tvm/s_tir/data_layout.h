@@ -26,7 +26,7 @@
 #define TVM_S_TIR_DATA_LAYOUT_H_
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/op.h>
 
 #include <algorithm>

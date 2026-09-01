@@ -25,10 +25,11 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -416,7 +417,7 @@ class BuiltinLower : public StmtExprMutator {
     }
   }
 
-  StringImm GetDeviceMethodName(const char* method_name) const {
+  prim::StringImm GetDeviceMethodName(const char* method_name) const {
     TVM_FFI_ICHECK(device_type_) << "Method " << method_name << " requires the device type, "
                                  << "but occurred outside of a \"device_type\" annotation";
 
@@ -427,7 +428,7 @@ class BuiltinLower : public StmtExprMutator {
                            << device_type_.value()->GetTypeKey();
 
     ffi::String device_name = runtime::DLDeviceType2Str(as_int->value);
-    return StringImm("device_api." + device_name + "." + method_name);
+    return prim::StringImm("device_api." + device_name + "." + method_name);
   }
 
   PrimExpr MakeDMACopy(const CallNode* op) {
@@ -553,7 +554,7 @@ class BuiltinLower : public StmtExprMutator {
           {call_pattern->args[0], call_pattern->args[1], args_stack, ConstInt32(stack_offset)})));
     } else {
       int arg_type_index;
-      if (arg.as<StringImmNode>()) {
+      if (arg.as<prim::StringImmNode>()) {
         arg_type_index = ffi::TypeIndex::kTVMFFIRawStr;
         arg = reinterpret(PointerType::VoidPointerTy(), std::move(arg));
       } else if (arg->ty.as<PointerTypeNode>()) {
@@ -564,7 +565,7 @@ class BuiltinLower : public StmtExprMutator {
         PrimType arg_ty = prim_arg.ty();
         PrimType api_ty = APIType(arg_ty);
         if (arg_ty != api_ty) {
-          arg = Cast(api_ty, prim_arg);
+          arg = prim::Cast(api_ty, prim_arg);
         }
         if (api_ty.MatchesCode(DLDataTypeCode::kDLBool)) {
           arg_type_index = ffi::TypeIndex::kTVMFFIBool;

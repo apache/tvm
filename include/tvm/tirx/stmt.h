@@ -25,8 +25,9 @@
 #define TVM_TIRX_STMT_H_
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/tirx/buffer.h>
 #include <tvm/tirx/exec_scope.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/layout.h>
 
 #include <optional>
@@ -162,9 +163,9 @@ class AssertStmtNode : public StmtNode {
   /*! \brief Condition to be checked. */
   PrimExpr condition;
   /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
-  StringImm error_kind;
+  prim::StringImm error_kind;
   /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
-  ffi::Array<StringImm> message_parts;
+  ffi::Array<prim::StringImm> message_parts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -182,8 +183,8 @@ class AssertStmtNode : public StmtNode {
  */
 class AssertStmt : public Stmt {
  public:
-  TVM_DLL AssertStmt(PrimExpr condition, StringImm error_kind, ffi::Array<StringImm> message_parts,
-                     Span span = Span());
+  TVM_DLL AssertStmt(PrimExpr condition, prim::StringImm error_kind,
+                     ffi::Array<prim::StringImm> message_parts, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AssertStmt, Stmt, AssertStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AssertStmtNode);

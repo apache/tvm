@@ -25,12 +25,13 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -81,14 +82,14 @@ class ReturnRewriter : public StmtMutator {
     PrimType dtype = prim_val.ty();
     if (dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
       info.type_index = ffi::TypeIndex::kTVMFFIBool;
-      info.expr = Cast(PrimType::Int(64), prim_val);
+      info.expr = prim::Cast(PrimType::Int(64), prim_val);
 
     } else if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
       info.type_index = ffi::TypeIndex::kTVMFFIInt;
-      info.expr = Cast(PrimType::Int(64), prim_val);
+      info.expr = prim::Cast(PrimType::Int(64), prim_val);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat) {
       info.type_index = ffi::TypeIndex::kTVMFFIFloat;
-      info.expr = Cast(PrimType::Float(64), prim_val);
+      info.expr = prim::Cast(PrimType::Float(64), prim_val);
     } else if (dtype.IsVoid()) {
       info.type_index = ffi::TypeIndex::kTVMFFINone;
       info.expr = prim_val;
@@ -147,7 +148,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
       auto gvar = ffi::GetRef<GlobalVar>(gvar_ptr);
       if (auto symbol = packed_func_methods.Get(gvar)) {
         ffi::Array<Expr> cpacked_args;
-        cpacked_args.push_back(tirx::StringImm(symbol.value()));
+        cpacked_args.push_back(prim::StringImm(symbol.value()));
         for (const Expr& arg : node->args) {
           cpacked_args.push_back(arg);
         }
@@ -249,7 +250,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
                                       ffi::symbol::tvm_ffi_symbol_prefix + global_symbol.value()}});
 
   Stmt body = ReturnRewriter(v_result)(func_ptr->body);
-  body = AttrStmt(0, attr::compute_scope, StringImm(name_hint + "_compute_"), body);
+  body = AttrStmt(0, attr::compute_scope, prim::StringImm(name_hint + "_compute_"), body);
   // Set device context
   if (need_set_device) {
     ffi::Any node = ffi::String("default");
@@ -258,8 +259,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
 
     if (runtime::DeviceAPI::NeedSetDevice(target_device_type)) {
       Stmt set_device = Evaluate(Call(PrimType::Int(32), builtin::tvm_call_packed(),
-                                      {StringImm(runtime::symbol::tvm_set_device), device_type,
-                                       device_id.as_or_throw<PrimExpr>()})
+                                      {prim::StringImm(runtime::symbol::tvm_set_device),
+                                       device_type, device_id.as_or_throw<PrimExpr>()})
                                      .as_or_throw<PrimExpr>());
       body = SeqStmt({set_device, body});
     }

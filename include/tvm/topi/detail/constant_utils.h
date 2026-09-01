@@ -25,10 +25,10 @@
 #define TVM_TOPI_DETAIL_CONSTANT_UTILS_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr.h>
 
 #include <string>
 #include <vector>
@@ -46,7 +46,7 @@ using namespace tvm::te;
  *
  * \return true if the given expr is a constant int or uint, false otherwise.
  */
-inline bool IsConstInt(PrimExpr expr) { return expr->IsInstance<tvm::tirx::IntImmNode>(); }
+inline bool IsConstInt(PrimExpr expr) { return expr->IsInstance<tvm::IntImmNode>(); }
 
 /*!
  * \brief Test whether the given Array has every element as constant integer.
@@ -59,7 +59,7 @@ inline bool IsConstInt(PrimExpr expr) { return expr->IsInstance<tvm::tirx::IntIm
 inline bool IsConstIntArray(ffi::Array<PrimExpr> array) {
   bool is_const_int = true;
   for (auto const& elem : array) {
-    is_const_int &= !elem.defined() || elem->IsInstance<tvm::tirx::IntImmNode>();
+    is_const_int &= !elem.defined() || elem->IsInstance<tvm::IntImmNode>();
   }
   return is_const_int;
 }

@@ -25,7 +25,7 @@
 #define TVM_ARITH_PATTERN_H_
 
 #include <tvm/ir/expr.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 
 namespace tvm {
 namespace arith {

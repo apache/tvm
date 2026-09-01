@@ -94,29 +94,29 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   Expr VisitExpr(const Expr& e) override;
 
   void Update(const Var& var, const PrimExpr& info, bool override_info);
-  Expr VisitExpr_(const AddNode* op) override;
-  Expr VisitExpr_(const SubNode* op) override;
-  Expr VisitExpr_(const MulNode* op) override;
-  Expr VisitExpr_(const DivNode* op) override;
-  Expr VisitExpr_(const ModNode* op) override;
-  Expr VisitExpr_(const FloorDivNode* op) override;
-  Expr VisitExpr_(const FloorModNode* op) override;
-  Expr VisitExpr_(const MinNode* op) override;
-  Expr VisitExpr_(const MaxNode* op) override;
-  Expr VisitExpr_(const EQNode* op) override;
-  Expr VisitExpr_(const NENode* op) override;
-  Expr VisitExpr_(const LTNode* op) override;
-  Expr VisitExpr_(const LENode* op) override;
-  Expr VisitExpr_(const GTNode* op) override;
-  Expr VisitExpr_(const GENode* op) override;
-  Expr VisitExpr_(const AndNode* op) override;
-  Expr VisitExpr_(const OrNode* op) override;
-  Expr VisitExpr_(const NotNode* op) override;
-  Expr VisitExpr_(const SelectNode* op) override;
+  Expr VisitExpr_(const prim::AddNode* op) override;
+  Expr VisitExpr_(const prim::SubNode* op) override;
+  Expr VisitExpr_(const prim::MulNode* op) override;
+  Expr VisitExpr_(const prim::DivNode* op) override;
+  Expr VisitExpr_(const prim::ModNode* op) override;
+  Expr VisitExpr_(const prim::FloorDivNode* op) override;
+  Expr VisitExpr_(const prim::FloorModNode* op) override;
+  Expr VisitExpr_(const prim::MinNode* op) override;
+  Expr VisitExpr_(const prim::MaxNode* op) override;
+  Expr VisitExpr_(const prim::EQNode* op) override;
+  Expr VisitExpr_(const prim::NENode* op) override;
+  Expr VisitExpr_(const prim::LTNode* op) override;
+  Expr VisitExpr_(const prim::LENode* op) override;
+  Expr VisitExpr_(const prim::GTNode* op) override;
+  Expr VisitExpr_(const prim::GENode* op) override;
+  Expr VisitExpr_(const prim::AndNode* op) override;
+  Expr VisitExpr_(const prim::OrNode* op) override;
+  Expr VisitExpr_(const prim::NotNode* op) override;
+  Expr VisitExpr_(const prim::SelectNode* op) override;
   Expr VisitExpr_(const CallNode* op) override;
   Expr VisitExpr_(const VarNode* op) override;
-  Expr VisitExpr_(const CastNode* op) override;
-  Expr VisitExpr_(const LetNode* op) override;
+  Expr VisitExpr_(const prim::CastNode* op) override;
+  Expr VisitExpr_(const prim::LetNode* op) override;
 
   std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume);
 
@@ -194,7 +194,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
    * \param op The let expr.
    * \return The inline decision.
    */
-  bool CanInlineLet(const LetNode* op);
+  bool CanInlineLet(const prim::LetNode* op);
 
   /*! \brief Internal function to apply constraints
    *
@@ -210,21 +210,21 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
    * These are separate from the VisitExpr_(const LTNode*) method, as
    * they may required from rewrites of LT or LE.
    */
-  PrimExpr ApplyRewriteRules(LT node);
+  PrimExpr ApplyRewriteRules(prim::LT node);
 
   /*! \brief Rewrite rules for Equal comparisons
    *
    * These are separate from the VisitExpr_(const EQNode*) method, as
    * they may required from rewrites of LE or NE.
    */
-  PrimExpr ApplyRewriteRules(EQ node);
+  PrimExpr ApplyRewriteRules(prim::EQ node);
 
   /*! \brief Rewrite rules for Equal comparisons
    *
    * These are separate from the VisitExpr_(const EQNode*) method, as
    * they may required from rewrites of LT, LE, or NE.
    */
-  PrimExpr ApplyRewriteRules(Not node);
+  PrimExpr ApplyRewriteRules(prim::Not node);
 
  private:
   CompareResult TryCompareUsingKnownInequalities(const PrimExpr& x, const PrimExpr& y);

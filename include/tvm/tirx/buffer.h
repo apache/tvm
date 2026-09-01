@@ -361,6 +361,15 @@ TVM_DLL BufferVar decl_buffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimT
 TVM_DLL tirx::BufferVar BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                                   std::string name, int data_alignment,
                                                   int offset_factor, std::string memory_scope = "");
+
+/*!
+ * \brief Construct a TensorLoad from a BufferVar.
+ *
+ * This is the sole typed construction path for tirx loads.  The result type
+ * is derived from the buffer element type and index lanes, and every tirx
+ * TensorLoad is required to have a BufferVar source.
+ */
+TVM_DLL TensorLoad BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices, Span span = Span());
 }  // namespace tirx
 }  // namespace tvm
 

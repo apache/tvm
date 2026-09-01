@@ -23,10 +23,11 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -37,6 +38,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 class PTXAsyncCopyInjector : public StmtMutator {
@@ -119,7 +121,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
               auto* add = store->indices[0].as<AddNode>();
               if (!add->a->IsInstance<RampNode>()) return PrimExpr();
               if (!add->b->IsInstance<BroadcastNode>()) return PrimExpr();
-              return tirx::Add(add->a.as<RampNode>()->base, add->b.as<BroadcastNode>()->value);
+              return prim::Add(add->a.as<RampNode>()->base, add->b.as<BroadcastNode>()->value);
             }
             return PrimExpr();
           }();
@@ -150,7 +152,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
               auto* add = store->indices[0].as<AddNode>();
               if (!add->a->IsInstance<RampNode>()) return PrimExpr();
               if (!add->b->IsInstance<BroadcastNode>()) return PrimExpr();
-              return tirx::Add(add->a.as<RampNode>()->base, add->b.as<BroadcastNode>()->value);
+              return prim::Add(add->a.as<RampNode>()->base, add->b.as<BroadcastNode>()->value);
             }
             return PrimExpr();
           }();
@@ -174,8 +176,8 @@ class PTXAsyncCopyInjector : public StmtMutator {
       if (auto* load = store->value.as<TensorLoadNode>()) {
         return InjectPTX(load, store);
       } else if (auto* call = store->value.as<CallNode>()) {
-        // tirx.if_then_else is a call to tirx::builtin::if_then_else()
-        if (call->op.same_as(builtin::if_then_else()) && call->args.size() == 3) {
+        // tirx.if_then_else is a call to prim::builtin::if_then_else()
+        if (call->op.same_as(prim::builtin::if_then_else()) && call->args.size() == 3) {
           if (auto* load = call->args[1].as<TensorLoadNode>()) {
             // Only default value of 0 is supported since 0 is the default value used by cp.async
             // ptx. @see section 9.7.8.22.3. of

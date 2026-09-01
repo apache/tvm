@@ -27,8 +27,8 @@
 
 #include <tvm/arith/analyzer.h>  // For the arith::Analyzer::Simplify() method simplifying terms
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>  // For the ExprDeepEqual analysis
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -150,7 +150,7 @@ ComputationTable ComputationsDoneBy::GetComputationsDoneBy(
     const PrimExpr& expr, std::function<bool(const PrimExpr&)> is_eligible_computation,
     std::function<bool(const PrimExpr&)> can_contain_computations) {
   if (expr.as<IntImmNode>() != nullptr || expr.as<FloatImmNode>() != nullptr ||
-      expr.as<StringImmNode>() != nullptr || expr.as<PrimVar>()) {
+      expr.as<prim::StringImmNode>() != nullptr || expr.as<PrimVar>()) {
     return {};
   }
 
@@ -204,7 +204,7 @@ void ComputationsDoneBy::VisitExpr(const Expr& expr_value) {
   }
   PrimExpr expr = opt_expr.value();
   if (expr.as<IntImmNode>() != nullptr || expr.as<FloatImmNode>() != nullptr ||
-      expr.as<StringImmNode>() != nullptr || expr.as<PrimVar>()) {
+      expr.as<prim::StringImmNode>() != nullptr || expr.as<PrimVar>()) {
     return;
   }
 

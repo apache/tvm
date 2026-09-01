@@ -24,6 +24,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
@@ -31,7 +33,6 @@
 #include <tvm/runtime/vm/executable.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
 
@@ -116,7 +117,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     if (dst_anylist_slot >= 0) {
       all_args = {reg_anylist_handle_, ConstInt32(dst_anylist_slot)};
     }
-    all_args.push_back(tirx::StringImm(name));
+    all_args.push_back(prim::StringImm(name));
     for (Expr arg : args) {
       all_args.push_back(arg);
     }
@@ -140,7 +141,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     if (dst_anylist_slot >= 0) {
       all_args = {reg_anylist_handle_, ConstInt32(dst_anylist_slot)};
     }
-    all_args.push_back(tirx::StringImm(gsymbol.value()));
+    all_args.push_back(prim::StringImm(gsymbol.value()));
     for (Expr arg : args) {
       all_args.push_back(arg);
     }
@@ -270,7 +271,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     Expr cond_value = this->VisitExpr(op->cond).value();
 
     PrimExpr condition = tvm::Call(tvm::PrimType::Bool(), tirx::builtin::tvm_call_packed(),
-                                   {tirx::StringImm("vm.builtin.read_if_cond"), cond_value})
+                                   {prim::StringImm("vm.builtin.read_if_cond"), cond_value})
                              .as_or_throw<PrimExpr>();
 
     tirx::Stmt true_branch = WithNewScope([&]() {
@@ -300,32 +301,32 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
   ffi::Optional<Expr> VisitExpr_(const OP* op) final { return ffi::GetRef<Expr>(op); }
 
   VM_TIR_PRIM_EXPR(TensorLoadNode);
-  VM_TIR_PRIM_EXPR(tirx::AddNode);
-  VM_TIR_PRIM_EXPR(tirx::SubNode);
-  VM_TIR_PRIM_EXPR(tirx::MulNode);
-  VM_TIR_PRIM_EXPR(tirx::DivNode);
-  VM_TIR_PRIM_EXPR(tirx::ModNode);
-  VM_TIR_PRIM_EXPR(tirx::FloorDivNode);
-  VM_TIR_PRIM_EXPR(tirx::FloorModNode);
-  VM_TIR_PRIM_EXPR(tirx::MinNode);
-  VM_TIR_PRIM_EXPR(tirx::MaxNode);
-  VM_TIR_PRIM_EXPR(tirx::EQNode);
-  VM_TIR_PRIM_EXPR(tirx::NENode);
-  VM_TIR_PRIM_EXPR(tirx::LTNode);
-  VM_TIR_PRIM_EXPR(tirx::LENode);
-  VM_TIR_PRIM_EXPR(tirx::GTNode);
-  VM_TIR_PRIM_EXPR(tirx::GENode);
-  VM_TIR_PRIM_EXPR(tirx::AndNode);
-  VM_TIR_PRIM_EXPR(tirx::OrNode);
-  VM_TIR_PRIM_EXPR(tirx::CastNode);
-  VM_TIR_PRIM_EXPR(tirx::NotNode);
-  VM_TIR_PRIM_EXPR(tirx::SelectNode);
-  VM_TIR_PRIM_EXPR(tirx::RampNode);
-  VM_TIR_PRIM_EXPR(tirx::BroadcastNode);
-  VM_TIR_PRIM_EXPR(tirx::ShuffleNode);
+  VM_TIR_PRIM_EXPR(prim::AddNode);
+  VM_TIR_PRIM_EXPR(prim::SubNode);
+  VM_TIR_PRIM_EXPR(prim::MulNode);
+  VM_TIR_PRIM_EXPR(prim::DivNode);
+  VM_TIR_PRIM_EXPR(prim::ModNode);
+  VM_TIR_PRIM_EXPR(prim::FloorDivNode);
+  VM_TIR_PRIM_EXPR(prim::FloorModNode);
+  VM_TIR_PRIM_EXPR(prim::MinNode);
+  VM_TIR_PRIM_EXPR(prim::MaxNode);
+  VM_TIR_PRIM_EXPR(prim::EQNode);
+  VM_TIR_PRIM_EXPR(prim::NENode);
+  VM_TIR_PRIM_EXPR(prim::LTNode);
+  VM_TIR_PRIM_EXPR(prim::LENode);
+  VM_TIR_PRIM_EXPR(prim::GTNode);
+  VM_TIR_PRIM_EXPR(prim::GENode);
+  VM_TIR_PRIM_EXPR(prim::AndNode);
+  VM_TIR_PRIM_EXPR(prim::OrNode);
+  VM_TIR_PRIM_EXPR(prim::CastNode);
+  VM_TIR_PRIM_EXPR(prim::NotNode);
+  VM_TIR_PRIM_EXPR(prim::SelectNode);
+  VM_TIR_PRIM_EXPR(prim::RampNode);
+  VM_TIR_PRIM_EXPR(prim::BroadcastNode);
+  VM_TIR_PRIM_EXPR(prim::ShuffleNode);
   VM_TIR_PRIM_EXPR(tvm::IntImmNode);
   VM_TIR_PRIM_EXPR(tvm::FloatImmNode);
-  VM_TIR_PRIM_EXPR(tirx::StringImmNode);
+  VM_TIR_PRIM_EXPR(prim::StringImmNode);
 
 #undef VM_TIR_PRIM_EXPR
 
@@ -461,7 +462,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
     if (vdevice.has_value()) {
-      args.push_back(tirx::StringImm(vdevice.value()->memory_scope));
+      args.push_back(prim::StringImm(vdevice.value()->memory_scope));
     }
 
     this->EmitCallPacked("vm.builtin.alloc_tensor", args, dst_reg);
@@ -477,7 +478,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     TVM_FFI_ICHECK(tir_call->op.same_as(tirx::builtin::anylist_getitem()));
     TVM_FFI_ICHECK(tir_call->args.size() == 2);
     TVM_FFI_ICHECK(tir_call->args[0].same_as(reg_anylist_handle_));
-    const auto* p_dst_reg = tir_call->args[1].as<tirx::IntImmNode>();
+    const auto* p_dst_reg = tir_call->args[1].as<IntImmNode>();
     TVM_FFI_ICHECK(p_dst_reg != nullptr);
     TVM_FFI_ICHECK(
         p_dst_reg->ty.as_or_throw<PrimType>().MatchesElementType(DLDataTypeCode::kDLInt, 32));

@@ -27,8 +27,11 @@
 #ifndef TVM_S_TIR_STMT_H_
 #define TVM_S_TIR_STMT_H_
 
+#include <tvm/ir/prim/expr.h>
+
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace attr {
 
 /*!

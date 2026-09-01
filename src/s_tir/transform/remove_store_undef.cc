@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
@@ -32,6 +33,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 struct UndefInfo {
@@ -109,7 +111,7 @@ class StoreUndefLocator : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::undef())) {
+    if (op->op.same_as(tirx::builtin::undef())) {
       has_undef_ = true;
     }
     StmtExprVisitor::VisitExpr_(op);
@@ -158,7 +160,7 @@ class StoreUndefRemover : public StmtExprMutator {
   const std::unordered_set<const VarNode*>& bind_vars_to_remove_;
 };
 
-// Check that no builtin::undef() remains in the IR.
+// Check that no tirx::builtin::undef() remains in the IR.
 class ContainsUndefChecker : public StmtExprVisitor {
  public:
   static bool Check(const Stmt& stmt) {
@@ -169,7 +171,7 @@ class ContainsUndefChecker : public StmtExprVisitor {
 
  private:
   void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::undef())) {
+    if (op->op.same_as(tirx::builtin::undef())) {
       contains_undef = true;
     }
     StmtExprVisitor::VisitExpr_(op);
@@ -192,8 +194,8 @@ Pass ValidateAllUndefRemoved() {
   auto pass_func = [](PrimFunc f, IRModule m, tvm::transform::PassContext ctx) {
     bool contains_undef = ContainsUndefChecker::Check(f->body);
     TVM_FFI_ICHECK(!contains_undef)
-        << "Expected removal of BufferStore containing builtin::undef() "
-        << "to remove all instances of builtin::undef().  "
+        << "Expected removal of BufferStore containing tirx::builtin::undef() "
+        << "to remove all instances of tirx::builtin::undef().  "
         << "Instead, result was"
         << "\n"
         << f;

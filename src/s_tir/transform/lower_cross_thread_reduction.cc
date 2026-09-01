@@ -25,6 +25,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -35,6 +36,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 
 using namespace tvm::tirx;
 using runtime::ThreadScope;
@@ -301,7 +303,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                              const ffi::Array<BufferVar>& ct_buffers,                 //
                              const ffi::Array<BufferVar>& wb_buffers,                 //
                              const ffi::Array<PrimExpr>& old_wb_indices,              //
-                             const CommReducer& reducer,                              //
+                             const te::CommReducer& reducer,                          //
                              const ffi::Array<PrimExpr>& combiner_rhs,                //
                              const std::vector<const ForNode*>& reduction_loops) {
   int n_buffers = wb_buffers.size();
@@ -634,7 +636,8 @@ class CrossThreadReductionTransformer : public StmtMutator {
    *  - the RHS values of the reduction updates,
    *  - the indices which is used to access the reduction buffers when storing the reduction results
    */
-  std::tuple<int, CommReducer, ffi::Array<BufferVar>, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>>
+  std::tuple<int, te::CommReducer, ffi::Array<BufferVar>, ffi::Array<PrimExpr>,
+             ffi::Array<PrimExpr>>
   CheckCanApplyCrossThreadReduction(const SBlockNode* block,
                                     const std::vector<const ForNode*>& reduction_loops) const {
     // Condition 1. All the reduction-related loops should be the deepest among all statements
@@ -677,7 +680,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
     // the reduction identities and the reduction combiner.
     ffi::Array<PrimExpr> init_values{nullptr};
     ffi::Array<BufferStore> updates{nullptr};
-    CommReducer reducer{nullptr};
+    te::CommReducer reducer{nullptr};
     ffi::Array<PrimExpr> combiner_lhs{nullptr};
     ffi::Array<PrimExpr> combiner_rhs{nullptr};
     std::tie(init_values, updates) =
@@ -807,7 +810,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
     // Step 1. Check whether cross-thread reduction can be applied. If no, throw an exception on
     // which condition the block violates.
     int n_bound_reduction_loops = 0;
-    CommReducer reducer{nullptr};
+    te::CommReducer reducer{nullptr};
     ffi::Array<BufferVar> reduction_buffers{nullptr};
     ffi::Array<PrimExpr> combiner_rhs{nullptr};
     ffi::Array<PrimExpr> wb_indices{nullptr};

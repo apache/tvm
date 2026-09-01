@@ -26,7 +26,7 @@
 #ifndef TVM_ARITH_CONSTRAINT_EXTRACT_H_
 #define TVM_ARITH_CONSTRAINT_EXTRACT_H_
 
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <vector>
 

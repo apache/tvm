@@ -33,6 +33,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using support::NDIntSet;
@@ -1375,6 +1376,7 @@ class PerStoreFeatureCollector : private StmtVisitor {
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 class PerStoreFeatureNode : public FeatureExtractorNode {

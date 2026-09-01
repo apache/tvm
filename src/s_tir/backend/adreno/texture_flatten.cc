@@ -24,10 +24,11 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt.h>
 
 #include <unordered_map>
@@ -38,6 +39,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace backend {
 namespace adreno {
 using namespace tvm::tirx;
@@ -96,7 +98,7 @@ class TextureFlattener : public TextureLoweringBase {
     if (IsTextureStorage(storage_scope)) {
       ffi::Array<Expr> args = GetTextureAccessArgs(op, op->buffer);
       args.push_back(op->value);
-      stmt = Evaluate(Call(args[0]->ty, builtin::texture2d_store(), args));
+      stmt = Evaluate(Call(args[0]->ty, tirx::builtin::texture2d_store(), args));
     }
 
     return stmt;
@@ -111,8 +113,8 @@ class TextureFlattener : public TextureLoweringBase {
       ffi::Array<Expr> args =
           GetTextureAccessArgs(op, op->source.as_or_throw<tvm::tirx::BufferVar>());
       args.push_back(op->indices.back());
-      expr = Call(op->source.as_or_throw<tvm::tirx::BufferVar>()->dtype, builtin::texture2d_load(),
-                  args)
+      expr = Call(op->source.as_or_throw<tvm::tirx::BufferVar>()->dtype,
+                  tirx::builtin::texture2d_load(), args)
                  .as_or_throw<PrimExpr>();
     }
 

@@ -225,8 +225,9 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
     }
     Update(buffers, regions, buffer, relaxed_region);
   };
-  if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
-    bool is_load = op->op.same_as(builtin::masked_load());
+  if (op->op.same_as(tirx::builtin::masked_load()) ||
+      op->op.same_as(tirx::builtin::masked_store())) {
+    bool is_load = op->op.same_as(tirx::builtin::masked_load());
     BufferVar buffer(op->args[0].as_or_throw<Var>());
     ffi::Array<PrimExpr> indices;
     for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
@@ -239,10 +240,10 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
     }
     return;
   }
-  if (op->op.same_as(builtin::tvm_access_ptr())) {
+  if (op->op.same_as(tirx::builtin::tvm_access_ptr())) {
     const VarNode* buffer_var = op->args[1].as<VarNode>();
     if (const auto* data = op->args[1].as<CallNode>();
-        data && data->op.same_as(builtin::buffer_data())) {
+        data && data->op.same_as(tirx::builtin::buffer_data())) {
       buffer_var = data->args[0].as<VarNode>();
     }
     const IntImmNode* access_mask = op->args[4].as<IntImmNode>();
@@ -271,7 +272,7 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
     }
     return;
   }
-  if (op->op.same_as(builtin::if_then_else())) {
+  if (op->op.same_as(prim::builtin::if_then_else())) {
     PrimExpr condition = op->args[0].as_or_throw<PrimExpr>();
     VisitExpr(condition);
     {

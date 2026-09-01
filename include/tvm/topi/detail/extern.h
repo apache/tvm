@@ -24,6 +24,7 @@
 #ifndef TVM_TOPI_DETAIL_EXTERN_H_
 #define TVM_TOPI_DETAIL_EXTERN_H_
 
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
 

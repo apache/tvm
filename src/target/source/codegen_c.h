@@ -25,10 +25,11 @@
 #define TVM_TARGET_SOURCE_CODEGEN_C_H_
 
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
@@ -164,34 +165,34 @@ class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
    */
   virtual void InitFuncState(const PrimFunc& f);
   // expression
-  void VisitExpr_(const VarNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const TensorLoadNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const LetNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const CallNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const AddNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const SubNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const MulNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const DivNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const ModNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const MinNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const MaxNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const EQNode* op, std::ostream& os) override;          // NOLINT(*)
-  void VisitExpr_(const NENode* op, std::ostream& os) override;          // NOLINT(*)
-  void VisitExpr_(const LTNode* op, std::ostream& os) override;          // NOLINT(*)
-  void VisitExpr_(const LENode* op, std::ostream& os) override;          // NOLINT(*)
-  void VisitExpr_(const GTNode* op, std::ostream& os) override;          // NOLINT(*)
-  void VisitExpr_(const GENode* op, std::ostream& os) override;          // NOLINT(*)
-  void VisitExpr_(const AndNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const OrNode* op, std::ostream& os) override;          // NOLINT(*)
-  void VisitExpr_(const CastNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const NotNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const SelectNode* op, std::ostream& os) override;      // NOLINT(*)
-  void VisitExpr_(const RampNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const ShuffleNode* op, std::ostream& os) override;     // NOLINT(*)
-  void VisitExpr_(const BroadcastNode* op, std::ostream& os) override;   // NOLINT(*)
-  void VisitExpr_(const IntImmNode* op, std::ostream& os) override;      // NOLINT(*)
-  void VisitExpr_(const FloatImmNode* op, std::ostream& os) override;    // NOLINT(*)
-  void VisitExpr_(const StringImmNode* op, std::ostream& os) override;   // NOLINT(*)
+  void VisitExpr_(const VarNode* op, std::ostream& os) override;              // NOLINT(*)
+  void VisitExpr_(const TensorLoadNode* op, std::ostream& os) override;       // NOLINT(*)
+  void VisitExpr_(const prim::LetNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os) override;             // NOLINT(*)
+  void VisitExpr_(const prim::AddNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const prim::SubNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const prim::MulNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const prim::DivNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const prim::ModNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const prim::MinNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const prim::MaxNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const prim::EQNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const prim::NENode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const prim::LTNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const prim::LENode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const prim::GTNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const prim::GENode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const prim::AndNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const prim::OrNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const prim::CastNode* op, std::ostream& os) override;       // NOLINT(*)
+  void VisitExpr_(const prim::NotNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const prim::SelectNode* op, std::ostream& os) override;     // NOLINT(*)
+  void VisitExpr_(const prim::RampNode* op, std::ostream& os) override;       // NOLINT(*)
+  void VisitExpr_(const prim::ShuffleNode* op, std::ostream& os) override;    // NOLINT(*)
+  void VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const IntImmNode* op, std::ostream& os) override;           // NOLINT(*)
+  void VisitExpr_(const FloatImmNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const prim::StringImmNode* op, std::ostream& os) override;  // NOLINT(*)
   // statment
   void VisitStmt_(const BindNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
@@ -355,7 +356,7 @@ class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
   ExprDeepEqual deep_equal_;
 
   // binding of let variables. Enables duplicate var defs that map to same value
-  std::unordered_map<Var, const LetNode*> let_binding_;
+  std::unordered_map<Var, const prim::LetNode*> let_binding_;
 
   /* \brief Map of GlobalVar to their symbol.
    *

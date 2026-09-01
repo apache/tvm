@@ -121,7 +121,7 @@ void StmtVisitor::VisitStmt_(const IfThenElseNode* op) {
 void StmtVisitor::VisitStmt_(const AssertStmtNode* op) {
   this->VisitExpr(op->condition);
   this->VisitExpr(op->error_kind);
-  VisitArray(op->message_parts, [this](const StringImm& e) { this->VisitExpr(e); });
+  VisitArray(op->message_parts, [this](const prim::StringImm& e) { this->VisitExpr(e); });
 }
 
 void StmtVisitor::VisitStmt_(const SeqStmtNode* op) {
@@ -581,9 +581,10 @@ Stmt StmtMutator::VisitSeqStmt_(const SeqStmtNode* op, bool flatten_before_visit
 Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
   PrimExpr condition = this->VisitPrimExpr(op->condition);
   PrimExpr error_kind = this->VisitPrimExpr(op->error_kind);
-  ffi::Array<StringImm> message_parts = Internal::MutateArray(
-      this, op->message_parts,
-      [this](const StringImm& e) { return this->VisitPrimExpr(e).as_or_throw<StringImm>(); });
+  ffi::Array<prim::StringImm> message_parts =
+      Internal::MutateArray(this, op->message_parts, [this](const prim::StringImm& e) {
+        return this->VisitPrimExpr(e).as_or_throw<prim::StringImm>();
+      });
 
   if (condition.same_as(op->condition) && error_kind.same_as(op->error_kind) &&
       message_parts.same_as(op->message_parts)) {
@@ -591,7 +592,7 @@ Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
   } else {
     auto n = CopyOnWrite(op);
     n->condition = std::move(condition);
-    n->error_kind = std::move(error_kind).as_or_throw<StringImm>();
+    n->error_kind = std::move(error_kind).as_or_throw<prim::StringImm>();
     n->message_parts = std::move(message_parts);
     return Stmt(n);
   }

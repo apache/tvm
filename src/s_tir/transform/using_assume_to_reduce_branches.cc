@@ -37,6 +37,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/s_tir/transform.h>
@@ -52,6 +53,7 @@
 #include "tvm/ir/expr.h"
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using namespace arith;
@@ -69,7 +71,7 @@ class AssumeChecker : public StmtExprVisitor {
     StmtVisitor::VisitStmt(stmt);
   }
   void VisitExpr_(const CallNode* op) override {
-    if (op->op.same_as(builtin::assume())) {
+    if (op->op.same_as(tirx::builtin::assume())) {
       has_assume = true;
     }
   }
@@ -225,7 +227,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
     // Eliminate the builtin if_then_else statement
     if (auto* call = op->value.as<CallNode>()) {
-      if (call->op.same_as(builtin::if_then_else())) {
+      if (call->op.same_as(prim::builtin::if_then_else())) {
         PrimExpr cond = call->args[0].as_or_throw<PrimExpr>();
         PrimExpr then_clause = call->args[1].as_or_throw<PrimExpr>();
         PrimExpr else_clause = call->args[2].as_or_throw<PrimExpr>();
@@ -272,7 +274,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   }
 
   Expr VisitExpr_(const CallNode* op) override {
-    if (op->op.same_as(builtin::assume())) {
+    if (op->op.same_as(tirx::builtin::assume())) {
       Assume(op->args[0].as_or_throw<PrimExpr>());
     }
     return Parent::VisitExpr_(op);
@@ -312,7 +314,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     TVM_FFI_ICHECK_EQ(buffer_exprs.size(), 1)
         << "T.assume must contain only a single buffer expression";
 
-    auto* as_equal_node = buffer_exprs[0].as<tirx::EQNode>();
+    auto* as_equal_node = buffer_exprs[0].as<prim::EQNode>();
     TVM_FFI_ICHECK(as_equal_node)
         << "T.assume buffer constraint must be of the form 'buffer[indices] == "
            "value', but received "

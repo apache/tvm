@@ -190,7 +190,7 @@ void CodeGenCHost::PrintType(const PrimType& type, std::ostream& os) {  // NOLIN
   TVM_FFI_THROW(InternalError) << "Cannot convert type " << type->dtype << " to C type";
 }
 
-void CodeGenCHost::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCHost::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   int lanes = op->ty.as_or_throw<PrimType>().lanes();
   os << "((";
@@ -223,7 +223,7 @@ void CodeGenCHost::PrintGetFuncFromBackend(const std::string& func_name,
 }
 
 void CodeGenCHost::PrintCallPacked(const CallNode* op) {
-  const StringImmNode* func_name = op->args[0].as<StringImmNode>();
+  const prim::StringImmNode* func_name = op->args[0].as<prim::StringImmNode>();
   TVM_FFI_ICHECK(func_name != nullptr)
       << "tvm_call_[c]packed_lowered expects first argument as function name";
   int64_t begin = op->args[2].as<IntImmNode>()->value;
@@ -269,7 +269,7 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
 }
 
 std::string CodeGenCHost::GetPackedName(const CallNode* op) {
-  const StringImmNode* s = op->args[0].as<StringImmNode>();
+  const prim::StringImmNode* s = op->args[0].as<prim::StringImmNode>();
   TVM_FFI_ICHECK(s != nullptr) << "tvm_call_packed_lowered expects first argument as function name";
   std::string func_name = s->value;
   std::string packed_func_name = func_name + "_packed";
@@ -288,7 +288,7 @@ std::string CodeGenCHost::GetPackedName(const CallNode* op) {
 void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (op->op.same_as(builtin::tvm_stack_alloca())) {
     std::string stack_name = name_supply_->FreshName("stack");
-    const std::string& type = op->args[0].as<StringImmNode>()->value;
+    const std::string& type = op->args[0].as<prim::StringImmNode>()->value;
     const IntImmNode* num = op->args[1].as<IntImmNode>();
     TVM_FFI_ICHECK(num != nullptr);
     static_assert(alignof(TVMFFIAny) % alignof(DLTensor) == 0, "invariant");
@@ -346,11 +346,11 @@ void CodeGenCHost::VisitStmt_(const AssertStmtNode* op) {  // NOLINT(*)
   }
 }
 
-void CodeGenCHost::VisitExpr_(const MinNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCHost::VisitExpr_(const prim::MinNode* op, std::ostream& os) {  // NOLINT(*)
   PrintTernaryCondExpr(op, "<", os);
 }
 
-void CodeGenCHost::VisitExpr_(const MaxNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCHost::VisitExpr_(const prim::MaxNode* op, std::ostream& os) {  // NOLINT(*)
   PrintTernaryCondExpr(op, ">", os);
 }
 

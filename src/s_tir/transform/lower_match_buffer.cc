@@ -36,6 +36,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 class MatchBufferLower : public StmtExprMutator {
  public:
@@ -107,7 +108,8 @@ class MatchBufferLower : public StmtExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
-    if ((op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) &&
+    if ((op->op.same_as(tirx::builtin::masked_load()) ||
+         op->op.same_as(tirx::builtin::masked_store())) &&
         !op->args.empty()) {
       if (auto var = op->args[0].as<Var>(); var && var.value()->ty.as<BufferTypeNode>()) {
         BufferVar buffer(var.value());
@@ -115,7 +117,7 @@ class MatchBufferLower : public StmtExprMutator {
             << "Predicated buffer access is not currently supported in lower match buffer pass.";
       }
     }
-    if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
+    if (op->op.same_as(tirx::builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
         auto it = match_buffers_.find(BufferVar(var.value()));

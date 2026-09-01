@@ -23,9 +23,9 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/tensor.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <tuple>
@@ -123,7 +123,7 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
       bounds->resize(args.size());
     }
     for (size_t i = 0; i < args.size(); ++i) {
-      if (args[i].as<RampNode>()) {
+      if (args[i].as<prim::RampNode>()) {
         (*bounds)[i].emplace_back(IntSet::Vector(args[i]));
       } else {
         (*bounds)[i].emplace_back(analyzer_->int_set(args[i]));

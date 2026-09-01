@@ -19,6 +19,8 @@
 #ifndef TVM_S_TIR_SCHEDULE_IR_COMPARATOR_H_
 #define TVM_S_TIR_SCHEDULE_IR_COMPARATOR_H_
 
+#include <tvm/ir/prim/expr.h>
+
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -28,6 +30,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using ExprComparator = ExprFunctor<bool(const Expr& n, const PrimExpr& other)>;

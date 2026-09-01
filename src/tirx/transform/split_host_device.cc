@@ -24,12 +24,13 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -308,8 +309,8 @@ class HostDeviceSplitter : public StmtMutator {
       Var kernel_error_code("kernel_error_code", success.ty());
       Call kernel_call(success.ty(), kernel_symbol_global, call_args);
       AssertStmt assert_success(kernel_error_code.as_or_throw<PrimExpr>() == success,
-                                StringImm("RuntimeError"),
-                                {StringImm("Error executing compute kernel")});
+                                prim::StringImm("RuntimeError"),
+                                {prim::StringImm("Error executing compute kernel")});
       return SeqStmt(ffi::Array<Stmt>{Bind(kernel_error_code, kernel_call.as_or_throw<PrimExpr>()),
                                       assert_success});
 
@@ -742,7 +743,7 @@ class DeviceKernelMutator : public StmtExprMutator {
         // launch, but need to be replaced with call_extern.
         extern_function_call_.insert(gvar);
         ffi::Array<Expr> args;
-        args.push_back(StringImm(gvar->name_hint));
+        args.push_back(prim::StringImm(gvar->name_hint));
         for (const Expr& arg : node->args) {
           args.push_back(arg);
         }
@@ -778,7 +779,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     device_kernel_launch_.insert(gvar);
 
     ffi::Array<Expr> call_args;
-    call_args.push_back(StringImm(dev_info.global_symbol));
+    call_args.push_back(prim::StringImm(dev_info.global_symbol));
     for (const Expr& arg : args) {
       call_args.push_back(arg);
     }

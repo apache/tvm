@@ -24,8 +24,8 @@
 #ifndef TVM_TE_OPERATION_GRAPH_H_
 #define TVM_TE_OPERATION_GRAPH_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/expr.h>
 
 namespace tvm {
 namespace te {

@@ -125,7 +125,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
     } else if (auto expr = obj.try_cast<PrimExpr>()) {
       return expr.value();
     } else if (auto str = obj.try_cast<ffi::String>()) {
-      return std::move(StringImm(str.value()));
+      return std::move(prim::StringImm(str.value()));
     } else {
       LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj.GetTypeKey()
                  << " not supported";

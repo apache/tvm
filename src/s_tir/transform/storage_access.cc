@@ -33,6 +33,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 namespace {
@@ -42,7 +43,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -208,7 +209,7 @@ bool IsThreadInvariant(const PrimExpr& cond) {
   if (auto call = cond.as<CallNode>()) {
     if (auto opt_call_op = call->op.as<Op>()) {
       auto call_op = opt_call_op.value();
-      if (call_op.same_as(builtin::tvm_thread_invariant())) {
+      if (call_op.same_as(tirx::builtin::tvm_thread_invariant())) {
         return true;
       }
     }
@@ -261,8 +262,9 @@ void StorageAccessVisitor::VisitStmt_(const WhileNode* op) {
 
 void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
   Call call = ffi::GetRef<Call>(op);
-  if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
-    bool is_load = op->op.same_as(builtin::masked_load());
+  if (op->op.same_as(tirx::builtin::masked_load()) ||
+      op->op.same_as(tirx::builtin::masked_store())) {
+    bool is_load = op->op.same_as(tirx::builtin::masked_load());
     BufferVar buffer(op->args[0].as_or_throw<Var>());
     PrimType value_dtype =
         is_load ? op->ty.as_or_throw<PrimType>() : op->args[1].as_or_throw<PrimExpr>().ty();
@@ -282,7 +284,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
       curr_stmt_.access.emplace_back(std::move(e));
     }
     StmtExprVisitor::VisitExpr_(op);
-  } else if (op->op.same_as(builtin::address_of())) {
+  } else if (op->op.same_as(tirx::builtin::address_of())) {
     if (const auto* load = op->args[0].as<TensorLoadNode>()) {
       // Taking an address does not read the buffer value.  Visit only the
       // load's children so index expressions still contribute accesses.
@@ -292,7 +294,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
       // Recurse without assuming the argument is a BufferLoad.
       StmtExprVisitor::VisitExpr_(op);
     }
-  } else if (op->op.same_as(builtin::tvm_access_ptr())) {
+  } else if (op->op.same_as(tirx::builtin::tvm_access_ptr())) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
     PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
     auto buffer_var = GetBufferDataVar(op->args[1]);
@@ -328,7 +330,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
       }
     }
     StmtExprVisitor::VisitExpr_(op);
-  } else if (op->op.same_as(builtin::tvm_storage_sync())) {
+  } else if (op->op.same_as(tirx::builtin::tvm_storage_sync())) {
     TVM_FFI_ICHECK(allow_append_);
     const std::string& s = op->args[0].as<StringImmNode>()->value;
     if (s != "warp") {

@@ -26,9 +26,9 @@
 #define TVM_ARITH_IR_VISITOR_WITH_ANALYZER_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/ir/with_context.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -49,8 +49,7 @@ class IRVisitorWithAnalyzer : public tirx::StmtExprVisitor {
   void VisitStmt_(const tirx::AssertStmtNode* op);
   void VisitStmt_(const tirx::SeqStmtNode* op);
   void VisitExpr_(const CallNode* op);
-  void VisitExpr_(const tirx::LetNode* op);
-  void VisitExpr_(const tirx::ReduceNode* op);
+  void VisitExpr_(const prim::LetNode* op);
 
   // IRVisitorWithAnalyzer deliberately does not handle Select nodes,
   // because both sides of a Select node are visited regardless of the

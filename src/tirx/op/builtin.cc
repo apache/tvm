@@ -23,6 +23,7 @@
  *  builtin intrinsic operators.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
@@ -59,12 +60,6 @@ TIR_DEFINE_BUILTIN_FUNC(break_loop)
                                static_cast<int64_t>(CallEffectKind::kControlJump))
     .set_num_inputs(0);
 
-TIR_DEFINE_BUILTIN_FUNC(likely)
-    .set_num_inputs(1)
-    .set_attr<TCallEffectKind>("TCallEffectKind",
-                               static_cast<int64_t>(CallEffectKind::kExprAnnotation))
-    .set_attr<TVectorizable>("TVectorizable", true);
-
 // tirx.filter: escape hatch for non-canonical thread-set filter predicates
 // used as an IfThenElse condition. (var, cond) -- ``var`` names the
 // active-set axis the compiler should collapse to a singleton if it cannot
@@ -77,36 +72,6 @@ TIR_DEFINE_BUILTIN_FUNC(filter).set_num_inputs(2).set_attr<TCallEffectKind>(
 TIR_DEFINE_BUILTIN_FUNC(selector).set_num_inputs(2).set_attr<TCallEffectKind>(
     "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(bitwise_and)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-
-TIR_DEFINE_BUILTIN_FUNC(bitwise_or)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-
-TIR_DEFINE_BUILTIN_FUNC(bitwise_xor)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-
-TIR_DEFINE_BUILTIN_FUNC(bitwise_not)
-    .set_num_inputs(1)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-
-TIR_DEFINE_BUILTIN_FUNC(shift_left)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-
-TIR_DEFINE_BUILTIN_FUNC(shift_right)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-
 TIR_DEFINE_BUILTIN_FUNC(large_uint_imm)
     .set_num_inputs(2)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
@@ -114,10 +79,6 @@ TIR_DEFINE_BUILTIN_FUNC(large_uint_imm)
 TIR_DEFINE_BUILTIN_FUNC(address_of)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
     .set_num_inputs(1);
-
-TIR_DEFINE_BUILTIN_FUNC(if_then_else)
-    .set_num_inputs(3)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
 TIR_DEFINE_BUILTIN_FUNC(q_multiply_shift)
     .set_num_inputs(3)
@@ -369,9 +330,6 @@ TIR_DEFINE_BUILTIN_FUNC(anylist_setitem_call_packed)
 
 TIR_DEFINE_BUILTIN_FUNC(anylist_setitem_call_cpacked)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(vscale).set_attr<TCallEffectKind>(
-    "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
 TIR_DEFINE_BUILTIN_FUNC(get_active_lane_mask)
     .set_num_inputs(2)
