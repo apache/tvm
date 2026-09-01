@@ -1302,11 +1302,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         n = shape.values[dim1]
         m = shape.values[dim2]
         if offset >= 0:
-            diag_len = tirx.min(n, m - offset)
+            diag_len = tirx.max(0, tirx.min(n, m - offset))
             begin1, end1 = 0, diag_len
             begin2, end2 = offset, offset + diag_len
         else:
-            diag_len = tirx.min(n + offset, m)
+            diag_len = tirx.max(0, tirx.min(n + offset, m))
             begin1, end1 = -offset, -offset + diag_len
             begin2, end2 = 0, diag_len
 

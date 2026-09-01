@@ -3399,6 +3399,21 @@ def test_einsum_repeated_subscript():
     verify_model_numerically(DirectDiagonal(), (torch.randn(3, 4),))
     verify_model_numerically(DirectTrace(), (torch.randn(4, 4),))
 
+    # Out-of-range offsets (|offset| >= max(extent1, extent2)) are valid in
+    # PyTorch and yield an empty diagonal of shape (0,); the lowering must
+    # clamp the diagonal length to zero instead of producing negative slice
+    # extents or a wrong non-empty shape.
+    class DirectDiagonalOutOfRange(Module):
+        def __init__(self, offset):
+            super().__init__()
+            self.offset = offset
+
+        def forward(self, x):
+            return torch.diagonal(x, self.offset, 0, 1)
+
+    for offset in [4, 5, 6, -3, -4, -5, -6]:
+        verify_model_numerically(DirectDiagonalOutOfRange(offset), (torch.randn(3, 4),))
+
 
 def test_outer():
     class Outer(torch.nn.Module):
