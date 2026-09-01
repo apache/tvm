@@ -517,6 +517,8 @@ def _fit_prefill_config_to_shared_memory(
     tile_x,
     tile_y,
     tile_z,
+    preferred_tile_z,
+    max_tile_x,
     d,
     d_v,
     dtype,
@@ -526,7 +528,7 @@ def _fit_prefill_config_to_shared_memory(
     merged_kv,
     max_shared_memory_per_block,
 ):
-    """Reduce the key tile until the prefill kernel fits shared memory."""
+    """Reduce the query and key tiles until the prefill kernel fits shared memory."""
     if (
         _get_prefill_shared_memory_usage(
             tile_x, tile_z, d, dtype, d_v=d_v, merged_kv=merged_kv
@@ -536,7 +538,7 @@ def _fit_prefill_config_to_shared_memory(
             tile_x, tile_y, tile_z, d_v, load_vec, bdx, num_warps, merged_kv
         )
     ):
-        return num_warps, tile_z
+        return tile_x, num_warps, tile_z
 
     candidate_num_warps = sorted({num_warps, min(num_warps, 2), 1}, reverse=True)
     for warps in candidate_num_warps:
@@ -563,7 +565,52 @@ def _fit_prefill_config_to_shared_memory(
                 )
                 <= max_shared_memory_per_block
             ):
-                return warps, candidate_tile_z
+                return tile_x, warps, candidate_tile_z
+
+    # If the heuristic query tile cannot be scheduled, prefer the established
+    # two-warp low-storage configuration, then try nearby query tiles in either
+    # direction, preferring the larger tile on ties. For each query tile, avoid
+    # enlarging the original key tile unless thread factorization requires it.
+    fallback_num_warps = sorted(
+        candidate_num_warps,
+        key=lambda warps: (warps != min(num_warps, 2), -warps),
+    )
+    alternative_tile_x = sorted(
+        (candidate for candidate in range(1, max_tile_x + 1) if candidate != tile_x),
+        key=lambda candidate: (abs(candidate - tile_x), -candidate),
+    )
+    fallback_tile_z_ceiling = max(tile_z, bdx * num_warps)
+    candidate_tile_z_ranges = (
+        range(preferred_tile_z, 0, -1),
+        range(preferred_tile_z + 1, fallback_tile_z_ceiling + 1),
+    )
+    for warps in fallback_num_warps:
+        for candidate_tile_x in alternative_tile_x:
+            for candidate_tile_z_range in candidate_tile_z_ranges:
+                for candidate_tile_z in candidate_tile_z_range:
+                    if not _is_prefill_kernel_config_legal(
+                        candidate_tile_x,
+                        tile_y,
+                        candidate_tile_z,
+                        d_v,
+                        load_vec,
+                        bdx,
+                        warps,
+                        merged_kv,
+                    ):
+                        continue
+                    if (
+                        _get_prefill_shared_memory_usage(
+                            candidate_tile_x,
+                            candidate_tile_z,
+                            d,
+                            dtype,
+                            d_v=d_v,
+                            merged_kv=merged_kv,
+                        )
+                        <= max_shared_memory_per_block
+                    ):
+                        return candidate_tile_x, warps, candidate_tile_z
 
     required = _get_prefill_shared_memory_usage(
         tile_x, tile_z, d, dtype, d_v=d_v, merged_kv=merged_kv
@@ -581,22 +628,26 @@ def _get_prefill_kernel_config(
     if d_v is None:
         d_v = d
     NUM_BLKS = 16
-    LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
+    dtype_bytes = (DataType(dtype).bits + 7) // 8
+    LOAD_VEC = 8 // dtype_bytes  # 8 bytes
     group_size = h_q // h_kv
 
     bdx = 32
     num_warps = 4
+    # Preserve the largest query tile considered by the existing heuristic.
+    max_tile_x = 64 // dtype_bytes
     tile_x, tile_y, tile_z = (
-        64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1),
+        max_tile_x // max(d // 128, 1),
         d,
-        64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1),
+        max_tile_x // max(d // 128, 1),
     )
     original_tile_y = tile_y
     original_tile_z = tile_z
     while (tile_x * tile_z) % (bdx * num_warps) != 0:
         tile_z += original_tile_z
-    while (tile_x * tile_y) % (bdx * num_warps) != 0:
-        tile_y += original_tile_y
+    if target.kind.name != "metal":
+        while (tile_x * tile_y) % (bdx * num_warps) != 0:
+            tile_y += original_tile_y
 
     # Preserve the established WebGPU config, which targets WebGPU's portable limits.
     if (
@@ -607,10 +658,12 @@ def _get_prefill_kernel_config(
         num_warps = 2
     if target.kind.name == "metal":
         max_shared_memory_per_block = int(target.attrs["max_shared_memory_per_block"])
-        num_warps, tile_z = _fit_prefill_config_to_shared_memory(
+        tile_x, num_warps, tile_z = _fit_prefill_config_to_shared_memory(
             tile_x,
             tile_y,
             tile_z,
+            original_tile_z,
+            max_tile_x,
             d,
             d_v,
             dtype,

@@ -24,6 +24,7 @@ from tvm.relax.frontend.nn.llm._kernel_common import (
     _get_prefill_shared_memory_usage,
 )
 from tvm.relax.frontend.nn.llm._prefill_kernels import (
+    _attention_prefill,
     _attention_prefill_mla,
     _attention_prefill_ragged,
 )
@@ -54,6 +55,88 @@ def test_wide_head_prefill_fits_metal_shared_memory():
     assert tile_z == 8
     assert _get_prefill_shared_memory_usage(tile_x, tile_z, 512, "float16") == 24_928
     assert 24_928 <= int(target.attrs["max_shared_memory_per_block"])
+
+
+def test_non_power_of_two_head_prefill_reduces_query_tile_for_metal():
+    target = tvm.target.Target("metal")
+    config = _get_prefill_kernel_config(
+        h_kv=1,
+        h_q=8,
+        d=384,
+        dtype="float16",
+        target=target,
+    )
+    func = _attention_prefill(1, 8, 384, "float16", False, {}, target)
+
+    assert config == (16, 4, 8, 32, 2, 8, 384, 8)
+    assert func.attrs["tirx.is_scheduled"]
+    assert _get_allocated_shared_memory(func) == 18_784
+    assert 18_784 <= int(target.attrs["max_shared_memory_per_block"])
+    assert tvm.tirx.build(func, target=target).imports[0].inspect_source()
+
+
+def test_reduced_query_tile_keeps_the_real_head_dimension():
+    target = tvm.target.Target("metal")
+    config = _get_prefill_kernel_config(
+        h_kv=1,
+        h_q=8,
+        d=416,
+        dtype="float16",
+        target=target,
+    )
+    func = _attention_prefill(1, 8, 416, "float16", False, {}, target)
+
+    assert config == (16, 4, 8, 32, 2, 8, 416, 8)
+    assert func.attrs["tirx.is_scheduled"]
+    assert _get_allocated_shared_memory(func) == 20_320
+    assert 20_320 <= int(target.attrs["max_shared_memory_per_block"])
+    assert tvm.tirx.build(func, target=target).imports[0].inspect_source()
+
+
+def test_fallback_can_select_larger_nearby_query_tile():
+    target = tvm.target.Target("metal")
+    config = _get_prefill_kernel_config(
+        h_kv=1,
+        h_q=8,
+        d=640,
+        dtype="float16",
+        target=target,
+    )
+    func = _attention_prefill(1, 8, 640, "float16", False, {}, target)
+
+    assert config == (16, 4, 8, 32, 2, 8, 640, 8)
+    assert func.attrs["tirx.is_scheduled"]
+    assert _get_allocated_shared_memory(func) == 31_072
+    assert 31_072 <= int(target.attrs["max_shared_memory_per_block"])
+    assert tvm.tirx.build(func, target=target).imports[0].inspect_source()
+
+
+@pytest.mark.parametrize(
+    ("d", "dtype", "expected_config", "expected_shared_memory"),
+    [
+        (672, "float16", (16, 4, 8, 32, 2, 8, 672, 8), 32_608),
+        (768, "float16", (16, 4, 8, 32, 1, 4, 768, 8), 30_896),
+        (384, "float32", (16, 2, 8, 32, 1, 4, 384, 8), 30_896),
+    ],
+)
+def test_fallback_can_expand_key_tile_for_factorization(
+    d, dtype, expected_config, expected_shared_memory
+):
+    target = tvm.target.Target("metal")
+    config = _get_prefill_kernel_config(
+        h_kv=1,
+        h_q=8,
+        d=d,
+        dtype=dtype,
+        target=target,
+    )
+    func = _attention_prefill(1, 8, d, dtype, False, {}, target)
+
+    assert config == expected_config
+    assert func.attrs["tirx.is_scheduled"]
+    assert _get_allocated_shared_memory(func) == expected_shared_memory
+    assert expected_shared_memory <= int(target.attrs["max_shared_memory_per_block"])
+    assert tvm.tirx.build(func, target=target).imports[0].inspect_source()
 
 
 def test_normal_head_prefill_keeps_existing_metal_config():
