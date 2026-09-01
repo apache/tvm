@@ -47,7 +47,8 @@ ffi::ObjectRef RealizeBufferSubscript(
     ffi::Array<ffi::Variant<
         ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
         PrimExpr>>
-        slice) {
+        slice,
+    Span span) {
   BufferVar buffer = value.as_or_throw<BufferVar>();
   BufferType buffer_ty = buffer.type();
   TVM_FFI_CHECK_LE(slice.size(), buffer_ty->shape.size(), IndexError)
@@ -70,7 +71,7 @@ ffi::ObjectRef RealizeBufferSubscript(
     for (const auto& item : slice) {
       indices.push_back(item.as<PrimExpr>().value());
     }
-    return BufferLoad(buffer, indices);
+    return BufferLoad(buffer, indices, span);
   }
 
   // Any slice or omitted trailing dimension denotes a region.  Rejecting
