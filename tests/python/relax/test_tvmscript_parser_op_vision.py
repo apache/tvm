@@ -291,6 +291,7 @@ def test_multibox_transform_loc():
                 threshold=0.0,
                 variances=(1.0, 1.0, 1.0, 1.0),
                 keep_background=True,
+                apply_softmax=True,
             )
         )
         return gv
@@ -310,6 +311,7 @@ def test_multibox_transform_loc():
                 threshold=0.0,
                 variances=(1.0, 1.0, 1.0, 1.0),
                 keep_background=True,
+                apply_softmax=True,
             )
         )
         bb.emit_func_output(gv)

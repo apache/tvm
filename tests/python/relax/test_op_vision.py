@@ -1490,7 +1490,14 @@ def test_multibox_transform_loc_wrong_batch():
 
 
 def _multibox_ref_numpy(
-    cls_pred, loc_pred, anchor, variances, clip=False, threshold=0.0, keep_background=True
+    cls_pred,
+    loc_pred,
+    anchor,
+    variances,
+    clip=False,
+    threshold=0.0,
+    keep_background=True,
+    apply_softmax=True,
 ):
     """Numpy reference aligned with ``topi.vision.multibox_transform_loc``."""
 
@@ -1501,7 +1508,11 @@ def _multibox_ref_numpy(
 
     B, C, N = cls_pred.shape
     loc = loc_pred.reshape(B, N, 4)
-    scores = _softmax(cls_pred.astype("float64"), axis=1).astype(np.float32)
+    scores = (
+        _softmax(cls_pred.astype("float64"), axis=1).astype(np.float32)
+        if apply_softmax
+        else cls_pred.copy()
+    )
     if threshold > 0.0:
         scores = np.where(scores >= threshold, scores, 0.0).astype(np.float32)
     if not keep_background:
@@ -1648,6 +1659,7 @@ def test_multibox_transform_loc_legalize_attr_branches():
                 threshold=0.4,
                 variances=(1.0, 1.0, 1.0, 1.0),
                 keep_background=False,
+                apply_softmax=False,
             )
 
     cls_data = np.array(
@@ -1674,6 +1686,7 @@ def test_multibox_transform_loc_legalize_attr_branches():
         clip=True,
         threshold=0.4,
         keep_background=False,
+        apply_softmax=False,
     )
     out = vm["main"](
         tvm.runtime.tensor(cls_data, tvm.cpu()),
