@@ -407,8 +407,10 @@ def test_shared_operator_surface_rejects_non_tensor_relax_values():
     with pytest.raises(ValueError, match="Cannot use and"):
         bool(shape)
 
+    with pytest.raises(TypeError, match="unsupported operand type"):
+        shape + shape
+
     for operation in (
-        lambda: shape + shape,
         lambda: -shape,
         lambda: shape.equal(shape),
         lambda: shape.astype("float32"),

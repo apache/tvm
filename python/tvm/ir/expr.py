@@ -129,10 +129,6 @@ def _realize_operand(value):
     return value._operand() if isinstance(value, ExprOperand) else value
 
 
-def _raise_unsupported_operator(value):
-    raise TypeError(f"Operator overloading is not supported for expression type {value.ty}")
-
-
 class ExprOperand:
     """Python operator surface for anything that denotes an expression."""
 
@@ -154,112 +150,112 @@ class ExprOperand:
         if is_prim_expr(self):
             return _overload_prim_expr.__add__(self, other)
         result = _tensor_expr_overload.__add__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __radd__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__radd__(self, other)
         result = _tensor_expr_overload.__radd__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __sub__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__sub__(self, other)
         result = _tensor_expr_overload.__sub__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __rsub__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rsub__(self, other)
         result = _tensor_expr_overload.__rsub__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __mul__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__mul__(self, other)
         result = _tensor_expr_overload.__mul__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __rmul__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rmul__(self, other)
         result = _tensor_expr_overload.__rmul__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __div__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__div__(self, other)
         result = _tensor_expr_overload.__div__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __rdiv__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rdiv__(self, other)
         result = _tensor_expr_overload.__rdiv__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __truediv__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__truediv__(self, other)
         result = _tensor_expr_overload.__truediv__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __rtruediv__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rtruediv__(self, other)
         result = _tensor_expr_overload.__rtruediv__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __floordiv__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__floordiv__(self, other)
         result = _tensor_expr_overload.__floordiv__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __rfloordiv__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rfloordiv__(self, other)
         result = _tensor_expr_overload.__rfloordiv__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __mod__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__mod__(self, other)
         result = _tensor_expr_overload.__mod__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __rmod__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rmod__(self, other)
         result = _tensor_expr_overload.__rmod__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __pow__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return NotImplemented
         result = _tensor_expr_overload.__pow__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __rpow__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return NotImplemented
         result = _tensor_expr_overload.__rpow__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __neg__(self):
         self = _realize_operand(self)
@@ -270,68 +266,68 @@ class ExprOperand:
             return result
         result = _tensor_expr_overload.__neg__(self)
         if result is NotImplemented:
-            return _raise_unsupported_operator(self)
+            raise TypeError(f"Operator overloading is not supported for expression type {self.ty}")
         return result
 
     def __lshift__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__lshift__(self, other)
-        return _raise_unsupported_operator(self)
+        return NotImplemented
 
     def __rlshift__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rlshift__(self, other)
-        return _raise_unsupported_operator(self)
+        return NotImplemented
 
     def __rshift__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rshift__(self, other)
-        return _raise_unsupported_operator(self)
+        return NotImplemented
 
     def __rrshift__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rrshift__(self, other)
-        return _raise_unsupported_operator(self)
+        return NotImplemented
 
     def __and__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__and__(self, other)
-        return _raise_unsupported_operator(self)
+        return NotImplemented
 
     def __rand__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rand__(self, other)
-        return _raise_unsupported_operator(self)
+        return NotImplemented
 
     def __or__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__or__(self, other)
-        return _raise_unsupported_operator(self)
+        return NotImplemented
 
     def __ror__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__ror__(self, other)
-        return _raise_unsupported_operator(self)
+        return NotImplemented
 
     def __xor__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__xor__(self, other)
-        return _raise_unsupported_operator(self)
+        return NotImplemented
 
     def __rxor__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__rxor__(self, other)
-        return _raise_unsupported_operator(self)
+        return NotImplemented
 
     def __invert__(self):
         self = _realize_operand(self)
@@ -340,21 +336,21 @@ class ExprOperand:
             if result is NotImplemented:
                 raise TypeError("Primitive expression overload __invert__ is not registered")
             return result
-        return _raise_unsupported_operator(self)
+        raise TypeError(f"Operator overloading is not supported for expression type {self.ty}")
 
     def __lt__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__lt__(self, other)
         result = _tensor_expr_overload.__lt__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __le__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__le__(self, other)
         result = _tensor_expr_overload.__le__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __eq__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
@@ -373,14 +369,14 @@ class ExprOperand:
         if is_prim_expr(self):
             return _overload_prim_expr.__gt__(self, other)
         result = _tensor_expr_overload.__gt__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __ge__(self, other):
         self, other = _realize_operand(self), _realize_operand(other)
         if is_prim_expr(self):
             return _overload_prim_expr.__ge__(self, other)
         result = _tensor_expr_overload.__ge__(self, other)
-        return _raise_unsupported_operator(self) if result is NotImplemented else result
+        return result
 
     def __nonzero__(self):
         raise ValueError(
@@ -394,7 +390,7 @@ class ExprOperand:
     def equal(self, other, span=None):
         self, other = _realize_operand(self), _realize_operand(other)
         if not is_prim_expr(self):
-            return _raise_unsupported_operator(self)
+            raise TypeError(f"Operator overloading is not supported for expression type {self.ty}")
         result = _overload_prim_expr.equal(self, other, span)
         if result is NotImplemented:
             raise TypeError("Primitive expression overload equal is not registered")
@@ -409,7 +405,7 @@ class ExprOperand:
             return result
         result = _tensor_expr_overload.astype(self, dtype, span)
         if result is NotImplemented:
-            return _raise_unsupported_operator(self)
+            raise TypeError(f"Operator overloading is not supported for expression type {self.ty}")
         return result
 
     def __call__(self, *args, attrs=None):
