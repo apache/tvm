@@ -2265,8 +2265,12 @@ def test_buffer_slice_region():
 
     load = buf[1, 2]
     assert isinstance(load, tvm.ir.TensorLoad)
-    with pytest.raises(TypeError, match="not subscriptable"):
-        _ = buf[1][2]
+
+    partial = buf[1]
+    assert isinstance(partial, BufferRegion)
+    assert not hasattr(partial, "__getitem__")
+    with pytest.raises(TypeError):
+        _ = partial[2]
 
 
 def test_global_call_realizes_buffer_elements():
