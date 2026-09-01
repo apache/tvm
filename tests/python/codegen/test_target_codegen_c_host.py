@@ -193,7 +193,17 @@ def test_round():
         fround = m["test_round"]
         dev = tvm.cpu(0)
         n = nn
-        a = tvm.runtime.tensor(np.random.rand(n).astype("float32"), dev)
+        # Exact midpoints first: this is where ties-to-even (np.round, and the
+        # semantics every other backend and the constant folder use) differs
+        # from ties-away-from-zero. np.random.rand never produces them, so the
+        # random tail alone cannot exercise the tie rule.
+        midpoints = np.array(
+            [0.5, 1.5, 2.5, 3.5, -0.5, -1.5, -2.5, -3.5], dtype="float32"
+        )
+        a_np = np.concatenate(
+            [midpoints, np.random.rand(n - len(midpoints)).astype("float32")]
+        ).astype("float32")
+        a = tvm.runtime.tensor(a_np, dev)
         b = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
         fround(a, b)
         tvm.testing.assert_allclose(b.numpy(), (np.round(a.numpy()).view("float32")))
