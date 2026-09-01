@@ -73,11 +73,11 @@ Tuple::Tuple(ffi::Array<Expr> fields, Span span) {
 }
 
 TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
-  TVM_FFI_ICHECK_GE(index, 0) << "Index out of bounds: Tuple " << tuple
-                              << " cannot be accessed with negative index " << index;
+  TVM_FFI_CHECK_GE(index, 0, IndexError) << "Index out of bounds: Tuple " << tuple
+                                         << " cannot be accessed with negative index " << index;
   ffi::ObjectPtr<TupleGetItemNode> node = ffi::make_object<TupleGetItemNode>();
   if (const auto* tuple_type = tuple->ty.as<TupleTypeNode>()) {
-    TVM_FFI_ICHECK_LT(index, tuple_type->fields.size())
+    TVM_FFI_CHECK_LT(index, tuple_type->fields.size(), IndexError)
         << "Index out of bounds: Tuple " << tuple << " is of size " << tuple_type->fields.size()
         << ", and cannot be accessed with index " << index;
     node->ty = tuple_type->fields[index];

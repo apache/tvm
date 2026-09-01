@@ -27,6 +27,21 @@ from . import _ffi_api, _overload_prim_expr, _tensor_expr_overload
 from .base import Node, Span
 
 
+def _convert_subscript_index(index):
+    """Convert Python indexing syntax into an FFI subscript descriptor."""
+
+    def convert(value):
+        if value is None or is_prim_expr(value):
+            return value
+        return tvm.tirx.const(value)
+
+    if isinstance(index, slice):
+        return (convert(index.start), convert(index.stop), convert(index.step))
+    if index is Ellipsis or index is None:
+        raise TypeError("Ellipsis and newaxis are not supported in expression subscriptions")
+    return convert(index)
+
+
 @tvm_ffi.register_object("ir.Expr")
 class Expr(Node):
     """Base class of all the expressions."""
@@ -41,20 +56,9 @@ class Expr(Node):
             return TupleGetItem(self, index)
 
         indices = tuple(index) if isinstance(index, tuple | list) else (index,)
-        try:
-            return _ffi_api.SubscriptExprRealize(
-                self, [_convert_subscript_index(item) for item in indices], None
-            )
-        except RuntimeError as err:
-            # Preserve eager tuple iteration/unpacking through Python's legacy
-            # sequence protocol, which stops only after observing IndexError.
-            if (
-                isinstance(self.ty, tvm.ir.TupleType)
-                and err.args
-                and "Index out of bounds" in str(err.args[0])
-            ):
-                raise IndexError from err
-            raise
+        return _ffi_api.SubscriptExprRealize(
+            self, [_convert_subscript_index(item) for item in indices], None
+        )
 
 
 @tvm_ffi.register_object("ir.OpaqueExpr")
@@ -70,19 +74,6 @@ def is_prim_expr(value: object) -> bool:
 def is_prim_var(value: object) -> bool:
     """Return whether a value is an ordinary variable with a primitive type."""
     return isinstance(value, Var) and type(value) is Var and is_prim_expr(value)
-
-
-def _convert_subscript_index(index):
-    def convert(value):
-        if value is None or is_prim_expr(value):
-            return value
-        return tvm.tirx.const(value)
-
-    if isinstance(index, slice):
-        return (convert(index.start), convert(index.stop), convert(index.step))
-    if index is Ellipsis or index is None:
-        raise TypeError("Ellipsis and newaxis are not supported in expression subscriptions")
-    return convert(index)
 
 
 @tvm_ffi.register_object("ir.GlobalVar")
