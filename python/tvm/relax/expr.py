@@ -32,6 +32,7 @@ import tvm.runtime
 from tvm import DataType
 
 from ..ir import BaseFunc, Node, Span
+from ..ir.expr import _CallableExprWithOp
 from ..runtime import Scriptable
 from . import _ffi_api
 
@@ -111,7 +112,7 @@ def _binary_rhs_helper(rhs: Expr):
 
 
 @tvm_ffi.register_object("relax.expr.If")
-class If(tvm.ir.ExprWithOp):
+class If(_CallableExprWithOp):
     """A conditional expression in Relax.
 
     Parameters
@@ -134,6 +135,9 @@ class If(tvm.ir.ExprWithOp):
     false_branch: Expr
     span: Span | None
 
+    def __bool__(self) -> bool:
+        return True
+
     def __init__(self, cond: Expr, true_branch: Expr, false_branch: Expr, span: Span | None = None):
         self.__init_handle_by_constructor__(
             _ffi_api.If,
@@ -150,7 +154,7 @@ TupleGetItem = tvm.ir.TupleGetItem
 
 
 @tvm_ffi.register_object("relax.expr.ShapeExpr")
-class ShapeExpr(tvm.ir.ExprWithOp):
+class ShapeExpr(_CallableExprWithOp):
     """A shape expression which allows users to construct a shape containing Expr.
 
     Parameters
@@ -180,6 +184,9 @@ class ShapeExpr(tvm.ir.ExprWithOp):
     def __len__(self):
         return len(self.values)
 
+    def __bool__(self) -> bool:
+        return len(self) != 0
+
 
 def make_shape(shape: list[Any] | tuple[Any, ...]) -> ShapeExpr:
     if isinstance(shape, list | tuple):
@@ -191,7 +198,7 @@ def make_shape(shape: list[Any] | tuple[Any, ...]) -> ShapeExpr:
 
 
 @tvm_ffi.register_object("relax.expr.Constant")
-class Constant(tvm.ir.ExprWithOp):
+class Constant(_CallableExprWithOp):
     """Constant Tensor
 
     Parameters
@@ -212,6 +219,9 @@ class Constant(tvm.ir.ExprWithOp):
 
     data: tvm.runtime.Tensor
     span: Span | None
+
+    def __bool__(self) -> bool:
+        return True
 
     def __init__(
         self,
@@ -391,12 +401,15 @@ class DataflowBlock(BindingBlock):
 
 
 @tvm_ffi.register_object("relax.expr.SeqExpr")
-class SeqExpr(tvm.ir.ExprWithOp):
+class SeqExpr(_CallableExprWithOp):
     """A sequence of binding blocks followed by an expression."""
 
     blocks: list[BindingBlock]
     body: Expr
     span: Span | None
+
+    def __bool__(self) -> bool:
+        return True
 
     def __init__(self, blocks: list[BindingBlock], body: Expr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body, span)  # type: ignore

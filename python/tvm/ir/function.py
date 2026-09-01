@@ -26,7 +26,7 @@ from tvm.runtime import Object
 
 from . import _ffi_api
 from .attrs import DictAttrs
-from .expr import ExprWithOp
+from .expr import _CallableExprWithOp
 
 
 class CallingConv(IntEnum):
@@ -38,8 +38,11 @@ class CallingConv(IntEnum):
 
 
 @tvm_ffi.register_object("ir.BaseFunc")
-class BaseFunc(ExprWithOp):
+class BaseFunc(_CallableExprWithOp):
     """Base class of all functions."""
+
+    def __bool__(self) -> bool:
+        return True
 
     @property
     def attrs(self):

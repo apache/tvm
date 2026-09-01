@@ -408,6 +408,12 @@ class ExprOperand:
             raise TypeError(f"Operator overloading is not supported for expression type {self.ty}")
         return result
 
+
+class _ExprCallable:
+    """Function-call capability for expression operands that can denote functions."""
+
+    __slots__ = ()
+
     def __call__(self, *args, attrs=None):
         self, args = _realize_operand(self), tuple(_realize_operand(arg) for arg in args)
         if is_prim_expr(self):
@@ -427,7 +433,11 @@ class ExprWithOp(ExprOperand, Expr, Scriptable):
         return self
 
 
-class SubscriptProxy(ExprOperand, ObjectConvertible):
+class _CallableExprWithOp(_ExprCallable, ExprWithOp):
+    """Common operator behavior for expression nodes that support function calls."""
+
+
+class SubscriptProxy(_ExprCallable, ExprOperand, ObjectConvertible):
     """An immutable, lazily-realized subscription of an :class:`Expr`.
 
     Point subscriptions may be chained to accumulate dimensions.  A proxy
@@ -502,7 +512,7 @@ class SubscriptProxy(ExprOperand, ObjectConvertible):
 
 
 @tvm_ffi.register_object("ir.Tuple")
-class Tuple(ExprWithOp):
+class Tuple(_CallableExprWithOp):
     """Tuple expression that groups several fields together.
 
     Parameters
@@ -535,7 +545,7 @@ class Tuple(ExprWithOp):
 
 
 @tvm_ffi.register_object("ir.TupleGetItem")
-class TupleGetItem(ExprWithOp):
+class TupleGetItem(_CallableExprWithOp):
     """Get the index-th item from a tuple.
 
     Parameters
@@ -559,7 +569,7 @@ class TupleGetItem(ExprWithOp):
 
 
 @tvm_ffi.register_object("ir.TensorLoad")
-class TensorLoad(ExprWithOp):
+class TensorLoad(_CallableExprWithOp):
     """An indexed load from an expression source.
 
     TensorLoad objects are constructed by a dialect-specific helper that
@@ -577,7 +587,7 @@ class TensorLoad(ExprWithOp):
 
 
 @tvm_ffi.register_object("ir.Call")
-class Call(ExprWithOp):
+class Call(_CallableExprWithOp):
     """Core function call node."""
 
     op: Expr
@@ -616,7 +626,7 @@ class Call(ExprWithOp):
 
 
 @tvm_ffi.register_object("ir.Var")
-class Var(ExprWithOp):
+class Var(_CallableExprWithOp):
     """A canonical local variable in the IR.
 
     Parameters

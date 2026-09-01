@@ -404,8 +404,7 @@ def test_shared_operator_surface_rejects_non_tensor_relax_values():
 
     assert (shape == shape) is True
     assert (shape != shape) is False
-    with pytest.raises(ValueError, match="Cannot use and"):
-        bool(shape)
+    assert bool(shape)
 
     with pytest.raises(TypeError, match="unsupported operand type"):
         shape + shape
