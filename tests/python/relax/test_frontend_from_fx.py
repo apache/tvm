@@ -5070,8 +5070,24 @@ def test_mean():
                 R.output(gv)
             return gv
 
+    class MeanDtype(Module):
+        def forward(self, input):
+            return input.mean(-1, dtype=torch.float64)
+
+    @I.ir_module
+    class ExpectedDtype:
+        @R.function
+        def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor((256,), dtype="float64"):
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float64") = R.astype(inp_0, dtype="float64")
+                lv1: R.Tensor((256,), dtype="float64") = R.mean(lv, axis=[-1], keepdims=False)
+                gv: R.Tensor((256,), dtype="float64") = lv1
+                R.output(gv)
+            return gv
+
     verify_model(Mean(), [([256, 256], "float32")], {}, Expected1)
     verify_model(MeanKeepDim(), [([256, 256], "float32")], {}, Expected2)
+    verify_model(MeanDtype(), [([256, 256], "float32")], {}, ExpectedDtype)
 
 
 def test_cat():
