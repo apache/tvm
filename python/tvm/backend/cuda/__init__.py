@@ -23,8 +23,6 @@ from tvm_ffi.libinfo import load_lib_ctypes
 
 from tvm.base import _LOADED_LIBS
 
-from .target import detect_target_from_device
-
 _LAZY_SUBMODULES = {
     "codegen",
     "cpp",
@@ -37,6 +35,25 @@ _LAZY_SUBMODULES = {
     "tile_primitive",
     "transforms",
 }
+
+
+def _detect_target_from_device(dev):
+    from tvm.target import Target  # pylint: disable=import-outside-toplevel
+
+    compute_version = dev.compute_version.replace(".", "")
+    arch = f"sm_{compute_version}"
+    if int(compute_version) >= 90:
+        arch += "a"
+
+    return Target(
+        {
+            "kind": "cuda",
+            "max_shared_memory_per_block": dev.max_shared_memory_per_block,
+            "max_threads_per_block": dev.max_threads_per_block,
+            "thread_warp_size": dev.warp_size,
+            "arch": arch,
+        }
+    )
 
 
 def register_backend():
@@ -55,7 +72,7 @@ def register_backend():
         )
     except (OSError, FileNotFoundError, RuntimeError):
         pass
-    register_device_target_detector("cuda", detect_target_from_device)
+    register_device_target_detector("cuda", _detect_target_from_device)
     for name, namespace in script_namespaces().items():
         builder_ir.register_script_namespace(name, namespace)
 

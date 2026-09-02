@@ -68,42 +68,24 @@ bool StartsWith(const ffi::String& str, const char* prefix) {
   return std::string(str).rfind(prefix, 0) == 0;
 }
 
-int CUDAArchNumberFromComputeVersion(const ffi::String& version) {
-  std::string value = version;
-  size_t separator = value.find('.');
-  TVM_FFI_CHECK(separator != std::string::npos && separator > 0 && separator + 2 == value.size(),
-                ValueError)
-      << "Invalid CUDA compute capability " << version << "; expected <major>.<minor>";
-
-  int major = 0;
-  for (size_t i = 0; i < separator; ++i) {
-    TVM_FFI_CHECK(value[i] >= '0' && value[i] <= '9', ValueError)
-        << "Invalid CUDA compute capability " << version << "; expected <major>.<minor>";
-    major = major * 10 + value[i] - '0';
-  }
-  TVM_FFI_CHECK(value.back() >= '0' && value.back() <= '9', ValueError)
-      << "Invalid CUDA compute capability " << version << "; expected <major>.<minor>";
-  return major * 10 + value.back() - '0';
-}
-
-ffi::String CUDAArchFromComputeVersion(const ffi::String& version) {
-  int arch = CUDAArchNumberFromComputeVersion(version);
-  ffi::String suffix = arch >= 90 ? "a" : "";
-  return ffi::String("sm_") + std::to_string(arch) + suffix;
-}
-
 ffi::Map<ffi::String, ffi::Any> UpdateCUDAAttrs(ffi::Map<ffi::String, ffi::Any> target) {
   if (target.count("arch")) {
     ffi::String archStr = target.at("arch").as_or_throw<ffi::String>();
     TVM_FFI_CHECK(StartsWith(archStr, "sm_"), ValueError)
         << "CUDA target gets an invalid CUDA arch: -arch=" << archStr;
   } else {
+    int archInt;
     ffi::Any version;
     if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
       LOG(WARNING) << "Unable to detect CUDA version, default to \"-arch=sm_50\" instead";
-      target.Set("arch", ffi::String("sm_50"));
+      archInt = 50;
     } else {
-      target.Set("arch", CUDAArchFromComputeVersion(version.cast<ffi::String>()));
+      archInt = std::stod(version.cast<std::string>()) * 10 + 0.1;
+    }
+    if (archInt >= 90) {
+      target.Set("arch", ffi::String("sm_") + std::to_string(archInt) + "a");
+    } else {
+      target.Set("arch", ffi::String("sm_") + std::to_string(archInt));
     }
   }
   return target;
@@ -122,7 +104,7 @@ ffi::Map<ffi::String, ffi::Any> UpdateNVPTXAttrs(ffi::Map<ffi::String, ffi::Any>
       LOG(WARNING) << "Unable to detect CUDA version, default to \"-mcpu=sm_50\" instead";
       arch = 50;
     } else {
-      arch = CUDAArchNumberFromComputeVersion(version.cast<ffi::String>());
+      arch = std::stod(version.cast<std::string>()) * 10 + 0.1;
     }
     target.Set("mcpu", ffi::String("sm_") + std::to_string(arch));
   }
@@ -131,8 +113,6 @@ ffi::Map<ffi::String, ffi::Any> UpdateNVPTXAttrs(ffi::Map<ffi::String, ffi::Any>
 
 void RegisterTargetKinds() {
   namespace refl = tvm::ffi::reflection;
-
-  refl::GlobalDef().def("target.cuda_arch_from_compute_version", CUDAArchFromComputeVersion);
 
   TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
       .add_attr_option<ffi::String>("mcpu")

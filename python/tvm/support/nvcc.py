@@ -27,7 +27,6 @@ import warnings
 import tvm_ffi
 
 import tvm
-from tvm.backend.cuda.target import arch_from_compute_version, compute_version_from_arch
 from tvm.target import Target
 
 from . import utils
@@ -1042,11 +1041,28 @@ def get_target_compute_version(target=None):
     target = target or Target.current()
     target_arch = str(target.attrs.get("arch", "")) if target else ""
     if target_arch:
-        return compute_version_from_arch(target_arch)
+        arch = target_arch.split("_")[1]
+        if len(arch) < 2:
+            raise ValueError(f"The arch is not expected {target_arch}")
+        if arch[-1].isalpha():
+            # This is for arch like "sm_90a"
+            suffix = arch[-1]
+            major = arch[:-2]
+            minor = arch[-2]
+            return major + "." + minor + "." + suffix
+        return arch[:-1] + "." + arch[-1]
 
     # 3. GPU compute version
     if tvm.cuda(0).exist:
-        return compute_version_from_arch(arch_from_compute_version(tvm.cuda(0).compute_version))
+        cv = tvm.cuda(0).compute_version
+        # Append 'a' suffix for SM 9.0+ (Hopper, Blackwell) which need
+        # architecture-specific instructions (wgmma, tcgen05, etc.).
+        major_minor = cv.split(".")
+        if len(major_minor) == 2 and major_minor[0].isdigit():
+            major = int(major_minor[0])
+            if major >= 9:
+                return cv + ".a"
+        return cv
 
     raise ValueError(
         "No CUDA architecture was specified or GPU detected."

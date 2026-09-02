@@ -186,21 +186,6 @@ class Device(tvm_ffi.core.Device):
         return json.loads(self._GetDeviceAttr(self.dlpack_device_type(), self.index, 8))
 
     @property
-    def max_registers_per_block(self):
-        """Return the maximum number of 32-bit registers available to a block.
-
-        Returns device value for CUDA and ROCm devices.  Returns remote
-        device value for RPC devices.  Returns None for all other devices.
-
-        Returns
-        -------
-        max_registers_per_block : int or None
-            Maximum number of 32-bit registers available to a block.
-
-        """
-        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 9)
-
-    @property
     def api_version(self):
         """Returns version number of the SDK used to compile TVM.
 
