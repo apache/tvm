@@ -64,7 +64,7 @@ def test_ptx_registration():
         op = Op.get(entry.op_name)  # raises if unregistered
         assert op.get_attr("TCallEffectKind") is not None, entry.name
         # The printer name is the attribute path a program types, so it is the
-        # *escaped* family: `and`/`or`/`not` (ISA 9.7.8) are Python keywords and
+        # *escaped* family: `and`/`or`/`not` (ISA 9.7.9) are Python keywords and
         # print as `T.ptx.and_`. Identity for every other family.
         family = escape_token(entry.family)  # several entries may share a mnemonic
         assert op.get_attr("TScriptPrinterName") == f"ptx.{family}", entry.name
@@ -410,7 +410,151 @@ def test_ptx_92_cp_bulk_exact_renderings():
         assert f'asm volatile("{expected}"' in source, source
 
 
+def test_ptx_93_sm103a_exact_renderings():
+    """Representative PTX 9.3 forms keep their documented operand shapes."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+
+    cases = (
+        (
+            "clmad",
+            dict(mode="hi", type="u64"),
+            "clmad.hi.u64 %0, %1, %2, %3;",
+        ),
+        (
+            "ld",
+            dict(mmio="mmio", sem="acquire", scope="sys", space="global", type="u32"),
+            "ld.mmio.acquire.sys.global.u32 %0, [%1];",
+        ),
+        (
+            "st",
+            dict(mmio="mmio", sem="release", scope="sys", space="global", type="u32"),
+            "st.mmio.release.sys.global.u32 [%0], %1;",
+        ),
+        (
+            "multimem_st_async",
+            dict(sem="release", scope="sys", space="global", type="u32"),
+            "multimem.st.async.release.sys.global.u32 [%0], %1;",
+        ),
+        (
+            "cp_async_bulk_s2c",
+            dict(
+                api="async",
+                kind="bulk",
+                sem="relaxed",
+                scope="cluster",
+                dst="shared::cluster",
+                src="shared::cta",
+                completion="mbarrier::complete_tx::bytes",
+                type="b128",
+            ),
+            "cp.async.bulk.relaxed.cluster.shared::cluster.shared::cta."
+            "mbarrier::complete_tx::bytes.b128 [%0], [%1], %2, [%3];",
+        ),
+        (
+            "fabric_try_put_counted",
+            dict(
+                action="try_put",
+                api="async",
+                src="shared::cta",
+                completion=("mbarrier::complete_tx::16B.mbarrier::report::fabric.counted::bytes"),
+                sem="relaxed",
+                scope="sys",
+                type="b128",
+            ),
+            "fabric.try_put.async.shared::cta.mbarrier::complete_tx::16B."
+            "mbarrier::report::fabric.counted::bytes.relaxed.sys.b128 "
+            "[%0, %1, %2], [%3], %4, [%5];",
+        ),
+        (
+            "fence_proxy_fabric",
+            dict(
+                proxy="proxy",
+                direction="generic::fabric",
+                proxykind="alias",
+                sem="release",
+                scope="sys",
+            ),
+            "fence.proxy.generic::fabric.alias.release.sys;",
+        ),
+        (
+            "mbarrier_check_layout",
+            dict(action="check_layout", layout="layout::v1", space="shared::cta", type="b64"),
+            "mbarrier.check_layout.layout::v1.shared::cta.b64 pd0, [%1];",
+        ),
+        (
+            "tcgen05_ld_red",
+            dict(
+                action="ld",
+                red="red",
+                sync="sync",
+                aligned="aligned",
+                shape="32x32b",
+                num="x2",
+                type="f32",
+                redop="max",
+                abs="abs",
+                nan="NaN",
+            ),
+            "tcgen05.ld.red.sync.aligned.32x32b.x2.max.abs.NaN.f32 {%0, %1}, %2, [%3];",
+        ),
+        (
+            "tcgen05_ld_red",
+            dict(
+                action="ld",
+                red="red",
+                sync="sync",
+                aligned="aligned",
+                shape="32x32b",
+                num="x2",
+                redop="min",
+                type="u32",
+            ),
+            "tcgen05.ld.red.sync.aligned.32x32b.x2.min.u32 {%0, %1}, %2, [%3];",
+        ),
+    )
+    for name, modifiers, expected in cases:
+        entry = TABLE[name]
+        _, _, source = render_variant(entry, tokens_for(entry, **modifiers))
+        assert expected in source, source
+    # The split shape carries the immHalfSplitoff immediate after the address.
+    split = TABLE["tcgen05_ld_red_split"]
+    _, _, source = render_variant(
+        split,
+        tokens_for(
+            split,
+            action="ld",
+            red="red",
+            sync="sync",
+            aligned="aligned",
+            shape="16x32bx2",
+            num="x2",
+            redop="min",
+            type="s32",
+        ),
+        imms=("0",),
+    )
+    assert "tcgen05.ld.red.sync.aligned.16x32bx2.x2.min.s32 {%0, %1}, %2, [%3], 0;" in source, (
+        source
+    )
+
+    report = TABLE["mbarrier_test_wait_report_value"]
+    _, _, source = render_variant(
+        report,
+        tokens_for(
+            report,
+            action="test_wait",
+            phase_type="phase_type::primary",
+            space="shared::cta",
+            type="b64",
+        ),
+    )
+    assert ".reg .b8 raw_report_value;" in source
+    assert "pd0|pd1, raw_report_value, [%3], %4;" in source
+
+
 def test_ptx_92_cp_reduce_negative_grids():
+    from tvm.backend.cuda.ptx.render import render_variant
     from tvm.backend.cuda.ptx.table import TABLE, tokens_for
     from tvm.ir.type import PointerType, PrimType
 
@@ -453,6 +597,48 @@ def test_ptx_92_cp_reduce_negative_grids():
         T.ptx["cp.reduce.async.bulk.global.shared::cta.bulk_group.add.f16"](
             global_ptr, shared_ptr, size
         )
+
+    # `.add.noftz.f32` is PTX ISA 9.4: the pre-9.4 entry refuses it and names
+    # the sibling, which renders the documented spelling and is the single
+    # dispatch hit for the string form.
+    with pytest.raises(ValueError, match=r"PTX 9\.4 sibling"):
+        tokens_for(
+            global_reduce,
+            op="reduce",
+            api="async",
+            kind="bulk",
+            dst="global",
+            src="shared::cta",
+            completion="bulk_group",
+            redop="add",
+            noftz="noftz",
+            type="f32",
+        )
+    sibling = TABLE["cp_reduce_async_bulk_s2g_f32_noftz"]
+    _, _, source = render_variant(
+        sibling,
+        tokens_for(
+            sibling,
+            op="reduce",
+            api="async",
+            kind="bulk",
+            dst="global",
+            src="shared::cta",
+            completion="bulk_group",
+            redop="add",
+            noftz="noftz",
+            type="f32",
+        ),
+    )
+    assert (
+        "cp.reduce.async.bulk.global.shared::cta.bulk_group.add.noftz.f32 [%0], [%1], %2;" in source
+    )
+    T.ptx["cp.reduce.async.bulk.global.shared::cta.bulk_group.add.noftz.f32"](
+        global_ptr, shared_ptr, size
+    )
+    T.ptx["multimem_cp.reduce.async.bulk.relaxed.gpu.global.shared::cta.bulk_group.add.noftz.f32"](
+        global_ptr, shared_ptr, size
+    )
 
 
 def test_ptx_92_cp_bulk_roundtrip():
@@ -576,7 +762,7 @@ def test_ptx_destination_errors():
 def test_ptx_register_group_codegen():
     """A `.lanes > 1` operand renders as braces in the asm, flat params in C.
 
-    `{%1, %2}` is ONE PTX operand occupying two registers (ISA 9.7.9.4), which
+    `{%1, %2}` is ONE PTX operand occupying two registers (ISA 9.7.10.4), which
     is why the lane count appears nowhere in the instruction text -- `mov.b64`
     names the aggregate width, and the operand shape carries the rest.
     """
@@ -736,7 +922,7 @@ def test_ptx_mbarrier_92_shapes_render_and_roundtrip():
     from tvm.backend.cuda.ptx.table import TABLE
 
     selected = (
-        ("mbarrier_init", ("init", "shared", "b64"), False),
+        ("mbarrier_init", ("init", "", "shared", "b64"), False),
         (
             "mbarrier_arrive_no_complete_sink",
             ("arrive", "noComplete", "", "", "shared", "b64"),
@@ -747,11 +933,11 @@ def test_ptx_mbarrier_92_shapes_render_and_roundtrip():
             ("arrive_drop", "noComplete", "", "", "shared::cta", "b64"),
             False,
         ),
-        ("mbarrier_pending_count", ("pending_count", "b64"), False),
-        ("mbarrier_test_wait", ("test_wait", "", "", "shared::cta", "b64"), False),
+        ("mbarrier_pending_count", ("pending_count", "", "b64"), False),
+        ("mbarrier_test_wait", ("test_wait", "", "", "", "shared::cta", "b64"), False),
         (
             "mbarrier_try_wait_parity",
-            ("try_wait", "parity", "relaxed", "cluster", "shared::cta", "b64"),
+            ("try_wait", "parity", "", "relaxed", "cluster", "shared::cta", "b64"),
             False,
         ),
     )
@@ -831,7 +1017,7 @@ def test_ptx_bit_width_axis():
 
 
 def test_ptx_relaxed_load_store_typing():
-    """Scalar/vector ld, st and ldu accept ISA 9.4.1's wider register carriers."""
+    """Scalar/vector ld, st and ldu accept ISA section 9.4.1's wider register carriers."""
 
     @T.prim_func
     def kernel(a_ptr: T.handle):
@@ -875,8 +1061,8 @@ def test_ptx_relaxed_load_store_typing():
             T.ptx.st.global_.u16(A.ptr_to([0]), T.float32(1))
 
 
-def test_ptx_st_vec_f64_cuda_13_2_carrier_gap():
-    """Keep CUDA 13.2's st.v2.f64 gap local to that source-operand shape."""
+def test_ptx_st_vec_f64_cuda_13_4_carrier_gap():
+    """Keep CUDA 13.4's st.v2.f64 carrier gap (ptxas C7907) local to that source-operand shape."""
     from tvm.backend.cuda.ptx.table import TABLE, dtype_combos, tokens_for
 
     st_vec_tokens = tokens_for(TABLE["st_vec"], vec="v2", type="f64")
@@ -1337,7 +1523,7 @@ def test_ptx_mixed_precision_dispatch():
 
 
 def test_ptx_comparison_selection_dispatch():
-    """ISA 9.7.6, the section whose results and selectors are predicates.
+    """ISA 9.7.7, the section whose results and selectors are predicates.
 
     Four mnemonics, eight entries: `setp` alone is four, because `{.BoolOp}`
     adds an operand and `[|q]` adds a destination, and those are two
@@ -1479,7 +1665,7 @@ def test_ptx_slct_relaxed_value_dtype_domain():
 
 
 def test_ptx_half_comparison_dispatch():
-    """ISA 9.7.7, the half twin of 9.7.6 -- same two mnemonics, different grids.
+    """ISA 9.7.8, the half twin of 9.7.7 -- same two mnemonics, different grids.
 
     Two things separate it from the section it shares names with. `setp`'s
     destination shape is decided by the type rather than chosen: the scalar
@@ -1577,7 +1763,7 @@ def test_ptx_half_comparison_dispatch():
             T.device_entry()
             T.ptx.set.lt.f16.b16(out[0], T.uint16(0), T.uint16(0))
 
-    # 9.7.7 spells no unsigned alternates at all, so `lo` never resolves here.
+    # 9.7.8 spells no unsigned alternates at all, so `lo` never resolves here.
     with pytest.raises((AttributeError, tvm.error.DiagnosticError), match="not a valid modifier"):
 
         @T.prim_func
@@ -1587,7 +1773,7 @@ def test_ptx_half_comparison_dispatch():
 
 
 def test_ptx_logic_shift_dispatch():
-    """ISA 9.7.8, including the three mnemonics that are Python keywords.
+    """ISA 9.7.9, including the three mnemonics that are Python keywords.
 
     `and`, `or` and `not` cannot be attributes as they stand, so the surface
     spells them `and_`/`or_`/`not_` and the escape is carried through both
@@ -1754,7 +1940,7 @@ def test_ptx_logic_shift_dispatch():
 
 
 def test_ptx_data_movement_dispatch():
-    """ISA 9.7.9's newly registered instructions, end to end.
+    """ISA 9.7.10's newly registered instructions, end to end.
 
     The section's own difficulty is that its shapes vary more than its
     qualifiers: `mov` shares a mnemonic with ten vector pack/unpack entries and
@@ -1884,7 +2070,7 @@ def test_ptx_data_movement_dispatch():
 
 
 def test_ptx_parallel_sync_dispatch():
-    """ISA 9.7.13's warp-level primitives and the atom shapes beside `.op`.
+    """ISA 9.7.15's warp-level primitives and the atom shapes beside `.op`.
 
     The section is where predicates are most load-bearing: they are sources
     (bar.red's `c`), destinations (vote, elect), and both at once. It is also
@@ -1976,6 +2162,28 @@ def test_ptx_parallel_sync_dispatch():
             T.ptx.red_async.relaxed.cluster.shared__cluster.mbarrier__complete_tx__bytes.and_.u64(
                 A.ptr_to([0]), v, A.ptr_to([0])
             )
+
+
+def test_ptx_lazy_subscript_operands_realize():
+    """Raw buffer elements realize before PTX predicate operand validation."""
+
+    @T.prim_func
+    def kernel(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (1,), "uint32")
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+        regs = T.alloc_buffer((2,), "uint32", scope="local")
+        full = T.uint32(0xFFFFFFFF)
+        T.ptx.elect_sync(regs[0], regs[1], full)
+        T.ptx.vote_sync.all.pred(regs[0], T.ptx.pred(regs[1]), full)
+        T.ptx.activemask.b32(regs[1], pred=regs[0])
+        A[0] = regs[0] + regs[1]
+
+    src = _cuda_source(kernel)
+    assert "elect.sync" in src
+    assert "vote.sync.all.pred" in src
+    assert "@p activemask.b32" in src
 
 
 def test_ptx_parser_roundtrip():
@@ -2245,7 +2453,7 @@ def test_ptx_sink_rejected_where_the_isa_has_no_underscore():
             T.ptx.mov.b64(packed, lo, T.ptx.SINK)
             T.evaluate(hi)
 
-    # ISA 9.7.9.4: "provided that at least one element is a scalar register".
+    # ISA 9.7.10.4: "provided that at least one element is a scalar register".
     with pytest.raises((ValueError, tvm.error.DiagnosticError), match="must be a real register"):
 
         @T.prim_func
@@ -2276,6 +2484,411 @@ def test_ptx_printer_form():
 # Registered-instruction unit tests: pin down the engine's generated helpers
 # and its trace-time coercion so the behavior is readable here, not implicit.
 # ---------------------------------------------------------------------------
+def test_ptx_94_sm107_helpers_render():
+    """Representative SM107 forms preserve PTX 9.4 modifier order and shape."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, escape_token, tokens_for, unescape_token
+
+    cases = (
+        (
+            "mul_mixed_vec_bf16_f16",
+            dict(dtype="bf16x2", atype="bf16x2", ctype="f16x2"),
+            "mul.bf16x2.bf16x2.f16x2",
+        ),
+        (
+            "mul_mixed_vec_f16_bf16",
+            dict(dtype="f16x2", atype="f16x2", ctype="bf16x2"),
+            "mul.f16x2.f16x2.bf16x2",
+        ),
+        ("set_packed", dict(cmp="eq", type="u8x4"), "set.eq.u8x4"),
+        (
+            "ld_proxy_readonly",
+            dict(space="global", type="u32", proxy="proxy::readonly"),
+            "ld.global.u32.proxy::readonly",
+        ),
+        (
+            "prefetch_valid_addr",
+            dict(space="global", level="L1::32B", valid_addr="valid_addr"),
+            "prefetch.global.L1::32B.valid_addr",
+        ),
+        (
+            "spcompress",
+            dict(elemsize="b8", idxsize="b2", spfactor="sp::2:4", num="x4"),
+            "spcompress.b8.b2.sp::2:4.x4",
+        ),
+        (
+            "tcgen05_mma_ti16_ss_collector_b",
+            dict(
+                action="mma",
+                cta_group="cta_group::1",
+                kind="kind::ti16",
+                collector_b="collector::b::fill",
+            ),
+            "tcgen05.mma.cta_group::1.kind::ti16.collector::b::fill",
+        ),
+        (
+            "tcgen05_mma_ss",
+            dict(
+                action="mma",
+                cta_group="cta_group::2",
+                kind="kind::f8f6f4",
+                collector_a="collector::a::discard",
+            ),
+            "tcgen05.mma.cta_group::2.kind::f8f6f4.collector::a::discard",
+        ),
+        (
+            "tcgen05_mma_lut_b_ts",
+            dict(
+                action="mma",
+                cta_group="cta_group::1",
+                kind="kind::f8f6f4",
+                decompress="decompress::lut::b",
+                collector_b="collector::b::use",
+            ),
+            "tcgen05.mma.cta_group::1.kind::f8f6f4.decompress::lut::b.collector::b::use",
+        ),
+        (
+            "cp_async_bulk_tensor_g2s_cta_override_address_im2col",
+            dict(
+                api="async",
+                kind="bulk",
+                unit="tensor",
+                dim="3d",
+                dst="shared::cta",
+                src="global",
+                load_mode="im2col",
+                completion="mbarrier::complete_tx::bytes",
+                override_address="override::global_address",
+            ),
+            (
+                "cp.async.bulk.tensor.3d.shared::cta.global.im2col."
+                "mbarrier::complete_tx::bytes.override::global_address"
+            ),
+        ),
+        (
+            "cp_async_bulk_tensor_g2s_cta_override_address",
+            dict(
+                api="async",
+                kind="bulk",
+                unit="tensor",
+                dim="2d",
+                dst="shared::cta",
+                src="global",
+                load_mode="tile",
+                completion="mbarrier::complete_tx::bytes",
+                report="mbarrier::report::disabled",
+                override_address="override::global_address",
+            ),
+            (
+                "cp.async.bulk.tensor.2d.shared::cta.global.tile."
+                "mbarrier::complete_tx::bytes.mbarrier::report::disabled."
+                "override::global_address"
+            ),
+        ),
+        (
+            "cp_async_bulk_tensor_s2g_im2col_no_offs_w",
+            dict(
+                api="async",
+                kind="bulk",
+                unit="tensor",
+                dim="3d",
+                dst="global",
+                src="shared::cta",
+                load_mode="im2col_no_offs",
+                completion="bulk_group",
+            ),
+            "cp.async.bulk.tensor.3d.global.shared::cta.im2col_no_offs.bulk_group",
+        ),
+        (
+            "atom_f32_noftz_bitbucket",
+            dict(space="global", op="add", noftz="noftz", type="f32"),
+            "atom.global.add.noftz.f32",
+        ),
+        (
+            "ldmatrix_s8_s4",
+            dict(
+                sync="sync",
+                aligned="aligned",
+                shape="m8n16",
+                num="x1",
+                space="shared",
+                dtype="s8",
+                ctype="s4",
+            ),
+            "ldmatrix.sync.aligned.m8n16.x1.shared.s8.s4",
+        ),
+    )
+    for name, slots, expected in cases:
+        entry = TABLE[name]
+        opcode, _, source = render_variant(entry, tokens_for(entry, **slots))
+        assert opcode == expected
+        assert f"{expected} " in source
+
+    cluster_override_im2col = TABLE["cp_async_bulk_tensor_g2s_cluster_override_address_im2col"]
+    opcode, _, source = render_variant(
+        cluster_override_im2col,
+        tokens_for(
+            cluster_override_im2col,
+            api="async",
+            kind="bulk",
+            unit="tensor",
+            dim="3d",
+            dst="shared::cluster",
+            src="global",
+            load_mode="im2col",
+            completion="mbarrier::complete_tx::bytes",
+            multicast="multicast::cluster::16b",
+            override_address="override::global_address",
+        ),
+    )
+    assert (
+        opcode == "cp.async.bulk.tensor.3d.shared::cluster.global.im2col."
+        "mbarrier::complete_tx::bytes.multicast::cluster::16b.override::global_address"
+    )
+    assert "uint16_t __cta_mask" in source
+
+    tma = TABLE["cp_async_bulk_tensor_g2s_cta_override_address_im2col"]
+    _, _, source = render_variant(
+        tma,
+        tokens_for(
+            tma,
+            api="async",
+            kind="bulk",
+            unit="tensor",
+            dim="3d",
+            dst="shared::cta",
+            src="global",
+            load_mode="im2col",
+            completion="mbarrier::complete_tx::bytes",
+            override_address="override::global_address",
+        ),
+    )
+    assert "[%1, %2, {%3, %4, %5}], [%6], {%7};" in source
+
+    escaped = escape_token("sp::2:4")
+    assert escaped == "sp__2__colon__4"
+    assert unescape_token(escaped) == "sp::2:4"
+
+
+def test_ptx_94_cp_bulk_semantic_renderings():
+    """Report and mask-width siblings retain every non-tensor semantic line."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+
+    cases = (
+        (
+            "cp_async_bulk_g2s_cta_report",
+            dict(
+                api="async",
+                kind="bulk",
+                sem="weak",
+                dst="shared::cta",
+                src="global",
+                completion="mbarrier::complete_tx::bytes",
+                report="mbarrier::report::disabled",
+                ignore_oob="ignore_oob",
+            ),
+            "cp.async.bulk.weak.shared::cta.global.mbarrier::complete_tx::bytes."
+            "mbarrier::report::disabled.ignore_oob "
+            "[%0], [%1], %2, %3, %4, [%5];",
+        ),
+        (
+            "cp_async_bulk_g2s_cta_report",
+            dict(
+                api="async",
+                kind="bulk",
+                sem="relaxed",
+                scope="sys",
+                dst="shared::cta",
+                src="global",
+                completion="mbarrier::complete_tx::bytes",
+                report="mbarrier::report::validity::per_16bytes::8",
+                cache="L2::cache_hint",
+                type="b128",
+            ),
+            "cp.async.bulk.relaxed.sys.shared::cta.global."
+            "mbarrier::complete_tx::bytes."
+            "mbarrier::report::validity::per_16bytes::8.L2::cache_hint.b128 "
+            "[%0], [%1], %2, [%3], %4;",
+        ),
+        (
+            "cp_async_bulk_g2s_cluster_multicast16",
+            dict(
+                api="async",
+                kind="bulk",
+                sem="weak",
+                dst="shared::cluster",
+                src="global",
+                completion="mbarrier::complete_tx::bytes",
+                multicast="multicast::cluster::16b",
+            ),
+            "cp.async.bulk.weak.shared::cluster.global.mbarrier::complete_tx::bytes."
+            "multicast::cluster::16b [%0], [%1], %2, [%3], %4;",
+        ),
+        (
+            "cp_async_bulk_g2s_cluster_multicast32",
+            dict(
+                api="async",
+                kind="bulk",
+                sem="relaxed",
+                scope="cluster",
+                dst="shared::cluster",
+                src="global",
+                completion="mbarrier::complete_tx::bytes",
+                multicast="multicast::cluster::32b",
+                type="b128",
+            ),
+            "cp.async.bulk.relaxed.cluster.shared::cluster.global."
+            "mbarrier::complete_tx::bytes.multicast::cluster::32b.b128 "
+            "[%0], [%1], %2, [%3], %4;",
+        ),
+        (
+            "cp_async_bulk_g2s_cluster_report",
+            dict(
+                api="async",
+                kind="bulk",
+                sem="relaxed",
+                scope="gpu",
+                dst="shared::cluster",
+                src="global",
+                completion="mbarrier::complete_tx::bytes",
+                report="mbarrier::report::validity::per_element::ff",
+                multicast="multicast::cluster::32b",
+                type="b128",
+            ),
+            "cp.async.bulk.relaxed.gpu.shared::cluster.global."
+            "mbarrier::complete_tx::bytes."
+            "mbarrier::report::validity::per_element::ff."
+            "multicast::cluster::32b.b128 [%0], [%1], %2, [%3], %4;",
+        ),
+    )
+    for name, modifiers, expected in cases:
+        entry = TABLE[name]
+        _, _, source = render_variant(entry, tokens_for(entry, **modifiers))
+        assert f'asm volatile("{expected}"' in source, source
+
+
+def test_ptx_94_cp_bulk_semantics_roundtrip():
+    """The string namespace dispatches every widened PTX 9.4 sibling."""
+
+    @T.prim_func
+    def kernel(src: T.Buffer((64,), "uint32")):
+        T.device_entry()
+        smem = T.alloc_buffer((64,), "uint32", scope="shared")
+        mbar = T.alloc_buffer((2,), "uint64", scope="shared")
+        T.ptx[
+            "cp.async.bulk.relaxed.sys.shared::cta.global."
+            "mbarrier::complete_tx::bytes."
+            "mbarrier::report::validity::per_16bytes::8.L2::cache_hint.b128"
+        ](
+            smem.ptr_to([0]),
+            src.ptr_to([0]),
+            T.uint32(16),
+            mbar.ptr_to([0]),
+            T.uint64(0),
+        )
+        T.ptx[
+            "cp.async.bulk.weak.shared::cluster.global."
+            "mbarrier::complete_tx::bytes.multicast::cluster::16b"
+        ](
+            T.uint32(0),
+            src.ptr_to([0]),
+            T.uint32(16),
+            mbar.ptr_to([0]),
+            T.uint16(1),
+        )
+        T.ptx[
+            "cp.async.bulk.relaxed.cluster.shared::cluster.global."
+            "mbarrier::complete_tx::bytes.multicast::cluster::32b.b128"
+        ](
+            T.uint32(0),
+            src.ptr_to([0]),
+            T.uint32(16),
+            mbar.ptr_to([0]),
+            T.uint32(1),
+        )
+        T.ptx[
+            "cp.async.bulk.relaxed.gpu.shared::cluster.global."
+            "mbarrier::complete_tx::bytes."
+            "mbarrier::report::validity::per_element::ff."
+            "multicast::cluster::32b.b128"
+        ](
+            T.uint32(0),
+            src.ptr_to([0]),
+            T.uint32(16),
+            mbar.ptr_to([0]),
+            T.uint32(1),
+        )
+
+    reparsed = tvm.script.from_source(kernel.script())
+    tvm.ir.assert_structural_equal(kernel, reparsed)
+
+
+def test_ptx_94_cp_bulk_semantic_negative_grids():
+    """The widened siblings reject malformed strong semantics and report/OOB pairs."""
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+
+    multicast = TABLE["cp_async_bulk_g2s_cluster_multicast32"]
+    required = dict(
+        api="async",
+        kind="bulk",
+        dst="shared::cluster",
+        src="global",
+        completion="mbarrier::complete_tx::bytes",
+        multicast="multicast::cluster::32b",
+    )
+    with pytest.raises(ValueError, match=r"requires both \.scope and \.b128"):
+        tokens_for(multicast, **required, sem="relaxed")
+    with pytest.raises(ValueError, match=r"belong only to the \.relaxed"):
+        tokens_for(multicast, **required, sem="weak", scope="cta", type="b128")
+
+    report = TABLE["cp_async_bulk_g2s_cta_report"]
+    with pytest.raises(ValueError, match=r"\.ignore_oob requires .*report::disabled"):
+        tokens_for(
+            report,
+            api="async",
+            kind="bulk",
+            dst="shared::cta",
+            src="global",
+            completion="mbarrier::complete_tx::bytes",
+            report="mbarrier::report::validity::per_element::ff",
+            ignore_oob="ignore_oob",
+        )
+
+
+def test_ptx_94_family_specific_arch_floors_and_delta():
+    """SM107 family-only forms certify at 107f and remain in the 9.4 delta."""
+    from tvm.backend.cuda.ptx.table import _PTX_94_ENTRIES, TABLE
+
+    family_specific = {
+        "add_mixed_vec_up",
+        "sub_mixed_vec_up",
+        "add_mixed_vec_down_f16",
+        "sub_mixed_vec_down_f16",
+        "add_mixed_vec_down_bf16",
+        "sub_mixed_vec_down_bf16",
+        "fma_mixed_vec",
+        "mul_mixed_vec_down_f16",
+        "mul_mixed_vec_down_bf16",
+        "mul_mixed_vec_bf16_f16",
+        "mul_mixed_vec_f16_bf16",
+        "set_packed",
+    }
+    assert {TABLE[name].cert_arch for name in family_specific} == {"sm_107f"}
+
+    delta_names = {entry.name for entry in _PTX_94_ENTRIES}
+    noftz_siblings = {
+        "atom_f32_noftz",
+        "red_f32_noftz",
+        "atom_vec_f32_noftz",
+        "red_vec_f32_noftz",
+        "cp_reduce_async_bulk_s2g_f32_noftz",
+        "multimem_cp_reduce_async_bulk_f32_noftz",
+    }
+    assert {"ldmatrix_s8_s4", *noftz_siblings} <= delta_names
+    # `.noftz` with `.f32` is a PTX ISA 9.4 line that requires sm_90, not a
+    # family-specific one; the siblings certify at that floor.
+    assert {TABLE[name].cert_arch for name in noftz_siblings} == {"sm_90"}
 
 
 def test_ptx_tcgen05_mapa_address_rendering():
@@ -2569,7 +3182,7 @@ def test_ptx_helper_source_golden():
     )
     # Two written type tokens, and an accumulator derived from both: c and d
     # are .u32 only when atype and btype both are, so this mixed pair makes
-    # them .s32 (ISA 9.7.1.23).
+    # them .s32 (ISA 9.7.1.24).
     assert render("dp4a", atype="u32", btype="s32") == (
         "__forceinline__ __device__ void tvm_builtin_ptx_dp4a_u32_s32"
         "(int32_t& __d, uint32_t __a, int32_t __b, int32_t __c) {\n"
@@ -2675,7 +3288,7 @@ def test_ptx_helper_source_golden():
         "}\n"
     )
 
-    # Comparison and selection (ISA 9.7.6). setp's `p|q`: ONE operand position
+    # Comparison and selection (ISA 9.7.7). setp's `p|q`: ONE operand position
     # holding two predicate destinations, joined by the ISA's own separator
     # rather than a comma. Each half is a real register with its own selp on
     # the way out -- q carries the Boolean applied to the complement of the
@@ -2730,8 +3343,8 @@ def test_ptx_helper_source_golden():
         "}\n"
     )
 
-    # Half-precision comparison (ISA 9.7.7). The packed setp reuses the pipe
-    # pair, but its two halves mean something else than 9.7.6's: p and q are
+    # Half-precision comparison (ISA 9.7.8). The packed setp reuses the pipe
+    # pair, but its two halves mean something else than 9.7.7's: p and q are
     # the two lanes' comparisons, not a result and its complement.
     assert render("setp_half_pq", cmp="lt", ftz="ftz", type="f16x2") == (
         "__forceinline__ __device__ void tvm_builtin_ptx_setp_half_pq_lt_ftz_f16x2"
@@ -2758,7 +3371,7 @@ def test_ptx_helper_source_golden():
         "}\n"
     )
 
-    # Logic and shift (ISA 9.7.8). `.pred` as an instruction type, rather than
+    # Logic and shift (ISA 9.7.9). `.pred` as an instruction type, rather than
     # as one operand's class: three bridges -- two setp in, one selp out --
     # wrapped around a single instruction that never touches the carriers.
     assert render("and", type="pred") == (
@@ -2802,7 +3415,7 @@ def test_ptx_helper_source_golden():
         "}\n"
     )
 
-    # Data movement (ISA 9.7.9). shfl.sync's `d|p`: a pipe pair whose halves
+    # Data movement (ISA 9.7.10). shfl.sync's `d|p`: a pipe pair whose halves
     # are DIFFERENT register classes -- an ordinary b32 result bound straight
     # to %0, and an in-range predicate that rides the bridge.
     assert render("shfl_sync_p", mode="up", type="b32") == (
@@ -2853,7 +3466,7 @@ def test_ptx_helper_source_golden():
         "}\n"
     )
 
-    # Parallel synchronization (ISA 9.7.13). elect.sync's `d|p` is the one
+    # Parallel synchronization (ISA 9.7.15). elect.sync's `d|p` is the one
     # pipe pair the ISA makes mandatory -- ptxas rejects a bare destination --
     # and its halves are two different register classes.
     assert render("elect_sync") == (
@@ -2892,9 +3505,10 @@ def test_ptx_helper_source_golden():
         '"l"(__addr), "f"(__value0), "f"(__value1) : "memory");\n'
         "}\n"
     )
-    # PTX ISA 9.2 documents the same bit-bucket spelling for bf16 atom, but
-    # CUDA 13.2 ptxas does not compile it (an exact inlined caller segfaults).
-    # Returned-value bf16 atom and f16 bit buckets remain registered.
+    # The ISA documents the same bit-bucket spelling for bf16 atom; the table
+    # withholds it pending certification on CUDA 13.4 (see
+    # `_check_atom_half_bitbucket`).  Returned-value bf16 atom and f16 bit
+    # buckets remain registered.
     for entry_name, by_name in (
         ("atom_half_bitbucket", {"op": "add", "noftz": "noftz", "type": "bf16"}),
         (
@@ -2902,7 +3516,7 @@ def test_ptx_helper_source_golden():
             {"op": "add", "noftz": "noftz", "vec": "v2", "type": "bf16"},
         ),
     ):
-        with pytest.raises(ValueError, match="PTX ISA 9.2 supports.*ptxas does not compile"):
+        with pytest.raises(ValueError, match="bf16 atom bit-bucket destination.*withholds"):
             tokens_for(TABLE[entry_name], **by_name)
     # red's half-word and packed vector syntax lines share this entry; the
     # conditional policy operand follows the value group.
@@ -3169,7 +3783,7 @@ _BLOCK_RE = re.compile(r"^\{ (?P<body>.*) \}$")
 # semantics -- see BRIDGE.
 #
 # Matched in FULL, not by opcode prefix, because an opcode is no longer a
-# discriminator: `setp` and `selp` are registered instructions (ISA 9.7.6), so
+# discriminator: `setp` and `selp` are registered instructions (ISA 9.7.7), so
 # a helper's one real instruction can carry the same mnemonic as the bridge
 # statements around it. What separates them is the shape the bridge always
 # has -- it names a bridge-local register (`p`, `ps<n>`, `pd<n>`, `raw_<slot>`)
@@ -3376,7 +3990,7 @@ def test_ptx_all_variants_render_unique():
             _, helper, _ = render_variant(entry, *args, addr_offsets=addr_offsets)
             assert helper not in names, f"address-offset helper name collision: {helper}"
             names.add(helper)
-    assert total == 660867  # update when the table grows or a ptxas gap narrows it
+    assert total == 761703  # update when the table grows or a ptxas gap narrows it
 
 
 def test_ptx_no_instruction_registered_twice():
@@ -3403,9 +4017,10 @@ def test_ptx_no_instruction_registered_twice():
 def test_ptx_dispatch_unambiguous():
     """No two entries may accept the same call.
 
-    Models what the engine resolves by, and only that: the written tokens (slot
-    names and order are invisible to `_fill`), the operand count, and each
-    position's acceptance class. Declared spaces that `_coerce_address` treats
+    Models what the engine resolves by, and only that: the written token
+    multiset (slot names are invisible to `_fill`, but repeated tokens remain
+    repeated), the operand count, and each position's acceptance class.
+    Declared spaces that `_coerce_address` treats
     alike collapse into one class, which is what makes this stricter than the
     rendering check above — two entries can emit different assembly and still
     leave a call with nothing to choose between them.
@@ -3426,6 +4041,8 @@ def test_ptx_dispatch_unambiguous():
             if space == "tmem":
                 return ("addr", "tmem")
             return ("addr", "shared*" if space.startswith("shared") else "generic")
+        if slot.kind == "imm":
+            return ("imm", slot.literal, slot.choices)
         if slot.kind != "reg":
             return (slot.kind,)
         if pred_is_distinct and operand_type(slot, mod_map) == "pred":
@@ -3444,7 +4061,7 @@ def test_ptx_dispatch_unambiguous():
             mod_map = mods(entry, tokens)
             layout = operand_layout(entry, mod_map)
             shape = tuple(accepts(s, mod_map) for s, _, n in layout for _ in range(n))
-            key = (entry.family, frozenset(t for t in tokens if t), shape)
+            key = (entry.family, tuple(sorted(t for t in tokens if t)), shape)
             first = owners.setdefault(key, entry.name)
             assert first == entry.name, (
                 f"{first} and {entry.name} both accept "
@@ -3478,6 +4095,8 @@ def test_ptx_dispatch_model_detects_a_collapsed_class():
             if space == "tmem":
                 return ("addr", "tmem")
             return ("addr", "shared*" if space.startswith("shared") else "generic")
+        if slot.kind == "imm":
+            return ("imm", slot.literal, slot.choices)
         if slot.kind != "reg":
             return (slot.kind,)
         return (slot.rw, tuple(sorted(operand_dtypes(slot, mod_map))))
@@ -3488,7 +4107,7 @@ def test_ptx_dispatch_model_detects_a_collapsed_class():
             mod_map = mods(entry, tokens)
             layout = operand_layout(entry, mod_map)
             shape = tuple(accepts(s, mod_map) for s, _, n in layout for _ in range(n))
-            key = (entry.family, frozenset(t for t in tokens if t), shape)
+            key = (entry.family, tuple(sorted(t for t in tokens if t)), shape)
             first = owners.setdefault(key, entry.name)
             if first != entry.name:
                 collisions.add(tuple(sorted((first, entry.name))))
@@ -3524,7 +4143,7 @@ def test_ptxas_gate_rejects_invalid():
 
 
 def test_ptx_vec256_wide_carriers_not_registered():
-    """PTX documents wider carriers, but CUDA 13.2 ptxas cannot compile this axis."""
+    """PTX documents wider carriers; CUDA 13.4 ptxas does not compile the axis uniformly (C7907)."""
     from tvm.backend.cuda.ptx.table import TABLE, dtype_combos, tokens_for
 
     expected = (
@@ -3538,6 +4157,102 @@ def test_ptx_vec256_wide_carriers_not_registered():
         assert dtype_combos(entry, tokens) == expected
 
 
+_PTX_93_SM103A_FULL_ENTRIES = frozenset(
+    {
+        "clmad",
+        "multimem_st_async",
+        "multimem_red_async",
+        "tensormap_replace_swizzle_mode_sm103a",
+        "multimem_cp_async_bulk",
+        "multimem_cp_reduce_async_bulk",
+        "mbarrier_check_layout",
+        "tcgen05_ld_red",
+        "tcgen05_ld_red_split",
+        "fabric_try_get",
+        "fabric_try_put",
+        "fabric_try_put_cp_mask",
+        "fabric_try_put_counted",
+        "fabric_try_red",
+        "fabric_try_red_counted",
+        "fabric_try_pullred",
+        "fabric_submit",
+        "fabric_wait",
+        "fence_proxy_fabric",
+    }
+)
+_PTX_93_SM103A_BULK_ENTRIES = frozenset(
+    {
+        "cp_async_bulk_g2s_cta",
+        "cp_async_bulk_g2s_cluster",
+        "cp_async_bulk_s2c",
+        "cp_async_bulk_s2g",
+        "cp_reduce_async_bulk_s2c",
+        "cp_reduce_async_bulk_s2g",
+    }
+)
+_PTX_93_SM103A_PHASE_ENTRIES = frozenset(
+    {
+        "mbarrier_test_wait_parity",
+        "mbarrier_try_wait_parity",
+        "mbarrier_try_wait_parity_no_hint",
+        "mbarrier_test_wait",
+        "mbarrier_try_wait",
+        "mbarrier_try_wait_hint",
+    }
+)
+
+
+def _ptx_93_sm103a_manifest():
+    """Yield every rendering introduced or extended by PTX 9.3 for SM103a."""
+    from tvm.backend.cuda.ptx.table import _PTX_94_ENTRIES, TABLE, mods, renderings
+
+    ptx94 = {entry.name for entry in _PTX_94_ENTRIES}
+    for name, entry in TABLE.items():
+        if name in ptx94:
+            # The 9.4 delta (sm_107f floors, including the cp.async.bulk
+            # `*_report` entries) is certified at its own arch by
+            # test_ptx_all_helpers_certify, not at sm_103a here.
+            continue
+        for rendering in renderings(entry):
+            tokens = rendering[0]
+            mod_map = mods(entry, tokens)
+            if (
+                name in _PTX_93_SM103A_FULL_ENTRIES
+                or "_report" in name
+                or (name == "ld" and mod_map["mmio"] and mod_map["sem"] == "acquire")
+                or (name == "st" and mod_map["mmio"] and mod_map["sem"] == "release")
+                or (name in _PTX_93_SM103A_BULK_ENTRIES and bool(mod_map.get("sem")))
+                or (name == "mbarrier_init" and bool(mod_map["layout"]))
+                or (name == "mbarrier_pending_count" and bool(mod_map["layout"]))
+                or (name in _PTX_93_SM103A_PHASE_ENTRIES and bool(mod_map["phase_type"]))
+            ):
+                yield entry, rendering
+
+
+@pytest.mark.skipif(
+    not os.environ.get("PTX_CERT"),
+    reason="exhaustive PTX 9.3 helpers; run with PTX_CERT=1 after changing the table",
+)
+@requires_nvcc
+def test_ptx_93_sm103a_helpers_certify():
+    """Every PTX 9.3 addition assembles as a production-shaped SM103a caller."""
+    from tvm.backend.cuda.ptx.render import render_variant
+
+    by_arch = {}
+    covered = 0
+    for entry, rendering in _ptx_93_sm103a_manifest():
+        tokens, dtypes, predicated, imms, sinks = rendering
+        _, helper, source = render_variant(entry, tokens, predicated, dtypes, imms, sinks)
+        _append_certification(by_arch, "sm_103a", helper, source)
+        covered += 1
+    assert covered == 2668
+    _assert_certifications_ok(by_arch)
+
+
+@pytest.mark.skipif(
+    not env.has_nvcc_version(13, 4),
+    reason="whole-table certification includes PTX 9.4 forms; need nvcc >= 13.4",
+)
 @requires_nvcc
 def test_ptx_sampled_helpers_assemble():
     """Fast tier: production-shaped calls to a seeded sample assemble."""
@@ -3570,6 +4285,10 @@ _CERT_SHARDS = 32
 @pytest.mark.skipif(
     not os.environ.get("PTX_CERT"),
     reason="full-table ptxas certification; run with PTX_CERT=1 after changing the table",
+)
+@pytest.mark.skipif(
+    not env.has_nvcc_version(13, 4),
+    reason="whole-table certification includes PTX 9.4 forms; need nvcc >= 13.4",
 )
 @requires_nvcc
 @pytest.mark.parametrize("shard", range(_CERT_SHARDS))

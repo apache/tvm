@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The ptx cvt entries: one case per registered syntax line of ISA 9.7.9.21."""
+"""The ptx cvt entries: one case per registered syntax line of ISA 9.7.10.24."""
 
 import pytest
 
@@ -231,12 +231,96 @@ _FORM_CASES = [
         dict(rnd="rn", relu="relu", dtype="bf16x2", atype="s2f6x2"),
         "cvt.rn.relu.bf16x2.s2f6x2",
     ),
+    # PTX ISA 9.4: pzo, narrow rz/n1 scaling, and UE5M3.
+    (
+        "cvt_pzo_scalar_f32",
+        dict(rnd="rn", pzo="pzo", dtype="f16", atype="f32"),
+        "cvt.rn.pzo.f16.f32",
+    ),
+    (
+        "cvt_pzo_fp16x2_f32",
+        dict(rnd="rz", satfinite="satfinite", pzo="pzo", dtype="bf16x2", atype="f32"),
+        "cvt.rz.satfinite.pzo.bf16x2.f32",
+    ),
+    (
+        "cvt_pzo_tf32_f32",
+        dict(rnd="rn", relu="relu", pzo="pzo", dtype="tf32", atype="f32"),
+        "cvt.rn.relu.pzo.tf32.f32",
+    ),
+    (
+        "cvt_94_narrow_f32",
+        dict(
+            rnd="rz",
+            satfinite="satfinite",
+            scaled="scaled::n1::ue8m0",
+            dtype="e4m3x2",
+            atype="f32",
+        ),
+        "cvt.rz.satfinite.scaled::n1::ue8m0.e4m3x2.f32",
+    ),
+    (
+        "cvt_94_narrow_fp16x2",
+        dict(
+            rnd="rn",
+            satfinite="satfinite",
+            pzo="pzo",
+            dtype="e2m1x2",
+            atype="bf16x2",
+        ),
+        "cvt.rn.satfinite.pzo.e2m1x2.bf16x2",
+    ),
+    (
+        "cvt_ue5m3x2_f32",
+        dict(rnd="rp", satfinite="satfinite", dtype="ue5m3x2", atype="f32"),
+        "cvt.rp.satfinite.ue5m3x2.f32",
+    ),
+    (
+        "cvt_ue5m3x2_f32_scaled",
+        dict(
+            rnd="rz",
+            scaled="scaled::n1::ue8m0",
+            dtype="ue5m3x2",
+            atype="f32",
+        ),
+        "cvt.rz.scaled::n1::ue8m0.ue5m3x2.f32",
+    ),
+    (
+        "cvt_ue5m3x2_fp16x2",
+        dict(rnd="rn", dtype="ue5m3x2", atype="f16x2"),
+        "cvt.rn.ue5m3x2.f16x2",
+    ),
+    (
+        "cvt_ue5m3x2_fp16x2_scaled",
+        dict(
+            rnd="rn",
+            satfinite="satfinite",
+            scaled="scaled::n1::ue8m0",
+            dtype="ue5m3x2",
+            atype="bf16x2",
+        ),
+        "cvt.rn.satfinite.scaled::n1::ue8m0.ue5m3x2.bf16x2",
+    ),
+    (
+        "cvt_f16x2_ue5m3x2",
+        dict(rnd="rn", dtype="f16x2", atype="ue5m3x2"),
+        "cvt.rn.f16x2.ue5m3x2",
+    ),
+    (
+        "cvt_bf16x2_ue5m3x2",
+        dict(
+            rnd="rn",
+            scaled="scaled::n2::ue8m0",
+            dtype="bf16x2",
+            atype="ue5m3x2",
+        ),
+        "cvt.rn.scaled::n2::ue8m0.bf16x2.ue5m3x2",
+    ),
 ]
 
 # The generic scalar line is one entry named plain "cvt"; the packed lines are
 # the "cvt_*" family.
-# Every entry of the `cvt` instruction (ISA 9.7.9.21). Keyed off the mnemonic
-# rather than the table name: `cvt.pack` (9.7.9.22) is a different instruction
+# Every entry of the `cvt` instruction (ISA 9.7.10.24). Keyed off the mnemonic
+# rather than the table name: `cvt.pack` (9.7.10.25) is a different instruction
 # that happens to sort under the same prefix, and its forms are not points on
 # this conversion grid.
 _CVT_ENTRIES = {name for name, entry in TABLE.items() if entry.ptx_name == "cvt"}
@@ -371,8 +455,8 @@ def test_cvt_generic_scalar_relaxed_carriers(ptx_type, dst_expected, src_expecte
     assert operand_dtypes(entry.operands[1], mod_map) == (src_expected or dst_expected)
 
 
-def test_cvt_generic_scalar_cuda_13_2_bf16_opposite_operand_gap():
-    """CUDA 13.2 also rejects widening the operand opposite `.bf16`."""
+def test_cvt_generic_scalar_cuda_13_4_bf16_opposite_operand_gap():
+    """CUDA 13.4 ptxas also rejects widening the operand opposite `.bf16`."""
     entry = TABLE["cvt"]
     to_bf16 = mods(entry, tokens_for(entry, rnd="rn", dtype="bf16", atype="u32"))
     assert operand_dtypes(entry.operands[0], to_bf16) == ("uint16",)
@@ -392,8 +476,8 @@ def test_cvt_generic_scalar_cuda_13_2_bf16_opposite_operand_gap():
     )
 
 
-def test_cvt_generic_scalar_cuda_13_2_ftz_destination_gaps():
-    """Pin the two destination-only `.ftz` gaps measured on CUDA 13.2."""
+def test_cvt_generic_scalar_cuda_13_4_ftz_destination_gaps():
+    """Pin the two destination-only `.ftz` gaps measured on CUDA 13.4 ptxas."""
     entry = TABLE["cvt"]
 
     u64_from_f32 = mods(entry, tokens_for(entry, rnd="rni", ftz="ftz", dtype="u64", atype="f32"))
@@ -425,7 +509,7 @@ def test_cvt_generic_scalar_cuda_13_2_ftz_destination_gaps():
 
 
 def test_cvt_generic_scalar_keeps_supported_wide_carriers():
-    """Do not turn CUDA 13.2's narrow gaps into a blanket cvt restriction."""
+    """Do not turn CUDA 13.4's narrow gaps into a blanket cvt restriction."""
     entry = TABLE["cvt"]
 
     no_ftz = mods(entry, tokens_for(entry, rnd="rn", dtype="f32", atype="f64"))
@@ -454,8 +538,8 @@ def test_cvt_generic_scalar_relaxed_carriers_render_exact_instruction():
     assert '"cvt.s16.u16 %0, %1;" : "=l"(__d) : "l"(__a)' in source
 
     # Destination widening remains supported, while the floating source is
-    # exact-width because ptxas rejects the wider source form permitted by PTX
-    # 9.2 Table 27.
+    # exact-width because ptxas rejects the wider source form permitted by ISA
+    # section 9.4.1, Table 27.
     tokens = tokens_for(entry, rnd="rn", dtype="f16", atype="f32")
     opcode, helper, source = render_variant(entry, tokens, dtypes=("uint128", "uint32"))
     assert opcode == "cvt.rn.f16.f32"
@@ -492,7 +576,7 @@ def test_cvt_bf16_sat_diagnostics_distinguish_isa_and_toolchain():
 def test_cvt_e2m1x2_stages_its_b8_operand():
     """`.e2m1x2` is the one cvt format with no register of its own width.
 
-    ISA 9.7.9.21:92 "When converting to .e2m1x2 data formats, the destination
+    ISA 9.7.10.24:92 "When converting to .e2m1x2 data formats, the destination
     operand d has .b8 type." and :101 "When converting from .e2m1x2 to
     .f16x2/.bf16x2, source operand a has .b8 type." Inline asm has no 8-bit
     constraint letter, so both directions declare the register inside the block
@@ -522,7 +606,7 @@ def test_cvt_e2m1x2_stages_its_b8_operand():
     assert "cvt.rn.scaled::n2::ue8m0.bf16x2.e2m1x2 %0, raw_a, %2;" in source
 
 
-# The cvt type tokens ISA 9.7.9.21's Target ISA Notes list architecture by
+# The cvt type tokens ISA 9.7.10.24's Target ISA Notes list architecture by
 # architecture (:527-639), plus the .rs rounding mode (":602 .rs rounding mode
 # is supported on following architectures:", listing sm_100a and sm_103a).
 _CVT_BLACKWELL_TOKENS = {
@@ -555,12 +639,28 @@ def _needs_sm100a(written: set[str]) -> bool:
     )
 
 
-def test_cvt_blackwell_lines_carry_their_arch_floor():
-    """The Blackwell-only cvt lines must certify at sm_100a; certifying them at
-    the sm_90 default would report legal forms as illegal.
+_PTX94_CVT_ENTRIES = {
+    "cvt_pzo_scalar_f32",
+    "cvt_pzo_fp16x2_f32",
+    "cvt_pzo_tf32_f32",
+    "cvt_94_narrow_f32",
+    "cvt_94_narrow_fp16x2",
+    "cvt_ue5m3x2_f32",
+    "cvt_ue5m3x2_f32_scaled",
+    "cvt_ue5m3x2_fp16x2",
+    "cvt_ue5m3x2_fp16x2_scaled",
+    "cvt_f16x2_ue5m3x2",
+    "cvt_bf16x2_ue5m3x2",
+}
 
+
+def test_cvt_blackwell_lines_carry_their_arch_floor():
+    """Blackwell-only cvt lines carry their maximum documented family floor.
+
+    The baseline lines certify at sm_100a and PTX 9.4's SM107 lines at sm_107f;
+    certifying either at the sm_90 default would report legal forms as illegal.
     The floor rides the narrow format, not `.bf16x2` on its own: ISA
-    9.7.9.21:517-518 puts `.bf16x2` as a destination format at "sm_80 or
+    9.7.10.24:517-518 puts `.bf16x2` as a destination format at "sm_80 or
     higher", which is where cvt.frnd2{.relu}{.satfinite}.bf16x2.f32 lives,
     while :634-639 restrict `.bf16x2` *from* an fp8/fp6/fp4 format to
     family-specific architectures.
@@ -568,11 +668,12 @@ def test_cvt_blackwell_lines_carry_their_arch_floor():
     for name in _CVT_ENTRIES:
         entry = TABLE[name]
         if any(_needs_sm100a(set(tokens)) for tokens, *_ in renderings(entry)):
-            assert entry.cert_arch == "sm_100a", name
+            expected = "sm_107f" if name in _PTX94_CVT_ENTRIES else "sm_100a"
+            assert entry.cert_arch == expected, name
 
 
 def test_cvt_tf32_satfinite_carries_its_sm_100_floor():
-    """ISA 9.7.9.21:526 "cvt.{rn/rz}.satfinite.tf32.f32 requires sm_100 or
+    """ISA 9.7.10.24:526 "cvt.{rn/rz}.satfinite.tf32.f32 requires sm_100 or
     higher." -- the maximum floor over the entry, whose other spellings sit at
     sm_80/sm_90."""
     entry = TABLE["cvt_tf32_f32"]
@@ -585,7 +686,7 @@ def test_cvt_rs_and_scale_factor_shapes():
     """The two operand shapes this family added: the .rs lines' trailing rbits
     (with a grouped ``{a, b, e, f}`` source on the x4 forms), and the
     scale-factor operand that exists exactly when .scaled::n2::ue8m0 is
-    written (ISA 9.7.9.21:180-182 "Operand scale-factor and qualifier
+    written (ISA 9.7.10.24:180-182 "Operand scale-factor and qualifier
     .scaled::n2::ue8m0 must be used together.")."""
     _, _, source = render_variant(TABLE["cvt_rs_f16x2_f32"], ("rs", "", "", "f16x2", "f32"))
     assert "uint32_t& __d, float __a, float __b, uint32_t __rbits" in source
