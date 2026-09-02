@@ -159,23 +159,17 @@ class LoopHeightError : public ScheduleError {
   SBlock block_;
 };
 
-PrimExpr RemakePredicate(PrimExpr pred, const std::unordered_set<const VarNode*>& discarded_loops) {
+PrimExpr RewriteInitPredicate(PrimExpr pred,
+                              const std::unordered_set<const VarNode*>& discarded_loops) {
   if (is_one(pred)) return IntImm::Bool(true);
-  PrimExpr new_pred = IntImm::Bool(true);
-  auto f = [&](const VarNode* var) { return discarded_loops.count(var); };
-  arith::PVar<PrimExpr> lhs, rhs, rest;
-  for (;;) {
-    if ((rest && (lhs < rhs)).Match(pred)) {
-      if (!UsesVar(lhs.Eval(), f)) new_pred = new_pred && (lhs.Eval() < rhs.Eval());
-      pred = rest.Eval();
-    } else if ((lhs < rhs).Match(pred)) {
-      if (!UsesVar(lhs.Eval(), f)) new_pred = new_pred && (lhs.Eval() < rhs.Eval());
-      break;
-    } else {
-      TVM_FFI_ICHECK(false) << "Unexpected predicate for reduction block";
-    }
+  if (const auto* and_node = pred.as<AndNode>()) {
+    return RewriteInitPredicate(and_node->a, discarded_loops) &&
+           RewriteInitPredicate(and_node->b, discarded_loops);
   }
-  return new_pred;
+  auto uses_discarded_loop = [&discarded_loops](const VarNode* var) {
+    return discarded_loops.count(var);
+  };
+  return UsesVar(pred, uses_discarded_loop) ? IntImm::Bool(true) : pred;
 }
 
 StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
@@ -259,15 +253,17 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
       discarded = false;
       break;
     }
-    if (discarded) discarded_loops.insert(loop_var);
+    if (discarded) {
+      discarded_loops.insert(loop_var);
+    }
     // Only scan loops not higher than the given loop
     if (loops[i].same_as(loop_sref)) {
       break;
     }
   }
-  // Step 4. After scanning loops, make a new predicate in the init block realize
-  //         We discard predicate that is related to discarded loops
-  init_realize->predicate = RemakePredicate(realize->predicate, discarded_loops);
+  // Step 4. Derive the predicate for the init block realize.  Omit conjunction clauses that
+  //         depend on discarded loops.
+  init_realize->predicate = RewriteInitPredicate(realize->predicate, discarded_loops);
   // Step 5. Create new loops above init block
   std::unordered_map<Var, Var> loop_var_map;
   Stmt body = SBlockRealize(init_realize);
