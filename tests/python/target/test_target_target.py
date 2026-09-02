@@ -178,6 +178,21 @@ def test_target_tag_1():
     assert tgt.attrs["registers_per_block"] == 32768
 
 
+def test_target_tag_jetson_agx_thor():
+    tgt = tvm.target.Target("nvidia/jetson-agx-thor")
+    assert tgt.kind.name == "cuda"
+    assert tgt.attrs["arch"] == "sm_110a"
+    assert tgt.attrs["max_shared_memory_per_block"] == 232448
+    assert tgt.attrs["max_threads_per_block"] == 1024
+    assert tgt.attrs["thread_warp_size"] == 32
+    assert tgt.attrs["registers_per_block"] == 65536
+    assert tgt.attrs["l2_cache_size_bytes"] == 33554432
+    assert tgt.host.kind.name == "llvm"
+    assert tgt.host.attrs["mtriple"] == "aarch64-linux-gnu"
+    assert tgt.host.attrs["mcpu"] == "neoverse-v3ae"
+    assert tgt.host.attrs["num-cores"] == 14
+
+
 def test_target_tag_override():
     """Test creating a target from a tag with attribute overrides."""
     tgt = tvm.target.Target({"tag": "nvidia/nvidia-a100", "l2_cache_size_bytes": 12345})
@@ -354,7 +369,13 @@ def test_target_from_device_cuda(input_form):
         assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
         assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
         assert int(target.attrs["thread_warp_size"]) == dev.warp_size
-        assert str(target.attrs.get("arch", "")) == "sm_" + dev.compute_version.replace(".", "")
+        compute_version = dev.compute_version.replace(".", "")
+        arch = f"sm_{compute_version}"
+        if int(compute_version) >= 90:
+            arch += "a"
+        assert str(target.attrs.get("arch", "")) == arch
+        if dev.compute_version == "11.0":
+            assert int(target.attrs["max_shared_memory_per_block"]) == 232448
 
     tvm.testing.run_with_gpu_lock(run_and_check)
 
