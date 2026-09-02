@@ -73,13 +73,8 @@ class CUDADeviceAPI final : public DeviceAPI {
         break;
       }
       case kMaxSharedMemoryPerBlock: {
-#if CUDART_VERSION >= 9000
-        TVM_FFI_CHECK_CUDA_ERROR(
-            cudaDeviceGetAttribute(&value, cudaDevAttrMaxSharedMemoryPerBlockOptin, dev.device_id));
-#else
         TVM_FFI_CHECK_CUDA_ERROR(
             cudaDeviceGetAttribute(&value, cudaDevAttrMaxSharedMemoryPerBlock, dev.device_id));
-#endif
         break;
       }
       case kComputeVersion: {

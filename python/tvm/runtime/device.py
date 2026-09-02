@@ -91,9 +91,6 @@ class Device(tvm_ffi.core.Device):
         Returns remote device value for RPC devices.  Returns None for
         all other devices.
 
-        For CUDA devices, this is the maximum opt-in shared-memory size
-        when supported by the CUDA runtime.
-
         Returns
         -------
         max_shared_memory_per_block : int or None

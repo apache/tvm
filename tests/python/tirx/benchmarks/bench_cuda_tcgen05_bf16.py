@@ -35,6 +35,12 @@ from tvm.tirx.layout import S, TCol, TileLayout, TLane
 from tvm.tirx.layout import tid_in_wg as axis_tid_in_wg
 
 
+def _blackwell_target(dev):
+    if dev.device_name == "NVIDIA Thor":
+        return tvm.target.Target("nvidia/jetson-agx-thor")
+    return tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+
+
 def build_kernel(num_ctas: int, mma_repeats: int, n: int):
     """Build a multi-CTA BF16 tcgen05 kernel."""
     m = 128
@@ -112,7 +118,7 @@ def build_kernel(num_ctas: int, mma_repeats: int, n: int):
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(tmem_addr[0], T.uint32(n))
 
-    target = tvm.target.Target.from_device(tvm.cuda(0))
+    target = _blackwell_target(tvm.cuda(0))
     with target:
         executable = tvm.compile(
             tvm.IRModule({"main": bf16_tcgen05}), target=target, tir_pipeline="tirx"
@@ -166,7 +172,7 @@ def main():
         "compute_version": dev.compute_version,
         "multi_processor_count": int(dev.multi_processor_count),
         "cuda_runtime_max_clock_rate_khz": int(dev.max_clock_rate),
-        "target": str(tvm.target.Target.from_device(dev)),
+        "target": str(_blackwell_target(dev)),
         "ctas": num_ctas,
         "mma_repeats": args.mma_repeats,
         "m": m,

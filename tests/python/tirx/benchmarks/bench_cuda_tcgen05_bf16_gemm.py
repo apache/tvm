@@ -38,6 +38,12 @@ from tvm.tirx.layout import S, TCol, TileLayout, TLane
 from tvm.tirx.layout import tid_in_wg as axis_tid_in_wg
 
 
+def _blackwell_target(dev):
+    if dev.device_name == "NVIDIA Thor":
+        return tvm.target.Target("nvidia/jetson-agx-thor")
+    return tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+
+
 def build_kernel(m_dim: int, n_dim: int, k_dim: int, stages: int, group_m: int, block_n: int):
     """Build a role-specialized, staged BF16 tcgen05 GEMM kernel."""
     block_m = 128
@@ -199,7 +205,7 @@ def build_kernel(m_dim: int, n_dim: int, k_dim: int, stages: int, group_m: int, 
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(tmem_addr[0], T.uint32(block_n))
 
-    target = tvm.target.Target.from_device(tvm.cuda(0))
+    target = _blackwell_target(tvm.cuda(0))
     with target:
         executable = tvm.compile(tvm.IRModule({"main": gemm}), target=target, tir_pipeline="tirx")
     return executable
@@ -255,7 +261,7 @@ def main():
         "measurement_scope": "end-to-end BF16 GEMM, C = A @ B.T",
         "device": dev.device_name,
         "compute_version": dev.compute_version,
-        "target": str(tvm.target.Target.from_device(dev)),
+        "target": str(_blackwell_target(dev)),
         "m": args.m,
         "n": args.n,
         "k": args.k,

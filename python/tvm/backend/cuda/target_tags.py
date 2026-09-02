@@ -33,23 +33,24 @@ def _register_cuda_tag(name, arch, shared_mem=49152, regs=65536, **extra):
     register_tag(name, config)
 
 
-def _register_jetson_tag(name, arch, mcpu, num_cores, shared_mem=49152, regs=65536, **extra):
-    config = {
-        "kind": "cuda",
-        "arch": arch,
-        "max_shared_memory_per_block": shared_mem,
-        "max_threads_per_block": 1024,
-        "thread_warp_size": 32,
-        "registers_per_block": regs,
-        "host": {
-            "kind": "llvm",
-            "mtriple": "aarch64-linux-gnu",
-            "mcpu": mcpu,
-            "num-cores": num_cores,
+def _register_jetson_tag(name, arch, mcpu, num_cores, regs=65536):
+    register_tag(
+        name,
+        {
+            "kind": "cuda",
+            "arch": arch,
+            "max_shared_memory_per_block": 49152,
+            "max_threads_per_block": 1024,
+            "thread_warp_size": 32,
+            "registers_per_block": regs,
+            "host": {
+                "kind": "llvm",
+                "mtriple": "aarch64-linux-gnu",
+                "mcpu": mcpu,
+                "num-cores": num_cores,
+            },
         },
-    }
-    config.update(extra)
-    register_tag(name, config)
+    )
 
 
 # =====================================================================
@@ -371,11 +372,21 @@ _register_jetson_tag("nvidia/jetson-agx-xavier", "sm_72", "carmel", 8)
 _register_jetson_tag("nvidia/jetson-orin-nano", "sm_87", "carmel", 6)
 _register_jetson_tag("nvidia/jetson-agx-orin-32gb", "sm_87", "cortex-a78", 8)
 _register_jetson_tag("nvidia/jetson-agx-orin-64gb", "sm_87", "cortex-a78", 12)
-_register_jetson_tag(
+register_tag(
     "nvidia/jetson-agx-thor",
-    "sm_110a",
-    "neoverse-v3ae",
-    14,
-    shared_mem=232448,
-    l2_cache_size_bytes=33554432,
+    {
+        "kind": "cuda",
+        "arch": "sm_110a",
+        "max_shared_memory_per_block": 232448,
+        "max_threads_per_block": 1024,
+        "thread_warp_size": 32,
+        "registers_per_block": 65536,
+        "l2_cache_size_bytes": 33554432,
+        "host": {
+            "kind": "llvm",
+            "mtriple": "aarch64-linux-gnu",
+            "mcpu": "neoverse-v3ae",
+            "num-cores": 14,
+        },
+    },
 )
