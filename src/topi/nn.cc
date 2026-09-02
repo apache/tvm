@@ -62,16 +62,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   })
       .def_packed("topi.nn.pad",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
+                    auto pad_value_tensor = args[3].try_cast<te::Tensor>();
+                    PrimExpr pad_value = pad_value_tensor
+                                             ? pad_value_tensor.value()(ffi::Array<PrimExpr>{})
+                                             : args[3].cast<PrimExpr>();
                     *rv = pad(args[0].cast<te::Tensor>(), args[1].cast<ffi::Array<PrimExpr>>(),
-                              args[2].cast<ffi::Array<PrimExpr>>(), args[3].cast<PrimExpr>());
+                              args[2].cast<ffi::Array<PrimExpr>>(), pad_value);
                   })
-      .def_packed("topi.nn.space_to_batch_nd",
-                  [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = space_to_batch_nd(
-                        args[0].cast<te::Tensor>(), args[1].cast<ffi::Array<int64_t>>(),
-                        args[2].cast<ffi::Array<PrimExpr>>(), args[3].cast<ffi::Array<PrimExpr>>(),
-                        args[4].cast<PrimExpr>());
-                  })
+      .def_packed(
+          "topi.nn.space_to_batch_nd",
+          [](ffi::PackedArgs args, ffi::Any* rv) {
+            auto pad_value_tensor = args[4].try_cast<te::Tensor>();
+            PrimExpr pad_value = pad_value_tensor ? pad_value_tensor.value()(ffi::Array<PrimExpr>{})
+                                                  : args[4].cast<PrimExpr>();
+            *rv = space_to_batch_nd(args[0].cast<te::Tensor>(), args[1].cast<ffi::Array<int64_t>>(),
+                                    args[2].cast<ffi::Array<PrimExpr>>(),
+                                    args[3].cast<ffi::Array<PrimExpr>>(), pad_value);
+          })
       .def_packed("topi.nn.batch_to_space_nd",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = batch_to_space_nd(

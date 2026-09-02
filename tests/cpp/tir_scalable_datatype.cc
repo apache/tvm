@@ -20,9 +20,10 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <tvm/ffi/dtype.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/script/printer/printer.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 
 #ifdef TVM_LLVM_VERSION
 #include <llvm/IR/Intrinsics.h>

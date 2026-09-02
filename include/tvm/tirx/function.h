@@ -28,9 +28,9 @@
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/tirx/buffer.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt.h>
 
 #include <string>
@@ -271,6 +271,7 @@ namespace attr {
  *
  * - tvm::runtime::launch_param::kUseProgramaticDependentLaunch
  * - tvm::runtime::launch_param::kUseCooperativeLaunch
+ * - tvm::runtime::launch_param::kUseRequiredBlockDimension
  *
  *   Flag-only launch attributes.  These tags add no packed operand.
  *
@@ -292,6 +293,28 @@ constexpr const char* kLaunchBoundsMinBlocksPerSM = "tirx.launch_bounds_min_bloc
  */
 constexpr const char* kLaunchBoundsMaxBlocksPerCluster =
     "tirx.launch_bounds_max_blocks_per_cluster";
+
+/*!
+ * \brief CUDA maximum registers per thread.
+ *
+ * Emits the CUDA 13 ``__maxnreg__`` kernel qualifier.  This attribute is
+ * mutually exclusive with the launch-bounds attributes.
+ *
+ * Type: IntImm
+ */
+constexpr const char* kMaxRegisters = "tirx.max_registers";
+
+/*!
+ * \brief Require CUDA to use the statically-declared block and cluster dimensions.
+ *
+ * Emits the CUDA 13 ``__block_size__`` kernel qualifier.  Unlike
+ * ``__launch_bounds__``, this is an exact launch contract: CUDA derives the
+ * PTX ``.reqntid`` directive from the thread extents, and interprets the
+ * launch grid in clusters using the cluster-CTA extents.
+ *
+ * Type: IntImm (must be 1)
+ */
+constexpr const char* kRequiredBlockSize = "tirx.required_block_size";
 
 /*!
  * \brief Whether to set noalias rule on the function arguments.

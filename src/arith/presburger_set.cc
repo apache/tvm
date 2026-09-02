@@ -29,7 +29,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -58,26 +58,26 @@ static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
     IntegerRelation disjunct(entries.size(), 0, vars.size() + 1, space);
     for (const PrimExpr& entry : entries) {
       // The expression is expect to be simplified to only contain ==, <= or <
-      if (entry.as<LENode>()) {
-        auto coeffs_a = DetectLinearEquation(entry.as<LENode>()->a, vars);
-        auto coeffs_b = DetectLinearEquation(entry.as<LENode>()->b, vars);
+      if (entry.as<prim::LENode>()) {
+        auto coeffs_a = DetectLinearEquation(entry.as<prim::LENode>()->a, vars);
+        auto coeffs_b = DetectLinearEquation(entry.as<prim::LENode>()->b, vars);
         std::vector<int64_t> int_coeffs;
         for (size_t i = 0; i < coeffs_a.size(); i++) {
           int_coeffs.push_back(*as_const_int(coeffs_b[i]) - *as_const_int(coeffs_a[i]));
         }
         disjunct.addInequality(int_coeffs);
-      } else if (entry.as<LTNode>()) {
-        auto coeffs_a = DetectLinearEquation(entry.as<LTNode>()->a, vars);
-        auto coeffs_b = DetectLinearEquation(entry.as<LTNode>()->b, vars);
+      } else if (entry.as<prim::LTNode>()) {
+        auto coeffs_a = DetectLinearEquation(entry.as<prim::LTNode>()->a, vars);
+        auto coeffs_b = DetectLinearEquation(entry.as<prim::LTNode>()->b, vars);
         std::vector<int64_t> int_coeffs;
         for (size_t i = 0; i < coeffs_a.size(); i++) {
           int_coeffs.push_back(*as_const_int(coeffs_b[i]) - *as_const_int(coeffs_a[i]));
         }
         int_coeffs[int_coeffs.size() - 1] -= 1;
         disjunct.addInequality(int_coeffs);
-      } else if (entry.as<EQNode>()) {
-        auto coeffs_a = DetectLinearEquation(entry.as<EQNode>()->a, vars);
-        auto coeffs_b = DetectLinearEquation(entry.as<EQNode>()->b, vars);
+      } else if (entry.as<prim::EQNode>()) {
+        auto coeffs_a = DetectLinearEquation(entry.as<prim::EQNode>()->a, vars);
+        auto coeffs_b = DetectLinearEquation(entry.as<prim::EQNode>()->b, vars);
         std::vector<int64_t> int_coeffs;
         for (size_t i = 0; i < coeffs_a.size(); i++) {
           int_coeffs.push_back(*as_const_int(coeffs_a[i]) - *as_const_int(coeffs_b[i]));

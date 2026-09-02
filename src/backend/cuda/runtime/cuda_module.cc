@@ -74,6 +74,8 @@ class CUDAModuleNode : public ffi::ModuleObj {
   }
   // destructor
   ~CUDAModuleNode() {
+    int previous_device = -1;
+    cudaError_t get_device_err = cudaGetDevice(&previous_device);
     for (size_t i = 0; i < module_.size(); ++i) {
       if (module_[i] != nullptr) {
         cudaError_t set_err = cudaSetDevice(static_cast<int>(i));
@@ -84,6 +86,10 @@ class CUDAModuleNode : public ffi::ModuleObj {
         // Ignore errors during cleanup - context may be shutting down
         (void)result;
       }
+    }
+    if (get_device_err == cudaSuccess) {
+      // Preserve the caller's current device after unloading per-device modules.
+      (void)cudaSetDevice(previous_device);
     }
   }
 
@@ -218,10 +224,39 @@ class CUDAWrappedFunc {
     int device_id;
     TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
     ThreadWorkLoad wl = launch_param_config_.Extract(args);
+    bool use_oversized_shared_memory = false;
 
     if (fcache_[device_id] == nullptr) {
       fcache_[device_id] = m_->GetFunc(device_id, func_name_);
-      if (wl.dyn_shmem_size >= (48 << 10)) {
+      // SM107 cluster kernels may use an oversized shared-memory configuration above the
+      // ordinary per-CTA opt-in limit.  Match CUDA 13/CUTLASS DSL by selecting that mode
+      // before setting the dynamic-SMEM size; the latter attribute is ignored in this mode.
+      if (launch_param_config_.use_cluster_launch()) {
+#if CUDA_VERSION >= 13040
+        int max_portable_dynamic_shared = 0;
+        TVM_FFI_CHECK_CUDA_ERROR(cudaDeviceGetAttribute(
+            &max_portable_dynamic_shared, cudaDevAttrMaxSharedMemoryPerBlockOptin, device_id));
+        use_oversized_shared_memory =
+            wl.dyn_shmem_size > static_cast<size_t>(max_portable_dynamic_shared);
+        if (use_oversized_shared_memory) {
+          CUresult result =
+              cuFuncSetAttribute(fcache_[device_id], CU_FUNC_ATTRIBUTE_SHARED_MEMORY_MODE,
+                                 CU_SHARED_MEMORY_MODE_ALLOW_OVERSIZED_SHARED_MEMORY);
+          if (result != CUDA_SUCCESS) {
+            TVM_FFI_THROW(InternalError)
+                << "Failed to allow oversized dynamic shared memory size " << wl.dyn_shmem_size;
+          }
+        }
+#endif  // CUDA_VERSION >= 13040
+        CUresult result = cuFuncSetAttribute(
+            fcache_[device_id], CU_FUNC_ATTRIBUTE_NON_PORTABLE_CLUSTER_SIZE_ALLOWED, 1);
+        if (result != CUDA_SUCCESS) {
+          TVM_FFI_THROW(InternalError)
+              << "Failed to allow non-portable CUDA cluster size (" << wl.cluster_dim(0) << ", "
+              << wl.cluster_dim(1) << ", " << wl.cluster_dim(2) << ")";
+        }
+      }
+      if (wl.dyn_shmem_size >= (48 << 10) && !use_oversized_shared_memory) {
         // Assumption: dyn_shmem_size doesn't change across different invocations of
         // fcache_[device_id]
         CUresult result = cuFuncSetAttribute(
@@ -233,27 +268,39 @@ class CUDAWrappedFunc {
       }
     }
     CUstream strm = static_cast<CUstream>(TVMFFIEnvGetStream(kDLCUDA, device_id));
-    std::vector<CUlaunchAttribute> attrs;
+    std::array<CUlaunchAttribute, 4> attrs{};
+    unsigned int num_attrs = 0;
+    bool use_required_block_dimension = launch_param_config_.use_required_block_dimension();
 
-    // 1) Cluster
-    if (wl.cluster_dim(0) != 1 || wl.cluster_dim(1) != 1 || wl.cluster_dim(2) != 1) {
+    // 1) Cluster.  __block_size__ fixes this at compile time, and supplying a
+    // runtime cluster attribute for the same kernel is forbidden by CUDA.
+    if (!use_required_block_dimension && launch_param_config_.use_cluster_launch()) {
       CUlaunchAttribute attr{};
       attr.id = CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION;
       attr.value.clusterDim.x = wl.cluster_dim(0);
       attr.value.clusterDim.y = wl.cluster_dim(1);
       attr.value.clusterDim.z = wl.cluster_dim(2);
-      attrs.push_back(attr);
+      attrs[num_attrs++] = attr;
     }
 
     // 1b) Preferred cluster (CUDA 12.8+, cudaLaunchAttributePreferredClusterDimension)
-    if (wl.preferred_cluster_dim(0) != 1 || wl.preferred_cluster_dim(1) != 1 ||
-        wl.preferred_cluster_dim(2) != 1) {
+    if (use_required_block_dimension) {
+      for (int i = 0; i < 3; ++i) {
+        TVM_FFI_ICHECK(wl.preferred_cluster_dim(i) == 1 ||
+                       wl.preferred_cluster_dim(i) == wl.cluster_dim(i))
+            << "CUDA required block dimensions cannot be combined with a different preferred "
+               "cluster size";
+      }
+    }
+    if (!use_required_block_dimension &&
+        (wl.preferred_cluster_dim(0) != 1 || wl.preferred_cluster_dim(1) != 1 ||
+         wl.preferred_cluster_dim(2) != 1)) {
       CUlaunchAttribute attr{};
       attr.id = CU_LAUNCH_ATTRIBUTE_PREFERRED_CLUSTER_DIMENSION;
       attr.value.clusterDim.x = wl.preferred_cluster_dim(0);
       attr.value.clusterDim.y = wl.preferred_cluster_dim(1);
       attr.value.clusterDim.z = wl.preferred_cluster_dim(2);
-      attrs.push_back(attr);
+      attrs[num_attrs++] = attr;
     }
 
     // 2) Programmatic stream serialization
@@ -261,7 +308,7 @@ class CUDAWrappedFunc {
       CUlaunchAttribute attr{};
       attr.id = CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_STREAM_SERIALIZATION;
       attr.value.programmaticStreamSerializationAllowed = 1;
-      attrs.push_back(attr);
+      attrs[num_attrs++] = attr;
     }
 
     // 3) Cooperative
@@ -269,21 +316,40 @@ class CUDAWrappedFunc {
       CUlaunchAttribute attr{};
       attr.id = CU_LAUNCH_ATTRIBUTE_COOPERATIVE;
       attr.value.cooperative = 1;
-      attrs.push_back(attr);
+      attrs[num_attrs++] = attr;
     }
 
     // 4) Launch
     CUlaunchConfig config{};
-    config.gridDimX = wl.grid_dim(0);
-    config.gridDimY = wl.grid_dim(1);
-    config.gridDimZ = wl.grid_dim(2);
-    config.blockDimX = wl.block_dim(0);
-    config.blockDimY = wl.block_dim(1);
-    config.blockDimZ = wl.block_dim(2);
+    if (use_required_block_dimension) {
+#if CUDA_VERSION >= 13000
+      for (int i = 0; i < 3; ++i) {
+        TVM_FFI_ICHECK_EQ(wl.grid_dim(i) % wl.cluster_dim(i), 0U)
+            << "CUDA required block dimension launch needs each logical block-grid dimension "
+               "to be divisible by its compile-time cluster dimension";
+      }
+      config.gridDimX = wl.grid_dim(0) / wl.cluster_dim(0);
+      config.gridDimY = wl.grid_dim(1) / wl.cluster_dim(1);
+      config.gridDimZ = wl.grid_dim(2) / wl.cluster_dim(2);
+      config.blockDimX = CU_LAUNCH_KERNEL_REQUIRED_BLOCK_DIM;
+      config.blockDimY = 1;
+      config.blockDimZ = 1;
+#else
+      TVM_FFI_THROW(InternalError)
+          << "CUDA required block dimensions need CUDA Toolkit 13 or newer";
+#endif
+    } else {
+      config.gridDimX = wl.grid_dim(0);
+      config.gridDimY = wl.grid_dim(1);
+      config.gridDimZ = wl.grid_dim(2);
+      config.blockDimX = wl.block_dim(0);
+      config.blockDimY = wl.block_dim(1);
+      config.blockDimZ = wl.block_dim(2);
+    }
     config.sharedMemBytes = wl.dyn_shmem_size;
     config.hStream = strm;
-    config.attrs = attrs.empty() ? nullptr : attrs.data();
-    config.numAttrs = static_cast<unsigned int>(attrs.size());
+    config.attrs = num_attrs == 0 ? nullptr : attrs.data();
+    config.numAttrs = num_attrs;
 
     CUresult result = cuLaunchKernelEx(&config, fcache_[device_id], void_args, nullptr);
 

@@ -24,10 +24,10 @@
 #ifndef TVM_S_TIR_BACKEND_ADRENO_TRANSFORM_H_
 #define TVM_S_TIR_BACKEND_ADRENO_TRANSFORM_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 
 #include <string>
@@ -35,6 +35,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace backend {
 namespace adreno {
 namespace transform {

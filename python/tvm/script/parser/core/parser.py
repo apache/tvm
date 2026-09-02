@@ -627,7 +627,9 @@ class Parser(doc.NodeVisitor):
             for k, v in extra_vars.items():
                 var_values[k] = v
         var_values[ScriptMacro.parser_object_name] = self
-        return eval_expr(self, node, var_values)
+        value = eval_expr(self, node, var_values)
+
+        return self.annotate_current_source_span(value)
 
     def _duplicate_lhs_check(self, target: doc.expr) -> bool | set[str]:
         """Check whether duplicate lhs exists in assignment.

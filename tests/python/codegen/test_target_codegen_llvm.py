@@ -1255,7 +1255,13 @@ def test_invalid_volatile_masked_buffer_load():
         def main(b: T.handle):
             B = T.match_buffer(b, [4])
             A = T.alloc_buffer((4,), annotations={"tirx.volatile": True})
-            B[0:4] = A.vload([T.Ramp(0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
+            B[0:4] = T.call_intrin(
+                "float32x4",
+                "tirx.masked_load",
+                A,
+                T.Ramp(0, 1, 4),
+                T.Broadcast(T.bool(True), 4),
+            )
 
     err_msg = "The masked load intrinsic does not support declaring load as volatile."
     with pytest.raises(RuntimeError, match=err_msg):
@@ -1271,7 +1277,13 @@ def test_invalid_volatile_masked_decl_buffer_load():
             B = T.match_buffer(b, [4])
             A = T.alloc_buffer((4,), annotations={"tirx.volatile": True})
             A_alias = T.decl_buffer((4,), data=A.data)
-            B[0:4] = A_alias.vload([T.Ramp(0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
+            B[0:4] = T.call_intrin(
+                "float32x4",
+                "tirx.masked_load",
+                A_alias,
+                T.Ramp(0, 1, 4),
+                T.Broadcast(T.bool(True), 4),
+            )
 
     err_msg = "The masked load intrinsic does not support declaring load as volatile."
     with pytest.raises(RuntimeError, match=err_msg):
@@ -1285,10 +1297,15 @@ def test_invalid_volatile_masked_buffer_store():
         @T.prim_func(s_tir=True)
         def main():
             A = T.alloc_buffer((4,), annotations={"tirx.volatile": True})
-            A.vstore(
-                [T.Ramp(0, 1, 4)],
-                T.Broadcast(0.0, 4),
-                predicate=T.Broadcast(T.bool(True), 4),
+            T.evaluate(
+                T.call_intrin(
+                    "void",
+                    "tirx.masked_store",
+                    A,
+                    T.Broadcast(0.0, 4),
+                    T.Ramp(0, 1, 4),
+                    T.Broadcast(T.bool(True), 4),
+                )
             )
 
     err_msg = "The masked store intrinsic does not support declaring store as volatile."

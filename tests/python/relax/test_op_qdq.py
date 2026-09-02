@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax, tirx
@@ -47,6 +49,36 @@ def test_qdq_op_infer_ty():
         relax.op.dequantize(dx, s, zp, 1, "float32"),
         relax.TensorType((2, 3), "float32"),
     )
+
+
+def test_qdq_op_infer_ty_scalar():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((), "float32"))
+    dx = relax.Var("dx", R.Tensor((), "uint8"))
+    s = relax.Var("s", R.Tensor((), "float32"))
+    zp = relax.Var("zp", R.Tensor((), "uint8"))
+    _check_inference(bb, relax.op.quantize(x, s, zp, 0, "uint8"), relax.TensorType((), "uint8"))
+    _check_inference(
+        bb,
+        relax.op.dequantize(dx, s, zp, 0, "float32"),
+        relax.TensorType((), "float32"),
+    )
+
+
+@pytest.mark.parametrize("op_name", ["quantize", "dequantize"])
+def test_qdq_op_rejects_per_axis_params_for_scalar_input(op_name):
+    bb = relax.BlockBuilder()
+    s = relax.Var("s", R.Tensor((2,), "float32"))
+    zp = relax.Var("zp", R.Tensor((2,), "uint8"))
+    if op_name == "quantize":
+        x = relax.Var("x", R.Tensor((), "float32"))
+        call = relax.op.quantize(x, s, zp, 0, "uint8")
+    else:
+        x = relax.Var("x", R.Tensor((), "uint8"))
+        call = relax.op.dequantize(x, s, zp, 0, "float32")
+
+    with pytest.raises(ValueError, match="scalar or singleton tensors"):
+        bb.normalize(call)
 
 
 def test_qdq_op_infer_ty_unknown_dtype():

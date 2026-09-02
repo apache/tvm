@@ -24,6 +24,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Information used to create new padding block */
@@ -98,7 +99,7 @@ class PaddingInfoAnalyzer {
       return false;
     }
     const CallNode* if_then_else = store->value.as<CallNode>();
-    if (!if_then_else || !if_then_else->op.same_as(tirx::builtin::if_then_else())) {
+    if (!if_then_else || !if_then_else->op.same_as(prim::builtin::if_then_else())) {
       SetError("Value of BufferStore expect to be constrained by a padding predicate");
       return false;
     }
@@ -147,7 +148,7 @@ class PaddingInfoAnalyzer {
         update(b.Eval());
       } else {
         if (const CallNode* call = e.as<CallNode>()) {
-          if (call->op.same_as(builtin::likely())) {
+          if (call->op.same_as(prim::builtin::likely())) {
             e = call->args[0].as_or_throw<PrimExpr>();
           }
         }

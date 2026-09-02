@@ -587,5 +587,21 @@ def test_scalar_match_buffer_type_coercion():
     _check(scalar_match_buffer_type_coercion, transformed_scalar_match_buffer_type_coercion)
 
 
+@T.prim_func(s_tir=True)
+def masked_match_buffer(a: T.handle) -> None:
+    A = T.match_buffer(a, (8,), "float32")
+    with T.sblock():
+        T.reads(A[2:6])
+        sub_A = T.match_buffer(A[2:6], (4,), offset_factor=1)
+        mask = T.meta_var(T.Broadcast(T.bool(True), 4))
+        T.evaluate(T.masked_load("float32x4", sub_A, T.Ramp(0, 1, 4), mask))
+
+
+def test_masked_match_buffer_fails_explicitly():
+    mod = tvm.IRModule.from_expr(masked_match_buffer)
+    with pytest.raises(RuntimeError, match="Predicated buffer access is not currently supported"):
+        tvm.s_tir.transform.LowerMatchBuffer()(mod)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

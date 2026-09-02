@@ -22,11 +22,12 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -37,6 +38,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 class ThreadSyncPlanner : public StorageAccessVisitor {
@@ -293,9 +295,9 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
-      auto sync = Evaluate(
-          Call(PrimType::Int(32), builtin::tvm_storage_sync(), {StringImm(sync_scope_.to_string())})
-              .as_or_throw<PrimExpr>());
+      auto sync = Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(),
+                                {StringImm(sync_scope_.to_string())})
+                               .as_or_throw<PrimExpr>());
       auto inner = op->body.as<AttrStmtNode>();
       TVM_FFI_ICHECK(inner && inner->attr_key == s_tir::attr::async_wait_inflight_count);
       auto new_body = SeqStmt({sync, inner->body});
@@ -317,9 +319,9 @@ class ThreadSyncInserter : public StmtExprMutator {
   Stmt VisitStmt(const Stmt& stmt) final {
     if (syncs_.size() == 0) return stmt;
     if (syncs_.count(stmt.get())) {
-      Stmt barrier = Evaluate(
-          Call(PrimType::Int(32), builtin::tvm_storage_sync(), {StringImm(sync_scope_.to_string())})
-              .as_or_throw<PrimExpr>());
+      Stmt barrier = Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(),
+                                   {StringImm(sync_scope_.to_string())})
+                                  .as_or_throw<PrimExpr>());
       // Mutate after query, to avoid stmt change.
       auto ret = StmtExprMutator::VisitStmt(stmt);
       ret = SeqStmt({barrier, ret});

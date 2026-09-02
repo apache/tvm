@@ -24,7 +24,7 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm.ir import Call, SequentialSpan, assert_structural_equal
+from tvm.ir import Call, SequentialSpan, TensorLoad, assert_structural_equal
 from tvm.script import tirx as T
 from tvm.script.parser.core import doc_core as doc
 from tvm.script.parser.core.diagnostics import Source
@@ -154,6 +154,26 @@ def test_parser_attaches_span_to_direct_call():
     )
 
     assert _span_range(call.span) == _span_range(source.to_span(call_ast))
+
+
+def test_parser_attaches_span_to_nested_tensor_load():
+    @_tirx_source
+    def nested_load():
+        source_buffer = T.alloc_buffer((1,), "int32")
+        output = T.alloc_buffer((1,), "int32")
+        output[0] = source_buffer[0] + 1
+
+    source = Source(nested_load)
+    load_ast = source.as_ast().body[0].body[-1].value.left
+    func = T.prim_func(nested_load)
+    load = _find_ir_node(
+        func,
+        lambda node: (
+            isinstance(node, TensorLoad) and getattr(node.source, "name", None) == "source_buffer"
+        ),
+    )
+
+    assert _span_range(load.span) == _span_range(source.to_span(load_ast))
 
 
 def test_parser_retains_inline_call_site_and_definition_spans():

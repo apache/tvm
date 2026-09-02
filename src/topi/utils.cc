@@ -37,14 +37,22 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   })
       .def_packed("topi.utils.bilinear_sample_nchw",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = detail::bilinear_sample_nchw(
-                        args[0].cast<te::Tensor>(), args[1].cast<ffi::Array<PrimExpr>>(),
-                        args[2].cast<PrimExpr>(), args[3].cast<PrimExpr>());
+                    auto y_tensor = args[2].try_cast<te::Tensor>();
+                    auto x_tensor = args[3].try_cast<te::Tensor>();
+                    PrimExpr y = y_tensor ? y_tensor.value()(ffi::Array<PrimExpr>{})
+                                          : args[2].cast<PrimExpr>();
+                    PrimExpr x = x_tensor ? x_tensor.value()(ffi::Array<PrimExpr>{})
+                                          : args[3].cast<PrimExpr>();
+                    *rv = detail::bilinear_sample_nchw(args[0].cast<te::Tensor>(),
+                                                       args[1].cast<ffi::Array<PrimExpr>>(), y, x);
                   })
       .def_packed("topi.utils.bilinear_sample_nhwc", [](ffi::PackedArgs args, ffi::Any* rv) {
+        auto y_tensor = args[2].try_cast<te::Tensor>();
+        auto x_tensor = args[3].try_cast<te::Tensor>();
+        PrimExpr y = y_tensor ? y_tensor.value()(ffi::Array<PrimExpr>{}) : args[2].cast<PrimExpr>();
+        PrimExpr x = x_tensor ? x_tensor.value()(ffi::Array<PrimExpr>{}) : args[3].cast<PrimExpr>();
         *rv = detail::bilinear_sample_nhwc(args[0].cast<te::Tensor>(),
-                                           args[1].cast<ffi::Array<PrimExpr>>(),
-                                           args[2].cast<PrimExpr>(), args[3].cast<PrimExpr>());
+                                           args[1].cast<ffi::Array<PrimExpr>>(), y, x);
       });
 }
 

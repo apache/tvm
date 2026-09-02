@@ -78,6 +78,7 @@ struct SplitInfo {
   ffi::Optional<Var> bias;
   PrimExpr split_size;
   DFPattern pattern_to_replace;
+  DLDataType out_dtype;
 };
 
 Patterns CreatePatterns(const BranchInfo& branch_info) {
@@ -163,7 +164,9 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
         }
         PrimExpr split_size = GetTensorType(rhs)->GetShape().value()[rhs_dim - 1];
         DFPattern pattern_to_replace = patterns_to_replace[index];
-        splits.push_back(SplitInfo{rhs, bias, split_size, pattern_to_replace});
+        DLDataType out_dtype =
+            GetTensorType(matchings[patterns.matmul[index]])->dtype.value()->dtype;
+        splits.push_back(SplitInfo{rhs, bias, split_size, pattern_to_replace, out_dtype});
       }
       // At most one dynamic output shape can be part of the combined
       // matmul, and it must be the last item in the split.  Use
@@ -188,6 +191,12 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
         continue;
       }
 
+      if (std::any_of(splits.begin() + 1, splits.end(), [&](const SplitInfo& split) {
+            return split.out_dtype != splits[0].out_dtype;
+          })) {
+        continue;
+      }
+
       ffi::Array<Var> rhs;
       ffi::Array<Var> bias;
       for (const auto& split : splits) {
@@ -202,9 +211,7 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
       }
 
       auto concat_rhs = concat(Tuple(rhs), rhs_dim - 1);
-      DLDataType out_dtype =
-          GetTensorType(matchings[patterns.matmul[indices[0]]])->dtype.value()->dtype;
-      auto matmul_combined = matmul(lhs, concat_rhs, out_dtype);
+      auto matmul_combined = matmul(lhs, concat_rhs, splits[0].out_dtype);
 
       if (branch_info.bias_dim) {
         auto bias_dim = GetTensorType(bias[0])->ndim;

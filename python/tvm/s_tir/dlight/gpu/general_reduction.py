@@ -20,7 +20,7 @@
 from tvm import arith, ir, s_tir, tirx
 from tvm.target import Target
 
-from ..analysis import normalize_prim_func
+from ..analysis import get_root_block, normalize_prim_func
 from ..base import try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
@@ -65,6 +65,31 @@ class GeneralReduction(GPUScheduleRule):
             # Add a unit thread loop so the final write happens inside a valid
             # GPU thread environment.
             if num_last_block_iter == 0:
+                # Allocation planning can move a reduction buffer inside its
+                # producer kernel when all surrounding loops are trivial. Give
+                # buffers private to that kernel an explicit local scope, while
+                # preserving global scope for buffers accessed by another block.
+                blocks = [sch.get(info.block_rv) for info in block_infos]
+                alloc_buffers = list(sch.get(get_root_block(sch)).alloc_buffers)
+                analyzer = arith.Analyzer()
+                for block_index, (info, block) in enumerate(zip(block_infos[:-1], blocks[:-1])):
+                    loops = sch.get_loops(info.block_rv)
+                    if not all(analyzer.can_prove_equal(sch.get(loop).extent, 1) for loop in loops):
+                        continue
+
+                    other_block_buffers = [
+                        region.buffer
+                        for other_index, other_block in enumerate(blocks)
+                        if other_index != block_index
+                        for region in (*other_block.reads, *other_block.writes)
+                    ]
+                    for buffer_index, write in enumerate(block.writes):
+                        buffer = write.buffer
+                        is_allocated = any(buffer.same_as(other) for other in alloc_buffers)
+                        is_cross_block = any(buffer.same_as(other) for other in other_block_buffers)
+                        if buffer.scope() == "global" and is_allocated and not is_cross_block:
+                            sch.set_scope(block_infos[block_index].block_rv, buffer_index, "local")
+
                 # Put every block (both the running reductions and the final
                 # scalar write) inside a trivial GPU thread. The very first block
                 # gets a `blockIdx.x` wrapper so that kernels still have a unique

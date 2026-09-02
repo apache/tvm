@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring
+import gc
 import re
 
 import numpy as np
@@ -69,6 +70,78 @@ def _helper_source(src: str, helper_name: str) -> str:
     if next_helper == -1:
         return src[start:]
     return src[start:next_helper]
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_multi_gpu(), reason="need multiple GPUs")
+def test_cuda_ndarray_destructor_preserves_current_device():
+    torch = pytest.importorskip("torch")
+
+    original_device = torch.cuda.current_device()
+    try:
+        torch.cuda.set_device(0)
+        data = tvm.runtime.tensor(np.zeros(1, dtype="int32"), device=tvm.cuda(0))
+
+        torch.cuda.set_device(1)
+        del data
+        gc.collect()
+
+        assert torch.cuda.current_device() == 1
+    finally:
+        torch.cuda.set_device(original_device)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_multi_gpu(), reason="need multiple GPUs")
+def test_cuda_stream_free_preserves_current_device():
+    torch = pytest.importorskip("torch")
+
+    original_device = torch.cuda.current_device()
+    stream = None
+    try:
+        torch.cuda.set_device(0)
+        stream = tvm.cuda(0).create_raw_stream()
+
+        torch.cuda.set_device(1)
+        tvm.cuda(0).free_raw_stream(stream)
+        stream = None
+
+        assert torch.cuda.current_device() == 1
+    finally:
+        if stream is not None:
+            tvm.cuda(0).free_raw_stream(stream)
+        torch.cuda.set_device(original_device)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_multi_gpu(), reason="need multiple GPUs")
+def test_cuda_module_destructor_preserves_current_device():
+    torch = pytest.importorskip("torch")
+
+    @T.prim_func
+    def main(A: T.Buffer((1,), "int32")):
+        T.device_entry()
+        tx = T.thread_id([1])
+        if tx == 0:
+            A[0] = A[0] + 1
+
+    _, mod = _get_source(main, target="cuda")
+    original_device = torch.cuda.current_device()
+    try:
+        torch.cuda.set_device(0)
+        data = tvm.runtime.tensor(np.zeros(1, dtype="int32"), device=tvm.cuda(0))
+        mod["main"](data)
+        tvm.cuda(0).sync()
+        del data
+        gc.collect()
+
+        torch.cuda.set_device(1)
+        del mod
+        gc.collect()
+
+        assert torch.cuda.current_device() == 1
+    finally:
+        torch.cuda.set_device(original_device)
 
 
 def test_vector_access_ptr_preserves_packed_offset(monkeypatch):
@@ -203,6 +276,82 @@ def test_tirx_launch_bounds_max_blocks_per_cluster_emits_third_operand():
     assert "tirx.launch_bounds_max_blocks_per_cluster" not in src
 
 
+def test_tirx_max_registers_attr_emits_cuda_maxnreg():
+    @T.prim_func
+    def main(A: T.Buffer((4,), "int32")):
+        T.device_entry()
+        T.attr({"tirx.max_registers": 92})
+        bx = T.cta_id([4])
+        tx = T.thread_id([128])
+        if tx == 0:
+            A[bx] = A[bx] + 1
+
+    src, _ = _get_source(main)
+    assert 'extern "C" __global__ void __maxnreg__(92) main_kernel' in src
+    assert "__launch_bounds__" not in src
+    assert "tirx.max_registers" not in src
+
+
+def test_tirx_max_registers_rejects_launch_bounds():
+    @T.prim_func
+    def main(A: T.Buffer((4,), "int32")):
+        T.device_entry()
+        T.attr(
+            {
+                "tirx.max_registers": 92,
+                "tirx.launch_bounds_min_blocks_per_sm": 1,
+            }
+        )
+        bx = T.cta_id([4])
+        tx = T.thread_id([128])
+        if tx == 0:
+            A[bx] = A[bx] + 1
+
+    with pytest.raises(tvm.error.InternalError, match="cannot be combined with CUDA launch bounds"):
+        _get_source(main)
+
+
+def test_tirx_required_block_size_emits_cuda_block_size():
+    @T.prim_func
+    def main(A: T.Buffer((8,), "int32")):
+        T.device_entry()
+        T.attr({"tirx.required_block_size": 1})
+        bx, by = T.cta_id([4, 2])
+        _, cy = T.cta_id_in_cluster([1, 2])
+        tx = T.thread_id([128])
+        if tx == 0:
+            A[bx * 2 + by] = cy
+
+    src, _ = _get_source(main)
+    assert 'extern "C" __global__ void __block_size__((128, 1, 1), (1, 2, 1)) main_kernel' in src
+    assert "__launch_bounds__" not in src
+    assert "tirx.required_block_size" not in src
+
+
+def test_tirx_required_block_size_emits_launch_bounds_when_requested():
+    @T.prim_func
+    def main(A: T.Buffer((4,), "int32")):
+        T.device_entry()
+        T.attr(
+            {
+                "tirx.required_block_size": 1,
+                "tirx.launch_bounds_min_blocks_per_sm": 1,
+            }
+        )
+        bx = T.cta_id([4])
+        tx = T.thread_id([128])
+        if tx == 0:
+            A[bx] = A[bx] + 1
+
+    src, _ = _get_source(main)
+    assert (
+        'extern "C" __global__ void __block_size__((128, 1, 1), (1, 1, 1)) '
+        "__launch_bounds__(128, 1) main_kernel" in src
+    )
+    assert "tirx.required_block_size" not in src
+    assert "tirx.launch_bounds_min_blocks_per_sm" not in src
+
+
 def test_tirx_cuda_kernel_return_zero_codegen_is_void_early_return():
     @T.prim_func
     def main(A: T.Buffer((4,), "int32")):
@@ -311,7 +460,7 @@ def test_cuda_atomic_add():
             T.cuda.atomic_add(A.data, T.int32(1))
             T.cuda.atomic_add(B.data, T.float32(1.0))
 
-    src, mod = _get_source(main)
+    src, mod = _get_source(main, target="cuda")
     assert "tvm_builtin_cuda_atomic_add" in src
     A_np = np.zeros(1, dtype="int32")
     B_np = np.zeros(1, dtype="float32")
@@ -405,8 +554,8 @@ def test_ptx_sub_f16x2_codegen():
 
 
 @pytest.mark.skipif(
-    not (env.has_cuda_compute(10, 0) and env.has_nvcc_version(13, 2)),
-    reason="PTX 9.2 packed bf16 conversion requires sm_100 and CUDA 13.2",
+    not (env.has_cuda_compute(10, 0) and env.has_nvcc_version(13, 4)),
+    reason="packed bf16 conversion requires sm_100; the dialect certifies on CUDA 13.4",
 )
 def test_sparse_decode_conversion_intrinsics_codegen(monkeypatch):
     monkeypatch.setenv("TVM_CUDA_COMPILE_MODE", "nvcc")
@@ -457,6 +606,7 @@ def test_megamoe_extracted_intrinsics_codegen():
             T.ptx.st.shared.v4.b32(U32.data, U32[0], U32[1], U32[2], U32[3])
             T.ptx.st_bulk.weak.shared__cta(U32.data, T.uint64(16))
             T.ptx.fns.b32(U32[0], U32[0], U32[1], I32[0])
+            T.ptx.movmatrix.sync.aligned.m8n8.trans.b16(U32[1], U32[0])
             T.ptx.stmatrix.sync.aligned.m16n8.x1.trans.shared.b8(U32.data, U32[0])
 
             F32[1] = T.cuda.uint_as_float(U32[0])
@@ -484,6 +634,7 @@ def test_megamoe_extracted_intrinsics_codegen():
         "st.shared.v4.b32",
         "st.bulk.weak.shared::cta",
         "fns.b32",
+        "movmatrix.sync.aligned.m8n8.trans.b16",
         "stmatrix.sync.aligned.m16n8.x1.trans.shared.b8",
         "ld.global.f32",
         "tvm_builtin_cuda_ldg_f32",
@@ -835,7 +986,7 @@ __device__ int32_t add_one(int32_t a) {
                         "add_one", a[i, j], source_code=add_one, return_type="int32"
                     )
 
-        src, mod = _get_source(main)
+        src, mod = _get_source(main, target="cuda")
         A = np.random.randint(0, 10, (16, 16)).astype("int32")
         B = np.zeros((16, 16), dtype="int32")
 
@@ -867,7 +1018,7 @@ __device__ void print(int32_t a) {
                 for i, j in T.grid(16, 16):
                     T.cuda.func_call("print", a[i, j], source_code=print_func)
 
-        src, mod = _get_source(main)
+        src, mod = _get_source(main, target="cuda")
         A = np.random.randint(0, 10, (16, 16)).astype("int32")
 
         def run_and_check():
@@ -970,7 +1121,7 @@ def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
             A[i] = A_shared[i] + 1.0
         # fmt: on
 
-    src, mod = _get_source(main)
+    src, mod = _get_source(main, target="cuda")
     A_np = np.ones(N, dtype="float16")
     A_ref = np.ones(N, dtype="float16") * 2
     if int(predicate) == 0:
@@ -1036,7 +1187,7 @@ def test_ptx_ldmatrix(trans, num):
             B[row + tx // 4, col + tx % 4 * 2 + i % 2] = A_local[i]
         # fmt: on
 
-    src, mod = _get_source(main)
+    src, mod = _get_source(main, target="cuda")
     A_np = np.arange(16 * 16, dtype="float16").reshape((16, 16))
     B_np = np.zeros((16, 16), dtype="float16")
     B_ref = np.zeros((16, 16), dtype="float16")
@@ -1091,7 +1242,7 @@ def test_uint32_loop_var_runs_correctly():
             acc[0] = acc[0] + A[tx] + T.int32(k)
         B[tx] = acc[0]
 
-    _, mod = _get_source(main)
+    _, mod = _get_source(main, target="cuda")
 
     A_np = np.arange(128, dtype="int32")
     B_ref = A_np * 4 + (0 + 1 + 2 + 3)

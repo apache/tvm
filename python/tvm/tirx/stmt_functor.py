@@ -292,8 +292,6 @@ class StmtVisitor(StmtFunctor):
         """Visitor implementation for BufferStore."""
         self.visit_expr(op.value)
         _visit_array(op.indices, lambda x: self.visit_expr(x))
-        if op.predicate is not None:
-            self.visit_expr(op.predicate)
 
     def visit_assert_(self, op):
         """Visitor implementation for AssertStmt."""
@@ -363,12 +361,12 @@ class StmtVisitor(StmtFunctor):
     def visit_op_call_(self, op):
         """Visitor implementation for TilePrimitiveCall."""
         for arg in op.args:
-            if isinstance(arg, tvm.ir.Expr):
+            if isinstance(arg, tvm.tirx.BufferRegion):
+                self.visit_buffer_region_(arg)
+            elif isinstance(arg, tvm.ir.Expr):
                 self.visit_expr(arg)
             elif isinstance(arg, tvm.tirx.Stmt):
                 self.visit_stmt(arg)
-            elif isinstance(arg, tvm.tirx.BufferRegion):
-                self.visit_buffer_region_(arg)
         for value in op.config.values():
             if isinstance(value, tvm.ir.Expr):
                 self.visit_expr(value)
@@ -546,14 +544,12 @@ class StmtMutator(StmtFunctor):
         """Mutator implementation for BufferStore."""
         value = self.visit_expr(op.value)
         indices = [self.visit_expr(idx) for idx in op.indices]
-        predicate = self.visit_expr(op.predicate) if op.predicate is not None else None
-
         indices_changed = any(old is not new for old, new in zip(op.indices, indices))
 
-        if value is op.value and not indices_changed and predicate is op.predicate:
+        if value is op.value and not indices_changed:
             return op
 
-        return tvm.tirx.BufferStore(op.buffer, value, indices, predicate, op.span)
+        return tvm.tirx.BufferStore(op.buffer, value, indices, op.span)
 
     def visit_buffer_realize_(self, op):
         """Mutator implementation for BufferRealize."""
@@ -842,12 +838,12 @@ class StmtMutator(StmtFunctor):
         args_changed = False
 
         for arg in op.args:
-            if isinstance(arg, tvm.ir.Expr):
+            if isinstance(arg, tvm.tirx.BufferRegion):
+                new_arg = self.visit_buffer_region_(arg)
+            elif isinstance(arg, tvm.ir.Expr):
                 new_arg = self.visit_expr(arg)
             elif isinstance(arg, tvm.tirx.Stmt):
                 new_arg = self.visit_stmt(arg)
-            elif isinstance(arg, tvm.tirx.BufferRegion):
-                new_arg = self.visit_buffer_region_(arg)
             else:
                 new_arg = arg
 

@@ -34,6 +34,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 namespace {
@@ -43,7 +44,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -235,10 +236,11 @@ class DoubleBufferInjector : public StmtExprMutator {
     return node;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
 
-    auto it = dbuffer_info_.find(node->buffer.get());
+    auto it = dbuffer_info_.find(buffer.get());
     if (it != dbuffer_info_.end()) {
       const StorageEntry& e = it->second;
       TVM_FFI_ICHECK(e.switch_read_var.defined());
@@ -246,9 +248,8 @@ class DoubleBufferInjector : public StmtExprMutator {
       TVM_FFI_ICHECK_EQ(node->indices.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
                                                  << "Has FlattenBuffer been run?";
 
-      auto writer = node.CopyOnWrite();
-      writer->buffer = GetRemappedBuffer(node->buffer, e.stride);
-      writer->indices = {e.switch_read_var * e.stride + node->indices[0]};
+      return BufferLoad(GetRemappedBuffer(buffer, e.stride),
+                        {e.switch_read_var * e.stride + node->indices[0]}, node->span);
     }
 
     return node;

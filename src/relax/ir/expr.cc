@@ -28,8 +28,6 @@ namespace tvm {
 namespace relax {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  TupleNode::RegisterReflection();
-  TupleGetItemNode::RegisterReflection();
   ShapeExprNode::RegisterReflection();
   BindingNode::RegisterReflection();
   DataflowVarNode::RegisterReflection();
@@ -59,59 +57,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.If", [](Expr cond, Expr true_branch, Expr false_branch, Span span) {
     return If(cond, true_branch, false_branch, span);
-  });
-}
-
-Tuple::Tuple(tvm::ffi::Array<Expr> fields, Span span) {
-  ffi::Optional<Type> tuple_ty = [&]() -> ffi::Optional<Type> {
-    ffi::Array<Type> field_ty;
-    for (const auto& field : fields) {
-      if (!field->ty.IsMissing()) {
-        field_ty.push_back(GetType(field));
-      } else {
-        return std::nullopt;
-      }
-    }
-    return TupleType(field_ty);
-  }();
-
-  ffi::ObjectPtr<TupleNode> n = ffi::make_object<TupleNode>();
-  n->fields = std::move(fields);
-  n->span = std::move(span);
-  if (tuple_ty.has_value()) {
-    n->ty = tuple_ty.value();
-  }
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "relax.Tuple", [](tvm::ffi::Array<Expr> fields, Span span) { return Tuple(fields, span); });
-}
-
-TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
-  TVM_FFI_ICHECK_GE(index, 0) << "Index out of bounds: Tuple " << tuple
-                              << " cannot be accessed with negative index " << index;
-  ffi::ObjectPtr<TupleGetItemNode> n = ffi::make_object<TupleGetItemNode>();
-
-  if (auto* tuple_info = tuple->ty.as<TupleTypeNode>()) {
-    TVM_FFI_ICHECK_LT(index, tuple_info->fields.size())
-        << "Index out of bounds: Tuple " << tuple << " is of size " << tuple_info->fields.size()
-        << ", and cannot be accessed with index " << index;
-    auto ty = tuple_info->fields[index];
-    n->ty = ty;
-  }
-  n->tuple = std::move(tuple);
-  n->index = index;
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.TupleGetItem", [](Expr tuple, int index, Span span) {
-    return TupleGetItem(tuple, index, span);
   });
 }
 

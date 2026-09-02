@@ -16,7 +16,7 @@
 # under the License.
 
 
-from tvm.ir import Call, Op, is_prim_expr
+from tvm.ir import Call, Op, TensorLoad, is_prim_expr
 from tvm.tirx import (
     AllocBuffer,
     BufferLoad,
@@ -112,8 +112,8 @@ class BufferReplacer(StmtExprMutator):
             return self.var_map[op]
         return super().visit_var_(op)
 
-    def visit_buffer_load_(self, op: BufferLoad):
-        new_buffer = self.mutate_buffer(op.buffer)
+    def visit_buffer_load_(self, op: TensorLoad):
+        new_buffer = self.mutate_buffer(op.source)
         op = super().visit_buffer_load_(op)
         if new_buffer is not None:
             return BufferLoad(new_buffer, op.indices)

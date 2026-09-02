@@ -35,96 +35,74 @@ synchronization, and backend intrinsics).
 Calling convention
 ------------------
 
-Tile primitives are called in TVMScript via ``from tvm.script import tirx as T``,
-on the injected ``Tx`` namespace. The namespace prefix selects the **cooperation
+The examples use one TIRx dialect alias and reach tile primitives through its
+``tile`` namespace::
+
+    from tvm.script import tirx as Tx
+
+``Tx`` is an ordinary Python module alias, not an injected language keyword.
+Under ``Tx.tile``, the next namespace prefix selects the **cooperation
 scope**:
 
-- ``Tx.<name>(...)`` — unqualified, runs at **thread** scope.
-- ``Tx.warp.<name>`` / ``Tx.wg.<name>`` (alias ``Tx.warpgroup``) / ``Tx.cta.<name>``
-  / ``Tx.cluster.<name>`` / ``Tx.thread.<name>`` — bind a wider scope.
+- ``Tx.tile.<name>(...)`` — unqualified, runs at **thread** scope.
+- ``Tx.tile.warp.<name>`` / ``Tx.tile.wg.<name>`` (alias
+  ``Tx.tile.warpgroup``) / ``Tx.tile.cta.<name>`` /
+  ``Tx.tile.cluster.<name>`` / ``Tx.tile.thread.<name>`` — bind a wider scope.
 
-Every primitive also accepts, besides its operands: ``scope`` (usually set by the
-namespace), ``workspace: dict[str, Buffer] | None``, ``dispatch: str | None``
-(force a named lowering variant), and ``**kwargs`` collected into a ``config``
-dict that tunes the chosen lowering. Operands are ``Buffer`` / ``BufferRegion``
+Most primitive constructors also carry ``workspace: dict[str, Buffer] | None``,
+``dispatch: str | None`` (force a named lowering variant), and ``**kwargs``
+collected into a ``config`` dict that tunes the chosen lowering.  ``ScopedOp``
+fills the underlying ``scope`` argument from the namespace prefix; select a
+scope with ``Tx.tile.warp`` / ``Tx.tile.wg`` / ``Tx.tile.cta`` rather than
+passing it to the callable directly. Operands are ``Buffer`` / ``BufferRegion``
 values, each carrying a :doc:`TileLayout <layout>` that dispatch reads.
-
-Wiring (three layers): the authoritative op list is the C++ registry
-(``src/tirx/op/tirx.cc``, 29 ops named ``tirx.tile.<name>``); the IR wrapper
-classes are in ``python/tvm/tirx/operator/tile_primitive/ops.py``; the
-user-facing ``Tx.*`` builders are in ``python/tvm/tirx/script/builder/tirx.py``.
 
 Primitive catalog
 -----------------
 
-The 29 primitives, grouped. Signatures show the operands plus the common
-``workspace``/``dispatch``/``scope``/``**kwargs`` tail (abbreviated ``...``).
+The C++ registry currently defines 31 operation names.  This programming guide
+groups them by purpose; the :doc:`API reference <api/tile>` lists their current
+Python callables and explains the internal ``scope`` parameter exposed by
+introspection.
 
-Data movement
-~~~~~~~~~~~~~~
+.. list-table::
+   :header-rows: 1
+   :widths: 22 34 44
 
-::
-
-    copy(dst, src, ...)            # synchronous element copy src -> dst
-    copy_async(dst, src, ...)      # asynchronous copy (caller commits/waits)
-    permute_layout(dst, src, ...)  # rearrange under a different layout (may alias)
-
-Matrix multiply
-~~~~~~~~~~~~~~~~
-
-::
-
-    gemm(D, A, B, C, transpose_A=False, transpose_B=False,
-         alpha=1.0, beta=0.0, ...)          # D = alpha*A*B + beta*C (register mma)
-    gemm_async(C, A, B, SFA=None, SFB=None,
-               transA=False, transB=False, accum=False, ...)  # async / block-scaled
-
-Fill / memset / zero
-~~~~~~~~~~~~~~~~~~~~~~
-
-::
-
-    fill(dst, value, ...)        # fill region with a scalar
-    memset(dst, value, ...)      # set all elements to a value
-    zero(dst, src=None, ...)     # zero out (in place if src omitted)
-
-Cast and elementwise
-~~~~~~~~~~~~~~~~~~~~~~
-
-::
-
-    cast(dst, src=None, ...)                         # dtype cast (buffer form)
-    sqrt / exp / exp2(dst, src=None, bias=None, scale=None, ...)
-    reciprocal(dst, src=None, ...)                   # dst = 1/src
-    silu(dst, src, ...)                              # dst = src*sigmoid(src)
-    add / sub / mul / fdiv(dst, src1, src2, ...)     # element-wise arithmetic
-    maximum / minimum(dst, src1, src2, ...)          # element-wise max / min
-    fma(dst, src, scale, bias, ...)                  # dst = src*scale + bias
-    select(dst, true_value, false_value, pred, scope=None)  # dst = pred ? t : f
-
-Reductions
-~~~~~~~~~~
-
-::
-
-    sum / max / min(dst, src, axes=-1, accum=False, ...)   # reduce over axes
-
-Fused / compose
-~~~~~~~~~~~~~~~~
-
-::
-
-    binary_reduce(...)   # binary op then reduce, fused
-    unary_reduce(...)    # unary (with bias/scale) then reduce
-    binary_chain(...)    # chain two binary ops
-    reduce_negate(...)   # reduce then negate
-    compose_op(...)      # frame/context manager to group primitives
+   * - Group
+     - Operations
+     - Purpose
+   * - Data movement
+     - ``copy``, ``copy_async``, ``permute_layout``
+     - synchronous and asynchronous transfer, or rearrangement between layouts
+   * - Matrix multiply
+     - ``gemm``, ``gemm_async``
+     - synchronous register MMA or asynchronous/backend-specific MMA, including
+       block scaling where supported
+   * - Initialization
+     - ``fill``, ``memset``, ``zero``
+     - initialize a tile or region
+   * - Unary and cast
+     - ``cast``, ``sqrt``, ``exp``, ``exp2``, ``log2``, ``reciprocal``, ``silu``
+     - per-element conversion or unary math
+   * - Binary and ternary
+     - ``add``, ``sub``, ``mul``, ``fdiv``, ``maximum``, ``minimum``, ``fma``,
+       ``select``
+     - per-element arithmetic and selection
+   * - Reductions
+     - ``sum``, ``max``, ``min``
+     - reduce selected axes, optionally accumulating into the destination
+   * - Fused and composed
+     - ``binary_reduce``, ``unary_reduce``, ``binary_chain``, ``reduce_negate``,
+       ``compose_op``
+     - combine several primitive operations for backends that dispatch them as
+       one unit
 
 Dispatch config
 ---------------
 
 A call is materialized as a ``TilePrimitiveCall`` node whose fields carry
-everything dispatch needs (``python/tvm/tirx/stmt.py``):
+everything dispatch needs (``python/tvm/tirx/tile_primitive.py``):
 
 .. list-table::
    :header-rows: 1
@@ -152,71 +130,60 @@ everything dispatch needs (``python/tvm/tirx/stmt.py``):
      - ``ExecScope``
      - cooperation scope (default ``thread``)
 
-``config`` has **no central schema** — each key is read only by the dispatch
-variant(s) that need it (via ``config.get(...)``); a key meant for another
-primitive is simply ignored. Only ``dispatch`` is generic. The keys observed in
-the CUDA backend, by consumer:
+``config`` has **no central schema**.  Each dispatch implementation defines and
+interprets the keys it consumes.  Some implementations ignore unrelated keys,
+while others (notably the TMA variants) reject unknown keys.  Only ``dispatch``
+is interpreted generically by the dispatcher.  The current target
+implementations consume the following keys:
 
 .. list-table::
    :header-rows: 1
-   :widths: 18 30 18 34
+   :widths: 28 34 38
 
-   * - Key
-     - Used by
-     - Type / values
-     - Meaning
-   * - ``dispatch``
-     - any primitive
-     - variant name (str)
-     - force a lowering variant (also settable via the ``dispatch=`` kwarg)
-   * - ``vec_len``
-     - ``copy`` / ``copy_async`` (vectorized variants)
-     - int | None
-     - vectorization width for the copy
-   * - ``mbar``
-     - ``copy_async``: ``tma`` (g2s), ``dsmem``
-     - mbarrier handle
-     - completion barrier
-   * - ``cta_group``
-     - ``copy_async``: ``tma``, ``smem→tmem``; ``gemm_async``: ``tcgen05``
-     - ``1`` | ``2``
-     - CTA-group; ``2`` routes completion to the cluster
-   * - ``cta_mask``
-     - ``copy_async``: ``tma`` (g2s)
-     - int | None
-     - multicast CTA mask
-   * - ``cache_hint``
-     - ``copy_async``: ``tma``
-     - ``"evict_normal"`` | ``""``
-     - L2 cache eviction hint
-   * - ``oob``
-     - ``copy_async``: ``tma``
-     - ``"zero"`` | ``"nan"`` | None
-     - out-of-bounds fill policy (``nan`` is float-only)
-   * - ``use_tma_reduce``
-     - ``copy_async``: ``tma`` (s2g)
-     - str (e.g. ``"add"``) | None
-     - TMA store-with-reduction mode
-   * - ``prefetch_tensormap``
-     - ``copy_async``: ``tma``
-     - bool
-     - prefetch the tensor map at kernel entry
-   * - ``remote_cta_id``
-     - ``copy_async``: ``dsmem``
-     - int | PrimExpr
-     - target CTA for a cross-CTA shared→shared copy
-   * - ``descI``
-     - ``gemm_async``: ``tcgen05``
-     - uint32 | None
-     - pre-encoded MMA instruction descriptor
-   * - ``thread_reduce``
-     - ``reduction``: ``local`` (warp scope)
-     - bool
-     - per-thread shuffle reduction
-   * - ``rounding_mode``
-     - ``elementwise``: binary ops
-     - ``"rn"`` | ``"rz"`` | ...
-     - FP rounding mode for the packed form
+   * - Primitive / variant
+     - Keys consumed
+     - Notes
+   * - ``copy``: ``vec_16b`` / ``vec_32b`` / ``vec_64b`` /
+       ``vec_128b`` / ``vec_256b``
+     - ``cache``, ``l1_evict``, ``l2_evict``, ``prefetch_size``
+     - Explicit, thread-scope fixed-width copies.  Cache controls require a
+       global-memory source.
+   * - ``copy_async``: ``ldgsts``
+     - ``prefetch_size``, ``predicate``, ``fill_mode``, ``direct``
+     - ``direct=True`` requires thread scope and an exact 4-, 8-, or 16-byte
+       region.
+   * - ``copy_async``: ``tma_auto`` / ``tma_explicit``
+     - ``cache_hint``, ``cta_group``, ``cta_mask``, ``mbar``,
+       ``mbarrier_addr``, ``oob``, ``prefetch_tensormap``,
+       ``tensormap_l2_promotion``, ``tma_dtype``, ``use_tma_reduce``
+     - ``tma_explicit`` additionally accepts ``gather4`` and ``src_selector``.
+       Direction-specific constraints are documented in
+       :doc:`tile_primitives/copy_async/tma`.
+   * - ``copy_async``: ``dsmem``
+     - ``remote_cta_id``, ``mbar``
+     - Both are required: the destination CTA id and its completion barrier.
+   * - ``copy_async``: ``smem->tmem``
+     - ``shape``, ``multicast``, ``cta_group``
+     - ``decompress`` is detected but currently rejected as unsupported.
+   * - ``gemm_async``: ``tcgen05``
+     - ``cta_group``, ``mma_m``, ``mma_n``, ``descI``, ``is_AB_tf32``,
+       ``weight_stationary``, ``smem_desc``
+     - ``mma_m`` and ``mma_n`` are an all-or-nothing pair.  ``descI`` is
+       accepted only by the block-scaled path.
+   * - ``sum`` / ``max`` / ``min``: ``local``
+     - ``thread_reduce``
+     - Enables the per-thread shuffle-reduction mode where supported.
+   * - binary elementwise: ``reg`` / ``smem``
+     - ``rounding_mode``
+     - Passed to packed floating-point forms that expose a rounding mode.
+   * - Trainium tile implementations
+     - ``max_inst_size``
+     - Instruction-size limit used by copy, elementwise, select, reduction,
+       and composed-op implementations.
+
+Vector widths selected by ``vec_auto`` and ``ldgsts`` are derived internally
+from dtype, alignment, layout, and execution scope; ``vec_len`` is not a user
+configuration key.
 
 Three dispatch inputs are **implicit**, not config keys: the **execution scope**
 (set by the namespace, then refined against the active thread set tracked through
@@ -224,74 +191,12 @@ control flow into ``inter``/``intra`` maps and a ``scope_kind``), the **operand
 layouts** (each ``Buffer.layout``), and the **target** (the dispatch table is
 keyed by its kind, e.g. ``"cuda"``).
 
-Dispatch mechanism
-------------------
-
-Pipeline
-~~~~~~~~
-
-Dispatch runs in the ``tirx.TilePrimitiveDispatch`` pass — the sole pass inside
-``LowerTIRx()``, the first stage of the compile pipeline. The C++ mutator
-``TilePrimitiveDispatcher`` walks the IR and, per call:
-
-#. resolves the ``(inter, intra)`` execution split for the call's scope from the
-   active set tracked through control flow (``if wg_id == ...``, ``warp_id``,
-   ``T.cuda.elect_sync()``);
-#. builds a ``DispatchContext`` carrying ``target``, scope, launch params, value
-   ranges, and the encoded ``inter``/``intra`` + ``scope_kind``;
-#. invokes the global FFI hook ``tirx.f_op_dispatcher`` (Python) with the call
-   and context, which returns a ``PrimFunc``;
-#. splices that ``PrimFunc`` body in place of the call and drains side-effect
-   callbacks (private allocs, device/host init statements).
-
-If any ``TilePrimitiveCall`` survives lowering, a verifier makes it a fatal error.
-
-Selection (``run_dispatch``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The Python dispatcher holds a table ``_DISPATCH_TABLE`` keyed by
-``(Op, target_kind)``. Each entry is a list of *cases*, registered by backends
-via ``@register_dispatch(op_name, target_kind, variant=..., priority=...,
-when=[preds])``. ``run_dispatch(op_call, sctx)``:
-
-#. ``key = (op_call.op, sctx.target.kind.name)``; look up cases. None → error.
-#. If ``op_call.dispatch`` is set, **filter** to that variant (error if unknown).
-#. Sort cases by ``(-priority, variant)`` — highest priority first.
-#. For each case, evaluate its predicates; if any fails, record the reason and
-   continue. If all pass, run the impl; on success return its ``PrimFunc``.
-#. An impl may still **decline** by raising ``DispatchFail`` (e.g. a hardware
-   constraint found while emitting) — the search continues.
-#. If every variant is rejected, raise a ``RuntimeError`` listing each variant's
-   rejection reason.
-
-So dispatch is **keyed by (primitive, target)**, then a **priority-ordered,
-predicate-guarded** case list, with an optional ``dispatch=`` override.
-
-Two recurring predicate helpers: ``validate_copy_op`` (both operands have a
-layout, equal dtype, equal non-unit extents) and ``_all_threads_active`` (the
-exec scope is full — ``laneid`` spans 32, etc., none of it narrowed by an
-enclosing ``if``), so a partial-warp copy is rejected rather than mis-lowered.
-
-Dispatch by primitive
----------------------
-
-Each page below documents one primitive's dispatch in detail — the variants, how
-each is selected, the algorithm it runs, the IR it emits, and when it declines.
-
-.. toctree::
-   :maxdepth: 1
-
-   tile_primitives/copy
-   tile_primitives/copy_async
-   tile_primitives/gemm
-   tile_primitives/gemm_async
-   tile_primitives/elementwise
-   tile_primitives/reduction
-   tile_primitives/permute_layout
-
 See also
 --------
 
 - :doc:`layout` — the ``TileLayout`` model dispatch reads from operands.
+- :doc:`api/tile` — current ``Tx.tile.*`` callables and introspected signatures.
+- :doc:`arch/tile_dispatch` — dispatch selection, extension points, and the
+  target-specific variants for each primitive.
 - :doc:`overview` — execution scope, tensor layout, and tile primitive dispatch
   as the three core constructs.

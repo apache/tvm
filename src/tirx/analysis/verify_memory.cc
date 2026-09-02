@@ -23,12 +23,13 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -89,14 +90,22 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    HandleLoadStoreToVariable(op->buffer.var());
+  void VisitExpr_(const TensorLoadNode* op) final {
+    HandleLoadStoreToVariable(op->source.as_or_throw<tvm::tirx::BufferVar>().var());
     return StmtExprVisitor::VisitExpr_(op);
   }
 
   void VisitStmt_(const BufferStoreNode* op) final {
     HandleLoadStoreToVariable(op->buffer.var());
     return StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitExpr_(const CallNode* op) final {
+    if ((op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) &&
+        !op->args.empty()) {
+      HandleLoadStoreToVariable(op->args[0].as_or_throw<Var>());
+    }
+    StmtExprVisitor::VisitExpr_(op);
   }
   //@}
 

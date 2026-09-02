@@ -32,6 +32,9 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 
+#include <cstring>
+#include <limits>
+
 #include "src/runtime/cpu_device_api.cc"
 #include "src/runtime/device_api.cc"
 #include "src/runtime/extra/contrib/sort/sort.cc"
@@ -126,38 +129,91 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
+size_t GetCheckedTensorElementCount(const Tensor& tensor) {
+  size_t size = 1;
+  for (int i = 0; i < tensor->ndim; ++i) {
+    TVM_FFI_ICHECK_GE(tensor->shape[i], 0);
+    const uint64_t dim_u64 = static_cast<uint64_t>(tensor->shape[i]);
+    TVM_FFI_ICHECK_LE(dim_u64, std::numeric_limits<size_t>::max());
+    const size_t dim = static_cast<size_t>(dim_u64);
+    if (size != 0) {
+      TVM_FFI_ICHECK_LE(dim, std::numeric_limits<size_t>::max() / size);
+    }
+    size *= dim;
+  }
+  return size;
+}
+
+void CheckF32CPUTensor(const Tensor& tensor) {
+  TVM_FFI_ICHECK_EQ(tensor->device.device_type, kDLCPU);
+  TVM_FFI_ICHECK(tensor.IsContiguous());
+  TVM_FFI_ICHECK_EQ(tensor->dtype.code, kDLFloat);
+  TVM_FFI_ICHECK_EQ(tensor->dtype.bits, 32);
+  TVM_FFI_ICHECK_EQ(tensor->dtype.lanes, 1);
+}
+
 void ArrayDecodeStorage(Tensor cpu_arr, TVMFFIByteArray* bytes, const std::string& format,
                         const std::string& dtype) {
   TVM_FFI_ICHECK_NE(bytes, nullptr);
   const char* byte_data = bytes->data;
   const size_t byte_size = bytes->size;
   if (format == "f32-to-bf16" && dtype == "float32") {
-    const uint16_t* bf16 = reinterpret_cast<const uint16_t*>(byte_data);
-    uint32_t* data = static_cast<uint32_t*>(cpu_arr->data);
-    TVM_FFI_ICHECK(cpu_arr.IsContiguous());
-    size_t size = 1;
-    for (int i = 0; i < cpu_arr->ndim; ++i) {
-      size *= cpu_arr->shape[i];
+    CheckF32CPUTensor(cpu_arr);
+    const size_t size = GetCheckedTensorElementCount(cpu_arr);
+    TVM_FFI_ICHECK_LE(size, std::numeric_limits<size_t>::max() / 4);
+    TVM_FFI_ICHECK_EQ(byte_size, size * 2);
+    if (size == 0) {
+      return;
     }
-    TVM_FFI_ICHECK_EQ(size, byte_size / 2);
+    TVM_FFI_ICHECK_NE(cpu_arr->data, nullptr);
+    TVM_FFI_ICHECK_NE(byte_data, nullptr);
+    const uint8_t* bf16 = reinterpret_cast<const uint8_t*>(byte_data);
+    uint8_t* data = static_cast<uint8_t*>(cpu_arr->data) + cpu_arr->byte_offset;
     for (size_t i = 0; i < size; ++i) {
-      data[i] = static_cast<uint32_t>(bf16[i]) << 16;
+      uint16_t bf16_bits;
+      std::memcpy(&bf16_bits, bf16 + 2 * i, sizeof(bf16_bits));
+      const uint32_t f32_bits = static_cast<uint32_t>(bf16_bits) << 16;
+      std::memcpy(data + 4 * i, &f32_bits, sizeof(f32_bits));
     }
   } else {
     cpu_arr.CopyFromBytes(byte_data, byte_size);
   }
 }
 
+void ArrayDecodeBF16ToF32Inplace(Tensor cpu_arr, int64_t encoded_nbytes) {
+  CheckF32CPUTensor(cpu_arr);
+  TVM_FFI_ICHECK_GE(encoded_nbytes, 0);
+
+  const size_t size = GetCheckedTensorElementCount(cpu_arr);
+  TVM_FFI_ICHECK_LE(size, std::numeric_limits<size_t>::max() / 4);
+  TVM_FFI_ICHECK_EQ(static_cast<uint64_t>(encoded_nbytes), static_cast<uint64_t>(size) * 2);
+  if (size == 0) {
+    return;
+  }
+  TVM_FFI_ICHECK_NE(cpu_arr->data, nullptr);
+
+  uint8_t* data = static_cast<uint8_t*>(cpu_arr->data) + cpu_arr->byte_offset;
+  for (size_t i = size; i != 0; --i) {
+    const size_t j = i - 1;
+    uint16_t bf16_bits;
+    std::memcpy(&bf16_bits, data + 2 * j, sizeof(bf16_bits));
+    const uint32_t f32_bits = static_cast<uint32_t>(bf16_bits) << 16;
+    std::memcpy(data + 4 * j, &f32_bits, sizeof(f32_bits));
+  }
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed(
-      "tvmjs.array.decode_storage", [](ffi::PackedArgs args, ffi::Any* ret) {
-        Tensor cpu_arr = args[0].cast<Tensor>();
-        TVMFFIByteArray* bytes = args[1].cast<TVMFFIByteArray*>();
-        std::string format = args[2].cast<ffi::String>().operator std::string();
-        std::string dtype = args[3].cast<ffi::String>().operator std::string();
-        ArrayDecodeStorage(cpu_arr, bytes, format, dtype);
-      });
+  refl::GlobalDef()
+      .def_packed("tvmjs.array.decode_storage",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    Tensor cpu_arr = args[0].cast<Tensor>();
+                    TVMFFIByteArray* bytes = args[1].cast<TVMFFIByteArray*>();
+                    std::string format = args[2].cast<ffi::String>().operator std::string();
+                    std::string dtype = args[3].cast<ffi::String>().operator std::string();
+                    ArrayDecodeStorage(cpu_arr, bytes, format, dtype);
+                  })
+      .def("tvmjs.array.decode_bf16_to_f32_inplace", ArrayDecodeBF16ToF32Inplace);
 }
 
 // Concatenate n TVMArrays

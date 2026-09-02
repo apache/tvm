@@ -315,9 +315,9 @@ class AssertFrameNode : public TIRFrameNode {
   /*! \brief The PrimExpr to test. */
   PrimExpr condition;
   /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
-  tvm::tirx::StringImm error_kind;
+  tvm::prim::StringImm error_kind;
   /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
-  ffi::Array<tvm::tirx::StringImm> message_parts;
+  ffi::Array<tvm::prim::StringImm> message_parts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

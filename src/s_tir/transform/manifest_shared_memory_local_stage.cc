@@ -29,9 +29,9 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -43,6 +43,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Rewriter for the block storing to the target buffer. Create an intermediate cache stage
@@ -71,11 +72,8 @@ class IntermediateStageRewriter {
     // Step 2: Create the local stage block
     Stmt local_stage = MakeLocalStage(block, new_buffer, buffer_indices, relaxed_loops, store);
 
-    // Step 3: Create BufferLoad from the intermediate buffer
-    TVM_FFI_ICHECK(!store->predicate.has_value())
-        << "Predicated buffer store is not currently supported in "
-           "manifest shared memory local stage pass.";
-    BufferLoad new_buffer_load = BufferLoad(new_buffer, buffer_indices);
+    // Step 3: Create TensorLoad from the intermediate buffer
+    TensorLoad new_buffer_load = BufferLoad(new_buffer, buffer_indices);
     BufferStore new_buffer_store = block->body.as_or_throw<BufferStore>();
     new_buffer_store.CopyOnWrite()->value = new_buffer_load;
     SBlock new_block = ffi::GetRef<SBlock>(block);

@@ -27,10 +27,10 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -45,6 +45,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using runtime::StorageRank;
@@ -57,7 +58,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -213,10 +214,10 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
+  void VisitExpr_(const TensorLoadNode* op) final {
     // Add read access.
     StmtExprVisitor::VisitExpr_(op);
-    const VarNode* buf = ResolveAlias(op->buffer.get());
+    const VarNode* buf = ResolveAlias(op->source.as_or_throw<tvm::tirx::BufferVar>().get());
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.buffer.defined()) {
       TVM_FFI_ICHECK_LT(it->second.level, scope_.size())
@@ -228,8 +229,8 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::address_of())) {
-      if (const auto* load = op->args[0].as<BufferLoadNode>()) {
+    if (op->op.same_as(tirx::builtin::address_of())) {
+      if (const auto* load = op->args[0].as<TensorLoadNode>()) {
         for (const auto& index : load->indices) {
           this->VisitExpr(index);
         }
@@ -498,8 +499,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
     return node;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     return VisitBufferAccess(std::move(node));
   }
 
@@ -525,6 +526,20 @@ class SharedMemoryRewriter : public StmtExprMutator {
     }
 
     return node;
+  }
+
+  TensorLoad VisitBufferAccess(TensorLoad node) {
+    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    if (!IsAppropriateSharedMemory(buffer) || scope_stack_.empty() ||
+        !ResolveAllocation(buffer.get(), scope_stack_.back())) {
+      return node;
+    }
+    TVM_FFI_ICHECK_EQ(node->indices.size(), 1)
+        << "MergeSharedMemoryAllocations expects flat memory buffers, and is to be run after "
+           "FlattenBuffer";
+    ffi::Array<PrimExpr> indices = {node->indices[0] +
+                                    this->GetBufferOffset(buffer.var(), buffer->dtype->dtype)};
+    return BufferLoad(GetUpdatedBuffer(buffer), indices, node->span);
   }
 
   BufferVar GetUpdatedBuffer(BufferVar buffer) {
@@ -554,7 +569,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
   Expr VisitExpr_(const CallNode* op) final {
     static const Op& ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
-    if (op->op.same_as(builtin::tvm_access_ptr())) {
+    if (op->op.same_as(tirx::builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       DLDataType dtype = op->args[0].as_or_throw<PrimExpr>().ty()->dtype;
       auto buffer_opt = GetBufferDataVar(op->args[1]);

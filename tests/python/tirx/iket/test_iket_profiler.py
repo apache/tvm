@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for IKET lowering, metadata, installation locks, and trace contracts."""
+"""Tests for IKET lowering, metadata, installation versions, and trace contracts."""
 
 import hashlib
 import importlib
@@ -769,35 +769,22 @@ def test_proxy_fails_closed_and_forbids_export(tmp_path, monkeypatch):
     assert executable._executable._jitted_mod is None  # pylint: disable=protected-access
 
 
-def test_environment_validation_is_not_process_cached(tmp_path, monkeypatch):
+def test_environment_validation_is_not_process_cached(monkeypatch):
     from tvm.tirx.cuda import iket as _iket_official
 
-    injection_path = tmp_path / "libsmodel_injection.so"
-    injection_path.write_bytes(b"locked")
-    injection_relative = "nvidia_cutlass_dsl/dsl_packages/iket/profiler/libsmodel_injection.so"
     profile = {
         "nvrtc_version": (13, 2),
-        "versions": {"nvidia-cutlass-dsl-libs-base": "4.6.0"},
-        "files": {
-            "nvidia-cutlass-dsl-libs-base": {
-                injection_relative: hashlib.sha256(b"locked").hexdigest()
-            }
-        },
+        "minimum_versions": {"nvidia-cutlass-dsl-libs-base": "4.6.0"},
+        "exact_versions": {},
     }
 
     class FakeDistribution:
         version = "4.6.0"
 
-        @staticmethod
-        def locate_file(_relative_path):
-            return injection_path
-
     monkeypatch.setitem(_iket_official._OFFICIAL_PROFILES, "cutlass-4.6.0", profile)
     monkeypatch.setattr(_iket_official.metadata, "distribution", lambda _name: FakeDistribution())
     monkeypatch.setattr(_iket_official, "_validate_run_iket_entrypoint", lambda: None)
-    monkeypatch.setattr(
-        _iket_official, "_validate_injection_environment", lambda _expected_digest: None
-    )
+    monkeypatch.setattr(_iket_official, "_validate_injection_environment", lambda: None)
     monkeypatch.setattr(_iket_official, "_validate_nvrtc_version", lambda _version: None)
     monkeypatch.setenv("TVM_IKET_OFFICIAL_PROFILE", "cutlass-4.6.0")
 
@@ -807,18 +794,55 @@ def test_environment_validation_is_not_process_cached(tmp_path, monkeypatch):
         _iket_official.validate_official_environment()
 
 
+@pytest.mark.parametrize(
+    ("version", "expected_error"),
+    (
+        ("4.5.0", "must be 4.6.0 or newer"),
+        ("4.6.0", None),
+        ("4.6.2", None),
+    ),
+)
+def test_official_installation_accepts_newer_cutlass(monkeypatch, version, expected_error):
+    from tvm.tirx.cuda import iket as _iket_official
+
+    profile = {
+        "nvrtc_version": (13, 2),
+        "minimum_versions": {"nvidia-cutlass-dsl-libs-base": "4.6.0"},
+        "exact_versions": {},
+    }
+
+    class FakeDistribution:
+        pass
+
+    distribution = FakeDistribution()
+    distribution.version = version
+    monkeypatch.setitem(_iket_official._OFFICIAL_PROFILES, "cutlass-4.6.0", profile)
+    monkeypatch.setattr(_iket_official.metadata, "distribution", lambda _name: distribution)
+    monkeypatch.setattr(_iket_official, "_validate_run_iket_entrypoint", lambda: None)
+    monkeypatch.setattr(_iket_official, "_validate_nvrtc_version", lambda _version: None)
+
+    if expected_error:
+        with pytest.raises(RuntimeError, match=expected_error):
+            _iket_official._validate_official_installation(  # pylint: disable=protected-access
+                "cutlass-4.6.0"
+            )
+    else:
+        _iket_official._validate_official_installation(  # pylint: disable=protected-access
+            "cutlass-4.6.0"
+        )
+
+
 def test_injection_environment_accepts_run_iket_two_passes(tmp_path, monkeypatch):
     from tvm.tirx.cuda import iket as _iket_official
 
     injection = tmp_path / "libsmodel_injection.so"
-    injection.write_bytes(b"locked-injection")
-    expected_digest = hashlib.sha256(injection.read_bytes()).hexdigest()
+    injection.write_bytes(b"injection")
     config_path = tmp_path / "config.json"
     monkeypatch.setenv("CUDA_INJECTION64_PATH", str(injection))
     monkeypatch.setenv("SMODEL_INJECTION_CONFIG", str(config_path))
 
     config_path.write_text(json.dumps({"toolName": "tracker", "toolConfig": {}}))
-    _iket_official._validate_injection_environment(expected_digest)  # pylint: disable=protected-access
+    _iket_official._validate_injection_environment()  # pylint: disable=protected-access
 
     instrument = tmp_path / "instrument.config.json"
     instrument.write_text("{}", encoding="utf-8")
@@ -831,15 +855,10 @@ def test_injection_environment_accepts_run_iket_two_passes(tmp_path, monkeypatch
         ),
         encoding="utf-8",
     )
-    _iket_official._validate_injection_environment(expected_digest)  # pylint: disable=protected-access
-
-    with pytest.raises(RuntimeError, match="locked run-iket binary"):
-        _iket_official._validate_injection_environment("0" * 64)  # pylint: disable=protected-access
+    _iket_official._validate_injection_environment()  # pylint: disable=protected-access
     config_path.write_text(json.dumps({"toolName": "other"}), encoding="utf-8")
     with pytest.raises(RuntimeError, match="not generated by run-iket profile"):
-        _iket_official._validate_injection_environment(  # pylint: disable=protected-access
-            expected_digest
-        )
+        _iket_official._validate_injection_environment()  # pylint: disable=protected-access
 
 
 def test_cutlass_4_6_0_oracle_manifest_integrity():

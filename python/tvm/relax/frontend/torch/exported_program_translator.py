@@ -1481,8 +1481,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     ########## Symbolic Shape Constraints ##########
 
-    def _symbolic_comparison(self, _: fx.Node) -> relax.Expr:
-        return self.block_builder.emit(relax.const(True, dtype="bool"))
+    def _symbolic_comparison(self, intrinsic_op: Callable) -> Callable:
+        def convert(node: fx.Node) -> relax.Expr:
+            lhs, rhs = self.retrieve_args(node)
+            return self.block_builder.emit(relax.prim_value(intrinsic_op(lhs, rhs)))
+
+        return convert
 
     ########## Higher-Order Ops ##########
 
@@ -1754,6 +1758,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "logical_xor.default": self._logical_xor,
             "log_softmax.int": self._log_softmax,
             "_log_softmax.default": self._log_softmax,
+            "neg": lambda node: operator.neg(self.retrieve_args(node)[0]),
             "neg.default": self._unary_op(relax.op.negative),
             "pad.default": self._pad,
             "constant_pad_nd.default": self._constant_pad_nd,
@@ -1792,6 +1797,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "triu.default": self._tril_triu(relax.op.triu),
             "trunc.default": self._unary_op(relax.op.trunc),
             # binary
+            "add": self._binary_op(relax.op.add, operator.add),
             "add.Tensor": self._binary_op(relax.op.add, operator.add),
             "add.Scalar": self._binary_op(relax.op.add, operator.add),
             "add_.Tensor": self._binary_op(relax.op.add, operator.add),
@@ -1810,6 +1816,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "eq.Scalar": self._binary_op(relax.op.equal, operator.eq),
             "eq.Tensor": self._binary_op(relax.op.equal, operator.eq),
             "floor_divide.default": self._binary_op(relax.op.floor_divide, operator.floordiv),
+            "floordiv": self._binary_op(relax.op.floor_divide, operator.floordiv),
             "fmod.Scalar": self._fmod,
             "fmod.Tensor": self._fmod,
             "logaddexp.default": self._binary_op(relax.op.log_add_exp, torch.logaddexp),
@@ -1835,6 +1842,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "minimum.default": self._binary_op(relax.op.minimum, torch.minimum),
             "remainder.Tensor": self._binary_op(relax.op.floor_mod, operator.mod),
             "remainder.Scalar": self._binary_op(relax.op.floor_mod, operator.mod),
+            "mod": self._binary_op(relax.op.floor_mod, operator.mod),
             "mul": self._binary_op(relax.op.multiply, operator.mul),
             "mul.Tensor": self._binary_op(relax.op.multiply, operator.mul),
             "mul.Scalar": self._binary_op(relax.op.multiply, operator.mul),
@@ -1847,6 +1855,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "pow.Scalar": self._binary_op(relax.op.power, operator.pow),
             "pow.Tensor_Scalar": self._pow,
             "pow.Tensor_Tensor": self._binary_op(relax.op.power, operator.pow),
+            "sub": self._binary_op(relax.op.subtract, operator.sub),
             "sub.Tensor": self._binary_op(relax.op.subtract, operator.sub),
             "sub.Scalar": self._binary_op(relax.op.subtract, operator.sub),
             "__and__.Tensor": self._binary_op(relax.op.bitwise_and, operator.and_),
@@ -2031,13 +2040,15 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "item.default": self._item,
             "sym_size.int": self._sym_size_int,
             "_local_scalar_dense.default": self._item,
-            # symbolic shape constraints (no-ops for compilation)
+            # symbolic shape operations and constraints
             "sym_constrain_range_for_size.default": lambda node: self.env[node.args[0]],
             "_assert_scalar.default": lambda node: self.env[node.args[0]],
-            "ge": self._symbolic_comparison,
-            "le": self._symbolic_comparison,
-            "gt": self._symbolic_comparison,
-            "lt": self._symbolic_comparison,
+            "ge": self._symbolic_comparison(operator.ge),
+            "le": self._symbolic_comparison(operator.le),
+            "gt": self._symbolic_comparison(operator.gt),
+            "lt": self._symbolic_comparison(operator.lt),
+            "eq": self._symbolic_comparison(operator.eq),
+            "ne": self._symbolic_comparison(operator.ne),
             # higher-order ops
             "cond": self._cond,
         }
@@ -2108,10 +2119,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                             None if math.isinf(float(value_range.upper)) else int(value_range.upper)
                         )
 
-                        symbol_name, _ = self._process_derived_symbol(
+                        symbol_name, derived_expr = self._process_derived_symbol(
                             symbol, torch_symbol_to_relax_var
                         )
-                        range_constraints[symbol_name] = (lower, upper)
+                        if derived_expr is None:
+                            range_constraints[symbol_name] = (lower, upper)
 
                     except (OverflowError, AttributeError, TypeError):
                         continue
@@ -2119,14 +2131,17 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         named_buffers = OrderedDict(exported_program.named_buffers())
         for spec in exported_program.graph_signature.input_specs:
             name_hint = spec.arg.name
+            torch_shape = None
+            torch_dtype = None
             if spec.kind is torch.export.graph_signature.InputKind.CONSTANT_TENSOR:
                 torch_shape = exported_program.tensor_constants[spec.target].shape
                 torch_dtype = exported_program.tensor_constants[spec.target].dtype
             elif spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
                 for node in exported_program.graph.find_nodes(op="placeholder", target=spec.target):
-                    if node.name == name_hint and "tensor_meta" in node.meta:
-                        torch_shape = node.meta["tensor_meta"].shape
-                        torch_dtype = node.meta["tensor_meta"].dtype
+                    tensor_meta = node.meta.get("tensor_meta", node.meta.get("val"))
+                    if node.name == name_hint and tensor_meta is not None:
+                        torch_shape = tensor_meta.shape
+                        torch_dtype = tensor_meta.dtype
                         break
             elif spec.kind is torch.export.graph_signature.InputKind.BUFFER:
                 torch_shape = named_buffers[spec.target].shape
@@ -2136,19 +2151,23 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 torch_dtype = exported_program.state_dict[spec.target].dtype
             else:
                 raise ValueError(f"Unsupported input kind: {spec.kind}")
+            if torch_shape is None or torch_dtype is None:
+                raise ValueError(f'Cannot determine shape and dtype for input "{name_hint}"')
 
             relax_shape = []
             for s in torch_shape:
                 if isinstance(s, torch.SymInt):
                     sympy_node = s.node.expr if hasattr(s.node, "expr") else s.node
-                    symbol_name, _ = self._process_derived_symbol(
+                    symbol_name, derived_expr = self._process_derived_symbol(
                         sympy_node, torch_symbol_to_relax_var
                     )
-
-                    shape_var = torch_symbol_to_relax_var.setdefault(
-                        symbol_name, tvm.tirx.Var(symbol_name, "int64")
-                    )
-                    relax_shape.append(shape_var)
+                    if derived_expr is not None:
+                        relax_shape.append(derived_expr)
+                    else:
+                        shape_var = torch_symbol_to_relax_var.setdefault(
+                            symbol_name, tvm.tirx.Var(symbol_name, "int64")
+                        )
+                        relax_shape.append(shape_var)
                 else:
                     relax_shape.append(s)
             dtype = self._convert_data_type(torch_dtype)

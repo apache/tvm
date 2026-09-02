@@ -18,12 +18,14 @@
  */
 
 #include <gtest/gtest.h>
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/node_functor.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
@@ -37,7 +39,7 @@ TEST(IRF, Basic) {
 
   NodeFunctor<int(const ffi::ObjectRef& n, int b)> f;
   f.set_dispatch<VarNode>([](const ffi::ObjectRef& n, int b) { return b; });
-  f.set_dispatch<AddNode>([](const ffi::ObjectRef& n, int b) { return b + 2; });
+  f.set_dispatch<prim::AddNode>([](const ffi::ObjectRef& n, int b) { return b + 2; });
   TVM_FFI_ICHECK_EQ(f(x, 2), 2);
   TVM_FFI_ICHECK_EQ(f(z, 2), 4);
 }
@@ -100,7 +102,7 @@ TEST(IRF, ExprTransform) {
    public:
     int VisitExpr_(const VarNode* op, int b) final { return b; }
     int VisitExpr_(const IntImmNode* op, int b) final { return op->value; }
-    int VisitExpr_(const AddNode* op, int b) final {
+    int VisitExpr_(const prim::AddNode* op, int b) final {
       return VisitExpr(op->a, b) + VisitExpr(op->b, b);
     }
   };
@@ -127,7 +129,7 @@ TEST(IRF, ExprVisit) {
     // implementation
     void VisitExpr_(const VarNode* op) final { ++count; }
     void VisitExpr_(const IntImmNode* op) final {}
-    void VisitExpr_(const AddNode* op) final {
+    void VisitExpr_(const prim::AddNode* op) final {
       VisitExpr(op->a);
       VisitExpr(op->b);
     }
@@ -201,7 +203,7 @@ TEST(IRF, StmtMutator) {
 
    protected:
     // implementation
-    Expr VisitExpr_(const AddNode* op) final { return op->a; }
+    Expr VisitExpr_(const prim::AddNode* op) final { return op->a; }
     Stmt VisitStmt_(const SeqStmtNode* op) final { return StmtMutator::VisitSeqStmt_(op, true); }
     Expr VisitExpr(const Expr& expr) final { return ExprMutator::VisitExpr(expr); }
   };
@@ -258,7 +260,7 @@ TEST(IRF, StmtMutator) {
 
   {
     auto body =
-        Evaluate(Call(PrimType::Int(32), builtin::call_extern(), {StringImm("xyz"), x + 1}));
+        Evaluate(Call(PrimType::Int(32), builtin::call_extern(), {prim::StringImm("xyz"), x + 1}));
     auto res = v(std::move(body));
     TVM_FFI_ICHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[1].same_as(x));
   }
@@ -381,4 +383,25 @@ TEST(IRF, Substitute) {
     // the expression is not changed
     TVM_FFI_ICHECK(new_expr.same_as(expr));
   }
+}
+
+TEST(IRF, SubstituteWithDataTypeLegalizationPreservesShiftAmounts) {
+  using namespace tvm;
+  using namespace tvm::tirx;
+
+  PrimVar x("x", PrimType::Int(64));
+  PrimVar y("y", PrimType::Int(32));
+  auto f_subst = [&](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
+    if (var.same_as(x)) return PrimExpr(y);
+    return std::nullopt;
+  };
+
+  PrimExpr shift_amount = IntImm::Int64(40);
+  PrimExpr widened_y = cast(PrimType::Int(64), y);
+  PrimExpr actual_left = SubstituteWithDataTypeLegalization(x << shift_amount, f_subst);
+  PrimExpr actual_right = SubstituteWithDataTypeLegalization(x >> shift_amount, f_subst);
+
+  ffi::StructuralEqual structural_equal;
+  EXPECT_TRUE(structural_equal(actual_left, widened_y << shift_amount));
+  EXPECT_TRUE(structural_equal(actual_right, widened_y >> shift_amount));
 }

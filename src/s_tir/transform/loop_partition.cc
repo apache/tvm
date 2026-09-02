@@ -25,12 +25,13 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <optional>
@@ -43,6 +44,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 struct LoopPartitionConfigNode : public ffi::Object {
@@ -184,11 +186,11 @@ class CandidateSelector final : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::likely())) {
+    if (op->op.same_as(prim::builtin::likely())) {
       in_likely_ = true;
       StmtExprVisitor::VisitExpr_(op);
       in_likely_ = false;
-    } else if (op->op.same_as(builtin::tvm_thread_allreduce())) {
+    } else if (op->op.same_as(tirx::builtin::tvm_thread_allreduce())) {
       // no split if the body contains allreduce.
       no_split_ = true;
       return;
@@ -274,9 +276,9 @@ class PartitionFinder : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::likely())) {
+    if (op->op.same_as(prim::builtin::likely())) {
       DeduceCondition(op->args[0].as_or_throw<PrimExpr>());
-    } else if (op->op.same_as(builtin::ignore_loop_partition())) {
+    } else if (op->op.same_as(tirx::builtin::ignore_loop_partition())) {
       return;
     } else {
       StmtExprVisitor::VisitExpr_(op);
@@ -796,10 +798,10 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
 class RemoveLikelyTagsAndHints : public StmtExprMutator {
  public:
   Expr VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::likely())) {
+    if (op->op.same_as(prim::builtin::likely())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::VisitExpr(op->args[0].as_or_throw<PrimExpr>());
-    } else if (op->op.same_as(builtin::ignore_loop_partition())) {
+    } else if (op->op.same_as(tirx::builtin::ignore_loop_partition())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::VisitExpr(op->args[0].as_or_throw<PrimExpr>());
     } else {

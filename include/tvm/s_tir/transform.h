@@ -24,6 +24,7 @@
 #ifndef TVM_S_TIR_TRANSFORM_H_
 #define TVM_S_TIR_TRANSFORM_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/transform.h>
@@ -33,6 +34,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 
 /*!
  * \brief Renew the definition nodes for a TIR, including Var, Buffer and IterVar.

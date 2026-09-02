@@ -25,8 +25,8 @@
 #define TVM_TOPI_NN_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/topi/detail/constant_utils.h>
 #include <tvm/topi/reduction.h>
@@ -81,7 +81,7 @@ inline tvm::te::Tensor leaky_relu(const tvm::te::Tensor& t, double alpha = 0.1,
       [&](const tvm::ffi::Array<tvm::tirx::PrimVar>& i) {
         auto value = t(i);
         auto calpha = tvm::tirx::MakeConst(value.ty(), alpha);
-        return tvm::tirx::Select(value > 0, value, value * calpha);
+        return tvm::prim::Select(value > 0, value, value * calpha);
       },
       name, tag);
 }
@@ -109,7 +109,7 @@ inline tvm::te::Tensor prelu(const tvm::te::Tensor& x, const tvm::te::Tensor& sl
       x->shape,
       [&](const tvm::ffi::Array<tvm::tirx::PrimVar>& indices) {
         auto xval = x(indices);
-        return tvm::tirx::Select(xval > 0, xval, xval * slope(indices[axis]));
+        return tvm::prim::Select(xval > 0, xval, xval * slope(indices[axis]));
       },
       name, tag);
 }
@@ -681,7 +681,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
         {},
         [&](const tvm::ffi::Array<tvm::tirx::PrimVar>& target_indices) {
           auto c = targets();
-          return tvm::tirx::Select(c != ignore_index, -predictions(c) * weights(c),
+          return tvm::prim::Select(c != ignore_index, -predictions(c) * weights(c),
                                    tvm::tirx::MakeConst(tvm::PrimType(predictions->dtype), 0));
         },
         name, tag);
@@ -690,7 +690,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
           {},
           [&](const tvm::ffi::Array<tvm::tirx::PrimVar>& target_indices) {
             auto c = targets();
-            return tvm::tirx::Select(c != ignore_index, weights(c),
+            return tvm::prim::Select(c != ignore_index, weights(c),
                                      tvm::tirx::MakeConst(tvm::PrimType(predictions->dtype), 0));
           },
           name, tag);
@@ -709,7 +709,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
         for (size_t i = 1; i < target_indices.size(); i++) {
           pred_indices.push_back(target_indices[i]);  // indices for multidimensional loss
         }
-        return tvm::tirx::Select(c != ignore_index, -predictions(pred_indices) * weights(c),
+        return tvm::prim::Select(c != ignore_index, -predictions(pred_indices) * weights(c),
                                  tvm::tirx::MakeConst(tvm::PrimType(predictions->dtype), 0));
       },
       name, tag);
@@ -719,7 +719,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
         targets->shape,
         [&](const tvm::ffi::Array<tvm::tirx::PrimVar>& target_indices) {
           auto c = targets(target_indices);
-          return tvm::tirx::Select(c != ignore_index, weights(c),
+          return tvm::prim::Select(c != ignore_index, weights(c),
                                    tvm::tirx::MakeConst(tvm::PrimType(predictions->dtype), 0));
         },
         name, tag);

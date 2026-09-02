@@ -24,6 +24,7 @@
 #ifndef TVM_TIR_TRANSFORM_DTYPE_CONVERSION_H_
 #define TVM_TIR_TRANSFORM_DTYPE_CONVERSION_H_
 
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>

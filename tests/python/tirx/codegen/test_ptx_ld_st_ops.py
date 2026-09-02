@@ -162,6 +162,25 @@ def test_ptx_ld_st_raw_shared_address_codegen():
     assert '"q"(__value)' in src
 
 
+def test_ptx_ld_st_immediate_offset_codegen():
+    """An immediate displacement must stay inside the PTX memory operand."""
+
+    @T.prim_func
+    def main(src: T.Buffer((4,), "uint64"), out: T.Buffer((4,), "uint64")):
+        T.device_entry()
+        tx = T.thread_id([32])
+        values = T.alloc_local((2,), "uint64")
+        if tx == 0:
+            T.ptx.ld.global_.v2.b64(values[0], values[1], T.ptx.addr(src.data, 16))
+            T.ptx.st.global_.v2.b64(T.ptx.addr(out.data, 16), values[0], values[1])
+
+    with TARGET:
+        mod = tvm.compile(tvm.IRModule({"main": main}), target=TARGET, tir_pipeline="tirx")
+    src = mod.mod.imports[0].inspect_source("cuda")
+    assert "ld.global.v2.b64 {%0, %1}, [%2+16];" in src
+    assert "st.global.v2.b64 [%0+16], {%1, %2};" in src
+
+
 def test_ptx_ld_global_nc_v8_codegen():
     """FlashMLA index loads need ``ld.global.nc`` with a 256B prefetch."""
 

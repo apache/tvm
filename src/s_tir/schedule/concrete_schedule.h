@@ -20,6 +20,7 @@
 #define TVM_S_TIR_SCHEDULE_CONCRETE_SCHEDULE_H_
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <memory>
 #include <utility>
@@ -29,6 +30,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 class ConcreteScheduleNode : public ScheduleNode {

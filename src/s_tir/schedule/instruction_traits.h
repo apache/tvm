@@ -19,6 +19,7 @@
 #ifndef TVM_S_TIR_SCHEDULE_INSTRUCTION_TRAITS_H_
 #define TVM_S_TIR_SCHEDULE_INSTRUCTION_TRAITS_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/schedule/instruction.h>
 #include <tvm/s_tir/schedule/schedule.h>
 
@@ -30,6 +31,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!

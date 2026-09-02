@@ -24,14 +24,14 @@ from tvm_ffi import Array
 
 import tvm
 from tvm import tirx
-from tvm.ir import Call, Expr, Op, PointerType, PrimType
+from tvm.ir import Call, Expr, ExprWithOp, Op, PointerType, PrimType, TensorLoad
 from tvm.ir.base import Span
 from tvm.ir.type import TensorMapType
 from tvm.runtime import const
 
 from . import _ffi_api
 from .buffer import Buffer, buffer_data, is_buffer_var
-from .expr import BufferLoad, CommReducer, ExprOp, ExprWithOp, IntImm, Var
+from .expr import BufferLoad, CommReducer, ExprOp, IntImm, Var
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
 
@@ -59,6 +59,16 @@ def _canonical_device_intrin_name(func_name: str) -> str:
         if basename.startswith(prefix):
             return f"tirx.{namespace}.{basename[len(prefix) :]}"
     return func_name
+
+
+def _reject_buffer_region(value, api_name):
+    """Reject region metadata where a call argument must denote a runtime value."""
+    if isinstance(value, tirx.BufferRegion):
+        raise TypeError(
+            f"tirx.{api_name} does not accept BufferRegion arguments; "
+            "construct a BufferLoad with explicit indices"
+        )
+    return value
 
 
 def _primexpr_ty(expr):
@@ -135,7 +145,10 @@ def call_packed_lowered(*args, span=None):
     --------
     te.extern : Create tensor with extern function call.
     """
-    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
+    call_args = [
+        _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "call_packed_lowered")
+        for x in args
+    ]
     return Call(Op.get("tirx.tvm_call_packed_lowered"), call_args, span=span, ret_ty="int32")
 
 
@@ -161,7 +174,10 @@ def call_cpacked_lowered(*args, span=None):
     --------
     te.extern : Create tensor with extern function call.
     """
-    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
+    call_args = [
+        _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "call_cpacked_lowered")
+        for x in args
+    ]
     return Call(Op.get("tirx.tvm_call_cpacked_lowered"), call_args, span=span, ret_ty="int32")
 
 
@@ -192,7 +208,10 @@ def call_packed(*args, span=None):
     --------
     te.extern : Create tensor with extern function call.
     """
-    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
+    call_args = [
+        _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "call_packed")
+        for x in args
+    ]
     return Call(Op.get("tirx.tvm_call_packed"), call_args, span=span, ret_ty="int32")
 
 
@@ -219,7 +238,10 @@ def call_cpacked(*args, span=None):
     --------
     te.extern : Create tensor with extern function call.
     """
-    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
+    call_args = [
+        _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "call_cpacked")
+        for x in args
+    ]
     return Call(Op.get("tirx.tvm_call_cpacked"), call_args, span=span, ret_ty="int32")
 
 
@@ -253,6 +275,7 @@ def call_intrin(dtype: str | tvm.ir.Type, func_name, *args, attrs=None, span=Non
     """
     if isinstance(func_name, str):
         func_name = _canonical_device_intrin_name(func_name)
+    args = tuple(_reject_buffer_region(arg, "call_intrin") for arg in args)
     return Call(func_name, args, attrs=attrs, span=span, ret_ty=dtype)
 
 
@@ -280,7 +303,7 @@ def call_pure_extern(dtype, func_name, *args, span=None):
     """
     return Call(
         Op.get("tirx.call_pure_extern"),
-        [func_name, *args],
+        [func_name, *(_reject_buffer_region(arg, "call_pure_extern") for arg in args)],
         span=span,
         ret_ty=dtype,
     )
@@ -310,7 +333,7 @@ def call_extern(dtype, func_name, *args, span=None):
     """
     return Call(
         Op.get("tirx.call_extern"),
-        [func_name, *args],
+        [func_name, *(_reject_buffer_region(arg, "call_extern") for arg in args)],
         span=span,
         ret_ty=dtype,
     )
@@ -530,6 +553,7 @@ def call_tir(global_var: tvm.ir.GlobalVar, *args):
         The call expression.
     """
     assert isinstance(global_var, tvm.ir.GlobalVar)
+    args = tuple(_reject_buffer_region(arg, "call_tir") for arg in args)
 
     dtype = "void"
     if global_var.ty is not None:
@@ -669,12 +693,12 @@ def _buffer_element_pointer_type(buffer: Buffer) -> PointerType:
     return PointerType(buffer.ty.dtype, buffer.ty.storage_scope)
 
 
-def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Expr:
+def address_of(obj: Buffer | TensorLoad | Var, span: Span | None = None) -> Expr:
     """Returns the address of a buffer element or addressable variable.
 
     Parameters
     ----------
-    obj: Union[Buffer, BufferLoad, Var]
+    obj: Union[Buffer, TensorLoad, Var]
         The buffer, buffer load, or addressable variable.
 
     span : Optional[Span]
@@ -700,12 +724,12 @@ def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Expr
         if not isinstance(obj.ty, tvm.ir.PrimType):
             raise TypeError(f"address_of expects a scalar or TensorMap Var, but got {obj.ty}")
         return Call("tirx.address_of", [obj], span=span, ret_ty=PointerType(obj.ty))
-    elif isinstance(obj, BufferLoad):
+    elif isinstance(obj, TensorLoad):
         return Call(
             "tirx.address_of",
             [obj],
             span=span,
-            ret_ty=_buffer_element_pointer_type(obj.buffer),
+            ret_ty=_buffer_element_pointer_type(obj.source),
         )
     else:
         raise ValueError(f"Invalid object type: {type(obj)}")
@@ -1288,7 +1312,9 @@ def trace(args, trace_action="tvm.default_trace_action"):
     """
     if not isinstance(args, list):
         raise Exception("tvm.tirx.trace consumes the args as list type")
-    call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
+    call_args = [
+        _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "trace") for x in args
+    ]
     call_args.insert(0, tvm.tirx.StringImm(trace_action))
     tracing_value = args[-1]
     ret_ty = tracing_value.ty if isinstance(tracing_value, Expr) else tracing_value.dtype
@@ -2979,7 +3005,7 @@ def vscale():
     call : Expr
         Call to the vscale intrinsic
     """
-    return call_intrin("int32", "tirx.vscale")
+    return call_intrin("int32", "ir.prim.vscale")
 
 
 def get_active_lane_mask(dtype, base, limit):
@@ -3001,6 +3027,52 @@ def get_active_lane_mask(dtype, base, limit):
         An expression representing the limit.
     """
     return call_intrin(dtype, "tirx.get_active_lane_mask", base, limit)
+
+
+def masked_load(dtype, buffer, *indices_and_mask):
+    """Load vector lanes selected by a predicate mask.
+
+    Parameters
+    ----------
+    dtype : str
+        The vector data type to load.
+
+    buffer : Buffer
+        The buffer to load.
+
+    indices_and_mask : Expr
+        The buffer indices followed by a boolean lane mask. The mask must match the
+        lane count and scalability of the loaded vector.
+
+    Returns
+    -------
+    call : Expr
+        A ``tirx.masked_load`` call with result type ``dtype``.
+    """
+    return call_intrin(dtype, "tirx.masked_load", buffer, *indices_and_mask)
+
+
+def masked_store(buffer, value, *indices_and_mask):
+    """Store vector lanes selected by a predicate mask.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The buffer to update.
+
+    value : Expr
+        The vector value to store.
+
+    indices_and_mask : Expr
+        The buffer indices followed by a boolean lane mask. The mask must match the
+        lane count and scalability of ``value``.
+
+    Returns
+    -------
+    call : Expr
+        A void-typed ``tirx.masked_store`` call.
+    """
+    return call_intrin("void", "tirx.masked_store", buffer, value, *indices_and_mask)
 
 
 def get_vscale_expr(dtype: str | tvm_ffi.dtype, min_size: int = 128) -> Expr:

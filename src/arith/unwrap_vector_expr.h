@@ -26,7 +26,7 @@
 #ifndef TVM_ARITH_UNWRAP_VECTOR_EXPR_H_
 #define TVM_ARITH_UNWRAP_VECTOR_EXPR_H_
 
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <vector>
 

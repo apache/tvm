@@ -118,10 +118,10 @@ class ConstraintScope:
 
 
 class Z3ContextScope:
-    """Share one fresh Z3 context across Analyzers created in this scope.
+    """Deprecated no-op retained for compatibility.
 
-    The outermost scope creates the context. Nested scopes on the same thread
-    reuse it, and exiting the outermost scope releases its ownership.
+    Every materialized Z3 solver now owns a private context, which provides
+    per-analyzer isolation without an explicit compilation scope.
     """
 
     def __enter__(self):

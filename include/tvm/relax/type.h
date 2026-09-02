@@ -29,8 +29,8 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/global_info.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/type.h>
-#include <tvm/tirx/expr.h>
 
 #include <string>
 #include <utility>

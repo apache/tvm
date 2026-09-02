@@ -15,11 +15,11 @@
     specific language governing permissions and limitations
     under the License.
 
-copy_async → tcgen05_cp
-=======================
+copy_async → smem->tmem (tcgen05.cp)
+====================================
 
-The ``tcgen05_cp`` variant lowers a ``copy_async`` from **shared memory to tensor
-memory** (Blackwell ``tmem``) through a generic planner covering every
+The ``smem->tmem`` variant lowers a ``copy_async`` from **shared memory to tensor
+memory** (Blackwell ``tmem``) through the ``tcgen05_cp`` planner, which covers every
 ``tcgen05.cp`` shape. A shared **matrix descriptor** names the source tile; all
 descriptor fields (ldo/sdo/swizzle) and the cp issue sequence are derived from
 the two buffer layouts. The dispatch issues only the copy; the caller signals
@@ -94,12 +94,17 @@ shape/layout validation happens in the planner with readable errors:
    * - Property
      - Requirement
    * - target / priority
-     - ``cuda`` (Blackwell, sm_100+); priority ``10``
+     - ``cuda`` target with ``tcgen05`` support (tested with ``sm_100a``);
+       priority ``10``
    * - scope
      - **single thread** issues the copy
+   * - CTA group
+     - ``cta_group`` is ``1`` (default) or ``2`` and is forwarded to the PTX
+       instruction
    * - memory pair
      - source ``shared*`` → destination ``tmem`` (with ``allocated_addr`` set by
-       a prior ``tcgen05.alloc``); both buffers carry layouts, dtypes match
+       a prior ``tcgen05.alloc``); both buffers carry layouts and their element
+       bit widths match. Equal-width reinterpretation is allowed
    * - tmem layout
      - must slice to one shape's (lane, replica) pattern from the table above
    * - smem layout
@@ -119,22 +124,22 @@ dealloc tail elided):
 
     from tvm.tirx.layout import R, S, TCol, TileLayout, TLane
 
-    A_smem = T.alloc_buffer([32, 16], "uint8", scope="shared",
+    A_smem = Tx.alloc_buffer([32, 16], "uint8", scope="shared",
                             layout=TileLayout(S[(32, 16) : (16, 1)]), align=1024)
-    tmem_addr = T.alloc_shared([1], "uint32")
-    cp_mbar   = T.alloc_shared([1], "uint64")
+    tmem_addr = Tx.alloc_shared([1], "uint32")
+    cp_mbar   = Tx.alloc_shared([1], "uint64")
     if warp_id == 0:
-        T.ptx["tcgen05.alloc.cta_group::1.sync.aligned.shared::cta.b32"](
-            T.address_of(tmem_addr), T.uint32(16))
+        Tx.ptx["tcgen05.alloc.cta_group::1.sync.aligned.shared::cta.b32"](
+            Tx.address_of(tmem_addr), Tx.uint32(16))
     # ... mbarrier.init, fence, cta_sync, fill A_smem from global ...
-    tmem = T.decl_buffer([32, 16], "uint8", scope="tmem", allocated_addr=tmem_addr[0],
+    tmem = Tx.decl_buffer([32, 16], "uint8", scope="tmem", allocated_addr=tmem_addr[0],
                          layout=TileLayout(S[(32, 16) : (1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane]))
     if tid_in_wg == 0:
-        Tx.copy_async(tmem[0:32, 0:16], A_smem[0:32, 0:16], cta_group=1)   # smem -> tmem
+        Tx.tile.copy_async(tmem[0:32, 0:16], A_smem[0:32, 0:16], cta_group=1)   # smem -> tmem
         # caller signals
-        T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
+        Tx.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
             cp_mbar.ptr_to([0]))
-    T.cuda.mbarrier_wait(cp_mbar.ptr_to([0]), 0)
+    Tx.cuda.mbarrier_wait(cp_mbar.ptr_to([0]), 0)
     # ... readback via tcgen05.ld, then tcgen05.dealloc ...
 
 Algorithm
@@ -163,10 +168,10 @@ bits, plus the lane half-word for lane-tiled atoms):
 
 .. code-block:: python
 
-    for flat in T.unroll(total):
-        t_off, s_off = T.meta_var(compute_offsets(flat))
-        T.ptx[f"tcgen05.cp.cta_group::{cta_group}.{shape}{multicast_seg}"](
-            T.cast(t_addr[0] + t_addr_off + t_off, "uint32"),
+    for flat in Tx.unroll(total):
+        t_off, s_off = Tx.meta_var(compute_offsets(flat))
+        Tx.ptx[f"tcgen05.cp.cta_group::{cta_group}.{shape}{multicast_seg}"](
+            Tx.cast(t_addr[0] + t_addr_off + t_off, "uint32"),
             smem_desc_add_16B_offset(desc_buf[0], init_off_16B + s_off))
 
 The dispatch emits **no** ``tcgen05.commit`` / ``wait`` — the caller commits

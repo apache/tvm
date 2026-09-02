@@ -15,7 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.tirx.analysis
-=================
+Analysis
+========
+
 .. automodule:: tvm.tirx.analysis.analysis
    :members:

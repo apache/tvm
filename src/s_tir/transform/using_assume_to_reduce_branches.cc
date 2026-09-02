@@ -37,6 +37,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/s_tir/transform.h>
@@ -52,6 +53,7 @@
 #include "tvm/ir/expr.h"
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using namespace arith;
@@ -69,7 +71,7 @@ class AssumeChecker : public StmtExprVisitor {
     StmtVisitor::VisitStmt(stmt);
   }
   void VisitExpr_(const CallNode* op) override {
-    if (op->op.same_as(builtin::assume())) {
+    if (op->op.same_as(tirx::builtin::assume())) {
       has_assume = true;
     }
   }
@@ -123,12 +125,12 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   using Parent::VisitStmt_;
 
   // This struct stores all the relevant data related to asssume statement
-  struct assume_struct {           // Consider the example : T.assume(i < 14 or A[i] == 0)
-    PrimExpr buffer_context;       // The context of the assume statement (the bound on the axis)
-    PrimExpr buffer_predicate;     // The condition inside assume statement (i < 14) excluding
-                                   // bufferload expression (A[i] == 0)
-    tirx::BufferLoad buffer_load;  // Storing the buffer load Eg: A[i] in A[i] == 0
-    PrimExpr buffer_value;         // Storing the value for the buffer Eg : 0 in A[i] == 0
+  struct assume_struct {        // Consider the example : T.assume(i < 14 or A[i] == 0)
+    PrimExpr buffer_context;    // The context of the assume statement (the bound on the axis)
+    PrimExpr buffer_predicate;  // The condition inside assume statement (i < 14) excluding
+                                // bufferload expression (A[i] == 0)
+    TensorLoad buffer_load;     // Storing the buffer load Eg: A[i] in A[i] == 0
+    PrimExpr buffer_value;      // Storing the value for the buffer Eg : 0 in A[i] == 0
     ffi::Array<PrimExpr> buffer_indices;  // Storing the indices of the buffer Eg : i
   };
   // List of conditions in a scope
@@ -196,14 +198,16 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     return Parent::VisitStmt_(op);
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) override {
-    if (map_buffer_assumption.find(op->buffer) != map_buffer_assumption.end()) {
+  Expr VisitExpr_(const TensorLoadNode* op) override {
+    if (map_buffer_assumption.find(op->source.as_or_throw<tvm::tirx::BufferVar>()) !=
+        map_buffer_assumption.end()) {
       PrimExpr buf_value;
       /* If the cuurent context where the buffer load is present is same as
       the context of the buffer assumption then, return the buffer value present in the assumption.
       This will eventually replace the bufferload value in the complete expresison */
 
-      auto buffer_assumption = map_buffer_assumption[op->buffer];
+      auto buffer_assumption =
+          map_buffer_assumption[op->source.as_or_throw<tvm::tirx::BufferVar>()];
       PrimExpr current_predicate_and_context = CurrentScopePredicate();
       PrimExpr buffer_predicate_and_context =
           buffer_assumption.buffer_context && buffer_assumption.buffer_predicate;
@@ -223,7 +227,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
     // Eliminate the builtin if_then_else statement
     if (auto* call = op->value.as<CallNode>()) {
-      if (call->op.same_as(builtin::if_then_else())) {
+      if (call->op.same_as(prim::builtin::if_then_else())) {
         PrimExpr cond = call->args[0].as_or_throw<PrimExpr>();
         PrimExpr then_clause = call->args[1].as_or_throw<PrimExpr>();
         PrimExpr else_clause = call->args[2].as_or_throw<PrimExpr>();
@@ -270,7 +274,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   }
 
   Expr VisitExpr_(const CallNode* op) override {
-    if (op->op.same_as(builtin::assume())) {
+    if (op->op.same_as(tirx::builtin::assume())) {
       Assume(op->args[0].as_or_throw<PrimExpr>());
     }
     return Parent::VisitExpr_(op);
@@ -310,7 +314,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     TVM_FFI_ICHECK_EQ(buffer_exprs.size(), 1)
         << "T.assume must contain only a single buffer expression";
 
-    auto* as_equal_node = buffer_exprs[0].as<tirx::EQNode>();
+    auto* as_equal_node = buffer_exprs[0].as<prim::EQNode>();
     TVM_FFI_ICHECK(as_equal_node)
         << "T.assume buffer constraint must be of the form 'buffer[indices] == "
            "value', but received "
@@ -324,12 +328,12 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
     // Parse the statement and store the desired values
     // Ex: A[i]==0, load = A[i], value = 0
-    tirx::BufferLoad load;
+    TensorLoad load;
     PrimExpr value;
-    if (auto opt = as_equal_node->a.as<tirx::BufferLoad>()) {
+    if (auto opt = as_equal_node->a.as<TensorLoad>()) {
       load = opt.value();
       value = as_equal_node->b;
-    } else if (auto opt = as_equal_node->b.as<tirx::BufferLoad>()) {
+    } else if (auto opt = as_equal_node->b.as<TensorLoad>()) {
       load = opt.value();
       value = as_equal_node->a;
     } else {
@@ -347,7 +351,8 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     for (size_t i = 0; i < load->indices.size(); i++) {
       buf_data.buffer_indices.push_back(analyzer_->Simplify(load->indices[i]));
     }
-    map_buffer_assumption[buf_data.buffer_load->buffer] = buf_data;
+    map_buffer_assumption[buf_data.buffer_load->source.as_or_throw<tvm::tirx::BufferVar>()] =
+        buf_data;
 
     auto has_side_effect = tirx::SideEffect(value) > tirx::CallEffectKind::kPure;
     TVM_FFI_ICHECK(!has_side_effect)

@@ -54,6 +54,8 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
   explicit Int32DTypeNarrower(PrimFunc func)
       : IndexDataTypeNormalizer(PrimType::Int(32)), func_(std::move(func)) {}
 
+  bool ShouldClampShiftAmounts() const final { return true; }
+
   Expr VisitExpr_(const IntImmNode* op) final {
     // ignore the enabled condition and always rewrite i64
     if (op->ty.as_or_throw<PrimType>() == PrimType::Int(64)) {

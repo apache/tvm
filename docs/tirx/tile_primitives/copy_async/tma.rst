@@ -22,7 +22,8 @@ The ``tma_auto`` and ``tma_explicit`` variants lower ``copy_async`` between
 global and shared memory to CUDA Tensor Memory Accelerator instructions.  Both
 variants:
 
-* are issued by a single elected thread;
+* require the call to be in a single-thread execution scope (the caller
+  normally selects the issuing thread);
 * construct and cache ``cuTensorMap`` descriptors on the host with
   ``cuTensorMapEncodeTiled``;
 * use the same hardware validator, descriptor cache, prefetch path, and PTX
@@ -41,7 +42,7 @@ can be proven statically:
 
 .. code-block:: python
 
-    Tx.copy_async(
+    Tx.tile.copy_async(
         A_smem[:, :],
         A[tile_m : tile_m + 64, tile_k : tile_k + 64],
         dispatch="tma_auto",
@@ -88,13 +89,13 @@ are only known at runtime.
 * Buffer data plus ``elem_offset`` becomes the TensorMap base.
 
 It never regroups, compresses, promotes, shrinks, or splits a copy.  One
-``Tx.copy_async`` call emits exactly one TMA instruction, so a caller must
+``Tx.tile.copy_async`` call emits exactly one TMA instruction, so a caller must
 explicitly tile a wider transfer:
 
 .. code-block:: python
 
-    for atom in T.unroll(8):
-        Tx.copy_async(
+    for atom in Tx.unroll(8):
+        Tx.tile.copy_async(
             O[:, atom * 64 : (atom + 1) * 64],
             O_smem[:, atom * 64 : (atom + 1) * 64],
             dispatch="tma_explicit",
@@ -115,7 +116,7 @@ coordinates in ``{column, row0, row1, row2, row3}`` order:
 
 .. code-block:: python
 
-    Tx.copy_async(
+    Tx.tile.copy_async(
         K_smem[0:4, :],
         K[0:1, :],
         dispatch="tma_explicit",
@@ -135,7 +136,7 @@ the main operand's region and gather coordinates:
 
 .. code-block:: python
 
-    Tx.copy_async(
+    Tx.tile.copy_async(
         K_smem[0:4, :],
         K_main[0:1, :],
         dispatch="tma_explicit",
@@ -167,24 +168,36 @@ Common configuration
    * - Option
      - Meaning
    * - ``mbar`` / ``mbarrier_addr``
-     - Completion barrier for global-to-shared copies.  ``mbarrier_addr``
-       selects the PTX shared-address operand form; lowering converts the
-       supplied generic shared pointer once before the instruction.
+     - ``mbar`` is the required completion barrier for global-to-shared copies.
+       ``mbarrier_addr=False`` leaves it in generic-pointer form; ``True`` or
+       any TIR expression requests the PTX shared-address operand form, so
+       lowering converts ``mbar`` once before the instruction. The expression
+       is a form-selection marker, not a replacement barrier operand. Neither
+       option is valid for shared-to-global.
    * - ``cta_group`` / ``cta_mask``
-     - CTA group and multicast mask.  ``cta_group`` is one or two.
+     - ``cta_group`` is ``1`` or ``2``. Group 2 requires SM100+ and a
+       precomputed shared mbarrier address. ``cta_mask`` is a uint16 integer or
+       TIR expression and is valid only for global-to-shared multicast.
    * - ``cache_hint``
-     - Named cache hint or a runtime ``uint64`` cache-policy operand.
+     - ``evict_normal``, ``evict_first``, ``evict_last``, or a runtime
+       ``uint64`` cache-policy expression.
    * - ``prefetch_tensormap``
-     - Deduplicated device-side prefetch of the main descriptor.
+     - Deduplicated device-side prefetch of the main descriptor. Requires the
+       ``warp_id_in_cta`` launch parameter.
    * - ``tensormap_l2_promotion``
-     - ``none``, ``L2::64B``, ``L2::128B``, or ``L2::256B``.
+     - ``None`` (the default, meaning ``L2::128B``), integer ``0`` through
+       ``3``, ``none``, ``L2::none``, ``L2::64B``, ``L2::128B``, or
+       ``L2::256B``.
    * - ``tma_dtype``
      - ``tf32`` or ``tfloat32`` for a float32 descriptor conversion.
    * - ``use_tma_reduce``
-     - Shared-to-global reduction operation.
+     - Shared-to-global reduction operation: ``add``, ``min``, ``max``,
+       ``inc``, ``dec``, ``and``, ``or``, or ``xor``.
    * - ``oob``
-     - Explicit global-to-shared only.  ``zero`` is the default; ``nan`` is
-       limited to non-packed floating-point descriptors.
+     - ``tma_explicit`` global-to-shared only. ``None`` is the default zero-fill
+       encoding; an explicit ``zero`` selects the same encoding, while ``nan``
+       is limited to non-packed floating-point descriptors. ``tma_auto``
+       requires ``oob=None`` and rejects an explicitly supplied mode.
 
 Hardware validation
 -------------------

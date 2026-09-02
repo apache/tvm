@@ -108,7 +108,7 @@ Type InferTypeQuantize(const Call& call, const BlockBuilder& ctx) {
 
   // Check that "axis" attribute is not out of range:
   int axis = (attrs->axis < 0) ? (input_ty->ndim + attrs->axis) : attrs->axis;
-  if (axis < 0 || axis > input_ty->ndim - 1) {
+  if (input_ty->ndim != 0 && (axis < 0 || axis > input_ty->ndim - 1)) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "relax.quantize: axis param is out of range (" << attrs->axis << ")";
   }
@@ -137,9 +137,18 @@ Type InferTypeQuantize(const Call& call, const BlockBuilder& ctx) {
     return false;
   };
 
-  // Check size matching of scale/zp params with input shape at dim = attrs->axis.
-  if (!is_scalar_or_singleton_vector(scale_ty)) check_param_size(scale_ty, input_ty, "scale");
-  if (!is_scalar_or_singleton_vector(zp_ty)) check_param_size(zp_ty, input_ty, "zero_point");
+  if (input_ty->ndim == 0) {
+    // A scalar input has no channel axis and only supports per-tensor quantization.
+    if (!is_scalar_or_singleton_vector(scale_ty) || !is_scalar_or_singleton_vector(zp_ty)) {
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "relax.quantize: scale and zero_point must be scalar or singleton tensors for "
+             "rank-0 input";
+    }
+  } else {
+    // Check size matching of scale/zp params with input shape at dim = attrs->axis.
+    if (!is_scalar_or_singleton_vector(scale_ty)) check_param_size(scale_ty, input_ty, "scale");
+    if (!is_scalar_or_singleton_vector(zp_ty)) check_param_size(zp_ty, input_ty, "zero_point");
+  }
 
   auto output_ty = ffi::make_object<TensorTypeNode>(*input_ty.get());
   output_ty->dtype = PrimType(attrs->out_dtype);
@@ -221,7 +230,7 @@ Type InferTypeDequantize(const Call& call, const BlockBuilder& ctx) {
 
   // Check that "axis" attribute is not out of range:
   int axis = (attrs->axis < 0) ? (input_ty->ndim + attrs->axis) : attrs->axis;
-  if (axis < 0 || axis > input_ty->ndim - 1) {
+  if (input_ty->ndim != 0 && (axis < 0 || axis > input_ty->ndim - 1)) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "relax.dequantize: axis param is out of range (" << attrs->axis << ")";
   }
@@ -250,9 +259,18 @@ Type InferTypeDequantize(const Call& call, const BlockBuilder& ctx) {
     return false;
   };
 
-  // Check size matching of scale/zp params with input shape at dim = attrs->axis.
-  if (!is_scalar_or_singleton_vector(scale_ty)) check_param_size(scale_ty, input_ty, "scale");
-  if (!is_scalar_or_singleton_vector(zp_ty)) check_param_size(zp_ty, input_ty, "zero_point");
+  if (input_ty->ndim == 0) {
+    // A scalar input has no channel axis and only supports per-tensor quantization.
+    if (!is_scalar_or_singleton_vector(scale_ty) || !is_scalar_or_singleton_vector(zp_ty)) {
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "relax.dequantize: scale and zero_point must be scalar or singleton tensors for "
+             "rank-0 input";
+    }
+  } else {
+    // Check size matching of scale/zp params with input shape at dim = attrs->axis.
+    if (!is_scalar_or_singleton_vector(scale_ty)) check_param_size(scale_ty, input_ty, "scale");
+    if (!is_scalar_or_singleton_vector(zp_ty)) check_param_size(zp_ty, input_ty, "zero_point");
+  }
 
   auto output_ty = ffi::make_object<TensorTypeNode>(*input_ty.get());
   output_ty->dtype = PrimType(attrs->out_dtype);

@@ -25,7 +25,8 @@
 #define TVM_TARGET_VULKAN_IR_BUILDER_H_
 
 #include <tvm/ffi/function.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/ir/type.h>
 
 // clang-format off
 #include <algorithm>

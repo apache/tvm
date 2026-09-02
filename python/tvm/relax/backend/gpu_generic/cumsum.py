@@ -28,12 +28,22 @@ def _is_power_of_two(n: int):
     return n > 0 and (n & (n - 1)) == 0
 
 
+def _get_total_rounds(n, log_block_n: int, index_bits: int):
+    """Count the hierarchy levels without introducing integer division."""
+    total_rounds = T.int64(0)
+    for round_index in range(1, (index_bits - 1) // log_block_n + 1):
+        threshold = T.int64(1 << (round_index * log_block_n - 1))
+        total_rounds += T.Cast("int64", n > threshold)
+    return total_rounds
+
+
 def gpu_2d_continuous_cumsum(
     ty_len: int = 4,
     tx_len: int = 32,
     thread_elem: int = 4,
     in_dtype: str = "int32",
     out_dtype: str | None = None,
+    index_bits: int = 64,
 ) -> PrimFunc:
     """Generate GPU kernel for 2D continuous cumsum, i.e. The cumsum axis is -1
 
@@ -54,6 +64,9 @@ def gpu_2d_continuous_cumsum(
     out_dtype : Optional[str]
         The output data type, if None, it will be the same as in_dtype
 
+    index_bits : int
+        The number of bits available for signed index expressions
+
     Returns
     -------
     cumsum : PrimFunc
@@ -69,6 +82,8 @@ def gpu_2d_continuous_cumsum(
 
     if not _is_power_of_two(TX) or not _is_power_of_two(TY) or not _is_power_of_two(N):
         raise ValueError("Configuration of TX, TY, N must be power of 2")
+    if index_bits not in (32, 64):
+        raise ValueError("index_bits must be either 32 or 64")
 
     # number of elements to be processed by single warp
     warp_elem = T.int64(tx_len * thread_elem)
@@ -76,12 +91,15 @@ def gpu_2d_continuous_cumsum(
     block_elem = T.int64(tx_len * ty_len * thread_elem)
 
     LOG_TX = T.int64(int(math.log2(tx_len)))
-    LOG_BLOCK_N = T.int64(int(math.log2(tx_len * ty_len * thread_elem)))
+    log_block_n = int(math.log2(tx_len * ty_len * thread_elem))
+    LOG_BLOCK_N = T.int64(log_block_n)
+    MAX_INDEX_SHIFT = T.int64(index_bits - 1)
 
     @T.macro
     def block_inclusive_inside_block(
         batch: T.int64,
         cur_len: T.int64,
+        num_blocks: T.int64,
         source: T.Buffer,
         output: T.Buffer,
         tmp_buf: T.Buffer,
@@ -89,7 +107,7 @@ def gpu_2d_continuous_cumsum(
         tmp_offset: T.int64,
     ):
         for by in T.thread_binding(batch, thread="blockIdx.y"):
-            for bx in T.thread_binding(T.ceildiv(cur_len, block_elem), thread="blockIdx.x"):
+            for bx in T.thread_binding(num_blocks, thread="blockIdx.x"):
                 with T.sblock():
                     local_buf = T.sblock_alloc_buffer((thread_elem,), out_dtype, scope="local")
                     shared_buf = T.sblock_alloc_buffer((block_elem,), out_dtype, scope="shared")
@@ -138,13 +156,14 @@ def gpu_2d_continuous_cumsum(
     def update_cross_block(
         batch: T.int64,
         cur_len: T.int64,
+        num_blocks: T.int64,
         source: T.Buffer,
         output: T.Buffer,
         src_offset: T.int64,
         out_offset: T.int64,
     ):
         for by in T.thread_binding(batch, thread="blockIdx.y"):
-            for bx in T.thread_binding(T.ceildiv(cur_len, block_elem), thread="blockIdx.x"):
+            for bx in T.thread_binding(num_blocks, thread="blockIdx.x"):
                 for ty in T.thread_binding(TY, thread="threadIdx.y"):
                     for tx in T.thread_binding(TX, thread="threadIdx.x"):
                         for i in T.serial(N):
@@ -161,35 +180,96 @@ def gpu_2d_continuous_cumsum(
         A = T.match_buffer(var_a, [m, n], dtype=in_dtype)
         Out = T.match_buffer(var_out, [m, n], dtype=out_dtype)
         Tmp = T.alloc_buffer([m, n], dtype=out_dtype)
-        total_rounds: T.let[T.int64] = (
-            T.Cast("int64", T.ceil(T.log2(T.Cast("float32", n)))) // LOG_BLOCK_N
-        )
+        # LowerIntrin may implement signed FloorDiv using a sign-bit shift.  Keep
+        # hierarchy counting division-free so WebGPU can narrow indices to int32.
+        total_rounds: T.let[T.int64] = _get_total_rounds(n, log_block_n, index_bits)
 
         block_inclusive_inside_block(
-            m, n, A, Out, Tmp, src_offset=T.int64(0), tmp_offset=T.int64(0)
+            m,
+            n,
+            T.ceildiv(n, block_elem),
+            A,
+            Out,
+            Tmp,
+            src_offset=T.int64(0),
+            tmp_offset=T.int64(0),
         )
         for i in range(total_rounds):
-            cur_len: T.let[T.int64] = T.ceildiv(n, 1 << (LOG_BLOCK_N * (i + 1)))
+            shift: T.let[T.int64] = T.min(T.max(LOG_BLOCK_N * (i + 1), T.int64(0)), MAX_INDEX_SHIFT)
+            block_shift: T.let[T.int64] = T.min(shift + LOG_BLOCK_N, MAX_INDEX_SHIFT)
+            # n is non-negative and WebGPU indices are narrowed to signed int32.
+            # Spell out positive ceildiv by a power of two so lowering does not
+            # introduce an int64 sign-bit test (`remainder >> 63`).
+            cur_len: T.let[T.int64] = ((n - 1) >> shift) + 1
+            num_blocks: T.let[T.int64] = ((n - 1) >> block_shift) + 1
             block_inclusive_inside_block(
                 m,
                 cur_len,
+                num_blocks,
                 Tmp,
                 Tmp,
                 Tmp,
                 src_offset=i * T.ceildiv(n, block_elem),
                 tmp_offset=(i + 1) * T.ceildiv(n, block_elem),
             )
-        for i in range(total_rounds - 1):
-            real_idx: T.let[T.int64] = total_rounds - 1 - i - 1
-            cur_len: T.let[T.int64] = T.ceildiv(n, 1 << (LOG_BLOCK_N * (real_idx + 1)))
+        reverse_rounds: T.let[T.int64] = T.max(total_rounds - 1, 0)
+        for i in range(reverse_rounds):
+            real_idx: T.let[T.int64] = reverse_rounds - 1 - i
+            shift: T.let[T.int64] = T.min(
+                T.max(LOG_BLOCK_N * (real_idx + 1), T.int64(0)), MAX_INDEX_SHIFT
+            )
+            block_shift: T.let[T.int64] = T.min(shift + LOG_BLOCK_N, MAX_INDEX_SHIFT)
+            cur_len: T.let[T.int64] = ((n - 1) >> shift) + 1
+            num_blocks: T.let[T.int64] = ((n - 1) >> block_shift) + 1
             update_cross_block(
                 m,
                 cur_len,
+                num_blocks,
                 Tmp,
                 Tmp,
                 src_offset=(real_idx + 1) * T.ceildiv(n, block_elem),
                 out_offset=real_idx * T.ceildiv(n, block_elem),
             )
-        update_cross_block(m, n, Tmp, Out, src_offset=0, out_offset=0)
+        update_cross_block(m, n, T.ceildiv(n, block_elem), Tmp, Out, src_offset=0, out_offset=0)
+
+    return cumsum
+
+
+def gpu_3d_axis_1_cumsum(
+    tx_len: int = 128,
+    in_dtype: str = "int32",
+    out_dtype: str | None = None,
+) -> PrimFunc:
+    """Generate a correctness fallback that scans axis 1 of a contiguous 3D tensor.
+
+    Each thread handles one pair of outer and inner indices and scans the
+    middle axis sequentially.  The dispatcher collapses arbitrary-rank inputs
+    around the scan axis into this 3D representation.  This fallback avoids a
+    transposed scan on targets where that lowering is unavailable; it is not a
+    parallel scan optimization for rank-3 tensors.
+    """
+
+    out_dtype = out_dtype or in_dtype
+    TX = T.int64(tx_len)
+
+    @T.prim_func(private=True, s_tir=True)
+    def cumsum(var_a: T.handle, var_out: T.handle):
+        T.func_attr({"tirx.is_scheduled": True})
+        outer, scan, inner = T.int64(), T.int64(), T.int64()
+        A = T.match_buffer(var_a, [outer, scan, inner], dtype=in_dtype)
+        Out = T.match_buffer(var_out, [outer, scan, inner], dtype=out_dtype)
+
+        for bx in T.thread_binding(T.ceildiv(outer * inner, TX), thread="blockIdx.x"):
+            for tx in T.thread_binding(TX, thread="threadIdx.x"):
+                row: T.let[T.int64] = bx * TX + tx
+                with T.sblock():
+                    accumulator = T.sblock_alloc_buffer((), out_dtype, scope="local")
+                    if row < outer * inner:
+                        outer_idx: T.let[T.int64] = row // inner
+                        inner_idx: T.let[T.int64] = row % inner
+                        accumulator[()] = T.Cast(out_dtype, 0)
+                        for k in T.serial(scan):
+                            accumulator[()] += T.Cast(out_dtype, A[outer_idx, k, inner_idx])
+                            Out[outer_idx, k, inner_idx] = accumulator[()]
 
     return cumsum

@@ -177,7 +177,7 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
         T.cuda.elect_sync(),
         T.cuda.thread_fence(),
         T.nvshmem.fence(),
-        T.nki.identity(buffer[0:1], 1),
+        T.nki.identity(buffer[0], 1),
     ]
 
     expected = [

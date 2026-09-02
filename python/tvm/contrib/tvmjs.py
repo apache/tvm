@@ -17,6 +17,7 @@
 # ruff: noqa: E501, F401
 """Namespace to store utilities for building web runtime."""
 
+import copy
 import hashlib
 import json
 import math
@@ -26,7 +27,6 @@ import shutil
 # pylint: disable=unused-import
 import sys
 from collections.abc import Iterator, Mapping
-from types import GeneratorType
 from typing import Any, Optional, Union
 
 import numpy as np
@@ -203,7 +203,7 @@ def dump_tensor_cache(
     params: Mapping[str, np.ndarray | tvm.runtime.Tensor]
     | Iterator[tuple[str, np.ndarray | tvm.runtime.Tensor]],
     cache_dir: str,
-    encode_format="f32-to-bf16",
+    encode_format: str | Mapping[str, str] = "f32-to-bf16",
     meta_data=None,
     shard_cap_mb=32,
     show_progress: bool = True,
@@ -222,8 +222,12 @@ def dump_tensor_cache(
     cache_dir: str
         The path to the cache
 
-    encode_format: {"f32-to-bf16", "raw"}
-        Encoding format.
+    encode_format: Union[
+        {"f32-to-bf16", "raw"},
+        Mapping[str, {"f32-to-bf16", "raw"}]
+    ]
+        Encoding format. A mapping selects the format by parameter name and may
+        use ``"*"`` as the fallback for names not explicitly listed.
 
     meta_data: json-compatible-struct or Callable[[], Any]
         Extra meta_data to be stored in the cache json file,
@@ -239,19 +243,31 @@ def dump_tensor_cache(
         If the cache already exists, update the cache. When set to False, it will overwrite the
         existing files.
     """
-    if encode_format not in ("raw", "f32-to-bf16"):
-        raise ValueError(f"Invalie encode_format {encode_format}")
+    if isinstance(encode_format, str):
+        if encode_format not in ("raw", "f32-to-bf16"):
+            raise ValueError(f"Invalid encode_format {encode_format}")
+    elif not isinstance(encode_format, Mapping):
+        raise TypeError("encode_format must be a string or parameter-name mapping")
+    else:
+        for name, param_format in encode_format.items():
+            if param_format not in ("raw", "f32-to-bf16"):
+                raise ValueError(f"Invalid encode_format for parameter {name}: {param_format}")
+
+    def resolve_encode_format(name):
+        if isinstance(encode_format, str):
+            return encode_format
+        param_format = encode_format.get(name, encode_format.get("*"))
+        if param_format not in ("raw", "f32-to-bf16"):
+            raise ValueError(f"Invalid encode_format for parameter {name}: {param_format}")
+        return param_format
 
     records = []
-    from_generator = isinstance(params, GeneratorType)
     total_bytes = 0
     counter = 0
     max_out_length = 0
 
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
-
-    f32_to_bf16_triggered = False
 
     print(f"Start storing to cache {cache_dir}")
     shard_cap_nbytes = shard_cap_mb * (1 << 20)
@@ -268,8 +284,9 @@ def dump_tensor_cache(
         cache_dir, "params_shard", shard_cap_nbytes, initial_shard_records=records
     )
 
-    param_generator = params.items() if not from_generator else params
+    param_generator = params.items() if isinstance(params, Mapping) else params
     for k, origin_v in param_generator:
+        param_encode_format = resolve_encode_format(k)
         shape = list(origin_v.shape)
         v = origin_v
         if not isinstance(v, np.ndarray):
@@ -286,9 +303,8 @@ def dump_tensor_cache(
         total_bytes += math.prod(v.shape) * np.dtype(v.dtype).itemsize
 
         # convert fp32 to bf16
-        if encode_format == "f32-to-bf16" and dtype == "float32":
+        if param_encode_format == "f32-to-bf16" and dtype == "float32":
             data = _convert_f32_to_bf16(v).tobytes()
-            f32_to_bf16_triggered = True
         else:
             data = v.tobytes()
 
@@ -297,7 +313,7 @@ def dump_tensor_cache(
             name=k,
             shape=shape,
             dtype=dtype,
-            encode_format=encode_format,
+            encode_format=param_encode_format,
             allow_update=update_if_exists,
         )
 
@@ -317,17 +333,25 @@ def dump_tensor_cache(
         f"\nAll finished, {shard_manager.counter} total shards committed, record saved to {nd_cache_json}"
     )
 
-    if f32_to_bf16_triggered:
-        for shard in records:
+    b16_nd_cache_json = os.path.join(cache_dir, "tensor-cache-b16.json")
+    has_f32_to_bf16 = any(
+        item["format"] == "f32-to-bf16" and item["dtype"] == "float32"
+        for shard in records
+        for item in shard["records"]
+    )
+    if has_f32_to_bf16:
+        b16_records = copy.deepcopy(records)
+        for shard in b16_records:
             for item in shard["records"]:
-                if item["dtype"] == "float32":
+                if item["format"] == "f32-to-bf16" and item["dtype"] == "float32":
                     item["format"] = "raw"
                     item["dtype"] = "bfloat16"
-        b16_nd_cache_json = os.path.join(cache_dir, "tensor-cache-b16.json")
         # also dump a file that contains bf16
         with open(b16_nd_cache_json, "w") as outfile:
-            json.dump({"metadata": meta_data, "records": records}, outfile, indent=4)
+            json.dump({"metadata": meta_data, "records": b16_records}, outfile, indent=4)
         print(f"Also saved a bf16 record to {b16_nd_cache_json}")
+    elif os.path.exists(b16_nd_cache_json):
+        os.remove(b16_nd_cache_json)
 
 
 def load_tensor_cache(cachepath: str, device: tvm.runtime.Device):

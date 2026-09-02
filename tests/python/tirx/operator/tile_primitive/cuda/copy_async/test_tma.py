@@ -1497,7 +1497,7 @@ def test_explicit_gather_uses_extracted_swizzled_slice_pointer():
     _, operands = _ptx_call_parts(_count_tma(impl).calls[0])
     shared_ptr = _unwrap_shared_addr(operands["dst_mem"][0])
     assert shared_ptr.op.name == "tirx.address_of"
-    assert int(shared_ptr.args[0].buffer.elem_offset) == 0
+    assert int(shared_ptr.args[0].source.elem_offset) == 0
     assert int(shared_ptr.args[0].indices[0]) == 256
 
 
@@ -2038,7 +2038,7 @@ def _build_selector_gather_gpu_kernel(dtype="float16"):
 def test_explicit_gather_selector_gpu_roundtrip():
     dtype = "float16"
     kernel = _build_selector_gather_gpu_kernel(dtype)
-    executable = _compile_module(kernel)
+    executable = _compile_module(kernel, arch=env.cuda_arch())
     dev = tvm.cuda(0)
     rng = np.random.default_rng(0)
     a_np = rng.standard_normal((256, 64)).astype(dtype)

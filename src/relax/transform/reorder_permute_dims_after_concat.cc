@@ -91,40 +91,55 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     return attrs->axes;
   };
 
-  auto get_permute_dims_axes =
-      [get_permute_dims_optional_axes](const Expr& expr) -> ffi::Array<int64_t> {
+  auto try_get_permute_dims_axes =
+      [get_permute_dims_optional_axes](const Expr& expr) -> ffi::Optional<ffi::Array<int64_t>> {
     if (auto opt_axes = get_permute_dims_optional_axes(expr)) {
-      return opt_axes.value();
-    } else {
-      auto call = expr.as_or_throw<Call>();
-      ffi::Array<int64_t> permutation;
-      auto arg_ty = call->args[0]->ty.as<TensorTypeNode>();
-      TVM_FFI_ICHECK(arg_ty) << "Expected permute_dims to have a single tensor argument, "
-                             << "but argument " << call->args[0] << " has type "
-                             << call->args[0]->ty;
-      TVM_FFI_ICHECK_GE(arg_ty->ndim, 0);
-      size_t ndim = arg_ty->ndim;
-      for (size_t i = 0; i < ndim; i++) {
-        permutation.push_back(static_cast<int64_t>(ndim - i - 1));
-      }
-      return permutation;
+      return opt_axes;
     }
+
+    auto call = expr.as_or_throw<Call>();
+    ffi::Array<int64_t> permutation;
+    auto arg_ty = call->args[0]->ty.as<TensorTypeNode>();
+    TVM_FFI_ICHECK(arg_ty) << "Expected permute_dims to have a single tensor argument, "
+                           << "but argument " << call->args[0] << " has type " << call->args[0]->ty;
+
+    // An implicit permutation depends on the input rank, so it cannot be materialized here.
+    if (arg_ty->IsUnknownNdim()) {
+      return std::nullopt;
+    }
+
+    size_t ndim = arg_ty->ndim;
+    for (size_t i = 0; i < ndim; i++) {
+      permutation.push_back(static_cast<int64_t>(ndim - i - 1));
+    }
+    return permutation;
   };
 
-  auto permute_dims_axes_are_compatible = [&](const ffi::Array<Expr>& permute_dims) -> bool {
-    auto first_axes = get_permute_dims_axes(permute_dims[0]);
+  auto try_get_compatible_permute_dims_axes =
+      [try_get_permute_dims_axes](
+          const ffi::Array<Expr>& permute_dims) -> ffi::Optional<ffi::Array<int64_t>> {
+    auto opt_first_axes = try_get_permute_dims_axes(permute_dims[0]);
+    if (!opt_first_axes) {
+      return std::nullopt;
+    }
+    const auto& first_axes = opt_first_axes.value();
+
     for (size_t i_arg = 1; i_arg < permute_dims.size(); i_arg++) {
-      auto i_axes = get_permute_dims_axes(permute_dims[i_arg]);
+      auto opt_i_axes = try_get_permute_dims_axes(permute_dims[i_arg]);
+      if (!opt_i_axes) {
+        return std::nullopt;
+      }
+      const auto& i_axes = opt_i_axes.value();
       if (i_axes.size() != first_axes.size()) {
-        return false;
+        return std::nullopt;
       }
       for (size_t i_axis = 0; i_axis < first_axes.size(); i_axis++) {
         if (i_axes[i_axis] != first_axes[i_axis]) {
-          return false;
+          return std::nullopt;
         }
       }
     }
-    return true;
+    return opt_first_axes;
   };
 
   auto rewriter = [=](Expr expr, ffi::Map<DFPattern, Expr> matches) -> Expr {
@@ -141,17 +156,18 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
         << "Pattern match should return at least " << min_concat << " items, but only found "
         << all_permute_dims.size() << ": " << all_permute_dims;
 
-    if (!permute_dims_axes_are_compatible(all_permute_dims)) {
+    auto opt_permute_dims_axes = try_get_compatible_permute_dims_axes(all_permute_dims);
+    if (!opt_permute_dims_axes) {
       return expr;
     }
+    const auto& permute_dims_axes = opt_permute_dims_axes.value();
+
     ffi::Optional<ffi::Array<int64_t>> permute_axes =
         get_permute_dims_optional_axes(all_permute_dims[0]);
 
     Call concat_call = matches[pat_concat].as_or_throw<Call>();
     auto concat_attrs = concat_call->attrs.as<ConcatAttrs>();
     TVM_FFI_ICHECK(concat_attrs);
-
-    auto permute_dims_axes = get_permute_dims_axes(all_permute_dims[0]);
 
     int64_t old_concat_axis = concat_attrs->axis.value_or(0);
     int64_t ndim = static_cast<int64_t>(permute_dims_axes.size());

@@ -18,7 +18,7 @@
 import tvm
 import tvm.testing
 from tvm import tirx as tir
-from tvm.ir import Call, Op
+from tvm.ir import Call, Op, OpaqueExpr, TensorLoad, Tuple, TupleGetItem
 from tvm.ir.base import assert_structural_equal
 from tvm.tirx.expr import (
     EQ,
@@ -30,7 +30,6 @@ from tvm.tirx.expr import (
     Add,
     And,
     Broadcast,
-    BufferLoad,
     Cast,
     Div,
     FloatImm,
@@ -44,7 +43,6 @@ from tvm.tirx.expr import (
     Mul,
     Not,
     Or,
-    ProducerLoad,
     Ramp,
     Reduce,
     Select,
@@ -97,18 +95,27 @@ class ASTPrinter(ExprVisitor):
     def visit_var_(self, op: Var) -> None:
         self.log.add("Var")
 
-    def visit_buffer_load_(self, op: BufferLoad) -> None:
+    def visit_buffer_load_(self, op: TensorLoad) -> None:
         self.log.add("BufferLoad")
         self.log.push_scope()
         for idx in op.indices:
             self.visit_expr(idx)
         self.log.pop_scope()
 
-    def visit_producer_load_(self, op: ProducerLoad) -> None:
-        self.log.add("ProducerLoad")
+    def visit_opaque_expr_(self, op: OpaqueExpr) -> None:
+        self.log.add("OpaqueExpr")
+
+    def visit_tuple_(self, op: Tuple) -> None:
+        self.log.add("Tuple")
         self.log.push_scope()
-        for idx in op.indices:
-            self.visit_expr(idx)
+        for field in op.fields:
+            self.visit_expr(field)
+        self.log.pop_scope()
+
+    def visit_tuple_get_item_(self, op: TupleGetItem) -> None:
+        self.log.add("TupleGetItem")
+        self.log.push_scope()
+        self.visit_expr(op.tuple_value)
         self.log.pop_scope()
 
     def visit_let_(self, op: Let) -> None:
@@ -329,14 +336,24 @@ class ASTPostPrinterMutator(ExprMutator):
         self.log.add("Var")
         return result
 
-    def visit_buffer_load_(self, op: BufferLoad) -> tir.Expr:
+    def visit_buffer_load_(self, op: TensorLoad) -> tir.Expr:
         result = super().visit_buffer_load_(op)
         self.log.add("BufferLoad")
         return result
 
-    def visit_producer_load_(self, op: ProducerLoad) -> tir.Expr:
-        result = super().visit_producer_load_(op)
-        self.log.add("ProducerLoad")
+    def visit_opaque_expr_(self, op: OpaqueExpr) -> tir.Expr:
+        result = super().visit_opaque_expr_(op)
+        self.log.add("OpaqueExpr")
+        return result
+
+    def visit_tuple_(self, op: Tuple) -> tir.Expr:
+        result = super().visit_tuple_(op)
+        self.log.add("Tuple")
+        return result
+
+    def visit_tuple_get_item_(self, op: TupleGetItem) -> tir.Expr:
+        result = super().visit_tuple_get_item_(op)
+        self.log.add("TupleGetItem")
         return result
 
     def visit_let_(self, op: Let) -> tir.Expr:
@@ -522,6 +539,24 @@ def test_float_imm():
 
 def test_string_imm():
     basic_check(tir.StringImm("hello"), "StringImm", "StringImm")
+
+
+def test_tuple():
+    tuple_node = Tuple([n, tir.IntImm("int32", 10)])
+    basic_check(
+        tuple_node,
+        "\n".join(["Tuple", "\tVar", "\tIntImm"]),
+        "\n".join(["Var", "IntImm", "Tuple"]),
+    )
+
+
+def test_tuple_get_item():
+    tuple_get_item = TupleGetItem(Tuple([n, m]), 1)
+    basic_check(
+        tuple_get_item,
+        "\n".join(["TupleGetItem", "\tTuple", "\t\tVar", "\t\tVar"]),
+        "\n".join(["Var", "Var", "Tuple", "TupleGetItem"]),
+    )
 
 
 def test_add():
@@ -764,6 +799,13 @@ def test_call_visitor_super():
     lv = LeafVisitor()
     lv.visit_expr(add_node)
     assert str(lv.log) == "\n".join(["LeafAdd", "InternalAdd", "InternalVar", "InternalIntImm"])
+
+    tensor_load = tvm.te.placeholder((1,), name="A")(0)
+    basic_check(
+        tensor_load,
+        "\n".join(["Call", "\tOpaqueExpr", "\tIntImm"]),
+        "\n".join(["OpaqueExpr", "IntImm", "Call"]),
+    )
 
 
 def test_call_mutator_super():

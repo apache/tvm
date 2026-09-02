@@ -71,7 +71,7 @@ void VarUseDefAnalyzer::VisitStmt_(const AllocBufferNode* op) {
   StmtExprVisitor::VisitStmt_(op);
 }
 
-void VarUseDefAnalyzer::VisitExpr_(const LetNode* op) {
+void VarUseDefAnalyzer::VisitExpr_(const prim::LetNode* op) {
   // Weaker SSA condition
   // A single var can be binded in multiple lets
   // but they have to bind to the same value.
@@ -96,13 +96,6 @@ void VarUseDefAnalyzer::VisitExpr_(const VarNode* op) {
     this->VisitBufferUse(BufferVar(var));
   } else {
     this->HandleUse(var);
-  }
-  StmtExprVisitor::VisitExpr_(op);
-}
-
-void VarUseDefAnalyzer::VisitExpr_(const ReduceNode* op) {
-  for (const auto& iv : op->axis) {
-    this->HandleDef(iv->var);
   }
   StmtExprVisitor::VisitExpr_(op);
 }

@@ -25,7 +25,7 @@
 #define TVM_ARITH_INT_SOLVER_H_
 
 #include <tvm/ir/expr.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/op.h>
 
 #include <unordered_map>

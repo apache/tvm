@@ -5507,6 +5507,307 @@ def test_slice_with_symbolic_end():
     verify_model(SliceStaticModel(), example_args_static, {}, ExpectedStatic)
 
 
+def test_derived_input_dimension_without_exported_program_decomposition():
+    class IdentityPair(torch.nn.Module):
+        def forward(self, x, y):
+            return x, y
+
+    frames = torch.export.Dim("frames", min=1, max=8)
+    exported_program = export(
+        IdentityPair(),
+        args=(torch.randn(1, 4, 3), torch.randn(1, 8, 3)),
+        dynamic_shapes=({1: frames}, {1: 2 * frames}),
+    )
+    mod = from_exported_program(
+        exported_program,
+        keep_params_as_input=True,
+        run_ep_decomposition=False,
+    )
+
+    x_shape = mod["main"].params[0].ty.shape.values
+    y_shape = mod["main"].params[1].ty.shape.values
+    assert tvm.arith.Analyzer().can_prove_equal(y_shape[1], x_shape[1] * 2)
+
+
+def test_expand_with_new_leading_dimension():
+    class ExpandLeading(torch.nn.Module):
+        def forward(self, x):
+            return x.expand(2, -1, -1)
+
+    tokens = torch.export.Dim("tokens", min=1, max=8)
+    exported_program = export(
+        ExpandLeading(),
+        args=(torch.randn(4, 3),),
+        dynamic_shapes={"x": {0: tokens}},
+    )
+    mod = from_exported_program(exported_program)
+
+    input_shape = mod["main"].params[0].ty.shape.values
+    output_shape = mod["main"].ret_ty.fields[0].shape.values
+    assert tvm.arith.Analyzer().can_prove_equal(output_shape[0], 2)
+    assert tvm.arith.Analyzer().can_prove_equal(output_shape[1], input_shape[0])
+    assert tvm.arith.Analyzer().can_prove_equal(output_shape[2], input_shape[1])
+
+
+def test_dynamic_scalar_item_in_shape_operations():
+    class DynamicShapeOps(torch.nn.Module):
+        def forward(self, x):
+            lengths = torch.full(
+                (x.shape[0],),
+                x.shape[1],
+                device=x.device,
+                dtype=torch.int64,
+            )
+            max_len = lengths.max().item()
+            positions = torch.arange(max_len, device=x.device)
+            mask = positions.unsqueeze(0).expand(x.shape[0], -1) == lengths.unsqueeze(1)
+            filled = torch.full(
+                (x.shape[0], x.shape[1]),
+                x.shape[1],
+                device=x.device,
+                dtype=torch.int64,
+            )
+            shifted = torch.arange(x.shape[1] + 1, device=x.device)
+            shortened = torch.full_like(lengths, x.shape[1] - 1)
+            return mask, filled, shifted, shortened
+
+    example_args = (torch.randn(1, 4, 3, dtype=torch.float32),)
+    tokens = torch.export.Dim("tokens", min=1, max=8)
+    exported_program = export(
+        DynamicShapeOps(),
+        args=example_args,
+        dynamic_shapes={"x": {1: tokens}},
+    )
+    mod = from_exported_program(exported_program)
+
+    script = mod.script()
+    assert "R.tensor_to_shape" in script
+    assert "R.shape_to_tensor" in script
+
+    executable = relax.build(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(executable, tvm.cpu())
+    for token_count in (4, 6):
+        torch_input = torch.randn(1, token_count, 3)
+        expected = DynamicShapeOps()(torch_input)
+        actual = vm["main"](tvm.runtime.tensor(torch_input.numpy()))
+        for actual_value, expected_value in zip(actual, expected):
+            np.testing.assert_array_equal(actual_value.numpy(), expected_value.numpy())
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+@pytest.mark.parametrize(
+    ("item_dtype", "item_shape"),
+    [
+        (torch.int8, ()),
+        (torch.uint8, ()),
+        (torch.int16, ()),
+        (torch.int32, ()),
+        (torch.int64, ()),
+        (torch.int64, (1,)),
+        (torch.int64, (1, 1)),
+    ],
+)
+def test_dynamic_scalar_item_single_element_integer_dtypes(item_dtype, item_shape):
+    class DynamicItem(torch.nn.Module):
+        def forward(self, x):
+            lengths = torch.full(
+                (x.shape[0],),
+                x.shape[1],
+                device=x.device,
+                dtype=item_dtype,
+            )
+            value = lengths.max().reshape(item_shape).item()
+            return torch.arange(value, device=x.device), torch.full_like(
+                x, value, dtype=torch.int64
+            )
+
+    rows = torch.export.Dim("rows", min=1, max=8)
+    columns = torch.export.Dim("columns", min=1, max=8)
+    example_args = (torch.randn(3, 4, dtype=torch.float32),)
+    exported_program = export(
+        DynamicItem(),
+        args=example_args,
+        dynamic_shapes={"x": {0: rows, 1: columns}},
+    )
+    mod = from_exported_program(exported_program, run_ep_decomposition=False)
+    executable = relax.build(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(executable, tvm.cpu())
+
+    for shape in ((3, 4), (5, 2)):
+        torch_input = torch.randn(shape, dtype=torch.float32)
+        expected = DynamicItem()(torch_input)
+        actual = vm["main"](tvm.runtime.tensor(torch_input.numpy()))
+        for actual_value, expected_value in zip(actual, expected):
+            np.testing.assert_array_equal(actual_value.numpy(), expected_value.numpy())
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_runtime_scalar_item_integer_value_ranges():
+    class RuntimeItems(torch.nn.Module):
+        def forward(self, x, signed, unsigned, wide):
+            return (
+                torch.full_like(x, signed.item(), dtype=torch.int64),
+                torch.full_like(x, unsigned.item(), dtype=torch.int64),
+                torch.full_like(x, wide.item(), dtype=torch.int64),
+            )
+
+    example_args = (
+        torch.randn(2, 3, dtype=torch.float32),
+        torch.tensor([[-3]], dtype=torch.int8),
+        torch.tensor([200], dtype=torch.uint8),
+        torch.tensor(1 << 40, dtype=torch.int64),
+    )
+    exported_program = export(RuntimeItems(), args=example_args)
+    mod = from_exported_program(exported_program, run_ep_decomposition=False)
+    executable = relax.build(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(executable, tvm.cpu())
+
+    expected = RuntimeItems()(*example_args)
+    actual = vm["main"](*(tvm.runtime.tensor(arg.numpy()) for arg in example_args))
+    for actual_value, expected_value in zip(actual, expected):
+        np.testing.assert_array_equal(actual_value.numpy(), expected_value.numpy())
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_dynamic_scalar_fill_operations():
+    class DynamicFills(torch.nn.Module):
+        def forward(self, x):
+            inferred_dtype = torch.full((x.shape[0],), x.shape[1], device=x.device)
+            explicit_dtype = torch.full_like(x, x.shape[0], dtype=torch.float64)
+            filled = torch.fill(x, x.shape[1])
+            filled_inplace = x.clone()
+            filled_inplace.fill_(x.shape[0])
+            return inferred_dtype, explicit_dtype, filled, filled_inplace
+
+    example_args = (torch.randn(3, 4, dtype=torch.float32),)
+    rows = torch.export.Dim("rows", min=1, max=8)
+    columns = torch.export.Dim("columns", min=1, max=8)
+    exported_program = export(
+        DynamicFills(),
+        args=example_args,
+        dynamic_shapes={"x": {0: rows, 1: columns}},
+    )
+    mod = from_exported_program(exported_program, run_ep_decomposition=False)
+    executable = relax.build(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(executable, tvm.cpu())
+
+    for shape in ((3, 4), (5, 2)):
+        torch_input = torch.randn(shape, dtype=torch.float32)
+        expected = DynamicFills()(torch_input)
+        actual = vm["main"](tvm.runtime.tensor(torch_input.numpy()))
+        actual_arrays = [value.numpy() for value in actual]
+
+        assert actual_arrays[0].dtype == np.dtype("int64")
+        assert actual_arrays[1].dtype == np.dtype("float64")
+        for actual_value, expected_value in zip(actual_arrays, expected):
+            assert actual_value.dtype == expected_value.numpy().dtype
+            np.testing.assert_array_equal(actual_value, expected_value.numpy())
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_dynamic_boolean_fill_operations():
+    class DynamicBooleanFills(torch.nn.Module):
+        def forward(self, x):
+            value = x.shape[0] == x.shape[1]
+            base = x > 0
+            filled = torch.fill(base, value)
+            filled_inplace = base.clone()
+            filled_inplace.fill_(value)
+            created = torch.full(
+                (x.shape[0], x.shape[1]),
+                value,
+                device=x.device,
+                dtype=torch.bool,
+            )
+            like = torch.full_like(x, value, dtype=torch.bool)
+            return created, like, filled, filled_inplace
+
+    rows = torch.export.Dim("rows", min=1, max=8)
+    columns = torch.export.Dim("columns", min=1, max=8)
+    example_args = (torch.randn(3, 4, dtype=torch.float32),)
+    exported_program = export(
+        DynamicBooleanFills(),
+        args=example_args,
+        dynamic_shapes={"x": {0: rows, 1: columns}},
+    )
+    mod = from_exported_program(exported_program, run_ep_decomposition=False)
+    executable = relax.build(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(executable, tvm.cpu())
+
+    for shape in ((3, 3), (3, 4)):
+        torch_input = torch.randn(shape, dtype=torch.float32)
+        expected = DynamicBooleanFills()(torch_input)
+        actual = vm["main"](tvm.runtime.tensor(torch_input.numpy()))
+        for actual_value, expected_value in zip(actual, expected):
+            np.testing.assert_array_equal(actual_value.numpy(), expected_value.numpy())
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_dynamic_scalar_arithmetic():
+    class DynamicScalarArithmetic(torch.nn.Module):
+        def forward(self, x):
+            lengths = torch.full(
+                (x.shape[0],),
+                x.shape[1],
+                device=x.device,
+                dtype=torch.int64,
+            )
+            value = lengths.max().item()
+            return (
+                torch.full_like(x, -value, dtype=torch.int64),
+                torch.arange(value // 2, device=x.device),
+                torch.arange(value % 3, device=x.device),
+            )
+
+    rows = torch.export.Dim("rows", min=1, max=8)
+    columns = torch.export.Dim("columns", min=1, max=8)
+    example_args = (torch.randn(3, 4, dtype=torch.float32),)
+    exported_program = export(
+        DynamicScalarArithmetic(),
+        args=example_args,
+        dynamic_shapes={"x": {0: rows, 1: columns}},
+    )
+    mod = from_exported_program(exported_program, run_ep_decomposition=False)
+    executable = relax.build(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(executable, tvm.cpu())
+
+    for shape in ((3, 4), (5, 2)):
+        torch_input = torch.randn(shape, dtype=torch.float32)
+        expected = DynamicScalarArithmetic()(torch_input)
+        actual = vm["main"](tvm.runtime.tensor(torch_input.numpy()))
+        for actual_value, expected_value in zip(actual, expected):
+            np.testing.assert_array_equal(actual_value.numpy(), expected_value.numpy())
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+@pytest.mark.parametrize(
+    ("fill_value", "dtype"),
+    [
+        (1 << 40, torch.int64),
+        (1.0 + 2**-40, torch.float64),
+    ],
+)
+def test_full_and_full_like_python_fill_value_uses_explicit_dtype(fill_value, dtype):
+    class FullLike(torch.nn.Module):
+        def forward(self, x):
+            return (
+                torch.full(x.shape, fill_value, dtype=dtype),
+                torch.full_like(x, fill_value, dtype=dtype),
+            )
+
+    example_args = (torch.randn(2, 3, dtype=torch.float32),)
+    exported_program = export(FullLike(), args=example_args)
+    mod = from_exported_program(exported_program, run_ep_decomposition=False)
+    executable = relax.build(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(executable, tvm.cpu())
+
+    expected = FullLike()(*example_args)
+    actual = vm["main"](tvm.runtime.tensor(example_args[0].numpy()))
+    for actual_value, expected_value in zip(actual, expected):
+        assert actual_value.numpy().dtype == expected_value.numpy().dtype
+        np.testing.assert_array_equal(actual_value.numpy(), expected_value.numpy())
+
+
 def test_split():
     class Chunk(Module):
         def forward(self, input):
@@ -5539,6 +5840,86 @@ def test_split():
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     verify_model(Chunk(), example_args, {}, Expected)
+
+
+def test_split_int_split_size():
+    """x.split(int, dim) must produce chunks of size `split_size` (the last one
+    smaller when the dimension is not divisible), matching PyTorch.
+
+    The frontend used to convert the int per-chunk size into a section count and
+    pass it as relax.op.split's int argument, which means "split into N equal
+    sections"; that yields wrong chunk shapes whenever
+    ceil(D / ceil(D / split_size)) != split_size (e.g. split_size > D/2). The
+    int branch now builds cumulative cut positions, the same as the list/tuple
+    form.
+    """
+
+    class Split6(Module):
+        def forward(self, input):
+            return input.split(6, dim=0)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(input: R.Tensor((10,), dtype="float32")) -> R.Tuple(
+            R.Tensor((6,), dtype="float32"),
+            R.Tensor((4,), dtype="float32"),
+        ):
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((6,), dtype="float32"),
+                    R.Tensor((4,), dtype="float32"),
+                ) = R.split(input, indices_or_sections=[6], axis=0)
+                lv1: R.Tensor((6,), dtype="float32") = lv[0]
+                lv2: R.Tensor((4,), dtype="float32") = lv[1]
+                gv: R.Tuple(
+                    R.Tensor((6,), dtype="float32"),
+                    R.Tensor((4,), dtype="float32"),
+                ) = (lv1, lv2)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.arange(10, dtype=torch.float32) + 1,)
+    verify_model(Split6(), example_args, {}, Expected)
+
+    # Differential check against native PyTorch for non-divisible sizes and dims.
+    class SplitModel(Module):
+        def __init__(self, split_size, dim):
+            super().__init__()
+            self.split_size = split_size
+            self.dim = dim
+
+        def forward(self, input):
+            return input.split(self.split_size, dim=self.dim)
+
+    def run_tvm(model, args):
+        exported_program = export(model, args=args)
+        mod = from_exported_program(exported_program)
+        ex = relax.build(mod, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+        out = vm["main"](*[tvm.runtime.tensor(a.numpy()) for a in args])
+        if hasattr(out, "numpy"):
+            return [out.numpy()]
+        return [o.numpy() for o in out]
+
+    for shape, split_size, dim in [
+        ((10,), 6, 0),
+        ((10,), 7, 0),
+        ((10,), 8, 0),
+        ((10,), 9, 0),
+        ((12,), 7, 0),
+        ((12, 8), 5, 1),
+        ((3, 10), 6, -1),
+    ]:
+        x = torch.arange(1, int(np.prod(shape)) + 1, dtype=torch.float32).reshape(shape)
+        refs = [r.numpy() for r in x.split(split_size, dim)]
+        outs = run_tvm(SplitModel(split_size, dim), (x,))
+        assert [r.shape for r in refs] == [o.shape for o in outs], (
+            f"split shape={shape} s={split_size} dim={dim}: "
+            f"torch {[r.shape for r in refs]} vs tvm {[o.shape for o in outs]}"
+        )
+        for r, o in zip(refs, outs):
+            tvm.testing.assert_allclose(o, r, rtol=1e-7, atol=1e-7)
 
 
 def test_squeeze():
@@ -6030,6 +6411,71 @@ def test_masked_fill_inplace():
     verify_model(Masked_Fill_Inplace(), example_args, {}, Expected)
 
 
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_dynamic_scalar_masked_fill_operations():
+    class DynamicMaskedFills(torch.nn.Module):
+        def forward(self, x):
+            mask = x > 0
+            filled = x.masked_fill(mask, x.shape[0])
+            filled_inplace = x.clone()
+            filled_inplace.masked_fill_(mask, x.shape[1])
+            return filled, filled_inplace
+
+    rows = torch.export.Dim("rows", min=1, max=8)
+    columns = torch.export.Dim("columns", min=1, max=8)
+    example_args = (torch.randn(3, 4, dtype=torch.float32),)
+    exported_program = export(
+        DynamicMaskedFills(),
+        args=example_args,
+        dynamic_shapes={"x": {0: rows, 1: columns}},
+    )
+    mod = from_exported_program(exported_program, run_ep_decomposition=False)
+    executable = relax.build(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(executable, tvm.cpu())
+
+    for shape in ((3, 4), (5, 2)):
+        torch_input = torch.randn(shape, dtype=torch.float32)
+        expected = DynamicMaskedFills()(torch_input)
+        actual = vm["main"](tvm.runtime.tensor(torch_input.numpy()))
+        for actual_value, expected_value in zip(actual, expected):
+            np.testing.assert_array_equal(actual_value.numpy(), expected_value.numpy())
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+@pytest.mark.parametrize(
+    ("fill_value", "dtype"),
+    [
+        (1 << 40, torch.int64),
+        (1.0 + 2**-40, torch.float64),
+    ],
+)
+def test_fill_and_masked_fill_python_value_uses_input_dtype(fill_value, dtype):
+    class MaskedFills(torch.nn.Module):
+        def forward(self, x, mask):
+            filled_all = torch.fill(x, fill_value)
+            filled_all_inplace = x.clone()
+            filled_all_inplace.fill_(fill_value)
+            filled = x.masked_fill(mask, fill_value)
+            filled_inplace = x.clone()
+            filled_inplace.masked_fill_(mask, fill_value)
+            return filled_all, filled_all_inplace, filled, filled_inplace
+
+    example_args = (
+        torch.arange(6, dtype=dtype).reshape(2, 3),
+        torch.tensor([[True, False, True], [False, True, False]]),
+    )
+    exported_program = export(MaskedFills(), args=example_args)
+    mod = from_exported_program(exported_program, run_ep_decomposition=False)
+    executable = relax.build(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(executable, tvm.cpu())
+
+    expected = MaskedFills()(*example_args)
+    actual = vm["main"](*(tvm.runtime.tensor(arg.numpy()) for arg in example_args))
+    for actual_value, expected_value in zip(actual, expected):
+        assert actual_value.numpy().dtype == expected_value.numpy().dtype
+        np.testing.assert_array_equal(actual_value.numpy(), expected_value.numpy())
+
+
 def test_masked_select():
     class MaskedSelect(Module):
         def forward(self, data: torch.Tensor, mask: torch.Tensor):
@@ -6052,8 +6498,8 @@ def test_masked_select():
                 )
                 lv4: R.Tensor((u0,), dtype="int64") = R.squeeze(lv3, axis=[0])
                 lv5: R.Tensor((u0,), dtype="float32") = R.take(lv, lv4, axis=0, mode="fast")
-                lv6: R.Tensor((), dtype="bool") = R.const(True, "bool")
-                lv7: R.Tensor((), dtype="bool") = R.const(True, "bool")
+                lv6: T.bool = u0 >= 0
+                lv7: T.bool = u0 <= 6
                 gv: R.Tuple(R.Tensor((u0,), dtype="float32")) = (lv5,)
                 R.output(gv)
             return gv
@@ -6388,7 +6834,9 @@ def test_ones_like():
             R.Tensor((128, 128), dtype="float32")
         ):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.full_like(input, R.const(1, "int32"))
+                lv: R.Tensor((128, 128), dtype="float32") = R.full_like(
+                    input, R.const(1.0, "float32")
+                )
                 gv: R.Tuple(R.Tensor((128, 128), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
@@ -6410,7 +6858,9 @@ def test_zero_inplace():
             R.Tensor((128, 128), dtype="float32")
         ):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.full_like(input, R.const(0, "int32"))
+                lv: R.Tensor((128, 128), dtype="float32") = R.full_like(
+                    input, R.const(0.0, "float32")
+                )
                 gv: R.Tuple(R.Tensor((128, 128), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
@@ -6456,7 +6906,9 @@ def test_zeros_like():
             R.Tensor((128, 128), dtype="float32")
         ):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.full_like(input, R.const(0, "int32"))
+                lv: R.Tensor((128, 128), dtype="float32") = R.full_like(
+                    input, R.const(0.0, "float32")
+                )
                 gv: R.Tuple(R.Tensor((128, 128), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
@@ -8102,19 +8554,18 @@ def test_dynamic_shape_with_addition_constraints():
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(("s0", 4), dtype="float32"), y: R.Tensor(("s0___1", 4), dtype="float32")
-        ) -> R.Tuple(R.Tensor(("s0 + s0___1", 4), dtype="float32")):
+            x: R.Tensor(("s0", 4), dtype="float32"), y: R.Tensor(("1 + s0", 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("s0 + (1 + s0)", 4), dtype="float32")):
             s0 = T.int64()
-            s0___1 = T.int64()
             R.func_attr(
                 {
-                    "tir_var_lower_bound": {"s77": 1, "s77___1": 2},
-                    "tir_var_upper_bound": {"s77": 64, "s77___1": 65},
+                    "tir_var_lower_bound": {"s77": 1},
+                    "tir_var_upper_bound": {"s77": 64},
                 }
             )
             with R.dataflow():
-                lv: R.Tensor((s0 + s0___1, 4), dtype="float32") = R.concat((x, y), axis=0)
-                gv: R.Tuple(R.Tensor((s0 + s0___1, 4), dtype="float32")) = (lv,)
+                lv: R.Tensor((s0 + (1 + s0), 4), dtype="float32") = R.concat((x, y), axis=0)
+                gv: R.Tuple(R.Tensor((s0 + (1 + s0), 4), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
@@ -8136,19 +8587,18 @@ def test_dynamic_shape_with_subtraction_constraints():
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(("s0___1", 4), dtype="float32"), y: R.Tensor(("s0", 4), dtype="float32")
-        ) -> R.Tuple(R.Tensor(("s0___1 + s0", 4), dtype="float32")):
-            s0___1 = T.int64()
+            x: R.Tensor(("1 + s0", 4), dtype="float32"), y: R.Tensor(("s0", 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("1 + s0 + s0", 4), dtype="float32")):
             s0 = T.int64()
             R.func_attr(
                 {
-                    "tir_var_lower_bound": {"s17": 0, "s17___1": 1},
-                    "tir_var_upper_bound": {"s17": 63, "s17___1": 64},
+                    "tir_var_lower_bound": {"s17": 0},
+                    "tir_var_upper_bound": {"s17": 63},
                 }
             )
             with R.dataflow():
-                lv: R.Tensor((s0___1 + s0, 4), dtype="float32") = R.concat((x, y), axis=0)
-                gv: R.Tuple(R.Tensor((s0___1 + s0, 4), dtype="float32")) = (lv,)
+                lv: R.Tensor((1 + s0 + s0, 4), dtype="float32") = R.concat((x, y), axis=0)
+                gv: R.Tuple(R.Tensor((1 + s0 + s0, 4), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
@@ -8170,19 +8620,18 @@ def test_dynamic_shape_with_multiplication_constraints():
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(("s0", 4), dtype="float32"), y: R.Tensor(("s0_2", 4), dtype="float32")
-        ) -> R.Tuple(R.Tensor(("s0 + s0_2", 4), dtype="float32")):
+            x: R.Tensor(("s0", 4), dtype="float32"), y: R.Tensor(("2 * s0", 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("s0 + 2 * s0", 4), dtype="float32")):
             s0 = T.int64()
-            s0_2 = T.int64()
             R.func_attr(
                 {
-                    "tir_var_lower_bound": {"s77": 1, "s77_2": 2},
-                    "tir_var_upper_bound": {"s77": 64, "s77_2": 128},
+                    "tir_var_lower_bound": {"s77": 1},
+                    "tir_var_upper_bound": {"s77": 64},
                 }
             )
             with R.dataflow():
-                lv: R.Tensor((s0 + s0_2, 4), dtype="float32") = R.concat((x, y), axis=0)
-                gv: R.Tuple(R.Tensor((s0 + s0_2, 4), dtype="float32")) = (lv,)
+                lv: R.Tensor((s0 + 2 * s0, 4), dtype="float32") = R.concat((x, y), axis=0)
+                gv: R.Tuple(R.Tensor((s0 + 2 * s0, 4), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
@@ -8653,7 +9102,7 @@ def test_cond_shape_predicate():
             s77 = T.int64()
             R.func_attr({"tir_var_lower_bound": {"s77": 1}})
             cls = expected
-            gv: R.Tensor((), dtype="bool") = R.const(True, "bool")
+            gv: T.bool = s77 > 4
             if gv:
                 gv1: R.Tensor((s77, 4), dtype="float32") = cls.cond_true_branch_0(x)
                 cond_result: R.Tensor((s77, 4), dtype="float32") = gv1
@@ -8671,6 +9120,64 @@ def test_cond_shape_predicate():
         dynamic_shapes={"x": {0: batch}},
         map_free_vars=True,
     )
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_cond_shape_equality_predicate():
+    class CondShapeEqualityModel(Module):
+        def forward(self, x):
+            def true_fn(x):
+                return x + 1.0
+
+            def false_fn(x):
+                return x - 1.0
+
+            return torch.cond(x.shape[0] == x.shape[1], true_fn, false_fn, (x,))
+
+    rows = torch.export.Dim("rows", min=1, max=8)
+    columns = torch.export.Dim("columns", min=1, max=8)
+    exported_program = export(
+        CondShapeEqualityModel(),
+        args=(torch.zeros(3, 3),),
+        dynamic_shapes={"x": {0: rows, 1: columns}},
+    )
+    mod = from_exported_program(exported_program)
+    executable = relax.build(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(executable, tvm.cpu())
+
+    for shape, expected_value in (((3, 3), 1.0), ((2, 3), -1.0)):
+        torch_input = torch.zeros(shape, dtype=torch.float32)
+        actual = vm["main"](tvm.runtime.tensor(torch_input.numpy()))[0]
+        np.testing.assert_array_equal(actual.numpy(), np.full(shape, expected_value, "float32"))
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_cond_shape_inequality_predicate():
+    class CondShapeInequalityModel(Module):
+        def forward(self, x):
+            def true_fn(x):
+                return x + 1.0
+
+            def false_fn(x):
+                return x - 1.0
+
+            return torch.cond(x.shape[0] != x.shape[1], true_fn, false_fn, (x,))
+
+    rows = torch.export.Dim("rows", min=1, max=8)
+    columns = torch.export.Dim("columns", min=1, max=8)
+    exported_program = export(
+        CondShapeInequalityModel(),
+        args=(torch.zeros(2, 3),),
+        dynamic_shapes={"x": {0: rows, 1: columns}},
+    )
+    mod = from_exported_program(exported_program)
+    executable = relax.build(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(executable, tvm.cpu())
+
+    for shape, expected_value in (((2, 3), 1.0), ((3, 3), -1.0)):
+        torch_input = torch.zeros(shape, dtype=torch.float32)
+        actual = vm["main"](tvm.runtime.tensor(torch_input.numpy()))[0]
+        np.testing.assert_array_equal(actual.numpy(), np.full(shape, expected_value, "float32"))
 
 
 def test_cond_tuple_output():

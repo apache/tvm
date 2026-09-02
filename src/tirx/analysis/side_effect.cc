@@ -22,8 +22,9 @@
  * \brief side effect analysis
  */
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/te/tensor.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -37,7 +38,7 @@ class ExprSideEffect : public ExprVisitor {
     ExprVisitor::VisitExpr(e);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
+  void VisitExpr_(const TensorLoadNode* op) final {
     this->UpdateEffect(CallEffectKind::kReadState);
     ExprVisitor::VisitExpr_(op);
   }
@@ -45,7 +46,9 @@ class ExprSideEffect : public ExprVisitor {
   void VisitExpr_(const CallNode* op) final {
     static auto op_call_effect = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
 
-    if (auto opt = op->op.as<Op>()) {
+    if (te::IsTensorLoad(ffi::GetRef<Call>(op))) {
+      this->UpdateEffect(CallEffectKind::kReadState);
+    } else if (auto opt = op->op.as<Op>()) {
       this->UpdateEffect(static_cast<CallEffectKind>(op_call_effect[opt.value()]));
     } else {
       this->UpdateEffect(CallEffectKind::kOpaque);

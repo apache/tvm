@@ -21,11 +21,11 @@
 
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/script/printer/ir_docsifier.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/exec_scope.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/op.h>
@@ -119,9 +119,15 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
     auto value_refs_buffer = [](const PrimExpr& value, const tirx::BufferVar& buffer) {
       bool found = false;
       tirx::PostOrderVisit(value, [&](const ffi::ObjectRef& node) {
-        if (const auto* load = node.as<tirx::BufferLoadNode>()) {
-          if (load->buffer.same_as(buffer)) {
+        if (const auto* load = node.as<TensorLoadNode>()) {
+          if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
             found = true;
+          }
+        } else if (const auto* call = node.as<CallNode>()) {
+          if (call->op.same_as(tirx::builtin::masked_load()) && !call->args.empty()) {
+            if (auto var = call->args[0].as<Var>(); var && var.value().same_as(buffer.var())) {
+              found = true;
+            }
           }
         }
       });
@@ -137,8 +143,7 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
       if (d->cfg->syntax_sugar && alloc != nullptr && alloc->buffer.IsScalar(true) && i + 1 < n) {
         const auto* store = body[i + 1].as<tirx::BufferStoreNode>();
         bool can_merge_init = store != nullptr && store->buffer.same_as(alloc->buffer) &&
-                              !store->predicate.has_value() && store->indices.size() == 1 &&
-                              tirx::is_zero(store->indices[0]) &&
+                              store->indices.size() == 1 && tirx::is_zero(store->indices[0]) &&
                               !value_refs_buffer(store->value, alloc->buffer);
         if (can_merge_init) {
           Doc alloc_doc = d->AsDoc(body[i], item_p);

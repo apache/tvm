@@ -24,10 +24,11 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt.h>
 
 #include <unordered_map>
@@ -38,6 +39,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace backend {
 namespace adreno {
 using namespace tvm::tirx;
@@ -96,21 +98,24 @@ class TextureFlattener : public TextureLoweringBase {
     if (IsTextureStorage(storage_scope)) {
       ffi::Array<Expr> args = GetTextureAccessArgs(op, op->buffer);
       args.push_back(op->value);
-      stmt = Evaluate(Call(args[0]->ty, builtin::texture2d_store(), args));
+      stmt = Evaluate(Call(args[0]->ty, tirx::builtin::texture2d_store(), args));
     }
 
     return stmt;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const TensorLoadNode* op) final {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
-    op = expr.as<BufferLoadNode>();
+    op = expr.as<TensorLoadNode>();
     // Lower to two dimensional access
-    std::string storage_scope = GetStorageScope(op->buffer);
+    std::string storage_scope = GetStorageScope(op->source.as_or_throw<tvm::tirx::BufferVar>());
     if (IsTextureStorage(storage_scope)) {
-      ffi::Array<Expr> args = GetTextureAccessArgs(op, op->buffer);
+      ffi::Array<Expr> args =
+          GetTextureAccessArgs(op, op->source.as_or_throw<tvm::tirx::BufferVar>());
       args.push_back(op->indices.back());
-      expr = Call(op->buffer->dtype, builtin::texture2d_load(), args).as_or_throw<PrimExpr>();
+      expr = Call(op->source.as_or_throw<tvm::tirx::BufferVar>()->dtype,
+                  tirx::builtin::texture2d_load(), args)
+                 .as_or_throw<PrimExpr>();
     }
 
     return expr;
@@ -120,22 +125,22 @@ class TextureFlattener : public TextureLoweringBase {
   template <typename T>
   ffi::Array<Expr> GetTextureAccessArgs(const T* op, const BufferVar& buffer) {
     ffi::Array<Expr> args;
-    if (let_binding_.count(op->buffer.var())) {
-      args.push_back(let_binding_[op->buffer.var()]);
+    if (let_binding_.count(buffer.var())) {
+      args.push_back(let_binding_[buffer.var()]);
     } else {
       args.push_back(buffer.data());
     }
     ffi::Array<PrimExpr> row_dims, row_indices, col_dims, col_indices, depth_dims, depth_indices;
-    size_t axis = DefaultTextureLayoutSeparator(op->buffer->shape.size(), GetStorageScope(buffer));
-    for (size_t i = 0; i < op->buffer->shape.size() - 1; i++) {
+    size_t axis = DefaultTextureLayoutSeparator(buffer->shape.size(), GetStorageScope(buffer));
+    for (size_t i = 0; i < buffer->shape.size() - 1; i++) {
       if (i < (axis - 1)) {
-        depth_dims.push_back(op->buffer->shape[i]);
+        depth_dims.push_back(buffer->shape[i]);
         depth_indices.push_back(op->indices[i]);
       } else if (i < axis) {
-        col_dims.push_back(op->buffer->shape[i]);
+        col_dims.push_back(buffer->shape[i]);
         col_indices.push_back(op->indices[i]);
       } else {
-        row_dims.push_back(op->buffer->shape[i]);
+        row_dims.push_back(buffer->shape[i]);
         row_indices.push_back(op->indices[i]);
       }
     }

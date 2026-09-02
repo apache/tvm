@@ -1314,7 +1314,7 @@ class TestCast(BaseCompare):
 
 
 class TestShiftLeft(BaseCompare):
-    z = tvm.tirx.op.call_intrin("int32", "tirx.shift_left", 1, 10)
+    z = tvm.tirx.op.call_intrin("int32", "ir.prim.shift_left", 1, 10)
     test_case = tvm.testing.parameter(
         TestCase(z, tvm.tirx.const(1 << 10, "int32")),
     )

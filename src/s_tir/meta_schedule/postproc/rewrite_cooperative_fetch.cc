@@ -24,6 +24,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -94,7 +95,7 @@ size_t GetMaxUsedDtypeBytes(SBlock block) {
   tirx::PostOrderVisit(block->body, [&](const ffi::ObjectRef& obj) {
     if (const auto* store = obj.as<tirx::BufferStoreNode>()) {
       max_bytes = std::max(max_bytes, store->value.ty().StorageBytes());
-    } else if (const auto* load = obj.as<tirx::BufferLoadNode>()) {
+    } else if (const auto* load = obj.as<TensorLoadNode>()) {
       max_bytes = std::max(max_bytes, load->ty.as_or_throw<PrimType>().StorageBytes());
     } else if (const auto* call = obj.as<CallNode>()) {
       static const Op& q_multiply_shift_per_axis_op = Op::Get("tirx.q_multiply_shift_per_axis");
@@ -103,7 +104,7 @@ size_t GetMaxUsedDtypeBytes(SBlock block) {
         // q_multiply_shift uses 64 bit multiply
         max_bytes = std::max<size_t>(max_bytes, 8);
       }
-    } else if (const auto* cast = obj.as<tirx::CastNode>()) {
+    } else if (const auto* cast = obj.as<prim::CastNode>()) {
       max_bytes = std::max(max_bytes, cast->ty.as_or_throw<PrimType>().StorageBytes());
     }
   });
@@ -114,6 +115,7 @@ size_t GetMaxUsedDtypeBytes(SBlock block) {
 }  // namespace s_tir
 
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 /*!

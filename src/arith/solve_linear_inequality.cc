@@ -27,8 +27,8 @@
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -80,21 +80,21 @@ void DebugPrint(const std::vector<PrimExpr>& current_ineq_set,
  */
 class NormalizeComparisons : public ExprMutator {
  public:
-  Expr VisitExpr_(const EQNode* op) override { return Make<EQ>(op->a, op->b); }
-  Expr VisitExpr_(const NENode* op) override { return Make<NE>(op->a, op->b); }
-  Expr VisitExpr_(const LTNode* op) override { return Make<LT>(op->a, op->b); }
-  Expr VisitExpr_(const LENode* op) override { return Make<LE>(op->a, op->b); }
-  Expr VisitExpr_(const GTNode* op) override { return Make<LT>(op->b, op->a); }
-  Expr VisitExpr_(const GENode* op) override { return Make<LE>(op->b, op->a); }
+  Expr VisitExpr_(const prim::EQNode* op) override { return Make<prim::EQ>(op->a, op->b); }
+  Expr VisitExpr_(const prim::NENode* op) override { return Make<prim::NE>(op->a, op->b); }
+  Expr VisitExpr_(const prim::LTNode* op) override { return Make<prim::LT>(op->a, op->b); }
+  Expr VisitExpr_(const prim::LENode* op) override { return Make<prim::LE>(op->a, op->b); }
+  Expr VisitExpr_(const prim::GTNode* op) override { return Make<prim::LT>(op->b, op->a); }
+  Expr VisitExpr_(const prim::GENode* op) override { return Make<prim::LE>(op->b, op->a); }
 
  private:
   template <class T>
   PrimExpr Make(const PrimExpr& a, const PrimExpr& b) {
     // rewrite LT to LE for ints
     PrimType a_ty = a.ty();
-    if (std::is_same<T, LT>::value &&
+    if (std::is_same<T, prim::LT>::value &&
         (a_ty.code() == DLDataTypeCode::kDLInt || a_ty.code() == DLDataTypeCode::kDLUInt)) {
-      return LE(analyzer_->Simplify(a - b + 1), IntImm(a.ty(), 0));
+      return prim::LE(analyzer_->Simplify(a - b + 1), IntImm(a.ty(), 0));
     }
     return T(analyzer_->Simplify(a - b), IntImm(a.ty(), 0));
   }
@@ -111,9 +111,9 @@ void AddInequality(std::vector<PrimExpr>* inequality_set, const PrimExpr& new_in
     // or has already been added
     return;
   }
-  if (const LENode* new_le = new_ineq.as<LENode>()) {
+  if (const prim::LENode* new_le = new_ineq.as<prim::LENode>()) {
     for (auto iter = inequality_set->begin(); iter != inequality_set->end();) {
-      const LENode* le = iter->as<LENode>();
+      const prim::LENode* le = iter->as<prim::LENode>();
       if (le && analyzer->CanProve(new_le->a - le->a <= 0)) {
         return;
       } else if (le && analyzer->CanProve(le->a - new_le->a <= 0)) {
@@ -135,7 +135,7 @@ void ClassifyByPolarity(const PrimVar& var, const std::vector<PrimExpr>& current
   // Take formulas from current_ineq_set and classify them according to polarity wrt var
   // and store to coef_pos and coef_neg respectively.
   for (const PrimExpr& ineq : current_ineq_set) {
-    if (const LENode* le = ineq.as<LENode>()) {
+    if (const prim::LENode* le = ineq.as<prim::LENode>()) {
       ffi::Array<PrimExpr> coef = arith::DetectLinearEquation(le->a, {var});
       if (!coef.empty() && is_const_int(coef[0])) {
         int64_t coef0 = *as_const_int(coef[0]);
@@ -149,7 +149,7 @@ void ClassifyByPolarity(const PrimVar& var, const std::vector<PrimExpr>& current
         }
         continue;
       }
-    } else if (const EQNode* eq = ineq.as<EQNode>()) {
+    } else if (const prim::EQNode* eq = ineq.as<prim::EQNode>()) {
       ffi::Array<PrimExpr> coef = arith::DetectLinearEquation(eq->a, {var});
       if (!coef.empty() && is_const_int(coef[0])) {
         int64_t coef0 = *as_const_int(coef[0]);
@@ -255,7 +255,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
         PrimExpr c_neg = IntImm(v_ty, pos.first / first_gcd);
         // eliminate the current variable
         PrimExpr new_lhs = c_neg * neg.second - c_pos * pos.second;
-        PrimExpr new_ineq = LE(new_lhs, IntImm(pos.second.ty(), 0));
+        PrimExpr new_ineq = prim::LE(new_lhs, IntImm(pos.second.ty(), 0));
         // we need rewrite_simplify -> canonical_simplify -> rewrite_simplify
         // to help simplify things like (((y + 10) - (-1*(y - 20))) <= 0) => y - 5 <= 0
         // with steps = 2 it's (y*2) - 10 <= 0

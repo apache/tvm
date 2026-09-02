@@ -23,12 +23,14 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt.h>
 
 #include <iterator>
 #include <list>
@@ -39,10 +41,77 @@
 namespace tvm {
 namespace tirx {
 
-TVM_FFI_STATIC_INIT_BLOCK() { BufferTypeNode::RegisterReflection(); }
+namespace {
 
-using IndexMod = tirx::FloorModNode;
-using IndexDiv = tirx::FloorDivNode;
+ffi::ObjectRef RealizeBufferSubscript(
+    Expr value,
+    ffi::Array<ffi::Variant<
+        ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
+        PrimExpr>>
+        slice,
+    Span span) {
+  BufferVar buffer = value.as_or_throw<BufferVar>();
+  BufferType buffer_ty = buffer.type();
+  TVM_FFI_CHECK_LE(slice.size(), buffer_ty->shape.size(), IndexError)
+      << "Too many indices for a " << buffer_ty->shape.size() << "-dimensional buffer";
+
+  bool all_points = slice.size() == buffer_ty->shape.size();
+  for (const auto& item : slice) {
+    if (auto descriptor = item.as<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
+                                             ffi::Optional<PrimExpr>>>()) {
+      all_points = false;
+      ffi::Optional<PrimExpr> step = descriptor.value().get<2>();
+      TVM_FFI_CHECK(!step.has_value() || is_one(step.value()), ValueError)
+          << "Buffer slices with a non-unit step are not supported";
+    }
+  }
+
+  if (all_points) {
+    ffi::Array<PrimExpr> indices;
+    indices.reserve(slice.size());
+    for (const auto& item : slice) {
+      indices.push_back(item.as<PrimExpr>().value());
+    }
+    return BufferLoad(buffer, indices, span);
+  }
+
+  // Any slice or omitted trailing dimension denotes a region.  Rejecting
+  // steps makes the old behavior, where a stride could be silently dropped,
+  // unrepresentable rather than giving it dimension-dependent semantics.
+  arith::Analyzer analyzer;
+  ffi::Array<Range> region;
+  region.reserve(buffer_ty->shape.size());
+  for (size_t i = 0; i < slice.size(); ++i) {
+    if (auto point = slice[i].as<PrimExpr>()) {
+      region.push_back(Range::FromMinExtent(point.value(), IntImm(point.value().ty(), 1)));
+    } else {
+      auto descriptor = slice[i]
+                            .as<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
+                                           ffi::Optional<PrimExpr>>>()
+                            .value();
+      PrimExpr start = descriptor.get<0>().value_or(IntImm(buffer_ty->shape[i].ty(), 0));
+      PrimExpr stop = descriptor.get<1>().value_or(buffer_ty->shape[i]);
+      // Preserve the sole simplification performed by the former Python path.
+      region.push_back(Range::FromMinExtent(start, analyzer->Simplify(stop - start)));
+    }
+  }
+  for (size_t i = slice.size(); i < buffer_ty->shape.size(); ++i) {
+    region.push_back(
+        Range::FromMinExtent(IntImm(buffer_ty->shape[i].ty(), 0), buffer_ty->shape[i]));
+  }
+  return BufferRegion(buffer, region, span);
+}
+
+}  // namespace
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  BufferTypeNode::RegisterReflection();
+  refl::TypeAttrDef<BufferTypeNode>().def("__subscript_expr_realize__", RealizeBufferSubscript);
+}
+
+using IndexMod = prim::FloorModNode;
+using IndexDiv = prim::FloorDivNode;
 
 BufferType::BufferType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
                        ffi::Array<PrimExpr> strides, PrimExpr elem_offset, int data_alignment,
@@ -97,7 +166,7 @@ inline std::vector<const PrimExpr*> ExprSplitAddition(const PrimExpr& expr) {
   while (!split_buffer.empty()) {
     const PrimExpr* top_ele = split_buffer.top();
     split_buffer.pop();
-    auto expr_add_match = top_ele->as<AddNode>();
+    auto expr_add_match = top_ele->as<prim::AddNode>();
     if (expr_add_match) {
       split_buffer.push(&expr_add_match->b);
       split_buffer.push(&expr_add_match->a);
@@ -121,13 +190,13 @@ inline std::pair<bool, PrimExpr> MergeMulModInner(arith::AnalyzerObj* analyzer,
                                                   const PrimExpr& mod_l_expr,
                                                   const PrimExpr& mod_r_expr) {
   using namespace tirx;
-  const MulNode* mult_ptr = mult_expr.as<MulNode>();
+  const prim::MulNode* mult_ptr = mult_expr.as<prim::MulNode>();
   if (!mult_ptr) return std::make_pair(false, PrimExpr());
   PrimExpr mult_outer = mult_ptr->b;
   const PrimExpr* inner = &(mult_ptr->a);
   // 1. Calculate the outer multiplier
   while (true) {
-    mult_ptr = inner->as<MulNode>();
+    mult_ptr = inner->as<prim::MulNode>();
     if (mult_ptr) {
       inner = &(mult_ptr->a);
       mult_outer = mult_ptr->b * mult_outer;
@@ -148,8 +217,8 @@ inline std::pair<bool, PrimExpr> MergeMulModInner(arith::AnalyzerObj* analyzer,
 
   while (true) {
     auto inner_div_ptr = search_ptr->as<IndexDiv>();
-    auto inner_mult_ptr = search_ptr->as<MulNode>();
-    auto inner_add_ptr = search_ptr->as<AddNode>();
+    auto inner_mult_ptr = search_ptr->as<prim::MulNode>();
+    auto inner_add_ptr = search_ptr->as<prim::AddNode>();
     if (!inner_div_ptr && !inner_mult_ptr && !inner_add_ptr) {
       return std::make_pair(false, PrimExpr());
     } else if (inner_div_ptr) {
@@ -193,7 +262,7 @@ inline void MergeMulModInsertElements(const std::vector<const PrimExpr*>& eles,
   *has_mod = false;
   for (const PrimExpr* ele : eles) {
     auto mod_ptr = ele->as<IndexMod>();
-    auto mult_ptr = ele->as<MulNode>();
+    auto mult_ptr = ele->as<prim::MulNode>();
     if (mod_ptr) {
       *has_mod = true;
       mod_exprs->emplace_back(std::make_pair(std::move(mod_ptr->a), std::move(mod_ptr->b)));
@@ -336,7 +405,7 @@ inline ffi::Array<PrimExpr> BufferOffset(const BufferTypeNode* n, ffi::Array<Pri
   if (dtype.lanes() != 1) {
     PrimExpr last_offset = offsets[offsets.size() - 1];
     PrimExpr stride = MakeConst(last_offset.ty(), 1);
-    offsets.Set(offsets.size() - 1, tirx::Ramp(last_offset, stride, dtype.lanes()));
+    offsets.Set(offsets.size() - 1, prim::Ramp(last_offset, stride, dtype.lanes()));
   }
 
   return offsets;
@@ -375,8 +444,7 @@ BufferVar BufferVar::GetFlattenedBuffer() const {
   }
 }
 
-PrimExpr BufferVar::vload(ffi::Array<PrimExpr> begin, PrimType value_dtype,
-                          ffi::Optional<PrimExpr> predicate) const {
+PrimExpr BufferVar::vload(ffi::Array<PrimExpr> begin, PrimType value_dtype) const {
   const BufferTypeNode* n = operator->();
   TVM_FFI_ICHECK(n != nullptr);
   PrimType buffer_dtype(n->dtype);
@@ -394,14 +462,13 @@ PrimExpr BufferVar::vload(ffi::Array<PrimExpr> begin, PrimType value_dtype,
     int factor = value_dtype.lanes() / buffer_dtype.lanes();
     PrimType base_ty = base.ty();
     if (factor > 1 && !base_ty.IsFixedLengthVector() && !base_ty.IsScalableVector()) {
-      indices.Set(indices.size() - 1, Ramp(base, 1, factor));
+      indices.Set(indices.size() - 1, prim::Ramp(base, 1, factor));
     }
   }
-  return BufferLoad(*this, indices, predicate);
+  return BufferLoad(*this, indices);
 }
 
-Stmt BufferVar::vstore(ffi::Array<PrimExpr> begin, PrimExpr value,
-                       ffi::Optional<PrimExpr> predicate) const {
+Stmt BufferVar::vstore(ffi::Array<PrimExpr> begin, PrimExpr value) const {
   const BufferTypeNode* n = operator->();
   TVM_FFI_ICHECK(n != nullptr);
   PrimType value_dtype = value.ty();
@@ -420,10 +487,10 @@ Stmt BufferVar::vstore(ffi::Array<PrimExpr> begin, PrimExpr value,
     int factor = value_dtype.lanes() / buffer_dtype.lanes();
     PrimType base_ty = base.ty();
     if (factor > 1 && !base_ty.IsFixedLengthVector() && !base_ty.IsScalableVector()) {
-      indices.Set(indices.size() - 1, Ramp(base, 1, factor));
+      indices.Set(indices.size() - 1, prim::Ramp(base, 1, factor));
     }
   }
-  return BufferStore(*this, value, indices, predicate);
+  return BufferStore(*this, value, indices);
 }
 
 ffi::String BufferVar::scope() const { return (*this)->storage_scope; }
@@ -581,10 +648,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("tirx.BufferGetFlattenedBuffer", &BufferVar::GetFlattenedBuffer)
       .def_method("tirx.BufferOffsetOf", &BufferVar::OffsetOf)
       .def_method("tirx.BufferOffsetOfp", &BufferVar::OffsetOf_p)
-      .def_method(
-          "tirx.BufferVLoad",
-          static_cast<PrimExpr (BufferVar::*)(ffi::Array<PrimExpr>, PrimType,
-                                              ffi::Optional<PrimExpr>) const>(&BufferVar::vload))
+      .def_method("tirx.BufferVLoad", &BufferVar::vload)
       .def_method("tirx.BufferVStore", &BufferVar::vstore)
       .def_method("tirx.BufferStorageScope", &BufferVar::scope)
       .def_method("tirx.BufferWithAllocatedAddr", &BufferVar::with_allocated_addr)

@@ -54,3 +54,60 @@ test("array copy", () => {
     testArrayCopy("float64", Float64Array);
   });
 });
+
+test("tensor cache loads adjacent records from a Uint8Array shard", async () => {
+  const backing = new Uint8Array([90, 91, 1, 2, 3, 4, 5, 6, 7, 8, 92]);
+  const shard = backing.subarray(2, 10);
+  const manifest = {
+    metadata: {},
+    records: [{
+      dataPath: "params.bin",
+      format: "raw-shard",
+      nbytes: shard.byteLength,
+      records: [
+        {
+          name: "test.record_view.first",
+          shape: [4],
+          dtype: "uint8",
+          format: "raw",
+          byteOffset: 0,
+          nbytes: 4,
+        },
+        {
+          name: "test.record_view.second",
+          shape: [4],
+          dtype: "uint8",
+          format: "raw",
+          byteOffset: 4,
+          nbytes: 4,
+        },
+      ],
+    }],
+  };
+  const artifactCache = {
+    hasAllKeys: async () => true,
+    addToCache: async () => {},
+    deleteInCache: async () => {},
+    fetchWithCache: async (_url, storeType) => {
+      return storeType === "json" ? manifest : shard;
+    },
+  };
+
+  await tvm.fetchTensorCache(
+    "https://example.test/model/",
+    tvm.cpu(),
+    { artifactCache },
+  );
+
+  tvm.withNewScope(() => {
+    assert.deepStrictEqual(
+      Array.from(tvm.tensorCacheGet("test.record_view.first").toArray()),
+      [1, 2, 3, 4],
+    );
+    assert.deepStrictEqual(
+      Array.from(tvm.tensorCacheGet("test.record_view.second").toArray()),
+      [5, 6, 7, 8],
+    );
+  });
+  tvm.tensorCacheClear();
+});

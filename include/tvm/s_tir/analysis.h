@@ -25,6 +25,7 @@
 #define TVM_S_TIR_ANALYSIS_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/function.h>
@@ -95,6 +96,7 @@ class Analyzer;
 }  // namespace arith
 
 namespace s_tir {
+using namespace tvm::prim;
 
 using namespace tvm::tirx;
 
