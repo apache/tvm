@@ -125,7 +125,7 @@ def test_cuda_module_destructor_preserves_current_device():
         if tx == 0:
             A[0] = A[0] + 1
 
-    _, mod = _get_source(main)
+    _, mod = _get_source(main, target="cuda")
     original_device = torch.cuda.current_device()
     try:
         torch.cuda.set_device(0)
@@ -460,7 +460,7 @@ def test_cuda_atomic_add():
             T.cuda.atomic_add(A.data, T.int32(1))
             T.cuda.atomic_add(B.data, T.float32(1.0))
 
-    src, mod = _get_source(main)
+    src, mod = _get_source(main, target="cuda")
     assert "tvm_builtin_cuda_atomic_add" in src
     A_np = np.zeros(1, dtype="int32")
     B_np = np.zeros(1, dtype="float32")
@@ -554,8 +554,8 @@ def test_ptx_sub_f16x2_codegen():
 
 
 @pytest.mark.skipif(
-    not (env.has_cuda_compute(10, 0) and env.has_nvcc_version(13, 2)),
-    reason="PTX 9.2 packed bf16 conversion requires sm_100 and CUDA 13.2",
+    not (env.has_cuda_compute(10, 0) and env.has_nvcc_version(13, 4)),
+    reason="packed bf16 conversion requires sm_100; the dialect certifies on CUDA 13.4",
 )
 def test_sparse_decode_conversion_intrinsics_codegen(monkeypatch):
     monkeypatch.setenv("TVM_CUDA_COMPILE_MODE", "nvcc")
@@ -986,7 +986,7 @@ __device__ int32_t add_one(int32_t a) {
                         "add_one", a[i, j], source_code=add_one, return_type="int32"
                     )
 
-        src, mod = _get_source(main)
+        src, mod = _get_source(main, target="cuda")
         A = np.random.randint(0, 10, (16, 16)).astype("int32")
         B = np.zeros((16, 16), dtype="int32")
 
@@ -1018,7 +1018,7 @@ __device__ void print(int32_t a) {
                 for i, j in T.grid(16, 16):
                     T.cuda.func_call("print", a[i, j], source_code=print_func)
 
-        src, mod = _get_source(main)
+        src, mod = _get_source(main, target="cuda")
         A = np.random.randint(0, 10, (16, 16)).astype("int32")
 
         def run_and_check():
@@ -1121,7 +1121,7 @@ def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
             A[i] = A_shared[i] + 1.0
         # fmt: on
 
-    src, mod = _get_source(main)
+    src, mod = _get_source(main, target="cuda")
     A_np = np.ones(N, dtype="float16")
     A_ref = np.ones(N, dtype="float16") * 2
     if int(predicate) == 0:
@@ -1187,7 +1187,7 @@ def test_ptx_ldmatrix(trans, num):
             B[row + tx // 4, col + tx % 4 * 2 + i % 2] = A_local[i]
         # fmt: on
 
-    src, mod = _get_source(main)
+    src, mod = _get_source(main, target="cuda")
     A_np = np.arange(16 * 16, dtype="float16").reshape((16, 16))
     B_np = np.zeros((16, 16), dtype="float16")
     B_ref = np.zeros((16, 16), dtype="float16")
@@ -1242,7 +1242,7 @@ def test_uint32_loop_var_runs_correctly():
             acc[0] = acc[0] + A[tx] + T.int32(k)
         B[tx] = acc[0]
 
-    _, mod = _get_source(main)
+    _, mod = _get_source(main, target="cuda")
 
     A_np = np.arange(128, dtype="int32")
     B_ref = A_np * 4 + (0 + 1 + 2 + 3)

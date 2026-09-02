@@ -25,6 +25,8 @@ from pathlib import Path
 
 import pytest
 
+from tvm.testing import env
+
 _WORKSPACE_TIRX_KERNELS = Path(__file__).resolve().parents[4] / "tirx-kernels"
 if _WORKSPACE_TIRX_KERNELS.exists():
     sys.path.insert(0, str(_WORKSPACE_TIRX_KERNELS))
@@ -67,7 +69,6 @@ _BROKEN_REFERENCE_REASONS = {
         "initialize or reset its shared threshold bin"
     ),
 }
-_XDIST_CUDA_DEVICE = None
 
 
 def _manifest_kernel_config_cases():
@@ -91,31 +92,24 @@ def _manifest_kernel_config_cases():
                 f"but its config requires {required_devices}"
             )
         marks = []
+        runtime_cuda_archs = getattr(mod, "KERNEL_META", {}).get("runtime_cuda_archs", ())
+        if runtime_cuda_archs:
+            marks.append(pytest.mark.cuda_arch(*runtime_cuda_archs, device="current"))
+        unmet_references = kernel_registry.unmet_reference_requirements(
+            getattr(mod, "KERNEL_META", {}).get("reference_requirements")
+        )
+        if unmet_references:
+            marks.append(
+                pytest.mark.skip(
+                    reason="unsatisfied reference requirements: " + "; ".join(unmet_references)
+                )
+            )
         if kernel_name in _DISTRIBUTED_KERNELS:
             marks.append(pytest.mark.xdist_group(name="distributed_device_zero"))
         if kernel_name in _BROKEN_REFERENCE_REASONS:
             marks.append(pytest.mark.skip(reason=_BROKEN_REFERENCE_REASONS[kernel_name]))
         cases.append(pytest.param(kernel_name, config, id=f"{kernel_name}::{label}", marks=marks))
     return cases
-
-
-def _set_cuda_device_for_xdist_worker():
-    global _XDIST_CUDA_DEVICE
-
-    try:
-        import torch
-    except ImportError:
-        return False
-
-    if not torch.cuda.is_available():
-        return False
-
-    if _XDIST_CUDA_DEVICE is None:
-        worker = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
-        worker_index = int(worker[2:]) if worker.startswith("gw") and worker[2:].isdigit() else 0
-        _XDIST_CUDA_DEVICE = worker_index % torch.cuda.device_count()
-    torch.cuda.set_device(_XDIST_CUDA_DEVICE)
-    return True
 
 
 def _visible_cuda_device_count():
@@ -131,6 +125,31 @@ def _visible_cuda_device_count():
 
 def _required_cuda_device_count(config):
     return int(config.get("num_processes", config.get("world_size", 1)))
+
+
+@contextmanager
+def _current_cuda_prepare_arch():
+    try:
+        import torch
+    except ImportError:
+        yield
+        return
+
+    arch = env.cuda_arch(torch.cuda.current_device()) if torch.cuda.is_available() else None
+    if arch is None:
+        yield
+        return
+
+    variable = kernel_runner.PREPARE_CUDA_ARCH_ENV
+    previous = os.environ.get(variable)
+    os.environ[variable] = arch
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop(variable, None)
+        else:
+            os.environ[variable] = previous
 
 
 @contextmanager
@@ -181,7 +200,6 @@ def _registry_gpu_lock(kernel_name, config):
 
 @pytest.mark.parametrize(("kernel_name", "config"), _manifest_kernel_config_cases())
 def test_manifest_tirx_kernel_correctness(kernel_name, config):
-    _set_cuda_device_for_xdist_worker()
     required_devices = _required_cuda_device_count(config)
     visible_devices = _visible_cuda_device_count()
     if required_devices > visible_devices:
@@ -193,7 +211,5 @@ def test_manifest_tirx_kernel_correctness(kernel_name, config):
             "MegaMoE requires its dedicated multi-process scheduler; this suite's "
             "processes own CUDA contexts that its physical-device assignment rejects"
         )
-    if getattr(_KERNELS[kernel_name], "KERNEL_META", {}).get("category") == "msa":
-        pytest.skip("MSA references require an isolated CuTeDSL 4.5.3 process")
-    with _registry_gpu_lock(kernel_name, config):
+    with _registry_gpu_lock(kernel_name, config), _current_cuda_prepare_arch():
         kernel_runner.run_kernel_test(kernel_name, config, registry=_KERNELS)

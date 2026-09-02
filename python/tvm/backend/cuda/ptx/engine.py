@@ -98,7 +98,7 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
         #
         # Escaped, because "a user can type it" is the whole requirement and
         # three PTX mnemonics are Python keywords: `and`, `or` and `not` (ISA
-        # 9.7.8) print as `T.ptx.and_` and are read back by `unescape_token` in
+        # 9.7.9) print as `T.ptx.and_` and are read back by `unescape_token` in
         # `PTXNamespace.__getattr__`. The escape is the identity for every
         # other family, and `gen_stubs` already spells the attribute this way.
         family = escape_token(entry.family)
@@ -630,6 +630,7 @@ def _coerce_imm(entry, slot, value, mod_map):
 
 
 def _coerce_pred(entry, pred):
+    pred = getattr(pred, "scalar", pred)
     # A Python bool names no dtype but is unambiguous, so type it here rather
     # than making every call site spell `T.bool(True)`.
     if isinstance(pred, bool):
@@ -682,7 +683,7 @@ def _emit(entry, filled, operands, pred=None, preserve_dst=False):
                 )
             sunk.add(i + lane)
         if lanes and all(i + lane in sunk for lane in range(lanes)):
-            # ISA 9.7.9.4 states it for mov ("provided that at least one
+            # ISA 9.7.10.4 states it for mov ("provided that at least one
             # element is a scalar register"). This API is deliberately the
             # partial-lane sink facility; whole-operand bit buckets such as
             # atom's `_` keep their memory side effect and are registered as

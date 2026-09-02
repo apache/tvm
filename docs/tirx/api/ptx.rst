@@ -36,7 +36,7 @@ tile-primitive dispatch.
 
 Supported instruction families
 ------------------------------
-The current instruction table has 318 entries across the following 94
+The current instruction table has 506 entries across the following 101
 families.  These are the Python attribute names written after ``Tx.ptx``; each
 family accepts only the modifier and operand combinations declared by its table
 entries.
@@ -57,6 +57,7 @@ entries.
    * ``bfind``
    * ``bmsk``
    * ``brev``
+   * ``clmad``
    * ``clusterlaunchcontrol``
    * ``clz``
    * ``cnot``
@@ -73,6 +74,7 @@ entries.
    * ``dp4a``
    * ``elect_sync``
    * ``ex2``
+   * ``fabric``
    * ``fence``
    * ``fma``
    * ``fns``
@@ -96,9 +98,12 @@ entries.
    * ``movmatrix``
    * ``mul``
    * ``mul24``
+   * ``multimem_cp``
    * ``multimem_ld_reduce``
    * ``multimem_red``
+   * ``multimem_red_async``
    * ``multimem_st``
+   * ``multimem_st_async``
    * ``neg``
    * ``not_``
    * ``or_``
@@ -123,6 +128,8 @@ entries.
    * ``shr``
    * ``sin``
    * ``slct``
+   * ``spcompress``
+   * ``spdecompress``
    * ``sqrt``
    * ``st``
    * ``st_async``

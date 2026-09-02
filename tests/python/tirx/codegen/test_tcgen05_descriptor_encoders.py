@@ -105,6 +105,8 @@ def test_smem_descriptor_matches_runtime_encoder(ldo, sdo, swizzle):
         (128, 128, 32, "float8_e4m3fn", "float8_e4m3fn", True, True, 1),
         (256, 256, 32, "float8_e4m3fn", "float8_e5m2", False, True, 2),
         (128, 64, 64, "float4_e2m1fn", "float4_e2m1fn", False, False, 1),
+        (256, 128, 96, "float4_e2m1fn", "float4_e2m1fn", False, False, 2),
+        (128, 64, 96, "float4_e2m1fn", "float4_e2m1fn", False, False, 1),
     ],
 )
 def test_instr_descriptor_block_scaled_matches_runtime_encoder(
@@ -154,6 +156,35 @@ def test_instr_descriptor_block_scaled_matches_runtime_encoder(
         f"for M={m} N={n} a={a_dtype} b={b_dtype} trans=({trans_a},{trans_b}) "
         f"cta_group={cta_group}"
     )
+
+
+@pytest.mark.parametrize("cta_group,m", [(2, 256), (1, 128)])
+def test_instr_descriptor_block_scaled_k96_validation_and_bit(cta_group, m):
+    """Dense K=96 (PTX ISA 9.4, 9.7.18.2.1.1: sm_103a / sm_107a) sets Table 53's bit 31."""
+    common = dict(
+        M=m,
+        N=128,
+        K=96,
+        d_dtype="float32",
+        a_dtype="float4_e2m1fn",
+        b_dtype="float4_e2m1fn",
+        sf_dtype="float8_e8m0fnu",
+        trans_a=False,
+        trans_b=False,
+        cta_group=cta_group,
+    )
+    assert encode_instr_descriptor_block_scaled_uint32(**common) & (1 << 31)
+
+    for changed in (
+        # K=96 pairs cta_group::2 with M=256 and cta_group::1 with M=128 only.
+        {"M": 128 if m == 256 else 256},
+        {"cta_group": 1 if cta_group == 2 else 2},
+        {"K": 95},
+        {"is_sparse": True},
+        {"a_dtype": "float8_e4m3fn", "b_dtype": "float8_e4m3fn"},
+    ):
+        with pytest.raises(ValueError, match="Invalid matrix shape"):
+            encode_instr_descriptor_block_scaled_uint32(**(common | changed))
 
 
 if __name__ == "__main__":
