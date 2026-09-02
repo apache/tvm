@@ -113,7 +113,7 @@ Run all commands below in the same Bash shell from the TVM repository root.
 
 3. Full kernel import gate for correctness-suite coverage:
    ```bash
-   "$PYTHON_BIN" -m tirx_kernels.registry --cc 10 --strict
+   "$PYTHON_BIN" -m tirx_kernels.registry --strict
    ```
 
 4. Run the full test suite with xdist parallelism:
