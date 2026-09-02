@@ -234,6 +234,18 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
         if (!shapes_compatible_excluding_trailing_axes(bias_shapes, 1)) {
           continue;
         }
+        arith::Analyzer ana;
+        bool bias_widths_match = true;
+        for (size_t i = 0; i < splits.size(); ++i) {
+          const auto& shape = bias_shapes[i];
+          if (!ana->CanProve(shape[shape.size() - 1] == splits[i].split_size)) {
+            bias_widths_match = false;
+            break;
+          }
+        }
+        if (!bias_widths_match) {
+          continue;
+        }
       }
 
       auto concat_rhs = concat(Tuple(rhs), rhs_dim - 1);

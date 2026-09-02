@@ -779,6 +779,37 @@ def test_fuse_bias_with_compatible_non_concat_axes():
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_skip_bias_fusion_when_bias_relies_on_its_own_broadcast():
+    """Do not fuse biases whose last dimension only matches via broadcast
+
+    Biases can agree with each other on every non-concat axis and still be
+    unsafe to fuse if a bias's own last dimension doesn't equal its
+    branch's actual output width and it was only valid by broadcasting
+    against that branch's own matmul.
+    """
+
+    @R.function(private=True)
+    def before(
+        x: R.Tensor((2, 3), "float32"),
+        w0: R.Tensor((3, 4), "float32"),
+        w1: R.Tensor((3, 5), "float32"),
+        b0: R.Tensor((2, 1), "float32"),
+        b1: R.Tensor((2, 1), "float32"),
+    ):
+        with R.dataflow():
+            lv0 = R.matmul(x, w0)
+            lv1 = R.matmul(x, w1)
+            y0 = R.add(lv0, b0)
+            y1 = R.add(lv1, b1)
+            out = (y0, y1)
+            R.output(out)
+        return out
+
+    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
+
+    tvm.ir.assert_structural_equal(after, before)
+
+
 @pytest.mark.parametrize("float32_branch", [0, 1])
 def test_skip_matmuls_with_different_output_dtypes(float32_branch):
     if float32_branch == 0:
