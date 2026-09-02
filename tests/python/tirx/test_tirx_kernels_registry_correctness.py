@@ -101,8 +101,7 @@ def _manifest_kernel_config_cases():
         if unmet_references:
             marks.append(
                 pytest.mark.skip(
-                    reason="unsatisfied reference requirements: "
-                    + "; ".join(unmet_references)
+                    reason="unsatisfied reference requirements: " + "; ".join(unmet_references)
                 )
             )
         if kernel_name in _DISTRIBUTED_KERNELS:
