@@ -1260,6 +1260,33 @@ def test_iter_map_simplify_symbolic_predicate():
     )
 
 
+def test_iter_map_simplify_predicate_fallback_requires_no_padding():
+    fused = tvm.tirx.Var("fused", "int64")
+    predicate = fused % 2 == 0
+    unpadded_index = fused // 4 * 4 + fused % 4
+    simplified = tvm.arith.iter_map_simplify(
+        [unpadded_index],
+        var_dom([(fused, 1024)]),
+        predicate=predicate,
+    )
+    tvm.ir.assert_structural_equal(simplified, [fused])
+
+    kernel = tvm.tirx.Var("kernel", "int64")
+    value = fused % 14 + kernel
+    index = (value - 1) // 2
+    predicate = (value + 1) % 2 == 0
+
+    # The parity predicate is not a bound constraint, so IterMapSimplify falls back to
+    # detecting the map without it.  That fallback requires left-padding the iterator;
+    # discarding the corresponding padding predicate would change the index expression.
+    simplified = tvm.arith.iter_map_simplify(
+        [index],
+        var_dom([(fused, 1024), (kernel, 3)]),
+        predicate=predicate,
+    )
+    tvm.ir.assert_structural_equal(simplified, [index])
+
+
 def test_iter_map_simplify_symbolic_reshape():
     n = tvm.tirx.Var("n", "int64")
     fused = tvm.tirx.Var("fused", "int64")
