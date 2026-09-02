@@ -747,11 +747,8 @@ def test_reduction_local_optimized_packed_add_sum(reduction_len, accum):
         B[0] = B_local[0]
         # fmt: on
 
-    # Thor uses its architecture-specific target; preserve the existing target elsewhere.
-    if tvm.cuda(0).device_name == "NVIDIA Thor":
-        target = tvm.target.Target("nvidia/jetson-agx-thor")
-    else:
-        target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+        # Use sm_100a target for packed add sum dispatch
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
         mod = tvm.IRModule({"main": test_func})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
