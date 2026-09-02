@@ -178,6 +178,21 @@ def test_target_tag_1():
     assert tgt.attrs["registers_per_block"] == 32768
 
 
+def test_target_tag_jetson_agx_thor():
+    tgt = tvm.target.Target("nvidia/jetson-agx-thor")
+    assert tgt.kind.name == "cuda"
+    assert tgt.attrs["arch"] == "sm_110a"
+    assert tgt.attrs["max_shared_memory_per_block"] == 232448
+    assert tgt.attrs["max_threads_per_block"] == 1024
+    assert tgt.attrs["thread_warp_size"] == 32
+    assert tgt.attrs["registers_per_block"] == 65536
+    assert tgt.attrs["l2_cache_size_bytes"] == 33554432
+    assert tgt.host.kind.name == "llvm"
+    assert tgt.host.attrs["mtriple"] == "aarch64-linux-gnu"
+    assert tgt.host.attrs["mcpu"] == "neoverse-v3ae"
+    assert tgt.host.attrs["num-cores"] == 14
+
+
 def test_target_tag_override():
     """Test creating a target from a tag with attribute overrides."""
     tgt = tvm.target.Target({"tag": "nvidia/nvidia-a100", "l2_cache_size_bytes": 12345})
