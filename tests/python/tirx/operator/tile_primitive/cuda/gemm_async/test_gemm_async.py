@@ -3857,5 +3857,37 @@ def test_gemm_tcgen05_dense_descI_rejected_at_dispatch():
         )
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+@pytest.mark.skipif(ml_dtypes is None, reason="Requires ml_dtypes")
+def test_gemm_tcgen05_staged_multitile_pipeline():
+    """TMA and tcgen05 may reuse a three-stage ring across multiple K cycles."""
+    from tirx.benchmarks.bench_cuda_tcgen05_bf16_gemm import build_kernel
+
+    m_dim, n_dim, k_dim = 384, 512, 1024
+    executable = build_kernel(
+        m_dim,
+        n_dim,
+        k_dim,
+        stages=3,
+        group_m=8,
+        block_n=256,
+    )
+    rng = np.random.default_rng(0)
+    a_np = (rng.standard_normal((m_dim, k_dim)) * 0.01).astype(ml_dtypes.bfloat16)
+    b_np = (rng.standard_normal((n_dim, k_dim)) * 0.01).astype(ml_dtypes.bfloat16)
+    expected = a_np.astype("float32") @ b_np.astype("float32").T
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(b_np, dev)
+        c = tvm.runtime.tensor(np.zeros((m_dim, n_dim), dtype="float32"), dev)
+        executable(a, b, c)
+        np.testing.assert_allclose(c.numpy(), expected, atol=5e-2, rtol=2e-2)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
