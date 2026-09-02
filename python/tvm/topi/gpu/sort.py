@@ -30,9 +30,15 @@ from ..utils import ceil_div, prod, swap
 
 
 def _get_threads(nthread_tx, nthread_bx, nthread_by):
+    target = tvm.target.Target.current(allow_none=True)
+    is_cuda = target is not None and target.kind.name == "cuda"
     tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    by = te.thread_axis("blockIdx.y")
+    if is_cuda:
+        bx = te.thread_axis("blockIdx.y")
+        by = te.thread_axis("blockIdx.x")
+    else:
+        bx = te.thread_axis("blockIdx.x")
+        by = te.thread_axis("blockIdx.y")
     return tx, bx, by, nthread_tx, nthread_bx, nthread_by
 
 
@@ -501,10 +507,15 @@ def _sort_common(
             nbx = cast(ceil_div(width, max_threads * thread_work), "int32")
             nbz = cast(ceil_div(size, width), "int32")
 
+        is_cuda = target.kind.name == "cuda"
         tx = te.thread_axis("threadIdx.x")
         bx = te.thread_axis("blockIdx.z")  # nbx
-        by = te.thread_axis("blockIdx.y")  # batch
-        bz = te.thread_axis("blockIdx.x")  # nbz (largest extent)
+        if is_cuda:
+            by = te.thread_axis("blockIdx.x")  # batch
+            bz = te.thread_axis("blockIdx.y")  # nbz
+        else:
+            by = te.thread_axis("blockIdx.y")  # batch
+            bz = te.thread_axis("blockIdx.x")  # nbz
         with T.frame_scope(
             [
                 T.attr(tx, "thread_extent", ntx),
