@@ -2038,8 +2038,9 @@ def _build_selector_gather_gpu_kernel(dtype="float16"):
 def test_explicit_gather_selector_gpu_roundtrip():
     dtype = "float16"
     kernel = _build_selector_gather_gpu_kernel(dtype)
-    executable = _compile_module(kernel)
     dev = tvm.cuda(0)
+    native_arch = str(tvm.target.Target.from_device(dev).attrs["arch"])
+    executable = _compile_module(kernel, arch=native_arch)
     rng = np.random.default_rng(0)
     a_np = rng.standard_normal((256, 64)).astype(dtype)
     b_np = rng.standard_normal((256, 64)).astype(dtype)
