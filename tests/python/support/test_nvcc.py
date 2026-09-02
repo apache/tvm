@@ -21,7 +21,16 @@ import os
 import pytest
 
 import tvm.testing
+from tvm.backend.cuda.target import arch_from_compute_version, compute_version_from_arch
 from tvm.support import nvcc
+from tvm.target import Target
+
+_ARCH_COMPUTE_VERSION_CASES = [
+    ("sm_89", "8.9"),
+    ("sm_90a", "9.0.a"),
+    ("sm_103a", "10.3.a"),
+    ("sm_110a", "11.0.a"),
+]
 
 
 def _make_cuda_root(root, triples):
@@ -57,6 +66,43 @@ def test_find_cuda_target_include_absent(tmp_path, monkeypatch):
     monkeypatch.setattr(nvcc.platform, "machine", lambda: "aarch64")
     monkeypatch.setattr(nvcc.platform, "system", lambda: "Linux")
     assert nvcc._find_cuda_target_include(str(tmp_path)) is None
+
+
+@pytest.mark.parametrize(
+    "compute_version,expected",
+    [("8.9", "sm_89"), ("9.0", "sm_90a"), ("10.3", "sm_103a"), ("11.0", "sm_110a")],
+)
+def test_arch_from_compute_version(compute_version, expected):
+    assert arch_from_compute_version(compute_version) == expected
+
+
+@pytest.mark.parametrize("compute_version", ["110", "11", "11.00", "x.0"])
+def test_arch_from_invalid_compute_version(compute_version):
+    with pytest.raises(ValueError, match="Invalid CUDA compute capability"):
+        arch_from_compute_version(compute_version)
+
+
+@pytest.mark.parametrize(
+    "arch,expected",
+    _ARCH_COMPUTE_VERSION_CASES,
+)
+def test_compute_version_from_arch(arch, expected):
+    assert compute_version_from_arch(arch) == expected
+
+
+@pytest.mark.parametrize("arch", ["compute_110", "sm_", "sm_xx", "sm_110_a"])
+def test_compute_version_from_invalid_arch(arch):
+    with pytest.raises(ValueError, match="Expected a CUDA architecture"):
+        compute_version_from_arch(arch)
+
+
+@pytest.mark.parametrize(
+    "arch,expected",
+    _ARCH_COMPUTE_VERSION_CASES,
+)
+def test_get_target_compute_version_from_target(arch, expected):
+    target = Target({"kind": "cuda", "arch": arch})
+    assert nvcc.get_target_compute_version(target) == expected
 
 
 if __name__ == "__main__":
