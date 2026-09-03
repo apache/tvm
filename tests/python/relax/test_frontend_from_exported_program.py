@@ -5255,6 +5255,27 @@ def test_reshape_zero_sized_dim():
     verify_model_numerically(ReshapeTrailing(), (torch.randn(0, 3, dtype=torch.float32),))
 
 
+def test_reshape_multiple_zero_sized_dims():
+    # A literal zero only survives relax's copy rule at a position whose input dimension is
+    # itself zero, so targets holding several zeros need more than one position rewritten.
+    class TwoZeros(Module):
+        def forward(self, x):
+            return x.reshape(0, 0)
+
+    class ThreeZeros(Module):
+        def forward(self, x):
+            return x.reshape(0, 0, 0)
+
+    class ZeroPastInputRank(Module):
+        def forward(self, x):
+            return x.reshape(0, 0, 4)
+
+    verify_model_numerically(TwoZeros(), (torch.randn(0, 3, dtype=torch.float32),))
+    verify_model_numerically(TwoZeros(), (torch.randn(3, 0, dtype=torch.float32),))
+    verify_model_numerically(ThreeZeros(), (torch.randn(0, 3, 5, dtype=torch.float32),))
+    verify_model_numerically(ZeroPastInputRank(), (torch.randn(2, 0, 4, dtype=torch.float32),))
+
+
 def test_roll():
     class Roll1(Module):
         def forward(self, x):
