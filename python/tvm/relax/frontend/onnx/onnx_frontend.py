@@ -571,6 +571,17 @@ def _to_numpy(x):
         return x.data.numpy()
 
 
+def _as_scalar_prim_expr(value, dtype=None):
+    """Convert a scalar operand into a PrimExpr, or None if it is not a scalar."""
+    if tvm.ir.is_prim_expr(value):
+        return value
+    if isinstance(value, relax.Constant):
+        data = value.data.numpy()
+        if data.size == 1:
+            return tirx.const(data.item(), dtype or str(data.dtype))
+    return None
+
+
 class _EmptyOptional:
     """Sentinel object that preserves an empty ONNX Optional during import."""
 
@@ -589,6 +600,12 @@ class BinaryBase(OnnxOpConverter):
 
     numpy_op: Callable = None
     relax_op: Callable = None
+    # Builds the scalar PrimExpr used when an operand is a symbolic PrimExpr
+    # (e.g. a dynamic dimension produced by shape arithmetic). numpy cannot
+    # fold those: its object-dtype fallback either returns a PrimExpr that
+    # `.item()` rejects, or coerces the result through `bool()`, which
+    # PrimExpr forbids.
+    prim_op: Callable = None
 
     @classmethod
     def base_impl(cls, bb, inputs, attr, params):
@@ -601,18 +618,28 @@ class BinaryBase(OnnxOpConverter):
             for inp, is_var in zip(inputs, is_prim_var)
         ):
             has_prim_expr = any(tvm.ir.is_prim_expr(inp) for inp in inputs)
-            x = _to_numpy(inputs[0])
-            y = _to_numpy(inputs[1])
-            output = cls.numpy_op(x, y)  # pylint: disable=not-callable
-            if has_prim_expr:
-                if hasattr(output, "item"):
-                    output = output.item()
-                return relax.prim_value(output)
-            if x.dtype == y.dtype:
-                # no numpy precision widening
-                output = output.astype(x.dtype)
-            if all([isinstance(inp, relax.Constant) for inp in inputs]):
-                return relax.const(output, output.dtype)  # pylint: disable=not-callable
+            has_symbolic_prim_expr = any(
+                tvm.ir.is_prim_expr(inp) and not isinstance(inp, tirx.IntImm | tirx.FloatImm)
+                for inp in inputs
+            )
+            if has_symbolic_prim_expr:
+                # Build the scalar expression directly instead of dispatching
+                # through numpy.
+                lhs = _as_scalar_prim_expr(inputs[0])
+                rhs = _as_scalar_prim_expr(inputs[1])
+                if lhs is not None and rhs is not None and cls.prim_op is not None:
+                    return relax.prim_value(cls.prim_op(lhs, rhs))  # pylint: disable=not-callable
+            else:
+                x = _to_numpy(inputs[0])
+                y = _to_numpy(inputs[1])
+                output = cls.numpy_op(x, y)  # pylint: disable=not-callable
+                if has_prim_expr:
+                    return relax.prim_value(output.item())
+                if x.dtype == y.dtype:
+                    # no numpy precision widening
+                    output = output.astype(x.dtype)
+                if all([isinstance(inp, relax.Constant) for inp in inputs]):
+                    return relax.const(output, output.dtype)  # pylint: disable=not-callable
 
         return cls.relax_op(inputs[0], inputs[1])  # pylint: disable=not-callable
 
@@ -622,6 +649,7 @@ class Add(BinaryBase):
 
     numpy_op = _np.add
     relax_op = relax.op.add
+    prim_op = operator.add
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
@@ -633,6 +661,7 @@ class Sub(BinaryBase):
 
     numpy_op = _np.subtract
     relax_op = relax.op.subtract
+    prim_op = operator.sub
 
     @classmethod
     def _impl_v7(cls, bb, inputs, attr, params):
@@ -644,6 +673,7 @@ class Mul(BinaryBase):
 
     numpy_op = _np.multiply
     relax_op = relax.op.multiply
+    prim_op = operator.mul
 
     @classmethod
     def _impl_v7(cls, bb, inputs, attr, params):
@@ -655,16 +685,7 @@ class Div(BinaryBase):
 
     numpy_op = _np.divide
     relax_op = relax.op.divide
-
-    @staticmethod
-    def _as_scalar_prim_expr(expr, dtype):
-        if tvm.ir.is_prim_expr(expr):
-            return expr
-        if isinstance(expr, relax.Constant):
-            data = expr.data.numpy()
-            if data.size == 1:
-                return tirx.const(data.item(), dtype)
-        return None
+    prim_op = staticmethod(tirx.div)
 
     @staticmethod
     def _is_zero(expr):
@@ -701,8 +722,8 @@ class Div(BinaryBase):
             raise ValueError("ONNX Div with integer inputs encountered divisor value 0.")
 
         has_prim_expr = any(tvm.ir.is_prim_expr(inp) for inp in inputs)
-        lhs = cls._as_scalar_prim_expr(inputs[0], lhs_dtype)
-        rhs = cls._as_scalar_prim_expr(inputs[1], rhs_dtype)
+        lhs = _as_scalar_prim_expr(inputs[0], lhs_dtype)
+        rhs = _as_scalar_prim_expr(inputs[1], rhs_dtype)
         if has_prim_expr and lhs is not None and rhs is not None:
             return relax.prim_value(tirx.truncdiv(lhs, rhs))
 
@@ -714,6 +735,18 @@ class Pow(BinaryBase):
 
     numpy_op = _np.power
     relax_op = relax.op.power
+
+    @staticmethod
+    def _prim_pow(lhs, rhs):
+        # tirx.pow only accepts floats. Integer operands (e.g. symbolic shape
+        # scalars) are computed in float64 and cast back, which is exact for
+        # any dimension-sized integer.
+        dtype = str(lhs.ty.dtype)
+        if "float" in dtype:
+            return tirx.pow(lhs, rhs)
+        return tirx.Cast(dtype, tirx.pow(tirx.Cast("float64", lhs), tirx.Cast("float64", rhs)))
+
+    prim_op = _prim_pow
 
     @classmethod
     def _impl_v7(cls, bb, inputs, attr, params):
@@ -731,9 +764,11 @@ class Mod(BinaryBase):
         if attr.get("fmod", 0) == 0:
             cls.numpy_op = _np.mod
             cls.relax_op = relax.op.floor_mod
+            cls.prim_op = tirx.floormod
         else:
             cls.numpy_op = _np.fmod
             cls.relax_op = relax.op.mod
+            cls.prim_op = tirx.truncmod
         return cls.base_impl(bb, inputs, attr, params)
 
 
@@ -742,6 +777,7 @@ class And(BinaryBase):
 
     numpy_op = _np.logical_and
     relax_op = relax.op.logical_and
+    prim_op = staticmethod(tirx.all)
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
@@ -753,6 +789,7 @@ class Or(BinaryBase):
 
     numpy_op = _np.logical_or
     relax_op = relax.op.logical_or
+    prim_op = staticmethod(tirx.any)
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
@@ -764,6 +801,8 @@ class Xor(BinaryBase):
 
     numpy_op = _np.logical_xor
     relax_op = relax.op.logical_xor
+    # bitwise xor on bool operands is logical xor; tirx has no logical-xor op.
+    prim_op = staticmethod(tirx.bitwise_xor)
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
@@ -775,6 +814,7 @@ class Less(BinaryBase):
 
     numpy_op = _np.less
     relax_op = relax.op.less
+    prim_op = operator.lt
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
@@ -786,6 +826,7 @@ class LessOrEqual(BinaryBase):
 
     numpy_op = _np.less_equal
     relax_op = relax.op.less_equal
+    prim_op = operator.le
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
@@ -797,6 +838,7 @@ class Greater(BinaryBase):
 
     numpy_op = _np.greater
     relax_op = relax.op.greater
+    prim_op = operator.gt
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
@@ -808,6 +850,7 @@ class GreaterOrEqual(BinaryBase):
 
     numpy_op = _np.greater_equal
     relax_op = relax.op.greater_equal
+    prim_op = operator.ge
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
@@ -840,7 +883,8 @@ class BitwiseBase(BinaryBase):
         """Base implementation for bitwise operations."""
         valid_types = ["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"]
         for num, inp in enumerate(inputs):
-            if inp.ty.dtype.dtype not in valid_types:
+            dtype = str(inp.ty.dtype) if tvm.ir.is_prim_expr(inp) else inp.ty.dtype.dtype
+            if dtype not in valid_types:
                 raise ValueError(
                     f"Bitwise operations expect all inputs to have integer types, "
                     f"got {inp.ty.dtype} for input {num}"
@@ -853,6 +897,7 @@ class BitwiseAnd(BitwiseBase):
 
     numpy_op = _np.bitwise_and
     relax_op = relax.op.bitwise_and
+    prim_op = staticmethod(tirx.bitwise_and)
 
     @classmethod
     def _impl_v18(cls, bb, inputs, attr, params):
@@ -864,6 +909,7 @@ class BitwiseOr(BitwiseBase):
 
     numpy_op = _np.bitwise_or
     relax_op = relax.op.bitwise_or
+    prim_op = staticmethod(tirx.bitwise_or)
 
     @classmethod
     def _impl_v18(cls, bb, inputs, attr, params):
@@ -875,6 +921,7 @@ class BitwiseXor(BitwiseBase):
 
     numpy_op = _np.bitwise_xor
     relax_op = relax.op.bitwise_xor
+    prim_op = staticmethod(tirx.bitwise_xor)
 
     @classmethod
     def _impl_v18(cls, bb, inputs, attr, params):
@@ -900,9 +947,11 @@ class BitShift(BitwiseBase):
         if direction == "LEFT":
             cls.numpy_op = _np.left_shift
             cls.relax_op = relax.op.left_shift
+            cls.prim_op = operator.lshift
         elif direction == "RIGHT":
             cls.numpy_op = _np.right_shift
             cls.relax_op = relax.op.right_shift
+            cls.prim_op = operator.rshift
         else:
             raise ValueError("Unsupported Shift Direction: " + direction)
 
