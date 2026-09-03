@@ -572,23 +572,115 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _pow(self, node: fx.Node) -> relax.Var:
         lhs, rhs = self.retrieve_args(node)
-        # torch integer pow returns an integer tensor, but relax.op.power legalizes to
-        # TOPI power which requires floating-point inputs. Decompose an integer base with
-        # a constant non-negative integer exponent into repeated multiplication instead.
-        if (
-            isinstance(lhs, relax.Expr)
-            and isinstance(lhs.ty, relax.TensorType)
-            and lhs.ty.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT)
-            and isinstance(rhs, int)
-            and not isinstance(rhs, bool)
-            and rhs >= 0
-        ):
-            if rhs == 0:
-                return self.block_builder.emit(relax.op.ones_like(lhs))
-            result = lhs
-            for _ in range(rhs - 1):
-                result = self.block_builder.emit(relax.op.multiply(result, lhs))
-            return result
+        if isinstance(lhs, relax.Expr) and isinstance(lhs.ty, relax.TensorType):
+            lhs_dtype = lhs.ty.dtype
+            is_integer_base = lhs_dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT)
+            is_float_base = lhs_dtype.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT)
+
+            # A Python float promotes an integer tensor to PyTorch's default floating-point
+            # dtype. ExportedProgram records the inferred dtype, while plain FX does not.
+            if is_integer_base and isinstance(rhs, float):
+                output_meta = node.meta.get("val")
+                output_dtype = self._convert_data_type(
+                    output_meta.dtype
+                    if isinstance(output_meta, self.torch.Tensor)
+                    else self.torch.get_default_dtype()
+                )
+                lhs = self.block_builder.emit(relax.op.astype(lhs, output_dtype))
+                lhs_dtype = lhs.ty.dtype
+                is_integer_base = False
+                is_float_base = True
+
+            # Match the scalar conversion used by PyTorch's floating-point power kernels.
+            exponent_dtype = {
+                "float16": self.torch.float16,
+                "bfloat16": self.torch.bfloat16,
+                "float32": self.torch.float64,
+                "float64": self.torch.float64,
+            }.get(str(lhs_dtype))
+            if (
+                is_float_base
+                and exponent_dtype is not None
+                and isinstance(rhs, int | float)
+                and not isinstance(rhs, bool)
+            ):
+                rhs = self.torch.scalar_tensor(rhs, dtype=exponent_dtype, device="cpu").item()
+
+            is_integral_exponent = isinstance(rhs, int) or (
+                isinstance(rhs, float) and rhs.is_integer()
+            )
+            is_nonnegative_integral_exponent = is_integral_exponent and rhs >= 0
+
+            # TOPI power requires floating-point inputs, so decompose integer powers into
+            # multiplication.  Exponentiation by squaring avoids linear graph growth.
+            if is_integer_base and is_nonnegative_integral_exponent:
+                exponent = int(rhs)
+                if exponent == 0:
+                    return self.block_builder.emit(relax.op.ones_like(lhs))
+
+                result = None
+                factor = lhs
+                while exponent:
+                    if exponent & 1:
+                        result = (
+                            factor
+                            if result is None
+                            else self.block_builder.emit(relax.op.multiply(result, factor))
+                        )
+                    exponent >>= 1
+                    if exponent:
+                        factor = self.block_builder.emit(relax.op.multiply(factor, factor))
+                return result
+
+            # Keep floating-point powers on the power kernel so low-precision inputs use
+            # its effective intermediate precision.  Some backends do not define power for
+            # negative bases, even with an integral exponent, so compute the magnitude from
+            # abs(lhs) and restore the sign for odd exponents.  Passing zero through from lhs
+            # also preserves the sign of negative zero.
+            if is_float_base and is_integral_exponent:
+                exponent = int(rhs)
+                if exponent == 0:
+                    return self.block_builder.emit(relax.op.ones_like(lhs))
+                if exponent == 1:
+                    return lhs
+
+                zero = relax.const(0, lhs_dtype)
+                magnitude_input = self.block_builder.emit(relax.op.abs(lhs))
+                power_dtype = "float32" if str(lhs_dtype) in ("float16", "bfloat16") else lhs_dtype
+                if power_dtype != lhs_dtype:
+                    magnitude_input = self.block_builder.emit(
+                        relax.op.astype(magnitude_input, power_dtype)
+                    )
+                magnitude = self.block_builder.emit(
+                    relax.op.power(magnitude_input, relax.const(rhs, power_dtype))
+                )
+                if power_dtype != lhs_dtype:
+                    magnitude = self.block_builder.emit(relax.op.astype(magnitude, lhs_dtype))
+                if exponent % 2 == 0:
+                    return magnitude
+
+                signed_magnitude = self.block_builder.emit(
+                    relax.op.where(
+                        self.block_builder.emit(relax.op.less(lhs, zero)),
+                        self.block_builder.emit(relax.op.negative(magnitude)),
+                        magnitude,
+                    )
+                )
+                zero_result = lhs
+                if exponent < 0:
+                    zero_result = self.block_builder.emit(
+                        relax.op.divide(self.block_builder.emit(relax.op.ones_like(lhs)), lhs)
+                    )
+                return self.block_builder.emit(
+                    relax.op.where(
+                        self.block_builder.emit(relax.op.equal(lhs, zero)),
+                        zero_result,
+                        signed_magnitude,
+                    )
+                )
+
+            if is_float_base and isinstance(rhs, float):
+                return self.block_builder.emit(relax.op.power(lhs, relax.const(rhs, lhs_dtype)))
         return self._binary_op(relax.op.power, operator.pow)(node)
 
     def _div(self, node: fx.Node) -> relax.Var:

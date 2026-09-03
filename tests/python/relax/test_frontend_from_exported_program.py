@@ -770,10 +770,11 @@ def test_extended_unary_ops():
             R.Tensor((1, 3, 10, 10), dtype="float32")
         ):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.power(
-                    input, R.const(2.0, "float32")
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.abs(input)
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.power(
+                    lv, R.const(2.0, "float32")
                 )
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv1,)
                 R.output(gv)
             return gv
 
@@ -1079,14 +1080,193 @@ def test_pow_integer():
             # block 0
             with R.dataflow():
                 lv: R.Tensor((4,), dtype="int64") = R.multiply(input, input)
-                lv1: R.Tensor((4,), dtype="int64") = R.multiply(lv, input)
-                lv2: R.Tensor((4,), dtype="int64") = R.multiply(lv1, input)
-                gv: R.Tuple(R.Tensor((4,), dtype="int64")) = (lv2,)
+                lv1: R.Tensor((4,), dtype="int64") = R.multiply(lv, lv)
+                gv: R.Tuple(R.Tensor((4,), dtype="int64")) = (lv1,)
                 R.output(gv)
             return gv
 
     example_args = (torch.tensor([-1, 1, 2, 3], dtype=torch.int64),)
     verify_model(Pow(), example_args, {}, expected)
+
+
+@pytest.mark.parametrize("exponent", [3, 3.0])
+def test_pow_float_integer_exponent(exponent):
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(exponent)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            input: R.Tensor((4,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((4,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4,), dtype="float32") = R.abs(input)
+                lv1: R.Tensor((4,), dtype="float32") = R.power(lv, R.const(3.0, "float32"))
+                lv2: R.Tensor((4,), dtype="bool") = R.less(input, R.const(0, "float32"))
+                lv3: R.Tensor((4,), dtype="float32") = R.negative(lv1)
+                lv4: R.Tensor((4,), dtype="float32") = R.where(lv2, lv3, lv1)
+                lv5: R.Tensor((4,), dtype="bool") = R.equal(input, R.const(0, "float32"))
+                lv6: R.Tensor((4,), dtype="float32") = R.where(lv5, input, lv4)
+                gv: R.Tuple(R.Tensor((4,), dtype="float32")) = (lv6,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.tensor([-2.0, -1.0, 1.0, 2.0], dtype=torch.float32),)
+    verify_model(Pow(), example_args, {}, expected)
+    verify_model_numerically(Pow(), example_args)
+
+
+@pytest.mark.parametrize("exponent", [0, 0.0, 1, 1.0])
+def test_pow_float_integer_exponent_identity_cases(exponent):
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(exponent)
+
+    example_args = (torch.tensor([-2.0, -1.0, 1.0, 2.0], dtype=torch.float32),)
+    verify_model_numerically(Pow(), example_args)
+
+
+def test_pow_float_integer_exponent_large():
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(17.0)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(input: R.Tensor((2,), dtype="float32")) -> R.Tuple(
+            R.Tensor((2,), dtype="float32")
+        ):
+            with R.dataflow():
+                lv: R.Tensor((2,), dtype="float32") = R.abs(input)
+                lv1: R.Tensor((2,), dtype="float32") = R.power(lv, R.const(17.0, "float32"))
+                lv2: R.Tensor((2,), dtype="bool") = R.less(input, R.const(0, "float32"))
+                lv3: R.Tensor((2,), dtype="float32") = R.negative(lv1)
+                lv4: R.Tensor((2,), dtype="float32") = R.where(lv2, lv3, lv1)
+                lv5: R.Tensor((2,), dtype="bool") = R.equal(input, R.const(0, "float32"))
+                lv6: R.Tensor((2,), dtype="float32") = R.where(lv5, input, lv4)
+                gv: R.Tuple(R.Tensor((2,), dtype="float32")) = (lv6,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.tensor([-1.25, 0.5], dtype=torch.float32),)
+    verify_model(Pow(), example_args, {}, expected)
+    verify_model_numerically(Pow(), example_args, rtol=1e-6, atol=1e-6)
+
+
+@pytest.mark.parametrize("exponent", [-3, -3.0])
+def test_pow_float_negative_integer_exponent(exponent):
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(exponent)
+
+    example_args = (torch.tensor([-2.0, -0.0, 0.0, 2.0], dtype=torch.float32),)
+    verify_model_numerically(Pow(), example_args)
+
+
+def test_pow_integer_base_float_exponent():
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(3.0)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(input: R.Tensor((4,), dtype="int32")) -> R.Tuple(R.Tensor((4,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4,), dtype="float32") = R.astype(input, dtype="float32")
+                lv1: R.Tensor((4,), dtype="float32") = R.abs(lv)
+                lv2: R.Tensor((4,), dtype="float32") = R.power(lv1, R.const(3.0, "float32"))
+                lv3: R.Tensor((4,), dtype="bool") = R.less(lv, R.const(0, "float32"))
+                lv4: R.Tensor((4,), dtype="float32") = R.negative(lv2)
+                lv5: R.Tensor((4,), dtype="float32") = R.where(lv3, lv4, lv2)
+                lv6: R.Tensor((4,), dtype="bool") = R.equal(lv, R.const(0, "float32"))
+                lv7: R.Tensor((4,), dtype="float32") = R.where(lv6, lv, lv5)
+                gv: R.Tuple(R.Tensor((4,), dtype="float32")) = (lv7,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.tensor([-2, -1, 1, 2], dtype=torch.int32),)
+    verify_model(Pow(), example_args, {}, expected)
+    verify_model_numerically(Pow(), example_args)
+
+
+def test_pow_integer_base_fractional_exponent():
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(0.5)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(input: R.Tensor((4,), dtype="int32")) -> R.Tuple(R.Tensor((4,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4,), dtype="float32") = R.astype(input, dtype="float32")
+                lv1: R.Tensor((4,), dtype="float32") = R.power(lv, R.const(0.5, "float32"))
+                gv: R.Tuple(R.Tensor((4,), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.tensor([1, 4, 9, 16], dtype=torch.int32),)
+    verify_model(Pow(), example_args, {}, expected)
+    verify_model_numerically(Pow(), example_args)
+
+
+@pytest.mark.parametrize(
+    "dtype, values, exponent",
+    [
+        (torch.float16, [0.361, -0.361], 17),
+        (torch.bfloat16, [1.1, -1.1], 100),
+        (torch.float16, [-1.0], 2049.0),
+        (torch.bfloat16, [-1.0], 257.0),
+        (torch.float32, [-1.0], 2**53 + 1),
+        (torch.float64, [-1.0], 2**53 + 1),
+    ],
+)
+def test_pow_float_exponent_rounding(dtype, values, exponent):
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(exponent)
+
+    input = torch.tensor(values, dtype=dtype)
+    expected = Pow()(input)
+    mod = from_exported_program(export(Pow(), args=(input,)))
+    vm = relax.VirtualMachine(relax.build(mod, "llvm"), tvm.cpu())
+    actual = torch.from_dlpack(vm["main"](tvm.runtime.from_dlpack(input))[0])
+
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+
+
+def test_pow_float_odd_exponent_preserves_signed_zero():
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(3)
+
+    input = torch.tensor([-0.0, 0.0], dtype=torch.float32)
+    mod = from_exported_program(export(Pow(), args=(input,)))
+    vm = relax.VirtualMachine(relax.build(mod, "llvm"), tvm.cpu())
+    actual = torch.from_dlpack(vm["main"](tvm.runtime.from_dlpack(input))[0])
+
+    torch.testing.assert_close(actual, input, rtol=0, atol=0)
+    torch.testing.assert_close(torch.signbit(actual), torch.signbit(input))
+
+
+@pytest.mark.parametrize("dtype", [torch.int32, torch.bfloat16])
+@pytest.mark.parametrize("exponent", [False, True])
+def test_pow_boolean_exponent(dtype, exponent):
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(exponent)
+
+    input = torch.tensor([-2, 0, 2], dtype=dtype)
+    expected = Pow()(input)
+    mod = from_exported_program(export(Pow(), args=(input,)))
+    vm = relax.VirtualMachine(relax.build(mod, "llvm"), tvm.cpu())
+    actual = torch.from_dlpack(vm["main"](tvm.runtime.from_dlpack(input))[0])
+
+    torch.testing.assert_close(actual, expected)
 
 
 def test_logsoftmax():
@@ -1336,17 +1516,36 @@ def test_binary1(op, relax_op):
         def forward(self, lhs):
             return self.op(lhs, 1.0)
 
-    @tvm.script.ir_module
-    class expected_binary2:
-        @R.function
-        def main(
-            lhs: R.Tensor((10, 10), dtype="float32"),
-        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
-            with R.dataflow():
-                lv: R.Tensor((10, 10), dtype="float32") = relax_op(lhs, R.const(1.0))
-                gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv,)
-                R.output(gv)
-            return gv
+    if op is operator.pow:
+
+        @tvm.script.ir_module
+        class expected_power:
+            @R.function
+            def main(
+                lhs: R.Tensor((10, 10), dtype="float32"),
+            ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+                with R.dataflow():
+                    gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lhs,)
+                    R.output(gv)
+                return gv
+
+        expected_binary2 = expected_power
+
+    else:
+
+        @tvm.script.ir_module
+        class expected_other_binary:
+            @R.function
+            def main(
+                lhs: R.Tensor((10, 10), dtype="float32"),
+            ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+                with R.dataflow():
+                    lv: R.Tensor((10, 10), dtype="float32") = relax_op(lhs, R.const(1.0))
+                    gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv,)
+                    R.output(gv)
+                return gv
+
+        expected_binary2 = expected_other_binary
 
     # In-place ops (add_, mul_, ...) produce the same Relax program as their
     # functional counterparts: mutation outputs are dropped by the importer.
