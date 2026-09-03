@@ -1191,7 +1191,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             dim += len(x_shape)
 
         new_shape = x_shape[:dim] + sizes + x_shape[dim + 1 :]
-        return self.block_builder.emit(relax.op.reshape(x, self._torch_reshape_dims(x, new_shape)))
+        return self._emit_torch_reshape(x, new_shape)
 
     ########## Creation ##########
 
@@ -1477,7 +1477,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         f"size {size} is not supported"
                     )
 
-        return self.block_builder.emit(relax.op.reshape(x, self._torch_reshape_dims(x, size)))
+        return self._emit_torch_reshape(x, size)
 
     ########## Symbolic Shape Constraints ##########
 
