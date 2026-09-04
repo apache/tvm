@@ -2354,6 +2354,40 @@ def test_ptx_tcgen05_mma_block_size_form():
     assert "tcgen05.mma.cta_group::1.kind::mxf4.block_scale.block32" in src
     _assert_ptxas_ok(src, arch="sm_100a")
 
+    @T.prim_func
+    def sm107_collector_kernel(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (32,), "uint32")
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([32])
+        if tx == 0:
+            tmem = T.local_scalar("uint32")
+            desc = T.local_scalar("uint64")
+            idesc = T.local_scalar("uint32")
+            flag = T.local_scalar("uint32")
+            T.ptx[
+                "tcgen05.mma.cta_group::1.kind::mxf4nvf4.block_scale.block16"
+                ".collector::a::discard.collector::b::fill"
+            ](tmem, desc, desc, idesc, tmem, tmem, T.ptx.pred(flag))
+            T.ptx[
+                "tcgen05.mma.cta_group::1.kind::mxf4.block_scale.block32"
+                ".collector::a::fill.collector::b::lastuse"
+            ](tmem, tmem, desc, idesc, tmem, tmem, T.ptx.pred(flag))
+        A[tx] = A[tx]
+
+    collector_src = _cuda_source(sm107_collector_kernel)
+    ss_collector_opcode = (
+        "tcgen05.mma.cta_group::1.kind::mxf4nvf4.block_scale.block16"
+        ".collector::a::discard.collector::b::fill"
+    )
+    ts_collector_opcode = (
+        "tcgen05.mma.cta_group::1.kind::mxf4.block_scale.block32"
+        ".collector::a::fill.collector::b::lastuse"
+    )
+    assert ss_collector_opcode in collector_src
+    assert ts_collector_opcode in collector_src
+    _assert_ptxas_ok(collector_src, arch="sm_107f")
+
     with pytest.raises((ValueError, tvm.error.DiagnosticError), match="mxf4.*block32"):
 
         @T.prim_func
@@ -2366,6 +2400,77 @@ def test_ptx_tcgen05_mma_block_size_form():
             T.ptx["tcgen05.mma.cta_group::1.kind::mxf4.block_scale.block16"](
                 tmem, desc, desc, idesc, tmem, tmem, T.ptx.pred(flag)
             )
+
+
+def test_ptx_tcgen05_mma_block_size_collector_legality():
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+
+    kind_blocks = (
+        ("kind::mxf8f6f4", "block32"),
+        ("kind::mxf4", "block32"),
+        ("kind::mxf4nvf4", "block16"),
+        ("kind::mxf4nvf4", "block32"),
+    )
+    for form in ("ss", "ts"):
+        entry = TABLE[f"tcgen05_mma_block_scale_block_{form}"]
+        for kind, block_size in kind_blocks:
+            required = {
+                "action": "mma",
+                "cta_group": "cta_group::1",
+                "kind": kind,
+                "block_scale": "block_scale",
+                "block_size": block_size,
+            }
+            tokens_for(entry, **required, collector_a="collector::a::fill")
+            tokens_for(
+                entry,
+                **required,
+                collector_a="collector::a::fill",
+                collector_b="collector::b::lastuse",
+            )
+        with pytest.raises(ValueError, match="collector B requires collector A"):
+            tokens_for(
+                entry,
+                action="mma",
+                cta_group="cta_group::1",
+                kind="kind::mxf4",
+                block_scale="block_scale",
+                block_size="block32",
+                collector_b="collector::b::fill",
+            )
+
+
+@requires_nvcc
+def test_ptx_tcgen05_mma_block_size_no_b_certifies_at_sm100f():
+    """No-collector and collector-A-only forms retain their documented lower floor."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+
+    kind_blocks = (
+        ("kind::mxf8f6f4", "block32"),
+        ("kind::mxf4", "block32"),
+        ("kind::mxf4nvf4", "block16"),
+        ("kind::mxf4nvf4", "block32"),
+    )
+    sources = []
+    for form in ("ss", "ts"):
+        entry = TABLE[f"tcgen05_mma_block_scale_block_{form}"]
+        for kind, block_size in kind_blocks:
+            for collector_a in ("", "collector::a::fill"):
+                kwargs = {
+                    "action": "mma",
+                    "cta_group": "cta_group::1",
+                    "kind": kind,
+                    "block_scale": "block_scale",
+                    "block_size": block_size,
+                }
+                if collector_a:
+                    kwargs["collector_a"] = collector_a
+                tokens = tokens_for(entry, **kwargs)
+                _, helper, helper_source = render_variant(entry, tokens)
+                sources.append(_certification_kernel(helper, helper_source, len(sources)))
+
+    _assert_ptxas_ok("\n".join((_CERT_PRELUDE, *sources)), arch="sm_100f")
 
 
 def test_ptx_pred_operand_rejects_untagged_integer():
@@ -2856,11 +2961,11 @@ def test_ptx_94_cp_bulk_semantic_negative_grids():
         )
 
 
-def test_ptx_94_family_specific_arch_floors_and_delta():
-    """SM107 family-only forms certify at 107f and remain in the 9.4 delta."""
+def test_ptx_94_sm107_arch_floors_and_delta():
+    """Entries owning SM107 variants certify at 107f and remain in the 9.4 delta."""
     from tvm.backend.cuda.ptx.table import _PTX_94_ENTRIES, TABLE
 
-    family_specific = {
+    sm107_entries = {
         "add_mixed_vec_up",
         "sub_mixed_vec_up",
         "add_mixed_vec_down_f16",
@@ -2873,8 +2978,10 @@ def test_ptx_94_family_specific_arch_floors_and_delta():
         "mul_mixed_vec_bf16_f16",
         "mul_mixed_vec_f16_bf16",
         "set_packed",
+        "tcgen05_mma_block_scale_block_ss",
+        "tcgen05_mma_block_scale_block_ts",
     }
-    assert {TABLE[name].cert_arch for name in family_specific} == {"sm_107f"}
+    assert {TABLE[name].cert_arch for name in sm107_entries} == {"sm_107f"}
 
     delta_names = {entry.name for entry in _PTX_94_ENTRIES}
     noftz_siblings = {
@@ -3990,7 +4097,7 @@ def test_ptx_all_variants_render_unique():
             _, helper, _ = render_variant(entry, *args, addr_offsets=addr_offsets)
             assert helper not in names, f"address-offset helper name collision: {helper}"
             names.add(helper)
-    assert total == 761703  # update when the table grows or a ptxas gap narrows it
+    assert total == 762023  # update when the table grows or a ptxas gap narrows it
 
 
 def test_ptx_no_instruction_registered_twice():
@@ -4389,6 +4496,52 @@ def test_ptx_ld_st_gpu_roundtrip():
         np.testing.assert_array_equal(b.numpy(), a_np)
 
     tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+def test_ptx_tcgen05_ld_red_binds_redval_as_output():
+    """ISA 9.7.18.8.3: `tcgen05.ld.red... r, redval, [taddr]` writes the reduction result into
+    `redval`. The helper must bind it with an output constraint; an input binding compiles but
+    the kernel never observes the hardware max (measured on GB300: the probe's redval stayed at
+    its initial value until the binding was fixed)."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+
+    for name, modifiers, binding in (
+        (
+            "tcgen05_ld_red",
+            dict(
+                action="ld",
+                red="red",
+                sync="sync",
+                aligned="aligned",
+                shape="32x32b",
+                num="x2",
+                redop="max",
+                type="f32",
+            ),
+            '"=f"(__redval)',
+        ),
+        (
+            "tcgen05_ld_red_split",
+            dict(
+                action="ld",
+                red="red",
+                sync="sync",
+                aligned="aligned",
+                shape="16x32bx2",
+                num="x2",
+                redop="min",
+                type="s32",
+            ),
+            '"=r"(__redval)',
+        ),
+    ):
+        entry = TABLE[name]
+        assert next(s for s in entry.operands if s.name == "redval").rw == "w"
+        imms = ("0",) if name.endswith("_split") else ()
+        _, _, source = render_variant(entry, tokens_for(entry, **modifiers), imms=imms)
+        assert binding in source, source
+        assert '"r"(__redval)' not in source and '"f"(__redval)' not in source
 
 
 if __name__ == "__main__":
