@@ -2354,6 +2354,28 @@ def test_ptx_tcgen05_mma_block_size_form():
     assert "tcgen05.mma.cta_group::1.kind::mxf4.block_scale.block32" in src
     _assert_ptxas_ok(src, arch="sm_100a")
 
+    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="mxf4.*block32"):
+
+        @T.prim_func
+        def invalid_mxf4_block16():
+            T.device_entry()
+            tmem = T.local_scalar("uint32")
+            desc = T.local_scalar("uint64")
+            idesc = T.local_scalar("uint32")
+            flag = T.local_scalar("uint32")
+            T.ptx["tcgen05.mma.cta_group::1.kind::mxf4.block_scale.block16"](
+                tmem, desc, desc, idesc, tmem, tmem, T.ptx.pred(flag)
+            )
+
+
+@pytest.mark.skipif(
+    not env.has_nvcc_version(13, 4),
+    reason="collector-qualified block_scale MMA is a PTX 9.4 form; need nvcc >= 13.4",
+)
+@requires_nvcc
+def test_ptx_tcgen05_mma_block_size_collector_form():
+    """PTX 9.4 collector qualifiers on block-scaled MMA certify at their sm_107f floor."""
+
     @T.prim_func
     def sm107_collector_kernel(a_ptr: T.handle):
         A = T.match_buffer(a_ptr, (32,), "uint32")
@@ -2387,19 +2409,6 @@ def test_ptx_tcgen05_mma_block_size_form():
     assert ss_collector_opcode in collector_src
     assert ts_collector_opcode in collector_src
     _assert_ptxas_ok(collector_src, arch="sm_107f")
-
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="mxf4.*block32"):
-
-        @T.prim_func
-        def invalid_mxf4_block16():
-            T.device_entry()
-            tmem = T.local_scalar("uint32")
-            desc = T.local_scalar("uint64")
-            idesc = T.local_scalar("uint32")
-            flag = T.local_scalar("uint32")
-            T.ptx["tcgen05.mma.cta_group::1.kind::mxf4.block_scale.block16"](
-                tmem, desc, desc, idesc, tmem, tmem, T.ptx.pred(flag)
-            )
 
 
 def test_ptx_tcgen05_mma_block_size_collector_legality():
