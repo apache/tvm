@@ -167,8 +167,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         shape = self.shape_of(x)
         if shape is None:
             return [dims]
+        shape = list(shape)
         current = [self._static_dim(d) for d in shape]
-        if None in current or 0 not in current:
+        if 0 not in current:
+            # Without a statically known zero the input is not known to be empty, and
+            # PyTorch rejects a zero in the target for a non-empty input. A symbolic
+            # dimension elsewhere does not change that: one known zero already fixes the
+            # element count at zero whatever the symbols turn out to be.
             return [dims]
 
         steps = []
@@ -179,7 +184,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 if t == 0 and not (i < len(current) and current[i] == 0)
             ]
             if not unusable:
-                steps.append(dims)
+                if not steps:
+                    # Nothing needed rewriting; emit the target as given.
+                    steps.append(dims)
+                # Otherwise the last step already produced the target shape, since every
+                # remaining zero now sits over an input dimension that is zero as well.
                 return steps
             rewritten = unusable[0]
             step, resulting = [], []
@@ -194,10 +203,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                     step.append(0)
                     resulting.append(0)
                 else:
-                    kept = current[i] if i < len(current) else 1
-                    step.append(kept)
-                    resulting.append(kept)
+                    # Hold this position as it stands -- a symbolic dimension included, since
+                    # it is not a literal and so is not read as a copy -- and rewrite it in a
+                    # later step, once it has become a real zero.
+                    step.append(shape[i] if i < len(shape) else 1)
+                    resulting.append(current[i] if i < len(current) else 1)
             steps.append(step)
+            shape = [0 if i == rewritten else step[i] for i in range(len(step))]
             current = resulting
 
     def _emit_torch_reshape(self, x, dims):
