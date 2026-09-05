@@ -784,6 +784,34 @@ def test_vectorized_intrin1():
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_round_ties_to_even():
+    # The CUDA rule lowers tirx.round to nearbyint/nearbyintf (ties-to-even,
+    # matching constant-folding semantics), so exact midpoints must round to
+    # even. np.random-based tests never produce midpoints; this pins the tie
+    # rule on both the nvcc and nvrtc compile paths (via the autouse fixture).
+    # sched() assumes 128 lanes, so the midpoints are tiled to fill it.
+    midpoints = np.array([0.5, 1.5, 2.5, 3.5, -0.5, -1.5, -2.5, -3.5], dtype="float32")
+    ties_to_even = np.array([0.0, 2.0, 2.0, 4.0, -0.0, -2.0, -2.0, -4.0], dtype="float32")
+    test_values = np.tile(midpoints, 16)  # 128 lanes, matches sched()
+    expected = np.tile(ties_to_even, 16)
+
+    f = sched(tvm.tirx.round, "float32")
+    dev = tvm.cuda(0)
+    a = tvm.runtime.tensor(test_values, dev)
+    b = tvm.runtime.tensor(np.zeros(len(test_values), dtype="float32"), dev)
+
+    def run_and_check():
+        f(a, b)
+        tvm.testing.assert_allclose(b.numpy(), expected, rtol=0, atol=0)
+        # every midpoint lane hit an exact tie: pin the sign too (round(-0.5)
+        # must produce -0.0, not +0.0)
+        assert np.signbit(b.numpy()[4::8]).all(), "negative midpoints must round to -0.0"
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_vectorized_intrin2(dtype="float32"):
     c2 = tvm.tirx.const(2, dtype=dtype)
     test_funcs = [
