@@ -1263,6 +1263,7 @@ class Cast(OnnxOpConverter):
             if all([isinstance(x, tirx.IntImm) for x in shape]):
                 shape = [int(x) for x in shape]
                 return relax.const(shape, to_type)
+            inputs = [bb.normalize(relax.op.shape_to_tensor(shape))]
         if isinstance(inputs[0], relax.Constant):
             output = inputs[0].data.numpy().astype(to_type)
             return relax.const(output, to_type)
@@ -1328,6 +1329,24 @@ class Cast(OnnxOpConverter):
                 return relax.op.astype(wrapped, to_type)
 
         return relax.op.astype(inputs[0], to_type)
+
+
+class CastLike(OnnxOpConverter):
+    """Convert an onnx CastLike node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v15(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        target = inputs[1]
+        if isinstance(target, relax.ShapeExpr):
+            target_dtype = "int64"
+        else:
+            target_dtype = getattr(getattr(target, "ty", None), "dtype", None) or getattr(
+                target, "dtype", None
+            )
+        if target_dtype is None:
+            raise ValueError(f"CastLike: unable to determine dtype from target {target}")
+        return Cast._impl_v13(bb, [data], {"to": str(target_dtype)}, params)
 
 
 def _normalize_negative_indices(bb, indices, axis_extent):
@@ -1858,21 +1877,39 @@ class Trilu(OnnxOpConverter):
     def _impl_v14(cls, bb, inputs, attr, params):
         upper = attr.get("upper", True)
         x = inputs[0]
-        k = inputs[1] if len(inputs) > 1 else 0
+        k = inputs[1] if len(inputs) > 1 else None
 
-        if len(inputs) > 1:
-            k = get_constant(inputs[1], params)
-            if isinstance(k, relax.Constant):
-                k = int(k.data.numpy().item())
-            else:
-                raise ValueError("Currently only support constant k for Trilu op.")
-        else:
+        if k is None:
             k = 0
-
-        if upper:
-            return relax.op.triu(x, k)
         else:
+            k = get_constant(k, params)
+        if isinstance(k, relax.Constant):
+            k = int(k.data.numpy().item())
+        if isinstance(k, tirx.IntImm):
+            k = int(k)
+        if isinstance(k, int):
+            if upper:
+                return relax.op.triu(x, k)
             return relax.op.tril(x, k)
+
+        # Dynamic k: build the mask explicitly so it works with any scalar k.
+        shape = x.ty.shape
+        m, n = shape[-2], shape[-1]
+        row_idx = relax.op.reshape(relax.op.arange(0, m, dtype="int64"), (m, 1))
+        col_idx = relax.op.reshape(relax.op.arange(0, n, dtype="int64"), (1, n))
+        diff = relax.op.subtract(col_idx, row_idx)
+        if tvm.ir.is_prim_expr(k):
+            shape_value = k if str(k.ty) == "int64" else k.astype("int64")
+            k_int64 = bb.normalize(relax.op.shape_to_tensor(relax.ShapeExpr([shape_value])))
+            k_int64 = bb.normalize(relax.op.squeeze(k_int64, axis=[0]))
+        else:
+            k_int64 = relax.op.astype(k, "int64")
+        if upper:
+            mask = relax.op.greater_equal(diff, k_int64)
+        else:
+            mask = relax.op.less_equal(diff, k_int64)
+        mask = relax.op.broadcast_to(mask, shape)
+        return relax.op.where(mask, x, relax.const(0, x.ty.dtype.dtype))
 
 
 class Relu(OnnxOpConverter):
@@ -6047,6 +6084,7 @@ def _get_convert_map():
         "Max": Max,
         "Mean": Mean,
         "Cast": Cast,
+        "CastLike": CastLike,
         "Gemm": Gemm,
         "MatMul": MatMul,
         "MatMulInteger": MatMulInteger,
@@ -6403,6 +6441,7 @@ class ONNXGraphImporter:
                 "Equal",
                 "Where",
                 "Cast",
+                "CastLike",
                 "Squeeze",
             ]
             return_tuple_ops = [
