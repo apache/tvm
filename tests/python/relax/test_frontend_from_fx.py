@@ -1722,6 +1722,56 @@ def test_flatten():
     verify_model(torch.nn.Flatten(2, -1), input_info, {}, expected1)
 
 
+def test_flatten_invalid_dims():
+    input_info = [([2, 3, 4], "float32")]
+
+    class FlattenFunc(Module):
+        def forward(self, input):
+            return torch.flatten(input, 2, 1)
+
+    class FlattenModule(Module):
+        def __init__(self):
+            super().__init__()
+            self.f = torch.nn.Flatten(2, 1)
+
+        def forward(self, input):
+            return self.f(input)
+
+    class FlattenOutOfRange(Module):
+        def forward(self, input):
+            return torch.flatten(input, 0, 3)
+
+    # torch rejects these dims only when the model runs, and fx.symbolic_trace does not run
+    # it, so the invalid flatten reaches the frontend and has to be rejected there.
+    for model in (FlattenFunc(), FlattenModule()):
+        with pytest.raises(ValueError, match="start_dim cannot come after end_dim"):
+            from_fx(fx.symbolic_trace(model), input_info)
+
+    with pytest.raises(ValueError, match="flatten end_dim 3 is out of range"):
+        from_fx(fx.symbolic_trace(FlattenOutOfRange()), input_info)
+
+
+def test_flatten_scalar_input():
+    input_info = [([], "float32")]
+
+    class Flatten(Module):
+        def forward(self, input):
+            return torch.flatten(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(input_1: R.Tensor((), dtype="float32")) -> R.Tensor((1,), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1,), dtype="float32") = R.reshape(input_1, (1,))
+                gv: R.Tensor((1,), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Flatten(), input_info, {}, expected1)
+
+
 def test_batchnorm2d():
     input_info = [([1, 3, 10, 10], "float32")]
 
