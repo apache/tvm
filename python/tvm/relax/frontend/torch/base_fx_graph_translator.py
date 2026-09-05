@@ -1856,7 +1856,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         descending = node.args[2] if len(node.args) > 2 else node.kwargs.get("descending", False)
-        return self.block_builder.emit(relax.op.argsort(x, dim, descending))
+        return self.block_builder.emit(relax.op.argsort(x, dim, descending, dtype="int64"))
 
     def _broadcast_to(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
@@ -2321,7 +2321,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         descending = node.args[2] if len(node.args) > 2 else node.kwargs.get("descending", False)
 
-        indices = self.block_builder.emit(relax.op.argsort(x, dim, descending))
+        indices = self.block_builder.emit(relax.op.argsort(x, dim, descending, dtype="int64"))
         values = self.block_builder.emit(relax.op.gather_elements(x, indices, axis=dim))
         return self.block_builder.emit(relax.Tuple([values, indices]))
 
