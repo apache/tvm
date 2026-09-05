@@ -421,6 +421,26 @@ def test_preserved_annotations():
     tvm.ir.assert_structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
 
 
+def test_none_pragma_annotation():
+    @T.prim_func(s_tir=True)
+    def before(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")):
+        for i in T.serial(8, annotations={"pragma_unroll_explicit": None}):
+            with T.sblock("block"):
+                B[i] = A[i] + 1.0
+
+    @T.prim_func(s_tir=True)
+    def after(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")):
+        for i in T.serial(8):
+            B[i] = A[i] + 1.0
+
+    mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
+    mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
+    tvm.ir.assert_structural_equal(
+        mod["main"],
+        after.with_attr("global_symbol", "main"),
+    )
+
+
 def test_boolean_handling():
     _check(boolean_handling_before, boolean_handling_after)
 
