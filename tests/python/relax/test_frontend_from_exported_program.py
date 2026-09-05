@@ -3327,6 +3327,94 @@ def test_einsum():
     verify_model(Einsum2(), example_args, {}, Expected2, run_ep_decomposition=False)
 
 
+def test_einsum_repeated_subscript():
+    """einsum with repeated subscripts (diagonal / trace) on the default
+    decomposition path.
+
+    ``run_decompositions`` (default) lowers repeated-subscript einsum to
+    ``aten.diagonal`` + ``permute`` (+ ``sum`` for the trace), which the
+    frontend converts with the ``_diagonal`` lowering: permute the diagonal
+    dims to the trailing two axes, slice each to the diagonal length, then an
+    einsum ``...zz->...z`` extracts the diagonal. This used to raise
+    ``AssertionError: Unsupported function types ['diagonal.default']``.
+    """
+
+    class EinsumDiag(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return torch.einsum("ii->i", x)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((3, 3), dtype="float32")) -> R.Tuple(R.Tensor((3,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 3), dtype="float32") = R.permute_dims(x, axes=[0, 1])
+                lv1: R.Tensor((3, 3), dtype="float32") = R.strided_slice(
+                    lv, (0,), (0,), (3,), (1,), assume_inbound=False
+                )
+                lv2: R.Tensor((3, 3), dtype="float32") = R.strided_slice(
+                    lv1, (1,), (0,), (3,), (1,), assume_inbound=False
+                )
+                lv3: R.Tensor((3,), dtype="float32") = R.einsum((lv2,), subscripts="...zz->...z")
+                lv4: R.Tensor((3,), dtype="float32") = R.permute_dims(lv3, axes=[0])
+                lv5: R.Tensor((3,), dtype="float32") = R.permute_dims(lv4, axes=[0])
+                gv: R.Tuple(R.Tensor((3,), dtype="float32")) = (lv5,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(3, 3, dtype=torch.float32),)
+    verify_model(EinsumDiag(), example_args, {}, Expected)
+
+    class TraceEinsum(Module):
+        def forward(self, x):
+            return torch.einsum("ii->", x)
+
+    class BatchedDiagEinsum(Module):
+        def forward(self, x):
+            return torch.einsum("...ii->...i", x)
+
+    class AttentionEinsum(Module):
+        def forward(self, x, y):
+            return torch.einsum("abca,abcb->c", x, y)
+
+    verify_model_numerically(TraceEinsum(), (torch.randn(4, 4),))
+    verify_model_numerically(BatchedDiagEinsum(), (torch.randn(2, 3, 3),))
+    verify_model_numerically(AttentionEinsum(), (torch.randn(3, 3, 4, 3), torch.randn(3, 3, 4, 3)))
+
+    class DirectDiagonal(Module):
+        def __init__(self):
+            super().__init__()
+            self.offset = 1
+
+        def forward(self, x):
+            return torch.diagonal(x, self.offset, 0, 1)
+
+    class DirectTrace(Module):
+        def forward(self, x):
+            return torch.trace(x)
+
+    verify_model_numerically(DirectDiagonal(), (torch.randn(3, 4),))
+    verify_model_numerically(DirectTrace(), (torch.randn(4, 4),))
+
+    # Out-of-range offsets (|offset| >= max(extent1, extent2)) are valid in
+    # PyTorch and yield an empty diagonal of shape (0,); the lowering must
+    # clamp the diagonal length to zero instead of producing negative slice
+    # extents or a wrong non-empty shape.
+    class DirectDiagonalOutOfRange(Module):
+        def __init__(self, offset):
+            super().__init__()
+            self.offset = offset
+
+        def forward(self, x):
+            return torch.diagonal(x, self.offset, 0, 1)
+
+    for offset in [4, 5, 6, -3, -4, -5, -6]:
+        verify_model_numerically(DirectDiagonalOutOfRange(offset), (torch.randn(3, 4),))
+
+
 def test_outer():
     class Outer(torch.nn.Module):
         def forward(self, x, y):
