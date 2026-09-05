@@ -5328,7 +5328,7 @@ _PTX_94_ENTRIES = [
                 ),
                 ModifierSlot("block_scale", ("block_scale",)),
                 ModifierSlot("collector_a", _TCGEN05_COLLECTOR_A),
-                ModifierSlot("collector_b", _TCGEN05_COLLECTOR_B),
+                ModifierSlot("collector_b", _TCGEN05_COLLECTOR_B, optional=True),
             ),
             cert_arch="sm_107f",
             operands=(
@@ -8516,6 +8516,12 @@ _ENTRIES = [
             OperandSlot("b", dtype="u32"),
         ),
     ),
+    # PTX ISA 9.7.10.28.3.3 / 9.7.10.28.6.2 defines N only as an integer
+    # constant and declares no value domain. Keep it OPEN: callers may use any
+    # compile-time integer, while certification samples the instruction shape.
+    # MEASURED on CUDA 13.4 ptxas at sm_107a: ordinary and bulk forms accept
+    # values beyond 7 (8, 9, 16, 255), and the bulk `.read` form also accepts
+    # 2147483647 and -1.
     *[
         InstructionEntry(  # cp.async{.bulk}.wait_group{.read} N;
             name=f"cp_async{'_bulk' if bulk else ''}_wait_group",
@@ -8527,7 +8533,7 @@ _ENTRIES = [
                 *((ModifierSlot("read", ("read",), optional=True),) if bulk else ()),
             ),
             orders_memory=True,
-            operands=(OperandSlot("group", kind="imm", choices=tuple(str(n) for n in range(8))),),
+            operands=(OperandSlot("group", kind="imm"),),
         )
         for bulk in (False, True)
     ],
@@ -10179,10 +10185,10 @@ _ENTRIES = [
     # and cp.async.wait_all per 9.7.10.28.3.3, cp.async.bulk.commit_group /
     # .wait_group per 9.7.10.28.6.1 / 9.7.10.28.6.2.
     #
-    # The wait_group counts are caller-chosen immediates: the ISA gives N no
-    # register form, so each value is its own helper, and the closed `choices`
-    # set is what makes every one of them certifiable. 0..7 covers every call
-    # site (pipeline depths); widen the tuple if a deeper pipeline appears.
+    # The wait_group counts are caller-chosen OPEN immediates: the ISA gives N
+    # no register form or value domain. Each call-site constant becomes its own
+    # helper; enumeration and full-table certification sample the open operand
+    # at 0 and therefore certify the instruction shape rather than every value.
     #
     # (The `cp.async` ca/cg copy lines this note once excluded are registered
     # in the 9.7.10 group above, ignore-src operand and all.)
