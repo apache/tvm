@@ -62,12 +62,12 @@ def verify_model(
     tvm.ir.assert_structural_equal(mod, expected, map_free_vars=map_free_vars)
 
 
-def verify_model_numerically(torch_model, example_args, rtol=1e-7, atol=1e-7):
+def verify_model_numerically(torch_model, example_args, rtol=1e-7, atol=1e-7, dynamic_shapes=None):
     """Verify model by comparing numerical outputs between PyTorch and TVM."""
     with torch.no_grad():
         pytorch_output = torch_model(*example_args)
 
-    exported_program = export(torch_model, args=example_args)
+    exported_program = export(torch_model, args=example_args, dynamic_shapes=dynamic_shapes)
     mod = from_exported_program(exported_program)
     target = tvm.target.Target("llvm")
     ex = relax.build(mod, target)
@@ -5072,6 +5072,15 @@ def test_flatten():
     verify_model(Flatten(), example_args, {}, expected1)
 
 
+def test_flatten_zero_sized_dim():
+    class Flatten(Module):
+        def forward(self, x):
+            return torch.flatten(x)
+
+    verify_model_numerically(Flatten(), (torch.randn(2, 0, 4, dtype=torch.float32),))
+    verify_model_numerically(Flatten(), (torch.randn(2, 3, 0, dtype=torch.float32),))
+
+
 def test_meshgrid():
     class Meshgrid1(Module):
         def forward(self, input1, input2):
@@ -5231,6 +5240,56 @@ def test_reshape_as():
         torch.randn(2, 12, dtype=torch.float32),
     )
     verify_model(ReshapeAs(), example_args, {}, expected1)
+
+
+def test_reshape_zero_sized_dim():
+    class Reshape(Module):
+        def forward(self, x):
+            return x.reshape(0, 4)
+
+    class ReshapeTrailing(Module):
+        def forward(self, x):
+            return x.reshape(3, 0)
+
+    verify_model_numerically(Reshape(), (torch.randn(2, 0, 4, dtype=torch.float32),))
+    verify_model_numerically(ReshapeTrailing(), (torch.randn(0, 3, dtype=torch.float32),))
+
+
+def test_reshape_multiple_zero_sized_dims():
+    # A literal zero only survives relax's copy rule at a position whose input dimension is
+    # itself zero, so targets holding several zeros need more than one position rewritten.
+    class TwoZeros(Module):
+        def forward(self, x):
+            return x.reshape(0, 0)
+
+    class ThreeZeros(Module):
+        def forward(self, x):
+            return x.reshape(0, 0, 0)
+
+    class ZeroPastInputRank(Module):
+        def forward(self, x):
+            return x.reshape(0, 0, 4)
+
+    verify_model_numerically(TwoZeros(), (torch.randn(0, 3, dtype=torch.float32),))
+    verify_model_numerically(TwoZeros(), (torch.randn(3, 0, dtype=torch.float32),))
+    verify_model_numerically(ThreeZeros(), (torch.randn(0, 3, 5, dtype=torch.float32),))
+    verify_model_numerically(ZeroPastInputRank(), (torch.randn(2, 0, 4, dtype=torch.float32),))
+
+
+def test_reshape_zero_sized_dim_dynamic_batch():
+    # One statically known zero fixes the element count at zero whatever the symbolic
+    # dimension turns out to be, so the literal zero in the target still has to survive.
+    # Reading it as "copy the batch" gives a non-empty shape that torch never produces.
+    class Reshape(Module):
+        def forward(self, x):
+            return x.reshape(0, 4)
+
+    batch = torch.export.Dim("batch", min=1, max=64)
+    verify_model_numerically(
+        Reshape(),
+        (torch.randn(3, 0, 4, dtype=torch.float32),),
+        dynamic_shapes={"x": {0: batch}},
+    )
 
 
 def test_roll():
@@ -7020,6 +7079,14 @@ def test_unflatten():
 
     verify_model(Unflatten(), example_args, {}, Expected)
     verify_model(Unflatten1(), example_args, {}, Expected)
+
+
+def test_unflatten_zero_sized_dim():
+    class Unflatten(Module):
+        def forward(self, x):
+            return x.unflatten(0, (2, -1))
+
+    verify_model_numerically(Unflatten(), (torch.randn(2, 0, dtype=torch.float32),))
 
 
 def test_gather():

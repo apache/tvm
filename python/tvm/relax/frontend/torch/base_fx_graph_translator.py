@@ -130,6 +130,95 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         raise ValueError(f"Unsupported type: {type(tensor)}")
 
     @staticmethod
+    def _static_dim(value):
+        """Return ``value`` as a Python int when it is a compile-time constant, else ``None``."""
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, int):
+            return value
+        const = getattr(value, "value", None)
+        if isinstance(const, int) and not isinstance(const, bool):
+            return const
+        return None
+
+    def _torch_reshape_chain(self, x, dims):
+        """Return the relax reshape targets that reproduce PyTorch's ``dims``.
+
+        PyTorch reads a literal ``0`` in a target shape as a real zero-sized dimension.
+        ``relax.op.reshape`` reads it as "copy the corresponding input dimension", which is
+        ONNX ``Reshape`` with ``allowzero=0``. A literal ``0`` therefore only survives at a
+        position whose input dimension is itself ``0``; anywhere else it silently becomes
+        that input dimension.
+
+        A position that does not survive can be written as ``-1``, whose inference yields
+        ``0`` for an empty input. Only one ``-1`` is allowed per reshape, so when several
+        positions need it the rewrite is split: each step turns one of them into a real
+        ``0``, which lets the next step spell that position as a literal. Targets with at
+        most one such position - every case seen in practice - stay a single reshape.
+
+        Shapes that do not need the rewrite are returned unchanged. In particular, for a
+        non-empty input PyTorch rejects a zero in the target outright, and rewriting it
+        would produce a shape rather than surface that error.
+        """
+        dims = list(dims)
+        target = [self._static_dim(d) for d in dims]
+        if 0 not in target or -1 in target or None in target:
+            return [dims]
+        shape = self.shape_of(x)
+        if shape is None:
+            return [dims]
+        shape = list(shape)
+        current = [self._static_dim(d) for d in shape]
+        if 0 not in current:
+            # Without a statically known zero the input is not known to be empty, and
+            # PyTorch rejects a zero in the target for a non-empty input. A symbolic
+            # dimension elsewhere does not change that: one known zero already fixes the
+            # element count at zero whatever the symbols turn out to be.
+            return [dims]
+
+        steps = []
+        while True:
+            unusable = [
+                i
+                for i, t in enumerate(target)
+                if t == 0 and not (i < len(current) and current[i] == 0)
+            ]
+            if not unusable:
+                if not steps:
+                    # Nothing needed rewriting; emit the target as given.
+                    steps.append(dims)
+                # Otherwise the last step already produced the target shape, since every
+                # remaining zero now sits over an input dimension that is zero as well.
+                return steps
+            rewritten = unusable[0]
+            step, resulting = [], []
+            for i, t in enumerate(target):
+                if i == rewritten:
+                    step.append(-1)
+                    resulting.append(0)
+                elif t != 0:
+                    step.append(dims[i])
+                    resulting.append(t)
+                elif i < len(current) and current[i] == 0:
+                    step.append(0)
+                    resulting.append(0)
+                else:
+                    # Hold this position as it stands -- a symbolic dimension included, since
+                    # it is not a literal and so is not read as a copy -- and rewrite it in a
+                    # later step, once it has become a real zero.
+                    step.append(shape[i] if i < len(shape) else 1)
+                    resulting.append(current[i] if i < len(current) else 1)
+            steps.append(step)
+            shape = [0 if i == rewritten else step[i] for i in range(len(step))]
+            current = resulting
+
+    def _emit_torch_reshape(self, x, dims):
+        """Emit the reshape(s) giving ``dims`` PyTorch's meaning. See _torch_reshape_chain."""
+        for step in self._torch_reshape_chain(x, dims):
+            x = self.block_builder.emit(relax.op.reshape(x, step))
+        return x
+
+    @staticmethod
     def _promote_common_dtype(lhs_dtype: str | None, rhs_dtype: str | None) -> str | None:
         """Return the promoted dtype following PyTorch rules, or None if unsupported."""
         import torch  # type: ignore
@@ -1951,7 +2040,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             + [flattened]
             + [shape[i] for i in range(end_dim + 1, len(shape))]
         )
-        return self.block_builder.emit(relax.op.reshape(x, new_shape))
+        return self._emit_torch_reshape(x, new_shape)
 
     def _flatten(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -2291,14 +2380,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if current_shape is not None and list(current_shape) == list(dims):
             return x
 
-        return self.block_builder.emit(relax.op.reshape(x, dims))
+        return self._emit_torch_reshape(x, dims)
 
     def _reshape_as(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
         other = args[1]
         dims = self.shape_of(other)
-        return self.block_builder.emit(relax.op.reshape(x, dims))
+        return self._emit_torch_reshape(x, dims)
 
     def _scatter(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
