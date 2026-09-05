@@ -1977,6 +1977,10 @@ def test_ptx_data_movement_dispatch():
         T.ptx.applypriority.global_.L2__evict_normal(A.ptr_to([6]))
         T.ptx.discard.global_.L2(A.ptr_to([7]))
         T.ptx.prefetchu.L1(A.ptr_to([0]))
+        T.ptx.cp.async_.wait_group(255)
+        T.ptx.cp.async_.bulk.wait_group(255)
+        T.ptx.cp.async_.bulk.wait_group.read(8)
+        T.ptx.cp.async_.bulk.wait_group.read(-1)
         T.ptx.multimem_ld_reduce.add.u32(v, A.ptr_to([0]))
         T.ptx.multimem_red.relaxed.gpu.add.u32(A.ptr_to([0]), v)
         smem[tx % 4] = d + p + v
@@ -2000,6 +2004,10 @@ def test_ptx_data_movement_dispatch():
         "applypriority.global.L2::evict_normal [%0], 128;",
         "discard.global.L2 [%0], 128;",
         "prefetchu.L1 [%0];",
+        "cp.async.wait_group 255;",
+        "cp.async.bulk.wait_group 255;",
+        "cp.async.bulk.wait_group.read 8;",
+        "cp.async.bulk.wait_group.read -1;",
         "multimem.ld_reduce.add.u32 %0, [%1];",
         "multimem.red.relaxed.gpu.add.u32 [%0], %1;",
     ):
@@ -2409,6 +2417,32 @@ def test_ptx_tcgen05_mma_block_size_collector_form():
     assert ss_collector_opcode in collector_src
     assert ts_collector_opcode in collector_src
     _assert_ptxas_ok(collector_src, arch="sm_107f")
+
+
+@requires_nvcc
+def test_ptx_tcgen05_mma_block_scale_collector_a_without_block_size():
+    """SM107 activation-stationary FP8 accepts collector A without `.block*`."""
+
+    @T.prim_func
+    def kernel(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (32,), "uint32")
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([32])
+        if tx == 0:
+            tmem = T.local_scalar("uint32")
+            desc = T.local_scalar("uint64")
+            idesc = T.local_scalar("uint32")
+            flag = T.local_scalar("uint32")
+            T.ptx["tcgen05.mma.cta_group::1.kind::mxf8f6f4.block_scale.collector::a::discard"](
+                tmem, desc, desc, idesc, tmem, tmem, T.ptx.pred(flag)
+            )
+        A[tx] = A[tx]
+
+    src = _cuda_source(kernel)
+    opcode = "tcgen05.mma.cta_group::1.kind::mxf8f6f4.block_scale.collector::a::discard"
+    assert opcode in src
+    _assert_ptxas_ok(src, arch="sm_107a")
 
 
 def test_ptx_tcgen05_mma_block_size_collector_legality():
@@ -4106,7 +4140,7 @@ def test_ptx_all_variants_render_unique():
             _, helper, _ = render_variant(entry, *args, addr_offsets=addr_offsets)
             assert helper not in names, f"address-offset helper name collision: {helper}"
             names.add(helper)
-    assert total == 762023  # update when the table grows or a ptxas gap narrows it
+    assert total == 762050  # update when the table grows or a ptxas gap narrows it
 
 
 def test_ptx_no_instruction_registered_twice():
