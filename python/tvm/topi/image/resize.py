@@ -145,9 +145,13 @@ def get_inx(
     start_x=0,
     end_x=-1,
     use_int_div=False,
+    scale_x_override=None,
 ):
     """Infer input x from output x with various coordinate transformation methods"""
-    scale_x = te.div(image_width.astype("float"), target_width.astype("float"))
+    if scale_x_override is not None:
+        scale_x = scale_x_override
+    else:
+        scale_x = te.div(image_width.astype("float"), target_width.astype("float"))
     if coordinate_transformation_mode == "half_pixel":
         in_x = (x + 0.5) * scale_x - 0.5
     elif coordinate_transformation_mode == "align_corners":
@@ -237,6 +241,7 @@ def _resize_1d(
     alpha=-0.5,
     exclude_outside=0,
     out_dtype=None,
+    scale_x=None,
 ):
     """Perform resize operation on the data with selected method and options.
 
@@ -315,7 +320,15 @@ def _resize_1d(
     if boxes is not None:
         # TODO(mbrookhart): Find an example of this
         raise NotImplementedError("resize1d with image boxes not yet implemented")
-    in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode, roi[0], roi[1])
+    in_x = get_inx(
+        x,
+        image_width,
+        target_width,
+        coordinate_transformation_mode,
+        roi[0],
+        roi[1],
+        scale_x_override=scale_x,
+    )
 
     if method == "nearest_neighbor":
         if rounding_method == "":
@@ -383,6 +396,7 @@ def resize1d(
     extrapolation_value=0.0,
     out_dtype=None,
     output_shape=None,
+    scales=None,
 ):
     """Perform resize operation on the data.
 
@@ -438,6 +452,12 @@ def resize1d(
         Shape to return. If left None will be inferred
         (If shape is determined dynamically, pass out_dtype.shape as output_shape)
 
+    scales: tuple or None
+        Explicit scale factors for coordinate transformation.
+        If not None, scales=[scale_w] for 1D.
+        When provided, overrides the scale derived from input and output sizes.
+        Used by the ONNX frontend when a Resize node is driven by a "scales" input.
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -472,6 +492,8 @@ def resize1d(
         if isinstance(size[i], int):
             size[i] = tvm.tirx.IntImm("int32", size[i])
 
+    scale_x = (1.0 / scales[0]) if scales is not None else None
+
     def compute_func(*indices):
         return _resize_1d(
             indices,
@@ -487,6 +509,7 @@ def resize1d(
             exclude_outside=bicubic_exclude,
             extrapolation_value=extrapolation_value,
             out_dtype=out_dtype,
+            scale_x=scale_x,
         )
 
     return te.compute(output_shape, compute_func, name="resize", tag=tag.INJECTIVE)
@@ -510,6 +533,8 @@ def _resize_2d(
     alpha=-0.5,
     exclude_outside=0,
     out_dtype=None,
+    scale_h=None,
+    scale_w=None,
 ):
     """Perform resize operation on the data with selected method and options.
 
@@ -593,8 +618,10 @@ def _resize_2d(
     width_use_int_div = False
     if method == "nearest_neighbor" and coordinate_transformation_mode == "asymmetric":
         if rounding_method == "floor" or rounding_method == "":
-            height_use_int_div = can_convert_multiply_to_intdiv(image_height, target_height)
-            width_use_int_div = can_convert_multiply_to_intdiv(image_width, target_width)
+            if scale_h is None:
+                height_use_int_div = can_convert_multiply_to_intdiv(image_height, target_height)
+            if scale_w is None:
+                width_use_int_div = can_convert_multiply_to_intdiv(image_width, target_width)
 
     n, c, y, x, cc, inum, ic = get_2d_indices(indices, layout)
     box_idx = box_indices(n) if box_indices is not None else n
@@ -618,6 +645,7 @@ def _resize_2d(
             roi[1],
             roi[3],
             width_use_int_div,
+            scale_x_override=scale_w,
         )
         in_y = get_inx(
             y,
@@ -627,6 +655,7 @@ def _resize_2d(
             roi[0],
             roi[2],
             height_use_int_div,
+            scale_x_override=scale_h,
         )
 
     if method == "nearest_neighbor":
@@ -756,6 +785,7 @@ def resize2d(
     extrapolation_value=0.0,
     out_dtype=None,
     output_shape=None,
+    scales=None,
 ):
     """Perform resize operation on the data.
 
@@ -805,6 +835,12 @@ def resize2d(
         Shape to return. If left None will be inferred
         (If shape is determined dynamically, pass out_dtype.shape as output_shape)
 
+    scales: tuple or None
+        Explicit scale factors for coordinate transformation.
+        If not None, scales=[scale_h, scale_w] for 2D.
+        When provided, overrides the scale derived from input and output sizes.
+        Used by the ONNX frontend when a Resize node is driven by a "scales" input.
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -839,6 +875,9 @@ def resize2d(
         if isinstance(size[i], int):
             size[i] = tvm.tirx.IntImm("int32", size[i])
 
+    scale_h = (1.0 / scales[0]) if scales is not None else None
+    scale_w = (1.0 / scales[1]) if scales is not None else None
+
     def compute_func(*indices):
         return _resize_2d(
             indices,
@@ -856,6 +895,8 @@ def resize2d(
             exclude_outside=bicubic_exclude,
             extrapolation_value=extrapolation_value,
             out_dtype=out_dtype,
+            scale_h=scale_h,
+            scale_w=scale_w,
         )
 
     return te.compute(output_shape, compute_func, name="resize", tag=tag.INJECTIVE)
@@ -976,6 +1017,9 @@ def _resize_3d(
     alpha=-0.5,
     exclude_outside=0,
     out_dtype=None,
+    scale_d=None,
+    scale_h=None,
+    scale_w=None,
 ):
     """Perform resize operation on the data with selected method and options.
 
@@ -1066,9 +1110,33 @@ def _resize_3d(
     if boxes is not None:
         # TODO(mbrookhart): Find an example of this
         raise NotImplementedError("resize1d with image boxes not yet implemented")
-    in_z = get_inx(z, image_depth, target_depth, coordinate_transformation_mode, roi[2], roi[5])
-    in_y = get_inx(y, image_height, target_height, coordinate_transformation_mode, roi[1], roi[4])
-    in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode, roi[0], roi[3])
+    in_z = get_inx(
+        z,
+        image_depth,
+        target_depth,
+        coordinate_transformation_mode,
+        roi[2],
+        roi[5],
+        scale_x_override=scale_d,
+    )
+    in_y = get_inx(
+        y,
+        image_height,
+        target_height,
+        coordinate_transformation_mode,
+        roi[1],
+        roi[4],
+        scale_x_override=scale_h,
+    )
+    in_x = get_inx(
+        x,
+        image_width,
+        target_width,
+        coordinate_transformation_mode,
+        roi[0],
+        roi[3],
+        scale_x_override=scale_w,
+    )
 
     if method == "nearest_neighbor":
         if rounding_method == "":
@@ -1225,6 +1293,7 @@ def resize3d(
     extrapolation_value=0.0,
     out_dtype=None,
     output_shape=None,
+    scales=None,
 ):
     """Perform resize operation on the data.
 
@@ -1302,6 +1371,10 @@ def resize3d(
         if isinstance(size[i], int):
             size[i] = tvm.tirx.IntImm("int32", size[i])
 
+    scale_d = (1.0 / scales[0]) if scales is not None else None
+    scale_h = (1.0 / scales[1]) if scales is not None else None
+    scale_w = (1.0 / scales[2]) if scales is not None else None
+
     def compute_func(*indices):
         return _resize_3d(
             indices,
@@ -1321,6 +1394,9 @@ def resize3d(
             exclude_outside=bicubic_exclude,
             extrapolation_value=extrapolation_value,
             out_dtype=out_dtype,
+            scale_d=scale_d,
+            scale_h=scale_h,
+            scale_w=scale_w,
         )
 
     return te.compute(output_shape, compute_func, name="resize", tag=tag.INJECTIVE)
