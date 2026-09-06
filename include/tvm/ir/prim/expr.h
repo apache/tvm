@@ -545,8 +545,7 @@ class LetNode : public ExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LetNode>()
-        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
-        .def_ro("var", &LetNode::var, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("var", &LetNode::var, refl::AttachFieldFlag::SEqHashDefNonRecursive())
         .def_ro("value", &LetNode::value)
         .def_ro("body", &LetNode::body);
   }
