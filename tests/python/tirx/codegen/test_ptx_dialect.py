@@ -2419,6 +2419,10 @@ def test_ptx_tcgen05_mma_block_size_collector_form():
     _assert_ptxas_ok(collector_src, arch="sm_107f")
 
 
+@pytest.mark.skipif(
+    not env.has_nvcc_version(13, 4),
+    reason="collector-qualified block_scale MMA is a PTX 9.4 form; need nvcc >= 13.4",
+)
 @requires_nvcc
 def test_ptx_tcgen05_mma_block_scale_collector_a_without_block_size():
     """SM107 activation-stationary FP8 accepts collector A without `.block*`."""
