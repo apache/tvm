@@ -1166,6 +1166,44 @@ def test_multi_input_constant_single_input(op_name, shape):
     check_correctness(helper.make_model(graph), opset=13)
 
 
+@pytest.mark.parametrize("op_name", ["Min", "Max", "Sum", "Mean"])
+@pytest.mark.parametrize("num_inputs", [1, 2, 3])
+def test_multi_input_unknown_static_shape(op_name, num_inputs):
+    """An input with no static shape imports instead of raising len(None).
+
+    A Slice with runtime starts/ends lowers to R.dynamic_strided_slice, whose
+    struct info is R.Tensor(dtype=..., ndim=k) with shape None. That reaches
+    MultiInputBase, where compute_broadcast_shape used to call len() on it.
+    The model is valid ONNX and onnxruntime executes it.
+    """
+    slice_node = helper.make_node(
+        "Slice", ["x", "starts", "ends", "axes"], ["sliced"], name="slice0"
+    )
+    other_names = [f"y{i}" for i in range(num_inputs - 1)]
+    op_node = helper.make_node(op_name, ["sliced"] + other_names, ["output"], name="op0")
+
+    graph = helper.make_graph(
+        [slice_node, op_node],
+        f"slice_then_{op_name.lower()}",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [4, 3]),
+            helper.make_tensor_value_info("starts", TensorProto.INT64, [1]),
+            helper.make_tensor_value_info("ends", TensorProto.INT64, [1]),
+            helper.make_tensor_value_info("axes", TensorProto.INT64, [1]),
+        ]
+        + [
+            helper.make_tensor_value_info(name, TensorProto.FLOAT, [2, 3])
+            for name in other_names
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    onnx.checker.check_model(model, full_check=True)
+
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+    assert "dynamic_strided_slice" in str(tvm_model)
+
+
 @pytest.mark.parametrize("op_name", ["And", "Or", "Xor"])
 def test_binary_bool(op_name: str):
     verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.BOOL)
