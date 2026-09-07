@@ -19,6 +19,7 @@
 import pytest
 
 import tvm
+import tvm.testing
 from tvm import tirx
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
@@ -173,11 +174,4 @@ def test_storage_align_invalid_annotation():
 
 
 if __name__ == "__main__":
-    test_storage_align()
-    test_storage_align_update()
-    test_storage_align_invalid_factor1()
-    test_storage_align_invalid_factor2()
-    test_storage_align_invalid_buffer()
-    test_storage_align_invalid_buffer_index()
-    test_storage_align_invalid_axis()
-    test_storage_align_invalid_annotation()
+    tvm.testing.main()
