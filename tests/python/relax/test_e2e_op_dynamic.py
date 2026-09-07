@@ -24,7 +24,7 @@ import tvm.testing
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
 import tvm.topi.testing
-from tvm import relax
+from tvm import relax, tirx
 from tvm.relax.transform import LegalizeOps
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -44,6 +44,9 @@ def build(mod):
         ([0, 2, 4, 4], [5, 5, 7, 8], [1, 1, 2, 3]),
         ([0, 2, 4, 4], [5, 5, 11, 10], [1, 1, 1, 1]),
         ([0, 2, 10, 14], [0, 5, 1, 1], [1, 1, -1, -2]),
+        ([-2, 0, 0, 0], [8, 9, 10, 10], [1, 1, 1, 1]),
+        ([-58, 0, 0, 0], [8, 9, 10, 10], [1, 1, 1, 1]),
+        ([-1, 0, 0, 0], [-9, 9, 10, 10], [-1, 1, 1, 1]),
     ],
 )
 def test_dynamic_strided_slice(begin, end, strides):
@@ -75,6 +78,9 @@ def test_dynamic_strided_slice(begin, end, strides):
         ([0, 2, 4, 4], [5, 5, 7, 8], [1, 1, 2, 3]),
         ([0, 2, 4, 4], [5, 5, 11, 10], [1, 1, 1, 1]),
         ([0, 2, 10, 14], [0, 5, 1, 1], [1, 1, -1, -2]),
+        ([-2, 0, 0, 0], [8, 9, 10, 10], [1, 1, 1, 1]),
+        ([-58, 0, 0, 0], [8, 9, 10, 10], [1, 1, 1, 1]),
+        ([-1, 0, 0, 0], [-9, 9, 10, 10], [-1, 1, 1, 1]),
     ],
 )
 def test_dynamic_strided_slice_symbolic(begin, end, strides):
@@ -100,6 +106,35 @@ def test_dynamic_strided_slice_symbolic(begin, end, strides):
     out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides)
     out_nd = vm["main"](data_nd, begin_nd, end_nd, strides_nd)
     tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
+
+
+@pytest.mark.parametrize("begin_offset", [0, 1])
+def test_strided_slice_symbolic_out_of_bounds(begin_offset):
+    dim = tirx.Var("m", "int64")
+
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", relax.TensorType([dim], "float32"))
+
+    with bb.function("main", params=[x]):
+        with bb.dataflow():
+            y = bb.emit(
+                relax.op.strided_slice(
+                    x,
+                    axes=[0],
+                    begin=[dim + begin_offset],
+                    end=[-dim - 1],
+                    strides=[-1],
+                )
+            )
+            gv = bb.emit_output(y)
+        bb.emit_func_output(gv)
+
+    vm = build(bb.get())
+
+    x_np = np.arange(8, dtype=np.float32)
+    out = vm["main"](tvm.runtime.tensor(x_np, dev)).numpy()
+
+    tvm.testing.assert_allclose(out, x_np[::-1])
 
 
 if __name__ == "__main__":
