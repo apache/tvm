@@ -608,7 +608,7 @@ class BinaryBase(OnnxOpConverter):
                 if hasattr(output, "item"):
                     output = output.item()
                 return relax.prim_value(output)
-            if x.dtype == y.dtype:
+            if x.dtype == y.dtype and not _np.issubdtype(output.dtype, _np.bool_):
                 # no numpy precision widening
                 output = output.astype(x.dtype)
             if all([isinstance(inp, relax.Constant) for inp in inputs]):
