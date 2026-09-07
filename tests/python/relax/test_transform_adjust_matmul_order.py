@@ -564,6 +564,30 @@ class TestRHSPermuteDims(Base):
             return x
 
 
+class TestRHSPermuteDimsIdentity(Base):
+    """Do not treat an explicit identity permutation as a transpose.
+
+    `TestRHSPermuteDims` above covers the real transpose case.  Here, the
+    explicit axes preserve the inner matmul's order, so reassociation must not
+    insert transposes for its operands.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([2]),
+            A: R.Tensor([2, 1]),
+            B: R.Tensor([1, 2]),
+        ) -> R.Tensor([2]):
+            linear_weight: R.Tensor([2, 2]) = R.matmul(A, B)
+            matmul_weight: R.Tensor([2, 2]) = R.permute_dims(linear_weight, axes=[0, 1])
+            out: R.Tensor([2]) = R.matmul(x, matmul_weight)
+            return out
+
+    Expected = Before
+
+
 class TestRHSPermuteDimsDynamic(Base):
     """Prefer (x*A)*B instead of x*(A*B)
 
@@ -851,6 +875,33 @@ class TestAdjustMatmulOrderAttentionBlock:
         tvm.testing.assert_allclose(out_before, ref, rtol=1e-3, atol=1e-3)
         tvm.testing.assert_allclose(out_after, ref, rtol=1e-3, atol=1e-3)
         tvm.testing.assert_allclose(out_before, out_after, rtol=1e-5, atol=1e-5)
+
+    def test_identity_permute_dims_numerics(self):
+        bb = relax.BlockBuilder()
+        x = relax.Var("x", relax.TensorType((2,), "int32"))
+        A = relax.Var("A", relax.TensorType((2, 1), "int32"))
+        B = relax.Var("B", relax.TensorType((1, 2), "int32"))
+        with bb.function("main", [x, A, B]):
+            with bb.dataflow():
+                linear_weight = bb.emit(relax.op.matmul(A, B))
+                identity_weight = bb.emit(relax.op.permute_dims(linear_weight, axes=[0, 1]))
+                out = bb.emit_output(relax.op.matmul(x, identity_weight))
+            bb.emit_func_output(out)
+        mod = bb.finalize()
+        mod_opt = relax.transform.AdjustMatmulOrder()(mod)
+
+        inputs = [
+            np.array([-1, 3], dtype="int32"),
+            np.array([[2], [-4]], dtype="int32"),
+            np.array([[1, -3]], dtype="int32"),
+        ]
+        expected = np.array([-14, 42], dtype="int32")
+
+        out_before = self._run_relax_main(mod, inputs)
+        out_after = self._run_relax_main(mod_opt, inputs)
+
+        np.testing.assert_array_equal(out_before, expected)
+        np.testing.assert_array_equal(out_after, expected)
 
 
 if __name__ == "__main__":
