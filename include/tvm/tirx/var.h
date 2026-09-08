@@ -257,9 +257,10 @@ struct TypeTraits<tirx::PrimVar> : public ObjectRefTypeTraitsBase<tirx::PrimVar>
     if (src->type_index != tirx::VarNode::RuntimeTypeIndex()) {
       return false;
     }
-    const auto* var = static_cast<const tirx::VarNode*>(
-        details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj).get());
-    return details::AnyUnsafe::CheckAnyStrict<PrimType>(var->ExprNode::ty);
+    // Non-owning: a raw pointer and a borrowed view of `ty`; the owning forms cost two
+    // incref/decref pairs per check.
+    const auto* var = details::ObjectUnsafe::RawObjectPtrFromUnowned<tirx::VarNode>(src->v_obj);
+    return details::AnyUnsafe::CheckAnyViewStrict<PrimType>(AnyView(var->ExprNode::ty));
   }
 
   TVM_FFI_INLINE static std::optional<tirx::PrimVar> TryCastFromAnyView(const TVMFFIAny* src) {
