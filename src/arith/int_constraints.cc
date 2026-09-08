@@ -25,7 +25,7 @@
 #include <tvm/arith/int_solver.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>

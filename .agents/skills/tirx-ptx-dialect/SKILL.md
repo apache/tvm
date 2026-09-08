@@ -1,6 +1,6 @@
 ---
 name: tirx-ptx-dialect
-description: Register, extend, or audit instructions in the table-driven T.ptx dialect (python/tvm/backend/cuda/ptx/table.py), and move the table to a newer PTX ISA version (9.3, 9.4, ...). Use when adding a PTX instruction or qualifier, widening an operand domain, fixing a ptxas certification failure, or checking the table's comments against the PTX ISA document.
+description: Register, extend, or audit instructions in the table-driven T.ptx dialect (python/tvm/backend/cuda/ptx/table.py), and move the table to a newer PTX ISA version. Use when adding a PTX instruction or qualifier, widening an operand domain, fixing a ptxas certification failure, or checking the table's comments against the PTX ISA document.
 ---
 
 # TIRx PTX dialect (`T.ptx`)
@@ -74,7 +74,8 @@ the suite. The last one (what the comments claim) is audited by hand, §4.
   note with the reason for every syntax line or token deliberately left out.
   A fact that comes from ptxas rather than the document is marked `MEASURED`
   and quotes the ptxas message. Section and table numbers follow the ISA
-  version named in the module docstring (currently **PTX ISA 9.2**, see §5).
+  version named in the module docstring (currently **PTX ISA 9.4**, the CUDA
+  13.4 developer-preview document, see §5).
 
 ## 2. Designing the entry
 
@@ -130,7 +131,7 @@ Worked example — the whole registration of `movmatrix` (commit a29a5e97ba,
 4 files, 40 lines):
 
 ```python
-    # movmatrix per PTX ISA 9.7.14.5.17 -- transpose one distributed m8n8
+    # movmatrix per PTX ISA 9.7.16.5.17 -- transpose one distributed m8n8
     # matrix whose 16-bit elements are carried by one b32 register per lane.
     #
     #   movmatrix.sync.aligned.m8n8.trans.b16 d, a;
@@ -196,8 +197,9 @@ Run from the TVM repo root with the workspace `PYTHONPATH` (see `tir-test`).
    gate that proves the domain. It assembles every closed variant of every
    entry, split into 32 shards; pick 8, 16 or 32 workers to taste (each one
    drives its own nvcc; `-n auto` on a many-core box mostly burns memory).
-   ~3.5 min at `-n 16`, ~6.5 min at `-n 8` on the current B200 host for the
-   ~800k-variant PTX ISA 9.2 table.
+   ~3.5 min at `-n 16`, ~6.5 min at `-n 8` on a B200-class host for the
+   ~760k-variant PTX ISA 9.4 table (`test_ptx_all_variants_render_unique`
+   pins the exact count).
    ```bash
    PTX_CERT=1 python -m pytest -n 16 -q \
      tests/python/tirx/codegen/test_ptx_dialect.py::test_ptx_all_helpers_certify
@@ -227,82 +229,107 @@ ISA versions.
 ## 5. Toolchain and ISA-version model
 
 - The dialect targets the **ptxas of the installed CUDA toolkit**, not the
-  latest ISA document. CUDA 13.2's ptxas implements PTX ISA 9.2. Establish
+  latest ISA document. CUDA 13.4's ptxas implements PTX ISA 9.4. Establish
   what yours implements from ptxas itself — `nvcc -ptx` only shows the
   version the front end chose to emit, and `-ptx` never validates inline
   asm:
   ```bash
   command -v nvcc ptxas && nvcc --version | tail -1 && ptxas --version | tail -1
-  printf '.version 9.3\n.target sm_90\n.address_size 64\n.visible .entry k() { ret; }\n' \
-    | ptxas -arch=sm_90 - -o /dev/null  # CUDA 13.2: "Unsupported .version 9.3; current version is '9.2'"
+  printf '.version 9.4\n.target sm_107a\n.address_size 64\n.visible .entry k() { ret; }\n' \
+    | ptxas -arch=sm_107a - -o /dev/null   # CUDA 13.4: accepted
   ```
-  Then let the certification suite (which compiles real inline-asm helpers
-  to cubin) be the final word.
+  A `.version` directive above what ptxas implements is refused outright
+  ("Unsupported .version ...; current version is '9.4'"), which is the
+  quickest way to read a toolkit's ceiling. Then let the certification suite
+  (which compiles real inline-asm helpers to cubin) be the final word.
 - The table's citations follow that same version (module docstring of
-  `table.py`: "Section and table numbers cite PTX ISA 9.2", archive URL
-  `docs.nvidia.com/cuda/archive/13.2.0/parallel-thread-execution/`). The
-  live `docs.nvidia.com/cuda/parallel-thread-execution/` page is the newest
-  version and its numbering differs; every ISA version stays available
-  under `docs.nvidia.com/cuda/archive/<cuda version>/`.
+  `table.py`: "Section and table numbers cite PTX ISA 9.4", URL
+  `docs.nvidia.com/cuda/developer-preview/13.4/parallel-thread-execution/`;
+  once CUDA 13.4 ships, the stable copy is
+  `docs.nvidia.com/cuda/archive/13.4.0/parallel-thread-execution/`). The
+  live `docs.nvidia.com/cuda/parallel-thread-execution/` page is whatever
+  version is newest and its numbering differs; every ISA version stays
+  available under `docs.nvidia.com/cuda/archive/<cuda version>/`.
+- Every `MEASURED` clause in `table.py` / `render.py` names the toolkit it
+  was taken on (currently CUDA 13.4). A toolkit bump re-measures all of them
+  (§6 step 5); a clause that names an older toolkit is a bug.
 - Certification needs only `nvcc`/`ptxas`; the on-GPU round-trip tests need
   a driver that can load a cubin from that toolkit. A newer toolkit with an
   older driver can therefore certify a table but not run it.
 - `PTX_ARCH` (env, default `sm_90`) is the certification arch for entries
   without `cert_arch`.
 
-## 6. Moving the table to PTX ISA 9.3 (and later)
+## 6. Moving the table to a newer PTX ISA
 
 Do this as one commit series, in this order:
 
 1. **Toolchain first.** Install the CUDA toolkit whose ptxas implements the
-   target ISA and confirm via `.version`. Until then, a 9.3 form cannot be
-   registered: certification would fail, and a `check()` written against an
-   older ptxas would silently delete the coverage later.
-2. **Retarget the citations.** Update the module docstring's version
-   statement and archive URL, then renumber. Between 9.2 and 9.3 the shifts
-   are: chapter `9.7.10 Fabric Instructions` inserted (everything from
-   Texture onward moves +1: sync `9.7.13→9.7.14`, mma `9.7.14→9.7.15`, wgmma
-   `9.7.15→9.7.16`, tcgen05 `9.7.16→9.7.17`, misc `9.7.19→9.7.20`);
-   `9.7.1.5 clmad` inserted (integer instructions from `mul24` on move +1);
-   `9.7.9.13 multimem.st.async` inserted (data movement from `st.bulk` on
-   move +1); `9.7.14.8 multimem.red.async` inserted (sync instructions from
-   `vote` on move +1); the mbarrier chapter gains three descriptive
-   subsections (Layouts, Tracking successful completion, Report-on), so its
-   instruction subsections move +3 (`mbarrier.arrive` `9.7.13.15.13 →
-   9.7.14.16.16`) and `mbarrier.check_layout` is appended; global table
-   numbers shift (the tcgen05.ld/st register-count tables are 49/50 in 9.2
-   and 52/53 in 9.3).
-   Renumber intra-chapter subsections too, not just chapters, and re-run the
-   audit of §4 afterwards — a chapter-only shift was the exact mistake made
-   the first time this table changed versions.
-3. **Register the newly legal forms.** Per the 9.3 release notes (ISA
-   chapter 13.1) and the per-section "introduced in PTX ISA version 9.3"
-   notes, the forms this table currently leaves out because they are 9.3 are:
-   - `ld.mmio` with `.acquire`, `st.mmio` with `.release` (`_check_ld` /
-     `_check_st`: "PTX ISA 9.2 spells only relaxed");
-   - `clmad` (new integer family, 9.7.1 banner note);
-   - `multimem.st.async`, `multimem.red.async` (new families, 9.7.9 / sync
-     chapter);
-   - `.sem`/`.scope` on `cp.async.bulk`, `cp.reduce.async.bulk`,
-     `multimem.cp.async.bulk`, `multimem.cp.reduce.async.bulk` (new slots
-     on the cp.async.bulk entries);
-   - mbarrier: `.phase_type::*` on `test_wait`/`try_wait`, the
-     `waitComplete|reportPredicate{, reportValue}` report forms (new
-     entries — a second destination is a new shape), the `.layout` qualifier
-     on `mbarrier.init`/`pending_count`, and `mbarrier.check_layout` (new
-     family);
-   - `fence.proxy.to_proxykind::from_proxykind_fabric.alias.sem_fabric.sys`
-     (two new slots on the fence family; sm_100);
-   - the `fabric.*` instructions (a whole new chapter; new families).
-   Each one: read the section, apply §2, then §3 including full
-   certification at the right `cert_arch`.
-4. **Do not widen operand carriers from the ISA's relaxed-typing tables
-   without certifying.** ISA §9.4.1 Tables 27/28 are an upper bound and say
-   so ("some combinations may still be invalid for a particular
-   instruction"); ptxas rejects, for example, any `cvt` that pairs a `.bf16`
-   operand with a wider register on the other side, and 128-bit carriers on
-   several `.ftz` conversions. The `_cvt_dst_dtypes` / `_cvt_src_dtypes`
-   docstrings in `table.py` record the measured gaps; a version bump must
-   re-run certification and re-measure them, because gaps can close.
-5. Regenerate the stub, update the variant count, run the full suite, and
-   run the §4 audit against the new document before merging.
+   target ISA and confirm via `.version` (§5). Until then, a new form cannot
+   be registered: certification would fail, and a `check()` written against
+   an older ptxas would silently delete the coverage later.
+2. **Build the section map structurally, from both TOCs.** Dump both HTML
+   documents to text, extract the two tables of contents (`<num> <title>`),
+   and derive a `rule(old) -> new` function from where the new version
+   inserted sections; cross-check it by asserting every old `9.7.*` entry
+   maps to an identically titled new entry. Never trust title matching
+   alone (duplicate titles such as "mov" x2 or "Async Proxy" x2 collide) and
+   never shift chapters only — a chapter-only shift was the exact mistake
+   made the first time this table changed versions.
+3. **Retarget the citations.** Update the module docstring's version
+   statement and URL, then run the renumbering over `table.py`,
+   `engine.py`, `render.py`, `tests/python/tirx/codegen/test_ptx_*.py` and
+   `test_codegen_cuda.py`, skipping any block that already carries the new
+   numbering (`_PTX_94_ENTRIES` was such a block for 9.3→9.4). Hand-fix the
+   forms a regex cannot: ranges that span an insertion (`9.7.x.a-b`), brace
+   groups (`9.7.4.{1,2,3}`), sibling shorthand (`.12`, `/ .17`), global
+   `Table NN` numbers, and `:line` offsets (re-derive against the new
+   section text from the quoted sentence, or drop the offset and keep the
+   quote). Then regenerate the stub (§3).
+4. **Register the newly legal forms.** Read the new version's release notes
+   (ISA chapter 13.1) and the per-section "introduced in PTX ISA version
+   X.Y" notes; each one: read the section, apply §2, then §3 including full
+   certification at the right `cert_arch`. Keep the new version's additions
+   grouped (the `_PTX_94_ENTRIES` list is the 9.4 group).
+5. **Re-measure every `MEASURED` clause on the new toolkit** and reword it
+   to name that toolkit. Registered forms are re-proven by full
+   certification; excluded forms need a targeted probe each (raw PTX through
+   `ptxas -arch=<a>` for grammar claims, an exact force-inlined kernel
+   through `nvcc` for crash claims — `test_ptx_dialect._certification_kernel`
+   builds that shape). Quote the diagnostic the new ptxas actually prints;
+   texts change between releases. If a gap has closed, either widen the
+   domain with certification or say so in the clause — never leave a
+   sentence that attributes the restriction to a toolkit you no longer use.
+   ISA §9.4.1 Tables 27/28 are an upper bound and say so ("some combinations
+   may still be invalid for a particular instruction"); the `_cvt_dst_dtypes`
+   / `_cvt_src_dtypes` docstrings record the measured gaps.
+6. Regenerate the stub, update the variant/address counts the tests pin,
+   run the full suite, and run the §4 audit against the new document before
+   merging.
+
+Worked example, PTX ISA 9.3 → 9.4:
+
+- 9.4 inserted chapter `9.7.6 Alternate Floating-Point Instructions`, so
+  every `9.7.N` with N ≥ 6 became `9.7.(N+1)` (comparison `9.7.6→9.7.7`,
+  data movement `9.7.9→9.7.10`, fabric `9.7.10→9.7.11`, sync
+  `9.7.14→9.7.15`, mma `9.7.15→9.7.16`, wgmma `9.7.16→9.7.17`, tcgen05
+  `9.7.17→9.7.18`, misc `9.7.20→9.7.21`).
+- Inside data movement, `applypriority.async.bulk[.tensor]` were inserted as
+  `9.7.10.18/19`, so `9.7.9.18..27 → 9.7.10.20..29` (+2), and "Overriding
+  tensor property value" as `9.7.10.28.5.2`, so
+  `9.7.9.26.5.2..4 → 9.7.10.28.5.3..5`.
+- Inside tcgen05, "Decompression of input matrices" became `9.7.18.10.8`,
+  so `9.7.17.10.8.x → 9.7.18.10.9.x` and `9.7.17.10.9.x → 9.7.18.10.10.x`.
+- Global tables: tcgen05.ld/st register-count tables `52/53 → 59/61`,
+  tensormap `new_val` validity `33 → 36`; the relaxed-typing tables `27/28`
+  kept their numbers.
+- Two files still carried 9.2 numbering (`test_ptx_cvt.py`, `render.py`:
+  cvt as `9.7.9.21`, which in 9.3 is cvta) — check every file's baseline
+  before mapping it.
+- Toolchain facts that changed on 13.4: the `.L2::cache_hint` diagnostics
+  on `.shared`/`.local`/`.volatile`, the bare
+  `clusterlaunchcontrol.query_cancel` diagnostic, `multimem.st.async`
+  accepting 16/32-bit sources for its byte forms, and the bf16 atom
+  bit-bucket forms compiling again (still withheld pending certification).
+- 9.4-only sections worth registering later: `9.7.6.1-4` (alternate FP
+  x4 arithmetic, sm_100a/sm_103a), `9.7.10.28.1.3` (report mechanisms),
+  `9.7.18.10.7.2.6 / .3.6` (block16 K=128/256 scale layouts).

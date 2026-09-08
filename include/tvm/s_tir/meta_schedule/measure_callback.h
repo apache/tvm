@@ -24,6 +24,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/base.h>
 #include <tvm/s_tir/meta_schedule/builder.h>
 #include <tvm/s_tir/meta_schedule/measure_candidate.h>
@@ -33,6 +34,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 class TaskScheduler;

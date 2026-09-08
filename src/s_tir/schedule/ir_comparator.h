@@ -19,6 +19,8 @@
 #ifndef TVM_S_TIR_SCHEDULE_IR_COMPARATOR_H_
 #define TVM_S_TIR_SCHEDULE_IR_COMPARATOR_H_
 
+#include <tvm/ir/prim/expr.h>
+
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -28,6 +30,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using ExprComparator = ExprFunctor<bool(const Expr& n, const PrimExpr& other)>;
@@ -75,7 +78,7 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool VisitExpr_(const FloatImmNode* op, const PrimExpr& other) override;
   bool VisitExpr_(const CastNode* op, const PrimExpr& other) override;
   bool VisitExpr_(const VarNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const BufferLoadNode* op, const PrimExpr& other) override;
+  bool VisitExpr_(const TensorLoadNode* op, const PrimExpr& other) override;
   bool VisitExpr_(const SelectNode* op, const PrimExpr& other) override;
 
   /*! \brief Map from RHS buffer to LHS buffer */
@@ -142,7 +145,7 @@ class AutoTensorizeComparator : public TensorizeComparator {
   bool VisitStmt_(const SBlockNode* op, const Stmt& other) override;
   bool VisitStmt_(const BufferStoreNode* op, const Stmt& other) override;
 
-  bool VisitExpr_(const BufferLoadNode* op, const PrimExpr& other) override;
+  bool VisitExpr_(const TensorLoadNode* op, const PrimExpr& other) override;
 
   bool CompareBuffer(const BufferVar& lhs, const BufferVar& rhs) override;
   template <typename T>

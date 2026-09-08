@@ -391,5 +391,83 @@ def test_decompose_reduction_with_thread_binding():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+def test_decompose_reduction_preserves_general_spatial_predicates():
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((8, 8), "float32"), B: T.Buffer((8,), "float32")):
+            for i, k in T.grid(10, 10):
+                with T.sblock("B"):
+                    T.where(1 <= i and i < 9 and 1 <= k and k < 9)
+                    vi = T.axis.spatial(8, i - 1)
+                    vk = T.axis.reduce(8, k - 1)
+                    with T.init():
+                        B[vi] = T.float32(0)
+                    B[vi] += A[vi, vk]
+
+    @I.ir_module(s_tir=True)
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((8, 8), "float32"), B: T.Buffer((8,), "float32")):
+            for i_init in range(10):
+                with T.sblock("B_init"):
+                    T.where(1 <= i_init and i_init < 9)
+                    vi = T.axis.spatial(8, i_init - 1)
+                    B[vi] = T.float32(0)
+            for i, k in T.grid(10, 10):
+                with T.sblock("B_update"):
+                    T.where(1 <= i and i < 9 and 1 <= k and k < 9)
+                    vi = T.axis.spatial(8, i - 1)
+                    vk = T.axis.reduce(8, k - 1)
+                    B[vi] += A[vi, vk]
+
+    sch = tvm.s_tir.Schedule(Before)
+    i, _ = sch.get_loops("B")
+    sch.decompose_reduction("B", i)
+    tvm.ir.assert_structural_equal(sch.mod, Expected)
+
+
+def test_decompose_reduction_drops_mixed_rfactor_bound():
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((20,), "float32"), B: T.Buffer((), "float32")):
+            for k in range(20):
+                with T.sblock("B"):
+                    vk = T.axis.reduce(20, k)
+                    with T.init():
+                        B[()] = T.float32(0)
+                    B[()] += A[vk]
+
+    @I.ir_module(s_tir=True)
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((20,), "float32"), B: T.Buffer((), "float32")):
+            B_rf = T.sblock_alloc_buffer((16,), elem_offset=T.int64(0))
+            for k_1_init in range(16):
+                with T.sblock("B_rf_init"):
+                    vk_1 = T.axis.spatial(16, k_1_init)
+                    B_rf[vk_1] = T.float32(0)
+            for k_0, k_1 in T.grid(2, 16):
+                with T.sblock("B_rf_update"):
+                    vk_1, vk_0 = T.axis.remap("SR", [k_1, k_0])
+                    T.where(k_0 * 16 + k_1 < 20)
+                    B_rf[vk_1] += A[vk_0 * 16 + vk_1]
+            for k_1 in range(16):
+                with T.sblock("B"):
+                    vk_1 = T.axis.reduce(16, k_1)
+                    with T.init():
+                        B[()] = T.float32(0)
+                    B[()] += B_rf[vk_1]
+
+    sch = tvm.s_tir.Schedule(Before)
+    (k,) = sch.get_loops("B")
+    _, k_1 = sch.split(k, factors=[None, 16])
+    rf = sch.rfactor(k_1, 0)
+    k_0, _ = sch.get_loops(rf)
+    sch.decompose_reduction(rf, k_0)
+    tvm.ir.assert_structural_equal(sch.mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

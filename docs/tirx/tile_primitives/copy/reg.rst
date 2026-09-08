@@ -15,15 +15,18 @@
     specific language governing permissions and limitations
     under the License.
 
-copy → reg
-==========
+copy → vec_auto register path
+==============================
 
-The ``reg`` variant lowers a synchronous ``copy`` where **exactly one side is a
-register** (``local``) buffer and the other is ``shared*`` or ``global``. Unlike
-:doc:`gmem_smem`, the partition is **not synthesized** — it is *induced* by the
-register operand's layout: that layout's thread-axis iters already say which thread
-owns which logical coordinate, so the dispatch drops those axes, leaves each thread
-its private bundle of elements, and copies them in a vectorized serial loop. Source:
+The register implementation path inside the registered ``vec_auto`` variant
+lowers a synchronous ``copy`` where **exactly one side is a register** (``local``)
+buffer and the other is ``shared*`` or ``global``.  It is not a separate
+``reg`` dispatch name; automatic selection or ``dispatch="vec_auto"`` reaches
+this path.  Unlike :doc:`gmem_smem`, the partition is **not synthesized** — it is
+*induced* by the register operand's layout: that layout's thread-axis iters
+already say which thread owns which logical coordinate, so the dispatch drops
+those axes, leaves each thread its private bundle of elements, and copies them
+in a vectorized serial loop. Source:
 ``python/tvm/backend/cuda/tile_primitive/copy/vec_auto_reg.py``.
 
 What it accepts
@@ -62,9 +65,9 @@ What it accepts
        ``(local, global)`` / ``(global, local)`` — exactly one side is ``local``
    * - register layout
      - ``_r_side_layout_valid``: the ``local`` operand is a non-swizzle
-       ``TileLayout`` whose thread-axis iters have **stride 1**, a register-level
-       subscope no wider than the exec scope, and a **zero sliced thread offset**
-       (the region doesn't split a thread axis)
+       ``TileLayout`` whose thread axes have a register-level subscope no wider
+       than the exec scope and a **zero sliced thread offset** (the region does
+       not start partway through a thread partition)
    * - other side
      - ``_s_side_slice_ok``: the ``shared*`` / ``global`` operand slices cleanly to
        its region
@@ -85,17 +88,17 @@ contiguous elements). From ``test_reg.py``:
     s_layout = TileLayout(S[shape])
     fs = (slice(0, 32), slice(0, 8))
 
-    @T.prim_func
-    def kernel(B_ptr: T.handle):
-        B = T.match_buffer(B_ptr, shape, dtype)
-        T.device_entry(); T.cta_id([1]); T.lane_id([32]); tid = T.thread_id([32])
-        A_smem = T.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
-        for kk in range(8): A_smem[tid, kk] = T.cast(tid * 100 + kk + 1, dtype)
-        T.cuda.cta_sync()
-        R = T.alloc_buffer(shape, dtype, scope="local", layout=r_layout)
-        Tx.warp.copy(R[fs], A_smem[fs])    # shared -> register  (this dispatch)
+    @Tx.prim_func
+    def kernel(B_ptr: Tx.handle):
+        B = Tx.match_buffer(B_ptr, shape, dtype)
+        Tx.device_entry(); Tx.cta_id([1]); Tx.lane_id([32]); tid = Tx.thread_id([32])
+        A_smem = Tx.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
+        for kk in range(8): A_smem[tid, kk] = Tx.cast(tid * 100 + kk + 1, dtype)
+        Tx.cuda.cta_sync()
+        R = Tx.alloc_buffer(shape, dtype, scope="local", layout=r_layout)
+        Tx.tile.warp.copy(R[fs], A_smem[fs])    # shared -> register  (this dispatch)
         # ... clear A_smem, cta_sync ...
-        Tx.warp.copy(A_smem[fs], R[fs])    # register -> shared  (this dispatch)
+        Tx.tile.warp.copy(A_smem[fs], R[fs])    # register -> shared  (this dispatch)
         # ... cta_sync; B[tid, kk] = A_smem[tid, kk] ...
 
 Algorithm
@@ -115,21 +118,22 @@ which thread owns which element — and never appear in a single thread's physic
 address). For ``8`` contiguous ``float32`` that is ``vec = 4``, so ``outer = 2``.
 
 **3. Per-thread base offset + serial loop.** The shared-side base offset is built
-from thread-axis placeholders (substituted with the real ``T.lane_id()`` etc.),
+from thread-axis placeholders (substituted with the real ``Tx.lane_id()`` etc.),
 and the register side is a flat per-thread ``local`` buffer. The emit is a serial
-loop (not ``T.unroll`` — same flooding rationale as :doc:`gmem_smem`):
+loop (not ``Tx.unroll`` — same flooding rationale as :doc:`gmem_smem`):
 
 .. code-block:: python
 
     r_local = r_buf.local()                      # raw per-thread physical span
+    r_words = r_local.view(reg_dtype)            # PTX register-container view
     for f in range(total_outer):
         ds, dr = _outer_const_offsets(outer, f)               # shared / reg deltas
         s_ptr = _ptr_off(s_buf.ptr_to(s_zero_indices), _s_iter_off(f, ds, s_off))
-        r_ptr = _ptr_off(r_local.ptr_to([0]), r_off_base + dr)
+        r_w = (r_off_base + dr) * words_per_elem // elems_per_word
         if r_is_src:
-            copy_op(s_ptr, r_ptr)     # register -> shared/global
+            Tx.ptx[st_chain](s_ptr, *[r_words[r_w + i] for i in range(lanes)])
         else:
-            copy_op(r_ptr, s_ptr)     # shared/global -> register
+            Tx.ptx[ld_chain](*[r_words[r_w + i] for i in range(lanes)], s_ptr)
 
 ``dr`` and ``r_off_base`` are physical storage offsets, so the register alias
 must use the raw-span ``local()`` view.  This remains correct when storage
@@ -140,30 +144,30 @@ Generated TIRx IR
 -----------------
 
 ``LowerTIRx`` turns the shared → register copy into a per-thread loop over the
-8-element register bundle (trimmed):
+8-element local bundle (trimmed):
 
 .. code-block:: python
 
-    r_local = T.decl_buffer((8,), data=R.data, scope="local")   # 8 regs / lane
+    r_local = Tx.decl_buffer((8,), data=R.data, scope="local")   # 8 fp32 elements / lane
+    r_words = r_local.view("uint32")
     for f in range(2):                                           # outer = 8 / vec 4
         s_ptr = pointer_offset(A_smem, ...)                      # this lane's row
-        r_ptr = pointer_offset(r_local, dr)
-        T.cuda.copy_bytes(r_ptr, s_ptr, 16)                      # 16 B = vec 4 × 4 B
+        r_w = f * 4
+        Tx.ptx.ld.shared.v4.u32(
+            r_words[r_w], r_words[r_w + 1], r_words[r_w + 2], r_words[r_w + 3], s_ptr
+        )
 
-(The register → shared copy is the mirror: ``copy_bytes(s_ptr, r_ptr, 16)``.)
+(The register-to-shared copy uses ``Tx.ptx.st.shared.v4.u32`` with the pointer
+first, followed by the four register-container operands.)
 
-Generated CUDA
---------------
+Generated PTX instruction
+-------------------------
 
-.. code-block:: c++
+The CUDA code generator emits the vector load directly::
 
-    alignas(64) float r_local_ptr[8];          // 8 registers, private to the lane
-    for (int f = 0; f < 2; ++f) {
-      void* r_ptr = tvm_builtin_pointer_offset(&r_local_ptr[0], dr);
-      void* s_ptr = tvm_builtin_pointer_offset(&A_smem_ptr[0], /* lane row + f*4 */);
-      tvm_builtin_copy_128b(r_ptr, s_ptr);     // shared -> register
-    }
-    // ... register -> shared mirror writes A_smem back ...
+    ld.shared.v4.u32 {r0, r1, r2, r3}, [s_ptr];
+
+The reverse direction emits ``st.shared.v4.u32 [s_ptr], {r0, r1, r2, r3};``.
 
 Each lane copies its own 8 elements as 2 × 128-bit transfers; no cross-lane
 addressing appears because the thread partition was resolved away at lowering.
@@ -172,7 +176,8 @@ How inputs change the algorithm
 -------------------------------
 
 The register layout's **per-thread element count** (the non-thread extents — here
-``k``) and the **dtype** set the register count, vector width, and round count:
+``k``) and the **dtype** set the local element count, PTX container count, vector
+width, and round count:
 
 .. list-table::
    :header-rows: 1
@@ -180,7 +185,7 @@ The register layout's **per-thread element count** (the non-thread extents — h
 
    * - dtype
      - ``k``
-     - regs / lane
+     - elements / lane
      - ``vec``
      - ``outer = k / vec``
    * - ``float32``
@@ -204,8 +209,8 @@ The register layout's **per-thread element count** (the non-thread extents — h
      - 8
      - 2
 
-The copy is always a 128-bit transfer (``copy_bytes = 16``) when the contiguous
-tail allows. The **scope** sets the thread axis (``warp`` → ``laneid``, ``cta`` →
-``tx``, …) the register layout must use; a different R layout (e.g. a strided or
-multi-row ownership) changes which elements each lane holds and therefore the atom
-list and ``outer``.
+The copy uses a 128-bit ``v4.u32`` load or store when the contiguous tail allows.
+The **scope** sets the thread axis (``warp`` → ``laneid``, ``cta`` → ``tx``, …) the
+register layout must use; a different R layout (e.g. a strided or multi-row
+ownership) changes which elements each lane holds and therefore the atom list and
+``outer``.

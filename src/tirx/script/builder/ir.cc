@@ -22,12 +22,13 @@
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/script/builder/ir.h>
 #include <tvm/tirx/tile_primitive.h>
@@ -152,10 +153,10 @@ BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
       }
     }
     TVM_FFI_THROW(InternalError) << "ValueError: Can not bind non-input param to buffer.";
-  } else if (const auto* buffer_load = param.as<tvm::tirx::BufferLoadNode>()) {
+  } else if (const auto* buffer_load = param.as<TensorLoadNode>()) {
     SBlockFrame frame = FindSBlockFrame("T.match_buffer");
     frame->match_buffers.push_back(tvm::tirx::MatchBufferRegion(
-        buffer, BufferRegionFromLoad(ffi::GetRef<tvm::tirx::BufferLoad>(buffer_load))));
+        buffer, BufferRegionFromLoad(ffi::GetRef<tvm::TensorLoad>(buffer_load))));
   } else if (const auto* buffer_region = param.as<tvm::tirx::BufferRegionNode>()) {
     SBlockFrame frame = FindSBlockFrame("T.match_buffer");
     frame->match_buffers.push_back(
@@ -293,7 +294,7 @@ void Reads(ffi::Array<ffi::ObjectRef> buffer_slices) {
   for (const ffi::ObjectRef& obj : buffer_slices) {
     if (auto buffer_region = obj.as<BufferRegion>()) {
       reads.push_back(buffer_region.value());
-    } else if (auto buffer_load = obj.as<BufferLoad>()) {
+    } else if (auto buffer_load = obj.as<TensorLoad>()) {
       reads.push_back(BufferRegionFromLoad(buffer_load.value()));
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid type for buffer reads.";
@@ -313,7 +314,7 @@ void Writes(ffi::Array<ffi::ObjectRef> buffer_slices) {
   for (const ffi::ObjectRef& obj : buffer_slices) {
     if (auto buffer_region = obj.as<BufferRegion>()) {
       writes.push_back(buffer_region.value());
-    } else if (auto buffer_load = obj.as<BufferLoad>()) {
+    } else if (auto buffer_load = obj.as<TensorLoad>()) {
       writes.push_back(BufferRegionFromLoad(buffer_load.value()));
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid type for buffer writes.";
@@ -523,7 +524,7 @@ PrimExpr ConvertLoopBound(const PrimExpr& e, const PrimType& var_ty) {
   if (const auto* imm = e.as<IntImmNode>()) {
     return tvm::IntImm(var_ty, imm->value);
   }
-  return tvm::tirx::Cast(var_ty, e);
+  return tvm::prim::Cast(var_ty, e);
 }
 
 #define TVM_TIRX_IR_BUILDER_FOR_FRAME(Method, Kind)                                        \
@@ -635,10 +636,10 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
                    ffi::Array<ffi::String> message_parts) {
   ffi::ObjectPtr<AssertFrameNode> n = ffi::make_object<AssertFrameNode>();
   n->condition = condition;
-  n->error_kind = tvm::tirx::StringImm(error_kind);
-  ffi::Array<tvm::tirx::StringImm> parts;
+  n->error_kind = tvm::prim::StringImm(error_kind);
+  ffi::Array<tvm::prim::StringImm> parts;
   for (const auto& p : message_parts) {
-    parts.push_back(tvm::tirx::StringImm(p));
+    parts.push_back(tvm::prim::StringImm(p));
   }
   n->message_parts = parts;
   return AssertFrame(n);
@@ -784,8 +785,7 @@ Var EnvThread(ffi::String thread_tag, PrimType dtype) {
   return var;
 }
 
-void BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
-                 ffi::Optional<PrimExpr> predicate = std::nullopt) {
+void BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices) {
   PrimType buffer_dtype = buffer->dtype;
   PrimType index_ty = indices.empty() ? PrimType::Int(32) : indices.back().ty();
   bool is_index_scalable = !indices.empty() && index_ty.IsScalableVector();
@@ -833,7 +833,7 @@ void BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
     }
     value = tvm::cast(lhs_dtype, value);
   }
-  tvm::tirx::BufferStore store(buffer, value, indices, predicate);
+  tvm::tirx::Stmt store = tvm::tirx::BufferStore(buffer, value, indices);
   if (lhs_dtype != rhs_dtype) {
     if (lhs_dtype.code() != rhs_dtype.code()) {
       if ((lhs_dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) &&
@@ -922,11 +922,10 @@ Var Ptr(PrimType dtype, ffi::String storage_scope = "global") {
 using tvm::script::ir_builder::details::Namer;
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<tvm::tirx::BufferLoadNode>([](const ffi::ObjectRef& node,
-                                                ffi::String name) -> void {
+    .set_dispatch<TensorLoadNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
       using namespace tvm::tirx;
-      BufferLoadNode* buffer = const_cast<BufferLoadNode*>(node.as<BufferLoadNode>());
-      Namer::Name(buffer->buffer, name);
+      TensorLoadNode* buffer = const_cast<TensorLoadNode*>(node.as<TensorLoadNode>());
+      Namer::Name(buffer->source.as_or_throw<tvm::tirx::BufferVar>(), name);
     });
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)

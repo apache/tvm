@@ -24,6 +24,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -425,6 +426,7 @@ void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const
 }  // namespace s_tir
 
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 using s_tir::Schedule;

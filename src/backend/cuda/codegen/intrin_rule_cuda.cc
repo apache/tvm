@@ -22,6 +22,7 @@
  * \brief CUDA intrinsic rules.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op_attr_types.h>
 

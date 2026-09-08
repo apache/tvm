@@ -42,14 +42,14 @@ namespace codegen {
 
 class CodeGenX86_64 final : public CodeGenCPU {
  public:
-  llvm::Value* VisitExpr_(const CastNode* op) override;
+  llvm::Value* VisitExpr_(const prim::CastNode* op) override;
 
  private:
   llvm::Value* CallVectorIntrin(llvm::Intrinsic::ID id, size_t intrin_lanes, llvm::Type* result_ty,
                                 const std::vector<llvm::Value*>& args);
 };
 
-llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
+llvm::Value* CodeGenX86_64::VisitExpr_(const prim::CastNode* op) {
   // LLVM does not automatically generate the correct instruction sequences for
   // half -> float conversion (i.e. using AVX2/AVX-512 vectorized variants of
   // vcvtph2ps), so we explicitly generate them ourselves.
@@ -69,7 +69,7 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
               MakeValue(
                   Call(PrimType::Int(16, from.lanes()), tirx::builtin::reinterpret(), {op->value})
                       .as_or_throw<PrimExpr>()),
-              MakeValue(tirx::Broadcast(FloatImm(PrimType::Float(32), 0), from.lanes())),
+              MakeValue(prim::Broadcast(FloatImm(PrimType::Float(32), 0), from.lanes())),
               /*mask=*/MakeValue(IntImm(PrimType::Int(16), -1)),
               /*rounding-mode=*/MakeValue(IntImm::Int32(4)),
           });

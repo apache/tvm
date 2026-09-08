@@ -21,16 +21,18 @@ Installation
 There are two pieces:
 
 - the **TIRx compiler** (``tvm.tirx``), which ships inside Apache TVM — this is
-  all you need to write and compile kernels;
-- the optional **kernel library** (``tirx-kernels``), a set of ready-made GEMM
-  and attention kernels built with TIRx.
+  the authoring, IR, lowering, and backend infrastructure. Compiling or running
+  for a particular target also requires a TVM build with that target enabled;
+- the optional **kernel library** (``tirx-kernels``), a collection of ready-made
+  kernels and benchmark infrastructure built with TIRx.
 
 Requirements
 ------------
 
 - Python ≥ 3.10.
-- An NVIDIA GPU with a recent CUDA toolkit. The bundled kernels target Blackwell
-  (``sm_100a``); the compiler itself targets GPUs and accelerators more broadly.
+- For the CUDA programming guide and bundled kernels: a CUDA-enabled TVM build,
+  an NVIDIA driver, and a compatible CUDA toolkit. The bundled kernels target
+  Blackwell (``sm_100a``); TIRx itself also supports other target backends.
 
 Install the TIRx compiler
 -------------------------
@@ -41,6 +43,12 @@ Install the Apache TVM wheel (the TIRx compiler is the ``tvm.tirx`` module):
 
    pip install apache-tvm
 
+The wheel is enough to inspect and author TIRx IR. Some CUDA workflows also
+need NVIDIA's Python CUDA bindings, available through ``apache-tvm[cuda]``.
+That extra does not enable CUDA in the TVM library and does not install a driver
+or toolkit. To compile and run the CUDA examples, use a TVM build configured
+with ``USE_CUDA=ON``; see :ref:`install TVM from source <install-from-source>`.
+
 Verify:
 
 .. code-block:: bash
@@ -50,9 +58,13 @@ Verify:
 Install the kernel library (optional)
 -------------------------------------
 
-``tirx-kernels`` provides prebuilt kernels (``fp16_bf16_gemm``,
-``fp8_blockwise_gemm``, ``nvfp4_gemm``, ``flash_attention4``). It has no PyPI
-wheel — install it from source:
+Install the latest ``tirx-kernels`` release from PyPI:
+
+.. code-block:: bash
+
+   pip install tirx-kernels
+
+Or install a checkout for development:
 
 .. code-block:: bash
 
@@ -60,28 +72,19 @@ wheel — install it from source:
    cd tirx-kernels
    pip install -e .
 
-Its runtime dependencies are **not** pulled from PyPI and must be available
-separately (they are imported lazily, so ``import tirx_kernels`` and kernel
-discovery work without them — they are only needed to actually compile/run a
-kernel):
+Apache TVM and PyTorch are externally managed runtime/compiler dependencies;
+installing ``tirx-kernels`` does not install them. Put a TIRx-enabled TVM on
+``PYTHONPATH`` and use a CUDA build of PyTorch matching the system. Individual
+correctness tests and reference baselines need additional upstream projects.
+For a source checkout, install their pinned, mutually compatible revisions with:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 18 24 58
+.. code-block:: bash
 
-   * - Dependency
-     - Needed by
-     - Notes
-   * - ``tvm.tirx``
-     - all kernels
-     - the TIRx compiler (installed above, or put a source checkout's
-       ``python/`` on ``PYTHONPATH``)
-   * - ``torch``
-     - all kernels
-     - a CUDA build matching your GPU
-   * - ``deep_gemm``
-     - ``fp8_blockwise_gemm``
-     - optional — quantization helpers and the reference baseline
-   * - ``flashinfer``
-     - ``nvfp4_gemm``
-     - optional — quantization and the baseline
+   python scripts/install_reference_dependencies.py
+
+The kernel registry and reference dependency set evolve independently of TVM.
+Use ``python -m tirx_kernels.registry --format json`` for the installed kernel
+list, and consult the `tirx-kernels README
+<https://github.com/mlc-ai/tirx-kernels#readme>`_ and
+``reference-dependencies.json`` in that repository for current optional
+requirements.

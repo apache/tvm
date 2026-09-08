@@ -582,6 +582,56 @@ def test_concat_with_param_tensor_keeps_runtime_param():
     np.testing.assert_array_equal(params["main"][0].numpy(), weight_np)
 
 
+@pytest.mark.parametrize(
+    "op_name,np_op",
+    [
+        ("Less", np.less),
+        ("LessOrEqual", np.less_equal),
+        ("Greater", np.greater),
+        ("GreaterOrEqual", np.greater_equal),
+    ],
+)
+@pytest.mark.parametrize("np_dtype", ["int32", "float32"])
+def test_constant_comparison_outputs_bool(op_name, np_op, np_dtype):
+    a_np = np.array([[1], [5]], dtype=np_dtype)
+    b_np = np.array([[3]], dtype=np_dtype)
+    rhs_np = np.array([[3]], dtype=np_dtype)
+    graph = helper.make_graph(
+        [
+            helper.make_node("Identity", ["d"], ["dummy"]),
+            helper.make_node("Concat", ["a", "b"], ["lhs"], axis=0),
+            helper.make_node(op_name, ["lhs", "rhs"], ["y"]),
+        ],
+        "constant_comparison",
+        [helper.make_tensor_value_info("d", TensorProto.INT32, [1])],
+        [
+            helper.make_tensor_value_info("y", TensorProto.BOOL, [3, 1]),
+            helper.make_tensor_value_info("dummy", TensorProto.INT32, [1]),
+        ],
+        initializer=[
+            numpy_helper.from_array(a_np, "a"),
+            numpy_helper.from_array(b_np, "b"),
+            numpy_helper.from_array(rhs_np, "rhs"),
+        ],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)], ir_version=9)
+    onnx.checker.check_model(model)
+
+    mod = from_onnx(model, opset=18, shape_dict={"d": [1]}, keep_params_in_input=False)
+    constants = []
+
+    def collect_constants(expr):
+        if isinstance(expr, relax.Constant):
+            constants.append(expr.data.numpy())
+
+    relax.analysis.post_order_visit(mod["main"].body, collect_constants)
+    folded_outputs = [arr for arr in constants if arr.shape == (3, 1)]
+    assert len(folded_outputs) == 1
+    expected = np_op(np.concatenate([a_np, b_np], axis=0), rhs_np)
+    np.testing.assert_array_equal(folded_outputs[0], expected)
+    assert folded_outputs[0].dtype == np.dtype("bool")
+
+
 @pytest.mark.parametrize("op_name", ["Add", "Sub", "Mul", "Div", "Pow"])
 def test_binary(op_name: str):
     verify_binary(op_name, [1, 32], [1, 32], [1, 32])
@@ -1164,6 +1214,44 @@ def test_multi_input_constant_single_input(op_name, shape):
         outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, shape)],
     )
     check_correctness(helper.make_model(graph), opset=13)
+
+
+@pytest.mark.parametrize("op_name", ["Min", "Max", "Sum", "Mean"])
+@pytest.mark.parametrize("num_inputs", [1, 2, 3])
+def test_multi_input_unknown_static_shape(op_name, num_inputs):
+    """An input with no static shape imports instead of raising len(None).
+
+    A Slice with runtime starts/ends lowers to R.dynamic_strided_slice, whose
+    struct info is R.Tensor(dtype=..., ndim=k) with shape None. That reaches
+    MultiInputBase, where compute_broadcast_shape used to call len() on it.
+    The model is valid ONNX and onnxruntime executes it.
+    """
+    slice_node = helper.make_node(
+        "Slice", ["x", "starts", "ends", "axes"], ["sliced"], name="slice0"
+    )
+    other_names = [f"y{i}" for i in range(num_inputs - 1)]
+    op_node = helper.make_node(op_name, ["sliced"] + other_names, ["output"], name="op0")
+
+    graph = helper.make_graph(
+        [slice_node, op_node],
+        f"slice_then_{op_name.lower()}",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [4, 3]),
+            helper.make_tensor_value_info("starts", TensorProto.INT64, [1]),
+            helper.make_tensor_value_info("ends", TensorProto.INT64, [1]),
+            helper.make_tensor_value_info("axes", TensorProto.INT64, [1]),
+        ]
+        + [
+            helper.make_tensor_value_info(name, TensorProto.FLOAT, [2, 3])
+            for name in other_names
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    onnx.checker.check_model(model, full_check=True)
+
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+    assert "dynamic_strided_slice" in str(tvm_model)
 
 
 @pytest.mark.parametrize("op_name", ["And", "Or", "Xor"])
@@ -9200,6 +9288,167 @@ def test_range():
             return gv
 
     tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_range_constant_float():
+    range_node = helper.make_node(
+        "Range",
+        ["start", "limit", "delta"],
+        ["output"],
+    )
+
+    graph = helper.make_graph(
+        [range_node],
+        "range_constant_float_test",
+        inputs=[],
+        initializer=[
+            helper.make_tensor("start", TensorProto.FLOAT, [], [-7.8]),
+            helper.make_tensor("limit", TensorProto.FLOAT, [], [-1.4]),
+            helper.make_tensor("delta", TensorProto.FLOAT, [], [0.2]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("output", TensorProto.FLOAT, ["range_len"]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="range_constant_float_test")
+    check_correctness(model, opset=12, check_dtypes=True)
+
+
+@pytest.mark.parametrize(
+    "start, limit, delta, tensor_dtype, np_dtype",
+    [
+        (0, 6, 2, TensorProto.INT64, np.int64),
+        (8, 0, -2, TensorProto.INT64, np.int64),
+        (5, 1, 1, TensorProto.INT64, np.int64),
+        (0, 7, 2, TensorProto.INT32, np.int32),
+        (0.0, 1.0, 0.25, TensorProto.FLOAT, np.float32),
+        (1.0, -1.0, -0.5, TensorProto.FLOAT, np.float32),
+        (0.0, 0.3, 0.1, TensorProto.FLOAT, np.float32),
+        (-7.8, -1.4, 0.2, TensorProto.FLOAT, np.float32),
+    ],
+)
+def test_range_dynamic_scalar_inputs(start, limit, delta, tensor_dtype, np_dtype):
+    range_node = helper.make_node(
+        "Range",
+        ["start", "limit", "delta"],
+        ["output"],
+    )
+
+    graph = helper.make_graph(
+        [range_node],
+        "range_dynamic_scalar_inputs_test",
+        inputs=[
+            helper.make_tensor_value_info("start", tensor_dtype, []),
+            helper.make_tensor_value_info("limit", tensor_dtype, []),
+            helper.make_tensor_value_info("delta", tensor_dtype, []),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("output", tensor_dtype, ["range_len"]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="range_dynamic_scalar_inputs_test")
+    check_correctness(
+        model,
+        inputs={
+            "start": np.array(start, dtype=np_dtype),
+            "limit": np.array(limit, dtype=np_dtype),
+            "delta": np.array(delta, dtype=np_dtype),
+        },
+        opset=12,
+        check_dtypes=True,
+    )
+
+
+def test_range_mixed_tensor_and_primexpr_limit():
+    shape = helper.make_node("Shape", ["x"], ["x_shape"])
+    axis = make_constant_node("axis", TensorProto.INT64, [], [1])
+    gather = helper.make_node("Gather", ["x_shape", "axis"], ["limit_int"])
+    cast = helper.make_node("Cast", ["limit_int"], ["limit"], to=TensorProto.FLOAT)
+    delta = make_constant_node("delta", TensorProto.FLOAT, [], [1.0])
+    range_node = helper.make_node(
+        "Range",
+        ["start", "limit", "delta"],
+        ["output"],
+    )
+
+    graph = helper.make_graph(
+        [shape, axis, gather, cast, delta, range_node],
+        "range_mixed_tensor_and_primexpr_limit_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, "range_len"]),
+            helper.make_tensor_value_info("start", TensorProto.FLOAT, []),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("output", TensorProto.FLOAT, ["range_len"]),
+        ],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="range_mixed_tensor_and_primexpr_limit_test",
+        opset_imports=[helper.make_opsetid("", 17)],
+    )
+    model.ir_version = 8
+    check_correctness(
+        model,
+        inputs={
+            "x": np.ones((1, 4), dtype=np.float32),
+            "start": np.array(0.0, dtype=np.float32),
+        },
+        opset=17,
+        check_dtypes=True,
+    )
+
+
+@pytest.mark.parametrize(
+    "start_from_dim, limit_from_dim, delta",
+    [
+        (True, False, -1),
+        (False, True, -1),
+    ],
+)
+def test_range_primexpr_negative_and_empty(start_from_dim, limit_from_dim, delta):
+    shape = helper.make_node("Shape", ["x"], ["x_shape"])
+    axis = make_constant_node("axis", TensorProto.INT64, [], [1])
+    gather = helper.make_node("Gather", ["x_shape", "axis"], ["dim"])
+    start = make_constant_node("start", TensorProto.INT64, [], [0])
+    limit = make_constant_node("limit", TensorProto.INT64, [], [0])
+    delta_node = make_constant_node("delta", TensorProto.INT64, [], [delta])
+
+    range_inputs = [
+        "dim" if start_from_dim else "start",
+        "dim" if limit_from_dim else "limit",
+        "delta",
+    ]
+    range_node = helper.make_node("Range", range_inputs, ["output"])
+
+    graph = helper.make_graph(
+        [shape, axis, gather, start, limit, delta_node, range_node],
+        "range_primexpr_negative_and_empty_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, "range_len"]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("output", TensorProto.INT64, ["output_len"]),
+        ],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="range_primexpr_negative_and_empty_test",
+        opset_imports=[helper.make_opsetid("", 17)],
+    )
+    model.ir_version = 8
+    check_correctness(
+        model,
+        inputs={
+            "x": np.ones((1, 4), dtype=np.float32),
+        },
+        opset=17,
+        check_dtypes=True,
+    )
 
 
 def test_batch_norm():

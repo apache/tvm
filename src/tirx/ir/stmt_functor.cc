@@ -90,7 +90,12 @@ void StmtVisitor::VisitBufferDef(const BufferVar& buffer, bool alloc_data) {
 // where the buffer's shape variables are not defined.
 void StmtVisitor::VisitBufferUse(const BufferVar& buffer) {}
 
-void StmtExprVisitor::VisitExpr_(const BufferLoadNode* op) {
+void StmtExprVisitor::VisitExpr_(const TensorLoadNode* op) {
+  this->VisitBufferUse(op->source.as_or_throw<tvm::tirx::BufferVar>());
+  ExprVisitor::VisitExpr_(op);
+}
+
+void StmtExprVisitor::VisitExpr_(const BufferRegionNode* op) {
   this->VisitBufferUse(op->buffer);
   ExprVisitor::VisitExpr_(op);
 }
@@ -121,7 +126,7 @@ void StmtVisitor::VisitStmt_(const IfThenElseNode* op) {
 void StmtVisitor::VisitStmt_(const AssertStmtNode* op) {
   this->VisitExpr(op->condition);
   this->VisitExpr(op->error_kind);
-  VisitArray(op->message_parts, [this](const StringImm& e) { this->VisitExpr(e); });
+  VisitArray(op->message_parts, [this](const prim::StringImm& e) { this->VisitExpr(e); });
 }
 
 void StmtVisitor::VisitStmt_(const SeqStmtNode* op) {
@@ -451,17 +456,31 @@ Expr StmtExprMutator::VisitExpr_(const VarNode* op) {
   return var;
 }
 
-Expr StmtExprMutator::VisitExpr_(const BufferLoadNode* op) {
-  BufferVar new_buf = this->VisitBufferUse(op->buffer);
+Expr StmtExprMutator::VisitExpr_(const TensorLoadNode* op) {
+  BufferVar old_buf = op->source.as_or_throw<tvm::tirx::BufferVar>();
+  BufferVar new_buf = this->VisitBufferUse(old_buf);
   PrimExpr expr = ExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
-  op = expr.as<BufferLoadNode>();
+  op = expr.as<TensorLoadNode>();
   TVM_FFI_ICHECK(op != nullptr);
-  if (!new_buf.same_as(op->buffer)) {
-    auto n = ffi::make_object<BufferLoadNode>(*op);
-    n->buffer = std::move(new_buf);
-    return PrimExpr(n);
+  if (!new_buf.same_as(old_buf)) {
+    return BufferLoad(std::move(new_buf), op->indices, op->span);
   }
   return expr;
+}
+
+Expr StmtExprMutator::VisitExpr_(const BufferRegionNode* op) {
+  BufferVar new_buf = this->VisitBufferUse(op->buffer);
+  ffi::Array<Range> new_region = op->region.Map([this](const Range& range) {
+    PrimExpr min = this->VisitPrimExpr(range->min);
+    PrimExpr extent = this->VisitPrimExpr(range->extent);
+    return min.same_as(range->min) && extent.same_as(range->extent)
+               ? range
+               : Range::FromMinExtent(std::move(min), std::move(extent));
+  });
+  if (new_buf.same_as(op->buffer) && new_region.same_as(op->region)) {
+    return ffi::GetRef<BufferRegion>(op);
+  }
+  return BufferRegion(std::move(new_buf), std::move(new_region), op->span);
 }
 
 Stmt StmtMutator::VisitStmt_(const AllocBufferNode* op) {
@@ -582,9 +601,10 @@ Stmt StmtMutator::VisitSeqStmt_(const SeqStmtNode* op, bool flatten_before_visit
 Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
   PrimExpr condition = this->VisitPrimExpr(op->condition);
   PrimExpr error_kind = this->VisitPrimExpr(op->error_kind);
-  ffi::Array<StringImm> message_parts = Internal::MutateArray(
-      this, op->message_parts,
-      [this](const StringImm& e) { return this->VisitPrimExpr(e).as_or_throw<StringImm>(); });
+  ffi::Array<prim::StringImm> message_parts =
+      Internal::MutateArray(this, op->message_parts, [this](const prim::StringImm& e) {
+        return this->VisitPrimExpr(e).as_or_throw<prim::StringImm>();
+      });
 
   if (condition.same_as(op->condition) && error_kind.same_as(op->error_kind) &&
       message_parts.same_as(op->message_parts)) {
@@ -592,7 +612,7 @@ Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
   } else {
     auto n = CopyOnWrite(op);
     n->condition = std::move(condition);
-    n->error_kind = std::move(error_kind).as_or_throw<StringImm>();
+    n->error_kind = std::move(error_kind).as_or_throw<prim::StringImm>();
     n->message_parts = std::move(message_parts);
     return Stmt(n);
   }

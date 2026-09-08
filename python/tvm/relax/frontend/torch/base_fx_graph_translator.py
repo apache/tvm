@@ -1749,6 +1749,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = args[0]
         dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
         keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+        dtype = node.kwargs.get("dtype", None)
+        if dtype is not None:
+            x = self.block_builder.emit(
+                relax.op.astype(x, self._convert_data_type(dtype, self.env))
+            )
         return self.block_builder.emit(relax.op.mean(x, dim, keepdims=keepdim))
 
     def _median(self, node: fx.Node) -> relax.Var:
@@ -2039,13 +2044,41 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _flatten_impl(self, x, start_dim, end_dim) -> relax.Var:
         shape = self.shape_of(x)
-        start_dim = start_dim if start_dim >= 0 else len(shape) + start_dim
-        end_dim = end_dim if end_dim >= 0 else len(shape) + end_dim
+        rank = len(shape)
+
+        # torch.flatten() normalizes its dims against a rank of at least one, so a 0-d
+        # input still accepts a start_dim/end_dim of 0 or -1.
+        dim_post_expr = max(rank, 1)
+        norm_start_dim = start_dim + dim_post_expr if start_dim < 0 else start_dim
+        norm_end_dim = end_dim + dim_post_expr if end_dim < 0 else end_dim
+
+        # torch rejects invalid flatten dims only when the model is executed. fx.symbolic_trace
+        # does not execute it, so an invalid flatten reaches this converter as a traceable node
+        # and has to be rejected here instead of failing later on an empty reduce().
+        if not 0 <= norm_start_dim < dim_post_expr:
+            raise ValueError(
+                f"flatten start_dim {start_dim} is out of range "
+                f"[-{dim_post_expr}, {dim_post_expr - 1}] for an input of rank {rank}"
+            )
+        if not 0 <= norm_end_dim < dim_post_expr:
+            raise ValueError(
+                f"flatten end_dim {end_dim} is out of range "
+                f"[-{dim_post_expr}, {dim_post_expr - 1}] for an input of rank {rank}"
+            )
+        if norm_start_dim > norm_end_dim:
+            raise ValueError("flatten() has invalid args: start_dim cannot come after end_dim")
+
+        start_dim, end_dim = norm_start_dim, norm_end_dim
+
+        # torch.flatten() on a 0-d input returns a 1-d tensor holding the single element.
+        if rank == 0:
+            return self.block_builder.emit(relax.op.reshape(x, [1]))
+
         flattened = reduce(lambda x, y: x * y, [shape[i] for i in range(start_dim, end_dim + 1)])
         new_shape = (
             [shape[i] for i in range(0, start_dim)]
             + [flattened]
-            + [shape[i] for i in range(end_dim + 1, len(shape))]
+            + [shape[i] for i in range(end_dim + 1, rank)]
         )
         return self.block_builder.emit(relax.op.reshape(x, new_shape))
 
@@ -2431,7 +2464,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 cum_sum = 0 if not n_section else n_section[-1]
                 n_section.append(s + cum_sum)
         else:
-            n_section = (self.shape_of(x)[dim].value + split_size - 1) // split_size
+            # torch.split(x, s, dim) splits dim into chunks of size s, with the
+            # last chunk smaller if D % s != 0. relax.op.split's integer argument
+            # is the number of *equal* sections, so passing ceil(D / s) yields
+            # wrong shapes whenever ceil(D / ceil(D / s)) != s (e.g. s > D/2).
+            # Convert the per-chunk size to the cumulative cut positions instead,
+            # mirroring the list/tuple branch above.
+            dim_size = self.shape_of(x)[dim].value
+            num_chunks = (dim_size + split_size - 1) // split_size
+            n_section = [split_size * i for i in range(1, num_chunks)]
         return self.block_builder.emit(relax.op.split(x, n_section, dim))
 
     def _squeeze(self, node: fx.Node) -> relax.Var:

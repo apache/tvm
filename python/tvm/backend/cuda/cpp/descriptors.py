@@ -266,7 +266,19 @@ def _check_tcgen05_mma_matrix_shape(kind, cta_group, m, n, k, is_sparse):
         raise ValueError(err)
     k_dense, k_sparse = k_pair
     expected_k = k_sparse if is_sparse else k_dense
-    if k != expected_k:
+    # PTX ISA 9.4, 9.7.18.2.1 (shape table) and 9.7.18.2.1.1: the two MXF4
+    # block-scaled kinds also take dense K=96 -- at cta_group::1 with M=128
+    # (128xNxK, K = 64 / 96) and at cta_group::2 with M=256 (256xNxK1,
+    # K1 = 96 / 128) -- and "K = 96 is only supported for sm_103a, sm_107a".
+    # Table 53 encodes K in two bits, bit 31 (low) and bit 3 (high): K=64 -> 0,
+    # K=96 -> 1, K=128 -> 2, so dense K=96 is bit 31 alone.
+    is_k96 = (
+        not is_sparse
+        and kind in {"mxf4", "mxf4nvf4"}
+        and (cta_group, m) in {(1, 128), (2, 256)}
+        and k == 96
+    )
+    if k != expected_k and not is_k96:
         raise ValueError(err)
 
     return True
@@ -390,7 +402,7 @@ device_intrinsic(
     "_cuda_tcgen05_encode_instr_descriptor_block_scaled_impl",
     helper_name="ptx_tcgen05_encode_instr_descriptor_block_scaled",
     c_signature=(
-        "(uint32_t* desc, int M, int N, int a_format, int b_format, int s_format, "
+        "(uint32_t* desc, int M, int N, int K, int a_format, int b_format, int s_format, "
         "bool trans_a, bool trans_b, bool neg_a, bool neg_b, bool is_sparse)"
     ),
     body=(
@@ -407,6 +419,7 @@ device_intrinsic(
         "  _desc.m_dim_ = (M >> 4);\n"
         "  _desc.n_dim_ = (N >> 3);\n"
         "\n"
+        "  _desc.k_dim_ = static_cast<uint8_t>(K == 96);\n"
         "  _desc.a_major_ = static_cast<uint8_t>(trans_a);\n"
         "  _desc.b_major_ = static_cast<uint8_t>(trans_b);\n"
         "\n"
@@ -504,7 +517,20 @@ def codegen_cuda_tcgen05_encode_instr_descriptor_block_scaled(
         raise ValueError(f"Invalid b_dtype for transpose: {b_dtype}")
 
     return CODEGEN_REGISTRY["tirx._cuda_tcgen05_encode_instr_descriptor_block_scaled_impl"](
-        [desc, M, N, a_format, b_format, s_format, trans_a, trans_b, neg_a, neg_b, is_sparse]
+        [
+            desc,
+            M,
+            N,
+            K,
+            a_format,
+            b_format,
+            s_format,
+            trans_a,
+            trans_b,
+            neg_a,
+            neg_b,
+            is_sparse,
+        ]
     )
 
 
@@ -746,6 +772,9 @@ def encode_instr_descriptor_block_scaled_uint32(
         M, N, a_format, b_format, trans_a, trans_b, neg_a, neg_b, is_sparse
     )
     desc |= (_INSTR_DESC_SF_FORMAT_MAP[sf_name] & 0x1) << 23
+    # Table 53 K-dimension low bit (bit 31): 1 selects dense K=96 for
+    # .kind::mxf4 / .kind::mxf4nvf4 (sm_103a, sm_107a).
+    desc |= (int(K) == 96) << 31
     # `a_sf_id_` / `b_sf_id_` stay 0, as the runtime encoder leaves them:
     # callers that cycle scale-factor ids patch those bits per MMA.
     return desc & 0xFFFFFFFF

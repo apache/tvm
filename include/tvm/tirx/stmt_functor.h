@@ -27,7 +27,7 @@
 #define TVM_TIRX_STMT_FUNCTOR_H_
 
 #include <tvm/ir/node_functor.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
@@ -342,7 +342,8 @@ class TVM_DLL StmtExprVisitor : public ExprVisitor, public StmtVisitor {
   using StmtVisitor::VisitStmt;
 
   void VisitExpr(const Expr& e) override { return ExprVisitor::VisitExpr(e); }
-  void VisitExpr_(const BufferLoadNode* op) override;
+  void VisitExpr_(const TensorLoadNode* op) override;
+  void VisitExpr_(const BufferRegionNode* op) override;
 };
 
 /*!
@@ -361,7 +362,8 @@ class TVM_DLL StmtExprMutator : public ExprMutator, public StmtMutator {
 
   Expr VisitExpr(const Expr& e) override { return ExprMutator::VisitExpr(e); }
   Expr VisitExpr_(const VarNode* op) override;
-  Expr VisitExpr_(const BufferLoadNode* op) override;
+  Expr VisitExpr_(const TensorLoadNode* op) override;
+  Expr VisitExpr_(const BufferRegionNode* op) override;
 };
 
 /*!

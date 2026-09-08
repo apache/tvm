@@ -128,7 +128,7 @@ def _is_buffer_or_region(x):
 
 def _to_region(buffer: BufferRegion | Buffer):
     if is_buffer_var(buffer):
-        return buffer[[slice(None, None, None) for _ in range(len(buffer.ty.shape))]]
+        return buffer[tuple(slice(None) for _ in buffer.ty.shape)]
     assert isinstance(buffer, BufferRegion)
     return buffer
 

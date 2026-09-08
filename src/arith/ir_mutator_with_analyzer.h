@@ -62,10 +62,9 @@ class IRMutatorWithAnalyzer : public tirx::StmtExprMutator {
   tirx::Stmt VisitStmt_(const tirx::AttrStmtNode* op) override;
   tirx::Stmt VisitStmt_(const tirx::AssertStmtNode* op) override;
   tirx::Stmt VisitStmt_(const tirx::SeqStmtNode* op) override;
-  Expr VisitExpr_(const tirx::LetNode* op) override;
-  Expr VisitExpr_(const tirx::SelectNode* op) override;
+  Expr VisitExpr_(const prim::LetNode* op) override;
+  Expr VisitExpr_(const prim::SelectNode* op) override;
   Expr VisitExpr_(const CallNode* op) override;
-  Expr VisitExpr_(const tirx::ReduceNode* op) override;
 
  protected:
   /*!

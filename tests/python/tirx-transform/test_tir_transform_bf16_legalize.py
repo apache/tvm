@@ -106,6 +106,86 @@ def test_bf16_simple_store_will_legalize():
     tvm.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
 
 
+def test_bf16_masked_load_store_will_legalize():
+    def get_before():
+        @tvm.script.ir_module
+        class Before:
+            @T.prim_func(s_tir=True)
+            def main(Aptr: T.handle("bfloat16"), Cptr: T.handle("bfloat16")):
+                T.func_attr({"global_symbol": "main"})
+                A = T.decl_buffer((16,), "bfloat16", data=Aptr)
+                B = T.decl_buffer((16,), "bfloat16")
+                C = T.decl_buffer((16,), "bfloat16", data=Cptr)
+                mask = T.Broadcast(T.bool(True), 4)
+                T.evaluate(
+                    T.call_intrin(
+                        "void",
+                        "tirx.masked_store",
+                        B,
+                        T.call_intrin("bfloat16x4", "tirx.masked_load", A, T.Ramp(0, 1, 4), mask),
+                        T.Ramp(0, 1, 4),
+                        mask,
+                    )
+                )
+                T.evaluate(
+                    T.call_intrin(
+                        "void",
+                        "tirx.masked_store",
+                        C,
+                        T.call_intrin("bfloat16x4", "tirx.masked_load", B, T.Ramp(0, 1, 4), mask),
+                        T.Ramp(0, 1, 4),
+                        mask,
+                    )
+                )
+
+        return Before
+
+    target = Target("nvidia/geforce-rtx-2080-ti")
+    before = BindTarget(target)(get_before())
+    after_compute = tvm.tirx.transform.BF16ComputeLegalize()(before)
+    after_storage = tvm.tirx.transform.BF16StorageLegalize()(after_compute)
+
+    def collect(mod):
+        nodes = []
+        tvm.tirx.stmt_functor.post_order_visit(mod["main"].body, nodes.append)
+        buffers = {
+            node.buffer.name: str(node.buffer.dtype)
+            for node in nodes
+            if isinstance(node, tvm.tirx.DeclBuffer | tvm.tirx.AllocBuffer)
+        }
+        masked_loads = [
+            node
+            for node in nodes
+            if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.masked_load"
+        ]
+        masked_stores = [
+            node
+            for node in nodes
+            if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.masked_store"
+        ]
+        return buffers, masked_loads, masked_stores
+
+    compute_buffers, compute_loads, compute_stores = collect(after_compute)
+    assert compute_buffers == {"A": "bfloat16", "B": "float32", "C": "bfloat16", "mask": "boolx4"}
+    assert sorted(str(load.ty) for load in compute_loads) == ["bfloat16x4", "float32x4"]
+    assert sorted(str(store.args[1].ty) for store in compute_stores) == [
+        "bfloat16x4",
+        "float32x4",
+    ]
+
+    storage_buffers, storage_loads, storage_stores = collect(after_storage)
+    assert storage_buffers == {"A": "uint16", "B": "float32", "C": "uint16", "mask": "boolx4"}
+    assert sorted(str(load.ty) for load in storage_loads) == [
+        "float32x4",
+        "float32x4",
+        "uint16x4",
+    ]
+    assert sorted(str(store.args[1].ty) for store in storage_stores) == [
+        "float32x4",
+        "uint16x4",
+    ]
+
+
 def test_bf16_storage_compute_scope_will_legalize():
     def get_before():
         @tvm.script.ir_module

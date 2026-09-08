@@ -36,6 +36,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using namespace arith;
@@ -48,7 +49,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -220,22 +221,23 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return store;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const TensorLoadNode* op) final {
     // Rewrite load from shared or shared.dyn to global
-    auto load = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<BufferLoad>();
+    auto load = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<TensorLoad>();
 
-    if (!permute_ || load->buffer->shape.size() < 2) {
+    if (!permute_ || load->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size() < 2) {
       return load;
     }
 
-    auto scope = StorageScope::Create(load->buffer.scope());
+    auto scope = StorageScope::Create(load->source.as_or_throw<tvm::tirx::BufferVar>().scope());
     if (scope.rank != StorageRank::kShared) {
       return load;
     }
 
-    auto load_node = load.CopyOnWrite();
-    load_node->indices = HandleBufferIndices(load_node->buffer, load_node->indices);
-    return load;
+    return BufferLoad(
+        load->source.as_or_throw<tvm::tirx::BufferVar>(),
+        HandleBufferIndices(load->source.as_or_throw<tvm::tirx::BufferVar>(), load->indices),
+        load->span);
   }
 
   Expr HandleAccessPtrAndOffset(Expr access_ptr, ffi::Optional<PrimExpr> offset = std::nullopt) {
@@ -244,7 +246,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     TVM_FFI_ICHECK(access_ptr->IsInstance<CallNode>())
         << "Invalid access ptr for permuted layout: " << access_ptr;
     auto access_ptr_call = access_ptr.as_or_throw<Call>();
-    TVM_FFI_ICHECK(access_ptr_call->op.same_as(builtin::tvm_access_ptr()))
+    TVM_FFI_ICHECK(access_ptr_call->op.same_as(tirx::builtin::tvm_access_ptr()))
         << "Invalid access ptr for permuted layout: " << access_ptr;
 
     auto data_var = GetBufferDataVar(access_ptr_call->args[1]);

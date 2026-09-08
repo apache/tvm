@@ -30,7 +30,16 @@ def test_buffer_store_predicate_not_supported():
     @T.prim_func(s_tir=True)
     def func(b: T.handle):
         B = T.match_buffer(b, (8,), "float32")
-        B.vstore([T.Ramp(0, 2, 4)], T.Broadcast(1.0, 4), predicate=T.Broadcast(T.bool(True), 4))
+        T.evaluate(
+            T.call_intrin(
+                "void",
+                "tirx.masked_store",
+                B,
+                T.Broadcast(1.0, 4),
+                T.Ramp(0, 2, 4),
+                T.Broadcast(T.bool(True), 4),
+            )
+        )
 
     err_msg = "Predicated buffer store is not supported."
     with pytest.raises(RuntimeError, match=err_msg):
@@ -58,8 +67,15 @@ def test_buffer_store_predicate_not_supported_gpu(target):
         B = T.match_buffer(b, (6,), "float32")
         T.func_attr({"global_symbol": "main"})
         for i_0 in T.thread_binding(3, thread="threadIdx.x"):
-            B.vstore(
-                [T.Ramp(i_0, 1, 4)], T.Broadcast(1.0, 4), predicate=T.Broadcast(T.bool(True), 4)
+            T.evaluate(
+                T.call_intrin(
+                    "void",
+                    "tirx.masked_store",
+                    B,
+                    T.Broadcast(1.0, 4),
+                    T.Ramp(i_0, 1, 4),
+                    T.Broadcast(T.bool(True), 4),
+                )
             )
 
     err_msg = "Predicated buffer store is not supported."
@@ -78,7 +94,13 @@ def test_buffer_load_predicate_not_supported():
         for i_0 in range(4):
             B.vstore(
                 [T.Ramp(0, 2, 4)],
-                A.vload([T.Ramp(i_0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4)),
+                T.call_intrin(
+                    "float32x4",
+                    "tirx.masked_load",
+                    A,
+                    T.Ramp(i_0, 1, 4),
+                    T.Broadcast(T.bool(True), 4),
+                ),
             )
 
     err_msg = "Predicated buffer load is not supported."
@@ -108,7 +130,13 @@ def test_buffer_load_predicate_not_supported_gpu(target):
         for i_0 in T.thread_binding(3, thread="threadIdx.x"):
             B.vstore(
                 [T.Ramp(0, 2, 4)],
-                A.vload([T.Ramp(i_0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4)),
+                T.call_intrin(
+                    "float32x4",
+                    "tirx.masked_load",
+                    A,
+                    T.Ramp(i_0, 1, 4),
+                    T.Broadcast(T.bool(True), 4),
+                ),
             )
 
     err_msg = "Predicated buffer load is not supported."

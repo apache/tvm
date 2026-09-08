@@ -105,9 +105,5 @@ def __call__(_value, *_args, **_kwargs):
     return NotImplemented
 
 
-def __getitem__(_value, _index):
-    return NotImplemented
-
-
 def astype(_value, _dtype, _span=None):
     return NotImplemented

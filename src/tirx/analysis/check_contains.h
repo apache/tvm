@@ -26,7 +26,7 @@
 #ifndef TVM_TIR_ANALYSIS_CHECK_CONTAINS_H_
 #define TVM_TIR_ANALYSIS_CHECK_CONTAINS_H_
 
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/stmt_functor.h>  // For the class StmtExprVisitor
 
 namespace tvm {

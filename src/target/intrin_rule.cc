@@ -33,6 +33,27 @@ namespace codegen {
 namespace intrin {
 using tirx::FLowerIntrinsic;
 
+// `tirx.round` is ties-to-even (see include/tvm/tirx/op.h), and constant
+// folding implements it with std::nearbyint. The C library's round()/roundf()
+// is ties-AWAY-from-zero, so lowering through FloatSuffix would disagree with
+// the folder and with every other backend. Rename to nearbyint before the
+// float suffix is applied, as the CUDA rule already does.
+//
+// Like nearbyint in general, this honours the current floating-point
+// environment: it is ties-to-even under the default FE_TONEAREST. The only
+// other backend a host fesetround() can reach is llvm, which lowers to
+// llvm.nearbyint (also mode-sensitive; llvm.roundeven is the
+// mode-independent one). Every other backend that registers tirx.round --
+// cuda, nvptx, rocm, hexagon, metal, opencl, vulkan, webgpu -- emits code
+// for a separate device whose rounding mode is fixed at RNE, so the
+// host's mode cannot reach it, whichever intrinsic the rule names.
+struct FloatSuffixTiesToEven {
+  std::string operator()(const PrimType& ty, std::string name) const {
+    if (name == "round") name = "nearbyint";
+    return FloatSuffix()(ty, name);
+  }
+};
+
 TVM_REGISTER_OP("tirx.exp")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
@@ -115,7 +136,8 @@ TVM_REGISTER_OP("tirx.ceil")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tirx.round")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
+                               DispatchPureExtern<FloatSuffixTiesToEven>);
 
 TVM_REGISTER_OP("tirx.nearbyint")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
@@ -156,7 +178,7 @@ PrimExpr DispatchNumericalStableTanh(const PrimExpr& e) {
   PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
   PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
   // MakeConst can handle both vector and scalar types.
-  return tirx::Select(x >= MakeConst(x_ty, 0), tanh_pos, tanh_neg);
+  return prim::Select(x >= MakeConst(x_ty, 0), tanh_pos, tanh_neg);
 }
 
 }  // namespace intrin
@@ -229,7 +251,7 @@ static PrimExpr QMultiplyShift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr left
   PrimExpr one = MakeConst(hp_dtype, 1);
   x = cast(hp_dtype, x);
   y = cast(hp_dtype, y);
-  x = tirx::Select(is_left_shift_required, x << left_shift, x);
+  x = prim::Select(is_left_shift_required, x << left_shift, x);
 
   // 2) Perform the multiplication in higher precision.
   x = x * y;
@@ -263,7 +285,7 @@ TVM_REGISTER_OP("tirx.q_multiply_shift")
         if (auto int_node = node.as<IntImmNode>()) {
           return int_node->value;
         }
-        auto broadcast_node = node.as<BroadcastNode>();
+        auto broadcast_node = node.as<prim::BroadcastNode>();
         TVM_FFI_ICHECK(broadcast_node != nullptr);
         auto int_node = broadcast_node->value.as<IntImmNode>();
         TVM_FFI_ICHECK(int_node != nullptr);
@@ -298,8 +320,8 @@ TVM_REGISTER_OP("tirx.q_multiply_shift")
         // Calculating integer shifts. MakeConst can handle both vector and scalar types.
         PrimType s_ty = s.ty();
         PrimExpr zero = MakeConst(s_ty, 0);
-        PrimExpr left_shift = tirx::Select(s > zero, s, zero);
-        PrimExpr right_shift = tirx::Select(s > zero, zero, -s);
+        PrimExpr left_shift = prim::Select(s > zero, s, zero);
+        PrimExpr right_shift = prim::Select(s > zero, zero, -s);
         PrimExpr is_left_shift_required = (left_shift != zero);
 
         return QMultiplyShift(x, y, q, left_shift, right_shift, is_left_shift_required);

@@ -25,6 +25,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 TuneContext::TuneContext(ffi::Optional<IRModule> mod, ffi::Optional<Target> target,

@@ -25,6 +25,7 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
@@ -39,6 +40,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 namespace software_pipeline {
@@ -50,7 +52,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -122,7 +124,7 @@ class PipelineOpaqueAccessRewriter {
   Expr Rewrite(const Call& call) {
     // Intrinsic calls should be handled explicitly here as they are opaque accesses to
     // buffer.
-    static const auto& access_ptr = builtin::tvm_access_ptr();
+    static const auto& access_ptr = tirx::builtin::tvm_access_ptr();
     static const Op& load_matrix_sync = Op::Get("tirx.tvm_load_matrix_sync");
     static const Op& store_matrix_sync = Op::Get("tirx.tvm_store_matrix_sync");
     static const Op& mma_sync = Op::Get("tirx.tvm_mma_sync");
@@ -311,19 +313,18 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
-    auto it = buffer_remap_.find(load->buffer);
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+    auto it = buffer_remap_.find(load->source.as_or_throw<tvm::tirx::BufferVar>());
     if (it == buffer_remap_.end()) {
       return load;
     }
     const BufferVar& new_buffer = (*it).second;
-    auto* n = load.CopyOnWrite();
-    n->buffer = new_buffer;
     PrimExpr version =
         floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_buffer->shape[0]);
-    n->indices.insert(n->indices.begin(), version);
-    return load;
+    ffi::Array<PrimExpr> indices = load->indices;
+    indices.insert(indices.begin(), version);
+    return BufferLoad(new_buffer, indices, load->span);
   }
 
   Expr VisitExpr_(const CallNode* op) final {
@@ -796,7 +797,7 @@ class PipelineRewriter : public StmtExprMutator {
           // prove that the predicate is always true, the precise wait count is only valid
           // at iterations where the predicate is true;
           auto wait_count =
-              Call(PrimType::Int(32), builtin::if_then_else(),
+              Call(PrimType::Int(32), prim::builtin::if_then_else(),
                    ffi::Array<PrimExpr>{state.predicate.value(), state.pending_wait.wait_count, 0})
                   .as_or_throw<PrimExpr>();
           attach_wait_scope(state.pending_wait.insert_before, stage_id, wait_count);

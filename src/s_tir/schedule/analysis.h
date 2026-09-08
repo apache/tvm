@@ -21,8 +21,10 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/state.h>
+#include <tvm/te/operation.h>
 #include <tvm/tirx/index_map.h>
 
 #include <tuple>
@@ -35,6 +37,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /******** Verification ********/
@@ -511,10 +514,10 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block);
  * \param self The schedule state
  * \param identities The reduction identities to be analyzed
  * \param combiners The reduction combiners to be analyzed
- * \return The corresponding CommReducer, combiner LHS values and combiner RHS values
+ * \return The corresponding te::CommReducer, combiner LHS values and combiner RHS values
  * \throw ScheduleError If no corresponding commutative reducer can be matched
  */
-std::tuple<CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
+std::tuple<te::CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
     const ffi::Optional<ScheduleState>& self, const ffi::Array<PrimExpr>& identities,
     const ffi::Array<BufferStore>& combiners);
 
@@ -525,7 +528,7 @@ std::tuple<CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAn
  * \return The list of the registered reducer-getter functions
  * \sa ReducerRegistry
  */
-std::vector<ffi::TypedFunction<ffi::Optional<CommReducer>(ffi::Array<PrimExpr>)>>
+std::vector<ffi::TypedFunction<ffi::Optional<te::CommReducer>(ffi::Array<PrimExpr>)>>
 GetReducerGetters();
 
 /*!
@@ -533,13 +536,13 @@ GetReducerGetters();
  * corresponding commutative reducer, LHS values and RHS values, if possible.
  * \param identities The identities of the reduction
  * \param combiners The combiners of the reduction
- * \param result_reducer The extracted CommReducer
+ * \param result_reducer The extracted te::CommReducer
  * \param lhs The extracted LHS values of the reducer
  * \param rhs The extracted RHS values of the reducer
  * \return A boolean indicating whether a corresponding commutative reducer is found
  */
 bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
-                          const ffi::Array<BufferStore>& combiners, CommReducer* result_reducer,
+                          const ffi::Array<BufferStore>& combiners, te::CommReducer* result_reducer,
                           ffi::Array<PrimExpr>* lhs, ffi::Array<PrimExpr>* rhs);
 
 /******** Misc ********/

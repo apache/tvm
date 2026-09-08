@@ -232,20 +232,14 @@ class BufferVar : public Var {
    * \brief Create an Expr that does a vector load at begin index.
    * \param begin The beginning index
    * \param dtype The data type to be loaded.
-   * \param predicate A vector mask of boolean values indicating which lanes of a vector are to be
-   * loaded. The number lanes of the mask must be equal to the number of lanes in being loaded.
    */
-  TVM_DLL PrimExpr vload(ffi::Array<PrimExpr> begin, PrimType dtype,
-                         ffi::Optional<PrimExpr> predicate = std::nullopt) const;
+  TVM_DLL PrimExpr vload(ffi::Array<PrimExpr> begin, PrimType dtype) const;
   /*!
    * \brief Create a Stmt that does a vector store at begin index.
    * \param begin The beginning index
    * \param value The value to be stored.
-   * \param predicate A vector mask of boolean values indicating which lanes of a vector are to be
-   * stored. The number lanes of the mask must be equal to the number of lanes in value.
    */
-  TVM_DLL Stmt vstore(ffi::Array<PrimExpr> begin, PrimExpr value,
-                      ffi::Optional<PrimExpr> predicate = std::nullopt) const;
+  TVM_DLL Stmt vstore(ffi::Array<PrimExpr> begin, PrimExpr value) const;
 
   /*!
    * \brief Get a flattened version of the buffer.
@@ -367,6 +361,15 @@ TVM_DLL BufferVar decl_buffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimT
 TVM_DLL tirx::BufferVar BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                                   std::string name, int data_alignment,
                                                   int offset_factor, std::string memory_scope = "");
+
+/*!
+ * \brief Construct a TensorLoad from a BufferVar.
+ *
+ * This is the sole typed construction path for tirx loads.  The result type
+ * is derived from the buffer element type and index lanes, and every tirx
+ * TensorLoad is required to have a BufferVar source.
+ */
+TVM_DLL TensorLoad BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices, Span span = Span());
 }  // namespace tirx
 }  // namespace tvm
 

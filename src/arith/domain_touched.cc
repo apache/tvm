@@ -23,9 +23,9 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/tensor.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <tuple>
@@ -100,11 +100,12 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
   using Parent::VisitExpr_;
   using Parent::VisitStmt_;
 
-  void VisitExpr_(const BufferLoadNode* op) final {
+  void VisitExpr_(const TensorLoadNode* op) final {
+    BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
     // Record load-exclusive buffer access
-    Touch(&std::get<LoadAccess>(buffer_access_map_[op->buffer.get()]).set, op->indices);
+    Touch(&std::get<LoadAccess>(buffer_access_map_[buffer.get()]).set, op->indices);
     // Record load-store inclusive buffer access
-    Touch(&std::get<CombinedAccess>(buffer_access_map_[op->buffer.get()]).set, op->indices);
+    Touch(&std::get<CombinedAccess>(buffer_access_map_[buffer.get()]).set, op->indices);
     Parent::VisitExpr_(op);
   }
 
@@ -122,7 +123,7 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
       bounds->resize(args.size());
     }
     for (size_t i = 0; i < args.size(); ++i) {
-      if (args[i].as<RampNode>()) {
+      if (args[i].as<prim::RampNode>()) {
         (*bounds)[i].emplace_back(IntSet::Vector(args[i]));
       } else {
         (*bounds)[i].emplace_back(analyzer_->int_set(args[i]));

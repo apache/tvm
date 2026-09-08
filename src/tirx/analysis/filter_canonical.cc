@@ -28,8 +28,9 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 
 namespace tvm {
 namespace tirx {
@@ -41,7 +42,7 @@ namespace {
 // accepts the same set of "fully conjunctive" predicates that the existing
 // pass-internal helpers do.
 bool IsBitwiseAndCall(const CallNode* call) {
-  return call->op.same_as(tirx::builtin::bitwise_and()) && call->args.size() == 2;
+  return call->op.same_as(prim::builtin::bitwise_and()) && call->args.size() == 2;
 }
 
 bool IsPtxElectSyncCall(const CallNode* call) {
@@ -56,7 +57,7 @@ bool IsPtxElectSyncCall(const CallNode* call) {
 // the inner expression is what we need to classify.
 PrimExpr StripCast(const PrimExpr& expr) {
   PrimExpr cur = expr;
-  while (const auto* cast = cur.as<CastNode>()) {
+  while (const auto* cast = cur.as<prim::CastNode>()) {
     cur = cast->value;
   }
   return cur;
@@ -64,7 +65,7 @@ PrimExpr StripCast(const PrimExpr& expr) {
 
 void FlattenConjuncts(const PrimExpr& pred, std::vector<PrimExpr>* out) {
   PrimExpr stripped = StripCast(pred);
-  if (const auto* and_node = stripped.as<AndNode>()) {
+  if (const auto* and_node = stripped.as<prim::AndNode>()) {
     FlattenConjuncts(and_node->a, out);
     FlattenConjuncts(and_node->b, out);
     return;
@@ -138,23 +139,23 @@ bool TryParseCompareAtom(const PrimExpr& expr, const ScopeIdPredicate& is_scope_
   // Decode op + (lhs, rhs). The five comparison node types map to CmpOp.
   CmpOp op;
   PrimExpr lhs, rhs;
-  if (const auto* eq = expr.as<EQNode>()) {
+  if (const auto* eq = expr.as<prim::EQNode>()) {
     op = CmpOp::kEq;
     lhs = eq->a;
     rhs = eq->b;
-  } else if (const auto* lt = expr.as<LTNode>()) {
+  } else if (const auto* lt = expr.as<prim::LTNode>()) {
     op = CmpOp::kLT;
     lhs = lt->a;
     rhs = lt->b;
-  } else if (const auto* le = expr.as<LENode>()) {
+  } else if (const auto* le = expr.as<prim::LENode>()) {
     op = CmpOp::kLE;
     lhs = le->a;
     rhs = le->b;
-  } else if (const auto* gt = expr.as<GTNode>()) {
+  } else if (const auto* gt = expr.as<prim::GTNode>()) {
     op = CmpOp::kGT;
     lhs = gt->a;
     rhs = gt->b;
-  } else if (const auto* ge = expr.as<GENode>()) {
+  } else if (const auto* ge = expr.as<prim::GENode>()) {
     op = CmpOp::kGE;
     lhs = ge->a;
     rhs = ge->b;

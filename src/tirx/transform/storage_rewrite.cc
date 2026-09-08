@@ -26,12 +26,13 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -145,20 +146,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     scope_.push_back(StmtEntry());
     // visit subexpr
     StmtExprVisitor::VisitStmt_(op);
-    // Add write access.
-    const VarNode* buffer_var =
-        buffer_aliases_.Get(op->buffer.var()).value_or(op->buffer.var()).get();
-    auto it = alloc_info_.find(buffer_var);
-    if (it != alloc_info_.end() && it->second.alloc) {
-      TVM_FFI_ICHECK_LT(it->second.level, scope_.size());
-      scope_[it->second.level].touched.push_back(buffer_var);
-
-      TVM_FFI_ICHECK_EQ(1, it->second.num_physical_dimensions)
-          << "BufferVar " << op->buffer.name() << " is allocated with "
-          << it->second.num_physical_dimensions
-          << " physical dimensions, but is accessed as having "
-          << "1 physical dimension" << std::endl;
-    }
+    RecordAccess(op->buffer);
     StmtEntry e = scope_.back();
     scope_.pop_back();
     if (e.touched.size() != 0) {
@@ -167,24 +155,9 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    // Add write access.
+  void VisitExpr_(const TensorLoadNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
-
-    const VarNode* buffer_var =
-        buffer_aliases_.Get(op->buffer.var()).value_or(op->buffer.var()).get();
-    auto it = alloc_info_.find(buffer_var);
-    if (it != alloc_info_.end() && it->second.alloc) {
-      TVM_FFI_ICHECK_LT(it->second.level, scope_.size())
-          << "Load memory in places other than store.";
-      scope_[it->second.level].touched.push_back(buffer_var);
-
-      TVM_FFI_ICHECK_EQ(1, it->second.num_physical_dimensions)
-          << "BufferVar " << op->buffer.name() << " is allocated with "
-          << it->second.num_physical_dimensions
-          << " physical dimensions, but is accessed as having "
-          << "1 physical dimension" << std::endl;
-    }
+    RecordAccess(op->source.as_or_throw<tvm::tirx::BufferVar>());
   }
 
   void VisitStmt_(const EvaluateNode* op) final {
@@ -277,6 +250,19 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       e.stmt = op;
       linear_seq_.push_back(e);
     }
+  }
+
+  void RecordAccess(const BufferVar& buffer) {
+    const VarNode* buffer_var = buffer_aliases_.Get(buffer.var()).value_or(buffer.var()).get();
+    auto it = alloc_info_.find(buffer_var);
+    if (it == alloc_info_.end() || !it->second.alloc) return;
+    TVM_FFI_ICHECK_LT(it->second.level, scope_.size())
+        << "Buffer access occurs outside a statement scope.";
+    scope_[it->second.level].touched.push_back(buffer_var);
+    TVM_FFI_ICHECK_EQ(1, it->second.num_physical_dimensions)
+        << "BufferVar " << buffer.name() << " is allocated with "
+        << it->second.num_physical_dimensions << " physical dimensions, but is accessed as having "
+        << "1 physical dimension" << std::endl;
   }
 
   // linearized access sequence.
@@ -405,8 +391,8 @@ class InplaceOpVerifier : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    const VarNode* buf = op->buffer.get();
+  void VisitExpr_(const TensorLoadNode* op) final {
+    const VarNode* buf = op->source.as_or_throw<tvm::tirx::BufferVar>().get();
     // cannot read from dst_ (no reduction)
     if (buf == dst_) {
       result_ = false;
@@ -502,6 +488,20 @@ class StoragePlanRewriter : public StmtExprMutator {
     return node;
   }
 
+  TensorLoad VisitBufferAccess(TensorLoad node) {
+    BufferVar buffer = node->source.as_or_throw<BufferVar>();
+    const VarNode* root = buffer_aliases_.Get(buffer.var()).value_or(buffer.var()).get();
+    auto it = alloc_map_.find(root);
+    if (it == alloc_map_.end()) {
+      return node;
+    }
+
+    BufferVar remapped = RemapBuffer(buffer, it->second->alloc_var);
+    ffi::Array<PrimExpr> indices = node->indices;
+    indices.Set(indices.size() - 1, RemapIndex(buffer->dtype, indices.back(), it->second));
+    return BufferLoad(remapped, indices, node->span);
+  }
+
   BufferVar RemapBuffer(BufferVar buf, Var new_backing_array) {
     auto key = buf.get();
     auto it = buffer_remap_.find(key);
@@ -527,8 +527,8 @@ class StoragePlanRewriter : public StmtExprMutator {
     return VisitBufferAccess(std::move(node));
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     return VisitBufferAccess(std::move(node));
   }
 
@@ -549,7 +549,31 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
   Expr VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::tvm_access_ptr())) {
+    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
+      bool is_load = op->op.same_as(builtin::masked_load());
+      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      PrimExpr value;
+      if (!is_load) value = this->VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>());
+      ffi::Array<PrimExpr> indices;
+      for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
+        indices.push_back(this->VisitPrimExpr(op->args[i].as_or_throw<PrimExpr>()));
+      }
+      if (is_load) {
+        TensorLoad access = BufferLoad(buffer, indices, op->span);
+        access = VisitBufferAccess(std::move(access));
+        ffi::Array<Expr> args{access->source.as_or_throw<BufferVar>().var()};
+        for (const PrimExpr& index : access->indices) args.push_back(index);
+        args.push_back(this->VisitExpr(op->args.back()));
+        return Call(access->ty, op->op, args, op->attrs, op->ty_args, op->span);
+      } else {
+        BufferStore access(buffer, value, indices, op->span);
+        access = VisitBufferAccess(std::move(access));
+        ffi::Array<Expr> args{access->buffer.var(), access->value};
+        for (const PrimExpr& index : access->indices) args.push_back(index);
+        args.push_back(this->VisitExpr(op->args.back()));
+        return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
+      }
+    } else if (op->op.same_as(builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       PrimExpr dtype_marker = op->args[0].as_or_throw<PrimExpr>();
       PrimType dtype = dtype_marker.ty();
@@ -1299,8 +1323,9 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    OnArrayAccess(op->ty.as_or_throw<PrimType>(), op->buffer.get(), op->indices,
+  void VisitExpr_(const TensorLoadNode* op) final {
+    OnArrayAccess(op->ty.as_or_throw<PrimType>(),
+                  op->source.as_or_throw<tvm::tirx::BufferVar>().get(), op->indices,
                   /*is_buffer_load=*/true);
     StmtExprVisitor::VisitExpr_(op);
   }
@@ -1311,7 +1336,17 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::tvm_access_ptr())) {
+    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
+      bool is_load = op->op.same_as(builtin::masked_load());
+      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      PrimType dtype =
+          is_load ? op->ty.as_or_throw<PrimType>() : op->args[1].as_or_throw<PrimExpr>().ty();
+      ffi::Array<PrimExpr> indices;
+      for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
+        indices.push_back(op->args[i].as_or_throw<PrimExpr>());
+      }
+      OnArrayAccess(dtype, buffer.get(), indices, is_load);
+    } else if (op->op.same_as(builtin::tvm_access_ptr())) {
       PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
       auto buffer_var = GetBufferDataVar(op->args[1]);
       PrimExpr index = op->args[2].as_or_throw<PrimExpr>();
@@ -1322,8 +1357,9 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
         OnArrayAccess(dtype, buffer_var.value().get(), {index}, false);
       }
     } else if (op->op.same_as(builtin::address_of())) {
-      if (const auto* load = op->args[0].as<BufferLoadNode>()) {
-        OnArrayAccess(load->ty.as_or_throw<PrimType>(), load->buffer.get(), load->indices,
+      if (const auto* load = op->args[0].as<TensorLoadNode>()) {
+        OnArrayAccess(load->ty.as_or_throw<PrimType>(),
+                      load->source.as_or_throw<tvm::tirx::BufferVar>().get(), load->indices,
                       /*is_buffer_load=*/false);
       }
     }
@@ -1348,7 +1384,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const LetNode* op) final {
+  void VisitExpr_(const prim::LetNode* op) final {
     HandleLetNode(op->var);
     StmtExprVisitor::VisitExpr_(op);
   }
@@ -1473,7 +1509,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     // does not apply any masking, then this array access could be
     // vectorized.
     if (indices.size()) {
-      const RampNode* ramp_index = indices[indices.size() - 1].as<RampNode>();
+      const prim::RampNode* ramp_index = indices[indices.size() - 1].as<prim::RampNode>();
       if (ramp_index && is_one(ramp_index->stride)) {
         if (ramp_index->lanes->IsInstance<IntImmNode>()) {
           int lanes = static_cast<int>(ramp_index->lanes.as_or_throw<IntImm>()->value);
@@ -1622,7 +1658,7 @@ class VectorTypeRewriter : public StmtExprMutator {
   }
 
   /*!
-   * \brief Mutator for BufferLoad or BufferStore.
+   * \brief Mutator for TensorLoad or BufferStore.
    * \return The rewritten node and the shuffle index. (Only for BufferLoad) When the shuffle index
    * is non-negative, the caller should generate Shuffle to extract the element from the vector.
    */
@@ -1642,7 +1678,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
     ffi::Array<PrimExpr> indices = node->indices;
     const PrimExpr& last_dim_index = indices[indices.size() - 1];
-    const RampNode* ramp_index = indices[indices.size() - 1].as<RampNode>();
+    const prim::RampNode* ramp_index = indices[indices.size() - 1].as<prim::RampNode>();
 
     if (node->buffer->dtype.IsScalableVector() || last_dim_index.ty().IsScalableVector()) {
       // Scalable types are not currently supported in storage_rewrite. Scalable buffer
@@ -1656,7 +1692,8 @@ class VectorTypeRewriter : public StmtExprMutator {
       if (lanes != info.factor()) {
         TVM_FFI_ICHECK(info.factor() && lanes % info.factor() == 0);
         int new_lanes = lanes / info.factor();
-        new_index = Ramp(new_index * new_lanes, ramp_index->stride, new_lanes, ramp_index->span);
+        new_index =
+            prim::Ramp(new_index * new_lanes, ramp_index->stride, new_lanes, ramp_index->span);
       }
       indices.Set(indices.size() - 1, new_index);
     } else if (last_dim_index.ty().lanes() == 1 && info.factor() > 1) {
@@ -1673,8 +1710,50 @@ class VectorTypeRewriter : public StmtExprMutator {
     return {node, shuffle_index};
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  std::pair<TensorLoad, int> VisitBufferAccess(TensorLoad node) {
+    int shuffle_index = -1;
+    if (!rewrite_indices_) {
+      return {node, shuffle_index};
+    }
+
+    BufferVar buffer = node->source.as_or_throw<BufferVar>();
+    Var root = buffer_aliases_.Get(buffer.var()).value_or(buffer.var());
+    auto it = rewrite_map_.find(root.get());
+    if (it == rewrite_map_.end()) {
+      return {node, shuffle_index};
+    }
+    const auto& info = it->second;
+
+    ffi::Array<PrimExpr> indices = node->indices;
+    const PrimExpr& last_dim_index = indices.back();
+    const prim::RampNode* ramp_index = last_dim_index.as<prim::RampNode>();
+    if (buffer->dtype.IsScalableVector() || last_dim_index.ty().IsScalableVector()) {
+      return {node, shuffle_index};
+    }
+
+    if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
+      int lanes = static_cast<int>(ramp_index->lanes.as_or_throw<IntImm>()->value);
+      PrimExpr new_index = ramp_index->base / MakeConst(ramp_index->base.ty(), lanes);
+      if (lanes != info.factor()) {
+        TVM_FFI_ICHECK(info.factor() && lanes % info.factor() == 0);
+        int new_lanes = lanes / info.factor();
+        new_index =
+            prim::Ramp(new_index * new_lanes, ramp_index->stride, new_lanes, ramp_index->span);
+      }
+      indices.Set(indices.size() - 1, new_index);
+    } else if (last_dim_index.ty().lanes() == 1 && info.factor() > 1) {
+      arith::ModularSet me = analyzer_->modular_set(last_dim_index);
+      TVM_FFI_ICHECK(me->coeff == 0 || info.factor() % me->coeff == 0);
+      PrimExpr new_index = last_dim_index / MakeConst(last_dim_index.ty(), info.factor());
+      shuffle_index = me->base % info.factor();
+      indices.Set(indices.size() - 1, new_index);
+    }
+
+    return {BufferLoad(RemapBuffer(buffer), indices, node->span), shuffle_index};
+  }
+
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     auto [modified, shuffle_index] = VisitBufferAccess(node);
 
     // Not needed for BufferStoreNode, so we can't just call
@@ -1683,10 +1762,8 @@ class VectorTypeRewriter : public StmtExprMutator {
       return node;
 
     } else {
-      auto writer = modified.CopyOnWrite();
-      writer->LegalizeDType();
       if (shuffle_index >= 0) {
-        return Shuffle::ExtractElement(std::move(modified), shuffle_index);
+        return prim::Shuffle::ExtractElement(std::move(modified), shuffle_index);
       }
       return modified;
     }
@@ -1697,6 +1774,41 @@ class VectorTypeRewriter : public StmtExprMutator {
     auto [modified, shuffle_index] = VisitBufferAccess(std::move(node));
     TVM_FFI_ICHECK(shuffle_index < 0);
     return modified;
+  }
+
+  ffi::Optional<Expr> RewriteMaskedCall(const CallNode* op) {
+    if (op->op.same_as(builtin::masked_load())) {
+      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      ffi::Array<PrimExpr> indices;
+      for (size_t i = 1; i + 1 < op->args.size(); ++i) {
+        indices.push_back(this->VisitPrimExpr(op->args[i].as_or_throw<PrimExpr>()));
+      }
+      TensorLoad access = BufferLoad(buffer, indices, op->span);
+      auto [modified, shuffle_index] = VisitBufferAccess(access);
+      TVM_FFI_ICHECK_LT(shuffle_index, 0)
+          << "A masked vector load cannot be rewritten into a scalar shuffle.";
+      ffi::Array<Expr> args{modified->source.as_or_throw<BufferVar>().var()};
+      for (const PrimExpr& index : modified->indices) args.push_back(index);
+      args.push_back(this->VisitExpr(op->args.back()));
+      return Call(modified->ty, op->op, args, op->attrs, op->ty_args, op->span);
+    }
+    if (op->op.same_as(builtin::masked_store())) {
+      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      PrimExpr value = this->VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>());
+      ffi::Array<PrimExpr> indices;
+      for (size_t i = 2; i + 1 < op->args.size(); ++i) {
+        indices.push_back(this->VisitPrimExpr(op->args[i].as_or_throw<PrimExpr>()));
+      }
+      BufferStore access(buffer, value, indices, op->span);
+      auto [modified, shuffle_index] = VisitBufferAccess(std::move(access));
+      TVM_FFI_ICHECK_LT(shuffle_index, 0)
+          << "A masked vector store cannot be rewritten into a scalar shuffle.";
+      ffi::Array<Expr> args{modified->buffer.var(), modified->value};
+      for (const PrimExpr& index : modified->indices) args.push_back(index);
+      args.push_back(this->VisitExpr(op->args.back()));
+      return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
+    }
+    return std::nullopt;
   }
 
   Stmt VisitStmt_(const BindNode* op) final {
@@ -1764,6 +1876,9 @@ class VectorTypeRewriter : public StmtExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
+    if (auto rewritten = RewriteMaskedCall(op)) {
+      return rewritten.value();
+    }
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<BufferTypeNode>()) {

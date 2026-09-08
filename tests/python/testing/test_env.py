@@ -102,6 +102,48 @@ def test_cuda_compute_is_monotonic():
     assert env.has_cuda_compute(0, 0)
 
 
+@pytest.mark.parametrize(
+    ("compute_version", "expected"),
+    [
+        ("8.0", "sm_80"),
+        ("9.0", "sm_90a"),
+        ("10.0", "sm_100a"),
+        ("10.3", "sm_103a"),
+        ("invalid", None),
+    ],
+)
+def test_cuda_arch_from_compute_version(compute_version, expected):
+    assert env._cuda_arch_from_compute_version(compute_version) == expected
+
+
+def test_has_cuda_arch_matches_detected_device():
+    actual = env.cuda_arch()
+    if actual is None:
+        assert not env.has_cuda_arch("sm_100a")
+    else:
+        assert env.has_cuda_arch(actual)
+
+
+def test_cuda_arch_uses_requested_device(monkeypatch):
+    class Device:
+        exist = True
+        compute_version = "10.3"
+
+    requested = []
+
+    def cuda(device_id):
+        requested.append(device_id)
+        return Device()
+
+    env.cuda_arch.cache_clear()
+    monkeypatch.setattr(tvm, "cuda", cuda)
+    try:
+        assert env.cuda_arch(7) == "sm_103a"
+        assert requested == [7]
+    finally:
+        env.cuda_arch.cache_clear()
+
+
 def test_has_multi_gpu_is_bool():
     assert isinstance(env.has_multi_gpu(), bool)
     assert isinstance(env.has_multi_gpu(1), bool)

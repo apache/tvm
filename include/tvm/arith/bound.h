@@ -25,7 +25,7 @@
 
 #include <tvm/arith/int_set.h>
 #include <tvm/ir/expr.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/stmt.h>
 
 #include <unordered_map>

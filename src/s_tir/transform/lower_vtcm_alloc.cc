@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt.h>
@@ -26,6 +27,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 inline bool IsVtcmStorage(std::string scope) {
@@ -43,10 +45,10 @@ class VtcmAllocator : public StmtExprMutator {
       ffi::Array<Expr> args;
       args.push_back(StringImm(storage_scope));
       args.push_back(IntImm::Int64(op->buffer->shape.size()));
-      args.push_back(
-          Call(PointerType(PrimType::Int(64)), builtin::tvm_stack_make_shape(), op->buffer->shape));
-      return DeclBuffer(
-          op->buffer, Call(op->buffer.DataPointerType(), builtin::nd_mem_alloc_with_scope(), args));
+      args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
+                          op->buffer->shape));
+      return DeclBuffer(op->buffer, Call(op->buffer.DataPointerType(),
+                                         tirx::builtin::nd_mem_alloc_with_scope(), args));
     }
     return StmtExprMutator::VisitStmt_(op);
   }

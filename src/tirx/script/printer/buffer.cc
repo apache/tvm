@@ -231,18 +231,19 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
   if (!buffer->allocated_addr.empty()) {
     if (buffer->allocated_addr.size() == 1) {
       // Unwrap single-element array: DeclBuffer expects Optional<PrimExpr>, not Array.
-      // For BufferLoad from scalar buffers, we must explicitly print buf[idx] because
+      // For TensorLoad from scalar buffers, we must explicitly print buf[idx] because
       // the scalar shorthand (which drops the index) produces just the variable name,
       // and the parser resolves that to a BufferVar object rather than a PrimExpr value.
       PrimExpr addr = buffer->allocated_addr[0];
       AccessPath addr_p = buffer_p->Attr("allocated_addr")->ArrayItem(0);
-      if (const auto* bl = addr.as<tirx::BufferLoadNode>()) {
+      if (const auto* bl = addr.as<TensorLoadNode>()) {
+        tirx::BufferVar source = bl->source.as_or_throw<tirx::BufferVar>();
         // Ensure the buffer variable is defined (may emit a T.Buffer(...) statement).
-        d->AsDoc<ExprDoc>(bl->buffer, addr_p->Attr("buffer"));
+        d->AsDoc<ExprDoc>(source, addr_p->Attr("source"));
         // Get the variable name bound to this buffer.
-        ffi::Optional<ExprDoc> buf_var = d->GetVarDoc(bl->buffer);
+        ffi::Optional<ExprDoc> buf_var = d->GetVarDoc(source);
         TVM_FFI_ICHECK(buf_var.has_value())
-            << "BufferVar in allocated_addr is not defined: " << bl->buffer;
+            << "BufferVar in allocated_addr is not defined: " << source;
         // Build var[indices] explicitly instead of going through the default BufferLoad
         // printer, which would use the scalar shorthand and drop the index.
         int n_idx = bl->indices.size();
@@ -359,7 +360,7 @@ ffi::Array<Doc> BufferIndices(const ffi::Array<PrimExpr>& indices, const AccessP
   ffi::Array<Doc> indices_doc;
   indices_doc.reserve(n);
   for (int i = 0; i < n; ++i) {
-    if (const auto* ramp = indices[i].as<tirx::RampNode>()) {
+    if (const auto* ramp = indices[i].as<prim::RampNode>()) {
       if (const auto* stride = ramp->stride.as<IntImmNode>()) {
         AccessPath ramp_p = p->Attr("indices")->ArrayItem(i);
         AccessPath stride_p = ramp_p->Attr("stride");
@@ -375,6 +376,16 @@ ffi::Array<Doc> BufferIndices(const ffi::Array<PrimExpr>& indices, const AccessP
         continue;
       }
     }
+    indices_doc.push_back(d->AsDoc<ExprDoc>(indices[i], p->Attr("indices")->ArrayItem(i)));
+  }
+  return indices_doc;
+}
+
+ffi::Array<Doc> BufferLoadIndices(const ffi::Array<PrimExpr>& indices, const AccessPath& p,
+                                  const IRDocsifier& d) {
+  ffi::Array<Doc> indices_doc;
+  indices_doc.reserve(indices.size());
+  for (size_t i = 0; i < indices.size(); ++i) {
     indices_doc.push_back(d->AsDoc<ExprDoc>(indices[i], p->Attr("indices")->ArrayItem(i)));
   }
   return indices_doc;
@@ -413,8 +424,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ExprDoc value = d->AsDoc<ExprDoc>(store->value, p->Attr("value"));
 
           // special case for scalar buffers
-          if ((store->buffer.IsScalar(true) || store->buffer.IsScalar(false)) &&
-              !store->predicate.has_value()) {
+          if (store->buffer.IsScalar(true) || store->buffer.IsScalar(false)) {
             // TVM_FFI_ICHECK(store->indices.size() == 1 && tirx::is_zero(store->indices[0]))
             //     << "1-dim buffer with shape (1,) store with indices other than [0] is not "
             //        "supported";
@@ -424,43 +434,28 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             return AssignDoc(doc.value(), value, std::nullopt);
           }
 
-          // Use .vstore(...) syntax when there is a predicate
-          if (store->predicate.has_value()) {
-            ExprDoc indices = d->AsDoc<ExprDoc>(store->indices, p->Attr("indices"));
-            ExprDoc predicate = d->AsDoc<ExprDoc>(store->predicate, p->Attr("predicate"));
-            return ExprStmtDoc(
-                buffer->Attr("vstore")->Call({indices, value}, {"predicate"}, {predicate}));
-          }
-
           return AssignDoc(
               /*lhs=*/buffer[BufferIndices(store->indices, p->Attr("indices"), d)],
               /*rhs=*/value, std::nullopt);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::BufferLoad>(  //
-        "", [](tirx::BufferLoad load, AccessPath p, IRDocsifier d) -> Doc {
-          ExprDoc buffer = d->AsDoc<ExprDoc>(load->buffer, p->Attr("buffer"));
+    .set_dispatch<TensorLoad>(  //
+        "", [](TensorLoad load, AccessPath p, IRDocsifier d) -> Doc {
+          tvm::tirx::BufferVar source = load->source.as_or_throw<tvm::tirx::BufferVar>();
+          ExprDoc buffer = d->AsDoc<ExprDoc>(source, p->Attr("source"));
 
           // special case for scalar
-          if ((load->buffer.IsScalar(true) || load->buffer.IsScalar(false)) &&
-              !load->predicate.has_value()) {
+          if (source.IsScalar(true) || source.IsScalar(false)) {
             // TVM_FFI_ICHECK(load->indices.size() == 1 && tirx::is_zero(load->indices[0]))
             //     << "Scalar buffer load with indices other than [0] is not supported";
-            ffi::Optional<ExprDoc> doc = d->GetVarDoc(load->buffer);
+            ffi::Optional<ExprDoc> doc = d->GetVarDoc(source);
             TVM_FFI_ICHECK(doc.has_value())
-                << "Scalar buffer is not defined in the environment: " << load->buffer;
+                << "Scalar buffer is not defined in the environment: " << source;
             return doc.value();
           }
 
-          // Use .vload(...) syntax when there is a predicate
-          if (load->predicate.has_value()) {
-            ExprDoc indices = d->AsDoc<ExprDoc>(load->indices, p->Attr("indices"));
-            ExprDoc predicate = d->AsDoc<ExprDoc>(load->predicate, p->Attr("predicate"));
-            return buffer->Attr("vload")->Call({indices}, {"predicate"}, {predicate});
-          }
-
-          return buffer[BufferIndices(load->indices, p->Attr("indices"), d)];
+          return buffer[BufferLoadIndices(load->indices, p->Attr("indices"), d)];
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -597,7 +592,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_SCRIPT_REPR(tirx::BufferRegionNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::BufferLoadNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(TensorLoadNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::BufferStoreNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::BufferTypeNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::IterNode, ReprPrintTIR);

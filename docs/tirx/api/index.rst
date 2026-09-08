@@ -18,13 +18,55 @@
 API Reference
 =============
 
-Python API for the ``tvm.tirx`` namespace.
+Python APIs for authoring TIRx kernels, inspecting IR, running compiler passes,
+and extending dispatch or target backends.  Start with the
+:doc:`programming guide <../programming/index>` for task-oriented explanations.
+
+Authoring APIs
+--------------
+
+.. toctree::
+   :maxdepth: 1
+
+   script
+   tile
+
+Target APIs
+-----------
+
+.. toctree::
+   :maxdepth: 1
+
+   cuda
+   ptx
+   trainium
+
+IR APIs
+-------
 
 .. toctree::
    :maxdepth: 1
 
    tirx
+   layout
+   execution
+
+Compiler APIs
+-------------
+
+.. toctree::
+   :maxdepth: 1
+
+   compilation
+   transform
    analysis
    stmt_functor
-   transform
+
+Extension APIs
+--------------
+
+.. toctree::
+   :maxdepth: 1
+
+   tile_dispatch
    backend

@@ -20,6 +20,7 @@
 #define TVM_S_TIR_META_SCHEDULE_SCHEDULE_RULE_MULTI_LEVEL_TILING_H_
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/meta_schedule/schedule_rule.h>
 #include <tvm/s_tir/schedule/schedule.h>
 
@@ -31,6 +32,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 /*!
  * \brief Get the buffer dimensions for all the read buffers of a block, but marks the reduction
@@ -47,6 +49,7 @@ std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref);
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 /*!

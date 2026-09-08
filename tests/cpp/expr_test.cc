@@ -94,6 +94,6 @@ TEST(ExprNodeRef, Basic) {
   using namespace tvm::tirx;
   PrimVar x("x");
   PrimExpr z = max(x + 1 + 2, 100);
-  const tirx::MaxNode* op = z.as<tirx::MaxNode>();
+  const prim::MaxNode* op = z.as<prim::MaxNode>();
   TVM_FFI_ICHECK(ffi::GetRef<ffi::ObjectRef>(op).same_as(z));
 }

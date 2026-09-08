@@ -24,6 +24,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 namespace transform {
 /*!
@@ -65,8 +66,8 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
   // fuse all data parallel loops
   s_tir::LoopRV fused = sch->Fuse(data_parallel_loops, /*preserve_unit_iters=*/false);
   int64_t product = std::numeric_limits<int64_t>::max();
-  if (sch->Get(fused)->extent->IsInstance<tirx::IntImmNode>()) {
-    product = sch->Get(fused)->extent.as<tirx::IntImmNode>()->value;
+  if (sch->Get(fused)->extent->IsInstance<IntImmNode>()) {
+    product = sch->Get(fused)->extent.as<IntImmNode>()->value;
   }
   // schedule the fused loop
   if (product > max_thread_per_block * max_threadblocks) {

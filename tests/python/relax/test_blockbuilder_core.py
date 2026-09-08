@@ -333,6 +333,9 @@ def test_tuple_indexing():
     y = relax_tuple[1]
     tvm.ir.assert_structural_equal(y.ty, shape_y)
 
+    with pytest.raises(IndexError, match="Index out of bounds"):
+        relax_tuple[2]
+
     # Tuple unpacking produces TupleGetItem structs
     x_unpack, y_unpack = relax_tuple
     tvm.ir.assert_structural_equal(x, x_unpack)

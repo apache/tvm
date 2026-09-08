@@ -23,6 +23,7 @@
  *  builtin intrinsic operators specific to CUDA target.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/runtime/base.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>

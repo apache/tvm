@@ -21,9 +21,9 @@
 
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -33,6 +33,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief The set containing all possible constraints of a data copy */

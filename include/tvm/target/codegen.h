@@ -26,8 +26,8 @@
 
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/expr.h>
 
 #include <string>
 

@@ -66,9 +66,10 @@
 #define TVM_ARITH_PATTERN_MATCH_H_
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 
 #include <cmath>
 #include <tuple>
@@ -372,7 +373,7 @@ class PConstWithTypeLike : public Pattern<PConstWithTypeLike<TA>> {
   void InitMatch_() const {}
 
   bool Match_(const ffi::ObjectRef& node) const {
-    if (const tirx::IntImmNode* ptr = node.as<tirx::IntImmNode>()) {
+    if (const IntImmNode* ptr = node.as<IntImmNode>()) {
       return ptr->value == value_;
     } else {
       return false;
@@ -408,30 +409,30 @@ class PConstWithTypeLike : public Pattern<PConstWithTypeLike<TA>> {
 #define TVM_PATTERN_BINARY_OP(FuncName, NodeName) TVM_PATTERN_BINARY_OP_EX(FuncName, NodeName, )
 
 // raise ambiguity error for operator overload of / and %
-TVM_PATTERN_BINARY_OP_EX(operator/, tirx::Div, DivAmbiguityError(a));
-TVM_PATTERN_BINARY_OP_EX(operator%, tirx::Mod, DivAmbiguityError(a));
+TVM_PATTERN_BINARY_OP_EX(operator/, prim::Div, DivAmbiguityError(a));
+TVM_PATTERN_BINARY_OP_EX(operator%, prim::Mod, DivAmbiguityError(a));
 
 // arithmetic expressions
-TVM_PATTERN_BINARY_OP(operator+, tirx::Add);
-TVM_PATTERN_BINARY_OP(operator-, tirx::Sub);
-TVM_PATTERN_BINARY_OP(operator*, tirx::Mul);
-TVM_PATTERN_BINARY_OP(min, tirx::Min);
-TVM_PATTERN_BINARY_OP(max, tirx::Max);
-TVM_PATTERN_BINARY_OP(div, tirx::Div);
-TVM_PATTERN_BINARY_OP(truncdiv, tirx::Div);
-TVM_PATTERN_BINARY_OP(truncmod, tirx::Mod);
-TVM_PATTERN_BINARY_OP(floordiv, tirx::FloorDiv);
-TVM_PATTERN_BINARY_OP(floormod, tirx::FloorMod);
+TVM_PATTERN_BINARY_OP(operator+, prim::Add);
+TVM_PATTERN_BINARY_OP(operator-, prim::Sub);
+TVM_PATTERN_BINARY_OP(operator*, prim::Mul);
+TVM_PATTERN_BINARY_OP(min, prim::Min);
+TVM_PATTERN_BINARY_OP(max, prim::Max);
+TVM_PATTERN_BINARY_OP(div, prim::Div);
+TVM_PATTERN_BINARY_OP(truncdiv, prim::Div);
+TVM_PATTERN_BINARY_OP(truncmod, prim::Mod);
+TVM_PATTERN_BINARY_OP(floordiv, prim::FloorDiv);
+TVM_PATTERN_BINARY_OP(floormod, prim::FloorMod);
 
 // logical expressions
-TVM_PATTERN_BINARY_OP(operator>, tirx::GT);
-TVM_PATTERN_BINARY_OP(operator>=, tirx::GE);
-TVM_PATTERN_BINARY_OP(operator<, tirx::LT);
-TVM_PATTERN_BINARY_OP(operator<=, tirx::LE);
-TVM_PATTERN_BINARY_OP(operator==, tirx::EQ);
-TVM_PATTERN_BINARY_OP(operator!=, tirx::NE);
-TVM_PATTERN_BINARY_OP(operator&&, tirx::And);
-TVM_PATTERN_BINARY_OP(operator||, tirx::Or);
+TVM_PATTERN_BINARY_OP(operator>, prim::GT);
+TVM_PATTERN_BINARY_OP(operator>=, prim::GE);
+TVM_PATTERN_BINARY_OP(operator<, prim::LT);
+TVM_PATTERN_BINARY_OP(operator<=, prim::LE);
+TVM_PATTERN_BINARY_OP(operator==, prim::EQ);
+TVM_PATTERN_BINARY_OP(operator!=, prim::NE);
+TVM_PATTERN_BINARY_OP(operator&&, prim::And);
+TVM_PATTERN_BINARY_OP(operator||, prim::Or);
 
 /*!
  * \brief Pattern not expression.
@@ -445,7 +446,7 @@ class PNotExpr : public Pattern<PNotExpr<TA>> {
   void InitMatch_() const { value_.InitMatch_(); }
 
   bool Match_(const ffi::ObjectRef& node) const {
-    if (const tirx::NotNode* ptr = node.as<tirx::NotNode>()) {
+    if (const prim::NotNode* ptr = node.as<prim::NotNode>()) {
       if (!value_.Match_(ptr->a)) return false;
       return true;
     } else {
@@ -453,7 +454,7 @@ class PNotExpr : public Pattern<PNotExpr<TA>> {
     }
   }
 
-  PrimExpr Eval() const { return tirx::Not(value_.Eval()); }
+  PrimExpr Eval() const { return prim::Not(value_.Eval()); }
 
  private:
   typename TA::Nested value_;
@@ -484,7 +485,7 @@ class PSelectExpr : public Pattern<PSelectExpr<TCond, TA, TB>> {
   }
 
   bool Match_(const ffi::ObjectRef& node) const {
-    if (const tirx::SelectNode* ptr = node.as<tirx::SelectNode>()) {
+    if (const prim::SelectNode* ptr = node.as<prim::SelectNode>()) {
       if (!condition_.Match_(ptr->condition)) return false;
       if (!true_value_.Match_(ptr->true_value)) return false;
       if (!false_value_.Match_(ptr->false_value)) return false;
@@ -495,7 +496,7 @@ class PSelectExpr : public Pattern<PSelectExpr<TCond, TA, TB>> {
   }
 
   PrimExpr Eval() const {
-    return tirx::Select(condition_.Eval(), true_value_.Eval(), false_value_.Eval());
+    return prim::Select(condition_.Eval(), true_value_.Eval(), false_value_.Eval());
   }
 
  private:
@@ -541,7 +542,7 @@ class PCastExpr : public Pattern<PCastExpr<DType, TA>> {
   }
 
   bool Match_(const ffi::ObjectRef& node) const {
-    if (const tirx::CastNode* ptr = node.as<tirx::CastNode>()) {
+    if (const prim::CastNode* ptr = node.as<prim::CastNode>()) {
       if (!dtype_.Match_(ptr->ty.as_or_throw<PrimType>()->dtype)) return false;
       if (!value_.Match_(ptr->value)) return false;
       return true;
@@ -550,7 +551,7 @@ class PCastExpr : public Pattern<PCastExpr<DType, TA>> {
     }
   }
 
-  PrimExpr Eval() const { return tirx::Cast(PrimType(dtype_.Eval()), value_.Eval()); }
+  PrimExpr Eval() const { return prim::Cast(PrimType(dtype_.Eval()), value_.Eval()); }
 
  private:
   typename DType::Nested dtype_;
@@ -592,7 +593,7 @@ class PRampExpr : public Pattern<PRampExpr<TBase, TStride, TLanes>> {
   }
 
   bool Match_(const ffi::ObjectRef& node) const {
-    if (const tirx::RampNode* ptr = node.as<tirx::RampNode>()) {
+    if (const prim::RampNode* ptr = node.as<prim::RampNode>()) {
       if (!base_.Match_(ptr->base)) return false;
       if (!stride_.Match_(ptr->stride)) return false;
       if (!lanes_.Match_(ptr->lanes)) return false;
@@ -602,7 +603,7 @@ class PRampExpr : public Pattern<PRampExpr<TBase, TStride, TLanes>> {
     }
   }
 
-  PrimExpr Eval() const { return tirx::Ramp(base_.Eval(), stride_.Eval(), lanes_.Eval()); }
+  PrimExpr Eval() const { return prim::Ramp(base_.Eval(), stride_.Eval(), lanes_.Eval()); }
 
  private:
   typename TBase::Nested base_;
@@ -654,7 +655,7 @@ class PBroadcastExpr : public Pattern<PBroadcastExpr<TA, TLanes>> {
   }
 
   bool Match_(const ffi::ObjectRef& node) const {
-    if (const tirx::BroadcastNode* ptr = node.as<tirx::BroadcastNode>()) {
+    if (const prim::BroadcastNode* ptr = node.as<prim::BroadcastNode>()) {
       if (!value_.Match_(ptr->value)) return false;
       if (!lanes_.Match_(ptr->lanes)) return false;
       return true;
@@ -663,7 +664,7 @@ class PBroadcastExpr : public Pattern<PBroadcastExpr<TA, TLanes>> {
     }
   }
 
-  PrimExpr Eval() const { return tirx::Broadcast(value_.Eval(), lanes_.Eval()); }
+  PrimExpr Eval() const { return prim::Broadcast(value_.Eval(), lanes_.Eval()); }
 
  private:
   typename TA::Nested value_;
@@ -784,7 +785,7 @@ class PCallExpr : public Pattern<PCallExpr<Op, TArgs...>> {
     static PrimExpr Eval(ffi::Array<PrimExpr> args) {                                     \
       return Call(args[0].ty(), GetOp(), args).as_or_throw<PrimExpr>();                   \
     }                                                                                     \
-    static const Op& GetOp() { return tirx::builtin::IntrinOpName(); }                    \
+    static const Op& GetOp() { return prim::builtin::IntrinOpName(); }                    \
   };                                                                                      \
   template <typename TA, typename TB>                                                     \
   inline PCallExpr<OpName, TA, TB> FuncName(const Pattern<TA>& a, const Pattern<TB>& b) { \
@@ -803,7 +804,7 @@ TVM_PATTERN_BINARY_INTRIN(operator^, PBitwiseXorOp, bitwise_xor);
     static PrimExpr Eval(ffi::Array<PrimExpr> args) {                   \
       return Call(args[0].ty(), GetOp(), args).as_or_throw<PrimExpr>(); \
     }                                                                   \
-    static const Op& GetOp() { return tirx::builtin::IntrinOpName(); }  \
+    static const Op& GetOp() { return prim::builtin::IntrinOpName(); }  \
   };                                                                    \
   template <typename TA>                                                \
   inline PCallExpr<OpName, TA> FuncName(const Pattern<TA>& a) {         \
@@ -817,7 +818,7 @@ struct PIfThenElseOp {
   static PrimExpr Eval(ffi::Array<PrimExpr> args) {
     return Call(args[1].ty(), GetOp(), args).as_or_throw<PrimExpr>();
   }
-  static const Op& GetOp() { return tirx::builtin::if_then_else(); }
+  static const Op& GetOp() { return prim::builtin::if_then_else(); }
 };
 
 /*!
@@ -844,7 +845,7 @@ inline PCallExpr<PIfThenElseOp, TCond, TA, TB> if_then_else(const Pattern<TCond>
 // vscale
 struct PVscaleOp {
   static PrimExpr Eval() { return Call(PrimType::Int(32), GetOp(), {}).as_or_throw<PrimExpr>(); }
-  static const Op& GetOp() { return tirx::builtin::vscale(); }
+  static const Op& GetOp() { return prim::builtin::vscale(); }
 };
 
 template <typename... TPattern>

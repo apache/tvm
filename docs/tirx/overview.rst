@@ -71,6 +71,8 @@ once the pattern stabilizes. This is the core design philosophy behind TIRx:
 keep the foundation small and explicit, and let the backend library evolve as
 new accelerator generations arrive.
 
+.. _tirx-programming-model:
+
 The Programming Model
 ---------------------
 
@@ -78,6 +80,47 @@ A TIRx program reads as a structured native kernel: loops, branches, buffers,
 synchronization, pipeline state, backend intrinsics, and hardware roles are
 written directly. Tile primitives appear exactly where a repeated hardware-level
 operation should become reusable and dispatchable.
+
+Authoring layers and IR
+~~~~~~~~~~~~~~~~~~~~~~~
+
+TIRx programs use one TVMScript dialect alias::
+
+   from tvm.script import tirx as Tx
+
+The namespace exposes three authoring layers.  They share the same TIRx
+program, but enter the compiler at different levels:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 30 45
+
+   * - Authoring layer
+     - Syntax
+     - Representation and lowering
+   * - Core language
+     - ``Tx.*``
+     - Creates TIRx statements, expressions, buffers, and control flow.
+   * - Tile primitives
+     - ``Tx.tile.*``
+     - Creates a ``TilePrimitiveCall`` that is replaced by a target-specific
+       implementation during tile dispatch.
+   * - Backend operations
+     - ``Tx.cuda.*`` and ``Tx.ptx.*``
+     - Creates backend calls directly; these calls bypass tile dispatch.
+
+``tvm.script.tirx`` is the construction syntax for the ``tvm.tirx`` object
+model, not a separate IR.  Tile dispatch and layout/scope lowering replace
+high-level TIRx nodes with lower-level TIRx statements and calls.  They do not
+convert the program to the separate ``tvm.tir`` object model.
+
+.. code-block:: text
+
+   Tx.* ──────────────────────────────▶ TIRx statements and expressions ──────┐
+   Tx.tile.* ─▶ TilePrimitiveCall ─▶ target dispatch ─────────────────────────┤
+   Tx.cuda.* / Tx.ptx.* ─────────────▶ backend calls ─────────────────────────┤
+                                                                               ▼
+                                             layout and scope lowering ─▶ codegen
 
 The model has three core ingredients.
 
@@ -87,24 +130,25 @@ Execution scope
 Execution scope describes both the active participants and the logical scope of
 a primitive invocation. Control flow such as ``if wg_id == ...``,
 ``warp_id == ...``, or ``cbx == ...`` selects which hardware roles enter a
-region, while predicates such as ``T.cuda.elect_sync()`` further select the
-issuing thread.
+region, while predicates such as ``Tx.cuda.elect_sync()`` further select the
+issuing lane within each active warp. To obtain one issuer for a wider scope,
+first select one warp and then use ``elect_sync`` inside it.
 
-The primitive namespace is also part of the scope. For example, ``Tx.wg.*``
-denotes warpgroup-level primitives, while an unqualified ``Tx.*`` call defaults
-to thread-level invocation.
+The primitive namespace is also part of the scope. For example,
+``Tx.tile.wg.*`` denotes warpgroup-level primitives, while an unqualified
+``Tx.tile.*`` call defaults to thread-level invocation.
 
 Tensor layout
 ~~~~~~~~~~~~~~
 
 Tensor layout, with a storage-first interface, describes how logical
 tensors map to physical resources. A tile may live in global memory, shared
-memory, registers, tensor memory, or accelerator SRAM.
+memory, per-thread local storage, tensor memory, or accelerator SRAM.
 Users declare where each tile lives and how its elements are spread across
-lanes, warps, and registers; tile primitive dispatch reads those declarations to
-choose an implementation. A layout is a storage description, not a
-loop-transformation utility: users may construct a tile's layout, but never use
-layouts to transform loops.
+lanes, warps, and per-thread storage elements; tile primitive dispatch reads
+those declarations to choose an implementation. A layout is a storage
+description, not a loop-transformation utility: users may construct a tile's
+layout, but never use layouts to transform loops.
 
 .. seealso::
 
@@ -119,11 +163,13 @@ Tile primitive dispatch selects an implementation according to the primitive,
 the current execution scope, the operand layouts, and the target backend. For
 example:
 
-- A ``copy`` primitive may dispatch to TMA, vectorized loads/stores,
-  tensor-memory movement, accelerator DMA, or another backend-specific
-  implementation.
-- A matrix-multiply primitive may dispatch to WGMMA, ``tcgen05``, a
-  systolic-array instruction, or a backend-specific matmul engine.
+- On CUDA, ``copy`` currently selects fixed-width or automatically vectorized
+  loads/stores, ``ldmatrix`` / ``stmatrix``, or a scalar fallback.  The
+  asynchronous ``copy_async`` primitive has separate ``ldgsts``, TMA,
+  distributed-shared-memory, and tensor-memory variants.
+- On CUDA, ``gemm`` currently selects an ``mma.m16n8k*`` implementation, while
+  ``gemm_async`` selects ``tcgen05``.  Trainium registers its own ``copy``,
+  ``gemm``, reduction, and elementwise implementations.
 
 Once a variant is selected, dispatch generates the loops and addressing to
 apply that instruction across the whole tile.
@@ -173,9 +219,9 @@ Agentic kernel programming
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 TIRx exposes its IR and compiler utilities through TVM FFI across Python, C++,
-and Rust, and offers a structured search space with dense, pre-benchmark
-feedback (well-formedness, synchronization validity, race-freedom, value
-simulation).
+and Rust. Its structured IR supports inspection and well-formedness checks
+before a kernel is benchmarked, while target compilation and execution provide
+the final validation of backend-specific behavior.
 
 .. figure:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/tirx/tirx_agentic.webp
    :align: center
@@ -191,6 +237,8 @@ Next Steps
 ----------
 
 - :doc:`install` — install TIRx and the kernel library.
-- :doc:`layout` — the tensor layout model with an interactive explorer.
+- :doc:`native_basics/cuda/first_kernel` — write and compile a first CUDA kernel.
+- :doc:`programming/index` — the complete programming guide.
+- :doc:`layout` and :doc:`tile_primitives` — reusable tensor and tile abstractions.
 - :doc:`arch/index` — compiler internals (lowering pipeline, passes, codegen).
-- :doc:`api/index` — the ``tvm.tirx`` Python API.
+- :doc:`api/index` — authoring, IR, compiler, and extension API signatures.

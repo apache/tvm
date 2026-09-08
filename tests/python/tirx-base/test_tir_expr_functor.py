@@ -18,7 +18,7 @@
 import tvm
 import tvm.testing
 from tvm import tirx as tir
-from tvm.ir import Call, Op, OpaqueExpr, Tuple, TupleGetItem
+from tvm.ir import Call, Op, OpaqueExpr, TensorLoad, Tuple, TupleGetItem
 from tvm.ir.base import assert_structural_equal
 from tvm.tirx.expr import (
     EQ,
@@ -30,7 +30,6 @@ from tvm.tirx.expr import (
     Add,
     And,
     Broadcast,
-    BufferLoad,
     Cast,
     Div,
     FloatImm,
@@ -96,7 +95,7 @@ class ASTPrinter(ExprVisitor):
     def visit_var_(self, op: Var) -> None:
         self.log.add("Var")
 
-    def visit_buffer_load_(self, op: BufferLoad) -> None:
+    def visit_buffer_load_(self, op: TensorLoad) -> None:
         self.log.add("BufferLoad")
         self.log.push_scope()
         for idx in op.indices:
@@ -337,7 +336,7 @@ class ASTPostPrinterMutator(ExprMutator):
         self.log.add("Var")
         return result
 
-    def visit_buffer_load_(self, op: BufferLoad) -> tir.Expr:
+    def visit_buffer_load_(self, op: TensorLoad) -> tir.Expr:
         result = super().visit_buffer_load_(op)
         self.log.add("BufferLoad")
         return result

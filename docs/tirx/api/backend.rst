@@ -15,67 +15,46 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.backend.cuda
-================
+Backend Extension API
+=====================
 
-The CUDA backend — the tile-primitive dispatch, intrinsic builders, the ``T.cuda``
-/ ``T.ptx`` script namespaces, and the shared/tensor-memory pools — lives under
-``tvm.backend.cuda``, separate from the TIRx frontend (``tvm.tirx``). Other
-backends sit alongside it (``tvm.backend.rocm`` and so on).
+Backend loading
+---------------
 
-tvm.backend.cuda
-****************
-.. automodule:: tvm.backend.cuda
+``tvm.backend`` discovers and loads target-owned Python semantics.  Depending
+on the target, loading a backend registers its TVMScript namespaces,
+tile-dispatch implementations, target tags, compilation-pipeline entry points,
+and code-generation support.
+
+.. automodule:: tvm.backend
    :members:
-   :imported-members:
-   :exclude-members: PrimExpr, Op, Call
-
-tvm.backend.cuda.lang
-*********************
-.. automodule:: tvm.backend.cuda.lang
-   :members:
-   :imported-members:
-   :exclude-members: PrimExpr, Op, Call
-
-tvm.backend.cuda.op
-*******************
-.. automodule:: tvm.backend.cuda.op
-   :members:
-   :imported-members:
-   :exclude-members: PrimExpr, Op, Call, PrimType, PointerType
-
-tvm.backend.cuda.script
-***********************
-.. automodule:: tvm.backend.cuda.script
-   :members:
-   :imported-members:
-   :exclude-members: PrimExpr, Op, Call
-
-tvm.backend.cuda.codegen
-************************
-.. automodule:: tvm.backend.cuda.codegen
-   :members:
-   :imported-members:
    :no-index:
-   :exclude-members: PrimExpr, Op, Call
 
-tvm.backend.cuda.cpp
-********************
-.. automodule:: tvm.backend.cuda.cpp
-   :members:
-   :imported-members:
+CUDA registration
+-----------------
+
+.. autofunction:: tvm.backend.cuda.register_backend
    :no-index:
-   :exclude-members: PrimExpr, Op, Call
 
-tvm.backend.cuda.tile_primitive
-*******************************
-.. automodule:: tvm.backend.cuda.tile_primitive
-   :members:
-   :exclude-members: PrimExpr, Op, Call
+.. autofunction:: tvm.backend.cuda.script_namespace
+   :no-index:
 
-tvm.backend.cuda.target_tags
-****************************
-.. automodule:: tvm.backend.cuda.target_tags
-   :members:
-   :imported-members:
-   :exclude-members: PrimExpr, Op, Call
+.. autofunction:: tvm.backend.cuda.script_namespaces
+   :no-index:
+
+Trainium registration
+---------------------
+
+.. autofunction:: tvm.backend.trn.register_backend
+   :no-index:
+
+.. autofunction:: tvm.backend.trn.script_namespace
+   :no-index:
+
+.. autofunction:: tvm.backend.trn.script_namespaces
+   :no-index:
+
+These functions are backend integration points.  Kernel-facing CUDA APIs are
+documented in :doc:`cuda` and :doc:`ptx`; Trainium APIs are documented in
+:doc:`trainium`.  See :doc:`../arch/backends` for module ownership and
+registration side effects.

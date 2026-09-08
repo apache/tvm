@@ -23,7 +23,6 @@ import math
 from typing import Any
 
 from tvm import s_tir, tirx
-from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -36,9 +35,9 @@ from ._kernel_common import (
     _alloc_tile_walk_state,
     _declare_length_info,
     _get_kv_chunk_len,
+    _get_prefill_kernel_config,
     _get_seq_offset,
     _rope,
-    check_thread_limits,
 )
 
 # mypy: disable-error-code="attr-defined,valid-type,no-redef"
@@ -283,31 +282,9 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
         The generated IR module.
     """
     # pylint: disable=invalid-name,line-too-long
-    NUM_BLKS = 16
-    LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
-    group_size = h_q // h_kv
-
-    bdx = 32
-    num_warps = 4
-    tile_x, tile_y, tile_z = (
-        64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1),
-        d,
-        64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1),
+    NUM_BLKS, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = (
+        _get_prefill_kernel_config(h_kv, h_q, d, dtype, target)
     )
-    original_tile_y = tile_y
-    original_tile_z = tile_z
-    while (tile_x * tile_z) % (bdx * num_warps) != 0:
-        tile_z += original_tile_z
-    while (tile_x * tile_y) % (bdx * num_warps) != 0:
-        tile_y += original_tile_y
-
-    # Otherwise we would exceed maxComputeWorkgroupStorageSize
-    if (
-        target.kind.name == "webgpu"
-        and ((d + 127) // 128) * ((DataType(dtype).bits + 15) // 16) >= 4
-    ):
-        tile_z = 8
-        num_warps = 2
 
     # fmt: off
     @T.prim_func(s_tir=True)
@@ -819,32 +796,9 @@ def tree_attn_with_paged_kv_cache(
         The generated IR module.
     """
     # pylint: disable=invalid-name, line-too-long
-    NUM_BLKS = 16
-    LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
-    group_size = h_q // h_kv
-
-    bdx = 32
-    num_warps = 4
-    tile_x, tile_y, tile_z = (
-        64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1),
-        d,
-        64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1),
+    NUM_BLKS, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = (
+        _get_prefill_kernel_config(h_kv, h_q, d, dtype, target)
     )
-    original_tile_y = tile_y
-    original_tile_z = tile_z
-    while (tile_x * tile_z) % (bdx * num_warps) != 0:
-        tile_z += original_tile_z
-    while (tile_x * tile_y) % (bdx * num_warps) != 0:
-        tile_y += original_tile_y
-
-    # Otherwise we would exceed maxComputeWorkgroupStorageSize
-    if (
-        target.kind.name == "webgpu"
-        and ((d + 127) // 128) * ((DataType(dtype).bits + 15) // 16) >= 4
-    ):
-        tile_z = 8
-        num_warps = 2
-    check_thread_limits(target, bdx=bdx, bdy=num_warps, bdz=1, gdz=1)
 
     global_symbol = "tree_attn_paged_kv"
     sliding_window = False  # Sliding window is not supported in this kernel.

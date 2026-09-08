@@ -22,8 +22,9 @@
  */
 #include <GLSL.std.450.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -173,8 +174,8 @@ TVM_REGISTER_OP("tirx.clz")
       if (arg_ty.bits() == 64) {
         // SPIR-V FindUMsb intrinsic only supports 32 bit input
         auto int32 = PrimType::Int(32);
-        PrimExpr arg_hi32 = tvm::tirx::Cast(int32, arg >> 32);
-        PrimExpr arg_lo32 = tvm::tirx::Cast(int32, arg);
+        PrimExpr arg_hi32 = tvm::prim::Cast(int32, arg >> 32);
+        PrimExpr arg_lo32 = tvm::prim::Cast(int32, arg);
         PrimExpr msb_hi = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_hi32});
         PrimExpr msb_lo = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_lo32});
         msb = tvm::if_then_else(arg_hi32 == 0, msb_lo, msb_hi + 32);

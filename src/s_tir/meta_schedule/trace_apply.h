@@ -19,6 +19,7 @@
 #ifndef TVM_S_TIR_META_SCHEDULE_TRACE_APPLY_H_
 #define TVM_S_TIR_META_SCHEDULE_TRACE_APPLY_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/meta_schedule/schedule_rule.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/trace.h>
@@ -28,6 +29,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 /*!

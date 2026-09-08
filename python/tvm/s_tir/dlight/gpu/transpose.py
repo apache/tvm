@@ -17,6 +17,7 @@
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 
 from tvm import arith, s_tir, tirx
+from tvm.ir import TensorLoad
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
 from tvm.target import Target
@@ -33,7 +34,7 @@ class Transpose(GPUScheduleRule):
         block = sch.get(block_rv)
         if isinstance(block.body, tirx.BufferStore):
             rhs = block.body.value
-            if isinstance(rhs, tirx.BufferLoad):
+            if isinstance(rhs, TensorLoad):
                 lhs_indices = block.body.indices
                 rhs_indices = rhs.indices
                 if list(lhs_indices) != list(rhs_indices) and set(lhs_indices) == set(rhs_indices):

@@ -743,7 +743,7 @@ def test_alloc_apis():
         def init(self):
             self.Ta = self.Ta + T.float16(1)
             self.Tb = self.Tb + T.float16(2)
-            self.idx.buffer[0] = T.int32(0)
+            self.idx.source[0] = T.int32(0)
             self.idx = self.idx + T.int32(1)
             self.inner_pool2 = self.inner_pool2 + T.float16(1)
             T.evaluate(T.address_of(self.Ta))
@@ -773,7 +773,7 @@ def test_alloc_apis():
         A[0] = C
         A[0] = C + D  # noqa: F821
         A[1] = B[0] * C
-        D.buffer[0] = D + T.float16(1)  # noqa: F821
+        D.source[0] = D + T.float16(1)  # noqa: F821
         D = D + T.float16(1)  # noqa: F821
         C = D
         T.evaluate(E)
@@ -784,14 +784,15 @@ def test_alloc_apis():
         C += D
         D += E + C + D
         T.evaluate(T.address_of(C))
-        T.evaluate(C.buffer.access_ptr("rw", offset=0))
-        T.evaluate(C.buffer.data)
+        T.evaluate(C.source.access_ptr("rw", offset=0))
+        T.evaluate(C.source.data)
         T.evaluate(D)
         T.evaluate(T.address_of(D))
         # fmt: on
 
     code = test.script()
     print(code)
+    assert ".buffer" not in code
     assert from_source(code).script() == code
 
 
@@ -2262,24 +2263,53 @@ def test_buffer_slice_region():
     assert int(br.region[0].extent) == 32
     assert int(br.region[1].extent) == 32
 
+    load = buf[1, 2]
+    assert isinstance(load, tvm.ir.TensorLoad)
 
-def test_buffer_region_slice():
-    """Verify BufferRegion slicing returns BufferRegion."""
-    from tvm.tirx.stmt import BufferRegion
+    partial = buf[1]
+    assert isinstance(partial, BufferRegion)
 
-    buf = tvm.tirx.decl_buffer((128, 64), "float16")
+    narrowed = br[4:12, 2:10]
+    assert isinstance(narrowed, BufferRegion)
+    assert narrowed.buffer.same_as(buf)
+    assert [(int(dim.min), int(dim.extent)) for dim in narrowed.region] == [
+        (36, 8),
+        (2, 8),
+    ]
 
-    br1 = buf[32:64, 0:32]
-    assert isinstance(br1, BufferRegion)
+    chained_load = br[3, 4]
+    assert isinstance(chained_load, tvm.ir.TensorLoad)
+    assert chained_load.source.same_as(buf)
+    assert [int(index) for index in chained_load.indices] == [35, 4]
 
-    # BufferRegion chained slice
-    br3 = br1[0:16, 0:16]
-    assert isinstance(br3, BufferRegion)
-    assert br3.buffer.same_as(buf), "chained region slice must reference root buffer"
-    assert int(br3.region[0].min) == 32
-    assert int(br3.region[0].extent) == 16
-    assert int(br3.region[1].min) == 0
-    assert int(br3.region[1].extent) == 16
+    point_then_region = br[3]
+    assert isinstance(point_then_region, BufferRegion)
+    assert [(int(dim.min), int(dim.extent)) for dim in point_then_region.region] == [
+        (35, 1),
+        (0, 32),
+    ]
+
+    with pytest.raises(ValueError, match="non-unit step"):
+        _ = br[::2]
+
+
+def test_global_call_realizes_buffer_elements():
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(private=True, s_tir=True)
+        def add(a: T.float32, b: T.float32) -> T.float32:
+            return a + b
+
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((16,), "float32"),
+            B: T.Buffer((16,), "float32"),
+            C: T.Buffer((16,), "float32"),
+        ):
+            for i in range(16):
+                C[i] = Module.add(A[i], B[i])
+
+    assert isinstance(Module["main"], tvm.tirx.PrimFunc)
 
 
 def test_roundtrip_serial_unroll_false():
@@ -2685,7 +2715,7 @@ def test_vector_annotation_with_python_variable_size():
 def test_roundtrip_tmem_decl_buffer():
     """DeclBuffer with tmem scope: data kwarg must be suppressed, allocated_addr
     must print as Expr (not Array), and scalar buffer index must not get
-    a .buffer suffix."""
+    a .source suffix."""
 
     # fmt: off
     @T.prim_func

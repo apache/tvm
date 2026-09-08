@@ -372,3 +372,21 @@ _register_jetson_tag("nvidia/jetson-agx-xavier", "sm_72", "carmel", 8)
 _register_jetson_tag("nvidia/jetson-orin-nano", "sm_87", "carmel", 6)
 _register_jetson_tag("nvidia/jetson-agx-orin-32gb", "sm_87", "cortex-a78", 8)
 _register_jetson_tag("nvidia/jetson-agx-orin-64gb", "sm_87", "cortex-a78", 12)
+register_tag(
+    "nvidia/jetson-agx-thor",
+    {
+        "kind": "cuda",
+        "arch": "sm_110a",
+        "max_shared_memory_per_block": 232448,
+        "max_threads_per_block": 1024,
+        "thread_warp_size": 32,
+        "registers_per_block": 65536,
+        "l2_cache_size_bytes": 33554432,
+        "host": {
+            "kind": "llvm",
+            "mtriple": "aarch64-linux-gnu",
+            "mcpu": "neoverse-v3ae",
+            "num-cores": 14,
+        },
+    },
+)

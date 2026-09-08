@@ -1157,12 +1157,12 @@ def get_conv2d_vnni_mod(intrin_id):
                             A = T.match_buffer(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], [4], dtype="uint8", offset_factor=1)
                             B = T.match_buffer(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4], [16, 4], dtype="int8", offset_factor=1)
                             C = T.match_buffer(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16], [16], dtype="int32", offset_factor=1)
-                            A_u8x4: T.uint8x4 = A[0:4]
+                            A_u8x4: T.uint8x4 = A[T.ramp(0, 1, 4)]
                             A_i32: T.int32 = T.reinterpret(A_u8x4, dtype="int32")
-                            B_i8x64: T.int8x64 = B[0, 0:64]
+                            B_i8x64: T.int8x64 = B[0, T.ramp(0, 1, 64)]
                             B_i32x16: T.int32x16 = T.reinterpret(B_i8x64, dtype="int32x16")
-                            C_i32x16: T.int32x16 = C[0:16]
-                            C[0:16] = T.call_llvm_pure_intrin(T.uint32(intrin_id), C_i32x16, T.broadcast(A_i32, 16), B_i32x16, dtype="int32x16")
+                            C_i32x16: T.int32x16 = C[T.ramp(0, 1, 16)]
+                            C[T.ramp(0, 1, 16)] = T.call_llvm_pure_intrin(T.uint32(intrin_id), C_i32x16, T.broadcast(A_i32, 16), B_i32x16, dtype="int32x16")
                     for ax0, ax1, ax2, ax3 in T.grid(1, 1, 1, 7):
                         for ax4_fused in T.vectorized(16):
                             with T.sblock("T_cast_8"):

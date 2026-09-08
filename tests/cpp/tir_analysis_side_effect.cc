@@ -18,6 +18,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
@@ -28,7 +29,7 @@ TEST(SimplePasses, SideEffect) {
   auto buf = tirx::decl_buffer({16}, PrimType::Float(32));
   auto i = tirx::PrimVar("i", PrimType::Int(32));
   TVM_FFI_ICHECK(tirx::SideEffect(tirx::BufferLoad(buf, {i})) == tirx::CallEffectKind::kReadState);
-  TVM_FFI_ICHECK(tirx::SideEffect(exp(tirx::Cast(PrimType::Float(32), i + 1))) ==
+  TVM_FFI_ICHECK(tirx::SideEffect(exp(prim::Cast(PrimType::Float(32), i + 1))) ==
                  tirx::CallEffectKind::kPure);
   TVM_FFI_ICHECK(tirx::SideEffect(tvm::Call(PrimType::Void(), tirx::builtin::tvm_storage_sync(), {})
                                       .as_or_throw<PrimExpr>()) ==

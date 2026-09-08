@@ -24,8 +24,9 @@
 #ifndef TVM_TOPI_ELEMWISE_H_
 #define TVM_TOPI_ELEMWISE_H_
 
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/topi/tags.h>
 
@@ -214,8 +215,8 @@ inline Tensor sign(const Tensor& x, std::string name = "T_sign", std::string tag
         PrimExpr zero = MakeConst(x_type, 0);
         PrimExpr one = MakeConst(x_type, 1);
         PrimExpr minus_one = MakeConst(x_type, -1);
-        auto s1 = tvm::tirx::Select((x(i) < zero), minus_one, zero);
-        auto s2 = tvm::tirx::Select((x(i) > zero), one, s1);
+        auto s1 = tvm::prim::Select((x(i) < zero), minus_one, zero);
+        auto s2 = tvm::prim::Select((x(i) > zero), one, s1);
         return s2;
       },
       name, tag);
@@ -295,7 +296,7 @@ inline Tensor cast(const Tensor& x, PrimType type, std::string name = "T_cast",
           if (expr_ty.lanes() == type.lanes()) {
             return expr;
           } else if (expr_ty.lanes() == 1 && type.IsFixedLengthVector()) {
-            return tvm::tirx::Broadcast(expr, type.lanes());
+            return tvm::prim::Broadcast(expr, type.lanes());
           }
         }
 

@@ -174,7 +174,7 @@ class IterVarNode : public PrimExprConvertibleNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IterVarNode>()
         .def_ro("dom", &IterVarNode::dom)
-        .def_ro("var", &IterVarNode::var, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("var", &IterVarNode::var, refl::AttachFieldFlag::SEqHashDefNonRecursive())
         .def_ro("iter_type", &IterVarNode::iter_type)
         .def_ro("thread_tag", &IterVarNode::thread_tag)
         .def_ro("span", &IterVarNode::span, refl::DefaultValue(Span()),
@@ -275,5 +275,10 @@ struct TypeTraits<tirx::PrimVar> : public ObjectRefTypeTraitsBase<tirx::PrimVar>
 };
 
 }  // namespace tvm::ffi
+
+namespace std {
+template <>
+struct hash<::tvm::tirx::IterVar> : public ::tvm::ffi::ObjectPtrHash {};
+}  // namespace std
 
 #endif  // TVM_TIR_VAR_H_

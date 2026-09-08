@@ -37,9 +37,12 @@ from .type import FuncType, OpaqueType, PointerType, PrimType, TupleType, Type
 from .expr import (
     Call,
     Expr,
+    ExprOperand,
+    ExprWithOp,
     GlobalVar,
     OpaqueExpr,
     Range,
+    TensorLoad,
     Tuple,
     TupleGetItem,
     Var,

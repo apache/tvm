@@ -224,10 +224,39 @@ class CUDAWrappedFunc {
     int device_id;
     TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
     ThreadWorkLoad wl = launch_param_config_.Extract(args);
+    bool use_oversized_shared_memory = false;
 
     if (fcache_[device_id] == nullptr) {
       fcache_[device_id] = m_->GetFunc(device_id, func_name_);
-      if (wl.dyn_shmem_size >= (48 << 10)) {
+      // SM107 cluster kernels may use an oversized shared-memory configuration above the
+      // ordinary per-CTA opt-in limit.  Match CUDA 13/CUTLASS DSL by selecting that mode
+      // before setting the dynamic-SMEM size; the latter attribute is ignored in this mode.
+      if (launch_param_config_.use_cluster_launch()) {
+#if CUDA_VERSION >= 13040
+        int max_portable_dynamic_shared = 0;
+        TVM_FFI_CHECK_CUDA_ERROR(cudaDeviceGetAttribute(
+            &max_portable_dynamic_shared, cudaDevAttrMaxSharedMemoryPerBlockOptin, device_id));
+        use_oversized_shared_memory =
+            wl.dyn_shmem_size > static_cast<size_t>(max_portable_dynamic_shared);
+        if (use_oversized_shared_memory) {
+          CUresult result =
+              cuFuncSetAttribute(fcache_[device_id], CU_FUNC_ATTRIBUTE_SHARED_MEMORY_MODE,
+                                 CU_SHARED_MEMORY_MODE_ALLOW_OVERSIZED_SHARED_MEMORY);
+          if (result != CUDA_SUCCESS) {
+            TVM_FFI_THROW(InternalError)
+                << "Failed to allow oversized dynamic shared memory size " << wl.dyn_shmem_size;
+          }
+        }
+#endif  // CUDA_VERSION >= 13040
+        CUresult result = cuFuncSetAttribute(
+            fcache_[device_id], CU_FUNC_ATTRIBUTE_NON_PORTABLE_CLUSTER_SIZE_ALLOWED, 1);
+        if (result != CUDA_SUCCESS) {
+          TVM_FFI_THROW(InternalError)
+              << "Failed to allow non-portable CUDA cluster size (" << wl.cluster_dim(0) << ", "
+              << wl.cluster_dim(1) << ", " << wl.cluster_dim(2) << ")";
+        }
+      }
+      if (wl.dyn_shmem_size >= (48 << 10) && !use_oversized_shared_memory) {
         // Assumption: dyn_shmem_size doesn't change across different invocations of
         // fcache_[device_id]
         CUresult result = cuFuncSetAttribute(
@@ -235,15 +264,6 @@ class CUDAWrappedFunc {
         if (result != CUDA_SUCCESS) {
           TVM_FFI_THROW(InternalError)
               << "Failed to set the allowed dynamic shared memory size to " << wl.dyn_shmem_size;
-        }
-      }
-      if (wl.cluster_dim(0) * wl.cluster_dim(1) * wl.cluster_dim(2) > 8) {
-        CUresult result = cuFuncSetAttribute(
-            fcache_[device_id], CU_FUNC_ATTRIBUTE_NON_PORTABLE_CLUSTER_SIZE_ALLOWED, 1);
-        if (result != CUDA_SUCCESS) {
-          TVM_FFI_THROW(InternalError)
-              << "Failed to allow non-portable CUDA cluster size (" << wl.cluster_dim(0) << ", "
-              << wl.cluster_dim(1) << ", " << wl.cluster_dim(2) << ")";
         }
       }
     }

@@ -25,7 +25,7 @@
 
 #include "check_contains.h"
 
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <vector>
 

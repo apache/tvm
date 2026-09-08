@@ -168,7 +168,7 @@ bool IsValidUTF8(const std::string& value) {
 std::string GetName(const CallNode* call, size_t index = 0) {
   TVM_FFI_CHECK(call->args.size() > index, ValueError)
       << call->op.as<Op>().value()->name << " requires a literal event name";
-  const auto* name = call->args[index].as<StringImmNode>();
+  const auto* name = call->args[index].as<prim::StringImmNode>();
   TVM_FFI_CHECK(name != nullptr, TypeError)
       << call->op.as<Op>().value()->name << " requires a string-literal event name";
   std::string result = name->value;
@@ -388,8 +388,8 @@ class TokenBufferCollector : public StmtExprVisitor {
     bool is_token_value = false;
     if (const auto* call = store->value.as<CallNode>()) {
       is_token_value = IsTokenProducer(call);
-    } else if (const auto* load = store->value.as<BufferLoadNode>()) {
-      is_token_value = buffers_->count(load->buffer.get());
+    } else if (const auto* load = store->value.as<TensorLoadNode>()) {
+      is_token_value = buffers_->count(load->source.as_or_throw<tvm::tirx::BufferVar>().get());
     }
     if (is_token_value && buffers_->insert(store->buffer.get()).second) changed = true;
     StmtExprVisitor::VisitStmt_(store);
@@ -423,8 +423,8 @@ class TokenDeclarationCollector : public StmtExprVisitor {
     std::set<DeclarationKey> possible;
     if (const auto* call = store->value.as<CallNode>(); call && IsTokenProducer(call)) {
       possible.insert(DeclarationKey{DeclarationKind::kRange, GetName(call)});
-    } else if (const auto* load = store->value.as<BufferLoadNode>()) {
-      auto it = declarations_->find(load->buffer.get());
+    } else if (const auto* load = store->value.as<TensorLoadNode>()) {
+      auto it = declarations_->find(load->source.as_or_throw<tvm::tirx::BufferVar>().get());
       if (it != declarations_->end()) possible = it->second;
     }
     if (!possible.empty()) {
@@ -462,9 +462,9 @@ class RangeEndSchemaVerifier : public StmtExprVisitor {
       StmtExprVisitor::VisitExpr_(call);
       return;
     }
-    const auto* token = call->args[0].as<BufferLoadNode>();
+    const auto* token = call->args[0].as<TensorLoadNode>();
     TVM_FFI_ICHECK(token != nullptr);
-    auto possible_it = token_declarations_.find(token->buffer.get());
+    auto possible_it = token_declarations_.find(token->source.as_or_throw<BufferVar>().get());
     TVM_FFI_ICHECK(possible_it != token_declarations_.end());
     bool has_payload = call->args.size() == 2;
     PayloadType payload_type = has_payload ? ValidatePayload(call->args[1]) : PayloadType::kNone;
@@ -533,8 +533,8 @@ class TokenVerifier : public StmtExprVisitor {
       allow_producer_ = valid_value;
       VisitExpr(store->value);
       allow_producer_ = false;
-    } else if (const auto* load = store->value.as<BufferLoadNode>()) {
-      valid_value = token_buffers_.count(load->buffer.get());
+    } else if (const auto* load = store->value.as<TensorLoadNode>()) {
+      valid_value = token_buffers_.count(load->source.as_or_throw<tvm::tirx::BufferVar>().get());
       allow_token_load_ = valid_value;
       VisitExpr(store->value);
       allow_token_load_ = false;
@@ -544,8 +544,8 @@ class TokenVerifier : public StmtExprVisitor {
     for (const PrimExpr& index : store->indices) VisitExpr(index);
   }
 
-  void VisitExpr_(const BufferLoadNode* load) final {
-    if (token_buffers_.count(load->buffer.get())) {
+  void VisitExpr_(const TensorLoadNode* load) final {
+    if (token_buffers_.count(load->source.as_or_throw<tvm::tirx::BufferVar>().get())) {
       TVM_FFI_CHECK(allow_token_load_, ValueError)
           << "RangeToken may only be assigned or passed directly to range_end";
     }
@@ -564,8 +564,10 @@ class TokenVerifier : public StmtExprVisitor {
     }
     if (call->op.same_as(IketRangeEndOp())) {
       TVM_FFI_CHECK_GE(call->args.size(), 1, TypeError) << "range_end requires a RangeToken";
-      const auto* token = call->args[0].as<BufferLoadNode>();
-      TVM_FFI_CHECK(token != nullptr && token_buffers_.count(token->buffer.get()), ValueError)
+      const auto* token = call->args[0].as<TensorLoadNode>();
+      TVM_FFI_CHECK(
+          token != nullptr && token_buffers_.count(token->source.as_or_throw<BufferVar>().get()),
+          ValueError)
           << "range_end requires a directly loaded RangeToken";
       allow_token_load_ = true;
       VisitExpr(call->args[0]);
@@ -1118,14 +1120,14 @@ class InstrumentOfficialKernel : public StmtExprMutator {
   PrimExpr Event(PrimExpr event_id) const {
     static const Op& event_op = Op::Get("tirx.cuda.iket_official_event");
     return Call(PrimType::UInt(32), event_op,
-                {cast(PrimType::UInt(32), event_id), StringImm(device_source_)});
+                {cast(PrimType::UInt(32), event_id), prim::StringImm(device_source_)});
   }
 
   PrimExpr Event(PrimExpr event_id, PrimExpr payload) const {
     static const Op& event_op = Op::Get("tirx.cuda.iket_official_event");
     return Call(
         PrimType::UInt(32), event_op,
-        {cast(PrimType::UInt(32), event_id), StringImm(device_source_), std::move(payload)});
+        {cast(PrimType::UInt(32), event_id), prim::StringImm(device_source_), std::move(payload)});
   }
 
   PrimExpr NormalizePayload(PrimExpr payload, PayloadType type) const {

@@ -97,7 +97,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
         auto eval_range = make_eval_range(indices);
         PrimExpr x = data(eval_range);
         if (is_float16) {
-          x = Cast(f32_ty, x);
+          x = prim::Cast(f32_ty, x);
         }
         return sum(x, reduce_axes);
       },
@@ -122,7 +122,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
         auto eval_range = make_eval_range(indices);
         PrimExpr x = data(eval_range);
         if (is_float16) {
-          x = Cast(f32_ty, x);
+          x = prim::Cast(f32_ty, x);
         }
         PrimExpr diff = x - temp_mean(indices);
         return sum(diff * diff, reduce_axes);
@@ -142,7 +142,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
     auto var = temp_var_sum(non_reduce_indices) / reduce_extent;
     auto layer_norm = (data(indices) - mean) * rsqrt(var + MakeConst(var.ty(), epsilon));
     if (is_float16) {
-      layer_norm = Cast(PrimType::Float(16), layer_norm);
+      layer_norm = prim::Cast(PrimType::Float(16), layer_norm);
     }
     layer_norm = topi::multiply(layer_norm, gamma(reduce_indices));
     if (beta.defined()) {

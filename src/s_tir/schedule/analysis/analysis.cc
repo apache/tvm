@@ -26,6 +26,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1363,7 +1364,7 @@ bool HasIfThenElse(const Stmt& stmt) {
       has_branch = true;
     } else if (const auto* call = obj.as<CallNode>()) {
       // Case 3: Call the `if_then_else` operator
-      static const Op& if_then_else_op = Op::Get("tirx.if_then_else");
+      static const Op& if_then_else_op = Op::Get("ir.prim.if_then_else");
       if (call->op.same_as(if_then_else_op)) {
         has_branch = true;
       }

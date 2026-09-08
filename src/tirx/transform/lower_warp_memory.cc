@@ -31,11 +31,12 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -371,10 +372,10 @@ class WarpAccessRewriter : protected StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) override {
-    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) override {
+    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
 
-    if (load->buffer.get() != buffer_) {
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().get() != buffer_) {
       return load;
     }
 
@@ -388,9 +389,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
         << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->indices[0]
         << " local_index=" << local_index;
 
-    auto writer = load.CopyOnWrite();
-    writer->buffer = new_buffer_;
-    writer->indices = {local_index};
+    load = BufferLoad(new_buffer_, {local_index}, load->span);
 
     if (analyzer_->CanProveEqual(group, warp_index_.as_or_throw<PrimExpr>())) {
       return load;
@@ -415,7 +414,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
       TVM_FFI_ICHECK(arith::ramp(base, 1, index_ty.lanes()).Match(index));
 
       auto [local_index, group] = SplitIndexByGroup(base.Eval());
-      local_index = Ramp(local_index, IntImm(local_index.ty(), 1), index_ty.lanes());
+      local_index = prim::Ramp(local_index, IntImm(local_index.ty(), 1), index_ty.lanes());
       return std::make_pair(local_index, group);
     }
     PrimExpr m = IntImm(index_ty, warp_coeff_);

@@ -25,6 +25,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/schedule/instruction.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/state.h>
@@ -53,6 +54,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 /*!
  * \brief Convert an array of loop StmtSRefs to an array of loops

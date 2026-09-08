@@ -23,7 +23,8 @@ to the warp-collective PTX ``ldmatrix`` / ``stmatrix`` instructions: one
 instruction moves ``num`` 8×8 16-bit matrix tiles between shared memory and the
 warp's registers, with the hardware performing the lane↔element shuffle that an
 MMA fragment needs. It only applies when the register and shared **layouts match
-the m8n8 fragment geometry**; otherwise the copy falls back to :doc:`reg`. Source:
+the m8n8 fragment geometry**; otherwise the copy falls back to the
+:doc:`reg` path in ``vec_auto``. Source:
 ``python/tvm/backend/cuda/tile_primitive/copy/ld_stmatrix.py``.
 
 What it accepts
@@ -49,9 +50,9 @@ The predicate is lean — scope, a valid copy, and a register↔shared pair:
         return True, None
 
 The **real** gate is the layout fit, applied during emit. Both this variant and
-:doc:`reg` are priority 10 and both accept ``local ↔ shared``; ``ldstmatrix`` is
+``vec_auto`` are priority 10 and accept ``local ↔ shared``; ``ldstmatrix`` is
 tried first and **declines** (via ``fail(...)``) if the layouts are not ldmatrix
-fragments, leaving ``reg`` to handle the copy:
+fragments, leaving the :doc:`reg` path in ``vec_auto`` to handle the copy:
 
 .. code-block:: python
 
@@ -74,12 +75,24 @@ fragments, leaving ``reg`` to handle the copy:
    * - memory pair
      - ``_REG_SMEM_PAIRS`` = ``(local, shared*)`` / ``(shared*, local)``
    * - dtype
-     - 16-bit (``.b16``) — ldmatrix/stmatrix move 8 fp16 = 16 B per lane per tile
+     - the predicate only requires matching source/destination dtypes; it does
+       not inspect their bit width. The emitter always uses ``.b16`` and its
+       layout math assumes eight 16-bit elements per shared row, so callers use
+       16-bit element layouts. Each ``.x1`` tile gives every lane one 32-bit
+       register containing two 16-bit elements
    * - layout fit
      - both operands regroup to ``[T/32, 8, 4, M/(2·num), num, 2]`` with the
        register side equal to the m8n8 fragment pattern and the shared side row- or
        column-major with 16-B-aligned tile strides (``_try_num``), for some
        ``num ∈ {4, 2, 1}``
+   * - thread layout
+     - neither side may have replica axes; the register side has exactly one
+       thread-axis name from ``laneid``, ``tid_in_wg``, or ``tx``. Its total
+       thread extent is divisible by 32; an outer multi-warp iter, when present,
+       has register stride 32
+   * - shared swizzle
+     - a ``ComposeLayout`` is accepted only when ``per_element >= 3``, preserving
+       the contiguous eight-element shared-memory row addressed by the instruction
 
 Demonstration program
 ----------------------
@@ -97,16 +110,16 @@ register, from ``test_ld_stmatrix.py`` (register layout = the m8n8 fragment,
     s_layout = TileLayout(S[(8, 4, num, 2) : (num * 8, 2, 8, 1)])     # row-major
     full = (slice(0, 8), slice(0, 4), slice(0, num), slice(0, 2))
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (M, N), "float16")
-        B = T.match_buffer(B_ptr, (M, N), "float16")
-        T.device_entry(); T.cta_id([1]); T.lane_id([32]); tid = T.thread_id([32])
-        A_smem = T.alloc_buffer((8, 4, num, 2), "float16", scope="shared", layout=s_layout)
+    @Tx.prim_func
+    def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, (M, N), "float16")
+        B = Tx.match_buffer(B_ptr, (M, N), "float16")
+        Tx.device_entry(); Tx.cta_id([1]); Tx.lane_id([32]); tid = Tx.thread_id([32])
+        A_smem = Tx.alloc_buffer((8, 4, num, 2), "float16", scope="shared", layout=s_layout)
         # ... stage A into A_smem (row = tid//4, cp = tid%4) ...
-        T.cuda.cta_sync()
-        R = T.alloc_buffer((8, 4, num, 2), "float16", scope="local", layout=r_layout)
-        Tx.warp.copy(R[full], A_smem[full])     # shared -> register  (ldmatrix)
+        Tx.cuda.cta_sync()
+        R = Tx.alloc_buffer((8, 4, num, 2), "float16", scope="local", layout=r_layout)
+        Tx.tile.warp.copy(R[full], A_smem[full])     # shared -> register  (ldmatrix)
         # ... write R back out to B ...
 
 Algorithm
@@ -140,25 +153,26 @@ Row-major shared (``s4, s2 == 2, 1``, ``s8`` a positive multiple of 8) → plain
     if s8 == 1 and s2 > 0 and s2 % 8 == 0 and s4 == 2 * s2:
         return (rg, rsep, sg, ssep, True,  s2, num)     # trans=True,  p=s2
 
-The 8-multiple checks enforce 16-byte alignment (8 fp16) for every tile and every
-``m_outer`` advance, since each lane's ``.b16`` access reads 16 bytes.
+The 8-multiple checks keep every shared-memory row start and every ``m_outer``
+advance aligned to 16 bytes (8 fp16). The warp distributes that row across
+lanes; each lane's destination or source register word is 32 bits.
 
 **4. Emit one instruction per** ``m_outer`` **tile group.** Each lane contributes
 its shared address (tile offset + ``(laneid % 8) · p``) and ``num`` register
-handles:
+words:
 
 .. code-block:: python
 
-    for mm in T.unroll(m_outer):
+    for mm in Tx.unroll(m_outer):
         smem_ptr = _ptr_off(s_buf.ptr_to(s_zero), _smem_off(mm, tile_off + (laneid % 8) * p))
-        handles  = [r_local.ptr_to([...]) for i in range(num)]
+        words = [r_local[...] for i in range(num)]
         chain = f"{direction}matrix.sync.aligned.m8n8.x{num}{trans_seg}.shared.b16"
         if direction == "ld":
-            T.ptx[chain](*words, smem_ptr)
+            Tx.ptx[chain](*words, smem_ptr)
         else:
-            T.ptx[chain](smem_ptr, *words)   # stmatrix takes the address first
+            Tx.ptx[chain](smem_ptr, *words)   # stmatrix takes the address first
 
-(This is the one copy variant that **does** use ``T.unroll`` — ``m_outer`` is tiny.)
+(This is the one copy variant that **does** use ``Tx.unroll`` — ``m_outer`` is tiny.)
 
 Generated TIRx IR
 -----------------
@@ -167,8 +181,8 @@ For the demo (``num = 2``, ``M = 8`` ⇒ ``m_outer = 1``):
 
 .. code-block:: python
 
-    for mm in T.unroll(1):
-        T.ptx["ldmatrix.sync.aligned.m8n8.x2.shared.b16"](
+    for mm in Tx.unroll(1):
+        Tx.ptx["ldmatrix.sync.aligned.m8n8.x2.shared.b16"](
             r_local[0], r_local[2], smem_ptr)
 
 Generated CUDA
@@ -192,7 +206,7 @@ How inputs change the algorithm
 -------------------------------
 
 ``num`` (the matrix count that fits) selects the instruction width and the number
-of register handles; ``trans`` (set by the shared layout) selects the transposing
+of register words; ``trans`` (set by the shared layout) selects the transposing
 form:
 
 .. list-table::
@@ -217,4 +231,4 @@ form:
 
 A larger M raises ``m_outer`` (more unrolled instructions per lane); the ``st``
 direction emits ``stmatrix`` with the same width/trans logic. If no ``num`` fits,
-the copy is handled by :doc:`reg` instead.
+the copy is handled by the :doc:`reg` path in ``vec_auto`` instead.

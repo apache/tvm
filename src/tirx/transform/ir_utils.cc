@@ -201,7 +201,7 @@ class IRConvertSSA final : public StmtExprMutator {
   BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) override { return buffer; }
 
   Expr VisitExpr_(const VarNode* op) final { return GetRemappedVar(ffi::GetRef<Var>(op)); }
-  Expr VisitExpr_(const LetNode* op) final {
+  Expr VisitExpr_(const prim::LetNode* op) final {
     const Var& v = op->var;
     if (defined_.count(v.get())) {
       PrimExpr value = this->VisitPrimExpr(op->value);
@@ -209,15 +209,15 @@ class IRConvertSSA final : public StmtExprMutator {
       PushVarRemap(v, new_var);
       PrimExpr body = this->VisitPrimExpr(op->body);
       PopVarRemap(v, new_var);
-      return Let(new_var, value, body);
+      return prim::Let(new_var, value, body);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitExpr_(op);
     }
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     auto output = VisitBufferAccess(std::move(node));
     return output;
   }
@@ -287,6 +287,15 @@ class IRConvertSSA final : public StmtExprMutator {
     }
 
     return node;
+  }
+
+  TensorLoad VisitBufferAccess(TensorLoad node) {
+    BufferVar buffer = node->source.as_or_throw<BufferVar>();
+    BufferVar new_buf = GetRemappedBuffer(buffer);
+    if (new_buf.same_as(buffer)) {
+      return node;
+    }
+    return BufferLoad(new_buf, node->indices, node->span);
   }
 
   Var GetRemappedVar(Var var) {
@@ -455,7 +464,7 @@ class IRConvertSSA final : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<AllocBufferNode>();
     // Use GetRemappedBuffer so that the AllocBuffer's buffer is the same
-    // object as the one used by BufferStore/BufferLoad in subsequent siblings.
+    // object as the one used by BufferStore/TensorLoad in subsequent siblings.
     BufferVar new_buf = GetRemappedBuffer(op->buffer);
     if (!new_buf.same_as(op->buffer)) {
       auto node = stmt.as_or_throw<AllocBuffer>();
@@ -779,8 +788,9 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
   ffi::Array<PrimExpr> equations;
   ffi::Array<PrimVar> vars;
   std::function<void(const PrimExpr&)> fvisit = [&equations, &vars, &fvisit](const PrimExpr& e) {
-    if (e->IsInstance<GENode>() || e->IsInstance<GTNode>() || e->IsInstance<LENode>() ||
-        e->IsInstance<LTNode>() || e->IsInstance<EQNode>() || e->IsInstance<NENode>()) {
+    if (e->IsInstance<prim::GENode>() || e->IsInstance<prim::GTNode>() ||
+        e->IsInstance<prim::LENode>() || e->IsInstance<prim::LTNode>() ||
+        e->IsInstance<prim::EQNode>() || e->IsInstance<prim::NENode>()) {
       bool is_simple = true;
       std::vector<PrimVar> cand_vars;
       PostOrderVisit(e, [&cand_vars, &is_simple, &e](const ffi::ObjectRef& obj) {
@@ -792,9 +802,9 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
             cand_vars.push_back(ffi::GetRef<Var>(var).as_or_throw<PrimVar>());
           }
         } else {
-          is_simple &= obj->IsInstance<AddNode>() || obj->IsInstance<SubNode>() ||
-                       obj->IsInstance<MulNode>() || obj->IsInstance<FloorDivNode>() ||
-                       obj->IsInstance<FloorModNode>() || obj->IsInstance<IntImmNode>();
+          is_simple &= obj->IsInstance<prim::AddNode>() || obj->IsInstance<prim::SubNode>() ||
+                       obj->IsInstance<prim::MulNode>() || obj->IsInstance<prim::FloorDivNode>() ||
+                       obj->IsInstance<prim::FloorModNode>() || obj->IsInstance<IntImmNode>();
         }
       });
       if (is_simple && !cand_vars.empty()) {
@@ -806,13 +816,13 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
         }
         equations.push_back(e.as_or_throw<PrimExpr>());
       }
-    } else if (e->IsInstance<AndNode>()) {
-      And op = e.as_or_throw<And>();
+    } else if (e->IsInstance<prim::AndNode>()) {
+      prim::And op = e.as_or_throw<prim::And>();
       fvisit(op->a);
       fvisit(op->b);
     } else if (e->IsInstance<CallNode>()) {
       Call op = e.as_or_throw<Call>();
-      if (op->op.same_as(builtin::likely())) {
+      if (op->op.same_as(prim::builtin::likely())) {
         fvisit(op->args[0].as_or_throw<PrimExpr>());
       }
     }

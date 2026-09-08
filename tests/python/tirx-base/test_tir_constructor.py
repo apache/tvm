@@ -20,6 +20,7 @@ import tvm_ffi
 
 import tvm
 from tvm import te, topi
+from tvm.script import tirx as T
 from tvm.tirx.analysis import expr_deep_equal
 from tvm.tirx.expr_functor import ExprMutator
 
@@ -108,11 +109,11 @@ def test_expr_constructor():
     buffer_var = tvm.tirx.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
     buffer = tvm.tirx.decl_buffer([16], "float32", data=buffer_var)
     x = tvm.tirx.BufferLoad(buffer, [1])
-    assert isinstance(x, tvm.tirx.BufferLoad)
+    assert isinstance(x, tvm.ir.TensorLoad)
     assert x.ty == tvm.ir.PrimType("float32")
-    assert x.buffer == buffer
-    assert x.buffer.data.args[0].same_as(buffer)
-    assert x.buffer.data.ty == tvm.tirx.buffer_data_pointer_type(buffer)
+    assert x.source == buffer
+    assert x.source.data.args[0].same_as(buffer)
+    assert x.source.data.ty == tvm.tirx.buffer_data_pointer_type(buffer)
     assert list(x.indices) == [1]
 
     x = tvm.tirx.Ramp(1, 2, 10)
@@ -192,12 +193,12 @@ def test_expr_constructor():
     cond0 = tvm.tirx.Var("cond0", "bool")
     cond1 = tvm.tirx.Var("cond1", "bool")
     inner_if = tvm.ir.Call(
-        "tirx.if_then_else",
+        "ir.prim.if_then_else",
         [cond1, tvm.tirx.IntImm("int32", 1), tvm.tirx.IntImm("int32", 0)],
         ret_ty="int32",
     )
     outer_if = tvm.ir.Call(
-        "tirx.if_then_else",
+        "ir.prim.if_then_else",
         [cond0, inner_if, tvm.tirx.IntImm("int32", 0)],
         attrs={"keep": True},
         ret_ty="int32",
@@ -212,6 +213,71 @@ def test_expr_constructor():
     assert x.var == v
     assert x.value.value == 1
     assert x.body == v
+
+
+def test_buffer_region_call_wrappers_reject():
+    buffer = tvm.tirx.decl_buffer([4], "int32")
+    region = buffer[0:4]
+    calls = [
+        lambda: tvm.tirx.call_intrin("int32", "tirx.reinterpret", region),
+        lambda: tvm.tirx.call_extern("int32", "consume", region),
+        lambda: tvm.tirx.call_pure_extern("int32", "consume", region),
+        lambda: tvm.tirx.call_packed("consume", region),
+        lambda: tvm.tirx.call_cpacked("consume", region, 0),
+        lambda: tvm.tirx.call_packed_lowered("consume", region),
+        lambda: tvm.tirx.call_cpacked_lowered("consume", region, 0),
+        lambda: tvm.tirx.call_tir(tvm.ir.GlobalVar("callee"), region),
+        lambda: tvm.tirx.trace([region]),
+        lambda: T.evaluate(region),
+    ]
+    for call in calls:
+        with pytest.raises(TypeError, match="construct a BufferLoad with explicit indices"):
+            call()
+
+    assert not hasattr(region, "to_buffer_load")
+
+
+def test_buffer_region_type_is_singleton():
+    lhs = tvm.tirx.decl_buffer([1], "int32")[0:1]
+    rhs = tvm.tirx.decl_buffer([2], "float32")[0:2]
+    assert isinstance(lhs, tvm.tirx.BufferRegion)
+    assert isinstance(rhs, tvm.tirx.BufferRegion)
+    assert lhs.ty.same_as(rhs.ty)
+
+
+def test_buffer_region_is_not_arithmetic_operand():
+    int_region = tvm.tirx.decl_buffer([4], "int32")[0:4]
+    with pytest.raises(TypeError, match="construct a BufferLoad explicitly"):
+        tvm.tirx.IterVar((0, 4), "i", tvm.tirx.IterVar.DataPar) + int_region
+
+
+def test_operator_base_categories_have_primitive_type():
+    var = tvm.tirx.Var("x", "int32")
+    buffer = tvm.tirx.decl_buffer([4], "float32")
+    expressions = [
+        tvm.tirx.IntImm("int32", 1),
+        tvm.tirx.Add(var, 1),
+        tvm.tirx.LT(var, 1),
+        tvm.tirx.And(var < 1, var < 2),
+        tvm.tirx.Reduce(
+            None,
+            [1],
+            [tvm.tirx.IterVar((0, 1), "i", tvm.tirx.IterVar.CommReduce)],
+            None,
+            0,
+        ),
+        tvm.tirx.Cast("float32", var),
+        tvm.tirx.Select(var < 1, var, 1),
+        tvm.tirx.BufferLoad(buffer, [0]),
+        tvm.tirx.Ramp(0, 1, 4),
+        tvm.tirx.Broadcast(var, 4),
+        tvm.tirx.Shuffle([tvm.tirx.Broadcast(var, 2)], [0]),
+        tvm.tirx.Let(var, 1, var),
+    ]
+
+    for expression in expressions:
+        assert isinstance(expression, tvm.ir.ExprWithOp)
+        assert isinstance(expression.ty, tvm.ir.PrimType)
 
 
 def test_stmt_constructor():

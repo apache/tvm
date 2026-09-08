@@ -713,7 +713,7 @@ def test_reduction_local_optimized_3input_maxmin(reduction_len, op_type, accum):
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("reduction_len", [8, 16, 64, 128, 256, 9, 17, 63, 65, 100])
 @pytest.mark.parametrize("accum", [False, True])
 def test_reduction_local_optimized_packed_add_sum(reduction_len, accum):
@@ -747,8 +747,8 @@ def test_reduction_local_optimized_packed_add_sum(reduction_len, accum):
         B[0] = B_local[0]
         # fmt: on
 
-        # Use sm_100a target for packed add sum dispatch
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+        # Compile for the device that will execute the packed SM100+ operation.
+    target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": test_func})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")

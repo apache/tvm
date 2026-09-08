@@ -50,6 +50,7 @@ from . import script
 
 # tvm.tirx — registers itself via tvm.script.register_dialect in its __init__
 from . import tirx
+from .ir import prim
 
 # tvm.backend — owns backend Python load hooks
 from . import backend

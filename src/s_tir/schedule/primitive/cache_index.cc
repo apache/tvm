@@ -25,6 +25,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /******** Helper Functions/Classes ********/
@@ -418,7 +419,7 @@ class CacheIndexRewriter : public StmtExprMutator {
             [computation](const PrimExpr& current_expr) {
               return (EquivalentTerms(current_expr, computation, true));
             };
-        BufferLoad load = BufferLoad(info_->cache_buffer[i], cache_indices_[i]);
+        TensorLoad load = BufferLoad(info_->cache_buffer[i], cache_indices_[i]);
         ret_stmt = ReplaceSelectedExpr::ReplaceSelectedExprInStmt(
             ret_stmt, predicate_selector, std::move(load),
             [](const PrimExpr& expr) { return true; });

@@ -28,9 +28,10 @@
 
 #include <llvm/IR/Intrinsics.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 
 #include "llvm_instance.h"
 

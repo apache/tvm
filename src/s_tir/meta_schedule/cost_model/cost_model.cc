@@ -22,6 +22,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 void PyCostModelNode::Load(const ffi::String& path) {

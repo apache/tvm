@@ -19,10 +19,13 @@ elementwise → reg
 =================
 
 The ``reg`` variant lowers an elementwise op (``sqrt``, ``exp``, ``add``,
-``fma``, …) when **all operands are register** (``local``) buffers. Like the copy
-:doc:`../copy/reg` variant the partition is *induced* by the operands' register
-layout — the thread axes are dropped, leaving each thread its private bundle — and
-the op is applied to every register in that bundle. Source:
+``fma``, …) when **all buffer operands use ``local`` scope**. Scalar inputs are
+also accepted where the operation's authoring API permits them. Like the copy
+:doc:`../copy/reg` ``vec_auto`` path the partition is *induced* by the operands'
+local-buffer layout — the thread axes are dropped, leaving each thread its
+private bundle — and the op is applied to every element in that bundle. The
+variant name describes this local-buffer path; final register allocation
+remains a CUDA compiler decision. Source:
 ``python/tvm/backend/cuda/tile_primitive/elementwise/reg.py``.
 
 What it accepts
@@ -38,11 +41,12 @@ What it accepts
         ok, reason = _all_threads_active(sctx)
         plan, msg = spec.parse(op_call)
         for br in buffer_regions(plan):
-            if br.buffer.scope() != "local":               # every operand register
+            if br.buffer.scope() != "local":               # every buffer operand local
                 return False, f"operand scope {br.buffer.scope()} != local"
             if br.buffer.layout is None: ...
         # + spec.check_extras (dtype rules), pick_anchor + _validate_anchor_layout,
-        #   _validate_scope_level_anchor
+        #   _validate_scope_level_anchor, NumPy-style shape broadcast checks,
+        #   and agreement of operand thread/local/replica layout signatures
 
 .. list-table::
    :header-rows: 1
@@ -54,19 +58,24 @@ What it accepts
      - ``cuda``; ``thread`` / ``warp`` / ``warpgroup`` / ``cta`` (all active);
        priority ``10``
    * - operands
-     - **every** operand in ``local`` (registers)
+     - **every buffer operand** in ``local``; scalar sources are allowed by
+       ``fill``, the binary ops, and ``fma``
    * - op
-     - any registry op (unary / binary / ``fma``); ``spec.check_extras`` validates
-       the dtype combo
-   * - register layout
-     - the anchor register layout must validate, and its thread axis must match the
-       scope (it induces the partition)
+     - any CUDA elementwise ``OpSpec`` listed on the parent page (unary / binary /
+       ``fma``); ``spec.check_extras`` validates the dtype combo
+   * - local-buffer layout
+     - the anchor layout must validate, and its thread axis must match the
+       complete scope chain (it induces the partition); all operands must agree
+       on their thread, per-thread storage, and replica signatures
+   * - shapes
+     - every input region is NumPy-style right-aligned broadcast-compatible with
+       the destination region
 
 Demonstration program
 ----------------------
 
-A warp takes the elementwise ``sqrt`` of a ``32×8`` ``float32`` register tile
-(register layout ``S[(32,8):(1@laneid,1)]`` — lane ``i`` owns row ``i``):
+A warp takes the elementwise ``sqrt`` of a ``32×8`` ``float32`` local tile
+(local layout ``S[(32,8):(1@laneid,1)]`` — lane ``i`` owns row ``i``):
 
 .. code-block:: python
 
@@ -74,42 +83,46 @@ A warp takes the elementwise ``sqrt`` of a ``32×8`` ``float32`` register tile
 
     r_layout = TileLayout(S[(32, 8) : (1 @ laneid, 1)]); fs = (slice(0, 32), slice(0, 8))
 
-    @T.prim_func
-    def k(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (32, 8), "float32"); B = T.match_buffer(B_ptr, (32, 8), "float32")
-        T.device_entry(); T.cta_id([1]); T.lane_id([32]); tid = T.thread_id([32])
-        A_smem = T.alloc_buffer((32, 8), "float32", scope="shared", layout=TileLayout(S[(32, 8)]))
-        Tx.warp.copy(A_smem[fs], A[fs]); T.cuda.cta_sync()
-        R = T.alloc_buffer((32, 8), "float32", scope="local", layout=r_layout)
-        Tx.warp.copy(R[fs], A_smem[fs])
-        Tx.warp.sqrt(R[fs], R[fs])          # elementwise reg dispatch
-        Tx.warp.copy(A_smem[fs], R[fs]); T.cuda.cta_sync()
-        Tx.warp.copy(B[fs], A_smem[fs])
+    @Tx.prim_func
+    def k(A_ptr: Tx.handle, B_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, (32, 8), "float32"); B = Tx.match_buffer(B_ptr, (32, 8), "float32")
+        Tx.device_entry(); Tx.cta_id([1]); Tx.lane_id([32]); tid = Tx.thread_id([32])
+        A_smem = Tx.alloc_buffer((32, 8), "float32", scope="shared", layout=TileLayout(S[(32, 8)]))
+        Tx.tile.warp.copy(A_smem[fs], A[fs]); Tx.cuda.cta_sync()
+        R = Tx.alloc_buffer((32, 8), "float32", scope="local", layout=r_layout)
+        Tx.tile.warp.copy(R[fs], A_smem[fs])
+        Tx.tile.warp.sqrt(R[fs], R[fs])          # elementwise reg dispatch
+        Tx.tile.warp.copy(A_smem[fs], R[fs]); Tx.cuda.cta_sync()
+        Tx.tile.warp.copy(B[fs], A_smem[fs])
 
 Algorithm
 ---------
 
 **1. Parse and check.** ``spec.parse`` builds the op plan; the predicate confirms
-every operand is a register buffer and the anchor register layout is valid.
+every buffer operand is local, validates NumPy-style broadcasting, checks
+the anchor against the complete scope chain, and requires compatible
+thread/local/replica layout signatures across operands.
 
 **2. Induce the partition** from the anchor's thread axis (``laneid`` here): drop
 the thread iters, leaving each thread its private bundle (8 elements per lane).
 
-**3. Apply the op per register** — a per-thread loop over the bundle:
+**3. Apply the op to the per-thread bundle.** Registered packed implementations
+are tried widest-first after every operand proves a matching contiguous tail;
+otherwise the lowering uses the scalar operation in a per-thread loop.
 
 Generated TIRx IR
 -----------------
 
 .. code-block:: python
 
-    buffer[f] = T.sqrt(buffer_1[f])      # over each register f in the lane's bundle
+    buffer[f] = Tx.sqrt(buffer_1[f])      # over each element f in the lane's bundle
 
 Generated CUDA
 --------------
 
 .. code-block:: c++
 
-    r_local_ptr[f_2] = sqrtf(r_local_ptr[f_2]);   // per-register, private to the lane
+    r_local_ptr[f_2] = sqrtf(r_local_ptr[f_2]);   // per-thread local element
 
 (Verified on ``sm_100a`` — the result equals ``sqrt(A)``.)
 
@@ -123,11 +136,11 @@ How inputs change the algorithm
    * - input
      - effect
    * - op
-     - unary → ``sqrtf`` / ``expf`` / … per register; binary → ``a + b`` per
-       register; ``fma`` → ``a * b + c``
+     - unary → ``sqrtf`` / ``expf`` / … per element; binary → ``a + b`` per
+       element; ``fma`` → ``a * b + c``
    * - dtype
-     - the register element type (``sqrtf`` vs ``hsqrt`` etc.); the bundle size is
-       the per-lane element count
-   * - register layout
+     - selects the scalar operation and, where registered, a packed form such as
+       ``f32x2`` or a two-element cast
+   * - local-buffer layout
      - the anchor's thread axis sets the partition; a wider per-lane bundle means a
        longer loop

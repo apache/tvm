@@ -17,11 +17,13 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/te/operation.h>
 
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /******** Pattern Matcher ********/
@@ -245,12 +247,14 @@ class PatternMatcher : public ExprVisitor {
     match_success_ = ptr != nullptr && op->value == ptr->value;
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    const auto* ptr = expr_to_match_.as<BufferLoadNode>();
+  void VisitExpr_(const TensorLoadNode* op) final {
+    const auto* ptr = expr_to_match_.as<TensorLoadNode>();
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
-      if (!op->buffer.same_as(ptr->buffer) || op->indices.size() != ptr->indices.size()) {
+      if (!op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
+              ptr->source.as_or_throw<tvm::tirx::BufferVar>()) ||
+          op->indices.size() != ptr->indices.size()) {
         match_success_ = false;
       } else {
         Expr tmp = expr_to_match_;
@@ -631,10 +635,10 @@ class NoMatchedReducerError : public ScheduleError {
   ffi::Array<BufferStore> combiners_;
 };
 
-std::tuple<CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
+std::tuple<te::CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
     const ffi::Optional<ScheduleState>& self, const ffi::Array<PrimExpr>& identities,
     const ffi::Array<BufferStore>& combiners) {
-  CommReducer reducer{nullptr};
+  te::CommReducer reducer{nullptr};
   ffi::Array<PrimExpr> combiner_lhs, combiner_rhs;
   bool matched =
       FromIdentityCombiner(identities, combiners, &reducer, &combiner_lhs, &combiner_rhs);
@@ -652,9 +656,9 @@ std::tuple<CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAn
 
 /******** Commutative Reducer ********/
 
-bool MatchReducer(const CommReducer& reducer, const ffi::Array<PrimExpr>& identities,
+bool MatchReducer(const te::CommReducer& reducer, const ffi::Array<PrimExpr>& identities,
                   const ffi::Array<PrimExpr>& combined_values,
-                  const ffi::Array<BufferLoad>& buf_loads, ffi::Array<PrimExpr>* lhs,
+                  const ffi::Array<TensorLoad>& buf_loads, ffi::Array<PrimExpr>* lhs,
                   ffi::Array<PrimExpr>* rhs) {
   ExprDeepEqual equal;
   TVM_FFI_ICHECK_EQ(identities.size(), combined_values.size());
@@ -689,10 +693,10 @@ bool MatchReducer(const CommReducer& reducer, const ffi::Array<PrimExpr>& identi
 }
 
 bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
-                          const ffi::Array<BufferStore>& combiners, CommReducer* result_reducer,
+                          const ffi::Array<BufferStore>& combiners, te::CommReducer* result_reducer,
                           ffi::Array<PrimExpr>* lhs, ffi::Array<PrimExpr>* rhs) {
   int n = identities.size();
-  ffi::Array<BufferLoad> buf_loads;
+  ffi::Array<TensorLoad> buf_loads;
   ffi::Array<PrimExpr> stored_values;
   buf_loads.reserve(n);
   stored_values.reserve(n);
@@ -703,9 +707,9 @@ bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
   }
 
   // Check reduction patterns.
-  for (const ffi::TypedFunction<ffi::Optional<CommReducer>(ffi::Array<PrimExpr>)>& reducer_getter :
-       GetReducerGetters()) {
-    ffi::Optional<CommReducer> reducer = reducer_getter(identities);
+  for (const ffi::TypedFunction<ffi::Optional<te::CommReducer>(ffi::Array<PrimExpr>)>&
+           reducer_getter : GetReducerGetters()) {
+    ffi::Optional<te::CommReducer> reducer = reducer_getter(identities);
     if (!reducer.has_value()) {
       continue;
     }

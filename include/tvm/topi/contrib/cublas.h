@@ -50,7 +50,7 @@ inline Tensor cublas_matmul(const Tensor& lhs, const Tensor& rhs, bool transa, b
   return make_extern(
       {{n, m}}, {lhs->GetDataType()}, {lhs, rhs},
       [&](ffi::Array<BufferVar> ins, ffi::Array<BufferVar> outs) {
-        return call_packed({StringImm("tvm.contrib.cublas.matmul"), pack_buffer(ins[0]),
+        return call_packed({prim::StringImm("tvm.contrib.cublas.matmul"), pack_buffer(ins[0]),
                             pack_buffer(ins[1]), pack_buffer(outs[0]), IntImm::Int32(transa),
                             IntImm::Int32(transb)});
       },
@@ -76,7 +76,7 @@ inline Tensor cublas_batch_matmul(const Tensor& lhs, const Tensor& rhs, bool tra
   return make_extern(
       {{b, n, m}}, {lhs->GetDataType()}, {lhs, rhs},
       [&](ffi::Array<BufferVar> ins, ffi::Array<BufferVar> outs) {
-        return call_packed({StringImm("tvm.contrib.cublas.batch_matmul"), pack_buffer(ins[0]),
+        return call_packed({prim::StringImm("tvm.contrib.cublas.batch_matmul"), pack_buffer(ins[0]),
                             pack_buffer(ins[1]), pack_buffer(outs[0]), IntImm::Int32(transa),
                             IntImm::Int32(transb)});
       },

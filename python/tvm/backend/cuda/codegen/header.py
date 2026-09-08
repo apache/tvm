@@ -779,7 +779,7 @@ union InstrDescriptorBlockScaled
              scale_format_  : 1,  // bit [23,24) : 0=E4M3, 1=E8M0
              m_dim_         : 5,  // bit [24,29) : 4 LSBs not included. Valid values are: 4 (M=64), 8 (M=128), 16 (M=256)
              a_sf_id_       : 2,  // bit [29,31) : Matrix A Scale Factor ID
-                            : 1;  //
+             k_dim_         : 1;  // bit [31,32): K-dim low bit (Table 53): 1 = dense K=96, .kind::mxf4/.kind::mxf4nvf4 only (sm_103a, sm_107a)
   };
 
   // Decay to a uint32_t

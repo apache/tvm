@@ -30,9 +30,10 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/type.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 
@@ -734,9 +735,9 @@ inline void CheckMathUnaryOpInputDType(const char* op_name, const PrimType& dtyp
           x_ty.IsScalableVector()                                                              \
               ? PrimType::ScalableVector(DLDataTypeCode::kDLFloat, 32, x_ty.VScaleFactor())    \
               : PrimType::Float(32, x_ty.lanes());                                             \
-      PrimExpr x_fp32 = tirx::Cast(f32_ty, x, span);                                           \
+      PrimExpr x_fp32 = prim::Cast(f32_ty, x, span);                                           \
       PrimExpr result_fp32 = Call(f32_ty, op, {x_fp32}, {}, {}, span).as_or_throw<PrimExpr>(); \
-      return tirx::Cast(bf16_ty, result_fp32, span);                                           \
+      return prim::Cast(bf16_ty, result_fp32, span);                                           \
     } else {                                                                                   \
       return Call(x_ty, op, {x}, {}, {}, span).as_or_throw<PrimExpr>();                        \
     }                                                                                          \
@@ -838,7 +839,7 @@ inline Expr ConstHandle(int64_t value, Span span = Span());
  */
 inline const int64_t* as_const_int(const PrimExpr& x) {
   if (!x.defined()) return nullptr;
-  if (const tirx::IntImmNode* op = x.as<tirx::IntImmNode>()) {
+  if (const IntImmNode* op = x.as<IntImmNode>()) {
     return &(op->value);
   }
 
@@ -922,13 +923,12 @@ TVM_DLL bool is_const_power_of_two_integer(const PrimExpr& x, int* shift);
 inline bool is_const_int(const PrimExpr& x) { return as_const_int(x); }
 
 inline bool is_const_number(const PrimExpr& x) {
-  if (x.as<tirx::IntImmNode>()) {
+  if (x.as<IntImmNode>()) {
     return true;
-  } else if (x.as<tirx::FloatImmNode>()) {
+  } else if (x.as<FloatImmNode>()) {
     return true;
-  } else if (const auto* op = x.as<tirx::BroadcastNode>()) {
-    return (op->value->IsInstance<tirx::IntImmNode>() ||
-            op->value->IsInstance<tirx::FloatImmNode>());
+  } else if (const auto* op = x.as<prim::BroadcastNode>()) {
+    return (op->value->IsInstance<IntImmNode>() || op->value->IsInstance<FloatImmNode>());
   }
   return false;
 }
@@ -1005,12 +1005,12 @@ inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span) {
   }
   PrimType elem_ty = dtype.WithLanes(1);
   if (dtype.IsFixedLengthVector()) {
-    return tirx::Broadcast(MakeConstScalar(elem_ty, value, span), dtype.lanes(), span);
+    return prim::Broadcast(MakeConstScalar(elem_ty, value, span), dtype.lanes(), span);
   }
   PrimExpr lanes =
-      tirx::Mul(Call(PrimType::Int(32), tirx::builtin::vscale(), {}).as_or_throw<PrimExpr>(),
+      prim::Mul(Call(PrimType::Int(32), prim::builtin::vscale(), {}).as_or_throw<PrimExpr>(),
                 dtype.VScaleFactor());
-  return tirx::Broadcast(MakeConstScalar(elem_ty, value, span), lanes, span);
+  return prim::Broadcast(MakeConstScalar(elem_ty, value, span), lanes, span);
 }
 
 inline Expr ConstHandle(int64_t value, Span span) {

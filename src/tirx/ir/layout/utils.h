@@ -23,8 +23,8 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/op.h>
 

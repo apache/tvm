@@ -27,8 +27,8 @@
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -300,7 +300,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   // S_{mxn} V^{-1}_{nxn} x_{nx1} = U y, in which n is # of variables
   // here we initialize S_{mxn} to be A, U to be identity matrix.
   for (const PrimExpr& equation : system_to_solve->relations) {
-    if (const tirx::EQNode* eq = equation.as<tirx::EQNode>()) {
+    if (const prim::EQNode* eq = equation.as<prim::EQNode>()) {
       // a-b = sum_{i=0}^{n-1} variables[i] * coeff[i] + coeff[n]
       ffi::Array<PrimExpr> coeffs = arith::DetectLinearEquation(
           analyzer_problem->Simplify(eq->a - eq->b), system_to_solve->variables);

@@ -26,9 +26,9 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -37,6 +37,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 class GPUCodeVerifier : public StmtExprVisitor {
@@ -229,7 +230,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
     ExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) {
+  void VisitExpr_(const TensorLoadNode* op) {
     PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (op_ty.IsFixedLengthVector()) {
       if (ElementBytes(op_ty) > max_vector_bytes_) {

@@ -25,9 +25,9 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 #define TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/target/codegen.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 
 #include <functional>

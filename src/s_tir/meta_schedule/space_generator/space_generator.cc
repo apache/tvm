@@ -24,6 +24,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 ffi::String GetRuleKindFromTarget(const Target& target) {

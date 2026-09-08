@@ -34,7 +34,7 @@
 #define TVM_TIR_BUILTIN_H_
 
 #include <tvm/ir/op.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 
 namespace tvm {
 namespace tirx {
@@ -59,11 +59,6 @@ TVM_DLL const Op& break_loop();
 TVM_DLL const Op& reinterpret();
 
 /*!
- * \brief Marks a condition is likely going to happen.
- */
-TVM_DLL const Op& likely();
-
-/*!
  * \brief Thread-set filter predicate. Used as the condition of an IfThenElse
  * to narrow the active thread set A for the then-branch. Two forms:
  *   filter(var, lo, hi)   -- range form, true iff var in [lo, hi)
@@ -81,36 +76,6 @@ TVM_DLL const Op& filter();
  * ``ptx.elect_sync()`` whose selected lane cannot be inferred structurally.
  */
 TVM_DLL const Op& selector();
-
-/*!
- * \brief Bitwise and operator.
- */
-TVM_DLL const Op& bitwise_and();
-
-/*!
- * \brief Bitwise or operator.
- */
-TVM_DLL const Op& bitwise_or();
-
-/*!
- * \brief Bitwise xor operator.
- */
-TVM_DLL const Op& bitwise_xor();
-
-/*!
- * \brief Bitwise not operator.
- */
-TVM_DLL const Op& bitwise_not();
-
-/*!
- * \brief Left shift
- */
-TVM_DLL const Op& shift_left();
-
-/*!
- * \brief Right shift
- */
-TVM_DLL const Op& shift_right();
 
 /*!
  * \brief See pesudo code
@@ -145,15 +110,6 @@ TVM_DLL const Op& q_multiply_shift_per_axis();
  *  }
  */
 TVM_DLL const Op& address_of();
-
-/*!
- * \brief Same as select, used for unsafe memory access.
- *
- *  Type tvm_if_then_else(cond, a, b) {
- *    return cond ? a : b;
- *  }
- */
-TVM_DLL const Op& if_then_else();
 
 /*!
  * \brief See pesudo code
@@ -758,18 +714,28 @@ TVM_DLL const Op& anylist_setitem_call_packed();
 TVM_DLL const Op& anylist_setitem_call_cpacked();
 
 /*!
- * \brief Get the target's vscale value. It will be lowered to llvm.vscale intrinsic
- * (https://llvm.org/docs/LangRef.html#llvm-vscale-intrinsic)
- */
-TVM_DLL const Op& vscale();
-
-/*!
  * \brief Calculate a predicate mask given an upper bound (limit) and a current value (base).
  *
  * It will be lowered to the llvm.get.active.lane.mask intrinsic.
  * (https://llvm.org/docs/LangRef.html#llvm-get-active-lane-mask-intrinsics)
  */
 TVM_DLL const Op& get_active_lane_mask();
+
+/*!
+ * \brief Masked buffer load.
+ *
+ * Arguments are the buffer variable, one or more indices, and a trailing boolean lane mask.
+ * The result type is the vector type loaded from the selected lanes.
+ */
+TVM_DLL const Op& masked_load();
+
+/*!
+ * \brief Masked buffer store.
+ *
+ * Arguments are the buffer variable, value, one or more indices, and a trailing boolean lane
+ * mask. The result type is void.
+ */
+TVM_DLL const Op& masked_store();
 
 /*! \brief Annotate a predicate not be considered as target condition of loop partition. */
 TVM_DLL const Op& ignore_loop_partition();

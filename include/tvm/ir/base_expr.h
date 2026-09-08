@@ -65,6 +65,7 @@ class TypeNode : public ffi::Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  static constexpr bool _type_s_eq_hash_subclass_kind_fixed = true;
 
   static constexpr const uint32_t _type_child_slots = 14;
   TVM_FFI_DECLARE_OBJECT_INFO("ir.Type", TypeNode, ffi::Object);
@@ -356,7 +357,7 @@ class OpaqueExprNode : public ExprNode {
     refl::ObjectDef<OpaqueExprNode>();
   }
 
-  static constexpr const uint32_t _type_child_slots = 1;
+  static constexpr const uint32_t _type_child_slots = 2;
   TVM_FFI_DECLARE_OBJECT_INFO("ir.OpaqueExpr", OpaqueExprNode, ExprNode);
 };
 
@@ -484,8 +485,9 @@ struct TypeTraits<TypedExpr<ExpectedType>>
         !details::IsObjectInstance<ExprNode>(src->type_index)) {
       return false;
     }
-    const auto* expr = static_cast<const ExprNode*>(
-        details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj).get());
+    // Non-owning: this only reads `ty`, and the owning form's incref/decref pair costs two
+    // atomics per check on a path every typed field assignment takes.
+    const auto* expr = details::ObjectUnsafe::RawObjectPtrFromUnowned<ExprNode>(src->v_obj);
     return details::AnyUnsafe::CheckAnyStrict<ExpectedType>(expr->ty);
   }
 

@@ -24,6 +24,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 bool IsRootBlock(const Schedule& sch, const SBlockRV& block_rv) {
@@ -41,6 +42,7 @@ bool CheckSpatialPrimFunc(const Schedule& sch, const SBlockRV& root_block_rv) {
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {

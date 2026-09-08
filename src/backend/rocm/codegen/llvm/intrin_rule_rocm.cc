@@ -24,8 +24,9 @@
 
 #include <llvm/IR/Intrinsics.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -53,7 +54,7 @@ inline PrimExpr DispatchPureExternOCML(const PrimExpr& e) {
   PrimType call_ty = call->ty.as_or_throw<PrimType>();
   intrinsic_name << "__ocml_" << name.substr(5) << "_f" << call_ty.bits();
 
-  ffi::Array<PrimExpr> new_args = {StringImm(intrinsic_name.str())};
+  ffi::Array<PrimExpr> new_args = {prim::StringImm(intrinsic_name.str())};
   for (PrimExpr arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
     new_args.push_back(arg);
   }
@@ -76,10 +77,10 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
   PrimExpr zero = IntImm::Int32(0);
   PrimType i32_ty = PrimType::Int(32);
   PrimExpr lo = Call(i32_ty, builtin::call_pure_extern(),
-                     ffi::Array<PrimExpr>{StringImm("llvm.amdgcn.mbcnt.lo"), minus_one, zero})
+                     ffi::Array<PrimExpr>{prim::StringImm("llvm.amdgcn.mbcnt.lo"), minus_one, zero})
                     .as_or_throw<PrimExpr>();
   PrimExpr self = Call(i32_ty, builtin::call_pure_extern(),
-                       ffi::Array<PrimExpr>{StringImm("llvm.amdgcn.mbcnt.hi"), minus_one, lo})
+                       ffi::Array<PrimExpr>{prim::StringImm("llvm.amdgcn.mbcnt.hi"), minus_one, lo})
                       .as_or_throw<PrimExpr>();
 
   // compute lane to get from
@@ -91,19 +92,19 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
   } else if (call->op.same_as(builtin::tvm_warp_shuffle_up())) {
     PrimExpr delta = args[2];
     index = self - delta;
-    index = Select(index < (self & ~(width - 1)), self, index);
+    index = prim::Select(index < (self & ~(width - 1)), self, index);
   } else {
     TVM_FFI_ICHECK(call->op.same_as(builtin::tvm_warp_shuffle_down()));
     PrimExpr delta = args[2];
     index = self + delta;
-    index = Select((self & (width - 1)) + delta >= width, self, index);
+    index = prim::Select((self & (width - 1)) + delta >= width, self, index);
   }
   // reinterprete var as int32
   bool is_int32 = var_ty.MatchesElementType(DLDataTypeCode::kDLInt, 32);
   PrimExpr source = is_int32 ? var : reinterpret(PrimType::Int(32), var);
   PrimExpr res =
       Call(i32_ty, builtin::call_pure_extern(),
-           ffi::Array<PrimExpr>{StringImm("llvm.amdgcn.ds.bpermute"), index << 2, source})
+           ffi::Array<PrimExpr>{prim::StringImm("llvm.amdgcn.ds.bpermute"), index << 2, source})
           .as_or_throw<PrimExpr>();
   if (!is_int32) {
     res = reinterpret(var_ty, res);

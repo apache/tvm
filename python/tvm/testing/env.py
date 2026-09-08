@@ -53,12 +53,14 @@ import tvm
 
 __all__ = [
     "build_flag_enabled",
+    "cuda_arch",
     "has_adreno_opencl",
     # cpu features
     "has_cpu_feature",
     "has_cublas",
     # runtime device
     "has_cuda",
+    "has_cuda_arch",
     # version / capability
     "has_cuda_compute",
     "has_cudagraph",
@@ -259,6 +261,41 @@ def has_nvshmem() -> bool:
 
 
 # --- version / capability probes -------------------------------------------
+
+
+def _cuda_arch_from_compute_version(compute_version: str) -> str | None:
+    """Return the canonical physical CUDA architecture for a compute version."""
+    try:
+        major_string, minor_string = compute_version.split(".", maxsplit=2)[:2]
+        major = int(major_string)
+        minor = int(minor_string)
+    except (AttributeError, TypeError, ValueError):
+        return None
+    suffix = "a" if major >= 9 else ""
+    return f"sm_{major}{minor}{suffix}"
+
+
+@functools.cache
+def cuda_arch(device_id: int = 0) -> str | None:
+    """Return a CUDA device's canonical runtime architecture, if available.
+
+    Architecture-specific targets use the same spelling as CUDA compilation
+    targets (for example, 'sm_100a' and 'sm_103a'), rather than collapsing
+    them to a major compute-capability floor.
+    """
+    try:
+        device = tvm.cuda(device_id)
+        if not device.exist:
+            return None
+        return _cuda_arch_from_compute_version(device.compute_version)
+    except Exception:  # pylint: disable=broad-except
+        return None
+
+
+def has_cuda_arch(*arches: str, device_id: int = 0) -> bool:
+    """True if a CUDA device exactly matches one of arches."""
+    actual = cuda_arch(device_id)
+    return actual is not None and actual in arches
 
 
 @functools.cache

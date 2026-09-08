@@ -22,6 +22,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief A search strategy that generates measure candidates using space generator. */

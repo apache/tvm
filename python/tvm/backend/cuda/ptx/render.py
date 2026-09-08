@@ -126,11 +126,11 @@ BRIDGE = {
     "pred": Bridge(
         ".pred", "ps{n}", "pd{n}", "setp.ne.b32 {reg}, %{idx}, 0;", "selp.b32 %{idx}, 1, 0, {reg};"
     ),
-    # `.e2m1x2`: the ISA types this operand .b8 (9.7.9.21:92 for the
+    # `.e2m1x2`: the ISA types this operand .b8 (9.7.10.24:92 for the
     # destination, :101 for the source). Its general prose says a wider
     # register may be used and names no exception for e2m1x2 (:476-486), but
     # the toolchain disagrees, so the width here is measured, not read:
-    # ptxas 13.2 at -arch=sm_100a answers "Arguments mismatch for instruction
+    # ptxas 13.4 at -arch=sm_100a answers "Arguments mismatch for instruction
     # 'cvt'" for BOTH carrier widths ("h" and "r") in BOTH directions, across
     # cvt.rn.satfinite.e2m1x2.{f32,f16x2,bf16x2} and
     # cvt.rn.{f16x2,bf16x2}.e2m1x2 -- ten probes, ten rejections.
@@ -144,10 +144,33 @@ BRIDGE = {
     "e2m1x2": Bridge(
         ".b8", "raw_{slot}", "raw_{slot}", "cvt.u8.u16 {reg}, %{idx};", "cvt.u16.u8 %{idx}, {reg};"
     ),
+    # PTX ISA 9.4 types cvt.scaled::n1::ue8m0's scale-factor as .b8.  Keep
+    # this scoped to that private table token: inline asm still has no byte
+    # constraint, and widening the instruction operand itself is rejected.
+    "cvt_scale_ue8m0": Bridge(
+        ".b8", "raw_{slot}", "raw_{slot}", "cvt.u8.u16 {reg}, %{idx};", "cvt.u16.u8 %{idx}, {reg};"
+    ),
+    # PTX ISA 9.4 permits tensorSizeToOverride elements in .b8 registers.
+    # Inline asm has no byte constraint, so stage the uint8 API carrier through
+    # the exact register class named by the instruction operand.
+    "tma_size_b8": Bridge(
+        ".b8",
+        "raw_{slot}_{n}",
+        "raw_{slot}_{n}",
+        "cvt.u8.u16 {reg}, %{idx};",
+        "cvt.u16.u8 %{idx}, {reg};",
+    ),
     # st.async.release's b8/u8/s8 sources share one private .b8 staging
-    # register.  Stores preserve the low eight bits; the instruction suffix
+    # register. Stores preserve the low eight bits; the instruction suffix
     # still supplies the public signed/unsigned interpretation.
     "st_async_b8reg": Bridge(
+        ".b8", "raw_{slot}", "raw_{slot}", "cvt.u8.u16 {reg}, %{idx};", "cvt.u16.u8 %{idx}, {reg};"
+    ),
+    # MEASURED on CUDA 13.4 / sm_103a: mbarrier's reportValue destination
+    # rejects .b16/.b32/.b64 registers and accepts an actual local .b8.  Use a
+    # family-private key so ordinary `.b8` operands keep their established
+    # carrier behavior.
+    "mbarrier_report_b8reg": Bridge(
         ".b8", "raw_{slot}", "raw_{slot}", "cvt.u8.u16 {reg}, %{idx};", "cvt.u16.u8 %{idx}, {reg};"
     ),
 }
@@ -233,8 +256,8 @@ def _helper_name(
         else [C_BINDING[dtype].suffix for dtype, _ in present]
     )
     return "tvm_builtin_ptx_" + "_".join([*isa_name, *discriminator]).replace("::", "__").replace(
-        ".", "_"
-    ).replace("-", "m")
+        ":", "_"
+    ).replace(".", "_").replace("-", "m")
 
 
 def render_variant(

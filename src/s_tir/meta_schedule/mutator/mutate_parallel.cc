@@ -28,6 +28,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -157,6 +158,7 @@ std::vector<int> GetNumFusedLoops(const std::vector<std::vector<int64_t>>& loop_
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 using s_tir::Instruction;

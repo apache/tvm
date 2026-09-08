@@ -165,17 +165,17 @@ def test_vthread_simplified():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)
         B = T.alloc_buffer((4,), "int32", scope="shared")
-        B[0:4] = T.broadcast(vthread, 4)
+        B[T.ramp(0, 1, 4)] = T.broadcast(vthread, 4)
 
     @T.prim_func(s_tir=True)
     def expected_func():
         B = T.alloc_buffer((16,), "int32", scope="shared")
         # The indices for B should each be a single Ramp node, and
         # should not be the sum of a Ramp and Broadcast node.
-        B[T.Mul(0, 4) : T.Mul(0, 4) + 4] = T.broadcast(0, 4)
-        B[T.Mul(1, 4) : T.Mul(1, 4) + 4] = T.broadcast(1, 4)
-        B[T.Mul(2, 4) : T.Mul(2, 4) + 4] = T.broadcast(2, 4)
-        B[T.Mul(3, 4) : T.Mul(3, 4) + 4] = T.broadcast(3, 4)
+        B[T.ramp(T.Mul(0, 4), 1, 4)] = T.broadcast(0, 4)
+        B[T.ramp(T.Mul(1, 4), 1, 4)] = T.broadcast(1, 4)
+        B[T.ramp(T.Mul(2, 4), 1, 4)] = T.broadcast(2, 4)
+        B[T.ramp(T.Mul(3, 4), 1, 4)] = T.broadcast(3, 4)
 
     before_mod = tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
     after_mod = tvm.s_tir.transform.InjectVirtualThread()(before_mod)
@@ -192,7 +192,7 @@ def test_vthread_vectorized():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)
         B = T.alloc_buffer((4,), "int32", scope="shared")
-        B[0:4] = T.broadcast(vthread, 4)
+        B[T.ramp(0, 1, 4)] = T.broadcast(vthread, 4)
 
     before_mod = tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
     intermediate_mod = tvm.s_tir.transform.InjectVirtualThread()(before_mod)
@@ -211,6 +211,41 @@ def test_vthread_vectorized():
     assert allocate_node is not None
     assert list(allocate_node.buffer.ty.shape) == [4]
     assert allocate_node.buffer.ty.dtype == "int32x4"
+
+
+def test_vthread_rewrites_masked_accesses():
+    @T.prim_func(s_tir=True)
+    def before_func():
+        vthread = T.env_thread("vthread")
+        T.launch_thread(vthread, 2)
+        B = T.alloc_buffer((4,), "float32", scope="shared")
+        mask = T.meta_var(T.Broadcast(T.bool(True), 4))
+        loaded = T.meta_var(T.masked_load("float32x4", B, T.Ramp(0, 1, 4), mask))
+        value = T.meta_var(loaded + T.Broadcast(T.Cast("float32", vthread), 4))
+        T.masked_store(B, value, T.Ramp(0, 1, 4), mask)
+
+    after = tvm.s_tir.transform.InjectVirtualThread()(
+        tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
+    )["main"]
+    masked_calls = []
+
+    def visitor(node):
+        if isinstance(node, tvm.ir.Call) and node.op.name in {
+            "tirx.masked_load",
+            "tirx.masked_store",
+        }:
+            masked_calls.append(node)
+
+    tvm.tirx.stmt_functor.post_order_visit(after.body, visitor)
+    assert len(masked_calls) == 4
+    assert all(list(call.args[0].ty.shape) == [8] for call in masked_calls)
+    analyzer = tvm.arith.Analyzer()
+    assert sorted(int(analyzer.simplify(call.args[-2].base)) for call in masked_calls) == [
+        0,
+        0,
+        4,
+        4,
+    ]
 
 
 if __name__ == "__main__":

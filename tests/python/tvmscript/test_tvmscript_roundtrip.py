@@ -2425,9 +2425,9 @@ def buffer_ramp_access_as_slice_index():
         for i in range(128):
             A[i : i + 1 : 1] = i
         for i in range(4):
-            B[i * 32 : i * 32 + 32] = A[i * 32 : i * 32 + 32 : 1] + T.broadcast(1.0, 32)
+            B[i * 32 : i * 32 + 32] = A[T.Ramp(i * 32, 1, 32)] + T.broadcast(1.0, 32)
         for i in range(4):
-            C[i : i + 128 : 4] = B[i : i + 128 : 4] + T.broadcast(1.0, 32)
+            C[i : i + 128 : 4] = B[T.Ramp(i, 4, 32)] + T.broadcast(1.0, 32)
 
     return buffer_ramp_access
 
@@ -2456,9 +2456,24 @@ def predicated_buffer_load_store():
         B = T.match_buffer(b, (8,), "float32")
         for i_0 in range(4):
             load_a = T.meta_var(
-                A.vload([T.Ramp(i_0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
+                T.call_intrin(
+                    "float32x4",
+                    "tirx.masked_load",
+                    A,
+                    T.Ramp(i_0, 1, 4),
+                    T.Broadcast(T.bool(True), 4),
+                )
             )
-            B.vstore([T.Ramp(0, 2, 4)], load_a, predicate=T.Broadcast(T.bool(True), 4))
+            T.evaluate(
+                T.call_intrin(
+                    "void",
+                    "tirx.masked_store",
+                    B,
+                    load_a,
+                    T.Ramp(0, 2, 4),
+                    T.Broadcast(T.bool(True), 4),
+                )
+            )
 
     return func
 

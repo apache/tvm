@@ -46,6 +46,16 @@ def func() -> None:
 
 
 @T.prim_func(s_tir=True)
+def masked_access_func() -> None:
+    A = T.sblock_alloc_buffer((16,), "float32")
+    B = T.sblock_alloc_buffer((16,), "float32")
+    with T.sblock():
+        mask = T.meta_var(T.Broadcast(T.bool(True), 4))
+        value = T.meta_var(T.masked_load("float32x4", A, T.Ramp(4, 1, 4), mask))
+        T.masked_store(B, value, T.Ramp(8, 1, 4), mask)
+
+
+@T.prim_func(s_tir=True)
 def match_buffer_func() -> None:
     with T.sblock("root"):
         A = T.sblock_alloc_buffer((128, 128), "float32")
@@ -230,6 +240,18 @@ def test_block_access_region_detector():
     tvm.ir.assert_structural_equal(
         [tvm.tirx.BufferRegion(D, [Range(0, 128), Range(0, 128)])], ret[2]
     )
+
+
+def test_masked_access_is_not_opaque():
+    root = masked_access_func.body.block
+    block = root.body.block
+    A, B = root.alloc_buffers
+    reads, writes, opaque = s_tir.analysis.get_sblock_access_region(block, {A: A, B: B})
+    tvm.ir.assert_structural_equal(reads, [tvm.tirx.BufferRegion(A, [Range.from_min_extent(4, 4)])])
+    tvm.ir.assert_structural_equal(
+        writes, [tvm.tirx.BufferRegion(B, [Range.from_min_extent(8, 4)])]
+    )
+    tvm.ir.assert_structural_equal(opaque, [])
 
 
 def test_opaque_block():

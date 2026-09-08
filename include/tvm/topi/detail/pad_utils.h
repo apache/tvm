@@ -24,8 +24,8 @@
 #ifndef TVM_TOPI_DETAIL_PAD_UTILS_H_
 #define TVM_TOPI_DETAIL_PAD_UTILS_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 
 #include <vector>

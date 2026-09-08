@@ -25,6 +25,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Check if an IRModule has any async strided mem copies. */
@@ -71,7 +72,7 @@ struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
           StmtExprVisitor::VisitStmt_(attrStmt);
         }
 
-        auto bufferloadnode = bufferstorenode->value.as<BufferLoadNode>();
+        auto bufferloadnode = bufferstorenode->value.as<TensorLoadNode>();
         if (!bufferloadnode) {
           StmtExprVisitor::VisitStmt_(attrStmt);
         }
@@ -80,7 +81,8 @@ struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
         auto bufferstore = bufferstorenode->buffer.as<BufferTypeNode>();
 
         // get load buffer; assert it exists and is contiguous given it uses a single index
-        auto bufferload = bufferloadnode->buffer.as<BufferTypeNode>();
+        BufferVar load_buffer = bufferloadnode->source.as_or_throw<BufferVar>();
+        auto bufferload = load_buffer.as<BufferTypeNode>();
 
         if (!bufferstore || !bufferload) {
           StmtExprVisitor::VisitStmt_(attrStmt);
@@ -120,6 +122,7 @@ struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
 }  // namespace s_tir
 
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief Check if the IRModule has any loop with non-constant extent. */

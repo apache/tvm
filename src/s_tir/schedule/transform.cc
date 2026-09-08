@@ -25,6 +25,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /******** Annotation ********/
@@ -147,8 +148,8 @@ Stmt ReplaceBufferMutator::VisitStmt_(const BufferStoreNode* op) {
   return VisitBufferAccess(std::move(node));
 }
 
-Expr ReplaceBufferMutator::VisitExpr_(const BufferLoadNode* op) {
-  auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+Expr ReplaceBufferMutator::VisitExpr_(const TensorLoadNode* op) {
+  auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
   return VisitBufferAccess(std::move(node));
 }
 
@@ -470,8 +471,8 @@ Stmt BlockBufferAccessSimplifier::VisitStmt_(const BufferStoreNode* op) {
   return node;
 }
 
-Expr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
-  BufferLoad node = arith::IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<BufferLoad>();
+Expr BlockBufferAccessSimplifier::VisitExpr_(const TensorLoadNode* op) {
+  TensorLoad node = arith::IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<TensorLoad>();
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
   return node;
 }

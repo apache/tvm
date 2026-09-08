@@ -26,7 +26,7 @@
 
 #include <tvm/arith/int_set.h>
 #include <tvm/ir/attrs.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
@@ -36,6 +36,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tirx;
 
 using runtime::StorageRank;
@@ -82,7 +83,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
     std::vector<AccessEntry> access;
   };
   // override visitor pattern
-  void VisitExpr_(const BufferLoadNode* op) final;
+  void VisitExpr_(const TensorLoadNode* op) final;
   void VisitStmt_(const BufferStoreNode* op) final;
   void VisitStmt_(const DeclBufferNode* op) final;
   void VisitStmt_(const EvaluateNode* op) final;

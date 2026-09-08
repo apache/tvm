@@ -24,7 +24,7 @@
 #ifndef TVM_ARITH_PRODUCT_NORMAL_FORM_H_
 #define TVM_ARITH_PRODUCT_NORMAL_FORM_H_
 
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/op.h>
 
 namespace tvm {
@@ -54,10 +54,10 @@ inline void UnpackReduction(const PrimExpr& value, FLeaf fleaf) {
  */
 template <typename FLeaf>
 inline void UnpackSum(const PrimExpr& value, FLeaf fleaf, int sign = 1) {
-  if (const tirx::AddNode* node = value.as<tirx::AddNode>()) {
+  if (const prim::AddNode* node = value.as<prim::AddNode>()) {
     UnpackSum(node->a, fleaf, sign);
     UnpackSum(node->b, fleaf, sign);
-  } else if (const tirx::SubNode* node = value.as<tirx::SubNode>()) {
+  } else if (const prim::SubNode* node = value.as<prim::SubNode>()) {
     UnpackSum(node->a, fleaf, sign);
     UnpackSum(node->b, fleaf, -sign);
   } else {
@@ -88,8 +88,8 @@ inline PrimExpr MulAndNormalize(const PrimExpr& lhs, const PrimExpr& rhs) {
       res = res * val;
     }
   };
-  UnpackReduction<tirx::MulNode>(lhs, fcollect);
-  UnpackReduction<tirx::MulNode>(rhs, fcollect);
+  UnpackReduction<prim::MulNode>(lhs, fcollect);
+  UnpackReduction<prim::MulNode>(rhs, fcollect);
   if (cscale != 1) {
     res = res * IntImm(res.ty(), cscale);
   }

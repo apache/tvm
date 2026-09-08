@@ -19,10 +19,11 @@ reduction → local
 =================
 
 The ``local`` variant lowers a reduction (``sum`` / ``max`` / ``min``) when **both
-source and destination are register** (``local``) buffers. At thread scope it is a
-plain sequential reduction over each thread's own elements; at warp scope, if the
-destination layout carries a ``laneid`` replica, it also folds across lanes with a
-``__shfl_xor`` tree. Source:
+source and destination are ``local`` buffers**. At thread scope it is a
+plain sequential reduction over each thread's own elements. Warp scope has two
+layout-driven paths: a specialized ``laneid`` shard-to-replica reduction, or a
+general local-axis reduction that can optionally add cross-lane shuffle steps.
+Source:
 ``python/tvm/backend/cuda/tile_primitive/reduction/local.py``.
 
 What it accepts
@@ -44,36 +45,40 @@ What it accepts
    * - target / priority
      - ``cuda``; priority ``10``
    * - operand scope
-     - src **and** dst in ``local`` (registers), equal dtype
+     - src **and** dst in ``local``, equal dtype
    * - exec scope
-     - ``thread`` (always valid — pure thread-local); ``warp`` / ``warpgroup``
-       require a valid (non-swizzled) ``TileLayout``; ``warp`` may additionally
-       cross-lane reduce when ``thread_reduce`` and a ``laneid`` shard→replica
-       pattern are present
+     - ``thread`` (sequential and thread-local); ``warp`` / ``warpgroup``
+       require valid non-swizzled ``TileLayout`` values. At warp scope a
+       ``laneid`` shard→replica pattern automatically selects the specialized
+       shuffle path; otherwise ``thread_reduce=True`` optionally adds shuffles
+       to the general path. Warpgroup scope rejects ``thread_reduce=True``
    * - shape
-     - dst spatial dims match src; reduced dims have ``local_extent == 1`` on dst
+     - at thread scope the predicate does not inspect axes or compare source and
+       destination sizes; axis analysis and loop construction happen during
+       emit. Wide-scope view reductions require matching spatial layout
+       dimensions; reduced dimensions have dst local extent 1
 
 Demonstration program
 ----------------------
 
-A single thread reduces a 4-element ``float32`` register vector to a scalar
+A single thread reduces a 4-element ``float32`` local vector to a scalar
 (thread-wise path, from ``test_reduction.py``):
 
 .. code-block:: python
 
-    @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, [4], "float32", layout=TileLayout(S[(4,)]))
-        B = T.match_buffer(B_ptr, [1], "float32", layout=TileLayout(S[(1,)]))
-        T.device_entry(); T.cta_id([1]); T.thread_id([1])
-        A_local = T.alloc_buffer([4], "float32", scope="local")
-        B_local = T.alloc_buffer([1], "float32", scope="local")
-        for i in T.serial(4): A_local[i] = A[i]
-        Tx.sum(B_local, A_local, accum=False)     # reduction local dispatch
+    @Tx.prim_func
+    def test_func(A_ptr: Tx.handle, B_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, [4], "float32", layout=TileLayout(S[(4,)]))
+        B = Tx.match_buffer(B_ptr, [1], "float32", layout=TileLayout(S[(1,)]))
+        Tx.device_entry(); Tx.cta_id([1]); Tx.thread_id([1])
+        A_local = Tx.alloc_buffer([4], "float32", scope="local")
+        B_local = Tx.alloc_buffer([1], "float32", scope="local")
+        for i in Tx.serial(4): A_local[i] = A[i]
+        Tx.tile.sum(B_local, A_local, accum=False)     # reduction local dispatch
         B[0] = B_local[0]
 
 (4 < 8 elements, so this stays on ``local`` rather than the
-:doc:`sm100_packed` fast path.)
+:doc:`sm100_packed` ``packed_add_sum`` / ``3input_maxmin`` fast paths.)
 
 Algorithm
 ---------
@@ -84,16 +89,24 @@ reduction loop accumulating the source — no cross-thread communication:
 
 .. code-block:: python
 
-    for spa in range(spatial_len):
+    for spa in Tx.serial(spatial_len):
         if not accum: dst[spa] = identity
-        for red in range(reduction_len):
+        for red in Tx.serial(reduction_len):
             dst[spa] = op(dst[spa], src[spa, red])
 
-**Warp-shuffle** (``_gen_warp_shuffle_reduce``): when the dst layout has a
-``laneid`` replica, each lane first reduces its own elements, then
-``T.cuda.warp_reduce`` folds across lanes — a ``__shfl_xor`` tree over the **full**
-``0xFFFFFFFF`` mask. (This differs from :doc:`shared`, which uses explicit
-``tvm_warp_shuffle_xor`` steps over ``__activemask()`` at the *group* width.)
+**Specialized shard→replica shuffle** (``_gen_warp_shuffle_reduce``): when the
+source has a full-span ``laneid`` shard and the destination has a power-of-two
+``laneid`` replica, the implementation copies each lane's corresponding local
+values and applies ``Tx.cuda.warp_reduce`` across the replica width. This path is
+selected automatically, independently of ``thread_reduce``; it does not first
+run the general local-axis loop. This specialized path does not branch on the
+``accum`` argument, so it overwrites the destination with the shuffle result.
+
+**General warp/warpgroup view path** (``_emit_reduction_local_view``): reduces
+the source's local reduction axes into each destination position. At warp scope,
+``thread_reduce=True`` additionally emits explicit
+``tvm_warp_shuffle_xor`` steps using ``__activemask()``. Warpgroup scope supports
+the local part only.
 
 Generated TIRx IR
 -----------------
@@ -102,8 +115,9 @@ For the 4-element thread reduction:
 
 .. code-block:: python
 
-    for spa in range(1):
-        for red in range(4):
+    for spa in Tx.serial(1):
+        dst[...] = Tx.float32(0)
+        for red in Tx.serial(4):
             dst[...] = dst[...] + src[...]        # op = sum
 
 Generated CUDA
@@ -128,9 +142,11 @@ How inputs change the algorithm
    * - op
      - ``sum`` → ``+``, ``max`` → ``max``, ``min`` → ``min`` (and the identity)
    * - exec scope
-     - ``thread`` → sequential; ``warp`` with a ``laneid`` replica → adds a
-       ``__shfl_xor`` cross-lane tree
+     - ``thread`` → sequential; matching warp shard→replica layout → specialized
+       ``warp_reduce``; otherwise warp/warpgroup use the general local view path,
+       with optional warp shuffles only when ``thread_reduce=True``
    * - axes / shape
      - set the spatial vs reduction loop extents
    * - accum
-     - ``True`` reuses the old dst value instead of the identity
+     - thread-wise and general view paths reuse the old dst value as described
+       above; the specialized shard→replica path ignores this flag

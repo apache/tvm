@@ -53,17 +53,18 @@ def _assert_loads_reference_defined_buffers(func):
 
     def check_expr(expr, where):
         def visit(node):
-            if isinstance(node, tvm.tirx.BufferLoad) and not is_defined(node.buffer):
-                stale.append(f"{where}: load of {node.buffer.name}")
+            if isinstance(node, tvm.ir.TensorLoad) and not is_defined(node.source):
+                stale.append(f"{where}: load of {node.source.name}")
 
         tvm.tirx.stmt_functor.post_order_visit(expr, visit)
 
     def visit(node):
-        if isinstance(node, tvm.tirx.BufferLoad | tvm.tirx.BufferStore):
-            if not is_defined(node.buffer):
-                stale.append(f"access of {node.buffer.name}")
+        if isinstance(node, tvm.ir.TensorLoad | tvm.tirx.BufferStore):
+            buffer = node.source if isinstance(node, tvm.ir.TensorLoad) else node.buffer
+            if not is_defined(buffer):
+                stale.append(f"access of {buffer.name}")
             for index in node.indices:
-                check_expr(index, f"index of {node.buffer.name}")
+                check_expr(index, f"index of {buffer.name}")
         if isinstance(node, tvm.tirx.AllocBuffer | tvm.tirx.DeclBuffer):
             for extent in node.buffer.shape:
                 check_expr(extent, f"shape of {node.buffer.name}")
@@ -118,7 +119,7 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
         if isinstance(node, tvm.tirx.BufferStore) and node.buffer.name.startswith("mbar"):
 
             def inner(sub):
-                if isinstance(sub, tvm.tirx.BufferLoad):
+                if isinstance(sub, tvm.ir.TensorLoad):
                     found.append(sub)
 
             tvm.tirx.stmt_functor.post_order_visit(node.indices[0], inner)

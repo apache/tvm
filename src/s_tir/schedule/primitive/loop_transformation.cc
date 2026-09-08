@@ -22,6 +22,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Append a new predicate to the each child of type BlockRealize (not recursively) */
@@ -492,7 +493,7 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(store);
   }
 
-  void VisitExpr_(const BufferLoadNode* load) final {
+  void VisitExpr_(const TensorLoadNode* load) final {
     ffi::Array<ffi::String> indices;
     bool check_ = false;
     for (size_t i = 0; i < load->indices.size(); i++) {
@@ -503,8 +504,10 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
       }
       indices.push_back(var.value()->name);
     }
-    if (buffer_indices_map.find(load->buffer.name()) == buffer_indices_map.end() && !check_)
-      buffer_indices_map.Set(load->buffer.name(), indices);
+    BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
+    if (buffer_indices_map.find(buffer.name()) == buffer_indices_map.end() && !check_) {
+      buffer_indices_map.Set(buffer.name(), indices);
+    }
     StmtExprVisitor::VisitExpr_(load);
   }
 

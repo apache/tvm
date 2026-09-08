@@ -25,6 +25,7 @@
 #include "inspect.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
@@ -263,8 +264,8 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
     tirx::Var extent("extent", field_ty);
 
     tirx::Stmt body = tirx::SeqStmt(
-        {tirx::AssertStmt(0 <= axis.as_or_throw<PrimExpr>(), tirx::StringImm("RuntimeError"),
-                          {tirx::StringImm("Specified axis may not be negative")}),
+        {tirx::AssertStmt(0 <= axis.as_or_throw<PrimExpr>(), prim::StringImm("RuntimeError"),
+                          {prim::StringImm("Specified axis may not be negative")}),
          tirx::Bind(ndim,
                     tvm::Call(ndim->ty.as_or_throw<PrimType>(), tirx::builtin::tvm_struct_get(),
                               {dlpack_handle, IntImm::Int32(0),
@@ -273,8 +274,8 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
          tirx::AssertStmt(
              axis.as_or_throw<PrimExpr>() <
                  tvm::cast(axis->ty.as_or_throw<PrimType>(), ndim.as_or_throw<PrimExpr>()),
-             tirx::StringImm("RuntimeError"),
-             {tirx::StringImm(
+             prim::StringImm("RuntimeError"),
+             {prim::StringImm(
                  "Specified axis may not be larger than the tensor's dimensionality")}),
          tirx::DeclBuffer(
              shape_buffer,
