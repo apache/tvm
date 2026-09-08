@@ -181,12 +181,17 @@ inline PrimType APIType(const PrimType& t) {
  * \param const_size The constant size of the array.
  * \return the alignment
  */
-inline int GetTempAllocaAlignment(const PrimType& type, int32_t const_size) {
+inline int GetTempAllocaAlignment(const PrimType& type, int64_t const_size) {
   int align = runtime::kTempAllocaAlignment;
   if (const_size > 0) {
-    int64_t const_s = static_cast<int64_t>(const_size) * type.StorageBytes();
-    while (align > const_s) {
-      align = align / 2;
+    int64_t element_bytes = type.StorageBytes();
+    // Only compute the total size when it can reduce the alignment. This also avoids
+    // overflowing for very large allocations.
+    if (element_bytes > 0 && const_size <= (align - 1) / element_bytes) {
+      int64_t const_s = const_size * element_bytes;
+      while (align > const_s) {
+        align = align / 2;
+      }
     }
   }
   return align;

@@ -2191,7 +2191,7 @@ void CodeGenLLVM::VisitStmt_(const AllocBufferNode* op) {
 
   const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
   TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation";
-  int32_t constant_size = static_cast<int32_t>(dim_imm->value);
+  int64_t constant_size = dim_imm->value;
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation";
 
   StorageInfo& info = alloc_storage_info_[op->buffer.get()];
@@ -2206,7 +2206,7 @@ void CodeGenLLVM::VisitStmt_(const AllocBufferNode* op) {
     info.alignment = 16;
   }
   llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
-    return builder_->CreateAlloca(DTypeToLLVMType(op->buffer->dtype), ConstInt32(constant_size));
+    return builder_->CreateAlloca(DTypeToLLVMType(op->buffer->dtype), ConstInt64(constant_size));
   });
   auto alignment = static_cast<unsigned>(alloca->getAlign().value());
   if (alignment < static_cast<unsigned>(info.alignment)) {
