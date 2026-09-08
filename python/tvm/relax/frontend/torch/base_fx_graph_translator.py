@@ -1332,11 +1332,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # loop), avoiding the identity permute / strided-slice that would each
         # materialize a full-size O(N^2) copy. Non-diagonal axes must still fit
         # in the single-letter einsum label alphabet.
-        if (
-            offset == 0
-            and ndim - 2 <= 25
-            and tvm_ffi.structural_equal(n, m)
-        ):
+        if offset == 0 and ndim - 2 <= 25 and tvm_ffi.structural_equal(n, m):
             subscripts = _diagonal_einsum_subscripts(ndim, dim1, dim2)
             return self.block_builder.emit(relax.op.einsum([x], subscripts))
 
