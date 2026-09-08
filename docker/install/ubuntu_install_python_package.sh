@@ -22,7 +22,6 @@ set -o pipefail
 
 # install libraries for python package on ubuntu
 uv pip install --upgrade \
-    apache-tvm-ffi-orcjit==0.1.1 \
     "Pygments~=2.19" \
     "cloudpickle~=3.1" \
     "cython~=3.0" \
@@ -42,3 +41,7 @@ uv pip install --upgrade \
     "tornado~=6.4" \
     "ml_dtypes~=0.5" \
     mlc-z3-static==4.16.0
+
+# Provides LLVMModule JIT execution. --no-deps keeps its apache-tvm-ffi requirement from
+# pulling a PyPI core into site-packages; CI installs the submodule-matched core into ./python.
+uv pip install --no-deps apache-tvm-ffi-orcjit==0.1.1
