@@ -5292,6 +5292,29 @@ def test_reshape_zero_sized_dim_dynamic_batch():
     )
 
 
+def test_reshape_zero_sized_dim_symbolic_target():
+    # Only a literal is read as "copy the input dimension", so a symbolic dimension in the
+    # target is not one: it is carried through, and the literal zero beside it still has to
+    # be rewritten. Skipping the rewrite because the target is not fully static reads that
+    # zero as a copy and gives a non-empty shape torch never produces.
+    class Flatten(Module):
+        def forward(self, x):
+            return x.flatten(1, 2)
+
+    class KeepBatch(Module):
+        def forward(self, x):
+            return x.reshape(x.shape[0], 0, 4)
+
+    class ZeroBeforeBatch(Module):
+        def forward(self, x):
+            return x.reshape(0, x.shape[0])
+
+    batch = torch.export.Dim("batch", min=1, max=64)
+    example_args = (torch.randn(3, 2, 0, 4, dtype=torch.float32),)
+    for model in (Flatten(), KeepBatch(), ZeroBeforeBatch()):
+        verify_model_numerically(model, example_args, dynamic_shapes={"x": {0: batch}})
+
+
 def test_roll():
     class Roll1(Module):
         def forward(self, x):

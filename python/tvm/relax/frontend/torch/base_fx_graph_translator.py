@@ -156,13 +156,18 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         ``0``, which lets the next step spell that position as a literal. Targets with at
         most one such position - every case seen in practice - stay a single reshape.
 
+        Only a literal is read as a copy, so a symbolic dimension in the target is carried
+        through untouched and does not stop the literal zeros beside it from being
+        rewritten. ``x.flatten(1, 2)`` on ``(batch, 2, 0, 4)`` asks for ``(batch, 0, 4)``,
+        where the zero still has to survive.
+
         Shapes that do not need the rewrite are returned unchanged. In particular, for a
         non-empty input PyTorch rejects a zero in the target outright, and rewriting it
         would produce a shape rather than surface that error.
         """
         dims = list(dims)
         target = [self._static_dim(d) for d in dims]
-        if 0 not in target or -1 in target or None in target:
+        if 0 not in target or -1 in target:
             return [dims]
         shape = self.shape_of(x)
         if shape is None:
