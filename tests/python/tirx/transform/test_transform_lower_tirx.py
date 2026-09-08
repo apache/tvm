@@ -62,6 +62,37 @@ def _launch_thread_extents(func):
 L_LANE = T.TileLayout(T.S[32 : 1 @ laneid])
 
 
+def test_lower_tirx_opaque_optional_pragma_annotations():
+    @T.prim_func(private=True)
+    def before(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")):
+        for i in T.serial(8, annotations={"pragma_unroll": None}):
+            B[i] = A[i] + 1.0
+        for i in T.serial(8, annotations={"pragma_unroll_explicit": None}):
+            B[i] = A[i] + 2.0
+        for i in T.serial(8, annotations={"pragma_unroll": False}):
+            B[i] = A[i] + 3.0
+        for i in T.serial(8, annotations={"pragma_unroll_explicit": 0}):
+            B[i] = A[i] + 4.0
+
+    @T.prim_func(private=True)
+    def after(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")):
+        for i in T.serial(8):
+            B[i] = A[i] + 1.0
+        for i in T.serial(8):
+            B[i] = A[i] + 2.0
+        for i in T.serial(8, annotations={"pragma_unroll": False}):
+            B[i] = A[i] + 3.0
+        for i in T.serial(8):
+            B[i] = A[i] + 4.0
+
+    # The pragma refers to the variable bound by the loop inside its body.
+    loop = after.body.seq[3]
+    pragma = tvm.tirx.AttrStmt(loop.loop_var, "pragma_unroll_explicit", 0, loop)
+    after = after.with_body(tvm.tirx.SeqStmt([*after.body.seq[:3], pragma]))
+    lowered = tvm.tirx.transform.LowerTIRxOpaque()(tvm.IRModule({"main": before}))
+    tvm.ir.assert_structural_equal(lowered["main"], after, map_free_vars=True)
+
+
 def test_lower_view_get():
     @T.prim_func(private=True)
     def before1(in_buf: T.Buffer(64, "float32"), out: T.Buffer(64, "float32")) -> None:
