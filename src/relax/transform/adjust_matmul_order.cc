@@ -24,6 +24,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -52,6 +53,33 @@ PrimExpr ProductDims(const ffi::Array<PrimExpr>& dims) {
   PrimExpr product = IntImm::Int64(1);
   for (const auto& dim : dims) product = product * dim;
   return product;
+}
+
+bool IsLastTwoDimsSwap(const Expr& expr) {
+  const auto* call = expr.as<CallNode>();
+  if (call == nullptr) return false;
+
+  const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
+  const auto* input_type = GetTypeAs<TensorTypeNode>(call->args[0]);
+  if (attrs == nullptr || input_type == nullptr || input_type->ndim < 2) return false;
+
+  size_t ndim = input_type->ndim;
+  if (!attrs->axes.has_value()) return ndim == 2;
+
+  const auto& axes = attrs->axes.value();
+  if (axes.size() != ndim) return false;
+  for (size_t i = 0; i < axes.size(); ++i) {
+    int64_t axis = axes[i];
+    if (axis < 0) axis += ndim;
+    size_t expected = i;
+    if (i == ndim - 2) {
+      expected = ndim - 1;
+    } else if (i == ndim - 1) {
+      expected = ndim - 2;
+    }
+    if (axis != static_cast<int64_t>(expected)) return false;
+  }
+  return true;
 }
 
 ffi::Optional<ffi::Array<PrimExpr>> InferBatchedMatmulBroadcastPrefix(
@@ -89,8 +117,10 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
   auto pat_matmul_on_lhs = pat_matmul(pat_matmul(pat_a, pat_b), pat_c);
   auto pat_matmul_on_rhs = pat_matmul(pat_a, pat_matmul(pat_b, pat_c));
 
-  auto pat_permuted_matmul_on_lhs = pat_matmul(pat_permute_dims(pat_matmul(pat_b, pat_a)), pat_c);
-  auto pat_permuted_matmul_on_rhs = pat_matmul(pat_a, pat_permute_dims(pat_matmul(pat_c, pat_b)));
+  auto pat_permuted_inner_matmul_on_lhs = pat_permute_dims(pat_matmul(pat_b, pat_a));
+  auto pat_permuted_inner_matmul_on_rhs = pat_permute_dims(pat_matmul(pat_c, pat_b));
+  auto pat_permuted_matmul_on_lhs = pat_matmul(pat_permuted_inner_matmul_on_lhs, pat_c);
+  auto pat_permuted_matmul_on_rhs = pat_matmul(pat_a, pat_permuted_inner_matmul_on_rhs);
 
   auto pat = pat_matmul_on_lhs | pat_matmul_on_rhs | pat_permuted_matmul_on_lhs |
              pat_permuted_matmul_on_rhs;
@@ -194,12 +224,14 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     };
 
     if (matches.count(pat_permuted_matmul_on_lhs)) {
+      if (!IsLastTwoDimsSwap(matches[pat_permuted_inner_matmul_on_lhs])) return expr;
       if (shape_a.size() < 2 || shape_b.size() < 2) return expr;
       expr_a = permute_last_two_dims(expr_a);
       expr_b = permute_last_two_dims(expr_b);
       transpose_shape_last_two_dims(shape_a);
       transpose_shape_last_two_dims(shape_b);
     } else if (matches.count(pat_permuted_matmul_on_rhs)) {
+      if (!IsLastTwoDimsSwap(matches[pat_permuted_inner_matmul_on_rhs])) return expr;
       if (shape_b.size() < 2 || shape_c.size() < 2) return expr;
       expr_b = permute_last_two_dims(expr_b);
       expr_c = permute_last_two_dims(expr_c);
