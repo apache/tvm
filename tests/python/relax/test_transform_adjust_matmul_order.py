@@ -588,6 +588,44 @@ class TestRHSPermuteDimsIdentity(Base):
     Expected = Before
 
 
+class TestRHSPermuteDimsNonMatrixAxes(Base):
+    """Do not rewrite permutations that move a batch axis."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([4, 1, 4]),
+            A: R.Tensor([4, 4, 1]),
+            B: R.Tensor([4, 1, 4]),
+        ) -> R.Tensor([4, 1, 4]):
+            weight: R.Tensor([4, 4, 4]) = R.matmul(A, B)
+            permuted: R.Tensor([4, 4, 4]) = R.permute_dims(weight, axes=[1, 0, 2])
+            out: R.Tensor([4, 1, 4]) = R.matmul(x, permuted)
+            return out
+
+    Expected = Before
+
+
+class TestLHSPermuteDimsNonMatrixAxes(Base):
+    """Apply the same batch-axis guard to the left-hand pattern."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            A: R.Tensor([4, 4, 1]),
+            B: R.Tensor([4, 1, 4]),
+            x: R.Tensor([4, 4, 1]),
+        ) -> R.Tensor([4, 4, 1]):
+            weight: R.Tensor([4, 4, 4]) = R.matmul(A, B)
+            permuted: R.Tensor([4, 4, 4]) = R.permute_dims(weight, axes=[1, 0, 2])
+            out: R.Tensor([4, 4, 1]) = R.matmul(permuted, x)
+            return out
+
+    Expected = Before
+
+
 class TestRHSPermuteDimsDynamic(Base):
     """Prefer (x*A)*B instead of x*(A*B)
 
