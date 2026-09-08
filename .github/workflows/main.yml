@@ -62,7 +62,7 @@ jobs:
         shell: bash -l {0}
         run: |
           export TVM_FFI_VERSION="$(python -c 'from importlib.metadata import version; print(version("apache-tvm-ffi"))')"
-          pip install ml_dtypes
+          pip install ml_dtypes apache-tvm-ffi-orcjit==0.1.1
           # Keep the source-matched tvm-ffi installed by the setup action.
           pip install --no-deps dist/*.whl
           python - <<'PY'
@@ -71,6 +71,7 @@ jobs:
 
           assert version("apache-tvm-ffi") == os.environ["TVM_FFI_VERSION"]
           assert "apache-tvm-ffi>=0.1.13.post2" in requires("apache-tvm")
+          assert "apache-tvm-ffi-orcjit==0.1.1" in requires("apache-tvm")
           PY
 
       - name: Test
@@ -112,7 +113,7 @@ jobs:
       - name: Install test dependencies
         shell: cmd /C call {0}
         run: |
-          pip install psutil cloudpickle ml_dtypes numpy packaging scipy tornado typing_extensions
+          pip install psutil cloudpickle ml_dtypes numpy packaging scipy tornado typing_extensions apache-tvm-ffi-orcjit==0.1.1
       - name: Test
         shell: cmd /C call {0}
         run: >-

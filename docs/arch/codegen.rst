@@ -247,8 +247,8 @@ exposes it as callable ``PackedFunc``\ s.
      - LLVM IR (in-memory ``llvm::Module``)
      - JIT-compiled on first call by the separately installed ``apache-tvm-ffi-orcjit`` package.
        TVM emits an object in memory and transfers it to the package-backed JITDylib through FFI;
-       it has no local execution engine or fallback. Install version 0.1.1 or newer with
-       ``pip install 'apache-tvm-ffi-orcjit>=0.1.1'``. Because this boundary transfers an object
+       it has no local execution engine or fallback. Install it with
+       ``pip install apache-tvm-ffi-orcjit==0.1.1``. Because this boundary transfers an object
        file, TVM and the package do not need to use the same LLVM version. MCJIT is no longer
        supported.
    * - ``CUDAModule``

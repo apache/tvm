@@ -22,6 +22,7 @@ set -o pipefail
 
 # install libraries for python package on ubuntu
 uv pip install --upgrade \
+    apache-tvm-ffi-orcjit==0.1.1 \
     "Pygments~=2.19" \
     "cloudpickle~=3.1" \
     "cython~=3.0" \
