@@ -2571,6 +2571,47 @@ def test_round_decimals_low_precision():
         )
 
 
+def test_round_decimals_large():
+    """A large |decimals| must import and run without OverflowError.
+
+    The scale 10**|decimals| used to be built as an unbounded host Python int
+    before being handed to relax.const, whose int-to-float conversion raises
+    OverflowError ("int too large to convert to float") once |decimals| >= 309
+    (10**309 already exceeds the float64 range). PyTorch accepts such decimals --
+    torch.round(x, decimals=309) -- and traces a valid round.decimals call, so
+    importing the graph must not crash on them. The scale is now built directly
+    in the float dtype and saturates to inf once it leaves the finite range,
+    matching PyTorch, whose all-NaN result here comes from the same inf scale.
+    """
+    input_info = [([5], "float32")]
+    x = torch.tensor([0.5, 1.5, 25.0, -0.5, 0.0], dtype=torch.float32)
+
+    class RoundDecimalsModel(Module):
+        def __init__(self, decimals):
+            super().__init__()
+            self.decimals = decimals
+
+        def forward(self, input):
+            return torch.round(input, decimals=self.decimals)
+
+    for decimals in (309, -309):
+        gm = fx.symbolic_trace(RoundDecimalsModel(decimals).eval())
+        mod = from_fx(gm, input_info)  # used to raise OverflowError here
+        ex = relax.build(mod, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+        tvm_out = vm["main"](tvm.runtime.tensor(x.numpy()))
+        got = tvm_out.numpy() if hasattr(tvm_out, "numpy") else tvm_out[0].numpy()
+
+        # The scale overflows to inf, and IEEE arithmetic turns every element into
+        # NaN in both TVM and PyTorch. Compare the NaN masks and the remaining
+        # (empty here) finite elements separately, since allclose fails on NaN.
+        expected = torch.round(x, decimals=decimals)
+        actual = torch.as_tensor(got)
+        assert torch.equal(torch.isnan(actual), torch.isnan(expected))
+        finite = ~torch.isnan(expected)
+        assert torch.allclose(actual[finite], expected[finite], rtol=1e-6, atol=1e-6)
+
+
 def test_size():
     input_info = [([1, 3, 10, 10], "float32")]
 
