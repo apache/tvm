@@ -15,12 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
 import tvm
 import tvm.relax
 import tvm.testing
 from tvm.relax.transform import KillAfterLastUse
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.testing import env
 
 
 def test_basic():
@@ -177,6 +180,7 @@ def _assert_no_kill_of_null_value(func: tvm.relax.Function):
             )
 
 
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_reapply_after_default_pipeline_builds_successfully():
     """KillAfterLastUse may be re-applied to an already-lowered module
 
