@@ -112,13 +112,13 @@ class BufferTypeNode : public TypeNode {
     refl::ObjectDef<BufferTypeNode>()
         .def_ro("dtype", &BufferTypeNode::dtype)
         .def_ro("storage_scope", &BufferTypeNode::storage_scope)
-        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
-        .def_ro("shape", &BufferTypeNode::shape, refl::AttachFieldFlag::SEqHashDefRecursive())
-        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
-        .def_ro("strides", &BufferTypeNode::strides, refl::AttachFieldFlag::SEqHashDefRecursive())
-        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
+        // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
+        .def_ro("shape", &BufferTypeNode::shape, refl::AttachFieldFlag::SEqHashDefPattern())
+        // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
+        .def_ro("strides", &BufferTypeNode::strides, refl::AttachFieldFlag::SEqHashDefPattern())
+        // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
         .def_ro("elem_offset", &BufferTypeNode::elem_offset,
-                refl::AttachFieldFlag::SEqHashDefRecursive())
+                refl::AttachFieldFlag::SEqHashDefPattern())
         .def_ro("data_alignment", &BufferTypeNode::data_alignment)
         .def_ro("offset_factor", &BufferTypeNode::offset_factor)
         .def_ro("layout", &BufferTypeNode::layout)
