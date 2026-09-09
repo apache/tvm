@@ -24,6 +24,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -164,10 +165,28 @@ void BlockReadWriteDetector::VisitExpr_(const VarNode* op) { UpdateOpaque(ffi::G
 void BlockReadWriteDetector::VisitExpr_(const TensorLoadNode* op) {
   std::vector<arith::IntSet> relaxed_region;
   for (PrimExpr index : op->indices) {
-    PrimExpr remapped_index = Substitute(index, let_bindings_);
+    PrimExpr remapped_index =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+            index,
+            [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+              if (auto it = let_bindings_.find(var.get()); it != let_bindings_.end()) {
+                return ffi::Any(it->second);
+              }
+              return ffi::Unchanged();
+            })
+            .cast<PrimExpr>();
     while (!remapped_index.same_as(index)) {
       index = remapped_index;
-      remapped_index = Substitute(index, let_bindings_);
+      remapped_index =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+              index,
+              [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                if (auto it = let_bindings_.find(var.get()); it != let_bindings_.end()) {
+                  return ffi::Any(it->second);
+                }
+                return ffi::Unchanged();
+              })
+              .cast<PrimExpr>();
     }
     relaxed_region.push_back(arith::EvalSet(arith::IntSet::Vector(remapped_index), dom_map_));
   }
@@ -216,10 +235,28 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
                                      std::vector<std::vector<arith::IntSet>>* regions) {
     std::vector<arith::IntSet> relaxed_region;
     for (PrimExpr index : indices) {
-      PrimExpr remapped_index = Substitute(index, let_bindings_);
+      PrimExpr remapped_index =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+              index,
+              [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                if (auto it = let_bindings_.find(var.get()); it != let_bindings_.end()) {
+                  return ffi::Any(it->second);
+                }
+                return ffi::Unchanged();
+              })
+              .cast<PrimExpr>();
       while (!remapped_index.same_as(index)) {
         index = remapped_index;
-        remapped_index = Substitute(index, let_bindings_);
+        remapped_index =
+            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                index,
+                [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                  if (auto it = let_bindings_.find(var.get()); it != let_bindings_.end()) {
+                    return ffi::Any(it->second);
+                  }
+                  return ffi::Unchanged();
+                })
+                .cast<PrimExpr>();
       }
       relaxed_region.push_back(arith::EvalSet(arith::IntSet::Vector(remapped_index), dom_map_));
     }
@@ -293,10 +330,28 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
 void BlockReadWriteDetector::VisitStmt_(const BufferStoreNode* op) {
   std::vector<arith::IntSet> relaxed_region;
   for (PrimExpr index : op->indices) {
-    PrimExpr remapped_index = Substitute(index, let_bindings_);
+    PrimExpr remapped_index =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+            index,
+            [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+              if (auto it = let_bindings_.find(var.get()); it != let_bindings_.end()) {
+                return ffi::Any(it->second);
+              }
+              return ffi::Unchanged();
+            })
+            .cast<PrimExpr>();
     while (!remapped_index.same_as(index)) {
       index = remapped_index;
-      remapped_index = Substitute(index, let_bindings_);
+      remapped_index =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+              index,
+              [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                if (auto it = let_bindings_.find(var.get()); it != let_bindings_.end()) {
+                  return ffi::Any(it->second);
+                }
+                return ffi::Unchanged();
+              })
+              .cast<PrimExpr>();
     }
     relaxed_region.push_back(arith::EvalSet(arith::IntSet::Vector(remapped_index), dom_map_));
   }
@@ -313,20 +368,52 @@ void BlockReadWriteDetector::VisitStmt_(const SBlockRealizeNode* op) {
   for (const auto& read : op->block->reads) {
     std::vector<arith::IntSet> relaxed_region;
     for (const auto& range : read->region) {
+      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                         range->min,
+                         [&vmap](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                           if (auto it = vmap.find(var.get()); it != vmap.end()) {
+                             return ffi::Any(it->second);
+                           }
+                           return ffi::Unchanged();
+                         })
+                         .cast<PrimExpr>();
+      PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                            range->extent,
+                            [&vmap](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                              if (auto it = vmap.find(var.get()); it != vmap.end()) {
+                                return ffi::Any(it->second);
+                              }
+                              return ffi::Unchanged();
+                            })
+                            .cast<PrimExpr>();
       relaxed_region.push_back(
-          arith::EvalSet(arith::IntSet::FromRange(Range::FromMinExtent(
-                             Substitute(range->min, vmap), Substitute(range->extent, vmap))),
-                         dom_map_));
+          arith::EvalSet(arith::IntSet::FromRange(Range::FromMinExtent(min, extent)), dom_map_));
     }
     Update(&read_buffers_, &read_regions_, read->buffer, relaxed_region);
   }
   for (const auto& write : op->block->writes) {
     std::vector<arith::IntSet> relaxed_region;
     for (const auto& range : write->region) {
+      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                         range->min,
+                         [&vmap](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                           if (auto it = vmap.find(var.get()); it != vmap.end()) {
+                             return ffi::Any(it->second);
+                           }
+                           return ffi::Unchanged();
+                         })
+                         .cast<PrimExpr>();
+      PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                            range->extent,
+                            [&vmap](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                              if (auto it = vmap.find(var.get()); it != vmap.end()) {
+                                return ffi::Any(it->second);
+                              }
+                              return ffi::Unchanged();
+                            })
+                            .cast<PrimExpr>();
       relaxed_region.push_back(
-          arith::EvalSet(arith::IntSet::FromRange(Range::FromMinExtent(
-                             Substitute(range->min, vmap), Substitute(range->extent, vmap))),
-                         dom_map_));
+          arith::EvalSet(arith::IntSet::FromRange(Range::FromMinExtent(min, extent)), dom_map_));
     }
     Update(&writes_buffers_, &write_regions_, write->buffer, relaxed_region);
   }
