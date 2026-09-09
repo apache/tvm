@@ -101,6 +101,7 @@ class OperatorConverter:
             "ABS",
             "ADD",
             "ATAN2",
+            "AVERAGE_POOL_2D",
             "CEIL",
             "CONCATENATION",
             "CONV_2D",
