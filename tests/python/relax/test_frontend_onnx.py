@@ -1230,7 +1230,7 @@ def test_multi_input_unknown_static_shape(op_name, num_inputs):
         "Slice", ["x", "starts", "ends", "axes"], ["sliced"], name="slice0"
     )
     other_names = [f"y{i}" for i in range(num_inputs - 1)]
-    op_node = helper.make_node(op_name, ["sliced"] + other_names, ["output"], name="op0")
+    op_node = helper.make_node(op_name, ["sliced", *other_names], ["output"], name="op0")
 
     graph = helper.make_graph(
         [slice_node, op_node],
@@ -1241,10 +1241,7 @@ def test_multi_input_unknown_static_shape(op_name, num_inputs):
             helper.make_tensor_value_info("ends", TensorProto.INT64, [1]),
             helper.make_tensor_value_info("axes", TensorProto.INT64, [1]),
         ]
-        + [
-            helper.make_tensor_value_info(name, TensorProto.FLOAT, [2, 3])
-            for name in other_names
-        ],
+        + [helper.make_tensor_value_info(name, TensorProto.FLOAT, [2, 3]) for name in other_names],
         outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [2, 3])],
     )
     model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
