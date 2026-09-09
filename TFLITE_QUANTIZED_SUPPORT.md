@@ -3,10 +3,19 @@
 Notes for TVM developers, from getting a stock `tf.lite` int8 CNN through
 `tvm.relax.frontend.tflite` and running it on a CPU backend.
 
-There are three findings. **One is a one-line fix and is included in this
-branch. One has already landed upstream. The third is a numerical correctness
-bug that is still open, is not fixed here, and is the one worth your attention**
-— it silently produces wrong results rather than failing to import.
+There are three findings. Two are fixed in this branch; one had already landed
+upstream. The second fix is the important one: it is a **numerical correctness
+bug that silently produced wrong results** rather than failing to import.
+
+    apps/tflite_quantized/verify_quantized_tflite.py
+
+reproduces all of it against the TFLite interpreter, using TVM's default
+lowering with no BYOC. On the model below:
+
+| | isolated `AVERAGE_POOL_2D` | whole model |
+|---|---|---|
+| before | **510 / 1024 elements wrong (50%)** | 312 / 1280 logits, max 106 |
+| after | **0 / 1024 — exact** | 22 / 1280, max 23 |
 
 Reproducer used throughout: the MLCommons Tiny image-classification benchmark
 model, a CIFAR-10 ResNet exported with `tf.lite.Optimize.DEFAULT` and an int8
@@ -77,9 +86,9 @@ Current `main` already uses `astype`, so nothing is needed here.
 
 ---
 
-## 3. The quantized average pool computes the wrong values  (OPEN — not fixed here)
+## 3. The quantized average pool computed the wrong values  (fixed here)
 
-This one imports and runs cleanly and gives wrong numbers.
+This one imported and ran cleanly and gave wrong numbers.
 
 ### The arithmetic
 
@@ -129,26 +138,66 @@ whole graph:
 The 82/320 is also what TVM produces end to end for this model, so this single
 op accounts for essentially all of the divergence.
 
-### Why it is not fixed in this branch
+### The fix
 
-The obvious fix — make integer `nn.avg_pool2d` round half away from zero —
-changes the semantics of a general operator for every integer user, which is a
-decision for TVM, not for us. The alternative is to keep `nn.avg_pool2d`
-untouched and have the TFLite frontend emit the window sum and the rounded
-divide explicitly, which is contained but needs a sum-pooling path the frontend
-does not have today.
+`nn.avg_pool2d` is left alone -- changing the rounding of a general operator
+would change semantics for every integer user, which is a separate discussion.
+Instead the frontend now takes the window SUM and does TFLite's division
+explicitly:
 
-We took neither: our backend claims the op and implements TFLite's rounding
-itself. With that in place the ResNet is **bit-exact against the TFLite
-interpreter over 128 random inputs, 0/1280 logits differing**, which is what
-establishes that the rounding really is the whole story.
+```python
+window = filter_h * filter_w
+acc = relax.op.astype(in_expr, "int32")
+acc = relax.op.multiply(acc, relax.const(window, "int32"))
+acc = relax.op.nn.avg_pool2d(acc, count_include_pad=True, **params)
+acc = relax.op.astype(acc, "int32")
+half = relax.const(counts // 2, "int32")
+out = relax.op.where(relax.op.greater(acc, relax.const(0, "int32")),
+                     relax.op.add(acc, half),
+                     relax.op.subtract(acc, half))
+out = relax.op.divide(out, relax.const(counts, "int32"))
+```
 
-### Suggested regression test
+Four things make this work, each verified rather than assumed:
 
-A `from_tflite` round trip on a two-op int8 graph (`CONV_2D` then
-`AVERAGE_POOL_2D`) asserting the output matches the TFLite interpreter exactly.
-A tolerance-based test will pass while the bug is present — the error is 1 LSB
-per pooled value — so the assertion has to be exact.
+* **The sum is exact.** `avg_pool2d` divides by the window size, so pre-scaling
+  the input by that size makes its division exact and leaves the sum behind.
+  `|acc| <= 255 * window^2` for 8-bit input, which the code asserts fits int32.
+* **`count_include_pad=True` keeps that divisor constant.** The padded taps are
+  zeros, so the sum over the padded window is the sum over the valid taps.
+* **`relax.op.divide` on int32 truncates toward zero**, which is the semantics
+  TFLite's `(acc ± count/2) / count` is written against. Confirmed by probing
+  it on negative operands.
+* **`counts` is the number of NON-padded taps**, which varies per output
+  position under SAME padding. Shapes are static, so it is folded to a constant
+  `[1, OH, OW, 1]` array at import time instead of being computed in the graph.
+
+One subtlety worth knowing if you touch this: legalization widens the pooling
+accumulator (TOPI uses int64 for integer pools), so the result is pinned back
+to int32 with an `astype` before it meets the int32 rounding constants —
+without it the import fails with a binary-op dtype mismatch.
+
+### Verifying it
+
+```
+pip install ai-edge-litert tflite
+python3 apps/tflite_quantized/verify_quantized_tflite.py --model pretrainedResnet_quant.tflite
+```
+
+The script does two things. It runs the whole model through TVM's default
+lowering against the interpreter, and it slices each `AVERAGE_POOL_2D` out into
+a standalone one-op model, imports that, and compares it on its own — which is
+the exact test, because nothing else can contribute to it. Its exit status
+follows the per-operator result.
+
+Both comparisons are **exact, with no tolerance**, on purpose: the error this
+catches is 1 LSB per pooled value, which any tolerance would hide.
+
+**The whole-model number is not zero, and that is a different issue.** TVM's
+QDQ lowering dequantizes and accumulates the convolutions in float32, which
+costs a count or two by itself; a backend that keeps the convolution in int32
+gets the model bit-exact. That is why the per-operator line is the one that
+carries the claim here.
 
 Note that TFLite's int8 average pool requires input and output to share a scale
 and zero point (the frontend already asserts this), so the reference is a pure
