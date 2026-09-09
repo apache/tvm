@@ -384,6 +384,155 @@ def test_codegen_simdgroup_buffer_data():
     assert "simdgroup_multiply_accumulate(" in source
 
 
+def _build_metal(mod):
+    build = tvm.get_global_func("target.build.metal")
+    return build(mod, tvm.target.Target("metal"))
+
+
+def test_bounded_symbolic_stack_allocation():
+    @I.ir_module
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(n: T.int32):
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "main",
+                    "target": T.target("metal"),
+                    "tirx.kernel_launch_params": [],
+                    "tirx.is_global_func": True,
+                }
+            )
+            scratch = T.alloc_buffer((T.min(n, 64), 2), "float32", scope="local")
+            T.evaluate(scratch.data)
+
+    source = _build_metal(Module).inspect_source()
+    assert "thread float scratch[128]" in source
+
+
+def test_bounded_uint64_symbolic_stack_allocation():
+    @I.ir_module
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(n: T.uint64):
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "main",
+                    "target": T.target("metal"),
+                    "tirx.kernel_launch_params": [],
+                    "tirx.is_global_func": True,
+                }
+            )
+            scratch = T.alloc_buffer((T.min(n, T.uint64(64)),), "float32", scope="local")
+            T.evaluate(scratch.data)
+
+    source = _build_metal(Module).inspect_source()
+    assert "thread float scratch[64]" in source
+
+
+def test_unbounded_symbolic_stack_allocation_rejected():
+    @I.ir_module
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(n: T.int32):
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "main",
+                    "target": T.target("metal"),
+                    "tirx.kernel_launch_params": [],
+                    "tirx.is_global_func": True,
+                }
+            )
+            scratch = T.alloc_buffer((n,), "float32", scope="local")
+            scratch[0] = 1.0
+            T.evaluate(scratch[0])
+
+    with pytest.raises(
+        tvm.error.InternalError,
+        match="Metal allocation extent requires a finite compile-time upper bound",
+    ):
+        _build_metal(Module)
+
+
+def test_unbounded_uint64_symbolic_stack_allocation_rejected():
+    @I.ir_module
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(n: T.uint64):
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "main",
+                    "target": T.target("metal"),
+                    "tirx.kernel_launch_params": [],
+                    "tirx.is_global_func": True,
+                }
+            )
+            scratch = T.alloc_buffer((n,), "float32", scope="local")
+            scratch[0] = 1.0
+            T.evaluate(scratch[0])
+
+    with pytest.raises(
+        tvm.error.InternalError,
+        match="Metal allocation extent requires a finite compile-time upper bound",
+    ):
+        _build_metal(Module)
+
+
+@pytest.mark.parametrize("extent", [0, -1])
+def test_nonpositive_stack_allocation_rejected(extent):
+    @I.ir_module
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main():
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "main",
+                    "target": T.target("metal"),
+                    "tirx.kernel_launch_params": [],
+                    "tirx.is_global_func": True,
+                }
+            )
+            scratch = T.alloc_buffer((extent,), "float32", scope="local")
+            T.evaluate(scratch.data)
+
+    with pytest.raises(
+        tvm.error.InternalError,
+        match="Metal allocation extent requires a positive compile-time upper bound",
+    ):
+        _build_metal(Module)
+
+
+def test_stack_allocation_element_count_overflow_rejected():
+    @I.ir_module
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(n: T.int32, m: T.int32, k: T.int32):
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "main",
+                    "target": T.target("metal"),
+                    "tirx.kernel_launch_params": [],
+                    "tirx.is_global_func": True,
+                }
+            )
+            scratch = T.alloc_buffer(
+                (T.min(n, 1 << 30), T.min(m, 1 << 30), T.min(k, 1 << 30)),
+                "uint8",
+                scope="local",
+            )
+            T.evaluate(scratch.data)
+
+    with pytest.raises(
+        tvm.error.InternalError, match="Metal allocation element count is too large to represent"
+    ):
+        _build_metal(Module)
+
+
 def test_codegen_pointer_byte_offsets_preserve_storage_scope():
     """Pointer byte offsets should preserve the source Metal address space."""
 

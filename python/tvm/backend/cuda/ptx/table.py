@@ -3050,8 +3050,7 @@ def _check_tcgen05_mma_block_scale(m):
 
 
 def _check_tcgen05_mma_block_scale_block(m):
-    """Valid block sizes per kind: mxf8f6f4/mxf4 use block32, while
-    mxf4nvf4 supports block16 and block32."""
+    """Validate documented block sizes and require collector A before collector B."""
     valid = {
         "kind::mxf8f6f4": ("block32",),
         "kind::mxf4": ("block32",),
@@ -3059,6 +3058,9 @@ def _check_tcgen05_mma_block_scale_block(m):
     }[m["kind"]]
     if m["block_size"] not in valid:
         return f"{m['kind']} supports {'/'.join(valid)}"
+    collector_b = m.get("collector_b", "")
+    if collector_b and not m.get("collector_a", ""):
+        return "collector B requires collector A"
     return None
 
 
@@ -5326,7 +5328,7 @@ _PTX_94_ENTRIES = [
                 ),
                 ModifierSlot("block_scale", ("block_scale",)),
                 ModifierSlot("collector_a", _TCGEN05_COLLECTOR_A),
-                ModifierSlot("collector_b", _TCGEN05_COLLECTOR_B),
+                ModifierSlot("collector_b", _TCGEN05_COLLECTOR_B, optional=True),
             ),
             cert_arch="sm_107f",
             operands=(
@@ -5345,6 +5347,42 @@ _PTX_94_ENTRIES = [
             ),
         )
         for sparse in (False, True)
+        for form in ("ss", "ts")
+    ],
+    # PTX ISA 9.4, 9.7.18.10.10.1 syntax forms 2 and 4 have the same operand
+    # shape for each A location, so each entry owns its no-collector and
+    # collector-qualified variants. Table 68 permits block32 for mxf8f6f4,
+    # block32 for mxf4, and block16/block32 for mxf4nvf4. Form 4 requires
+    # collector A and makes collector B optional; collector B requires sm_107f.
+    *[
+        InstructionEntry(
+            name=f"tcgen05_mma_block_scale_block_{form}",
+            mnemonic="tcgen05",
+            slots=(
+                ModifierSlot("action", ("mma",)),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
+                ModifierSlot("kind", ("kind::mxf8f6f4", "kind::mxf4", "kind::mxf4nvf4")),
+                ModifierSlot("block_scale", ("block_scale",)),
+                ModifierSlot("block_size", ("block16", "block32")),
+                ModifierSlot("collector_a", _TCGEN05_COLLECTOR_A, optional=True),
+                ModifierSlot("collector_b", _TCGEN05_COLLECTOR_B, optional=True),
+            ),
+            check=_check_tcgen05_mma_block_scale_block,
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("d_tmem", kind="addr", space="tmem"),
+                *(
+                    (OperandSlot("a_desc", dtype="u64"),)
+                    if form == "ss"
+                    else (OperandSlot("a_tmem", kind="addr", space="tmem"),)
+                ),
+                OperandSlot("b_desc", dtype="u64"),
+                OperandSlot("idesc", dtype="u32"),
+                OperandSlot("sfa_tmem", kind="addr", space="tmem"),
+                OperandSlot("sfb_tmem", kind="addr", space="tmem"),
+                OperandSlot("enable_input_d", dtype="pred"),
+            ),
+        )
         for form in ("ss", "ts")
     ],
     # PTX ISA 9.4, 9.7.10.28.5.2/3: the address override composes with the
@@ -8478,6 +8516,12 @@ _ENTRIES = [
             OperandSlot("b", dtype="u32"),
         ),
     ),
+    # PTX ISA 9.7.10.28.3.3 / 9.7.10.28.6.2 defines N only as an integer
+    # constant and declares no value domain. Keep it OPEN: callers may use any
+    # compile-time integer, while certification samples the instruction shape.
+    # MEASURED on CUDA 13.4 ptxas at sm_107a: ordinary and bulk forms accept
+    # values beyond 7 (8, 9, 16, 255), and the bulk `.read` form also accepts
+    # 2147483647 and -1.
     *[
         InstructionEntry(  # cp.async{.bulk}.wait_group{.read} N;
             name=f"cp_async{'_bulk' if bulk else ''}_wait_group",
@@ -8489,7 +8533,7 @@ _ENTRIES = [
                 *((ModifierSlot("read", ("read",), optional=True),) if bulk else ()),
             ),
             orders_memory=True,
-            operands=(OperandSlot("group", kind="imm", choices=tuple(str(n) for n in range(8))),),
+            operands=(OperandSlot("group", kind="imm"),),
         )
         for bulk in (False, True)
     ],
@@ -10141,10 +10185,10 @@ _ENTRIES = [
     # and cp.async.wait_all per 9.7.10.28.3.3, cp.async.bulk.commit_group /
     # .wait_group per 9.7.10.28.6.1 / 9.7.10.28.6.2.
     #
-    # The wait_group counts are caller-chosen immediates: the ISA gives N no
-    # register form, so each value is its own helper, and the closed `choices`
-    # set is what makes every one of them certifiable. 0..7 covers every call
-    # site (pipeline depths); widen the tuple if a deeper pipeline appears.
+    # The wait_group counts are caller-chosen OPEN immediates: the ISA gives N
+    # no register form or value domain. Each call-site constant becomes its own
+    # helper; enumeration and full-table certification sample the open operand
+    # at 0 and therefore certify the instruction shape rather than every value.
     #
     # (The `cp.async` ca/cg copy lines this note once excluded are registered
     # in the 9.7.10 group above, ignore-src operand and all.)
@@ -11317,7 +11361,7 @@ _ENTRIES = [
             cert_arch="sm_103a",
             operands=(
                 OperandSlot("r", rw="w", lanes=_tcgen05_ldst_lanes),
-                OperandSlot("redval"),
+                OperandSlot("redval", rw="w"),
                 OperandSlot("taddr", kind="addr", space="tmem"),
                 *((OperandSlot("imm_half_splitoff", kind="imm"),) if split else ()),
             ),
@@ -11469,35 +11513,6 @@ _ENTRIES = [
             ),
             cert_arch="sm_100a",
             check=_check_tcgen05_mma_block_scale,
-            operands=(
-                OperandSlot("d_tmem", kind="addr", space="tmem"),
-                *(
-                    (OperandSlot("a_desc", dtype="u64"),)
-                    if form == "ss"
-                    else (OperandSlot("a_tmem", kind="addr", space="tmem"),)
-                ),
-                OperandSlot("b_desc", dtype="u64"),
-                OperandSlot("idesc", dtype="u32"),
-                OperandSlot("sfa_tmem", kind="addr", space="tmem"),
-                OperandSlot("sfb_tmem", kind="addr", space="tmem"),
-                OperandSlot("enable_input_d", dtype="pred"),
-            ),
-        )
-        for form in ("ss", "ts")
-    ],
-    *[
-        InstructionEntry(  # block-scaled with an explicit scale block size
-            name=f"tcgen05_mma_block_scale_block_{form}",
-            mnemonic="tcgen05",
-            slots=(
-                ModifierSlot("action", ("mma",)),
-                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
-                ModifierSlot("kind", ("kind::mxf8f6f4", "kind::mxf4", "kind::mxf4nvf4")),
-                ModifierSlot("block_scale", ("block_scale",)),
-                ModifierSlot("block_size", ("block16", "block32")),
-            ),
-            cert_arch="sm_100a",
-            check=_check_tcgen05_mma_block_scale_block,
             operands=(
                 OperandSlot("d_tmem", kind="addr", space="tmem"),
                 *(

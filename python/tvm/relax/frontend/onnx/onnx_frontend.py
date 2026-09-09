@@ -608,7 +608,7 @@ class BinaryBase(OnnxOpConverter):
                 if hasattr(output, "item"):
                     output = output.item()
                 return relax.prim_value(output)
-            if x.dtype == y.dtype:
+            if x.dtype == y.dtype and not _np.issubdtype(output.dtype, _np.bool_):
                 # no numpy precision widening
                 output = output.astype(x.dtype)
             if all([isinstance(inp, relax.Constant) for inp in inputs]):
@@ -2697,6 +2697,25 @@ class MultiInputBase(OnnxOpConverter):
 
     numpy_op: Callable = None
     relax_op: Callable = None
+    # Pairwise equivalent, used when no static broadcast shape can be computed.
+    binary_op: Callable = None
+
+    @classmethod
+    def _impl_dynamic(cls, bb, inputs):
+        """Fold the inputs pairwise, letting the binary op broadcast.
+
+        ONNX defines Min, Max, Sum and Mean as elementwise with multidirectional
+        broadcasting, so the pairwise form is equivalent to the stack-and-reduce
+        form and does not need a shape known at import time.
+        """
+        if cls.binary_op is None:
+            raise NotImplementedError(
+                f"{cls.__name__} cannot import an input whose static shape is unknown"
+            )
+        return functools.reduce(
+            lambda lhs, rhs: bb.normalize(cls.binary_op(lhs, rhs)),  # pylint: disable=not-callable
+            inputs,
+        )
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
@@ -2718,6 +2737,15 @@ class MultiInputBase(OnnxOpConverter):
             return relax.const(output, output.dtype)
 
         input_shapes = [inp.ty.shape for inp in inputs]
+        if any(shape is None for shape in input_shapes):
+            # Relax spells an unknown static shape R.Tensor(dtype=..., ndim=k),
+            # whose struct info carries shape None. R.dynamic_strided_slice
+            # produces exactly that, so a plain ONNX Slice with runtime
+            # starts/ends reaches here and compute_broadcast_shape raised
+            # `object of type 'NoneType' has no len()` on a model onnx.checker
+            # accepts and onnxruntime runs.
+            return cls._impl_dynamic(bb, inputs)
+
         target_shape = functools.reduce(compute_broadcast_shape, input_shapes)
 
         # broadcast_to, stack them, then perform minimum over the new axis.
@@ -2731,6 +2759,7 @@ class Min(MultiInputBase):
 
     numpy_op = _np.min
     relax_op = relax.op.min
+    binary_op = relax.op.minimum
 
 
 class Max(MultiInputBase):
@@ -2738,6 +2767,7 @@ class Max(MultiInputBase):
 
     numpy_op = _np.max
     relax_op = relax.op.max
+    binary_op = relax.op.maximum
 
 
 class Mean(MultiInputBase):
@@ -2745,6 +2775,12 @@ class Mean(MultiInputBase):
 
     numpy_op = _np.mean
     relax_op = relax.op.mean
+    binary_op = relax.op.add
+
+    @classmethod
+    def _impl_dynamic(cls, bb, inputs):
+        total = super()._impl_dynamic(bb, inputs)
+        return relax.op.divide(total, relax.const(len(inputs), inputs[0].ty.dtype))
 
 
 class Sum(MultiInputBase):
@@ -2752,6 +2788,7 @@ class Sum(MultiInputBase):
 
     numpy_op = _np.sum
     relax_op = relax.op.sum
+    binary_op = relax.op.add
 
 
 class Log(OnnxOpConverter):
@@ -3991,24 +4028,88 @@ class Range(OnnxOpConverter):
         start = get_constant(inputs[0], params)
         limit = get_constant(inputs[1], params)
         delta = get_constant(inputs[2], params)
-        out_dtype = start.ty.dtype
 
-        if isinstance(start, relax.Constant):
-            start = start.data.numpy().tolist()
+        def get_scalar_dtype(x):
+            if tvm.ir.is_prim_expr(x):
+                return str(getattr(x, "dtype", None) or x.ty)
+            return str(x.ty.dtype)
 
-        if isinstance(limit, relax.Constant):
-            limit = limit.data.numpy().tolist()
+        out_dtype = get_scalar_dtype(start)
 
-        assert isinstance(delta, relax.Constant), "Constant delta required for Range."
-        step = delta.data.numpy().tolist()
+        def get_scalar_value(x):
+            if isinstance(x, relax.Constant):
+                value = x.data.numpy()
+                if value.size != 1:
+                    raise ValueError("Range scalar input must have exactly one element.")
+                return value.item()
+            return x
 
-        # If all inputs are constant, compute directly.
-        if isinstance(start, int) and isinstance(limit, int):
-            out_range = _np.arange(start=start, stop=limit, step=step)
+        start = get_scalar_value(start)
+        limit = get_scalar_value(limit)
+        delta = get_scalar_value(delta)
+
+        def is_dynamic_scalar(x):
+            return tvm.ir.is_prim_expr(x) or isinstance(x, relax.Expr)
+
+        out_dtype_is_float = _relax_dtype_is_floating_point(out_dtype)
+
+        if not any(is_dynamic_scalar(x) for x in [start, limit, delta]):
+            if out_dtype_is_float:
+                np_dtype = _np.dtype(out_dtype).type
+                start, limit, delta = map(np_dtype, (start, limit, delta))
+                difference = limit - start
+                count = max(int(_np.ceil(_np.float64(difference) / _np.float64(delta))), 0)
+                out_range = _np.arange(count, dtype=out_dtype) * delta + start
+            else:
+                out_range = _np.arange(start=start, stop=limit, step=delta)
             return relax.const(out_range, out_dtype)
 
-        # Otherwise compute in graph.
-        return relax.op.arange(start, limit, step, out_dtype)
+        count_dtype = "float64" if out_dtype_is_float else "int64"
+
+        def scalar_expr(x, dtype):
+            if tvm.ir.is_prim_expr(x):
+                expr_dtype = str(getattr(x, "dtype", None) or x.ty)
+                if expr_dtype != "int64":
+                    x = tirx.Cast("int64", x)
+                x = bb.normalize(relax.op.shape_to_tensor(relax.ShapeExpr([x])))
+                x = bb.normalize(relax.op.reshape(x, ()))
+                if dtype != "int64":
+                    x = bb.normalize(relax.op.astype(x, dtype))
+                return x
+            if isinstance(x, relax.Expr):
+                if str(x.ty.dtype) == dtype:
+                    return x
+                return bb.normalize(relax.op.astype(x, dtype))
+            return relax.const(x, dtype)
+
+        if out_dtype_is_float:
+            start_value = scalar_expr(start, out_dtype)
+            limit_value = scalar_expr(limit, out_dtype)
+            delta_value = scalar_expr(delta, out_dtype)
+
+            difference = bb.normalize(relax.op.subtract(limit_value, start_value))
+            difference = bb.normalize(relax.op.astype(difference, count_dtype))
+            delta_count = bb.normalize(relax.op.astype(delta_value, count_dtype))
+            count = relax.op.ceil(relax.op.divide(difference, delta_count))
+        else:
+            start_count = scalar_expr(start, count_dtype)
+            limit_count = scalar_expr(limit, count_dtype)
+            delta_count = scalar_expr(delta, count_dtype)
+            count = relax.op.negative(
+                relax.op.floor_divide(relax.op.subtract(start_count, limit_count), delta_count)
+            )
+            start_value = scalar_expr(start, out_dtype)
+            delta_value = scalar_expr(delta, out_dtype)
+
+        count = bb.normalize(relax.op.maximum(count, relax.const(0, count_dtype)))
+        count = bb.normalize(relax.op.astype(count, "int64"))
+        count = bb.normalize(relax.op.reshape(count, (1,)))
+        range_len = _tensor_to_shape_expr(bb, count, 1, "range_len").values[0]
+
+        positions = bb.normalize(
+            relax.op.astype(relax.op.arange(0, range_len, 1, "int64"), out_dtype)
+        )
+        return relax.op.add(relax.op.multiply(positions, delta_value), start_value)
 
 
 class InstanceNormalization(OnnxOpConverter):
