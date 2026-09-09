@@ -5754,9 +5754,12 @@ class OperatorConverter:
                 acc = relax.op.astype(in_expr, "int32")
                 acc = relax.op.multiply(acc, relax.const(window, "int32"))
                 acc = relax.op.nn.avg_pool2d(acc, count_include_pad=True, **params)
-                # Legalization is free to widen the pooling accumulator (TOPI
-                # uses int64 for integer pools), so pin the dtype back before
-                # mixing it with the int32 rounding constants below.
+                # relax widens the output dtype of an INTEGER avg_pool2d when the
+                # window is large enough that an int32 accumulator could
+                # overflow -- an 8x8 pool over int32 comes back as int64, a 2x2
+                # one stays int32. Pin it so the rounding arithmetic below always
+                # meets int32 constants; without this an 8x8 pool fails to import
+                # with "Binary operators must have the same datatype".
                 acc = relax.op.astype(acc, "int32")
 
                 # TFLite divides by the number of NON-PADDED taps, which varies
@@ -5764,8 +5767,10 @@ class OperatorConverter:
                 # static, so the per-position count is folded to a constant
                 # here rather than computed in the graph.
                 counts = self._avg_pool2d_valid_counts(
-                    (input_h, input_w), (filter_h, filter_w),
-                    (stride_h, stride_w), params["padding"],
+                    (input_h, input_w),
+                    (filter_h, filter_w),
+                    (stride_h, stride_w),
+                    params["padding"],
                     to_int_list(self.get_tensor_shape(output_tensor))[1:3],
                 )
                 half = relax.const(counts // 2, "int32")

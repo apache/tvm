@@ -11293,8 +11293,8 @@ def test_dequantize_float16_uses_astype():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def test_quantized_avg_pool2d_uses_astype():
-    """Quantized AVERAGE_POOL_2D casts through int32 with R.astype."""
+def test_quantized_avg_pool2d_rounds_half_away_from_zero():
+    """Quantized AVERAGE_POOL_2D takes the window sum and rounds like TFLite."""
     builder = flatbuffers.Builder(1024)
 
     qparams = _build_quantization_parameters(
@@ -11373,22 +11373,120 @@ def test_quantized_avg_pool2d_uses_astype():
         ):
             with R.dataflow():
                 lv: R.Tensor((1, 2, 2, 1), dtype="int32") = R.astype(tvmgen_tensor_0, dtype="int32")
-                lv1: R.Tensor((1, 1, 1, 1), dtype="int32") = R.nn.avg_pool2d(
-                    lv,
+                # scaling by the window size makes avg_pool2d's own division
+                # exact, so what comes back is the window SUM
+                lv1: R.Tensor((1, 2, 2, 1), dtype="int32") = R.multiply(lv, R.const(4, "int32"))
+                lv2: R.Tensor((1, 1, 1, 1), dtype="int32") = R.nn.avg_pool2d(
+                    lv1,
                     pool_size=[2, 2],
                     strides=[1, 1],
                     dilation=[1, 1],
                     padding=[0, 0, 0, 0],
                     ceil_mode=False,
-                    count_include_pad=False,
+                    count_include_pad=True,
                     layout="NHWC",
                     out_layout="NHWC",
                 )
-                gv: R.Tensor((1, 1, 1, 1), dtype="int8") = R.astype(lv1, dtype="int8")
+                lv3: R.Tensor((1, 1, 1, 1), dtype="int32") = R.astype(lv2, dtype="int32")
+                # acc > 0 ? (acc + count/2) / count : (acc - count/2) / count
+                lv4: R.Tensor((1, 1, 1, 1), dtype="bool") = R.greater(lv3, R.const(0, "int32"))
+                lv5: R.Tensor((1, 1, 1, 1), dtype="int32") = R.add(
+                    lv3, R.const(np.full((1, 1, 1, 1), 2, dtype="int32"))
+                )
+                lv6: R.Tensor((1, 1, 1, 1), dtype="int32") = R.subtract(
+                    lv3, R.const(np.full((1, 1, 1, 1), 2, dtype="int32"))
+                )
+                lv7: R.Tensor((1, 1, 1, 1), dtype="int32") = R.where(lv4, lv5, lv6)
+                lv8: R.Tensor((1, 1, 1, 1), dtype="int32") = R.divide(
+                    lv7, R.const(np.full((1, 1, 1, 1), 4, dtype="int32"))
+                )
+                gv: R.Tensor((1, 1, 1, 1), dtype="int8") = R.astype(lv8, dtype="int8")
                 R.output(gv)
             return gv
 
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_quantized_avg_pool2d_matches_tflite_rounding_numerically():
+    """The pooled values must match TFLite's reference integer average pool.
+
+    The structural test above pins the shape of the lowering; this one pins the
+    ANSWER, which is what actually regressed: a truncating division looks
+    reasonable and is wrong on about half of all inputs. The reference is
+    tensorflow/lite/kernels/internal/reference/integer_ops/pooling.h,
+
+        acc = acc > 0 ? (acc + count / 2) / count : (acc - count / 2) / count
+
+    and the inputs below are chosen so the window sums land on and around the
+    .5 boundaries where truncation and round-half-away disagree.
+    """
+    builder = flatbuffers.Builder(1024)
+
+    qparams = _build_quantization_parameters(
+        builder, scale=[0.5], zero_point=[0], quantized_dimension=0
+    )
+    input_tensor = _build_tensor(
+        builder, 0, [1, 2, 2, 8], tensor_type=_tfl_tensor_type.INT8, quantization=qparams
+    )
+    output_tensor = _build_tensor(
+        builder, 1, [1, 1, 1, 8], tensor_type=_tfl_tensor_type.INT8, quantization=qparams
+    )
+
+    _tfl_pool2d_options.Pool2DOptionsStart(builder)
+    _tfl_pool2d_options.Pool2DOptionsAddPadding(builder, _tfl_padding.VALID)
+    _tfl_pool2d_options.Pool2DOptionsAddStrideH(builder, 2)
+    _tfl_pool2d_options.Pool2DOptionsAddStrideW(builder, 2)
+    _tfl_pool2d_options.Pool2DOptionsAddFilterHeight(builder, 2)
+    _tfl_pool2d_options.Pool2DOptionsAddFilterWidth(builder, 2)
+    _tfl_pool2d_options.Pool2DOptionsAddFusedActivationFunction(builder, _tfl_activation_fn.NONE)
+    pool_opts = _tfl_pool2d_options.Pool2DOptionsEnd(builder)
+
+    avg_pool_op = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options_type=_tfl_builtin_options.Pool2DOptions,
+        builtin_options=pool_opts,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, output_tensor],
+        operators=[avg_pool_op],
+        inputs=[0],
+        outputs=[1],
+    )
+    operator_codes = [_build_operator_code(builder, _tfl_builtin_operator.AVERAGE_POOL_2D)]
+    buf = _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=[_build_buffer(builder), _build_buffer(builder)],
+    )
+
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+    mod = from_tflite(tflite_model)
+
+    dev = tvm.cpu(0)
+    vm = relax.VirtualMachine(tvm.compile(mod, target=tvm.target.Target("llvm")), dev)
+
+    # one channel per window sum in [-7, 7]: +-1.5, +-1.75 and the exact halves
+    # are where a truncating divide diverges from round-half-away
+    sums = [5, 6, 7, -5, -6, -7, 2, -2]
+    x = np.zeros((1, 2, 2, 8), dtype="int8")
+    for c, total in enumerate(sums):
+        x[0, 0, 0, c] = total
+    got = vm["main"](tvm.runtime.tensor(x, dev)).numpy().reshape(-1)
+
+    count = 4
+    want = np.array(
+        [(t + count // 2) // count if t > 0 else -((-t + count // 2) // count) for t in sums],
+        dtype="int8",
+    )
+    np.testing.assert_array_equal(got, want)
 
 
 def test_quantized_conv2d_per_tensor_uses_qdq():
