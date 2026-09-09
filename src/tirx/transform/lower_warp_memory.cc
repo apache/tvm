@@ -498,7 +498,8 @@ class WarpMemoryRewriter : private StmtMutator {
     return stmt;
   }
 
-  std::unordered_map<const VarNode*, ffi::String> new_storage_scopes_;
+  // Keep the old variables alive until UpdatePointerStorageScope reads their types.
+  std::unordered_map<Var, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> new_storage_scopes_;
 
  private:
   Stmt VisitStmt_(const SeqStmtNode* op) {
@@ -508,7 +509,7 @@ class WarpMemoryRewriter : private StmtMutator {
     for (size_t i = 0; i < op->seq.size(); ++i) {
       const auto* alloc = op->seq[i].as<AllocBufferNode>();
       if (alloc && alloc->buffer.scope() == "warp") {
-        new_storage_scopes_[alloc->buffer.get()] = "local";
+        new_storage_scopes_[alloc->buffer.var()] = "local";
         // Gather remaining siblings as the "body" for rewriting.
         ffi::Array<Stmt> remaining;
         for (size_t j = i + 1; j < op->seq.size(); ++j) {
