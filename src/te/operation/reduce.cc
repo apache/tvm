@@ -21,6 +21,7 @@
  * \file reduce.cc
  * \brief TE reduction expression definitions.
  */
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/operation.h>
@@ -69,7 +70,16 @@ CommReducer::CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs,
 
   ffi::ArrayObj* p_result = result.CopyOnWrite();
   for (int i = 0; i < static_cast<int>(n_group); ++i) {
-    p_result->SetItem(i, Substitute(result[i], var_map));
+    p_result->SetItem(i,
+                      ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                          result[i],
+                          [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                            if (auto it = var_map.find(var.get()); it != var_map.end()) {
+                              return ffi::Any(it->second);
+                            }
+                            return ffi::Unchanged();
+                          })
+                          .cast<PrimExpr>());
   }
 
   auto node = ffi::make_object<CommReducerNode>();
@@ -91,7 +101,17 @@ ffi::Array<PrimExpr> CommReducerNode::operator()(ffi::Array<PrimExpr> a,
     value_map.Set(lhs[i], a[i]);
     value_map.Set(rhs[i], b[i]);
   }
-  return Substitute(this->result, value_map);
+  return this->result.Map([&value_map](const PrimExpr& expr) {
+    return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+               expr,
+               [&value_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                 if (auto replacement = value_map.Get(var)) {
+                   return ffi::Any(replacement.value());
+                 }
+                 return ffi::Unchanged();
+               })
+        .cast<PrimExpr>();
+  });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

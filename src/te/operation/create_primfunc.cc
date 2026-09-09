@@ -21,6 +21,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -395,7 +396,15 @@ Stmt GenerateInitStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
                       CreateFuncInfo* info) {
   // helper to transform the expr and remap iters to the block domain
   auto f_transform_and_remap = [&](const PrimExpr& e) {
-    return Substitute(info->transformer(e).as_or_throw<PrimExpr>(), var_map);
+    return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+               info->transformer(e).as_or_throw<PrimExpr>(),
+               [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                 if (auto replacement = var_map.Get(var)) {
+                   return ffi::Any(replacement.value());
+                 }
+                 return ffi::Unchanged();
+               })
+        .cast<PrimExpr>();
   };
   ffi::Optional<Stmt> init = std::nullopt;
   Stmt body;
@@ -425,7 +434,15 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
                       CreateFuncInfo* info, arith::AnalyzerObj* analyzer) {
   // helper to transform the expr and remap iters to the block domain
   auto f_transform_and_remap = [&](const PrimExpr& e) {
-    return Substitute(info->transformer(e).as_or_throw<PrimExpr>(), var_map);
+    return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+               info->transformer(e).as_or_throw<PrimExpr>(),
+               [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                 if (auto replacement = var_map.Get(var)) {
+                   return ffi::Any(replacement.value());
+                 }
+                 return ffi::Unchanged();
+               })
+        .cast<PrimExpr>();
   };
   Stmt body;
   if (const auto* reduce = expr_body.as<te::ReduceNode>()) {
@@ -567,8 +584,24 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
         PrimExpr extent = axis->dom->extent;
         if (i > 0) {
           const auto& scope_repl = scopes[i - 1].axes_remap;
-          min = Substitute(min, scope_repl);
-          extent = Substitute(extent, scope_repl);
+          min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                    min,
+                    [&scope_repl](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                      if (auto replacement = scope_repl.Get(var)) {
+                        return ffi::Any(replacement.value());
+                      }
+                      return ffi::Unchanged();
+                    })
+                    .cast<PrimExpr>();
+          extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                       extent,
+                       [&scope_repl](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                         if (auto replacement = scope_repl.Get(var)) {
+                           return ffi::Any(replacement.value());
+                         }
+                         return ffi::Unchanged();
+                       })
+                       .cast<PrimExpr>();
         }
         Range dom = Range::FromMinExtent(analyzer->Simplify(min), analyzer->Simplify(extent));
         IterVar new_block_iter(dom, block_var.as_or_throw<PrimVar>(), axis->iter_type,

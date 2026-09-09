@@ -25,6 +25,7 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/tirx/index_map.h>
@@ -133,7 +134,16 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
 
   PrimExpr padding_predicate = padded_iter_map->padding_predicate;
   padding_predicate = arith::NormalizeIterMapToExpr(padding_predicate);
-  padding_predicate = Substitute(padding_predicate, inverse_exprs_map);
+  padding_predicate =
+      ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+          padding_predicate,
+          [&inverse_exprs_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+            if (auto replacement = inverse_exprs_map.Get(var)) {
+              return ffi::Any(replacement.value());
+            }
+            return ffi::Unchanged();
+          })
+          .cast<PrimExpr>();
 
   auto output_ranges = self->MapRanges(initial_ranges, analyzer_ref);
   {
@@ -393,10 +403,28 @@ IndexMap IndexMap::RenameVariables(
     }
   }
 
-  auto new_initial_indices = n->initial_indices.Map(
-      [&](const PrimVar& var) { return Substitute(var, var_remap).as_or_throw<PrimVar>(); });
-  auto new_final_indices =
-      n->final_indices.Map([&](const PrimExpr& expr) { return Substitute(expr, var_remap); });
+  auto new_initial_indices = n->initial_indices.Map([&](const PrimVar& var) {
+    return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+               var,
+               [&var_remap](const Var& value) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                 if (auto replacement = var_remap.Get(value)) {
+                   return ffi::Any(replacement.value());
+                 }
+                 return ffi::Unchanged();
+               })
+        .cast<PrimVar>();
+  });
+  auto new_final_indices = n->final_indices.Map([&](const PrimExpr& expr) {
+    return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+               expr,
+               [&var_remap](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                 if (auto replacement = var_remap.Get(var)) {
+                   return ffi::Any(replacement.value());
+                 }
+                 return ffi::Unchanged();
+               })
+        .cast<PrimExpr>();
+  });
   ffi::Optional<IndexMap> new_inverse_index_map = std::nullopt;
   if (n->inverse_index_map.has_value()) {
     new_inverse_index_map =
@@ -462,12 +490,17 @@ ffi::String IndexMapNode::ToPythonString(
 
 IndexMap Substitute(const IndexMap& index_map,
                     std::function<ffi::Optional<PrimExpr>(const Var& var)> f_subst) {
-  auto general_subst = [&](const Var& var) -> ffi::Optional<Expr> {
-    if (auto replacement = f_subst(var)) return replacement.value();
-    return std::nullopt;
-  };
-  ffi::Array<PrimExpr> new_output = index_map->final_indices.Map(
-      [&](const PrimExpr& expr) { return Substitute(expr, general_subst); });
+  ffi::Array<PrimExpr> new_output = index_map->final_indices.Map([&](const PrimExpr& expr) {
+    return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+               expr,
+               [&f_subst](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                 if (auto replacement = f_subst(var)) {
+                   return ffi::Any(replacement.value());
+                 }
+                 return ffi::Unchanged();
+               })
+        .cast<PrimExpr>();
+  });
   ffi::Optional<IndexMap> new_inverse_map = std::nullopt;
   if (index_map->inverse_index_map.has_value()) {
     new_inverse_map =
