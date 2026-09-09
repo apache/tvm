@@ -25,12 +25,13 @@
 #include <tvm/arith/int_solver.h>
 #include <tvm/arith/pattern.h>
 #include <tvm/ffi/dtype.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "int_operator.h"
 
@@ -467,6 +468,12 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
   }
   analyzer->Bind(vranges);
 
+  auto f_dst_to_src =
+      [&res_dst_to_src](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = res_dst_to_src.Get(var)) return ffi::Any(repl.value());
+    return ffi::Unchanged();
+  };
+
   // We process variables in the reverse direction to start with the most independent one.
   // This order is needed to compute new ranges.
   for (auto it = inequalities->variables.rbegin(); it != inequalities->variables.rend(); ++it) {
@@ -511,7 +518,9 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
         // that is we have to substitute new with old in best_range here
         res_dst_to_src.Set(new_var,
                            analyzer->Simplify(var.as_or_throw<PrimExpr>() -
-                                              Substitute(best_range->min, res_dst_to_src)));
+                                              ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                                                  best_range->min, f_dst_to_src)
+                                                  .cast<PrimExpr>()));
 
         // Add the new var to the resulting axis
         auto range = Range(IntImm(new_var->ty.as_or_throw<PrimType>(), 0), best_range->extent);
@@ -525,9 +534,15 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
   }
 
   // Add the original conditions (with variables substituted) to the resulting conditions
+  auto f_src_to_dst =
+      [&res_src_to_dst](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = res_src_to_dst.Get(var)) return ffi::Any(repl.value());
+    return ffi::Unchanged();
+  };
   for (const PrimExpr& old_cond :
        AsConditions(inequalities->variables, solved_bounds, solved_other_relations)) {
-    PrimExpr new_cond = analyzer->Simplify(Substitute(old_cond, res_src_to_dst));
+    PrimExpr new_cond = analyzer->Simplify(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(old_cond, f_src_to_dst).cast<PrimExpr>());
     if (!is_const_int(new_cond, 1)) {
       // those not represented in vranges (res_ranges)
       res_relations.push_back(new_cond);

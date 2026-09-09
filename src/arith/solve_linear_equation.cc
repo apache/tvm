@@ -25,12 +25,12 @@
 #include <tvm/arith/int_solver.h>
 #include <tvm/arith/pattern.h>
 #include <tvm/ffi/dtype.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
 
@@ -449,8 +449,13 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   }
 
   // Add the rest conditions
+  auto f_subst = [&old_to_new_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = old_to_new_map.Get(var)) return ffi::Any(repl.value());
+    return ffi::Unchanged();
+  };
   for (const PrimExpr& cond : rest) {
-    new_relations.push_back(tirx::Substitute(cond, old_to_new_map));
+    new_relations.push_back(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(cond, f_subst).cast<PrimExpr>());
   }
 
   IntConstraints solution(new_vars, new_ranges, new_relations);
