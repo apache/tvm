@@ -11418,6 +11418,8 @@ def test_quantized_avg_pool2d_matches_tflite_rounding_numerically():
 
     and the inputs below are chosen so the window sums land on and around the
     .5 boundaries where truncation and round-half-away disagree.
+    
+    The activation was also tested with resnet.
     """
     builder = flatbuffers.Builder(1024)
 
