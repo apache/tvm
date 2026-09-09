@@ -368,5 +368,25 @@ def test_flatten_inside_block():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+def test_build_with_optional_pragma_unroll_explicit():
+    def check(value):
+        @I.ir_module(s_tir=True)
+        class Module:
+            @T.prim_func(s_tir=True)
+            def main(A: T.Buffer((4, 5, 6), "int16"), B: T.Buffer((4, 5, 6), "int16")):
+                for ax0 in T.serial(4, annotations={"pragma_unroll_explicit": value}):
+                    for ax1, ax2 in T.grid(5, 6):
+                        with T.sblock("copy"):
+                            v0, v1, v2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                            T.reads(A[v0, v1, v2])
+                            T.writes(B[v0, v1, v2])
+                            B[v0, v1, v2] = A[v0, v1, v2]
+
+        tvm.build(Module, target="llvm")
+
+    for value in [None, True, False]:
+        check(value)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
