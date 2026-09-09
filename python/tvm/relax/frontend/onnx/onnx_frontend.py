@@ -608,7 +608,7 @@ class BinaryBase(OnnxOpConverter):
                 if hasattr(output, "item"):
                     output = output.item()
                 return relax.prim_value(output)
-            if x.dtype == y.dtype:
+            if x.dtype == y.dtype and not _np.issubdtype(output.dtype, _np.bool_):
                 # no numpy precision widening
                 output = output.astype(x.dtype)
             if all([isinstance(inp, relax.Constant) for inp in inputs]):
@@ -2697,6 +2697,25 @@ class MultiInputBase(OnnxOpConverter):
 
     numpy_op: Callable = None
     relax_op: Callable = None
+    # Pairwise equivalent, used when no static broadcast shape can be computed.
+    binary_op: Callable = None
+
+    @classmethod
+    def _impl_dynamic(cls, bb, inputs):
+        """Fold the inputs pairwise, letting the binary op broadcast.
+
+        ONNX defines Min, Max, Sum and Mean as elementwise with multidirectional
+        broadcasting, so the pairwise form is equivalent to the stack-and-reduce
+        form and does not need a shape known at import time.
+        """
+        if cls.binary_op is None:
+            raise NotImplementedError(
+                f"{cls.__name__} cannot import an input whose static shape is unknown"
+            )
+        return functools.reduce(
+            lambda lhs, rhs: bb.normalize(cls.binary_op(lhs, rhs)),  # pylint: disable=not-callable
+            inputs,
+        )
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
@@ -2718,6 +2737,15 @@ class MultiInputBase(OnnxOpConverter):
             return relax.const(output, output.dtype)
 
         input_shapes = [inp.ty.shape for inp in inputs]
+        if any(shape is None for shape in input_shapes):
+            # Relax spells an unknown static shape R.Tensor(dtype=..., ndim=k),
+            # whose struct info carries shape None. R.dynamic_strided_slice
+            # produces exactly that, so a plain ONNX Slice with runtime
+            # starts/ends reaches here and compute_broadcast_shape raised
+            # `object of type 'NoneType' has no len()` on a model onnx.checker
+            # accepts and onnxruntime runs.
+            return cls._impl_dynamic(bb, inputs)
+
         target_shape = functools.reduce(compute_broadcast_shape, input_shapes)
 
         # broadcast_to, stack them, then perform minimum over the new axis.
@@ -2731,6 +2759,7 @@ class Min(MultiInputBase):
 
     numpy_op = _np.min
     relax_op = relax.op.min
+    binary_op = relax.op.minimum
 
 
 class Max(MultiInputBase):
@@ -2738,6 +2767,7 @@ class Max(MultiInputBase):
 
     numpy_op = _np.max
     relax_op = relax.op.max
+    binary_op = relax.op.maximum
 
 
 class Mean(MultiInputBase):
@@ -2745,6 +2775,12 @@ class Mean(MultiInputBase):
 
     numpy_op = _np.mean
     relax_op = relax.op.mean
+    binary_op = relax.op.add
+
+    @classmethod
+    def _impl_dynamic(cls, bb, inputs):
+        total = super()._impl_dynamic(bb, inputs)
+        return relax.op.divide(total, relax.const(len(inputs), inputs[0].ty.dtype))
 
 
 class Sum(MultiInputBase):
@@ -2752,6 +2788,7 @@ class Sum(MultiInputBase):
 
     numpy_op = _np.sum
     relax_op = relax.op.sum
+    binary_op = relax.op.add
 
 
 class Log(OnnxOpConverter):

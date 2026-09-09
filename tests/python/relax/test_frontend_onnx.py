@@ -582,6 +582,56 @@ def test_concat_with_param_tensor_keeps_runtime_param():
     np.testing.assert_array_equal(params["main"][0].numpy(), weight_np)
 
 
+@pytest.mark.parametrize(
+    "op_name,np_op",
+    [
+        ("Less", np.less),
+        ("LessOrEqual", np.less_equal),
+        ("Greater", np.greater),
+        ("GreaterOrEqual", np.greater_equal),
+    ],
+)
+@pytest.mark.parametrize("np_dtype", ["int32", "float32"])
+def test_constant_comparison_outputs_bool(op_name, np_op, np_dtype):
+    a_np = np.array([[1], [5]], dtype=np_dtype)
+    b_np = np.array([[3]], dtype=np_dtype)
+    rhs_np = np.array([[3]], dtype=np_dtype)
+    graph = helper.make_graph(
+        [
+            helper.make_node("Identity", ["d"], ["dummy"]),
+            helper.make_node("Concat", ["a", "b"], ["lhs"], axis=0),
+            helper.make_node(op_name, ["lhs", "rhs"], ["y"]),
+        ],
+        "constant_comparison",
+        [helper.make_tensor_value_info("d", TensorProto.INT32, [1])],
+        [
+            helper.make_tensor_value_info("y", TensorProto.BOOL, [3, 1]),
+            helper.make_tensor_value_info("dummy", TensorProto.INT32, [1]),
+        ],
+        initializer=[
+            numpy_helper.from_array(a_np, "a"),
+            numpy_helper.from_array(b_np, "b"),
+            numpy_helper.from_array(rhs_np, "rhs"),
+        ],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)], ir_version=9)
+    onnx.checker.check_model(model)
+
+    mod = from_onnx(model, opset=18, shape_dict={"d": [1]}, keep_params_in_input=False)
+    constants = []
+
+    def collect_constants(expr):
+        if isinstance(expr, relax.Constant):
+            constants.append(expr.data.numpy())
+
+    relax.analysis.post_order_visit(mod["main"].body, collect_constants)
+    folded_outputs = [arr for arr in constants if arr.shape == (3, 1)]
+    assert len(folded_outputs) == 1
+    expected = np_op(np.concatenate([a_np, b_np], axis=0), rhs_np)
+    np.testing.assert_array_equal(folded_outputs[0], expected)
+    assert folded_outputs[0].dtype == np.dtype("bool")
+
+
 @pytest.mark.parametrize("op_name", ["Add", "Sub", "Mul", "Div", "Pow"])
 def test_binary(op_name: str):
     verify_binary(op_name, [1, 32], [1, 32], [1, 32])
@@ -1164,6 +1214,41 @@ def test_multi_input_constant_single_input(op_name, shape):
         outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, shape)],
     )
     check_correctness(helper.make_model(graph), opset=13)
+
+
+@pytest.mark.parametrize("op_name", ["Min", "Max", "Sum", "Mean"])
+@pytest.mark.parametrize("num_inputs", [1, 2, 3])
+def test_multi_input_unknown_static_shape(op_name, num_inputs):
+    """An input with no static shape imports instead of raising len(None).
+
+    A Slice with runtime starts/ends lowers to R.dynamic_strided_slice, whose
+    struct info is R.Tensor(dtype=..., ndim=k) with shape None. That reaches
+    MultiInputBase, where compute_broadcast_shape used to call len() on it.
+    The model is valid ONNX and onnxruntime executes it.
+    """
+    slice_node = helper.make_node(
+        "Slice", ["x", "starts", "ends", "axes"], ["sliced"], name="slice0"
+    )
+    other_names = [f"y{i}" for i in range(num_inputs - 1)]
+    op_node = helper.make_node(op_name, ["sliced", *other_names], ["output"], name="op0")
+
+    graph = helper.make_graph(
+        [slice_node, op_node],
+        f"slice_then_{op_name.lower()}",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [4, 3]),
+            helper.make_tensor_value_info("starts", TensorProto.INT64, [1]),
+            helper.make_tensor_value_info("ends", TensorProto.INT64, [1]),
+            helper.make_tensor_value_info("axes", TensorProto.INT64, [1]),
+        ]
+        + [helper.make_tensor_value_info(name, TensorProto.FLOAT, [2, 3]) for name in other_names],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    onnx.checker.check_model(model, full_check=True)
+
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+    assert "dynamic_strided_slice" in str(tvm_model)
 
 
 @pytest.mark.parametrize("op_name", ["And", "Or", "Xor"])
