@@ -72,23 +72,19 @@ ffi::ObjectPtr<PrimTypeNode> GetCachedPrimTypeNode(DLDataType dtype) {
 TVMFFIAny PrimTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
   // dtype is a constant: reflected for StructuralEqual/Hash,
   // not traversed by the visitor/mutator contract.
-  TVM_FFI_S_VISIT_RETURN_NONE();
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
 
-TVMFFIAny PrimTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView value) noexcept {
+TVMFFIAny PrimTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
   // dtype is a constant: reflected for StructuralEqual/Hash,
   // not traversed by the visitor/mutator contract.
-  const PrimTypeNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PrimTypeNode>(value);
-  return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(ffi::Expected<ffi::Any>(ffi::Any(self)));
+  return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
-TVMFFIAny PrimTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView value) noexcept {
+TVMFFIAny PrimTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
   // dtype is a constant: reflected for StructuralEqual/Hash,
   // not traversed by the visitor/mutator contract.
-  const PrimTypeNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PrimTypeNode>(value);
-  return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(ffi::Expected<ffi::Any>(ffi::Any(self)));
+  return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
 }  // namespace

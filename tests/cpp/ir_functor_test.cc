@@ -375,9 +375,11 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
   {
     Stmt input = make_input();
     const auto* original = input.get();
+    const auto* original_array = input.as<SeqStmtNode>()->seq.GetArrayObj();
     Stmt mapped =
         ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), expand_one).cast<Stmt>();
     EXPECT_EQ(mapped.get(), original);
+    EXPECT_NE(mapped.as<SeqStmtNode>()->seq.GetArrayObj(), original_array);
     check_values(mapped, {5, 2, 3, 4});
   }
 
@@ -420,6 +422,20 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
   };
   check_differential(shrink_first_grow_last, {2, 3, 30, 31}, true);
 
+  auto empty_first_grow_last = [](const Evaluate& evaluate) -> Stmt {
+    const auto* value = evaluate->value.as<IntImmNode>();
+    if (value != nullptr && value->value == 1) {
+      auto empty = ffi::make_object<SeqStmtNode>();
+      empty->seq = {};
+      return Stmt(std::move(empty));
+    }
+    if (value != nullptr && value->value == 4) {
+      return SeqStmt({Evaluate(IntImm::Int32(30)), Evaluate(IntImm::Int32(31))});
+    }
+    return evaluate;
+  };
+  check_differential(empty_first_grow_last, {2, 3, 30, 31}, true);
+
   int overflow_callback_count = 0;
   auto grow_first_shrink_last = [&overflow_callback_count](const Evaluate& evaluate) -> Stmt {
     ++overflow_callback_count;
@@ -432,8 +448,17 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
     }
     return evaluate;
   };
-  check_differential(grow_first_shrink_last, {10, 11, 2, 3}, false);
+  check_differential(grow_first_shrink_last, {10, 11, 2, 3}, true);
   EXPECT_EQ(overflow_callback_count, 8);
+
+  auto grow_last_over_capacity = [](const Evaluate& evaluate) -> Stmt {
+    const auto* value = evaluate->value.as<IntImmNode>();
+    if (value != nullptr && value->value == 4) {
+      return SeqStmt({Evaluate(IntImm::Int32(40)), Evaluate(IntImm::Int32(41))});
+    }
+    return evaluate;
+  };
+  check_differential(grow_last_over_capacity, {1, 2, 3, 40, 41}, false);
 
   auto replace_middle_with_one = [](const Evaluate& evaluate) -> Stmt {
     const auto* value = evaluate->value.as<IntImmNode>();
@@ -543,7 +568,7 @@ TEST(IRF, StructuralHooksPreserveScopeIdDefRegions) {
                                      ffi::Array<PrimExpr>{PrimVar("preferred")}));
   };
   auto check_kinds = [](int binder, int extent, int preferred) {
-    EXPECT_EQ(binder, kTVMFFIDefRegionKindNonRecursive);
+    EXPECT_EQ(binder, kTVMFFIDefRegionKindSimple);
     EXPECT_EQ(extent, kTVMFFIDefRegionKindNone);
     EXPECT_EQ(preferred, kTVMFFIDefRegionKindNone);
   };

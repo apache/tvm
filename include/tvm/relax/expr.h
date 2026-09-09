@@ -199,8 +199,8 @@ class BindingNode : public ffi::Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BindingNode>()
         .def_ro("span", &BindingNode::span, refl::AttachFieldFlag::SEqHashIgnore())
-        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
-        .def_ro("var", &BindingNode::var, refl::AttachFieldFlag::SEqHashDefRecursive());
+        // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
+        .def_ro("var", &BindingNode::var, refl::AttachFieldFlag::SEqHashDefPattern());
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
@@ -242,8 +242,8 @@ class MatchCastNode : public BindingNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MatchCastNode>()
         .def_ro("value", &MatchCastNode::value)
-        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
-        .def_ro("ty", &MatchCastNode::ty, refl::AttachFieldFlag::SEqHashDefRecursive());
+        // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
+        .def_ro("ty", &MatchCastNode::ty, refl::AttachFieldFlag::SEqHashDefPattern());
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.MatchCast", MatchCastNode, BindingNode);
 };
@@ -458,7 +458,7 @@ class FunctionNode : public BaseFuncNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FunctionNode>()
-        .def_ro("params", &FunctionNode::params, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("params", &FunctionNode::params, refl::AttachFieldFlag::SEqHashDefPattern())
         .def_ro("body", &FunctionNode::body)
         .def_ro("ret_ty", &FunctionNode::ret_ty)
         .def_ro("is_pure", &FunctionNode::is_pure);

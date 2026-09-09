@@ -59,7 +59,7 @@ TVMFFIAny TilePrimitiveCallVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyVie
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->args));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->workspace));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->config));
-  TVM_FFI_S_VISIT_RETURN_NONE();
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
 
 TVMFFIAny TilePrimitiveCallMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
@@ -67,41 +67,25 @@ TVMFFIAny TilePrimitiveCallMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyVi
   const TilePrimitiveCallNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TilePrimitiveCallNode>(
           value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::Array<ffi::Any>, mapped_args,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<ffi::Any>>, mapped_args,
                                     mutator->MutateExpected(self->args));
 
-  auto mapped_workspace_result = mutator->MutateExpected(self->workspace);
-  TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(mapped_workspace_result);
-  bool mapped_workspace_type_ok =
-      ffi::details::AnyUnsafe::CheckAnyStrict<ffi::Map<ffi::String, BufferVar>>(
-          ffi::details::ExpectedUnsafe::GetData(mapped_workspace_result));
-  if (TVM_FFI_PREDICT_FALSE(!mapped_workspace_type_ok)) {
-    return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(ffi::details::SMutateDeclaredTypeError());
-  }
-  ffi::Map<ffi::String, BufferVar> mapped_workspace =
-      ffi::details::AnyUnsafe::MoveFromAnyAfterCheck<ffi::Map<ffi::String, BufferVar>>(
-          std::move(ffi::details::ExpectedUnsafe::GetData(mapped_workspace_result)));
+  using WorkspaceMap = ffi::Map<ffi::String, BufferVar>;
+  using ConfigMap = ffi::Map<ffi::String, ffi::Any>;
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<WorkspaceMap>, mapped_workspace,
+                                    mutator->MutateExpected(self->workspace));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ConfigMap>, mapped_config,
+                                    mutator->MutateExpected(self->config));
 
-  auto mapped_config_result = mutator->MutateExpected(self->config);
-  TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(mapped_config_result);
-  bool mapped_config_type_ok =
-      ffi::details::AnyUnsafe::CheckAnyStrict<ffi::Map<ffi::String, ffi::Any>>(
-          ffi::details::ExpectedUnsafe::GetData(mapped_config_result));
-  if (TVM_FFI_PREDICT_FALSE(!mapped_config_type_ok)) {
-    return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(ffi::details::SMutateDeclaredTypeError());
-  }
-  ffi::Map<ffi::String, ffi::Any> mapped_config =
-      ffi::details::AnyUnsafe::MoveFromAnyAfterCheck<ffi::Map<ffi::String, ffi::Any>>(
-          std::move(ffi::details::ExpectedUnsafe::GetData(mapped_config_result)));
-
-  if (mapped_args.same_as(self->args) && mapped_workspace.same_as(self->workspace) &&
-      mapped_config.same_as(self->config)) {
-    return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(self));
+  if (mapped_args.UnchangedOrSameAs(self->args) &&
+      mapped_workspace.UnchangedOrSameAs(self->workspace) &&
+      mapped_config.UnchangedOrSameAs(self->config)) {
+    return ffi::Unchanged().CopyToTVMFFIAny();
   }
   ffi::ObjectPtr<TilePrimitiveCallNode> copy = ffi::make_object<TilePrimitiveCallNode>(*self);
-  copy->args = std::move(mapped_args);
-  copy->workspace = std::move(mapped_workspace);
-  copy->config = std::move(mapped_config);
+  copy->args = std::move(mapped_args).ValueOrUnchanged(std::move(copy->args));
+  copy->workspace = std::move(mapped_workspace).ValueOrUnchanged(std::move(copy->workspace));
+  copy->config = std::move(mapped_config).ValueOrUnchanged(std::move(copy->config));
   return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
 }
 
@@ -111,41 +95,25 @@ TVMFFIAny TilePrimitiveCallMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator
   TilePrimitiveCallNode* self = const_cast<TilePrimitiveCallNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TilePrimitiveCallNode>(
           value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::Array<ffi::Any>, mapped_args,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<ffi::Any>>, mapped_args,
                                     mutator->MaybeInplaceMutateIfUniqueExpected(self->args));
 
-  auto mapped_workspace_result = mutator->MaybeInplaceMutateIfUniqueExpected(self->workspace);
-  TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(mapped_workspace_result);
-  bool mapped_workspace_type_ok =
-      ffi::details::AnyUnsafe::CheckAnyStrict<ffi::Map<ffi::String, BufferVar>>(
-          ffi::details::ExpectedUnsafe::GetData(mapped_workspace_result));
-  if (TVM_FFI_PREDICT_FALSE(!mapped_workspace_type_ok)) {
-    return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(ffi::details::SMutateDeclaredTypeError());
-  }
-  ffi::Map<ffi::String, BufferVar> mapped_workspace =
-      ffi::details::AnyUnsafe::MoveFromAnyAfterCheck<ffi::Map<ffi::String, BufferVar>>(
-          std::move(ffi::details::ExpectedUnsafe::GetData(mapped_workspace_result)));
+  using WorkspaceMap = ffi::Map<ffi::String, BufferVar>;
+  using ConfigMap = ffi::Map<ffi::String, ffi::Any>;
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<WorkspaceMap>, mapped_workspace,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->workspace));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ConfigMap>, mapped_config,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->config));
 
-  auto mapped_config_result = mutator->MaybeInplaceMutateIfUniqueExpected(self->config);
-  TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(mapped_config_result);
-  bool mapped_config_type_ok =
-      ffi::details::AnyUnsafe::CheckAnyStrict<ffi::Map<ffi::String, ffi::Any>>(
-          ffi::details::ExpectedUnsafe::GetData(mapped_config_result));
-  if (TVM_FFI_PREDICT_FALSE(!mapped_config_type_ok)) {
-    return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(ffi::details::SMutateDeclaredTypeError());
+  if (mapped_args.UnchangedOrSameAs(self->args) &&
+      mapped_workspace.UnchangedOrSameAs(self->workspace) &&
+      mapped_config.UnchangedOrSameAs(self->config)) {
+    return ffi::Unchanged().CopyToTVMFFIAny();
   }
-  ffi::Map<ffi::String, ffi::Any> mapped_config =
-      ffi::details::AnyUnsafe::MoveFromAnyAfterCheck<ffi::Map<ffi::String, ffi::Any>>(
-          std::move(ffi::details::ExpectedUnsafe::GetData(mapped_config_result)));
-
-  if (mapped_args.same_as(self->args) && mapped_workspace.same_as(self->workspace) &&
-      mapped_config.same_as(self->config)) {
-    return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(self));
-  }
-  self->args = std::move(mapped_args);
-  self->workspace = std::move(mapped_workspace);
-  self->config = std::move(mapped_config);
-  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(self));
+  self->args = std::move(mapped_args).ValueOrUnchanged(std::move(self->args));
+  self->workspace = std::move(mapped_workspace).ValueOrUnchanged(std::move(self->workspace));
+  self->config = std::move(mapped_config).ValueOrUnchanged(std::move(self->config));
+  return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
 }  // namespace
