@@ -545,7 +545,7 @@ class LetNode : public ExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LetNode>()
-        .def_ro("var", &LetNode::var, refl::AttachFieldFlag::SEqHashDefNonRecursive())
+        .def_ro("var", &LetNode::var, refl::AttachFieldFlag::SEqHashDefSimple())
         .def_ro("value", &LetNode::value)
         .def_ro("body", &LetNode::body);
   }

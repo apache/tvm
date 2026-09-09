@@ -488,7 +488,7 @@ struct TypeTraits<TypedExpr<ExpectedType>>
     // Non-owning: this only reads `ty`, and the owning form's incref/decref pair costs two
     // atomics per check on a path every typed field assignment takes.
     const auto* expr = details::ObjectUnsafe::RawObjectPtrFromUnowned<ExprNode>(src->v_obj);
-    return details::AnyUnsafe::CheckAnyStrict<ExpectedType>(expr->ty);
+    return details::AnyUnsafe::CheckAnyViewStrict<ExpectedType>(AnyView(expr->ty));
   }
 
   TVM_FFI_INLINE static std::optional<TypedExpr<ExpectedType>> TryCastFromAnyView(

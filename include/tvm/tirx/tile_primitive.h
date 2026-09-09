@@ -55,7 +55,7 @@ class LambdaExprNode : public ffi::Object {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LambdaExprNode>()
-        .def_ro("vars", &LambdaExprNode::vars, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("vars", &LambdaExprNode::vars, refl::AttachFieldFlag::SEqHashDefPattern())
         .def_ro("pred", &LambdaExprNode::pred);
   }
 
