@@ -57,7 +57,6 @@ def _get_mod_from_cfunc(cfunc):
     mod["main"] = mod["main"].without_attr("params")
     return mod
 
-
 def verify(TestClass, expected=None):
     if isinstance(TestClass, type):
         cf = TestClass().func.get_concrete_function()
