@@ -34,6 +34,7 @@
 #include <tvm/tirx/stmt_functor.h>
 
 #include <initializer_list>
+#include <unordered_set>
 
 TEST(IRF, Basic) {
   using namespace tvm;
@@ -55,13 +56,18 @@ TEST(IRF, CountVar) {
   PrimVar x("x"), y("y");
 
   auto z = x + 1 + y + y;
-  tirx::PostOrderVisit(z, [&n_var](const ffi::ObjectRef& n) {
-    if (n.as<VarNode>()) ++n_var;
-  });
+  std::unordered_set<const ffi::Object*> visited;
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+      z, [&n_var, &visited](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+        if (visited.insert(var.get()).second) {
+          ++n_var;
+        }
+        return ffi::WalkResult::Advance();
+      });
   TVM_FFI_ICHECK_EQ(n_var, 2);
 }
 
-TEST(IRF, PreOrderVisit) {
+TEST(IRF, PreOrderStructuralWalk) {
   using namespace tvm;
   using namespace tvm::tirx;
   Stmt init =
@@ -73,24 +79,24 @@ TEST(IRF, PreOrderVisit) {
   bool init_visited = false;
   bool stopped_at_if = true;
   bool body_visited = false;
-  PreOrderVisit(block, [&](const ffi::ObjectRef& n) -> bool {
-    if (n->IsInstance<IfThenElseNode>()) {
-      init_visited = true;
-      return false;
-    }
-    if (const auto* eval = n.as<EvaluateNode>()) {
-      if (const auto* int_imm = eval->value.as<IntImmNode>()) {
-        if (int_imm->value == 0) {
-          stopped_at_if = false;
-        } else if (int_imm->value == 1) {
-          body_visited = true;
-        } else {
-          TVM_FFI_THROW(InternalError) << "Unreachable";
+  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+      block,
+      [&](const IfThenElse&) -> ffi::Expected<ffi::WalkResult> {
+        init_visited = true;
+        return ffi::WalkResult::Skip();
+      },
+      [&](const Evaluate& eval) -> ffi::Expected<ffi::WalkResult> {
+        if (const auto* int_imm = eval->value.as<IntImmNode>()) {
+          if (int_imm->value == 0) {
+            stopped_at_if = false;
+          } else if (int_imm->value == 1) {
+            body_visited = true;
+          } else {
+            TVM_FFI_THROW(InternalError) << "Unreachable";
+          }
         }
-      }
-    }
-    return true;
-  });
+        return ffi::WalkResult::Advance();
+      });
   ASSERT_EQ(init_visited, true);
   ASSERT_EQ(stopped_at_if, true);
   ASSERT_EQ(body_visited, true);
