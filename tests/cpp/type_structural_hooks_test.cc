@@ -25,7 +25,10 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/type.h>
 #include <tvm/relax/distributed/type.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
+#include <tvm/tirx/buffer_region.h>
+#include <tvm/tirx/var.h>
 
 namespace {
 
@@ -53,6 +56,28 @@ TEST(TypeStructuralHooks, EveryConcreteOpenTypeHasExplicitHooks) {
   ExpectStructuralHooks<relax::TensorTypeNode>();
   ExpectStructuralHooks<relax::FuncTypeNode>();
   ExpectStructuralHooks<relax::distributed::DTensorTypeNode>();
+  ExpectStructuralHooks<tirx::BufferRegionTypeNode>();
+}
+
+TEST(TypeStructuralHooks, RelaxFuncTypeParametersUsePatternDefinitionRegion) {
+  using namespace tvm;
+  tirx::PrimVar symbolic_extent("n", PrimType::Int(64));
+  relax::TensorType tensor_type(relax::ShapeExpr(ffi::Array<PrimExpr>{symbolic_extent}),
+                                PrimType::Float(32));
+  relax::FuncType input({tensor_type}, tensor_type, true);
+  std::vector<TVMFFIDefRegionKind> observed_regions;
+  auto observe_var = [&](const VarNode*,
+                         TVMFFIDefRegionKind region) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    observed_regions.push_back(region);
+    return ffi::Unchanged();
+  };
+
+  relax::FuncType mapped =
+      ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(input, observe_var).cast<relax::FuncType>();
+
+  EXPECT_TRUE(mapped.same_as(input));
+  ASSERT_FALSE(observed_regions.empty());
+  EXPECT_EQ(observed_regions.front(), kTVMFFIDefRegionKindPattern);
 }
 
 TEST(TypeStructuralHooks, StructuralMapDescendsThroughTypeFields) {
