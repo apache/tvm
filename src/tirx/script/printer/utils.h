@@ -118,26 +118,22 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
   if (const auto* seq_stmt = stmt.as<tirx::SeqStmtNode>()) {
     ffi::Array<tirx::Stmt> body = seq_stmt->seq;
     auto value_refs_buffer = [](const PrimExpr& value, const tirx::BufferVar& buffer) {
-      bool found = false;
-      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-          value,
-          [&](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
-            if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
-              found = true;
-              return ffi::WalkResult::Interrupt();
-            }
-            return ffi::WalkResult::Advance();
-          },
-          [&](const Call& call) -> ffi::Expected<ffi::WalkResult> {
-            if (call->op.same_as(tirx::builtin::masked_load()) && !call->args.empty()) {
-              if (auto var = call->args[0].as<Var>(); var && var.value().same_as(buffer.var())) {
-                found = true;
-                return ffi::WalkResult::Interrupt();
-              }
-            }
-            return ffi::WalkResult::Advance();
-          });
-      return found;
+      auto visit_load = [&](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
+        if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
+          return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
+        }
+        return ffi::WalkResult::Advance();
+      };
+      auto visit_call = [&](const Call& call) -> ffi::Expected<ffi::WalkResult> {
+        if (call->op.same_as(tirx::builtin::masked_load()) && !call->args.empty()) {
+          if (auto var = call->args[0].as<Var>(); var && var.value().same_as(buffer.var())) {
+            return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
+          }
+        }
+        return ffi::WalkResult::Advance();
+      };
+      auto result = ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(value, visit_load, visit_call);
+      return result.has_value() ? result.value()->value.cast<bool>() : false;
     };
 
     for (int i = 0, n = body.size(); i < n;) {

@@ -2333,12 +2333,12 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
 
   // Collect block iters appearing in the original_indices
   std::unordered_set<Var> covered;
+  auto walk_fn = [&covered](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    covered.insert(var);
+    return ffi::WalkResult::Advance();
+  };
   for (const PrimExpr& index : original_indices) {
-    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-        index, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-          covered.insert(var);
-          return ffi::WalkResult::Advance();
-        });
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(index, walk_fn);
   }
 
   // Step 2. Creating CacheStageInfo

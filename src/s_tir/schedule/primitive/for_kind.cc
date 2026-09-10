@@ -125,16 +125,16 @@ void CheckLoopParallelizableInBlock(const ScheduleState& self, ForKind for_kind,
  */
 void CheckParallelizability(const ScheduleState& self, const For& loop, ForKind for_kind,
                             runtime::ThreadScope thread_scope) {
-  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-      loop, [&](const SBlockRealize& realize) -> ffi::Expected<ffi::WalkResult> {
-        // If this block doesn't have corresponding StmtSRef in the schedule state, it must be a
-        // block inside `tirx.init()`. We don't check the condition for such blocks.
-        if (!self->stmt2ref.count(realize->block.get())) {
-          return ffi::WalkResult::Skip();
-        }
-        CheckLoopParallelizableInBlock(self, for_kind, loop->loop_var, realize, thread_scope);
-        return ffi::WalkResult::Advance();
-      });
+  auto walk_fn = [&](const SBlockRealize& realize) -> ffi::Expected<ffi::WalkResult> {
+    // If this block doesn't have corresponding StmtSRef in the schedule state, it must be a
+    // block inside `tirx.init()`. We don't check the condition for such blocks.
+    if (!self->stmt2ref.count(realize->block.get())) {
+      return ffi::WalkResult::Skip();
+    }
+    CheckLoopParallelizableInBlock(self, for_kind, loop->loop_var, realize, thread_scope);
+    return ffi::WalkResult::Advance();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(loop, walk_fn);
 }
 
 /*!

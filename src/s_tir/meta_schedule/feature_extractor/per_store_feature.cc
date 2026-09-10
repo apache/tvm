@@ -263,13 +263,11 @@ Pass SimplifyForFeatureExtraction() {
 
    private:
     static bool HasBufferLoad(const PrimExpr& expr) {
-      bool found = false;
-      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-          expr, [&found](const TensorLoad&) -> ffi::Expected<ffi::WalkResult> {
-            found = true;
-            return ffi::WalkResult::Interrupt();
-          });
-      return found;
+      auto walk_fn = [](const TensorLoad&) -> ffi::Expected<ffi::WalkResult> {
+        return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
+      };
+      auto result = ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(expr, walk_fn);
+      return result.has_value() ? result.value()->value.cast<bool>() : false;
     }
 
     Expr VisitExpr_(const SelectNode* node) final {
@@ -799,28 +797,28 @@ void Feature::Init(const BufferStoreNode* store, int n_loops) {
     info.access_type = AccessType::kWrite;
     info.multi_indices.push_back({store->indices.begin(), store->indices.end()});
   }
-  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-      store->value, [&buffer_info](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
-        BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
-        Info& info = buffer_info[buffer];
-        switch (info.access_type) {
-          case AccessType::kRead:
-            break;
-          case AccessType::kWrite:
-            info.access_type = AccessType::kReadWrite;
-            break;
-          case AccessType::kReadWrite:
-            break;
-          case AccessType::kUnknownRW:
-          default:
-            info.access_type = AccessType::kRead;
-            break;
-        }
-        if (info.access_type != AccessType::kReadWrite) {
-          info.multi_indices.push_back({load->indices.begin(), load->indices.end()});
-        }
-        return ffi::WalkResult::Advance();
-      });
+  auto walk_fn = [&buffer_info](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
+    BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
+    Info& info = buffer_info[buffer];
+    switch (info.access_type) {
+      case AccessType::kRead:
+        break;
+      case AccessType::kWrite:
+        info.access_type = AccessType::kReadWrite;
+        break;
+      case AccessType::kReadWrite:
+        break;
+      case AccessType::kUnknownRW:
+      default:
+        info.access_type = AccessType::kRead;
+        break;
+    }
+    if (info.access_type != AccessType::kReadWrite) {
+      info.multi_indices.push_back({load->indices.begin(), load->indices.end()});
+    }
+    return ffi::WalkResult::Advance();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(store->value, walk_fn);
   this->sub_features.reserve(buffer_info.size());
   for (const auto& kv : buffer_info) {
     this->sub_features.emplace_back(kv.first, kv.second.access_type,
@@ -921,15 +919,15 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
   BufferVar buffer = this->buffer;
   // Step 3.1. Collect all `Var`s that appears in the buffer region
   std::unordered_set<const VarNode*> region_vars;
+  auto walk_fn = [&region_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    if (auto prim_var = var.as<PrimVar>()) {
+      region_vars.insert(prim_var.value().get());
+    }
+    return ffi::WalkResult::Advance();
+  };
   for (const MultiIndex& multi_index : this->multi_indices) {
     for (const PrimExpr& index : multi_index) {
-      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-          index, [&region_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-            if (auto prim_var = var.as<PrimVar>()) {
-              region_vars.insert(prim_var.value().get());
-            }
-            return ffi::WalkResult::Advance();
-          });
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(index, walk_fn);
     }
   }
   // Default case: no reuse

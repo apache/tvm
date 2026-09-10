@@ -38,32 +38,32 @@ void CollectTensorizationJobs(
     const s_tir::Schedule& sch, const ffi::String& func_name, const tirx::PrimFuncNode* func,
     bool vectorize_init_loop,
     std::vector<std::tuple<ffi::String, ffi::String, std::function<void(s_tir::SBlockRV)>>>* jobs) {
-  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-      func->body, [=, &jobs](const tirx::SBlock& block) -> ffi::Expected<ffi::WalkResult> {
-        tirx::StmtSRef block_sref = sch->GetSRef(block.get());
-        std::string block_name = block_sref->StmtAs<tirx::SBlockNode>()->name_hint;
-        if (ffi::Optional<ffi::String> intrin_name =
-                s_tir::GetAnn<ffi::String>(block_sref, s_tir::attr::meta_schedule_auto_tensorize)) {
-          if (intrin_name.value() != "") {
-            jobs->emplace_back(block_name, func_name, [sch, intrin_name](s_tir::SBlockRV block) {
-              try {
-                sch->Tensorize(block, intrin_name.value());
-              } catch (const std::exception& e) {
-                LOG(WARNING) << "Tensorize failed with error " << e.what();
-              }
-            });
-          } else if (block_name.find("init") && vectorize_init_loop) {
-            jobs->emplace_back(block_name, func_name, [sch](s_tir::SBlockRV block) {
-              ffi::Array<SBlockRV> child_blocks = sch->GetChildBlocks(block);
-              TVM_FFI_ICHECK(child_blocks.size() == 1);
-              ffi::Array<LoopRV> init_loops = sch->GetLoops(child_blocks[0]);
-              TVM_FFI_ICHECK(init_loops.size() == 1);
-              sch->Vectorize(init_loops[0]);
-            });
+  auto walk_fn = [=, &jobs](const tirx::SBlock& block) -> ffi::Expected<ffi::WalkResult> {
+    tirx::StmtSRef block_sref = sch->GetSRef(block.get());
+    std::string block_name = block_sref->StmtAs<tirx::SBlockNode>()->name_hint;
+    if (ffi::Optional<ffi::String> intrin_name =
+            s_tir::GetAnn<ffi::String>(block_sref, s_tir::attr::meta_schedule_auto_tensorize)) {
+      if (intrin_name.value() != "") {
+        jobs->emplace_back(block_name, func_name, [sch, intrin_name](s_tir::SBlockRV block) {
+          try {
+            sch->Tensorize(block, intrin_name.value());
+          } catch (const std::exception& e) {
+            LOG(WARNING) << "Tensorize failed with error " << e.what();
           }
-        }
-        return ffi::WalkResult::Advance();
-      });
+        });
+      } else if (block_name.find("init") && vectorize_init_loop) {
+        jobs->emplace_back(block_name, func_name, [sch](s_tir::SBlockRV block) {
+          ffi::Array<SBlockRV> child_blocks = sch->GetChildBlocks(block);
+          TVM_FFI_ICHECK(child_blocks.size() == 1);
+          ffi::Array<LoopRV> init_loops = sch->GetLoops(child_blocks[0]);
+          TVM_FFI_ICHECK(init_loops.size() == 1);
+          sch->Vectorize(init_loops[0]);
+        });
+      }
+    }
+    return ffi::WalkResult::Advance();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(func->body, walk_fn);
 }
 
 class RewriteTensorizeNode : public PostprocNode {

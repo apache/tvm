@@ -283,27 +283,25 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   arith::Analyzer analyzer;
   const TensorLoadNode* target_buffer_load = nullptr;
   if (is_write_cache) {
-    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-        stmt, [&](const TensorLoad& buffer_load) -> ffi::Expected<ffi::WalkResult> {
-          if (buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().scope() ==
-                  "wmma.accumulator" ||
-              buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().scope() ==
-                  "m16n8k8.matrixC") {
-            if (target_buffer_load == nullptr) {
-              target_buffer_load = buffer_load.get();
-            } else {
-              TVM_FFI_ICHECK(target_buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
-                  buffer_load->source.as_or_throw<tvm::tirx::BufferVar>()))
-                  << "More than one target buffer found";
-              TVM_FFI_ICHECK(target_buffer_load->indices.size() == buffer_load->indices.size());
-              for (size_t i = 0; i < target_buffer_load->indices.size(); i++) {
-                TVM_FFI_ICHECK(analyzer->CanProveEqual(target_buffer_load->indices[i],
-                                                       buffer_load->indices[i]));
-              }
-            }
+    auto walk_fn = [&](const TensorLoad& buffer_load) -> ffi::Expected<ffi::WalkResult> {
+      if (buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "wmma.accumulator" ||
+          buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "m16n8k8.matrixC") {
+        if (target_buffer_load == nullptr) {
+          target_buffer_load = buffer_load.get();
+        } else {
+          TVM_FFI_ICHECK(target_buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
+              buffer_load->source.as_or_throw<tvm::tirx::BufferVar>()))
+              << "More than one target buffer found";
+          TVM_FFI_ICHECK(target_buffer_load->indices.size() == buffer_load->indices.size());
+          for (size_t i = 0; i < target_buffer_load->indices.size(); i++) {
+            TVM_FFI_ICHECK(
+                analyzer->CanProveEqual(target_buffer_load->indices[i], buffer_load->indices[i]));
           }
-          return ffi::WalkResult::Advance();
-        });
+        }
+      }
+      return ffi::WalkResult::Advance();
+    };
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(stmt, walk_fn);
     TVM_FFI_ICHECK(target_buffer_load);
   }
 

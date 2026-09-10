@@ -485,21 +485,21 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
                 std::vector<tirx::PrimVar>* tir_vars_collector = nullptr) {
     bool is_static = true;
     std::unordered_set<const ffi::Object*> visited;
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-        expr, [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
-          auto prim_var = var.as<tirx::PrimVar>();
-          if (!prim_var || !visited.insert(prim_var.value().get()).second) {
-            return ffi::WalkResult::Advance();
-          }
-          if (!capture_symbolic_vars_.count(prim_var.value())) {
-            is_static = false;
-            return ffi::WalkResult::Advance();
-          }
-          if (tir_vars_collector != nullptr) {
-            tir_vars_collector->push_back(prim_var.value());
-          }
-          return ffi::WalkResult::Advance();
-        });
+    auto walk_fn = [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+      auto prim_var = var.as<tirx::PrimVar>();
+      if (!prim_var || !visited.insert(prim_var.value().get()).second) {
+        return ffi::WalkResult::Advance();
+      }
+      if (!capture_symbolic_vars_.count(prim_var.value())) {
+        is_static = false;
+        return ffi::WalkResult::Advance();
+      }
+      if (tir_vars_collector != nullptr) {
+        tir_vars_collector->push_back(prim_var.value());
+      }
+      return ffi::WalkResult::Advance();
+    };
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(expr, walk_fn);
     return is_static;
   }
 

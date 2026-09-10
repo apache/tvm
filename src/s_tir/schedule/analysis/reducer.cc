@@ -564,43 +564,40 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
   for (const MatchBufferRegion& region : block->match_buffers) {
     match_buffer_sources[region->buffer.get()] = region->source->buffer.get();
   }
-  bool affected = false;
-  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-      block->body,
-      [&](const SBlock& nested_block) -> ffi::Expected<ffi::WalkResult> {
-        for (const MatchBufferRegion& region : nested_block->match_buffers) {
-          match_buffer_sources[region->buffer.get()] = region->source->buffer.get();
-        }
-        return ffi::WalkResult::Advance();
-      },
-      [&](const AllocBuffer& alloc) -> ffi::Expected<ffi::WalkResult> {
-        // Inline AllocBuffer statements (e.g. `T.local_scalar(...)` expansions)
-        // declare buffer-local scratch storage inside the block body; treat them
-        // the same as block->alloc_buffers entries for the "write-without-signature"
-        // check below.
-        buffer_allocated.insert(alloc->buffer.get());
-        return ffi::WalkResult::Advance();
-      },
-      [&](const BufferStore& store) -> ffi::Expected<ffi::WalkResult> {
-        bool write_is_covered_by_match_buffer =
-            match_buffer_sources.count(store->buffer.get()) &&
-            buffer_written.count(match_buffer_sources.find(store->buffer.get())->second);
-        TVM_FFI_CHECK(buffer_written.count(store->buffer.get()) ||
-                          write_is_covered_by_match_buffer ||
-                          buffer_allocated.count(store->buffer.get()),
-                      ValueError)
-            << "The buffer \"" << store->buffer
-            << "\" is written in the block but is not in the block's signature nor is it covered "
-               "by a match_buffer";
-        for (const PrimExpr& index : store->indices) {
-          if (f_uses_reduction_block_var(index)) {
-            affected = true;
-            return ffi::WalkResult::Interrupt();
-          }
-        }
-        return ffi::WalkResult::Skip();
-      });
-  return !affected;
+  auto visit_block = [&](const SBlock& nested_block) -> ffi::Expected<ffi::WalkResult> {
+    for (const MatchBufferRegion& region : nested_block->match_buffers) {
+      match_buffer_sources[region->buffer.get()] = region->source->buffer.get();
+    }
+    return ffi::WalkResult::Advance();
+  };
+  auto visit_alloc = [&](const AllocBuffer& alloc) -> ffi::Expected<ffi::WalkResult> {
+    // Inline AllocBuffer statements (e.g. `T.local_scalar(...)` expansions)
+    // declare buffer-local scratch storage inside the block body; treat them
+    // the same as block->alloc_buffers entries for the "write-without-signature"
+    // check below.
+    buffer_allocated.insert(alloc->buffer.get());
+    return ffi::WalkResult::Advance();
+  };
+  auto visit_store = [&](const BufferStore& store) -> ffi::Expected<ffi::WalkResult> {
+    bool write_is_covered_by_match_buffer =
+        match_buffer_sources.count(store->buffer.get()) &&
+        buffer_written.count(match_buffer_sources.find(store->buffer.get())->second);
+    TVM_FFI_CHECK(buffer_written.count(store->buffer.get()) || write_is_covered_by_match_buffer ||
+                      buffer_allocated.count(store->buffer.get()),
+                  ValueError)
+        << "The buffer \"" << store->buffer
+        << "\" is written in the block but is not in the block's signature nor is it covered "
+           "by a match_buffer";
+    for (const PrimExpr& index : store->indices) {
+      if (f_uses_reduction_block_var(index)) {
+        return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(false));
+      }
+    }
+    return ffi::WalkResult::Skip();
+  };
+  auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(block->body, visit_block,
+                                                               visit_alloc, visit_store);
+  return result.has_value() ? result.value()->value.cast<bool>() : true;
 }
 
 class NoMatchedReducerError : public ScheduleError {

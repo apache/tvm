@@ -81,14 +81,13 @@ bool IsBoundToThreadIdx(const ForNode* loop) {
 bool IsDominantBlock(const SBlock& scope_block, const SBlock& block) {
   // Step 1. Count the number of writers for each buffer written by the scope block.
   std::unordered_map<const VarNode*, int> buffer_writer_cnt;
-  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-      scope_block->body,
-      [&buffer_writer_cnt](const SBlock& block) -> ffi::Expected<ffi::WalkResult> {
-        for (const BufferRegion& buffer_region : block->writes) {
-          ++buffer_writer_cnt[buffer_region->buffer.get()];
-        }
-        return ffi::WalkResult::Skip();
-      });
+  auto walk_fn = [&buffer_writer_cnt](const SBlock& block) -> ffi::Expected<ffi::WalkResult> {
+    for (const BufferRegion& buffer_region : block->writes) {
+      ++buffer_writer_cnt[buffer_region->buffer.get()];
+    }
+    return ffi::WalkResult::Skip();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(scope_block->body, walk_fn);
   // Step 2. Check whether `block` is the only writer of its outputs.
   for (const BufferRegion& buffer_region : block->writes) {
     TVM_FFI_ICHECK(buffer_writer_cnt.count(buffer_region->buffer.get()));
@@ -480,33 +479,32 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
       reduction_loop_vars.insert(reduction_loop->loop_var.get());
     }
     std::unordered_set<const ffi::Object*> visited_predicate_nodes;
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-        realize->predicate,
-        [&wb_predicate, &reduction_loop_vars,
-         &visited_predicate_nodes](const And& and_expr) -> ffi::Expected<ffi::WalkResult> {
-          if (!visited_predicate_nodes.insert(and_expr.get()).second) {
-            return ffi::WalkResult::Advance();
-          }
-          ffi::Array<PrimExpr> sub_exprs = {and_expr->a, and_expr->b};
-          for (PrimExpr sub_expr : sub_exprs) {
-            if (sub_expr->IsInstance<AndNode>()) {
-              continue;
-            }
-            bool is_reduction = [sub_expr, &reduction_loop_vars]() {
-              ffi::Array<Var> vars = UndefinedVars(sub_expr);
-              for (Var var : vars) {
-                if (reduction_loop_vars.find(var.get()) != reduction_loop_vars.end()) {
-                  return true;
-                }
-              }
-              return false;
-            }();
-            if (!is_reduction) {
-              wb_predicate = wb_predicate && sub_expr;
+    auto walk_fn = [&wb_predicate, &reduction_loop_vars, &visited_predicate_nodes](
+                       const And& and_expr) -> ffi::Expected<ffi::WalkResult> {
+      if (!visited_predicate_nodes.insert(and_expr.get()).second) {
+        return ffi::WalkResult::Advance();
+      }
+      ffi::Array<PrimExpr> sub_exprs = {and_expr->a, and_expr->b};
+      for (PrimExpr sub_expr : sub_exprs) {
+        if (sub_expr->IsInstance<AndNode>()) {
+          continue;
+        }
+        bool is_reduction = [sub_expr, &reduction_loop_vars]() {
+          ffi::Array<Var> vars = UndefinedVars(sub_expr);
+          for (Var var : vars) {
+            if (reduction_loop_vars.find(var.get()) != reduction_loop_vars.end()) {
+              return true;
             }
           }
-          return ffi::WalkResult::Advance();
-        });
+          return false;
+        }();
+        if (!is_reduction) {
+          wb_predicate = wb_predicate && sub_expr;
+        }
+      }
+      return ffi::WalkResult::Advance();
+    };
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(realize->predicate, walk_fn);
     if (wb_buffers[0].scope() != "local") {
       for (const ForNode* loop : reduction_loops) {
         if (loop->thread_binding.has_value()) {
@@ -714,17 +712,16 @@ class CrossThreadReductionTransformer : public StmtMutator {
 
     // Condition 5. The block should be the last block under the first reduction-related loop.
     bool visit = false;
-    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-        ffi::GetRef<For>(reduction_loops[0]),
-        [block, &visit](const SBlockRealize& realize) -> ffi::Expected<ffi::WalkResult> {
-          TVM_FFI_CHECK(!visit, ValueError)
-              << "Cross-thread reduction cannot be applied when the reduction "
-                 "block isn't the last block under its first reduction-related loop";
-          if (realize->block.get() == block) {
-            visit = true;
-          }
-          return ffi::WalkResult::Skip();
-        });
+    auto walk_fn = [block, &visit](const SBlockRealize& realize) -> ffi::Expected<ffi::WalkResult> {
+      TVM_FFI_CHECK(!visit, ValueError)
+          << "Cross-thread reduction cannot be applied when the reduction "
+             "block isn't the last block under its first reduction-related loop";
+      if (realize->block.get() == block) {
+        visit = true;
+      }
+      return ffi::WalkResult::Skip();
+    };
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(ffi::GetRef<For>(reduction_loops[0]), walk_fn);
     return std::make_tuple(n_bound_reduction_loops,       //
                            std::move(reducer),            //
                            std::move(reduction_buffers),  //

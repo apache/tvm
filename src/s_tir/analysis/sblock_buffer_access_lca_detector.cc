@@ -151,23 +151,23 @@ class LCADetector : public StmtExprVisitor {
     auto do_collect_itervar_scope = [this](const IterVar& itervar,
                                            const PrimExpr& binding) -> const ScopeInfo* {
       const ScopeInfo* highest_scope = nullptr;
-      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-          binding, [this, &highest_scope](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-            if (auto prim_var = var.as<PrimVar>()) {
-              const VarNode* loop_var = prim_var.value().get();
-              auto it = loop_scope_map_.find(loop_var);
-              if (it == loop_scope_map_.end()) {
-                return ffi::WalkResult::Advance();
-              }
-              const ScopeInfo* scope = it->second->parent_scope_info;
-              if (highest_scope == nullptr) {
-                highest_scope = scope;
-              } else if (scope->depth < highest_scope->depth) {
-                highest_scope = scope;
-              }
-            }
+      auto walk_fn = [this, &highest_scope](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+        if (auto prim_var = var.as<PrimVar>()) {
+          const VarNode* loop_var = prim_var.value().get();
+          auto it = loop_scope_map_.find(loop_var);
+          if (it == loop_scope_map_.end()) {
             return ffi::WalkResult::Advance();
-          });
+          }
+          const ScopeInfo* scope = it->second->parent_scope_info;
+          if (highest_scope == nullptr) {
+            highest_scope = scope;
+          } else if (scope->depth < highest_scope->depth) {
+            highest_scope = scope;
+          }
+        }
+        return ffi::WalkResult::Advance();
+      };
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(binding, walk_fn);
       return highest_scope;
     };
 

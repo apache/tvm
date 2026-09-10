@@ -164,18 +164,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
   ffi::Array<Tensor> ret;
   std::unordered_set<Tensor> visited;
-  auto visit = [&ret, &visited](const PrimExpr& e) {
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-        e, [&ret, &visited](const Call& call) -> ffi::Expected<ffi::WalkResult> {
-          if (IsTensorLoad(call)) {
-            Tensor t = GetTensorFromLoad(call);
-            if (!visited.count(t)) {
-              ret.push_back(t);
-              visited.insert(t);
-            }
-          }
-          return ffi::WalkResult::Advance();
-        });
+  auto walk_fn = [&ret, &visited](const Call& call) -> ffi::Expected<ffi::WalkResult> {
+    if (IsTensorLoad(call)) {
+      Tensor t = GetTensorFromLoad(call);
+      if (!visited.count(t)) {
+        ret.push_back(t);
+        visited.insert(t);
+      }
+    }
+    return ffi::WalkResult::Advance();
+  };
+  auto visit = [&walk_fn](const PrimExpr& e) {
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(e, walk_fn);
   };
   for (const PrimExpr& e : body) {
     if (const auto* reduce = e.as<te::ReduceNode>()) {

@@ -584,11 +584,11 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
         used_rvs.insert(obj.as<ffi::Object>());
         continue;
       } else if (auto prim_expr = obj.as<PrimExpr>()) {
-        ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-            *prim_expr, [&used_rvs](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-              used_rvs.insert(var.get());
-              return ffi::WalkResult::Advance();
-            });
+        auto walk_fn = [&used_rvs](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+          used_rvs.insert(var.get());
+          return ffi::WalkResult::Advance();
+        };
+        ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(*prim_expr, walk_fn);
       }
     }
   }

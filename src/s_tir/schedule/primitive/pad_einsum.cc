@@ -424,15 +424,14 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   // Step 4. Find out the block of our interest
   int pos = -1;
   for (int i = 0; i < static_cast<int>(scope_body.size()); ++i) {
-    bool found = false;
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-        scope_body[i], [&found, &block](const SBlock& node) -> ffi::Expected<ffi::WalkResult> {
-          if (node.get() == block) {
-            found = true;
-          }
-          return ffi::WalkResult::Advance();
-        });
-    if (found) {
+    auto walk_fn = [&block](const SBlock& node) -> ffi::Expected<ffi::WalkResult> {
+      if (node.get() == block) {
+        return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
+      }
+      return ffi::WalkResult::Advance();
+    };
+    auto result = ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(scope_body[i], walk_fn);
+    if (result.has_value() && result.value()->value.cast<bool>()) {
       pos = i;
       break;
     }

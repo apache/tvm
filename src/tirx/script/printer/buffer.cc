@@ -41,23 +41,24 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
   // Step 0. Set up statistics
   std::unordered_map<const ffi::Object*, int> use_count;
   std::unordered_set<const ffi::Object*> def_seen;
-  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-      buffer, [&](const Var& var, TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::WalkResult> {
-        if (kind != kTVMFFIDefRegionKindNone) {
-          if (!def_seen.insert(var.get()).second) {
-            return ffi::WalkResult::Skip();
-          }
-          return ffi::WalkResult::Advance();
-        }
-        ++use_count[var.get()];
-        return ffi::WalkResult::Advance();
-      });
+  auto count_buffer_var = [&](const Var& var,
+                              TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::WalkResult> {
+    if (kind != kTVMFFIDefRegionKindNone) {
+      if (!def_seen.insert(var.get()).second) {
+        return ffi::WalkResult::Skip();
+      }
+      return ffi::WalkResult::Advance();
+    }
+    ++use_count[var.get()];
+    return ffi::WalkResult::Advance();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(buffer, count_buffer_var);
   if (data.has_value()) {
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-        data.value(), [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-          ++use_count[var.get()];
-          return ffi::WalkResult::Advance();
-        });
+    auto count_data_var = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      ++use_count[var.get()];
+      return ffi::WalkResult::Advance();
+    };
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(data.value(), count_data_var);
   }
   auto is_new_var = [&](const Expr& e) { return e->IsInstance<VarNode>() && !d->IsVarDefined(e); };
   auto add_out_of_line_var_def = [&](const Var& var, const AccessPath& var_p) {
@@ -92,15 +93,15 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
       bool contains_new_var = false;
       bool contains_compound_shape_var = false;
       std::unordered_set<Var> vars_in_shape;
-      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-          e, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-            vars_in_shape.insert(var);
-            contains_new_var =
-                contains_new_var || !d->IsVarDefined(var) || stringify_shape_vars.count(var);
-            contains_compound_shape_var =
-                contains_compound_shape_var || stringify_compound_shape_vars.count(var);
-            return ffi::WalkResult::Advance();
-          });
+      auto walk_fn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+        vars_in_shape.insert(var);
+        contains_new_var =
+            contains_new_var || !d->IsVarDefined(var) || stringify_shape_vars.count(var);
+        contains_compound_shape_var =
+            contains_compound_shape_var || stringify_compound_shape_vars.count(var);
+        return ffi::WalkResult::Advance();
+      };
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(e, walk_fn);
       if (is_new_var(e)) {
         add_out_of_line_var_def(e.as_or_throw<Var>(), e_p);
       }

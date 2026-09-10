@@ -57,13 +57,13 @@ TEST(IRF, CountVar) {
 
   auto z = x + 1 + y + y;
   std::unordered_set<const ffi::Object*> visited;
-  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-      z, [&n_var, &visited](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-        if (visited.insert(var.get()).second) {
-          ++n_var;
-        }
-        return ffi::WalkResult::Advance();
-      });
+  auto walk_fn = [&n_var, &visited](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    if (visited.insert(var.get()).second) {
+      ++n_var;
+    }
+    return ffi::WalkResult::Advance();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(z, walk_fn);
   TVM_FFI_ICHECK_EQ(n_var, 2);
 }
 
@@ -79,24 +79,23 @@ TEST(IRF, PreOrderStructuralWalk) {
   bool init_visited = false;
   bool stopped_at_if = true;
   bool body_visited = false;
-  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-      block,
-      [&](const IfThenElse&) -> ffi::Expected<ffi::WalkResult> {
-        init_visited = true;
-        return ffi::WalkResult::Skip();
-      },
-      [&](const Evaluate& eval) -> ffi::Expected<ffi::WalkResult> {
-        if (const auto* int_imm = eval->value.as<IntImmNode>()) {
-          if (int_imm->value == 0) {
-            stopped_at_if = false;
-          } else if (int_imm->value == 1) {
-            body_visited = true;
-          } else {
-            TVM_FFI_THROW(InternalError) << "Unreachable";
-          }
-        }
-        return ffi::WalkResult::Advance();
-      });
+  auto visit_if = [&](const IfThenElse&) -> ffi::Expected<ffi::WalkResult> {
+    init_visited = true;
+    return ffi::WalkResult::Skip();
+  };
+  auto visit_evaluate = [&](const Evaluate& eval) -> ffi::Expected<ffi::WalkResult> {
+    if (const auto* int_imm = eval->value.as<IntImmNode>()) {
+      if (int_imm->value == 0) {
+        stopped_at_if = false;
+      } else if (int_imm->value == 1) {
+        body_visited = true;
+      } else {
+        TVM_FFI_THROW(InternalError) << "Unreachable";
+      }
+    }
+    return ffi::WalkResult::Advance();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(block, visit_if, visit_evaluate);
   ASSERT_EQ(init_visited, true);
   ASSERT_EQ(stopped_at_if, true);
   ASSERT_EQ(body_visited, true);
@@ -585,14 +584,13 @@ TEST(IRF, StructuralHooksPreserveScopeIdDefRegions) {
     int binder = -1;
     int extent = -1;
     int preferred = -1;
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-        make_input(),
-        [&](const Var& var, TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::WalkResult> {
-          if (var->name == "binder") binder = kind;
-          if (var->name == "extent") extent = kind;
-          if (var->name == "preferred") preferred = kind;
-          return ffi::WalkResult::Advance();
-        });
+    auto walk_fn = [&](const Var& var, TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::WalkResult> {
+      if (var->name == "binder") binder = kind;
+      if (var->name == "extent") extent = kind;
+      if (var->name == "preferred") preferred = kind;
+      return ffi::WalkResult::Advance();
+    };
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(make_input(), walk_fn);
     check_kinds(binder, extent, preferred);
   }
 

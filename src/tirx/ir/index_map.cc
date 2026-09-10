@@ -363,25 +363,25 @@ IndexMap IndexMap::RenameVariables(
   if (f_name_map != nullptr) {
     // Collect variables with pre-defined names provided by f_name_map.
     std::unordered_set<const ffi::Object*> visited;
+    auto walk_fn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      auto prim_var = var.as<PrimVar>();
+      if (!prim_var) {
+        return ffi::WalkResult::Advance();
+      }
+      if (!visited.insert(prim_var.value().get()).second) {
+        return ffi::WalkResult::Advance();
+      }
+      if (ffi::Optional<ffi::String> opt_name = f_name_map(prim_var.value());
+          opt_name.has_value()) {
+        ffi::String name = opt_name.value();
+        TVM_FFI_ICHECK(!name_supply->ContainsName(name, /*add_prefix=*/false));
+        name_supply->ReserveName(name, /*add_prefix=*/false);
+        var_remap.Set(prim_var.value(), PrimVar(name, prim_var.value().ty()));
+      }
+      return ffi::WalkResult::Advance();
+    };
     std::for_each(n->final_indices.begin(), n->final_indices.end(), [&](const PrimExpr& expr) {
-      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-          expr, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-            auto prim_var = var.as<PrimVar>();
-            if (!prim_var) {
-              return ffi::WalkResult::Advance();
-            }
-            if (!visited.insert(prim_var.value().get()).second) {
-              return ffi::WalkResult::Advance();
-            }
-            if (ffi::Optional<ffi::String> opt_name = f_name_map(prim_var.value());
-                opt_name.has_value()) {
-              ffi::String name = opt_name.value();
-              TVM_FFI_ICHECK(!name_supply->ContainsName(name, /*add_prefix=*/false));
-              name_supply->ReserveName(name, /*add_prefix=*/false);
-              var_remap.Set(prim_var.value(), PrimVar(name, prim_var.value().ty()));
-            }
-            return ffi::WalkResult::Advance();
-          });
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(expr, walk_fn);
     });
   }
 

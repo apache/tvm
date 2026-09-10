@@ -173,22 +173,21 @@ class IndexInfoCollector : public StmtExprVisitor {
 
       // Record the final sub expr with repeat time greater than cse_thresh_
       // In order to make the result stable, sort it by post order and then by complexity
-      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-          store->value,
-          [&semantic_comp_done_by_stmt,
-           this](const PrimExpr& this_expr) -> ffi::Expected<ffi::WalkResult> {
-            for (auto& it : semantic_comp_done_by_stmt) {
-              if (it.second >= this->cse_thresh_ && EquivalentTerms(this_expr, it.first, true)) {
-                auto find_result =
-                    std::find_if(this->exprs_.begin(), this->exprs_.end(),
-                                 [&](PrimExpr expr) { return expr.get() == it.first.get(); });
-                if (find_result == this->exprs_.end()) {
-                  this->exprs_.push_back(it.first);
-                }
-              }
+      auto walk_fn = [&semantic_comp_done_by_stmt,
+                      this](const PrimExpr& this_expr) -> ffi::Expected<ffi::WalkResult> {
+        for (auto& it : semantic_comp_done_by_stmt) {
+          if (it.second >= this->cse_thresh_ && EquivalentTerms(this_expr, it.first, true)) {
+            auto find_result =
+                std::find_if(this->exprs_.begin(), this->exprs_.end(),
+                             [&](PrimExpr expr) { return expr.get() == it.first.get(); });
+            if (find_result == this->exprs_.end()) {
+              this->exprs_.push_back(it.first);
             }
-            return ffi::WalkResult::Advance();
-          });
+          }
+        }
+        return ffi::WalkResult::Advance();
+      };
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(store->value, walk_fn);
       auto cmp = [&](const PrimExpr& lhs, const PrimExpr& rhs) -> bool {
         return CalculateExprComplexity(lhs) > CalculateExprComplexity(rhs);
       };
@@ -237,36 +236,36 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
 
     // Collect the block vars in original index computation
     info->origin_block_vars.push_back({});
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-        index_expr, [&info, &expr_index](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-          if (auto prim_var = var.as<PrimVar>()) {
-            Var iter_var = prim_var.value();
-            const ffi::Array<Var>& origin_block_var = info->origin_block_vars[expr_index];
-            auto find_result = std::find_if(origin_block_var.begin(), origin_block_var.end(),
-                                            [&](Var it) { return it.get() == iter_var.get(); });
-            if (find_result == origin_block_var.end()) {
-              info->origin_block_vars[expr_index].push_back(iter_var);
-            }
-          }
-          return ffi::WalkResult::Advance();
-        });
+    auto collect_origin_var = [&info,
+                               &expr_index](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      if (auto prim_var = var.as<PrimVar>()) {
+        Var iter_var = prim_var.value();
+        const ffi::Array<Var>& origin_block_var = info->origin_block_vars[expr_index];
+        auto find_result = std::find_if(origin_block_var.begin(), origin_block_var.end(),
+                                        [&](Var it) { return it.get() == iter_var.get(); });
+        if (find_result == origin_block_var.end()) {
+          info->origin_block_vars[expr_index].push_back(iter_var);
+        }
+      }
+      return ffi::WalkResult::Advance();
+    };
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(index_expr, collect_origin_var);
 
     // Collect the loop vars corresponding to collected block vars,
     // which will be used to create new loop vars
     std::vector<Var> iter_vars;
+    auto collect_iter_var = [&iter_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      if (auto prim_var = var.as<PrimVar>()) {
+        Var iter_var = prim_var.value();
+        if (std::find_if(iter_vars.begin(), iter_vars.end(),
+                         [&](Var it) { return it.get() == iter_var.get(); }) == iter_vars.end()) {
+          iter_vars.push_back(iter_var);
+        }
+      }
+      return ffi::WalkResult::Advance();
+    };
     for (const Var& it : info->origin_block_vars[expr_index]) {
-      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-          info->var_binding.at(it), [&iter_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-            if (auto prim_var = var.as<PrimVar>()) {
-              Var iter_var = prim_var.value();
-              if (std::find_if(iter_vars.begin(), iter_vars.end(), [&](Var it) {
-                    return it.get() == iter_var.get();
-                  }) == iter_vars.end()) {
-                iter_vars.push_back(iter_var);
-              }
-            }
-            return ffi::WalkResult::Advance();
-          });
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(info->var_binding.at(it), collect_iter_var);
     }
 
     PrimType data_ty = index_expr.ty();

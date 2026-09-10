@@ -274,14 +274,13 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
     auto shape_path = path->Attr("shape");
     for (size_t i = 0; i < buf->shape.size(); i++) {
       auto dim_path = shape_path->ArrayItem(i);
-      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-          buf->shape[i],
-          [this, &context, &dim_path](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-            if (auto var_def = WithDefIfUndefined(var, dim_path)) {
-              context.push_back(std::move(var_def).value());
-            }
-            return ffi::WalkResult::Advance();
-          });
+      auto walk_fn = [this, &context, &dim_path](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+        if (auto var_def = WithDefIfUndefined(var, dim_path)) {
+          context.push_back(std::move(var_def).value());
+        }
+        return ffi::WalkResult::Advance();
+      };
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(buf->shape[i], walk_fn);
     }
 
     auto strides_path = path->Attr("strides");

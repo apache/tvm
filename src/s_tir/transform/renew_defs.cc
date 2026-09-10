@@ -60,14 +60,14 @@ class RenewDefMutator : public StmtExprMutator {
     for (const auto& param : func->params) {
       if (auto opt_buffer = param.as<BufferVar>()) {
         const BufferVar& buffer = opt_buffer.value();
+        auto walk_fn = [&generator](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+          if (generator.remap_.count(var) == 0) {
+            generator.ReDefineVar(var);
+          }
+          return ffi::WalkResult::Advance();
+        };
         for (const PrimExpr& e : buffer->shape) {
-          ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-              e, [&generator](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-                if (generator.remap_.count(var) == 0) {
-                  generator.ReDefineVar(var);
-                }
-                return ffi::WalkResult::Advance();
-              });
+          ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(e, walk_fn);
         }
       }
     }

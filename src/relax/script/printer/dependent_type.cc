@@ -45,15 +45,15 @@ ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifie
   // Step 2. Figure out if the PrimExpr contains at least a func var
   bool func_var_mode = false;
   if (f != nullptr) {
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-        e, [f, &func_var_mode](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
-          if (auto prim_var = var.as<tirx::PrimVar>()) {
-            if (f->func_vars->count(prim_var.value().get())) {
-              func_var_mode = true;
-            }
-          }
-          return ffi::WalkResult::Advance();
-        });
+    auto walk_fn = [f, &func_var_mode](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+      if (auto prim_var = var.as<tirx::PrimVar>()) {
+        if (f->func_vars->count(prim_var.value().get())) {
+          func_var_mode = true;
+        }
+      }
+      return ffi::WalkResult::Advance();
+    };
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(e, walk_fn);
   }
   // Step 3. Stringify the PrimExpr if func var exists
   bool is_bare_type_var = false;

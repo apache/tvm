@@ -261,14 +261,14 @@ class PatternKindAnalyzer : public StmtExprVisitor {
         return false;
       }
     }
+    auto walk_fn = [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+      if (auto prim_var = var.as<tirx::PrimVar>()) {
+        vars.erase(prim_var.value().get());
+      }
+      return ffi::WalkResult::Advance();
+    };
     for (const PrimExpr& index : load->indices) {
-      ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-          index, [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
-            if (auto prim_var = var.as<tirx::PrimVar>()) {
-              vars.erase(prim_var.value().get());
-            }
-            return ffi::WalkResult::Advance();
-          });
+      ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(index, walk_fn);
     }
     return !vars.empty();
   }

@@ -1274,22 +1274,22 @@ IterVarType DetectNewBlockIterType(
     const std::unordered_map<const VarNode*, IterVarType>& block_iter_type_map) {
   IterVarType result{kOpaque};
   bool found = false;
-  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-      expr, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-        if (auto prim_var = var.as<PrimVar>()) {
-          auto it = block_iter_type_map.find(prim_var.value().get());
-          if (it != block_iter_type_map.end()) {
-            if (!found) {
-              found = true;
-              result = it->second;
-            } else if (result != it->second) {
-              result = kOpaque;
-              return ffi::WalkResult::Interrupt();
-            }
-          }
+  auto walk_fn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    if (auto prim_var = var.as<PrimVar>()) {
+      auto it = block_iter_type_map.find(prim_var.value().get());
+      if (it != block_iter_type_map.end()) {
+        if (!found) {
+          found = true;
+          result = it->second;
+        } else if (result != it->second) {
+          result = kOpaque;
+          return ffi::WalkResult::Interrupt();
         }
-        return ffi::WalkResult::Advance();
-      });
+      }
+    }
+    return ffi::WalkResult::Advance();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(expr, walk_fn);
   return result;
 }
 
