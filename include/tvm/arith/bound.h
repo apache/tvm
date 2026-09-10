@@ -26,17 +26,11 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/stmt.h>
 
 #include <unordered_map>
 
 namespace tvm {
 namespace arith {
-
-using tirx::Region;
-using tirx::Stmt;
-using tirx::Var;
-using tirx::VarNode;
 
 /*!
  * \brief Deduce the bound of the target variable in a expression,
@@ -68,17 +62,6 @@ IntSet DeduceBound(PrimExpr v, PrimExpr cond, const ffi::Map<Var, IntSet>& hint_
 IntSet DeduceBound(PrimExpr v, PrimExpr cond,
                    const std::unordered_map<const VarNode*, IntSet>& hint_map,
                    const std::unordered_map<const VarNode*, IntSet>& relax_map);
-
-/*!
- * \brief Infer a regular domain that covers all the calls or provides within the given statement.
- * \param body The given statement.
- * \param buffer The buffer to check the access info.
- * \param consider_loads If loads are considered.
- * \param consider_stores If stores are considered.
- * \return The domain that covers all the calls or provides within the given statement.
- */
-Region DomainTouched(const Stmt& body, const tirx::BufferVar& buffer, bool consider_loads,
-                     bool consider_stores);
 
 }  // namespace arith
 }  // namespace tvm
