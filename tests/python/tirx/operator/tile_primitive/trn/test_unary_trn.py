@@ -28,12 +28,16 @@ target = tvm.target.Target("aws/trn1/trn1.2xlarge")
 
 
 def _strip_exec_scope_stmt(stmt):
-    def _postorder(node):
-        if isinstance(node, tvm.tirx.AttrStmt) and node.attr_key == "tirx.device_entry":
+    def _strip_attr(node: tvm.tirx.AttrStmt):
+        if node.attr_key == "tirx.device_entry":
             return node.body
         return node
 
-    return tvm_ffi.structural_map(stmt, (tvm.tirx.AttrStmt, _postorder))
+    return tvm_ffi.structural_map(
+        stmt,
+        (tvm.tirx.AttrStmt, _strip_attr),
+        order="post",
+    )
 
 
 def assert_structural_equal(lhs, rhs, *args, **kwargs):

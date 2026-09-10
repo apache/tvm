@@ -25,6 +25,7 @@ import functools
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -37,7 +38,6 @@ from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
 from tvm.tirx.operator.tile_primitive.dispatcher import DispatchFail
 from tvm.tirx.operator.tile_primitive.ops import CopyAsync
-from tvm.tirx.stmt_functor import StmtExprVisitor
 from tvm.tirx.tile_primitive import DispatchContext
 
 
@@ -56,32 +56,31 @@ def _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout):
     return copy_dsmem_impl(op_call, sctx)
 
 
-class _S2CCounter(StmtExprVisitor):
+def _count_s2c_ops(impl):
     """Count cp.async.bulk.shared_to_cluster calls including loop iterations."""
+    loop_extents = []
+    total = 0
 
-    def __init__(self):
-        super().__init__()
-        self._loop_extents = []
-        self.total = 0
+    def visit_for(op, visitor):
+        loop_extents.append(op.extent)
+        visitor.default_visit(op)
+        loop_extents.pop()
 
-    def visit_for_(self, op):
-        self._loop_extents.append(op.extent)
-        self.visit_stmt(op.body)
-        self._loop_extents.pop()
-
-    def visit_evaluate_(self, op):
+    def visit_evaluate(op, visitor):
+        nonlocal total
         if isinstance(op.value, tvm.ir.Call):
             if op.value.op.name == "tirx.ptx.cp_async_bulk_s2c":
                 n = 1
-                for e in self._loop_extents:
+                for e in loop_extents:
                     n *= e
-                self.total += n
+                total += n
+        visitor.default_visit(op)
 
-
-def _count_s2c_ops(impl):
-    c = _S2CCounter()
-    c.visit_stmt(impl.body)
-    return c.total
+    tvm_ffi.structural_visit(
+        impl.body,
+        [(tvm.tirx.For, visit_for), (tvm.tirx.Evaluate, visit_evaluate)],
+    )
+    return total
 
 
 # ---------------------------------------------------------------------------

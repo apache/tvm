@@ -30,6 +30,7 @@ is wrong.
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -933,8 +934,22 @@ def test_reg_synthetic_tile_matches_thread_base_plus_outer_delta(case):
             structured_swizzle = s_apply_layout.apply(*thread_coords, f, shape=apply_shape)["m"]
             naive_swizzle = bare_swizzle.apply(old_linear)["m"]
             assert int(
-                analyzer.simplify(tvm.tirx.stmt_functor.substitute(synthetic_linear, value_map))
-            ) == int(analyzer.simplify(tvm.tirx.stmt_functor.substitute(old_linear, value_map)))
+                analyzer.simplify(
+                    tvm_ffi.structural_map(
+                        synthetic_linear,
+                        (tvm.tirx.Var, lambda var: value_map.get(var, var)),
+                        order="post",
+                    )
+                )
+            ) == int(
+                analyzer.simplify(
+                    tvm_ffi.structural_map(
+                        old_linear,
+                        (tvm.tirx.Var, lambda var: value_map.get(var, var)),
+                        order="post",
+                    )
+                )
+            )
             assert _eval_const_layout_expr(
                 structured_swizzle, value_map
             ) == _eval_const_layout_expr(naive_swizzle, value_map)
