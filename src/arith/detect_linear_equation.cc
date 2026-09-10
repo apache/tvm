@@ -22,13 +22,13 @@
  * \brief Utility to detect patterns in the expression.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace arith {
@@ -174,22 +174,23 @@ bool DetectClipBound(const PrimExpr& cond,
                      std::unordered_map<const VarNode*, IntervalEntry>* bmap) {
   int flag = 0;
   PrimVar var;
-  auto fvisit = [&bmap, &flag, &var](const ffi::ObjectRef& n) {
-    if (auto prim_var = n.as<PrimVar>()) {
-      const VarNode* v = prim_var->get();
-      if (bmap->count(v)) {
+  auto fvisit = [&bmap, &flag, &var](const Var& v) -> ffi::Expected<ffi::WalkResult> {
+    if (auto prim_var = v.as<PrimVar>()) {
+      const VarNode* var_node = prim_var->get();
+      if (bmap->count(var_node)) {
         if (flag == 0) {
           var = *prim_var;
           flag = 1;
         } else if (flag == 1) {
-          if (!var.same_as(n)) {
+          if (!var.same_as(*prim_var)) {
             flag = -1;
           }
         }
       }
     }
+    return ffi::WalkResult::Advance();
   };
-  PostOrderVisit(cond, fvisit);
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(cond, fvisit);
   if (flag != 1) return false;
   // canonical form: exp >= 0
   bool is_eq = false;
