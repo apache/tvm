@@ -42,8 +42,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
   std::unordered_map<const ffi::Object*, int> use_count;
   std::unordered_set<const ffi::Object*> def_seen;
   ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-      buffer,
-      [&](const Var& var, TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::WalkResult> {
+      buffer, [&](const Var& var, TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::WalkResult> {
         if (kind != kTVMFFIDefRegionKindNone) {
           if (!def_seen.insert(var.get()).second) {
             return ffi::WalkResult::Skip();
