@@ -390,7 +390,7 @@ def extern_primfunc(input_tensors: list[_tensor.Tensor], primfunc: tvm.tirx.Prim
     """
 
     # Preserve the function parameter order while selecting BufferType annotations.
-    dt_access_map = tvm.arith._ffi_api.DomainTouchedAccessMap(primfunc)
+    dt_access_map = tvm.s_tir._ffi_api.DomainTouchedAccessMap(primfunc)
     ordered_buffers = [param for param in primfunc.params if tvm.tirx.is_buffer_var(param)]
     in_buffers = [buf for buf in ordered_buffers if len(dt_access_map[buf][0])]
     out_buffers = [buf for buf in ordered_buffers if len(dt_access_map[buf][1])]

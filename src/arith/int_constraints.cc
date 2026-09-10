@@ -23,18 +23,16 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>
 #include <unordered_map>
 #include <utility>
-
-#include "../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace arith {
@@ -119,11 +117,16 @@ IntGroupBounds IntGroupBounds::operator+(const Range& r) {
 }
 
 IntGroupBounds IntGroupBounds::Substitute(const ffi::Map<Var, PrimExpr>& subst) const {
-  auto apply_fun = [&subst](const PrimExpr& e) { return tirx::Substitute(e, subst); };
-  return IntGroupBounds(tirx::Substitute(operator->()->coef, subst),
-                        tirx::UpdateArray(operator->()->lower, apply_fun),
-                        tirx::UpdateArray(operator->()->equal, apply_fun),
-                        tirx::UpdateArray(operator->()->upper, apply_fun));
+  auto f_subst = [&subst](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = subst.Get(var)) return ffi::Any(repl.value());
+    return ffi::Unchanged();
+  };
+  auto apply_fun = [&f_subst](const PrimExpr& e) {
+    return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_subst).cast<PrimExpr>();
+  };
+  return IntGroupBounds(apply_fun(operator->()->coef), operator->()->lower.Map(apply_fun),
+                                                       operator->()->equal.Map(apply_fun),
+                                                       operator->()->upper.Map(apply_fun));
 }
 
 Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) const {
@@ -272,15 +275,26 @@ IntConstraintsTransform IntConstraintsTransform::operator+(
 
   Analyzer ana_first;
   ana_first->Bind(operator->()->src->ranges);
+  auto f_dst_to_src = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = operator->()->dst_to_src.Get(var)) return ffi::Any(repl.value());
+    return ffi::Unchanged();
+  };
   for (auto p : other->dst_to_src) {
-    dst_to_src.Set(p.first,
-                   ana_first->Simplify(tirx::Substitute(p.second, operator->()->dst_to_src)));
+    dst_to_src.Set(p.first, ana_first->Simplify(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                                                    p.second, f_dst_to_src)
+                                                    .cast<PrimExpr>()));
   }
 
   Analyzer ana_second;
   ana_second->Bind(other->dst->ranges);
+  auto f_src_to_dst = [&other](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = other->src_to_dst.Get(var)) return ffi::Any(repl.value());
+    return ffi::Unchanged();
+  };
   for (auto p : operator->()->src_to_dst) {
-    src_to_dst.Set(p.first, ana_second->Simplify(tirx::Substitute(p.second, other->src_to_dst)));
+    src_to_dst.Set(p.first, ana_second->Simplify(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                                                     p.second, f_src_to_dst)
+                                                     .cast<PrimExpr>()));
   }
   return IntConstraintsTransform(operator->()->src, other->dst, src_to_dst, dst_to_src);
 }
