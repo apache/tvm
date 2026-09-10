@@ -20,6 +20,7 @@
 #define TVM_S_TIR_SCHEDULE_CONCRETE_SCHEDULE_H_
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ir/prim/expr.h>
 
 #include <memory>
@@ -260,15 +261,19 @@ inline For ConcreteScheduleNode::Get(const LoopRV& loop_rv) const {
 }
 
 inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
-  PrimExpr transformed = Substitute(expr_rv, [this](const Var& var) -> ffi::Optional<Expr> {
-    auto it = this->symbol_table_.find(var);
-    if (it == this->symbol_table_.end()) {
-      TVM_FFI_THROW(IndexError) << "Cannot find corresponding ExprRV: " << var;
-    }
-    const ffi::ObjectRef& obj = (*it).second;
-    const auto* int_imm = TVM_TYPE_AS(obj, IntImmNode);
-    return IntImm::Int32(int_imm->value);
-  });
+  PrimExpr transformed = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                             expr_rv,
+                             [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                               auto it = this->symbol_table_.find(var);
+                               if (it == this->symbol_table_.end()) {
+                                 TVM_FFI_THROW(IndexError)
+                                     << "Cannot find corresponding ExprRV: " << var;
+                               }
+                               const ffi::ObjectRef& obj = (*it).second;
+                               const auto* int_imm = TVM_TYPE_AS(obj, IntImmNode);
+                               return ffi::Any(IntImm::Int32(int_imm->value));
+                             })
+                             .cast<PrimExpr>();
   return this->analyzer_->Simplify(transformed);
 }
 

@@ -18,6 +18,7 @@
  */
 #include <tvm/arith/int_set.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include "./utils.h"
@@ -218,14 +219,60 @@ class SBlockInfoCollector : private StmtVisitor {
       ffi::Array<BufferRegion> reads;
       reads.reserve(block->reads.size());
       for (const BufferRegion& region : block->reads) {
-        reads.push_back(BufferRegion(region->buffer, Substitute(region->region, binding)));
+        ffi::Array<Range> mapped_region = region->region.Map([&binding](const Range& range) {
+          PrimExpr min =
+              ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                  range->min,
+                  [&binding](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                    if (auto replacement = binding.Get(var)) {
+                      return ffi::Any(replacement.value());
+                    }
+                    return ffi::Unchanged();
+                  })
+                  .cast<PrimExpr>();
+          PrimExpr extent =
+              ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                  range->extent,
+                  [&binding](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                    if (auto replacement = binding.Get(var)) {
+                      return ffi::Any(replacement.value());
+                    }
+                    return ffi::Unchanged();
+                  })
+                  .cast<PrimExpr>();
+          return Range::FromMinExtent(min, extent);
+        });
+        reads.push_back(BufferRegion(region->buffer, mapped_region));
       }
       block_reads_unbound.emplace(block_sref.get(), std::move(reads));
       // Step 1.2. Unbind write regions
       ffi::Array<BufferRegion> writes;
       writes.reserve(block->writes.size());
       for (const BufferRegion& region : block->writes) {
-        writes.push_back(BufferRegion(region->buffer, Substitute(region->region, binding)));
+        ffi::Array<Range> mapped_region = region->region.Map([&binding](const Range& range) {
+          PrimExpr min =
+              ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                  range->min,
+                  [&binding](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                    if (auto replacement = binding.Get(var)) {
+                      return ffi::Any(replacement.value());
+                    }
+                    return ffi::Unchanged();
+                  })
+                  .cast<PrimExpr>();
+          PrimExpr extent =
+              ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                  range->extent,
+                  [&binding](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                    if (auto replacement = binding.Get(var)) {
+                      return ffi::Any(replacement.value());
+                    }
+                    return ffi::Unchanged();
+                  })
+                  .cast<PrimExpr>();
+          return Range::FromMinExtent(min, extent);
+        });
+        writes.push_back(BufferRegion(region->buffer, mapped_region));
       }
       block_writes_unbound.emplace(block_sref.get(), std::move(writes));
     }

@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include "./utils.h"
@@ -81,9 +82,13 @@ ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
     } else if (obj.as<IntImmNode>() || obj.as<FloatImmNode>()) {
       inputs.push_back(obj);
     } else if (auto expr = obj.as<PrimExpr>()) {
-      PrimExpr new_expr = Substitute(expr.value(), [](const Var& var) -> ffi::Optional<Expr> {
-        return Var("_", var->ty, var->span).as_or_throw<PrimExpr>();
-      });
+      PrimExpr new_expr =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+              expr.value(),
+              [](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                return ffi::Any(Var("_", var->ty, var->span).as_or_throw<PrimExpr>());
+              })
+              .cast<PrimExpr>();
       std::ostringstream os;
       os << new_expr;
       inputs.push_back(ffi::String(os.str()));
