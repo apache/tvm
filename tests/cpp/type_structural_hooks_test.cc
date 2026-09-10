@@ -44,8 +44,10 @@ void ExpectStructuralHooks() {
   }
 }
 
-TEST(TypeStructuralHooks, EveryConcreteOpenTypeHasExplicitHooks) {
+TEST(TypeStructuralHooks, EveryConcreteTypeHasExplicitHooks) {
   using namespace tvm;
+  ExpectStructuralHooks<TypeNode>();
+  ExpectStructuralHooks<OpaqueTypeNode>();
   ExpectStructuralHooks<PointerTypeNode>();
   ExpectStructuralHooks<TupleTypeNode>();
   ExpectStructuralHooks<FuncTypeNode>();
@@ -57,6 +59,21 @@ TEST(TypeStructuralHooks, EveryConcreteOpenTypeHasExplicitHooks) {
   ExpectStructuralHooks<relax::FuncTypeNode>();
   ExpectStructuralHooks<relax::distributed::DTensorTypeNode>();
   ExpectStructuralHooks<tirx::BufferRegionTypeNode>();
+}
+
+TEST(TypeStructuralHooks, FieldlessSentinelsPreserveIdentity) {
+  using namespace tvm;
+  auto miss = [](const Type&) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    return ffi::Unchanged();
+  };
+
+  Type missing = Type::Missing();
+  Type mapped_missing = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(missing, miss).cast<Type>();
+  EXPECT_TRUE(mapped_missing.same_as(missing));
+
+  OpaqueType opaque;
+  Type mapped_opaque = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(opaque, miss).cast<Type>();
+  EXPECT_TRUE(mapped_opaque.same_as(opaque));
 }
 
 TEST(TypeStructuralHooks, RelaxFuncTypeParametersUsePatternDefinitionRegion) {
