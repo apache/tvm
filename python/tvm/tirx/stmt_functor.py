@@ -980,34 +980,6 @@ class StmtExprMutator(StmtMutator, ExprMutator):
         return ExprMutator.visit_expr(self, expr)
 
 
-def ir_transform(stmt, preorder, postorder, only_enable=None):
-    """Recursively visit and transform ir nodes in post DFS order.
-
-    Parameters
-    ----------
-    stmt : tvm.tirx.Stmt
-        The input to be transformed.
-
-    preorder: function
-        The function called in before recursive mutation
-        If preorder returns None, then the transform will proceed to recursive call.
-        If preorder returns a not None tvm.tirx.Stmt/Expr, the transformer will simply return it and
-        won't do further recursion.
-
-    postorder : function
-        The function called after recursive mutation.
-
-    only_enable : Optional[List[str]]
-        List of types that we only enable.
-
-    Returns
-    -------
-    result : tvm.tirx.Stmt
-        The result.
-    """
-    return _ffi_api.IRTransform(stmt, preorder, postorder, only_enable)  # type: ignore
-
-
 def post_order_visit(node, fvisit):
     """Recursively visit a statement or expression in post DFS order, applying fvisit.
        Each node is guaranteed to be visited only once.
