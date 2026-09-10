@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
@@ -143,11 +144,13 @@ ScopeBlockLoopInfo GetScopeBlockLoopInfo(const SBlock& scope_block) {
         } else {
           vars = &result.non_spatial_vars;
         }
-        PostOrderVisit(iter_value, [vars](const ffi::ObjectRef& obj) {
-          if (auto var = obj.as<PrimVar>()) {
-            vars->insert(var.value().get());
-          }
-        });
+        ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+            iter_value, [vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+              if (auto prim_var = var.as<PrimVar>()) {
+                vars->insert(prim_var.value().get());
+              }
+              return ffi::WalkResult::Advance();
+            });
       }
     }
 
@@ -903,36 +906,36 @@ IterVarType GetLoopIterType(const StmtSRef& loop_sref) {
   int n_spatial = 0;
   int n_reduce = 0;
   int n_other = 0;
-  auto f_visit = [&loop_var, &n_spatial, &n_reduce, &n_other](const ffi::ObjectRef& obj) -> bool {
-    if (const auto* realize = obj.as<SBlockRealizeNode>()) {
-      const SBlockNode* block = realize->block.get();
-      // Number of block vars and their bindings
-      TVM_FFI_ICHECK_EQ(realize->iter_values.size(), block->iter_vars.size());
-      size_t n = realize->iter_values.size();
-      for (size_t i = 0; i < n; ++i) {
-        const IterVar& iter_var = block->iter_vars[i];
-        const PrimExpr& binding = realize->iter_values[i];
-        // Categorize the current block var
-        int* ref = nullptr;
-        if (iter_var->iter_type == IterVarType::kDataPar) {
-          ref = &n_spatial;
-        } else if (iter_var->iter_type == IterVarType::kCommReduce) {
-          ref = &n_reduce;
-        } else {
-          ref = &n_other;
-        }
-        // Visit the binding to see if `loop_var` appears
-        PostOrderVisit(binding, [&ref, &loop_var](const ffi::ObjectRef& obj) -> void {
-          if (obj.same_as(loop_var)) {
-            (*ref) += 1;
-          }
-        });
+  auto f_visit = [&loop_var, &n_spatial, &n_reduce,
+                  &n_other](const SBlockRealize& realize) -> ffi::Expected<ffi::WalkResult> {
+    const SBlockNode* block = realize->block.get();
+    // Number of block vars and their bindings
+    TVM_FFI_ICHECK_EQ(realize->iter_values.size(), block->iter_vars.size());
+    size_t n = realize->iter_values.size();
+    for (size_t i = 0; i < n; ++i) {
+      const IterVar& iter_var = block->iter_vars[i];
+      const PrimExpr& binding = realize->iter_values[i];
+      // Categorize the current block var
+      int* ref = nullptr;
+      if (iter_var->iter_type == IterVarType::kDataPar) {
+        ref = &n_spatial;
+      } else if (iter_var->iter_type == IterVarType::kCommReduce) {
+        ref = &n_reduce;
+      } else {
+        ref = &n_other;
       }
-      return false;
+      // Visit the binding to see if `loop_var` appears
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+          binding, [&ref, &loop_var](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+            if (var.same_as(loop_var)) {
+              (*ref) += 1;
+            }
+            return ffi::WalkResult::Advance();
+          });
     }
-    return true;
+    return ffi::WalkResult::Skip();
   };
-  PreOrderVisit(loop->body, f_visit);
+  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(loop->body, f_visit);
   if (n_other) {
     return IterVarType::kOpaque;
   } else if (n_spatial && n_reduce) {
@@ -1333,45 +1336,44 @@ bool HasOp(const Stmt& stmt, const ffi::Array<Op>& ops) {
     op_set.insert(op.operator->());
   }
   bool found = false;
-  PreOrderVisit(stmt, [&found, &op_set](const ffi::ObjectRef& obj) -> bool {
-    if (found) {
-      return false;
-    }
-    if (const auto* call = obj.as<CallNode>()) {
-      if (op_set.count(call->op.operator->())) {
-        found = true;
-      }
-    }
-    return !found;
-  });
+  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+      stmt, [&found, &op_set](const Call& call) -> ffi::Expected<ffi::WalkResult> {
+        if (op_set.count(call->op.operator->())) {
+          found = true;
+          return ffi::WalkResult::Interrupt();
+        }
+        return ffi::WalkResult::Advance();
+      });
   return found;
 }
 
 bool HasIfThenElse(const Stmt& stmt) {
   bool has_branch = false;
-  auto f_visit = [&has_branch](const ffi::ObjectRef& obj) -> bool {
-    if (has_branch) {
-      // stop visiting
-      return false;
-    }
-    if (const auto* realize = obj.as<SBlockRealizeNode>()) {
-      // Case 1: BlockRealize
-      if (!is_one(realize->predicate)) {
+  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+      stmt,
+      [&has_branch](const SBlockRealize& realize) -> ffi::Expected<ffi::WalkResult> {
+        if (!is_one(realize->predicate)) {
+          has_branch = true;
+          return ffi::WalkResult::Interrupt();
+        }
+        return ffi::WalkResult::Advance();
+      },
+      [&has_branch](const IfThenElse&) -> ffi::Expected<ffi::WalkResult> {
         has_branch = true;
-      }
-    } else if (obj->IsInstance<IfThenElseNode>() || obj->IsInstance<SelectNode>()) {
-      // Case 2: IfThenElse / Select
-      has_branch = true;
-    } else if (const auto* call = obj.as<CallNode>()) {
-      // Case 3: Call the `if_then_else` operator
-      static const Op& if_then_else_op = Op::Get("ir.prim.if_then_else");
-      if (call->op.same_as(if_then_else_op)) {
+        return ffi::WalkResult::Interrupt();
+      },
+      [&has_branch](const Select&) -> ffi::Expected<ffi::WalkResult> {
         has_branch = true;
-      }
-    }
-    return !has_branch;
-  };
-  PreOrderVisit(stmt, f_visit);
+        return ffi::WalkResult::Interrupt();
+      },
+      [&has_branch](const Call& call) -> ffi::Expected<ffi::WalkResult> {
+        static const Op& if_then_else_op = Op::Get("ir.prim.if_then_else");
+        if (call->op.same_as(if_then_else_op)) {
+          has_branch = true;
+          return ffi::WalkResult::Interrupt();
+        }
+        return ffi::WalkResult::Advance();
+      });
   return has_branch;
 }
 
@@ -1584,20 +1586,16 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
 
 bool IsSpatialPrimFunc(const PrimFunc& func) {
   bool result = true;
-  PreOrderVisit(func->body, [&result](const ffi::ObjectRef& obj) {
-    if (result == false) {
-      return false;
-    }
-    if (const auto* block = obj.as<SBlockNode>()) {
-      for (const IterVar& iter_var : block->iter_vars) {
-        if (iter_var->iter_type != IterVarType::kDataPar) {
-          result = false;
-          return false;
+  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+      func->body, [&result](const SBlock& block) -> ffi::Expected<ffi::WalkResult> {
+        for (const IterVar& iter_var : block->iter_vars) {
+          if (iter_var->iter_type != IterVarType::kDataPar) {
+            result = false;
+            return ffi::WalkResult::Interrupt();
+          }
         }
-      }
-    }
-    return true;
-  });
+        return ffi::WalkResult::Advance();
+      });
   return result;
 }
 
@@ -1738,23 +1736,20 @@ TensorIntrinDescInfo ExtractTensorIntrinDescInfo(arith::AnalyzerObj* analyzer,
   const auto* desc_scope_realize = desc_func->body.as<SBlockRealizeNode>();
   TVM_FFI_ICHECK(desc_scope_realize);
   {
-    auto f_visit = [&](const ffi::ObjectRef& obj) -> bool {
-      // Extract the block
-      if (const auto* block = obj.as<SBlockRealizeNode>()) {
-        info.desc_block = block;
-        return false;
-      }
-      // Extract the loops
-      if (const auto* loop = obj.as<ForNode>()) {
-        info.desc_loops.push_back(loop);
-        info.desc_loop_vars.insert(loop->loop_var.get());
-        if (!analyzer->CanProve(loop->min == 0)) {
-          return false;
-        }
-      }
-      return true;
-    };
-    tirx::PostOrderVisit(desc_scope_realize->block->body, f_visit);
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+        desc_scope_realize->block->body,
+        [&](const SBlockRealize& block) -> ffi::Expected<ffi::WalkResult> {
+          info.desc_block = block.get();
+          return ffi::WalkResult::Advance();
+        },
+        [&](const For& loop) -> ffi::Expected<ffi::WalkResult> {
+          info.desc_loops.push_back(loop.get());
+          info.desc_loop_vars.insert(loop->loop_var.get());
+          if (!analyzer->CanProve(loop->min == 0)) {
+            return ffi::WalkResult::Advance();
+          }
+          return ffi::WalkResult::Advance();
+        });
     std::reverse(info.desc_loops.begin(), info.desc_loops.end());
     TVM_FFI_ICHECK(info.desc_block);
   }
@@ -2017,12 +2012,14 @@ class AutoTensorizeMappingProposer {
       TVM_FFI_ICHECK(lhs_buffer_it != extractor_->rhs_buffer_map_.end());
       const BufferVar& lhs_buffer = lhs_buffer_it->second;
       for (const PrimExpr& index : extractor_->lhs_buffer_indices_map_.at(lhs_buffer)) {
-        PreOrderVisit(index, [&](const ffi::ObjectRef& obj) -> bool {
-          if (auto var = obj.as<PrimVar>()) {
-            update_mask(var.value().get(), &lhs_buffer_masks, lhs_buffer_index.at(lhs_buffer));
-          }
-          return true;
-        });
+        ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+            index, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+              if (auto prim_var = var.as<PrimVar>()) {
+                update_mask(prim_var.value().get(), &lhs_buffer_masks,
+                            lhs_buffer_index.at(lhs_buffer));
+              }
+              return ffi::WalkResult::Advance();
+            });
       }
     }
 

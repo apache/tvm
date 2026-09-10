@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/s_tir/stmt.h>
 
 #include <string>
@@ -184,11 +185,7 @@ struct ReadWriteAtImpl {
       bool r_visited = false;
       bool w_visited = false;
       auto f_visit = [this, &relaxed_regions, &r_visited, &w_visited,
-                      &scope](const ffi::ObjectRef& obj) -> bool {
-        const SBlockRealizeNode* realize = obj.as<SBlockRealizeNode>();
-        if (realize == nullptr) {
-          return true;
-        }
+                      &scope](const SBlockRealize& realize) -> ffi::Expected<ffi::WalkResult> {
         const SBlockNode* block = realize->block.get();
         bool has_r = HasBuffer(block->reads, src_);
         bool has_w = HasBuffer(block->writes, src_);
@@ -203,12 +200,12 @@ struct ReadWriteAtImpl {
                   /*low_inclusive=*/ffi::GetRef<StmtSRef>(self_->stmt2ref.at(block)->parent),
                   /*high_exclusive=*/loop_sref_,
                   /*extra_relax_scope=*/scope)),
-              /*bindings=*/GetBindings(ffi::GetRef<SBlockRealize>(realize)),
+              /*bindings=*/GetBindings(realize),
               /*relaxed_regions=*/&relaxed_regions);
         }
-        return false;
+        return ffi::WalkResult::Skip();
       };
-      PreOrderVisit(subtrees[i], f_visit);
+      ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(subtrees[i], f_visit);
       if (r_visited) {
         r_pos.push_back(i);
       }
