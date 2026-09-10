@@ -650,11 +650,8 @@ inline ffi::Array<Tensor> split_indices_array(const Tensor& x, ffi::Array<PrimEx
 }
 
 inline PrimExpr DynamicCanonicalizeIndex(PrimExpr index, PrimExpr extent, PrimExpr stride) {
-  auto idx_var = index.as<tvm::tirx::PrimVar>();
-  auto extent_var = extent.as<tvm::tirx::PrimVar>();
-
-  if (idx_var && extent_var && (*idx_var)->name == (*extent_var)->name) {
-    return index;
+  if (index.same_as(extent)) {
+    return tvm::if_then_else(stride < 0, extent - 1, extent);
   }
 
   PrimExpr begin_range = tvm::if_then_else(stride < 0, -1, 0);
@@ -747,7 +744,11 @@ inline te::Tensor dynamic_strided_slice_with_axes(
 
         for (size_t i = 0; i < begin.size(); i++) {
           int axis = static_cast<int>(axes[i]);
-          PrimExpr new_index = indices[axis] * strides[i] + begin[i];
+          PrimExpr begin_index = begin[i];
+          if (!assume_inbound) {
+            begin_index = CanonicalizeIndex(begin_index, x->shape[axis], strides[i]);
+          }
+          PrimExpr new_index = indices[axis] * strides[i] + begin_index;
           real_indices.Set(axis, new_index);
         }
 
@@ -805,7 +806,11 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const ffi::Array<PrimExpr>&
       [&](const ffi::Array<tvm::tirx::PrimVar>& indices) {
         ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < num_slice_axes; ++i) {
-          real_indices.push_back(indices[i] * strides[i] + tvm::min(begin[i], x->shape[i] - 1));
+          PrimExpr begin_index = tvm::min(begin[i], x->shape[i] - 1);
+          if (!assume_inbound) {
+            begin_index = CanonicalizeIndex(begin[i], x->shape[i], strides[i]);
+          }
+          real_indices.push_back(indices[i] * strides[i] + begin_index);
         }
         // keep input dim
         for (size_t i = num_slice_axes; i < src_tensor_dim; ++i) {
@@ -2319,7 +2324,8 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
         ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < num_dynamic_axes; ++i) {
           auto ind = IntImm::Int64(i);
-          real_indices.push_back(indices[i] * strides(ind) + tvm::min(begin(ind), x->shape[i] - 1));
+          PrimExpr begin_index = CanonicalizeIndex(begin(ind), x->shape[i], strides(ind));
+          real_indices.push_back(indices[i] * strides(ind) + begin_index);
         }
         return x(real_indices);
       },
