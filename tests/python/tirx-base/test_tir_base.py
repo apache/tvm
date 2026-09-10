@@ -134,7 +134,7 @@ def test_return_stmt_functor_traversal_and_mutation():
     stmt = tirx.Return(x + 1, span)
     visited = []
 
-    tirx.stmt_functor.post_order_visit(stmt, visited.append)
+    tvm_ffi.structural_walk(stmt, visited.append)
     assert any(node.same_as(x) for node in visited)
     assert any(isinstance(node, tirx.Return) for node in visited)
 

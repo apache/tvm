@@ -93,21 +93,20 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           std::unordered_set<tirx::Var> stringify_shape_vars;
           std::unordered_set<tirx::Var> stringify_compound_shape_vars;
           std::unordered_set<tirx::Var> shape_vars;
+          auto walk_fn = [&](const tirx::Var& shape_var) -> ffi::Expected<ffi::WalkResult> {
+            shape_vars.insert(shape_var);
+            bool is_type_var = type_vars.count(shape_var.get());
+            if (!use_postponed_annotations && !bound_signature_vars.count(shape_var) &&
+                !is_type_var) {
+              stringify_shape_vars.insert(shape_var);
+            }
+            if (!use_postponed_annotations && is_type_var) {
+              stringify_compound_shape_vars.insert(shape_var);
+            }
+            return ffi::WalkResult::Advance();
+          };
           for (const PrimExpr& shape : buffer->shape) {
-            tirx::PostOrderVisit(shape, [&](const ffi::ObjectRef& obj) {
-              if (const auto* shape_var_node = obj.as<tirx::VarNode>()) {
-                tirx::Var shape_var = ffi::GetRef<tirx::Var>(shape_var_node);
-                shape_vars.insert(shape_var);
-                bool is_type_var = type_vars.count(shape_var.get());
-                if (!use_postponed_annotations && !bound_signature_vars.count(shape_var) &&
-                    !is_type_var) {
-                  stringify_shape_vars.insert(shape_var);
-                }
-                if (!use_postponed_annotations && is_type_var) {
-                  stringify_compound_shape_vars.insert(shape_var);
-                }
-              }
-            });
+            ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(shape, walk_fn);
           }
           IdDoc lhs = DefineBuffer(buffer, *f, d);
           ExprDoc annotation =

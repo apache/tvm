@@ -17,6 +17,7 @@
 import math
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.script
@@ -1019,6 +1020,16 @@ def test_buffer():
     assert_structural_equal(test, from_source(code))
 
 
+def test_buffer_shape_repeated_var_prints_out_of_line():
+    n = tvm.tirx.Var("n", "int32")
+    buffer = tvm.tirx.decl_buffer((n + n,), name="A")
+    func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(0))
+
+    code = func.script()
+    assert "n = T.int32()" in code
+    assert_structural_equal(func, from_source(code))
+
+
 def test_kwargs_op_call():
     # fmt: off
     @T.prim_func(private=True)
@@ -1254,7 +1265,7 @@ def test_tuple_let_binding_and_traversal():
 
     def tuple_value(func):
         visited = []
-        tvm.tirx.stmt_functor.post_order_visit(func.body, visited.append)
+        tvm_ffi.structural_walk(func.body, visited.append)
         bind = next(node for node in visited if isinstance(node, tvm.tirx.Bind))
         return bind.value
 
@@ -1366,7 +1377,7 @@ def _collect_buffers(func):
         if isinstance(node, tvm.tirx.DeclBuffer | tvm.tirx.AllocBuffer):
             bufs[node.buffer.name] = node.buffer
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, _visit)
+    tvm_ffi.structural_walk(func.body, _visit)
     return bufs
 
 
@@ -1378,7 +1389,7 @@ def _collect_buffer_sources(func):
         if isinstance(node, tvm.tirx.DeclBuffer):
             sources[node.buffer.name] = node.data
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, _visit)
+    tvm_ffi.structural_walk(func.body, _visit)
     return sources
 
 
@@ -1698,7 +1709,7 @@ def test_pointer_expression_assignment_uses_bind():
     # fmt: on
 
     binds = []
-    tvm.tirx.stmt_functor.post_order_visit(
+    tvm_ffi.structural_walk(
         func.body, lambda node: binds.append(node) if isinstance(node, tvm.tirx.Bind) else None
     )
     assert len(binds) == 1
@@ -1735,7 +1746,7 @@ def func() -> None:
     func = tvm.script.from_source(source, extra_vars={"T": T, "ptr": object()})
 
     binds = []
-    tvm.tirx.stmt_functor.post_order_visit(
+    tvm_ffi.structural_walk(
         func.body, lambda node: binds.append(node) if isinstance(node, tvm.tirx.Bind) else None
     )
     assert len(binds) == 1
@@ -2731,7 +2742,7 @@ def test_roundtrip_tmem_decl_buffer():
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
     decls = []
-    tvm.tirx.stmt_functor.post_order_visit(
+    tvm_ffi.structural_walk(
         func.body,
         lambda node: decls.append(node) if isinstance(node, tvm.tirx.DeclBuffer) else None,
     )
@@ -2990,7 +3001,7 @@ def test_scope_id_dtype_uint32():
     # fmt: on
 
     scope_defs = []
-    tvm.tirx.stmt_functor.post_order_visit(
+    tvm_ffi.structural_walk(
         func.body,
         lambda s: (
             scope_defs.append(getattr(s, "def")) if isinstance(s, tvm.tirx.ScopeIdDefStmt) else None
@@ -3059,7 +3070,7 @@ def test_scope_id_dtype_uint32_deferred_extent():
     # fmt: on
 
     scope_defs = []
-    tvm.tirx.stmt_functor.post_order_visit(
+    tvm_ffi.structural_walk(
         func.body,
         lambda s: (
             scope_defs.append(getattr(s, "def")) if isinstance(s, tvm.tirx.ScopeIdDefStmt) else None

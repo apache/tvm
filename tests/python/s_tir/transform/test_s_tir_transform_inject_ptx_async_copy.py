@@ -50,7 +50,7 @@ def count_cp_async(stmt):
         if isinstance(n, tvm.ir.Call) and n.op.name == "tirx.s_tir.cp_async_raw":
             num_alloc[0] += 1
 
-    tvm.tirx.stmt_functor.post_order_visit(stmt, verify)
+    tvm_ffi.structural_walk(stmt, verify)
     return num_alloc[0]
 
 
