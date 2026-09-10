@@ -665,7 +665,7 @@ def test_vectorize_nested_predicates_preserve_both_masks():
         if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.masked_store":
             predicates.append(node.args[-1])
 
-    tvm_ffi.structural_walk(after.body, collect_predicates)
+    tvm_ffi.structural_walk(after.body, (tvm.ir.Call, collect_predicates))
     assert len(predicates) == 2
     assert any(
         isinstance(predicate, tvm.ir.Call) and predicate.op.name == "ir.prim.bitwise_and"

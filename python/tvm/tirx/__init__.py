@@ -95,14 +95,9 @@ from .op import ignore_loop_partition
 # TIRX-specific imports (must come before subpackage imports to avoid circular imports)
 from .exec_scope import ExecScope, ScopeIdDef
 from .layout import TileLayout, Layout, ComposeLayout
-from .expr_functor import ExprFunctor
-
 from . import transform
 from . import analysis
 from . import backend
-from . import stmt_functor
-
-from .functor import PyStmtExprVisitor, PyStmtExprMutator
 
 # Compiler-only submodules. Skip under `TVM_USE_RUNTIME_LIB=1` since they
 # perform compiler-side FFI at module load (schema engine looks up

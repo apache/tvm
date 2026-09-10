@@ -149,16 +149,15 @@ def test_bf16_masked_load_store_will_legalize():
 
     def collect(mod):
         nodes = []
-        seen = []
 
-        def append_once(node):
-            if isinstance(node, tvm_ffi.Object) and not any(
-                node.same_as(previous) for previous in seen
-            ):
-                seen.append(node)
+        def collect_once(node):
+            if not any(node.same_as(existing) for existing in nodes):
                 nodes.append(node)
 
-        tvm_ffi.structural_walk(mod["main"].body, append_once)
+        tvm_ffi.structural_walk(
+            mod["main"].body,
+            ((tvm.tirx.DeclBuffer, tvm.tirx.AllocBuffer, tvm.ir.Call), collect_once),
+        )
         buffers = {
             node.buffer.name: str(node.buffer.dtype)
             for node in nodes

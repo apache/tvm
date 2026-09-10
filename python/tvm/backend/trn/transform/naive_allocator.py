@@ -17,10 +17,10 @@
 
 import functools
 
+import tvm_ffi
+
 from tvm.tirx import AllocBuffer, IntImm
 from tvm.tirx.buffer import Buffer
-from tvm.tirx.stmt_functor import StmtVisitor
-from tvm.tirx.transform.common import BufferReplacer
 from tvm.tirx.transform.function_pass import prim_func_pass
 
 
@@ -50,53 +50,51 @@ def get_buffer_size(buffer: Buffer) -> int:
     return int(num_elem * buffer.ty.dtype.dtype.itemsize)
 
 
-class AllocInfoCollector(StmtVisitor):
-    def __init__(self):
-        super().__init__()
-        self.alloc_pool_start = 0
+def _get_alloc_pool_start(stmt) -> int:
+    alloc_pool_start = 0
 
-    def visit_alloc_buffer_(self, op: AllocBuffer):
-        super().visit_alloc_buffer_(op)
+    def collect_alloc_buffer(op: AllocBuffer):
+        nonlocal alloc_pool_start
         buffer = op.buffer
         if len(buffer.ty.allocated_addr) == 0:
-            return op
+            return
         buffer_size = get_buffer_size(buffer)
         if buffer_size is None:
-            return op
-        self.alloc_pool_start = max(
-            self.alloc_pool_start, buffer.ty.allocated_addr[-1] + buffer_size
-        )
+            return
+        alloc_pool_start = max(alloc_pool_start, buffer.ty.allocated_addr[-1] + buffer_size)
+
+    tvm_ffi.structural_walk(stmt, (AllocBuffer, collect_alloc_buffer), order="post")
+    return alloc_pool_start
 
 
-class AllocMutator(BufferReplacer):
-    def __init__(self, alloc_pool_start: int):
-        super().__init__()
-        self.alloc_offset = alloc_pool_start
+def _allocate_missing_buffers(stmt, alloc_pool_start: int):
+    alloc_offset = alloc_pool_start
+    buffer_map = {}
 
-    def visit_alloc_buffer_(self, op: AllocBuffer):
-        changed = False
+    def allocate_buffer(op: AllocBuffer):
+        nonlocal alloc_offset
         buffer = op.buffer
         buffer_size = get_buffer_size(buffer)
-        if len(buffer.ty.allocated_addr) > 0 or buffer_size is None:
-            pass
-        else:
-            new_buffer = buffer.with_allocated_addr([self.alloc_offset])
-            self.buffer_map[buffer] = new_buffer
-            self.var_map[buffer] = new_buffer
-            changed = True
-            self.alloc_offset += buffer_size
-
-        op = super().visit_alloc_buffer_(op)
-        if changed:
+        if len(buffer.ty.allocated_addr) == 0 and buffer_size is not None:
+            new_buffer = buffer.with_allocated_addr([alloc_offset])
+            buffer_map[buffer] = new_buffer
+            alloc_offset += buffer_size
             return AllocBuffer(new_buffer, op.annotations, op.span)
         return op
+
+    def replace_buffer(op):
+        return buffer_map.get(op, op)
+
+    return tvm_ffi.structural_map(
+        stmt,
+        [(AllocBuffer, allocate_buffer), (Buffer, replace_buffer)],
+        order="pre",
+    )
 
 
 @prim_func_pass(opt_level=0, name="TrnNaiveAllocator")
 class TrnNaiveAllocator:
     def transform_function(self, func, mod, ctx):
-        collector = AllocInfoCollector()
-        collector(func.body)
-        mutator = AllocMutator(collector.alloc_pool_start)
-        new_body = mutator(func.body)
+        alloc_pool_start = _get_alloc_pool_start(func.body)
+        new_body = _allocate_missing_buffers(func.body, alloc_pool_start)
         return func.with_body(new_body)

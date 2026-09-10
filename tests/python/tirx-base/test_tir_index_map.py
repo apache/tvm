@@ -24,7 +24,7 @@ import tvm.testing
 from tvm.ir import assert_structural_equal
 from tvm.runtime import const
 from tvm.script import tirx as T
-from tvm.tirx import IndexMap, IntImm, floordiv, floormod, stmt_functor
+from tvm.tirx import IndexMap, IntImm, Var, floordiv, floormod
 
 
 def assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
@@ -265,13 +265,23 @@ def test_non_surjective_inverse_accepts_external_analyzer():
 
     assert_structural_equal(mapped, [T.int32(31)])
 
-    padding_at_last_element = stmt_functor.substitute(
+    last_element_map = {
+        inverse.initial_indices[0]: T.int32(1),
+        inverse.initial_indices[1]: T.int32(15),
+    }
+    padding_at_last_element = tvm_ffi.structural_map(
         padding_predicate,
-        {inverse.initial_indices[0]: T.int32(1), inverse.initial_indices[1]: T.int32(15)},
+        (Var, lambda var: last_element_map.get(var, var)),
+        order="post",
     )
-    padding_at_first_element = stmt_functor.substitute(
+    first_element_map = {
+        inverse.initial_indices[0]: T.int32(0),
+        inverse.initial_indices[1]: T.int32(0),
+    }
+    padding_at_first_element = tvm_ffi.structural_map(
         padding_predicate,
-        {inverse.initial_indices[0]: T.int32(0), inverse.initial_indices[1]: T.int32(0)},
+        (Var, lambda var: first_element_map.get(var, var)),
+        order="post",
     )
     assert_structural_equal(analyzer.simplify(padding_at_last_element), T.bool(True))
     assert_structural_equal(analyzer.simplify(padding_at_first_element), T.bool(False))
