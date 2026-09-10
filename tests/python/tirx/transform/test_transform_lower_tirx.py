@@ -16,6 +16,7 @@
 # under the License.
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -55,7 +56,7 @@ def _launch_thread_extents(func):
         if isinstance(node, tvm.tirx.AttrStmt) and node.attr_key == "thread_extent":
             extents[str(node.node.thread_tag)] = int(node.value)
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, collect)
+    tvm_ffi.structural_walk(func.body, collect)
     return extents
 
 

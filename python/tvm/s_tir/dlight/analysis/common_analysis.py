@@ -23,7 +23,7 @@ import logging
 from collections import namedtuple
 from typing import Literal
 
-from tvm_ffi import get_global_func
+from tvm_ffi import get_global_func, structural_walk
 
 from tvm import ir, s_tir, tirx
 from tvm.s_tir import Schedule
@@ -423,7 +423,7 @@ def collect_vars_used_in_prim_expr(expr: tirx.Expr) -> set[tirx.Var]:
         if ir.is_prim_var(expr):
             tir_vars.add(expr)
 
-    tirx.stmt_functor.post_order_visit(expr, _collect_tir_var)
+    structural_walk(expr, (tirx.Var, _collect_tir_var))
     return tir_vars
 
 

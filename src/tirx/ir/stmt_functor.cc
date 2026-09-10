@@ -949,17 +949,9 @@ PrimExpr SubstituteWithDataTypeLegalization(
       .as_or_throw<PrimExpr>();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("tirx.PostOrderVisit",
-           [](ffi::ObjectRef node, ffi::Function f) {
-             tirx::PostOrderVisit(node, [f](const ffi::ObjectRef& n) { f(n); });
-           })
-      .def("tirx.PreOrderVisit",
-           [](ffi::ObjectRef node, ffi::Function f) {
-             tirx::PreOrderVisit(node, [f](const ffi::ObjectRef& n) { return f(n).cast<bool>(); });
-           })
+  TVM_FFI_STATIC_INIT_BLOCK() {
+    namespace refl = tvm::ffi::reflection;
+    refl::GlobalDef()
       .def("tirx.Substitute", [](ffi::ObjectRef node, ffi::Map<Var, Expr> vmap) -> ffi::ObjectRef {
         if (node->IsInstance<StmtNode>()) {
           return Substitute(node.as_or_throw<Stmt>(), vmap);

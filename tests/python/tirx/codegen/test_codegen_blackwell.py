@@ -17,6 +17,7 @@
 # pylint: disable=missing-function-docstring
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -53,7 +54,7 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
         if isinstance(node, tvm.ir.Call) and node.op.name == arrive_op_name:
             arrive_calls.append(node)
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, visit)
+    tvm_ffi.structural_walk(func.body, visit)
     assert len(bindings) == 1
     assert len(buffers) == 1
     assert len(mapa_calls) == 1
@@ -201,7 +202,7 @@ def test_mbarrier_local_arrive_forwards_predicate_and_count():
         if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.ptx.mbarrier_arrive":
             arrive_calls.append(node)
 
-    tvm.tirx.stmt_functor.post_order_visit(test_local_arrive.body, visit)
+    tvm_ffi.structural_walk(test_local_arrive.body, visit)
     assert len(arrive_calls) == 1
     call = arrive_calls[0]
     assert call.args[1].value == 2

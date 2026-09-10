@@ -980,36 +980,6 @@ class StmtExprMutator(StmtMutator, ExprMutator):
         return ExprMutator.visit_expr(self, expr)
 
 
-def post_order_visit(node, fvisit):
-    """Recursively visit a statement or expression in post DFS order, applying fvisit.
-       Each node is guaranteed to be visited only once.
-
-    Parameters
-    ----------
-    node : tvm.tirx.Stmt or tvm.ir.Expr
-        The statement or expression to visit.
-
-    fvisit: function
-        The visitor function.
-    """
-    return _ffi_api.PostOrderVisit(node, fvisit)  # type: ignore
-
-
-def pre_order_visit(node, fvisit):
-    """Recursively visit a statement or expression in pre-order, applying fvisit.
-       If fvisit returns False, it won't visit the children of the node.
-
-    Parameters
-    ----------
-    node : tvm.tirx.Stmt or tvm.ir.Expr
-        The statement or expression to visit.
-
-    fvisit: function of the signature Object -> bool
-        The visitor function.
-    """
-    return _ffi_api.PreOrderVisit(node, fvisit)  # type: ignore
-
-
 def substitute(node, vmap):
     """Substitute the var specified by vmap.
 

@@ -17,6 +17,7 @@
 """Tests for ``T.ptx.addr(base, byte_offset)``."""
 
 import pytest
+import tvm_ffi
 
 import tvm
 from tvm.ir import Call, Op
@@ -40,7 +41,7 @@ def _calls(func, op_name):
         if isinstance(node, Call) and getattr(node.op, "name", None) == op_name:
             calls.append(node)
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, visit)
+    tvm_ffi.structural_walk(func.body, visit)
     return calls
 
 

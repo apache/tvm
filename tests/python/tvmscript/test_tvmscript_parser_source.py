@@ -21,6 +21,7 @@ import inspect
 
 import pytest
 import tvm_ffi
+from tvm_ffi import structural_walk as post_order_visit
 
 import tvm
 import tvm.testing
@@ -30,7 +31,6 @@ from tvm.script.parser.core import doc_core as doc
 from tvm.script.parser.core.diagnostics import Source
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.stmt import TilePrimitiveCall
-from tvm.tirx.stmt_functor import post_order_visit
 
 
 def _tirx_source(func):

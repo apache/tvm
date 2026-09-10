@@ -18,6 +18,7 @@
 # ruff: noqa: F401, F841
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -49,7 +50,6 @@ from tvm.tirx import (
 )
 from tvm.tirx.analysis import expr_deep_equal
 from tvm.tirx.function import TensorIntrin
-from tvm.tirx.stmt_functor import pre_order_visit
 
 
 def _make_vars(*args: str) -> list[Var]:
@@ -227,9 +227,9 @@ def collect_loops(prim_func):
     def callback(node):
         if isinstance(node, tvm.tirx.For):
             loops.append(node)
-        return True
+        return tvm_ffi.WalkResult.ADVANCE
 
-    pre_order_visit(prim_func.body, callback)
+    tvm_ffi.structural_walk(prim_func.body, (object, callback), order="pre")
 
     return loops
 

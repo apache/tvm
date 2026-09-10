@@ -16,6 +16,7 @@
 # under the License.
 # ruff: noqa: F841
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -664,7 +665,7 @@ def test_vectorize_nested_predicates_preserve_both_masks():
         if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.masked_store":
             predicates.append(node.args[-1])
 
-    tvm.tirx.stmt_functor.post_order_visit(after.body, collect_predicates)
+    tvm_ffi.structural_walk(after.body, collect_predicates)
     assert len(predicates) == 2
     assert any(
         isinstance(predicate, tvm.ir.Call) and predicate.op.name == "ir.prim.bitwise_and"

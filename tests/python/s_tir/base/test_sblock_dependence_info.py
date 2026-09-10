@@ -20,6 +20,7 @@ import gc
 import sys
 
 import pytest
+from tvm_ffi import structural_walk as post_order_visit
 
 import tvm
 import tvm.testing
@@ -29,7 +30,6 @@ from tvm.s_tir import SBlockDependenceInfo
 from tvm.s_tir.sblock_scope import DepKind
 from tvm.script import tirx as T
 from tvm.tirx import PrimFunc
-from tvm.tirx.stmt_functor import post_order_visit
 
 # pylint: disable=no-member,invalid-name,unused-variable
 

@@ -16,6 +16,8 @@
 # under the License.
 """Tests for T.hint() — universal directive primitive for TIRx sketch language."""
 
+import tvm_ffi
+
 import tvm
 import tvm.script
 import tvm.testing
@@ -50,7 +52,7 @@ def test_hint_statement():
             assert str(stmt.node["message"]) == "persistent tile scheduler with L2 swizzle"
             found[0] = True
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, visit)
+    tvm_ffi.structural_walk(func.body, visit)
     assert found[0], "Expected AttrStmt with attr_key='tirx_hint' not found"
 
 
@@ -74,7 +76,7 @@ def test_hint_context_manager():
             assert str(stmt.node["message"]) == "software pipeline, depth 4"
             found[0] = True
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, visit)
+    tvm_ffi.structural_walk(func.body, visit)
     assert found[0], "Expected AttrStmt with attr_key='tirx_hint' not found"
 
 
@@ -100,7 +102,7 @@ def test_hint_with_attrs():
             assert str(stmt.node["depth"]) == "4"
             found[0] = True
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, visit)
+    tvm_ffi.structural_walk(func.body, visit)
     assert found[0], "Expected AttrStmt with attr_key='tirx_hint' not found"
 
 
@@ -220,7 +222,7 @@ def test_hint_no_message():
             assert isinstance(stmt.node["access"], BufferRegion)
             found[0] = True
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, visit)
+    tvm_ffi.structural_walk(func.body, visit)
     assert found[0], "Expected AttrStmt with attr_key='tirx_hint' containing access not found"
 
 
@@ -251,7 +253,7 @@ def test_hint_access_buffer_region():
             assert len(br.region) == 2
             found[0] = True
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, visit)
+    tvm_ffi.structural_walk(func.body, visit)
     assert found[0], "Expected AttrStmt with structured BufferRegion access not found"
 
 

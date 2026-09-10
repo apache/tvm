@@ -19,13 +19,13 @@
 import sys
 
 import pytest
+from tvm_ffi import structural_walk as post_order_visit
 
 import tvm
 import tvm.testing
 from tvm import s_tir, tirx
 from tvm.s_tir.schedule.state import CachedFlags
 from tvm.script import tirx as T
-from tvm.tirx.stmt_functor import post_order_visit
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 # fmt: off

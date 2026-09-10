@@ -16,6 +16,7 @@
 # under the License.
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -362,7 +363,7 @@ def test_buffer_used_only_through_data_projection():
         if isinstance(node, tvm.tirx.DeclBuffer):
             declared_buffers.append(node.buffer)
 
-    tvm.tirx.stmt_functor.post_order_visit(kernel.body, collect)
+    tvm_ffi.structural_walk(kernel.body, collect)
     assert len(declared_buffers) == 1
     assert not tvm.tirx.analysis.undefined_vars(kernel.body, kernel.params)
 
