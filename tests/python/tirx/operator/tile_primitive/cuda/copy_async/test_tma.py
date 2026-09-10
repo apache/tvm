@@ -22,6 +22,7 @@ from operator import mul
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -55,7 +56,6 @@ from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
 from tvm.tirx.operator.tile_primitive.ops import CopyAsync
 from tvm.tirx.stmt import BufferRegion
-from tvm.tirx.stmt_functor import StmtExprVisitor
 from tvm.tirx.tile_primitive import DispatchContext
 
 _TMA_OPS = {
@@ -91,34 +91,38 @@ def _unwrap_shared_addr(value):
     return value
 
 
-class _TMACounter(StmtExprVisitor):
+class _TMACounter:
     def __init__(self):
-        super().__init__()
         self.loop_extents = []
         self.total = 0
         self.calls = []
         self.weighted_calls = []
 
-    def visit_for_(self, op):
+    def _visit_for(self, op, visitor):
         self.loop_extents.append(op.extent)
-        self.visit_stmt(op.body)
+        visitor.default_visit(op)
         self.loop_extents.pop()
 
-    def visit_evaluate_(self, op):
+    def _visit_evaluate(self, op, visitor):
         if isinstance(op.value, tvm.ir.Call) and op.value.op.name in _TMA_OPS:
             multiplier = reduce(mul, (int(extent) for extent in self.loop_extents), 1)
             self.total += multiplier
             self.calls.append(op.value)
             self.weighted_calls.append((op.value, multiplier))
-        super().visit_evaluate_(op)
+        visitor.default_visit(op)
+
+    def visit_stmt(self, stmt):
+        tvm_ffi.structural_visit(
+            stmt,
+            [(tvm.tirx.For, self._visit_for), (tvm.tirx.Evaluate, self._visit_evaluate)],
+        )
 
 
-class _EncodeCollector(StmtExprVisitor):
+class _EncodeCollector:
     def __init__(self):
-        super().__init__()
         self.calls = []
 
-    def visit_call_(self, op):
+    def _visit_call(self, op):
         if (
             isinstance(op.op, tvm.ir.Op)
             and op.op.name == "tirx.tvm_call_packed"
@@ -126,25 +130,27 @@ class _EncodeCollector(StmtExprVisitor):
             and op.args[0].value == "runtime.cuTensorMapEncodeTiled"
         ):
             self.calls.append(op)
-        super().visit_call_(op)
+
+    def visit_stmt(self, stmt):
+        tvm_ffi.structural_walk(stmt, (tvm.ir.Call, self._visit_call), order="post")
 
 
-class _SelectCollector(StmtExprVisitor):
+class _SelectCollector:
     def __init__(self):
-        super().__init__()
         self.nodes = []
 
-    def visit_select_(self, op):
+    def _visit_select(self, op):
         self.nodes.append(op)
-        super().visit_select_(op)
+
+    def visit_stmt(self, stmt):
+        tvm_ffi.structural_walk(stmt, (tvm.tirx.Select, self._visit_select), order="post")
 
 
-class _PrefetchCollector(StmtExprVisitor):
+class _PrefetchCollector:
     def __init__(self):
-        super().__init__()
         self.names = []
 
-    def visit_call_(self, op):
+    def _visit_call(self, op):
         if isinstance(op.op, tvm.ir.Op) and op.op.name == "tirx.ptx.prefetch":
             addr = op.args[0]
             # A tensormap address arrives as a u64 handle, so the dialect
@@ -157,7 +163,9 @@ class _PrefetchCollector(StmtExprVisitor):
                 and isinstance(addr.args[0], Var)
             ):
                 self.names.append(addr.args[0].name)
-        super().visit_call_(op)
+
+    def visit_stmt(self, stmt):
+        tvm_ffi.structural_walk(stmt, (tvm.ir.Call, self._visit_call), order="post")
 
 
 def _plain_layout(shape, strides=None):

@@ -138,7 +138,11 @@ def test_return_stmt_functor_traversal_and_mutation():
     assert any(node.same_as(x) for node in visited)
     assert any(isinstance(node, tirx.Return) for node in visited)
 
-    rewritten = tirx.stmt_functor.substitute(stmt, {x: tirx.IntImm("int32", 4)})
+    rewritten = tvm_ffi.structural_map(
+        stmt,
+        (tirx.Var, lambda var: tirx.IntImm("int32", 4) if var.same_as(x) else var),
+        order="post",
+    )
     expected = tirx.Return(tirx.Add(tirx.IntImm("int32", 4), tirx.IntImm("int32", 1)), span)
     tvm.ir.assert_structural_equal(rewritten, expected)
     assert rewritten.span.same_as(span)

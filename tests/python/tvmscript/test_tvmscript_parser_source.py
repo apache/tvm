@@ -21,7 +21,7 @@ import inspect
 
 import pytest
 import tvm_ffi
-from tvm_ffi import structural_walk as post_order_visit
+from tvm_ffi import structural_walk
 
 import tvm
 import tvm.testing
@@ -112,7 +112,7 @@ def _span_range(span):
 
 def _find_ir_node(func, predicate):
     nodes = []
-    post_order_visit(func.body, nodes.append)
+    structural_walk(func.body, nodes.append, order="post")
     matches = [node for node in nodes if predicate(node)]
     assert len(matches) == 1
     return matches[0]

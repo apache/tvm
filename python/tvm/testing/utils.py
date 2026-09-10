@@ -81,6 +81,7 @@ from pathlib import Path
 import ml_dtypes
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.arith
@@ -93,6 +94,15 @@ from tvm.support import nvcc
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
 IS_IN_CI = os.getenv("CI", "") == "true"
 _REQUEST_HOOK_INITIALIZERS = {}
+
+
+def _substitute_tir_vars(value, var_map):
+    return tvm_ffi.structural_map(
+        value,
+        (tvm.ir.Var, lambda var: var_map.get(var, var)),
+        order="post",
+    )
+
 
 skip_if_wheel_test = pytest.mark.skipif(
     os.getenv("WHEEL_TEST", "").lower() in {"true", "1", "yes"},
@@ -306,7 +316,7 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
 
         def _compute_body(*us):
             vmap = {v: u + r.min for (v, r), u in zip(vranges.items(), us)}
-            return tvm.tirx.stmt_functor.substitute(expr, vmap)
+            return _substitute_tir_vars(expr, vmap)
 
         A = tvm.te.compute([r.extent.value for v, r in vranges.items()], _compute_body)
         args = [tvm.runtime.empty(A.shape, A.dtype)]
@@ -350,10 +360,10 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
         for v in constraints1.variables:
             if v in varmap:
                 # variable mapping is consistent
-                v_back = ana.simplify(tvm.tirx.stmt_functor.substitute(varmap[v], backvarmap))
+                v_back = ana.simplify(_substitute_tir_vars(varmap[v], backvarmap))
                 cond_on_vars = tvm.te.all(cond_on_vars, v == v_back)
         # Also we have to check that the new relations are true when old relations are true
-        cond_subst = tvm.tirx.stmt_functor.substitute(
+        cond_subst = _substitute_tir_vars(
             tvm.te.all(tvm.tirx.const(1, "bool"), *constraints2.relations), backvarmap
         )
         # We have to include relations from vranges too
@@ -361,7 +371,7 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
             if v in constraints2.ranges:
                 r = constraints2.ranges[v]
                 range_cond = tvm.te.all(v >= r.min, v < r.min + r.extent)
-                range_cond = tvm.tirx.stmt_functor.substitute(range_cond, backvarmap)
+                range_cond = _substitute_tir_vars(range_cond, backvarmap)
                 cond_subst = tvm.te.all(cond_subst, range_cond)
         cond_subst = ana.simplify(cond_subst)
         check_bool_expr_is_true(

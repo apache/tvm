@@ -18,7 +18,7 @@
 # ruff: noqa: F401, F841
 
 import pytest
-import tvm_ffi
+from tvm_ffi import structural_walk
 
 import tvm
 import tvm.testing
@@ -223,13 +223,7 @@ class Conv2dNCHWcTIRModule:
 
 def collect_loops(prim_func):
     loops = []
-
-    def callback(node):
-        if isinstance(node, tvm.tirx.For):
-            loops.append(node)
-        return tvm_ffi.WalkResult.ADVANCE
-
-    tvm_ffi.structural_walk(prim_func.body, (object, callback), order="pre")
+    structural_walk(prim_func.body, (tvm.tirx.For, loops.append), order="pre")
 
     return loops
 

@@ -19,7 +19,7 @@
 
 import tvm_ffi
 
-from tvm import arith, ir, s_tir, tirx
+from tvm import arith, s_tir, tirx
 from tvm.target import Target
 
 from ..analysis import get_root_block, normalize_prim_func
@@ -161,16 +161,20 @@ class GeneralReduction(GPUScheduleRule):
             for block_iter, loop_rv in zip(spatial_block.iter_vars, loops):
                 block_var_to_loop_var[block_iter.var] = sch.get(loop_rv).loop_var
 
-            def _visit_expr(e: tirx.Expr):
-                if ir.is_prim_var(e) and e in block_var_to_loop_var:
+            def _visit_expr(e: tirx.Var):
+                if e in block_var_to_loop_var:
                     spatial_loops.add(block_var_to_loop_var[e])
 
             for buffer_read in spatial_block.reads:
                 buffer = buffer_read.buffer
                 if buffer in reduced_buffers:
                     for read_range in buffer_read.region:
-                        tvm_ffi.structural_walk(read_range.min, (tirx.Var, _visit_expr))
-                        tvm_ffi.structural_walk(read_range.extent, (tirx.Var, _visit_expr))
+                        tvm_ffi.structural_walk(
+                            read_range.min, (tirx.Var, _visit_expr), order="post"
+                        )
+                        tvm_ffi.structural_walk(
+                            read_range.extent, (tirx.Var, _visit_expr), order="post"
+                        )
 
             s_loops = []
             other_loops = []

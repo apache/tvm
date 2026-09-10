@@ -27,6 +27,6 @@ here so the same objects are not expanded twice.
    :members:
    :imported-members:
    :exclude-members: Call, CommReducer, ComposeLayout, DispatchContext,
-      ExecScope, Expr, ExprFunctor, Layout, Op, PrimExpr, PyStmtExprMutator,
-      PyStmtExprVisitor, Reduce, ScopeIdDef, TileLayout, Var, build, const,
+      ExecScope, Expr, Layout, Op, PrimExpr, Reduce, ScopeIdDef,
+      TileLayout, Var, build, const,
       get_default_tir_pipeline, get_tir_pipeline, register_tir_pipeline
