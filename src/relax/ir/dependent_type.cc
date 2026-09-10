@@ -47,6 +47,7 @@ TVMFFIAny AnyTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) no
 }
 
 TVMFFIAny ShapeTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
   const ShapeTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ShapeTypeNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->values));
@@ -54,6 +55,7 @@ TVMFFIAny ShapeTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value)
 }
 
 TVMFFIAny ShapeTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
   const ShapeTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ShapeTypeNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<ffi::Array<PrimExpr>>>,
@@ -66,6 +68,7 @@ TVMFFIAny ShapeTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value
 
 TVMFFIAny ShapeTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
                                       ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
   ShapeTypeNode* self = const_cast<ShapeTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ShapeTypeNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<ffi::Array<PrimExpr>>>,
@@ -78,6 +81,7 @@ TVMFFIAny ShapeTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
 }
 
 TVMFFIAny TensorTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
   const TensorTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorTypeNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->shape));
@@ -87,6 +91,7 @@ TVMFFIAny TensorTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value
 }
 
 TVMFFIAny TensorTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
   const TensorTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorTypeNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Expr>>, mapped_shape,
@@ -108,6 +113,7 @@ TVMFFIAny TensorTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView valu
 
 TVMFFIAny TensorTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
                                        ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
   TensorTypeNode* self = const_cast<TensorTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorTypeNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Expr>>, mapped_shape,
@@ -129,6 +135,7 @@ TVMFFIAny TensorTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
 }
 
 TVMFFIAny FuncTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  // skips: derive_func (environment-backed callable metadata), purity (scalar)
   const FuncTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
@@ -138,6 +145,7 @@ TVMFFIAny FuncTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) 
 }
 
 TVMFFIAny FuncTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  // skips: derive_func (environment-backed callable metadata), purity (scalar)
   const FuncTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
@@ -157,6 +165,7 @@ TVMFFIAny FuncTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value)
 
 TVMFFIAny FuncTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
                                      ffi::AnyView value) noexcept {
+  // skips: derive_func (environment-backed callable metadata), purity (scalar)
   FuncTypeNode* self = const_cast<FuncTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
@@ -197,29 +206,29 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TensorTypeVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TensorTypeMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&TensorTypeMaybeInplaceMutate));
+            reinterpret_cast<void*>(&TensorTypeMaybeInplaceMutate))
+      .def("__subscript_expr_realize__",
+           [](Expr value,
+              ffi::Array<ffi::Variant<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
+                                                 ffi::Optional<PrimExpr>>,
+                                      PrimExpr>>
+                  slice,
+              Span span) -> ffi::ObjectRef {
+             TVM_FFI_CHECK_EQ(slice.size(), 1, IndexError)
+                 << "A Relax expression requires exactly one index";
+             auto index = slice[0].as<PrimExpr>();
+             TVM_FFI_CHECK(index.has_value(), TypeError)
+                 << "A Relax expression requires a point index";
+             const auto* imm = index.value().as<IntImmNode>();
+             TVM_FFI_CHECK(imm != nullptr, TypeError)
+                 << "A Relax expression requires a constant integer index";
+             return TupleGetItem(value, static_cast<int>(imm->value), span);
+           });
   refl::TypeAttrDef<FuncTypeNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&FuncTypeVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&FuncTypeMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&FuncTypeMaybeInplaceMutate));
-  refl::TypeAttrDef<TensorTypeNode>().def(
-      "__subscript_expr_realize__",
-      [](Expr value,
-         ffi::Array<ffi::Variant<
-             ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
-             PrimExpr>>
-             slice,
-         Span span) -> ffi::ObjectRef {
-        TVM_FFI_CHECK_EQ(slice.size(), 1, IndexError)
-            << "A Relax expression requires exactly one index";
-        auto index = slice[0].as<PrimExpr>();
-        TVM_FFI_CHECK(index.has_value(), TypeError) << "A Relax expression requires a point index";
-        const auto* imm = index.value().as<IntImmNode>();
-        TVM_FFI_CHECK(imm != nullptr, TypeError)
-            << "A Relax expression requires a constant integer index";
-        return TupleGetItem(value, static_cast<int>(imm->value), span);
-      });
 }
 
 AnyType::AnyType(Span span) : Type(ffi::UnsafeInit{}) {

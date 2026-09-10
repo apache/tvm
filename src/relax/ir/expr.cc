@@ -31,6 +31,9 @@ namespace relax {
 
 namespace {
 
+// Traverses only ExprNode::ty.  The per-node payload is an intentional constant leaf:
+// ConstantNode::data is tensor data; StringImmNode::value and DataTypeImmNode::value are scalars;
+// ExternFuncNode::global_symbol is scalar and BaseFuncNode::attrs is metadata.
 template <typename TNode>
 TVMFFIAny TypeOnlyExprVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const TNode* self =
@@ -103,6 +106,8 @@ TVMFFIAny ShapeExprMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
+// Hooks do not inherit, so DataflowVar must mirror the base VarNode remap, PrimType-skip, and
+// Simple-to-None definition-region protocol.  Keep this hook triple in lockstep with VarNode.
 TVMFFIAny DataflowVarVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const DataflowVarNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DataflowVarNode>(value);
@@ -305,7 +310,10 @@ TVMFFIAny IfMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView 
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
+// Parameters precede the reflected ty field in this hook triple so their pattern region establishes
+// the remap before the derived function type can refer to those symbolic definitions.
 TVMFFIAny FunctionVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  // skips: attrs (metadata), is_pure (scalar)
   const FunctionNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FunctionNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
@@ -317,6 +325,7 @@ TVMFFIAny FunctionVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) 
 }
 
 TVMFFIAny FunctionMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  // skips: attrs (metadata), is_pure (scalar)
   const FunctionNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FunctionNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Var>>, mapped_params,
@@ -343,6 +352,7 @@ TVMFFIAny FunctionMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value)
 
 TVMFFIAny FunctionMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
                                      ffi::AnyView value) noexcept {
+  // skips: attrs (metadata), is_pure (scalar)
   FunctionNode* self = const_cast<FunctionNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FunctionNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(

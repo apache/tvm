@@ -83,6 +83,25 @@ TEST(RelaxExprStructuralHooks, OpHookPreservesIdentityWithoutDescendingIntoMetad
   EXPECT_EQ(metadata_callbacks, 0);
 }
 
+TEST(RelaxExprStructuralHooks, GlobalVarCallbackReplacementIsMemoized) {
+  using namespace tvm;
+  GlobalVar symbol("f");
+  Expr input = Tuple({symbol, symbol});
+  int callbacks = 0;
+  auto replace_symbol = [&](const GlobalVar&) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    ++callbacks;
+    return ffi::Any(GlobalVar("g"));
+  };
+
+  Expr mapped = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(input, replace_symbol).cast<Expr>();
+  const auto* tuple = mapped.as<TupleNode>();
+  ASSERT_NE(tuple, nullptr);
+  ASSERT_EQ(tuple->fields.size(), 2U);
+  EXPECT_EQ(callbacks, 1);
+  EXPECT_TRUE(tuple->fields[0].same_as(tuple->fields[1]));
+  EXPECT_FALSE(tuple->fields[0].same_as(symbol));
+}
+
 TEST(RelaxExprStructuralHooks, PrimFuncDescendsIntoBody) {
   using namespace tvm;
   tirx::PrimFunc input({}, tirx::Evaluate(IntImm(PrimType::Int(32), 1)));

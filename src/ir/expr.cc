@@ -278,6 +278,8 @@ TVMFFIAny RangeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyVi
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
+// DataflowVarNode duplicates this protocol because structural hooks do not inherit.  Keep the two
+// hook triples in lockstep when changing remap, PrimType-skip, or definition-region behavior.
 TVMFFIAny VarVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   // skips: name
   const VarNode* self =
@@ -384,6 +386,8 @@ TVMFFIAny VarMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView
 TVMFFIAny GlobalVarVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
   // GlobalVar is a module-level symbol.  name_hint is scalar identity and ty is derived from the
   // referenced function, matching GlobalVarNode's custom structural equality/hash definition.
+  // StructuralMap's callback layer memoizes FreeVar results before and after this hook, so repeated
+  // occurrences reuse one replacement without a definition-site VarRemap operation here.
   return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
 
