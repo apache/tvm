@@ -46,16 +46,17 @@ Var WithStorageScope(const VarNode* buffer_var, ffi::String storage_scope) {
 }
 
 UpdatePointerStorageScope::UpdatePointerStorageScope(
-    const std::unordered_map<const VarNode*, ffi::String>& new_storage_scopes) {
+    const std::unordered_map<Var, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>&
+        new_storage_scopes) {
   for (auto& kv : new_storage_scopes) {
     if (kv.first->ty.as<BufferTypeNode>()) {
-      BufferVar buffer = GetBufferVar(kv.first);
+      BufferVar buffer = GetBufferVar(kv.first.get());
       auto type = CopyBufferType(buffer);
       type->storage_scope = kv.second;
       BufferVar replacement = RebuildBufferVar(buffer, std::move(type));
-      new_var_remap_[kv.first] = replacement.var();
+      new_var_remap_[kv.first.get()] = replacement.var();
     } else {
-      new_var_remap_[kv.first] = WithStorageScope(kv.first, kv.second);
+      new_var_remap_[kv.first.get()] = WithStorageScope(kv.first.get(), kv.second);
     }
   }
 }

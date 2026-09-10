@@ -36,7 +36,8 @@ namespace tirx {
 class UpdatePointerStorageScope : public StmtExprMutator {
  public:
   explicit UpdatePointerStorageScope(
-      const std::unordered_map<const VarNode*, ffi::String>& new_storage_scopes);
+      const std::unordered_map<Var, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>&
+          new_storage_scopes);
 
   virtual Expr VisitExpr_(const VarNode*);
   virtual Expr VisitExpr_(const TensorLoadNode*);
