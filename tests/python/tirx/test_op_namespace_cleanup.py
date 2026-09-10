@@ -21,6 +21,7 @@ import sys
 import types
 
 import pytest
+import tvm_ffi
 
 import tvm
 from tvm.ir import Op, assert_structural_equal
@@ -36,7 +37,7 @@ def _tile_calls(func):
         if isinstance(stmt, TilePrimitiveCall):
             calls.append(stmt)
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, visit)
+    tvm_ffi.structural_walk(func.body, visit)
     return calls
 
 
@@ -47,7 +48,7 @@ def _expr_calls(func):
         if isinstance(node, tvm.ir.Call):
             calls.append(node)
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, visit)
+    tvm_ffi.structural_walk(func.body, visit)
     return calls
 
 

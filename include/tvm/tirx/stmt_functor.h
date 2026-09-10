@@ -367,15 +367,6 @@ class TVM_DLL StmtExprMutator : public ExprMutator, public StmtMutator {
 };
 
 /*!
- * \brief Recursively visit a statement or expression in post DFS order, applying fvisit.
- * Each node is guaranteed to be visited only once.
- * \param node The statement or expression to be visited.
- * \param fvisit The visitor function to be applied.
- */
-TVM_DLL void PostOrderVisit(const ffi::ObjectRef& node,
-                            std::function<void(const ffi::ObjectRef&)> fvisit);
-
-/*!
  * \brief Substitute the var specified by vmap.
  * \param stmt The source statement to be substituted
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
@@ -545,16 +536,6 @@ TVM_DLL Stmt SubstituteWithDataTypeLegalization(
  */
 TVM_DLL PrimExpr SubstituteWithDataTypeLegalization(
     PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap);
-
-/*!
- * \brief Recursively visit a statement or expression in pre DFS order, applying fvisit.
- * If fvisit returns false, it won't visit the children of the node.
- * \param stmt_or_expr The statement or expression to be visited.
- * \param fvisit The visitor function to be applied. If fvisit returns false, it won't visit the
- * children of the node
- */
-TVM_DLL void PreOrderVisit(const ffi::ObjectRef& stmt_or_expr,
-                           const std::function<bool(const ffi::ObjectRef&)>& fvisit);
 
 /*!
  * \brief Check if the statement contains the specified node type.

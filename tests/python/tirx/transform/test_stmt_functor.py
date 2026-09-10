@@ -1228,7 +1228,9 @@ def test_op_call_pointer_config_visited_and_mutated():
 
 def test_op_call_nested_config_visited_and_substituted():
     """Nested selector arrays participate in the core visitor and mutator."""
-    from tvm.tirx.stmt_functor import post_order_visit, substitute
+    from tvm_ffi import structural_walk as post_order_visit
+
+    from tvm.tirx.stmt_functor import substitute
 
     @T.prim_func
     def selector(

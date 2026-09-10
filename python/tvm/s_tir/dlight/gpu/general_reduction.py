@@ -17,6 +17,8 @@
 # pylint: disable=invalid-name
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 
+import tvm_ffi
+
 from tvm import arith, ir, s_tir, tirx
 from tvm.target import Target
 
@@ -167,8 +169,8 @@ class GeneralReduction(GPUScheduleRule):
                 buffer = buffer_read.buffer
                 if buffer in reduced_buffers:
                     for read_range in buffer_read.region:
-                        tirx.stmt_functor.post_order_visit(read_range.min, _visit_expr)
-                        tirx.stmt_functor.post_order_visit(read_range.extent, _visit_expr)
+                        tvm_ffi.structural_walk(read_range.min, (tirx.Var, _visit_expr))
+                        tvm_ffi.structural_walk(read_range.extent, (tirx.Var, _visit_expr))
 
             s_loops = []
             other_loops = []

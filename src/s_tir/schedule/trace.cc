@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <sstream>
@@ -583,11 +584,11 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
         used_rvs.insert(obj.as<ffi::Object>());
         continue;
       } else if (auto prim_expr = obj.as<PrimExpr>()) {
-        PostOrderVisit(*prim_expr, [&used_rvs](const ffi::ObjectRef& obj) -> void {
-          if (obj.as<VarNode>()) {
-            used_rvs.insert(obj.get());
-          }
-        });
+        auto walk_fn = [&used_rvs](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+          used_rvs.insert(var.get());
+          return ffi::WalkResult::Advance();
+        };
+        ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(*prim_expr, walk_fn);
       }
     }
   }

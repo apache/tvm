@@ -183,7 +183,7 @@ def gen_call_tir_inputs(
             if isinstance(e, tvm.ir.Var) and e not in tir_var_map:
                 tir_var_map[e] = tvm.ir.Var(e.name, e.ty)
 
-        tirx.stmt_functor.post_order_visit(expr, _visit_expr)
+        tvm_ffi.structural_walk(expr, (tvm.ir.Var, _visit_expr))
 
     def _convert_te_arg(te_args: Any) -> Any:
         """Helper function used to convert Relax expressions to TE tensor.

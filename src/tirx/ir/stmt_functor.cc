@@ -743,43 +743,7 @@ Stmt StmtMutator::VisitStmt_(const tirx::TilePrimitiveCallNode* op) {
   }
 }
 
-// Implementations of PostOrderVisit and Substitute
-class IRApplyVisit : public StmtExprVisitor {
- public:
-  explicit IRApplyVisit(std::function<void(const ffi::ObjectRef&)> f) : f_(f) {}
-
-  void VisitExpr(const Expr& node) final {
-    if (visited_.count(node.get()) != 0) return;
-    visited_.insert(node.get());
-    ExprVisitor::VisitExpr(node);
-    f_(node);
-  }
-
-  void VisitStmt(const Stmt& node) final {
-    if (visited_.count(node.get()) != 0) return;
-    visited_.insert(node.get());
-    StmtVisitor::VisitStmt(node);
-    f_(node);
-  }
-
-  void VisitBufferDef(const BufferVar& buffer, bool alloc_data) override {}
-  void VisitBufferUse(const BufferVar& buffer) override {}
-
- private:
-  std::function<void(const ffi::ObjectRef&)> f_;
-  std::unordered_set<const ffi::Object*> visited_;
-};
-
-void PostOrderVisit(const ffi::ObjectRef& node, std::function<void(const ffi::ObjectRef&)> fvisit) {
-  if (node.as<StmtNode>()) {
-    IRApplyVisit visitor(fvisit);
-    visitor(node.as_or_throw<Stmt>());
-  } else {
-    IRApplyVisit visitor(fvisit);
-    visitor(node.as_or_throw<Expr>());
-  }
-}
-
+// Implementations of Substitute
 class IRSubstitute : public StmtExprMutator {
  public:
   explicit IRSubstitute(std::function<ffi::Optional<Expr>(const Var&)> vmap) : vmap_(vmap) {}
@@ -854,48 +818,6 @@ Expr Substitute(Expr expr, std::function<ffi::Optional<Expr>(const Var&)> vmap) 
   return IRSubstitute(std::move(vmap))(std::move(expr));
 }
 
-void PreOrderVisit(const ffi::ObjectRef& stmt_or_expr,
-                   const std::function<bool(const ffi::ObjectRef&)>& fvisit) {
-  class PreOrderVisitor : public StmtExprVisitor {
-   public:
-    explicit PreOrderVisitor(const std::function<bool(const ffi::ObjectRef&)>& f) : f_(f) {}
-
-   private:
-    void VisitExpr(const Expr& expr) final {
-      const ExprNode* p_expr = expr.get();
-      if (visited_.count(p_expr) == 0) {
-        visited_.insert(p_expr);
-        if (f_(expr)) {
-          ExprVisitor::VisitExpr(expr);
-        }
-      }
-    }
-
-    void VisitStmt(const Stmt& stmt) final {
-      const StmtNode* p_stmt = stmt.get();
-      if (visited_.count(p_stmt) == 0) {
-        visited_.insert(p_stmt);
-        if (f_(stmt)) {
-          StmtVisitor::VisitStmt(stmt);
-        }
-      }
-    }
-
-    const std::function<bool(const ffi::ObjectRef&)>& f_;
-    std::unordered_set<const ffi::Object*> visited_;
-  };
-
-  PreOrderVisitor visitor(fvisit);
-  if (auto stmt = stmt_or_expr.as<Stmt>()) {
-    visitor(stmt.value());
-  } else if (auto expr = stmt_or_expr.as<Expr>()) {
-    visitor(expr.value());
-  } else {
-    TVM_FFI_THROW(InternalError) << "PreOrderVisit does not accept object with type: "
-                                 << stmt_or_expr->GetTypeKey();
-  }
-}
-
 class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
  public:
   explicit IRSubstituteWithDataTypeLegalization(std::function<ffi::Optional<Expr>(const Var&)> vmap)
@@ -951,22 +873,14 @@ PrimExpr SubstituteWithDataTypeLegalization(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("tirx.PostOrderVisit",
-           [](ffi::ObjectRef node, ffi::Function f) {
-             tirx::PostOrderVisit(node, [f](const ffi::ObjectRef& n) { f(n); });
-           })
-      .def("tirx.PreOrderVisit",
-           [](ffi::ObjectRef node, ffi::Function f) {
-             tirx::PreOrderVisit(node, [f](const ffi::ObjectRef& n) { return f(n).cast<bool>(); });
-           })
-      .def("tirx.Substitute", [](ffi::ObjectRef node, ffi::Map<Var, Expr> vmap) -> ffi::ObjectRef {
-        if (node->IsInstance<StmtNode>()) {
-          return Substitute(node.as_or_throw<Stmt>(), vmap);
-        } else {
-          return Substitute(node.as_or_throw<Expr>(), vmap);
-        }
-      });
+  refl::GlobalDef().def("tirx.Substitute",
+                        [](ffi::ObjectRef node, ffi::Map<Var, Expr> vmap) -> ffi::ObjectRef {
+                          if (node->IsInstance<StmtNode>()) {
+                            return Substitute(node.as_or_throw<Stmt>(), vmap);
+                          } else {
+                            return Substitute(node.as_or_throw<Expr>(), vmap);
+                          }
+                        });
 }
 
 }  // namespace tirx

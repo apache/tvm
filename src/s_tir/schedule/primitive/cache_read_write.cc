@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 
 #include <unordered_set>
 
@@ -2332,13 +2333,12 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
 
   // Collect block iters appearing in the original_indices
   std::unordered_set<Var> covered;
+  auto walk_fn = [&covered](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    covered.insert(var);
+    return ffi::WalkResult::Advance();
+  };
   for (const PrimExpr& index : original_indices) {
-    PreOrderVisit(index, [&](const ffi::ObjectRef& obj) -> bool {
-      if (auto var = obj.as<Var>()) {
-        covered.insert(var.value());
-      }
-      return true;
-    });
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(index, walk_fn);
   }
 
   // Step 2. Creating CacheStageInfo

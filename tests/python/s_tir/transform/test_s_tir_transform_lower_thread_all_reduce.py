@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F401, F841
 
+import tvm_ffi
+
 import tvm
 import tvm.testing
 from tvm import s_tir
@@ -31,7 +33,7 @@ def _has_volatile_alloc_buffer(mod):
         if isinstance(node, tvm.tirx.AllocBuffer) and "tirx.volatile" in node.annotations:
             has_volatile_alloc = has_volatile_alloc or node.annotations["tirx.volatile"] is True
 
-    tvm.tirx.stmt_functor.post_order_visit(mod["main"].body, visit)
+    tvm_ffi.structural_walk(mod["main"].body, visit)
     return has_volatile_alloc
 
 

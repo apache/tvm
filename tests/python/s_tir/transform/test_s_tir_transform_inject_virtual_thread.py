@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F841
+import tvm_ffi
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -60,7 +62,7 @@ def test_vthread():
         if isinstance(node, tvm.tirx.AllocBuffer):
             allocates.append(node)
 
-    tvm.tirx.stmt_functor.post_order_visit(stmt.body, find_allocates)
+    tvm_ffi.structural_walk(stmt.body, find_allocates)
     assert len(allocates) == 1
     assert list(allocates[0].buffer.ty.shape) == [B_expected_alloc]
 
@@ -109,7 +111,7 @@ def test_vthread_extern():
         if isinstance(node, tvm.tirx.AllocBuffer):
             allocates.append(node)
 
-    tvm.tirx.stmt_functor.post_order_visit(stmt.body, find_allocates)
+    tvm_ffi.structural_walk(stmt.body, find_allocates)
     assert len(allocates) == 3
     # Check that we have the expected extents (order may vary)
     extents = sorted([int(a.buffer.ty.shape[0]) for a in allocates])
@@ -145,7 +147,7 @@ def test_vthread_if_then_else():
         if isinstance(node, tvm.tirx.IfThenElse):
             if_nodes.append(node)
 
-    tvm.tirx.stmt_functor.post_order_visit(stmt.body, find_ifs)
+    tvm_ffi.structural_walk(stmt.body, find_ifs)
 
     assert len(if_nodes) == 2
     # First if has else_case, second does not
@@ -207,7 +209,7 @@ def test_vthread_vectorized():
         if isinstance(op, tvm.tirx.AllocBuffer) and "shared" in str(op.buffer.data.ty):
             allocate_node = op
 
-    tvm.tirx.stmt_functor.post_order_visit(after_func.body, visitor)
+    tvm_ffi.structural_walk(after_func.body, visitor)
     assert allocate_node is not None
     assert list(allocate_node.buffer.ty.shape) == [4]
     assert allocate_node.buffer.ty.dtype == "int32x4"
@@ -236,7 +238,7 @@ def test_vthread_rewrites_masked_accesses():
         }:
             masked_calls.append(node)
 
-    tvm.tirx.stmt_functor.post_order_visit(after.body, visitor)
+    tvm_ffi.structural_walk(after.body, visitor)
     assert len(masked_calls) == 4
     assert all(list(call.args[0].ty.shape) == [8] for call in masked_calls)
     analyzer = tvm.arith.Analyzer()

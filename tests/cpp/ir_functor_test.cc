@@ -34,6 +34,7 @@
 #include <tvm/tirx/stmt_functor.h>
 
 #include <initializer_list>
+#include <unordered_set>
 
 TEST(IRF, Basic) {
   using namespace tvm;
@@ -55,13 +56,18 @@ TEST(IRF, CountVar) {
   PrimVar x("x"), y("y");
 
   auto z = x + 1 + y + y;
-  tirx::PostOrderVisit(z, [&n_var](const ffi::ObjectRef& n) {
-    if (n.as<VarNode>()) ++n_var;
-  });
+  std::unordered_set<const ffi::Object*> visited;
+  auto walk_fn = [&n_var, &visited](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    if (visited.insert(var.get()).second) {
+      ++n_var;
+    }
+    return ffi::WalkResult::Advance();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(z, walk_fn);
   TVM_FFI_ICHECK_EQ(n_var, 2);
 }
 
-TEST(IRF, PreOrderVisit) {
+TEST(IRF, PreOrderStructuralWalk) {
   using namespace tvm;
   using namespace tvm::tirx;
   Stmt init =
@@ -73,24 +79,23 @@ TEST(IRF, PreOrderVisit) {
   bool init_visited = false;
   bool stopped_at_if = true;
   bool body_visited = false;
-  PreOrderVisit(block, [&](const ffi::ObjectRef& n) -> bool {
-    if (n->IsInstance<IfThenElseNode>()) {
-      init_visited = true;
-      return false;
-    }
-    if (const auto* eval = n.as<EvaluateNode>()) {
-      if (const auto* int_imm = eval->value.as<IntImmNode>()) {
-        if (int_imm->value == 0) {
-          stopped_at_if = false;
-        } else if (int_imm->value == 1) {
-          body_visited = true;
-        } else {
-          TVM_FFI_THROW(InternalError) << "Unreachable";
-        }
+  auto visit_if = [&](const IfThenElse&) -> ffi::Expected<ffi::WalkResult> {
+    init_visited = true;
+    return ffi::WalkResult::Skip();
+  };
+  auto visit_evaluate = [&](const Evaluate& eval) -> ffi::Expected<ffi::WalkResult> {
+    if (const auto* int_imm = eval->value.as<IntImmNode>()) {
+      if (int_imm->value == 0) {
+        stopped_at_if = false;
+      } else if (int_imm->value == 1) {
+        body_visited = true;
+      } else {
+        TVM_FFI_THROW(InternalError) << "Unreachable";
       }
     }
-    return true;
-  });
+    return ffi::WalkResult::Advance();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(block, visit_if, visit_evaluate);
   ASSERT_EQ(init_visited, true);
   ASSERT_EQ(stopped_at_if, true);
   ASSERT_EQ(body_visited, true);
@@ -366,7 +371,8 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
   {
     Stmt input = make_input();
     Stmt shared = input;
-    Stmt mapped = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(input, expand_one).cast<Stmt>();
+    Stmt mapped =
+        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(input, expand_one).as_or_throw<Stmt>();
     EXPECT_FALSE(mapped.same_as(input));
     EXPECT_EQ(shared.as<SeqStmtNode>()->seq.size(), 3);
     check_values(mapped, {5, 2, 3, 4});
@@ -376,8 +382,8 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
     Stmt input = make_input();
     const auto* original = input.get();
     const auto* original_array = input.as<SeqStmtNode>()->seq.GetArrayObj();
-    Stmt mapped =
-        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), expand_one).cast<Stmt>();
+    Stmt mapped = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), expand_one)
+                      .as_or_throw<Stmt>();
     EXPECT_EQ(mapped.get(), original);
     EXPECT_NE(mapped.as<SeqStmtNode>()->seq.GetArrayObj(), original_array);
     check_values(mapped, {5, 2, 3, 4});
@@ -391,14 +397,14 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
                                 bool expect_array_reuse) {
     Stmt ordinary_input = make_boundary_input();
     Stmt ordinary = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(ordinary_input, transform)
-                        .template cast<Stmt>();
+                        .template as_or_throw<Stmt>();
 
     Stmt inplace_input = make_boundary_input();
     const auto* original_root = inplace_input.get();
     const auto* original_array = inplace_input.as<SeqStmtNode>()->seq.GetArrayObj();
     Stmt inplace =
         ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(inplace_input), transform)
-            .template cast<Stmt>();
+            .template as_or_throw<Stmt>();
 
     EXPECT_EQ(inplace.get(), original_root);
     if (expect_array_reuse) {
@@ -477,12 +483,12 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
 
   auto remove_all = [](const Evaluate&) -> Stmt { return Evaluate(0); };
   Stmt ordinary_input = make_boundary_input();
-  Stmt ordinary =
-      ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(ordinary_input, remove_all).cast<Stmt>();
+  Stmt ordinary = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(ordinary_input, remove_all)
+                      .as_or_throw<Stmt>();
   Stmt inplace_input = make_boundary_input();
   Stmt inplace =
       ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(inplace_input), remove_all)
-          .cast<Stmt>();
+          .as_or_throw<Stmt>();
   EXPECT_TRUE(ffi::StructuralEqual()(ordinary, inplace));
   for (const Stmt& result : {ordinary, inplace}) {
     const auto* evaluate = result.as<EvaluateNode>();
@@ -497,10 +503,11 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
     return value != nullptr && value->value == 4 ? Stmt(evaluate) : Stmt(Evaluate(0));
   };
   ordinary_input = make_boundary_input();
-  ordinary = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(ordinary_input, keep_last).cast<Stmt>();
+  ordinary =
+      ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(ordinary_input, keep_last).as_or_throw<Stmt>();
   inplace_input = make_boundary_input();
   inplace = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(inplace_input), keep_last)
-                .cast<Stmt>();
+                .as_or_throw<Stmt>();
   EXPECT_TRUE(ffi::StructuralEqual()(ordinary, inplace));
   for (const Stmt& result : {ordinary, inplace}) {
     const auto* evaluate = result.as<EvaluateNode>();
@@ -523,8 +530,8 @@ TEST(IRF, StructuralMapPreservesSeqStmtElementUniqueness) {
     Stmt input = SeqStmt({Evaluate(IntImm::Int32(1)), Evaluate(IntImm::Int32(3))});
     const auto* original_root = input.get();
     const auto* original_first = input.as<SeqStmtNode>()->seq[0].as<EvaluateNode>();
-    Stmt mapped =
-        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), replace_one).cast<Stmt>();
+    Stmt mapped = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), replace_one)
+                      .as_or_throw<Stmt>();
 
     const auto* mapped_seq = mapped.as<SeqStmtNode>();
     ASSERT_NE(mapped_seq, nullptr);
@@ -537,8 +544,8 @@ TEST(IRF, StructuralMapPreservesSeqStmtElementUniqueness) {
     ffi::Array<Stmt> shared_seq = {Evaluate(IntImm::Int32(1)), Evaluate(IntImm::Int32(3))};
     const auto* shared_first = shared_seq[0].as<EvaluateNode>();
     Stmt input = SeqStmt(shared_seq);
-    Stmt mapped =
-        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), replace_one).cast<Stmt>();
+    Stmt mapped = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), replace_one)
+                      .as_or_throw<Stmt>();
 
     const auto* mapped_seq = mapped.as<SeqStmtNode>();
     ASSERT_NE(mapped_seq, nullptr);
@@ -552,7 +559,7 @@ TEST(IRF, StructuralMapPreservesSeqStmtElementUniqueness) {
     auto no_float_match = [](const FloatImm& value) -> PrimExpr { return value; };
     Stmt unchanged =
         ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(unchanged_input), no_float_match)
-            .cast<Stmt>();
+            .as_or_throw<Stmt>();
     EXPECT_EQ(unchanged.get(), unchanged_root);
     EXPECT_TRUE(unchanged.as<SeqStmtNode>()->seq.same_as(shared_seq));
   }
@@ -577,14 +584,13 @@ TEST(IRF, StructuralHooksPreserveScopeIdDefRegions) {
     int binder = -1;
     int extent = -1;
     int preferred = -1;
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-        make_input(),
-        [&](const Var& var, TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::WalkResult> {
-          if (var->name == "binder") binder = kind;
-          if (var->name == "extent") extent = kind;
-          if (var->name == "preferred") preferred = kind;
-          return ffi::WalkResult::Advance();
-        });
+    auto walk_fn = [&](const Var& var, TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::WalkResult> {
+      if (var->name == "binder") binder = kind;
+      if (var->name == "extent") extent = kind;
+      if (var->name == "preferred") preferred = kind;
+      return ffi::WalkResult::Advance();
+    };
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(make_input(), walk_fn);
     check_kinds(binder, extent, preferred);
   }
 

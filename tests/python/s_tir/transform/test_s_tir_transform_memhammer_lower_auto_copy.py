@@ -19,6 +19,7 @@
 import sys
 
 import pytest
+import tvm_ffi
 
 import tvm
 from tvm import s_tir
@@ -1146,7 +1147,7 @@ def verify_single_allocation(stmt, alloc_size=None):
             for buf in n.alloc_buffers:
                 alloc_extents.append(buf.shape)
 
-    tvm.tirx.stmt_functor.post_order_visit(stmt, verify)
+    tvm_ffi.structural_walk(stmt, verify)
     assert num_alloc[0] == 1
 
     if alloc_size:
