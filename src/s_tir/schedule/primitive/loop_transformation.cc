@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 
 #include "../utils.h"
 
@@ -907,15 +908,14 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
     outer_loop_sref = sref;
     outer_loop = loop;
     CheckLoopStartsWithZero(self, sref, analyzer.get());
-    const VarNode* used_var = nullptr;
-    auto f_contain = [&outer_loop_vars, &used_var](const VarNode* var) {
-      if (outer_loop_vars.count(var)) {
-        used_var = var;
-        return true;
-      }
-      return false;
-    };
-    if (UsesVar(loop->extent, f_contain)) {
+    auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+        loop->extent, [&outer_loop_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+          return outer_loop_vars.count(var.get())
+                     ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                     : ffi::WalkResult::Advance();
+        });
+    if (result.has_value()) {
+      Var used_var = result.value()->value.cast<Var>();
       throw DependentLoopError(self->mod, ffi::GetRef<For>(loop), used_var->name,
                                DependentLoopError::PrimitiveKind::kFuse);
     }
@@ -1105,15 +1105,16 @@ For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefN
     } else {
       n->body = loop_sref->StmtAs<ForNode>()->body;
     }
-    const VarNode* used_var = nullptr;
-    auto f_contain = [&inner_vars, &used_var](const VarNode* var) {
-      if (inner_vars.count(var)) {
-        used_var = var;
-        return true;
-      }
-      return false;
+    auto find_inner_var = [&inner_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return inner_vars.count(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                         : ffi::WalkResult::Advance();
     };
-    if (UsesVar(copy->min, f_contain) || UsesVar(copy->extent, f_contain)) {
+    auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(copy->min, find_inner_var);
+    if (!result.has_value()) {
+      result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(copy->extent, find_inner_var);
+    }
+    if (result.has_value()) {
+      Var used_var = result.value()->value.cast<Var>();
       throw DependentLoopError(self->mod, ffi::GetRef<For>(copy), used_var->name,
                                DependentLoopError::PrimitiveKind::kReorder);
     }

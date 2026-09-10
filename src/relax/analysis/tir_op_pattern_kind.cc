@@ -19,6 +19,7 @@
 
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/op_attr_types.h>
@@ -237,8 +238,13 @@ class PatternKindAnalyzer : public StmtExprVisitor {
     }
     for (const PrimExpr& load_index : load->indices) {
       // return false if there are vars used in load indices but not in store indices.
-      if (tirx::UsesVar(load_index,
-                        [&vars](const tirx::VarNode* var) { return !vars.count(var); })) {
+      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+              load_index,
+              [&vars](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+                return !vars.count(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                              : ffi::WalkResult::Advance();
+              })
+              .has_value()) {
         return false;
       }
     }
@@ -319,16 +325,19 @@ class PatternKindAnalyzer : public StmtExprVisitor {
   static bool IsPureReducePattern(ffi::Array<tirx::Var> reduce_loops,
                                   ffi::Array<PrimExpr> indices) {
     for (const PrimExpr& e : indices) {
-      int id = -1;
-      if (UsesVar(e, [&](const tirx::VarNode* var) {
-            for (size_t i = 0; i < reduce_loops.size(); ++i) {
-              if (reduce_loops[i].get() == var) {
-                id = i;
-                return true;
-              }
-            }
-            return false;
-          })) {
+      auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+          e, [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+            return std::any_of(reduce_loops.begin(), reduce_loops.end(),
+                               [&](const tirx::Var& loop) { return loop.same_as(var); })
+                       ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                       : ffi::WalkResult::Advance();
+          });
+      if (result.has_value()) {
+        tirx::Var var = result.value()->value.cast<tirx::Var>();
+        int id =
+            std::distance(reduce_loops.begin(),
+                          std::find_if(reduce_loops.begin(), reduce_loops.end(),
+                                       [&](const tirx::Var& loop) { return loop.same_as(var); }));
         if (!reduce_loops[id].same_as(e)) {
           return false;
         }

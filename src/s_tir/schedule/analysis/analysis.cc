@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
@@ -1834,8 +1835,14 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
     for (int i = 0, n = desc_loops.size(); i < n; ++i) {
       // Check if desc_bind = loops[i]->loop_var + stuff-irrelevant-of-loop-vars
       PrimExpr residual = analyzer->Simplify(desc_bind - desc_loops[i]->loop_var);
-      if (!UsesVar(residual,
-                   [&desc_loop_vars](const VarNode* var) { return desc_loop_vars.count(var); })) {
+      if (!ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+               residual,
+               [&desc_loop_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+                 return desc_loop_vars.count(var.get())
+                            ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                            : ffi::WalkResult::Advance();
+               })
+               .has_value()) {
         desc_loop = desc_loops[i];
         iter_type_desc = iter_types_desc[i];
         break;
@@ -1869,8 +1876,14 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
       if (ret->loop_map.find(block_loop_sref) != ret->loop_map.end()) continue;
 
       PrimExpr residual = analyzer->Simplify(block_bind - block_loops[i]->loop_var);
-      if (UsesVar(residual,
-                  [&block_loop_vars](const VarNode* var) { return block_loop_vars.count(var); })) {
+      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+              residual,
+              [&block_loop_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+                return block_loop_vars.count(var.get())
+                           ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                           : ffi::WalkResult::Advance();
+              })
+              .has_value()) {
         continue;
       }
       // padding is allowed only when the block has trivial bindings

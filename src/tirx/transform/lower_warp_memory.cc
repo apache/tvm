@@ -28,6 +28,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/pattern.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
@@ -384,8 +385,14 @@ class WarpAccessRewriter : protected StmtExprMutator {
 
     auto [local_index, group] = SplitIndexByGroup(op->indices[0]);
     // invariance: local index must do not contain warp id
-    TVM_FFI_ICHECK(
-        !UsesVar(local_index, [this](const VarNode* var) { return var == warp_index_.get(); }))
+    TVM_FFI_ICHECK(!ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+                        local_index,
+                        [this](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+                          return var.get() == warp_index_.get()
+                                     ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                     : ffi::WalkResult::Advance();
+                        })
+                        .has_value())
         << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->indices[0]
         << " local_index=" << local_index;
 

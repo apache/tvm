@@ -26,6 +26,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/s_tir/stmt.h>
@@ -566,7 +567,15 @@ class IRConvertSSA final : public StmtExprMutator {
     if (buffer.get() == var) return true;
 
     auto uses_var = [var](const PrimExpr& expr) {
-      return expr.defined() && UsesVar(expr, [var](const VarNode* node) { return node == var; });
+      return expr.defined() &&
+             ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+                 expr,
+                 [var](const Var& candidate) -> ffi::Expected<ffi::WalkResult> {
+                   return candidate.get() == var
+                              ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(candidate))
+                              : ffi::WalkResult::Advance();
+                 })
+                 .has_value();
     };
     if (uses_var(buffer->elem_offset)) return true;
     for (const PrimExpr& dim : buffer->shape) {

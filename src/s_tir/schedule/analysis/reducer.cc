@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/te/operation.h>
 
 #include "../utils.h"
@@ -554,9 +555,14 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
   }
 
   auto f_uses_reduction_block_var = [&](const PrimExpr& expr) -> bool {
-    return UsesVar(expr, [&](const VarNode* var) {  //
-      return reduction_block_iters.count(var);
-    });
+    return ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+               expr,
+               [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+                 return reduction_block_iters.count(var.get())
+                            ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                            : ffi::WalkResult::Advance();
+               })
+        .has_value();
   };
 
   std::unordered_map<const VarNode*, const VarNode*> match_buffer_sources;

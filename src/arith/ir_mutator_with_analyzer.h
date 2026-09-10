@@ -26,6 +26,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/ir/with_context.h>
 #include <tvm/tirx/analysis.h>
@@ -109,7 +110,13 @@ class IRMutatorWithAnalyzer : public tirx::StmtExprMutator {
       return iter_var_nodes.count(v);
     };
     // simple heuristics for detecting predicate
-    if (tirx::UsesVar(condition, f_use_itervar)) {
+    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+            condition,
+            [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+              return f_use_itervar(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                              : ffi::WalkResult::Advance();
+            })
+            .has_value()) {
       iter_predicates_.push_back(condition);
       callback();
       iter_predicates_.pop_back();

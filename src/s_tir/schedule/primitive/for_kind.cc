@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 
 #include "../utils.h"
 
@@ -97,7 +98,13 @@ void CheckLoopParallelizableInBlock(const ScheduleState& self, ForKind for_kind,
     const IterVar& iter_var = block->iter_vars[i];
     const PrimExpr& binding = block_realize->iter_values[i];
 
-    if (!UsesVar(binding, [v = loop_var.get()](const VarNode* var) { return var == v; })) {
+    if (!ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+             binding,
+             [v = loop_var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+               return var.get() == v ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                     : ffi::WalkResult::Advance();
+             })
+             .has_value()) {
       continue;
     }
     // Only two cases are allowed:

@@ -22,6 +22,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
@@ -41,8 +42,14 @@ std::vector<size_t> GetUsedTensorArgIndices(const tirx::PrimFunc& fn, size_t num
   for (size_t i = 0; i < num_args; ++i) {
     if (auto buffer = fn->params[i].as<tirx::BufferVar>()) {
       auto buffer_var = buffer.value().var();
-      if (tirx::UsesVar(fn->body,
-                        [=](const tirx::VarNode* var) { return var == buffer_var.get(); })) {
+      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+              fn->body,
+              [=](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+                return var.get() == buffer_var.get()
+                           ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                           : ffi::WalkResult::Advance();
+              })
+              .has_value()) {
         indices.push_back(i);
       }
     }

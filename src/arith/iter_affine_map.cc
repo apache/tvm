@@ -23,6 +23,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
@@ -1348,12 +1349,28 @@ bool MatchBoundConstraints(PrimExpr pred, ffi::Map<PrimVar, Range>* input_iters,
     auto f_use_itervar = [&input_iter_nodes](const VarNode* v) {
       return input_iter_nodes.count(v);
     };
+    bool lhs_uses_itervar = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+                                lhs_expr,
+                                [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+                                  return f_use_itervar(var.get())
+                                             ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                             : ffi::WalkResult::Advance();
+                                })
+                                .has_value();
+    bool rhs_uses_itervar = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+                                rhs_expr,
+                                [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+                                  return f_use_itervar(var.get())
+                                             ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                             : ffi::WalkResult::Advance();
+                                })
+                                .has_value();
     bool bound_at_left;
-    if (UsesVar(lhs_expr, f_use_itervar) || UsesVar(rhs_expr, f_use_itervar)) {
+    if (lhs_uses_itervar || rhs_uses_itervar) {
       // At least it uses one input iter
-      if (is_const_int(lhs_expr) || !UsesVar(lhs_expr, f_use_itervar)) {
+      if (is_const_int(lhs_expr) || !lhs_uses_itervar) {
         bound_at_left = true;
-      } else if (is_const_int(rhs_expr) || !UsesVar(rhs_expr, f_use_itervar)) {
+      } else if (is_const_int(rhs_expr) || !rhs_uses_itervar) {
         bound_at_left = false;
       } else {
         bound_at_left = false;  // accumulate bound to rhs
@@ -1368,7 +1385,14 @@ bool MatchBoundConstraints(PrimExpr pred, ffi::Map<PrimVar, Range>* input_iters,
               } else if (const prim::SubNode* sub = part.as<prim::SubNode>()) {
                 f_extract(sub->a, sign);
                 f_extract(sub->b, !sign);
-              } else if (UsesVar(part, f_use_itervar)) {
+              } else if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+                             part,
+                             [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+                               return f_use_itervar(var.get())
+                                          ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                          : ffi::WalkResult::Advance();
+                             })
+                             .has_value()) {
                 lhs_expr = sign ? lhs_expr + part : lhs_expr - part;
               } else {
                 rhs_expr = sign ? rhs_expr - part : rhs_expr + part;
@@ -1430,7 +1454,22 @@ bool IterRangeSanityCheck(const ffi::Map<PrimVar, Range>& iter_ranges) {
   for (const auto& it : iter_ranges) iters.insert(it.first);
   auto f = [&](const VarNode* var) { return iters.count(ffi::GetRef<Var>(var)); };
   for (const auto& it : iter_ranges) {
-    if (UsesVar(it.second->min, f) || UsesVar(it.second->extent, f)) return false;
+    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+            it.second->min,
+            [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+              return f(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                  : ffi::WalkResult::Advance();
+            })
+            .has_value() ||
+        ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+            it.second->extent,
+            [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+              return f(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                  : ffi::WalkResult::Advance();
+            })
+            .has_value()) {
+      return false;
+    }
   }
   return true;
 }

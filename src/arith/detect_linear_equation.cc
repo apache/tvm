@@ -110,7 +110,13 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const Pri
   }
   LinearEqEntry VisitExprDefault_(const ffi::Object* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
-    if (UsesVar(e, [this](const VarNode* var) { return var == var_.get(); })) {
+    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+            e,
+            [this](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+              return var.get() == var_.get() ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                             : ffi::WalkResult::Advance();
+            })
+            .has_value()) {
       fail_ = true;
       return LinearEqEntry();
     } else {
@@ -161,7 +167,13 @@ ffi::Array<PrimExpr> DetectLinearEquation(const PrimExpr& e, const ffi::Array<Pr
   for (size_t i = vars.size(); i > 1; --i) {
     vset.insert(vars[i - 1].get());
     // The previous coeff contains the variable
-    if (UsesVar(coeff[i - 2], vset_contains)) {
+    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+            coeff[i - 2],
+            [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+              return vset_contains(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                              : ffi::WalkResult::Advance();
+            })
+            .has_value()) {
       return ffi::Array<PrimExpr>();
     }
   }
