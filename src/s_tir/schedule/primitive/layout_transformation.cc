@@ -1284,6 +1284,7 @@ IterVarType DetectNewBlockIterType(
               result = it->second;
             } else if (result != it->second) {
               result = kOpaque;
+              return ffi::WalkResult::Interrupt();
             }
           }
         }

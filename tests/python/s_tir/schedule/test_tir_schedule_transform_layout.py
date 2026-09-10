@@ -19,6 +19,7 @@
 import sys
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -402,6 +403,30 @@ def test_transform_block_layout_fail_mixed_iter_type(use_block_name):
             block,
             lambda n, h, w, co, rh, rw, rc: (n * 112 * 112 + h * 112 + w, co * 7 + rh, rw * 3 + rc),
         )
+
+
+def test_mixed_iter_type_detection_interrupts_walk():
+    spatial = tirx.Var("spatial", "int32")
+    reduction = tirx.Var("reduction", "int32")
+    unreachable = tirx.Var("unreachable", "int32")
+    visited = []
+
+    def detect(var):
+        visited.append(var)
+        if var.same_as(reduction):
+            return tvm_ffi.VisitInterrupt()
+        return None
+
+    result = tvm_ffi.structural_walk(
+        (spatial + reduction) + unreachable,
+        (tirx.Var, detect),
+        order="post",
+    )
+
+    assert isinstance(result, tvm_ffi.VisitInterrupt)
+    assert any(var.same_as(spatial) for var in visited)
+    assert any(var.same_as(reduction) for var in visited)
+    assert not any(var.same_as(unreachable) for var in visited)
 
 
 def test_transform_block_layout_int64_extent(use_block_name):
