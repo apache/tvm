@@ -743,7 +743,7 @@ Stmt StmtMutator::VisitStmt_(const tirx::TilePrimitiveCallNode* op) {
   }
 }
 
-// Implementations of IRTransform, PostOrderVisit and Substitute
+// Implementations of PostOrderVisit and Substitute
 class IRApplyVisit : public StmtExprVisitor {
  public:
   explicit IRApplyVisit(std::function<void(const ffi::ObjectRef&)> f) : f_(f) {}
@@ -778,60 +778,6 @@ void PostOrderVisit(const ffi::ObjectRef& node, std::function<void(const ffi::Ob
     IRApplyVisit visitor(fvisit);
     visitor(node.as_or_throw<Expr>());
   }
-}
-
-class IRTransformer final : public StmtExprMutator {
- public:
-  IRTransformer(const ffi::Function& f_preorder, const ffi::Function& f_postorder,
-                const std::unordered_set<uint32_t>& only_enable)
-      : f_preorder_(f_preorder), f_postorder_(f_postorder), only_enable_(only_enable) {}
-
-  Stmt VisitStmt(const Stmt& stmt) final {
-    return MutateInternal<Stmt>(stmt, [this](const Stmt& s) { return this->BaseVisitStmt(s); });
-  }
-  Expr VisitExpr(const Expr& expr) final {
-    return MutateInternal<Expr>(expr, [this](const Expr& e) { return this->BaseVisitExpr(e); });
-  }
-
- private:
-  // NOTE: redirect to parent's call
-  // This is used to get around limitation of gcc-4.8
-  Stmt BaseVisitStmt(const Stmt& s) { return StmtMutator::VisitStmt(s); }
-  Expr BaseVisitExpr(const Expr& e) { return ExprMutator::VisitExpr(e); }
-
-  template <typename T, typename F>
-  T MutateInternal(const T& node, F fmutate) {
-    if (only_enable_.size() && !only_enable_.count(node->type_index())) {
-      return fmutate(node);
-    }
-    if (f_preorder_ != nullptr) {
-      T pre = f_preorder_(node).template cast<T>();
-      if (pre.defined()) return pre;
-    }
-    T new_node = fmutate(node);
-    if (f_postorder_ != nullptr) {
-      T post = f_postorder_(new_node).template cast<T>();
-      if (post.defined()) return post;
-    }
-    return new_node;
-  }
-  // The functions
-  const ffi::Function& f_preorder_;
-  const ffi::Function& f_postorder_;
-  // type indices enabled.
-  const std::unordered_set<uint32_t>& only_enable_;
-};
-
-Stmt IRTransform(Stmt ir_node, const ffi::Function& f_preorder, const ffi::Function& f_postorder,
-                 ffi::Optional<ffi::Array<ffi::String>> only_enable) {
-  std::unordered_set<uint32_t> only_type_index;
-  if (only_enable.has_value()) {
-    for (auto s : only_enable.value()) {
-      only_type_index.insert(ffi::TypeKeyToIndex(s.c_str()));
-    }
-  }
-  IRTransformer transform(f_preorder, f_postorder, only_type_index);
-  return transform(std::move(ir_node));
 }
 
 class IRSubstitute : public StmtExprMutator {
@@ -1006,7 +952,6 @@ PrimExpr SubstituteWithDataTypeLegalization(
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tirx.IRTransform", IRTransform)
       .def("tirx.PostOrderVisit",
            [](ffi::ObjectRef node, ffi::Function f) {
              tirx::PostOrderVisit(node, [f](const ffi::ObjectRef& n) { f(n); });
