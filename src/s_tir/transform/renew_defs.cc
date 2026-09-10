@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -60,13 +61,13 @@ class RenewDefMutator : public StmtExprMutator {
       if (auto opt_buffer = param.as<BufferVar>()) {
         const BufferVar& buffer = opt_buffer.value();
         for (const PrimExpr& e : buffer->shape) {
-          PostOrderVisit(e, [&generator](const ffi::ObjectRef& obj) {
-            if (auto var = obj.as<Var>()) {
-              if (generator.remap_.count(var.value()) == 0) {
-                generator.ReDefineVar(var.value());
-              }
-            }
-          });
+          ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+              e, [&generator](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+                if (generator.remap_.count(var) == 0) {
+                  generator.ReDefineVar(var);
+                }
+                return ffi::WalkResult::Advance();
+              });
         }
       }
     }

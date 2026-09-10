@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 
 #include "memhammer_rewrite_rule.h"
 
@@ -282,26 +283,27 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   arith::Analyzer analyzer;
   const TensorLoadNode* target_buffer_load = nullptr;
   if (is_write_cache) {
-    tirx::PreOrderVisit(stmt, [&](const ffi::ObjectRef& obj) {
-      if (const auto* buffer_load = obj.as<TensorLoadNode>()) {
-        if (buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "wmma.accumulator" ||
-            buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "m16n8k8.matrixC") {
-          if (target_buffer_load == nullptr) {
-            target_buffer_load = buffer_load;
-          } else {
-            TVM_FFI_ICHECK(target_buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
-                buffer_load->source.as_or_throw<tvm::tirx::BufferVar>()))
-                << "More than one target buffer found";
-            TVM_FFI_ICHECK(target_buffer_load->indices.size() == buffer_load->indices.size());
-            for (size_t i = 0; i < target_buffer_load->indices.size(); i++) {
-              TVM_FFI_ICHECK(
-                  analyzer->CanProveEqual(target_buffer_load->indices[i], buffer_load->indices[i]));
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+        stmt, [&](const TensorLoad& buffer_load) -> ffi::Expected<ffi::WalkResult> {
+          if (buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().scope() ==
+                  "wmma.accumulator" ||
+              buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().scope() ==
+                  "m16n8k8.matrixC") {
+            if (target_buffer_load == nullptr) {
+              target_buffer_load = buffer_load.get();
+            } else {
+              TVM_FFI_ICHECK(target_buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
+                  buffer_load->source.as_or_throw<tvm::tirx::BufferVar>()))
+                  << "More than one target buffer found";
+              TVM_FFI_ICHECK(target_buffer_load->indices.size() == buffer_load->indices.size());
+              for (size_t i = 0; i < target_buffer_load->indices.size(); i++) {
+                TVM_FFI_ICHECK(analyzer->CanProveEqual(target_buffer_load->indices[i],
+                                                       buffer_load->indices[i]));
+              }
             }
           }
-        }
-      }
-      return true;
-    });
+          return ffi::WalkResult::Advance();
+        });
     TVM_FFI_ICHECK(target_buffer_load);
   }
 
