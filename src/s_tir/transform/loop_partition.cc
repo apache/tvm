@@ -23,6 +23,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/bound.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
@@ -248,7 +249,14 @@ class PartitionFinder : public StmtExprVisitor {
 
   void VisitStmt_(const ForNode* op) final {
     auto f_vset_contains = [this](const VarNode* var) { return out_vars_.count(var); };
-    if (UsesVar(op->min, f_vset_contains) || UsesVar(op->extent, f_vset_contains)) return;
+    auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return f_vset_contains(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                        : ffi::WalkResult::Advance();
+    };
+    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(op->min, walkfn).has_value() ||
+        ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(op->extent, walkfn).has_value()) {
+      return;
+    }
 
     const VarNode* var = op->loop_var.get();
     hint_map_.insert({var, IntSet::Interval(op->min, op->min + op->extent - 1)});
@@ -299,7 +307,11 @@ class PartitionFinder : public StmtExprVisitor {
     // For cond, find out the interval, if exists, in which we can prove that cond is
     // true. Also find the interval, if exists, in which we can prove that cond is
     // false.
-    if (UsesVar(cond, [this](const VarNode* var) { return var == current_var_.get(); })) {
+    auto walkfn = [this](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return var.get() == current_var_.get() ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                             : ffi::WalkResult::Advance();
+    };
+    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(cond, walkfn).has_value()) {
       IntSet interval =
           DeduceBound(current_var_.as_or_throw<PrimExpr>(), cond, hint_map_, relax_map_);
       if (!interval.IsNothing()) {

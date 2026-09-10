@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/extra/structural_visit.h>
+
 #include "./utils.h"
 
 namespace tvm {
@@ -28,9 +30,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       std::vector<const tirx::ForNode*> grid;
       std::unordered_set<const tirx::VarNode*> grid_loop_vars;
       auto f_var_dep = [&grid_loop_vars](const PrimExpr& e) -> bool {
-        return tirx::UsesVar(e, [&grid_loop_vars](const tirx::VarNode* v) -> bool {  //
-          return grid_loop_vars.count(v);
-        });
+        auto walkfn = [&grid_loop_vars](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+          return grid_loop_vars.count(var.get())
+                     ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                     : ffi::WalkResult::Advance();
+        };
+        return ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(e, walkfn).has_value();
       };
       if (d->cfg->syntax_sugar) {
         for (const tirx::ForNode* l = loop.get(); l != nullptr; l = l->body.as<tirx::ForNode>()) {

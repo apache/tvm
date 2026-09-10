@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/operation.h>
 
@@ -128,7 +129,11 @@ class LoopHeightError : public ScheduleError {
         }
         // loop_var of a higher loop shouldn't contain loop var
         const Var& loop_var = higher_loop->StmtAs<ForNode>()->loop_var;
-        if (UsesVar(binding, [v = loop_var.get()](const VarNode* var) { return var == v; })) {
+        auto walkfn = [v = loop_var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+          return var.get() == v ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                : ffi::WalkResult::Advance();
+        };
+        if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(binding, walkfn).has_value()) {
           const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
           throw LoopHeightError(mod, ffi::GetRef<For>(loop), ffi::GetRef<SBlock>(block));
         }
@@ -169,7 +174,13 @@ PrimExpr RewriteInitPredicate(PrimExpr pred,
   auto uses_discarded_loop = [&discarded_loops](const VarNode* var) {
     return discarded_loops.count(var);
   };
-  return UsesVar(pred, uses_discarded_loop) ? IntImm::Bool(true) : pred;
+  auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    return uses_discarded_loop(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                          : ffi::WalkResult::Advance();
+  };
+  return ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(pred, walkfn).has_value()
+             ? IntImm::Bool(true)
+             : pred;
 }
 
 StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
@@ -244,8 +255,12 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   for (int i = static_cast<int>(loops.size()) - 1; i >= 0; --i) {
     const VarNode* loop_var = loops[i]->StmtAs<ForNode>()->loop_var.get();
     bool discarded = true;
+    auto walkfn = [v = loop_var](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return var.get() == v ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                            : ffi::WalkResult::Advance();
+    };
     for (const PrimExpr& expr : init_realize->iter_values) {
-      if (!UsesVar(expr, [v = loop_var](const VarNode* var) { return var == v; })) {
+      if (!ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(expr, walkfn).has_value()) {
         continue;
       }
       // The loop is related to init block bindings;
@@ -896,9 +911,12 @@ class RFactorBlockCreator : public BaseBlockCreator {
   void CreateNormalIters(int idx) final {
     IterVar old_iter = old_block_realize_->block->iter_vars[idx];
     PrimExpr old_binding = old_block_realize_->iter_values[idx];
+    auto walkfn = [v = rf_loop_->loop_var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return var.get() == v ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                            : ffi::WalkResult::Advance();
+    };
     if (old_iter->iter_type == IterVarType::kDataPar ||
-        !UsesVar(old_binding,
-                 [v = rf_loop_->loop_var.get()](const VarNode* var) { return var == v; })) {
+        !ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(old_binding, walkfn).has_value()) {
       // The old block iter is either a data parallel block iter, or a reduction block iter that
       // doesn't touch the rfactor loop. In this case reuse the old reduction block iter and its
       // corresponding binding.

@@ -554,10 +554,13 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
     buffer_allocated.insert(buffer.get());
   }
 
+  auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    return reduction_block_iters.count(var.get())
+               ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+               : ffi::WalkResult::Advance();
+  };
   auto f_uses_reduction_block_var = [&](const PrimExpr& expr) -> bool {
-    return UsesVar(expr, [&](const VarNode* var) {  //
-      return reduction_block_iters.count(var);
-    });
+    return ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(expr, walkfn).has_value();
   };
 
   std::unordered_map<const VarNode*, const VarNode*> match_buffer_sources;

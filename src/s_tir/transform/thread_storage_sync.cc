@@ -20,6 +20,7 @@
 /*!
  * \file thread_storage_sync.cc
  */
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
@@ -237,9 +238,15 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
           auto f_uses_thread_index = [=](const tvm::tirx::VarNode* parameter) {
             return parameter == thread_index_var;
           };
-          depends_on_thread_index = depends_on_thread_index &&
-                                    UsesVar(curr_index, f_uses_thread_index) &&
-                                    UsesVar(prev_index, f_uses_thread_index);
+          auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+            return f_uses_thread_index(var.get())
+                       ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                       : ffi::WalkResult::Advance();
+          };
+          depends_on_thread_index =
+              depends_on_thread_index &&
+              ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(curr_index, walkfn).has_value() &&
+              ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(prev_index, walkfn).has_value();
         }
       } else {
         has_same_index = false;

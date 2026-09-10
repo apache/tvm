@@ -1812,6 +1812,14 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
   //       C[i, j] += A[i, k] * B[k, j]
 
   int next_block_ind = block_loops.size() - 1;
+  auto desc_walkfn = [&desc_loop_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    return desc_loop_vars.count(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                           : ffi::WalkResult::Advance();
+  };
+  auto block_walkfn = [&block_loop_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    return block_loop_vars.count(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                            : ffi::WalkResult::Advance();
+  };
   for (int i_desc = n_desc_vars - 1; i_desc >= 0; --i_desc) {
     // Step 3.1. Find the corresponding loop of the i_desc-th block var of desc
     const PrimExpr& desc_bind = desc_block->iter_values[i_desc];
@@ -1820,8 +1828,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
     for (int i = 0, n = desc_loops.size(); i < n; ++i) {
       // Check if desc_bind = loops[i]->loop_var + stuff-irrelevant-of-loop-vars
       PrimExpr residual = analyzer->Simplify(desc_bind - desc_loops[i]->loop_var);
-      if (!UsesVar(residual,
-                   [&desc_loop_vars](const VarNode* var) { return desc_loop_vars.count(var); })) {
+      if (!ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(residual, desc_walkfn).has_value()) {
         desc_loop = desc_loops[i];
         iter_type_desc = iter_types_desc[i];
         break;
@@ -1855,8 +1862,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
       if (ret->loop_map.find(block_loop_sref) != ret->loop_map.end()) continue;
 
       PrimExpr residual = analyzer->Simplify(block_bind - block_loops[i]->loop_var);
-      if (UsesVar(residual,
-                  [&block_loop_vars](const VarNode* var) { return block_loop_vars.count(var); })) {
+      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(residual, block_walkfn).has_value()) {
         continue;
       }
       // padding is allowed only when the block has trivial bindings
