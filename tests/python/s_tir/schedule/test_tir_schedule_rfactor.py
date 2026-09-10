@@ -1329,6 +1329,136 @@ def argmin_topi_rfactor(
             placeholder_red[ax0] = placeholder_red_temp_v0[ax0]
 
 
+@T.prim_func(s_tir=True)
+def argmax_topi_select_last_rfactor(
+    placeholder: T.Buffer((1, 32), "int32"), placeholder_red: T.Buffer(1, "int32")
+) -> None:
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
+    placeholder_red_temp_v0 = T.sblock_alloc_buffer([1], dtype="int32")
+    placeholder_red_temp_v1 = T.sblock_alloc_buffer([1], dtype="int32")
+    placeholder_red_temp_v0_rf = T.sblock_alloc_buffer([1, 8], dtype="int32")
+    placeholder_red_temp_v1_rf = T.sblock_alloc_buffer([1, 8], dtype="int32")
+    for i0, i1_0, i1_1 in T.grid(1, 4, 8):
+        with T.sblock("placeholder_red_temp_rf"):
+            vi1_1, ax0, vi1_0 = T.axis.remap("SSR", [i1_1, i0, i1_0])
+            T.reads(placeholder[ax0, vi1_0 * 8 + vi1_1])
+            T.writes(placeholder_red_temp_v0_rf[ax0, vi1_1], placeholder_red_temp_v1_rf[ax0, vi1_1])
+            with T.init():
+                placeholder_red_temp_v0_rf[ax0, vi1_1] = -1
+                placeholder_red_temp_v1_rf[ax0, vi1_1] = -2147483648
+            v_placeholder_red_temp_v0_rf: T.let[T.int32] = T.Select(
+                placeholder_red_temp_v1_rf[ax0, vi1_1] > placeholder[ax0, vi1_0 * 8 + vi1_1]
+                or (
+                    placeholder_red_temp_v1_rf[ax0, vi1_1] == placeholder[ax0, vi1_0 * 8 + vi1_1]
+                    and placeholder_red_temp_v0_rf[ax0, vi1_1] > vi1_0 * 8 + vi1_1
+                ),
+                placeholder_red_temp_v0_rf[ax0, vi1_1],
+                vi1_0 * 8 + vi1_1,
+            )
+            v_placeholder_red_temp_v1_rf: T.let[T.int32] = T.Select(
+                placeholder_red_temp_v1_rf[ax0, vi1_1] > placeholder[ax0, vi1_0 * 8 + vi1_1],
+                placeholder_red_temp_v1_rf[ax0, vi1_1],
+                placeholder[ax0, vi1_0 * 8 + vi1_1],
+            )
+            placeholder_red_temp_v0_rf[ax0, vi1_1] = v_placeholder_red_temp_v0_rf
+            placeholder_red_temp_v1_rf[ax0, vi1_1] = v_placeholder_red_temp_v1_rf
+    for i0, i1_1 in T.grid(1, 8):
+        with T.sblock("placeholder_red_temp"):
+            vi1_1, ax0 = T.axis.remap("RS", [i1_1, i0])
+            T.reads(placeholder_red_temp_v0_rf[ax0, vi1_1], placeholder_red_temp_v1_rf[ax0, vi1_1])
+            T.writes(placeholder_red_temp_v0[ax0], placeholder_red_temp_v1[ax0])
+            with T.init():
+                placeholder_red_temp_v0[ax0] = -1
+                placeholder_red_temp_v1[ax0] = -2147483648
+            v_placeholder_red_temp_v0: T.let[T.int32] = T.Select(
+                placeholder_red_temp_v1[ax0] > placeholder_red_temp_v1_rf[ax0, vi1_1]
+                or (
+                    placeholder_red_temp_v1[ax0] == placeholder_red_temp_v1_rf[ax0, vi1_1]
+                    and placeholder_red_temp_v0[ax0] > placeholder_red_temp_v0_rf[ax0, vi1_1]
+                ),
+                placeholder_red_temp_v0[ax0],
+                placeholder_red_temp_v0_rf[ax0, vi1_1],
+            )
+            v_placeholder_red_temp_v1: T.let[T.int32] = T.Select(
+                placeholder_red_temp_v1[ax0] > placeholder_red_temp_v1_rf[ax0, vi1_1],
+                placeholder_red_temp_v1[ax0],
+                placeholder_red_temp_v1_rf[ax0, vi1_1],
+            )
+            placeholder_red_temp_v0[ax0] = v_placeholder_red_temp_v0
+            placeholder_red_temp_v1[ax0] = v_placeholder_red_temp_v1
+    for i0 in T.serial(1):
+        with T.sblock("placeholder_red"):
+            ax0 = T.axis.spatial(1, i0)
+            T.reads(placeholder_red_temp_v0[ax0])
+            T.writes(placeholder_red[ax0])
+            placeholder_red[ax0] = placeholder_red_temp_v0[ax0]
+
+
+@T.prim_func(s_tir=True)
+def argmin_topi_select_last_rfactor(
+    placeholder: T.Buffer((1, 32), "int32"), placeholder_red: T.Buffer(1, "int32")
+) -> None:
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
+    placeholder_red_temp_v0 = T.sblock_alloc_buffer([1], dtype="int32")
+    placeholder_red_temp_v1 = T.sblock_alloc_buffer([1], dtype="int32")
+    placeholder_red_temp_v0_rf = T.sblock_alloc_buffer([1, 8], dtype="int32")
+    placeholder_red_temp_v1_rf = T.sblock_alloc_buffer([1, 8], dtype="int32")
+    for i0, i1_0, i1_1 in T.grid(1, 4, 8):
+        with T.sblock("placeholder_red_temp_rf"):
+            vi1_1, ax0, vi1_0 = T.axis.remap("SSR", [i1_1, i0, i1_0])
+            T.reads(placeholder[ax0, vi1_0 * 8 + vi1_1])
+            T.writes(placeholder_red_temp_v0_rf[ax0, vi1_1], placeholder_red_temp_v1_rf[ax0, vi1_1])
+            with T.init():
+                placeholder_red_temp_v0_rf[ax0, vi1_1] = -1
+                placeholder_red_temp_v1_rf[ax0, vi1_1] = 2147483647
+            v_placeholder_red_temp_v0_rf: T.let[T.int32] = T.Select(
+                placeholder_red_temp_v1_rf[ax0, vi1_1] < placeholder[ax0, vi1_0 * 8 + vi1_1]
+                or (
+                    placeholder_red_temp_v1_rf[ax0, vi1_1] == placeholder[ax0, vi1_0 * 8 + vi1_1]
+                    and placeholder_red_temp_v0_rf[ax0, vi1_1] > vi1_0 * 8 + vi1_1
+                ),
+                placeholder_red_temp_v0_rf[ax0, vi1_1],
+                vi1_0 * 8 + vi1_1,
+            )
+            v_placeholder_red_temp_v1_rf: T.let[T.int32] = T.Select(
+                placeholder_red_temp_v1_rf[ax0, vi1_1] < placeholder[ax0, vi1_0 * 8 + vi1_1],
+                placeholder_red_temp_v1_rf[ax0, vi1_1],
+                placeholder[ax0, vi1_0 * 8 + vi1_1],
+            )
+            placeholder_red_temp_v0_rf[ax0, vi1_1] = v_placeholder_red_temp_v0_rf
+            placeholder_red_temp_v1_rf[ax0, vi1_1] = v_placeholder_red_temp_v1_rf
+    for i0, i1_1 in T.grid(1, 8):
+        with T.sblock("placeholder_red_temp"):
+            vi1_1, ax0 = T.axis.remap("RS", [i1_1, i0])
+            T.reads(placeholder_red_temp_v0_rf[ax0, vi1_1], placeholder_red_temp_v1_rf[ax0, vi1_1])
+            T.writes(placeholder_red_temp_v0[ax0], placeholder_red_temp_v1[ax0])
+            with T.init():
+                placeholder_red_temp_v0[ax0] = -1
+                placeholder_red_temp_v1[ax0] = 2147483647
+            v_placeholder_red_temp_v0: T.let[T.int32] = T.Select(
+                placeholder_red_temp_v1[ax0] < placeholder_red_temp_v1_rf[ax0, vi1_1]
+                or (
+                    placeholder_red_temp_v1[ax0] == placeholder_red_temp_v1_rf[ax0, vi1_1]
+                    and placeholder_red_temp_v0[ax0] > placeholder_red_temp_v0_rf[ax0, vi1_1]
+                ),
+                placeholder_red_temp_v0[ax0],
+                placeholder_red_temp_v0_rf[ax0, vi1_1],
+            )
+            v_placeholder_red_temp_v1: T.let[T.int32] = T.Select(
+                placeholder_red_temp_v1[ax0] < placeholder_red_temp_v1_rf[ax0, vi1_1],
+                placeholder_red_temp_v1[ax0],
+                placeholder_red_temp_v1_rf[ax0, vi1_1],
+            )
+            placeholder_red_temp_v0[ax0] = v_placeholder_red_temp_v0
+            placeholder_red_temp_v1[ax0] = v_placeholder_red_temp_v1
+    for i0 in T.serial(1):
+        with T.sblock("placeholder_red"):
+            ax0 = T.axis.spatial(1, i0)
+            T.reads(placeholder_red_temp_v0[ax0])
+            T.writes(placeholder_red[ax0])
+            placeholder_red[ax0] = placeholder_red_temp_v0[ax0]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
@@ -1714,6 +1844,36 @@ def test_reduction_rfactor_topi_argmin():
     _, ki = s.split(k, [None, 8])
     rf_block = s.rfactor(ki, 1)
     assert_structural_equal_ignore_global_symbol(s.mod["main"], argmin_topi_rfactor)
+    assert s.get(rf_block).same_as(s.get(s.get_sblock("placeholder_red_temp_rf")))
+    assert s.get(argmin).same_as(s.get(s.get_sblock("placeholder_red_temp")))
+    verify_trace_roundtrip(s, mod=argmin_topi)
+
+
+def test_reduction_rfactor_topi_argmax_select_last_index():
+    A = te.placeholder((1, 32), dtype="int32")
+    B = topi.argmax(A, axis=1, select_last_index=True)
+    argmax_topi = te.create_prim_func([A, B])
+    s = tvm.s_tir.Schedule(argmax_topi, debug_mask="all")
+    argmax = s.get_sblock("placeholder_red_temp")
+    _, k = s.get_loops(argmax)
+    _, ki = s.split(k, [None, 8])
+    rf_block = s.rfactor(ki, 1)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], argmax_topi_select_last_rfactor)
+    assert s.get(rf_block).same_as(s.get(s.get_sblock("placeholder_red_temp_rf")))
+    assert s.get(argmax).same_as(s.get(s.get_sblock("placeholder_red_temp")))
+    verify_trace_roundtrip(s, mod=argmax_topi)
+
+
+def test_reduction_rfactor_topi_argmin_select_last_index():
+    A = te.placeholder((1, 32), dtype="int32")
+    B = topi.argmin(A, axis=1, select_last_index=True)
+    argmin_topi = te.create_prim_func([A, B])
+    s = tvm.s_tir.Schedule(argmin_topi, debug_mask="all")
+    argmin = s.get_sblock("placeholder_red_temp")
+    _, k = s.get_loops(argmin)
+    _, ki = s.split(k, [None, 8])
+    rf_block = s.rfactor(ki, 1)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], argmin_topi_select_last_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_sblock("placeholder_red_temp_rf")))
     assert s.get(argmin).same_as(s.get(s.get_sblock("placeholder_red_temp")))
     verify_trace_roundtrip(s, mod=argmin_topi)
