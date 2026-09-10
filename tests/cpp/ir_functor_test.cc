@@ -366,7 +366,8 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
   {
     Stmt input = make_input();
     Stmt shared = input;
-    Stmt mapped = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(input, expand_one).cast<Stmt>();
+    Stmt mapped =
+        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(input, expand_one).as_or_throw<Stmt>();
     EXPECT_FALSE(mapped.same_as(input));
     EXPECT_EQ(shared.as<SeqStmtNode>()->seq.size(), 3);
     check_values(mapped, {5, 2, 3, 4});
@@ -377,7 +378,8 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
     const auto* original = input.get();
     const auto* original_array = input.as<SeqStmtNode>()->seq.GetArrayObj();
     Stmt mapped =
-        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), expand_one).cast<Stmt>();
+        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), expand_one)
+            .as_or_throw<Stmt>();
     EXPECT_EQ(mapped.get(), original);
     EXPECT_NE(mapped.as<SeqStmtNode>()->seq.GetArrayObj(), original_array);
     check_values(mapped, {5, 2, 3, 4});
@@ -391,14 +393,14 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
                                 bool expect_array_reuse) {
     Stmt ordinary_input = make_boundary_input();
     Stmt ordinary = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(ordinary_input, transform)
-                        .template cast<Stmt>();
+                        .template as_or_throw<Stmt>();
 
     Stmt inplace_input = make_boundary_input();
     const auto* original_root = inplace_input.get();
     const auto* original_array = inplace_input.as<SeqStmtNode>()->seq.GetArrayObj();
     Stmt inplace =
         ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(inplace_input), transform)
-            .template cast<Stmt>();
+            .template as_or_throw<Stmt>();
 
     EXPECT_EQ(inplace.get(), original_root);
     if (expect_array_reuse) {
@@ -478,11 +480,12 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
   auto remove_all = [](const Evaluate&) -> Stmt { return Evaluate(0); };
   Stmt ordinary_input = make_boundary_input();
   Stmt ordinary =
-      ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(ordinary_input, remove_all).cast<Stmt>();
+      ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(ordinary_input, remove_all)
+          .as_or_throw<Stmt>();
   Stmt inplace_input = make_boundary_input();
   Stmt inplace =
       ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(inplace_input), remove_all)
-          .cast<Stmt>();
+          .as_or_throw<Stmt>();
   EXPECT_TRUE(ffi::StructuralEqual()(ordinary, inplace));
   for (const Stmt& result : {ordinary, inplace}) {
     const auto* evaluate = result.as<EvaluateNode>();
@@ -497,10 +500,11 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
     return value != nullptr && value->value == 4 ? Stmt(evaluate) : Stmt(Evaluate(0));
   };
   ordinary_input = make_boundary_input();
-  ordinary = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(ordinary_input, keep_last).cast<Stmt>();
+  ordinary = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(ordinary_input, keep_last)
+                 .as_or_throw<Stmt>();
   inplace_input = make_boundary_input();
   inplace = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(inplace_input), keep_last)
-                .cast<Stmt>();
+                .as_or_throw<Stmt>();
   EXPECT_TRUE(ffi::StructuralEqual()(ordinary, inplace));
   for (const Stmt& result : {ordinary, inplace}) {
     const auto* evaluate = result.as<EvaluateNode>();
@@ -524,7 +528,8 @@ TEST(IRF, StructuralMapPreservesSeqStmtElementUniqueness) {
     const auto* original_root = input.get();
     const auto* original_first = input.as<SeqStmtNode>()->seq[0].as<EvaluateNode>();
     Stmt mapped =
-        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), replace_one).cast<Stmt>();
+        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), replace_one)
+            .as_or_throw<Stmt>();
 
     const auto* mapped_seq = mapped.as<SeqStmtNode>();
     ASSERT_NE(mapped_seq, nullptr);
@@ -538,7 +543,8 @@ TEST(IRF, StructuralMapPreservesSeqStmtElementUniqueness) {
     const auto* shared_first = shared_seq[0].as<EvaluateNode>();
     Stmt input = SeqStmt(shared_seq);
     Stmt mapped =
-        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), replace_one).cast<Stmt>();
+        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), replace_one)
+            .as_or_throw<Stmt>();
 
     const auto* mapped_seq = mapped.as<SeqStmtNode>();
     ASSERT_NE(mapped_seq, nullptr);
@@ -552,7 +558,7 @@ TEST(IRF, StructuralMapPreservesSeqStmtElementUniqueness) {
     auto no_float_match = [](const FloatImm& value) -> PrimExpr { return value; };
     Stmt unchanged =
         ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(unchanged_input), no_float_match)
-            .cast<Stmt>();
+            .as_or_throw<Stmt>();
     EXPECT_EQ(unchanged.get(), unchanged_root);
     EXPECT_TRUE(unchanged.as<SeqStmtNode>()->seq.same_as(shared_seq));
   }
