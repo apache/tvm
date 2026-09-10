@@ -24,6 +24,7 @@
 #ifndef TVM_TIRX_IR_TIR_VISITOR_WITH_PATH_H_
 #define TVM_TIRX_IR_TIR_VISITOR_WITH_PATH_H_
 
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
@@ -273,13 +274,14 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
     auto shape_path = path->Attr("shape");
     for (size_t i = 0; i < buf->shape.size(); i++) {
       auto dim_path = shape_path->ArrayItem(i);
-      PostOrderVisit(buf->shape[i], [this, &context, &dim_path](const ffi::ObjectRef& obj) {
-        if (auto opt = obj.as<Var>()) {
-          if (auto var_def = WithDefIfUndefined(opt.value(), dim_path)) {
-            context.push_back(std::move(var_def).value());
-          }
-        }
-      });
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+          buf->shape[i],
+          [this, &context, &dim_path](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+            if (auto var_def = WithDefIfUndefined(var, dim_path)) {
+              context.push_back(std::move(var_def).value());
+            }
+            return ffi::WalkResult::Advance();
+          });
     }
 
     auto strides_path = path->Attr("strides");

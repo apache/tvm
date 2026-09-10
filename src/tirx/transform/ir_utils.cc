@@ -26,6 +26,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/s_tir/stmt.h>
@@ -130,9 +131,11 @@ class IRConvertSSA final : public StmtExprMutator {
           }
         };
         for (const auto& dim : buffer.value()->shape) {
-          PostOrderVisit(dim, [&](const ffi::ObjectRef& obj) {
-            if (auto var = obj.as<Var>()) check_var(var.value());
-          });
+          ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+              dim, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+                check_var(var);
+                return ffi::WalkResult::Advance();
+              });
         }
         for (const auto& stride : buffer.value()->strides) {
           if (auto var = stride.as<Var>()) check_var(var.value());
@@ -793,20 +796,23 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
         e->IsInstance<prim::EQNode>() || e->IsInstance<prim::NENode>()) {
       bool is_simple = true;
       std::vector<PrimVar> cand_vars;
-      PostOrderVisit(e, [&cand_vars, &is_simple, &e](const ffi::ObjectRef& obj) {
-        if (obj.same_as(e)) {
-          return;
-        } else if (const VarNode* var = obj.as<VarNode>()) {
-          PrimType var_ty = var->ty.as_or_throw<PrimType>();
-          if (var_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
-            cand_vars.push_back(ffi::GetRef<Var>(var).as_or_throw<PrimVar>());
-          }
-        } else {
-          is_simple &= obj->IsInstance<prim::AddNode>() || obj->IsInstance<prim::SubNode>() ||
-                       obj->IsInstance<prim::MulNode>() || obj->IsInstance<prim::FloorDivNode>() ||
-                       obj->IsInstance<prim::FloorModNode>() || obj->IsInstance<IntImmNode>();
-        }
-      });
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+          e, [&cand_vars, &is_simple, &e](const PrimExpr& obj) -> ffi::Expected<ffi::WalkResult> {
+            if (obj.same_as(e)) {
+              return ffi::WalkResult::Advance();
+            } else if (const VarNode* var = obj.as<VarNode>()) {
+              PrimType var_ty = var->ty.as_or_throw<PrimType>();
+              if (var_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
+                cand_vars.push_back(ffi::GetRef<Var>(var).as_or_throw<PrimVar>());
+              }
+            } else {
+              is_simple &= obj->IsInstance<prim::AddNode>() || obj->IsInstance<prim::SubNode>() ||
+                           obj->IsInstance<prim::MulNode>() ||
+                           obj->IsInstance<prim::FloorDivNode>() ||
+                           obj->IsInstance<prim::FloorModNode>() || obj->IsInstance<IntImmNode>();
+            }
+            return ffi::WalkResult::Advance();
+          });
       if (is_simple && !cand_vars.empty()) {
         for (const PrimVar& new_var : cand_vars) {
           if (!std::any_of(vars.begin(), vars.end(),

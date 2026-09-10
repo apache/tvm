@@ -90,16 +90,15 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
       bool contains_new_var = false;
       bool contains_compound_shape_var = false;
       std::unordered_set<Var> vars_in_shape;
-      tirx::PostOrderVisit(e, [&](const ffi::ObjectRef& obj) {
-        if (const auto* var_node = obj.as<VarNode>()) {
-          Var var = ffi::GetRef<Var>(var_node);
-          vars_in_shape.insert(var);
-          contains_new_var =
-              contains_new_var || !d->IsVarDefined(var) || stringify_shape_vars.count(var);
-          contains_compound_shape_var =
-              contains_compound_shape_var || stringify_compound_shape_vars.count(var);
-        }
-      });
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+          e, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+            vars_in_shape.insert(var);
+            contains_new_var =
+                contains_new_var || !d->IsVarDefined(var) || stringify_shape_vars.count(var);
+            contains_compound_shape_var =
+                contains_compound_shape_var || stringify_compound_shape_vars.count(var);
+            return ffi::WalkResult::Advance();
+          });
       if (is_new_var(e)) {
         add_out_of_line_var_def(e.as_or_throw<Var>(), e_p);
       }

@@ -25,6 +25,7 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/tirx/index_map.h>
@@ -363,22 +364,24 @@ IndexMap IndexMap::RenameVariables(
     // Collect variables with pre-defined names provided by f_name_map.
     std::unordered_set<const ffi::Object*> visited;
     std::for_each(n->final_indices.begin(), n->final_indices.end(), [&](const PrimExpr& expr) {
-      PostOrderVisit(expr, [&](const ffi::ObjectRef& obj) {
-        auto var = obj.as<PrimVar>();
-        if (!var) {
-          return;
-        }
-        if (visited.count(obj.get())) {
-          return;
-        }
-        visited.emplace(obj.get());
-        if (ffi::Optional<ffi::String> opt_name = f_name_map(var.value()); opt_name.has_value()) {
-          ffi::String name = opt_name.value();
-          TVM_FFI_ICHECK(!name_supply->ContainsName(name, /*add_prefix=*/false));
-          name_supply->ReserveName(name, /*add_prefix=*/false);
-          var_remap.Set(var.value(), PrimVar(name, var.value().ty()));
-        }
-      });
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+          expr, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+            auto prim_var = var.as<PrimVar>();
+            if (!prim_var) {
+              return ffi::WalkResult::Advance();
+            }
+            if (!visited.insert(prim_var.value().get()).second) {
+              return ffi::WalkResult::Advance();
+            }
+            if (ffi::Optional<ffi::String> opt_name = f_name_map(prim_var.value());
+                opt_name.has_value()) {
+              ffi::String name = opt_name.value();
+              TVM_FFI_ICHECK(!name_supply->ContainsName(name, /*add_prefix=*/false));
+              name_supply->ReserveName(name, /*add_prefix=*/false);
+              var_remap.Set(prim_var.value(), PrimVar(name, prim_var.value().ty()));
+            }
+            return ffi::WalkResult::Advance();
+          });
     });
   }
 
