@@ -311,7 +311,7 @@ TVMFFIAny VarMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noex
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
   ffi::UnchangedOr<ffi::Any> result = ffi::Unchanged();
-  ffi::Any mapped_value;
+  ffi::Any mapped_value = ffi::Unchanged();
   // A PrimType carries only a dtype, so it has nothing to substitute.  Broad callbacks do not see
   // this skipped field; dynamically typed Vars still descend through the Type value.
   if (!self->ty.as<PrimTypeNode>()) {
@@ -331,8 +331,7 @@ TVMFFIAny VarMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noex
     }
   }
   if (!result.IsUnchanged() || mutator->def_region_kind() == kTVMFFIDefRegionKindPattern) {
-    ffi::AnyView value_to_store = result.IsUnchanged() ? value : ffi::AnyView(mapped_value);
-    auto set_result = mutator->VarRemapSetExpected(value, value_to_store);
+    auto set_result = mutator->VarRemapSetExpected(value, mapped_value);
     if (TVM_FFI_PREDICT_FALSE(set_result.is_err())) {
       return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(set_result).error()));
     }
@@ -354,7 +353,7 @@ TVMFFIAny VarMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
   ffi::UnchangedOr<ffi::Any> result = ffi::Unchanged();
-  ffi::Any mapped_value;
+  ffi::Any mapped_value = ffi::Unchanged();
   // A PrimType carries only a dtype, so it has nothing to substitute.  Broad callbacks do not see
   // this skipped field; dynamically typed Vars still descend through the Type value.
   if (!self->ty.as<PrimTypeNode>()) {
@@ -374,8 +373,7 @@ TVMFFIAny VarMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView
     }
   }
   if (!result.IsUnchanged() || mutator->def_region_kind() == kTVMFFIDefRegionKindPattern) {
-    ffi::AnyView value_to_store = result.IsUnchanged() ? value : ffi::AnyView(mapped_value);
-    auto set_result = mutator->VarRemapSetExpected(value, value_to_store);
+    auto set_result = mutator->VarRemapSetExpected(value, mapped_value);
     if (TVM_FFI_PREDICT_FALSE(set_result.is_err())) {
       return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(set_result).error()));
     }
