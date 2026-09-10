@@ -24,35 +24,29 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/tirx/analysis.h>
 
-#include <utility>
-
 namespace tvm {
 namespace tirx {
 
-namespace {
-
-template <typename T>
-bool UsesVarImpl(const T& value, std::function<bool(const VarNode*)> var_set) {
-  bool use_var = false;
-  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-      value, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+bool UsesVar(const Stmt& stmt, std::function<bool(const VarNode*)> var_set) {
+  auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+      stmt, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
         if (var_set(var.get())) {
-          use_var = true;
-          return ffi::WalkResult::Interrupt();
+          return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var));
         }
         return ffi::WalkResult::Advance();
       });
-  return use_var;
-}
-
-}  // namespace
-
-bool UsesVar(const Stmt& stmt, std::function<bool(const VarNode*)> var_set) {
-  return UsesVarImpl(stmt, std::move(var_set));
+  return result.has_value();
 }
 
 bool UsesVar(const PrimExpr& expr, std::function<bool(const VarNode*)> var_set) {
-  return UsesVarImpl(expr, std::move(var_set));
+  auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+      expr, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+        if (var_set(var.get())) {
+          return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var));
+        }
+        return ffi::WalkResult::Advance();
+      });
+  return result.has_value();
 }
 
 }  // namespace tirx
