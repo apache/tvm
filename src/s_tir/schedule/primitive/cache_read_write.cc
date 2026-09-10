@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 
 #include <unordered_set>
 
@@ -179,7 +180,16 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
         /*IterVarType=*/kDataPar);
     var_map.Set(original_block_var->var, block_var->var);
     block_vars.push_back(block_var);
-    iter_values.push_back(Substitute(original_iter_value, var_map));
+    iter_values.push_back(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+            original_iter_value,
+            [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+              if (auto replacement = var_map.Get(var)) {
+                return ffi::Any(replacement.value());
+              }
+              return ffi::Unchanged();
+            })
+            .template cast<PrimExpr>());
   }
 
   // block access region for read/write buffers
@@ -189,13 +199,31 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
   ffi::Array<PrimExpr>& old_indices = (is_cache_read) ? read_access_indices : write_access_indices;
   Region& old_region = (is_cache_read) ? read_access_region : write_access_region;
   for (const Range& range : cache_region->region) {
-    old_indices.push_back(Substitute(range->min, var_map));
+    old_indices.push_back(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+            range->min,
+            [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+              if (auto replacement = var_map.Get(var)) {
+                return ffi::Any(replacement.value());
+              }
+              return ffi::Unchanged();
+            })
+            .template cast<PrimExpr>());
     old_region.push_back(Range::FromMinExtent(old_indices.back(), IntImm::Int32(1)));
   }
   ffi::Array<PrimExpr>& new_indices = (is_cache_read) ? write_access_indices : read_access_indices;
   Region& new_region = (is_cache_read) ? write_access_region : read_access_region;
   for (const PrimExpr& idx : info->indices) {
-    new_indices.push_back(Substitute((idx), var_map));
+    new_indices.push_back(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+            idx,
+            [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+              if (auto replacement = var_map.Get(var)) {
+                return ffi::Any(replacement.value());
+              }
+              return ffi::Unchanged();
+            })
+            .template cast<PrimExpr>());
     new_region.push_back(Range::FromMinExtent(new_indices.back(), IntImm::Int32(1)));
   }
 
@@ -379,7 +407,16 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
 
   // Step 2: Replace the original block iters with the new block iters
   for (const PrimExpr& index : original_indices) {
-    target_indices.push_back(Substitute(index, block_var_replace_map));
+    target_indices.push_back(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+            index,
+            [&block_var_replace_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+              if (auto it = block_var_replace_map.find(var); it != block_var_replace_map.end()) {
+                return ffi::Any(it->second);
+              }
+              return ffi::Unchanged();
+            })
+            .cast<PrimExpr>());
   }
 
   // Step 3: Create the reindex block
@@ -582,7 +619,18 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const BufferVar& 
         for (size_t i = 0; i < block->iter_vars.size(); ++i) {
           subst.Set(block->iter_vars[i]->var, realize->iter_values[i]);
         }
-        PrimExpr pred = subst.empty() ? realize->predicate : Substitute(realize->predicate, subst);
+        PrimExpr pred =
+            subst.empty()
+                ? realize->predicate
+                : ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                      realize->predicate,
+                      [&subst](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                        if (auto replacement = subst.Get(var)) {
+                          return ffi::Any(replacement.value());
+                        }
+                        return ffi::Unchanged();
+                      })
+                      .cast<PrimExpr>();
         // OR the predicates across all accessing nested blocks: each such block is an
         // independent alternative access path (sibling blocks in a SeqStmt), so the
         // cache must cover the *union* of their access regions, not the intersection.
@@ -627,10 +675,26 @@ BufferRegion RelaxBufferRegion(ScheduleState self, const BufferRegion& buffer_re
   ffi::Map<Var, PrimExpr> binding = GetBindings(realize);
   const BufferVar& buffer = buffer_region->buffer;
   arith::Analyzer analyzer;
-  BufferRegion subst_region = BufferRegion(buffer, Substitute(buffer_region->region, binding));
+  auto map_binding = [&binding](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto replacement = binding.Get(var)) {
+      return ffi::Any(replacement.value());
+    }
+    return ffi::Unchanged();
+  };
+  ffi::Array<Range> mapped_region = buffer_region->region.Map([&map_binding](const Range& range) {
+    PrimExpr min =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, map_binding).cast<PrimExpr>();
+    PrimExpr extent =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, map_binding).cast<PrimExpr>();
+    return Range::FromMinExtent(min, extent);
+  });
+  BufferRegion subst_region = BufferRegion(buffer, mapped_region);
   ffi::Array<arith::IntSet> int_sets = AnalyzeRegionUpperBound(
       /*region=*/subst_region,
-      /*predicate=*/Substitute(realize->predicate && extra_predicate, binding),
+      /*predicate=*/
+      ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(realize->predicate && extra_predicate,
+                                                    map_binding)
+          .cast<PrimExpr>(),
       /*dom_low_inclusive=*/dom_low_inclusive,
       /*dom_high_exclusive=*/dom_high_exclusive,
       /*analyzer=*/analyzer.get());

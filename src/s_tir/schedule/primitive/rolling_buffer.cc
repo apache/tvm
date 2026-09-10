@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 
 #include <functional>
 
@@ -43,8 +44,29 @@ struct RollingBufferInfo {
 
 BufferRegion GetRelaxedBufferRegion(const SBlockRealize& realize, const BufferRegion& buffer_region,
                                     const ffi::Map<Var, arith::IntSet>& dom_map) {
-  ffi::Array<arith::IntSet> relaxed_intsets =
-      arith::EvalSet(Substitute(buffer_region->region, GetBindings(realize)), dom_map);
+  ffi::Map<Var, PrimExpr> bindings = GetBindings(realize);
+  ffi::Array<Range> mapped_region = buffer_region->region.Map([&bindings](const Range& range) {
+    PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                       range->min,
+                       [&bindings](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                         if (auto replacement = bindings.Get(var)) {
+                           return ffi::Any(replacement.value());
+                         }
+                         return ffi::Unchanged();
+                       })
+                       .cast<PrimExpr>();
+    PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                          range->extent,
+                          [&bindings](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                            if (auto replacement = bindings.Get(var)) {
+                              return ffi::Any(replacement.value());
+                            }
+                            return ffi::Unchanged();
+                          })
+                          .cast<PrimExpr>();
+    return Range::FromMinExtent(min, extent);
+  });
+  ffi::Array<arith::IntSet> relaxed_intsets = arith::EvalSet(mapped_region, dom_map);
   Region relaxed_region;
   relaxed_region.reserve(relaxed_intsets.size());
   for (size_t i = 0; i < relaxed_intsets.size(); ++i) {

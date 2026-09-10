@@ -19,6 +19,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/runtime/logging.h>
 
 #include <optional>
@@ -186,7 +187,16 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       for (size_t i = 0; i < loopnest.size(); i++) {
         const For& loop = loopnest[i];
         const PrimExpr& buffer_dim = old_buffer_->shape[i];
-        PrimExpr index = Substitute(op->indices[i], active_var_bindings_);
+        PrimExpr index = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                             op->indices[i],
+                             [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                               if (auto it = active_var_bindings_.find(var.get());
+                                   it != active_var_bindings_.end()) {
+                                 return ffi::Any(it->second);
+                               }
+                               return ffi::Unchanged();
+                             })
+                             .cast<PrimExpr>();
         bool is_loop_over_axis = index.same_as(loop->loop_var) && is_const_int(loop->min, 0) &&
                                  ExprDeepEqual()(loop->extent, buffer_dim) &&
                                  loop->kind == ForKind::kSerial;
@@ -329,11 +339,29 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       TVM_FFI_ICHECK_EQ(inverse->final_indices.size(), old_indices.size());
       for (size_t i = 0; i < old_indices.size(); i++) {
         Var var = old_indices[i].as_or_throw<Var>();
-        PrimExpr expr = Substitute(inverse->final_indices[i], loop_var_to_virtual_var);
+        PrimExpr expr = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                            inverse->final_indices[i],
+                            [&loop_var_to_virtual_var](
+                                const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                              if (auto replacement = loop_var_to_virtual_var.Get(var)) {
+                                return ffi::Any(replacement.value());
+                              }
+                              return ffi::Unchanged();
+                            })
+                            .cast<PrimExpr>();
         var_remap.Set(var, expr);
       }
 
-      padding_predicate = Substitute(padding_predicate, loop_var_to_virtual_var);
+      padding_predicate = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                              padding_predicate,
+                              [&loop_var_to_virtual_var](
+                                  const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                                if (auto replacement = loop_var_to_virtual_var.Get(var)) {
+                                  return ffi::Any(replacement.value());
+                                }
+                                return ffi::Unchanged();
+                              })
+                              .cast<PrimExpr>();
 
       this->new_iter_vars = new_iter_vars;
       this->new_iter_values = new_iter_values;
@@ -487,7 +515,16 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       iter_vars.push_back(iter_var);
       iter_values.push_back(loop_var);
     }
-    padding_predicate = Substitute(std::move(padding_predicate), loop_indices_to_block_indices);
+    padding_predicate = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                            std::move(padding_predicate),
+                            [&loop_indices_to_block_indices](
+                                const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                              if (auto replacement = loop_indices_to_block_indices.Get(var)) {
+                                return ffi::Any(replacement.value());
+                              }
+                              return ffi::Unchanged();
+                            })
+                            .cast<PrimExpr>();
 
     PrimExpr pad_value_at_index =
         pad_value.value()->MapIndices(indices, ffi::GetRef<arith::Analyzer>(analyzer))[0];
@@ -646,7 +683,16 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       if (auto loop_depth = self->LoopDependencyRange(prim_value.value()); loop_depth.has_value()) {
         self->loop_depth_lookup_[var.get()] = loop_depth.value();
         self->active_var_bindings_[var.get()] =
-            Substitute(prim_value.value(), self->active_var_bindings_);
+            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                prim_value.value(),
+                [self](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                  if (auto it = self->active_var_bindings_.find(var.get());
+                      it != self->active_var_bindings_.end()) {
+                    return ffi::Any(it->second);
+                  }
+                  return ffi::Unchanged();
+                })
+                .cast<PrimExpr>();
       }
     }
     ~BindVariableDefinition() {}
@@ -1469,8 +1515,19 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
       inverse_subst_map.Set(block_vars[i].as_or_throw<Var>(), inversed_new_block_vars[i]);
     }
   }
-  SBlock new_block =
-      Substitute(ffi::GetRef<SBlock>(block_ptr), inverse_subst_map).as_or_throw<SBlock>();
+  SBlock new_block = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                         ffi::GetRef<SBlock>(block_ptr),
+                         [&inverse_subst_map](const Var& var, TVMFFIDefRegionKind kind)
+                             -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                           if (kind != kTVMFFIDefRegionKindNone) {
+                             return ffi::Unchanged();
+                           }
+                           if (auto replacement = inverse_subst_map.Get(var)) {
+                             return ffi::Any(replacement.value());
+                           }
+                           return ffi::Unchanged();
+                         })
+                         .cast<SBlock>();
   new_block.CopyOnWrite()->iter_vars = new_block_iters;
   new_block = BlockBufferAccessSimplifier::Simplify(new_block, analyzer).as_or_throw<SBlock>();
 

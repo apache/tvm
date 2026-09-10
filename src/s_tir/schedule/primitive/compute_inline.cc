@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
@@ -527,7 +528,16 @@ class ComputeInliner : public BaseInliner {
         inverse_iter_map.Set(iter->var, iter->dom->min);
       }
     }
-    store_value_ = Substitute(store_value_, inverse_iter_map);
+    store_value_ =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+            store_value_,
+            [&inverse_iter_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+              if (auto replacement = inverse_iter_map.Get(var)) {
+                return ffi::Any(replacement.value());
+              }
+              return ffi::Unchanged();
+            })
+            .cast<PrimExpr>();
     return true;
   }
 
@@ -545,7 +555,15 @@ class ComputeInliner : public BaseInliner {
 
   PrimExpr ReplaceInlinedBuffer(TensorLoad load) {
     SetIndexSubstitution(load->indices);
-    return Substitute(store_value_, idx_sub_);
+    return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+               store_value_,
+               [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                 if (auto it = idx_sub_.find(var.get()); it != idx_sub_.end()) {
+                   return ffi::Any(it->second);
+                 }
+                 return ffi::Unchanged();
+               })
+        .cast<PrimExpr>();
   }
 
   /*!
@@ -757,7 +775,16 @@ class ReverseComputeInliner : public BaseInliner {
         }
       }
     }
-    PrimExpr outer_predicate = Substitute(predicate, subst_map);
+    PrimExpr outer_predicate =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+            predicate,
+            [&subst_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+              if (auto replacement = subst_map.Get(var)) {
+                return ffi::Any(replacement.value());
+              }
+              return ffi::Unchanged();
+            })
+            .cast<PrimExpr>();
     auto n = producer_block_realize.CopyOnWrite();
     n->block = producer_block;
     n->predicate = analyzer_->Simplify(outer_predicate);
@@ -1273,6 +1300,12 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
   for (size_t i = 0; i < reduction_data_vars.size(); ++i) {
     var_map[epilogue_data_vars[i]] = reduction_data_vars[i];
   }
+  auto map_epilogue_var = [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto it = var_map.find(var); it != var_map.end()) {
+      return ffi::Any(it->second);
+    }
+    return ffi::Unchanged();
+  };
 
   // 2. Generalized init transformation: substitute reduction buffer load with identity element (0)
   // Create a substituter to replace reduction_buffer_load_ with identity element
@@ -1302,14 +1335,18 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
   PrimExpr init_epilogue = init_subst(epilogue_expression_).as_or_throw<PrimExpr>();
 
   // Apply index mapping
-  init_epilogue = Substitute(init_epilogue, var_map);
+  init_epilogue = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(init_epilogue, map_epilogue_var)
+                      .cast<PrimExpr>();
 
   // Simplify the expression (e.g., 0 + C[vi, vj] -> C[vi, vj])
   arith::Analyzer analyzer;
   init_epilogue = analyzer->Simplify(init_epilogue);
 
-  BufferStore new_init_store = BufferStore(epilogue_output_buffer_, init_epilogue,
-                                           Substitute(epilogue_output_indices_, var_map));
+  ffi::Array<PrimExpr> init_indices = epilogue_output_indices_.Map([&map_epilogue_var](
+                                                                       const PrimExpr& index) {
+    return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index, map_epilogue_var).cast<PrimExpr>();
+  });
+  BufferStore new_init_store = BufferStore(epilogue_output_buffer_, init_epilogue, init_indices);
   new_block->init = new_init_store;
 
   // 3. Generalized update transformation: apply epilogue expression with reduction buffer replaced
@@ -1432,7 +1469,15 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
         PrimExpr new_value = applier(epilogue_expression_).as_or_throw<PrimExpr>();
 
         // Apply index mapping
-        new_value = Substitute(new_value, var_map_);
+        new_value = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                        new_value,
+                        [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                          if (auto it = var_map_.find(var); it != var_map_.end()) {
+                            return ffi::Any(it->second);
+                          }
+                          return ffi::Unchanged();
+                        })
+                        .cast<PrimExpr>();
 
         return BufferStore(new_buffer_, new_value, store->indices);
       }
@@ -1456,7 +1501,9 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
   };
 
   // Apply index mapping to epilogue expression first
-  PrimExpr epilogue_expr_mapped = Substitute(epilogue_expression_, var_map);
+  PrimExpr epilogue_expr_mapped =
+      ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(epilogue_expression_, map_epilogue_var)
+          .cast<PrimExpr>();
 
   UpdateSubstituter replacer(inlined_buffer_, epilogue_output_buffer_, inlined_buffer_,
                              epilogue_expr_mapped, var_map);
@@ -1466,8 +1513,15 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
   ffi::Array<BufferRegion> new_writes;
   for (const BufferRegion& write : reduction_block->writes) {
     if (write->buffer.same_as(inlined_buffer_)) {
-      new_writes.push_back(
-          BufferRegion(epilogue_output_buffer_, Substitute(write->region, var_map)));
+      ffi::Array<Range> mapped_region = write->region.Map([&map_epilogue_var](const Range& range) {
+        PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, map_epilogue_var)
+                           .cast<PrimExpr>();
+        PrimExpr extent =
+            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, map_epilogue_var)
+                .cast<PrimExpr>();
+        return Range::FromMinExtent(min, extent);
+      });
+      new_writes.push_back(BufferRegion(epilogue_output_buffer_, mapped_region));
     } else {
       new_writes.push_back(write);
     }
@@ -1481,7 +1535,15 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
   // Add all non-reduction buffers from epilogue expression
   for (const BufferRegion& read : epilogue_block_->reads) {
     if (!read->buffer.same_as(inlined_buffer_)) {
-      new_reads.push_back(BufferRegion(read->buffer, Substitute(read->region, var_map)));
+      ffi::Array<Range> mapped_region = read->region.Map([&map_epilogue_var](const Range& range) {
+        PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, map_epilogue_var)
+                           .cast<PrimExpr>();
+        PrimExpr extent =
+            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, map_epilogue_var)
+                .cast<PrimExpr>();
+        return Range::FromMinExtent(min, extent);
+      });
+      new_reads.push_back(BufferRegion(read->buffer, mapped_region));
       read_bufs.insert(read->buffer.get());
     }
   }

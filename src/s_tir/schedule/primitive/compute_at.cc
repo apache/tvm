@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 
 #include "../utils.h"
 
@@ -394,8 +395,29 @@ void RelaxBufferRegions(const ffi::Map<Var, PrimExpr>& binding,
           /*extra_relax_scope=*/scope));
     }
     // Relax the region
-    ffi::Array<arith::IntSet> relaxed_region =
-        arith::EvalSet(Substitute(region, binding), var_dom.value());
+    ffi::Array<Range> mapped_region = region.Map([&binding](const Range& range) {
+      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                         range->min,
+                         [&binding](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                           if (auto replacement = binding.Get(var)) {
+                             return ffi::Any(replacement.value());
+                           }
+                           return ffi::Unchanged();
+                         })
+                         .template cast<PrimExpr>();
+      PrimExpr extent =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+              range->extent,
+              [&binding](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                if (auto replacement = binding.Get(var)) {
+                  return ffi::Any(replacement.value());
+                }
+                return ffi::Unchanged();
+              })
+              .template cast<PrimExpr>();
+      return Range::FromMinExtent(min, extent);
+    });
+    ffi::Array<arith::IntSet> relaxed_region = arith::EvalSet(mapped_region, var_dom.value());
     relaxed_regions.push_back({relaxed_region.begin(), relaxed_region.end()});
   }
 }

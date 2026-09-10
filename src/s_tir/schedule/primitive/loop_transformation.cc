@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 
 #include "../utils.h"
 
@@ -607,7 +608,15 @@ class BlockMutator : public StmtExprMutator {
     }
 
     // Update all instances of old iter_vars in the block with new iter_vars
-    auto block_stmt = tirx::Substitute(new_block, var_map);
+    auto block_stmt = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                          new_block,
+                          [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                            if (auto replacement = var_map.Get(var)) {
+                              return ffi::Any(replacement.value());
+                            }
+                            return ffi::Unchanged();
+                          })
+                          .cast<SBlock>();
     return block_stmt;
   }
 
@@ -630,7 +639,15 @@ class BlockMutator : public StmtExprMutator {
 
     if (!op->loop_var.same_as(new_var)) {
       // If the partioned loop contains nested for loop, then create new iteration variable instance
-      res.CopyOnWrite()->body = tirx::Substitute(res->body, {{op->loop_var, new_var}});
+      res.CopyOnWrite()->body =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+              res->body,
+              [old_var = op->loop_var,
+               &new_var](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                if (var.same_as(old_var)) return ffi::Any(new_var);
+                return ffi::Unchanged();
+              })
+              .cast<Stmt>();
       res.CopyOnWrite()->loop_var = new_var.as_or_throw<PrimVar>();
     }
     return res;
@@ -679,7 +696,14 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
   for (int i = 0; i < n; i++) {
     extent_value = analyzer->Simplify(factors[i]);
     Var new_loop_var = loop->loop_var.CopyWithSuffix(std::to_string(i)).CopyWithDType(dtype);
-    Stmt loop_body = tirx::Substitute(loop->body, {{loop->loop_var, new_loop_var}});
+    Stmt loop_body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                         loop->body,
+                         [old_var = loop->loop_var, &new_loop_var](
+                             const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                           if (var.same_as(old_var)) return ffi::Any(new_loop_var);
+                           return ffi::Unchanged();
+                         })
+                         .cast<Stmt>();
 
     // Create new block with new reference to each variable/stmt/expr in the existing block
     loop_body = BlockMutator(new_loop_var, min_value, extent_value)(std::move(loop_body));
@@ -744,7 +768,15 @@ class LoopReconstructor : private StmtMutator {
         }
         var_map.Set(loops_[i][j]->loop_var, new_loop_vars[j].as_or_throw<PrimExpr>());
       }
-      auto new_stmt = Substitute(loops_[i][0]->body, var_map);
+      auto new_stmt = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                          loops_[i][0]->body,
+                          [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                            if (auto replacement = var_map.Get(var)) {
+                              return ffi::Any(replacement.value());
+                            }
+                            return ffi::Unchanged();
+                          })
+                          .cast<Stmt>();
       new_stmts.push_back(new_stmt);
       this->need_remove_loop_.push_back(loops_[i].back());
     }

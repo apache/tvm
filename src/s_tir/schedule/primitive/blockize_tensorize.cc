@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/runtime/logging.h>
 
 #include <functional>
@@ -373,19 +374,27 @@ Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realiz
     }
   }
   // Step 4: Substitute the iter vars and loop vars
-  return Substitute(stmt, subst_map);
+  return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+             stmt,
+             [&subst_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+               if (auto replacement = subst_map.Get(var)) {
+                 return ffi::Any(replacement.value());
+               }
+               return ffi::Unchanged();
+             })
+      .cast<Stmt>();
 }
 
 /*!
- * \brief Substitute variables in the stmt, do simplification and track block substitution
+ * \brief Replace variables in the stmt, do simplification and track block replacement
  * \param stmt The stmt to be substituted.
  * \param sub The substitution map.
  * \param block_sref_reuse The block substitution happens during the substitution.
  * \param analyzer The analyzer for arithmetic simplification.
  * \return The substituted stmt.
  */
-Stmt Substitute(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
-                ffi::Map<SBlock, SBlock>* block_sref_reuse, arith::AnalyzerObj* analyzer) {
+Stmt ReplaceAndSimplify(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
+                        ffi::Map<SBlock, SBlock>* block_sref_reuse, arith::AnalyzerObj* analyzer) {
   struct Replacer : public StmtExprMutator {
     explicit Replacer(const ffi::Map<Var, PrimExpr>& sub,
                       ffi::Map<SBlock, SBlock>* block_sref_reuse, arith::AnalyzerObj* analyzer)
@@ -528,7 +537,7 @@ SBlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
     analyzer->Bind(iter->var, iter->dom);
   }
   SBlock block_subst =
-      Substitute(block, block_var_subst, block_sref_reuse, analyzer).as_or_throw<SBlock>();
+      ReplaceAndSimplify(block, block_var_subst, block_sref_reuse, analyzer).as_or_throw<SBlock>();
   // Step 5: Generate the inner block. The write regions of the inner blocks will be reduction if
   // 1. The original block has init stmt.
   // 2. There are outer reduction iter vars.
@@ -618,12 +627,33 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
     }
     ffi::Map<Var, arith::IntSet> inner_iter_dom;
     for (const IterVar& iter : inner_iter_vars) {
-      Range dom = tirx::Substitute(iter->dom, loop_var_subst);
+      PrimExpr min =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+              iter->dom->min,
+              [&loop_var_subst](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                if (auto replacement = loop_var_subst.Get(var)) {
+                  return ffi::Any(replacement.value());
+                }
+                return ffi::Unchanged();
+              })
+              .cast<PrimExpr>();
+      PrimExpr extent =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+              iter->dom->extent,
+              [&loop_var_subst](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                if (auto replacement = loop_var_subst.Get(var)) {
+                  return ffi::Any(replacement.value());
+                }
+                return ffi::Unchanged();
+              })
+              .cast<PrimExpr>();
+      Range dom = Range::FromMinExtent(min, extent);
       inner_iter_dom.Set(iter->var, arith::IntSet::FromRange(dom));
       analyzer->Bind(iter->var, dom);
     }
     SBlock block_subst =
-        Substitute(block, block_var_subst, block_sref_reuse, analyzer.get()).as_or_throw<SBlock>();
+        ReplaceAndSimplify(block, block_var_subst, block_sref_reuse, analyzer.get())
+            .as_or_throw<SBlock>();
     auto reads = EvalSetRegions(block_subst->reads, inner_iter_dom);
     auto writes = EvalSetRegions(block_subst->writes, inner_iter_dom);
     read_regions.insert(read_regions.end(), reads.begin(), reads.end());
@@ -651,7 +681,16 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
     for (const ForNode* loop : loops) {
       ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
       new_loop->body = std::move(stmt);
-      new_loop->extent = tirx::Substitute(new_loop->extent, loop_var_subst);
+      new_loop->extent =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+              new_loop->extent,
+              [&loop_var_subst](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                if (auto replacement = loop_var_subst.Get(var)) {
+                  return ffi::Any(replacement.value());
+                }
+                return ffi::Unchanged();
+              })
+              .cast<PrimExpr>();
       stmt = For(new_loop);
     }
     seq_body.push_back(stmt);

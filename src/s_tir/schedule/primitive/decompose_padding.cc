@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include "../../../tirx/transform/ir_utils.h"
@@ -103,7 +104,16 @@ class PaddingInfoAnalyzer {
       SetError("Value of BufferStore expect to be constrained by a padding predicate");
       return false;
     }
-    PrimExpr pad_predicate = Substitute(if_then_else->args[0].as_or_throw<PrimExpr>(), iter_values);
+    PrimExpr pad_predicate =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+            if_then_else->args[0].as_or_throw<PrimExpr>(),
+            [&iter_values](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+              if (auto it = iter_values.find(var.get()); it != iter_values.end()) {
+                return ffi::Any(it->second);
+              }
+              return ffi::Unchanged();
+            })
+            .cast<PrimExpr>();
     PrimExpr in_bound_value = if_then_else->args[1].as_or_throw<PrimExpr>();
     PrimExpr pad_value = if_then_else->args[2].as_or_throw<PrimExpr>();
     if (!is_const_number(pad_value)) {
@@ -217,7 +227,16 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
 
   // rewrite expr helper
   auto rewrite_expr = [&repl_dict, analyzer](const PrimExpr& e) {
-    return analyzer->Simplify(Substitute(e, repl_dict));
+    return analyzer->Simplify(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+            e,
+            [&repl_dict](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+              if (auto replacement = repl_dict.Get(var)) {
+                return ffi::Any(replacement.value());
+              }
+              return ffi::Unchanged();
+            })
+            .cast<PrimExpr>());
   };
 
   // create new write region
@@ -313,7 +332,16 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
 
   // rewrite helpers
   auto rewrite_expr = [&repl_dict, analyzer](const PrimExpr& e) {
-    return analyzer->Simplify(Substitute(e, repl_dict));
+    return analyzer->Simplify(
+        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+            e,
+            [&repl_dict](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+              if (auto replacement = repl_dict.Get(var)) {
+                return ffi::Any(replacement.value());
+              }
+              return ffi::Unchanged();
+            })
+            .cast<PrimExpr>());
   };
   auto rewrite_region = [rewrite_expr](const Region& region) {
     return region.Map([rewrite_expr](const Range& r) {
