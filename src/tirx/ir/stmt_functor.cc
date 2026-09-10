@@ -871,16 +871,16 @@ PrimExpr SubstituteWithDataTypeLegalization(
       .as_or_throw<PrimExpr>();
 }
 
-  TVM_FFI_STATIC_INIT_BLOCK() {
-    namespace refl = tvm::ffi::reflection;
-    refl::GlobalDef()
-      .def("tirx.Substitute", [](ffi::ObjectRef node, ffi::Map<Var, Expr> vmap) -> ffi::ObjectRef {
-        if (node->IsInstance<StmtNode>()) {
-          return Substitute(node.as_or_throw<Stmt>(), vmap);
-        } else {
-          return Substitute(node.as_or_throw<Expr>(), vmap);
-        }
-      });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.Substitute",
+                        [](ffi::ObjectRef node, ffi::Map<Var, Expr> vmap) -> ffi::ObjectRef {
+                          if (node->IsInstance<StmtNode>()) {
+                            return Substitute(node.as_or_throw<Stmt>(), vmap);
+                          } else {
+                            return Substitute(node.as_or_throw<Expr>(), vmap);
+                          }
+                        });
 }
 
 }  // namespace tirx
