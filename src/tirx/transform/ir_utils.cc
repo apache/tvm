@@ -569,7 +569,12 @@ class IRConvertSSA final : public StmtExprMutator {
     if (buffer.get() == var) return true;
 
     auto uses_var = [var](const PrimExpr& expr) {
-      return expr.defined() && UsesVar(expr, [var](const VarNode* node) { return node == var; });
+      auto walkfn = [var](const Var& candidate) -> ffi::Expected<ffi::WalkResult> {
+        return candidate.get() == var ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(candidate))
+                                      : ffi::WalkResult::Advance();
+      };
+      return expr.defined() &&
+             ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(expr, walkfn).has_value();
     };
     if (uses_var(buffer->elem_offset)) return true;
     for (const PrimExpr& dim : buffer->shape) {

@@ -24,6 +24,7 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
@@ -599,10 +600,13 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
     }
     // If the indices do not contain any variables to be relaxed, return the TensorLoad itself.
     // Otherwise return `IntervalSet::everything()` since we have no knowledge on the buffer data.
+    auto walkfn = [dom_map = &this->dom_map_](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return dom_map->find(var) != dom_map->end()
+                 ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                 : ffi::WalkResult::Advance();
+    };
     for (const PrimExpr& index : op->indices) {
-      if (UsesVar(index, [dom_map = &this->dom_map_](const VarNode* var) {
-            return dom_map->find(ffi::GetRef<Var>(var)) != dom_map->end();
-          })) {
+      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(index, walkfn).has_value()) {
         return IntervalSet::Everything();
       }
     }
