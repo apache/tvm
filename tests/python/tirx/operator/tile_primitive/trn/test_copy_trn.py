@@ -17,11 +17,11 @@
 
 import tvm
 import tvm.testing
+import tvm_ffi
 from tvm.ir import assert_structural_equal as _assert_structural_equal
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import F, P, S, TileLayout
-from tvm.tirx.stmt_functor import ir_transform
 
 target = tvm.target.Target("aws/trn1/trn1.2xlarge")
 
@@ -32,12 +32,7 @@ def _strip_exec_scope_stmt(stmt):
             return node.body
         return node
 
-    return ir_transform(
-        stmt,
-        preorder=lambda _node: None,
-        postorder=_postorder,
-        only_enable=["tirx.AttrStmt"],
-    )
+    return tvm_ffi.structural_map(stmt, (tvm.tirx.AttrStmt, _postorder))
 
 
 def assert_structural_equal(lhs, rhs, *args, **kwargs):
