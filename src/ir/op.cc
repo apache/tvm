@@ -21,6 +21,8 @@
  * \file src/ir/op.cc
  * \brief Primitive operators and intrinsics.
  */
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
@@ -33,9 +35,32 @@
 
 namespace tvm {
 
+namespace {
+
+TVMFFIAny OpVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  // Ops are unique registry atoms.  Avoid reflecting through their registry metadata.
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny OpMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny OpMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+}  // namespace
+
 TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
   ArgumentInfoNode::RegisterReflection();
   OpNode::RegisterReflection();
+  refl::TypeAttrDef<OpNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&OpVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&OpMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&OpMaybeInplaceMutate));
 }
 
 using ffi::Any;
