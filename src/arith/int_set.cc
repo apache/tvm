@@ -600,15 +600,13 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
     }
     // If the indices do not contain any variables to be relaxed, return the TensorLoad itself.
     // Otherwise return `IntervalSet::everything()` since we have no knowledge on the buffer data.
+    auto walkfn = [dom_map = &this->dom_map_](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return dom_map->find(var) != dom_map->end()
+                 ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                 : ffi::WalkResult::Advance();
+    };
     for (const PrimExpr& index : op->indices) {
-      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-              index,
-              [dom_map = &this->dom_map_](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-                return dom_map->find(var) != dom_map->end()
-                           ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                           : ffi::WalkResult::Advance();
-              })
-              .has_value()) {
+      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(index, walkfn).has_value()) {
         return IntervalSet::Everything();
       }
     }

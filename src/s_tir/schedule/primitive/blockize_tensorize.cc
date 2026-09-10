@@ -106,14 +106,11 @@ ffi::Array<ffi::Array<arith::IterMark>> TrivialSubspaceDivision(
       var_set.insert(var.get());
     }
     return [var_set = std::move(var_set)](const PrimExpr& expr) -> bool {
-      return ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-                 expr,
-                 [&var_set](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-                   return var_set.count(var.get())
-                              ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                              : ffi::WalkResult::Advance();
-                 })
-          .has_value();
+      auto walkfn = [&var_set](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+        return var_set.count(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                        : ffi::WalkResult::Advance();
+      };
+      return ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(expr, walkfn).has_value();
     };
   };
   auto use_outer_loop_vars = make_uses_var(outer_iters);
@@ -336,14 +333,13 @@ Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realiz
   for (int i = 0; i < n; ++i) {
     const IterVar& old_iter_var = inner_block->iter_vars[i];
     const PrimExpr& iter_value = inner_realize->iter_values[i];
+    auto walkfn = [target =
+                       old_iter_var->var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return var.get() == target ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                 : ffi::WalkResult::Advance();
+    };
     if (old_iter_var->iter_type == IterVarType::kDataPar &&
-        ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-            block_init,
-            [target = old_iter_var->var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-              return var.get() == target ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                                         : ffi::WalkResult::Advance();
-            })
-            .has_value()) {
+        ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(block_init, walkfn).has_value()) {
       ffi::ObjectPtr<IterVarNode> new_iter_var = ffi::make_object<IterVarNode>(*old_iter_var.get());
       new_iter_var->var = new_iter_var->var.CopyWithSuffix("_init");
       subst_map.Set(old_iter_var->var, new_iter_var->var);
@@ -365,14 +361,13 @@ Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realiz
   // Step 3. Create the loop nest on top of the block
   for (const ForNode* loop : loops) {
     bool is_init_loop = false;
+    auto walkfn = [target =
+                       loop->loop_var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return var.get() == target ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                 : ffi::WalkResult::Advance();
+    };
     for (const PrimExpr& init_binding : iter_values) {
-      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-              init_binding,
-              [target = loop->loop_var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-                return var.get() == target ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                                           : ffi::WalkResult::Advance();
-              })
-              .has_value()) {
+      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(init_binding, walkfn).has_value()) {
         is_init_loop = true;
         break;
       }

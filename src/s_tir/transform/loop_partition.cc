@@ -249,22 +249,12 @@ class PartitionFinder : public StmtExprVisitor {
 
   void VisitStmt_(const ForNode* op) final {
     auto f_vset_contains = [this](const VarNode* var) { return out_vars_.count(var); };
-    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-            op->min,
-            [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-              return f_vset_contains(var.get())
-                         ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                         : ffi::WalkResult::Advance();
-            })
-            .has_value() ||
-        ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-            op->extent,
-            [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-              return f_vset_contains(var.get())
-                         ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                         : ffi::WalkResult::Advance();
-            })
-            .has_value()) {
+    auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return f_vset_contains(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                        : ffi::WalkResult::Advance();
+    };
+    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(op->min, walkfn).has_value() ||
+        ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(op->extent, walkfn).has_value()) {
       return;
     }
 
@@ -317,14 +307,11 @@ class PartitionFinder : public StmtExprVisitor {
     // For cond, find out the interval, if exists, in which we can prove that cond is
     // true. Also find the interval, if exists, in which we can prove that cond is
     // false.
-    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-            cond,
-            [this](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-              return var.get() == current_var_.get()
-                         ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                         : ffi::WalkResult::Advance();
-            })
-            .has_value()) {
+    auto walkfn = [this](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return var.get() == current_var_.get() ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                             : ffi::WalkResult::Advance();
+    };
+    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(cond, walkfn).has_value()) {
       IntSet interval =
           DeduceBound(current_var_.as_or_throw<PrimExpr>(), cond, hint_map_, relax_map_);
       if (!interval.IsNothing()) {

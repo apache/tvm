@@ -238,24 +238,15 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
           auto f_uses_thread_index = [=](const tvm::tirx::VarNode* parameter) {
             return parameter == thread_index_var;
           };
+          auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+            return f_uses_thread_index(var.get())
+                       ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                       : ffi::WalkResult::Advance();
+          };
           depends_on_thread_index =
               depends_on_thread_index &&
-              ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-                  curr_index,
-                  [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-                    return f_uses_thread_index(var.get())
-                               ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                               : ffi::WalkResult::Advance();
-                  })
-                  .has_value() &&
-              ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-                  prev_index,
-                  [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-                    return f_uses_thread_index(var.get())
-                               ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                               : ffi::WalkResult::Advance();
-                  })
-                  .has_value();
+              ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(curr_index, walkfn).has_value() &&
+              ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(prev_index, walkfn).has_value();
         }
       } else {
         has_same_index = false;

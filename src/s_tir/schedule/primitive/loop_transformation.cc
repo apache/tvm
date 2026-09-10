@@ -908,12 +908,11 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
     outer_loop_sref = sref;
     outer_loop = loop;
     CheckLoopStartsWithZero(self, sref, analyzer.get());
-    auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-        loop->extent, [&outer_loop_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-          return outer_loop_vars.count(var.get())
-                     ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                     : ffi::WalkResult::Advance();
-        });
+    auto walkfn = [&outer_loop_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return outer_loop_vars.count(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                              : ffi::WalkResult::Advance();
+    };
+    auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(loop->extent, walkfn);
     if (result.has_value()) {
       Var used_var = result.value()->value.cast<Var>();
       throw DependentLoopError(self->mod, ffi::GetRef<For>(loop), used_var->name,
@@ -1105,13 +1104,13 @@ For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefN
     } else {
       n->body = loop_sref->StmtAs<ForNode>()->body;
     }
-    auto find_inner_var = [&inner_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    auto walkfn = [&inner_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
       return inner_vars.count(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
                                          : ffi::WalkResult::Advance();
     };
-    auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(copy->min, find_inner_var);
+    auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(copy->min, walkfn);
     if (!result.has_value()) {
-      result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(copy->extent, find_inner_var);
+      result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(copy->extent, walkfn);
     }
     if (result.has_value()) {
       Var used_var = result.value()->value.cast<Var>();

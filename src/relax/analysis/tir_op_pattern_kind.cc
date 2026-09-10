@@ -236,15 +236,13 @@ class PatternKindAnalyzer : public StmtExprVisitor {
         return false;
       }
     }
+    auto walkfn = [&vars](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return !vars.count(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                    : ffi::WalkResult::Advance();
+    };
     for (const PrimExpr& load_index : load->indices) {
       // return false if there are vars used in load indices but not in store indices.
-      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-              load_index,
-              [&vars](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
-                return !vars.count(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                                              : ffi::WalkResult::Advance();
-              })
-              .has_value()) {
+      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(load_index, walkfn).has_value()) {
         return false;
       }
     }
@@ -324,14 +322,14 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    */
   static bool IsPureReducePattern(ffi::Array<tirx::Var> reduce_loops,
                                   ffi::Array<PrimExpr> indices) {
+    auto walkfn = [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return std::any_of(reduce_loops.begin(), reduce_loops.end(),
+                         [&](const tirx::Var& loop) { return loop.same_as(var); })
+                 ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                 : ffi::WalkResult::Advance();
+    };
     for (const PrimExpr& e : indices) {
-      auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-          e, [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
-            return std::any_of(reduce_loops.begin(), reduce_loops.end(),
-                               [&](const tirx::Var& loop) { return loop.same_as(var); })
-                       ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                       : ffi::WalkResult::Advance();
-          });
+      auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(e, walkfn);
       if (result.has_value()) {
         tirx::Var var = result.value()->value.cast<tirx::Var>();
         int id =

@@ -218,16 +218,14 @@ class HoistInfoCollector : public StmtExprVisitor {
     if (auto info = FindHoistDestination(cond)) {
       if (!info->reached_sequential_node) {
         // Record whether this conditional uses any block variables.
+        auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+          return active_block_vars.count(var.get())
+                     ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                     : ffi::WalkResult::Advance();
+        };
         bool uses_block_var =
             active_block_vars.size() &&
-            ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-                cond,
-                [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-                  return active_block_vars.count(var.get())
-                             ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                             : ffi::WalkResult::Advance();
-                })
-                .has_value();
+            ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(cond, walkfn).has_value();
 
         std::unordered_set<const VarNode*> let_bindings_used;
 
@@ -397,19 +395,16 @@ class HoistInfoCollector : public StmtExprVisitor {
 
     for (auto it = active_loops.rbegin(); it != active_loops.rend(); it++) {
       Var loop_var = it->loop_var;
-      bool uses_loop_var =
-          ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-              expr,
-              [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-                bool matches = var.get() == loop_var.get();
-                if (!matches) {
-                  auto it = let_var_to_loop_vars.find(var.get());
-                  matches = it != let_var_to_loop_vars.end() && it->second.count(loop_var.get());
-                }
-                return matches ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                               : ffi::WalkResult::Advance();
-              })
-              .has_value();
+      auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+        bool matches = var.get() == loop_var.get();
+        if (!matches) {
+          auto it = let_var_to_loop_vars.find(var.get());
+          matches = it != let_var_to_loop_vars.end() && it->second.count(loop_var.get());
+        }
+        return matches ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                       : ffi::WalkResult::Advance();
+      };
+      bool uses_loop_var = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(expr, walkfn).has_value();
 
       bool is_disabled_hoist_across_block_var =
           !config->FlagSet(HoistedConditionals::kUsingBlockVar) && it->IsBlockVariable();

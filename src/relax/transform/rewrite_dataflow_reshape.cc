@@ -42,14 +42,11 @@ std::vector<size_t> GetUsedTensorArgIndices(const tirx::PrimFunc& fn, size_t num
   for (size_t i = 0; i < num_args; ++i) {
     if (auto buffer = fn->params[i].as<tirx::BufferVar>()) {
       auto buffer_var = buffer.value().var();
-      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-              fn->body,
-              [=](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
-                return var.get() == buffer_var.get()
-                           ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                           : ffi::WalkResult::Advance();
-              })
-              .has_value()) {
+      auto walkfn = [=](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+        return var.get() == buffer_var.get() ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                             : ffi::WalkResult::Advance();
+      };
+      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(fn->body, walkfn).has_value()) {
         indices.push_back(i);
       }
     }

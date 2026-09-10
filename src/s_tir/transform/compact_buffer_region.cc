@@ -473,13 +473,11 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         return std::any_of(ancestor_iters_.begin(), ancestor_iters_.end(),
                            [v](const IterVar& n) { return n->var.get() == v; });
       };
-      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-              extent,
-              [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-                return is_loop_var(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                                              : ffi::WalkResult::Advance();
-              })
-              .has_value()) {
+      auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+        return is_loop_var(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                      : ffi::WalkResult::Advance();
+      };
+      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(extent, walkfn).has_value()) {
         // try estimate a constant upperbound on region's extent
         int64_t upperbound = dom_analyzer_->const_int_bound(extent)->max_value;
         if (upperbound != arith::ConstIntBound::kPosInf) {

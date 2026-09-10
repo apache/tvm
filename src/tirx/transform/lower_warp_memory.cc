@@ -385,14 +385,11 @@ class WarpAccessRewriter : protected StmtExprMutator {
 
     auto [local_index, group] = SplitIndexByGroup(op->indices[0]);
     // invariance: local index must do not contain warp id
-    TVM_FFI_ICHECK(!ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-                        local_index,
-                        [this](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-                          return var.get() == warp_index_.get()
-                                     ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                                     : ffi::WalkResult::Advance();
-                        })
-                        .has_value())
+    auto walkfn = [this](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return var.get() == warp_index_.get() ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                            : ffi::WalkResult::Advance();
+    };
+    TVM_FFI_ICHECK(!ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(local_index, walkfn).has_value())
         << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->indices[0]
         << " local_index=" << local_index;
 
