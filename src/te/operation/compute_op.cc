@@ -23,6 +23,7 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
@@ -164,15 +165,17 @@ ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
   ffi::Array<Tensor> ret;
   std::unordered_set<Tensor> visited;
   auto visit = [&ret, &visited](const PrimExpr& e) {
-    tirx::PostOrderVisit(e, [&ret, &visited](const ffi::ObjectRef& n) {
-      if (auto call = n.as<Call>(); call.has_value() && IsTensorLoad(call.value())) {
-        Tensor t = GetTensorFromLoad(call.value());
-        if (!visited.count(t)) {
-          ret.push_back(t);
-          visited.insert(t);
-        }
-      }
-    });
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+        e, [&ret, &visited](const Call& call) -> ffi::Expected<ffi::WalkResult> {
+          if (IsTensorLoad(call)) {
+            Tensor t = GetTensorFromLoad(call);
+            if (!visited.count(t)) {
+              ret.push_back(t);
+              visited.insert(t);
+            }
+          }
+          return ffi::WalkResult::Advance();
+        });
   };
   for (const PrimExpr& e : body) {
     if (const auto* reduce = e.as<te::ReduceNode>()) {
