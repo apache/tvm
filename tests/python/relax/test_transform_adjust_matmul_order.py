@@ -847,6 +847,62 @@ class TestBatchedSharedPrefixPreferLHSFirst(Base):
             return out
 
 
+@pytest.mark.parametrize("lhs_first", [False, True])
+@pytest.mark.parametrize("compile_time,transpose", [(False, False), (False, True), (True, False)])
+@pytest.mark.parametrize("out_dtype", [None, "float32"])
+def test_preserve_outer_out_dtype(lhs_first, compile_time, transpose, out_dtype):
+    # Compile-time grouping should override the cheaper evaluation order.
+    shapes = [(2, 20), (20, 2), (2, 10)]
+    if lhs_first == compile_time:
+        shapes = [(10, 2), (2, 20), (20, 2)]
+    inner_indices = (1, 2) if lhs_first else (0, 1)
+    if transpose:
+        for i in inner_indices:
+            shapes[i] = shapes[i][::-1]
+
+    def build_module(expected):
+        bb = relax.BlockBuilder()
+        a, b, c = [
+            relax.Var(name, relax.TensorType(shape, "float16"))
+            for name, shape in zip("abc", shapes)
+        ]
+        params = [c, a, b] if lhs_first else [a, b, c]
+        attrs = {"num_input": 1} if compile_time else None
+        with bb.function("main", params, attrs=attrs):
+            with bb.dataflow():
+                operands = [a, b, c]
+                if expected and transpose:
+                    for i in inner_indices:
+                        operands[i] = relax.op.permute_dims(operands[i])
+                a, b, c = operands
+                if expected:
+                    if lhs_first:
+                        out = relax.op.matmul(relax.op.matmul(a, b), c, out_dtype=out_dtype)
+                    else:
+                        out = relax.op.matmul(a, relax.op.matmul(b, c), out_dtype=out_dtype)
+                else:
+                    x, y = (b, c) if lhs_first else (a, b)
+                    inner = bb.emit(relax.op.matmul(y, x) if transpose else relax.op.matmul(x, y))
+                    if transpose:
+                        inner = bb.emit(relax.op.permute_dims(inner))
+                    out = (
+                        relax.op.matmul(a, inner, out_dtype=out_dtype)
+                        if lhs_first
+                        else relax.op.matmul(inner, c, out_dtype=out_dtype)
+                    )
+                output = bb.emit_output(out)
+            bb.emit_func_output(output)
+        return bb.finalize()
+
+    before = build_module(expected=False)
+    expected = build_module(expected=True)
+    transform = relax.transform.AdjustMatmulOrder()
+    after = transform(before)
+    assert after["main"].ret_ty.dtype == (out_dtype or "float16")
+    tvm.ir.assert_structural_equal(after, expected)
+    tvm.ir.assert_structural_equal(transform(after), after)
+
+
 class TestAdjustMatmulOrderAttentionBlock:
     """AdjustMatmulOrder preserves numerics on a batched attention block.
 

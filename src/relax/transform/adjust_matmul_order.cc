@@ -24,6 +24,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/attrs/linear_algebra.h>
 #include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr.h>
@@ -167,6 +168,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     auto expr_a = matches[pat_a];
     auto expr_b = matches[pat_b];
     auto expr_c = matches[pat_c];
+    auto out_dtype = expr.as<CallNode>()->attrs.as<MatmulAttrs>()->out_dtype;
 
     // If all three components are compile-time, the order doesn't
     // matter as the entire expression can be lifted out and
@@ -242,9 +244,9 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     // If two of the three are compile-time, group those two values
     // together, to allow them to be lifted out and pre-computed.
     if (is_compile_time(expr_a) && is_compile_time(expr_b)) {
-      return matmul(matmul(expr_a, expr_b, std::nullopt), expr_c, std::nullopt);
+      return matmul(matmul(expr_a, expr_b, std::nullopt), expr_c, out_dtype);
     } else if (is_compile_time(expr_b) && is_compile_time(expr_c)) {
-      return matmul(expr_a, matmul(expr_b, expr_c, std::nullopt), std::nullopt);
+      return matmul(expr_a, matmul(expr_b, expr_c, std::nullopt), out_dtype);
     }
 
     // Otherwise, select the order that reduces the total number of
@@ -319,9 +321,9 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
                       size_N > 0 && size_R > 0 && size_M > 0 && size_B > 0);
 
     if (analyzer->CanProve(ops_with_lhs_first < ops_with_rhs_first)) {
-      return matmul(matmul(expr_a, expr_b, std::nullopt), expr_c, std::nullopt);
+      return matmul(matmul(expr_a, expr_b, std::nullopt), expr_c, out_dtype);
     } else if (analyzer->CanProve(ops_with_rhs_first < ops_with_lhs_first)) {
-      return matmul(expr_a, matmul(expr_b, expr_c, std::nullopt), std::nullopt);
+      return matmul(expr_a, matmul(expr_b, expr_c, std::nullopt), out_dtype);
     }
 
     // If we cannot determine which order is best, keep the existing order.
