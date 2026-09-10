@@ -15,19 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import tvm_ffi
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
-from tvm.tirx.stmt_functor import substitute
 
 
 def _apply_substitute(mod):
     """Apply substitute transform to replace the first parameter with 16."""
     func = mod["main"]
-    vmap = {func.params[0]: 16}
+    vmap = {func.params[0]: T.int32(16)}
     new_func = (
-        tvm.tirx.PrimFunc(params=[], body=substitute(func.body, vmap))
+        tvm.tirx.PrimFunc(
+            params=[],
+            body=tvm_ffi.structural_map(
+                func.body,
+                (tvm.tirx.Var, lambda var: vmap.get(var, var)),
+                order="post",
+            ),
+        )
         .with_attr("global_symbol", func.attrs["global_symbol"])
         .with_attr("s_tir", True)
     )

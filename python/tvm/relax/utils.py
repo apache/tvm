@@ -40,6 +40,14 @@ from .expr import Tuple as rx_Tuple
 from .type import ShapeType, TensorType
 
 
+def _substitute_tir_vars(value, var_map):
+    return tvm_ffi.structural_map(
+        value,
+        (tvm.ir.Var, lambda var: var_map.get(var, var)),
+        order="post",
+    )
+
+
 def metadata_partitioner(rx_txt: str) -> list[str]:
     """Extract Relax program and metadata section.
 
@@ -179,11 +187,11 @@ def gen_call_tir_inputs(
     extra_tir_args_list = []
 
     def _copy_undefined_var(expr: tirx.Expr):
-        def _visit_expr(e: tirx.Expr):
-            if isinstance(e, tvm.ir.Var) and e not in tir_var_map:
+        def _visit_expr(e: tvm.ir.Var):
+            if e not in tir_var_map:
                 tir_var_map[e] = tvm.ir.Var(e.name, e.ty)
 
-        tvm_ffi.structural_walk(expr, (tvm.ir.Var, _visit_expr))
+        tvm_ffi.structural_walk(expr, (tvm.ir.Var, _visit_expr), order="post")
 
     def _convert_te_arg(te_args: Any) -> Any:
         """Helper function used to convert Relax expressions to TE tensor.
@@ -231,7 +239,7 @@ def gen_call_tir_inputs(
 
             if tvm.ir.is_prim_expr(arg):
                 _copy_undefined_var(arg)
-                new_arg = tirx.stmt_functor.substitute(arg, tir_var_map)
+                new_arg = _substitute_tir_vars(arg, tir_var_map)
                 extra_tir_args_list.append(new_arg)
                 return new_arg
 
@@ -333,7 +341,7 @@ def gen_call_tir_inputs(
         shape_values: list[tirx.Expr], tir_var_inverse_map: dict[tirx.Var, tirx.Expr]
     ):
         return ShapeExpr(
-            [tirx.stmt_functor.substitute(value, tir_var_inverse_map) for value in shape_values]
+            [_substitute_tir_vars(value, tir_var_inverse_map) for value in shape_values]
         )
 
     primfunc_attrs = kwargs.pop("primfunc_attrs", None)
@@ -375,7 +383,7 @@ def gen_call_tir_inputs(
         ]
 
     call_tir_args.extend(
-        tirx.stmt_functor.substitute(value, tir_var_inverse_map) for value in unbound_tir_vars
+        _substitute_tir_vars(value, tir_var_inverse_map) for value in unbound_tir_vars
     )
 
     return (tir_func, call_tir_args, output_ty)

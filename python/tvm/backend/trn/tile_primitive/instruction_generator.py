@@ -23,13 +23,14 @@ from functools import reduce
 from math import gcd
 from operator import mul
 
+import tvm_ffi
+
 import tvm
 from tvm.arith.analyzer import Analyzer
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import Range
 from tvm.script import tirx as T
 from tvm.tirx import BufferRegion, Expr, Var
-from tvm.tirx.expr_functor import ExprMutator
 from tvm.tirx.layout import Iter
 
 from .dim_utils import DimensionMapper, RangeInfo, normalize_and_group
@@ -53,19 +54,12 @@ def to_int_list(intimm_list: list[T.IntImm]):
     return [int(i) for i in intimm_list]
 
 
-class VarReplacer(ExprMutator):
-    def __init__(self, var_map: dict[Var, Expr]):
-        super().__init__()
-        self.var_map = var_map
-
-    def visit_var_(self, op):
-        if op in self.var_map:
-            return self.var_map[op]
-        return op
-
-    @staticmethod
-    def replace_vars(expr: Expr, var_map: dict[Var, Expr]) -> Expr:
-        return VarReplacer(var_map).visit_expr(expr)
+def _replace_vars(expr: Expr, var_map: dict[Var, Expr]) -> Expr:
+    return tvm_ffi.structural_map(
+        expr,
+        (Var, lambda var: var_map.get(var, var)),
+        order="post",
+    )
 
 
 @dataclass
@@ -460,7 +454,7 @@ class InstructionGenerator:
                         continue
                     index += (
                         d.logical_stride
-                        * VarReplacer.replace_vars(d.bind_expr, self.bind_maps[buffer_region])
+                        * _replace_vars(d.bind_expr, self.bind_maps[buffer_region])
                         * acc_logical_stride
                     )
                 acc_logical_stride *= iters[j].extent

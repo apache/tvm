@@ -60,7 +60,6 @@ Compiler APIs
    compilation
    transform
    analysis
-   stmt_functor
 
 Extension APIs
 --------------

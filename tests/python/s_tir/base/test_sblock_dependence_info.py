@@ -20,7 +20,7 @@ import gc
 import sys
 
 import pytest
-import tvm_ffi
+from tvm_ffi import structural_walk
 
 import tvm
 import tvm.testing
@@ -94,7 +94,7 @@ def get_sblocks(func: PrimFunc):
             blocks[node.name_hint] = node
 
     # post_order_visit(func.body, lambda node: blocks[node.name_hint] = node if isinstance(node, tvm.tirx.SBlock) else None)
-    tvm_ffi.structural_walk(func.body, update_blocks)
+    structural_walk(func.body, update_blocks, order="post")
     return blocks
 
 

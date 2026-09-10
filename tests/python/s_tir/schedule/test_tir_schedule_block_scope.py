@@ -19,7 +19,7 @@
 import sys
 
 import pytest
-from tvm_ffi import structural_walk as post_order_visit
+from tvm_ffi import structural_walk
 
 import tvm
 import tvm.testing
@@ -89,7 +89,7 @@ def _get_sblock(s: s_tir.ScheduleState, name_hint: str) -> s_tir.StmtSRef:
             result = node
 
     func = s.mod["main"]
-    post_order_visit(func.body, f_visit)
+    structural_walk(func.body, f_visit, order="post")
     assert result is not None and isinstance(result, tvm.tirx.SBlock)
     return s.get_sref(result)
 
