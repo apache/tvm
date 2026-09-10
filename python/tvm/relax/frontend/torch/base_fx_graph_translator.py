@@ -477,12 +477,57 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if decimals == 0:
             return self.block_builder.emit(relax.op.round(arg))
 
-        # For decimals != 0, use: round(x * 10^decimals) / 10^decimals
-        dtype = arg.ty.dtype
-        scale = relax.const(10**decimals, dtype)
-        scaled = relax.op.multiply(arg, scale)
-        rounded = relax.op.round(scaled)
-        result = relax.op.divide(rounded, scale)
+        # For decimals != 0, round on the exact power-of-10 scale and scale back:
+        # round(x * 10^decimals) / 10^decimals. The scaling must always use an
+        # integer power of 10: multiply for positive decimals, divide for negative
+        # ones. Dividing for negative decimals (instead of multiplying by
+        # 10**decimals, i.e. 0.1 / 0.01 / ...) avoids float precision errors such as
+        # 25 * 0.1 == 2.5000000000000004 in float64, which would round up to 30
+        # instead of 20 for torch.round(25, -1).
+        #
+        # For float16/bfloat16 inputs the scaling is done in float32 and cast
+        # back, because 10**|decimals| can overflow the input range: 10**4 == 10000
+        # with 25 * 10000 == 250000 overflows float16 (max 65504) to inf, and 10**5
+        # already overflows float16 to inf, turning decimals=5 and -5 into NaN.
+        input_dtype = arg.ty.dtype
+        dtype = input_dtype
+        if dtype in ("float16", "bfloat16"):
+            dtype = "float32"
+            arg = self.block_builder.emit(relax.op.astype(arg, dtype))
+
+        # Build the scale 10**|decimals| directly in `dtype` instead of as a host
+        # Python int. relax.const(10**n, dtype) first materializes 10**n as an
+        # unbounded int, which is both wasteful for large n and, once n >= 309, dies
+        # in the int-to-float conversion with "OverflowError: int too large to
+        # convert to float". PyTorch accepts such decimals (e.g.
+        # torch.round(x, decimals=309)) and exports a valid aten.round.decimals
+        # node, so importing these programs must not crash. Computing the power as a
+        # float and saturating it to inf once it leaves the finite range of `dtype`
+        # is exactly what happens when PyTorch evaluates the same power in the input
+        # dtype.
+        scale_exp = abs(decimals)
+        # Largest exponent for which 10**n is still finite in `dtype`.
+        # (float16/bfloat16 are upcast to float32 above, so dtype is float32 or
+        # float64 here.) Note that `dtype` may be a tvm.DataType-like object whose
+        # repr is "T.float32" instead of a plain str, so select via == rather than
+        # indexing a str-keyed dict.
+        max_scale_exp = 308 if dtype == "float64" else 38
+        if scale_exp > max_scale_exp:
+            scale = relax.const(float("inf"), dtype)
+        else:
+            scale = relax.const(10.0**scale_exp, dtype)
+
+        if decimals > 0:
+            scaled = relax.op.multiply(arg, scale)
+            rounded = relax.op.round(scaled)
+            result = relax.op.divide(rounded, scale)
+        else:
+            scaled = relax.op.divide(arg, scale)
+            rounded = relax.op.round(scaled)
+            result = relax.op.multiply(rounded, scale)
+
+        if input_dtype in ("float16", "bfloat16"):
+            result = relax.op.astype(result, input_dtype)
         return self.block_builder.emit(result)
 
     def _softmax(self, node: fx.Node) -> relax.Var:

@@ -2556,6 +2556,112 @@ def test_div_mode():
     verify_model(DivFloorModel(), input_info, {}, expected_div_floor)
 
 
+def test_round_decimals():
+    """torch.round(x, decimals) through from_fx must match PyTorch's round-half-to-even
+    results, including negative decimals (round(25, -1) == 20). The previous
+    scale-by-10**decimals implementation multiplied by 0.1 for negative decimals, which
+    is numerically wrong: 25 * 0.1 == 2.5000000000000004 in float64 rounds up to 30.
+    """
+    input_info = [([10], "float32")]
+    x = torch.tensor(
+        [0.5, 1.5, 2.5, 4.5, -0.5, -2.5, 25.0, 125.0, 165.0, 2.25], dtype=torch.float32
+    )
+
+    class RoundDecimalsModel(Module):
+        def __init__(self, decimals):
+            super().__init__()
+            self.decimals = decimals
+
+        def forward(self, input):
+            return torch.round(input, decimals=self.decimals)
+
+    for decimals in (0, 1, -1, -2):
+        gm = fx.symbolic_trace(RoundDecimalsModel(decimals).eval())
+        mod = from_fx(gm, input_info)
+        ex = relax.build(mod, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+        tvm_out = vm["main"](tvm.runtime.tensor(x.numpy()))
+        got = tvm_out.numpy() if hasattr(tvm_out, "numpy") else tvm_out[0].numpy()
+        tvm.testing.assert_allclose(
+            got, torch.round(x, decimals=decimals).numpy(), rtol=1e-6, atol=1e-6
+        )
+
+
+def test_round_decimals_low_precision():
+    """Scaling for low-precision inputs must happen in float32 and be cast back.
+
+    10**|decimals| can overflow float16: 10**4 == 10000 with 25 * 10000 == 250000
+    exceeds float16's max of 65504, so scaling in float16 yields inf, and 10**5
+    already overflows float16 (the scale itself becomes inf), turning decimals=5
+    and -5 into NaN. Upcasting the input to float32 keeps the scaling exact; the
+    rounded result is cast back to the input dtype.
+    """
+    input_info = [([8], "float16")]
+    x = torch.tensor([0.5, 1.5, 2.5, 2.25, 25.0, 125.0, 165.0, -0.5], dtype=torch.float16)
+
+    class RoundDecimalsModel(Module):
+        def __init__(self, decimals):
+            super().__init__()
+            self.decimals = decimals
+
+        def forward(self, input):
+            return torch.round(input, decimals=self.decimals)
+
+    # Positive decimals exercise the multiply-by-10**d overflow (4, 5);
+    # negative decimals exercise the 10**|d| scale overflowing float16 (-5).
+    for decimals in (2, 4, 5, -2, -4, -5):
+        gm = fx.symbolic_trace(RoundDecimalsModel(decimals).eval())
+        mod = from_fx(gm, input_info)
+        ex = relax.build(mod, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+        tvm_out = vm["main"](tvm.runtime.tensor(x.numpy()))
+        got = tvm_out.numpy() if hasattr(tvm_out, "numpy") else tvm_out[0].numpy()
+        tvm.testing.assert_allclose(
+            got, torch.round(x, decimals=decimals).numpy(), rtol=1e-6, atol=1e-6
+        )
+
+
+def test_round_decimals_large():
+    """A large |decimals| must import and run without OverflowError.
+
+    The scale 10**|decimals| used to be built as an unbounded host Python int
+    before being handed to relax.const, whose int-to-float conversion raises
+    OverflowError ("int too large to convert to float") once |decimals| >= 309
+    (10**309 already exceeds the float64 range). PyTorch accepts such decimals --
+    torch.round(x, decimals=309) -- and traces a valid round.decimals call, so
+    importing the graph must not crash on them. The scale is now built directly
+    in the float dtype and saturates to inf once it leaves the finite range,
+    matching PyTorch, whose all-NaN result here comes from the same inf scale.
+    """
+    input_info = [([5], "float32")]
+    x = torch.tensor([0.5, 1.5, 25.0, -0.5, 0.0], dtype=torch.float32)
+
+    class RoundDecimalsModel(Module):
+        def __init__(self, decimals):
+            super().__init__()
+            self.decimals = decimals
+
+        def forward(self, input):
+            return torch.round(input, decimals=self.decimals)
+
+    for decimals in (309, -309):
+        gm = fx.symbolic_trace(RoundDecimalsModel(decimals).eval())
+        mod = from_fx(gm, input_info)  # used to raise OverflowError here
+        ex = relax.build(mod, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+        tvm_out = vm["main"](tvm.runtime.tensor(x.numpy()))
+        got = tvm_out.numpy() if hasattr(tvm_out, "numpy") else tvm_out[0].numpy()
+
+        # The scale overflows to inf, and IEEE arithmetic turns every element into
+        # NaN in both TVM and PyTorch. Compare the NaN masks and the remaining
+        # (empty here) finite elements separately, since allclose fails on NaN.
+        expected = torch.round(x, decimals=decimals)
+        actual = torch.as_tensor(got)
+        assert torch.equal(torch.isnan(actual), torch.isnan(expected))
+        finite = ~torch.isnan(expected)
+        assert torch.allclose(actual[finite], expected[finite], rtol=1e-6, atol=1e-6)
+
+
 def test_size():
     input_info = [([1, 3, 10, 10], "float32")]
 
