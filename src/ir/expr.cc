@@ -278,6 +278,8 @@ TVMFFIAny RangeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyVi
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
+// DataflowVarNode duplicates this protocol because structural hooks do not inherit.  Keep the two
+// hook triples in lockstep when changing remap, PrimType-skip, or definition-region behavior.
 TVMFFIAny VarVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   // skips: name
   const VarNode* self =
@@ -379,6 +381,22 @@ TVMFFIAny VarMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView
     }
   }
   return ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(std::move(result));
+}
+
+TVMFFIAny GlobalVarVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  // GlobalVar is a module-level symbol.  name_hint is scalar identity and ty is derived from the
+  // referenced function, matching GlobalVarNode's custom structural equality/hash definition.
+  // It has no definition site where this hook could establish a VarRemap.  A callback that renames
+  // GlobalVars is therefore responsible for returning one stable replacement per module symbol.
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny GlobalVarMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny GlobalVarMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
 TVMFFIAny CallVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
@@ -859,7 +877,15 @@ GlobalVar::GlobalVar(ffi::String name_hint, Span span) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { GlobalVarNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  GlobalVarNode::RegisterReflection();
+  refl::TypeAttrDef<GlobalVarNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&GlobalVarVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&GlobalVarMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&GlobalVarMaybeInplaceMutate));
+}
 
 // Call
 Call::Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args,
