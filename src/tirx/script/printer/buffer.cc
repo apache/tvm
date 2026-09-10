@@ -40,22 +40,25 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
 
   // Step 0. Set up statistics
   std::unordered_map<const ffi::Object*, int> use_count;
-  auto update_use_count = [&](const Expr& e) {
-    tirx::PostOrderVisit(e, [&](const ffi::ObjectRef& n) {
-      if (const VarNode* var = n.as<VarNode>()) {
-        ++use_count[var];
-      }
-    });
-  };
-  update_use_count(buffer->elem_offset);
+  std::unordered_set<const ffi::Object*> def_seen;
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+      buffer,
+      [&](const Var& var, TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::WalkResult> {
+        if (kind != kTVMFFIDefRegionKindNone) {
+          if (!def_seen.insert(var.get()).second) {
+            return ffi::WalkResult::Skip();
+          }
+          return ffi::WalkResult::Advance();
+        }
+        ++use_count[var.get()];
+        return ffi::WalkResult::Advance();
+      });
   if (data.has_value()) {
-    update_use_count(data.value());
-  }
-  for (const PrimExpr& e : buffer->strides) {
-    update_use_count(e);
-  }
-  for (const PrimExpr& e : buffer->shape) {
-    update_use_count(e);
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+        data.value(), [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+          ++use_count[var.get()];
+          return ffi::WalkResult::Advance();
+        });
   }
   auto is_new_var = [&](const Expr& e) { return e->IsInstance<VarNode>() && !d->IsVarDefined(e); };
   auto add_out_of_line_var_def = [&](const Var& var, const AccessPath& var_p) {

@@ -1020,6 +1020,16 @@ def test_buffer():
     assert_structural_equal(test, from_source(code))
 
 
+def test_buffer_shape_repeated_var_prints_out_of_line():
+    n = tvm.tirx.Var("n", "int32")
+    buffer = tvm.tirx.decl_buffer((n + n,), name="A")
+    func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(0))
+
+    code = func.script()
+    assert "n = T.int32()" in code
+    assert_structural_equal(func, from_source(code))
+
+
 def test_kwargs_op_call():
     # fmt: off
     @T.prim_func(private=True)
