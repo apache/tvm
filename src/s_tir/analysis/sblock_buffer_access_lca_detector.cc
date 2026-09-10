@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -150,21 +151,23 @@ class LCADetector : public StmtExprVisitor {
     auto do_collect_itervar_scope = [this](const IterVar& itervar,
                                            const PrimExpr& binding) -> const ScopeInfo* {
       const ScopeInfo* highest_scope = nullptr;
-      PostOrderVisit(binding, [this, &highest_scope](const ffi::ObjectRef& obj) {
-        if (auto var = obj.as<PrimVar>()) {
-          const VarNode* loop_var = var.value().get();
-          auto it = loop_scope_map_.find(loop_var);
-          if (it == loop_scope_map_.end()) {
-            return;
-          }
-          const ScopeInfo* scope = it->second->parent_scope_info;
-          if (highest_scope == nullptr) {
-            highest_scope = scope;
-          } else if (scope->depth < highest_scope->depth) {
-            highest_scope = scope;
-          }
-        }
-      });
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+          binding, [this, &highest_scope](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+            if (auto prim_var = var.as<PrimVar>()) {
+              const VarNode* loop_var = prim_var.value().get();
+              auto it = loop_scope_map_.find(loop_var);
+              if (it == loop_scope_map_.end()) {
+                return ffi::WalkResult::Advance();
+              }
+              const ScopeInfo* scope = it->second->parent_scope_info;
+              if (highest_scope == nullptr) {
+                highest_scope = scope;
+              } else if (scope->depth < highest_scope->depth) {
+                highest_scope = scope;
+              }
+            }
+            return ffi::WalkResult::Advance();
+          });
       return highest_scope;
     };
 
@@ -200,12 +203,13 @@ class LCADetector : public StmtExprVisitor {
       const BufferVar& buffer = region->buffer;
       const ScopeInfo* scope = ancestor_scopes_.back();
 
-      auto handle_itervar = [&opaque_var_scope, &scope](const ffi::ObjectRef& obj) {
-        if (auto var = obj.as<PrimVar>()) {
-          const VarNode* iter_var = var.value().get();
+      auto handle_itervar = [&opaque_var_scope,
+                             &scope](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+        if (auto prim_var = var.as<PrimVar>()) {
+          const VarNode* iter_var = prim_var.value().get();
           auto dom_scope_it = opaque_var_scope.find(iter_var);
           if (dom_scope_it == opaque_var_scope.end()) {
-            return;
+            return ffi::WalkResult::Advance();
           }
           // find the highest loop scope the accessed buffer index has
           // loop carried dependencies to (via opaque iter var binding).
@@ -213,12 +217,14 @@ class LCADetector : public StmtExprVisitor {
             scope = dom_scope_it->second;
           }
         }
+        return ffi::WalkResult::Advance();
       };
 
       // visit region min and max to find the lowest legal lca scope
       for (const Range& range : region->region) {
-        PostOrderVisit(range->min, handle_itervar);
-        PostOrderVisit(range->min + range->extent - 1, handle_itervar);
+        ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(range->min, handle_itervar);
+        ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(range->min + range->extent - 1,
+                                                        handle_itervar);
       }
 
       // the scope should be above `highest_reduce_scope` for reduce output buffer.
