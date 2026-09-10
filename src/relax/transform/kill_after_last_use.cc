@@ -112,14 +112,22 @@ class CollectLastUsage : public ExprVisitor {
         bool already_killed = visitor.killed_objects_.count(var);
 
         // Currently, the VM requires that objects to be killed
-        // objects only exist in VM registers.  This requires
-        // KillAfterLastUse to have more knowledge about the VM
-        // implementation than should exist at this stage of lowering.
-        // In the future, this may be handled more easily at the
-        // CodeGenVM level.
+        // only exist in VM registers. This requires KillAfterLastUse
+        // to have more knowledge about the VM implementation than
+        // should exist at this stage of lowering. In the future,
+        // this may be handled more easily at the CodeGenVM level.
+        //
+        // Variables bound to `relax.null_value` are excluded for the
+        // same reason as constants: both CodeGenVM and CodeGenVMTIR
+        // special-case `null_value` to bypass register/anylist-slot
+        // allocation, so such a variable is never a valid target for
+        // R.vm.kill_object. It is currently the only operator either
+        // codegen special-cases this way; a new special case added to
+        // either codegen should be reflected here as well.
         bool stored_in_vm_register =
-            !(visitor.constant_tensors_.count(var) || var->ty.as<FuncTypeNode>() ||
-              var->ty.as<ShapeTypeNode>() || var->ty.as<PrimTypeNode>());
+            !(visitor.constant_tensors_.count(var) || visitor.null_value_objects_.count(var) ||
+              var->ty.as<FuncTypeNode>() || var->ty.as<ShapeTypeNode>() ||
+              var->ty.as<PrimTypeNode>());
 
         if (!is_output && !already_killed) {
           if (visitor.storage_objects_.count(var)) {
@@ -156,6 +164,7 @@ class CollectLastUsage : public ExprVisitor {
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) override {
     static const Op& vm_alloc_storage = Op::Get("relax.vm.alloc_storage");
     static const Op& mem_alloc_storage = Op::Get("relax.memory.alloc_storage");
+    static const Op& null_value_op = Op::Get("relax.null_value");
 
     static const Op& mem_kill_tensor = Op::Get("relax.memory.kill_tensor");
     static const Op& mem_kill_storage = Op::Get("relax.memory.kill_storage");
@@ -163,6 +172,8 @@ class CollectLastUsage : public ExprVisitor {
 
     if (val->op.same_as(vm_alloc_storage) || val->op.same_as(mem_alloc_storage)) {
       storage_objects_.insert(binding->var.get());
+    } else if (val->op.same_as(null_value_op)) {
+      null_value_objects_.insert(binding->var.get());
     } else if (val->op.same_as(mem_kill_tensor) || val->op.same_as(mem_kill_storage) ||
                val->op.same_as(vm_kill_object)) {
       TVM_FFI_ICHECK_EQ(val->args.size(), 1)
@@ -203,6 +214,11 @@ class CollectLastUsage : public ExprVisitor {
   // Constants, which do not have a VM register, and may *not* have
   // R.builtin.kill_tensor called on them.
   std::unordered_set<const VarNode*> constant_tensors_;
+
+  // Variables bound to `relax.null_value`, which do not occupy a VM
+  // register in either CodeGenVM or CodeGenVMTIR, and therefore must
+  // never be passed to R.vm.kill_object.
+  std::unordered_set<const VarNode*> null_value_objects_;
 
   // Set of objects that already have a call node to kill them.  Should not have a duplicate
   std::unordered_set<const VarNode*> killed_objects_;
