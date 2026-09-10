@@ -24,6 +24,8 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt.h>
 
 namespace {
 
@@ -54,6 +56,23 @@ TEST(RelaxExprStructuralHooks, EveryConcreteExprHasExplicitHooks) {
 
 TEST(RelaxExprStructuralHooks, ReviewedCoreExprNodesHaveExplicitHooks) {
   ExpectStructuralHooks<tvm::GlobalVarNode>();
+  ExpectStructuralHooks<tvm::tirx::PrimFuncNode>();
+}
+
+TEST(RelaxExprStructuralHooks, PrimFuncDescendsIntoBody) {
+  using namespace tvm;
+  tirx::PrimFunc input({}, tirx::Evaluate(IntImm(PrimType::Int(32), 1)));
+  auto replace_one = [](const IntImm& value) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (value->value != 1) return ffi::Unchanged();
+    return ffi::Any(IntImm(value.ty().as_or_throw<PrimType>(), 2));
+  };
+
+  tirx::PrimFunc mapped =
+      ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(input, replace_one).cast<tirx::PrimFunc>();
+
+  const auto* evaluate = mapped->body.as<tirx::EvaluateNode>();
+  ASSERT_NE(evaluate, nullptr);
+  EXPECT_EQ(evaluate->value.as<IntImmNode>()->value, 2);
 }
 
 TEST(RelaxExprStructuralHooks, UnchangedCallbackPreservesAncestorIdentity) {
