@@ -52,6 +52,10 @@ TEST(RelaxExprStructuralHooks, EveryConcreteExprHasExplicitHooks) {
   ExpectStructuralHooks<ExternFuncNode>();
 }
 
+TEST(RelaxExprStructuralHooks, ReviewedCoreExprNodesHaveExplicitHooks) {
+  ExpectStructuralHooks<tvm::GlobalVarNode>();
+}
+
 TEST(RelaxExprStructuralHooks, UnchangedCallbackPreservesAncestorIdentity) {
   using namespace tvm;
   using namespace tvm::relax;

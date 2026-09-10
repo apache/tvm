@@ -381,6 +381,20 @@ TVMFFIAny VarMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView
   return ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(std::move(result));
 }
 
+TVMFFIAny GlobalVarVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  // GlobalVar is a module-level symbol.  name_hint is scalar identity and ty is derived from the
+  // referenced function, matching GlobalVarNode's custom structural equality/hash definition.
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny GlobalVarMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny GlobalVarMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
 TVMFFIAny CallVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   // skips: attrs, constant metadata left untouched like the classic Expr functors.
   const CallNode* self =
@@ -859,7 +873,15 @@ GlobalVar::GlobalVar(ffi::String name_hint, Span span) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { GlobalVarNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  GlobalVarNode::RegisterReflection();
+  refl::TypeAttrDef<GlobalVarNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&GlobalVarVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&GlobalVarMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&GlobalVarMaybeInplaceMutate));
+}
 
 // Call
 Call::Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args,
