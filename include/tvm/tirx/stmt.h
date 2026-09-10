@@ -31,6 +31,7 @@
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
 
+#include <limits>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -289,16 +290,34 @@ class AllocBuffer : public Stmt {
       Span span = Span());
   /*!
    * \brief If the buffer's shape is constant, return the total number of elements.
-   * \return The product of all shape extents if all are constant, std::nullopt otherwise.
+   *
+   * The extents are multiplied together with an overflow check before each
+   * multiplication, so the result is never taken from a value that has already
+   * overflowed. Signed integer overflow is undefined behavior in C++, so the
+   * product must be range-checked before it is computed, not sanity-checked
+   * after the fact.
+   *
+   * \return The product of all shape extents if all are constant and the product
+   *         is representable in int64_t, std::nullopt otherwise (non-constant
+   *         extent, negative extent, or a product that would overflow).
    */
   std::optional<int64_t> ConstantAllocationSize() const {
     int64_t result = 1;
     for (const PrimExpr& extent : (*this)->buffer->shape) {
-      if (const auto* int_size = extent.as<IntImmNode>()) {
-        result *= int_size->value;
-      } else {
+      const auto* int_size = extent.as<IntImmNode>();
+      if (!int_size) {
         return std::nullopt;
       }
+      int64_t value = int_size->value;
+      if (value < 0) {
+        // A negative extent is never a valid allocation size.
+        return std::nullopt;
+      }
+      if (value != 0 && result > std::numeric_limits<int64_t>::max() / value) {
+        // result * value would overflow int64_t.
+        return std::nullopt;
+      }
+      result *= value;
     }
     return result;
   }

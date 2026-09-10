@@ -32,8 +32,11 @@
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
+#include <limits>
 #include <map>
 #include <unordered_map>
+
+#include "../../arith/int_operator.h"
 
 namespace tvm {
 namespace s_tir {
@@ -68,17 +71,51 @@ class AllocBufferCalculator : public StmtExprVisitor {
       _current_size[storage_scope] = 0;
       _max_size[storage_scope] = 0;
     }
-    int64_t size = 1;
+
+    // Multiply the shape extents in the same overflow-checked way as
+    // AllocBuffer::ConstantAllocationSize() (include/tvm/tirx/stmt.h). This is kept
+    // as a separate loop, rather than calling ConstantAllocationSize() directly,
+    // because that function's std::optional<int64_t> cannot distinguish "shape has
+    // a non-constant extent" (size genuinely unknown here, contributes 0 bytes as
+    // before) from "shape is constant but the element count overflows" (below,
+    // rejected outright rather than silently treated as 0 bytes).
+    bool is_constant_shape = true;
+    int64_t num_elements = 1;
     for (const PrimExpr& e : op->buffer->shape) {
-      if (auto* imm = e.as<IntImmNode>()) {
-        size *= imm->value;
-      } else {
-        size = 0;
+      const auto* imm = e.as<IntImmNode>();
+      if (!imm) {
+        is_constant_shape = false;
         break;
       }
+      TVM_FFI_ICHECK_GE(imm->value, 0)
+          << "Buffer " << op->buffer.name() << " in scope \"" << storage_scope
+          << "\" has a negative shape extent (" << imm->value << "), which is not a valid "
+          << "allocation size";
+      TVM_FFI_ICHECK(!arith::WillOverflow<prim::MulNode>(num_elements, imm->value, 0,
+                                                         std::numeric_limits<int64_t>::max()))
+          << "Allocation shape of buffer " << op->buffer.name() << " in scope \"" << storage_scope
+          << "\" has an element count that overflows int64_t";
+      num_elements *= imm->value;
     }
-    size *= static_cast<int64_t>(op->buffer->dtype.StorageBytes());
-    _current_size[storage_scope] += size;
+
+    if (is_constant_shape) {
+      int64_t bytes_per_element = static_cast<int64_t>(op->buffer->dtype.StorageBytes());
+      TVM_FFI_ICHECK(!arith::WillOverflow<prim::MulNode>(num_elements, bytes_per_element, 0,
+                                                         std::numeric_limits<int64_t>::max()))
+          << "Allocation of buffer " << op->buffer.name() << " in scope \"" << storage_scope
+          << "\" (" << num_elements << " elements of " << bytes_per_element
+          << " bytes each) overflows int64_t when converted to a byte size";
+      int64_t size = num_elements * bytes_per_element;
+
+      TVM_FFI_ICHECK(!arith::WillOverflow<prim::AddNode>(_current_size[storage_scope], size, 0,
+                                                         std::numeric_limits<int64_t>::max()))
+          << "Accumulated allocation size for scope \"" << storage_scope
+          << "\" overflows int64_t after adding buffer " << op->buffer.name();
+      _current_size[storage_scope] += size;
+    }
+    // Else: the shape has a non-constant extent, so its byte size cannot be
+    // determined here; it contributes 0 to _current_size, as before this fix.
+
     _max_size[storage_scope] = std::max(_current_size[storage_scope], _max_size[storage_scope]);
     StmtExprVisitor::VisitStmt_(op);
   }

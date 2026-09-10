@@ -137,5 +137,37 @@ def test_full_mod_calculator():
     assert scale_by_two_three_sizes["global.vtcm"] == 256, "Expected the calculated size to be 256"
 
 
+@pytest.mark.parametrize(
+    "shape",
+    [
+        (2**62, 4),
+        (2**62, 5),
+        (2**32, 2**32),
+    ],
+)
+def test_constant_allocation_size_overflow_is_rejected(shape):
+    """A constant AllocBuffer shape whose element count overflows int64_t must be
+    rejected rather than silently wrapped. See https://github.com/apache/tvm/issues/20268:
+    before this fix, calculate_allocated_bytes() returned a wrapped (and sometimes
+    negative or zero) byte count computed via undefined-behavior signed overflow.
+    """
+    buf = tirx.decl_buffer(shape, dtype="int8", scope="global.vtcm")
+    func = tirx.PrimFunc([], tirx.AllocBuffer(buf))
+    with pytest.raises(tvm.error.InternalError):
+        tvm.s_tir.analysis.calculate_allocated_bytes(func)
+
+
+def test_constant_allocation_size_large_but_valid():
+    """A large allocation whose byte size is still representable in int64_t must
+    continue to be calculated correctly and must not be rejected by the overflow
+    check added for #20268.
+    """
+    shape = (2**20, 2**10)  # 2**30 elements, well within int64_t as int8 bytes
+    buf = tirx.decl_buffer(shape, dtype="int8", scope="global.vtcm")
+    func = tirx.PrimFunc([], tirx.AllocBuffer(buf))
+    sizes = tvm.s_tir.analysis.calculate_allocated_bytes(func)
+    assert sizes["main"]["global.vtcm"] == 2**30
+
+
 if __name__ == "__main__":
     tvm.testing.main()
