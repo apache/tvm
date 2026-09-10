@@ -1894,6 +1894,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "conv3d.default": self._conv3d,
             "convolution.default": self._convolution,
             "cross_entropy_loss.default": self._cross_entropy_default,
+            "diagonal.default": self._diagonal,
             "einsum.default": self._einsum,
             "embedding.default": lambda node: self._embedding_impl(
                 self.env[node.args[1]], self.env[node.args[0]]

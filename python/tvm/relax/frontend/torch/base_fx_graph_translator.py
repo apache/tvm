@@ -34,6 +34,29 @@ from tvm.ir import PrimType
 from tvm.runtime import DataTypeCode
 
 
+def _diagonal_einsum_subscripts(ndim: int, dim1: int, dim2: int) -> str:
+    """Return explicit einsum subscripts that extract the ``dim1``/``dim2`` diagonal.
+
+    This is the fast-path lowering for :meth:`BaseFXGraphImporter._diagonal`
+    when ``offset == 0`` and both diagonal axes have the same extent. The
+    non-diagonal axes keep their natural order in the output while the diagonal
+    axis is appended last, matching ``aten.diagonal``. Non-diagonal axes are
+    labelled ``a``, ``b``, ... and the repeated (diagonal) label is ``z``, e.g.
+    an ``N x N`` input with ``dim1 == 0``, ``dim2 == 1`` gives ``"zz->z"``.
+    """
+    labels = [None] * ndim
+    # Non-diagonal axes are labelled from ``a`` to ``y``; ``z`` is reserved for
+    # the repeated (diagonal) label so the two never collide.
+    letters = iter(ch for ch in "abcdefghijklmnopqrstuvwxyz" if ch != "z")
+    for i in range(ndim):
+        if i != dim1 and i != dim2:
+            labels[i] = next(letters)
+    labels[dim1] = "z"
+    labels[dim2] = "z"
+    leading = "".join(labels[i] for i in range(ndim) if i != dim1 and i != dim2)
+    return f"{''.join(labels)}->{leading}z"
+
+
 class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     """Base class for FX Graph Importer."""
 
@@ -1263,6 +1286,84 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         args = self.retrieve_args(node)
         operands = args[1] if isinstance(args[1], torch.Size | tuple | list) else args[1:]
         return self.block_builder.emit(relax.op.einsum(operands, args[0]))
+
+    def _diagonal(self, node: fx.Node) -> relax.Var:
+        """Convert ``aten.diagonal`` / ``torch.diagonal`` to Relax.
+
+        ``diagonal(input, offset=0, dim1=0, dim2=1)`` extracts the elements
+        ``input[..., i, i + offset]`` along the ``dim1`` / ``dim2`` axes. It
+        shows up in the exported graph through ``run_decompositions`` of
+        ``torch.einsum`` with repeated subscripts (e.g. ``"ii->i"``,
+        ``"ii->"``, ``"...ii->...i"``), which lower to an ``aten.diagonal``
+        followed by a ``sum`` reduction.
+
+        We lower it as: when ``offset == 0`` and both diagonal axes have equal
+        extent (the common ``torch.einsum("ii->i")`` case), a single einsum
+        whose subscript repeats one label over the two axes extracts the
+        diagonal directly, so no full-size permute / slice intermediate is
+        materialized. Otherwise we permute ``dim1`` / ``dim2`` to the trailing
+        two axes, slice each trailing axis to the diagonal length (min of the
+        two extents, adjusted by ``offset``), and take the diagonal with an
+        einsum contraction ``...zz->...z`` (the repeated ``z`` label runs over
+        both trailing axes simultaneously).
+        """
+
+        args = self.retrieve_args(node)
+        x = args[0]
+        offset = args[1] if len(args) > 1 else node.kwargs.get("offset", 0)
+        dim1 = args[2] if len(args) > 2 else node.kwargs.get("dim1", 0)
+        dim2 = args[3] if len(args) > 3 else node.kwargs.get("dim2", 1)
+
+        shape = self.shape_of(x)
+        ndim = len(shape.values)
+        dim1 = dim1 if dim1 >= 0 else ndim + dim1
+        dim2 = dim2 if dim2 >= 0 else ndim + dim2
+        if dim1 == dim2:
+            raise ValueError(f"diagonal requires dim1 != dim2, got {dim1} == {dim2}")
+
+        offset = int(offset)
+
+        n = shape.values[dim1]
+        m = shape.values[dim2]
+        # Fast path for the common ``offset == 0`` case with equal extents on the
+        # diagonal axes (e.g. torch.einsum("ii->i") on an N x N input). The
+        # diagonal can be read with a single einsum that repeats one subscript
+        # label over the two axes (``relax.op.einsum`` lowers it to one O(N)
+        # loop), avoiding the identity permute / strided-slice that would each
+        # materialize a full-size O(N^2) copy. Non-diagonal axes must still fit
+        # in the single-letter einsum label alphabet.
+        if offset == 0 and ndim - 2 <= 25 and tvm_ffi.structural_equal(n, m):
+            subscripts = _diagonal_einsum_subscripts(ndim, dim1, dim2)
+            return self.block_builder.emit(relax.op.einsum([x], subscripts))
+
+        # Move dim1, dim2 to the trailing two axes.
+        perm = [i for i in range(ndim) if i != dim1 and i != dim2] + [dim1, dim2]
+        permuted = self.block_builder.emit(relax.op.permute_dims(x, perm))
+
+        if offset >= 0:
+            diag_len = tirx.max(0, tirx.min(n, m - offset))
+            begin1, end1 = 0, diag_len
+            begin2, end2 = offset, offset + diag_len
+        else:
+            diag_len = tirx.max(0, tirx.min(n + offset, m))
+            begin1, end1 = -offset, -offset + diag_len
+            begin2, end2 = 0, diag_len
+
+        # Crop both diagonal axes to the diagonal length so the einsum ``z``
+        # label sees equal extents on both trailing axes.
+        cropped = self.block_builder.emit(
+            relax.op.strided_slice(
+                permuted, axes=[ndim - 2], begin=[begin1], end=[end1], strides=[1]
+            )
+        )
+        cropped = self.block_builder.emit(
+            relax.op.strided_slice(
+                cropped, axes=[ndim - 1], begin=[begin2], end=[end2], strides=[1]
+            )
+        )
+
+        # ``...zz -> ...z``: keep every leading axis, contract the diagonal pair.
+        return self.block_builder.emit(relax.op.einsum([cropped], "...zz->...z"))
 
     def _embedding_impl(
         self,

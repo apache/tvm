@@ -3327,6 +3327,157 @@ def test_einsum():
     verify_model(Einsum2(), example_args, {}, Expected2, run_ep_decomposition=False)
 
 
+def test_einsum_repeated_subscript():
+    """einsum with repeated subscripts (diagonal / trace) on the default
+    decomposition path.
+
+    ``run_decompositions`` (default) lowers repeated-subscript einsum to
+    ``aten.diagonal`` + ``permute`` (+ ``sum`` for the trace), which the
+    frontend converts with the ``_diagonal`` lowering. For the zero-offset
+    square case (e.g. ``torch.einsum("ii->i")`` on an ``N x N`` input) the
+    frontend emits a single repeated-subscript einsum that reads the diagonal
+    directly; otherwise it permutes the diagonal dims to the trailing two axes,
+    slices each to the diagonal length, and runs an einsum ``...zz->...z``.
+    This used to raise ``AssertionError: Unsupported function types
+    ['diagonal.default']``.
+    """
+
+    class EinsumDiag(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return torch.einsum("ii->i", x)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((3, 3), dtype="float32")) -> R.Tuple(R.Tensor((3,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="float32") = R.einsum((x,), subscripts="zz->z")
+                lv1: R.Tensor((3,), dtype="float32") = R.permute_dims(lv, axes=[0])
+                lv2: R.Tensor((3,), dtype="float32") = R.permute_dims(lv1, axes=[0])
+                gv: R.Tuple(R.Tensor((3,), dtype="float32")) = (lv2,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(3, 3, dtype=torch.float32),)
+    verify_model(EinsumDiag(), example_args, {}, Expected)
+
+    class TraceEinsum(Module):
+        def forward(self, x):
+            return torch.einsum("ii->", x)
+
+    class BatchedDiagEinsum(Module):
+        def forward(self, x):
+            return torch.einsum("...ii->...i", x)
+
+    class AttentionEinsum(Module):
+        def forward(self, x, y):
+            return torch.einsum("abca,abcb->c", x, y)
+
+    verify_model_numerically(TraceEinsum(), (torch.randn(4, 4),))
+    verify_model_numerically(BatchedDiagEinsum(), (torch.randn(2, 3, 3),))
+    verify_model_numerically(AttentionEinsum(), (torch.randn(3, 3, 4, 3), torch.randn(3, 3, 4, 3)))
+
+    class DirectDiagonal(Module):
+        def __init__(self):
+            super().__init__()
+            self.offset = 1
+
+        def forward(self, x):
+            return torch.diagonal(x, self.offset, 0, 1)
+
+    class DirectTrace(Module):
+        def forward(self, x):
+            return torch.trace(x)
+
+    verify_model_numerically(DirectDiagonal(), (torch.randn(3, 4),))
+    verify_model_numerically(DirectTrace(), (torch.randn(4, 4),))
+
+    # Out-of-range offsets (|offset| >= max(extent1, extent2)) are valid in
+    # PyTorch and yield an empty diagonal of shape (0,); the lowering must
+    # clamp the diagonal length to zero instead of producing negative slice
+    # extents or a wrong non-empty shape.
+    class DirectDiagonalOutOfRange(Module):
+        def __init__(self, offset):
+            super().__init__()
+            self.offset = offset
+
+        def forward(self, x):
+            return torch.diagonal(x, self.offset, 0, 1)
+
+    for offset in [4, 5, 6, -3, -4, -5, -6]:
+        verify_model_numerically(DirectDiagonalOutOfRange(offset), (torch.randn(3, 4),))
+
+
+def test_einsum_diagonal_lowers_without_full_size_intermediate():
+    """Regression test: a zero-offset square diagonal must not materialize
+    full-size intermediates.
+
+    ``torch.einsum("ii->i")`` on an ``N x N`` input is decomposed to
+    ``aten.diagonal`` by ``run_decompositions``. Lowering that diagonal by
+    permuting the diagonal dims to the trailing axes, slicing each to the
+    diagonal length, and running the ``...zz->...z`` einsum materializes three
+    full-size ``N x N`` intermediates (an identity permute and two identity
+    strided slices) and hence three O(N^2) copy loops before the final O(N)
+    diagonal loop. The ``_diagonal`` fast path instead emits a single
+    repeated-subscript einsum that reads the diagonal directly, so no full-size
+    intermediate exists in the frontend graph (and therefore neither in the
+    lowered TIR). Assert that every intermediate produced by a call is at most
+    O(N), both before and after legalization.
+    """
+
+    class EinsumDiag(Module):
+        def forward(self, x):
+            return torch.einsum("ii->i", x)
+
+    n = 8
+    exported_program = export(EinsumDiag(), args=(torch.randn(n, n),))
+    mod = from_exported_program(exported_program)
+
+    def rank2_call_results(ir_mod):
+        """Names of calls whose result is a rank-2 (full-size) tensor."""
+        results = []
+        for func in ir_mod.functions.values():
+            if not isinstance(func, relax.Function):
+                continue
+            for block in func.body.blocks:
+                for binding in block.bindings:
+                    if not (
+                        isinstance(binding.value, relax.Call)
+                        and isinstance(binding.value.op, tvm.ir.Op)
+                    ):
+                        continue
+                    if isinstance(binding.var.ty, relax.TensorType) and binding.var.ty.ndim == 2:
+                        results.append(binding.value.op.name)
+        return results
+
+    # The diagonal must be the only full-size (N x N) tensor touched: it is the
+    # function input read directly by a single repeated-subscript einsum. No
+    # call may produce a rank-2 intermediate.
+    assert rank2_call_results(mod) == []
+
+    # Sanity check that the graph really performs the diagonal: exactly one
+    # einsum on the N x N input producing an N-vector.
+    einsum_calls = []
+    for block in mod["main"].body.blocks:
+        for binding in block.bindings:
+            if (
+                isinstance(binding.value, relax.Call)
+                and isinstance(binding.value.op, tvm.ir.Op)
+                and binding.value.op.name == "relax.einsum"
+            ):
+                einsum_calls.append(binding.var)
+    assert len(einsum_calls) == 1
+    assert einsum_calls[0].ty.ndim == 1
+
+    # Legalize and check again on the lowered graph.
+    with tvm.target.Target("llvm"):
+        lowered = relax.transform.LegalizeOps()(mod)
+    assert rank2_call_results(lowered) == []
+
+
 def test_outer():
     class Outer(torch.nn.Module):
         def forward(self, x, y):
