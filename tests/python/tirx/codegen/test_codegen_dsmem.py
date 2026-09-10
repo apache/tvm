@@ -17,6 +17,8 @@
 # pylint: disable=missing-function-docstring
 """Tests for cp.async.bulk.shared::cluster.shared::cta PTX instruction codegen."""
 
+import tvm_ffi
+
 import tvm
 import tvm.testing
 from tvm.ir import PointerType, PrimType, assert_structural_equal
@@ -123,7 +125,7 @@ def test_mapa_pointer_bind_codegen():
         elif isinstance(node, tvm.ir.TensorLoad):
             loads.append(node)
 
-    tvm.tirx.stmt_functor.post_order_visit(main.body, collect)
+    tvm_ffi.structural_walk(main.body, collect)
     assert len(binds) == 1
     assert isinstance(binds[0].var.ty, PointerType)
     assert binds[0].var.ty.storage_scope == "shared"

@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, missing-docstring
 
+import tvm_ffi
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -161,7 +163,7 @@ def test_decl_buffer_alias_chain_uses_flat_root_map():
 
     decl_buffers = []
     buffer_stores = []
-    tvm.tirx.stmt_functor.post_order_visit(
+    tvm_ffi.structural_walk(
         func.body,
         lambda node: (
             decl_buffers.append(node)
