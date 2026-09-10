@@ -23,6 +23,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/relax/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
@@ -56,7 +57,30 @@ TEST(RelaxExprStructuralHooks, EveryConcreteExprHasExplicitHooks) {
 
 TEST(RelaxExprStructuralHooks, ReviewedCoreExprNodesHaveExplicitHooks) {
   ExpectStructuralHooks<tvm::GlobalVarNode>();
+  ExpectStructuralHooks<tvm::OpNode>();
   ExpectStructuralHooks<tvm::tirx::PrimFuncNode>();
+}
+
+TEST(RelaxExprStructuralHooks, OpHookPreservesIdentityWithoutDescendingIntoMetadata) {
+  using namespace tvm;
+  Op input = Op::Get("ir.prim.likely");
+  int op_callbacks = 0;
+  int metadata_callbacks = 0;
+  auto observe_op = [&](const Op&) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    ++op_callbacks;
+    return ffi::Unchanged();
+  };
+  auto observe_metadata = [&](const ffi::String&) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    ++metadata_callbacks;
+    return ffi::Unchanged();
+  };
+
+  Op mapped = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(input, observe_op, observe_metadata)
+                  .cast<Op>();
+
+  EXPECT_TRUE(mapped.same_as(input));
+  EXPECT_EQ(op_callbacks, 1);
+  EXPECT_EQ(metadata_callbacks, 0);
 }
 
 TEST(RelaxExprStructuralHooks, PrimFuncDescendsIntoBody) {
