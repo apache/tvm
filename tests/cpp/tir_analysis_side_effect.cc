@@ -35,3 +35,29 @@ TEST(SimplePasses, SideEffect) {
                                       .as_or_throw<PrimExpr>()) ==
                  tirx::CallEffectKind::kUpdateState);
 }
+
+TEST(SimplePasses, UsesVar) {
+  using namespace tvm;
+  using namespace tvm::tirx;
+
+  PrimVar i("i", PrimType::Int(32));
+  PrimVar j("j", PrimType::Int(32));
+  BufferVar buffer = decl_buffer({16}, PrimType::Float(32));
+  auto is_var = [](const Var& var) {
+    return [var](const VarNode* candidate) { return candidate == var.get(); };
+  };
+
+  EXPECT_TRUE(UsesVar(i + j, is_var(j)));
+  EXPECT_TRUE(UsesVar(BufferLoad(buffer, {i}), is_var(buffer)));
+  EXPECT_TRUE(UsesVar(BufferStore(buffer, FloatImm(PrimType::Float(32), 0), {j}), is_var(buffer)));
+
+  Stmt loop = For(i, 0, 4, ForKind::kSerial, Evaluate(j));
+  EXPECT_TRUE(UsesVar(loop, is_var(i)));
+
+  int visits = 0;
+  EXPECT_TRUE(UsesVar(i + j, [&](const VarNode* candidate) {
+    ++visits;
+    return candidate == i.get();
+  }));
+  EXPECT_EQ(visits, 1);
+}

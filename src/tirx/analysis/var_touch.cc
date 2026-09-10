@@ -21,59 +21,38 @@
  * \file var_touch.cc
  * \brief Implementation of simple passes
  */
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/stmt_functor.h>
+
+#include <utility>
 
 namespace tvm {
 namespace tirx {
 
-class VarTouchVisitor : public StmtExprVisitor {
- public:
-  explicit VarTouchVisitor(std::function<bool(const VarNode*)> var_set)
-      : var_set_(std::move(var_set)) {}
+namespace {
 
-  void VisitStmt(const Stmt& stmt) final {
-    if (use_var_) return;
-    StmtExprVisitor::VisitStmt(stmt);
-  }
+template <typename T>
+bool UsesVarImpl(const T& value, std::function<bool(const VarNode*)> var_set) {
+  bool use_var = false;
+  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+      value, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+        if (var_set(var.get())) {
+          use_var = true;
+          return ffi::WalkResult::Interrupt();
+        }
+        return ffi::WalkResult::Advance();
+      });
+  return use_var;
+}
 
-  void VisitExpr(const Expr& e) final {
-    if (use_var_) return;
-    StmtExprVisitor::VisitExpr(e);
-  }
-
-  void VisitExpr_(const VarNode* op) final { Handle(op); }
-
-  void VisitStmt_(const BufferStoreNode* op) final {
-    Handle(op->buffer.get());
-    StmtVisitor::VisitStmt_(op);
-  }
-
-  void VisitExpr_(const TensorLoadNode* op) final {
-    Handle(op->source.as_or_throw<tvm::tirx::BufferVar>().get());
-    ExprVisitor::VisitExpr_(op);
-  }
-
-  void Handle(const VarNode* var) {
-    if (var_set_(var)) use_var_ = true;
-  }
-
-  bool use_var_{false};
-
- private:
-  std::function<bool(const VarNode*)> var_set_;
-};
+}  // namespace
 
 bool UsesVar(const Stmt& stmt, std::function<bool(const VarNode*)> var_set) {
-  VarTouchVisitor visitor(std::move(var_set));
-  visitor(stmt);
-  return visitor.use_var_;
+  return UsesVarImpl(stmt, std::move(var_set));
 }
 
 bool UsesVar(const PrimExpr& expr, std::function<bool(const VarNode*)> var_set) {
-  VarTouchVisitor visitor(std::move(var_set));
-  visitor(expr);
-  return visitor.use_var_;
+  return UsesVarImpl(expr, std::move(var_set));
 }
 
 }  // namespace tirx
