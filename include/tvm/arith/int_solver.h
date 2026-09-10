@@ -103,11 +103,6 @@ class IntGroupBounds : public ffi::ObjectRef {
   static IntGroupBounds FromRange(const Range& r);
 
   /*!
-   * \brief Perform substitution on all components of the struct.
-   */
-  IntGroupBounds Substitute(const ffi::Map<Var, PrimExpr>& subst) const;
-
-  /*!
    * \brief Find the best range from the grouped bounds.
    * \param vranges_addl additional variable ranges that help infer the best range.
    * \return The best range (has the least difference between the lower bound and upper bound).

@@ -33,6 +33,7 @@
 #include <tvm/tirx/op.h>
 
 #include <unordered_set>
+#include <utility>
 
 #include "int_operator.h"
 
@@ -450,12 +451,12 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
 
   // Add the rest conditions
   auto f_subst = [&old_to_new_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-    if (auto repl = old_to_new_map.Get(var)) return ffi::Any(repl.value());
+    if (auto repl = old_to_new_map.Get(var)) return ffi::Any(*std::move(repl));
     return ffi::Unchanged();
   };
   for (const PrimExpr& cond : rest) {
     new_relations.push_back(
-        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(cond, f_subst).cast<PrimExpr>());
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(cond, f_subst).as_or_throw<PrimExpr>());
   }
 
   IntConstraints solution(new_vars, new_ranges, new_relations);
