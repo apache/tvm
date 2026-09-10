@@ -19,6 +19,7 @@
 
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/op_attr_types.h>
@@ -261,14 +262,13 @@ class PatternKindAnalyzer : public StmtExprVisitor {
       }
     }
     for (const PrimExpr& index : load->indices) {
-      PreOrderVisit(index, [&](const ffi::ObjectRef& node) {
-        if (auto var = node.as<tirx::PrimVar>()) {
-          if (vars.count(var.value().get())) {
-            vars.erase(var.value().get());
-          }
-        }
-        return true;
-      });
+      ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+          index, [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+            if (auto prim_var = var.as<tirx::PrimVar>()) {
+              vars.erase(prim_var.value().get());
+            }
+            return ffi::WalkResult::Advance();
+          });
     }
     return !vars.empty();
   }
