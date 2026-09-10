@@ -386,8 +386,8 @@ TVMFFIAny VarMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView
 TVMFFIAny GlobalVarVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
   // GlobalVar is a module-level symbol.  name_hint is scalar identity and ty is derived from the
   // referenced function, matching GlobalVarNode's custom structural equality/hash definition.
-  // StructuralMap's callback layer memoizes FreeVar results before and after this hook, so repeated
-  // occurrences reuse one replacement without a definition-site VarRemap operation here.
+  // It has no definition site where this hook could establish a VarRemap.  A callback that renames
+  // GlobalVars is therefore responsible for returning one stable replacement per module symbol.
   return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
 
