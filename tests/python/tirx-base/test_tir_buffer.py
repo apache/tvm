@@ -18,11 +18,51 @@
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.tirx import BufferAccessKind
+
+
+@pytest.mark.parametrize("access", ["load", "store"])
+def test_buffer_access_requires_existing_definition(access):
+    """Loads and stores use buffer identities established by explicit definitions."""
+    n = tvm.tirx.Var("n", "int32")
+    lhs = tvm.tirx.decl_buffer((n,), "float32", name="lhs")
+    rhs = tvm.tirx.decl_buffer((n,), "float32", name="rhs")
+
+    def make_access(buffer):
+        if access == "load":
+            return tvm.tirx.Evaluate(buffer[0])
+        return tvm.tirx.BufferStore(buffer, 1.0, [0])
+
+    lhs_access = make_access(lhs)
+    rhs_access = make_access(rhs)
+    assert not tvm_ffi.structural_equal(lhs_access, rhs_access)
+    assert tvm_ffi.structural_equal(lhs_access, rhs_access, map_free_vars=True)
+
+    lhs_body = tvm.tirx.SeqStmt([tvm.tirx.AllocBuffer(lhs), lhs_access])
+    rhs_body = tvm.tirx.SeqStmt([tvm.tirx.AllocBuffer(rhs), rhs_access])
+    tvm.ir.assert_structural_equal(lhs_body, rhs_body)
+    assert tvm_ffi.structural_hash(lhs_body) == tvm_ffi.structural_hash(rhs_body)
+
+    def replace_extent(var):
+        return tvm.tirx.IntImm("int32", 8) if var.same_as(n) else var
+
+    def get_buffer(stmt):
+        return stmt.value.source if access == "load" else stmt.buffer
+
+    # A use does not rewrite the type of a free buffer.  Rewriting its explicit
+    # definition updates the type and all subsequent uses together.
+    free_use = tvm_ffi.structural_map(lhs_access, (tvm.tirx.Var, replace_extent), order="pre")
+    assert get_buffer(free_use).same_as(lhs)
+    bound_uses = tvm_ffi.structural_map(lhs_body, (tvm.tirx.Var, replace_extent), order="pre")
+    definition = bound_uses.seq[0].buffer
+    assert not definition.same_as(lhs)
+    assert int(definition.shape[0]) == 8
+    assert get_buffer(bound_uses.seq[1]).same_as(definition)
 
 
 def test_buffer():
