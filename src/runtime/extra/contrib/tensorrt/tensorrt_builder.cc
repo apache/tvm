@@ -49,7 +49,8 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
       use_int8_(false),
       calibrator_(calibrator) {
   // Create TRT builder and network.
-  builder_ = nvinfer1::createInferBuilder(*trt_logger_);
+  std::unique_ptr<nvinfer1::IBuilder> builder(nvinfer1::createInferBuilder(*trt_logger_));
+  TVM_FFI_ICHECK(builder != nullptr) << "Creating the TensorRT builder failed";
 
   // TensorRT 10 removed implicit-batch mode and the kEXPLICIT_BATCH creation flag; every network is
   // explicit-batch, so the batch dimension is simply dimension 0 of each binding and is varied
@@ -57,8 +58,13 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
   if (calibrator_ != nullptr) {
     use_int8_ = true;
   }
-  network_ = builder_->createNetworkV2(0U);
+  std::unique_ptr<nvinfer1::INetworkDefinition> network(builder->createNetworkV2(0U));
+  TVM_FFI_ICHECK(network != nullptr) << "Creating the TensorRT network failed";
+  builder_ = builder.release();
+  network_ = network.release();
 }
+
+TensorRTBuilder::~TensorRTBuilder() { CleanUp(); }
 
 nvinfer1::DataType DLDataType2NVDataType(DLDataType data_type) {
   TVM_FFI_ICHECK(data_type.code == kDLFloat && (data_type.bits == 16 || data_type.bits == 32))
@@ -155,6 +161,7 @@ void TensorRTBuilder::AddLayer(int nid, const JSONGraphNode& node) {
 TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
   // Build engine.
   config_ = builder_->createBuilderConfig();
+  TVM_FFI_ICHECK(config_ != nullptr) << "Creating the TensorRT builder config failed";
   // TensorRT 10 replaced IBuilderConfig::setMaxWorkspaceSize with a tunable memory pool.
   config_->setMemoryPoolLimit(nvinfer1::MemoryPoolType::kWORKSPACE, max_workspace_size_);
   // Disable TF32 (on by default on Ampere+) so FP32 layers match TVM's full-precision reference.
@@ -172,7 +179,9 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
 
   // Every network is explicit-batch in TRT10, so always add an optimization profile that pins each
   // input to its concrete shape (with a minimum batch of 1 for dynamic batch dimensions).
+  // The builder owns this profile and releases it during CleanUp.
   auto profile = builder_->createOptimizationProfile();
+  TVM_FFI_ICHECK(profile != nullptr) << "Creating the TensorRT optimization profile failed";
   for (int i = 0; i < network_->getNbInputs(); ++i) {
     auto name = network_->getInput(i)->getName();
     const uint32_t entry_id = entry_id_map_[name];
@@ -194,23 +203,27 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
 
   // TensorRT 10 removed buildEngineWithConfig; build a serialized engine and deserialize it through
   // an IRuntime that is kept alive alongside the engine (TensorRTEngineAndContext::runtime).
-  nvinfer1::IHostMemory* plan = builder_->buildSerializedNetwork(*network_, *config_);
-  TVM_FFI_ICHECK(plan) << "Failed to build TensorRT serialized network.";
-  nvinfer1::IRuntime* runtime = nvinfer1::createInferRuntime(*trt_logger_);
-  nvinfer1::ICudaEngine* engine = runtime->deserializeCudaEngine(plan->data(), plan->size());
-  delete plan;
-  if (engine == nullptr) {
-    delete runtime;
-    TVM_FFI_THROW(InternalError) << "Failed to deserialize the TensorRT engine.";
-  }
+  std::unique_ptr<nvinfer1::IHostMemory> plan(
+      builder_->buildSerializedNetwork(*network_, *config_));
+  TVM_FFI_ICHECK(plan != nullptr) << "Failed to build TensorRT serialized network.";
+  std::unique_ptr<nvinfer1::IRuntime> runtime(nvinfer1::createInferRuntime(*trt_logger_));
+  TVM_FFI_ICHECK(runtime != nullptr) << "Creating the TensorRT deserialization runtime failed";
+  std::unique_ptr<nvinfer1::ICudaEngine> engine(
+      runtime->deserializeCudaEngine(plan->data(), plan->size()));
+  TVM_FFI_ICHECK(engine != nullptr) << "Failed to deserialize the TensorRT engine.";
   TVM_FFI_ICHECK_EQ(engine->getNbIOTensors(), static_cast<int32_t>(network_input_names_.size() +
                                                                    network_output_names_.size()));
-  nvinfer1::IExecutionContext* context = engine->createExecutionContext();
+  std::unique_ptr<nvinfer1::IExecutionContext> context(engine->createExecutionContext());
+  TVM_FFI_ICHECK(context != nullptr) << "Creating the TensorRT execution context failed";
   CleanUp();
 
-  TVM_FFI_ICHECK(context);
-
-  return {runtime, engine, context, network_input_names_, network_output_names_};
+  TensorRTEngineAndContext result;
+  result.inputs = network_input_names_;
+  result.outputs = network_output_names_;
+  result.runtime = runtime.release();
+  result.engine = engine.release();
+  result.context = context.release();
+  return result;
 }
 
 nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(const DLTensor* dptr,
@@ -228,11 +241,12 @@ nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(const DLTensor* dptr,
     count *= dptr->shape[i];
   }
   weight.count = count;
-  weight.values = new float[count];
-  // Tensor::CopyToBytes throws on failure (the old C API TVMTensorCopyToBytes/TVMGetLastError
-  // were removed during the tvm-ffi refactor).
-  Tensor::CopyToBytes(dptr, const_cast<void*>(weight.values), weight_bytes);
+  std::unique_ptr<float[]> values(new float[count]);
+  weight.values = values.get();
+  // Keep temporary storage owned until both the copy and registration succeed.
+  Tensor::CopyToBytes(dptr, values.get(), weight_bytes);
   trt_weights_.push_back(weight);
+  values.release();
   return weight;
 }
 
@@ -246,23 +260,19 @@ nvinfer1::ITensor* TensorRTBuilder::GetInputAsTensor(const TensorRTOpInput& inpu
 void TensorRTBuilder::CleanUp() {
   // TensorRT 10 removed obj->destroy(); objects are released with the delete operator.
   VLOG(1) << "Destroying TensorRT network";
-  TVM_FFI_ICHECK(network_);
   delete network_;
   network_ = nullptr;
 
   VLOG(1) << "Destroying TensorRT config";
-  TVM_FFI_ICHECK(config_);
   delete config_;
   config_ = nullptr;
 
   VLOG(1) << "Destroying TensorRT builder";
-  TVM_FFI_ICHECK(builder_);
   delete builder_;
   builder_ = nullptr;
 
   VLOG(1) << "Destroying TensorRT weights";
   for (auto weight : trt_weights_) {
-    TVM_FFI_ICHECK(weight.values);
     if (weight.type == nvinfer1::DataType::kFLOAT || weight.type == nvinfer1::DataType::kHALF) {
       delete[] static_cast<const float*>(weight.values);
     } else {

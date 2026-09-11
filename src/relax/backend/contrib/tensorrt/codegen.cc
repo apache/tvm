@@ -60,6 +60,7 @@ struct TensorRTCompilerConfigNode : public ffi::Object {
   bool remove_no_mac_subgraphs;
   bool use_fp16;
   bool use_uint8;
+  bool build_at_compile_time;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -77,6 +78,9 @@ struct TensorRTCompilerConfigNode : public ffi::Object {
         .def_ro("use_fp16", &TensorRTCompilerConfigNode::use_fp16, "Use FP16",
                 refl::DefaultValue(false))
         .def_ro("use_uint8", &TensorRTCompilerConfigNode::use_uint8, "Use uint8",
+                refl::DefaultValue(false))
+        .def_ro("build_at_compile_time", &TensorRTCompilerConfigNode::build_at_compile_time,
+                "Build and embed TensorRT engines during code generation",
                 refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ext.attrs.TensorRTCompilerConfig",
@@ -220,8 +224,8 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
 
 /*!
  * \brief Generates an TensorRTModule from a relax expression by serializing the expression to a
- * json representation. TensorRT is not required here because use of TensorRT APIs is deferred until
- * runtime.
+ * json representation. TensorRT APIs are deferred until runtime unless compile-time engine
+ * building is explicitly enabled.
  */
 class TensorRTJSONSerializer : public JSONSerializer {
  public:
@@ -335,18 +339,60 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
 ffi::Array<ffi::Module> TensorRTCompiler(ffi::Array<Function> functions,
                                          ffi::Map<ffi::String, ffi::Any> /*unused*/,
                                          ffi::Map<Constant, ffi::String> constant_names) {
+  auto cfg = transform::PassContext::Current()->GetConfig<TensorRTCompilerConfig>(
+      "relax.ext.tensorrt.options");
+  bool build_at_compile_time = cfg.has_value() && cfg.value()->build_at_compile_time;
+  ffi::Map<ffi::String, runtime::Tensor> constant_tensors;
+  if (build_at_compile_time) {
+    for (const auto& entry : constant_names) {
+      constant_tensors.Set(entry.second, entry.first->data);
+    }
+  }
+
   ffi::Array<ffi::Module> compiled_functions;
   for (const auto& func : functions) {
     VLOG(1) << "TensorRT partition:" << std::endl << func;
+    if (build_at_compile_time) {
+      // Reject dynamic inputs before the JSON serializer requires integer shapes.
+      auto check_input_type = [&](const auto& self, const Type& type) -> void {
+        if (const auto* tuple = type.as<TupleTypeNode>()) {
+          for (const auto& field : tuple->fields) self(self, field);
+          return;
+        }
+        const auto* tensor = type.as<TensorTypeNode>();
+        TVM_FFI_CHECK(tensor != nullptr && tensor->shape.has_value(), ValueError)
+            << "TensorRT compile-time engine building requires static positive input dimensions";
+        const auto* shape = tensor->shape.value().as<ShapeExprNode>();
+        TVM_FFI_CHECK(shape != nullptr, ValueError)
+            << "TensorRT compile-time engine building requires static positive input dimensions";
+        for (const auto& dim : shape->values) {
+          const auto* value = dim.as<IntImmNode>();
+          TVM_FFI_CHECK(value != nullptr && value->value > 0, ValueError)
+              << "TensorRT compile-time engine building requires static positive input dimensions";
+        }
+      };
+      for (const auto& param : func->params) check_input_type(check_input_type, GetType(param));
+    }
     TensorRTJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
     serializer.serialize(func);
     std::string graph_json = serializer.GetJSON();
     VLOG(1) << "TensorRT JSON:" << std::endl << graph_json;
-    auto constant_names = serializer.GetConstantNames();
+    auto ordered_constant_names = serializer.GetConstantNames();
     const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.tensorrt_runtime_create");
     std::string func_name = GetExtSymbol(func);
     VLOG(1) << "Creating tensorrt ffi::Module for '" << func_name << "'";
-    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<ffi::Module>());
+    auto module = pf(func_name, graph_json, ordered_constant_names).cast<ffi::Module>();
+    if (build_at_compile_time) {
+      auto build_engine = module->GetFunction("build_engine");
+      TVM_FFI_CHECK(build_engine.has_value(), RuntimeError)
+          << "TensorRT compile-time engine building requires the TensorRT runtime";
+      ffi::Array<runtime::Tensor> ordered_constants;
+      for (const auto& name : ordered_constant_names) {
+        ordered_constants.push_back(constant_tensors[name]);
+      }
+      build_engine.value()(ordered_constants);
+    }
+    compiled_functions.push_back(module);
   }
   return compiled_functions;
 }

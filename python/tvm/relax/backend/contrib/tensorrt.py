@@ -203,6 +203,56 @@ def partition_for_tensorrt(mod: IRModule) -> IRModule:
     mod : tvm.ir.IRModule
         The module with TensorRT-supported subgraphs grouped into composite
         functions annotated for the ``tensorrt`` codegen.
+
+    Notes
+    -----
+    By default, TensorRT builds engines on the first inference call.
+    To build and embed engines before exporting the library, enable
+    ``build_at_compile_time`` in the ``relax.ext.tensorrt.options`` PassContext
+    configuration while running ``RunCodegen``.
+
+    Compile-time building requires the TensorRT runtime and a CUDA GPU on the
+    compilation host. Select the deployment GPU before starting code generation,
+    for example with ``CUDA_VISIBLE_DEVICES``. Tensor inputs must have static,
+    positive dimensions and FP16 or FP32 dtype. Dynamic inputs and INT8
+    calibration are not supported by this mode.
+
+    The exported library contains the serialized engines. No inference call or
+    disk engine cache is needed before export. On the first inference call,
+    the runtime deserializes these plans instead of rebuilding engines.
+    Deployment still requires the TensorRT-enabled TVM runtime, CUDA, and a
+    compatible GPU and TensorRT version; the plans are not portable across
+    arbitrary GPU architectures or TensorRT versions.
+
+    Examples
+    --------
+    After binding model weights as constants, partition and generate code on the
+    compilation GPU before exporting::
+
+        import tvm
+        from tvm import relax
+        from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
+
+        partitioned = partition_for_tensorrt(mod)
+        with tvm.transform.PassContext(
+            config={
+                "relax.ext.tensorrt.options": {
+                    "build_at_compile_time": True,
+                }
+            }
+        ):
+            offloaded = relax.transform.RunCodegen()(partitioned)
+        executable = tvm.compile(offloaded, target="cuda")
+        executable.export_library("model.so")
+
+    Load the library and run inference in a new process on the deployment GPU::
+
+        import tvm
+        from tvm import relax
+
+        executable = tvm.runtime.load_module("model.so")
+        vm = relax.VirtualMachine(executable, tvm.cuda(0))
+        result = vm["main"](*inputs)
     """
     patterns = get_patterns_with_prefix("tensorrt")
     mod = FuseOpsByPattern(patterns, bind_constants=True, annotate_codegen=False)(mod)
