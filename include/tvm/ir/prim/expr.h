@@ -32,7 +32,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
-#include <tvm/ir/node_functor.h>
+#include <tvm/ir/object_functor.h>
 #include <tvm/ir/prim/vector_expr.h>
 #include <tvm/runtime/base.h>
 

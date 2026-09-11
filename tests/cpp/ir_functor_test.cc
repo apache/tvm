@@ -22,7 +22,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/module.h>
-#include <tvm/ir/node_functor.h>
+#include <tvm/ir/object_functor.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
@@ -42,11 +42,58 @@ TEST(IRF, Basic) {
   PrimVar x("x");
   auto z = x + 1;
 
-  NodeFunctor<int(const ffi::ObjectRef& n, int b)> f;
-  f.set_dispatch<VarNode>([](const ffi::ObjectRef& n, int b) { return b; });
-  f.set_dispatch<prim::AddNode>([](const ffi::ObjectRef& n, int b) { return b + 2; });
+  ObjectFunctor<int(const ffi::ObjectRef& n, int b)> f;
+  f.SetDispatch<VarNode>([](const ffi::ObjectRef& n, int b) { return b; });
+  f.SetDispatch<prim::AddNode>([](const ffi::ObjectRef& n, int b) { return b + 2; });
   TVM_FFI_ICHECK_EQ(f(x, 2), 2);
   TVM_FFI_ICHECK_EQ(f(z, 2), 4);
+}
+
+TEST(IRF, ObjectFunctorDispatch) {
+  using namespace tvm;
+  tirx::PrimVar x("x");
+  ObjectFunctor<int(const ffi::ObjectRef&)> f;
+
+  EXPECT_FALSE(f.CanDispatch(x));
+  EXPECT_THROW(f(x), ffi::Error);
+  f.SetDispatch<ffi::Object>([](const ffi::ObjectRef&) {
+     return 1;
+   }).SetDispatch<ExprNode>([](const ffi::ObjectRef&) { return 2; });
+  // Invocation uses the nearest registered ancestor; CanDispatch checks only the exact type.
+  EXPECT_FALSE(f.CanDispatch(x));
+  EXPECT_EQ(f(x), 2);
+  f.SetDispatch<VarNode>([](const ffi::ObjectRef&) { return 3; });
+  EXPECT_TRUE(f.CanDispatch(x));
+  EXPECT_EQ(f(x), 3);
+  EXPECT_THROW(f.SetDispatch<VarNode>([](const ffi::ObjectRef&) { return 4; }), ffi::Error);
+
+  f.ClearDispatch<VarNode>();
+  EXPECT_FALSE(f.CanDispatch(x));
+  EXPECT_EQ(f(x), 2);
+  f.ClearDispatch<ExprNode>();
+  EXPECT_EQ(f(x), 1);
+  f.SetDispatch<VarNode>([](const ffi::ObjectRef&) { return 4; });
+  EXPECT_TRUE(f.CanDispatch(x));
+  EXPECT_EQ(f(x), 4);
+}
+
+TEST(IRF, ObjectFunctorFinalize) {
+  using namespace tvm;
+  tirx::PrimVar x("x");
+  PrimExpr z = x + 1;
+  ObjectFunctor<int(const ffi::ObjectRef&, int)> f;
+  f.SetDispatch<ExprNode>([](const ffi::ObjectRef&, int b) {
+     return b;
+   }).SetDispatch<prim::AddNode>([](const ffi::ObjectRef&, int b) { return b + 2; });
+
+  f.Finalize();
+  EXPECT_FALSE(f.CanDispatch(x));
+  EXPECT_TRUE(f.CanDispatch(z));
+  EXPECT_EQ(f(x, 2), 2);
+  EXPECT_EQ(f(z, 2), 4);
+  EXPECT_THROW(f.Finalize(), ffi::Error);
+  EXPECT_THROW(f.SetDispatch<VarNode>([](const ffi::ObjectRef&, int b) { return b; }), ffi::Error);
+  EXPECT_THROW(f.ClearDispatch<ExprNode>(), ffi::Error);
 }
 
 TEST(IRF, CountVar) {

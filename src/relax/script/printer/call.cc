@@ -253,95 +253,96 @@ bool ShouldPrintAsTIR(const Call& call) {
   return true;
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Call>(  //
-        "", [](Call call, AccessPath n_p, IRDocsifier d) -> Doc {
-          if (ShouldPrintAsTIR(call)) {
-            return PrintTIRCall(call, n_p, d);
-          }
-          Call n = call;
-          // Special case: call_tir, call_dps_packed, call_tir_with_grad
-          if (ffi::Optional<ExprDoc> doc = PrintCallTIRDPSPacked(n, n_p, d)) {
-            return doc.value();
-          }
-          // Special case: assert_op
-          if (ffi::Optional<ExprDoc> doc = PrintAssertOp(n, n_p, d)) {
-            return doc.value();
-          }
-          // Special case: hint_on_device
-          if (ffi::Optional<ExprDoc> doc = PrintHintOnDevice(n, n_p, d)) {
-            return doc.value();
-          }
-          // Special case: to_vdevice
-          if (ffi::Optional<ExprDoc> doc = PrintToVDevice(n, n_p, d)) {
-            return doc.value();
-          }
-          // Special case: print
-          if (ffi::Optional<ExprDoc> doc = PrintRelaxPrint(n, n_p, d)) {
-            return doc.value();
-          }
-          ExprDoc prefix{ffi::UnsafeInit()};
-          ffi::Array<ExprDoc> args;
-          ffi::Array<ffi::String> kwargs_keys;
-          ffi::Array<ExprDoc> kwargs_values;
-          // Step 1. Print op
-          if (const auto* op = n->op.as<relax::ExternFuncNode>()) {
-            prefix = Relax(d, "call_packed");
-            args.push_back(LiteralDoc::Str(op->global_symbol, n_p->Attr("op")));
-          } else if (const auto* op = n->op.as<tvm::OpNode>()) {
-            std::string name = op->name;
-            if (name.rfind("relax.", 0) == 0) {
-              prefix = Relax(d, name.substr(6));
-            } else {
-              prefix = IdDoc(name);
-            }
-            prefix->source_paths.push_back(n_p->Attr("op"));
-          } else if (n->op->IsInstance<tvm::VarNode>() || n->op->IsInstance<tvm::GlobalVarNode>()) {
-            prefix = d->AsDoc<ExprDoc>(n->op, n_p->Attr("op"));
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<Call>(  //
+      "", [](Call call, AccessPath n_p, IRDocsifier d) -> Doc {
+        if (ShouldPrintAsTIR(call)) {
+          return PrintTIRCall(call, n_p, d);
+        }
+        Call n = call;
+        // Special case: call_tir, call_dps_packed, call_tir_with_grad
+        if (ffi::Optional<ExprDoc> doc = PrintCallTIRDPSPacked(n, n_p, d)) {
+          return doc.value();
+        }
+        // Special case: assert_op
+        if (ffi::Optional<ExprDoc> doc = PrintAssertOp(n, n_p, d)) {
+          return doc.value();
+        }
+        // Special case: hint_on_device
+        if (ffi::Optional<ExprDoc> doc = PrintHintOnDevice(n, n_p, d)) {
+          return doc.value();
+        }
+        // Special case: to_vdevice
+        if (ffi::Optional<ExprDoc> doc = PrintToVDevice(n, n_p, d)) {
+          return doc.value();
+        }
+        // Special case: print
+        if (ffi::Optional<ExprDoc> doc = PrintRelaxPrint(n, n_p, d)) {
+          return doc.value();
+        }
+        ExprDoc prefix{ffi::UnsafeInit()};
+        ffi::Array<ExprDoc> args;
+        ffi::Array<ffi::String> kwargs_keys;
+        ffi::Array<ExprDoc> kwargs_values;
+        // Step 1. Print op
+        if (const auto* op = n->op.as<relax::ExternFuncNode>()) {
+          prefix = Relax(d, "call_packed");
+          args.push_back(LiteralDoc::Str(op->global_symbol, n_p->Attr("op")));
+        } else if (const auto* op = n->op.as<tvm::OpNode>()) {
+          std::string name = op->name;
+          if (name.rfind("relax.", 0) == 0) {
+            prefix = Relax(d, name.substr(6));
           } else {
-            TVM_FFI_THROW(TypeError) << "Unsupported op: " << n->op->GetTypeKey();
+            prefix = IdDoc(name);
           }
-          // Step 2. Print args
-          if (!n->args.empty()) {
-            args.push_back(PrintCallee(n->args[0], n_p->Attr("args")->ArrayItem(0), d));
+          prefix->source_paths.push_back(n_p->Attr("op"));
+        } else if (n->op->IsInstance<tvm::VarNode>() || n->op->IsInstance<tvm::GlobalVarNode>()) {
+          prefix = d->AsDoc<ExprDoc>(n->op, n_p->Attr("op"));
+        } else {
+          TVM_FFI_THROW(TypeError) << "Unsupported op: " << n->op->GetTypeKey();
+        }
+        // Step 2. Print args
+        if (!n->args.empty()) {
+          args.push_back(PrintCallee(n->args[0], n_p->Attr("args")->ArrayItem(0), d));
+        }
+        for (int i = 1, l = n->args.size(); i < l; ++i) {
+          args.push_back(d->AsDoc<ExprDoc>(n->args[i], n_p->Attr("args")->ArrayItem(i)));
+        }
+        // Step 3. Print attrs
+        if (n->attrs.defined()) {
+          if (n->op->IsInstance<relax::ExternFuncNode>()) {
+            kwargs_keys.push_back("attrs_type_key");
+            kwargs_values.push_back(LiteralDoc::Str(n->attrs->GetTypeKey(), n_p->Attr("attrs")));
           }
-          for (int i = 1, l = n->args.size(); i < l; ++i) {
-            args.push_back(d->AsDoc<ExprDoc>(n->args[i], n_p->Attr("args")->ArrayItem(i)));
-          }
-          // Step 3. Print attrs
-          if (n->attrs.defined()) {
-            if (n->op->IsInstance<relax::ExternFuncNode>()) {
-              kwargs_keys.push_back("attrs_type_key");
-              kwargs_values.push_back(LiteralDoc::Str(n->attrs->GetTypeKey(), n_p->Attr("attrs")));
+          if (const auto* attrs = n->attrs.as<tvm::DictAttrsNode>()) {
+            std::vector<std::pair<ffi::String, ffi::Any>> sorted;
+            for (const auto& kv : attrs->dict) {
+              sorted.push_back(kv);
             }
-            if (const auto* attrs = n->attrs.as<tvm::DictAttrsNode>()) {
-              std::vector<std::pair<ffi::String, ffi::Any>> sorted;
-              for (const auto& kv : attrs->dict) {
-                sorted.push_back(kv);
-              }
-              std::sort(sorted.begin(), sorted.end(),
-                        [](const auto& a, const auto& b) { return a.first < b.first; });
-              for (const auto& kv : sorted) {
-                kwargs_keys.push_back(kv.first);
-                kwargs_values.push_back(
-                    d->AsDoc<ExprDoc>(kv.second, n_p->Attr("attrs")->Attr(kv.first)));
-              }
-            } else {
-              AttrPrinter(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values)(n->attrs);
+            std::sort(sorted.begin(), sorted.end(),
+                      [](const auto& a, const auto& b) { return a.first < b.first; });
+            for (const auto& kv : sorted) {
+              kwargs_keys.push_back(kv.first);
+              kwargs_values.push_back(
+                  d->AsDoc<ExprDoc>(kv.second, n_p->Attr("attrs")->Attr(kv.first)));
             }
+          } else {
+            AttrPrinter(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values)(n->attrs);
           }
-          // Step 4. Print type_args
-          if (n->ty_args.size() > 0) {
-            AccessPath ty_args_p = n_p->Attr("ty_args");
-            ffi::Array<ExprDoc> ty_args;
-            for (int i = 0, l = n->ty_args.size(); i < l; ++i) {
-              ty_args.push_back(d->AsDoc<ExprDoc>(n->ty_args[i], ty_args_p->ArrayItem(i)));
-            }
-            kwargs_keys.push_back("ty_args");
-            kwargs_values.push_back(TupleDoc(ty_args));
+        }
+        // Step 4. Print type_args
+        if (n->ty_args.size() > 0) {
+          AccessPath ty_args_p = n_p->Attr("ty_args");
+          ffi::Array<ExprDoc> ty_args;
+          for (int i = 0, l = n->ty_args.size(); i < l; ++i) {
+            ty_args.push_back(d->AsDoc<ExprDoc>(n->ty_args[i], ty_args_p->ArrayItem(i)));
           }
-          return prefix->Call(args, kwargs_keys, kwargs_values);
-        });
+          kwargs_keys.push_back("ty_args");
+          kwargs_values.push_back(TupleDoc(ty_args));
+        }
+        return prefix->Call(args, kwargs_keys, kwargs_values);
+      });
+}
 
 std::string ReprPrintCall(const ffi::ObjectRef& obj, const PrinterConfig& cfg) {
   Call call = obj.as_or_throw<Call>();

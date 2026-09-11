@@ -26,9 +26,10 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::AnyType>(  //
-        "", [](relax::AnyType n, AccessPath n_p, IRDocsifier d) -> Doc { return Relax(d, "Any"); });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<relax::AnyType>(  //
+      "", [](relax::AnyType n, AccessPath n_p, IRDocsifier d) -> Doc { return Relax(d, "Any"); });
+}
 
 ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifier& d) {
   ExprDoc expr_doc = d->AsDoc<ExprDoc>(e, e_p);
@@ -70,100 +71,101 @@ ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifie
   return expr_doc;
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::ShapeType>(
-        "", [](relax::ShapeType n, AccessPath n_p, IRDocsifier d) -> Doc {
-          if (n->values.has_value()) {
-            ffi::Array<PrimExpr> shape = n->values.value();
-            AccessPath shape_p = n_p->Attr("values");
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<relax::ShapeType>(
+      "", [](relax::ShapeType n, AccessPath n_p, IRDocsifier d) -> Doc {
+        if (n->values.has_value()) {
+          ffi::Array<PrimExpr> shape = n->values.value();
+          AccessPath shape_p = n_p->Attr("values");
+          ffi::Array<ExprDoc> shape_docs;
+          for (int i = 0, ndim = shape.size(); i < ndim; ++i) {
+            shape_docs.push_back(PrintShapeVar(shape[i], shape_p->ArrayItem(i), d));
+          }
+          return Relax(d, "Shape")->Call({ListDoc(shape_docs)});
+        }
+        return Relax(d, "Shape")->Call({}, {"ndim"}, {LiteralDoc::Int(n->ndim, n_p->Attr("ndim"))});
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<relax::TensorType>(  //
+      "", [](relax::TensorType n, AccessPath n_p, IRDocsifier d) -> Doc {
+        ffi::Array<ExprDoc> args;
+        ffi::Array<ffi::String> kwargs_keys;
+        ffi::Array<ExprDoc> kwargs_values;
+        if (n->shape.has_value()) {
+          // Need to dig into ShapeExpr to preserve the `R.shape` prefix
+          if (const auto* shape = n->shape.value().as<relax::ShapeExprNode>()) {
+            auto shape_expr = ffi::GetRef<relax::ShapeExpr>(shape);
+            AccessPath shape_p = n_p->Attr("shape")->Attr("values");
             ffi::Array<ExprDoc> shape_docs;
-            for (int i = 0, ndim = shape.size(); i < ndim; ++i) {
-              shape_docs.push_back(PrintShapeVar(shape[i], shape_p->ArrayItem(i), d));
+            for (int i = 0, ndim = shape_expr->values.size(); i < ndim; ++i) {
+              shape_docs.push_back(PrintShapeVar(shape_expr->values[i], shape_p->ArrayItem(i), d));
             }
-            return Relax(d, "Shape")->Call({ListDoc(shape_docs)});
+            args.push_back(TupleDoc(shape_docs));
+          } else {
+            args.push_back(d->AsDoc<ExprDoc>(n->shape.value(), n_p->Attr("shape")));
           }
-          return Relax(d, "Shape")
-              ->Call({}, {"ndim"}, {LiteralDoc::Int(n->ndim, n_p->Attr("ndim"))});
-        });
+        }
+        if (!n->IsUnknownDtype()) {
+          kwargs_keys.push_back("dtype");
+          kwargs_values.push_back(
+              LiteralDoc::DataType(n->dtype.value()->dtype, n_p->Attr("dtype")));
+        }
+        if (!n->shape.has_value() && !n->IsUnknownNdim()) {
+          kwargs_keys.push_back("ndim");
+          kwargs_values.push_back(LiteralDoc::Int(n->ndim, n_p->Attr("ndim")));
+        }
+        if (n->vdevice.has_value() && n->vdevice.value()->target.defined()) {
+          kwargs_keys.push_back("vdevice");
+          std::string dev_kind = n->vdevice.value()->target->kind->name;
+          int dev_index = FindVDeviceIndexByTargetKind(n->vdevice.value(), d);
+          kwargs_values.push_back(LiteralDoc::Str(
+              dev_kind + ":" + std::to_string(dev_index) + ":" + n->vdevice.value()->memory_scope,
+              n_p->Attr("vdevice")));
+        }
+        if (args.empty() && kwargs_keys.empty()) {
+          return Relax(d, "Tensor");
+        }
+        return Relax(d, "Tensor")->Call(args, kwargs_keys, kwargs_values);
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::TensorType>(  //
-        "", [](relax::TensorType n, AccessPath n_p, IRDocsifier d) -> Doc {
-          ffi::Array<ExprDoc> args;
-          ffi::Array<ffi::String> kwargs_keys;
-          ffi::Array<ExprDoc> kwargs_values;
-          if (n->shape.has_value()) {
-            // Need to dig into ShapeExpr to preserve the `R.shape` prefix
-            if (const auto* shape = n->shape.value().as<relax::ShapeExprNode>()) {
-              auto shape_expr = ffi::GetRef<relax::ShapeExpr>(shape);
-              AccessPath shape_p = n_p->Attr("shape")->Attr("values");
-              ffi::Array<ExprDoc> shape_docs;
-              for (int i = 0, ndim = shape_expr->values.size(); i < ndim; ++i) {
-                shape_docs.push_back(
-                    PrintShapeVar(shape_expr->values[i], shape_p->ArrayItem(i), d));
-              }
-              args.push_back(TupleDoc(shape_docs));
-            } else {
-              args.push_back(d->AsDoc<ExprDoc>(n->shape.value(), n_p->Attr("shape")));
-            }
-          }
-          if (!n->IsUnknownDtype()) {
-            kwargs_keys.push_back("dtype");
-            kwargs_values.push_back(
-                LiteralDoc::DataType(n->dtype.value()->dtype, n_p->Attr("dtype")));
-          }
-          if (!n->shape.has_value() && !n->IsUnknownNdim()) {
-            kwargs_keys.push_back("ndim");
-            kwargs_values.push_back(LiteralDoc::Int(n->ndim, n_p->Attr("ndim")));
-          }
-          if (n->vdevice.has_value() && n->vdevice.value()->target.defined()) {
-            kwargs_keys.push_back("vdevice");
-            std::string dev_kind = n->vdevice.value()->target->kind->name;
-            int dev_index = FindVDeviceIndexByTargetKind(n->vdevice.value(), d);
-            kwargs_values.push_back(LiteralDoc::Str(
-                dev_kind + ":" + std::to_string(dev_index) + ":" + n->vdevice.value()->memory_scope,
-                n_p->Attr("vdevice")));
-          }
-          if (args.empty() && kwargs_keys.empty()) {
-            return Relax(d, "Tensor");
-          }
-          return Relax(d, "Tensor")->Call(args, kwargs_keys, kwargs_values);
-        });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<relax::FuncType>(  //
+      "", [](relax::FuncType n, AccessPath n_p, IRDocsifier d) -> Doc {
+        auto ret_doc = d->AsDoc<ExprDoc>(n->ret, n_p->Attr("ret"));
+        auto purity_doc = LiteralDoc::Boolean(n->purity, n_p->Attr("purity"));
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::FuncType>(  //
-        "", [](relax::FuncType n, AccessPath n_p, IRDocsifier d) -> Doc {
-          auto ret_doc = d->AsDoc<ExprDoc>(n->ret, n_p->Attr("ret"));
-          auto purity_doc = LiteralDoc::Boolean(n->purity, n_p->Attr("purity"));
+        if (n->IsOpaque()) {
+          ffi::Array<ffi::String> keys;
+          ffi::Array<ExprDoc, void> values;
 
-          if (n->IsOpaque()) {
-            ffi::Array<ffi::String> keys;
-            ffi::Array<ExprDoc, void> values;
-
-            if (!n->ret->IsInstance<relax::AnyTypeNode>()) {
-              keys.push_back("ret");
-              values.push_back(ret_doc);
-            }
-            if (n->purity) {
-              keys.push_back("purity");
-              values.push_back(purity_doc);
-            }
-
-            if (keys.size()) {
-              return Relax(d, "Callable")->Call({}, keys, values);
-            } else {
-              return Relax(d, "Callable");
-            }
+          if (!n->ret->IsInstance<relax::AnyTypeNode>()) {
+            keys.push_back("ret");
+            values.push_back(ret_doc);
           }
-          // TODO(@junrushao): track symbolic shape relation
-          ffi::Array<ExprDoc> params_doc;
-          ffi::Array<tvm::Type> params = n->params.value();
-          AccessPath params_p = n_p->Attr("params");
-          for (int i = 0, n_params = params.size(); i < n_params; ++i) {
-            params_doc.push_back(d->AsDoc<ExprDoc>(params[i], params_p->ArrayItem(i)));
+          if (n->purity) {
+            keys.push_back("purity");
+            values.push_back(purity_doc);
           }
-          return Relax(d, "Callable")->Call({TupleDoc(params_doc), ret_doc, purity_doc});
-        });
+
+          if (keys.size()) {
+            return Relax(d, "Callable")->Call({}, keys, values);
+          } else {
+            return Relax(d, "Callable");
+          }
+        }
+        // TODO(@junrushao): track symbolic shape relation
+        ffi::Array<ExprDoc> params_doc;
+        ffi::Array<tvm::Type> params = n->params.value();
+        AccessPath params_p = n_p->Attr("params");
+        for (int i = 0, n_params = params.size(); i < n_params; ++i) {
+          params_doc.push_back(d->AsDoc<ExprDoc>(params[i], params_p->ArrayItem(i)));
+        }
+        return Relax(d, "Callable")->Call({TupleDoc(params_doc), ret_doc, purity_doc});
+      });
+}
 
 TVM_REGISTER_SCRIPT_AS_REPR(relax::AnyTypeNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::ShapeTypeNode, ReprPrintRelax);

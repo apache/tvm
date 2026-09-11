@@ -25,7 +25,7 @@
 #ifndef TVM_TIR_EXPR_FUNCTOR_H_
 #define TVM_TIR_EXPR_FUNCTOR_H_
 
-#include <tvm/ir/node_functor.h>
+#include <tvm/ir/object_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/buffer_region.h>
 
@@ -81,16 +81,16 @@ class ExprFunctor;
     return VisitExprDefault_(op, std::forward<Args>(args)...); \
   }
 
-#define IR_EXPR_FUNCTOR_DISPATCH(OP)                                                        \
-  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
-    return self->VisitExpr_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...);  \
+#define IR_EXPR_FUNCTOR_DISPATCH(OP)                                                       \
+  vtable.template SetDispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
+    return self->VisitExpr_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
   });
 
 template <typename R, typename... Args>
 class ExprFunctor<R(const Expr& n, Args...)> {
  private:
   using TSelf = ExprFunctor<R(const Expr& n, Args...)>;
-  using FType = NodeFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
+  using FType = ObjectFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief the result type of this functor */

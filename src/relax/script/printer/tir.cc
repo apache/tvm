@@ -78,60 +78,65 @@ Doc PrintCanonicalVar(Var n, AccessPath n_p, IRDocsifier d) {
   TVM_FFI_UNREACHABLE();
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<Var>("relax", PrintCanonicalVar);
+TVM_FFI_STATIC_INIT_BLOCK() { IRDocsifier::vtable().set_dispatch<Var>("relax", PrintCanonicalVar); }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tvm::IntImm>(                                             //
-        "relax", [](tvm::IntImm n, AccessPath n_p, IRDocsifier d) -> Doc {  //
-          // TODO(@junrushao): support non-int64 cases
-          if (n->ty.as_or_throw<PrimType>().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
-            return LiteralDoc::Boolean(n->value, n_p);
-          } else {
-            return LiteralDoc::Int(n->value, n_p);
-          }
-        });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tvm::IntImm>(                        //
+      "relax", [](tvm::IntImm n, AccessPath n_p, IRDocsifier d) -> Doc {  //
+        // TODO(@junrushao): support non-int64 cases
+        if (n->ty.as_or_throw<PrimType>().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
+          return LiteralDoc::Boolean(n->value, n_p);
+        } else {
+          return LiteralDoc::Int(n->value, n_p);
+        }
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tvm::GlobalVar>(                                             //
-        "relax", [](tvm::GlobalVar n, AccessPath n_p, IRDocsifier d) -> Doc {  //
-          if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(n)) {
-            return doc.value();
-          } else {
-            IdDoc ret(n->name_hint);
-            ret->source_paths.push_back(n_p);
-            return ret;
-          }
-        });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tvm::GlobalVar>(                        //
+      "relax", [](tvm::GlobalVar n, AccessPath n_p, IRDocsifier d) -> Doc {  //
+        if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(n)) {
+          return doc.value();
+        } else {
+          IdDoc ret(n->name_hint);
+          ret->source_paths.push_back(n_p);
+          return ret;
+        }
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tvm::IRModule>(                                               //
-        "relax", [](tvm::IRModule mod, AccessPath n_p, IRDocsifier d) -> Doc {  //
-          ffi::Optional<ExprDoc> doc = d->GetVarDoc(mod);
-          TVM_FFI_ICHECK(doc) << "Unable to print IRModule before definition in Relax.";
-          if (d->cfg->module_alias.empty()) {
-            // Use Module Name directly
-            return doc.value();
-          }
-          RelaxFrameNode* f = GetRelaxFrame(d);
-          TVM_FFI_CHECK(f != nullptr && f->is_func, IndexError)
-              << "No relax environment is found when printing a module alias var "
-                 "under relax's dispatch token";
-          if (!f->module_alias_printed) {
-            // If the module_alias is not defined before, define it.
-            f->stmts.push_back(AssignDoc(IdDoc(d->cfg->module_alias), doc.value(), std::nullopt));
-            f->module_alias_printed = true;
-          }
-          return IdDoc(d->cfg->module_alias);
-        });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tvm::IRModule>(                          //
+      "relax", [](tvm::IRModule mod, AccessPath n_p, IRDocsifier d) -> Doc {  //
+        ffi::Optional<ExprDoc> doc = d->GetVarDoc(mod);
+        TVM_FFI_ICHECK(doc) << "Unable to print IRModule before definition in Relax.";
+        if (d->cfg->module_alias.empty()) {
+          // Use Module Name directly
+          return doc.value();
+        }
+        RelaxFrameNode* f = GetRelaxFrame(d);
+        TVM_FFI_CHECK(f != nullptr && f->is_func, IndexError)
+            << "No relax environment is found when printing a module alias var "
+               "under relax's dispatch token";
+        if (!f->module_alias_printed) {
+          // If the module_alias is not defined before, define it.
+          f->stmts.push_back(AssignDoc(IdDoc(d->cfg->module_alias), doc.value(), std::nullopt));
+          f->module_alias_printed = true;
+        }
+        return IdDoc(d->cfg->module_alias);
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Range>("relax", [](Range range, AccessPath p, IRDocsifier d) -> Doc {
-      return Relax(d, "Range")
-          ->Call({
-              d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
-              d->AsDoc<ExprDoc>(range->extent + range->min, p->Attr("extent")),
-          });
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<Range>(
+      "relax", [](Range range, AccessPath p, IRDocsifier d) -> Doc {
+        return Relax(d, "Range")
+            ->Call({
+                d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
+                d->AsDoc<ExprDoc>(range->extent + range->min, p->Attr("extent")),
+            });
+      });
+}
 
 }  // namespace printer
 }  // namespace script
