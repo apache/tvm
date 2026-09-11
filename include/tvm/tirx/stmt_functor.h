@@ -26,7 +26,7 @@
 #ifndef TVM_TIRX_STMT_FUNCTOR_H_
 #define TVM_TIRX_STMT_FUNCTOR_H_
 
-#include <tvm/ir/node_functor.h>
+#include <tvm/ir/object_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
@@ -51,16 +51,16 @@ class StmtFunctor;
     return VisitStmtDefault_(op, std::forward<Args>(args)...); \
   }
 
-#define IR_STMT_FUNCTOR_DISPATCH(OP)                                                        \
-  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
-    return self->VisitStmt_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...);  \
+#define IR_STMT_FUNCTOR_DISPATCH(OP)                                                       \
+  vtable.template SetDispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
+    return self->VisitStmt_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
   });
 
 template <typename R, typename... Args>
 class StmtFunctor<R(const Stmt& n, Args... args)> {
  private:
   using TSelf = StmtFunctor<R(const Stmt& n, Args... args)>;
-  using FType = NodeFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args... args)>;
+  using FType = ObjectFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args... args)>;
 
  public:
   /*! \brief the result type of this functor */

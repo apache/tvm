@@ -180,7 +180,7 @@ Namer::FType& Namer::vtable() {
 void Namer::Name(ffi::ObjectRef node, ffi::String name) {
   static const FType& f = vtable();
   TVM_FFI_CHECK(node.defined(), ValueError) << "ValueError: Cannot name nullptr with: " << name;
-  TVM_FFI_CHECK(f.can_dispatch(node), ValueError)
+  TVM_FFI_CHECK(f.CanDispatch(node), ValueError)
       << "ValueError: Do not know how to name type \"" << node->GetTypeKey() << "\"";
   f(node, name);
 }

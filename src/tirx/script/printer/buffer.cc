@@ -412,66 +412,73 @@ ffi::Array<Doc> BufferSlices(const ffi::Array<Range>& region, const AccessPath& 
   return indices;
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::BufferRegion>(
-        "", [](tirx::BufferRegion buffer_region, AccessPath p, IRDocsifier d) -> Doc {
-          ExprDoc prefix = d->AsDoc<ExprDoc>(buffer_region->buffer, p->Attr("buffer"));
-          return prefix[BufferSlices(buffer_region->region, p->Attr("region"), d)];
-        });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tirx::BufferRegion>(
+      "", [](tirx::BufferRegion buffer_region, AccessPath p, IRDocsifier d) -> Doc {
+        ExprDoc prefix = d->AsDoc<ExprDoc>(buffer_region->buffer, p->Attr("buffer"));
+        return prefix[BufferSlices(buffer_region->region, p->Attr("region"), d)];
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::BufferStore>(  //
-        "", [](tirx::BufferStore store, AccessPath p, IRDocsifier d) -> Doc {
-          ExprDoc buffer = d->AsDoc<ExprDoc>(store->buffer, p->Attr("buffer"));
-          ExprDoc value = d->AsDoc<ExprDoc>(store->value, p->Attr("value"));
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tirx::BufferStore>(  //
+      "", [](tirx::BufferStore store, AccessPath p, IRDocsifier d) -> Doc {
+        ExprDoc buffer = d->AsDoc<ExprDoc>(store->buffer, p->Attr("buffer"));
+        ExprDoc value = d->AsDoc<ExprDoc>(store->value, p->Attr("value"));
 
-          // special case for scalar buffers
-          if (store->buffer.IsScalar(true) || store->buffer.IsScalar(false)) {
-            // TVM_FFI_ICHECK(store->indices.size() == 1 && tirx::is_zero(store->indices[0]))
-            //     << "1-dim buffer with shape (1,) store with indices other than [0] is not "
-            //        "supported";
-            ffi::Optional<ExprDoc> doc = d->GetVarDoc(store->buffer);
-            TVM_FFI_ICHECK(doc.has_value())
-                << "buffer is not defined in the environment: " << store->buffer;
-            return AssignDoc(doc.value(), value, std::nullopt);
-          }
+        // special case for scalar buffers
+        if (store->buffer.IsScalar(true) || store->buffer.IsScalar(false)) {
+          // TVM_FFI_ICHECK(store->indices.size() == 1 && tirx::is_zero(store->indices[0]))
+          //     << "1-dim buffer with shape (1,) store with indices other than [0] is not "
+          //        "supported";
+          ffi::Optional<ExprDoc> doc = d->GetVarDoc(store->buffer);
+          TVM_FFI_ICHECK(doc.has_value())
+              << "buffer is not defined in the environment: " << store->buffer;
+          return AssignDoc(doc.value(), value, std::nullopt);
+        }
 
-          return AssignDoc(
-              /*lhs=*/buffer[BufferIndices(store->indices, p->Attr("indices"), d)],
-              /*rhs=*/value, std::nullopt);
-        });
+        return AssignDoc(
+            /*lhs=*/buffer[BufferIndices(store->indices, p->Attr("indices"), d)],
+            /*rhs=*/value, std::nullopt);
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<TensorLoad>(  //
-        "", [](TensorLoad load, AccessPath p, IRDocsifier d) -> Doc {
-          tvm::tirx::BufferVar source = load->source.as_or_throw<tvm::tirx::BufferVar>();
-          ExprDoc buffer = d->AsDoc<ExprDoc>(source, p->Attr("source"));
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<TensorLoad>(  //
+      "", [](TensorLoad load, AccessPath p, IRDocsifier d) -> Doc {
+        tvm::tirx::BufferVar source = load->source.as_or_throw<tvm::tirx::BufferVar>();
+        ExprDoc buffer = d->AsDoc<ExprDoc>(source, p->Attr("source"));
 
-          // special case for scalar
-          if (source.IsScalar(true) || source.IsScalar(false)) {
-            // TVM_FFI_ICHECK(load->indices.size() == 1 && tirx::is_zero(load->indices[0]))
-            //     << "Scalar buffer load with indices other than [0] is not supported";
-            ffi::Optional<ExprDoc> doc = d->GetVarDoc(source);
-            TVM_FFI_ICHECK(doc.has_value())
-                << "Scalar buffer is not defined in the environment: " << source;
-            return doc.value();
-          }
+        // special case for scalar
+        if (source.IsScalar(true) || source.IsScalar(false)) {
+          // TVM_FFI_ICHECK(load->indices.size() == 1 && tirx::is_zero(load->indices[0]))
+          //     << "Scalar buffer load with indices other than [0] is not supported";
+          ffi::Optional<ExprDoc> doc = d->GetVarDoc(source);
+          TVM_FFI_ICHECK(doc.has_value())
+              << "Scalar buffer is not defined in the environment: " << source;
+          return doc.value();
+        }
 
-          return buffer[BufferLoadIndices(load->indices, p->Attr("indices"), d)];
-        });
+        return buffer[BufferLoadIndices(load->indices, p->Attr("indices"), d)];
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Axis>("", [](tirx::Axis axis, AccessPath p, IRDocsifier d) -> Doc {
-      return LiteralDoc::Str(axis->name, p->Attr("name"));
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tirx::Axis>(
+      "", [](tirx::Axis axis, AccessPath p, IRDocsifier d) -> Doc {
+        return LiteralDoc::Str(axis->name, p->Attr("name"));
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Iter>("", [](tirx::Iter iter, AccessPath p, IRDocsifier d) -> Doc {
-      return TIR(d, "Iter")->Call({d->AsDoc<ExprDoc>(iter->extent, p->Attr("extent")),
-                                   d->AsDoc<ExprDoc>(iter->stride, p->Attr("stride")),
-                                   d->AsDoc<ExprDoc>(iter->axis->name, p->Attr("axis"))},
-                                  {}, {});
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tirx::Iter>(
+      "", [](tirx::Iter iter, AccessPath p, IRDocsifier d) -> Doc {
+        return TIR(d, "Iter")->Call({d->AsDoc<ExprDoc>(iter->extent, p->Attr("extent")),
+                                     d->AsDoc<ExprDoc>(iter->stride, p->Attr("stride")),
+                                     d->AsDoc<ExprDoc>(iter->axis->name, p->Attr("axis"))},
+                                    {}, {});
+      });
+}
 
 Doc PrintTileLayout(tirx::TileLayout layout, IRDocsifier d, AccessPath p) {
   using OpKind = OperationDocNode::Kind;
@@ -559,39 +566,45 @@ Doc PrintTileLayout(tirx::TileLayout layout, IRDocsifier d, AccessPath p) {
   return TIRx(d, "TileLayout")->Call({spec.value()}, {}, {});
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
-    .set_dispatch<tirx::TileLayout>("",
-                                    [](tirx::TileLayout layout, AccessPath p, IRDocsifier d)
-                                        -> Doc { return PrintTileLayout(layout, d, p); });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable()  //
+      .set_dispatch<tirx::TileLayout>(
+          "", [](tirx::TileLayout layout, AccessPath p, IRDocsifier d) -> Doc {
+            return PrintTileLayout(layout, d, p);
+          });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
-    .set_dispatch<tirx::ComposeLayout>(
-        "", [](tirx::ComposeLayout layout, AccessPath p, IRDocsifier d) -> Doc {
-          auto per_element = LiteralDoc::Int(layout->per_element, p->Attr("per_element"));
-          auto swizzle_len = LiteralDoc::Int(layout->swizzle_len, p->Attr("swizzle_len"));
-          auto atom_len = LiteralDoc::Int(layout->atom_len, p->Attr("atom_len"));
-          auto tile_doc = d->AsDoc<ExprDoc>(layout->tile_layout, p->Attr("tile_layout"));
-          ffi::Array<ffi::String> kwargs_keys;
-          ffi::Array<ExprDoc> kwargs_values;
-          if (!layout->swizzle_inner) {
-            kwargs_keys.push_back("swizzle_inner");
-            kwargs_values.push_back(
-                LiteralDoc::Boolean(layout->swizzle_inner, p->Attr("swizzle_inner")));
-          }
-          return TIRx(d, "ComposeLayout")
-              ->Call({per_element, swizzle_len, atom_len, tile_doc}, kwargs_keys, kwargs_values);
-        });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable()  //
+      .set_dispatch<tirx::ComposeLayout>(
+          "", [](tirx::ComposeLayout layout, AccessPath p, IRDocsifier d) -> Doc {
+            auto per_element = LiteralDoc::Int(layout->per_element, p->Attr("per_element"));
+            auto swizzle_len = LiteralDoc::Int(layout->swizzle_len, p->Attr("swizzle_len"));
+            auto atom_len = LiteralDoc::Int(layout->atom_len, p->Attr("atom_len"));
+            auto tile_doc = d->AsDoc<ExprDoc>(layout->tile_layout, p->Attr("tile_layout"));
+            ffi::Array<ffi::String> kwargs_keys;
+            ffi::Array<ExprDoc> kwargs_values;
+            if (!layout->swizzle_inner) {
+              kwargs_keys.push_back("swizzle_inner");
+              kwargs_values.push_back(
+                  LiteralDoc::Boolean(layout->swizzle_inner, p->Attr("swizzle_inner")));
+            }
+            return TIRx(d, "ComposeLayout")
+                ->Call({per_element, swizzle_len, atom_len, tile_doc}, kwargs_keys, kwargs_values);
+          });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::MatchBufferRegion>(
-        "", [](tirx::MatchBufferRegion stmt, AccessPath p, IRDocsifier d) -> Doc {
-          Frame frame = d->frames.back();
-          ExprDoc lhs = DefineBuffer(stmt->buffer, frame, d);
-          ExprDoc src_buffer = d->AsDoc<ExprDoc>(stmt->source, p->Attr("source"));
-          ExprDoc rhs = BufferDecl(stmt->buffer, "match_buffer", {src_buffer}, p->Attr("buffer"),
-                                   d->frames.back(), d, BufferVarDefinition::MatchBuffer);
-          return AssignDoc(lhs, rhs, std::nullopt);
-        });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tirx::MatchBufferRegion>(
+      "", [](tirx::MatchBufferRegion stmt, AccessPath p, IRDocsifier d) -> Doc {
+        Frame frame = d->frames.back();
+        ExprDoc lhs = DefineBuffer(stmt->buffer, frame, d);
+        ExprDoc src_buffer = d->AsDoc<ExprDoc>(stmt->source, p->Attr("source"));
+        ExprDoc rhs = BufferDecl(stmt->buffer, "match_buffer", {src_buffer}, p->Attr("buffer"),
+                                 d->frames.back(), d, BufferVarDefinition::MatchBuffer);
+        return AssignDoc(lhs, rhs, std::nullopt);
+      });
+}
 
 TVM_SCRIPT_REPR(tirx::BufferRegionNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(TensorLoadNode, ReprPrintTIR);
