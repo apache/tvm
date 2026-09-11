@@ -26,86 +26,101 @@ namespace printer {
 
 TVM_FFI_STATIC_INIT_BLOCK() { TIRFrameNode::RegisterReflection(); }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<IntImm>("", [](IntImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
-      DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
-      if (dtype == d->cfg->int_dtype) {
-        return LiteralDoc::Int(imm->value, imm_p->Attr("value"));
-      } else if (dtype == DLDataType{kDLBool, 8, 1}) {
-        return TIR(d, DType2Str(dtype))
-            ->Call({LiteralDoc::Boolean(imm->value, imm_p->Attr("value"))});
-      } else {
-        return TIR(d, DType2Str(dtype))->Call({LiteralDoc::Int(imm->value, imm_p->Attr("value"))});
-      }
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<FloatImm>("", [](FloatImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
-      DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
-      if (dtype == d->cfg->float_dtype) {
-        return LiteralDoc::Float(imm->value, imm_p->Attr("value"));
-      } else {
-        return TIR(d, DType2Str(dtype))
-            ->Call({LiteralDoc::Float(imm->value, imm_p->Attr("value"))});
-      }
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Range>("tirx", [](Range range, AccessPath p, IRDocsifier d) -> Doc {
-      return TIR(d, "Range")
-          ->Call({
-              d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
-              d->AsDoc<ExprDoc>(range->extent + range->min, p->Attr("extent")),
-          });
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<PrimType>("", [](PrimType ty, AccessPath p, IRDocsifier d) -> Doc {
-      return TIR(d, DType2Str(ty->dtype));
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<PointerType>("", [](PointerType ty, AccessPath ty_p, IRDocsifier d) -> Doc {
-      ExprDoc element_type{ffi::UnsafeInit()};
-      TVM_FFI_ICHECK(!ty->element_type.IsMissing())
-          << "InternalError: PointerType.element_type is missing";
-      if (const auto* prim_type = ty->element_type.as<PrimTypeNode>()) {
-        if (ffi::GetRef<PrimType>(prim_type).IsVoid()) {
-          if (ty->storage_scope == "global") {
-            return TIR(d, "handle");
-          }
-          return TIR(d, "handle")
-              ->Call({}, {"storage_scope"},
-                     {LiteralDoc::Str(ty->storage_scope, ty_p->Attr("storage_scope"))});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<IntImm>(
+      "", [](IntImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
+        DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
+        if (dtype == d->cfg->int_dtype) {
+          return LiteralDoc::Int(imm->value, imm_p->Attr("value"));
+        } else if (dtype == DLDataType{kDLBool, 8, 1}) {
+          return TIR(d, DType2Str(dtype))
+              ->Call({LiteralDoc::Boolean(imm->value, imm_p->Attr("value"))});
+        } else {
+          return TIR(d, DType2Str(dtype))
+              ->Call({LiteralDoc::Int(imm->value, imm_p->Attr("value"))});
         }
-        element_type = LiteralDoc::DataType(prim_type->dtype,  //
-                                            ty_p->Attr("element_type")->Attr("dtype"));
-      } else if (ty->element_type.as<TensorMapTypeNode>()) {
-        return TIR(d, "TensorMap")->Call({});
-      } else {
-        element_type = d->AsDoc<ExprDoc>(ty->element_type, ty_p->Attr("element_type"));
-      }
-      if (ty->storage_scope == "") {
-        return TIR(d, "handle")->Call({element_type});
-      } else {
-        return TIR(d, "handle")
-            ->Call({element_type, LiteralDoc::Str(ty->storage_scope, ty_p->Attr("storage_scope"))});
-      }
-    });
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<TupleType>("", [](TupleType ty, AccessPath p, IRDocsifier d) -> Doc {
-      if (ty->fields.empty()) {
-        return LiteralDoc::None(p);
-      }
-      return TIR(d, "Tuple")->Call(d->AsDoc<ListDoc>(ty->fields, p->Attr("fields"))->elements);
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<FloatImm>(
+      "", [](FloatImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
+        DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
+        if (dtype == d->cfg->float_dtype) {
+          return LiteralDoc::Float(imm->value, imm_p->Attr("value"));
+        } else {
+          return TIR(d, DType2Str(dtype))
+              ->Call({LiteralDoc::Float(imm->value, imm_p->Attr("value"))});
+        }
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Target>("", [](Target target, AccessPath p, IRDocsifier d) -> Doc {
-      ffi::Map<ffi::String, ffi::Any> config = target->ToConfig();
-      return TIR(d, "target")->Call({d->AsDoc<ExprDoc>(config, p)});
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<Range>(
+      "tirx", [](Range range, AccessPath p, IRDocsifier d) -> Doc {
+        return TIR(d, "Range")
+            ->Call({
+                d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
+                d->AsDoc<ExprDoc>(range->extent + range->min, p->Attr("extent")),
+            });
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<PrimType>(
+      "",
+      [](PrimType ty, AccessPath p, IRDocsifier d) -> Doc { return TIR(d, DType2Str(ty->dtype)); });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<PointerType>(
+      "", [](PointerType ty, AccessPath ty_p, IRDocsifier d) -> Doc {
+        ExprDoc element_type{ffi::UnsafeInit()};
+        TVM_FFI_ICHECK(!ty->element_type.IsMissing())
+            << "InternalError: PointerType.element_type is missing";
+        if (const auto* prim_type = ty->element_type.as<PrimTypeNode>()) {
+          if (ffi::GetRef<PrimType>(prim_type).IsVoid()) {
+            if (ty->storage_scope == "global") {
+              return TIR(d, "handle");
+            }
+            return TIR(d, "handle")
+                ->Call({}, {"storage_scope"},
+                       {LiteralDoc::Str(ty->storage_scope, ty_p->Attr("storage_scope"))});
+          }
+          element_type = LiteralDoc::DataType(prim_type->dtype,  //
+                                              ty_p->Attr("element_type")->Attr("dtype"));
+        } else if (ty->element_type.as<TensorMapTypeNode>()) {
+          return TIR(d, "TensorMap")->Call({});
+        } else {
+          element_type = d->AsDoc<ExprDoc>(ty->element_type, ty_p->Attr("element_type"));
+        }
+        if (ty->storage_scope == "") {
+          return TIR(d, "handle")->Call({element_type});
+        } else {
+          return TIR(d, "handle")
+              ->Call(
+                  {element_type, LiteralDoc::Str(ty->storage_scope, ty_p->Attr("storage_scope"))});
+        }
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<TupleType>(
+      "", [](TupleType ty, AccessPath p, IRDocsifier d) -> Doc {
+        if (ty->fields.empty()) {
+          return LiteralDoc::None(p);
+        }
+        return TIR(d, "Tuple")->Call(d->AsDoc<ListDoc>(ty->fields, p->Attr("fields"))->elements);
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<Target>(
+      "", [](Target target, AccessPath p, IRDocsifier d) -> Doc {
+        ffi::Map<ffi::String, ffi::Any> config = target->ToConfig();
+        return TIR(d, "target")->Call({d->AsDoc<ExprDoc>(config, p)});
+      });
+}
 
 TVM_REGISTER_SCRIPT_AS_REPR(IntImmNode, ReprPrintTIR);
 TVM_REGISTER_SCRIPT_AS_REPR(FloatImmNode, ReprPrintTIR);
