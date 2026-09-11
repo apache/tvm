@@ -24,6 +24,7 @@
  * \note Update this file when you added a new Type.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
@@ -188,23 +189,27 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
   using relax::ExprMutatorBase::VisitExpr_;
 
   PrimExpr VisitPrimitiveExpr(const PrimExpr& expr) {
-    PrimExpr val = tirx::Substitute(expr, [this](const Var& var) -> ffi::Optional<Expr> {
+    auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       if (var.as<DataflowVarNode>()) {
         has_undefined_ = true;
-        return std::nullopt;
+        return ffi::Unchanged();
       }
       ffi::Optional<Expr> ret = f_var_map_ == nullptr ? std::nullopt : f_var_map_(var);
       has_undefined_ = has_undefined_ || !ret.has_value();
-      if (!ret.has_value()) return std::nullopt;
+      if (!ret.has_value()) return ffi::Unchanged();
 
       PrimExpr value = ret.value().as_or_throw<PrimExpr>();
       if (value->IsInstance<IntImmNode>()) {
-        return tvm::cast(PrimType::Int(64), value);
+        return ffi::Any(tvm::cast(PrimType::Int(64), value));
       }
       TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
           << "Can only provide i64 expressions in shape";
-      return value;
-    });
+      return ffi::Any(value);
+    };
+    // A well-definedness map may intentionally be self-referential (for example m -> m + 1).
+    // Post-order preserves the old substitution behavior by not re-entering that replacement.
+    PrimExpr val =
+        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(expr, f_substitute).as_or_throw<PrimExpr>();
     if (!val.same_as(expr)) {
       return ana_->Simplify(val);
     } else {
