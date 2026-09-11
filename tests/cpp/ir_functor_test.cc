@@ -642,9 +642,9 @@ TEST(IRF, StructuralMapBufferDefinition) {
     BufferVar buffer = fmakebuffer();
     Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});
     Stmt decl = SeqStmt({DeclBuffer(buffer, x), store});
-    auto f_subst = [&](const tirx::Var& var) -> ffi::Any {
-      if (var.same_as(x)) return Expr(y);
-      if (var.same_as(n)) return Expr(m);
+    auto f_subst = [&](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (var.same_as(x)) return ffi::Any(y);
+      if (var.same_as(n)) return ffi::Any(m);
       return ffi::Unchanged();
     };
     Stmt new_decl =
@@ -665,7 +665,9 @@ TEST(IRF, StructuralMapBufferDefinition) {
     // test identity substitution on expression
     BufferVar buffer = fmakebuffer();
     PrimExpr expr = BufferLoad(buffer, {IntImm::Int32(0)});
-    auto f_subst = [&](const tirx::Var& var) -> ffi::Any { return Expr(var); };
+    auto f_subst = [&](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      return ffi::Any(var);
+    };
     PrimExpr new_expr =
         ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr, f_subst).as_or_throw<PrimExpr>();
     // the expression is not changed
