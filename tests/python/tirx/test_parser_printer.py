@@ -2723,7 +2723,8 @@ def test_vector_annotation_with_python_variable_size():
     assert_structural_equal(func, from_source(code))
 
 
-def test_roundtrip_tmem_decl_buffer():
+@pytest.mark.parametrize("alias_size", [1, 2])
+def test_roundtrip_tmem_decl_buffer(alias_size):
     """DeclBuffer with tmem scope: data kwarg must be suppressed, allocated_addr
     must print as Expr (not Array), and scalar buffer index must not get
     a .source suffix."""
@@ -2733,8 +2734,8 @@ def test_roundtrip_tmem_decl_buffer():
     def func():
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
-            addr = T.alloc_shared((1,), "uint32", layout=None)
-            addr_alias = T.Buffer((1,), "uint32", data=addr.data, scope="shared")
+            addr = T.alloc_shared((alias_size,), "uint32", layout=None)
+            addr_alias = T.decl_buffer((alias_size,), "uint32", data=addr.data, scope="shared")
             buf = T.decl_buffer((64,), scope="tmem", layout=None, allocated_addr=addr_alias[0])
     # fmt: on
 
@@ -2746,9 +2747,20 @@ def test_roundtrip_tmem_decl_buffer():
         func.body,
         lambda node: decls.append(node) if isinstance(node, tvm.tirx.DeclBuffer) else None,
     )
-    assert len(decls) == 1
-    tmem_decl = next(decl for decl in decls if decl.buffer.scope() == "tmem")
+    # The shared alias must have an IR definition before the tensor-memory
+    # declaration uses it; naming a free T.Buffer does not bind its data.
+    assert len(decls) == 2
+    alias_decl, tmem_decl = decls
+    assert alias_decl.buffer.scope() == "shared"
+    assert tmem_decl.buffer.scope() == "tmem"
+    allocs = []
+    tvm_ffi.structural_walk(func.body, (tvm.tirx.AllocBuffer, allocs.append))
+    assert len(allocs) == 1
+    assert alias_decl.data.op.name == "tirx.buffer_data"
+    assert alias_decl.data.args[0].same_as(allocs[0].buffer)
+    assert tmem_decl.buffer.ty.allocated_addr[0].source.same_as(alias_decl.buffer)
     assert tmem_decl.data.op.name == "tirx.reinterpret"
+    assert tmem_decl.data.args[0].source.same_as(alias_decl.buffer)
 
 
 def test_roundtrip_cuda_func_call_source_code():
