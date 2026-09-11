@@ -35,6 +35,7 @@ from tvm.s_tir.meta_schedule.space_generator import PostOrderApply
 from tvm.s_tir.schedule import SBlockRV, Schedule
 from tvm.script import tirx as T
 from tvm.target import Target
+from tvm.testing import env
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,
 # fmt: off
@@ -427,6 +428,31 @@ def test_target_sblocks_search_space():
     ## Finally check that all blocks can be extracted by name.
     schs = _get_sch(lambda block: filter_fn(block, ["A", "B", "C"]))
     assert len(schs) == 8
+
+
+@pytest.mark.skipif(not env.has_llvm_min_version(14), reason="need llvm >= 14")
+def test_meta_schedule_default_rvv_rules_without_target_context():
+    target = Target(
+        {
+            "kind": "llvm",
+            "device": "riscv_cpu",
+            "mtriple": "riscv64-linux-gnu",
+            "mcpu": "generic-rv64",
+            "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+            "num-cores": 2,
+        }
+    )
+    mod = IRModule({"main": get_matmul_packed(16, 16, 16, "int8", "int8", "int32")})
+
+    assert Target.current(allow_none=True) is None
+    context = TuneContext(
+        mod=mod,
+        target=target,
+        task_name="RISC-V RVV Default Rules",
+        space_generator=PostOrderApply(),
+    )
+
+    assert len(context.space_generator.sch_rules) > 0
 
 
 @pytest.mark.parametrize(
