@@ -2621,18 +2621,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if dim is None:
             dim = node.kwargs.get("dims", None)
 
-        # If dims is a list, filter out axes where dimension is not 1
-        # This is needed because PyTorch decomposition may pass all axes
-        if isinstance(dim, list | tuple) and len(dim) > 0:
-            shape = self.shape_of(x)
-            # Filter to only include axes where the dimension is 1
-            valid_dims = []
-            for d in dim:
-                axis = d if d >= 0 else len(shape) + d
-                if axis < len(shape):
-                    valid_dims.append(d)
-            # If no valid dims, use None to squeeze all size-1 dimensions
-            dim = valid_dims if valid_dims else None
+        # fx.symbolic_trace never executes the model, so torch's IndexError for an
+        # out-of-range dim does not fire; reject the axis here instead of dropping it.
+        if dim is not None:
+            rank = len(self.shape_of(x))
+            for d in dim if isinstance(dim, list | tuple) else [dim]:
+                if isinstance(d, int) and not -rank <= d < rank:
+                    raise ValueError(
+                        f"squeeze dim {d} is out of range "
+                        f"[-{rank}, {rank - 1}] for an input of rank {rank}"
+                    )
 
         return self.block_builder.emit(relax.op.squeeze(x, dim))
 
