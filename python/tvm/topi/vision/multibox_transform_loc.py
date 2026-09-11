@@ -29,8 +29,9 @@ def multibox_transform_loc(
     clip=False,
     threshold=0.0,
     keep_background=True,
+    apply_softmax=True,
 ):
-    """TFLite ``DecodeCenterSizeBoxes``-style decode + softmax score post-process.
+    """TFLite ``DecodeCenterSizeBoxes``-style decode + score post-process.
 
     Inputs must match Relax op contracts: ``cls_pred [B,C,N]``, ``loc_pred [B,4*N]``,
     ``anchor [1,N,4]`` ltrb; per-anchor loc order ``(x,y,w,h)`` after yxhw→xywh reorder.
@@ -38,7 +39,7 @@ def multibox_transform_loc(
     Parameters
     ----------
     cls_pred : te.Tensor
-        ``[B, C, N]`` logits.
+        ``[B, C, N]`` logits or scores.
     loc_pred : te.Tensor
         ``[B, 4*N]`` encodings ``(x,y,w,h)`` per anchor.
     anchor : te.Tensor
@@ -48,16 +49,18 @@ def multibox_transform_loc(
     clip : bool
         Clip ``ymin,xmin,ymax,xmax`` to ``[0,1]``.
     threshold : float
-        After softmax: ``scores *= (scores >= threshold)``.
+        ``scores *= (scores >= threshold)`` after optional softmax.
     keep_background : bool
         If False: ``scores[:,0,:] = 0``.
+    apply_softmax : bool
+        Apply softmax across classes before thresholding.
 
     Returns
     -------
     boxes : te.Tensor
         ``[B, N, 4]`` as ``(ymin,xmin,ymax,xmax)``.
     scores : te.Tensor
-        ``[B, C, N]`` softmax, then threshold mask and optional background zero.
+        ``[B, C, N]`` scores after optional softmax, threshold, and background masking.
     """
     dtype = cls_pred.dtype
     B = cls_pred.shape[0]
@@ -107,7 +110,7 @@ def multibox_transform_loc(
 
     boxes = te.compute((B, num_anchors, 4), decode_bbox, name="multibox_boxes")
 
-    scores = topi.nn.softmax(cls_pred, axis=1)
+    scores = topi.nn.softmax(cls_pred, axis=1) if apply_softmax else cls_pred
     mask = topi.cast(topi.greater_equal(scores, th), dtype)
     scores = scores * mask
     if not keep_background:

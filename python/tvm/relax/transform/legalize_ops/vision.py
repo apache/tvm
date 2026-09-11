@@ -183,6 +183,7 @@ def _multibox_transform_loc(bb: BlockBuilder, call: Call) -> Expr:
             clip=call.attrs.clip,
             threshold=call.attrs.threshold,
             keep_background=call.attrs.keep_background,
+            apply_softmax=call.attrs.apply_softmax,
         )
 
     return bb.call_te(

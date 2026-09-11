@@ -36,7 +36,8 @@ namespace relax {
 TVM_FFI_STATIC_INIT_BLOCK() { MultiboxTransformLocAttrs::RegisterReflection(); }
 
 Expr multibox_transform_loc(Expr cls_pred, Expr loc_pred, Expr anchor, bool clip, double threshold,
-                            ffi::Array<double> variances, bool keep_background) {
+                            ffi::Array<double> variances, bool keep_background,
+                            bool apply_softmax) {
   TVM_FFI_ICHECK_EQ(variances.size(), 4)
       << "multibox_transform_loc: variances must be length 4 (x,y,w,h), got " << variances.size();
 
@@ -45,6 +46,7 @@ Expr multibox_transform_loc(Expr cls_pred, Expr loc_pred, Expr anchor, bool clip
   attrs->threshold = threshold;
   attrs->variances = std::move(variances);
   attrs->keep_background = keep_background;
+  attrs->apply_softmax = apply_softmax;
 
   static const Op& op = Op::Get("relax.vision.multibox_transform_loc");
   return Call(Type::Missing(), op, {std::move(cls_pred), std::move(loc_pred), std::move(anchor)},
@@ -186,12 +188,12 @@ Type InferTypeMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.vision.multibox_transform_loc")
     .describe(
-        "Decode SSD/TFLite-style priors and offsets into boxes and softmax scores. If "
+        "Decode SSD/TFLite-style priors and offsets into boxes and class scores. If "
         "cls_pred shape is unknown, N-based loc/anchor shape checks are skipped in "
         "inference. Very large variances (w,h) can overflow exp in half box sizes.")
     .set_attrs_type<MultiboxTransformLocAttrs>()
     .set_num_inputs(3)
-    .add_argument("cls_pred", "Tensor", "[B,C,N] class logits (pre-softmax).")
+    .add_argument("cls_pred", "Tensor", "[B,C,N] class logits or scores.")
     .add_argument("loc_pred", "Tensor",
                   "[B,4*N] box encodings (x,y,w,h); TFLite yxhw order remapped to xywh.")
     .add_argument("anchor", "Tensor", "[1,N,4] priors as ltrb (left,top,right,bottom).")
