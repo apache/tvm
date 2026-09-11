@@ -2734,7 +2734,7 @@ def test_roundtrip_tmem_decl_buffer():
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
             addr = T.alloc_shared((1,), "uint32", layout=None)
-            addr_alias = T.Buffer((1,), "uint32", data=addr.data, scope="shared")
+            addr_alias = T.decl_buffer((1,), "uint32", data=addr.data, scope="shared")
             buf = T.decl_buffer((64,), scope="tmem", layout=None, allocated_addr=addr_alias[0])
     # fmt: on
 
@@ -2746,7 +2746,8 @@ def test_roundtrip_tmem_decl_buffer():
         func.body,
         lambda node: decls.append(node) if isinstance(node, tvm.tirx.DeclBuffer) else None,
     )
-    assert len(decls) == 1
+    # The shared alias has an explicit definition before the tensor-memory use.
+    assert len(decls) == 2
     tmem_decl = next(decl for decl in decls if decl.buffer.scope() == "tmem")
     assert tmem_decl.data.op.name == "tirx.reinterpret"
 
