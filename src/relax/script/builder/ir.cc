@@ -33,13 +33,14 @@ namespace relax {
 
 using tvm::script::ir_builder::details::Namer;
 
-TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<tvm::relax::DataflowVarNode>([](const ffi::ObjectRef& node,
-                                                  ffi::String name) -> void {
-      using tvm::relax::DataflowVarNode;
-      DataflowVarNode* var = const_cast<DataflowVarNode*>(node.as<DataflowVarNode>());
-      var->name = name;
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  Namer::vtable().SetDispatch<tvm::relax::DataflowVarNode>(
+      [](const ffi::ObjectRef& node, ffi::String name) -> void {
+        using tvm::relax::DataflowVarNode;
+        DataflowVarNode* var = const_cast<DataflowVarNode*>(node.as<DataflowVarNode>());
+        var->name = name;
+      });
+}
 
 /////////////////////////////// Function ////////////////////////////////
 

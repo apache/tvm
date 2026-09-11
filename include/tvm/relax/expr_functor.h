@@ -25,7 +25,7 @@
 #ifndef TVM_RELAX_EXPR_FUNCTOR_H_
 #define TVM_RELAX_EXPR_FUNCTOR_H_
 
-#include <tvm/ir/node_functor.h>
+#include <tvm/ir/object_functor.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
@@ -63,9 +63,9 @@ class ExprFunctor;
     throw;                                                                                       \
   }
 
-#define RELAX_EXPR_FUNCTOR_DISPATCH(OP)                                                     \
-  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
-    return self->VisitExpr_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...);  \
+#define RELAX_EXPR_FUNCTOR_DISPATCH(OP)                                                    \
+  vtable.template SetDispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
+    return self->VisitExpr_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
   });
 
 #define PY_EXPR_VISITOR_DEFAULT(N, PY_FUNC, DEFAULT_FUNC) \
@@ -86,34 +86,34 @@ class ExprFunctor;
     }                                                               \
   }
 
-#define PY_EXPR_VISITOR_DISPATCH(OP, PY_FUNC)                                 \
-  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self) { \
-    if (self->PY_FUNC != nullptr)                                             \
-      self->PY_FUNC(n);                                                       \
-    else                                                                      \
-      self->VisitExpr_(static_cast<const OP*>(n.get()));                      \
+#define PY_EXPR_VISITOR_DISPATCH(OP, PY_FUNC)                                \
+  vtable.template SetDispatch<OP>([](const ffi::ObjectRef& n, TSelf* self) { \
+    if (self->PY_FUNC != nullptr)                                            \
+      self->PY_FUNC(n);                                                      \
+    else                                                                     \
+      self->VisitExpr_(static_cast<const OP*>(n.get()));                     \
   });
 
-#define PY_EXPR_MUTATOR_DISPATCH(OP, PY_FUNC)                                 \
-  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self) { \
-    if (self->PY_FUNC != nullptr) {                                           \
-      Expr expr = self->PY_FUNC(n).cast<Expr>();                              \
-      return expr;                                                            \
-    } else {                                                                  \
-      return self->VisitExpr_(static_cast<const OP*>(n.get()));               \
-    }                                                                         \
+#define PY_EXPR_MUTATOR_DISPATCH(OP, PY_FUNC)                                \
+  vtable.template SetDispatch<OP>([](const ffi::ObjectRef& n, TSelf* self) { \
+    if (self->PY_FUNC != nullptr) {                                          \
+      Expr expr = self->PY_FUNC(n).cast<Expr>();                             \
+      return expr;                                                           \
+    } else {                                                                 \
+      return self->VisitExpr_(static_cast<const OP*>(n.get()));              \
+    }                                                                        \
   });
 
-#define PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(OP)                               \
-  post_order_vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self) { \
-    return self->VisitExprPostOrder_(static_cast<const OP*>(n.get()));                   \
+#define PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(OP)                              \
+  post_order_vtable.template SetDispatch<OP>([](const ffi::ObjectRef& n, TSelf* self) { \
+    return self->VisitExprPostOrder_(static_cast<const OP*>(n.get()));                  \
   });
 
 template <typename R, typename... Args>
 class ExprFunctor<R(const Expr& n, Args...)> {
  private:
   using TSelf = ExprFunctor<R(const Expr& n, Args...)>;
-  using FType = tvm::NodeFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
+  using FType = tvm::ObjectFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief the result type of this functor */
@@ -138,7 +138,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
         << "Found null pointer node while traversing AST. The previous pass may "
            "have generated invalid data.";
     static FType vtable = InitVTable();
-    if (vtable.can_dispatch(n)) {
+    if (vtable.CanDispatch(n)) {
       return vtable(n, this, std::forward<Args>(args)...);
     }
     return VisitExprFallback_(n.get(), std::forward<Args>(args)...);
@@ -372,8 +372,8 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
 
  private:
   using TSelf = ExprVisitor;
-  using VisitBindingVTable = tvm::NodeFunctor<void(const ffi::ObjectRef& n, ExprVisitor* self,
-                                                   const VarBindingNode* binding)>;
+  using VisitBindingVTable = tvm::ObjectFunctor<void(const ffi::ObjectRef& n, ExprVisitor* self,
+                                                     const VarBindingNode* binding)>;
   // initialize the vtable.
   static VisitBindingVTable InitVisitBindingVTable();
   /*!
@@ -682,8 +682,8 @@ class ExprMutator : public ExprMutatorBase {
 
  private:
   using TSelf = ExprMutator;
-  using VisitBindingVTable = tvm::NodeFunctor<void(const ffi::ObjectRef& n, ExprMutator* self,
-                                                   const VarBindingNode* binding)>;
+  using VisitBindingVTable = tvm::ObjectFunctor<void(const ffi::ObjectRef& n, ExprMutator* self,
+                                                     const VarBindingNode* binding)>;
   // initialize the vtable.
   static VisitBindingVTable InitVisitBindingVTable();
 };

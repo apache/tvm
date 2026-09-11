@@ -17,11 +17,11 @@
  * under the License.
  */
 /*!
- * \file tvm/ir/node_functor.h
+ * \file tvm/ir/object_functor.h
  * \brief Defines the Functor data structures.
  */
-#ifndef TVM_IR_NODE_FUNCTOR_H_
-#define TVM_IR_NODE_FUNCTOR_H_
+#ifndef TVM_IR_OBJECT_FUNCTOR_H_
+#define TVM_IR_OBJECT_FUNCTOR_H_
 
 #include <tvm/ffi/error.h>
 
@@ -35,53 +35,62 @@ namespace tvm {
 /*!
  * \brief A dynamically dispatched functor on the type of the first argument.
  *
- * This is a class that is useful to construct polymorphic dispatching
- * base on the AST/IR node's type.
+ * Dispatch is based on the runtime type of the first object argument.
  *
  * \code
- *   NodeFunctor<std::string (const ffi::ObjectRef& n, std::string prefix)> tostr;
- *   tostr.set_dispatch<Add>([](const ffi::ObjectRef& op, std::string prefix) {
+ *   ObjectFunctor<std::string(const ffi::ObjectRef& n, std::string prefix)> tostr;
+ *   tostr.SetDispatch<prim::AddNode>([](const ffi::ObjectRef& op, std::string prefix) {
  *     return prefix + "Add";
  *   });
- *   tostr.set_dispatch<IntImm>([](const ffi::ObjectRef& op, std::string prefix) {
- *     return prefix + "IntImm"
+ *   tostr.SetDispatch<IntImmNode>([](const ffi::ObjectRef& op, std::string prefix) {
+ *     return prefix + "IntImm";
  *   });
  *
- *   Expr x = MakeConst(1);
- *   Expr y = x + x;
+ *   tirx::PrimVar x("x");
+ *   PrimExpr y = x + 1;
  *   // dispatch to IntImm, outputs "MyIntImm"
- *   LOG(INFO) << tostr(x, "My");
- *   // dispatch to IntImm, outputs "MyAdd"
+ *   LOG(INFO) << tostr(IntImm::Int32(1), "My");
+ *   // dispatch to Add, outputs "MyAdd"
  *   LOG(INFO) << tostr(y, "My");
  * \endcode
  *
- * \tparam FType function signiture
- *  This type if only defined for FType with function signature
+ * A shared table can register dispatch functions during static initialization:
+ *
+ * \code
+ *   class Printer {
+ *    public:
+ *     using FType = ObjectFunctor<std::string(const ffi::ObjectRef&)>;
+ *     static FType& vtable();
+ *   };
+ *
+ *   Printer::FType& Printer::vtable() {
+ *     static FType inst;
+ *     return inst;
+ *   }
+ *
+ *   TVM_FFI_STATIC_INIT_BLOCK() {
+ *     Printer::vtable()
+ *         .SetDispatch<prim::AddNode>([](const ffi::ObjectRef&) { return std::string("Add"); })
+ *         .SetDispatch<IntImmNode>([](const ffi::ObjectRef&) { return std::string("IntImm"); });
+ *   }
+ * \endcode
+ *
+ * \tparam FType Function signature, with const ffi::ObjectRef& as its first argument.
  */
 template <typename FType>
-class NodeFunctor;
+class ObjectFunctor;
 
 template <typename R, typename... Args>
-class NodeFunctor<R(const ffi::ObjectRef& n, Args...)> {
- private:
-  /*! \brief internal function pointer type */
-  typedef R (*FPointer)(const ffi::ObjectRef& n, Args...);
-  /*! \brief refer to itself. */
-  using TSelf = NodeFunctor<R(const ffi::ObjectRef& n, Args...)>;
-  /*! \brief internal function table */
-  std::vector<FPointer> func_;
-  /*! \brief start range of func index */
-  uint32_t begin_type_index_{0};
-
+class ObjectFunctor<R(const ffi::ObjectRef& n, Args...)> {
  public:
   /*! \brief the result type of this functor */
   using result_type = R;
   /*!
-   * \brief Whether the functor can dispatch the corresponding Node
-   * \param n The node to be dispatched
-   * \return Whether dispatching function is registered for n's type.
+   * \brief Whether a dispatch function is registered for the exact runtime type.
+   * \param n The object to be dispatched.
+   * \return Whether a dispatch function is registered for n's type, excluding ancestors.
    */
-  bool can_dispatch(const ffi::ObjectRef& n) const {
+  bool CanDispatch(const ffi::ObjectRef& n) const {
     uint32_t type_index = n->type_index();
     if (type_index < begin_type_index_) return false;
     type_index -= begin_type_index_;
@@ -89,7 +98,7 @@ class NodeFunctor<R(const ffi::ObjectRef& n, Args...)> {
   }
   /*!
    * \brief invoke the functor, dispatch on type of n
-   * \param n The Node argument
+   * \param n The object argument
    * \param args The additional arguments
    * \return The result.
    */
@@ -112,7 +121,7 @@ class NodeFunctor<R(const ffi::ObjectRef& n, Args...)> {
         }
       }
     }
-    TVM_FFI_THROW(InternalError) << "NodeFunctor calls un-registered function on type "
+    TVM_FFI_THROW(InternalError) << "ObjectFunctor calls un-registered function on type "
                                  << n->GetTypeKey();
     throw;
   }
@@ -123,14 +132,14 @@ class NodeFunctor<R(const ffi::ObjectRef& n, Args...)> {
    * \return reference to self.
    */
   template <typename TNode>
-  TSelf& set_dispatch(FPointer f) {  // NOLINT(*)
+  ObjectFunctor& SetDispatch(R (*f)(const ffi::ObjectRef& n, Args...)) {
     uint32_t tindex = TNode::RuntimeTypeIndex();
     if (func_.size() <= tindex) {
       func_.resize(tindex + 1, nullptr);
     }
     TVM_FFI_ICHECK(func_[tindex] == nullptr)
         << "Dispatch for " << TNode::_type_key << " is already set";
-    TVM_FFI_ICHECK_EQ(begin_type_index_, 0) << " Cannot call set_dispatch after calling Finalize";
+    TVM_FFI_ICHECK_EQ(begin_type_index_, 0) << " Cannot call SetDispatch after calling Finalize";
     func_[tindex] = f;
     return *this;
   }
@@ -141,15 +150,15 @@ class NodeFunctor<R(const ffi::ObjectRef& n, Args...)> {
    * \return reference to self.
    */
   template <typename TNode>
-  TSelf& clear_dispatch() {  // NOLINT(*)
+  ObjectFunctor& ClearDispatch() {
     uint32_t tindex = TNode::RuntimeTypeIndex();
-    TVM_FFI_ICHECK_LT(tindex, func_.size()) << "clear_dispatch: index out of range";
-    TVM_FFI_ICHECK_EQ(begin_type_index_, 0) << " Cannot call clear_dispatch after calling Finalize";
+    TVM_FFI_ICHECK_LT(tindex, func_.size()) << "ClearDispatch: index out of range";
+    TVM_FFI_ICHECK_EQ(begin_type_index_, 0) << " Cannot call ClearDispatch after calling Finalize";
     func_[tindex] = nullptr;
     return *this;
   }
   /*!
-   * \brief Finalize the functor after calling sequence of set_dispatch
+   * \brief Finalize the functor after calling sequence of SetDispatch
    * This function will attempt to find the min type index that is not null
    * and optimize the space of the func table so it is more compact
    */
@@ -167,46 +176,15 @@ class NodeFunctor<R(const ffi::ObjectRef& n, Args...)> {
     func_.resize(new_ftable_size);
     func_.shrink_to_fit();
   }
+
+ private:
+  /*! \brief internal function pointer type */
+  using FPointer = R (*)(const ffi::ObjectRef& n, Args...);
+  /*! \brief internal function table */
+  std::vector<FPointer> func_;
+  /*! \brief start range of func index */
+  uint32_t begin_type_index_{0};
 };
 
-#define TVM_REG_FUNC_VAR_DEF(ClsName) [[maybe_unused]] static auto& __make_functor##_##ClsName
-
-/*!
- * \brief Useful macro to set NodeFunctor dispatch in a global static field.
- *
- * \code
- *  // Use NodeFunctor to implement TVMScriptPrinter similar to Visitor Pattern.
- *  // vtable allows easy patch of new Node types, without changing
- *  // the interface of TVMScriptPrinter.
- *
- *  class TVMScriptPrinter {
- *   public:
- *    // the dispatch function.
- *    static std::string Script(const ffi::ObjectRef& node, const PrinterConfig& cfg) {
- *      return vtable()(node, cfg);
- *    }
- *    using FType = NodeFunctor<std::string(const ffi::ObjectRef&, const PrinterConfig&)>;
- *    // function to return global function table
- *    static FType& vtable();
- *  };
- *
- *  // in cpp/cc file
- *  TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
- *    static FType inst; return inst;
- *  }
- *
- *  TVM_STATIC_IR_FUNCTOR(TVMScriptPrinter, vtable)
- *  .set_dispatch<AddNode>([](const ffi::ObjectRef& ref, const PrinterConfig& cfg) {
- *    auto* n = static_cast<const AddNode*>(ref.get());
- *    return Script(n->a, cfg) + " + " + Script(n->b, cfg);
- *  });
- *
- * \endcode
- *
- * \param ClsName The name of the class
- * \param FField The static function that returns a singleton of NodeFunctor.
- */
-#define TVM_STATIC_IR_FUNCTOR(ClsName, FField) \
-  TVM_FFI_STR_CONCAT(TVM_REG_FUNC_VAR_DEF(ClsName), __COUNTER__) = ClsName::FField()
 }  // namespace tvm
-#endif  // TVM_IR_NODE_FUNCTOR_H_
+#endif  // TVM_IR_OBJECT_FUNCTOR_H_

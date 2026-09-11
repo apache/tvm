@@ -42,58 +42,62 @@ IfDoc PrintIfExpr(const relax::If& n, const AccessPath& n_p,
   return IfDoc(cond, branches[0], branches[1]);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::MatchCast>(
-        "", [](relax::MatchCast n, AccessPath n_p, IRDocsifier d) -> Doc {
-          using tvm::Type;
-          using relax::MatchType;
-          ffi::Optional<ExprDoc> ann = std::nullopt;
-          if (d->cfg->GetExtraConfig<bool>("relax.show_all_ty", true)) {
-            ann = TypeAsAnn(n->var, n_p->Attr("var"), d, n->value);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<relax::MatchCast>(
+      "", [](relax::MatchCast n, AccessPath n_p, IRDocsifier d) -> Doc {
+        using tvm::Type;
+        using relax::MatchType;
+        ffi::Optional<ExprDoc> ann = std::nullopt;
+        if (d->cfg->GetExtraConfig<bool>("relax.show_all_ty", true)) {
+          ann = TypeAsAnn(n->var, n_p->Attr("var"), d, n->value);
+        }
+        ExprDoc rhs = Relax(d, "match_cast")
+                          ->Call({d->AsDoc<ExprDoc>(n->value, n_p->Attr("value")),
+                                  d->AsDoc<ExprDoc>(n->ty, n_p->Attr("ty"))});
+        ExprDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
+        return AssignDoc(lhs, rhs, ann);
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<relax::VarBinding>(  //
+      "", [](relax::VarBinding n, AccessPath n_p, IRDocsifier d) -> Doc {
+        if (const auto if_ = n->value.as<relax::IfNode>()) {
+          ffi::Optional<ExprDoc> ann = TypeAsAnn(n->var, n_p->Attr("var"), d, n->value);
+          if (!ann.has_value() && n->var->ty.as<PrimTypeNode>()) {
+            ann = d->AsDoc<ExprDoc>(n->var->ty, n_p->Attr("var")->Attr("ty"));
           }
-          ExprDoc rhs = Relax(d, "match_cast")
-                            ->Call({d->AsDoc<ExprDoc>(n->value, n_p->Attr("value")),
-                                    d->AsDoc<ExprDoc>(n->ty, n_p->Attr("ty"))});
+          ExprDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
+          return PrintIfExpr(ffi::GetRef<relax::If>(if_), n_p->Attr("value"), d, lhs, ann);
+        } else if (n->value->IsInstance<tvm::BaseFuncNode>() &&
+                   !n->value->IsInstance<relax::ExternFuncNode>()) {
+          IdDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
+          d->cfg->binding_names.push_back(lhs->name);
+          Doc ret = d->AsDoc(n->value, n_p->Attr("value"));
+          d->cfg->binding_names.pop_back();
+          return ret;
+        } else if (d->cfg->syntax_sugar && relax::HasVoidType(n->value) &&
+                   relax::HasVoidType(n->var)) {
+          ExprDoc rhs = d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"));
+          return ExprStmtDoc(rhs);
+        } else {
+          ExprDoc rhs = d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"));
+          ffi::Optional<ExprDoc> ann = TypeAsAnn(n->var, n_p->Attr("var"), d, n->value);
+          if (!ann.has_value() && n->var->ty.as<PrimTypeNode>()) {
+            ann = d->AsDoc<ExprDoc>(n->var->ty, n_p->Attr("var")->Attr("ty"));
+          }
           ExprDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
           return AssignDoc(lhs, rhs, ann);
-        });
+        }
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::VarBinding>(  //
-        "", [](relax::VarBinding n, AccessPath n_p, IRDocsifier d) -> Doc {
-          if (const auto if_ = n->value.as<relax::IfNode>()) {
-            ffi::Optional<ExprDoc> ann = TypeAsAnn(n->var, n_p->Attr("var"), d, n->value);
-            if (!ann.has_value() && n->var->ty.as<PrimTypeNode>()) {
-              ann = d->AsDoc<ExprDoc>(n->var->ty, n_p->Attr("var")->Attr("ty"));
-            }
-            ExprDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
-            return PrintIfExpr(ffi::GetRef<relax::If>(if_), n_p->Attr("value"), d, lhs, ann);
-          } else if (n->value->IsInstance<tvm::BaseFuncNode>() &&
-                     !n->value->IsInstance<relax::ExternFuncNode>()) {
-            IdDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
-            d->cfg->binding_names.push_back(lhs->name);
-            Doc ret = d->AsDoc(n->value, n_p->Attr("value"));
-            d->cfg->binding_names.pop_back();
-            return ret;
-          } else if (d->cfg->syntax_sugar && relax::HasVoidType(n->value) &&
-                     relax::HasVoidType(n->var)) {
-            ExprDoc rhs = d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"));
-            return ExprStmtDoc(rhs);
-          } else {
-            ExprDoc rhs = d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"));
-            ffi::Optional<ExprDoc> ann = TypeAsAnn(n->var, n_p->Attr("var"), d, n->value);
-            if (!ann.has_value() && n->var->ty.as<PrimTypeNode>()) {
-              ann = d->AsDoc<ExprDoc>(n->var->ty, n_p->Attr("var")->Attr("ty"));
-            }
-            ExprDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
-            return AssignDoc(lhs, rhs, ann);
-          }
-        });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::If>("", [](relax::If n, AccessPath n_p, IRDocsifier d) -> Doc {
-      return PrintIfExpr(n, n_p, d, std::nullopt, std::nullopt);
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<relax::If>(
+      "", [](relax::If n, AccessPath n_p, IRDocsifier d) -> Doc {
+        return PrintIfExpr(n, n_p, d, std::nullopt, std::nullopt);
+      });
+}
 
 TVM_REGISTER_SCRIPT_AS_REPR(relax::MatchCastNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::VarBindingNode, ReprPrintRelax);

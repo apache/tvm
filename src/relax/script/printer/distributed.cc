@@ -28,104 +28,105 @@ namespace script {
 namespace printer {
 
 // distributed::Placement
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::distributed::Placement>("",
-                                                 [](relax::distributed::Placement n, AccessPath n_p,
-                                                    IRDocsifier d) -> Doc {
-                                                   return d->AsDoc<Doc>(n->ToString(), n_p);
-                                                 });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<relax::distributed::Placement>(
+      "", [](relax::distributed::Placement n, AccessPath n_p, IRDocsifier d) -> Doc {
+        return d->AsDoc<Doc>(n->ToString(), n_p);
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::distributed::DTensorType>(
-        "", [](relax::distributed::DTensorType n, AccessPath n_p, IRDocsifier d) -> Doc {
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<relax::distributed::DTensorType>(
+      "", [](relax::distributed::DTensorType n, AccessPath n_p, IRDocsifier d) -> Doc {
+        ffi::Array<ExprDoc> args;
+        ffi::Array<ffi::String> kwargs_keys;
+        ffi::Array<ExprDoc> kwargs_values;
+        bool require_kwargs = false;
+        if (n->tensor_ty->shape.has_value()) {
+          // Need to dig into ShapeExpr to preserve the `R.shape` prefix
+          if (const auto* shape = n->tensor_ty->shape.value().as<relax::ShapeExprNode>()) {
+            auto shape_expr = ffi::GetRef<relax::ShapeExpr>(shape);
+            AccessPath shape_p = n_p->Attr("shape")->Attr("values");
+            ffi::Array<ExprDoc> shape_docs;
+            for (int i = 0, ndim = shape_expr->values.size(); i < ndim; ++i) {
+              shape_docs.push_back(PrintShapeVar(shape_expr->values[i], shape_p->ArrayItem(i), d));
+            }
+            args.push_back(TupleDoc(shape_docs));
+          } else {
+            args.push_back(d->AsDoc<ExprDoc>(n->tensor_ty->shape.value(), n_p->Attr("shape")));
+          }
+        } else {
+          require_kwargs = true;
+        }
+        if (!n->tensor_ty->IsUnknownDtype()) {
+          if (!require_kwargs) {
+            args.push_back(
+                LiteralDoc::DataType(n->tensor_ty->dtype.value()->dtype, n_p->Attr("dtype")));
+          } else {
+            kwargs_keys.push_back("dtype");
+            kwargs_values.push_back(
+                LiteralDoc::DataType(n->tensor_ty->dtype.value()->dtype, n_p->Attr("dtype")));
+          }
+        } else {
+          require_kwargs = true;
+        }
+        if (!require_kwargs) {
+          args.push_back(d->AsDoc<ExprDoc>(n->device_mesh, n_p->Attr("device_mesh")));
+        } else {
+          kwargs_keys.push_back("device_mesh");
+          kwargs_values.push_back(d->AsDoc<ExprDoc>(n->device_mesh, n_p->Attr("device_mesh")));
+        }
+        if (!require_kwargs) {
+          args.push_back(d->AsDoc<ExprDoc>(n->placement, n_p->Attr("placement")));
+        } else {
+          kwargs_keys.push_back("placement");
+          kwargs_values.push_back(d->AsDoc<ExprDoc>(n->placement, n_p->Attr("placement")));
+        }
+        if (!n->tensor_ty->shape.has_value() && !n->tensor_ty->IsUnknownNdim()) {
+          kwargs_keys.push_back("ndim");
+          kwargs_values.push_back(LiteralDoc::Int(n->tensor_ty->ndim, n_p->Attr("ndim")));
+        }
+        return Relax(d, "DTensor")->Call(args, kwargs_keys, kwargs_values);
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<relax::distributed::DeviceMesh>(
+      "", [](relax::distributed::DeviceMesh n, AccessPath n_p, IRDocsifier d) -> Doc {
+        bool has_relax_frame = false;
+        const IRFrameNode* f = nullptr;
+        for (const Frame& frame : d->frames) {
+          if (frame.as<RelaxFrameNode>()) {
+            has_relax_frame = true;
+            break;
+          } else if (const auto* ir_frame = frame.as<IRFrameNode>()) {
+            f = ir_frame;
+          }
+        }
+        if (!has_relax_frame || !f) {
           ffi::Array<ExprDoc> args;
-          ffi::Array<ffi::String> kwargs_keys;
-          ffi::Array<ExprDoc> kwargs_values;
-          bool require_kwargs = false;
-          if (n->tensor_ty->shape.has_value()) {
-            // Need to dig into ShapeExpr to preserve the `R.shape` prefix
-            if (const auto* shape = n->tensor_ty->shape.value().as<relax::ShapeExprNode>()) {
-              auto shape_expr = ffi::GetRef<relax::ShapeExpr>(shape);
-              AccessPath shape_p = n_p->Attr("shape")->Attr("values");
-              ffi::Array<ExprDoc> shape_docs;
-              for (int i = 0, ndim = shape_expr->values.size(); i < ndim; ++i) {
-                shape_docs.push_back(
-                    PrintShapeVar(shape_expr->values[i], shape_p->ArrayItem(i), d));
-              }
-              args.push_back(TupleDoc(shape_docs));
-            } else {
-              args.push_back(d->AsDoc<ExprDoc>(n->tensor_ty->shape.value(), n_p->Attr("shape")));
-            }
+          args.push_back(d->AsDoc<ExprDoc>(n->shape, n_p->Attr("shape")));
+          if (n->device_range.has_value()) {
+            args.push_back(d->AsDoc<ExprDoc>(n->device_range, n_p->Attr("device_range")));
           } else {
-            require_kwargs = true;
+            args.push_back(d->AsDoc<ExprDoc>(n->device_ids, n_p->Attr("device_ids")));
           }
-          if (!n->tensor_ty->IsUnknownDtype()) {
-            if (!require_kwargs) {
-              args.push_back(
-                  LiteralDoc::DataType(n->tensor_ty->dtype.value()->dtype, n_p->Attr("dtype")));
-            } else {
-              kwargs_keys.push_back("dtype");
-              kwargs_values.push_back(
-                  LiteralDoc::DataType(n->tensor_ty->dtype.value()->dtype, n_p->Attr("dtype")));
-            }
-          } else {
-            require_kwargs = true;
-          }
-          if (!require_kwargs) {
-            args.push_back(d->AsDoc<ExprDoc>(n->device_mesh, n_p->Attr("device_mesh")));
-          } else {
-            kwargs_keys.push_back("device_mesh");
-            kwargs_values.push_back(d->AsDoc<ExprDoc>(n->device_mesh, n_p->Attr("device_mesh")));
-          }
-          if (!require_kwargs) {
-            args.push_back(d->AsDoc<ExprDoc>(n->placement, n_p->Attr("placement")));
-          } else {
-            kwargs_keys.push_back("placement");
-            kwargs_values.push_back(d->AsDoc<ExprDoc>(n->placement, n_p->Attr("placement")));
-          }
-          if (!n->tensor_ty->shape.has_value() && !n->tensor_ty->IsUnknownNdim()) {
-            kwargs_keys.push_back("ndim");
-            kwargs_values.push_back(LiteralDoc::Int(n->tensor_ty->ndim, n_p->Attr("ndim")));
-          }
-          return Relax(d, "DTensor")->Call(args, kwargs_keys, kwargs_values);
-        });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::distributed::DeviceMesh>(
-        "", [](relax::distributed::DeviceMesh n, AccessPath n_p, IRDocsifier d) -> Doc {
-          bool has_relax_frame = false;
-          const IRFrameNode* f = nullptr;
-          for (const Frame& frame : d->frames) {
-            if (frame.as<RelaxFrameNode>()) {
-              has_relax_frame = true;
-              break;
-            } else if (const auto* ir_frame = frame.as<IRFrameNode>()) {
-              f = ir_frame;
-            }
-          }
-          if (!has_relax_frame || !f) {
-            ffi::Array<ExprDoc> args;
-            args.push_back(d->AsDoc<ExprDoc>(n->shape, n_p->Attr("shape")));
-            if (n->device_range.has_value()) {
-              args.push_back(d->AsDoc<ExprDoc>(n->device_range, n_p->Attr("device_range")));
-            } else {
-              args.push_back(d->AsDoc<ExprDoc>(n->device_ids, n_p->Attr("device_ids")));
-            }
-            return Relax(d, "device_mesh")->Call(args);
-          } else {
-            for (const auto& kv : *f->global_infos) {
-              for (int i = 0; i < static_cast<int>(kv.second.size()); i++) {
-                if (kv.second[i].same_as(n)) {
-                  std::stringstream ss;
-                  ss << kv.first << "[" << i << "]";
-                  return d->AsDoc<Doc>(ffi::String(ss.str()), n_p);
-                }
+          return Relax(d, "device_mesh")->Call(args);
+        } else {
+          for (const auto& kv : *f->global_infos) {
+            for (int i = 0; i < static_cast<int>(kv.second.size()); i++) {
+              if (kv.second[i].same_as(n)) {
+                std::stringstream ss;
+                ss << kv.first << "[" << i << "]";
+                return d->AsDoc<Doc>(ffi::String(ss.str()), n_p);
               }
             }
-            TVM_FFI_THROW(InternalError) << "Cannot find device mesh in global infos";
-            TVM_FFI_UNREACHABLE();
           }
-        });
+          TVM_FFI_THROW(InternalError) << "Cannot find device mesh in global infos";
+          TVM_FFI_UNREACHABLE();
+        }
+      });
+}
 
 TVM_REGISTER_SCRIPT_AS_REPR(relax::distributed::DeviceMeshNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::distributed::PlacementNode, ReprPrintRelax);

@@ -33,7 +33,7 @@
 
 // functions to be overriden.
 #define RELAX_VISIT_BINDING_DISPATCH(OP)                                        \
-  vtable.template set_dispatch<OP>(                                             \
+  vtable.template SetDispatch<OP>(                                              \
       [](const ffi::ObjectRef& n, TSelf* self, const VarBindingNode* binding) { \
         self->VisitBinding_(binding, static_cast<const OP*>(n.get()));          \
       });
@@ -62,7 +62,7 @@
     static VisitBindingVTable vtable = InitVisitBindingVTable();                        \
     const Expr& value = binding->value;                                                 \
     TVM_FFI_ICHECK(value.defined()) << "Found null pointer node while traversing AST."; \
-    if (vtable.can_dispatch(value)) {                                                   \
+    if (vtable.CanDispatch(value)) {                                                    \
       vtable(value, this, binding);                                                     \
     } else {                                                                            \
       VisitBinding_(binding, value.get());                                              \

@@ -49,10 +49,12 @@ ffi::Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const AccessPath& n_p,
   return *stmts;
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::SeqExpr>("", [](relax::SeqExpr n, AccessPath n_p, IRDocsifier d) -> Doc {
-      return StmtBlockDoc(PrintSeqExpr(n, n_p, d, false));
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<relax::SeqExpr>(
+      "", [](relax::SeqExpr n, AccessPath n_p, IRDocsifier d) -> Doc {
+        return StmtBlockDoc(PrintSeqExpr(n, n_p, d, false));
+      });
+}
 
 ffi::Array<StmtDoc> PrintBindingBlock(const relax::BindingBlock& n, const AccessPath& n_p,
                                       const IRDocsifier& d,
@@ -79,20 +81,22 @@ ffi::Array<StmtDoc> PrintBindingBlock(const relax::BindingBlock& n, const Access
   return stmts;
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::BindingBlock>(  //
-        "", [](relax::BindingBlock n, AccessPath n_p, IRDocsifier d) -> Doc {
-          return StmtBlockDoc(PrintBindingBlock(n, n_p, d, nullptr));
-        });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<relax::BindingBlock>(  //
+      "", [](relax::BindingBlock n, AccessPath n_p, IRDocsifier d) -> Doc {
+        return StmtBlockDoc(PrintBindingBlock(n, n_p, d, nullptr));
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::DataflowBlock>(  //
-        "", [](relax::DataflowBlock n, AccessPath n_p, IRDocsifier d) -> Doc {
-          ffi::Array<ExprDoc> non_dataflow_vars;
-          ffi::Array<StmtDoc> stmts = PrintBindingBlock(n, n_p, d, &non_dataflow_vars);
-          stmts.push_back(ExprStmtDoc(Relax(d, "output")->Call(non_dataflow_vars)));
-          return ScopeDoc(std::nullopt, Relax(d, "dataflow")->Call({}), stmts);
-        });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<relax::DataflowBlock>(  //
+      "", [](relax::DataflowBlock n, AccessPath n_p, IRDocsifier d) -> Doc {
+        ffi::Array<ExprDoc> non_dataflow_vars;
+        ffi::Array<StmtDoc> stmts = PrintBindingBlock(n, n_p, d, &non_dataflow_vars);
+        stmts.push_back(ExprStmtDoc(Relax(d, "output")->Call(non_dataflow_vars)));
+        return ScopeDoc(std::nullopt, Relax(d, "dataflow")->Call({}), stmts);
+      });
+}
 
 TVM_REGISTER_SCRIPT_AS_REPR(relax::SeqExprNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::BindingBlockNode, ReprPrintRelax);
