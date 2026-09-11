@@ -22,6 +22,7 @@
  * \file inject_double_buffer.cc
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
@@ -188,11 +189,17 @@ class DoubleBufferInjector : public StmtExprMutator {
         PrimExpr tail_base = outer_ext * factor;
         Var outer_var(old_loop->loop_var->name + ".outer", old_loop->loop_var.ty());
         std::unordered_map<const VarNode*, PrimExpr> vmap;
+        auto map_var = [&vmap](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (auto it = vmap.find(var.get()); it != vmap.end()) return ffi::Any(it->second);
+          return ffi::Unchanged();
+        };
         std::vector<Stmt> loop_seq;
         for (int32_t i = 0; i < split_loop_; ++i) {
           vmap[old_loop->loop_var.get()] =
               outer_var.as_or_throw<PrimExpr>() * factor + IntImm(factor.ty(), i);
-          loop_seq.emplace_back(Substitute(old_loop->body, vmap));
+          loop_seq.emplace_back(
+              ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(old_loop->body, map_var)
+                  .as_or_throw<Stmt>());
         }
         Stmt loop = For(outer_var.as_or_throw<PrimVar>(), zero, outer_ext, old_loop->kind,
                         SeqStmt::Flatten(loop_seq));
@@ -202,7 +209,10 @@ class DoubleBufferInjector : public StmtExprMutator {
         for (int32_t i = 0; i < split_loop_; ++i) {
           PrimExpr idx = tail_base + IntImm(tail_base.ty(), i);
           vmap[old_loop->loop_var.get()] = idx;
-          tail_seq.emplace_back(IfThenElse(idx < old_loop->extent, Substitute(tail_body, vmap)));
+          tail_seq.emplace_back(
+              IfThenElse(idx < old_loop->extent,
+                         ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(tail_body, map_var)
+                             .as_or_throw<Stmt>()));
         }
         stmt = SeqStmt::Flatten(loop, tail_seq);
       }
@@ -306,12 +316,17 @@ class DoubleBufferInjector : public StmtExprMutator {
     Stmt body = this->VisitStmt(op->body);
     in_double_buffer_scope_ = false;
     std::unordered_map<const VarNode*, PrimExpr> vmap;
+    auto map_var = [&vmap](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto it = vmap.find(var.get()); it != vmap.end()) return ffi::Any(it->second);
+      return ffi::Unchanged();
+    };
     vmap[e.switch_write_var.get()] = zero;
     vmap[e.loop->loop_var.get()] = zero;
-    loop_pre_[e.loop].emplace_back(Substitute(body, vmap));
+    loop_pre_[e.loop].emplace_back(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, map_var).as_or_throw<Stmt>());
     vmap[e.loop->loop_var.get()] = loop_shift;
     vmap[e.switch_write_var.get()] = indexmod(loop_shift, two);
-    body = Substitute(body, vmap);
+    body = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(body, map_var).as_or_throw<Stmt>();
     body = AttrStmt(GetRemappedBuffer(BufferVar(buffer), e.stride).data(),
                     s_tir::attr::double_buffer_write, 1, body);
     body = IfThenElse(loop_shift < e.loop->extent, body);

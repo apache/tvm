@@ -28,6 +28,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
@@ -146,7 +147,12 @@ class IntermediateStageRewriter {
       local_stage = For(for_node);
       subst_map.Set(relaxed_loop->loop_var, for_node->loop_var);
     }
-    local_stage = Substitute(local_stage, subst_map);
+    auto f_substitute = [&subst_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = subst_map.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
+    local_stage = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(local_stage, f_substitute)
+                      .as_or_throw<Stmt>();
     return local_stage;
   }
 

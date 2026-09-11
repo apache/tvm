@@ -22,6 +22,7 @@
  * \brief Annotate and split device functions from host, then lower kernel launches.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
@@ -237,7 +238,13 @@ class HostDeviceSplitter : public StmtMutator {
         call_args.push_back(param);
       }
     }
-    body = Substitute(std::move(body), kernel_buffer_remap);
+    auto map_kernel_buffer =
+        [&kernel_buffer_remap](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = kernel_buffer_remap.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
+    body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(body), map_kernel_buffer)
+               .as_or_throw<Stmt>();
 
     // CodeGenCPU is used for some device-side targets, such as
     // "ext_dev", and expects to be able to return a int32_t status
@@ -462,8 +469,14 @@ class DeviceInfoCollector : public StmtVisitor {
       StmtVisitor::VisitStmt_(op);
       return;
     }
-    PrimExpr value =
-        bind_map_.size() ? Substitute(prim_value.value(), bind_map_) : prim_value.value();
+    auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = bind_map_.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
+    PrimExpr value = bind_map_.size() ? ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                                            prim_value.value(), f_substitute)
+                                            .as_or_throw<PrimExpr>()
+                                      : prim_value.value();
     bind_map_.Set(op->var, value);
     StmtVisitor::VisitStmt_(op);
   }
@@ -497,7 +510,14 @@ class DeviceInfoCollector : public StmtVisitor {
         info_.launch_params.push_back(thread_tag);
         // Inline any locally-bound variables (e.g. from CSE) so
         // that the extent is expressible in terms of function params.
-        PrimExpr value = bind_map_.size() ? Substitute(op->value, bind_map_) : op->value;
+        auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (auto repl = bind_map_.Get(var)) return ffi::Any(*std::move(repl));
+          return ffi::Unchanged();
+        };
+        PrimExpr value = bind_map_.size() ? ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                                                op->value, f_substitute)
+                                                .as_or_throw<PrimExpr>()
+                                          : op->value;
         thread_extent.Set(thread_tag, value);
       }
     }
@@ -523,7 +543,12 @@ class DeviceInfoCollector : public StmtVisitor {
       }
       dyn_size *= IntImm::Int64(static_cast<int64_t>(op->buffer->dtype.StorageBytes()));
       if (bind_map_.size()) {
-        dyn_size = Substitute(dyn_size, bind_map_);
+        auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (auto repl = bind_map_.Get(var)) return ffi::Any(*std::move(repl));
+          return ffi::Unchanged();
+        };
+        dyn_size = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(dyn_size, f_substitute)
+                       .as_or_throw<PrimExpr>();
       }
       inferred_shmem_size_ = dyn_size;
     }
@@ -783,8 +808,13 @@ class DeviceKernelMutator : public StmtExprMutator {
     for (const Expr& arg : args) {
       call_args.push_back(arg);
     }
+    auto f_substitute = [&param_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = param_map.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
     for (const auto& launch_arg : dev_info.launch_args) {
-      call_args.push_back(Substitute(launch_arg, param_map));
+      call_args.push_back(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(launch_arg, f_substitute)
+                              .as_or_throw<PrimExpr>());
     }
 
     PrimType node_ty = node->ty.as_or_throw<PrimType>();

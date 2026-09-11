@@ -24,6 +24,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
@@ -875,7 +876,13 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
 
     if (new_vec_length == 1) {
       PrimType var_ty = var_->ty.as_or_throw<PrimType>();
-      return tirx::Substitute(op->vectors[0], ffi::Map<Var, Expr>{{var_, tvm::IntImm(var_ty, 0)}});
+      auto f_substitute = [old_var = var_, replacement = tvm::IntImm(var_ty, 0)](
+                              const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        if (var.same_as(old_var)) return ffi::Any(replacement);
+        return ffi::Unchanged();
+      };
+      return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(op->vectors[0], f_substitute)
+          .as_or_throw<Expr>();
     } else {
       PrimExpr prev_ramp = ramp_;
       PrimExpr prev_var_lanes = var_lanes_;
@@ -1040,7 +1047,14 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
   Stmt Scalarize(Stmt stmt) {
     PrimType var_ty = var_->ty.as_or_throw<PrimType>();
     Var idx(var_->name + ".s", var_ty);
-    stmt = Substitute(stmt, ffi::Map<Var, Expr>{{var_, idx}});
+    auto f_substitute = [old_var = var_, &idx](
+                            const Var& var,
+                            TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
+      if (var.same_as(old_var)) return ffi::Any(idx);
+      return ffi::Unchanged();
+    };
+    stmt = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(stmt, f_substitute).as_or_throw<Stmt>();
     return For(idx.as_or_throw<PrimVar>(), IntImm(var_ty, 0), var_lanes_, ForKind::kSerial, stmt);
   }
 
@@ -1225,7 +1239,15 @@ class LoopVectorizer : public StmtMutator {
       inner_index = prim::Cast(index_dtype, inner_index);
     }
     PrimExpr index = outer * scalable_lanes_index + inner_index;
-    Stmt body = Substitute(op->body, {{op->loop_var, index}});
+    auto f_substitute = [old_var = op->loop_var, &index](
+                            const Var& var,
+                            TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
+      if (var.same_as(old_var)) return ffi::Any(index);
+      return ffi::Unchanged();
+    };
+    Stmt body =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(op->body, f_substitute).as_or_throw<Stmt>();
     Stmt guarded_body = IfThenElse(index < fixed_extent, body, std::nullopt, op->span);
     Stmt vector_loop = For(inner, IntImm(lane_dtype, 0), scalable_lanes, ForKind::kVectorized,
                            guarded_body, std::nullopt, op->annotations, std::nullopt, op->span);

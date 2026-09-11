@@ -24,6 +24,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/analysis.h>
@@ -973,13 +974,13 @@ class ModuleInplaceTransformer : public ExprMutator {
 
     // apply substitutions
     new_body = RemapBuffers(new_body, buffer_subst_map);
-    new_body = tirx::Substitute(new_body,
-                                [&var_subst_map](const tirx::Var& v) -> ffi::Optional<tvm::Expr> {
-                                  if (var_subst_map.count(v)) {
-                                    return tvm::Expr(var_subst_map.at(v));
-                                  }
-                                  return std::nullopt;
-                                });
+    auto f_substitute =
+        [&var_subst_map](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = var_subst_map.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
+    new_body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(new_body), f_substitute)
+                   .as_or_throw<tirx::Stmt>();
 
     // now get rid of the last num_outputs arguments
     // (couldn't do earlier or else it would have thrown off the indexing)

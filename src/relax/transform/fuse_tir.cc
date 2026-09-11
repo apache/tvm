@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
@@ -52,7 +53,13 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
   }
   void Match(const PrimExpr& param, const PrimExpr& arg) {
     VisitExpr(param, arg);
-    must_prove_ = analyzer_->Simplify(Substitute(must_prove_, *var_remap_));
+    auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = var_remap_->Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
+    must_prove_ =
+        analyzer_->Simplify(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(must_prove_, f_substitute)
+                                .as_or_throw<PrimExpr>());
     TVM_FFI_ICHECK(!is_zero(must_prove_));
   }
 

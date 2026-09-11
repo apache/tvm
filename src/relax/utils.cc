@@ -20,6 +20,7 @@
 #include "transform/utils.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/index.h>
@@ -85,14 +86,16 @@ class ExprBinder : public ExprMutator {
   PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final { return BindShapeValue(expr); }
 
   PrimExpr BindShapeValue(const PrimExpr& expr) {
-    PrimExpr output = tirx::Substitute(expr, [this](const Var& var) -> ffi::Optional<Expr> {
+    auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       auto it = bindings_.find(var);
-      if (it == bindings_.end()) return std::nullopt;
+      if (it == bindings_.end()) return ffi::Unchanged();
       if (auto value = (*it).second.as<PrimExpr>()) {
-        return ffi::Optional<Expr>(*value);
+        return ffi::Any(*value);
       }
-      return std::nullopt;
-    });
+      return ffi::Unchanged();
+    };
+    PrimExpr output =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr, f_substitute).as_or_throw<PrimExpr>();
     return output.same_as(expr) ? expr : analyzer_->Simplify(output);
   }
 

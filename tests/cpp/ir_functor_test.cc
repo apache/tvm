@@ -663,7 +663,7 @@ TEST(IRF, StructuralHooksPreserveScopeIdDefRegions) {
   check_map(make_input());
 }
 
-TEST(IRF, Substitute) {
+TEST(IRF, StructuralMapBufferDefinition) {
   using namespace tvm;
   using namespace tvm::tirx;
   PrimType dtype = PrimType::Float(32);
@@ -689,12 +689,13 @@ TEST(IRF, Substitute) {
     BufferVar buffer = fmakebuffer();
     Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});
     Stmt decl = SeqStmt({DeclBuffer(buffer, x), store});
-    auto f_subst = [&](const tirx::Var& var) -> ffi::Optional<Expr> {
-      if (var.same_as(x)) return Expr(y);
-      if (var.same_as(n)) return Expr(m);
-      return std::nullopt;
+    auto f_subst = [&](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (var.same_as(x)) return ffi::Any(y);
+      if (var.same_as(n)) return ffi::Any(m);
+      return ffi::Unchanged();
     };
-    Stmt new_decl = Substitute(decl, f_subst);
+    Stmt new_decl =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(decl, f_subst).as_or_throw<Stmt>();
     auto* seq_node = new_decl.as<SeqStmtNode>();
     TVM_FFI_ICHECK(seq_node != nullptr);
     auto* decl_node = seq_node->seq[0].as<DeclBufferNode>();
@@ -711,8 +712,11 @@ TEST(IRF, Substitute) {
     // test identity substitution on expression
     BufferVar buffer = fmakebuffer();
     PrimExpr expr = BufferLoad(buffer, {IntImm::Int32(0)});
-    auto f_subst = [&](const tirx::Var& var) -> ffi::Optional<Expr> { return Expr(var); };
-    PrimExpr new_expr = Substitute(expr, f_subst);
+    auto f_subst = [&](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      return ffi::Any(var);
+    };
+    PrimExpr new_expr =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr, f_subst).as_or_throw<PrimExpr>();
     // the expression is not changed
     TVM_FFI_ICHECK(new_expr.same_as(expr));
   }

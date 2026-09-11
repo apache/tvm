@@ -396,7 +396,7 @@ BufferVar StmtMutator::VisitBufferDef(const BufferVar& buffer, bool alloc_data) 
 
   // Visit expression fields (shape, strides, elem_offset) but NOT data.
   // data is a Var definition owned by this buffer, not an expression use.
-  // Subclasses that need to remap data (e.g., IRSubstitute) can override.
+  // Subclasses that need to remap data can override.
   auto shape = buffer->shape.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
   auto strides = buffer->strides.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
   PrimExpr elem_offset = this->VisitPrimExpr(buffer->elem_offset);
@@ -741,81 +741,6 @@ Stmt StmtMutator::VisitStmt_(const tirx::TilePrimitiveCallNode* op) {
     if (config_changed) n->config = std::move(config);
     return Stmt(n);
   }
-}
-
-// Implementations of Substitute
-class IRSubstitute : public StmtExprMutator {
- public:
-  explicit IRSubstitute(std::function<ffi::Optional<Expr>(const Var&)> vmap) : vmap_(vmap) {}
-
-  Expr VisitExpr_(const VarNode* op) final {
-    Var var = ffi::GetRef<Var>(op);
-    auto ret = vmap_(var);
-    if (ret.has_value()) {
-      // Allow substitution of void variables with any expression. The TVM script parser
-      // uses void variables for lambda parameters (since exact types are not known yet).
-      if (auto var_prim_type = var->ty.as<PrimType>();
-          !var_prim_type.has_value() || !var_prim_type.value().IsVoid()) {
-        TVM_FFI_ICHECK(ffi::StructuralEqual()(ret.value()->ty, var->ty))
-            << "substituting " << var << ":" << var->ty << " -> " << ret.value() << ":"
-            << ret.value()->ty;
-      }
-      return ret.value();
-    }
-    return StmtExprMutator::VisitExpr_(op);
-  }
-
-  // Buffer variables share the ordinary Var identity model.  A caller-provided
-  // substitution may therefore replace the definition with another checked
-  // BufferVar; metadata-only rewrites are handled by the base implementation.
-  BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) final {
-    BufferVar new_buf = StmtExprMutator::VisitBufferDef(buffer, alloc_data);
-    if (auto mapped = vmap_(new_buf.var())) {
-      auto mapped_var = mapped.value().as<Var>();
-      TVM_FFI_ICHECK(mapped_var && mapped_var.value()->ty.as<BufferTypeNode>())
-          << "BufferVar " << new_buf << " was substituted into " << mapped.value()
-          << ", which is not a Var with BufferType";
-      new_buf = BufferVar(mapped_var.value());
-      buffer_remap_.Set(buffer, new_buf);
-    }
-    return new_buf;
-  }
-
-  BufferVar VisitBufferUse(const BufferVar& buffer) final {
-    BufferVar new_buf = StmtExprMutator::VisitBufferUse(buffer);
-    if (auto mapped = vmap_(new_buf.var())) {
-      auto mapped_var = mapped.value().as<Var>();
-      TVM_FFI_ICHECK(mapped_var && mapped_var.value()->ty.as<BufferTypeNode>())
-          << "BufferVar " << new_buf << " was substituted into " << mapped.value()
-          << ", which is not a Var with BufferType";
-      new_buf = BufferVar(mapped_var.value());
-    }
-    return new_buf;
-  }
-
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    Stmt ret = StmtExprMutator::VisitStmt_(op);
-    op = ret.as<AttrStmtNode>();
-    // remap var node in attr
-    if (auto var_node = op->node.as<Var>()) {
-      if (auto mapped_var = vmap_(var_node.value())) {
-        return AttrStmt(mapped_var, op->attr_key, op->value, op->body);
-      }
-    }
-    return ret;
-  }
-
- private:
-  // Caller provided function that defines the variables to be remapped.
-  std::function<ffi::Optional<Expr>(const Var&)> vmap_;
-};
-
-Stmt Substitute(Stmt stmt, std::function<ffi::Optional<Expr>(const Var&)> vmap) {
-  return IRSubstitute(std::move(vmap))(std::move(stmt));
-}
-
-Expr Substitute(Expr expr, std::function<ffi::Optional<Expr>(const Var&)> vmap) {
-  return IRSubstitute(std::move(vmap))(std::move(expr));
 }
 
 class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {

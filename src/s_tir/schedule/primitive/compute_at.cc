@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 
 #include "../utils.h"
 
@@ -372,6 +373,10 @@ void RelaxBufferRegions(const ffi::Map<Var, PrimExpr>& binding,
   // We cache the variable domains
   runtime::StorageRank previous_rank = runtime::StorageRank::kGlobal;
   ffi::Optional<ffi::Map<Var, arith::IntSet>> var_dom = std::nullopt;
+  auto f_substitute = [&binding](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = binding.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
   // Enumerate every buffer region
   for (const BufferRegion& buffer_region : buffer_regions) {
     const BufferVar& buffer = buffer_region->buffer;
@@ -394,8 +399,14 @@ void RelaxBufferRegions(const ffi::Map<Var, PrimExpr>& binding,
           /*extra_relax_scope=*/scope));
     }
     // Relax the region
-    ffi::Array<arith::IntSet> relaxed_region =
-        arith::EvalSet(Substitute(region, binding), var_dom.value());
+    ffi::Array<Range> mapped_region = region.Map([&f_substitute](const Range& range) {
+      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+                         .template as_or_throw<PrimExpr>();
+      PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
+                            .template as_or_throw<PrimExpr>();
+      return Range::FromMinExtent(min, extent);
+    });
+    ffi::Array<arith::IntSet> relaxed_region = arith::EvalSet(mapped_region, var_dom.value());
     relaxed_regions.push_back({relaxed_region.begin(), relaxed_region.end()});
   }
 }

@@ -233,32 +233,11 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
   if (!buffer->allocated_addr.empty()) {
     if (buffer->allocated_addr.size() == 1) {
       // Unwrap single-element array: DeclBuffer expects Optional<PrimExpr>, not Array.
-      // For TensorLoad from scalar buffers, we must explicitly print buf[idx] because
-      // the scalar shorthand (which drops the index) produces just the variable name,
-      // and the parser resolves that to a BufferVar object rather than a PrimExpr value.
-      PrimExpr addr = buffer->allocated_addr[0];
-      AccessPath addr_p = buffer_p->Attr("allocated_addr")->ArrayItem(0);
-      if (const auto* bl = addr.as<TensorLoadNode>()) {
-        tirx::BufferVar source = bl->source.as_or_throw<tirx::BufferVar>();
-        // Ensure the buffer variable is defined (may emit a T.Buffer(...) statement).
-        d->AsDoc<ExprDoc>(source, addr_p->Attr("source"));
-        // Get the variable name bound to this buffer.
-        ffi::Optional<ExprDoc> buf_var = d->GetVarDoc(source);
-        TVM_FFI_ICHECK(buf_var.has_value())
-            << "BufferVar in allocated_addr is not defined: " << source;
-        // Build var[indices] explicitly instead of going through the default BufferLoad
-        // printer, which would use the scalar shorthand and drop the index.
-        int n_idx = bl->indices.size();
-        ffi::Array<Doc> idx_docs;
-        idx_docs.reserve(n_idx);
-        for (int i = 0; i < n_idx; ++i) {
-          idx_docs.push_back(
-              d->AsDoc<ExprDoc>(bl->indices[i], addr_p->Attr("indices")->ArrayItem(i)));
-        }
-        kwargs.Set("allocated_addr", buf_var.value()[idx_docs]);
-      } else {
-        kwargs.Set("allocated_addr", d->AsDoc<ExprDoc>(addr, addr_p));
-      }
+      // Use the normal expression printer so a bound scalar alias stays a scalar
+      // load, while an ordinary buffer load retains its indices.
+      kwargs.Set("allocated_addr",
+                 d->AsDoc<ExprDoc>(buffer->allocated_addr[0],
+                                   buffer_p->Attr("allocated_addr")->ArrayItem(0)));
     } else {
       kwargs.Set("allocated_addr",
                  d->AsDoc<ExprDoc>(buffer->allocated_addr, buffer_p->Attr("allocated_addr")));

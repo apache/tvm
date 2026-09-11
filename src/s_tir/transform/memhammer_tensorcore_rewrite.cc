@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/op.h>
 
@@ -57,13 +58,18 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
       /*2:*/ loops[n - 2]->loop_var.CopyWithSuffix("_1"),
       /*3:*/ loops[n - 1]->loop_var.CopyWithSuffix("_1"),
   };
-  body = Substitute(std::move(body),
-                    ffi::Map<Var, PrimExpr>{
-                        {loops[n - 2]->loop_var, new_loop_vars[0].as_or_throw<PrimExpr>() * 16 +
-                                                     new_loop_vars[2].as_or_throw<PrimExpr>()},
-                        {loops[n - 1]->loop_var, new_loop_vars[1].as_or_throw<PrimExpr>() * 16 +
-                                                     new_loop_vars[3].as_or_throw<PrimExpr>()},
-                    });
+  ffi::Map<Var, PrimExpr> loop_var_map{
+      {loops[n - 2]->loop_var,
+       new_loop_vars[0].as_or_throw<PrimExpr>() * 16 + new_loop_vars[2].as_or_throw<PrimExpr>()},
+      {loops[n - 1]->loop_var,
+       new_loop_vars[1].as_or_throw<PrimExpr>() * 16 + new_loop_vars[3].as_or_throw<PrimExpr>()},
+  };
+  auto f_substitute = [&loop_var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = loop_var_map.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
+  body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(body), f_substitute)
+             .as_or_throw<Stmt>();
   {
     PrimExpr factor[4] = {
         /*0:*/ floordiv(extent_last2, 16),  //
@@ -382,13 +388,18 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
       /*2:*/ loops[n - 2]->loop_var.CopyWithSuffix("_1"),
       /*3:*/ loops[n - 1]->loop_var.CopyWithSuffix("_1"),
   };
-  body = Substitute(std::move(body),
-                    ffi::Map<Var, PrimExpr>{
-                        {loops[n - 2]->loop_var, new_loop_vars[0].as_or_throw<PrimExpr>() * 8 +
-                                                     new_loop_vars[2].as_or_throw<PrimExpr>()},
-                        {loops[n - 1]->loop_var, new_loop_vars[1].as_or_throw<PrimExpr>() * 8 +
-                                                     new_loop_vars[3].as_or_throw<PrimExpr>()},
-                    });
+  ffi::Map<Var, PrimExpr> loop_var_map{
+      {loops[n - 2]->loop_var,
+       new_loop_vars[0].as_or_throw<PrimExpr>() * 8 + new_loop_vars[2].as_or_throw<PrimExpr>()},
+      {loops[n - 1]->loop_var,
+       new_loop_vars[1].as_or_throw<PrimExpr>() * 8 + new_loop_vars[3].as_or_throw<PrimExpr>()},
+  };
+  auto f_substitute = [&loop_var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = loop_var_map.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
+  body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(body), f_substitute)
+             .as_or_throw<Stmt>();
   {
     PrimExpr factor[4] = {
         /*0:*/ floordiv(extent_last2, 8),  //

@@ -66,6 +66,7 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/extra/structural_hash.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/prim/expr.h>
@@ -781,22 +782,27 @@ class CSERewriter : public StmtExprMutator {
         new_stmts = ffi::Array<Stmt>(it->second.begin(), it->second.end());
       } else {
         std::unordered_map<const VarNode*, PrimExpr> remap;
-        auto lookup = [&remap](const Var& v) -> ffi::Optional<Expr> {
+        auto lookup = [&remap](
+                          const Var& v,
+                          TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
           auto rit = remap.find(v.get());
-          if (rit != remap.end()) return Expr(rit->second);
-          return std::nullopt;
+          if (rit != remap.end()) return ffi::Any(Expr(rit->second));
+          return ffi::Unchanged();
         };
         for (const Stmt& s : it->second) {
           const BindNode* bind = s.as<BindNode>();
           TVM_FFI_ICHECK(bind != nullptr);
           // Deeper Bind values may reference shallower cse vars of this same
           // insertion point; route them through the fresh vars as well.
-          Expr value = Substitute(bind->value, lookup);
+          Expr value = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(bind->value, lookup)
+                           .as_or_throw<Expr>();
           Var fresh(bind->var->name, bind->var->ty.as_or_throw<PrimType>());
           remap[bind->var.get()] = fresh.as_or_throw<PrimExpr>();
           new_stmts.push_back(Bind(fresh, value));
         }
-        visited = Substitute(visited, lookup);
+        visited =
+            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(visited, lookup).as_or_throw<Stmt>();
       }
       new_stmts.push_back(visited);
       return SeqStmt(new_stmts);

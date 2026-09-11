@@ -19,6 +19,7 @@
 
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
@@ -505,8 +506,15 @@ bool HasReshapePattern(const PrimFunc& func) {
                                            block->iter_vars[i]->dom->extent));
           stride *= block->iter_vars[i]->dom->extent;
         }
+        auto f_substitute = [&inverse_indices_map](
+                                const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (auto repl = inverse_indices_map.Get(var)) return ffi::Any(*std::move(repl));
+          return ffi::Unchanged();
+        };
         PrimExpr flattened_idx = f_calc_flattened_idx(nontrivial_buffer, nontrivial_indices);
-        flattened_idx = Substitute(std::move(flattened_idx), inverse_indices_map);
+        flattened_idx =
+            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(flattened_idx), f_substitute)
+                .as_or_throw<PrimExpr>();
 
         ffi::Array<PrimExpr> simplify_res = arith::IterMapSimplify(
             /*indices=*/{flattened_idx},

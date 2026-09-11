@@ -23,6 +23,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/dtype.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
@@ -449,8 +450,15 @@ inline ffi::Array<PrimExpr> TransformIndex(const ffi::Array<PrimExpr>& src_index
   for (size_t i = 0; i < src_index.size(); ++i) {
     bind_map[src_axis[i]->var.get()] = src_index[i];
   }
+  auto f_substitute = [&bind_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto it = bind_map.find(var.get()); it != bind_map.end()) {
+      return ffi::Any(it->second);
+    }
+    return ffi::Unchanged();
+  };
   for (PrimExpr rule : transform_rule) {
-    result.push_back(ana->Simplify(tirx::Substitute(rule, bind_map)));
+    result.push_back(ana->Simplify(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(rule, f_substitute).as_or_throw<PrimExpr>()));
   }
   return result;
 }
@@ -505,6 +513,12 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
                                            : cast(orig_axis->var.ty(), orig_shape);
     }
   }
+  auto f_substitute = [&bind_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto it = bind_map.find(var.get()); it != bind_map.end()) {
+      return ffi::Any(it->second);
+    }
+    return ffi::Unchanged();
+  };
   // infer the target shape,
   // for major-axis, use the forward/backward_rule directly,
   // for minor-axis, simply use the extent.
@@ -517,7 +531,9 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
     if (layout.size() != 1 || !SLayoutAxis::Get(layout[0]).IsPrimal()) {
       result.push_back(axis->dom->extent);
     } else {
-      result.push_back(ana->Simplify(tirx::Substitute(rule, bind_map)));
+      result.push_back(
+          ana->Simplify(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(rule, f_substitute)
+                            .as_or_throw<PrimExpr>()));
     }
   }
 
