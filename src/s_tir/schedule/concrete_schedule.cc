@@ -1028,14 +1028,17 @@ void ConcreteScheduleNode::TransformLayout(const SBlockRV& block_rv, int buffer_
                                            const ffi::Optional<IndexMap>& pad_value,
                                            bool assume_injective_transform) {
   TVM_TIR_SCHEDULE_BEGIN();
-  auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> {
-    if (auto opt_expr = symbol_table_.Get(var)) {
-      return opt_expr.value().as_or_throw<PrimExpr>();
-    } else {
-      return std::nullopt;
+  auto f_substitute = [this](
+                          const Var& var,
+                          TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
+    if (auto repl = symbol_table_.Get(var)) {
+      return ffi::Any((*std::move(repl)).as_or_throw<PrimExpr>());
     }
+    return ffi::Unchanged();
   };
-  auto new_index_map = Substitute(index_map, f_subst);
+  auto new_index_map = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index_map, f_substitute)
+                           .as_or_throw<IndexMap>();
   s_tir::TransformLayout(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type,
                          new_index_map, pad_value, assume_injective_transform);
   this->state_->DebugVerify();

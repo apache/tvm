@@ -273,14 +273,6 @@ class IndexMap : public ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IndexMap, ffi::ObjectRef, IndexMapNode);
 };
 
-/*! \brief Substitute variables in an index map.
- *
- * \param index_map The index_map
- * \param f_subst The substitution function
- */
-IndexMap Substitute(const IndexMap& index_map,
-                    std::function<ffi::Optional<PrimExpr>(const Var& var)> f_subst);
-
 }  // namespace tirx
 }  // namespace tvm
 

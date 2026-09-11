@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 
 #include <unordered_set>
@@ -171,6 +172,10 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
     var_map.Set(original_var, loop_var);
     loop_vars.push_back(loop_var);
   }
+  auto f_substitute = [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = var_map.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
   for (size_t i = 0; i < info->block_iter_vars.size(); ++i) {
     IterVar original_block_var = info->block_iter_vars[i];
     PrimExpr original_iter_value = info->block_iter_values[i];
@@ -180,7 +185,9 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
         /*IterVarType=*/kDataPar);
     var_map.Set(original_block_var->var, block_var->var);
     block_vars.push_back(block_var);
-    iter_values.push_back(Substitute(original_iter_value, var_map));
+    iter_values.push_back(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(original_iter_value, f_substitute)
+            .template as_or_throw<PrimExpr>());
   }
 
   // block access region for read/write buffers
@@ -190,13 +197,15 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
   ffi::Array<PrimExpr>& old_indices = (is_cache_read) ? read_access_indices : write_access_indices;
   Region& old_region = (is_cache_read) ? read_access_region : write_access_region;
   for (const Range& range : cache_region->region) {
-    old_indices.push_back(Substitute(range->min, var_map));
+    old_indices.push_back(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+                              .template as_or_throw<PrimExpr>());
     old_region.push_back(Range::FromMinExtent(old_indices.back(), IntImm::Int32(1)));
   }
   ffi::Array<PrimExpr>& new_indices = (is_cache_read) ? write_access_indices : read_access_indices;
   Region& new_region = (is_cache_read) ? write_access_region : read_access_region;
   for (const PrimExpr& idx : info->indices) {
-    new_indices.push_back(Substitute((idx), var_map));
+    new_indices.push_back(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(idx, f_substitute)
+                              .template as_or_throw<PrimExpr>());
     new_region.push_back(Range::FromMinExtent(new_indices.back(), IntImm::Int32(1)));
   }
 
@@ -379,8 +388,16 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
   }
 
   // Step 2: Replace the original block iters with the new block iters
+  auto f_substitute =
+      [&block_var_replace_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto it = block_var_replace_map.find(var); it != block_var_replace_map.end()) {
+      return ffi::Any(it->second);
+    }
+    return ffi::Unchanged();
+  };
   for (const PrimExpr& index : original_indices) {
-    target_indices.push_back(Substitute(index, block_var_replace_map));
+    target_indices.push_back(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index, f_substitute).as_or_throw<PrimExpr>());
   }
 
   // Step 3: Create the reindex block
@@ -583,7 +600,14 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const BufferVar& 
         for (size_t i = 0; i < block->iter_vars.size(); ++i) {
           subst.Set(block->iter_vars[i]->var, realize->iter_values[i]);
         }
-        PrimExpr pred = subst.empty() ? realize->predicate : Substitute(realize->predicate, subst);
+        auto f_substitute = [&subst](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (auto repl = subst.Get(var)) return ffi::Any(*std::move(repl));
+          return ffi::Unchanged();
+        };
+        PrimExpr pred = subst.empty() ? realize->predicate
+                                      : ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                                            realize->predicate, f_substitute)
+                                            .as_or_throw<PrimExpr>();
         // OR the predicates across all accessing nested blocks: each such block is an
         // independent alternative access path (sibling blocks in a SeqStmt), so the
         // cache must cover the *union* of their access regions, not the intersection.
@@ -628,10 +652,24 @@ BufferRegion RelaxBufferRegion(ScheduleState self, const BufferRegion& buffer_re
   ffi::Map<Var, PrimExpr> binding = GetBindings(realize);
   const BufferVar& buffer = buffer_region->buffer;
   arith::Analyzer analyzer;
-  BufferRegion subst_region = BufferRegion(buffer, Substitute(buffer_region->region, binding));
+  auto f_substitute = [&binding](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = binding.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
+  ffi::Array<Range> mapped_region = buffer_region->region.Map([&f_substitute](const Range& range) {
+    PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+                       .as_or_throw<PrimExpr>();
+    PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
+                          .as_or_throw<PrimExpr>();
+    return Range::FromMinExtent(min, extent);
+  });
+  BufferRegion subst_region = BufferRegion(buffer, mapped_region);
   ffi::Array<arith::IntSet> int_sets = AnalyzeRegionUpperBound(
       /*region=*/subst_region,
-      /*predicate=*/Substitute(realize->predicate && extra_predicate, binding),
+      /*predicate=*/
+      ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(realize->predicate && extra_predicate,
+                                                    f_substitute)
+          .as_or_throw<PrimExpr>(),
       /*dom_low_inclusive=*/dom_low_inclusive,
       /*dom_high_exclusive=*/dom_high_exclusive,
       /*analyzer=*/analyzer.get());

@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/runtime/logging.h>
@@ -155,7 +156,16 @@ void PrimFuncFrameNode::ExitWithScope() {
     effective_root_alloc_buffers = std::move(new_root_alloc_buffers);
   }
   if (!param_replacements.empty()) {
-    body = tvm::tirx::Substitute(std::move(body), param_replacements);
+    auto f_substitute =
+        [&param_replacements](
+            const tvm::tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = param_replacements.Get(var)) {
+        return ffi::Any(*std::move(repl));
+      }
+      return ffi::Unchanged();
+    };
+    body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(body), f_substitute)
+               .as_or_throw<tvm::tirx::Stmt>();
   }
   tvm::tirx::PrimFunc func(
       /*params=*/effective_args,

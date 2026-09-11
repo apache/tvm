@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 
@@ -82,6 +83,18 @@ ffi::Array<Any> TranslateInputRVs(
     }
     return std::nullopt;
   };
+  auto f_substitute =
+      [&f_subst_with_rv_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = f_subst_with_rv_map(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
+  auto f_substitute_prim =
+      [&f_subst_with_rv_map_prim](
+          const Var& var, TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
+    if (auto repl = f_subst_with_rv_map_prim(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
 
   for (const Any& input : inputs) {
     if (input.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
@@ -96,9 +109,12 @@ ffi::Array<Any> TranslateInputRVs(
       TVM_FFI_CHECK(it != rv_map.end(), IndexError) << "Random variable doesn't exist: " << input;
       result.push_back(ffi::GetRef<ffi::ObjectRef>(it->second));
     } else if (auto expr = input.try_cast<PrimExpr>()) {  // RV: Expr
-      result.push_back(Substitute(expr.value(), f_subst_with_rv_map));
+      result.push_back(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr.value(), f_substitute)
+                           .as_or_throw<PrimExpr>());
     } else if (auto index_map = input.as<IndexMap>()) {
-      result.push_back(Substitute(index_map.value(), f_subst_with_rv_map_prim));
+      result.push_back(
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index_map.value(), f_substitute_prim)
+              .as_or_throw<IndexMap>());
     } else if (auto arr = input.as<ffi::Array<Any>>()) {
       // Recursively convert elements of the array into a new list of ObjectRefs.
       result.push_back(TranslateInputRVs(arr.value(), rv_map));
@@ -174,6 +190,16 @@ ffi::Array<Any> TranslateInputRVs(
     const std::unordered_map<std::string, ffi::ObjectRef>& named_rvs) {
   ffi::Array<Any> results;
   results.reserve(inputs.size());
+  auto f_substitute = [&named_rvs](
+                          const Var& var,
+                          TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
+    auto it = named_rvs.find(var->name);
+    if (it != named_rvs.end()) {
+      return ffi::Any(it->second.as_or_throw<Var>().as_or_throw<PrimExpr>());
+    }
+    return ffi::Unchanged();
+  };
   for (const Any& input : inputs) {
     if (input.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
       // directly put back POD type
@@ -206,13 +232,8 @@ ffi::Array<Any> TranslateInputRVs(
       // Case 6. IndexMap
       if (obj.as<IndexMapNode>()) {
         IndexMap index_map = obj.as_or_throw<IndexMap>();
-        index_map = Substitute(index_map, [&named_rvs](const Var& var) -> ffi::Optional<PrimExpr> {
-          auto it = named_rvs.find(var->name);
-          if (it != named_rvs.end()) {
-            return it->second.as_or_throw<Var>().as_or_throw<PrimExpr>();
-          }
-          return std::nullopt;
-        });
+        index_map = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index_map, f_substitute)
+                        .as_or_throw<IndexMap>();
         results.push_back(index_map);
         continue;
       } else {

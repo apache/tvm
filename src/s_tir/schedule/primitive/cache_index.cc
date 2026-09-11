@@ -18,6 +18,7 @@
  */
 #include <tvm/arith/int_set.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 
 #include "../../../tirx/transform/replace_selected_expr.h"
@@ -289,8 +290,15 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     }
     // Create iter_values from the original block.
     std::vector<PrimExpr> iter_values;
+    auto f_substitute =
+        [&replace_table](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = replace_table.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
     for (const Var& it : info->origin_block_vars[expr_index]) {
-      iter_values.push_back(Substitute(info->var_binding.at(it), replace_table));
+      iter_values.push_back(
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(info->var_binding.at(it), f_substitute)
+              .as_or_throw<PrimExpr>());
     }
     // block variables
     ffi::Array<IterVar> block_vars;
@@ -316,7 +324,14 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     }
 
     // Create the index computing block
-    PrimExpr new_expr = Substitute(index_expr, block_var_map);
+    auto f_substitute_block =
+        [&block_var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = block_var_map.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
+    PrimExpr new_expr =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index_expr, f_substitute_block)
+            .as_or_throw<PrimExpr>();
     SBlock block(
         /*iter_vars=*/std::move(block_vars),
         /*reads=*/{},

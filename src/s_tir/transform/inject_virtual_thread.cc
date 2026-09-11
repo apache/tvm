@@ -21,6 +21,7 @@
  * \file inject_virtual_thread.cc
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
@@ -557,13 +558,24 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       ffi::Array<Stmt> seq;
       for (int i = 0; i < num_threads_; ++i) {
         PrimType var_ty = var_->ty.as_or_throw<PrimType>();
-        seq.push_back(Substitute(stmt, ffi::Map<Var, Expr>{{var_, IntImm(var_ty, i)}}));
+        auto f_substitute = [this, i,
+                             var_ty](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (var.same_as(var_)) return ffi::Any(IntImm(var_ty, i));
+          return ffi::Unchanged();
+        };
+        seq.push_back(
+            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(stmt, f_substitute).as_or_throw<Stmt>());
       }
       return SeqStmt::Flatten(seq);
     } else {
       // insert a for loop
       Var idx(var_->name + ".s", var_->ty);
-      stmt = Substitute(stmt, ffi::Map<Var, Expr>{{var_, idx}});
+      auto f_substitute = [this,
+                           &idx](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        if (var.same_as(var_)) return ffi::Any(idx.as_or_throw<PrimExpr>());
+        return ffi::Unchanged();
+      };
+      stmt = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(stmt, f_substitute).as_or_throw<Stmt>();
       PrimType idx_dtype = idx->ty.as_or_throw<PrimType>();
       return For(idx.as_or_throw<PrimVar>(), IntImm(idx_dtype, 0),
                  MakeConst(idx_dtype, num_threads_), ForKind::kSerial, stmt);
