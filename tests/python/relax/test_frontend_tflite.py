@@ -11490,6 +11490,84 @@ def test_quantized_avg_pool2d_matches_tflite_rounding_numerically():
     np.testing.assert_array_equal(got, want)
 
 
+@pytest.mark.parametrize(
+    "tensor_type, dtype, value",
+    [
+        # The pre-scaled window sum is max|x| * window^2: for int16 17x17 that is
+        # 2.7e9, past int32, and an int32 accumulator returned -18657 / 18656.
+        (_tfl_tensor_type.INT16, "int16", 32767),
+        (_tfl_tensor_type.INT16, "int16", -32768),
+        (_tfl_tensor_type.INT8, "int8", 127),
+        (_tfl_tensor_type.INT8, "int8", -128),
+        (_tfl_tensor_type.UINT8, "uint8", 255),
+    ],
+)
+def test_quantized_avg_pool2d_large_window_does_not_overflow(tensor_type, dtype, value):
+    """A 17x17 VALID average pool of a constant input must return that constant.
+
+    The lowering computes the exact window sum by pre-scaling the input by the
+    window size, so its accumulator has to hold max|x| * window^2 -- which
+    depends on the INPUT type, not just the window. A constant input makes the
+    answer obvious (the average of N copies of v is v) and puts the sum at its
+    extreme.
+    """
+    size = 17
+    builder = flatbuffers.Builder(1024)
+    qparams = _build_quantization_parameters(
+        builder, scale=[0.5], zero_point=[0], quantized_dimension=0
+    )
+    input_tensor = _build_tensor(
+        builder, 0, [1, size, size, 1], tensor_type=tensor_type, quantization=qparams
+    )
+    output_tensor = _build_tensor(
+        builder, 1, [1, 1, 1, 1], tensor_type=tensor_type, quantization=qparams
+    )
+
+    _tfl_pool2d_options.Pool2DOptionsStart(builder)
+    _tfl_pool2d_options.Pool2DOptionsAddPadding(builder, _tfl_padding.VALID)
+    _tfl_pool2d_options.Pool2DOptionsAddStrideH(builder, 1)
+    _tfl_pool2d_options.Pool2DOptionsAddStrideW(builder, 1)
+    _tfl_pool2d_options.Pool2DOptionsAddFilterHeight(builder, size)
+    _tfl_pool2d_options.Pool2DOptionsAddFilterWidth(builder, size)
+    _tfl_pool2d_options.Pool2DOptionsAddFusedActivationFunction(builder, _tfl_activation_fn.NONE)
+    pool_opts = _tfl_pool2d_options.Pool2DOptionsEnd(builder)
+
+    avg_pool_op = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options_type=_tfl_builtin_options.Pool2DOptions,
+        builtin_options=pool_opts,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, output_tensor],
+        operators=[avg_pool_op],
+        inputs=[0],
+        outputs=[1],
+    )
+    operator_codes = [_build_operator_code(builder, _tfl_builtin_operator.AVERAGE_POOL_2D)]
+    buf = _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=[_build_buffer(builder), _build_buffer(builder)],
+    )
+
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+    mod = from_tflite(tflite_model)
+
+    dev = tvm.cpu(0)
+    vm = relax.VirtualMachine(tvm.compile(mod, target=tvm.target.Target("llvm")), dev)
+    x = np.full((1, size, size, 1), value, dtype=dtype)
+    got = vm["main"](tvm.runtime.tensor(x, dev)).numpy().reshape(-1)
+    np.testing.assert_array_equal(got, np.array([value], dtype=dtype))
+
+
 def test_quantized_conv2d_per_tensor_uses_qdq():
     """Quantized Conv2D with per-tensor quantization uses DQ -> conv2d -> Q."""
     builder = flatbuffers.Builder(2048)

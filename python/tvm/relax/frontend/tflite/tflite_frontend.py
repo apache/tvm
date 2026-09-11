@@ -5745,22 +5745,37 @@ class OperatorConverter:
                 # constant; the padded taps are zeros and contribute nothing,
                 # so the result is the sum over the VALID taps either way.
                 window = filter_h * filter_w
-                # acc holds window * sum, and |sum| <= window * 255 for any 8-bit
-                # input, so |acc| <= 255 * window^2 must stay inside int32.
-                assert 255 * window * window < (1 << 31), (
-                    f"pooling window {filter_h}x{filter_w} is too large for an "
-                    "int32 exact-sum average pool"
-                )
-                acc = relax.op.astype(in_expr, "int32")
-                acc = relax.op.multiply(acc, relax.const(window, "int32"))
+                # The accumulator must hold the PRE-SCALED window sum. Every
+                # element is scaled by `window` and then `window` of them are
+                # summed, so |acc| <= max|x| * window^2 -- and max|x| is set by
+                # the INPUT type, which is not always 8-bit: this branch also
+                # takes int16 (a 17x17 pool of int16 32767 needs 2.7e9, past
+                # int32). Size the accumulator from the actual bound: int32
+                # whenever it fits, which keeps the usual int8 case as cheap as
+                # before, else int64.
+                in_info = np.iinfo(self.get_tensor_type_str(input_tensor.tensor.Type()))
+                max_abs = max(-int(in_info.min), int(in_info.max))  # 128 int8, 255 uint8
+                bound = max_abs * window * window
+                if bound < (1 << 31):
+                    acc_dtype = "int32"
+                elif bound < (1 << 63):
+                    acc_dtype = "int64"
+                else:
+                    raise tvm.error.OpAttributeUnImplemented(
+                        f"pooling window {filter_h}x{filter_w} is too large for an "
+                        "exact-sum average pool even with an int64 accumulator"
+                    )
+                acc = relax.op.astype(in_expr, acc_dtype)
+                acc = relax.op.multiply(acc, relax.const(window, acc_dtype))
                 acc = relax.op.nn.avg_pool2d(acc, count_include_pad=True, **params)
                 # relax widens the output dtype of an INTEGER avg_pool2d when the
                 # window is large enough that an int32 accumulator could
                 # overflow -- an 8x8 pool over int32 comes back as int64, a 2x2
-                # one stays int32. Pin it so the rounding arithmetic below always
-                # meets int32 constants; without this an 8x8 pool fails to import
-                # with "Binary operators must have the same datatype".
-                acc = relax.op.astype(acc, "int32")
+                # one stays int32. Pin it back to the accumulator type so the
+                # rounding arithmetic below always meets constants of the same
+                # dtype; without this an 8x8 pool fails to import with "Binary
+                # operators must have the same datatype".
+                acc = relax.op.astype(acc, acc_dtype)
 
                 # TFLite divides by the number of NON-PADDED taps, which varies
                 # per output position once there is padding. The shapes are
@@ -5773,13 +5788,13 @@ class OperatorConverter:
                     params["padding"],
                     to_int_list(self.get_tensor_shape(output_tensor))[1:3],
                 )
-                half = relax.const(counts // 2, "int32")
+                half = relax.const(counts // 2, acc_dtype)
                 out = relax.op.where(
-                    relax.op.greater(acc, relax.const(0, "int32")),
+                    relax.op.greater(acc, relax.const(0, acc_dtype)),
                     relax.op.add(acc, half),
                     relax.op.subtract(acc, half),
                 )
-                out = relax.op.divide(out, relax.const(counts, "int32"))
+                out = relax.op.divide(out, relax.const(counts, acc_dtype))
                 out = relax.op.astype(out, output_tensor_type_str)
             else:
                 out = relax.op.nn.avg_pool2d(in_expr, **params)
