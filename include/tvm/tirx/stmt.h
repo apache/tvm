@@ -213,7 +213,7 @@ class BufferStoreNode : public StmtNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BufferStoreNode>()
-        .def_ro("buffer", &BufferStoreNode::buffer, refl::AttachFieldFlag::SEqHashDefPattern())
+        .def_ro("buffer", &BufferStoreNode::buffer)
         .def_ro("value", &BufferStoreNode::value)
         .def_ro("indices", &BufferStoreNode::indices);
   }

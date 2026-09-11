@@ -116,7 +116,7 @@ class TensorLoadNode : public ExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TensorLoadNode>()
-        .def_ro("source", &TensorLoadNode::source, refl::AttachFieldFlag::SEqHashDefPattern())
+        .def_ro("source", &TensorLoadNode::source)
         .def_ro("indices", &TensorLoadNode::indices);
   }
 

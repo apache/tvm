@@ -367,158 +367,12 @@ class TVM_DLL StmtExprMutator : public ExprMutator, public StmtMutator {
 };
 
 /*!
- * \brief Substitute the var specified by vmap.
- * \param stmt The source statement to be substituted
- * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
- * \return The converted form.
- */
-TVM_DLL Stmt Substitute(Stmt stmt, std::function<ffi::Optional<Expr>(const Var& var)> vmap);
-
-/*!
- * \brief Substitute the var specified by vmap.
- * \param expr The source statement to be substituted
- * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
- * \return The result.
- */
-TVM_DLL Expr Substitute(Expr expr, std::function<ffi::Optional<Expr>(const Var& var)> vmap);
-
-inline PrimExpr Substitute(PrimExpr expr, std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
-  return Substitute(Expr(expr), std::move(vmap)).as_or_throw<PrimExpr>();
-}
-
-/*!
- * \brief Substitute the vars specified by vmap.
- * \param range The array of Stmt/PrimExpr to be substituted
- * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
- * \return The modified Range.
- */
-inline Range Substitute(const Range& range,
-                        std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
-  return Range::FromMinExtent(Substitute(range->min, vmap), Substitute(range->extent, vmap));
-}
-
-/*!
- * \brief Substitute the var specified by vmap.
- * \param arr The array of Stmt/PrimExpr to be substituted
- * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
- * \return The result.
- */
-template <typename T>
-ffi::Array<T> Substitute(const ffi::Array<T>& arr,
-                         std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
-  return arr.Map([&vmap](const auto& elem) { return Substitute(elem, vmap); });
-}
-
-/*!
- * \brief Substitute the vars specified by vmap.
- *
- * Delegates to the Substitute methods that use std::function.  This
- * overload allows braced-initialization of the Map, whereas the
- * template<typename Expr> overload cannot.
- *
- * \param obj The object in which TIR variables should be substituted
- * \param vmap Map defining the TIR variables to be replaced
- * \return The modified object.
- */
-template <typename Obj>
-auto Substitute(Obj&& obj, const ffi::Map<Var, Expr>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> { return vmap.Get(var); };
-  return Substitute(std::forward<Obj>(obj), func);
-}
-
-/*!
- * \brief Substitute the vars specified by vmap.
- *
- * Delegates to the Substitute methods that use std::function.
- *
- * \param obj The object in which TIR variables should be substituted
- * \param vmap Map defining the TIR variables to be replaced
- * \return The modified object.
- */
-template <typename Obj, typename Replacement>
-auto Substitute(Obj&& obj, const ffi::Map<Var, Replacement>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
-    if (auto replacement = vmap.Get(var)) return Expr(replacement.value());
-    return std::nullopt;
-  };
-  return Substitute(std::forward<Obj>(obj), func);
-}
-
-/*!
- * \brief Substitute the vars specified by vmap.
- *
- * Delegates to the Substitute methods that use std::function.
- *
- * \param obj The object in which TIR variables should be substituted
- * \param vmap Map defining the TIR variables to be replaced
- * \return The modified object.
- */
-template <typename Obj, typename Replacement>
-auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Replacement>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
-    if (auto it = vmap.find(var.get()); it != vmap.end()) {
-      return Expr(it->second);
-    }
-    return std::nullopt;
-  };
-  return Substitute(std::forward<Obj>(obj), func);
-}
-
-/*!
- * \brief Substitute the vars specified by vmap.
- *
- * Delegates to the Substitute methods that use std::function.
- *
- * \param obj The object in which TIR variables should be substituted
- * \param vmap Map defining the TIR variables to be replaced
- * \return The modified object.
- */
-template <typename Obj, typename Replacement, typename Hasher, typename EqualityChecker>
-auto Substitute(Obj&& obj,
-                const std::unordered_map<Var, Replacement, Hasher, EqualityChecker>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
-    if (auto it = vmap.find(var); it != vmap.end()) {
-      return Expr(it->second);
-    }
-    return std::nullopt;
-  };
-  return Substitute(std::forward<Obj>(obj), func);
-}
-
-/*!
- * \brief Substitute the vars specified by vmap.
- *
- * Delegates to the Substitute methods that use std::function.
- *
- * \param obj The object in which TIR variables should be substituted
- * \param iter_vmap Map defining the TIR variables to be replaced
- * \return The modified object.
- */
-template <typename Obj, typename Replacement>
-auto Substitute(Obj&& obj, const std::unordered_map<IterVar, Replacement>& iter_vmap) {
-  std::unordered_map<const VarNode*, Expr> vmap;
-  for (const auto& [iter_var, expr] : iter_vmap) {
-    vmap[iter_var->var.get()] = Expr(expr);
-  }
-
-  auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
-    if (auto it = vmap.find(var.get()); it != vmap.end()) {
-      return it->second;
-    } else {
-      return std::nullopt;
-    }
-  };
-  return Substitute(std::forward<Obj>(obj), func);
-}
-
-/*!
  * \brief Substitute the var specified by vmap and legalize data types after substitution.
  * \param stmt The source statement to be substituted
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
  *
- * Unlike `Substitute`, this allows the substitution to change the data type of the expression.
+ * Substitution may change the data type of the expression.
  *
- * \sa Substitute
  * \return The result.
  */
 TVM_DLL Stmt SubstituteWithDataTypeLegalization(
@@ -529,9 +383,8 @@ TVM_DLL Stmt SubstituteWithDataTypeLegalization(
  * \param expr The source statement to be substituted
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
  *
- * Unlike `Substitute`, this allows the substitution to change the data type of the expression.
+ * Substitution may change the data type of the expression.
  *
- * \sa Substitute
  * \return The result.
  */
 TVM_DLL PrimExpr SubstituteWithDataTypeLegalization(
