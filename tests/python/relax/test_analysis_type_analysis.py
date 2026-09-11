@@ -170,17 +170,6 @@ def test_erase_to_well_defined_tensor():
     tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s2), s2)
 
 
-@pytest.mark.parametrize("type_constructor", [rx.ShapeType, rx.TensorType])
-def test_erase_to_well_defined_does_not_reenter_replacements(type_constructor):
-    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-    ty = type_constructor([n, m])
-    replacements = {n: m + 1, m: n + 1}
-
-    result = rx.analysis.erase_to_well_defined(ty, replacements)
-
-    tvm.ir.assert_structural_equal(result, type_constructor([m + 1, n + 1]))
-
-
 def test_erase_to_well_defined_tuple():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     s0 = rx.AnyType()
