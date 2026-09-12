@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F811
 import numpy as np
 import pytest
 import tvm_ffi
@@ -160,8 +159,8 @@ def test_match_cast() -> None:
     var = rx.Var("v0", R.Shape())
     b0 = rx.MatchCast(var, shape, R.Tensor([m, n], "int32"))
     assert b0.value == shape
-    assert b0.pattern[0] == m
-    assert b0.pattern[1] == n
+    assert b0.ty.shape[0].same_as(m)
+    assert b0.ty.shape[1].same_as(n)
     assert b0.var is not None
 
     # var1: R.Tensor((m, n), "float32") =
@@ -171,12 +170,12 @@ def test_match_cast() -> None:
     var = rx.Var("v1", R.Tensor([m, n], "float32"))
     b1 = rx.MatchCast(var, value, R.Tensor([m, n], "float32"))
     assert b1.value == value
-    assert b1.pattern[0] == m
-    assert b1.pattern[1] == n
+    assert b1.ty.shape[0].same_as(m)
+    assert b1.ty.shape[1].same_as(n)
     assert b1.var is not None
 
 
-def test_match_cast() -> None:
+def test_match_cast_json_roundtrip() -> None:
     m = tirx.Var("m", ty="int64")
     n = tirx.Var("n", ty="int64")
     ivalue = rx.Var("input_value")

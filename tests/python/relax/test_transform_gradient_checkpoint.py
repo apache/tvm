@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, F811
+# ruff: noqa: E501
 """Unit tests for gradient with checkpointing."""
 
 import tvm
@@ -691,28 +691,6 @@ def test_checkpoint_sequential_checkpoint_last():
     # fmt: on
 
     assert_structural_equal(bb.get(), Expected)
-
-
-def test_checkpoint_dag():
-    """Comp. graph is a DAG with only one output. Here we only test the simple case: comp. graph
-    is a sequence of sub-graphs, and the checkpoints are the intersections of connected
-    subgraphs."""
-
-    def func(x):
-        return x * relax.const(2, "float32") * relax.const(2, "float32")
-
-    bb = BlockBuilder()
-    x = relax.Var("x", relax.TensorType((3, 3), "float32"))
-    with bb.function("main", [x]):
-        with bb.dataflow():
-            lv1 = bb.emit(nn.checkpoint(func, x))
-            lv2 = bb.emit(x * lv1)
-            lv3 = bb.emit(nn.checkpoint(func, lv2))
-            lv4 = bb.emit(lv2 * lv3)
-            lv5 = bb.emit(nn.checkpoint(func, lv4))
-            lv6 = bb.emit(lv4 * lv5)
-            gv = bb.emit_output(relax.op.sum(lv6))
-        bb.emit_func_output(gv)
 
 
 def test_checkpoint_with_intermediate_require_grads():
