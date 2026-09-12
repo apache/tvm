@@ -41,3 +41,7 @@ uv pip install --upgrade \
     "tornado~=6.4" \
     "ml_dtypes~=0.5" \
     mlc-z3-static==4.16.0
+
+# Provides LLVMModule JIT execution. --no-deps keeps its apache-tvm-ffi requirement from
+# pulling a PyPI core into site-packages; CI installs the submodule-matched core into ./python.
+uv pip install --no-deps apache-tvm-ffi-orcjit==0.1.1
