@@ -117,19 +117,26 @@ Patterns CreatePatterns(const BranchInfo& branch_info) {
 /*! \brief Create a rewriter for the given parallel matmul branches. */
 ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, Expr>)> GetRewriter(
     const Patterns& patterns, const BranchInfo& branch_info, FCheck check) {
-  auto batch_dims_compatible = [](size_t rhs_dim, const std::vector<size_t>& indices,
-                                  const std::vector<ffi::Array<PrimExpr>>& rhs_shapes) {
-    arith::Analyzer ana;
-    for (auto ind : indices) {
-      TVM_FFI_ICHECK_EQ(static_cast<int>(rhs_shapes[ind].size()), rhs_dim);
-      // -2 for reduction and concat axes
-      for (size_t i = 0; i < rhs_dim - 2; ++i) {
-        if (!ana->CanProve(rhs_shapes[indices[0]][i] == rhs_shapes[ind][i])) {
-          return false;
+  auto shapes_compatible_excluding_trailing_axes =
+      [](const std::vector<ffi::Array<PrimExpr>>& shapes, size_t num_trailing_axes_excluded) {
+        arith::Analyzer ana;
+        size_t ndim = shapes[0].size();
+        for (const auto& shape : shapes) {
+          TVM_FFI_ICHECK_EQ(shape.size(), ndim);
+          for (size_t i = 0; i < ndim - num_trailing_axes_excluded; ++i) {
+            if (!ana->CanProve(shapes[0][i] == shape[i])) {
+              return false;
+            }
+          }
         }
-      }
-    }
-    return true;
+        return true;
+      };
+  auto batch_dims_compatible = [&](const std::vector<size_t>& indices,
+                                   const std::vector<ffi::Array<PrimExpr>>& rhs_shapes) {
+    std::vector<ffi::Array<PrimExpr>> selected;
+    selected.reserve(indices.size());
+    for (size_t ind : indices) selected.push_back(rhs_shapes[ind]);
+    return shapes_compatible_excluding_trailing_axes(selected, 2);
   };
 
   return [=](ffi::Map<DFPattern, Var> matchings, ffi::Map<Var, Expr> bindings) {
@@ -145,7 +152,7 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
     ffi::Map<Var, Expr> replacements;
 
     for (const auto& [rhs_dim, indices] : GroupShapes(rhs_shapes)) {
-      if (indices.size() == 1 || !batch_dims_compatible(rhs_dim, indices, rhs_shapes)) continue;
+      if (indices.size() == 1 || !batch_dims_compatible(indices, rhs_shapes)) continue;
 
       auto lhs = matchings[patterns.input];
 
@@ -208,6 +215,37 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
 
       if (!check(lhs, rhs, bias, bindings)) {
         continue;
+      }
+
+      if (branch_info.bias_dim) {
+        std::vector<ffi::Array<PrimExpr>> bias_shapes;
+        bool bias_shape_unknown = false;
+        for (const auto& bias_var : bias) {
+          auto bias_shape_opt = GetTensorType(bias_var)->GetShape();
+          if (!bias_shape_opt) {
+            bias_shape_unknown = true;
+            break;
+          }
+          bias_shapes.push_back(bias_shape_opt.value());
+        }
+        if (bias_shape_unknown) {
+          return ffi::Map<Var, Expr>{};
+        }
+        if (!shapes_compatible_excluding_trailing_axes(bias_shapes, 1)) {
+          continue;
+        }
+        arith::Analyzer ana;
+        bool bias_widths_match = true;
+        for (size_t i = 0; i < splits.size(); ++i) {
+          const auto& shape = bias_shapes[i];
+          if (!ana->CanProve(shape[shape.size() - 1] == splits[i].split_size)) {
+            bias_widths_match = false;
+            break;
+          }
+        }
+        if (!bias_widths_match) {
+          continue;
+        }
       }
 
       auto concat_rhs = concat(Tuple(rhs), rhs_dim - 1);
