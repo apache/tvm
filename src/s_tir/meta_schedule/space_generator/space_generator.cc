@@ -125,10 +125,7 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
       default_postprocs = Postproc::DefaultCPUTensorization();
       default_mutator_probs = Mutator::DefaultLLVM();
     } else if (kind == "rvv") {
-      static auto llvm_get_vector_width =
-          tvm::ffi::Function::GetGlobalRequired("target.llvm_get_vector_width");
-      const int vlen = llvm_get_vector_width(context->target.value()).cast<int>();
-      default_sch_rules = ScheduleRule::DefaultRISCV(vlen);
+      default_sch_rules = ScheduleRule::DefaultRISCV(context->target.value());
       default_postprocs = Postproc::DefaultRISCV();
       default_mutator_probs = Mutator::DefaultLLVM();
     } else if (kind == "asimd") {
