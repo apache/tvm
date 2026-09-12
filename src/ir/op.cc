@@ -57,22 +57,18 @@ Op OpRegEntry::MakeOp(uint32_t reg_index) {
   return Op(n);
 }
 
-namespace {
-
-TVMFFIAny OpVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+static TVMFFIAny OpVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
   // Ops are unique registry atoms.  Avoid reflecting through their registry metadata.
   return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
 
-TVMFFIAny OpMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+static TVMFFIAny OpMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
-TVMFFIAny OpMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+static TVMFFIAny OpMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
-
-}  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

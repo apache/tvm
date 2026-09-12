@@ -138,9 +138,7 @@ DTensorType::DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement
   data_ = std::move(n);
 }
 
-namespace {
-
-TVMFFIAny DTensorTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+static TVMFFIAny DTensorTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const DTensorTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DTensorTypeNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->device_mesh));
@@ -149,7 +147,8 @@ TVMFFIAny DTensorTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView valu
   return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
 
-TVMFFIAny DTensorTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+static TVMFFIAny DTensorTypeMutate(ffi::StructuralMutatorObj* mutator,
+                                   ffi::AnyView value) noexcept {
   const DTensorTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DTensorTypeNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<DeviceMesh>, mapped_device_mesh,
@@ -170,8 +169,8 @@ TVMFFIAny DTensorTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView val
   return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
 }
 
-TVMFFIAny DTensorTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
-                                        ffi::AnyView value) noexcept {
+static TVMFFIAny DTensorTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                               ffi::AnyView value) noexcept {
   DTensorTypeNode* self = const_cast<DTensorTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DTensorTypeNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<DeviceMesh>, mapped_device_mesh,
@@ -191,8 +190,6 @@ TVMFFIAny DTensorTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   }
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
-
-}  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

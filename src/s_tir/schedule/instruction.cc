@@ -44,9 +44,7 @@ Instruction::Instruction(InstructionKind kind, ffi::Array<Any> inputs, ffi::Arra
   this->data_ = std::move(n);
 }
 
-namespace {
-
-ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
+static ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
   ffi::Array<Any> inputs;
   inputs.reserve(self->inputs.size());
   for (const Any& obj : self->inputs) {
@@ -82,8 +80,6 @@ ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
       /*decision=*/Any(nullptr),
       /*outputs=*/ffi::Array<ffi::String>(self->outputs.size(), ffi::String("_")));
 }
-
-}  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

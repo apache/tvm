@@ -43,9 +43,7 @@ Iter::Iter(PrimExpr extent, PrimExpr stride, Axis axis) {
   data_ = std::move(n);
 }
 
-namespace {
-
-TVMFFIAny IterVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+static TVMFFIAny IterVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const IterNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IterNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->extent));
@@ -54,7 +52,7 @@ TVMFFIAny IterVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noex
   return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
 
-TVMFFIAny IterMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+static TVMFFIAny IterMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   const IterNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IterNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_extent,
@@ -74,7 +72,8 @@ TVMFFIAny IterMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noe
   return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
 }
 
-TVMFFIAny IterMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+static TVMFFIAny IterMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                        ffi::AnyView value) noexcept {
   IterNode* self = const_cast<IterNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IterNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_extent,
@@ -92,8 +91,6 @@ TVMFFIAny IterMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyVie
   self->axis = std::move(mapped_axis).ValueOrUnchanged(std::move(self->axis));
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
-
-}  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -119,9 +116,7 @@ TileLayout::TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
   data_ = std::move(n);
 }
 
-namespace {
-
-TVMFFIAny TileLayoutVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+static TVMFFIAny TileLayoutVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const TileLayoutNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TileLayoutNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->shard));
@@ -130,7 +125,7 @@ TVMFFIAny TileLayoutVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value
   return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
 
-TVMFFIAny TileLayoutMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+static TVMFFIAny TileLayoutMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   const TileLayoutNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TileLayoutNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Iter>>, mapped_shard,
@@ -152,8 +147,8 @@ TVMFFIAny TileLayoutMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView valu
   return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
 }
 
-TVMFFIAny TileLayoutMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
-                                       ffi::AnyView value) noexcept {
+static TVMFFIAny TileLayoutMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                              ffi::AnyView value) noexcept {
   TileLayoutNode* self = const_cast<TileLayoutNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TileLayoutNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Iter>>, mapped_shard,
@@ -173,8 +168,6 @@ TVMFFIAny TileLayoutMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   self->offset = std::move(mapped_offset).ValueOrUnchanged(std::move(self->offset));
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
-
-}  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

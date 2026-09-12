@@ -36,21 +36,18 @@ PackedFuncType::PackedFuncType(Span span) : Type(ffi::UnsafeInit{}) {
   data_ = std::move(n);
 }
 
-namespace {
-
-TVMFFIAny PackedFuncTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+static TVMFFIAny PackedFuncTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
   return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
 
-TVMFFIAny PackedFuncTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+static TVMFFIAny PackedFuncTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
-TVMFFIAny PackedFuncTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+static TVMFFIAny PackedFuncTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*,
+                                                  ffi::AnyView) noexcept {
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
-
-}  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

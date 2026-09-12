@@ -41,9 +41,7 @@ Trace::Trace(ffi::Array<Instruction> insts, ffi::Map<Instruction, Any> decisions
   data_ = std::move(n);
 }
 
-namespace {
-
-ffi::String TraceAsPythonRepr(const TraceNode* self) {
+static ffi::String TraceAsPythonRepr(const TraceNode* self) {
   std::ostringstream os;
   os << "# from tvm import s_tir\n";
   os << "def apply_trace(sch: s_tir.Schedule) -> None:\n";
@@ -62,8 +60,6 @@ ffi::String TraceAsPythonRepr(const TraceNode* self) {
   }
   return os.str();
 }
-
-}  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
