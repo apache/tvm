@@ -86,6 +86,15 @@ def _check_stacked_attention(context: PatternCheckContext, layout: str) -> bool:
                 return False
     else:
         raise NotImplementedError(f"Unsupported layout: {layout}")
+    if not context.annotated_expr["stacked_qkv"].ty.dtype == "float16":
+        return False
+    # The cuDNN runtime builds an unmasked SDPA graph, so offloading a masked attention would
+    # silently compute bidirectional attention.
+    attention = context.annotated_expr["attention"]
+    if attention.attrs.causal_mask is not None:
+        return False
+    if attention.attrs.window_size is not None:
+        return False
     return True
 
 

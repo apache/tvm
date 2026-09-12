@@ -299,6 +299,37 @@ def stacked_attention_size(request):
     return request.param
 
 
+def _is_offloaded_to_cudnn(mod):
+    return any("cudnn" in gv.name_hint for gv, _ in mod.functions_items())
+
+
+def _get_stacked_attention_module(dtype, causal_mask=None):
+    b, s, n, h, h_v = 4, 8, 32, 64, 64
+    qkv = np.random.randn(b, s, n * h * 2 + n * h_v).astype(dtype)
+    return get_relax_stacked_attention_module(
+        qkv, b, s, n, h, h_v, "split", causal_mask=causal_mask
+    )
+
+
+def test_stacked_attention_partition():
+    mod = _get_stacked_attention_module("float16")
+    assert _is_offloaded_to_cudnn(partition_for_cudnn(mod))
+
+
+@pytest.mark.parametrize("causal_mask", ["TopLeft", "BottomRight"])
+def test_stacked_attention_causal_not_partitioned(causal_mask):
+    # The cuDNN runtime builds an unmasked SDPA graph, offloading here would silently drop
+    # the causal mask.
+    mod = _get_stacked_attention_module("float16", causal_mask=causal_mask)
+    assert not _is_offloaded_to_cudnn(partition_for_cudnn(mod))
+
+
+def test_stacked_attention_fp32_not_partitioned():
+    # attention.cc only builds a half-precision graph and ICHECKs at module init otherwise.
+    mod = _get_stacked_attention_module("float32")
+    assert not _is_offloaded_to_cudnn(partition_for_cudnn(mod))
+
+
 @pytest.mark.skip(reason="require cudnn frontend")
 def test_stacked_attention_split_offload(stacked_attention_size):
     b, s, n, (h, h_v), bias_shape, scale, single_shape, layout = stacked_attention_size

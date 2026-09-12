@@ -336,6 +336,7 @@ def make_stacked_attention_pattern(start_op: str, with_bias: bool = False, layou
         out = is_op("relax.nn.attention_bias")(query, key, value, bias)
     else:
         out = is_op("relax.nn.attention")(query, key, value)
+    annotations["attention"] = out
 
     if layout == "SBN3H":
         out = is_op("relax.permute_dims")(out)

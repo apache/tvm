@@ -75,6 +75,7 @@ def get_relax_stacked_attention_module(
     qk_scale=None,
     single_shape=False,
     layout="BS3NH",
+    causal_mask=None,
 ):  # pylint: disable=too-many-arguments, too-many-locals, too-many-branches, invalid-name
     # pylint: disable=too-many-statements
     """Get a relax module for stacked attention."""
@@ -139,7 +140,7 @@ def get_relax_stacked_attention_module(
                     q = R.permute_dims(q, [1, 0, 2, 3])
                     k = R.permute_dims(k, [1, 0, 2, 3])
                     v = R.permute_dims(v, [1, 0, 2, 3])
-                result = R.emit(R.nn.attention(q, k, v, bias, qk_scale))
+                result = R.emit(R.nn.attention(q, k, v, bias, qk_scale, causal_mask))
                 if layout == "SBN3H":
                     result = R.emit(R.permute_dims(result, [1, 0, 2, 3]))
                 R.output(result)
