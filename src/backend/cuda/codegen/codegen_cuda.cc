@@ -1722,7 +1722,11 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
     bool is_packed_integer_dtype =
         dtype == PrimType::Int(4) || dtype == PrimType::UInt(4) || dtype == PrimType::Int(1);
     if (is_packed_integer_dtype && scope == "shared") {
-      constant_size = constant_size / (32 / dtype.bits());
+      // Sub-byte values are packed into 32-bit words in shared memory.  The
+      // final word may contain fewer values than the packing factor.
+      const size_t elements_per_word = 32 / dtype.bits();
+      constant_size = constant_size / elements_per_word +
+                      (constant_size % elements_per_word != 0);
     }
     stream << ' ' << vid << '[' << constant_size << "];\n";
   }
