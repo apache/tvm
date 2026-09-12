@@ -685,6 +685,36 @@ def test_div_integer_constant_folding_truncates_toward_zero():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+def test_div_integer_constant_folding_preserves_int64_precision():
+    dividend_values = np.array([2**53 + 1, 2**53 + 3, -(2**53 + 3), -5, 5], dtype=np.int64)
+    divisor_values = np.array([1, 1, 1, 2, -2], dtype=np.int64)
+    expected = np.array([2**53 + 1, 2**53 + 3, -(2**53 + 3), -2, -2], dtype=np.int64)
+
+    a = numpy_helper.from_array(dividend_values, name="a")
+    b = numpy_helper.from_array(divisor_values, name="b")
+    node = helper.make_node("Div", ["a", "b"], ["y"])
+    graph = helper.make_graph(
+        [node],
+        "div_integer_constant_precision",
+        [],
+        [helper.make_tensor_value_info("y", TensorProto.INT64, [5])],
+        initializer=[a, b],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
+    model.ir_version = 9
+
+    tvm_model = from_onnx(model, opset=18, keep_params_in_input=False)
+    folded_outputs = []
+
+    def collect_constants(expr):
+        if isinstance(expr, relax.Constant):
+            folded_outputs.append(expr.data.numpy())
+
+    relax.analysis.post_order_visit(tvm_model["main"].body, collect_constants)
+    assert len(folded_outputs) == 1
+    np.testing.assert_array_equal(folded_outputs[0], expected)
+
+
 @pytest.mark.parametrize(
     ("input_size", "divisor_shape", "offset"),
     [(386, [], None), (384, [1], 2)],
