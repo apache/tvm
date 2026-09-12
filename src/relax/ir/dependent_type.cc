@@ -186,51 +186,6 @@ TVMFFIAny FuncTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
 
 }  // namespace
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  AnyTypeNode::RegisterReflection();
-  ShapeTypeNode::RegisterReflection();
-  TensorTypeNode::RegisterReflection();
-  FuncTypeNode::RegisterReflection();
-  refl::TypeAttrDef<AnyTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&AnyTypeVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&AnyTypeMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&AnyTypeMaybeInplaceMutate));
-  refl::TypeAttrDef<ShapeTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&ShapeTypeVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&ShapeTypeMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&ShapeTypeMaybeInplaceMutate));
-  refl::TypeAttrDef<TensorTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TensorTypeVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TensorTypeMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&TensorTypeMaybeInplaceMutate))
-      .def("__subscript_expr_realize__",
-           [](Expr value,
-              ffi::Array<ffi::Variant<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
-                                                 ffi::Optional<PrimExpr>>,
-                                      PrimExpr>>
-                  slice,
-              Span span) -> ffi::ObjectRef {
-             TVM_FFI_CHECK_EQ(slice.size(), 1, IndexError)
-                 << "A Relax expression requires exactly one index";
-             auto index = slice[0].as<PrimExpr>();
-             TVM_FFI_CHECK(index.has_value(), TypeError)
-                 << "A Relax expression requires a point index";
-             const auto* imm = index.value().as<IntImmNode>();
-             TVM_FFI_CHECK(imm != nullptr, TypeError)
-                 << "A Relax expression requires a constant integer index";
-             return TupleGetItem(value, static_cast<int>(imm->value), span);
-           });
-  refl::TypeAttrDef<FuncTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&FuncTypeVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&FuncTypeMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&FuncTypeMaybeInplaceMutate));
-}
-
 AnyType::AnyType(Span span) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<AnyTypeNode> n = ffi::make_object<AnyTypeNode>();
   n->span = span;
@@ -239,9 +194,19 @@ AnyType::AnyType(Span span) : Type(ffi::UnsafeInit{}) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("relax.AnyType", [](Span span) { return AnyType(span); })
-      .def("relax.ObjectType", [](Span span) { return AnyType(span); });
+  AnyTypeNode::RegisterReflection();
+  refl::TypeAttrDef<AnyTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&AnyTypeVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&AnyTypeMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&AnyTypeMaybeInplaceMutate));
+
+  refl::GlobalDef().def("relax.AnyType", [](Span span) { return AnyType(span); });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.ObjectType", [](Span span) { return AnyType(span); });
 }
 
 // Shape
@@ -266,6 +231,16 @@ ShapeType::ShapeType(int ndim, Span span) : Type(ffi::UnsafeInit{}) {
   n->ndim = ndim;
   n->span = span;
   data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  ShapeTypeNode::RegisterReflection();
+  refl::TypeAttrDef<ShapeTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&ShapeTypeVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&ShapeTypeMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&ShapeTypeMaybeInplaceMutate));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -315,6 +290,33 @@ TensorType::TensorType(ffi::Optional<PrimType> dtype, int ndim, ffi::Optional<VD
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  TensorTypeNode::RegisterReflection();
+  refl::TypeAttrDef<TensorTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TensorTypeVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TensorTypeMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&TensorTypeMaybeInplaceMutate))
+      .def("__subscript_expr_realize__",
+           [](Expr value,
+              ffi::Array<ffi::Variant<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
+                                                 ffi::Optional<PrimExpr>>,
+                                      PrimExpr>>
+                  slice,
+              Span span) -> ffi::ObjectRef {
+             TVM_FFI_CHECK_EQ(slice.size(), 1, IndexError)
+                 << "A Relax expression requires exactly one index";
+             auto index = slice[0].as<PrimExpr>();
+             TVM_FFI_CHECK(index.has_value(), TypeError)
+                 << "A Relax expression requires a point index";
+             const auto* imm = index.value().as<IntImmNode>();
+             TVM_FFI_CHECK(imm != nullptr, TypeError)
+                 << "A Relax expression requires a constant integer index";
+             return TupleGetItem(value, static_cast<int>(imm->value), span);
+           });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.TensorType", [](ffi::Optional<Expr> shape, ffi::Optional<PrimType> dtype, int ndim,
                              VDevice vdevice, Span span) {
@@ -338,6 +340,21 @@ FuncType::FuncType(ffi::Array<Type> params, Type ret, bool purity, Span span)
   data_ = std::move(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  FuncTypeNode::RegisterReflection();
+  refl::TypeAttrDef<FuncTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&FuncTypeVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&FuncTypeMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&FuncTypeMaybeInplaceMutate));
+
+  refl::GlobalDef().def("relax.FuncType",
+                        [](ffi::Array<Type> params, Type ret, bool purity, Span span) {
+                          return FuncType(params, ret, purity, span);
+                        });
+}
+
 FuncType FuncType::OpaqueFunc(TypeDeriveFunc derive_func, bool purity, Span span) {
   ffi::ObjectPtr<FuncTypeNode> n = ffi::make_object<FuncTypeNode>();
   n->derive_func = std::move(derive_func);
@@ -357,19 +374,16 @@ FuncType FuncType::OpaqueFunc(Type ret, bool purity, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("relax.FuncType", [](ffi::Array<Type> params, Type ret, bool purity,
-                                Span span) { return FuncType(params, ret, purity, span); })
-      .def("relax.FuncTypeOpaqueFunc", [](ffi::Optional<Type> ret,
-                                          ffi::Optional<TypeDeriveFunc> derive_func, bool purity,
-                                          Span span) {
-        if (derive_func.has_value()) {
-          TVM_FFI_CHECK(!ret.has_value(), ValueError) << "Cannot specify both ret and derive_func";
-          return FuncType::OpaqueFunc(derive_func.value(), purity, span);
-        } else {
-          return FuncType::OpaqueFunc(ret.value_or(AnyType()), purity, span);
-        }
-      });
+  refl::GlobalDef().def("relax.FuncTypeOpaqueFunc", [](ffi::Optional<Type> ret,
+                                                       ffi::Optional<TypeDeriveFunc> derive_func,
+                                                       bool purity, Span span) {
+    if (derive_func.has_value()) {
+      TVM_FFI_CHECK(!ret.has_value(), ValueError) << "Cannot specify both ret and derive_func";
+      return FuncType::OpaqueFunc(derive_func.value(), purity, span);
+    } else {
+      return FuncType::OpaqueFunc(ret.value_or(AnyType()), purity, span);
+    }
+  });
 }
 
 // Helper functions

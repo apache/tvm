@@ -54,15 +54,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         TVM_FFI_ICHECK(kind.has_value()) << "Cannot find target kind \'" << name << '\'';
         return kind.value();
       });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
   refl::TypeAttrDef<TargetKindNode>().def(
       refl::type_attr::kRepr,
       [](TargetKind kind, ffi::Function) -> ffi::String { return kind->name; });
 }
-
 /**********  Registry-related code  **********/
 
 using TargetKindRegistry = AttrRegistry<TargetKindRegEntry, TargetKind>;

@@ -46,6 +46,11 @@ namespace tirx {
 
 namespace {
 
+BufferVar RebuildBufferVarFromType(const BufferVar& buffer, BufferType type,
+                                   ffi::String name_suffix = "") {
+  return BufferVar(buffer.name() + name_suffix, std::move(type), buffer.span());
+}
+
 ffi::ObjectRef RealizeBufferSubscript(
     Expr value,
     ffi::Array<ffi::Variant<
@@ -103,11 +108,6 @@ ffi::ObjectRef RealizeBufferSubscript(
         Range::FromMinExtent(IntImm(buffer_ty->shape[i].ty(), 0), buffer_ty->shape[i]));
   }
   return BufferRegion(buffer, region, span);
-}
-
-BufferVar RebuildBufferVarFromType(const BufferVar& buffer, BufferType type,
-                                   ffi::String name_suffix = "") {
-  return BufferVar(buffer.name() + name_suffix, std::move(type), buffer.span());
 }
 
 // Structural traversal hooks
@@ -231,17 +231,6 @@ TVMFFIAny BufferTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
 
 }  // namespace
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  BufferTypeNode::RegisterReflection();
-  refl::TypeAttrDef<BufferTypeNode>().def("__subscript_expr_realize__", RealizeBufferSubscript);
-  refl::TypeAttrDef<BufferTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BufferTypeVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&BufferTypeMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&BufferTypeMaybeInplaceMutate));
-}
-
 using IndexMod = prim::FloorModNode;
 using IndexDiv = prim::FloorDivNode;
 
@@ -266,6 +255,27 @@ BufferType::BufferType(ffi::String storage_scope, PrimType dtype, ffi::Array<Pri
   n->allocated_addr = std::move(allocated_addr);
   n->span = std::move(span);
   data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  BufferTypeNode::RegisterReflection();
+  refl::TypeAttrDef<BufferTypeNode>().def("__subscript_expr_realize__", RealizeBufferSubscript);
+  refl::TypeAttrDef<BufferTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BufferTypeVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&BufferTypeMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&BufferTypeMaybeInplaceMutate));
+
+  refl::GlobalDef().def(
+      "tirx.BufferType",
+      [](ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
+         ffi::Array<PrimExpr> strides, PrimExpr elem_offset, int data_alignment, int offset_factor,
+         ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr, Span span) {
+        return BufferType(std::move(storage_scope), std::move(dtype), std::move(shape),
+                          std::move(strides), std::move(elem_offset), data_alignment, offset_factor,
+                          std::move(layout), std::move(allocated_addr), std::move(span));
+      });
 }
 
 ffi::Array<PrimExpr> SimplifyArray(arith::AnalyzerObj* ana, ffi::Array<PrimExpr> array) {
@@ -778,16 +788,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("tirx.BufferWithDtype", &BufferVar::with_dtype)
       .def_method("tirx.BufferIsScalar", &BufferVar::IsScalar)
       .def_method("tirx.BufferData", &BufferVar::data)
-      .def_method("tirx.BufferDataPointerType", &BufferVar::DataPointerType)
-      .def("tirx.BufferType", [](ffi::String storage_scope, PrimType dtype,
-                                 ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> strides,
-                                 PrimExpr elem_offset, int data_alignment, int offset_factor,
-                                 ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr,
-                                 Span span) {
-        return BufferType(std::move(storage_scope), std::move(dtype), std::move(shape),
-                          std::move(strides), std::move(elem_offset), data_alignment, offset_factor,
-                          std::move(layout), std::move(allocated_addr), std::move(span));
-      });
+      .def_method("tirx.BufferDataPointerType", &BufferVar::DataPointerType);
 }
 
 }  // namespace tirx

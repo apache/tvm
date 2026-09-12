@@ -46,16 +46,6 @@ TVMFFIAny PackedFuncTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyV
 
 }  // namespace
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  PackedFuncTypeNode::RegisterReflection();
-  refl::TypeAttrDef<PackedFuncTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&PackedFuncTypeVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&PackedFuncTypeMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&PackedFuncTypeMaybeInplaceMutate));
-}
-
 PackedFuncType::PackedFuncType(Span span) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<PackedFuncTypeNode> n = ffi::make_object<PackedFuncTypeNode>();
   n->span = span;
@@ -64,6 +54,13 @@ PackedFuncType::PackedFuncType(Span span) : Type(ffi::UnsafeInit{}) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  PackedFuncTypeNode::RegisterReflection();
+  refl::TypeAttrDef<PackedFuncTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&PackedFuncTypeVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&PackedFuncTypeMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&PackedFuncTypeMaybeInplaceMutate));
+
   refl::GlobalDef().def("relax.PackedFuncType", [](Span span) { return PackedFuncType(span); });
 }
 

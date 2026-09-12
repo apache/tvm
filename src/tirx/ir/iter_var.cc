@@ -33,8 +33,6 @@ namespace tirx {
 
 namespace {
 
-// Structural traversal hooks
-
 TVMFFIAny IterVarVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   // skips: iter_type, thread_tag
   const IterVarNode* self =
@@ -110,15 +108,19 @@ IterVar::IterVar(Range dom, PrimVar var, IterVarType t, ffi::String thread_tag, 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   IterVarNode::RegisterReflection();
-  refl::GlobalDef().def(
-      "tirx.IterVar", [](Range dom, PrimVar var, int iter_type, ffi::String thread_tag, Span span) {
-        return IterVar(dom, var, static_cast<IterVarType>(iter_type), thread_tag, span);
-      });
   refl::TypeAttrDef<IterVarNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&IterVarVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&IterVarMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&IterVarMaybeInplaceMutate));
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "tirx.IterVar", [](Range dom, PrimVar var, int iter_type, ffi::String thread_tag, Span span) {
+        return IterVar(dom, var, static_cast<IterVarType>(iter_type), thread_tag, span);
+      });
 }
 
 }  // namespace tirx

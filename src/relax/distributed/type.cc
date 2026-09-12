@@ -87,15 +87,8 @@ TVMFFIAny DTensorTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
 }  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  DTensorTypeNode::RegisterReflection();
   PlacementNode::RegisterReflection();
   PlacementSpecNode::RegisterReflection();
-  refl::TypeAttrDef<DTensorTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&DTensorTypeVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&DTensorTypeMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&DTensorTypeMaybeInplaceMutate));
 }
 
 PlacementSpec PlacementSpec::Sharding(int axis) {
@@ -199,6 +192,16 @@ DTensorType::DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement
       std::move(tensor_ty), std::move(device_mesh), std::move(placement));
   n->span = span;
   data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  DTensorTypeNode::RegisterReflection();
+  refl::TypeAttrDef<DTensorTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&DTensorTypeVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&DTensorTypeMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&DTensorTypeMaybeInplaceMutate));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

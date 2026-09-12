@@ -30,10 +30,22 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK() { VirtualDeviceNode::RegisterReflection(); }
+VirtualDevice::VirtualDevice(int device_type_int, int virtual_device_id, Target target,
+                             MemoryScope memory_scope) {
+  TVM_FFI_ICHECK(!target.defined() || device_type_int == target->GetTargetDeviceType())
+      << "target " << target->str() << " has device type " << target->GetTargetDeviceType()
+      << " but virtual device has device type " << device_type_int;
+  auto node = ffi::make_object<VirtualDeviceNode>();
+  node->device_type_int = device_type_int;
+  node->virtual_device_id = virtual_device_id;
+  node->target = std::move(target);
+  node->memory_scope = std::move(memory_scope);
+  data_ = std::move(node);
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  VirtualDeviceNode::RegisterReflection();
   refl::TypeAttrDef<VirtualDeviceNode>().def(
       refl::type_attr::kRepr, [](VirtualDevice vd, ffi::Function fn_repr) -> ffi::String {
         auto* node = vd.get();
@@ -65,19 +77,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         os << ")";
         return os.str();
       });
-}
-
-VirtualDevice::VirtualDevice(int device_type_int, int virtual_device_id, Target target,
-                             MemoryScope memory_scope) {
-  TVM_FFI_ICHECK(!target.defined() || device_type_int == target->GetTargetDeviceType())
-      << "target " << target->str() << " has device type " << target->GetTargetDeviceType()
-      << " but virtual device has device type " << device_type_int;
-  auto node = ffi::make_object<VirtualDeviceNode>();
-  node->device_type_int = device_type_int;
-  node->virtual_device_id = virtual_device_id;
-  node->target = std::move(target);
-  node->memory_scope = std::move(memory_scope);
-  data_ = std::move(node);
 }
 
 /* static */ VirtualDevice VirtualDevice::FullyUnconstrained() {

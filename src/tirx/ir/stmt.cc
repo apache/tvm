@@ -46,68 +46,6 @@ using SubscriptSlice = ffi::Array<ffi::Variant<
     ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
     PrimExpr>>;
 
-TVMFFIAny BufferRegionTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
-}
-
-TVMFFIAny BufferRegionTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
-TVMFFIAny BufferRegionTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
-ffi::ObjectRef RealizeBufferRegionSubscript(Expr value, SubscriptSlice slice, Span span) {
-  BufferRegion source = value.as_or_throw<BufferRegion>();
-  TVM_FFI_CHECK_LE(slice.size(), source->region.size(), IndexError)
-      << "Too many indices for a " << source->region.size() << "-dimensional buffer region";
-
-  bool all_points = slice.size() == source->region.size();
-  for (const auto& item : slice) {
-    if (auto descriptor = item.as<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
-                                             ffi::Optional<PrimExpr>>>()) {
-      all_points = false;
-      ffi::Optional<PrimExpr> step = descriptor.value().get<2>();
-      TVM_FFI_CHECK(!step.has_value() || is_one(step.value()), ValueError)
-          << "BufferRegion slices with a non-unit step are not supported";
-    }
-  }
-
-  if (all_points) {
-    ffi::Array<PrimExpr> indices;
-    indices.reserve(slice.size());
-    for (size_t i = 0; i < slice.size(); ++i) {
-      indices.push_back(source->region[i]->min + slice[i].as<PrimExpr>().value());
-    }
-    return BufferLoad(source->buffer, indices, span);
-  }
-
-  arith::Analyzer analyzer;
-  ffi::Array<Range> region;
-  region.reserve(source->region.size());
-  for (size_t i = 0; i < slice.size(); ++i) {
-    const Range& old_range = source->region[i];
-    if (auto point = slice[i].as<PrimExpr>()) {
-      PrimExpr new_min = old_range->min + point.value();
-      region.push_back(Range::FromMinExtent(new_min, IntImm(point.value().ty(), 1)));
-    } else {
-      auto descriptor = slice[i]
-                            .as<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
-                                           ffi::Optional<PrimExpr>>>()
-                            .value();
-      PrimExpr start = descriptor.get<0>().value_or(IntImm(old_range->extent.ty(), 0));
-      PrimExpr stop = descriptor.get<1>().value_or(old_range->extent);
-      region.push_back(
-          Range::FromMinExtent(old_range->min + start, analyzer->Simplify(stop - start)));
-    }
-  }
-  for (size_t i = slice.size(); i < source->region.size(); ++i) {
-    region.push_back(source->region[i]);
-  }
-  return BufferRegion(source->buffer, region, span);
-}
-
 /*!
  * \brief Whether an integer literal can be represented exactly by `ty`.
  * \note Mirrors the range checks performed by the IntImm constructor.
@@ -852,6 +790,68 @@ TVMFFIAny BufferStoreMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
+ffi::ObjectRef RealizeBufferRegionSubscript(Expr value, SubscriptSlice slice, Span span) {
+  BufferRegion source = value.as_or_throw<BufferRegion>();
+  TVM_FFI_CHECK_LE(slice.size(), source->region.size(), IndexError)
+      << "Too many indices for a " << source->region.size() << "-dimensional buffer region";
+
+  bool all_points = slice.size() == source->region.size();
+  for (const auto& item : slice) {
+    if (auto descriptor = item.as<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
+                                             ffi::Optional<PrimExpr>>>()) {
+      all_points = false;
+      ffi::Optional<PrimExpr> step = descriptor.value().get<2>();
+      TVM_FFI_CHECK(!step.has_value() || is_one(step.value()), ValueError)
+          << "BufferRegion slices with a non-unit step are not supported";
+    }
+  }
+
+  if (all_points) {
+    ffi::Array<PrimExpr> indices;
+    indices.reserve(slice.size());
+    for (size_t i = 0; i < slice.size(); ++i) {
+      indices.push_back(source->region[i]->min + slice[i].as<PrimExpr>().value());
+    }
+    return BufferLoad(source->buffer, indices, span);
+  }
+
+  arith::Analyzer analyzer;
+  ffi::Array<Range> region;
+  region.reserve(source->region.size());
+  for (size_t i = 0; i < slice.size(); ++i) {
+    const Range& old_range = source->region[i];
+    if (auto point = slice[i].as<PrimExpr>()) {
+      PrimExpr new_min = old_range->min + point.value();
+      region.push_back(Range::FromMinExtent(new_min, IntImm(point.value().ty(), 1)));
+    } else {
+      auto descriptor = slice[i]
+                            .as<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
+                                           ffi::Optional<PrimExpr>>>()
+                            .value();
+      PrimExpr start = descriptor.get<0>().value_or(IntImm(old_range->extent.ty(), 0));
+      PrimExpr stop = descriptor.get<1>().value_or(old_range->extent);
+      region.push_back(
+          Range::FromMinExtent(old_range->min + start, analyzer->Simplify(stop - start)));
+    }
+  }
+  for (size_t i = slice.size(); i < source->region.size(); ++i) {
+    region.push_back(source->region[i]);
+  }
+  return BufferRegion(source->buffer, region, span);
+}
+
+TVMFFIAny BufferRegionTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny BufferRegionTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny BufferRegionTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
 TVMFFIAny BufferRegionVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const BufferRegionNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferRegionNode>(value);
@@ -1166,13 +1166,14 @@ Bind::Bind(Var var, Expr value, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   BindNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.Bind",
-                        [](Var var, Expr value, Span span) { return Bind(var, value, span); });
   refl::TypeAttrDef<BindNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BindVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&BindMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&BindMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.Bind",
+                        [](Var var, Expr value, Span span) { return Bind(var, value, span); });
 }
 
 // AttrStmt
@@ -1189,15 +1190,16 @@ AttrStmt::AttrStmt(ffi::Any node, ffi::String attr_key, PrimExpr value, Stmt bod
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   AttrStmtNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.AttrStmt",
-                        [](Any node, ffi::String attr_key, PrimExpr value, Stmt body, Span span) {
-                          return AttrStmt(node, attr_key, value, body, span);
-                        });
   refl::TypeAttrDef<AttrStmtNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&AttrStmtVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&AttrStmtMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&AttrStmtMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.AttrStmt",
+                        [](Any node, ffi::String attr_key, PrimExpr value, Stmt body, Span span) {
+                          return AttrStmt(node, attr_key, value, body, span);
+                        });
 }
 
 // AssertStmt
@@ -1221,15 +1223,19 @@ AssertStmt::AssertStmt(PrimExpr condition, prim::StringImm error_kind,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   AssertStmtNode::RegisterReflection();
-  refl::GlobalDef().def(
-      "tirx.AssertStmt",
-      [](PrimExpr condition, prim::StringImm error_kind, ffi::Array<prim::StringImm> message_parts,
-         Span span) { return AssertStmt(condition, error_kind, message_parts, span); });
   refl::TypeAttrDef<AssertStmtNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&AssertStmtVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&AssertStmtMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&AssertStmtMaybeInplaceMutate));
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "tirx.AssertStmt",
+      [](PrimExpr condition, prim::StringImm error_kind, ffi::Array<prim::StringImm> message_parts,
+         Span span) { return AssertStmt(condition, error_kind, message_parts, span); });
 }
 
 // For
@@ -1297,6 +1303,24 @@ For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt bod
   data_ = std::move(node);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  ForNode::RegisterReflection();
+  refl::TypeAttrDef<ForNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&ForVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&ForMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&ForMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.For", [](PrimVar loop_var, PrimExpr min, PrimExpr extent, int kind,
+                                       Stmt body, ffi::Optional<IterVar> thread_binding,
+                                       ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
+                                       ffi::Optional<PrimExpr> step, Span span) {
+    return For(loop_var, min, extent, static_cast<ForKind>(kind), body, thread_binding,
+               annotations.value_or(ffi::Map<ffi::String, Any>()), step, span);
+  });
+}
+
 bool ForNode::HasTrivialStep() const { return !step.has_value() || is_one(*step); }
 
 std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
@@ -1320,23 +1344,6 @@ std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
   return out;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  ForNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.For", [](PrimVar loop_var, PrimExpr min, PrimExpr extent, int kind,
-                                       Stmt body, ffi::Optional<IterVar> thread_binding,
-                                       ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
-                                       ffi::Optional<PrimExpr> step, Span span) {
-    return For(loop_var, min, extent, static_cast<ForKind>(kind), body, thread_binding,
-               annotations.value_or(ffi::Map<ffi::String, Any>()), step, span);
-  });
-  refl::TypeAttrDef<ForNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&ForVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&ForMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&ForMaybeInplaceMutate));
-}
-
 // While
 While::While(PrimExpr condition, Stmt body, Span span) {
   TVM_FFI_ICHECK(condition.defined());
@@ -1353,14 +1360,15 @@ While::While(PrimExpr condition, Stmt body, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   WhileNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.While", [](PrimExpr condition, Stmt body, Span span) {
-    return While(condition, body, span);
-  });
   refl::TypeAttrDef<WhileNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&WhileVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&WhileMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&WhileMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.While", [](PrimExpr condition, Stmt body, Span span) {
+    return While(condition, body, span);
+  });
 }
 
 // Return
@@ -1376,12 +1384,13 @@ Return::Return(Expr value, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   ReturnNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.Return", [](Expr value, Span span) { return Return(value, span); });
   refl::TypeAttrDef<ReturnNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&ReturnVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&ReturnMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&ReturnMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.Return", [](Expr value, Span span) { return Return(value, span); });
 }
 
 // Break
@@ -1394,12 +1403,13 @@ Break::Break(Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   BreakNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.Break", [](Span span) { return Break(span); });
   refl::TypeAttrDef<BreakNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BreakVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&BreakMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&BreakMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.Break", [](Span span) { return Break(span); });
 }
 
 // Continue
@@ -1412,12 +1422,13 @@ Continue::Continue(Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   ContinueNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.Continue", [](Span span) { return Continue(span); });
   refl::TypeAttrDef<ContinueNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&ContinueVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&ContinueMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&ContinueMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.Continue", [](Span span) { return Continue(span); });
 }
 
 // DeclBuffer
@@ -1445,14 +1456,15 @@ DeclBuffer::DeclBuffer(BufferVar buffer, Expr data, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   DeclBufferNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.DeclBuffer", [](BufferVar buffer, Expr data, Span span) {
-    return DeclBuffer(buffer, data, span);
-  });
   refl::TypeAttrDef<DeclBufferNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&DeclBufferVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&DeclBufferMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&DeclBufferMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.DeclBuffer", [](BufferVar buffer, Expr data, Span span) {
+    return DeclBuffer(buffer, data, span);
+  });
 }
 
 // AllocBuffer
@@ -1467,16 +1479,20 @@ AllocBuffer::AllocBuffer(BufferVar buffer, ffi::Map<ffi::String, Any> annotation
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   AllocBufferNode::RegisterReflection();
-  refl::GlobalDef().def(
-      "tirx.AllocBuffer",
-      [](BufferVar buffer, ffi::Optional<ffi::Map<ffi::String, Any>> annotations, Span span) {
-        return AllocBuffer(buffer, annotations.value_or(ffi::Map<ffi::String, Any>()), span);
-      });
   refl::TypeAttrDef<AllocBufferNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&AllocBufferVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&AllocBufferMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&AllocBufferMaybeInplaceMutate));
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "tirx.AllocBuffer",
+      [](BufferVar buffer, ffi::Optional<ffi::Map<ffi::String, Any>> annotations, Span span) {
+        return AllocBuffer(buffer, annotations.value_or(ffi::Map<ffi::String, Any>()), span);
+      });
 }
 
 // SeqStmt
@@ -1506,22 +1522,24 @@ SeqStmt::SeqStmt(ffi::Array<Stmt> seq, Span span) {
   data_ = std::move(node);
 }
 
-// A direct child that mutates into a SeqStmt is spliced into this sequence in the same pass,
-// matching StmtMutator's normalized result without a second scan and allocation. A well-formed
-// mapped SeqStmt already holds no SeqStmt child, so this single-level splice is sufficient and an
-// unchanged element never needs splicing.
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   SeqStmtNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.SeqStmt", [](ffi::Array<Stmt> seq, Span span) {
-    return SeqStmt(std::move(seq), span);
-  });
   refl::TypeAttrDef<SeqStmtNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&SeqStmtVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&SeqStmtMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&SeqStmtMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.SeqStmt", [](ffi::Array<Stmt> seq, Span span) {
+    return SeqStmt(std::move(seq), span);
+  });
 }
+
+// A direct child that mutates into a SeqStmt is spliced into this sequence in the same pass,
+// matching StmtMutator's normalized result without a second scan and allocation. A well-formed
+// mapped SeqStmt already holds no SeqStmt child, so this single-level splice is sufficient and an
+// unchanged element never needs splicing.
 
 // IfThenElse
 IfThenElse::IfThenElse(PrimExpr condition, Stmt then_case, ffi::Optional<Stmt> else_case,
@@ -1540,15 +1558,16 @@ IfThenElse::IfThenElse(PrimExpr condition, Stmt then_case, ffi::Optional<Stmt> e
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   IfThenElseNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.IfThenElse",
-                        [](PrimExpr condition, Stmt then_case, Stmt else_case, Span span) {
-                          return IfThenElse(condition, then_case, else_case, span);
-                        });
   refl::TypeAttrDef<IfThenElseNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&IfThenElseVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&IfThenElseMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&IfThenElseMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.IfThenElse",
+                        [](PrimExpr condition, Stmt then_case, Stmt else_case, Span span) {
+                          return IfThenElse(condition, then_case, else_case, span);
+                        });
 }
 
 // Evaluate
@@ -1567,13 +1586,14 @@ Evaluate::Evaluate(Expr value, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   EvaluateNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.Evaluate",
-                        [](Expr value, Span span) { return Evaluate(value, span); });
   refl::TypeAttrDef<EvaluateNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&EvaluateVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&EvaluateMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&EvaluateMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.Evaluate",
+                        [](Expr value, Span span) { return Evaluate(value, span); });
 }
 
 // BufferStore
@@ -1641,14 +1661,15 @@ BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   BufferStoreNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.BufferStore",
-                        [](BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
-                           Span span) { return BufferStore(buffer, value, indices, span); });
   refl::TypeAttrDef<BufferStoreNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BufferStoreVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&BufferStoreMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&BufferStoreMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.BufferStore",
+                        [](BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
+                           Span span) { return BufferStore(buffer, value, indices, span); });
 }
 
 // BufferRegion
@@ -1666,6 +1687,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&BufferRegionTypeMaybeInplaceMutate))
       .def("__subscript_expr_realize__", RealizeBufferRegionSubscript);
+
+  refl::GlobalDef().def("tirx.BufferRegionType", []() { return BufferRegionType(); });
 }
 
 BufferRegion::BufferRegion(BufferVar buffer, ffi::Array<Range> region, Span span) {
@@ -1678,6 +1701,20 @@ BufferRegion::BufferRegion(BufferVar buffer, ffi::Array<Range> region, Span span
   node->buffer = std::move(buffer);
   node->region = std::move(region);
   data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  BufferRegionNode::RegisterReflection();
+  refl::TypeAttrDef<BufferRegionNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BufferRegionVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&BufferRegionMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&BufferRegionMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.BufferRegion", [](BufferVar buffer, ffi::Array<Range> region) {
+    return BufferRegion(buffer, region);
+  });
 }
 
 BufferRegion BufferRegion::FullRegion(BufferVar buffer) {
@@ -1699,20 +1736,6 @@ BufferRegion BufferRegion::FromPoint(BufferVar buffer, ffi::Array<PrimExpr> indi
     }
   }
   return BufferRegion(buffer, region);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  BufferRegionNode::RegisterReflection();
-  refl::GlobalDef()
-      .def("tirx.BufferRegionType", []() { return BufferRegionType(); })
-      .def("tirx.BufferRegion",
-           [](BufferVar buffer, ffi::Array<Range> region) { return BufferRegion(buffer, region); });
-  refl::TypeAttrDef<BufferRegionNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BufferRegionVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&BufferRegionMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&BufferRegionMaybeInplaceMutate));
 }
 
 // MatchBufferRegion
@@ -1765,14 +1788,15 @@ MatchBufferRegion::MatchBufferRegion(BufferVar buffer, BufferRegion source) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   MatchBufferRegionNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.MatchBufferRegion", [](BufferVar buffer, BufferRegion source) {
-    return MatchBufferRegion(buffer, source);
-  });
   refl::TypeAttrDef<MatchBufferRegionNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&MatchBufferRegionVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&MatchBufferRegionMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&MatchBufferRegionMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.MatchBufferRegion", [](BufferVar buffer, BufferRegion source) {
+    return MatchBufferRegion(buffer, source);
+  });
 }
 
 // Block
@@ -1813,6 +1837,12 @@ SBlock::SBlock(ffi::String name_hint, Stmt body, ffi::Array<BufferVar> alloc_buf
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   SBlockNode::RegisterReflection();
+  refl::TypeAttrDef<SBlockNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&SBlockVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&SBlockMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&SBlockMaybeInplaceMutate));
+
   refl::GlobalDef().def("tirx.SBlock",
                         [](ffi::Array<IterVar> iter_vars, ffi::Array<BufferRegion> reads,
                            ffi::Array<BufferRegion> writes, ffi::String name_hint, Stmt body,
@@ -1822,11 +1852,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                           return SBlock(iter_vars, reads, writes, name_hint, body, init,
                                         alloc_buffers, match_buffers, annotations, span);
                         });
-  refl::TypeAttrDef<SBlockNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&SBlockVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&SBlockMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&SBlockMaybeInplaceMutate));
 }
 
 // ScopeIdDefStmt
@@ -1841,13 +1866,14 @@ ScopeIdDefStmt::ScopeIdDefStmt(ScopeIdDef def, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   ScopeIdDefStmtNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.ScopeIdDefStmt",
-                        [](ScopeIdDef def, Span span) { return ScopeIdDefStmt(def, span); });
   refl::TypeAttrDef<ScopeIdDefStmtNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&ScopeIdDefStmtVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&ScopeIdDefStmtMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&ScopeIdDefStmtMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.ScopeIdDefStmt",
+                        [](ScopeIdDef def, Span span) { return ScopeIdDefStmt(def, span); });
 }
 
 // BlockRealize
@@ -1869,15 +1895,16 @@ SBlockRealize::SBlockRealize(ffi::Array<PrimExpr> values, PrimExpr predicate, SB
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   SBlockRealizeNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.SBlockRealize", [](ffi::Array<PrimExpr> iter_values,
-                                                 PrimExpr predicate, SBlock block, Span span) {
-    return SBlockRealize(iter_values, predicate, block, span);
-  });
   refl::TypeAttrDef<SBlockRealizeNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&SBlockRealizeVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&SBlockRealizeMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&SBlockRealizeMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.SBlockRealize", [](ffi::Array<PrimExpr> iter_values,
+                                                 PrimExpr predicate, SBlock block, Span span) {
+    return SBlockRealize(iter_values, predicate, block, span);
+  });
 }
 
 PrimExpr TypeAnnotation(PrimType dtype, Span span) {

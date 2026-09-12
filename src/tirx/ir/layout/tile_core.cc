@@ -32,11 +32,6 @@
 namespace tvm {
 namespace tirx {
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  AxisNode::RegisterReflection();
-  ComposeLayoutNode::RegisterReflection();
-}
-
 namespace {
 
 TVMFFIAny IterVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
@@ -142,6 +137,8 @@ TVMFFIAny TileLayoutMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
 
 }  // namespace
 
+TVM_FFI_STATIC_INIT_BLOCK() { ComposeLayoutNode::RegisterReflection(); }
+
 /**************** Iter ****************/
 Iter::Iter(PrimExpr extent, PrimExpr stride, Axis axis) {
   auto n = ffi::make_object<IterNode>();
@@ -154,14 +151,15 @@ Iter::Iter(PrimExpr extent, PrimExpr stride, Axis axis) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   IterNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.Iter", [](PrimExpr extent, PrimExpr stride, Axis axis) {
-    return Iter(extent, stride, axis);
-  });
   refl::TypeAttrDef<IterNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&IterVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&IterMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&IterMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.Iter", [](PrimExpr extent, PrimExpr stride, Axis axis) {
+    return Iter(extent, stride, axis);
+  });
 }
 
 /**************** TileLayout ****************/
@@ -177,15 +175,16 @@ TileLayout::TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TileLayoutNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.TileLayout", [](ffi::Array<Iter> shard, ffi::Array<Iter> replica,
-                                              ffi::Map<Axis, PrimExpr> offset) {
-    return TileLayout(shard, replica, offset);
-  });
   refl::TypeAttrDef<TileLayoutNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TileLayoutVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TileLayoutMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&TileLayoutMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.TileLayout", [](ffi::Array<Iter> shard, ffi::Array<Iter> replica,
+                                              ffi::Map<Axis, PrimExpr> offset) {
+    return TileLayout(shard, replica, offset);
+  });
 }
 
 bool TileLayoutNode::CompatibleWithShape(const Array<PrimExpr>& shape) const { return true; }

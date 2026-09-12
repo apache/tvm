@@ -42,8 +42,6 @@ namespace tvm {
 
 namespace {
 
-// Structural traversal hooks
-
 TVMFFIAny OpaqueExprVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const OpaqueExprNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const OpaqueExprNode>(value);
@@ -513,8 +511,6 @@ TVM_FFI_STATIC_INIT_BLOCK() { ExprNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() { BaseFuncNode::RegisterReflection(); }
 
-// OpaqueExpr
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   OpaqueExprNode::RegisterReflection();
@@ -524,8 +520,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&OpaqueExprMaybeInplaceMutate));
 }
-
-// TensorLoad
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -567,6 +561,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TupleMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&TupleMaybeInplaceMutate));
+
+  refl::GlobalDef().def("ir.Tuple",
+                        [](ffi::Array<Expr> fields, Span span) { return Tuple(fields, span); });
 }
 
 // TupleGetItem
@@ -584,6 +581,20 @@ TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
   node->index = index;
   node->span = std::move(span);
   data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  TupleGetItemNode::RegisterReflection();
+  refl::TypeAttrDef<TupleGetItemNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TupleGetItemVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TupleGetItemMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&TupleGetItemMaybeInplaceMutate));
+
+  refl::GlobalDef().def("ir.TupleGetItem", [](Expr tuple, int index, Span span) {
+    return TupleGetItem(tuple, index, span);
+  });
 }
 
 PrimExpr::PrimExpr(Call call) : PrimExpr(std::move(call).as_or_throw<PrimExpr>()) {}
@@ -612,19 +623,10 @@ PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(double value) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  TupleGetItemNode::RegisterReflection();
   refl::GlobalDef()
-      .def("ir.Tuple", [](ffi::Array<Expr> fields, Span span) { return Tuple(fields, span); })
-      .def("ir.TupleGetItem",
-           [](Expr tuple, int index, Span span) { return TupleGetItem(tuple, index, span); })
       .def("relax.Tuple", [](ffi::Array<Expr> fields, Span span) { return Tuple(fields, span); })
       .def("relax.TupleGetItem",
            [](Expr tuple, int index, Span span) { return TupleGetItem(tuple, index, span); });
-  refl::TypeAttrDef<TupleGetItemNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TupleGetItemVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TupleGetItemMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&TupleGetItemMaybeInplaceMutate));
 }
 
 // IntImm
@@ -665,14 +667,15 @@ IntImm::IntImm(PrimType value_ty, int64_t value, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   IntImmNode::RegisterReflection();
-  refl::GlobalDef().def("ir.IntImm", [](DLDataType dtype, int64_t value, Span span) {
-    return IntImm(PrimType(dtype), value, span);
-  });
   refl::TypeAttrDef<IntImmNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&IntImmVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&IntImmMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&IntImmMaybeInplaceMutate));
+
+  refl::GlobalDef().def("ir.IntImm", [](DLDataType dtype, int64_t value, Span span) {
+    return IntImm(PrimType(dtype), value, span);
+  });
 }
 
 // FloatImm
@@ -791,19 +794,39 @@ FloatImm::FloatImm(PrimType value_ty, double value, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   FloatImmNode::RegisterReflection();
-  refl::GlobalDef().def("ir.FloatImm", [](DLDataType dtype, double value, Span span) {
-    return FloatImm(PrimType(dtype), value, span);
-  });
   refl::TypeAttrDef<FloatImmNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&FloatImmVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&FloatImmMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&FloatImmMaybeInplaceMutate));
+
+  refl::GlobalDef().def("ir.FloatImm", [](DLDataType dtype, double value, Span span) {
+    return FloatImm(PrimType(dtype), value, span);
+  });
 }
 
 // Range
 Range::Range(PrimExpr begin, PrimExpr end, Span span)
     : Range(ffi::make_object<RangeNode>(begin, tirx::is_zero(begin) ? end : (end - begin), span)) {}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  RangeNode::RegisterReflection();
+  refl::TypeAttrDef<RangeNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&RangeVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&RangeMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&RangeMaybeInplaceMutate));
+
+  refl::GlobalDef().def("ir.Range",
+                        [](PrimExpr begin, ffi::Optional<PrimExpr> end, Span span) -> Range {
+                          if (end.has_value()) {
+                            return Range(begin, end.value(), span);
+                          } else {
+                            return Range(IntImm(begin.ty(), 0), begin, span);
+                          }
+                        });
+}
 
 Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
   return Range(ffi::make_object<RangeNode>(min, extent, span));
@@ -811,21 +834,7 @@ Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  RangeNode::RegisterReflection();
-  refl::GlobalDef()
-      .def("ir.Range_from_min_extent", Range::FromMinExtent)
-      .def("ir.Range", [](PrimExpr begin, ffi::Optional<PrimExpr> end, Span span) -> Range {
-        if (end.has_value()) {
-          return Range(begin, end.value(), span);
-        } else {
-          return Range(IntImm(begin.ty(), 0), begin, span);
-        }
-      });
-  refl::TypeAttrDef<RangeNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&RangeVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&RangeMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&RangeMaybeInplaceMutate));
+  refl::GlobalDef().def("ir.Range_from_min_extent", Range::FromMinExtent);
 }
 
 // Var
@@ -837,6 +846,19 @@ Var::Var(ffi::String name, ffi::Optional<Type> ty_annotation, Span span) {
   }
   n->span = std::move(span);
   data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  VarNode::RegisterReflection();
+  refl::TypeAttrDef<VarNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&VarVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&VarMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&VarMaybeInplaceMutate));
+
+  refl::GlobalDef().def("ir.Var", [](ffi::String name, ffi::Optional<Type> ty_annotation,
+                                     Span span) { return Var(name, ty_annotation, span); });
 }
 
 Var Var::CopyWithName(const ffi::String& name) const {
@@ -859,16 +881,6 @@ Var Var::CopyWithDType(PrimType dtype) const {
   return Var(std::move(copy));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  VarNode::RegisterReflection();
-  refl::TypeAttrDef<VarNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&VarVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&VarMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&VarMaybeInplaceMutate));
-}
-
 // GlobalVar
 GlobalVar::GlobalVar(ffi::String name_hint, Span span) {
   ffi::ObjectPtr<GlobalVarNode> n = ffi::make_object<GlobalVarNode>();
@@ -885,6 +897,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&GlobalVarMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&GlobalVarMaybeInplaceMutate));
+
+  refl::GlobalDef().def("ir.GlobalVar", [](ffi::String name) { return GlobalVar(name); });
 }
 
 // Call
@@ -905,25 +919,27 @@ Call::Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   CallNode::RegisterReflection();
-  refl::GlobalDef()
-      .def("ir.Var", [](ffi::String name, ffi::Optional<Type> ty_annotation,
-                        Span span) { return Var(name, ty_annotation, span); })
-      .def("ir.GlobalVar", [](ffi::String name) { return GlobalVar(name); })
-      .def("ir.Call",
-           [](Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args,
-              Span span) { return Call(ret_ty, op, args, attrs, ty_args, span); })
-      .def("ir.DebugPrint", [](ffi::ObjectRef ref) {
-        std::stringstream ss;
-        ss << ref;
-        return ss.str();
-      });
-  // Note: kRepr for GlobalVarNode is registered in script/printer/ir/ir.cc
-  // via TVM_REGISTER_SCRIPT_AS_REPR(GlobalVarNode, ReprPrintIR).
   refl::TypeAttrDef<CallNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&CallVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&CallMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&CallMaybeInplaceMutate));
+
+  refl::GlobalDef().def("ir.Call", [](Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs,
+                                      ffi::Array<Type> ty_args, Span span) {
+    return Call(ret_ty, op, args, attrs, ty_args, span);
+  });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("ir.DebugPrint", [](ffi::ObjectRef ref) {
+    std::stringstream ss;
+    ss << ref;
+    return ss.str();
+  });
+  // Note: kRepr for GlobalVarNode is registered in script/printer/ir/ir.cc
+  // via TVM_REGISTER_SCRIPT_AS_REPR(GlobalVarNode, ReprPrintIR).
 }
 
 }  // namespace tvm

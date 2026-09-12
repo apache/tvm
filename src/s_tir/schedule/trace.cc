@@ -30,7 +30,29 @@ namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
 
-TVM_FFI_STATIC_INIT_BLOCK() { TraceNode::RegisterReflection(); }
+namespace {
+
+ffi::String TraceAsPythonRepr(const TraceNode* self) {
+  std::ostringstream os;
+  os << "# from tvm import s_tir\n";
+  os << "def apply_trace(sch: s_tir.Schedule) -> None:\n";
+  ffi::Array<ffi::String> repr = self->AsPython(/*remove_postproc=*/false);
+  bool is_first = true;
+  for (const ffi::String& line : repr) {
+    if (is_first) {
+      is_first = false;
+    } else {
+      os << '\n';
+    }
+    os << "  " << std::string(line);
+  }
+  if (is_first) {
+    os << "  pass";
+  }
+  return os.str();
+}
+
+}  // namespace
 
 /**************** Constructors  ****************/
 
@@ -41,6 +63,21 @@ Trace::Trace(ffi::Array<Instruction> insts, ffi::Map<Instruction, Any> decisions
   n->insts = std::move(insts);
   n->decisions = std::move(decisions);
   data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  TraceNode::RegisterReflection();
+  // Register __ffi_repr__ so str(trace) returns the Python script format
+  refl::TypeAttrDef<TraceNode>().def(
+      refl::type_attr::kRepr,
+      [](Trace trace, ffi::Function) -> ffi::String { return TraceAsPythonRepr(trace.get()); });
+
+  refl::GlobalDef().def(
+      "s_tir.schedule.Trace", [](ffi::Optional<ffi::Array<Instruction>> insts,
+                                 ffi::Optional<ffi::Map<Instruction, Any>> decisions) {
+        return Trace(insts.value_or(ffi::Array<Instruction>()), decisions.value_or({}));
+      });
 }
 
 /**************** Utilities  ****************/
@@ -619,28 +656,6 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
 
 /**************** Repr ****************/
 
-namespace {
-ffi::String TraceAsPythonRepr(const TraceNode* self) {
-  std::ostringstream os;
-  os << "# from tvm import s_tir\n";
-  os << "def apply_trace(sch: s_tir.Schedule) -> None:\n";
-  ffi::Array<ffi::String> repr = self->AsPython(/*remove_postproc=*/false);
-  bool is_first = true;
-  for (const ffi::String& line : repr) {
-    if (is_first) {
-      is_first = false;
-    } else {
-      os << '\n';
-    }
-    os << "  " << std::string(line);
-  }
-  if (is_first) {
-    os << "  pass";
-  }
-  return os.str();
-}
-}  // namespace
-
 /**************** Instruction Registration ****************/
 
 struct EnterPostprocTraits : public UnpackedInstTraits<EnterPostprocTraits> {
@@ -670,11 +685,6 @@ TVM_REGISTER_INST_KIND_TRAITS(EnterPostprocTraits);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("s_tir.schedule.Trace",
-           [](ffi::Optional<ffi::Array<Instruction>> insts,
-              ffi::Optional<ffi::Map<Instruction, Any>> decisions) {
-             return Trace(insts.value_or(ffi::Array<Instruction>()), decisions.value_or({}));
-           })
       .def_method("s_tir.schedule.TraceGetDecision", &TraceNode::GetDecision)
       .def("s_tir.schedule.TraceAppend",
            [](Trace self, Instruction inst, ffi::Optional<ffi::ObjectRef> decision) {
@@ -691,10 +701,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("s_tir.schedule.TraceWithDecision", &TraceNode::WithDecision)
       .def_method("s_tir.schedule.TraceSimplified", &TraceNode::Simplified)
       .def("s_tir.schedule.TraceApplyJSONToSchedule", Trace::ApplyJSONToSchedule);
-  // Register __ffi_repr__ so str(trace) returns the Python script format
-  refl::TypeAttrDef<TraceNode>().def(
-      refl::type_attr::kRepr,
-      [](Trace trace, ffi::Function) -> ffi::String { return TraceAsPythonRepr(trace.get()); });
 }
 
 }  // namespace s_tir
