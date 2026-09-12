@@ -102,6 +102,7 @@ class OperatorConverter:
             "ADD",
             "AVERAGE_POOL_2D",
             "ATAN2",
+            "AVERAGE_POOL_2D",
             "CEIL",
             "CONCATENATION",
             "CONV_2D",
@@ -5683,6 +5684,34 @@ class OperatorConverter:
 
         return out
 
+    @staticmethod
+    def _avg_pool2d_valid_counts(in_hw, filter_hw, stride_hw, padding, out_hw):
+        """Non-padded taps per output position, as an int32 [1, OH, OW, 1] array.
+
+        TFLite's average pool divides by the number of taps that fall inside
+        the input (`count_include_pad=False` semantics). With no padding that
+        is just filter_h*filter_w everywhere; with SAME padding the windows at
+        the borders see fewer, so the divisor is position dependent.
+        """
+        import numpy as _np
+
+        in_h, in_w = in_hw
+        f_h, f_w = filter_hw
+        s_h, s_w = stride_hw
+        pad_top, pad_left = (padding[0], padding[1]) if len(padding) >= 2 else (0, 0)
+        out_h, out_w = out_hw
+
+        def counts_1d(extent, f, s, pad_before, out):
+            c = _np.empty(out, dtype="int32")
+            for i in range(out):
+                start = i * s - pad_before
+                c[i] = min(start + f, extent) - max(start, 0)
+            return c
+
+        rows = counts_1d(in_h, f_h, s_h, pad_top, out_h)
+        cols = counts_1d(in_w, f_w, s_w, pad_left, out_w)
+        return (rows[:, None] * cols[None, :]).reshape(1, out_h, out_w, 1)
+
     def convert_pool2d(self, op, pool_type):
         """pool2d implementation."""
 
@@ -5740,8 +5769,75 @@ class OperatorConverter:
                     "TFLite avg_pool2dreshape requires input and output scale"
                     "and zero points to be equal"
                 )
-                out = relax.op.astype(in_expr, "int32")
-                out = relax.op.nn.avg_pool2d(out, **params)
+                # TFLite's quantized AveragePool rounds the window average
+                # HALF AWAY FROM ZERO, and relax's integer avg_pool2d divides
+                # with a truncating division. Truncating biases every pooled
+                # value toward zero by up to half an LSB -- on a quantized
+                # ResNet that is ~52% of the pooled values, and because such
+                # graphs end in an int8 softmax it reaches the logits as tens
+                # of counts. The reference is
+                #   tensorflow/lite/kernels/internal/reference/integer_ops/
+                #   pooling.h
+                #     acc = acc > 0 ? (acc + count / 2) / count
+                #                   : (acc - count / 2) / count
+                #
+                # So take the window SUM and do that division explicitly.
+                # avg_pool2d divides by the window size, so pre-scaling the
+                # input by that size makes its division exact and what comes
+                # back is the sum. count_include_pad=True keeps that divisor a
+                # constant; the padded taps are zeros and contribute nothing,
+                # so the result is the sum over the VALID taps either way.
+                window = filter_h * filter_w
+                # The accumulator must hold the PRE-SCALED window sum. Every
+                # element is scaled by `window` and then `window` of them are
+                # summed, so |acc| <= max|x| * window^2 -- and max|x| is set by
+                # the INPUT type, which is not always 8-bit: this branch also
+                # takes int16 (a 17x17 pool of int16 32767 needs 2.7e9, past
+                # int32). Size the accumulator from the actual bound: int32
+                # whenever it fits, which keeps the usual int8 case as cheap as
+                # before, else int64.
+                in_info = np.iinfo(self.get_tensor_type_str(input_tensor.tensor.Type()))
+                max_abs = max(-int(in_info.min), int(in_info.max))  # 128 int8, 255 uint8
+                bound = max_abs * window * window
+                if bound < (1 << 31):
+                    acc_dtype = "int32"
+                elif bound < (1 << 63):
+                    acc_dtype = "int64"
+                else:
+                    raise tvm.error.OpAttributeUnImplemented(
+                        f"pooling window {filter_h}x{filter_w} is too large for an "
+                        "exact-sum average pool even with an int64 accumulator"
+                    )
+                acc = relax.op.astype(in_expr, acc_dtype)
+                acc = relax.op.multiply(acc, relax.const(window, acc_dtype))
+                acc = relax.op.nn.avg_pool2d(acc, count_include_pad=True, **params)
+                # relax widens the output dtype of an INTEGER avg_pool2d when the
+                # window is large enough that an int32 accumulator could
+                # overflow -- an 8x8 pool over int32 comes back as int64, a 2x2
+                # one stays int32. Pin it back to the accumulator type so the
+                # rounding arithmetic below always meets constants of the same
+                # dtype; without this an 8x8 pool fails to import with "Binary
+                # operators must have the same datatype".
+                acc = relax.op.astype(acc, acc_dtype)
+
+                # TFLite divides by the number of NON-PADDED taps, which varies
+                # per output position once there is padding. The shapes are
+                # static, so the per-position count is folded to a constant
+                # here rather than computed in the graph.
+                counts = self._avg_pool2d_valid_counts(
+                    (input_h, input_w),
+                    (filter_h, filter_w),
+                    (stride_h, stride_w),
+                    params["padding"],
+                    to_int_list(self.get_tensor_shape(output_tensor))[1:3],
+                )
+                half = relax.const(counts // 2, acc_dtype)
+                out = relax.op.where(
+                    relax.op.greater(acc, relax.const(0, acc_dtype)),
+                    relax.op.add(acc, half),
+                    relax.op.subtract(acc, half),
+                )
+                out = relax.op.divide(out, relax.const(counts, acc_dtype))
                 out = relax.op.astype(out, output_tensor_type_str)
             else:
                 out = relax.op.nn.avg_pool2d(in_expr, **params)
