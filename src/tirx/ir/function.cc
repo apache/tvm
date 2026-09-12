@@ -36,6 +36,45 @@ namespace tirx {
 
 namespace {
 
+tvm::Type InferType(const PrimFunc& prim_func) {
+  ffi::Array<tvm::Type> params;
+  for (const auto& param : prim_func->params) {
+    tvm::Type param_ty = [&]() -> tvm::Type {
+      if (param->ty.as<BufferTypeNode>()) {
+        BufferVar buf(param);
+        relax::ShapeExpr shape(
+            buf->shape.Map([](PrimExpr dim) { return cast(PrimType::Int(64), dim); }));
+        return relax::TensorType(shape, buf->dtype);
+      }
+
+      // A pointer parameter without a buffer annotation is an opaque runtime
+      // object from Relax's perspective (for example, a DLTensor*).  Keep the
+      // same Relax-facing wildcard semantics that opaque handle parameters had
+      // before pointers became exact IR types.
+      if (param->ty.as<PointerTypeNode>()) {
+        return relax::AnyType();
+      }
+
+      return param->ty;
+    }();
+    params.push_back(param_ty);
+  }
+
+  tvm::Type ret = [&]() -> tvm::Type {
+    if (const auto* prim = prim_func->ret_type.as<PrimTypeNode>()) {
+      return tvm::PrimType(prim->dtype);
+    } else if (IsVoidType(prim_func->ret_type)) {
+      return relax::TupleType(ffi::Array<tvm::Type>{});
+    } else {
+      return relax::AnyType();
+    }
+  }();
+
+  bool purity = prim_func->body.defined() ? s_tir::IsPureFunction(prim_func) : false;
+
+  return relax::FuncType(params, ret, purity);
+}
+
 TVMFFIAny PrimFuncVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   // skips: attrs (metadata), ty (derived by InferType)
   const PrimFuncNode* self =
@@ -99,57 +138,7 @@ TVMFFIAny PrimFuncMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
 
 }  // namespace
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  PrimFuncNode::RegisterReflection();
-  TensorIntrinNode::RegisterReflection();
-  refl::TypeAttrDef<PrimFuncNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&PrimFuncVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&PrimFuncMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&PrimFuncMaybeInplaceMutate));
-}
-
-namespace {
-tvm::Type InferType(const PrimFunc& prim_func) {
-  ffi::Array<tvm::Type> params;
-  for (const auto& param : prim_func->params) {
-    tvm::Type param_ty = [&]() -> tvm::Type {
-      if (param->ty.as<BufferTypeNode>()) {
-        BufferVar buf(param);
-        relax::ShapeExpr shape(
-            buf->shape.Map([](PrimExpr dim) { return cast(PrimType::Int(64), dim); }));
-        return relax::TensorType(shape, buf->dtype);
-      }
-
-      // A pointer parameter without a buffer annotation is an opaque runtime
-      // object from Relax's perspective (for example, a DLTensor*).  Keep the
-      // same Relax-facing wildcard semantics that opaque handle parameters had
-      // before pointers became exact IR types.
-      if (param->ty.as<PointerTypeNode>()) {
-        return relax::AnyType();
-      }
-
-      return param->ty;
-    }();
-    params.push_back(param_ty);
-  }
-
-  tvm::Type ret = [&]() -> tvm::Type {
-    if (const auto* prim = prim_func->ret_type.as<PrimTypeNode>()) {
-      return tvm::PrimType(prim->dtype);
-    } else if (IsVoidType(prim_func->ret_type)) {
-      return relax::TupleType(ffi::Array<tvm::Type>{});
-    } else {
-      return relax::AnyType();
-    }
-  }();
-
-  bool purity = prim_func->body.defined() ? s_tir::IsPureFunction(prim_func) : false;
-
-  return relax::FuncType(params, ret, purity);
-}
-}  // namespace
+TVM_FFI_STATIC_INIT_BLOCK() { TensorIntrinNode::RegisterReflection(); }
 
 // Get the function type of a PrimFunc
 PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type, DictAttrs attrs,
@@ -168,6 +157,20 @@ PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type, DictA
   data_ = std::move(n);
 
   (*this)->ty = InferType(*this);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  PrimFuncNode::RegisterReflection();
+  refl::TypeAttrDef<PrimFuncNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&PrimFuncVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&PrimFuncMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&PrimFuncMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.PrimFunc",
+                        [](ffi::Array<tirx::Var> params, Stmt body, Type ret_type, DictAttrs attrs,
+                           Span span) { return PrimFunc(params, body, ret_type, attrs, span); });
 }
 
 FuncType PrimFuncNode::func_type_annotation() const {
@@ -235,10 +238,6 @@ ffi::Optional<TensorIntrin> TensorIntrin::Get(ffi::String name, bool allow_missi
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tirx.PrimFunc",
-           [](ffi::Array<tirx::Var> params, Stmt body, Type ret_type, DictAttrs attrs, Span span) {
-             return PrimFunc(params, body, ret_type, attrs, span);
-           })
       .def("tirx.TensorIntrin",
            [](PrimFunc desc_func, PrimFunc intrin_func) {
              return TensorIntrin(desc_func, intrin_func);
