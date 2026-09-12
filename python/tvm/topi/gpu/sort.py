@@ -30,9 +30,15 @@ from ..utils import ceil_div, prod, swap
 
 
 def _get_threads(nthread_tx, nthread_bx, nthread_by):
+    target = tvm.target.Target.current(allow_none=True)
+    is_cuda = target is not None and target.kind.name == "cuda"
     tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    by = te.thread_axis("blockIdx.y")
+    if is_cuda:
+        bx = te.thread_axis("blockIdx.y")
+        by = te.thread_axis("blockIdx.x")
+    else:
+        bx = te.thread_axis("blockIdx.x")
+        by = te.thread_axis("blockIdx.y")
     return tx, bx, by, nthread_tx, nthread_bx, nthread_by
 
 
@@ -501,17 +507,24 @@ def _sort_common(
             nbx = cast(ceil_div(width, max_threads * thread_work), "int32")
             nbz = cast(ceil_div(size, width), "int32")
 
-        tx, bx, by, _, _, _ = _get_threads(ntx, nbx, nthread_by * nbz)
+        is_cuda = target.kind.name == "cuda"
+        tx = te.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.z")  # nbx
+        if is_cuda:
+            by = te.thread_axis("blockIdx.x")  # batch
+            bz = te.thread_axis("blockIdx.y")  # nbz
+        else:
+            by = te.thread_axis("blockIdx.y")  # batch
+            bz = te.thread_axis("blockIdx.x")  # nbz
         with T.frame_scope(
             [
                 T.attr(tx, "thread_extent", ntx),
                 T.attr(bx, "thread_extent", nbx),
-                T.attr(by, "thread_extent", nthread_by * nbz),
+                T.attr(by, "thread_extent", nthread_by),
+                T.attr(bz, "thread_extent", nbz),
             ]
         ):
-            by_val = by % nthread_by
-            bz = by // nthread_by
-            base_idx = by_val * size
+            base_idx = by * size
 
             # calculate the start, mid, and end points of this section
             start_pos = width * bz
