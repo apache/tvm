@@ -6339,7 +6339,7 @@ class ONNXGraphImporter:
             # Create variables for constants.
             if self._keep_params_in_input:
                 # Pytorch sometimes inserts silly weight prefix. Remove it.
-                var_name = init_tensor.name.strip("onnx::")
+                var_name = init_tensor.name.removeprefix("onnx::")
                 init_var = self._new_var(var_name, shape=array.shape, dtype=array.dtype)
                 self._nodes[init_tensor.name] = init_var
                 # We need to keep track of both the real value and variable for this variable.
