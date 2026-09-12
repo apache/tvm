@@ -30,6 +30,12 @@
 namespace tvm {
 namespace relax {
 
+PackedFuncType::PackedFuncType(Span span) : Type(ffi::UnsafeInit{}) {
+  ffi::ObjectPtr<PackedFuncTypeNode> n = ffi::make_object<PackedFuncTypeNode>();
+  n->span = span;
+  data_ = std::move(n);
+}
+
 namespace {
 
 TVMFFIAny PackedFuncTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
@@ -54,16 +60,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&PackedFuncTypeMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&PackedFuncTypeMaybeInplaceMutate));
-}
 
-PackedFuncType::PackedFuncType(Span span) : Type(ffi::UnsafeInit{}) {
-  ffi::ObjectPtr<PackedFuncTypeNode> n = ffi::make_object<PackedFuncTypeNode>();
-  n->span = span;
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.PackedFuncType", [](Span span) { return PackedFuncType(span); });
 }
 

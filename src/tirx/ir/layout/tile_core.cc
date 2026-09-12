@@ -32,9 +32,15 @@
 namespace tvm {
 namespace tirx {
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  AxisNode::RegisterReflection();
-  ComposeLayoutNode::RegisterReflection();
+TVM_FFI_STATIC_INIT_BLOCK() { ComposeLayoutNode::RegisterReflection(); }
+
+/**************** Iter ****************/
+Iter::Iter(PrimExpr extent, PrimExpr stride, Axis axis) {
+  auto n = ffi::make_object<IterNode>();
+  n->extent = extent;
+  n->stride = stride;
+  n->axis = axis;
+  data_ = std::move(n);
 }
 
 namespace {
@@ -86,6 +92,34 @@ TVMFFIAny IterMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyVie
   self->axis = std::move(mapped_axis).ValueOrUnchanged(std::move(self->axis));
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
+
+}  // namespace
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  IterNode::RegisterReflection();
+  refl::TypeAttrDef<IterNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&IterVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&IterMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&IterMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.Iter", [](PrimExpr extent, PrimExpr stride, Axis axis) {
+    return Iter(extent, stride, axis);
+  });
+}
+
+/**************** TileLayout ****************/
+TileLayout::TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
+                       ffi::Map<Axis, PrimExpr> offset) {
+  auto n = ffi::make_object<TileLayoutNode>();
+  n->shard = shard;
+  n->replica = replica;
+  n->offset = offset;
+  data_ = std::move(n);
+}
+
+namespace {
 
 TVMFFIAny TileLayoutVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const TileLayoutNode* self =
@@ -142,50 +176,19 @@ TVMFFIAny TileLayoutMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
 
 }  // namespace
 
-/**************** Iter ****************/
-Iter::Iter(PrimExpr extent, PrimExpr stride, Axis axis) {
-  auto n = ffi::make_object<IterNode>();
-  n->extent = extent;
-  n->stride = stride;
-  n->axis = axis;
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  IterNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.Iter", [](PrimExpr extent, PrimExpr stride, Axis axis) {
-    return Iter(extent, stride, axis);
-  });
-  refl::TypeAttrDef<IterNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&IterVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&IterMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&IterMaybeInplaceMutate));
-}
-
-/**************** TileLayout ****************/
-TileLayout::TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
-                       ffi::Map<Axis, PrimExpr> offset) {
-  auto n = ffi::make_object<TileLayoutNode>();
-  n->shard = shard;
-  n->replica = replica;
-  n->offset = offset;
-  data_ = std::move(n);
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TileLayoutNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.TileLayout", [](ffi::Array<Iter> shard, ffi::Array<Iter> replica,
-                                              ffi::Map<Axis, PrimExpr> offset) {
-    return TileLayout(shard, replica, offset);
-  });
   refl::TypeAttrDef<TileLayoutNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TileLayoutVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TileLayoutMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&TileLayoutMaybeInplaceMutate));
+
+  refl::GlobalDef().def("tirx.TileLayout", [](ffi::Array<Iter> shard, ffi::Array<Iter> replica,
+                                              ffi::Map<Axis, PrimExpr> offset) {
+    return TileLayout(shard, replica, offset);
+  });
 }
 
 bool TileLayoutNode::CompatibleWithShape(const Array<PrimExpr>& shape) const { return true; }

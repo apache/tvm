@@ -34,30 +34,6 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  PatternSeqNode::RegisterReflection();
-  ExprPatternNode::RegisterReflection();
-  VarPatternNode::RegisterReflection();
-  DataflowVarPatternNode::RegisterReflection();
-  CallPatternNode::RegisterReflection();
-  PrimArrPatternNode::RegisterReflection();
-  FunctionPatternNode::RegisterReflection();
-  TuplePatternNode::RegisterReflection();
-  UnorderedTuplePatternNode::RegisterReflection();
-  TupleGetItemPatternNode::RegisterReflection();
-  AndPatternNode::RegisterReflection();
-  OrPatternNode::RegisterReflection();
-  NotPatternNode::RegisterReflection();
-  WildcardPatternNode::RegisterReflection();
-  TypePatternNode::RegisterReflection();
-  ShapePatternNode::RegisterReflection();
-  SameShapeConstraintNode::RegisterReflection();
-  DataTypePatternNode::RegisterReflection();
-  AttrPatternNode::RegisterReflection();
-  ExternFuncPatternNode::RegisterReflection();
-  ConstantPatternNode::RegisterReflection();
-}
-
 // Helper used inside RELAX_PATTERN_PRINTER_DEF lambdas.
 // Mimics the ReprPrinter interface (p->stream, p->Print) so that existing
 // REPR_LAMBDA bodies compile without modification.
@@ -89,8 +65,10 @@ ExternFuncPattern::ExternFuncPattern(ffi::String global_symbol) {
   n->global_symbol_ = std::move(global_symbol);
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  ExternFuncPatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.ExternFuncPattern",
                         [](ffi::String global_symbol) { return ExternFuncPattern(global_symbol); });
 }
@@ -103,8 +81,10 @@ VarPattern::VarPattern(ffi::String name_hint) {
   n->name = std::move(name_hint);
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  VarPatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.VarPattern",
                         [](ffi::String name_hint) { return VarPattern(name_hint); });
 }
@@ -112,16 +92,19 @@ RELAX_PATTERN_PRINTER_DEF(VarPatternNode, [](auto p, auto node) {
   p->stream << "VarPattern(" << node->name_hint() << ")";
 });
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.dpl.DataflowVarPattern",
-                        [](ffi::String name_hint) { return DataflowVarPattern(name_hint); });
-}
 DataflowVarPattern::DataflowVarPattern(ffi::String name_hint) {
   ffi::ObjectPtr<DataflowVarPatternNode> n = ffi::make_object<DataflowVarPatternNode>();
   n->name = std::move(name_hint);
   data_ = std::move(n);
 }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  DataflowVarPatternNode::RegisterReflection();
+  refl::GlobalDef().def("relax.dpl.DataflowVarPattern",
+                        [](ffi::String name_hint) { return DataflowVarPattern(name_hint); });
+}
+
 RELAX_PATTERN_PRINTER_DEF(DataflowVarPatternNode, [](auto p, auto node) {
   p->stream << "DataflowVarPattern(" << node->name_hint() << ")";
 });
@@ -131,6 +114,7 @@ GlobalVarPattern::GlobalVarPattern(ffi::String name_hint) {
   n->name = std::move(name_hint);
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.dpl.GlobalVarPattern",
@@ -145,14 +129,17 @@ ExprPattern::ExprPattern(Expr expr) {
   n->expr = std::move(expr);
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  ExprPatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.ExprPattern", [](Expr e) { return ExprPattern(e); });
 }
 RELAX_PATTERN_PRINTER_DEF(ExprPatternNode, [](auto p, auto node) { p->Print(node->expr); });
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  ConstantPatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.ConstantPattern", []() {
     auto c = ConstantPattern(ffi::make_object<ConstantPatternNode>());
     return c;
@@ -168,8 +155,10 @@ CallPattern::CallPattern(DFPattern op, ffi::Array<DFPattern> args, bool varg_def
   n->varg_default_wildcard = varg_default_wildcard;
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  CallPatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.CallPattern",
                         [](DFPattern op, ffi::Array<DFPattern> args, bool varg_default_wildcard) {
                           return CallPattern(op, args, varg_default_wildcard);
@@ -193,8 +182,10 @@ PrimArrPattern::PrimArrPattern(ffi::Array<PrimExpr> arr) {
   n->fields = std::move(arr);
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  PrimArrPatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.PrimArrPattern",
                         [](ffi::Array<PrimExpr> arr) { return PrimArrPattern(std::move(arr)); });
 }
@@ -208,8 +199,10 @@ FunctionPattern::FunctionPattern(ffi::Array<DFPattern> params, DFPattern body) {
   n->body = std::move(body);
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  FunctionPatternNode::RegisterReflection();
   refl::GlobalDef().def(
       "relax.dpl.FunctionPattern",
       [](ffi::Array<DFPattern> params, DFPattern body) { return FunctionPattern(params, body); });
@@ -223,8 +216,10 @@ TuplePattern::TuplePattern(tvm::ffi::Array<DFPattern> fields) {
   n->fields = std::move(fields);
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  TuplePatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.TuplePattern",
                         [](tvm::ffi::Array<DFPattern> fields) { return TuplePattern(fields); });
 }
@@ -237,8 +232,10 @@ UnorderedTuplePattern::UnorderedTuplePattern(tvm::ffi::Array<DFPattern> fields) 
   n->fields = std::move(fields);
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  UnorderedTuplePatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.UnorderedTuplePattern", [](tvm::ffi::Array<DFPattern> fields) {
     return UnorderedTuplePattern(fields);
   });
@@ -253,8 +250,10 @@ TupleGetItemPattern::TupleGetItemPattern(DFPattern tuple, int index) {
   n->index = index;
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  TupleGetItemPatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.TupleGetItemPattern", [](DFPattern tuple, int index) {
     return TupleGetItemPattern(tuple, index);
   });
@@ -269,8 +268,10 @@ AndPattern::AndPattern(DFPattern left, DFPattern right) {
   n->right = std::move(right);
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  AndPatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.AndPattern",
                         [](DFPattern left, DFPattern right) { return AndPattern(left, right); });
 }
@@ -284,8 +285,10 @@ OrPattern::OrPattern(DFPattern left, DFPattern right) {
   n->right = std::move(right);
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  OrPatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.OrPattern",
                         [](DFPattern left, DFPattern right) { return OrPattern(left, right); });
 }
@@ -298,8 +301,10 @@ NotPattern::NotPattern(DFPattern reject) {
   n->reject = std::move(reject);
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  NotPatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.NotPattern",
                         [](DFPattern reject) { return NotPattern(reject); });
 }
@@ -307,8 +312,10 @@ RELAX_PATTERN_PRINTER_DEF(NotPatternNode,
                           [](auto p, auto node) { p->stream << "!(" << node->reject << ")"; });
 
 WildcardPattern::WildcardPattern() { data_ = ffi::make_object<WildcardPatternNode>(); }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  WildcardPatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.WildcardPattern", []() { return WildcardPattern(); });
 }
 RELAX_PATTERN_PRINTER_DEF(WildcardPatternNode, [](auto p, auto node) { p->stream << "*"; });
@@ -319,8 +326,10 @@ TypePattern::TypePattern(DFPattern pattern, Type ty) {
   n->ty = std::move(ty);
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  TypePatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.TypePattern",
                         [](DFPattern pattern, Type ty) { return TypePattern(pattern, ty); });
 }
@@ -334,8 +343,10 @@ ShapePattern::ShapePattern(DFPattern pattern, ffi::Array<PrimExpr> shape) {
   n->shape = std::move(shape);
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  ShapePatternNode::RegisterReflection();
   refl::GlobalDef().def(
       "relax.dpl.ShapePattern",
       [](DFPattern pattern, ffi::Array<PrimExpr> shape) { return ShapePattern(pattern, shape); });
@@ -353,8 +364,10 @@ SameShapeConstraint::SameShapeConstraint(ffi::Array<DFPattern> args) {
     ctx.value().add_constraint(*this);
   }
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  SameShapeConstraintNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.SameShapeConstraint",
                         [](ffi::Array<DFPattern> args) { return SameShapeConstraint(args); });
 }
@@ -375,8 +388,10 @@ DataTypePattern::DataTypePattern(DFPattern pattern, DLDataType dtype) {
   n->dtype = dtype;
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  DataTypePatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.DataTypePattern", [](DFPattern pattern, DLDataType dtype) {
     return DataTypePattern(pattern, dtype);
   });
@@ -391,8 +406,10 @@ AttrPattern::AttrPattern(DFPattern pattern, DictAttrs attrs) {
   n->attrs = std::move(attrs);
   data_ = std::move(n);
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  AttrPatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.AttrPattern", [](DFPattern pattern, DictAttrs attrs) {
     return AttrPattern(pattern, attrs);
   });
@@ -564,8 +581,10 @@ PatternSeq PatternSeq::dup() const {
 
   return ret;
 }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  PatternSeqNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.PatternSeq",
                         [](ffi::Array<DFPattern> patterns, bool only_used_by) {
                           return PatternSeq(std::move(patterns), only_used_by);

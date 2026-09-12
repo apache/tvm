@@ -124,6 +124,28 @@ TensorInfo::TensorInfo(DLDataType dtype, ffi::Shape shape) {
   this->data_ = std::move(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  TensorInfoNode::RegisterReflection();
+  refl::TypeAttrDef<TensorInfoNode>().def(refl::type_attr::kRepr,
+                                          [](TensorInfo ti, ffi::Function fn_repr) -> ffi::String {
+                                            std::ostringstream os;
+                                            os << "TensorInfo(\"" << ti->dtype << "\", [";
+                                            bool first = true;
+                                            for (int64_t v : ti->shape) {
+                                              if (!first) os << ", ";
+                                              os << v;
+                                              first = false;
+                                            }
+                                            os << "])";
+                                            return os.str();
+                                          });
+
+  refl::GlobalDef().def(
+      "s_tir.meta_schedule.TensorInfo",
+      [](DLDataType dtype, ffi::Shape shape) -> TensorInfo { return TensorInfo(dtype, shape); });
+}
+
 ffi::ObjectRef TensorInfoNode::AsJSON() const {
   static ffi::String tag = "TENSOR";
   ffi::String dtype = ffi::DLDataTypeToString(this->dtype);
@@ -155,25 +177,7 @@ TensorInfo TensorInfo::FromJSON(const ffi::ObjectRef& json_obj) {
 
 /******** Repr ********/
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::TypeAttrDef<TensorInfoNode>().def(refl::type_attr::kRepr,
-                                          [](TensorInfo ti, ffi::Function fn_repr) -> ffi::String {
-                                            std::ostringstream os;
-                                            os << "TensorInfo(\"" << ti->dtype << "\", [";
-                                            bool first = true;
-                                            for (int64_t v : ti->shape) {
-                                              if (!first) os << ", ";
-                                              os << v;
-                                              first = false;
-                                            }
-                                            os << "])";
-                                            return os.str();
-                                          });
-}
-
 /******** FFI ********/
-TVM_FFI_STATIC_INIT_BLOCK() { TensorInfoNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -181,10 +185,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("s_tir.meta_schedule.ArgInfoAsJSON", &ArgInfoNode::AsJSON)
       .def("s_tir.meta_schedule.ArgInfoFromPrimFunc", ArgInfo::FromPrimFunc)
       .def("s_tir.meta_schedule.ArgInfoFromEntryFunc", ArgInfo::FromEntryFunc)
-      .def("s_tir.meta_schedule.ArgInfoFromJSON", ArgInfo::FromJSON)
-      .def("s_tir.meta_schedule.TensorInfo", [](DLDataType dtype, ffi::Shape shape) -> TensorInfo {
-        return TensorInfo(dtype, shape);
-      });
+      .def("s_tir.meta_schedule.ArgInfoFromJSON", ArgInfo::FromJSON);
 }
 
 }  // namespace meta_schedule

@@ -35,33 +35,7 @@
 
 namespace tvm {
 
-namespace {
-
-TVMFFIAny OpVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  // Ops are unique registry atoms.  Avoid reflecting through their registry metadata.
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
-}
-
-TVMFFIAny OpMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
-TVMFFIAny OpMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
-}  // namespace
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  ArgumentInfoNode::RegisterReflection();
-  OpNode::RegisterReflection();
-  refl::TypeAttrDef<OpNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&OpVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&OpMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&OpMaybeInplaceMutate));
-}
+TVM_FFI_STATIC_INIT_BLOCK() { ArgumentInfoNode::RegisterReflection(); }
 
 using ffi::Any;
 using ffi::Function;
@@ -81,6 +55,40 @@ Op OpRegEntry::MakeOp(uint32_t reg_index) {
   ffi::ObjectPtr<OpNode> n = ffi::make_object<OpNode>();
   n->index_ = reg_index;
   return Op(n);
+}
+
+namespace {
+
+TVMFFIAny OpVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  // Ops are unique registry atoms.  Avoid reflecting through their registry metadata.
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny OpMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny OpMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+}  // namespace
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  OpNode::RegisterReflection();
+  refl::TypeAttrDef<OpNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&OpVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&OpMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&OpMaybeInplaceMutate));
+  refl::TypeAttrDef<OpNode>()
+      .def("__data_to_json__",
+           [](const OpNode* node) -> ffi::String {
+             // simply save as the string
+             return node->name;
+           })
+      .def("__data_from_json__", [](const ffi::String& name) -> Op { return Op::Get(name); });
 }
 
 OpRegEntry::OpRegEntry(uint32_t reg_index) : op_(MakeOp(reg_index)) {}
@@ -181,13 +189,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  target + ".FLowerIntrinsic", f, plevel);
            });
   // override OpNode to use name as the repr
-  refl::TypeAttrDef<OpNode>()
-      .def("__data_to_json__",
-           [](const OpNode* node) -> ffi::String {
-             // simply save as the string
-             return node->name;
-           })
-      .def("__data_from_json__", [](const ffi::String& name) -> Op { return Op::Get(name); });
 }
 
 // Pattern A (RM): auto-default repr from reflection.

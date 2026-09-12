@@ -46,6 +46,41 @@ namespace tirx {
 
 namespace {
 
+BufferVar RebuildBufferVarFromType(const BufferVar& buffer, BufferType type,
+                                   ffi::String name_suffix = "") {
+  return BufferVar(buffer.name() + name_suffix, std::move(type), buffer.span());
+}
+
+}  // namespace
+
+using IndexMod = prim::FloorModNode;
+using IndexDiv = prim::FloorDivNode;
+
+BufferType::BufferType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
+                       ffi::Array<PrimExpr> strides, PrimExpr elem_offset, int data_alignment,
+                       int offset_factor, ffi::Optional<Layout> layout,
+                       ffi::Array<PrimExpr> allocated_addr, Span span)
+    : Type(ffi::UnsafeInit{}) {
+  auto n = ffi::make_object<BufferTypeNode>();
+  n->dtype = std::move(dtype);
+  n->storage_scope = storage_scope.empty() ? ffi::String("global") : std::move(storage_scope);
+  n->shape = std::move(shape);
+  n->strides = std::move(strides);
+  if (!elem_offset.defined()) {
+    elem_offset = IntImm(PrimType(n->DefaultIndexType()), 0);
+  }
+  n->elem_offset = std::move(elem_offset);
+  n->data_alignment =
+      data_alignment <= 0 ? static_cast<int>(runtime::kAllocAlignment) : data_alignment;
+  n->offset_factor = offset_factor == 0 ? 1 : offset_factor;
+  n->layout = std::move(layout);
+  n->allocated_addr = std::move(allocated_addr);
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
+namespace {
+
 ffi::ObjectRef RealizeBufferSubscript(
     Expr value,
     ffi::Array<ffi::Variant<
@@ -103,11 +138,6 @@ ffi::ObjectRef RealizeBufferSubscript(
         Range::FromMinExtent(IntImm(buffer_ty->shape[i].ty(), 0), buffer_ty->shape[i]));
   }
   return BufferRegion(buffer, region, span);
-}
-
-BufferVar RebuildBufferVarFromType(const BufferVar& buffer, BufferType type,
-                                   ffi::String name_suffix = "") {
-  return BufferVar(buffer.name() + name_suffix, std::move(type), buffer.span());
 }
 
 // Structural traversal hooks
@@ -240,32 +270,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&BufferTypeMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&BufferTypeMaybeInplaceMutate));
-}
 
-using IndexMod = prim::FloorModNode;
-using IndexDiv = prim::FloorDivNode;
-
-BufferType::BufferType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
-                       ffi::Array<PrimExpr> strides, PrimExpr elem_offset, int data_alignment,
-                       int offset_factor, ffi::Optional<Layout> layout,
-                       ffi::Array<PrimExpr> allocated_addr, Span span)
-    : Type(ffi::UnsafeInit{}) {
-  auto n = ffi::make_object<BufferTypeNode>();
-  n->dtype = std::move(dtype);
-  n->storage_scope = storage_scope.empty() ? ffi::String("global") : std::move(storage_scope);
-  n->shape = std::move(shape);
-  n->strides = std::move(strides);
-  if (!elem_offset.defined()) {
-    elem_offset = IntImm(PrimType(n->DefaultIndexType()), 0);
-  }
-  n->elem_offset = std::move(elem_offset);
-  n->data_alignment =
-      data_alignment <= 0 ? static_cast<int>(runtime::kAllocAlignment) : data_alignment;
-  n->offset_factor = offset_factor == 0 ? 1 : offset_factor;
-  n->layout = std::move(layout);
-  n->allocated_addr = std::move(allocated_addr);
-  n->span = std::move(span);
-  data_ = std::move(n);
+  refl::GlobalDef().def(
+      "tirx.BufferType",
+      [](ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
+         ffi::Array<PrimExpr> strides, PrimExpr elem_offset, int data_alignment, int offset_factor,
+         ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr, Span span) {
+        return BufferType(std::move(storage_scope), std::move(dtype), std::move(shape),
+                          std::move(strides), std::move(elem_offset), data_alignment, offset_factor,
+                          std::move(layout), std::move(allocated_addr), std::move(span));
+      });
 }
 
 ffi::Array<PrimExpr> SimplifyArray(arith::AnalyzerObj* ana, ffi::Array<PrimExpr> array) {
@@ -778,16 +792,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("tirx.BufferWithDtype", &BufferVar::with_dtype)
       .def_method("tirx.BufferIsScalar", &BufferVar::IsScalar)
       .def_method("tirx.BufferData", &BufferVar::data)
-      .def_method("tirx.BufferDataPointerType", &BufferVar::DataPointerType)
-      .def("tirx.BufferType", [](ffi::String storage_scope, PrimType dtype,
-                                 ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> strides,
-                                 PrimExpr elem_offset, int data_alignment, int offset_factor,
-                                 ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr,
-                                 Span span) {
-        return BufferType(std::move(storage_scope), std::move(dtype), std::move(shape),
-                          std::move(strides), std::move(elem_offset), data_alignment, offset_factor,
-                          std::move(layout), std::move(allocated_addr), std::move(span));
-      });
+      .def_method("tirx.BufferDataPointerType", &BufferVar::DataPointerType);
 }
 
 }  // namespace tirx

@@ -31,22 +31,6 @@
 namespace tvm {
 namespace te {
 
-namespace {
-
-TVMFFIAny TensorVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
-}
-
-TVMFFIAny TensorMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
-TVMFFIAny TensorMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
-}  // namespace
-
 void TensorNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<TensorNode>()
@@ -54,16 +38,6 @@ void TensorNode::RegisterReflection() {
       .def_ro("dtype", &TensorNode::dtype)
       .def_ro("op", &TensorNode::op)
       .def_ro("value_index", &TensorNode::value_index);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  TensorNode::RegisterReflection();
-  refl::TypeAttrDef<TensorNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TensorVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TensorMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&TensorMaybeInplaceMutate));
 }
 
 IterVar thread_axis(Range dom, std::string tag) {
@@ -137,6 +111,32 @@ Tensor::Tensor(ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int val
   n->op = op;
   n->value_index = value_index;
   data_ = std::move(n);
+}
+
+namespace {
+
+TVMFFIAny TensorVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny TensorMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny TensorMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+}  // namespace
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  TensorNode::RegisterReflection();
+  refl::TypeAttrDef<TensorNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TensorVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TensorMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&TensorMaybeInplaceMutate));
 }
 
 bool IsTensorLoad(const Expr& expr) {
