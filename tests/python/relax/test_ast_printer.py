@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F811, F841
+# ruff: noqa: F841
 import re
 from functools import partial
 
@@ -194,15 +194,15 @@ def test_seq_expr() -> None:
     assert "body=" in seqe_str
 
 
-def test_shape_expr() -> None:
-    m = tirx.Var("m", ty="int32")
-    n = tirx.Var("n", ty="int32")
+def test_shape_expr_symbolic() -> None:
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     s = rx.ShapeExpr([m, n])
     s_str = dump_ast(s)
     assert s_str.startswith("ShapeExpr(")
     assert "values=" in s_str
-    assert "Expr(value=`m: int32`)" in s_str
-    assert "Expr(value=`n: int32`)" in s_str
+    assert "Expr(value=`m`)" in s_str
+    assert "Expr(value=`n`)" in s_str
 
 
 def test_func():

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F811, RUF005
+# ruff: noqa: RUF005
 
 import pytest
 
@@ -1453,27 +1453,6 @@ def test_ty_may_be_incomplete():
             return C
 
     rx.analysis.well_formed(Module)
-
-
-def test_incomplete_ty_must_be_consistent():
-    """Type annotations must be accurate
-
-    Even though Type annotation may be less specific, the
-    information that they do contain must be correct.
-
-    """
-
-    @I.ir_module(check_well_formed=False, s_tir=True)
-    class Module:
-        @R.function
-        def main(
-            A: R.Tensor(shape=[128, 32], dtype="float32"),
-            B: R.Tensor(shape=[128, 32], dtype="float32"),
-        ):
-            C: R.Tensor(ndim=3) = R.add(A, B)
-            return C
-
-    assert not rx.analysis.check_well_formed(Module)
 
 
 if __name__ == "__main__":

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F811
 
 import numpy as np
 import pytest
@@ -45,7 +44,7 @@ def test_1d_view_of_first_half_of_1d_arr():
     np.testing.assert_equal(tvm_output.numpy(), np_expected)
 
 
-def test_1d_view_of_first_half_of_1d_arr():
+def test_1d_view_of_second_half_of_1d_arr():
     """Subset returned by Tensor::CreateView may have a byte offset"""
     np_input = np.arange(1024, dtype="int32")
     tvm_input = tvm.runtime.tensor(np_input)
