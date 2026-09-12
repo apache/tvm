@@ -51,35 +51,7 @@ BufferVar RebuildBufferVarFromType(const BufferVar& buffer, BufferType type,
   return BufferVar(buffer.name() + name_suffix, std::move(type), buffer.span());
 }
 
-}  // namespace
-
-using IndexMod = prim::FloorModNode;
-using IndexDiv = prim::FloorDivNode;
-
-BufferType::BufferType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
-                       ffi::Array<PrimExpr> strides, PrimExpr elem_offset, int data_alignment,
-                       int offset_factor, ffi::Optional<Layout> layout,
-                       ffi::Array<PrimExpr> allocated_addr, Span span)
-    : Type(ffi::UnsafeInit{}) {
-  auto n = ffi::make_object<BufferTypeNode>();
-  n->dtype = std::move(dtype);
-  n->storage_scope = storage_scope.empty() ? ffi::String("global") : std::move(storage_scope);
-  n->shape = std::move(shape);
-  n->strides = std::move(strides);
-  if (!elem_offset.defined()) {
-    elem_offset = IntImm(PrimType(n->DefaultIndexType()), 0);
-  }
-  n->elem_offset = std::move(elem_offset);
-  n->data_alignment =
-      data_alignment <= 0 ? static_cast<int>(runtime::kAllocAlignment) : data_alignment;
-  n->offset_factor = offset_factor == 0 ? 1 : offset_factor;
-  n->layout = std::move(layout);
-  n->allocated_addr = std::move(allocated_addr);
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-static ffi::ObjectRef RealizeBufferSubscript(
+ffi::ObjectRef RealizeBufferSubscript(
     Expr value,
     ffi::Array<ffi::Variant<
         ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
@@ -140,7 +112,7 @@ static ffi::ObjectRef RealizeBufferSubscript(
 
 // Structural traversal hooks
 
-static TVMFFIAny BufferTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+TVMFFIAny BufferTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   // skips: storage_scope, data_alignment, offset_factor
   const BufferTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferTypeNode>(value);
@@ -161,7 +133,7 @@ static TVMFFIAny BufferTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyVie
   return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
 
-static TVMFFIAny BufferTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+TVMFFIAny BufferTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   // skips: storage_scope, data_alignment, offset_factor
   const BufferTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferTypeNode>(value);
@@ -208,8 +180,8 @@ static TVMFFIAny BufferTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyVi
   return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
 }
 
-static TVMFFIAny BufferTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
-                                              ffi::AnyView value) noexcept {
+TVMFFIAny BufferTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                       ffi::AnyView value) noexcept {
   // skips: storage_scope, data_alignment, offset_factor
   BufferTypeNode* self = const_cast<BufferTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferTypeNode>(value));
@@ -255,6 +227,34 @@ static TVMFFIAny BufferTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator
     self->allocated_addr = std::move(mapped_allocated_addr).ValueUnchecked();
   }
   return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+}  // namespace
+
+using IndexMod = prim::FloorModNode;
+using IndexDiv = prim::FloorDivNode;
+
+BufferType::BufferType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
+                       ffi::Array<PrimExpr> strides, PrimExpr elem_offset, int data_alignment,
+                       int offset_factor, ffi::Optional<Layout> layout,
+                       ffi::Array<PrimExpr> allocated_addr, Span span)
+    : Type(ffi::UnsafeInit{}) {
+  auto n = ffi::make_object<BufferTypeNode>();
+  n->dtype = std::move(dtype);
+  n->storage_scope = storage_scope.empty() ? ffi::String("global") : std::move(storage_scope);
+  n->shape = std::move(shape);
+  n->strides = std::move(strides);
+  if (!elem_offset.defined()) {
+    elem_offset = IntImm(PrimType(n->DefaultIndexType()), 0);
+  }
+  n->elem_offset = std::move(elem_offset);
+  n->data_alignment =
+      data_alignment <= 0 ? static_cast<int>(runtime::kAllocAlignment) : data_alignment;
+  n->offset_factor = offset_factor == 0 ? 1 : offset_factor;
+  n->layout = std::move(layout);
+  n->allocated_addr = std::move(allocated_addr);
+  n->span = std::move(span);
+  data_ = std::move(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

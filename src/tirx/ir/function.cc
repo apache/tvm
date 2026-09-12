@@ -34,9 +34,8 @@
 namespace tvm {
 namespace tirx {
 
-TVM_FFI_STATIC_INIT_BLOCK() { TensorIntrinNode::RegisterReflection(); }
-
 namespace {
+
 tvm::Type InferType(const PrimFunc& prim_func) {
   ffi::Array<tvm::Type> params;
   for (const auto& param : prim_func->params) {
@@ -75,28 +74,8 @@ tvm::Type InferType(const PrimFunc& prim_func) {
 
   return relax::FuncType(params, ret, purity);
 }
-}  // namespace
 
-// Get the function type of a PrimFunc
-PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type, DictAttrs attrs,
-                   Span span) {
-  if (ret_type.IsMissing()) {
-    ret_type = VoidType();
-  }
-
-  auto n = ffi::make_object<PrimFuncNode>();
-  n->params = std::move(params);
-  n->body = std::move(body);
-  n->ret_type = std::move(ret_type);
-  n->attrs = std::move(attrs);
-  n->ty = relax::FuncType::OpaqueFunc();
-  n->span = std::move(span);
-  data_ = std::move(n);
-
-  (*this)->ty = InferType(*this);
-}
-
-static TVMFFIAny PrimFuncVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+TVMFFIAny PrimFuncVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   // skips: attrs (metadata), ty (derived by InferType)
   const PrimFuncNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PrimFuncNode>(value);
@@ -107,7 +86,7 @@ static TVMFFIAny PrimFuncVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView 
   return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
 
-static TVMFFIAny PrimFuncMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+TVMFFIAny PrimFuncMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   // skips: attrs (metadata), ty (derived by InferType)
   const PrimFuncNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PrimFuncNode>(value);
@@ -131,8 +110,8 @@ static TVMFFIAny PrimFuncMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView
   return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
 }
 
-static TVMFFIAny PrimFuncMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
-                                            ffi::AnyView value) noexcept {
+TVMFFIAny PrimFuncMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                     ffi::AnyView value) noexcept {
   // skips: attrs (metadata), ty (derived by InferType)
   PrimFuncNode* self = const_cast<PrimFuncNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PrimFuncNode>(value));
@@ -155,6 +134,29 @@ static TVMFFIAny PrimFuncMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
     self->body = std::move(mapped_body).ValueUnchecked();
   }
   return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+}  // namespace
+
+TVM_FFI_STATIC_INIT_BLOCK() { TensorIntrinNode::RegisterReflection(); }
+
+// Get the function type of a PrimFunc
+PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type, DictAttrs attrs,
+                   Span span) {
+  if (ret_type.IsMissing()) {
+    ret_type = VoidType();
+  }
+
+  auto n = ffi::make_object<PrimFuncNode>();
+  n->params = std::move(params);
+  n->body = std::move(body);
+  n->ret_type = std::move(ret_type);
+  n->attrs = std::move(attrs);
+  n->ty = relax::FuncType::OpaqueFunc();
+  n->span = std::move(span);
+  data_ = std::move(n);
+
+  (*this)->ty = InferType(*this);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

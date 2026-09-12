@@ -32,22 +32,164 @@
 namespace tvm {
 namespace relax {
 
+namespace {
+
+TVMFFIAny AnyTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny AnyTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny AnyTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny ShapeTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
+  const ShapeTypeNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ShapeTypeNode>(value);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->values));
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny ShapeTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
+  const ShapeTypeNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ShapeTypeNode>(value);
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<ffi::Array<PrimExpr>>>,
+                                    mapped_values, mutator->MutateExpected(self->values));
+  if (mapped_values.UnchangedOrSameAs(self->values)) return ffi::Unchanged().CopyToTVMFFIAny();
+  ffi::ObjectPtr<ShapeTypeNode> copy = ffi::make_object<ShapeTypeNode>(*self);
+  copy->values = std::move(mapped_values).ValueOrUnchanged(std::move(copy->values));
+  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+}
+
+TVMFFIAny ShapeTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                      ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
+  ShapeTypeNode* self = const_cast<ShapeTypeNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ShapeTypeNode>(value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<ffi::Array<PrimExpr>>>,
+                                    mapped_values,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->values));
+  if (!mapped_values.UnchangedOrSameAs(self->values)) {
+    self->values = std::move(mapped_values).ValueUnchecked();
+  }
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny TensorTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
+  const TensorTypeNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorTypeNode>(value);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->shape));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->dtype));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->vdevice));
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny TensorTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
+  const TensorTypeNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorTypeNode>(value);
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Expr>>, mapped_shape,
+                                    mutator->MutateExpected(self->shape));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<PrimType>>, mapped_dtype,
+                                    mutator->MutateExpected(self->dtype));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<VDevice>>, mapped_vdevice,
+                                    mutator->MutateExpected(self->vdevice));
+  if (mapped_shape.UnchangedOrSameAs(self->shape) && mapped_dtype.UnchangedOrSameAs(self->dtype) &&
+      mapped_vdevice.UnchangedOrSameAs(self->vdevice)) {
+    return ffi::Unchanged().CopyToTVMFFIAny();
+  }
+  ffi::ObjectPtr<TensorTypeNode> copy = ffi::make_object<TensorTypeNode>(*self);
+  copy->shape = std::move(mapped_shape).ValueOrUnchanged(std::move(copy->shape));
+  copy->dtype = std::move(mapped_dtype).ValueOrUnchanged(std::move(copy->dtype));
+  copy->vdevice = std::move(mapped_vdevice).ValueOrUnchanged(std::move(copy->vdevice));
+  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+}
+
+TVMFFIAny TensorTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                       ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
+  TensorTypeNode* self = const_cast<TensorTypeNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorTypeNode>(value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Expr>>, mapped_shape,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->shape));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<PrimType>>, mapped_dtype,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->dtype));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<VDevice>>, mapped_vdevice,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->vdevice));
+  if (!mapped_shape.UnchangedOrSameAs(self->shape)) {
+    self->shape = std::move(mapped_shape).ValueUnchecked();
+  }
+  if (!mapped_dtype.UnchangedOrSameAs(self->dtype)) {
+    self->dtype = std::move(mapped_dtype).ValueUnchecked();
+  }
+  if (!mapped_vdevice.UnchangedOrSameAs(self->vdevice)) {
+    self->vdevice = std::move(mapped_vdevice).ValueUnchecked();
+  }
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny FuncTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  // skips: derive_func (environment-backed callable metadata), purity (scalar)
+  const FuncTypeNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(value);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
+      kTVMFFIDefRegionKindPattern, [&]() { return visitor->VisitExpected(self->params); }));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->ret));
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny FuncTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  // skips: derive_func (environment-backed callable metadata), purity (scalar)
+  const FuncTypeNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(value);
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Optional<ffi::Array<Type>>>, mapped_params,
+      mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern,
+                                 [&]() { return mutator->MutateExpected(self->params); }));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ret,
+                                    mutator->MutateExpected(self->ret));
+  if (mapped_params.UnchangedOrSameAs(self->params) && mapped_ret.UnchangedOrSameAs(self->ret)) {
+    return ffi::Unchanged().CopyToTVMFFIAny();
+  }
+  ffi::ObjectPtr<FuncTypeNode> copy = ffi::make_object<FuncTypeNode>(*self);
+  copy->params = std::move(mapped_params).ValueOrUnchanged(std::move(copy->params));
+  copy->ret = std::move(mapped_ret).ValueOrUnchanged(std::move(copy->ret));
+  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+}
+
+TVMFFIAny FuncTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                     ffi::AnyView value) noexcept {
+  // skips: derive_func (environment-backed callable metadata), purity (scalar)
+  FuncTypeNode* self = const_cast<FuncTypeNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Optional<ffi::Array<Type>>>, mapped_params,
+      mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&]() {
+        return mutator->MaybeInplaceMutateIfUniqueExpected(self->params);
+      }));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ret,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->ret));
+  if (!mapped_params.UnchangedOrSameAs(self->params)) {
+    self->params = std::move(mapped_params).ValueUnchecked();
+  }
+  if (!mapped_ret.UnchangedOrSameAs(self->ret)) {
+    self->ret = std::move(mapped_ret).ValueUnchecked();
+  }
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+}  // namespace
+
 AnyType::AnyType(Span span) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<AnyTypeNode> n = ffi::make_object<AnyTypeNode>();
   n->span = span;
   data_ = std::move(n);
-}
-
-static TVMFFIAny AnyTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
-}
-
-static TVMFFIAny AnyTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
-static TVMFFIAny AnyTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -89,40 +231,6 @@ ShapeType::ShapeType(int ndim, Span span) : Type(ffi::UnsafeInit{}) {
   n->ndim = ndim;
   n->span = span;
   data_ = std::move(n);
-}
-
-static TVMFFIAny ShapeTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
-  // skips: ndim (scalar)
-  const ShapeTypeNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ShapeTypeNode>(value);
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->values));
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
-}
-
-static TVMFFIAny ShapeTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: ndim (scalar)
-  const ShapeTypeNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ShapeTypeNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<ffi::Array<PrimExpr>>>,
-                                    mapped_values, mutator->MutateExpected(self->values));
-  if (mapped_values.UnchangedOrSameAs(self->values)) return ffi::Unchanged().CopyToTVMFFIAny();
-  ffi::ObjectPtr<ShapeTypeNode> copy = ffi::make_object<ShapeTypeNode>(*self);
-  copy->values = std::move(mapped_values).ValueOrUnchanged(std::move(copy->values));
-  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
-}
-
-static TVMFFIAny ShapeTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
-                                             ffi::AnyView value) noexcept {
-  // skips: ndim (scalar)
-  ShapeTypeNode* self = const_cast<ShapeTypeNode*>(
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ShapeTypeNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<ffi::Array<PrimExpr>>>,
-                                    mapped_values,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->values));
-  if (!mapped_values.UnchangedOrSameAs(self->values)) {
-    self->values = std::move(mapped_values).ValueUnchecked();
-  }
-  return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -180,60 +288,6 @@ TensorType::TensorType(ffi::Optional<PrimType> dtype, int ndim, ffi::Optional<VD
   data_ = std::move(n);
 }
 
-static TVMFFIAny TensorTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
-  // skips: ndim (scalar)
-  const TensorTypeNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorTypeNode>(value);
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->shape));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->dtype));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->vdevice));
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
-}
-
-static TVMFFIAny TensorTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: ndim (scalar)
-  const TensorTypeNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorTypeNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Expr>>, mapped_shape,
-                                    mutator->MutateExpected(self->shape));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<PrimType>>, mapped_dtype,
-                                    mutator->MutateExpected(self->dtype));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<VDevice>>, mapped_vdevice,
-                                    mutator->MutateExpected(self->vdevice));
-  if (mapped_shape.UnchangedOrSameAs(self->shape) && mapped_dtype.UnchangedOrSameAs(self->dtype) &&
-      mapped_vdevice.UnchangedOrSameAs(self->vdevice)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
-  }
-  ffi::ObjectPtr<TensorTypeNode> copy = ffi::make_object<TensorTypeNode>(*self);
-  copy->shape = std::move(mapped_shape).ValueOrUnchanged(std::move(copy->shape));
-  copy->dtype = std::move(mapped_dtype).ValueOrUnchanged(std::move(copy->dtype));
-  copy->vdevice = std::move(mapped_vdevice).ValueOrUnchanged(std::move(copy->vdevice));
-  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
-}
-
-static TVMFFIAny TensorTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
-                                              ffi::AnyView value) noexcept {
-  // skips: ndim (scalar)
-  TensorTypeNode* self = const_cast<TensorTypeNode*>(
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorTypeNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Expr>>, mapped_shape,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->shape));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<PrimType>>, mapped_dtype,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->dtype));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<VDevice>>, mapped_vdevice,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->vdevice));
-  if (!mapped_shape.UnchangedOrSameAs(self->shape)) {
-    self->shape = std::move(mapped_shape).ValueUnchecked();
-  }
-  if (!mapped_dtype.UnchangedOrSameAs(self->dtype)) {
-    self->dtype = std::move(mapped_dtype).ValueUnchecked();
-  }
-  if (!mapped_vdevice.UnchangedOrSameAs(self->vdevice)) {
-    self->vdevice = std::move(mapped_vdevice).ValueUnchecked();
-  }
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TensorTypeNode::RegisterReflection();
@@ -284,56 +338,6 @@ FuncType::FuncType(ffi::Array<Type> params, Type ret, bool purity, Span span)
   n->purity = std::move(purity);
   n->span = span;
   data_ = std::move(n);
-}
-
-static TVMFFIAny FuncTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
-  // skips: derive_func (environment-backed callable metadata), purity (scalar)
-  const FuncTypeNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(value);
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
-      kTVMFFIDefRegionKindPattern, [&]() { return visitor->VisitExpected(self->params); }));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->ret));
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
-}
-
-static TVMFFIAny FuncTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: derive_func (environment-backed callable metadata), purity (scalar)
-  const FuncTypeNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<ffi::Optional<ffi::Array<Type>>>, mapped_params,
-      mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern,
-                                 [&]() { return mutator->MutateExpected(self->params); }));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ret,
-                                    mutator->MutateExpected(self->ret));
-  if (mapped_params.UnchangedOrSameAs(self->params) && mapped_ret.UnchangedOrSameAs(self->ret)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
-  }
-  ffi::ObjectPtr<FuncTypeNode> copy = ffi::make_object<FuncTypeNode>(*self);
-  copy->params = std::move(mapped_params).ValueOrUnchanged(std::move(copy->params));
-  copy->ret = std::move(mapped_ret).ValueOrUnchanged(std::move(copy->ret));
-  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
-}
-
-static TVMFFIAny FuncTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
-                                            ffi::AnyView value) noexcept {
-  // skips: derive_func (environment-backed callable metadata), purity (scalar)
-  FuncTypeNode* self = const_cast<FuncTypeNode*>(
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<ffi::Optional<ffi::Array<Type>>>, mapped_params,
-      mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&]() {
-        return mutator->MaybeInplaceMutateIfUniqueExpected(self->params);
-      }));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ret,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->ret));
-  if (!mapped_params.UnchangedOrSameAs(self->params)) {
-    self->params = std::move(mapped_params).ValueUnchecked();
-  }
-  if (!mapped_ret.UnchangedOrSameAs(self->ret)) {
-    self->ret = std::move(mapped_ret).ValueUnchecked();
-  }
-  return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

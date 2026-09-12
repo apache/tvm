@@ -30,23 +30,26 @@
 namespace tvm {
 namespace relax {
 
+namespace {
+
+TVMFFIAny PackedFuncTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny PackedFuncTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny PackedFuncTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+}  // namespace
+
 PackedFuncType::PackedFuncType(Span span) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<PackedFuncTypeNode> n = ffi::make_object<PackedFuncTypeNode>();
   n->span = span;
   data_ = std::move(n);
-}
-
-static TVMFFIAny PackedFuncTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
-}
-
-static TVMFFIAny PackedFuncTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
-static TVMFFIAny PackedFuncTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*,
-                                                  ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

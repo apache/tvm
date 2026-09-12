@@ -27,24 +27,9 @@ namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
 
-TVM_FFI_STATIC_INIT_BLOCK() { InstructionKindNode::RegisterReflection(); }
+namespace {
 
-bool InstructionKindNode::IsPostproc() const {
-  static InstructionKind inst_enter_postproc = InstructionKind::Get("EnterPostproc");
-  return this == inst_enter_postproc.get();
-}
-
-Instruction::Instruction(InstructionKind kind, ffi::Array<Any> inputs, ffi::Array<Any> attrs,
-                         ffi::Array<Any> outputs) {
-  ffi::ObjectPtr<InstructionNode> n = ffi::make_object<InstructionNode>();
-  n->kind = std::move(kind);
-  n->inputs = std::move(inputs);
-  n->attrs = std::move(attrs);
-  n->outputs = std::move(outputs);
-  this->data_ = std::move(n);
-}
-
-static ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
+ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
   ffi::Array<Any> inputs;
   inputs.reserve(self->inputs.size());
   for (const Any& obj : self->inputs) {
@@ -79,6 +64,25 @@ static ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
       /*attrs=*/self->attrs,
       /*decision=*/Any(nullptr),
       /*outputs=*/ffi::Array<ffi::String>(self->outputs.size(), ffi::String("_")));
+}
+
+}  // namespace
+
+TVM_FFI_STATIC_INIT_BLOCK() { InstructionKindNode::RegisterReflection(); }
+
+bool InstructionKindNode::IsPostproc() const {
+  static InstructionKind inst_enter_postproc = InstructionKind::Get("EnterPostproc");
+  return this == inst_enter_postproc.get();
+}
+
+Instruction::Instruction(InstructionKind kind, ffi::Array<Any> inputs, ffi::Array<Any> attrs,
+                         ffi::Array<Any> outputs) {
+  ffi::ObjectPtr<InstructionNode> n = ffi::make_object<InstructionNode>();
+  n->kind = std::move(kind);
+  n->inputs = std::move(inputs);
+  n->attrs = std::move(attrs);
+  n->outputs = std::move(outputs);
+  this->data_ = std::move(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

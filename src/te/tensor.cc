@@ -31,6 +31,44 @@
 namespace tvm {
 namespace te {
 
+namespace {
+
+ffi::Array<PrimExpr> ValidateTensorLoad(const Call& call, Tensor* tensor_out) {
+  const auto* tensor_node = call->op.as<TensorNode>();
+  TVM_FFI_ICHECK(tensor_node != nullptr) << "Expected a Call whose callee is a TE Tensor";
+  Tensor tensor = ffi::GetRef<Tensor>(tensor_node);
+  TVM_FFI_ICHECK_EQ(call->args.size(), tensor->shape.size())
+      << "Tensor-load index count must match tensor rank";
+  TVM_FFI_ICHECK(call->ty.as<PrimTypeNode>() != nullptr && call->ty == tensor->dtype)
+      << "Tensor-load result type must match the tensor element type";
+
+  ffi::Array<PrimExpr> indices;
+  indices.reserve(call->args.size());
+  for (const Expr& arg : call->args) {
+    auto index = arg.as<PrimExpr>();
+    TVM_FFI_ICHECK(index.has_value()) << "Tensor-load indices must have primitive type";
+    indices.push_back(index.value());
+  }
+  if (tensor_out != nullptr) {
+    *tensor_out = std::move(tensor);
+  }
+  return indices;
+}
+
+TVMFFIAny TensorVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny TensorMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny TensorMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+}  // namespace
+
 void TensorNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<TensorNode>()
@@ -113,18 +151,6 @@ Tensor::Tensor(ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int val
   data_ = std::move(n);
 }
 
-static TVMFFIAny TensorVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
-}
-
-static TVMFFIAny TensorMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
-static TVMFFIAny TensorMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TensorNode::RegisterReflection();
@@ -139,32 +165,6 @@ bool IsTensorLoad(const Expr& expr) {
   const auto* call = expr.as<CallNode>();
   return call != nullptr && call->op.as<TensorNode>() != nullptr;
 }
-
-namespace {
-
-ffi::Array<PrimExpr> ValidateTensorLoad(const Call& call, Tensor* tensor_out) {
-  const auto* tensor_node = call->op.as<TensorNode>();
-  TVM_FFI_ICHECK(tensor_node != nullptr) << "Expected a Call whose callee is a TE Tensor";
-  Tensor tensor = ffi::GetRef<Tensor>(tensor_node);
-  TVM_FFI_ICHECK_EQ(call->args.size(), tensor->shape.size())
-      << "Tensor-load index count must match tensor rank";
-  TVM_FFI_ICHECK(call->ty.as<PrimTypeNode>() != nullptr && call->ty == tensor->dtype)
-      << "Tensor-load result type must match the tensor element type";
-
-  ffi::Array<PrimExpr> indices;
-  indices.reserve(call->args.size());
-  for (const Expr& arg : call->args) {
-    auto index = arg.as<PrimExpr>();
-    TVM_FFI_ICHECK(index.has_value()) << "Tensor-load indices must have primitive type";
-    indices.push_back(index.value());
-  }
-  if (tensor_out != nullptr) {
-    *tensor_out = std::move(tensor);
-  }
-  return indices;
-}
-
-}  // namespace
 
 Tensor GetTensorFromLoad(const Call& call) {
   Tensor tensor;

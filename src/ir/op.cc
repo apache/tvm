@@ -35,6 +35,23 @@
 
 namespace tvm {
 
+namespace {
+
+TVMFFIAny OpVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  // Ops are unique registry atoms.  Avoid reflecting through their registry metadata.
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny OpMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny OpMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+}  // namespace
+
 TVM_FFI_STATIC_INIT_BLOCK() { ArgumentInfoNode::RegisterReflection(); }
 
 using ffi::Any;
@@ -55,19 +72,6 @@ Op OpRegEntry::MakeOp(uint32_t reg_index) {
   ffi::ObjectPtr<OpNode> n = ffi::make_object<OpNode>();
   n->index_ = reg_index;
   return Op(n);
-}
-
-static TVMFFIAny OpVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  // Ops are unique registry atoms.  Avoid reflecting through their registry metadata.
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
-}
-
-static TVMFFIAny OpMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
-static TVMFFIAny OpMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

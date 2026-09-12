@@ -30,18 +30,9 @@ namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
 
-/**************** Constructors  ****************/
+namespace {
 
-Trace::Trace() { data_ = ffi::make_object<TraceNode>(); }
-
-Trace::Trace(ffi::Array<Instruction> insts, ffi::Map<Instruction, Any> decisions) {
-  ffi::ObjectPtr<TraceNode> n = ffi::make_object<TraceNode>();
-  n->insts = std::move(insts);
-  n->decisions = std::move(decisions);
-  data_ = std::move(n);
-}
-
-static ffi::String TraceAsPythonRepr(const TraceNode* self) {
+ffi::String TraceAsPythonRepr(const TraceNode* self) {
   std::ostringstream os;
   os << "# from tvm import s_tir\n";
   os << "def apply_trace(sch: s_tir.Schedule) -> None:\n";
@@ -59,6 +50,19 @@ static ffi::String TraceAsPythonRepr(const TraceNode* self) {
     os << "  pass";
   }
   return os.str();
+}
+
+}  // namespace
+
+/**************** Constructors  ****************/
+
+Trace::Trace() { data_ = ffi::make_object<TraceNode>(); }
+
+Trace::Trace(ffi::Array<Instruction> insts, ffi::Map<Instruction, Any> decisions) {
+  ffi::ObjectPtr<TraceNode> n = ffi::make_object<TraceNode>();
+  n->insts = std::move(insts);
+  n->decisions = std::move(decisions);
+  data_ = std::move(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
