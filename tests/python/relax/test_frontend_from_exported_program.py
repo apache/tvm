@@ -7065,6 +7065,21 @@ def test_one_hot():
     verify_model(OneHot(), example_args, {}, Expected)
 
 
+def test_one_hot_invalid_num_classes():
+    class OneHot(Module):
+        def forward(self, indices):
+            return torch.nn.functional.one_hot(indices, num_classes=0)
+
+    example_args = (torch.randint(0, 5, (5,), dtype=torch.int64),)
+    exported_program = export(OneHot(), args=example_args)
+
+    # With the default decomposition, one_hot is rewritten to arange/equal/astype and never
+    # reaches this converter. Without it, the non-positive num_classes must be rejected by
+    # the frontend instead of failing an internal `depth > 0` check in relax.op.one_hot.
+    with pytest.raises(ValueError, match="num_classes must be a positive integer"):
+        from_exported_program(exported_program, run_ep_decomposition=False)
+
+
 def test_ones_like():
     class OnesLike(Module):
         def forward(self, input):
