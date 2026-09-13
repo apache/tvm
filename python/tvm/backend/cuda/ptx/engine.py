@@ -186,6 +186,12 @@ def _make_codegen(entry: InstructionEntry):
         preserve_dst = "keep" in flags
         tokens = [parse_str(a) for a in args[len(args) - n_slots - 1 : -1]]
         rest = list(args[: len(args) - n_slots - 1])  # operands, plus pred when present
+        for slot, token in zip(entry.slots, tokens, strict=True):
+            if token not in slot.choices and not (slot.optional and token == ""):
+                raise ValueError(
+                    f"{entry.name}: invalid codegen modifier {token!r} for slot {slot.name!r}; "
+                    "the PTX call and registered table entry may be inconsistent"
+                )
         mod_map = mods(entry, tokens)
         layout = operand_layout(entry, mod_map)
         n_operands = sum(n for _, _, n in layout)
@@ -199,6 +205,12 @@ def _make_codegen(entry: InstructionEntry):
                 at[i] = pos
                 pos += 1
         n_present = pos
+        expected_args = n_present + int(predicated)
+        if len(rest) != expected_args:
+            raise ValueError(
+                f"{entry.name}: expected {expected_args} codegen operand(s), got {len(rest)}; "
+                "the PTX call and registered table entry may be inconsistent"
+            )
         sinks = frozenset(
             (slot.name, lane)
             for slot, i, lanes in layout
