@@ -216,90 +216,95 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
                   (*frame)->stmts);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::SBlockRealize>(
-        "", [](tirx::SBlockRealize realize, AccessPath p, IRDocsifier d) -> Doc {
-          Doc doc = PrintBlock(d, realize->block, p->Attr("block"), realize, p);
-          // since we do not have d->AsDoc for realize->block,
-          // we should add possible doc decoration manually.
-          AddDocDecoration<ScopeDoc>(doc, realize->block, p->Attr("block"), d->cfg);
-          return doc;
-        });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tirx::SBlockRealize>(
+      "", [](tirx::SBlockRealize realize, AccessPath p, IRDocsifier d) -> Doc {
+        Doc doc = PrintBlock(d, realize->block, p->Attr("block"), realize, p);
+        // since we do not have d->AsDoc for realize->block,
+        // we should add possible doc decoration manually.
+        AddDocDecoration<ScopeDoc>(doc, realize->block, p->Attr("block"), d->cfg);
+        return doc;
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::SBlock>("", [](tirx::SBlock block, AccessPath p, IRDocsifier d) -> Doc {
-      return PrintBlock(d, block, p, std::nullopt, std::nullopt);
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tirx::SBlock>(
+      "", [](tirx::SBlock block, AccessPath p, IRDocsifier d) -> Doc {
+        return PrintBlock(d, block, p, std::nullopt, std::nullopt);
+      });
+}
 
 TVM_REGISTER_SCRIPT_AS_REPR(tirx::SBlockNode, ReprPrintTIR);
 TVM_REGISTER_SCRIPT_AS_REPR(tirx::SBlockRealizeNode, ReprPrintTIR);
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::ScopeIdDefStmt>(
-        "", [](tirx::ScopeIdDefStmt stmt, AccessPath p, IRDocsifier d) -> Doc {
-          // Render as ``(var1, var2, ...) = T.cta_id([ext], preferred=[...])``
-          // (or the appropriate API name for the binding).
-          TVM_FFI_ICHECK(!d->frames.empty());
-          tirx::ScopeIdDef def = stmt->def;
-          AccessPath def_p = p->Attr("def");
-          ffi::Array<ExprDoc> lhs;
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tirx::ScopeIdDefStmt>(
+      "", [](tirx::ScopeIdDefStmt stmt, AccessPath p, IRDocsifier d) -> Doc {
+        // Render as ``(var1, var2, ...) = T.cta_id([ext], preferred=[...])``
+        // (or the appropriate API name for the binding).
+        TVM_FFI_ICHECK(!d->frames.empty());
+        tirx::ScopeIdDef def = stmt->def;
+        AccessPath def_p = p->Attr("def");
+        ffi::Array<ExprDoc> lhs;
+        for (auto scope_id : def->def_ids) {
+          lhs.push_back(DefineVar(scope_id, d->frames.back(), d));
+        }
+        ffi::Array<ExprDoc> rhs_args;
+        if (def->scope != tirx::ScopeBinding::kClusterCtaPair && def->extents.has_value()) {
+          rhs_args.push_back(d->AsDoc<ExprDoc>(def->extents.value(), def_p->Attr("extents")));
+        }
+        ffi::Array<ffi::String> kwarg_keys;
+        ffi::Array<ExprDoc> kwarg_vals;
+        if (def->preferred_extents.has_value()) {
+          kwarg_keys.push_back("preferred");
+          kwarg_vals.push_back(
+              d->AsDoc<ExprDoc>(def->preferred_extents.value(), def_p->Attr("preferred_extents")));
+        }
+        // The scope-id dtype is independent of the extents, so it has to be printed
+        // explicitly whenever it is not the int32 default in order to round-trip.
+        if (!def->def_ids.empty()) {
+          PrimType scope_id_ty = def->def_ids[0].ty();
           for (auto scope_id : def->def_ids) {
-            lhs.push_back(DefineVar(scope_id, d->frames.back(), d));
+            TVM_FFI_ICHECK(scope_id.ty() == scope_id_ty)
+                << "mixed scope-id dtypes are unsupported, got " << scope_id_ty << " and "
+                << scope_id.ty();
           }
-          ffi::Array<ExprDoc> rhs_args;
-          if (def->scope != tirx::ScopeBinding::kClusterCtaPair && def->extents.has_value()) {
-            rhs_args.push_back(d->AsDoc<ExprDoc>(def->extents.value(), def_p->Attr("extents")));
+          if (scope_id_ty != PrimType::Int(32)) {
+            kwarg_keys.push_back("dtype");
+            kwarg_vals.push_back(
+                LiteralDoc::Str(DType2Str(scope_id_ty->dtype), def_p->Attr("def_ids")));
           }
-          ffi::Array<ffi::String> kwarg_keys;
-          ffi::Array<ExprDoc> kwarg_vals;
-          if (def->preferred_extents.has_value()) {
-            kwarg_keys.push_back("preferred");
-            kwarg_vals.push_back(d->AsDoc<ExprDoc>(def->preferred_extents.value(),
-                                                   def_p->Attr("preferred_extents")));
-          }
-          // The scope-id dtype is independent of the extents, so it has to be printed
-          // explicitly whenever it is not the int32 default in order to round-trip.
-          if (!def->def_ids.empty()) {
-            PrimType scope_id_ty = def->def_ids[0].ty();
-            for (auto scope_id : def->def_ids) {
-              TVM_FFI_ICHECK(scope_id.ty() == scope_id_ty)
-                  << "mixed scope-id dtypes are unsupported, got " << scope_id_ty << " and "
-                  << scope_id.ty();
-            }
-            if (scope_id_ty != PrimType::Int(32)) {
-              kwarg_keys.push_back("dtype");
-              kwarg_vals.push_back(
-                  LiteralDoc::Str(DType2Str(scope_id_ty->dtype), def_p->Attr("def_ids")));
-            }
-          }
-          ExprDoc rhs = TIR(d, ScopeIdApiName(def->scope))->Call(rhs_args, kwarg_keys, kwarg_vals);
-          return AssignDoc(TupleDoc(lhs), rhs, std::nullopt);
-        });
+        }
+        ExprDoc rhs = TIR(d, ScopeIdApiName(def->scope))->Call(rhs_args, kwarg_keys, kwarg_vals);
+        return AssignDoc(TupleDoc(lhs), rhs, std::nullopt);
+      });
+}
 
 TVM_SCRIPT_REPR(tirx::ScopeIdDefStmtNode, ReprPrintTIR);
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::ExecScope>(
-        "", [](tirx::ExecScope exec_scope, AccessPath p, IRDocsifier d) -> Doc {
-          Doc doc =
-              TIR(d, "ExecScope")->Call({LiteralDoc::Str(exec_scope->name(), p->Attr("name"))});
-          return doc;
-        });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tirx::ExecScope>(
+      "", [](tirx::ExecScope exec_scope, AccessPath p, IRDocsifier d) -> Doc {
+        Doc doc = TIR(d, "ExecScope")->Call({LiteralDoc::Str(exec_scope->name(), p->Attr("name"))});
+        return doc;
+      });
+}
 TVM_SCRIPT_REPR(tirx::ExecScopeNode, ReprPrintTIR);
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::ScopeIdDef>(
-        "", [](tirx::ScopeIdDef def, AccessPath p, IRDocsifier d) -> Doc {
-          auto [parent, cur] = tirx::ScopeBindingToStringPair(def->scope);
-          ExprDoc extents_doc = def->extents.has_value()
-                                    ? d->AsDoc<ExprDoc>(def->extents.value(), p->Attr("extents"))
-                                    : LiteralDoc::None(p->Attr("extents"));
-          Doc doc = TIR(d, "ScopeIdDef")
-                        ->Call({d->AsDoc<ExprDoc>(def->def_ids, p->Attr("def_ids")), extents_doc,
-                                LiteralDoc::Str(parent, p->Attr("parent")),
-                                LiteralDoc::Str(cur, p->Attr("cur"))});
-          return doc;
-        });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tirx::ScopeIdDef>(
+      "", [](tirx::ScopeIdDef def, AccessPath p, IRDocsifier d) -> Doc {
+        auto [parent, cur] = tirx::ScopeBindingToStringPair(def->scope);
+        ExprDoc extents_doc = def->extents.has_value()
+                                  ? d->AsDoc<ExprDoc>(def->extents.value(), p->Attr("extents"))
+                                  : LiteralDoc::None(p->Attr("extents"));
+        Doc doc = TIR(d, "ScopeIdDef")
+                      ->Call({d->AsDoc<ExprDoc>(def->def_ids, p->Attr("def_ids")), extents_doc,
+                              LiteralDoc::Str(parent, p->Attr("parent")),
+                              LiteralDoc::Str(cur, p->Attr("cur"))});
+        return doc;
+      });
+}
 TVM_SCRIPT_REPR(tirx::ScopeIdDefNode, ReprPrintTIR);
 
 }  // namespace printer

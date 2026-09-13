@@ -116,7 +116,7 @@ class TensorLoadNode : public ExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TensorLoadNode>()
-        .def_ro("source", &TensorLoadNode::source, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("source", &TensorLoadNode::source)
         .def_ro("indices", &TensorLoadNode::indices);
   }
 
@@ -365,6 +365,9 @@ class VarNode : public ExprNode {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
   static constexpr const uint32_t _type_child_slots = 1;
+  // VarNode reserves its sole child slot for the final relax::DataflowVarNode subtype, so its
+  // descendant type-index range cannot overflow.
+  static constexpr bool _type_child_slots_can_overflow = false;
   TVM_FFI_DECLARE_OBJECT_INFO("ir.Var", VarNode, ExprNode);
 };
 

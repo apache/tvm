@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/tirx/op.h>
 
 #include "../utils.h"
@@ -423,13 +424,14 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   // Step 4. Find out the block of our interest
   int pos = -1;
   for (int i = 0; i < static_cast<int>(scope_body.size()); ++i) {
-    bool found = false;
-    PostOrderVisit(scope_body[i], [&found, &block](const ffi::ObjectRef& node) {
+    auto walk_fn = [&block](const SBlock& node) -> ffi::Expected<ffi::WalkResult> {
       if (node.get() == block) {
-        found = true;
+        return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
       }
-    });
-    if (found) {
+      return ffi::WalkResult::Advance();
+    };
+    auto result = ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(scope_body[i], walk_fn);
+    if (result.has_value() && result.value()->value.cast<bool>()) {
       pos = i;
       break;
     }

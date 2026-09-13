@@ -148,6 +148,98 @@ def test_basic_unary_ops(pytorch_op, relax_op):
     verify_model(UnaryOp(), example_args, {}, expected)
 
 
+def test_round_decimals():
+    """torch.round(x, decimals) is exported as aten.round.decimals, which was missing
+    from the convert map (only round.default was registered) and made any explicit
+    decimals -- including decimals=0 -- fail with
+    "AssertionError: Unsupported function types ['round.decimals']".
+
+    With the decimals overload registered, torch.round(x, decimals) must convert and
+    match PyTorch's round-half-to-even results, including negative decimals
+    (round(25, -1) == 20) where the scale-by-0.1 float precision path used to be wrong.
+    """
+
+    class RoundDecimalsModel(Module):
+        def __init__(self, decimals):
+            super().__init__()
+            self.decimals = decimals
+
+        def forward(self, input):
+            return torch.round(input, decimals=self.decimals)
+
+    # Half values exercise ties-to-even; 25/125/165 exercise the negative-decimals path.
+    x = torch.tensor(
+        [0.5, 1.5, 2.5, 4.5, -0.5, -2.5, 25.0, 125.0, 165.0, 2.25], dtype=torch.float32
+    )
+    for decimals in (0, 1, -1, -2):
+        verify_model_numerically(RoundDecimalsModel(decimals).eval(), (x,), rtol=1e-6, atol=1e-6)
+
+
+def test_round_decimals_low_precision():
+    """Scaling for low-precision inputs must happen in float32 and be cast back.
+
+    10**|decimals| can overflow float16: 10**4 == 10000 with 25 * 10000 == 250000
+    exceeds float16's max of 65504, so scaling in float16 yields inf, and 10**5
+    already overflows float16 (the scale itself becomes inf), turning decimals=5
+    and -5 into NaN. Upcasting the input to float32 keeps the scaling exact; the
+    rounded result is cast back to the input dtype.
+    """
+
+    class RoundDecimalsModel(Module):
+        def __init__(self, decimals):
+            super().__init__()
+            self.decimals = decimals
+
+        def forward(self, input):
+            return torch.round(input, decimals=self.decimals)
+
+    x = torch.tensor([0.5, 1.5, 2.5, 2.25, 25.0, 125.0, 165.0, -0.5], dtype=torch.float16)
+    # Positive decimals exercise the multiply-by-10**d overflow (4, 5);
+    # negative decimals exercise the 10**|d| scale overflowing float16 (-5).
+    for decimals in (2, 4, 5, -2, -4, -5):
+        verify_model_numerically(RoundDecimalsModel(decimals).eval(), (x,), rtol=1e-6, atol=1e-6)
+
+
+def test_round_decimals_large():
+    """A large |decimals| must import and run without OverflowError.
+
+    The scale 10**|decimals| used to be built as an unbounded host Python int
+    before being handed to relax.const, whose int-to-float conversion raises
+    OverflowError ("int too large to convert to float") once |decimals| >= 309
+    (10**309 already exceeds the float64 range). PyTorch accepts such decimals and
+    exports a valid aten.round.decimals node, so importing the exported program
+    must not crash on them. The scale is now built directly in the float dtype and
+    saturates to inf once it leaves the finite range, matching PyTorch, whose
+    all-NaN result here comes from the same inf scale.
+    """
+
+    class RoundDecimalsModel(Module):
+        def __init__(self, decimals):
+            super().__init__()
+            self.decimals = decimals
+
+        def forward(self, input):
+            return torch.round(input, decimals=self.decimals)
+
+    x = torch.tensor([0.5, 1.5, 25.0, -0.5, 0.0], dtype=torch.float32)
+    for decimals in (309, -309):
+        exported_program = export(RoundDecimalsModel(decimals).eval(), args=(x,))
+        mod = from_exported_program(exported_program)  # used to raise OverflowError here
+        ex = relax.build(mod, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+        tvm_out = vm["main"](tvm.runtime.tensor(x.numpy()))
+        got = tvm_out.numpy() if hasattr(tvm_out, "numpy") else tvm_out[0].numpy()
+
+        # The scale overflows to inf, and IEEE arithmetic turns every element into
+        # NaN in both TVM and PyTorch. Compare the NaN masks and the remaining
+        # (empty here) finite elements separately, since allclose fails on NaN.
+        expected = torch.round(x, decimals=decimals)
+        actual = torch.as_tensor(got)
+        assert torch.equal(torch.isnan(actual), torch.isnan(expected))
+        finite = ~torch.isnan(expected)
+        assert torch.allclose(actual[finite], expected[finite], rtol=1e-6, atol=1e-6)
+
+
 operator_bool_unary = [
     (torch.isinf, R.isinf),
     (torch.isnan, R.isnan),
@@ -3325,6 +3417,157 @@ def test_einsum():
 
     example_args = (torch.randn(5, dtype=torch.float32), torch.randn(4, dtype=torch.float32))
     verify_model(Einsum2(), example_args, {}, Expected2, run_ep_decomposition=False)
+
+
+def test_einsum_repeated_subscript():
+    """einsum with repeated subscripts (diagonal / trace) on the default
+    decomposition path.
+
+    ``run_decompositions`` (default) lowers repeated-subscript einsum to
+    ``aten.diagonal`` + ``permute`` (+ ``sum`` for the trace), which the
+    frontend converts with the ``_diagonal`` lowering. For the zero-offset
+    square case (e.g. ``torch.einsum("ii->i")`` on an ``N x N`` input) the
+    frontend emits a single repeated-subscript einsum that reads the diagonal
+    directly; otherwise it permutes the diagonal dims to the trailing two axes,
+    slices each to the diagonal length, and runs an einsum ``...zz->...z``.
+    This used to raise ``AssertionError: Unsupported function types
+    ['diagonal.default']``.
+    """
+
+    class EinsumDiag(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return torch.einsum("ii->i", x)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((3, 3), dtype="float32")) -> R.Tuple(R.Tensor((3,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="float32") = R.einsum((x,), subscripts="zz->z")
+                lv1: R.Tensor((3,), dtype="float32") = R.permute_dims(lv, axes=[0])
+                lv2: R.Tensor((3,), dtype="float32") = R.permute_dims(lv1, axes=[0])
+                gv: R.Tuple(R.Tensor((3,), dtype="float32")) = (lv2,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(3, 3, dtype=torch.float32),)
+    verify_model(EinsumDiag(), example_args, {}, Expected)
+
+    class TraceEinsum(Module):
+        def forward(self, x):
+            return torch.einsum("ii->", x)
+
+    class BatchedDiagEinsum(Module):
+        def forward(self, x):
+            return torch.einsum("...ii->...i", x)
+
+    class AttentionEinsum(Module):
+        def forward(self, x, y):
+            return torch.einsum("abca,abcb->c", x, y)
+
+    verify_model_numerically(TraceEinsum(), (torch.randn(4, 4),))
+    verify_model_numerically(BatchedDiagEinsum(), (torch.randn(2, 3, 3),))
+    verify_model_numerically(AttentionEinsum(), (torch.randn(3, 3, 4, 3), torch.randn(3, 3, 4, 3)))
+
+    class DirectDiagonal(Module):
+        def __init__(self):
+            super().__init__()
+            self.offset = 1
+
+        def forward(self, x):
+            return torch.diagonal(x, self.offset, 0, 1)
+
+    class DirectTrace(Module):
+        def forward(self, x):
+            return torch.trace(x)
+
+    verify_model_numerically(DirectDiagonal(), (torch.randn(3, 4),))
+    verify_model_numerically(DirectTrace(), (torch.randn(4, 4),))
+
+    # Out-of-range offsets (|offset| >= max(extent1, extent2)) are valid in
+    # PyTorch and yield an empty diagonal of shape (0,); the lowering must
+    # clamp the diagonal length to zero instead of producing negative slice
+    # extents or a wrong non-empty shape.
+    class DirectDiagonalOutOfRange(Module):
+        def __init__(self, offset):
+            super().__init__()
+            self.offset = offset
+
+        def forward(self, x):
+            return torch.diagonal(x, self.offset, 0, 1)
+
+    for offset in [4, 5, 6, -3, -4, -5, -6]:
+        verify_model_numerically(DirectDiagonalOutOfRange(offset), (torch.randn(3, 4),))
+
+
+def test_einsum_diagonal_lowers_without_full_size_intermediate():
+    """Regression test: a zero-offset square diagonal must not materialize
+    full-size intermediates.
+
+    ``torch.einsum("ii->i")`` on an ``N x N`` input is decomposed to
+    ``aten.diagonal`` by ``run_decompositions``. Lowering that diagonal by
+    permuting the diagonal dims to the trailing axes, slicing each to the
+    diagonal length, and running the ``...zz->...z`` einsum materializes three
+    full-size ``N x N`` intermediates (an identity permute and two identity
+    strided slices) and hence three O(N^2) copy loops before the final O(N)
+    diagonal loop. The ``_diagonal`` fast path instead emits a single
+    repeated-subscript einsum that reads the diagonal directly, so no full-size
+    intermediate exists in the frontend graph (and therefore neither in the
+    lowered TIR). Assert that every intermediate produced by a call is at most
+    O(N), both before and after legalization.
+    """
+
+    class EinsumDiag(Module):
+        def forward(self, x):
+            return torch.einsum("ii->i", x)
+
+    n = 8
+    exported_program = export(EinsumDiag(), args=(torch.randn(n, n),))
+    mod = from_exported_program(exported_program)
+
+    def rank2_call_results(ir_mod):
+        """Names of calls whose result is a rank-2 (full-size) tensor."""
+        results = []
+        for func in ir_mod.functions.values():
+            if not isinstance(func, relax.Function):
+                continue
+            for block in func.body.blocks:
+                for binding in block.bindings:
+                    if not (
+                        isinstance(binding.value, relax.Call)
+                        and isinstance(binding.value.op, tvm.ir.Op)
+                    ):
+                        continue
+                    if isinstance(binding.var.ty, relax.TensorType) and binding.var.ty.ndim == 2:
+                        results.append(binding.value.op.name)
+        return results
+
+    # The diagonal must be the only full-size (N x N) tensor touched: it is the
+    # function input read directly by a single repeated-subscript einsum. No
+    # call may produce a rank-2 intermediate.
+    assert rank2_call_results(mod) == []
+
+    # Sanity check that the graph really performs the diagonal: exactly one
+    # einsum on the N x N input producing an N-vector.
+    einsum_calls = []
+    for block in mod["main"].body.blocks:
+        for binding in block.bindings:
+            if (
+                isinstance(binding.value, relax.Call)
+                and isinstance(binding.value.op, tvm.ir.Op)
+                and binding.value.op.name == "relax.einsum"
+            ):
+                einsum_calls.append(binding.var)
+    assert len(einsum_calls) == 1
+    assert einsum_calls[0].ty.ndim == 1
+
+    # Legalize and check again on the lowered graph.
+    with tvm.target.Target("llvm"):
+        lowered = relax.transform.LegalizeOps()(mod)
+    assert rank2_call_results(lowered) == []
 
 
 def test_outer():
@@ -8838,6 +9081,33 @@ def test_scatter_value():
         torch.randint(0, 8, (4, 2), dtype=torch.int64),
     )
     verify_model(ScatterValue(), example_args, {}, Expected)
+
+
+def test_scatter_src():
+    class ScatterSrc(Module):
+        def forward(self, x, index, src):
+            return x.scatter(1, index, src)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((4, 8), dtype="float32"),
+            index: R.Tensor((4, 2), dtype="int64"),
+            src: R.Tensor((4, 2), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((4, 8), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4, 8), dtype="float32") = R.scatter_elements(x, index, src, axis=1)
+                gv: R.Tuple(R.Tensor((4, 8), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(4, 8, dtype=torch.float32),
+        torch.randint(0, 8, (4, 2), dtype=torch.int64),
+        torch.randn(4, 2, dtype=torch.float32),
+    )
+    verify_model(ScatterSrc(), example_args, {}, Expected)
 
 
 def test_grid_sample():

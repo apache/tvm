@@ -18,6 +18,7 @@
 import sys
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -48,7 +49,7 @@ def test_alloc_seq():
             num_alloc[0] += 1
             assert n.buffer.ty.shape[0].value == 200
 
-    tvm.tirx.stmt_functor.post_order_visit(body, verify)
+    tvm_ffi.structural_walk(body, verify)
     assert num_alloc[0] == 1
 
 
@@ -106,7 +107,7 @@ def test_alloc_different_dtypes():
         offset = offset_generater(dtype_list, length)
 
         body = tvm.tirx.transform.StorageRewrite()(mod)["func"].body
-        tvm.tirx.stmt_functor.post_order_visit(body, verify)
+        tvm_ffi.structural_walk(body, verify)
 
     length = 1024
     dtype_list = ["float16", "int32", "uint16", "int8"]
@@ -161,12 +162,12 @@ def test_address_of():
 
     total_alloc = [0]
     mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
-    tvm.tirx.stmt_functor.post_order_visit(mod["main"].body, verify)
+    tvm_ffi.structural_walk(mod["main"].body, verify)
     assert total_alloc[0] == 24
 
     total_alloc[0] = 0
     mod = tvm.tirx.transform.StorageRewrite()(mod)
-    tvm.tirx.stmt_functor.post_order_visit(mod["main"].body, verify)
+    tvm_ffi.structural_walk(mod["main"].body, verify)
     assert total_alloc[0] == 16
 
 
@@ -244,13 +245,13 @@ def test_while_alloc():
         if isinstance(n, tvm.tirx.AllocBuffer):
             num_alloc[0] += 1
 
-    tvm.tirx.stmt_functor.post_order_visit(inner, count_alloc)
+    tvm_ffi.structural_walk(inner, count_alloc)
     assert num_alloc[0] == 2  # j and A allocations
 
     mod = tvm.IRModule.from_expr(func_serial)
     body = tvm.tirx.transform.StorageRewrite()(mod)["func_serial"]
     num_alloc[0] = 0
-    tvm.tirx.stmt_functor.post_order_visit(body.body, count_alloc)
+    tvm_ffi.structural_walk(body.body, count_alloc)
     assert num_alloc[0] == 2  # j and A allocations
 
 
@@ -282,7 +283,7 @@ def test_alloc_seq_type():
             num_alloc[0] += 1
             assert n.buffer.ty.shape[0].value == 500
 
-    tvm.tirx.stmt_functor.post_order_visit(body, verify)
+    tvm_ffi.structural_walk(body, verify)
     assert num_alloc[0] == 1
 
 
@@ -312,7 +313,7 @@ def test_alloc_seq_type2():
             num_alloc[0] += 1
             assert n.buffer.ty.shape[0].value == 200
 
-    tvm.tirx.stmt_functor.post_order_visit(body, verify)
+    tvm_ffi.structural_walk(body, verify)
     assert num_alloc[0] == 1
 
 
@@ -344,7 +345,7 @@ def test_reuse_small_buffer():
             num_alloc[0] += 1
             assert n.buffer.ty.shape[0].value == 800
 
-    tvm.tirx.stmt_functor.post_order_visit(body, verify)
+    tvm_ffi.structural_walk(body, verify)
     assert num_alloc[0] == 1
 
 
@@ -475,7 +476,7 @@ def test_decl_buffer_alias_extends_source_lifetime():
 
     after = tvm.tirx.transform.StorageRewrite()(tvm.IRModule.from_expr(func))["func"]
     allocations = []
-    tvm.tirx.stmt_functor.post_order_visit(
+    tvm_ffi.structural_walk(
         after.body,
         lambda node: allocations.append(node) if isinstance(node, tvm.tirx.AllocBuffer) else None,
     )

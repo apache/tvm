@@ -18,6 +18,8 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/runtime/logging.h>
 
 #include <functional>
@@ -31,11 +33,6 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
-
-template <class T>
-bool UsesVar(const T& x, const Var& var) {
-  return tirx::UsesVar(x, [tgt = var.get()](const VarNode* v) { return v == tgt; });
-}
 
 Range RangeFromExtent(const PrimExpr& extent) {
   return Range::FromMinExtent(IntImm(extent.ty(), 0), extent);
@@ -110,9 +107,11 @@ ffi::Array<ffi::Array<arith::IterMark>> TrivialSubspaceDivision(
       var_set.insert(var.get());
     }
     return [var_set = std::move(var_set)](const PrimExpr& expr) -> bool {
-      return tirx::UsesVar(expr, [&var_set](const VarNode* var) {
-        return var_set.count(var);  //
-      });
+      auto walkfn = [&var_set](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+        return var_set.count(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                        : ffi::WalkResult::Advance();
+      };
+      return ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(expr, walkfn).has_value();
     };
   };
   auto use_outer_loop_vars = make_uses_var(outer_iters);
@@ -335,8 +334,13 @@ Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realiz
   for (int i = 0; i < n; ++i) {
     const IterVar& old_iter_var = inner_block->iter_vars[i];
     const PrimExpr& iter_value = inner_realize->iter_values[i];
+    auto walkfn = [target =
+                       old_iter_var->var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return var.get() == target ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                 : ffi::WalkResult::Advance();
+    };
     if (old_iter_var->iter_type == IterVarType::kDataPar &&
-        UsesVar(block_init, old_iter_var->var)) {
+        ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(block_init, walkfn).has_value()) {
       ffi::ObjectPtr<IterVarNode> new_iter_var = ffi::make_object<IterVarNode>(*old_iter_var.get());
       new_iter_var->var = new_iter_var->var.CopyWithSuffix("_init");
       subst_map.Set(old_iter_var->var, new_iter_var->var);
@@ -358,8 +362,13 @@ Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realiz
   // Step 3. Create the loop nest on top of the block
   for (const ForNode* loop : loops) {
     bool is_init_loop = false;
+    auto walkfn = [target =
+                       loop->loop_var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return var.get() == target ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                 : ffi::WalkResult::Advance();
+    };
     for (const PrimExpr& init_binding : iter_values) {
-      if (UsesVar(init_binding, loop->loop_var)) {
+      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(init_binding, walkfn).has_value()) {
         is_init_loop = true;
         break;
       }
@@ -373,19 +382,26 @@ Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realiz
     }
   }
   // Step 4: Substitute the iter vars and loop vars
-  return Substitute(stmt, subst_map);
+  auto f_substitute = [&subst_map](
+                          const Var& var,
+                          TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
+    if (auto repl = subst_map.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
+  return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(stmt, f_substitute).as_or_throw<Stmt>();
 }
 
 /*!
- * \brief Substitute variables in the stmt, do simplification and track block substitution
+ * \brief Replace variables in the stmt, do simplification and track block replacement
  * \param stmt The stmt to be substituted.
  * \param sub The substitution map.
  * \param block_sref_reuse The block substitution happens during the substitution.
  * \param analyzer The analyzer for arithmetic simplification.
  * \return The substituted stmt.
  */
-Stmt Substitute(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
-                ffi::Map<SBlock, SBlock>* block_sref_reuse, arith::AnalyzerObj* analyzer) {
+Stmt ReplaceAndSimplify(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
+                        ffi::Map<SBlock, SBlock>* block_sref_reuse, arith::AnalyzerObj* analyzer) {
   struct Replacer : public StmtExprMutator {
     explicit Replacer(const ffi::Map<Var, PrimExpr>& sub,
                       ffi::Map<SBlock, SBlock>* block_sref_reuse, arith::AnalyzerObj* analyzer)
@@ -528,7 +544,7 @@ SBlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
     analyzer->Bind(iter->var, iter->dom);
   }
   SBlock block_subst =
-      Substitute(block, block_var_subst, block_sref_reuse, analyzer).as_or_throw<SBlock>();
+      ReplaceAndSimplify(block, block_var_subst, block_sref_reuse, analyzer).as_or_throw<SBlock>();
   // Step 5: Generate the inner block. The write regions of the inner blocks will be reduction if
   // 1. The original block has init stmt.
   // 2. There are outer reduction iter vars.
@@ -616,14 +632,25 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
         loop_var_subst.Set(outer_bindings[i].as_or_throw<Var>(), outer_iter_vars[i]->var);
       }
     }
+    auto f_substitute =
+        [&loop_var_subst](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = loop_var_subst.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
     ffi::Map<Var, arith::IntSet> inner_iter_dom;
     for (const IterVar& iter : inner_iter_vars) {
-      Range dom = tirx::Substitute(iter->dom, loop_var_subst);
+      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(iter->dom->min, f_substitute)
+                         .as_or_throw<PrimExpr>();
+      PrimExpr extent =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(iter->dom->extent, f_substitute)
+              .as_or_throw<PrimExpr>();
+      Range dom = Range::FromMinExtent(min, extent);
       inner_iter_dom.Set(iter->var, arith::IntSet::FromRange(dom));
       analyzer->Bind(iter->var, dom);
     }
     SBlock block_subst =
-        Substitute(block, block_var_subst, block_sref_reuse, analyzer.get()).as_or_throw<SBlock>();
+        ReplaceAndSimplify(block, block_var_subst, block_sref_reuse, analyzer.get())
+            .as_or_throw<SBlock>();
     auto reads = EvalSetRegions(block_subst->reads, inner_iter_dom);
     auto writes = EvalSetRegions(block_subst->writes, inner_iter_dom);
     read_regions.insert(read_regions.end(), reads.begin(), reads.end());
@@ -651,7 +678,9 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
     for (const ForNode* loop : loops) {
       ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
       new_loop->body = std::move(stmt);
-      new_loop->extent = tirx::Substitute(new_loop->extent, loop_var_subst);
+      new_loop->extent =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(new_loop->extent, f_substitute)
+              .as_or_throw<PrimExpr>();
       stmt = For(new_loop);
     }
     seq_body.push_back(stmt);

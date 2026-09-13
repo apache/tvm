@@ -1771,8 +1771,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "relu6.default": self._unary_op(relax.op.nn.relu6),
             "relu6_.default": self._unary_op(relax.op.nn.relu6),
             "round.default": self._round,
+            "round.decimals": self._round,
             "rsqrt.default": self._rsqrt,
             "scalar_tensor.default": self._scalar_tensor,
+            "scatter.src": self._scatter,
             "scatter.value": self._scatter_value,
             "rsub.Tensor": self._rsub,
             "rsub.Scalar": self._rsub,
@@ -1894,6 +1896,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "conv3d.default": self._conv3d,
             "convolution.default": self._convolution,
             "cross_entropy_loss.default": self._cross_entropy_default,
+            "diagonal.default": self._diagonal,
             "einsum.default": self._einsum,
             "embedding.default": lambda node: self._embedding_impl(
                 self.env[node.args[1]], self.env[node.args[0]]

@@ -22,19 +22,6 @@ import tvm
 from tvm import te, topi
 from tvm.script import tirx as T
 from tvm.tirx.analysis import expr_deep_equal
-from tvm.tirx.expr_functor import ExprMutator
-
-
-class ReplaceVar(ExprMutator):
-    def __init__(self, old_var, new_var):
-        super().__init__()
-        self.old_var = old_var
-        self.new_var = new_var
-
-    def visit_var_(self, op):
-        if op.same_as(self.old_var):
-            return self.new_var
-        return op
 
 
 def test_expr_constructor():
@@ -156,7 +143,11 @@ def test_expr_constructor():
     assert tvm.script.from_source(func.script()).script() == func.script()
 
     y = tvm.tirx.Var("y", "float32")
-    mutated = ReplaceVar(attr_arg, y)(x_with_attrs)
+    mutated = tvm_ffi.structural_map(
+        x_with_attrs,
+        (tvm.tirx.Var, lambda var: y if var.same_as(attr_arg) else var),
+        order="post",
+    )
     assert mutated.attrs["disable_tma"] is True
     assert mutated.args[1].same_as(y)
 

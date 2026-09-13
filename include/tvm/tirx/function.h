@@ -58,7 +58,7 @@ class PrimFuncNode : public BaseFuncNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimFuncNode>()
-        .def_ro("params", &PrimFuncNode::params, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("params", &PrimFuncNode::params, refl::AttachFieldFlag::SEqHashDefPattern())
         .def_ro("ret_type", &PrimFuncNode::ret_type)
         .def_ro("body", &PrimFuncNode::body);
     refl::TypeAttrDef<PrimFuncNode>()

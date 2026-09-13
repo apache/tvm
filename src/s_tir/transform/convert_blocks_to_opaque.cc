@@ -40,7 +40,7 @@ using namespace tvm::tirx;
  */
 class OpaqueBlockConverter : public StmtExprMutator {
  public:
-  static Stmt Substitute(const PrimFunc& f) {
+  static Stmt Convert(const PrimFunc& f) {
     OpaqueBlockConverter substituter;
     return substituter.VisitStmt(f->body);
   }
@@ -116,7 +116,7 @@ namespace transform {
 Pass ConvertBlocksToOpaque() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     PrimFuncNode* fptr = f.CopyOnWrite();
-    fptr->body = OpaqueBlockConverter::Substitute(f);
+    fptr->body = OpaqueBlockConverter::Convert(f);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.ConvertBlocksToOpaque", {});

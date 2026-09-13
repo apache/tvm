@@ -21,6 +21,7 @@
  * \file reduce.cc
  * \brief TE reduction expression definitions.
  */
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/operation.h>
@@ -67,9 +68,15 @@ CommReducer::CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs,
     p_rhs->SetItem(i, r);
   }
 
+  auto f_substitute = [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto it = var_map.find(var.get()); it != var_map.end()) return ffi::Any(it->second);
+    return ffi::Unchanged();
+  };
+  // The replacement variables intentionally adopt each identity element's dtype.
   ffi::ArrayObj* p_result = result.CopyOnWrite();
   for (int i = 0; i < static_cast<int>(n_group); ++i) {
-    p_result->SetItem(i, Substitute(result[i], var_map));
+    p_result->SetItem(i, ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(result[i], f_substitute)
+                             .as_or_throw<PrimExpr>());
   }
 
   auto node = ffi::make_object<CommReducerNode>();
@@ -91,7 +98,14 @@ ffi::Array<PrimExpr> CommReducerNode::operator()(ffi::Array<PrimExpr> a,
     value_map.Set(lhs[i], a[i]);
     value_map.Set(rhs[i], b[i]);
   }
-  return Substitute(this->result, value_map);
+  auto f_substitute = [&value_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = value_map.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
+  return this->result.Map([&f_substitute](const PrimExpr& expr) {
+    return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr, f_substitute)
+        .as_or_throw<PrimExpr>();
+  });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

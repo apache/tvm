@@ -23,6 +23,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/dtype.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
@@ -41,11 +42,6 @@ namespace tirx {
 using tirx::IterVar;
 using tirx::IterVarNode;
 using tirx::Var;
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  SLayoutNode::RegisterReflection();
-  SBijectiveLayoutNode::RegisterReflection();
-}
 
 const SLayoutAxis SLayoutAxis::UPPER_CASE[] = {
     SLayoutAxis('A'), SLayoutAxis('B'), SLayoutAxis('C'), SLayoutAxis('D'), SLayoutAxis('E'),
@@ -215,6 +211,18 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
   data_ = std::move(node);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  SLayoutNode::RegisterReflection();
+  refl::TypeAttrDef<SLayoutNode>().def(refl::type_attr::kRepr,
+                                       [](SLayout l, ffi::Function) -> ffi::String {
+                                         return "SLayout(" + std::string(l->name) + ")";
+                                       });
+
+  refl::GlobalDef().def("s_tir.SLayout",
+                        [](std::string name, PrimType dtype) { return SLayout(name, dtype); });
+}
+
 SLayout SLayout::SubLayout(size_t pos, size_t len) const {
   if (!defined() || pos > ndim()) return SLayout::Undef();
   if (len == 0) return SLayout(ffi::Array<IterVar>());
@@ -287,14 +295,6 @@ int32_t SLayout::FactorOf(const SLayoutAxis& axis) const {
   factor = has_sub ? factor : -1;
 
   return factor;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::TypeAttrDef<SLayoutNode>().def(refl::type_attr::kRepr,
-                                       [](SLayout l, ffi::Function) -> ffi::String {
-                                         return "SLayout(" + std::string(l->name) + ")";
-                                       });
 }
 
 inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>* shape_rule,
@@ -449,8 +449,15 @@ inline ffi::Array<PrimExpr> TransformIndex(const ffi::Array<PrimExpr>& src_index
   for (size_t i = 0; i < src_index.size(); ++i) {
     bind_map[src_axis[i]->var.get()] = src_index[i];
   }
+  auto f_substitute = [&bind_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto it = bind_map.find(var.get()); it != bind_map.end()) {
+      return ffi::Any(it->second);
+    }
+    return ffi::Unchanged();
+  };
   for (PrimExpr rule : transform_rule) {
-    result.push_back(ana->Simplify(tirx::Substitute(rule, bind_map)));
+    result.push_back(ana->Simplify(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(rule, f_substitute).as_or_throw<PrimExpr>()));
   }
   return result;
 }
@@ -505,6 +512,12 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
                                            : cast(orig_axis->var.ty(), orig_shape);
     }
   }
+  auto f_substitute = [&bind_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto it = bind_map.find(var.get()); it != bind_map.end()) {
+      return ffi::Any(it->second);
+    }
+    return ffi::Unchanged();
+  };
   // infer the target shape,
   // for major-axis, use the forward/backward_rule directly,
   // for minor-axis, simply use the extent.
@@ -517,7 +530,9 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
     if (layout.size() != 1 || !SLayoutAxis::Get(layout[0]).IsPrimal()) {
       result.push_back(axis->dom->extent);
     } else {
-      result.push_back(ana->Simplify(tirx::Substitute(rule, bind_map)));
+      result.push_back(
+          ana->Simplify(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(rule, f_substitute)
+                            .as_or_throw<PrimExpr>()));
     }
   }
 
@@ -573,17 +588,22 @@ SBijectiveLayout::SBijectiveLayout(SLayout src_layout, SLayout dst_layout) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  SBijectiveLayoutNode::RegisterReflection();
   refl::TypeAttrDef<SBijectiveLayoutNode>().def(
       refl::type_attr::kRepr, [](SBijectiveLayout bl, ffi::Function) -> ffi::String {
         return "SBijectiveLayout(" + std::string(bl->src_layout.name()) + "->" +
                std::string(bl->dst_layout.name()) + ")";
       });
+
+  refl::GlobalDef().def("s_tir.SBijectiveLayout",
+                        [](SLayout src_layout, SLayout dst_layout) -> SBijectiveLayout {
+                          return SBijectiveLayout(src_layout, dst_layout);
+                        });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("s_tir.SLayout", [](std::string name, PrimType dtype) { return SLayout(name, dtype); })
       .def("s_tir.SLayoutIndexOf",
            [](SLayout layout, std::string axis) -> int { return layout.IndexOf(axis); })
       .def("s_tir.SLayoutFactorOf",
@@ -595,10 +615,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](SLayout layout, int idx) -> std::string {
              const auto& axis = layout.PackedAxisAt(idx);
              return axis->var->name;
-           })
-      .def("s_tir.SBijectiveLayout",
-           [](SLayout src_layout, SLayout dst_layout) -> SBijectiveLayout {
-             return SBijectiveLayout(src_layout, dst_layout);
            })
       .def_method("s_tir.SBijectiveLayoutForwardIndex", &SBijectiveLayout::ForwardIndex)
       .def_method("s_tir.SBijectiveLayoutBackwardIndex", &SBijectiveLayout::BackwardIndex)

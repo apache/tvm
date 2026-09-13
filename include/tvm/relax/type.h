@@ -297,7 +297,7 @@ class FuncTypeNode : public TypeNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FuncTypeNode>()
-        .def_ro("params", &FuncTypeNode::params, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("params", &FuncTypeNode::params, refl::AttachFieldFlag::SEqHashDefPattern())
         .def_ro("ret", &FuncTypeNode::ret)
         .def_ro("derive_func", &FuncTypeNode::derive_func)
         .def_ro("purity", &FuncTypeNode::purity);

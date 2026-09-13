@@ -25,6 +25,7 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
@@ -472,7 +473,11 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         return std::any_of(ancestor_iters_.begin(), ancestor_iters_.end(),
                            [v](const IterVar& n) { return n->var.get() == v; });
       };
-      if (UsesVar(extent, is_loop_var)) {
+      auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+        return is_loop_var(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                      : ffi::WalkResult::Advance();
+      };
+      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(extent, walkfn).has_value()) {
         // try estimate a constant upperbound on region's extent
         int64_t upperbound = dom_analyzer_->const_int_bound(extent)->max_value;
         if (upperbound != arith::ConstIntBound::kPosInf) {

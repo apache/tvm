@@ -27,8 +27,6 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK() { EnvFuncNode::RegisterReflection(); }
-
 using ffi::Any;
 using ffi::Function;
 using ffi::PackedArgs;
@@ -48,15 +46,7 @@ EnvFunc EnvFunc::Get(const ffi::String& name) { return EnvFunc(CreateEnvNode(nam
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("ir.EnvFuncGet", EnvFunc::Get)
-      .def_packed("ir.EnvFuncCall",
-                  [](ffi::PackedArgs args, ffi::Any* rv) {
-                    EnvFunc env = args[0].cast<EnvFunc>();
-                    TVM_FFI_ICHECK_GE(args.size(), 1);
-                    env->func.CallPacked(args.Slice(1), rv);
-                  })
-      .def("ir.EnvFuncGetFunction", [](const EnvFunc& n) { return n->func; });
+  EnvFuncNode::RegisterReflection();
   // override EnvFuncNode to use name as the repr
   refl::TypeAttrDef<EnvFuncNode>()
       .def("__data_to_json__",
@@ -65,5 +55,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return node->name;
            })
       .def("__data_from_json__", EnvFunc::Get);
+
+  refl::GlobalDef().def("ir.EnvFuncGet", EnvFunc::Get);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("ir.EnvFuncCall",
+                  [](ffi::PackedArgs args, ffi::Any* rv) {
+                    EnvFunc env = args[0].cast<EnvFunc>();
+                    TVM_FFI_ICHECK_GE(args.size(), 1);
+                    env->func.CallPacked(args.Slice(1), rv);
+                  })
+      .def("ir.EnvFuncGetFunction", [](const EnvFunc& n) { return n->func; });
 }
 }  // namespace tvm

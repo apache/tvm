@@ -17,6 +17,8 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 
 #include "../utils.h"
 
@@ -607,7 +609,15 @@ class BlockMutator : public StmtExprMutator {
     }
 
     // Update all instances of old iter_vars in the block with new iter_vars
-    auto block_stmt = tirx::Substitute(new_block, var_map);
+    auto f_substitute = [&var_map](
+                            const Var& var,
+                            TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
+      if (auto repl = var_map.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
+    auto block_stmt = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(new_block, f_substitute)
+                          .as_or_throw<SBlock>();
     return block_stmt;
   }
 
@@ -630,7 +640,17 @@ class BlockMutator : public StmtExprMutator {
 
     if (!op->loop_var.same_as(new_var)) {
       // If the partioned loop contains nested for loop, then create new iteration variable instance
-      res.CopyOnWrite()->body = tirx::Substitute(res->body, {{op->loop_var, new_var}});
+      auto f_substitute =
+          [old_var = op->loop_var, &new_var](
+              const Var& var,
+              TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
+        if (var.same_as(old_var)) return ffi::Any(new_var);
+        return ffi::Unchanged();
+      };
+      res.CopyOnWrite()->body =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(res->body, f_substitute)
+              .as_or_throw<Stmt>();
       res.CopyOnWrite()->loop_var = new_var.as_or_throw<PrimVar>();
     }
     return res;
@@ -679,7 +699,16 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
   for (int i = 0; i < n; i++) {
     extent_value = analyzer->Simplify(factors[i]);
     Var new_loop_var = loop->loop_var.CopyWithSuffix(std::to_string(i)).CopyWithDType(dtype);
-    Stmt loop_body = tirx::Substitute(loop->body, {{loop->loop_var, new_loop_var}});
+    // The widened dtype is intentional: partition factors determine the common loop dtype.
+    auto f_substitute = [old_var = loop->loop_var, &new_loop_var](
+                            const Var& var,
+                            TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
+      if (var.same_as(old_var)) return ffi::Any(new_loop_var);
+      return ffi::Unchanged();
+    };
+    Stmt loop_body =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(loop->body, f_substitute).as_or_throw<Stmt>();
 
     // Create new block with new reference to each variable/stmt/expr in the existing block
     loop_body = BlockMutator(new_loop_var, min_value, extent_value)(std::move(loop_body));
@@ -744,7 +773,16 @@ class LoopReconstructor : private StmtMutator {
         }
         var_map.Set(loops_[i][j]->loop_var, new_loop_vars[j].as_or_throw<PrimExpr>());
       }
-      auto new_stmt = Substitute(loops_[i][0]->body, var_map);
+      auto f_substitute =
+          [&var_map](const Var& var,
+                     TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
+        if (auto repl = var_map.Get(var)) return ffi::Any(*std::move(repl));
+        return ffi::Unchanged();
+      };
+      auto new_stmt =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(loops_[i][0]->body, f_substitute)
+              .as_or_throw<Stmt>();
       new_stmts.push_back(new_stmt);
       this->need_remove_loop_.push_back(loops_[i].back());
     }
@@ -907,15 +945,13 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
     outer_loop_sref = sref;
     outer_loop = loop;
     CheckLoopStartsWithZero(self, sref, analyzer.get());
-    const VarNode* used_var = nullptr;
-    auto f_contain = [&outer_loop_vars, &used_var](const VarNode* var) {
-      if (outer_loop_vars.count(var)) {
-        used_var = var;
-        return true;
-      }
-      return false;
+    auto walkfn = [&outer_loop_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return outer_loop_vars.count(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                              : ffi::WalkResult::Advance();
     };
-    if (UsesVar(loop->extent, f_contain)) {
+    auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(loop->extent, walkfn);
+    if (result.has_value()) {
+      Var used_var = result.value()->value.cast<Var>();
       throw DependentLoopError(self->mod, ffi::GetRef<For>(loop), used_var->name,
                                DependentLoopError::PrimitiveKind::kFuse);
     }
@@ -1105,15 +1141,16 @@ For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefN
     } else {
       n->body = loop_sref->StmtAs<ForNode>()->body;
     }
-    const VarNode* used_var = nullptr;
-    auto f_contain = [&inner_vars, &used_var](const VarNode* var) {
-      if (inner_vars.count(var)) {
-        used_var = var;
-        return true;
-      }
-      return false;
+    auto walkfn = [&inner_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return inner_vars.count(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                         : ffi::WalkResult::Advance();
     };
-    if (UsesVar(copy->min, f_contain) || UsesVar(copy->extent, f_contain)) {
+    auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(copy->min, walkfn);
+    if (!result.has_value()) {
+      result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(copy->extent, walkfn);
+    }
+    if (result.has_value()) {
+      Var used_var = result.value()->value.cast<Var>();
       throw DependentLoopError(self->mod, ffi::GetRef<For>(copy), used_var->name,
                                DependentLoopError::PrimitiveKind::kReorder);
     }

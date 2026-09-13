@@ -32,7 +32,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
-#include <tvm/ir/node_functor.h>
+#include <tvm/ir/object_functor.h>
 #include <tvm/ir/prim/vector_expr.h>
 #include <tvm/runtime/base.h>
 
@@ -545,8 +545,7 @@ class LetNode : public ExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LetNode>()
-        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
-        .def_ro("var", &LetNode::var, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("var", &LetNode::var, refl::AttachFieldFlag::SEqHashDefSimple())
         .def_ro("value", &LetNode::value)
         .def_ro("body", &LetNode::body);
   }

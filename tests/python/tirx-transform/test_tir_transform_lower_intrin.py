@@ -17,6 +17,7 @@
 # ruff: noqa: RUF005
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -106,7 +107,7 @@ def test_lower_nested_access_ptr():
             elif node.op.name == "tirx.address_of":
                 address_calls.append(node)
 
-    tvm.tirx.stmt_functor.post_order_visit(lowered.body, collect)
+    tvm_ffi.structural_walk(lowered.body, collect)
     assert not access_ptr_calls
     assert len(address_calls) == 1
     load = address_calls[0].args[0]

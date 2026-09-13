@@ -19,6 +19,7 @@
 
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
@@ -465,22 +466,26 @@ class AutoPadder {
 
    private:
     bool CheckVarContiguous(PrimExpr e, Var var, const ffi::Map<Var, PrimExpr>& subst_map) {
-      PrimExpr e1 = Substitute(e, [var](const Var& v) -> ffi::Optional<Expr> {
-        if (v.same_as(var)) {
-          return IntImm::Int32(0);
-        } else {
-          return std::nullopt;
-        }
-      });
-      PrimExpr e2 = Substitute(e, [var](const Var& v) -> ffi::Optional<Expr> {
-        if (v.same_as(var)) {
-          return IntImm::Int32(1);
-        } else {
-          return std::nullopt;
-        }
-      });
+      auto f_substitute_zero = [var](const Var& v) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        if (v.same_as(var)) return ffi::Any(IntImm::Int32(0));
+        return ffi::Unchanged();
+      };
+      auto f_substitute_one = [var](const Var& v) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        if (v.same_as(var)) return ffi::Any(IntImm::Int32(1));
+        return ffi::Unchanged();
+      };
+      auto f_substitute = [&subst_map](const Var& v) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        if (auto repl = subst_map.Get(v)) return ffi::Any(*std::move(repl));
+        return ffi::Unchanged();
+      };
+      PrimExpr e1 = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute_zero)
+                        .as_or_throw<PrimExpr>();
+      PrimExpr e2 = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute_one)
+                        .as_or_throw<PrimExpr>();
       arith::Analyzer analyzer;
-      return !analyzer->CanProve(Substitute(e2 - e1, subst_map) != 1);
+      PrimExpr delta = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e2 - e1, f_substitute)
+                           .as_or_throw<PrimExpr>();
+      return !analyzer->CanProve(delta != 1);
     }
 
     void VisitStmt_(const ForNode* op) final {
@@ -515,8 +520,14 @@ class AutoPadder {
       if (scope.rank == runtime::StorageRank::kShared) {
         ffi::Array<PrimExpr> substitued_indices;
         arith::Analyzer analyzer;
+        auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (auto repl = substitute_map_.Get(var)) return ffi::Any(*std::move(repl));
+          return ffi::Unchanged();
+        };
         for (const PrimExpr& e : op->indices) {
-          substitued_indices.push_back(analyzer->Simplify(Substitute(e, substitute_map_)));
+          substitued_indices.push_back(
+              analyzer->Simplify(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute)
+                                     .as_or_throw<PrimExpr>()));
         }
         std::vector<std::vector<int>> iter_space =
             PatternCollector::CollectIterationSpace(substitued_indices, var_range_, data_bits_);
@@ -544,8 +555,14 @@ class AutoPadder {
       if (scope.rank == runtime::StorageRank::kShared) {
         ffi::Array<PrimExpr> substitued_indices;
         arith::Analyzer analyzer;
+        auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (auto repl = substitute_map_.Get(var)) return ffi::Any(*std::move(repl));
+          return ffi::Unchanged();
+        };
         for (const PrimExpr& e : op->indices) {
-          substitued_indices.push_back(analyzer->Simplify(Substitute(e, substitute_map_)));
+          substitued_indices.push_back(
+              analyzer->Simplify(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute)
+                                     .as_or_throw<PrimExpr>()));
         }
         std::vector<std::vector<int>> iter_space =
             PatternCollector::CollectIterationSpace(substitued_indices, var_range_, data_bits_);
@@ -588,8 +605,15 @@ class AutoPadder {
                 }
                 ffi::Array<PrimExpr> substitued_indices;
                 arith::Analyzer analyzer;
+                auto f_substitute =
+                    [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                  if (auto repl = substitute_map_.Get(var)) return ffi::Any(*std::move(repl));
+                  return ffi::Unchanged();
+                };
                 for (const PrimExpr& e : indices) {
-                  substitued_indices.push_back(analyzer->Simplify(Substitute(e, substitute_map_)));
+                  substitued_indices.push_back(analyzer->Simplify(
+                      ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute)
+                          .as_or_throw<PrimExpr>()));
                 }
                 std::vector<std::vector<int>> iter_space = PatternCollector::CollectIterationSpace(
                     substitued_indices, var_range_, data_bits_);

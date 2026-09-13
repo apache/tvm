@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
@@ -910,11 +911,25 @@ class PipelineRewriter : public StmtExprMutator {
       //  [pipeline_loop_->min, extent).
       if (!is_unit_loop) {
         Var loop_iter = new_loop_var.as_or_throw<Var>();
-        inbound = Substitute(
-            inbound, ffi::Map<Var, Expr>{{loop_iter, loop_iter.as_or_throw<PrimExpr>() + delta}});
+        auto f_substitute = [loop_iter,
+                             delta](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (var.same_as(loop_iter)) {
+            return ffi::Any(loop_iter.as_or_throw<PrimExpr>() + delta);
+          }
+          return ffi::Unchanged();
+        };
+        inbound = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(inbound, f_substitute)
+                      .as_or_throw<PrimExpr>();
       }
 
-      new_block = Substitute(new_block, {{pipeline_loop_->loop_var, normalized_access_index}})
+      auto f_substitute = [this, &normalized_access_index](
+                              const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        if (var.same_as(pipeline_loop_->loop_var)) {
+          return ffi::Any(normalized_access_index);
+        }
+        return ffi::Unchanged();
+      };
+      new_block = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(new_block, f_substitute)
                       .as_or_throw<SBlock>();
 
       if (pipeline_info_[block].async) {

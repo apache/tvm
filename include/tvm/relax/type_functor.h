@@ -24,7 +24,7 @@
 #ifndef TVM_RELAX_TYPE_FUNCTOR_H_
 #define TVM_RELAX_TYPE_FUNCTOR_H_
 
-#include <tvm/ir/node_functor.h>
+#include <tvm/ir/object_functor.h>
 #include <tvm/relax/distributed/type.h>
 #include <tvm/relax/type.h>
 
@@ -42,16 +42,16 @@ class TypeFunctor;
     return VisitTypeDefault_(op, std::forward<Args>(args)...); \
   }
 
-#define TVM_RELAX_TYPE_FUNCTOR_DISPATCH(OP)                                                 \
-  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
-    return self->VisitType_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...);  \
+#define TVM_RELAX_TYPE_FUNCTOR_DISPATCH(OP)                                                \
+  vtable.template SetDispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
+    return self->VisitType_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
   });
 
 template <typename R, typename... Args>
 class TypeFunctor<R(const Type& n, Args...)> {
  private:
   using TSelf = TypeFunctor<R(const Type& n, Args...)>;
-  using FType = tvm::NodeFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
+  using FType = tvm::ObjectFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief the result type of this functor */

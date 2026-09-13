@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/extra/structural_mutate.h>
+
 #include "../../runtime/thread_storage_scope.h"
 #include "./memhammer_rewrite_rule.h"
 
@@ -48,18 +50,17 @@ Stmt FuseNestLoops(Stmt body) {
     subst_map.Set(loops[i]->loop_var, floormod(tot, loops[i]->extent));
     tot = floordiv(tot, loops[i]->extent);
   }
-  auto f_substitute = [&](const Var& v) -> ffi::Optional<Expr> {
-    if (auto replacement = subst_map.Get(v)) {
-      return replacement.value();
-    }
-    return std::nullopt;
+  auto f_substitute = [&](const Var& v) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = subst_map.Get(v)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
   };
   PrimExpr fused_extent = 1;
   for (int i = 0; i < n; i++) {
     fused_extent *= loops[i]->extent;
   }
-  return For(fused_var, 0, fused_extent, ForKind::kSerial,
-             Substitute(std::move(body), f_substitute));
+  body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(body), f_substitute)
+             .as_or_throw<Stmt>();
+  return For(fused_var, 0, fused_extent, ForKind::kSerial, std::move(body));
 }
 
 /*!
@@ -119,13 +120,13 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
     substitute_value += new_loop_vars[i].as_or_throw<PrimExpr>();
   }
   // Construct the new loop nest
-  Stmt body = Substitute(loop->body, [&](const Var& v) -> ffi::Optional<Expr> {
-    if (v.same_as(loop->loop_var)) {
-      return substitute_value;
-    } else {
-      return std::nullopt;
-    }
-  });
+  auto f_substitute =
+      [&loop, &substitute_value](const Var& v) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (v.same_as(loop->loop_var)) return ffi::Any(substitute_value);
+    return ffi::Unchanged();
+  };
+  Stmt body =
+      ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(loop->body, f_substitute).as_or_throw<Stmt>();
   PrimExpr predicate = substitute_value < loop->extent;
   if (!analyzer->CanProve(predicate)) {
     body = IfThenElse(predicate, body);
@@ -220,14 +221,20 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
       write_index.push_back(write_region->region[i]->min + var);
     }
   }
+  auto f_substitute =
+      [&substitute_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = substitute_map.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
   // Step 3.2 construct source buffer indices
   for (int i = 0, j = 0; i < static_cast<int>(read_region->region.size()); i++) {
     if (is_one(read_region->region[i]->extent)) {
       read_index.push_back(read_region->region[i]->min);
     } else {
-      read_index.push_back(
-          read_region->region[i]->min +
-          Substitute(inverse_mapping[loop_vars[j++].as_or_throw<Var>()], substitute_map));
+      PrimExpr inverse = inverse_mapping[loop_vars[j++].as_or_throw<Var>()];
+      inverse = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(inverse, f_substitute)
+                    .as_or_throw<PrimExpr>();
+      read_index.push_back(read_region->region[i]->min + inverse);
     }
   }
   TensorLoad new_buf_load = BufferLoad(read_region->buffer, read_index);

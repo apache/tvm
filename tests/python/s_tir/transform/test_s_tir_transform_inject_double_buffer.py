@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F841
 
+import tvm_ffi
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -59,7 +61,7 @@ def test_double_buffer():
         if isinstance(op, tvm.tirx.AllocBuffer) and "B" in str(op.buffer.data):
             allocate_node = op
 
-    tvm.tirx.stmt_functor.post_order_visit(stmt, visitor)
+    tvm_ffi.structural_walk(stmt, visitor)
     assert allocate_node is not None
     assert list(allocate_node.buffer.shape) == [m * 2]
 
@@ -70,7 +72,7 @@ def test_double_buffer():
         if isinstance(op, tvm.ir.Call) and op.op.same_as(tvm.ir.Op.get("tirx.tvm_storage_sync")):
             count[0] += 1
 
-    tvm.tirx.stmt_functor.post_order_visit(f.body, count_sync)
+    tvm_ffi.structural_walk(f.body, count_sync)
     assert count[0] == 4
 
 
@@ -107,7 +109,7 @@ def test_double_buffer_transform():
         if isinstance(op, tvm.tirx.AllocBuffer):
             allocate_node = op
 
-    tvm.tirx.stmt_functor.post_order_visit(After["main"].body, visitor)
+    tvm_ffi.structural_walk(After["main"].body, visitor)
     assert allocate_node is not None
     assert list(allocate_node.buffer.shape) == [64]
 

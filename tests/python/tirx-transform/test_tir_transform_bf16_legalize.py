@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import tvm_ffi
+
 import tvm
 import tvm.script
 from tvm.script import tirx as T
@@ -147,7 +149,15 @@ def test_bf16_masked_load_store_will_legalize():
 
     def collect(mod):
         nodes = []
-        tvm.tirx.stmt_functor.post_order_visit(mod["main"].body, nodes.append)
+
+        def collect_once(node):
+            if not any(node.same_as(existing) for existing in nodes):
+                nodes.append(node)
+
+        tvm_ffi.structural_walk(
+            mod["main"].body,
+            ((tvm.tirx.DeclBuffer, tvm.tirx.AllocBuffer, tvm.ir.Call), collect_once),
+        )
         buffers = {
             node.buffer.name: str(node.buffer.dtype)
             for node in nodes

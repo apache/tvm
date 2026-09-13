@@ -21,6 +21,8 @@
  * \file buffer.cc
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
@@ -35,6 +37,7 @@
 #include <iterator>
 #include <list>
 #include <stack>
+#include <utility>
 
 #include "../../arith/pattern_match.h"
 
@@ -42,6 +45,11 @@ namespace tvm {
 namespace tirx {
 
 namespace {
+
+BufferVar RebuildBufferVarFromType(const BufferVar& buffer, BufferType type,
+                                   ffi::String name_suffix = "") {
+  return BufferVar(buffer.name() + name_suffix, std::move(type), buffer.span());
+}
 
 ffi::ObjectRef RealizeBufferSubscript(
     Expr value,
@@ -102,13 +110,126 @@ ffi::ObjectRef RealizeBufferSubscript(
   return BufferRegion(buffer, region, span);
 }
 
-}  // namespace
+// Structural traversal hooks
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  BufferTypeNode::RegisterReflection();
-  refl::TypeAttrDef<BufferTypeNode>().def("__subscript_expr_realize__", RealizeBufferSubscript);
+TVMFFIAny BufferTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  // skips: storage_scope, data_alignment, offset_factor
+  const BufferTypeNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferTypeNode>(value);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->dtype));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->shape));
+  // Empty strides denote the common compact layout.  Broad callbacks do not see the empty
+  // container; explicit strides retain normal container descent and callback behavior.
+  if (!self->strides.empty()) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->strides));
+  }
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->elem_offset));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->layout));
+  // allocated_addr is empty outside specialized storage scopes.  Broad callbacks do not see the
+  // empty container; present addresses retain normal container descent and callback behavior.
+  if (!self->allocated_addr.empty()) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->allocated_addr));
+  }
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
+
+TVMFFIAny BufferTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  // skips: storage_scope, data_alignment, offset_factor
+  const BufferTypeNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferTypeNode>(value);
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimType>, mapped_dtype,
+                                    mutator->MutateExpected(self->dtype));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<PrimExpr>>, mapped_shape,
+                                    mutator->MutateExpected(self->shape));
+  // Empty strides denote the common compact layout.  Broad callbacks do not see the empty
+  // container; explicit strides retain normal container descent and callback behavior.
+  ffi::UnchangedOr<ffi::Array<PrimExpr>> mapped_strides = ffi::Unchanged();
+  if (!self->strides.empty()) {
+    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<PrimExpr>>, descended_strides,
+                                      mutator->MutateExpected(self->strides));
+    mapped_strides = std::move(descended_strides);
+  }
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_elem_offset,
+                                    mutator->MutateExpected(self->elem_offset));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Layout>>, mapped_layout,
+                                    mutator->MutateExpected(self->layout));
+  // allocated_addr is empty outside specialized storage scopes.  Broad callbacks do not see the
+  // empty container; present addresses retain normal container descent and callback behavior.
+  ffi::UnchangedOr<ffi::Array<PrimExpr>> mapped_allocated_addr = ffi::Unchanged();
+  if (!self->allocated_addr.empty()) {
+    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<PrimExpr>>,
+                                      descended_allocated_addr,
+                                      mutator->MutateExpected(self->allocated_addr));
+    mapped_allocated_addr = std::move(descended_allocated_addr);
+  }
+  if (mapped_dtype.UnchangedOrSameAs(self->dtype) && mapped_shape.UnchangedOrSameAs(self->shape) &&
+      mapped_strides.UnchangedOrSameAs(self->strides) &&
+      mapped_elem_offset.UnchangedOrSameAs(self->elem_offset) &&
+      mapped_layout.UnchangedOrSameAs(self->layout) &&
+      mapped_allocated_addr.UnchangedOrSameAs(self->allocated_addr)) {
+    return ffi::Unchanged().CopyToTVMFFIAny();
+  }
+  ffi::ObjectPtr<BufferTypeNode> copy = ffi::make_object<BufferTypeNode>(*self);
+  copy->dtype = std::move(mapped_dtype).ValueOrUnchanged(std::move(copy->dtype));
+  copy->shape = std::move(mapped_shape).ValueOrUnchanged(std::move(copy->shape));
+  copy->strides = std::move(mapped_strides).ValueOrUnchanged(std::move(copy->strides));
+  copy->elem_offset = std::move(mapped_elem_offset).ValueOrUnchanged(std::move(copy->elem_offset));
+  copy->layout = std::move(mapped_layout).ValueOrUnchanged(std::move(copy->layout));
+  copy->allocated_addr =
+      std::move(mapped_allocated_addr).ValueOrUnchanged(std::move(copy->allocated_addr));
+  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+}
+
+TVMFFIAny BufferTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                       ffi::AnyView value) noexcept {
+  // skips: storage_scope, data_alignment, offset_factor
+  BufferTypeNode* self = const_cast<BufferTypeNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferTypeNode>(value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimType>, mapped_dtype,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->dtype));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<PrimExpr>>, mapped_shape,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->shape));
+  // Empty strides denote the common compact layout.  Broad callbacks do not see the empty
+  // container; explicit strides retain normal container descent and callback behavior.
+  ffi::UnchangedOr<ffi::Array<PrimExpr>> mapped_strides = ffi::Unchanged();
+  if (!self->strides.empty()) {
+    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<PrimExpr>>, descended_strides,
+                                      mutator->MaybeInplaceMutateIfUniqueExpected(self->strides));
+    mapped_strides = std::move(descended_strides);
+  }
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_elem_offset,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->elem_offset));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Layout>>, mapped_layout,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->layout));
+  // allocated_addr is empty outside specialized storage scopes.  Broad callbacks do not see the
+  // empty container; present addresses retain normal container descent and callback behavior.
+  ffi::UnchangedOr<ffi::Array<PrimExpr>> mapped_allocated_addr = ffi::Unchanged();
+  if (!self->allocated_addr.empty()) {
+    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+        ffi::UnchangedOr<ffi::Array<PrimExpr>>, descended_allocated_addr,
+        mutator->MaybeInplaceMutateIfUniqueExpected(self->allocated_addr));
+    mapped_allocated_addr = std::move(descended_allocated_addr);
+  }
+  if (mapped_dtype.UnchangedOrSameAs(self->dtype) && mapped_shape.UnchangedOrSameAs(self->shape) &&
+      mapped_strides.UnchangedOrSameAs(self->strides) &&
+      mapped_elem_offset.UnchangedOrSameAs(self->elem_offset) &&
+      mapped_layout.UnchangedOrSameAs(self->layout) &&
+      mapped_allocated_addr.UnchangedOrSameAs(self->allocated_addr)) {
+    return ffi::Unchanged().CopyToTVMFFIAny();
+  }
+  if (!mapped_dtype.IsUnchanged()) self->dtype = std::move(mapped_dtype).ValueUnchecked();
+  if (!mapped_shape.IsUnchanged()) self->shape = std::move(mapped_shape).ValueUnchecked();
+  if (!mapped_strides.IsUnchanged()) self->strides = std::move(mapped_strides).ValueUnchecked();
+  if (!mapped_elem_offset.IsUnchanged())
+    self->elem_offset = std::move(mapped_elem_offset).ValueUnchecked();
+  if (!mapped_layout.IsUnchanged()) self->layout = std::move(mapped_layout).ValueUnchecked();
+  if (!mapped_allocated_addr.IsUnchanged()) {
+    self->allocated_addr = std::move(mapped_allocated_addr).ValueUnchecked();
+  }
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+}  // namespace
 
 using IndexMod = prim::FloorModNode;
 using IndexDiv = prim::FloorDivNode;
@@ -136,14 +257,26 @@ BufferType::BufferType(ffi::String storage_scope, PrimType dtype, ffi::Array<Pri
   data_ = std::move(n);
 }
 
-namespace {
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  BufferTypeNode::RegisterReflection();
+  refl::TypeAttrDef<BufferTypeNode>().def("__subscript_expr_realize__", RealizeBufferSubscript);
+  refl::TypeAttrDef<BufferTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BufferTypeVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&BufferTypeMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&BufferTypeMaybeInplaceMutate));
 
-BufferVar RebuildBufferVarFromType(const BufferVar& buffer, BufferType type,
-                                   ffi::String name_suffix = "") {
-  return BufferVar(buffer.name() + name_suffix, std::move(type), buffer.span());
+  refl::GlobalDef().def(
+      "tirx.BufferType",
+      [](ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
+         ffi::Array<PrimExpr> strides, PrimExpr elem_offset, int data_alignment, int offset_factor,
+         ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr, Span span) {
+        return BufferType(std::move(storage_scope), std::move(dtype), std::move(shape),
+                          std::move(strides), std::move(elem_offset), data_alignment, offset_factor,
+                          std::move(layout), std::move(allocated_addr), std::move(span));
+      });
 }
-
-}  // namespace
 
 ffi::Array<PrimExpr> SimplifyArray(arith::AnalyzerObj* ana, ffi::Array<PrimExpr> array) {
   for (size_t i = 0; i < array.size(); ++i) {
@@ -655,16 +788,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("tirx.BufferWithDtype", &BufferVar::with_dtype)
       .def_method("tirx.BufferIsScalar", &BufferVar::IsScalar)
       .def_method("tirx.BufferData", &BufferVar::data)
-      .def_method("tirx.BufferDataPointerType", &BufferVar::DataPointerType)
-      .def("tirx.BufferType", [](ffi::String storage_scope, PrimType dtype,
-                                 ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> strides,
-                                 PrimExpr elem_offset, int data_alignment, int offset_factor,
-                                 ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr,
-                                 Span span) {
-        return BufferType(std::move(storage_scope), std::move(dtype), std::move(shape),
-                          std::move(strides), std::move(elem_offset), data_alignment, offset_factor,
-                          std::move(layout), std::move(allocated_addr), std::move(span));
-      });
+      .def_method("tirx.BufferDataPointerType", &BufferVar::DataPointerType);
 }
 
 }  // namespace tirx

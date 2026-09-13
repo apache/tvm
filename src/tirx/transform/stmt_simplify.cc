@@ -26,6 +26,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
@@ -241,7 +242,12 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
    * Substitutes any known Bind values and then simplifies with the analyzer.
    */
   ffi::Optional<bool> ProveCondition(PrimExpr condition) const {
-    condition = Substitute(condition, non_inlined_bindings_);
+    auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = non_inlined_bindings_.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
+    condition = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(condition, f_substitute)
+                    .as_or_throw<PrimExpr>();
     condition = analyzer_->Simplify(condition);
     if (const int64_t* as_int = as_const_int(condition)) {
       return *as_int != 0;

@@ -3577,7 +3577,7 @@ _DETECTION_POSTPROCESS_SMOKE_CASES = [
             "num_anchors": 4,
         },
         2,
-        False,
+        True,
         id="basic_fast_nms",
     ),
     pytest.param(
@@ -3603,7 +3603,7 @@ _DETECTION_POSTPROCESS_SHAPE_CASES = [
     pytest.param(
         {
             "num_classes": 2,
-            "input_num_classes": 5,
+            "input_num_classes": 2,
             "max_detections": 2,
             "detections_per_class": 2,
             "use_regular_nms": False,
@@ -3612,7 +3612,7 @@ _DETECTION_POSTPROCESS_SHAPE_CASES = [
             "batch_size": 1,
             "num_anchors": 4,
         },
-        id="wider_input_classes",
+        id="matching_input_classes",
     ),
     pytest.param(
         {
@@ -3637,6 +3637,23 @@ _DETECTION_POSTPROCESS_SHAPE_CASES = [
 )
 def test_detection_postprocess_smoke(build_kwargs, expected_topk_count, expected_keep_background):
     mod = _build_detection_postprocess_mod(**build_kwargs)
+
+    topk_calls = []
+    multibox_calls = []
+
+    def _visit(expr):
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.topk"):
+            topk_calls.append(expr)
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get(
+            "relax.vision.multibox_transform_loc"
+        ):
+            multibox_calls.append(expr)
+
+    relax.analysis.post_order_visit(mod["main"].body, _visit)
+    assert len(topk_calls) == expected_topk_count
+    assert len(multibox_calls) == 1
+    assert multibox_calls[0].attrs.keep_background == expected_keep_background
+    assert not multibox_calls[0].attrs.apply_softmax
 
     expected_batch = build_kwargs["batch_size"]
     expected_max_detections = build_kwargs["max_detections"]
@@ -3679,6 +3696,38 @@ def test_detection_postprocess_shape_variations(build_kwargs):
             ]
         ),
     )
+
+
+def test_detection_postprocess_removes_background_without_softmax():
+    """TFLite scores are probabilities; remove its optional background class exactly once."""
+    mod = _build_detection_postprocess_mod(
+        num_classes=2,
+        input_num_classes=3,
+        max_detections=2,
+        detections_per_class=2,
+        batch_size=1,
+    )
+    multibox_calls = []
+
+    def _visit(expr):
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get(
+            "relax.vision.multibox_transform_loc"
+        ):
+            multibox_calls.append(expr)
+
+    relax.analysis.post_order_visit(mod["main"].body, _visit)
+    assert len(multibox_calls) == 1
+    assert not multibox_calls[0].attrs.apply_softmax
+    assert multibox_calls[0].attrs.keep_background
+    tvm.ir.assert_structural_equal(
+        multibox_calls[0].args[0].ty,
+        relax.TensorType((1, 2, 4), "float32"),
+    )
+
+
+def test_detection_postprocess_rejects_invalid_class_count():
+    with pytest.raises(ValueError, match=r"num_classes \+ 1"):
+        _build_detection_postprocess_mod(num_classes=2, input_num_classes=5)
 
 
 def _make_resize_expected(
@@ -11352,6 +11401,10 @@ def test_quantized_avg_pool2d_uses_astype():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
+    # Exercise the public entry point so quantized pool allowlist regressions
+    # cannot be hidden by calling the converter method directly.
+    from_tflite(tflite_model)
+
     subgraph = tflite_model.Subgraphs(0)
     bb = relax.BlockBuilder()
     exp_tab = tflite_frontend.ExprTable()
@@ -12315,8 +12368,8 @@ def test_quantized_conv2d_per_channel_weight_with_int32_bias_dequantizes_bias():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def test_per_channel_depthwise_conv_unsupported():
-    """Per-channel quantized depthwise Conv2D raises OpNotImplemented."""
+def test_per_channel_depthwise_conv_dequantizes_before_reshape():
+    """Per-channel depthwise weights keep C*M intact and lower to HWOI."""
     import flatbuffers
     import tflite.Model
 
@@ -12325,9 +12378,12 @@ def test_per_channel_depthwise_conv_unsupported():
     in_q = _build_quantization_parameters(
         builder, scale=[0.5], zero_point=[0], quantized_dimension=0
     )
-    # Per-channel weight: 2 channels, scale vector length 2
+    # Two input channels with depth_multiplier=2 produce four output channels.
     wt_q = _build_quantization_parameters(
-        builder, scale=[0.25, 0.75], zero_point=[0, 0], quantized_dimension=3
+        builder,
+        scale=[0.25, 0.5, 0.75, 1.0],
+        zero_point=[0, 0, 0, 0],
+        quantized_dimension=3,
     )
     out_q = _build_quantization_parameters(
         builder, scale=[1.0], zero_point=[0], quantized_dimension=0
@@ -12337,16 +12393,16 @@ def test_per_channel_depthwise_conv_unsupported():
         builder, 0, [1, 4, 4, 2], tensor_type=_tfl_tensor_type.INT8, quantization=in_q
     )
     t_wt = _build_tensor(
-        builder, 1, [1, 3, 3, 2], tensor_type=_tfl_tensor_type.INT8, quantization=wt_q
+        builder, 1, [1, 3, 3, 4], tensor_type=_tfl_tensor_type.INT8, quantization=wt_q
     )
     t_ou = _build_tensor(
-        builder, 2, [1, 2, 2, 2], tensor_type=_tfl_tensor_type.INT8, quantization=out_q
+        builder, 2, [1, 2, 2, 4], tensor_type=_tfl_tensor_type.INT8, quantization=out_q
     )
 
     _tfl_depthwise_conv2d_options.DepthwiseConv2DOptionsStart(builder)
     _tfl_depthwise_conv2d_options.DepthwiseConv2DOptionsAddStrideH(builder, 1)
     _tfl_depthwise_conv2d_options.DepthwiseConv2DOptionsAddStrideW(builder, 1)
-    _tfl_depthwise_conv2d_options.DepthwiseConv2DOptionsAddDepthMultiplier(builder, 1)
+    _tfl_depthwise_conv2d_options.DepthwiseConv2DOptionsAddDepthMultiplier(builder, 2)
     _tfl_depthwise_conv2d_options.DepthwiseConv2DOptionsAddPadding(builder, 1)
     _tfl_depthwise_conv2d_options.DepthwiseConv2DOptionsAddFusedActivationFunction(builder, 0)
     dw_opts = _tfl_depthwise_conv2d_options.DepthwiseConv2DOptionsEnd(builder)
@@ -12379,8 +12435,25 @@ def test_per_channel_depthwise_conv_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="Per-channel"):
-        from_tflite(tflite_model)
+    mod = from_tflite(tflite_model)
+    dequantize_calls = []
+    reshape_calls = []
+
+    def _visit(expr):
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.dequantize"):
+            dequantize_calls.append(expr)
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.reshape"):
+            reshape_calls.append(expr)
+
+    relax.analysis.post_order_visit(mod["main"].body, _visit)
+    assert any(call.attrs.axis == 3 for call in dequantize_calls)
+    depthwise_reshapes = [
+        call
+        for call in reshape_calls
+        if call.ty.dtype == "float32"
+        and tuple(dim.value for dim in call.ty.shape.values) == (3, 3, 4, 1)
+    ]
+    assert len(depthwise_reshapes) == 1
 
 
 def test_uint8_reshape_requantize_uses_dq_reshape_q():

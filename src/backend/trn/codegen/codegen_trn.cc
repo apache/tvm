@@ -22,6 +22,7 @@
  */
 #include "codegen_trn.h"
 
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/transform.h>
@@ -309,14 +310,18 @@ std::string CodeGenTrainium::PrintIndices(const Array<PrimExpr>& indices) {
   ctx_.buffer_index = 0;
   ctx_.used_var_cnt = 0;
   for (size_t i = 0; i < indices.size(); ++i) {
-    PreOrderVisit(indices[i], [&](const ffi::ObjectRef& node) {
-      if (const auto* v = node.as<VarNode>()) {
-        if (ctx_.tensorized_loop_vars.count(v)) {
-          ctx_.used_var_cnt++;
-        }
+    std::unordered_set<const ffi::Object*> visited;
+    auto walk_fn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      const VarNode* v = var.get();
+      if (!visited.insert(v).second) {
+        return ffi::WalkResult::Advance();
       }
-      return true;
-    });
+      if (ctx_.tensorized_loop_vars.count(v)) {
+        ctx_.used_var_cnt++;
+      }
+      return ffi::WalkResult::Advance();
+    };
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(indices[i], walk_fn);
   }
   for (size_t i = 0; i < indices.size(); ++i) {
     if (i != 0) {
@@ -515,22 +520,22 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
     LOG(FATAL) << "Trainium codegen does not support call to " << op->op;
   }
   if (ctx_.mask.defined()) {
-    PreOrderVisit(ctx_.mask, [&](const ffi::ObjectRef& node) {
-      if (const auto* v = node.as<VarNode>()) {
-        if (ctx_.tensorized_loop_vars.count(v)) {
-          TVM_FFI_ICHECK(ctx_.loopvar2dim.count(v))
-              << "nki_dim must be specified for tensorized loop variables used in mask. However, "
-                 "it is not specified for "
-              << ffi::GetRef<Var>(v);
-          auto dim_str = ctx_.loopvar2dim[v];
-          TVM_FFI_ICHECK(dim_str == "P" || dim_str == "F")
-              << "Only nki_dim = P or F is allowed for tensorized loop variables used in mask. "
-                 "However, "
-              << ffi::GetRef<Var>(v) << " has nki_dim = " << dim_str;
-        }
+    auto walk_fn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      const VarNode* v = var.get();
+      if (ctx_.tensorized_loop_vars.count(v)) {
+        TVM_FFI_ICHECK(ctx_.loopvar2dim.count(v))
+            << "nki_dim must be specified for tensorized loop variables used in mask. However, "
+               "it is not specified for "
+            << ffi::GetRef<Var>(v);
+        auto dim_str = ctx_.loopvar2dim[v];
+        TVM_FFI_ICHECK(dim_str == "P" || dim_str == "F")
+            << "Only nki_dim = P or F is allowed for tensorized loop variables used in mask. "
+               "However, "
+            << ffi::GetRef<Var>(v) << " has nki_dim = " << dim_str;
       }
-      return true;
-    });
+      return ffi::WalkResult::Advance();
+    };
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(ctx_.mask, walk_fn);
     os << ", mask=" << PrintExpr(ctx_.mask);
   }
   os << ")";

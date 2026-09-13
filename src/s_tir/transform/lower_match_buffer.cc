@@ -24,6 +24,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/transform.h>
@@ -280,7 +281,12 @@ class MatchBufferLower : public StmtExprMutator {
       }
     }
     // Handle recursive case
-    value = Substitute(std::move(value), var_map_);
+    auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = var_map_.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
+    value = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(value), f_substitute)
+                .as_or_throw<PrimExpr>();
     if (arg->IsInstance<VarNode>()) {
       Var v = arg.as_or_throw<Var>();
       auto it = var_map_.find(v);

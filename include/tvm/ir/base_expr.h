@@ -65,6 +65,7 @@ class TypeNode : public ffi::Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  static constexpr bool _type_s_eq_hash_subclass_kind_fixed = true;
 
   static constexpr const uint32_t _type_child_slots = 14;
   TVM_FFI_DECLARE_OBJECT_INFO("ir.Type", TypeNode, ffi::Object);
@@ -484,9 +485,10 @@ struct TypeTraits<TypedExpr<ExpectedType>>
         !details::IsObjectInstance<ExprNode>(src->type_index)) {
       return false;
     }
-    const auto* expr = static_cast<const ExprNode*>(
-        details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj).get());
-    return details::AnyUnsafe::CheckAnyStrict<ExpectedType>(expr->ty);
+    // Non-owning: this only reads `ty`, and the owning form's incref/decref pair costs two
+    // atomics per check on a path every typed field assignment takes.
+    const auto* expr = details::ObjectUnsafe::RawObjectPtrFromUnowned<ExprNode>(src->v_obj);
+    return details::AnyUnsafe::CheckAnyViewStrict<ExpectedType>(AnyView(expr->ty));
   }
 
   TVM_FFI_INLINE static std::optional<TypedExpr<ExpectedType>> TryCastFromAnyView(

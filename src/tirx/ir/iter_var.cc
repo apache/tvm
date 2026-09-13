@@ -21,13 +21,67 @@
  * \file iter_var.cc
  * \brief Iteration-variable definitions.
  */
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/var.h>
+
+#include <utility>
 
 namespace tvm {
 namespace tirx {
 
-TVM_FFI_STATIC_INIT_BLOCK() { IterVarNode::RegisterReflection(); }
+namespace {
+
+TVMFFIAny IterVarVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  // skips: iter_type, thread_tag
+  const IterVarNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IterVarNode>(value);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->dom));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
+      kTVMFFIDefRegionKindSimple, [&]() { return visitor->VisitExpected(self->var); }));
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny IterVarMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  // skips: iter_type, thread_tag
+  const IterVarNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IterVarNode>(value);
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Range>, mapped_dom,
+                                    mutator->MutateExpected(self->dom));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimVar>, mapped_var,
+                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
+                                      return mutator->MutateExpected(self->var);
+                                    }));
+  if (mapped_dom.UnchangedOrSameAs(self->dom) && mapped_var.UnchangedOrSameAs(self->var)) {
+    return ffi::Unchanged().CopyToTVMFFIAny();
+  }
+  ffi::ObjectPtr<IterVarNode> copy = ffi::make_object<IterVarNode>(*self);
+  copy->dom = std::move(mapped_dom).ValueOrUnchanged(std::move(copy->dom));
+  copy->var = std::move(mapped_var).ValueOrUnchanged(std::move(copy->var));
+  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+}
+
+TVMFFIAny IterVarMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                    ffi::AnyView value) noexcept {
+  // skips: iter_type, thread_tag
+  IterVarNode* self = const_cast<IterVarNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IterVarNode>(value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Range>, mapped_dom,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->dom));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimVar>, mapped_var,
+                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
+                                      return mutator->MaybeInplaceMutateIfUniqueExpected(self->var);
+                                    }));
+  if (mapped_dom.UnchangedOrSameAs(self->dom) && mapped_var.UnchangedOrSameAs(self->var)) {
+    return ffi::Unchanged().CopyToTVMFFIAny();
+  }
+  self->dom = std::move(mapped_dom).ValueOrUnchanged(std::move(self->dom));
+  self->var = std::move(mapped_var).ValueOrUnchanged(std::move(self->var));
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+}  // namespace
 
 // IterVar
 IterVar::IterVar(Range dom, PrimVar var, IterVarType t, ffi::String thread_tag, Span span) {
@@ -49,6 +103,16 @@ IterVar::IterVar(Range dom, PrimVar var, IterVarType t, ffi::String thread_tag, 
   n->thread_tag = thread_tag;
   n->span = std::move(span);
   data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  IterVarNode::RegisterReflection();
+  refl::TypeAttrDef<IterVarNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&IterVarVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&IterVarMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&IterVarMaybeInplaceMutate));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

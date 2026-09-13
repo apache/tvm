@@ -17,6 +17,8 @@
 # pylint: disable=missing-docstring
 """A fallback schedule rule for GPU operators."""
 
+import tvm_ffi
+
 from tvm import s_tir, tirx
 from tvm.target import Target
 
@@ -33,14 +35,21 @@ def _has_internal_thread_env(stmt: tirx.Stmt) -> bool:
     and must not be wrapped in an additional thread binding."""
     found = False
 
-    def _visit(node):
+    def visit_attr(node: tirx.AttrStmt):
         nonlocal found
-        if isinstance(node, tirx.AttrStmt) and node.attr_key in ("thread_extent", "virtual_thread"):
-            found = True
-        elif isinstance(node, tirx.For) and node.kind == tirx.ForKind.THREAD_BINDING:
+        if node.attr_key in ("thread_extent", "virtual_thread"):
             found = True
 
-    tirx.stmt_functor.post_order_visit(stmt, _visit)
+    def visit_for(node: tirx.For):
+        nonlocal found
+        if node.kind == tirx.ForKind.THREAD_BINDING:
+            found = True
+
+    tvm_ffi.structural_walk(
+        stmt,
+        [(tirx.AttrStmt, visit_attr), (tirx.For, visit_for)],
+        order="post",
+    )
     return found
 
 

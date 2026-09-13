@@ -27,11 +27,11 @@
 #include <tvm/arith/int_solver.h>
 #include <tvm/arith/pattern.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/expr_functor.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>
 #include <unordered_map>
@@ -94,15 +94,17 @@ static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
 
 PresburgerSet::PresburgerSet(const PrimExpr& constraint) {
   ffi::Array<PrimVar> vars;
-  PostOrderVisit(constraint, [&vars](const ffi::ObjectRef& obj) {
-    if (auto prim_var = obj.as<PrimVar>()) {
-      PrimVar var = *prim_var;
-      if (!std::any_of(vars.begin(), vars.end(),
-                       [&var](const PrimVar& v) { return v.same_as(var); })) {
-        vars.push_back(var);
-      }
-    }
-  });
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+      constraint, [&vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+        if (auto prim_var = var.as<PrimVar>()) {
+          PrimVar var = *prim_var;
+          if (!std::any_of(vars.begin(), vars.end(),
+                           [&var](const PrimVar& v) { return v.same_as(var); })) {
+            vars.push_back(var);
+          }
+        }
+        return ffi::WalkResult::Advance();
+      });
   auto constraints_union = ExtractComponents(constraint);
   Analyzer analyzer;
   PrimExpr simplified_constraint = analyzer->Simplify(constraint, kSimplifyRewriteCanonicalRewrite);

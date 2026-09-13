@@ -18,6 +18,7 @@
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.script
@@ -542,7 +543,7 @@ def test_dispatch_cumsum_webgpu_axes_and_dtypes(
             if isinstance(node, tirx.FloorDiv):
                 floor_divisors.append(node.b)
 
-        tirx.stmt_functor.post_order_visit(cumsum.body, collect_floor_divisors)
+        tvm_ffi.structural_walk(cumsum.body, collect_floor_divisors)
         assert floor_divisors
         assert all(
             isinstance(divisor, tirx.IntImm)

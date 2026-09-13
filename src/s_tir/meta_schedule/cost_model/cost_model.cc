@@ -64,8 +64,6 @@ CostModel CostModel::PyCostModel(PyCostModelNode::FLoad f_load,      //
 
 // Pattern A (RM): auto-default repr from reflection.
 // Ensure the type index is allocated for Python registration to work.
-// (Previously, TVM_STATIC_IR_FUNCTOR(ReprPrinter).set_dispatch<PyCostModelNode> had
-// a side-effect of calling PyCostModelNode::RuntimeTypeIndex() which registered the type.)
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

@@ -100,6 +100,7 @@ class OperatorConverter:
         {
             "ABS",
             "ADD",
+            "AVERAGE_POOL_2D",
             "ATAN2",
             "CEIL",
             "CONCATENATION",
@@ -125,6 +126,7 @@ class OperatorConverter:
             "LOGISTIC",
             "LOG_SOFTMAX",
             "MAXIMUM",
+            "MAX_POOL_2D",
             "MEAN",
             "MINIMUM",
             "MUL",
@@ -4650,6 +4652,13 @@ class OperatorConverter:
             # 1 KH KW C(input_c * depth_multiplier)
             _, kernel_h, kernel_w, in_channels = to_int_list(self.get_tensor_shape(weight_tensor))
             assert in_channels == input_c * depth_multiplier
+            # Relax grouped convolution expects one input channel per group in
+            # HWOI when input_c > 1.  The single-channel case remains HWIO.
+            depthwise_weight_shape = (
+                (kernel_h, kernel_w, input_c, depth_multiplier)
+                if input_c == 1
+                else (kernel_h, kernel_w, in_channels, 1)
+            )
         else:
             output_channels, kernel_h, kernel_w, in_channels = to_int_list(
                 self.get_tensor_shape(weight_tensor)
@@ -4689,6 +4698,13 @@ class OperatorConverter:
         )
         weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
 
+        per_channel_depthwise = (
+            is_depthwise_conv
+            and input_tensor.qnn_params
+            and weight_tensor.qnn_params
+            and weight_tensor.tensor.Quantization().ScaleLength() > 1
+        )
+
         in_expr = self.get_expr(input_tensor_idx)
 
         # TFLite converts float32 models to float16 models by introducing
@@ -4698,9 +4714,8 @@ class OperatorConverter:
         if self.has_expr(weight_tensor.tensor_idx):
             weight_expr = self.get_expr(weight_tensor.tensor_idx)
             if is_depthwise_conv:
-                weight_expr = relax.op.reshape(
-                    weight_expr, (kernel_h, kernel_w, input_c, depth_multiplier)
-                )
+                if not per_channel_depthwise:
+                    weight_expr = relax.op.reshape(weight_expr, depthwise_weight_shape)
             else:
                 weight_expr = relax.op.permute_dims(weight_expr, axes=(1, 2, 3, 0))
         else:
@@ -4713,10 +4728,11 @@ class OperatorConverter:
             # convolution:
             # OC KH KW IC, we require KH KW IC OC (HWIO)
             # depthwise convolution:
-            # 1 KH KW C(input_c * depth_multiplier), we require
-            # KH KW IC M (depth_multiplier) (HWOI)
+            # 1 KH KW C(input_c * depth_multiplier), we require HWIO
+            # [KH,KW,1,M] for one input channel, otherwise HWOI [KH,KW,C*M,1].
             if is_depthwise_conv:
-                weight_value = weight_value.reshape(kernel_h, kernel_w, input_c, depth_multiplier)
+                if not per_channel_depthwise:
+                    weight_value = weight_value.reshape(depthwise_weight_shape)
             else:
                 weight_value = weight_value.transpose((1, 2, 3, 0))
 
@@ -4748,11 +4764,39 @@ class OperatorConverter:
             # QuantizedDimension() == 0 (OC in original) → axis 3 in HWIO.
             weight_axis = weight_tensor.qnn_params["axis"]
             if is_depthwise_conv:
-                if weight_axis != 0:
-                    raise tvm.error.OpNotImplemented(
-                        "Per-channel quantized depthwise convolution is not supported "
-                        "because the channel axis changes semantics after the "
-                        "[1,KH,KW,C*M] → [KH,KW,C,M] reshape."
+                if per_channel_depthwise:
+                    if weight_axis != 3:
+                        raise tvm.error.OpAttributeInvalid(
+                            "Per-channel DepthwiseConv2D weight QuantizedDimension() must be 3 "
+                            f"(the flattened output-channel axis), got {weight_axis}"
+                        )
+                    scale_count = weight_tensor.tensor.Quantization().ScaleLength()
+                    if scale_count != in_channels:
+                        raise tvm.error.OpAttributeInvalid(
+                            "Per-channel DepthwiseConv2D weight scale count must match "
+                            f"input_channels * depth_multiplier ({in_channels}), got {scale_count}"
+                        )
+                    # Dequantize while the TFLite [1, KH, KW, C*M] channel axis is
+                    # still intact.  Reshaping first would split that axis into C and M,
+                    # which a single-axis dequantize cannot represent.
+                    w_f32 = relax.op.dequantize(
+                        weight_expr,
+                        scale=weight_tensor.qnn_params["scale"],
+                        zero_point=weight_tensor.qnn_params["zero_point"],
+                        axis=3,
+                    )
+                    w_f32 = relax.op.reshape(w_f32, depthwise_weight_shape)
+                else:
+                    if weight_axis != 0:
+                        raise tvm.error.OpAttributeInvalid(
+                            "Per-tensor DepthwiseConv2D weight QuantizedDimension() must be 0, "
+                            f"got {weight_axis}"
+                        )
+                    w_f32 = relax.op.dequantize(
+                        weight_expr,
+                        scale=weight_tensor.qnn_params["scale"],
+                        zero_point=weight_tensor.qnn_params["zero_point"],
+                        axis=0,
                     )
             else:
                 if weight_axis != 0:
@@ -4760,13 +4804,12 @@ class OperatorConverter:
                         f"Conv2D weight QuantizedDimension() must be 0 (output-channel "
                         f"axis in [OC,KH,KW,IC] layout), got {weight_axis}"
                     )
-                weight_axis = 3
-            w_f32 = relax.op.dequantize(
-                weight_expr,
-                scale=weight_tensor.qnn_params["scale"],
-                zero_point=weight_tensor.qnn_params["zero_point"],
-                axis=weight_axis,
-            )
+                w_f32 = relax.op.dequantize(
+                    weight_expr,
+                    scale=weight_tensor.qnn_params["scale"],
+                    zero_point=weight_tensor.qnn_params["zero_point"],
+                    axis=3,
+                )
             # Float convolution
             out = relax.op.nn.conv2d(in_f32, w_f32, **params)
         else:
@@ -7519,6 +7562,13 @@ class OperatorConverter:
         cls_pred = self.get_expr(inputs[1].tensor_idx)
         loc_prob = self.get_expr(inputs[0].tensor_idx)
         batch_size = inputs[1].tensor.Shape(0)
+        input_num_classes = int(inputs[1].tensor.Shape(2))
+        label_offset = input_num_classes - num_classes
+        if label_offset not in (0, 1):
+            raise ValueError(
+                "DETECTION_POSTPROCESS class predictions must contain num_classes "
+                "or num_classes + 1 entries"
+            )
         anchor_values = self.get_tensor_value(inputs[2])
         anchor_boxes = len(anchor_values)
         anchor_type = self.get_tensor_type_str(inputs[2].tensor.Type())
@@ -7532,6 +7582,14 @@ class OperatorConverter:
             cls_pred = self.dequantize(cls_pred, inputs[1])
         if inputs[2].qnn_params:
             anchor_expr = self.dequantize(anchor_expr, inputs[2])
+
+        if label_offset:
+            cls_pred = relax.op.strided_slice(
+                cls_pred,
+                axes=[2],
+                begin=[label_offset],
+                end=[label_offset + num_classes],
+            )
 
         # loc_prob coords are in yxhw format
         # need to convert to xywh
@@ -7569,7 +7627,11 @@ class OperatorConverter:
             1 / w_scale,
             1 / h_scale,
         )
-        multibox_transform_loc_attrs["keep_background"] = use_regular_nms
+        # TFLite DetectionPostProcess consumes probabilities, not logits.  Any
+        # optional background class was sliced above, so class 0 is now a real
+        # foreground class and must be kept for both NMS implementations.
+        multibox_transform_loc_attrs["keep_background"] = True
+        multibox_transform_loc_attrs["apply_softmax"] = False
 
         multibox_res = self.bb.emit(
             relax.op.vision.multibox_transform_loc(

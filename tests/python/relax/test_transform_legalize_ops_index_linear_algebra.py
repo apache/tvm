@@ -460,27 +460,79 @@ def test_dynamic_strided_slice():
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(
                         rxplaceholder[
-                            T.min(rxplaceholder_1[T.int64(0)], T.int64(7))
-                            + v_ax0 * rxplaceholder_3[T.int64(0)],
-                            T.min(rxplaceholder_1[T.int64(1)], T.int64(8))
-                            + v_ax1 * rxplaceholder_3[T.int64(1)],
-                            T.min(rxplaceholder_1[T.int64(2)], T.int64(9))
-                            + v_ax2 * rxplaceholder_3[T.int64(2)],
-                            T.min(rxplaceholder_1[T.int64(3)], T.int64(9))
-                            + v_ax3 * rxplaceholder_3[T.int64(3)],
+                            T.int64(0) : T.int64(8),
+                            T.int64(0) : T.int64(9),
+                            T.int64(0) : T.int64(10),
+                            T.int64(0) : T.int64(10),
                         ],
                         rxplaceholder_1[T.int64(0) : T.int64(4)],
                         rxplaceholder_3[T.int64(0) : T.int64(4)],
                     )
                     T.writes(T_strided_slice_dynamic[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_strided_slice_dynamic[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[
-                        T.min(rxplaceholder_1[T.int64(0)], T.int64(7))
+                        T.min(
+                            T.max(
+                                T.if_then_else(
+                                    rxplaceholder_1[T.int64(0)] < T.int64(0),
+                                    rxplaceholder_1[T.int64(0)] + T.int64(8),
+                                    rxplaceholder_1[T.int64(0)],
+                                ),
+                                T.if_then_else(
+                                    rxplaceholder_3[T.int64(0)] < T.int64(0), T.int64(-1), T.int64(0)
+                                ),
+                            ),
+                            T.if_then_else(
+                                rxplaceholder_3[T.int64(0)] < T.int64(0), T.int64(7), T.int64(8)
+                            ),
+                        )
                         + v_ax0 * rxplaceholder_3[T.int64(0)],
-                        T.min(rxplaceholder_1[T.int64(1)], T.int64(8))
+                        T.min(
+                            T.max(
+                                T.if_then_else(
+                                    rxplaceholder_1[T.int64(1)] < T.int64(0),
+                                    rxplaceholder_1[T.int64(1)] + T.int64(9),
+                                    rxplaceholder_1[T.int64(1)],
+                                ),
+                                T.if_then_else(
+                                    rxplaceholder_3[T.int64(1)] < T.int64(0), T.int64(-1), T.int64(0)
+                                ),
+                            ),
+                            T.if_then_else(
+                                rxplaceholder_3[T.int64(1)] < T.int64(0), T.int64(8), T.int64(9)
+                            ),
+                        )
                         + v_ax1 * rxplaceholder_3[T.int64(1)],
-                        T.min(rxplaceholder_1[T.int64(2)], T.int64(9))
+                        T.min(
+                            T.max(
+                                T.if_then_else(
+                                    rxplaceholder_1[T.int64(2)] < T.int64(0),
+                                    rxplaceholder_1[T.int64(2)] + T.int64(10),
+                                    rxplaceholder_1[T.int64(2)],
+                                ),
+                                T.if_then_else(
+                                    rxplaceholder_3[T.int64(2)] < T.int64(0), T.int64(-1), T.int64(0)
+                                ),
+                            ),
+                            T.if_then_else(
+                                rxplaceholder_3[T.int64(2)] < T.int64(0), T.int64(9), T.int64(10)
+                            ),
+                        )
                         + v_ax2 * rxplaceholder_3[T.int64(2)],
-                        T.min(rxplaceholder_1[T.int64(3)], T.int64(9))
+                        T.min(
+                            T.max(
+                                T.if_then_else(
+                                    rxplaceholder_1[T.int64(3)] < T.int64(0),
+                                    rxplaceholder_1[T.int64(3)] + T.int64(10),
+                                    rxplaceholder_1[T.int64(3)],
+                                ),
+                                T.if_then_else(
+                                    rxplaceholder_3[T.int64(3)] < T.int64(0), T.int64(-1), T.int64(0)
+                                ),
+                            ),
+                            T.if_then_else(
+                                rxplaceholder_3[T.int64(3)] < T.int64(0), T.int64(9), T.int64(10)
+                            ),
+                        )
                         + v_ax3 * rxplaceholder_3[T.int64(3)],
                     ]
 
@@ -748,19 +800,45 @@ def test_dynamic_strided_slice_symbolic():
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(
                         rxplaceholder_3[
-                            T.min(rxplaceholder[T.int64(0)], T.int64(9))
-                            + v_ax0 * rxplaceholder_2[T.int64(0)],
-                            T.min(rxplaceholder[T.int64(1)], n - T.int64(1))
-                            + v_ax1 * rxplaceholder_2[T.int64(1)],
+                            T.int64(0) : T.int64(10),
+                            T.int64(0) : n,
                         ],
                         rxplaceholder[T.int64(0) : T.int64(2)],
                         rxplaceholder_2[T.int64(0) : T.int64(2)],
                     )
                     T.writes(T_strided_slice_dynamic[v_ax0, v_ax1])
                     T_strided_slice_dynamic[v_ax0, v_ax1] = rxplaceholder_3[
-                        T.min(rxplaceholder[T.int64(0)], T.int64(9))
+                        T.min(
+                            T.max(
+                                T.if_then_else(
+                                    rxplaceholder[T.int64(0)] < T.int64(0),
+                                    rxplaceholder[T.int64(0)] + T.int64(10),
+                                    rxplaceholder[T.int64(0)],
+                                ),
+                                T.if_then_else(
+                                    rxplaceholder_2[T.int64(0)] < T.int64(0), T.int64(-1), T.int64(0)
+                                ),
+                            ),
+                            T.if_then_else(
+                                rxplaceholder_2[T.int64(0)] < T.int64(0), T.int64(9), T.int64(10)
+                            ),
+                        )
                         + v_ax0 * rxplaceholder_2[T.int64(0)],
-                        T.min(rxplaceholder[T.int64(1)], n - T.int64(1))
+                        T.min(
+                            T.max(
+                                T.if_then_else(
+                                    rxplaceholder[T.int64(1)] < T.int64(0),
+                                    rxplaceholder[T.int64(1)] + n,
+                                    rxplaceholder[T.int64(1)],
+                                ),
+                                T.if_then_else(
+                                    rxplaceholder_2[T.int64(1)] < T.int64(0), T.int64(-1), T.int64(0)
+                                ),
+                            ),
+                            T.if_then_else(
+                                rxplaceholder_2[T.int64(1)] < T.int64(0), n - T.int64(1), n
+                            ),
+                        )
                         + v_ax1 * rxplaceholder_2[T.int64(1)],
                     ]
 

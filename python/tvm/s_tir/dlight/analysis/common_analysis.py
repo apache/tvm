@@ -23,6 +23,7 @@ import logging
 from collections import namedtuple
 from typing import Literal
 
+import tvm_ffi
 from tvm_ffi import get_global_func
 
 from tvm import ir, s_tir, tirx
@@ -419,11 +420,10 @@ def collect_vars_used_in_prim_expr(expr: tirx.Expr) -> set[tirx.Var]:
     """Collect the variables used in the Expr."""
     tir_vars = set()
 
-    def _collect_tir_var(expr):
-        if ir.is_prim_var(expr):
-            tir_vars.add(expr)
+    def _collect_tir_var(expr: tirx.Var):
+        tir_vars.add(expr)
 
-    tirx.stmt_functor.post_order_visit(expr, _collect_tir_var)
+    tvm_ffi.structural_walk(expr, (tirx.Var, _collect_tir_var), order="post")
     return tir_vars
 
 

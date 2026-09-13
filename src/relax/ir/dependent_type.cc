@@ -21,6 +21,8 @@
  * \file src/relax/ir/dependent_type.cc
  * \brief Relax type nodes.
  */
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
@@ -30,30 +32,159 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  AnyTypeNode::RegisterReflection();
-  ShapeTypeNode::RegisterReflection();
-  TensorTypeNode::RegisterReflection();
-  FuncTypeNode::RegisterReflection();
-  refl::TypeAttrDef<TensorTypeNode>().def(
-      "__subscript_expr_realize__",
-      [](Expr value,
-         ffi::Array<ffi::Variant<
-             ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
-             PrimExpr>>
-             slice,
-         Span span) -> ffi::ObjectRef {
-        TVM_FFI_CHECK_EQ(slice.size(), 1, IndexError)
-            << "A Relax expression requires exactly one index";
-        auto index = slice[0].as<PrimExpr>();
-        TVM_FFI_CHECK(index.has_value(), TypeError) << "A Relax expression requires a point index";
-        const auto* imm = index.value().as<IntImmNode>();
-        TVM_FFI_CHECK(imm != nullptr, TypeError)
-            << "A Relax expression requires a constant integer index";
-        return TupleGetItem(value, static_cast<int>(imm->value), span);
-      });
+namespace {
+
+TVMFFIAny AnyTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
+
+TVMFFIAny AnyTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny AnyTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny ShapeTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
+  const ShapeTypeNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ShapeTypeNode>(value);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->values));
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny ShapeTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
+  const ShapeTypeNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ShapeTypeNode>(value);
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<ffi::Array<PrimExpr>>>,
+                                    mapped_values, mutator->MutateExpected(self->values));
+  if (mapped_values.UnchangedOrSameAs(self->values)) return ffi::Unchanged().CopyToTVMFFIAny();
+  ffi::ObjectPtr<ShapeTypeNode> copy = ffi::make_object<ShapeTypeNode>(*self);
+  copy->values = std::move(mapped_values).ValueOrUnchanged(std::move(copy->values));
+  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+}
+
+TVMFFIAny ShapeTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                      ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
+  ShapeTypeNode* self = const_cast<ShapeTypeNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ShapeTypeNode>(value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<ffi::Array<PrimExpr>>>,
+                                    mapped_values,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->values));
+  if (!mapped_values.UnchangedOrSameAs(self->values)) {
+    self->values = std::move(mapped_values).ValueUnchecked();
+  }
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny TensorTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
+  const TensorTypeNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorTypeNode>(value);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->shape));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->dtype));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->vdevice));
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny TensorTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
+  const TensorTypeNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorTypeNode>(value);
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Expr>>, mapped_shape,
+                                    mutator->MutateExpected(self->shape));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<PrimType>>, mapped_dtype,
+                                    mutator->MutateExpected(self->dtype));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<VDevice>>, mapped_vdevice,
+                                    mutator->MutateExpected(self->vdevice));
+  if (mapped_shape.UnchangedOrSameAs(self->shape) && mapped_dtype.UnchangedOrSameAs(self->dtype) &&
+      mapped_vdevice.UnchangedOrSameAs(self->vdevice)) {
+    return ffi::Unchanged().CopyToTVMFFIAny();
+  }
+  ffi::ObjectPtr<TensorTypeNode> copy = ffi::make_object<TensorTypeNode>(*self);
+  copy->shape = std::move(mapped_shape).ValueOrUnchanged(std::move(copy->shape));
+  copy->dtype = std::move(mapped_dtype).ValueOrUnchanged(std::move(copy->dtype));
+  copy->vdevice = std::move(mapped_vdevice).ValueOrUnchanged(std::move(copy->vdevice));
+  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+}
+
+TVMFFIAny TensorTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                       ffi::AnyView value) noexcept {
+  // skips: ndim (scalar)
+  TensorTypeNode* self = const_cast<TensorTypeNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorTypeNode>(value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Expr>>, mapped_shape,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->shape));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<PrimType>>, mapped_dtype,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->dtype));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<VDevice>>, mapped_vdevice,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->vdevice));
+  if (!mapped_shape.UnchangedOrSameAs(self->shape)) {
+    self->shape = std::move(mapped_shape).ValueUnchecked();
+  }
+  if (!mapped_dtype.UnchangedOrSameAs(self->dtype)) {
+    self->dtype = std::move(mapped_dtype).ValueUnchecked();
+  }
+  if (!mapped_vdevice.UnchangedOrSameAs(self->vdevice)) {
+    self->vdevice = std::move(mapped_vdevice).ValueUnchecked();
+  }
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny FuncTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  // skips: derive_func (environment-backed callable metadata), purity (scalar)
+  const FuncTypeNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(value);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
+      kTVMFFIDefRegionKindPattern, [&]() { return visitor->VisitExpected(self->params); }));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->ret));
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny FuncTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  // skips: derive_func (environment-backed callable metadata), purity (scalar)
+  const FuncTypeNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(value);
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Optional<ffi::Array<Type>>>, mapped_params,
+      mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern,
+                                 [&]() { return mutator->MutateExpected(self->params); }));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ret,
+                                    mutator->MutateExpected(self->ret));
+  if (mapped_params.UnchangedOrSameAs(self->params) && mapped_ret.UnchangedOrSameAs(self->ret)) {
+    return ffi::Unchanged().CopyToTVMFFIAny();
+  }
+  ffi::ObjectPtr<FuncTypeNode> copy = ffi::make_object<FuncTypeNode>(*self);
+  copy->params = std::move(mapped_params).ValueOrUnchanged(std::move(copy->params));
+  copy->ret = std::move(mapped_ret).ValueOrUnchanged(std::move(copy->ret));
+  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+}
+
+TVMFFIAny FuncTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                     ffi::AnyView value) noexcept {
+  // skips: derive_func (environment-backed callable metadata), purity (scalar)
+  FuncTypeNode* self = const_cast<FuncTypeNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Optional<ffi::Array<Type>>>, mapped_params,
+      mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&]() {
+        return mutator->MaybeInplaceMutateIfUniqueExpected(self->params);
+      }));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ret,
+                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->ret));
+  if (!mapped_params.UnchangedOrSameAs(self->params)) {
+    self->params = std::move(mapped_params).ValueUnchecked();
+  }
+  if (!mapped_ret.UnchangedOrSameAs(self->ret)) {
+    self->ret = std::move(mapped_ret).ValueUnchecked();
+  }
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+}  // namespace
 
 AnyType::AnyType(Span span) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<AnyTypeNode> n = ffi::make_object<AnyTypeNode>();
@@ -63,9 +194,19 @@ AnyType::AnyType(Span span) : Type(ffi::UnsafeInit{}) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("relax.AnyType", [](Span span) { return AnyType(span); })
-      .def("relax.ObjectType", [](Span span) { return AnyType(span); });
+  AnyTypeNode::RegisterReflection();
+  refl::TypeAttrDef<AnyTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&AnyTypeVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&AnyTypeMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&AnyTypeMaybeInplaceMutate));
+
+  refl::GlobalDef().def("relax.AnyType", [](Span span) { return AnyType(span); });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.ObjectType", [](Span span) { return AnyType(span); });
 }
 
 // Shape
@@ -90,6 +231,16 @@ ShapeType::ShapeType(int ndim, Span span) : Type(ffi::UnsafeInit{}) {
   n->ndim = ndim;
   n->span = span;
   data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  ShapeTypeNode::RegisterReflection();
+  refl::TypeAttrDef<ShapeTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&ShapeTypeVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&ShapeTypeMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&ShapeTypeMaybeInplaceMutate));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -139,6 +290,33 @@ TensorType::TensorType(ffi::Optional<PrimType> dtype, int ndim, ffi::Optional<VD
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  TensorTypeNode::RegisterReflection();
+  refl::TypeAttrDef<TensorTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TensorTypeVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TensorTypeMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&TensorTypeMaybeInplaceMutate))
+      .def("__subscript_expr_realize__",
+           [](Expr value,
+              ffi::Array<ffi::Variant<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
+                                                 ffi::Optional<PrimExpr>>,
+                                      PrimExpr>>
+                  slice,
+              Span span) -> ffi::ObjectRef {
+             TVM_FFI_CHECK_EQ(slice.size(), 1, IndexError)
+                 << "A Relax expression requires exactly one index";
+             auto index = slice[0].as<PrimExpr>();
+             TVM_FFI_CHECK(index.has_value(), TypeError)
+                 << "A Relax expression requires a point index";
+             const auto* imm = index.value().as<IntImmNode>();
+             TVM_FFI_CHECK(imm != nullptr, TypeError)
+                 << "A Relax expression requires a constant integer index";
+             return TupleGetItem(value, static_cast<int>(imm->value), span);
+           });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.TensorType", [](ffi::Optional<Expr> shape, ffi::Optional<PrimType> dtype, int ndim,
                              VDevice vdevice, Span span) {
@@ -162,6 +340,21 @@ FuncType::FuncType(ffi::Array<Type> params, Type ret, bool purity, Span span)
   data_ = std::move(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  FuncTypeNode::RegisterReflection();
+  refl::TypeAttrDef<FuncTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&FuncTypeVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&FuncTypeMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&FuncTypeMaybeInplaceMutate));
+
+  refl::GlobalDef().def("relax.FuncType",
+                        [](ffi::Array<Type> params, Type ret, bool purity, Span span) {
+                          return FuncType(params, ret, purity, span);
+                        });
+}
+
 FuncType FuncType::OpaqueFunc(TypeDeriveFunc derive_func, bool purity, Span span) {
   ffi::ObjectPtr<FuncTypeNode> n = ffi::make_object<FuncTypeNode>();
   n->derive_func = std::move(derive_func);
@@ -181,19 +374,16 @@ FuncType FuncType::OpaqueFunc(Type ret, bool purity, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("relax.FuncType", [](ffi::Array<Type> params, Type ret, bool purity,
-                                Span span) { return FuncType(params, ret, purity, span); })
-      .def("relax.FuncTypeOpaqueFunc", [](ffi::Optional<Type> ret,
-                                          ffi::Optional<TypeDeriveFunc> derive_func, bool purity,
-                                          Span span) {
-        if (derive_func.has_value()) {
-          TVM_FFI_CHECK(!ret.has_value(), ValueError) << "Cannot specify both ret and derive_func";
-          return FuncType::OpaqueFunc(derive_func.value(), purity, span);
-        } else {
-          return FuncType::OpaqueFunc(ret.value_or(AnyType()), purity, span);
-        }
-      });
+  refl::GlobalDef().def("relax.FuncTypeOpaqueFunc", [](ffi::Optional<Type> ret,
+                                                       ffi::Optional<TypeDeriveFunc> derive_func,
+                                                       bool purity, Span span) {
+    if (derive_func.has_value()) {
+      TVM_FFI_CHECK(!ret.has_value(), ValueError) << "Cannot specify both ret and derive_func";
+      return FuncType::OpaqueFunc(derive_func.value(), purity, span);
+    } else {
+      return FuncType::OpaqueFunc(ret.value_or(AnyType()), purity, span);
+    }
+  });
 }
 
 // Helper functions

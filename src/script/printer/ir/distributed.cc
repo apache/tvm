@@ -24,16 +24,18 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<ffi::Shape>("", [](ffi::Shape n, AccessPath n_p, IRDocsifier d) -> Doc {
-      int s = n.size();
-      ffi::Array<ExprDoc> results;
-      results.reserve(s);
-      for (int i = 0; i < s; ++i) {
-        results.push_back(d->AsDoc<ExprDoc>(IntImm::Int32(n[i]), n_p->ArrayItem(i)));
-      }
-      return TupleDoc(results);
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<ffi::Shape>(
+      "", [](ffi::Shape n, AccessPath n_p, IRDocsifier d) -> Doc {
+        int s = n.size();
+        ffi::Array<ExprDoc> results;
+        results.reserve(s);
+        for (int i = 0; i < s; ++i) {
+          results.push_back(d->AsDoc<ExprDoc>(IntImm::Int32(n[i]), n_p->ArrayItem(i)));
+        }
+        return TupleDoc(results);
+      });
+}
 
 }  // namespace printer
 }  // namespace script

@@ -293,5 +293,33 @@ def test_vector_access_ptr_address_uses_ramp_base():
     assert " + 4" in call
 
 
+def test_if_then_else_avoids_extraneous_parentheses():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((8,), "int32"), B: T.Buffer((8,), "int32")):
+            for i in range(8):
+                B[i] = T.if_then_else(i == 0, 1, A[i])
+
+    built = tvm.tirx.build(Module, target="c")
+    source = built.inspect_source()
+    assert "if ((" not in source, (
+        "Generated code contains extraneous parentheses in the if condition, "
+        "which triggers clang's -Wparentheses-equality warning"
+    )
+
+    temp = utils.tempdir()
+    path_dso = temp.relpath("if_then_else.so")
+    built.export_library(path_dso)
+    loaded = tvm.runtime.load_module(path_dso)
+
+    a = tvm.runtime.tensor(np.arange(8, dtype="int32"))
+    b = tvm.runtime.tensor(np.zeros(8, dtype="int32"))
+    loaded["main"](a, b)
+    tvm.testing.assert_allclose(
+        b.numpy(), np.where(np.arange(8) == 0, 1, np.arange(8)).astype("int32")
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()

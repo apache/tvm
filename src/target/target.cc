@@ -40,8 +40,6 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK() { TargetNode::RegisterReflection(); }
-
 class TargetInternal {
  public:
   static void EnterScope(Target target) { target.EnterWithScope(); }
@@ -146,6 +144,15 @@ Target::Target(TargetKind kind, ffi::Optional<ffi::ObjectRef> host, ffi::String 
   data->keys = std::move(keys);
   data->attrs = std::move(attrs);
   data_ = std::move(data);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  TargetNode::RegisterReflection();
+  // Register __ffi_repr__ so that ffi.ReprPrint uses JSON format for Target
+  refl::TypeAttrDef<TargetNode>().def(
+      refl::type_attr::kRepr,
+      [](Target target, ffi::Function) -> ffi::String { return target->str(); });
 }
 
 ffi::Map<ffi::String, ffi::Any> TargetNode::ToConfig() const {
@@ -483,10 +490,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def("target.TargetAsJSON",
            [](const Target& target) -> ffi::String { return target->str(); });
-  // Register __ffi_repr__ so that ffi.ReprPrint uses JSON format for Target
-  refl::TypeAttrDef<TargetNode>().def(
-      refl::type_attr::kRepr,
-      [](Target target, ffi::Function) -> ffi::String { return target->str(); });
 }
 
 // AC: kRepr already registered above at refl::TypeAttrDef<TargetNode>().def(kRepr, ...)

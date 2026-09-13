@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 
@@ -67,9 +68,15 @@ class BufferReadPosCollector : public StmtExprVisitor {
         const PrimExpr& value = cur_realize_->iter_values[i];
         subst_map.Set(var, value);
       }
+      auto f_substitute =
+          [&subst_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        if (auto repl = subst_map.Get(var)) return ffi::Any(*std::move(repl));
+        return ffi::Unchanged();
+      };
       ffi::Array<PrimExpr> subst_indices;
       for (const PrimExpr& e : op->indices) {
-        subst_indices.push_back(Substitute(e, subst_map));
+        subst_indices.push_back(
+            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute).as_or_throw<PrimExpr>());
       }
       buffer_index_map_ = SuggestIndexMap(/*buffer=*/buffer,                      //
                                           /*indices=*/subst_indices,              //

@@ -921,25 +921,30 @@ Var Ptr(PrimType dtype, ffi::String storage_scope = "global") {
 
 using tvm::script::ir_builder::details::Namer;
 
-TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<TensorLoadNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
-      using namespace tvm::tirx;
-      TensorLoadNode* buffer = const_cast<TensorLoadNode*>(node.as<TensorLoadNode>());
-      Namer::Name(buffer->source.as_or_throw<tvm::tirx::BufferVar>(), name);
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  Namer::vtable().SetDispatch<TensorLoadNode>(
+      [](const ffi::ObjectRef& node, ffi::String name) -> void {
+        using namespace tvm::tirx;
+        TensorLoadNode* buffer = const_cast<TensorLoadNode*>(node.as<TensorLoadNode>());
+        Namer::Name(buffer->source.as_or_throw<tvm::tirx::BufferVar>(), name);
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<tvm::tirx::TileLayoutNode>([](const ffi::ObjectRef& node,
-                                                ffi::String name) -> void {
+TVM_FFI_STATIC_INIT_BLOCK() {
+  Namer::vtable().SetDispatch<tvm::tirx::TileLayoutNode>(
+      [](const ffi::ObjectRef& node, ffi::String name) -> void {
 
-    });
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<tvm::tirx::IterVarNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
-      using namespace tvm::tirx;
-      IterVarNode* var = const_cast<IterVarNode*>(node.as<IterVarNode>());
-      Namer::Name(var->var, name);
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  Namer::vtable().SetDispatch<tvm::tirx::IterVarNode>(
+      [](const ffi::ObjectRef& node, ffi::String name) -> void {
+        using namespace tvm::tirx;
+        IterVarNode* var = const_cast<IterVarNode*>(node.as<IterVarNode>());
+        Namer::Name(var->var, name);
+      });
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

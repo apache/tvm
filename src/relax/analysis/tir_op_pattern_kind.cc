@@ -19,6 +19,8 @@
 
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/op_attr_types.h>
@@ -235,10 +237,13 @@ class PatternKindAnalyzer : public StmtExprVisitor {
         return false;
       }
     }
+    auto walkfn = [&vars](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return !vars.count(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                    : ffi::WalkResult::Advance();
+    };
     for (const PrimExpr& load_index : load->indices) {
       // return false if there are vars used in load indices but not in store indices.
-      if (tirx::UsesVar(load_index,
-                        [&vars](const tirx::VarNode* var) { return !vars.count(var); })) {
+      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(load_index, walkfn).has_value()) {
         return false;
       }
     }
@@ -260,15 +265,14 @@ class PatternKindAnalyzer : public StmtExprVisitor {
         return false;
       }
     }
+    auto walk_fn = [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+      if (auto prim_var = var.as<tirx::PrimVar>()) {
+        vars.erase(prim_var.value().get());
+      }
+      return ffi::WalkResult::Advance();
+    };
     for (const PrimExpr& index : load->indices) {
-      PreOrderVisit(index, [&](const ffi::ObjectRef& node) {
-        if (auto var = node.as<tirx::PrimVar>()) {
-          if (vars.count(var.value().get())) {
-            vars.erase(var.value().get());
-          }
-        }
-        return true;
-      });
+      ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(index, walk_fn);
     }
     return !vars.empty();
   }
@@ -318,17 +322,20 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    */
   static bool IsPureReducePattern(ffi::Array<tirx::Var> reduce_loops,
                                   ffi::Array<PrimExpr> indices) {
+    auto walkfn = [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return std::any_of(reduce_loops.begin(), reduce_loops.end(),
+                         [&](const tirx::Var& loop) { return loop.same_as(var); })
+                 ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                 : ffi::WalkResult::Advance();
+    };
     for (const PrimExpr& e : indices) {
-      int id = -1;
-      if (UsesVar(e, [&](const tirx::VarNode* var) {
-            for (size_t i = 0; i < reduce_loops.size(); ++i) {
-              if (reduce_loops[i].get() == var) {
-                id = i;
-                return true;
-              }
-            }
-            return false;
-          })) {
+      auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(e, walkfn);
+      if (result.has_value()) {
+        tirx::Var var = result.value()->value.cast<tirx::Var>();
+        int id =
+            std::distance(reduce_loops.begin(),
+                          std::find_if(reduce_loops.begin(), reduce_loops.end(),
+                                       [&](const tirx::Var& loop) { return loop.same_as(var); }));
         if (!reduce_loops[id].same_as(e)) {
           return false;
         }
@@ -499,8 +506,15 @@ bool HasReshapePattern(const PrimFunc& func) {
                                            block->iter_vars[i]->dom->extent));
           stride *= block->iter_vars[i]->dom->extent;
         }
+        auto f_substitute = [&inverse_indices_map](
+                                const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (auto repl = inverse_indices_map.Get(var)) return ffi::Any(*std::move(repl));
+          return ffi::Unchanged();
+        };
         PrimExpr flattened_idx = f_calc_flattened_idx(nontrivial_buffer, nontrivial_indices);
-        flattened_idx = Substitute(std::move(flattened_idx), inverse_indices_map);
+        flattened_idx =
+            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(flattened_idx), f_substitute)
+                .as_or_throw<PrimExpr>();
 
         ffi::Array<PrimExpr> simplify_res = arith::IterMapSimplify(
             /*indices=*/{flattened_idx},

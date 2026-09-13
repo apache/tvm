@@ -70,7 +70,7 @@ struct TirxGvarMutator : tirx::StmtExprMutator {
 };
 
 // Replace GlobalVar references across all functions in the module.
-// Direct dispatch on function type — no NodeFunctor indirection needed
+// Direct dispatch on function type — no ObjectFunctor indirection needed
 // since this file already includes the relax + tirx headers.
 IRModule ReplaceGlobalVarsInModule(IRModule mod, ffi::Map<GlobalVar, GlobalVar> replacements) {
   if (replacements.empty()) {

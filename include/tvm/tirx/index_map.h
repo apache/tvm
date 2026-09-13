@@ -179,7 +179,7 @@ class IndexMapNode : public ffi::Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IndexMapNode>()
         .def_ro("initial_indices", &IndexMapNode::initial_indices,
-                refl::AttachFieldFlag::SEqHashDefRecursive())
+                refl::AttachFieldFlag::SEqHashDefPattern())
         .def_ro("final_indices", &IndexMapNode::final_indices)
         .def_ro("inverse_index_map", &IndexMapNode::inverse_index_map,
                 refl::AttachFieldFlag::SEqHashIgnore());
@@ -272,14 +272,6 @@ class IndexMap : public ffi::ObjectRef {
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IndexMap, ffi::ObjectRef, IndexMapNode);
 };
-
-/*! \brief Substitute variables in an index map.
- *
- * \param index_map The index_map
- * \param f_subst The substitution function
- */
-IndexMap Substitute(const IndexMap& index_map,
-                    std::function<ffi::Optional<PrimExpr>(const Var& var)> f_subst);
 
 }  // namespace tirx
 }  // namespace tvm
