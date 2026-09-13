@@ -415,6 +415,7 @@ def test_dispatch_topk_gpu():
     "target",
     [
         pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param("metal", marks=pytest.mark.gpu),
         pytest.param({"kind": "vulkan", "supports_int64": True}, marks=pytest.mark.gpu),
     ],
 )
@@ -447,6 +448,31 @@ def test_dispatch_cumsum_gpu(target):
         tvm.testing.assert_allclose(cumsum.numpy(), np_cumsum)
 
     tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.parametrize("target_kind", ["metal", "webgpu", "cuda"])
+def test_dispatch_cumsum_index_width(target_kind):
+    """32-bit targets must not generate out-of-range hierarchy thresholds."""
+    from tvm.relax.backend.gpu_generic import gpu_2d_continuous_cumsum
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor(("m", "n"), "float32")):
+            gv = R.cumsum(x, axis=-1)
+            return gv
+
+    with tvm.target.Target(target_kind, host="llvm"):
+        mod = DispatchSortScan()(Module)
+
+    index_bits = 64 if target_kind == "cuda" else 32
+    expected = gpu_2d_continuous_cumsum(
+        in_dtype="float32", out_dtype="float32", index_bits=index_bits
+    )
+    assert_structural_equal(mod["gpu_2d_continuous_cumsum"], expected)
+    if index_bits == 32:
+        # This previously failed on Metal with a 2**35 IntImm.
+        tirx.transform.ForceNarrowIndexToInt32()(mod)
 
 
 @pytest.mark.gpu

@@ -175,7 +175,7 @@ class SortScanDispatcher(BackendDispatcher):
                     kernel = gpu_2d_continuous_cumsum(
                         in_dtype=in_dtype,
                         out_dtype=out_dtype,
-                        index_bits=32 if tgt.kind.name == "webgpu" else 64,
+                        index_bits=32 if tgt.kind.name in ("metal", "webgpu") else 64,
                     )
                     kernel_name = "gpu_2d_continuous_cumsum"
                 else:
