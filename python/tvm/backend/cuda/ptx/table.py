@@ -11529,6 +11529,7 @@ _ENTRIES = [
         )
         for form in ("ss", "ts")
     ],
+    # PTX ISA 9.7.18.10.10.3: optional collector::b{0,1,2,3}::{fill,use,lastuse,discard}.
     *[
         InstructionEntry(  # weight-stationary: no mask vector, a zero-column desc
             name=f"tcgen05_mma_ws_{form}",
@@ -11538,6 +11539,7 @@ _ENTRIES = [
                 ModifierSlot("ws", ("ws",)),
                 ModifierSlot("cta_group", ("cta_group::1",)),
                 ModifierSlot("kind", ("kind::f16", "kind::tf32", "kind::f8f6f4", "kind::i8")),
+                ModifierSlot("collector_b", _TCGEN05_WS_COLLECTOR_B, optional=True),
             ),
             cert_arch="sm_100a",
             operands=(

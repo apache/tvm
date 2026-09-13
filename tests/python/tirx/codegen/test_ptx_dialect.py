@@ -34,9 +34,9 @@ TARGET = tvm.target.Target("cuda")
 requires_nvcc = pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc not available")
 
 
-def _cuda_source(func) -> str:
-    with TARGET:
-        mod = tvm.compile(tvm.IRModule({"main": func}), target=TARGET, tir_pipeline="tirx")
+def _cuda_source(func, target=TARGET) -> str:
+    with target:
+        mod = tvm.compile(tvm.IRModule({"main": func}), target=target, tir_pipeline="tirx")
     return mod.mod.imports[0].inspect_source("cuda")
 
 
@@ -2340,6 +2340,80 @@ def test_ptx_wgmma_integer_shape_domains_follow_concrete_syntax():
         assert "m64n256k256" in b1_shapes
 
 
+@pytest.mark.parametrize("form", ("ss", "ts"))
+@pytest.mark.parametrize("collector", ("", "b0::fill", "b1::use", "b2::lastuse", "b3::discard"))
+def test_ptx_tcgen05_mma_ws_collector_dispatch(form, collector):
+    opcode = "tcgen05.mma.ws.cta_group::1.kind::f16"
+    if collector:
+        opcode += f".collector::{collector}"
+    a_dtype = "uint64" if form == "ss" else "uint32"
+
+    @T.prim_func
+    def kernel():
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+        T.ptx[opcode](
+            T.uint32(0),
+            T.cast(0, a_dtype),
+            T.uint64(0),
+            T.uint32(0),
+            T.ptx.pred(T.uint32(0)),
+            T.uint64(0),
+        )
+
+    src = _cuda_source(kernel, tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}))
+    a_operand = "%1" if form == "ss" else "[%1]"
+    assert f"{opcode} [%0], {a_operand}, %2, %3, ps0, %5;" in src
+    tvm.ir.assert_structural_equal(kernel, tvm.script.from_source(kernel.script()))
+
+
+@requires_nvcc
+def test_ptx_tcgen05_mma_ws_collectors_certify_sm100a():
+    """All WS kinds, B buffers/operations, and predication assemble on SM100a."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, renderings
+
+    by_arch = {}
+    for form in ("ss", "ts"):
+        entry = TABLE[f"tcgen05_mma_ws_{form}"]
+        for rendering in renderings(entry):
+            _, helper, source = render_variant(entry, *_as_render_args(rendering))
+            _append_certification(by_arch, "sm_100a", helper, source)
+    _assert_certifications_ok(by_arch)
+
+
+@pytest.mark.parametrize("mismatch", ("modifier", "operand"))
+def test_ptx_codegen_rejects_stale_table_layout(mismatch):
+    """A traced call must not silently feed modifier strings to an old helper."""
+    from dataclasses import replace
+
+    from tvm.backend.cuda.ptx.engine import PTXNamespace, _make_codegen
+    from tvm.backend.cuda.ptx.table import TABLE, ModifierSlot, OperandSlot
+
+    entry = TABLE["tcgen05_mma_ws_ss"]
+    if mismatch == "modifier":
+        changed = replace(entry, slots=(*entry.slots, ModifierSlot("extra", ("extra",))))
+        opcode = "tcgen05.mma.ws.cta_group::1.kind::f16.extra"
+        extra = ()
+    else:
+        changed = replace(entry, operands=(*entry.operands, OperandSlot("extra", dtype="u64")))
+        opcode = "tcgen05.mma.ws.cta_group::1.kind::f16"
+        extra = (T.uint64(0),)
+    namespace = PTXNamespace({changed.name: changed})
+    call = namespace[opcode](
+        T.uint32(0),
+        T.uint64(0),
+        T.uint64(0),
+        T.uint32(0),
+        namespace.pred(T.uint32(0)),
+        T.uint64(0),
+        *extra,
+    )
+    with pytest.raises(ValueError, match="PTX call and registered table entry may be inconsistent"):
+        _make_codegen(entry)(*call.args)
+
+
 @requires_nvcc
 def test_ptx_tcgen05_mma_block_size_form():
     @T.prim_func
@@ -2405,7 +2479,9 @@ def test_ptx_tcgen05_mma_block_size_collector_form():
             ](tmem, tmem, desc, idesc, tmem, tmem, T.ptx.pred(flag))
         A[tx] = A[tx]
 
-    collector_src = _cuda_source(sm107_collector_kernel)
+    collector_src = _cuda_source(
+        sm107_collector_kernel, tvm.target.Target({"kind": "cuda", "arch": "sm_107f"})
+    )
     ss_collector_opcode = (
         "tcgen05.mma.cta_group::1.kind::mxf4nvf4.block_scale.block16"
         ".collector::a::discard.collector::b::fill"
@@ -4144,7 +4220,7 @@ def test_ptx_all_variants_render_unique():
             _, helper, _ = render_variant(entry, *args, addr_offsets=addr_offsets)
             assert helper not in names, f"address-offset helper name collision: {helper}"
             names.add(helper)
-    assert total == 762050  # update when the table grows or a ptxas gap narrows it
+    assert total == 762178  # update when the table grows or a ptxas gap narrows it
 
 
 def test_ptx_no_instruction_registered_twice():
