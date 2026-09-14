@@ -169,7 +169,8 @@ TEST(ExprMutator, PermissionAndOwnership) {
   auto mutator = ffi::make_object<RecordMutations>();
   for (InplaceMode mode : {InplaceMode::kDisallow, InplaceMode::kAllow}) {
     for (bool alias_root : {false, true}) {
-      Expr root = Tuple({Tuple({IntImm::Int32(1)})});
+      Expr root = Tuple(ffi::Array<Expr>{Tuple({IntImm::Int32(1)})});
+      ASSERT_NE(root.as<TupleNode>()->fields[0].as<TupleNode>(), nullptr);
       Expr alias = alias_root ? root : Expr();
       const auto* original = root.get();
       const auto* child = root.as<TupleNode>()->fields[0].get();
@@ -322,6 +323,13 @@ TEST(ExprVisitor, ErrorContextThroughRawBridge) {
 TEST(ExprMutator, RawAbiAndManagedDestruction) {
   using RawMutate = TVMFFIAny (*)(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept;
   using Table = ffi::StructuralMutatorVTable;
+  using RawVisit = TVMFFIAny (*)(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept;
+  using VisitorTable = ffi::StructuralVisitorVTable;
+  static_assert(std::is_same_v<ffi::FStructuralVisit, RawVisit>);
+  static_assert(std::is_same_v<decltype(VisitorTable::visit), RawVisit>);
+  static_assert(std::is_standard_layout_v<VisitorTable>);
+  static_assert(offsetof(VisitorTable, visit) == 0);
+  static_assert(sizeof(VisitorTable) == sizeof(RawVisit));
   static_assert(std::is_same_v<ffi::FStructuralMutate, RawMutate>);
   static_assert(std::is_same_v<decltype(Table::mutate), RawMutate>);
   static_assert(std::is_same_v<decltype(Table::maybe_inplace_mutate), RawMutate>);
