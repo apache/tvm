@@ -41,6 +41,21 @@ def can_convert_multiply_to_intdiv(origin_size, scaled_size):
     return True
 
 
+def _explicit_scale_matches_intdiv(origin_size, scaled_size, scale_override):
+    """Check whether an explicit scale (image_size / target_size) agrees with the exact
+    integer ratio the sizes alone would imply.
+
+    When it does, integer division stays numerically exact and should still be used;
+    falling back to floating-point reciproal multiplication in that case only adds
+    rounding error for no benefit.
+    """
+    if not can_convert_multiply_to_intdiv(origin_size, scaled_size):
+        return False
+    int_ratio = (scaled_size / origin_size.astype("float")).value
+    epsilon = 1e-5
+    return abs(scale_override * int_ratio - 1.0) < epsilon
+
+
 def get_1d_indices(indices, layout="NCW"):
     """Get 1d indices"""
     (cc, inum, ic) = (0, 0, 0)
@@ -620,8 +635,16 @@ def _resize_2d(
         if rounding_method == "floor" or rounding_method == "":
             if scale_h is None:
                 height_use_int_div = can_convert_multiply_to_intdiv(image_height, target_height)
+            else:
+                height_use_int_div = _explicit_scale_matches_intdiv(
+                    image_height, target_height, scale_h
+                )
             if scale_w is None:
                 width_use_int_div = can_convert_multiply_to_intdiv(image_width, target_width)
+            else:
+                width_use_int_div = _explicit_scale_matches_intdiv(
+                    image_width, target_width, scale_w
+                )
 
     n, c, y, x, cc, inum, ic = get_2d_indices(indices, layout)
     box_idx = box_indices(n) if box_indices is not None else n
