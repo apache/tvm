@@ -71,9 +71,9 @@ TVMFFIAny ShapeTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   // skips: ndim (scalar)
   ShapeTypeNode* self = const_cast<ShapeTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ShapeTypeNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<ffi::Array<PrimExpr>>>,
-                                    mapped_values,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->values));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Optional<ffi::Array<PrimExpr>>>, mapped_values,
+      mutator->MutateExpected(self->values, ffi::InplaceMode::kAllow));
   if (!mapped_values.UnchangedOrSameAs(self->values)) {
     self->values = std::move(mapped_values).ValueUnchecked();
   }
@@ -117,11 +117,12 @@ TVMFFIAny TensorTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   TensorTypeNode* self = const_cast<TensorTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorTypeNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Expr>>, mapped_shape,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->shape));
+                                    mutator->MutateExpected(self->shape, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<PrimType>>, mapped_dtype,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->dtype));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<VDevice>>, mapped_vdevice,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->vdevice));
+                                    mutator->MutateExpected(self->dtype, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Optional<VDevice>>, mapped_vdevice,
+      mutator->MutateExpected(self->vdevice, ffi::InplaceMode::kAllow));
   if (!mapped_shape.UnchangedOrSameAs(self->shape)) {
     self->shape = std::move(mapped_shape).ValueUnchecked();
   }
@@ -171,10 +172,10 @@ TVMFFIAny FuncTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<ffi::Optional<ffi::Array<Type>>>, mapped_params,
       mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&]() {
-        return mutator->MaybeInplaceMutateIfUniqueExpected(self->params);
+        return mutator->MutateExpected(self->params, ffi::InplaceMode::kAllow);
       }));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ret,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->ret));
+                                    mutator->MutateExpected(self->ret, ffi::InplaceMode::kAllow));
   if (!mapped_params.UnchangedOrSameAs(self->params)) {
     self->params = std::move(mapped_params).ValueUnchecked();
   }

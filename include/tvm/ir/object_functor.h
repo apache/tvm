@@ -98,8 +98,8 @@ class ObjectFunctor<R(NodeArg, Args...)> {
    * \param n The object to be dispatched.
    * \return Whether a dispatch function is registered for n's type, excluding ancestors.
    */
-  TVM_FFI_INLINE bool CanDispatch(NodeArg n) const {
-    uint32_t type_index = n->type_index();
+  TVM_FFI_INLINE bool CanDispatch(ffi::AnyView n) const {
+    uint32_t type_index = n.type_index();
     if (type_index < begin_type_index_) return false;
     type_index -= begin_type_index_;
     return type_index < func_.size() && func_[type_index] != nullptr;
@@ -139,6 +139,8 @@ class ObjectFunctor<R(NodeArg, Args...)> {
    */
   template <typename TNode>
   ObjectFunctor& SetDispatch(R (*f)(NodeArg n, Args...)) {
+    static_assert(std::is_base_of_v<ffi::Object, TNode>,
+                  "ObjectFunctor dispatch requires an object node type");
     uint32_t tindex = TNode::RuntimeTypeIndex();
     if (func_.size() <= tindex) {
       func_.resize(tindex + 1, nullptr);
@@ -231,10 +233,22 @@ class TVM_DLL ObjectVisitor : public ffi::StructuralVisitorObj {
    * \brief Visit a borrowed object or inline value.
    * \param value The borrowed value to visit.
    * \return None on completion, an owning VisitInterrupt, or an Error.
+   * \note Overrides must convert thrown errors and propagate errors and interrupts from their
+   *       own work. A qualified Parent::VisitExpected(value) bypasses the current entry override;
+   *       descendant calls still use virtual dispatch. Use AnyView for the qualified parent call.
    */
-  TVM_FFI_INLINE Expected<ffi::Optional<VisitInterrupt>> VisitExpected(
-      ffi::AnyView value) noexcept {
-    if (const auto* object = value.as<ffi::Object>()) return Dispatch(object);
+  virtual Expected<ffi::Optional<VisitInterrupt>> VisitExpected(ffi::AnyView value) noexcept {
+    if (native_vtable_->CanDispatch(value)) {
+      // Exact registrations contain only object node types, so this extraction is borrowed
+      // and needs no additional object-type check or owning reference.
+      const auto* object =
+          ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ffi::Object>(value);
+      try {
+        return DispatchNative(object);
+      } catch (ffi::Error& error) {
+        return AttachVisitErrorContext(error, object);
+      }
+    }
     return StructuralVisitDefault(value);
   }
 
@@ -275,18 +289,6 @@ class TVM_DLL ObjectVisitor : public ffi::StructuralVisitorObj {
     return static_cast<Self*>(self)->Visit_(static_cast<const Node*>(node));
   }
 
-  // The AnyView entry establishes that value is a non-null object.
-  TVM_FFI_INLINE Expected<ffi::Optional<VisitInterrupt>> Dispatch(
-      const ffi::Object* value) noexcept {
-    if (native_vtable_->CanDispatch(value)) {
-      try {
-        return DispatchNative(value);
-      } catch (ffi::Error& error) {
-        return AttachVisitErrorContext(error, value);
-      }
-    }
-    return StructuralVisitDefault(value);
-  }
   // Keep one named return value in this scope so native results can be constructed in place.
   TVM_FFI_INLINE Expected<ffi::Optional<VisitInterrupt>> DispatchNative(const ffi::Object* value) {
     Expected<ffi::Optional<VisitInterrupt>> result = (*native_vtable_)(value, this);
@@ -339,7 +341,7 @@ class TVM_DLL ObjectVisitor : public ffi::StructuralVisitorObj {
  * \brief Native mutation with exact dispatch and structural fallback.
  *
  * Allocate mutators with ffi::make_object<Derived>(). Inputs are borrowed;
- * replacements and errors own their values. Overrides forward allow_inplace
+ * replacements and errors own their values. Overrides forward inplace_mode
  * to child calls, following the structural mutation ownership contract.
  */
 class TVM_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
@@ -352,45 +354,56 @@ class TVM_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
   ObjectMutator& operator=(const ObjectMutator& other) = delete;
 
   /*!
-   * \brief Mutate a borrowed value without allowing in-place changes.
+   * \brief Mutate a borrowed object through the virtual AnyView entry.
    * \param value The borrowed object to mutate.
+   * \param inplace_mode Inherited permission along the path to this value.
    * \return A replacement, Unchanged, or an Error if mutation fails.
+   * \note A null object preserves the original Unchanged result when the entry returns None.
    */
   TVM_FFI_INLINE Expected<UnchangedOr<ffi::Any>> MutateExpected(
-      const ffi::ObjectRef& value) noexcept {
-    return Dispatch(value.get(), false);
+      const ffi::ObjectRef& value,
+      ffi::InplaceMode inplace_mode = ffi::InplaceMode::kDisallow) noexcept {
+    Expected<UnchangedOr<ffi::Any>> result =
+        this->MutateExpected(ffi::AnyView(value), inplace_mode);
+    if (!value.defined() && result.is_ok() && !result.value().IsUnchanged()) {
+      ffi::Any replacement = std::move(result).value().ValueUnchecked();
+      if (replacement.type_index() == ffi::TypeIndex::kTVMFFINone) return ffi::Unchanged();
+      return UnchangedOr<ffi::Any>(std::move(replacement));
+    }
+    return result;
   }
   /*!
-   * \brief Mutate a borrowed value without allowing in-place changes.
+   * \brief Mutate a borrowed value, checking current uniqueness before in-place dispatch.
    * \param value The borrowed object or inline value to mutate.
+   * \param inplace_mode Inherited permission along the path to this value.
    * \return A replacement, Unchanged, or an Error if mutation fails.
+   * \note Overrides must establish current uniqueness before writing or forwarding permission,
+   *       never promote kDisallow, and convert thrown errors from their own work into Expected.
+   *       Expr inputs require Expr replacements. A qualified Parent::MutateExpected(value, mode)
+   *       with AnyView input bypasses the current entry override while descendants remain virtual.
+   *       DefaultMutateExpected trusts its caller's established mode and does not recheck it.
    */
-  TVM_FFI_INLINE Expected<UnchangedOr<ffi::Any>> MutateExpected(ffi::AnyView value) noexcept {
-    if (const auto* object = value.as<ffi::Object>()) return Dispatch(object, false);
-    return StructuralMutateDefault(value, false);
-  }
-
-  /*!
-   * \brief Forward inherited permission and check the value's uniqueness.
-   * \param value The borrowed object to mutate.
-   * \param allow_inplace Whether the path to this value is already uniquely owned.
-   * \return A replacement, Unchanged, or an Error if mutation fails.
-   */
-  TVM_FFI_INLINE Expected<UnchangedOr<ffi::Any>> MaybeInplaceMutateIfUniqueExpected(
-      const ffi::ObjectRef& value, bool allow_inplace = true) noexcept {
-    return Dispatch(value.get(), allow_inplace && value.defined() && value->unique());
-  }
-  /*!
-   * \brief Forward inherited permission and check the value's uniqueness.
-   * \param value The borrowed object or inline value to mutate.
-   * \param allow_inplace Whether the path to this value is already uniquely owned.
-   * \return A replacement, Unchanged, or an Error if mutation fails.
-   */
-  TVM_FFI_INLINE Expected<UnchangedOr<ffi::Any>> MaybeInplaceMutateIfUniqueExpected(
-      ffi::AnyView value, bool allow_inplace = true) noexcept {
-    const auto* object = value.as<ffi::Object>();
-    if (object) return Dispatch(object, allow_inplace && object->unique());
-    return StructuralMutateDefault(value, false);
+  virtual Expected<UnchangedOr<ffi::Any>> MutateExpected(
+      ffi::AnyView value, ffi::InplaceMode inplace_mode = ffi::InplaceMode::kDisallow) noexcept {
+    if (native_vtable_->CanDispatch(value)) {
+      // Only object node types can be registered. Exact dispatch proves this borrowed extraction
+      // is valid without an additional object-type check or owning reference.
+      const auto* object =
+          ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ffi::Object>(value);
+      if (inplace_mode == ffi::InplaceMode::kAllow && !object->unique()) {
+        inplace_mode = ffi::InplaceMode::kDisallow;
+      }
+      try {
+        return DispatchNative(object, inplace_mode);
+      } catch (ffi::Error& error) {
+        return AttachVisitErrorContext(error, object);
+      }
+    }
+    if (inplace_mode == ffi::InplaceMode::kAllow) {
+      const auto* object = value.as<ffi::Object>();
+      if (object == nullptr || !object->unique()) inplace_mode = ffi::InplaceMode::kDisallow;
+    }
+    return ffi::StructuralMutatorObj::DefaultMutateExpected(value, inplace_mode);
   }
 
   /*!
@@ -414,8 +427,8 @@ class TVM_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
 
  protected:
   /*! \brief Exact native dispatch table with owning replacement and error results. */
-  using VTable =
-      ObjectFunctor<Expected<UnchangedOr<ffi::Any>>(const ffi::Object*, ObjectMutator*, bool)>;
+  using VTable = ObjectFunctor<Expected<UnchangedOr<ffi::Any>>(const ffi::Object*, ObjectMutator*,
+                                                               ffi::InplaceMode)>;
 
   /*!
    * \brief Construct a mutator with a finalized native dispatch table.
@@ -445,54 +458,21 @@ class TVM_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
   // Native table callback; core instantiations may be shared by the library.
   template <typename Self, typename Node>
   static Expected<UnchangedOr<ffi::Any>> DispatchNode(const ffi::Object* node, ObjectMutator* self,
-                                                      bool allow_inplace) {
-    return static_cast<Self*>(self)->Mutate_(static_cast<const Node*>(node), allow_inplace);
+                                                      ffi::InplaceMode inplace_mode) {
+    return static_cast<Self*>(self)->Mutate_(static_cast<const Node*>(node), inplace_mode);
   }
 
-  using ffi::StructuralMutatorObj::DefaultMaybeInplaceMutateExpected;
   using ffi::StructuralMutatorObj::DefaultMutateExpected;
-  using ffi::StructuralMutatorObj::MaybeInplaceMutate;
   using ffi::StructuralMutatorObj::Mutate;
 
-  // Structural ABI entry: the caller guarantees ownership of the entire path.
-  TVM_FFI_INLINE Expected<UnchangedOr<ffi::Any>> MaybeInplaceMutateExpected(
-      const ffi::ObjectRef& value) noexcept {
-    return Dispatch(value.get(), true);
-  }
-  TVM_FFI_INLINE Expected<UnchangedOr<ffi::Any>> MaybeInplaceMutateExpected(
-      ffi::AnyView value) noexcept {
-    if (const auto* object = value.as<ffi::Object>()) return Dispatch(object, true);
-    return StructuralMutateDefault(value, true);
-  }
-
-  TVM_FFI_INLINE Expected<UnchangedOr<ffi::Any>> Dispatch(const ffi::Object* value,
-                                                          bool allow_inplace) noexcept {
-    if (value == nullptr) return ffi::Unchanged();
-    if (native_vtable_->CanDispatch(value)) {
-      try {
-        return DispatchNative(value, allow_inplace);
-      } catch (ffi::Error& error) {
-        return AttachVisitErrorContext(error, value);
-      }
-    }
-    return StructuralMutateDefault(value, allow_inplace);
-  }
   // Keep one named return value in this scope so native results can be constructed in place.
   TVM_FFI_INLINE Expected<UnchangedOr<ffi::Any>> DispatchNative(const ffi::Object* value,
-                                                                bool allow_inplace) {
-    Expected<UnchangedOr<ffi::Any>> result = (*native_vtable_)(value, this, allow_inplace);
+                                                                ffi::InplaceMode inplace_mode) {
+    Expected<UnchangedOr<ffi::Any>> result = (*native_vtable_)(value, this, inplace_mode);
     if (TVM_FFI_PREDICT_FALSE(result.is_err())) {
       UpdateVisitErrorContext(result, value);
     }
     return result;
-  }
-  Expected<UnchangedOr<ffi::Any>> StructuralMutateDefault(ffi::AnyView value,
-                                                          bool allow_inplace) noexcept {
-    if (allow_inplace) {
-      return ffi::StructuralMutatorObj::DefaultMaybeInplaceMutateExpected(value);
-    } else {
-      return ffi::StructuralMutatorObj::DefaultMutateExpected(value);
-    }
   }
   TVM_FFI_COLD_CODE static Expected<UnchangedOr<ffi::Any>> AttachVisitErrorContext(
       ffi::Error& error, const ffi::Object* value) {
@@ -522,12 +502,12 @@ class TVM_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
   static TVMFFIAny StructuralVTableMutateImpl(ffi::StructuralMutatorObj* self,
                                               ffi::AnyView value) noexcept {
     return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(
-        static_cast<ObjectMutator*>(self)->MutateExpected(value));
+        static_cast<ObjectMutator*>(self)->MutateExpected(value, ffi::InplaceMode::kDisallow));
   }
   static TVMFFIAny StructuralVTableMaybeInplaceMutateImpl(ffi::StructuralMutatorObj* self,
                                                           ffi::AnyView value) noexcept {
     return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(
-        static_cast<ObjectMutator*>(self)->MaybeInplaceMutateExpected(value));
+        static_cast<ObjectMutator*>(self)->MutateExpected(value, ffi::InplaceMode::kAllow));
   }
   static TVMFFIAny StructuralVTableVarRemapGetImpl(ffi::StructuralMutatorObj* self,
                                                    ffi::AnyView key) noexcept {

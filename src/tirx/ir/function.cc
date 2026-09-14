@@ -115,15 +115,16 @@ TVMFFIAny PrimFuncMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   // skips: attrs (metadata), ty (derived by InferType)
   PrimFuncNode* self = const_cast<PrimFuncNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PrimFuncNode>(value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Var>>, mapped_params,
+                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&]() {
+                                      return mutator->MutateExpected(self->params,
+                                                                     ffi::InplaceMode::kAllow);
+                                    }));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<ffi::Array<Var>>, mapped_params,
-      mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&]() {
-        return mutator->MaybeInplaceMutateIfUniqueExpected(self->params);
-      }));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ret_type,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->ret_type));
+      ffi::UnchangedOr<Type>, mapped_ret_type,
+      mutator->MutateExpected(self->ret_type, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->body));
+                                    mutator->MutateExpected(self->body, ffi::InplaceMode::kAllow));
   if (!mapped_params.UnchangedOrSameAs(self->params)) {
     self->params = std::move(mapped_params).ValueUnchecked();
   }

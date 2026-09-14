@@ -96,14 +96,16 @@ TVMFFIAny TilePrimitiveCallMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TilePrimitiveCallNode>(
           value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<ffi::Any>>, mapped_args,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->args));
+                                    mutator->MutateExpected(self->args, ffi::InplaceMode::kAllow));
 
   using WorkspaceMap = ffi::Map<ffi::String, BufferVar>;
   using ConfigMap = ffi::Map<ffi::String, ffi::Any>;
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<WorkspaceMap>, mapped_workspace,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->workspace));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ConfigMap>, mapped_config,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->config));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<WorkspaceMap>, mapped_workspace,
+      mutator->MutateExpected(self->workspace, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ConfigMap>, mapped_config,
+      mutator->MutateExpected(self->config, ffi::InplaceMode::kAllow));
 
   if (mapped_args.UnchangedOrSameAs(self->args) &&
       mapped_workspace.UnchangedOrSameAs(self->workspace) &&

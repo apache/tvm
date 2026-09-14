@@ -143,7 +143,7 @@ TVMFFIAny PointerTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PointerTypeNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<Type>, mapped_element_type,
-      mutator->MaybeInplaceMutateIfUniqueExpected(self->element_type));
+      mutator->MutateExpected(self->element_type, ffi::InplaceMode::kAllow));
   if (!mapped_element_type.UnchangedOrSameAs(self->element_type)) {
     self->element_type = std::move(mapped_element_type).ValueUnchecked();
   }
@@ -179,10 +179,12 @@ TVMFFIAny FuncTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
                                      ffi::AnyView value) noexcept {
   FuncTypeNode* self = const_cast<FuncTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Type>>, mapped_arg_types,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->arg_types));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ret_type,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->ret_type));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Array<Type>>, mapped_arg_types,
+      mutator->MutateExpected(self->arg_types, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<Type>, mapped_ret_type,
+      mutator->MutateExpected(self->ret_type, ffi::InplaceMode::kAllow));
   if (!mapped_arg_types.UnchangedOrSameAs(self->arg_types)) {
     self->arg_types = std::move(mapped_arg_types).ValueUnchecked();
   }
@@ -216,8 +218,9 @@ TVMFFIAny TupleTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
                                       ffi::AnyView value) noexcept {
   TupleTypeNode* self = const_cast<TupleTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleTypeNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Type>>, mapped_fields,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->fields));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Array<Type>>, mapped_fields,
+      mutator->MutateExpected(self->fields, ffi::InplaceMode::kAllow));
   if (!mapped_fields.UnchangedOrSameAs(self->fields)) {
     self->fields = std::move(mapped_fields).ValueUnchecked();
   }

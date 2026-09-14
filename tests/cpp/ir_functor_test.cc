@@ -86,7 +86,15 @@ TEST(IRF, ObjectFunctorFinalize) {
      return b;
    }).SetDispatch<prim::AddNode>([](const ffi::ObjectRef&, int b) { return b + 2; });
 
+  for (ffi::AnyView value : {ffi::AnyView(x), ffi::AnyView(1), ffi::AnyView(nullptr)}) {
+    EXPECT_FALSE(f.CanDispatch(value));
+  }
+  EXPECT_TRUE(f.CanDispatch(ffi::AnyView(z)));
   f.Finalize();
+  for (ffi::AnyView value : {ffi::AnyView(x), ffi::AnyView(1), ffi::AnyView(nullptr)}) {
+    EXPECT_FALSE(f.CanDispatch(value));
+  }
+  EXPECT_TRUE(f.CanDispatch(ffi::AnyView(z)));
   EXPECT_FALSE(f.CanDispatch(x));
   EXPECT_TRUE(f.CanDispatch(z));
   EXPECT_EQ(f(x, 2), 2);
