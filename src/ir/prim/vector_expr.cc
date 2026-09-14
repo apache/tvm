@@ -89,11 +89,12 @@ TVMFFIAny RampMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyVie
   RampNode* self = const_cast<RampNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const RampNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_base,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->base));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_stride,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->stride));
+                                    mutator->MutateExpected(self->base, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<PrimExpr>, mapped_stride,
+      mutator->MutateExpected(self->stride, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_lanes,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->lanes));
+                                    mutator->MutateExpected(self->lanes, ffi::InplaceMode::kAllow));
   if (mapped_base.UnchangedOrSameAs(self->base) && mapped_stride.UnchangedOrSameAs(self->stride) &&
       mapped_lanes.UnchangedOrSameAs(self->lanes)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
@@ -136,9 +137,9 @@ TVMFFIAny BroadcastMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   BroadcastNode* self = const_cast<BroadcastNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BroadcastNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_value,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->value));
+                                    mutator->MutateExpected(self->value, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_lanes,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->lanes));
+                                    mutator->MutateExpected(self->lanes, ffi::InplaceMode::kAllow));
   if (mapped_value.UnchangedOrSameAs(self->value) && mapped_lanes.UnchangedOrSameAs(self->lanes)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
@@ -179,10 +180,12 @@ TVMFFIAny ShuffleMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   // skips: PrimExpr types are always PrimType and remain unchanged in normal mutation.
   ShuffleNode* self = const_cast<ShuffleNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ShuffleNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<PrimExpr>>, mapped_vectors,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->vectors));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<PrimExpr>>, mapped_indices,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->indices));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Array<PrimExpr>>, mapped_vectors,
+      mutator->MutateExpected(self->vectors, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Array<PrimExpr>>, mapped_indices,
+      mutator->MutateExpected(self->indices, ffi::InplaceMode::kAllow));
   if (mapped_vectors.UnchangedOrSameAs(self->vectors) &&
       mapped_indices.UnchangedOrSameAs(self->indices)) {
     return ffi::Unchanged().CopyToTVMFFIAny();

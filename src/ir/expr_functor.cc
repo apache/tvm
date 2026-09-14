@@ -321,11 +321,11 @@ void ExprMutator::InitVTable(VTable* vtable) {
 }
 
 Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const OpaqueExprNode* node,
-                                                     bool allow_inplace) {
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      UnchangedOr<Type>, ty, this->MaybeInplaceMutateIfUniqueExpected(node->ty, allow_inplace));
+                                                     InplaceMode inplace_mode) {
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<Type>, ty,
+                                    this->MutateExpected(node->ty, inplace_mode));
   if (ty.UnchangedOrSameAs(node->ty)) return ffi::Unchanged();
-  if (allow_inplace) {
+  if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<OpaqueExprNode*>(node);
     if (!ty.IsUnchanged()) writable->ty = std::move(ty).ValueUnchecked();
     return ffi::Unchanged();
@@ -336,15 +336,15 @@ Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const OpaqueExprNode* node,
   }
 }
 
-Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const TupleNode* node, bool allow_inplace) {
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      UnchangedOr<Type>, ty, this->MaybeInplaceMutateIfUniqueExpected(node->ty, allow_inplace));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      UnchangedOr<ffi::Array<Expr>>, fields,
-      this->MaybeInplaceMutateIfUniqueExpected(node->fields, allow_inplace));
+Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const TupleNode* node,
+                                                     InplaceMode inplace_mode) {
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<Type>, ty,
+                                    this->MutateExpected(node->ty, inplace_mode));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<ffi::Array<Expr>>, fields,
+                                    this->MutateExpected(node->fields, inplace_mode));
   if (ty.UnchangedOrSameAs(node->ty) && fields.UnchangedOrSameAs(node->fields))
     return ffi::Unchanged();
-  if (allow_inplace) {
+  if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<TupleNode*>(node);
     if (!ty.IsUnchanged()) writable->ty = std::move(ty).ValueUnchecked();
     if (!fields.IsUnchanged()) writable->fields = std::move(fields).ValueUnchecked();
@@ -358,14 +358,14 @@ Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const TupleNode* node, bool
 }
 
 Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const TupleGetItemNode* node,
-                                                     bool allow_inplace) {
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      UnchangedOr<Type>, ty, this->MaybeInplaceMutateIfUniqueExpected(node->ty, allow_inplace));
+                                                     InplaceMode inplace_mode) {
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<Type>, ty,
+                                    this->MutateExpected(node->ty, inplace_mode));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<Expr>, tuple,
-                                    MaybeInplaceMutateIfUniqueExpected(node->tuple, allow_inplace));
+                                    MutateExpected(node->tuple, inplace_mode));
   if (ty.UnchangedOrSameAs(node->ty) && tuple.UnchangedOrSameAs(node->tuple))
     return ffi::Unchanged();
-  if (allow_inplace) {
+  if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<TupleGetItemNode*>(node);
     if (!ty.IsUnchanged()) writable->ty = std::move(ty).ValueUnchecked();
     if (!tuple.IsUnchanged()) writable->tuple = std::move(tuple).ValueUnchecked();
@@ -379,18 +379,17 @@ Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const TupleGetItemNode* nod
 }
 
 Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const TensorLoadNode* node,
-                                                     bool allow_inplace) {
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      UnchangedOr<Type>, ty, this->MaybeInplaceMutateIfUniqueExpected(node->ty, allow_inplace));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      UnchangedOr<Expr>, source, MaybeInplaceMutateIfUniqueExpected(node->source, allow_inplace));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      UnchangedOr<ffi::Array<PrimExpr>>, indices,
-      this->MaybeInplaceMutateIfUniqueExpected(node->indices, allow_inplace));
+                                                     InplaceMode inplace_mode) {
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<Type>, ty,
+                                    this->MutateExpected(node->ty, inplace_mode));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<Expr>, source,
+                                    MutateExpected(node->source, inplace_mode));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<ffi::Array<PrimExpr>>, indices,
+                                    this->MutateExpected(node->indices, inplace_mode));
   if (ty.UnchangedOrSameAs(node->ty) && source.UnchangedOrSameAs(node->source) &&
       indices.UnchangedOrSameAs(node->indices))
     return ffi::Unchanged();
-  if (allow_inplace) {
+  if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<TensorLoadNode*>(node);
     if (!ty.IsUnchanged()) writable->ty = std::move(ty).ValueUnchecked();
     if (!source.IsUnchanged()) writable->source = std::move(source).ValueUnchecked();
@@ -406,39 +405,37 @@ Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const TensorLoadNode* node,
 }
 
 Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const GlobalVarNode* node,
-                                                     bool allow_inplace) {
+                                                     InplaceMode inplace_mode) {
   // Registry atoms and constant leaves do not descend into metadata or types.
   return ffi::Unchanged();
 }
 
-Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const CallNode* node, bool allow_inplace) {
+Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const CallNode* node,
+                                                     InplaceMode inplace_mode) {
   UnchangedOr<Type> ty = ffi::Unchanged();
   if (!node->ty.as<PrimTypeNode>()) {
-    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-        UnchangedOr<Type>, mapped_ty,
-        this->MaybeInplaceMutateIfUniqueExpected(node->ty, allow_inplace));
+    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<Type>, mapped_ty,
+                                      this->MutateExpected(node->ty, inplace_mode));
     ty = std::move(mapped_ty);
   }
   UnchangedOr<Expr> op = ffi::Unchanged();
   if (!node->op.as<OpNode>()) {
     TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<Expr>, mapped_op,
-                                      MaybeInplaceMutateIfUniqueExpected(node->op, allow_inplace));
+                                      MutateExpected(node->op, inplace_mode));
     op = std::move(mapped_op);
   }
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      UnchangedOr<ffi::Array<Expr>>, args,
-      this->MaybeInplaceMutateIfUniqueExpected(node->args, allow_inplace));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<ffi::Array<Expr>>, args,
+                                    this->MutateExpected(node->args, inplace_mode));
   UnchangedOr<ffi::Array<Type>> ty_args = ffi::Unchanged();
   if (!node->ty_args.empty()) {
-    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-        UnchangedOr<ffi::Array<Type>>, mapped_ty_args,
-        this->MaybeInplaceMutateIfUniqueExpected(node->ty_args, allow_inplace));
+    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<ffi::Array<Type>>, mapped_ty_args,
+                                      this->MutateExpected(node->ty_args, inplace_mode));
     ty_args = std::move(mapped_ty_args);
   }
   if (ty.UnchangedOrSameAs(node->ty) && op.UnchangedOrSameAs(node->op) &&
       args.UnchangedOrSameAs(node->args) && ty_args.UnchangedOrSameAs(node->ty_args))
     return ffi::Unchanged();
-  if (allow_inplace) {
+  if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<CallNode*>(node);
     if (!ty.IsUnchanged()) writable->ty = std::move(ty).ValueUnchecked();
     if (!op.IsUnchanged()) writable->op = std::move(op).ValueUnchecked();
@@ -455,33 +452,35 @@ Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const CallNode* node, bool 
   }
 }
 
-Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const IntImmNode* node, bool allow_inplace) {
+Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const IntImmNode* node,
+                                                     InplaceMode inplace_mode) {
   // Registry atoms and constant leaves do not descend into metadata or types.
   return ffi::Unchanged();
 }
 
-Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const FloatImmNode* node, bool allow_inplace) {
+Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const FloatImmNode* node,
+                                                     InplaceMode inplace_mode) {
   // Registry atoms and constant leaves do not descend into metadata or types.
   return ffi::Unchanged();
 }
 
-Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const OpNode* node, bool allow_inplace) {
+Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const OpNode* node, InplaceMode inplace_mode) {
   // Registry atoms and constant leaves do not descend into metadata or types.
   return ffi::Unchanged();
 }
 
 Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::StringImmNode* node,
-                                                     bool allow_inplace) {
+                                                     InplaceMode inplace_mode) {
   // Registry atoms and constant leaves do not descend into metadata or types.
   return ffi::Unchanged();
 }
 
 Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::CastNode* node,
-                                                     bool allow_inplace) {
+                                                     InplaceMode inplace_mode) {
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<PrimExpr>, value,
-                                    MaybeInplaceMutateIfUniqueExpected(node->value, allow_inplace));
+                                    MutateExpected(node->value, inplace_mode));
   if (value.UnchangedOrSameAs(node->value)) return ffi::Unchanged();
-  if (allow_inplace) {
+  if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<prim::CastNode*>(node);
     if (!value.IsUnchanged()) writable->value = std::move(value).ValueUnchecked();
     return ffi::Unchanged();
@@ -492,25 +491,25 @@ Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::CastNode* node,
   }
 }
 
-#define TVM_IR_BINARY_MUTATE_IMPL(Name)                                                            \
-  Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::Name##Node* node,               \
-                                                       bool allow_inplace) {                       \
-    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<PrimExpr>, a,                                    \
-                                      MaybeInplaceMutateIfUniqueExpected(node->a, allow_inplace)); \
-    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<PrimExpr>, b,                                    \
-                                      MaybeInplaceMutateIfUniqueExpected(node->b, allow_inplace)); \
-    if (a.UnchangedOrSameAs(node->a) && b.UnchangedOrSameAs(node->b)) return ffi::Unchanged();     \
-    if (allow_inplace) {                                                                           \
-      auto* writable = const_cast<prim::Name##Node*>(node);                                        \
-      if (!a.IsUnchanged()) writable->a = std::move(a).ValueUnchecked();                           \
-      if (!b.IsUnchanged()) writable->b = std::move(b).ValueUnchecked();                           \
-      return ffi::Unchanged();                                                                     \
-    } else {                                                                                       \
-      auto copy = ffi::make_object<prim::Name##Node>(*node);                                       \
-      copy->a = std::move(a).ValueOrUnchanged(std::move(copy->a));                                 \
-      copy->b = std::move(b).ValueOrUnchanged(std::move(copy->b));                                 \
-      return ffi::Any(Expr(std::move(copy)));                                                      \
-    }                                                                                              \
+#define TVM_IR_BINARY_MUTATE_IMPL(Name)                                                        \
+  Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::Name##Node* node,           \
+                                                       InplaceMode inplace_mode) {             \
+    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<PrimExpr>, a,                                \
+                                      MutateExpected(node->a, inplace_mode));                  \
+    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<PrimExpr>, b,                                \
+                                      MutateExpected(node->b, inplace_mode));                  \
+    if (a.UnchangedOrSameAs(node->a) && b.UnchangedOrSameAs(node->b)) return ffi::Unchanged(); \
+    if (inplace_mode == InplaceMode::kAllow) {                                                 \
+      auto* writable = const_cast<prim::Name##Node*>(node);                                    \
+      if (!a.IsUnchanged()) writable->a = std::move(a).ValueUnchecked();                       \
+      if (!b.IsUnchanged()) writable->b = std::move(b).ValueUnchecked();                       \
+      return ffi::Unchanged();                                                                 \
+    } else {                                                                                   \
+      auto copy = ffi::make_object<prim::Name##Node>(*node);                                   \
+      copy->a = std::move(a).ValueOrUnchanged(std::move(copy->a));                             \
+      copy->b = std::move(b).ValueOrUnchanged(std::move(copy->b));                             \
+      return ffi::Any(Expr(std::move(copy)));                                                  \
+    }                                                                                          \
   }
 TVM_IR_BINARY_MUTATE_IMPL(Add)
 TVM_IR_BINARY_MUTATE_IMPL(Sub)
@@ -532,11 +531,11 @@ TVM_IR_BINARY_MUTATE_IMPL(Or)
 #undef TVM_IR_BINARY_MUTATE_IMPL
 
 Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::NotNode* node,
-                                                     bool allow_inplace) {
+                                                     InplaceMode inplace_mode) {
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<PrimExpr>, a,
-                                    MaybeInplaceMutateIfUniqueExpected(node->a, allow_inplace));
+                                    MutateExpected(node->a, inplace_mode));
   if (a.UnchangedOrSameAs(node->a)) return ffi::Unchanged();
-  if (allow_inplace) {
+  if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<prim::NotNode*>(node);
     if (!a.IsUnchanged()) writable->a = std::move(a).ValueUnchecked();
     return ffi::Unchanged();
@@ -548,21 +547,18 @@ Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::NotNode* node,
 }
 
 Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::SelectNode* node,
-                                                     bool allow_inplace) {
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      UnchangedOr<PrimExpr>, condition,
-      MaybeInplaceMutateIfUniqueExpected(node->condition, allow_inplace));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      UnchangedOr<PrimExpr>, true_value,
-      MaybeInplaceMutateIfUniqueExpected(node->true_value, allow_inplace));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      UnchangedOr<PrimExpr>, false_value,
-      MaybeInplaceMutateIfUniqueExpected(node->false_value, allow_inplace));
+                                                     InplaceMode inplace_mode) {
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<PrimExpr>, condition,
+                                    MutateExpected(node->condition, inplace_mode));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<PrimExpr>, true_value,
+                                    MutateExpected(node->true_value, inplace_mode));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<PrimExpr>, false_value,
+                                    MutateExpected(node->false_value, inplace_mode));
   if (condition.UnchangedOrSameAs(node->condition) &&
       true_value.UnchangedOrSameAs(node->true_value) &&
       false_value.UnchangedOrSameAs(node->false_value))
     return ffi::Unchanged();
-  if (allow_inplace) {
+  if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<prim::SelectNode*>(node);
     if (!condition.IsUnchanged()) writable->condition = std::move(condition).ValueUnchecked();
     if (!true_value.IsUnchanged()) writable->true_value = std::move(true_value).ValueUnchecked();
@@ -578,19 +574,19 @@ Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::SelectNode* nod
 }
 
 Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::LetNode* node,
-                                                     bool allow_inplace) {
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      UnchangedOr<Var>, var, WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
-        return MaybeInplaceMutateIfUniqueExpected(node->var, allow_inplace);
-      }));
+                                                     InplaceMode inplace_mode) {
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<Var>, var,
+                                    WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
+                                      return MutateExpected(node->var, inplace_mode);
+                                    }));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<PrimExpr>, value,
-                                    MaybeInplaceMutateIfUniqueExpected(node->value, allow_inplace));
+                                    MutateExpected(node->value, inplace_mode));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<PrimExpr>, body,
-                                    MaybeInplaceMutateIfUniqueExpected(node->body, allow_inplace));
+                                    MutateExpected(node->body, inplace_mode));
   if (var.UnchangedOrSameAs(node->var) && value.UnchangedOrSameAs(node->value) &&
       body.UnchangedOrSameAs(node->body))
     return ffi::Unchanged();
-  if (allow_inplace) {
+  if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<prim::LetNode*>(node);
     if (!var.IsUnchanged()) writable->var = std::move(var).ValueUnchecked();
     if (!value.IsUnchanged()) writable->value = std::move(value).ValueUnchecked();
@@ -606,18 +602,17 @@ Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::LetNode* node,
 }
 
 Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::RampNode* node,
-                                                     bool allow_inplace) {
+                                                     InplaceMode inplace_mode) {
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<PrimExpr>, base,
-                                    MaybeInplaceMutateIfUniqueExpected(node->base, allow_inplace));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      UnchangedOr<PrimExpr>, stride,
-      MaybeInplaceMutateIfUniqueExpected(node->stride, allow_inplace));
+                                    MutateExpected(node->base, inplace_mode));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<PrimExpr>, stride,
+                                    MutateExpected(node->stride, inplace_mode));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<PrimExpr>, lanes,
-                                    MaybeInplaceMutateIfUniqueExpected(node->lanes, allow_inplace));
+                                    MutateExpected(node->lanes, inplace_mode));
   if (base.UnchangedOrSameAs(node->base) && stride.UnchangedOrSameAs(node->stride) &&
       lanes.UnchangedOrSameAs(node->lanes))
     return ffi::Unchanged();
-  if (allow_inplace) {
+  if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<prim::RampNode*>(node);
     if (!base.IsUnchanged()) writable->base = std::move(base).ValueUnchecked();
     if (!stride.IsUnchanged()) writable->stride = std::move(stride).ValueUnchecked();
@@ -633,14 +628,14 @@ Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::RampNode* node,
 }
 
 Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::BroadcastNode* node,
-                                                     bool allow_inplace) {
+                                                     InplaceMode inplace_mode) {
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<PrimExpr>, value,
-                                    MaybeInplaceMutateIfUniqueExpected(node->value, allow_inplace));
+                                    MutateExpected(node->value, inplace_mode));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<PrimExpr>, lanes,
-                                    MaybeInplaceMutateIfUniqueExpected(node->lanes, allow_inplace));
+                                    MutateExpected(node->lanes, inplace_mode));
   if (value.UnchangedOrSameAs(node->value) && lanes.UnchangedOrSameAs(node->lanes))
     return ffi::Unchanged();
-  if (allow_inplace) {
+  if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<prim::BroadcastNode*>(node);
     if (!value.IsUnchanged()) writable->value = std::move(value).ValueUnchecked();
     if (!lanes.IsUnchanged()) writable->lanes = std::move(lanes).ValueUnchecked();
@@ -654,16 +649,14 @@ Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::BroadcastNode* 
 }
 
 Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::ShuffleNode* node,
-                                                     bool allow_inplace) {
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      UnchangedOr<ffi::Array<PrimExpr>>, vectors,
-      this->MaybeInplaceMutateIfUniqueExpected(node->vectors, allow_inplace));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      UnchangedOr<ffi::Array<PrimExpr>>, indices,
-      this->MaybeInplaceMutateIfUniqueExpected(node->indices, allow_inplace));
+                                                     InplaceMode inplace_mode) {
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<ffi::Array<PrimExpr>>, vectors,
+                                    this->MutateExpected(node->vectors, inplace_mode));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<ffi::Array<PrimExpr>>, indices,
+                                    this->MutateExpected(node->indices, inplace_mode));
   if (vectors.UnchangedOrSameAs(node->vectors) && indices.UnchangedOrSameAs(node->indices))
     return ffi::Unchanged();
-  if (allow_inplace) {
+  if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<prim::ShuffleNode*>(node);
     if (!vectors.IsUnchanged()) writable->vectors = std::move(vectors).ValueUnchecked();
     if (!indices.IsUnchanged()) writable->indices = std::move(indices).ValueUnchecked();
@@ -676,7 +669,8 @@ Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const prim::ShuffleNode* no
   }
 }
 
-Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const VarNode* node, bool allow_inplace) {
+Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const VarNode* node,
+                                                     InplaceMode inplace_mode) {
   if (node->ty.as<PrimTypeNode>()) return ffi::Unchanged();
   if (TVM_FFI_PREDICT_TRUE(var_remap_.empty() && def_region_kind() == kTVMFFIDefRegionKindNone)) {
     return ffi::Unchanged();
@@ -695,13 +689,12 @@ Expected<UnchangedOr<ffi::Any>> ExprMutator::Mutate_(const VarNode* node, bool a
   if (!node->ty.as<PrimTypeNode>()) {
     Expected<UnchangedOr<ffi::Any>> mapped_ty_result =
         def_region_kind() == kTVMFFIDefRegionKindSimple
-            ? WithDefRegionKind(
-                  kTVMFFIDefRegionKindNone,
-                  [&] { return this->MaybeInplaceMutateIfUniqueExpected(node->ty, allow_inplace); })
-            : this->MaybeInplaceMutateIfUniqueExpected(node->ty, allow_inplace);
+            ? WithDefRegionKind(kTVMFFIDefRegionKindNone,
+                                [&] { return this->MutateExpected(node->ty, inplace_mode); })
+            : this->MutateExpected(node->ty, inplace_mode);
     TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(UnchangedOr<Type>, mapped_ty, std::move(mapped_ty_result));
     if (!mapped_ty.UnchangedOrSameAs(node->ty)) {
-      if (allow_inplace) {
+      if (inplace_mode == InplaceMode::kAllow) {
         const_cast<VarNode*>(node)->ty = std::move(mapped_ty).ValueUnchecked();
         mapped_value = ffi::Any(node);
       } else {

@@ -68,7 +68,7 @@ TVMFFIAny OpaqueExprMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   OpaqueExprNode* self = const_cast<OpaqueExprNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const OpaqueExprNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->ty));
+                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
   if (mapped_ty.UnchangedOrSameAs(self->ty)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
@@ -110,11 +110,13 @@ TVMFFIAny TensorLoadMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   TensorLoadNode* self = const_cast<TensorLoadNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorLoadNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->ty));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_source,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->source));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<PrimExpr>>, mapped_indices,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->indices));
+                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<Expr>, mapped_source,
+      mutator->MutateExpected(self->source, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Array<PrimExpr>>, mapped_indices,
+      mutator->MutateExpected(self->indices, ffi::InplaceMode::kAllow));
   if (mapped_ty.UnchangedOrSameAs(self->ty) && mapped_source.UnchangedOrSameAs(self->source) &&
       mapped_indices.UnchangedOrSameAs(self->indices)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
@@ -153,9 +155,10 @@ TVMFFIAny TupleMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyVi
   TupleNode* self = const_cast<TupleNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->ty));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Expr>>, mapped_fields,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->fields));
+                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Array<Expr>>, mapped_fields,
+      mutator->MutateExpected(self->fields, ffi::InplaceMode::kAllow));
   if (mapped_ty.UnchangedOrSameAs(self->ty) && mapped_fields.UnchangedOrSameAs(self->fields)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
@@ -196,9 +199,9 @@ TVMFFIAny TupleGetItemMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   TupleGetItemNode* self = const_cast<TupleGetItemNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleGetItemNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->ty));
+                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_tuple,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->tuple));
+                                    mutator->MutateExpected(self->tuple, ffi::InplaceMode::kAllow));
   if (mapped_ty.UnchangedOrSameAs(self->ty) && mapped_tuple.UnchangedOrSameAs(self->tuple)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
@@ -265,9 +268,10 @@ TVMFFIAny RangeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyVi
   RangeNode* self = const_cast<RangeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const RangeNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_min,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->min));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_extent,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->extent));
+                                    mutator->MutateExpected(self->min, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<PrimExpr>, mapped_extent,
+      mutator->MutateExpected(self->extent, ffi::InplaceMode::kAllow));
   if (mapped_min.UnchangedOrSameAs(self->min) && mapped_extent.UnchangedOrSameAs(self->extent)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
@@ -362,8 +366,8 @@ TVMFFIAny VarMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView
         mutator->def_region_kind() == kTVMFFIDefRegionKindSimple
             ? mutator->WithDefRegionKind(
                   kTVMFFIDefRegionKindNone,
-                  [&]() { return mutator->MaybeInplaceMutateIfUniqueExpected(self->ty); })
-            : mutator->MaybeInplaceMutateIfUniqueExpected(self->ty);
+                  [&]() { return mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow); })
+            : mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow);
     TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
                                       std::move(mapped_ty_result));
     if (!mapped_ty.UnchangedOrSameAs(self->ty)) {
@@ -472,7 +476,7 @@ TVMFFIAny CallMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyVie
   ffi::UnchangedOr<Type> mapped_ty = ffi::Unchanged();
   if (!self->ty.as<PrimTypeNode>()) {
     TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, descended_ty,
-                                      mutator->MaybeInplaceMutateIfUniqueExpected(self->ty));
+                                      mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
     mapped_ty = std::move(descended_ty);
   }
   // An Op is an interned registry singleton, so it has nothing to substitute.  Broad callbacks do
@@ -480,17 +484,18 @@ TVMFFIAny CallMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyVie
   ffi::UnchangedOr<Expr> mapped_op = ffi::Unchanged();
   if (!self->op.as<OpNode>()) {
     TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, descended_op,
-                                      mutator->MaybeInplaceMutateIfUniqueExpected(self->op));
+                                      mutator->MutateExpected(self->op, ffi::InplaceMode::kAllow));
     mapped_op = std::move(descended_op);
   }
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Expr>>, mapped_args,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->args));
+                                    mutator->MutateExpected(self->args, ffi::InplaceMode::kAllow));
   // An empty ty_args has no element to substitute.  Broad callbacks do not see the empty
   // container; nonempty type arguments retain normal container descent and callback behavior.
   ffi::UnchangedOr<ffi::Array<Type>> mapped_ty_args = ffi::Unchanged();
   if (!self->ty_args.empty()) {
-    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Type>>, descended_ty_args,
-                                      mutator->MaybeInplaceMutateIfUniqueExpected(self->ty_args));
+    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+        ffi::UnchangedOr<ffi::Array<Type>>, descended_ty_args,
+        mutator->MutateExpected(self->ty_args, ffi::InplaceMode::kAllow));
     mapped_ty_args = std::move(descended_ty_args);
   }
   if (mapped_ty.UnchangedOrSameAs(self->ty) && mapped_op.UnchangedOrSameAs(self->op) &&
