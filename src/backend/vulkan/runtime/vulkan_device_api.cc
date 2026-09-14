@@ -28,6 +28,7 @@
 #include <utility>
 
 #include "vulkan_common.h"
+#include "vulkan_timer.h"
 
 namespace tvm {
 namespace runtime {
@@ -450,6 +451,12 @@ const VulkanDevice& VulkanDeviceAPI::device(size_t device_id) const {
 
 VulkanDevice& VulkanDeviceAPI::device(size_t device_id) {
   return const_cast<VulkanDevice&>(const_cast<const VulkanDeviceAPI*>(this)->device(device_id));
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("profiling.timer.vulkan",
+                        [](Device dev) { return Timer(ffi::make_object<VulkanTimerNode>(dev)); });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
