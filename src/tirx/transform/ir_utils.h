@@ -27,11 +27,12 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/ffi/container/tuple.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/with_context.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/op.h>
@@ -118,7 +119,7 @@ inline Call AddressOffset(Var handle, PrimType dtype, int offset) {
   auto pointer_type = handle->ty.as_or_throw<PointerType>();
   BufferVar dummy_buf(handle->name,
                       BufferType(pointer_type->storage_scope, dtype, shape, {}, 0, 0, 0));
-  BufferLoad buf_load(dummy_buf, {offset_expr});
+  TensorLoad buf_load = BufferLoad(dummy_buf, {offset_expr});
 
   return Call(handle->ty, builtin::address_of(), {buf_load});
 }
@@ -133,14 +134,14 @@ inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
   if (dtype.lanes() != 1) {
     PrimType offset_ty = offset.ty();
     offset = offset * IntImm(offset_ty, dtype.lanes());
-    offset = Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
+    offset = prim::Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
   }
 
   ffi::Array<PrimExpr> shape = {offset + 1};
   auto pointer_type = handle->ty.as_or_throw<PointerType>();
   BufferVar dummy_buf(handle->name, BufferType(pointer_type->storage_scope, dtype.WithLanes(1),
                                                shape, {}, 0, 0, 0));
-  BufferLoad buf_load(dummy_buf, {offset});
+  TensorLoad buf_load = BufferLoad(dummy_buf, {offset});
 
   return Call(handle->ty, builtin::address_of(), {buf_load});
 }
@@ -180,12 +181,17 @@ inline PrimType APIType(const PrimType& t) {
  * \param const_size The constant size of the array.
  * \return the alignment
  */
-inline int GetTempAllocaAlignment(const PrimType& type, int32_t const_size) {
+inline int GetTempAllocaAlignment(const PrimType& type, int64_t const_size) {
   int align = runtime::kTempAllocaAlignment;
   if (const_size > 0) {
-    int64_t const_s = static_cast<int64_t>(const_size) * type.StorageBytes();
-    while (align > const_s) {
-      align = align / 2;
+    int64_t element_bytes = type.StorageBytes();
+    // Only compute the total size when it can reduce the alignment. This also avoids
+    // overflowing for very large allocations.
+    if (element_bytes > 0 && const_size <= (align - 1) / element_bytes) {
+      int64_t const_s = const_size * element_bytes;
+      while (align > const_s) {
+        align = align / 2;
+      }
     }
   }
   return align;
@@ -209,7 +215,7 @@ inline PrimExpr ConstInt32(size_t index) {
  * \return Call representing the allocated pointer
  */
 inline Call StackAlloca(Type ret_type, std::string type, size_t num) {
-  ffi::Array<PrimExpr> args = {StringImm(type), ConstInt32(num)};
+  ffi::Array<PrimExpr> args = {prim::StringImm(type), ConstInt32(num)};
   return Call(std::move(ret_type), builtin::tvm_stack_alloca(), args);
 }
 

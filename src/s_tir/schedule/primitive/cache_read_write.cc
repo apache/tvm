@@ -18,6 +18,8 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 
 #include <unordered_set>
 
@@ -27,6 +29,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /******** Error Classes ********/
@@ -169,6 +172,10 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
     var_map.Set(original_var, loop_var);
     loop_vars.push_back(loop_var);
   }
+  auto f_substitute = [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = var_map.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
   for (size_t i = 0; i < info->block_iter_vars.size(); ++i) {
     IterVar original_block_var = info->block_iter_vars[i];
     PrimExpr original_iter_value = info->block_iter_values[i];
@@ -178,7 +185,9 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
         /*IterVarType=*/kDataPar);
     var_map.Set(original_block_var->var, block_var->var);
     block_vars.push_back(block_var);
-    iter_values.push_back(Substitute(original_iter_value, var_map));
+    iter_values.push_back(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(original_iter_value, f_substitute)
+            .template as_or_throw<PrimExpr>());
   }
 
   // block access region for read/write buffers
@@ -188,13 +197,15 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
   ffi::Array<PrimExpr>& old_indices = (is_cache_read) ? read_access_indices : write_access_indices;
   Region& old_region = (is_cache_read) ? read_access_region : write_access_region;
   for (const Range& range : cache_region->region) {
-    old_indices.push_back(Substitute(range->min, var_map));
+    old_indices.push_back(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+                              .template as_or_throw<PrimExpr>());
     old_region.push_back(Range::FromMinExtent(old_indices.back(), IntImm::Int32(1)));
   }
   ffi::Array<PrimExpr>& new_indices = (is_cache_read) ? write_access_indices : read_access_indices;
   Region& new_region = (is_cache_read) ? write_access_region : read_access_region;
   for (const PrimExpr& idx : info->indices) {
-    new_indices.push_back(Substitute((idx), var_map));
+    new_indices.push_back(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(idx, f_substitute)
+                              .template as_or_throw<PrimExpr>());
     new_region.push_back(Range::FromMinExtent(new_indices.back(), IntImm::Int32(1)));
   }
 
@@ -377,8 +388,16 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
   }
 
   // Step 2: Replace the original block iters with the new block iters
+  auto f_substitute =
+      [&block_var_replace_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto it = block_var_replace_map.find(var); it != block_var_replace_map.end()) {
+      return ffi::Any(it->second);
+    }
+    return ffi::Unchanged();
+  };
   for (const PrimExpr& index : original_indices) {
-    target_indices.push_back(Substitute(index, block_var_replace_map));
+    target_indices.push_back(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index, f_substitute).as_or_throw<PrimExpr>());
   }
 
   // Step 3: Create the reindex block
@@ -581,7 +600,14 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const BufferVar& 
         for (size_t i = 0; i < block->iter_vars.size(); ++i) {
           subst.Set(block->iter_vars[i]->var, realize->iter_values[i]);
         }
-        PrimExpr pred = subst.empty() ? realize->predicate : Substitute(realize->predicate, subst);
+        auto f_substitute = [&subst](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (auto repl = subst.Get(var)) return ffi::Any(*std::move(repl));
+          return ffi::Unchanged();
+        };
+        PrimExpr pred = subst.empty() ? realize->predicate
+                                      : ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                                            realize->predicate, f_substitute)
+                                            .as_or_throw<PrimExpr>();
         // OR the predicates across all accessing nested blocks: each such block is an
         // independent alternative access path (sibling blocks in a SeqStmt), so the
         // cache must cover the *union* of their access regions, not the intersection.
@@ -626,10 +652,24 @@ BufferRegion RelaxBufferRegion(ScheduleState self, const BufferRegion& buffer_re
   ffi::Map<Var, PrimExpr> binding = GetBindings(realize);
   const BufferVar& buffer = buffer_region->buffer;
   arith::Analyzer analyzer;
-  BufferRegion subst_region = BufferRegion(buffer, Substitute(buffer_region->region, binding));
+  auto f_substitute = [&binding](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = binding.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
+  ffi::Array<Range> mapped_region = buffer_region->region.Map([&f_substitute](const Range& range) {
+    PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+                       .as_or_throw<PrimExpr>();
+    PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
+                          .as_or_throw<PrimExpr>();
+    return Range::FromMinExtent(min, extent);
+  });
+  BufferRegion subst_region = BufferRegion(buffer, mapped_region);
   ffi::Array<arith::IntSet> int_sets = AnalyzeRegionUpperBound(
       /*region=*/subst_region,
-      /*predicate=*/Substitute(realize->predicate && extra_predicate, binding),
+      /*predicate=*/
+      ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(realize->predicate && extra_predicate,
+                                                    f_substitute)
+          .as_or_throw<PrimExpr>(),
       /*dom_low_inclusive=*/dom_low_inclusive,
       /*dom_high_exclusive=*/dom_high_exclusive,
       /*analyzer=*/analyzer.get());
@@ -1024,14 +1064,14 @@ class CacheReadRewriter : public StmtExprMutator {
     return ret;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* load) override {
-    if (load->buffer.same_as(info_->read_buffer) && current_block_consumes) {
-      ffi::ObjectPtr<BufferLoadNode> n = ffi::make_object<BufferLoadNode>(*load);
-      n->buffer = info_->write_buffer;
+  Expr VisitExpr_(const TensorLoadNode* load) override {
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->read_buffer) &&
+        current_block_consumes) {
+      ffi::Array<PrimExpr> indices = load->indices;
       if (!cache_full_region_) {
-        n->indices = RewriteIndices(load->indices);
+        indices = RewriteIndices(load->indices);
       }
-      return PrimExpr(n);
+      return BufferLoad(info_->write_buffer, indices, load->span);
     }
     return ExprMutator::VisitExpr_(load);
   }
@@ -1117,12 +1157,10 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
     };
   }
 
-  Expr VisitExpr_(const BufferLoadNode* load) final {
-    if (load->buffer.same_as(info_->read_buffer) && current_block_consumes) {
-      ffi::ObjectPtr<BufferLoadNode> n = ffi::make_object<BufferLoadNode>(*load);
-      n->buffer = info_->write_buffer;
-      n->indices = new_indices_;
-      return PrimExpr(n);
+  Expr VisitExpr_(const TensorLoadNode* load) final {
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->read_buffer) &&
+        current_block_consumes) {
+      return BufferLoad(info_->write_buffer, new_indices_, load->span);
     }
     return ExprMutator::VisitExpr_(load);
   }
@@ -1308,14 +1346,13 @@ class CacheWriteRewriter : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const BufferLoadNode* load) override {
-    if (load->buffer.same_as(info_->write_buffer)) {
-      ffi::ObjectPtr<BufferLoadNode> n = ffi::make_object<BufferLoadNode>(*load);
-      n->buffer = info_->read_buffer;
+  Expr VisitExpr_(const TensorLoadNode* load) override {
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->write_buffer)) {
+      ffi::Array<PrimExpr> indices = load->indices;
       if (!cache_full_region_) {
-        n->indices = RewriteIndices(n->indices);
+        indices = RewriteIndices(indices);
       }
-      return PrimExpr(n);
+      return BufferLoad(info_->read_buffer, indices, load->span);
     }
     return ExprMutator::VisitExpr_(load);
   }
@@ -1418,12 +1455,9 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
     }
   }
 
-  Expr VisitExpr_(const BufferLoadNode* load) final {
-    if (load->buffer.same_as(info_->write_buffer)) {
-      ffi::ObjectPtr<BufferLoadNode> n = ffi::make_object<BufferLoadNode>(*load);
-      n->buffer = info_->read_buffer;
-      n->indices = new_indices_;
-      return PrimExpr(n);
+  Expr VisitExpr_(const TensorLoadNode* load) final {
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->write_buffer)) {
+      return BufferLoad(info_->read_buffer, new_indices_, load->span);
     }
     return ExprMutator::VisitExpr_(load);
   }
@@ -1487,14 +1521,14 @@ class InvalidBufferAccessError : public ScheduleError {
   InvalidBufferAccessError(IRModule mod, BufferVar buffer, SBlock block, ErrorKind kind)
       : mod_(std::move(mod)), buffer_(std::move(buffer)), block_(std::move(block)), kind_(kind) {}
   ffi::String FastErrorString() const final {
-    return "ScheduleError: The target buffer should be accessed via BufferLoad or BufferStore. The "
+    return "ScheduleError: The target buffer should be accessed via TensorLoad or BufferStore. The "
            "indices should be the same if there are multiple accesses to the target buffer.";
   }
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "The target buffer " << buffer_.name()
-       << " should be accessed in the leaf block {0} via BufferLoad or BufferStore. The indices "
+       << " should be accessed in the leaf block {0} via TensorLoad or BufferStore. The indices "
           "should be the same if there are multiple accesses to the target buffer. ";
     if (kind_ == ErrorKind::kNoAccess) {
       os << "No buffer accesses found.";
@@ -1533,9 +1567,9 @@ class ReIndexCollector : public StmtExprVisitor {
   explicit ReIndexCollector(const IRModule& mod, const BufferVar& buffer, const SBlock& block)
       : mod_(mod), buffer_(buffer), block_(block) {}
 
-  void VisitExpr_(const BufferLoadNode* load) final {
+  void VisitExpr_(const TensorLoadNode* load) final {
     StmtExprVisitor::VisitExpr_(load);
-    if (load->buffer.same_as(buffer_)) {
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
       CheckAndUpdateBufferAccessIndices(load->indices);
     }
   }
@@ -1651,13 +1685,18 @@ class ReIndexRewriter : public StmtExprMutator {
     }
     return node;
   }
+  TensorLoad VisitBufferAccess(TensorLoad node) {
+    return node->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)
+               ? BufferLoad(new_buffer_, indices_, node->span)
+               : node;
+  }
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     BufferStore buffer_store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     return VisitBufferAccess(std::move(buffer_store));
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad buffer_load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    TensorLoad buffer_load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     return VisitBufferAccess(std::move(buffer_load));
   }
 
@@ -2332,13 +2371,12 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
 
   // Collect block iters appearing in the original_indices
   std::unordered_set<Var> covered;
+  auto walk_fn = [&covered](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    covered.insert(var);
+    return ffi::WalkResult::Advance();
+  };
   for (const PrimExpr& index : original_indices) {
-    PreOrderVisit(index, [&](const ffi::ObjectRef& obj) -> bool {
-      if (auto var = obj.as<Var>()) {
-        covered.insert(var.value());
-      }
-      return true;
-    });
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(index, walk_fn);
   }
 
   // Step 2. Creating CacheStageInfo

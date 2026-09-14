@@ -25,14 +25,15 @@
 #include <tvm/arith/int_solver.h>
 #include <tvm/arith/pattern.h>
 #include <tvm/ffi/dtype.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
+#include <utility>
 
 #include "int_operator.h"
 
@@ -300,7 +301,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   // S_{mxn} V^{-1}_{nxn} x_{nx1} = U y, in which n is # of variables
   // here we initialize S_{mxn} to be A, U to be identity matrix.
   for (const PrimExpr& equation : system_to_solve->relations) {
-    if (const tirx::EQNode* eq = equation.as<tirx::EQNode>()) {
+    if (const prim::EQNode* eq = equation.as<prim::EQNode>()) {
       // a-b = sum_{i=0}^{n-1} variables[i] * coeff[i] + coeff[n]
       ffi::Array<PrimExpr> coeffs = arith::DetectLinearEquation(
           analyzer_problem->Simplify(eq->a - eq->b), system_to_solve->variables);
@@ -449,8 +450,13 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   }
 
   // Add the rest conditions
+  auto f_subst = [&old_to_new_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = old_to_new_map.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
   for (const PrimExpr& cond : rest) {
-    new_relations.push_back(tirx::Substitute(cond, old_to_new_map));
+    new_relations.push_back(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(cond, f_subst).as_or_throw<PrimExpr>());
   }
 
   IntConstraints solution(new_vars, new_ranges, new_relations);

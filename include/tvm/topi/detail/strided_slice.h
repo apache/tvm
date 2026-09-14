@@ -24,7 +24,7 @@
 #ifndef TVM_TOPI_DETAIL_STRIDED_SLICE_H_
 #define TVM_TOPI_DETAIL_STRIDED_SLICE_H_
 
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <algorithm>
 #include <limits>

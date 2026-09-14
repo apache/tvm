@@ -19,40 +19,42 @@ CUDA C++/PTX intrinsics
 =======================
 
 When no tile primitive covers what you need, two escape hatches reach the hardware
-directly: **call a backend intrinsic** (the ``T.cuda.*`` / ``T.ptx.*`` namespaces
+directly: **call a backend intrinsic** (the ``Tx.cuda.*`` / ``Tx.ptx.*`` namespaces
 from ``tvm.backend.cuda``), or **inline raw CUDA** source.
 
 Calling backend intrinsics
 --------------------------
 
-``T.cuda.*`` and ``T.ptx.*`` expose the CUDA backend's device intrinsics directly —
+``Tx.cuda.*`` and ``Tx.ptx.*`` expose the CUDA backend's device intrinsics directly —
 synchronization, mbarriers, reductions, and the PTX data-movement / MMA families:
 
 .. code-block:: python
 
-    T.cuda.cta_sync()                    # block barrier (__syncthreads)
-    T.cuda.warp_sync()                   # __syncwarp
-    T.cuda.warpgroup_sync(8)             # warpgroup barrier
-    T.cuda.cta_sum(val, num_warps, scratch.ptr_to([0]))   # block-level reduction
+    Tx.cuda.cta_sync()                    # block barrier (__syncthreads)
+    Tx.cuda.warp_sync()                   # __syncwarp
+    Tx.cuda.warpgroup_sync(8)             # warpgroup named-barrier ID 8
+    Tx.cuda.cta_sum(val, num_warps, scratch.ptr_to([0]))   # block-level reduction
 
-    bar = T.alloc_shared((1,), "uint64")
-    T.ptx.mbarrier.init.shared.b64(bar.data, T.uint32(1))  # mbarrier for async completion
-    T.cuda.mbarrier_wait(bar.data, phase)
+    bar = Tx.alloc_shared((1,), "uint64")
+    if Tx.cuda.thread_rank() == 0:  # one thread initializes the CTA-shared barrier
+        Tx.ptx.mbarrier.init.shared.b64(bar.data, Tx.uint32(1))
+    Tx.cuda.cta_sync()  # initialization completes before any thread uses bar
+    Tx.cuda.mbarrier_wait(bar.data, phase)
 
-A complete, runnable example — a warp all-reduce via ``T.tvm_warp_shuffle_xor``:
+A complete, runnable example — a warp all-reduce via ``Tx.tvm_warp_shuffle_xor``:
 
 .. code-block:: python
 
-    @T.prim_func
-    def warp_reduce(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (32,), "float32", align=16)
-        T.device_entry()
-        cta_id = T.cta_id([1]); warp_id = T.warp_id([1]); lane_id = T.lane_id([32])
-        v = T.alloc_local((1,), "float32"); i = T.alloc_local((1,), "int32")
-        v[0] = T.float32(31 - lane_id)
+    @Tx.prim_func
+    def warp_reduce(A_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, (32,), "float32", align=16)
+        Tx.device_entry()
+        cta_id = Tx.cta_id([1]); warp_id = Tx.warp_id([1]); lane_id = Tx.lane_id([32])
+        v = Tx.alloc_local((1,), "float32"); i = Tx.alloc_local((1,), "int32")
+        v[0] = Tx.float32(31 - lane_id)
         i[0] = 16
         while i[0] >= 1:
-            v[0] += T.tvm_warp_shuffle_xor(0xFFFFFFFF, v[0], i[0], 32, 32)
+            v[0] += Tx.tvm_warp_shuffle_xor(0xFFFFFFFF, v[0], i[0], 32, 32)
             i[0] = i[0] // 2
         A[lane_id] = v[0]
 
@@ -62,16 +64,16 @@ The shuffle lowers straight to ``__shfl_xor_sync``:
 
     v_ptr[0] = v_ptr[0] + __shfl_xor_sync(0xFFFFFFFF, v_ptr[0], i_ptr[0], 32);
 
-Other families under ``T.ptx.*`` / ``T.cuda.*``: ``cp.async`` (LDGSTS),
-``cp_async.bulk.tensor`` (TMA), ``ldmatrix`` / ``stmatrix``, ``tcgen05.*``
-(Blackwell MMA), ``atomic_add``, ``fence`` … See :doc:`../../api/backend` for the
-full ``tvm.backend.cuda`` reference.
+Other families under ``Tx.ptx.*`` / ``Tx.cuda.*``: ``cp.async`` (LDGSTS),
+``cp.async.bulk.tensor`` (TMA), ``ldmatrix`` / ``stmatrix``, ``tcgen05.*``
+(Blackwell MMA), ``atomic_add``, ``fence`` … See :doc:`../../api/cuda` for CUDA
+helpers and :doc:`../../api/ptx` for the registered PTX forms.
 
 Inlining raw CUDA
 -----------------
 
 For something with no intrinsic at all, inject a ``__device__`` function from a
-source string with ``T.cuda.func_call(name, *args, source_code=..., return_type=...)``:
+source string with ``Tx.cuda.func_call(name, *args, source_code=..., return_type=...)``:
 
 .. code-block:: python
 
@@ -79,12 +81,12 @@ source string with ``T.cuda.func_call(name, *args, source_code=..., return_type=
     __device__ __forceinline__ float my_relu(float x) { return x > 0.f ? x : 0.f; }
     """
 
-    @T.prim_func
-    def k(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (256,), "float32")
-        B = T.match_buffer(B_ptr, (256,), "float32")
-        T.device_entry(); bx = T.cta_id([1]); tx = T.thread_id([256])
-        B[tx] = T.cuda.func_call("my_relu", A[tx], source_code=SRC, return_type="float32")
+    @Tx.prim_func
+    def k(A_ptr: Tx.handle, B_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, (256,), "float32")
+        B = Tx.match_buffer(B_ptr, (256,), "float32")
+        Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([256])
+        B[tx] = Tx.cuda.func_call("my_relu", A[tx], source_code=SRC, return_type="float32")
 
 The source is emitted verbatim and the call is wired in:
 

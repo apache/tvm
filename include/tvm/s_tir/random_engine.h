@@ -23,13 +23,16 @@
  */
 #ifndef TVM_S_TIR_RANDOM_ENGINE_H_
 #define TVM_S_TIR_RANDOM_ENGINE_H_
+
 #include <tvm/ffi/error.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <cstdint>
 #include <random>
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 
 /*!
  * \brief This linear congruential engine is a drop-in replacement for std::minstd_rand. It strictly

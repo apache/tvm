@@ -176,7 +176,7 @@ def _has_thread_binding(func: tvm.tirx.PrimFunc) -> bool:
         if isinstance(node, tvm.tirx.For) and node.kind == tvm.tirx.ForKind.THREAD_BINDING:
             found = True
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, _visit)
+    tvm_ffi.structural_walk(func.body, _visit)
     return found
 
 

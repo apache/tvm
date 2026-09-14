@@ -22,14 +22,16 @@
  * \brief Annotate and split device functions from host, then lower kernel launches.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -90,15 +92,24 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
   Stmt Extract(Stmt stmt) {
     min_blocks_per_sm_.reset();
     max_blocks_per_cluster_.reset();
+    max_registers_.reset();
+    required_block_size_.reset();
     Stmt result = operator()(std::move(stmt));
     TVM_FFI_ICHECK(!max_blocks_per_cluster_.has_value() || min_blocks_per_sm_.has_value())
         << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " requires "
         << tirx::attr::kLaunchBoundsMinBlocksPerSM;
+    TVM_FFI_ICHECK(!max_registers_.has_value() ||
+                   (!min_blocks_per_sm_.has_value() && !max_blocks_per_cluster_.has_value()))
+        << tirx::attr::kMaxRegisters << " cannot be combined with CUDA launch bounds";
+    TVM_FFI_ICHECK(!required_block_size_.has_value() || !max_registers_.has_value())
+        << tirx::attr::kRequiredBlockSize << " cannot be combined with maximum registers";
     return result;
   }
 
   std::optional<int64_t> min_blocks_per_sm() const { return min_blocks_per_sm_; }
   std::optional<int64_t> max_blocks_per_cluster() const { return max_blocks_per_cluster_; }
+  std::optional<int64_t> max_registers() const { return max_registers_; }
+  std::optional<int64_t> required_block_size() const { return required_block_size_; }
 
  private:
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -126,12 +137,37 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
       }
       max_blocks_per_cluster_ = max_blocks_per_cluster->value;
       return VisitStmt(op->body);
+    } else if (op->attr_key == tirx::attr::kMaxRegisters) {
+      const auto* max_registers = op->value.as<IntImmNode>();
+      TVM_FFI_ICHECK(max_registers) << tirx::attr::kMaxRegisters << " expects an integer value";
+      TVM_FFI_ICHECK_GT(max_registers->value, 0)
+          << tirx::attr::kMaxRegisters << " must be positive";
+      if (max_registers_.has_value()) {
+        TVM_FFI_ICHECK_EQ(max_registers_.value(), max_registers->value)
+            << "Conflicting " << tirx::attr::kMaxRegisters << " values";
+      }
+      max_registers_ = max_registers->value;
+      return VisitStmt(op->body);
+    } else if (op->attr_key == tirx::attr::kRequiredBlockSize) {
+      const auto* required_block_size = op->value.as<IntImmNode>();
+      TVM_FFI_ICHECK(required_block_size)
+          << tirx::attr::kRequiredBlockSize << " expects an integer value";
+      TVM_FFI_ICHECK_EQ(required_block_size->value, 1)
+          << tirx::attr::kRequiredBlockSize << " must be 1";
+      if (required_block_size_.has_value()) {
+        TVM_FFI_ICHECK_EQ(required_block_size_.value(), required_block_size->value)
+            << "Conflicting " << tirx::attr::kRequiredBlockSize << " values";
+      }
+      required_block_size_ = required_block_size->value;
+      return VisitStmt(op->body);
     }
     return StmtMutator::VisitStmt_(op);
   }
 
   std::optional<int64_t> min_blocks_per_sm_;
   std::optional<int64_t> max_blocks_per_cluster_;
+  std::optional<int64_t> max_registers_;
+  std::optional<int64_t> required_block_size_;
 };
 
 class HostDeviceSplitter : public StmtMutator {
@@ -172,7 +208,7 @@ class HostDeviceSplitter : public StmtMutator {
       } else {
         std::unordered_map<Var, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> param_order;
         for (size_t i = 0; i < cur_func_->params.size(); ++i) {
-          param_order[cur_func_->params[i].as_or_throw<BufferVar>().var()] = i;
+          param_order[cur_func_->params[i].as_or_throw<tvm::tirx::BufferVar>().var()] = i;
         }
         // sort by original order
         std::sort(params.begin(), params.end(),
@@ -202,7 +238,13 @@ class HostDeviceSplitter : public StmtMutator {
         call_args.push_back(param);
       }
     }
-    body = Substitute(std::move(body), kernel_buffer_remap);
+    auto map_kernel_buffer =
+        [&kernel_buffer_remap](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = kernel_buffer_remap.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
+    body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(body), map_kernel_buffer)
+               .as_or_throw<Stmt>();
 
     // CodeGenCPU is used for some device-side targets, such as
     // "ext_dev", and expects to be able to return a int32_t status
@@ -255,6 +297,14 @@ class HostDeviceSplitter : public StmtMutator {
         device_func = WithAttr(std::move(device_func), tirx::attr::kLaunchBoundsMaxBlocksPerCluster,
                                launch_bounds_attr.max_blocks_per_cluster().value());
       }
+      if (launch_bounds_attr.max_registers().has_value()) {
+        device_func = WithAttr(std::move(device_func), tirx::attr::kMaxRegisters,
+                               launch_bounds_attr.max_registers().value());
+      }
+      if (launch_bounds_attr.required_block_size().has_value()) {
+        device_func = WithAttr(std::move(device_func), tirx::attr::kRequiredBlockSize,
+                               launch_bounds_attr.required_block_size().value());
+      }
     }
     auto num_inputs = cur_func_->GetAttr<int64_t>(tvm::attr::kNumInputs);
     if (num_inputs.has_value()) {
@@ -266,8 +316,8 @@ class HostDeviceSplitter : public StmtMutator {
       Var kernel_error_code("kernel_error_code", success.ty());
       Call kernel_call(success.ty(), kernel_symbol_global, call_args);
       AssertStmt assert_success(kernel_error_code.as_or_throw<PrimExpr>() == success,
-                                StringImm("RuntimeError"),
-                                {StringImm("Error executing compute kernel")});
+                                prim::StringImm("RuntimeError"),
+                                {prim::StringImm("Error executing compute kernel")});
       return SeqStmt(ffi::Array<Stmt>{Bind(kernel_error_code, kernel_call.as_or_throw<PrimExpr>()),
                                       assert_success});
 
@@ -342,6 +392,8 @@ class DeviceInfoCollector : public StmtVisitor {
         }
       }
     }
+    collector.use_required_block_dimension_ =
+        func->GetAttr<int64_t>(tirx::attr::kRequiredBlockSize).value_or(0) == 1;
 
     collector(func->body);
 
@@ -351,6 +403,10 @@ class DeviceInfoCollector : public StmtVisitor {
     }
     if (collector.use_cooperative_launch_) {
       collector.info_.launch_params.push_back(tvm::runtime::launch_param::kUseCooperativeLaunch);
+    }
+    if (collector.use_required_block_dimension_) {
+      collector.info_.launch_params.push_back(
+          tvm::runtime::launch_param::kUseRequiredBlockDimension);
     }
     // The dynamic shared memory is required to be the last of the kernel
     // launch parameters. An explicit tirx.dyn_smem_bytes declaration wins;
@@ -376,7 +432,8 @@ class DeviceInfoCollector : public StmtVisitor {
 
     for (const ffi::String& param : collector.info_.launch_params) {
       if (param == tvm::runtime::launch_param::kUseProgramaticDependentLaunch ||
-          param == tvm::runtime::launch_param::kUseCooperativeLaunch) {
+          param == tvm::runtime::launch_param::kUseCooperativeLaunch ||
+          param == tvm::runtime::launch_param::kUseRequiredBlockDimension) {
         continue;
       }
       collector.info_.launch_args.push_back(collector.GetArgument(param));
@@ -412,8 +469,14 @@ class DeviceInfoCollector : public StmtVisitor {
       StmtVisitor::VisitStmt_(op);
       return;
     }
-    PrimExpr value =
-        bind_map_.size() ? Substitute(prim_value.value(), bind_map_) : prim_value.value();
+    auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = bind_map_.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
+    PrimExpr value = bind_map_.size() ? ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                                            prim_value.value(), f_substitute)
+                                            .as_or_throw<PrimExpr>()
+                                      : prim_value.value();
     bind_map_.Set(op->var, value);
     StmtVisitor::VisitStmt_(op);
   }
@@ -447,7 +510,14 @@ class DeviceInfoCollector : public StmtVisitor {
         info_.launch_params.push_back(thread_tag);
         // Inline any locally-bound variables (e.g. from CSE) so
         // that the extent is expressible in terms of function params.
-        PrimExpr value = bind_map_.size() ? Substitute(op->value, bind_map_) : op->value;
+        auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (auto repl = bind_map_.Get(var)) return ffi::Any(*std::move(repl));
+          return ffi::Unchanged();
+        };
+        PrimExpr value = bind_map_.size() ? ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                                                op->value, f_substitute)
+                                                .as_or_throw<PrimExpr>()
+                                          : op->value;
         thread_extent.Set(thread_tag, value);
       }
     }
@@ -473,7 +543,12 @@ class DeviceInfoCollector : public StmtVisitor {
       }
       dyn_size *= IntImm::Int64(static_cast<int64_t>(op->buffer->dtype.StorageBytes()));
       if (bind_map_.size()) {
-        dyn_size = Substitute(dyn_size, bind_map_);
+        auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (auto repl = bind_map_.Get(var)) return ffi::Any(*std::move(repl));
+          return ffi::Unchanged();
+        };
+        dyn_size = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(dyn_size, f_substitute)
+                       .as_or_throw<PrimExpr>();
       }
       inferred_shmem_size_ = dyn_size;
     }
@@ -496,6 +571,7 @@ class DeviceInfoCollector : public StmtVisitor {
   // Flag-only launch attributes requested by the original PrimFunc.
   bool use_programmatic_dependent_launch_{false};
   bool use_cooperative_launch_{false};
+  bool use_required_block_dimension_{false};
   // Accumulated Bind definitions for inlining into extent/size expressions.
   ffi::Map<Var, PrimExpr> bind_map_;
 };
@@ -692,7 +768,7 @@ class DeviceKernelMutator : public StmtExprMutator {
         // launch, but need to be replaced with call_extern.
         extern_function_call_.insert(gvar);
         ffi::Array<Expr> args;
-        args.push_back(StringImm(gvar->name_hint));
+        args.push_back(prim::StringImm(gvar->name_hint));
         for (const Expr& arg : node->args) {
           args.push_back(arg);
         }
@@ -728,12 +804,17 @@ class DeviceKernelMutator : public StmtExprMutator {
     device_kernel_launch_.insert(gvar);
 
     ffi::Array<Expr> call_args;
-    call_args.push_back(StringImm(dev_info.global_symbol));
+    call_args.push_back(prim::StringImm(dev_info.global_symbol));
     for (const Expr& arg : args) {
       call_args.push_back(arg);
     }
+    auto f_substitute = [&param_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = param_map.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
     for (const auto& launch_arg : dev_info.launch_args) {
-      call_args.push_back(Substitute(launch_arg, param_map));
+      call_args.push_back(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(launch_arg, f_substitute)
+                              .as_or_throw<PrimExpr>());
     }
 
     PrimType node_ty = node->ty.as_or_throw<PrimType>();

@@ -24,6 +24,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/transform.h>
@@ -36,6 +37,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 class MatchBufferLower : public StmtExprMutator {
  public:
@@ -63,7 +65,7 @@ class MatchBufferLower : public StmtExprMutator {
     for (const auto& kv : match_buffers_) {
       orig_buffers.push_back(kv.first);
     }
-    Stmt stmt = StmtExprMutator ::VisitStmt_(op);
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     // Add remapped buffer keys to match_buffers_
     for (const BufferVar& orig_buf : orig_buffers) {
       if (auto remap_it = buffer_remap_.find(orig_buf); remap_it != buffer_remap_.end()) {
@@ -107,7 +109,16 @@ class MatchBufferLower : public StmtExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
+    if ((op->op.same_as(tirx::builtin::masked_load()) ||
+         op->op.same_as(tirx::builtin::masked_store())) &&
+        !op->args.empty()) {
+      if (auto var = op->args[0].as<Var>(); var && var.value()->ty.as<BufferTypeNode>()) {
+        BufferVar buffer(var.value());
+        TVM_FFI_ICHECK(!match_buffers_.count(buffer))
+            << "Predicated buffer access is not currently supported in lower match buffer pass.";
+      }
+    }
+    if (op->op.same_as(tirx::builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
         auto it = match_buffers_.find(BufferVar(var.value()));
@@ -137,17 +148,15 @@ class MatchBufferLower : public StmtExprMutator {
       auto n = CopyOnWrite(op);
       n->indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
       n->buffer = source->buffer;
-      TVM_FFI_ICHECK(!op->predicate.has_value())
-          << "Predicated buffer store is not currently supported in lower match buffer pass.";
       return Stmt(n);
     }
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const TensorLoadNode* op) final {
     // Save the original buffer before base class mutation may remap it
-    BufferVar orig_buffer = op->buffer;
+    BufferVar orig_buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
     PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
-    op = expr.as<BufferLoadNode>();
+    op = expr.as<TensorLoadNode>();
     TVM_FFI_ICHECK(op != nullptr);
 
     auto it = match_buffers_.find(orig_buffer);
@@ -157,8 +166,6 @@ class MatchBufferLower : public StmtExprMutator {
       const BufferVar& buffer = (*it).first;
       const BufferRegion& source = (*it).second;
       ffi::Array<PrimExpr> indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
-      TVM_FFI_ICHECK(!op->predicate.has_value())
-          << "Predicated buffer load is not currently supported in lower match buffer pass.";
       return BufferLoad(source->buffer, indices);
     }
   }
@@ -274,7 +281,12 @@ class MatchBufferLower : public StmtExprMutator {
       }
     }
     // Handle recursive case
-    value = Substitute(std::move(value), var_map_);
+    auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = var_map_.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
+    value = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(value), f_substitute)
+                .as_or_throw<PrimExpr>();
     if (arg->IsInstance<VarNode>()) {
       Var v = arg.as_or_throw<Var>();
       auto it = var_map_.find(v);

@@ -22,8 +22,8 @@ from tvm.script.parser import tirx as T
 
 
 def test_str_metadata():
-    # This test is to check we reuse the existing metadata element for the same tirx.StringImm
-    # So metadata["tirx.StringImm"][0] will occur in the printed script for three times
+    # This test is to check we reuse the existing metadata element for the same ir.prim.StringImm
+    # So metadata["ir.prim.StringImm"][0] will occur in the printed script for three times
     str_imm = T.StringImm("aaa\nbbb\n")
 
     @I.ir_module
@@ -39,8 +39,8 @@ def test_str_metadata():
 
     printed_str = Module.script(verbose_expr=True)
     assert (
-        printed_str.count('metadata["tirx.StringImm"][0]') == 3
-        and printed_str.count('metadata["tirx.StringImm"][1]') == 0
+        printed_str.count('metadata["ir.prim.StringImm"][0]') == 3
+        and printed_str.count('metadata["ir.prim.StringImm"][1]') == 0
     )
 
 

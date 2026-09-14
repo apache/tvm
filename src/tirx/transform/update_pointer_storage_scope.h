@@ -24,7 +24,7 @@
 #ifndef TVM_TIR_TRANSFORM_UPDATE_POINTER_STORAGE_SCOPE_H_
 #define TVM_TIR_TRANSFORM_UPDATE_POINTER_STORAGE_SCOPE_H_
 
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -36,10 +36,11 @@ namespace tirx {
 class UpdatePointerStorageScope : public StmtExprMutator {
  public:
   explicit UpdatePointerStorageScope(
-      const std::unordered_map<const VarNode*, ffi::String>& new_storage_scopes);
+      const std::unordered_map<Var, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>&
+          new_storage_scopes);
 
   virtual Expr VisitExpr_(const VarNode*);
-  virtual Expr VisitExpr_(const BufferLoadNode*);
+  virtual Expr VisitExpr_(const TensorLoadNode*);
   virtual Stmt VisitStmt_(const AllocBufferNode*);
   virtual Stmt VisitStmt_(const DeclBufferNode*);
   virtual Stmt VisitStmt_(const BufferStoreNode*);

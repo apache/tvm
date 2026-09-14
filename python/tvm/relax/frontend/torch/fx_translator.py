@@ -952,6 +952,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "conv2d": self._conv2d,
             "conv3d": self._conv3d,
             "cross_entropy": self._cross_entropy,
+            "diagonal": self._diagonal,
             "einsum": self._einsum,
             "interpolate": self._interpolate,
             "layer_norm": self._layer_norm,

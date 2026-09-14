@@ -20,6 +20,15 @@ Pure data + pure functions: this module deliberately imports nothing from
 ``tvm`` so the thin generators (``gen_stubs``, ``gen_coverage``,
 ``gen_helpers``) can load it standalone.
 
+Section and table numbers cite PTX ISA 9.4, the version implemented by the
+CUDA 13.4 ptxas this table is certified against:
+``https://docs.nvidia.com/cuda/developer-preview/13.4/parallel-thread-execution/index.html``.
+Every ``MEASURED`` note records CUDA 13.4 ptxas behaviour.  ``_PTX_94_ENTRIES``
+groups the instructions and qualifiers PTX ISA 9.4 introduced (the SM107
+family additions) ahead of the long-standing families in ``_ENTRIES``; it is a
+grouping by ISA release, not a second document version -- every entry cites
+the same document.
+
 The converged :class:`InstructionEntry` design:
 
 - ``name`` is a single identifier-safe token. Multi-token PTX mnemonics
@@ -55,7 +64,7 @@ import itertools
 import keyword
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 # PTX operand type token -> the TVM dtypes it accepts, canonical first.
 #
@@ -78,7 +87,7 @@ PTX_TYPE_DTYPES = {
     # with the floating carrier removed. ISA 5.2 says a `.bN` operand accepts
     # any fundamental type of that width, and for most instructions it does --
     # but a handful refuse a float register in one position while taking both
-    # integer signednesses. Measured on ptxas 13.2, at sm_90 unless noted:
+    # integer signednesses. MEASURED on ptxas 13.4, at sm_90 unless noted:
     # bmsk (all three operands), redux.sync's bitwise line (both), match.sync
     # and elect.sync's destination, mbarrier's phase-state token, and
     # tensormap.replace's dimension fields (sm_90a) -- each answers
@@ -103,7 +112,7 @@ PTX_TYPE_DTYPES = {
     # in one 64-bit register. It names a packed layout whose container happens
     # to be .b64, not a bit container, so it is not widened.
     "f32x2": ("uint64",),
-    # cvt's narrow packed formats, per ISA 9.7.9.22's operand table. Each names
+    # cvt's narrow packed formats, per ISA 9.7.10.24's operand table. Each names
     # a lane layout, not a container: two (or four) sub-byte or 8-bit elements
     # ride one integer register, exactly as `.f16x2` does. The carrier width is
     # what the register must be, so it is the dtype the operand binds.
@@ -112,12 +121,16 @@ PTX_TYPE_DTYPES = {
     "e2m3x2": ("uint16",),
     "e3m2x2": ("uint16",),
     "ue8m0x2": ("uint16",),
+    # PTX ISA 9.4's unsigned E5M3 pair is packed in one .b16 register.
+    "ue5m3x2": ("uint16",),
     "s2f6x2": ("uint16",),
     "e2m1x4": ("uint16",),
     "e4m3x4": ("uint32",),
     "e5m2x4": ("uint32",),
     "e2m3x4": ("uint32",),
     "e3m2x4": ("uint32",),
+    # `.tf32` is not packed: ISA 5.2.3 makes it a single 32-bit format whose
+    # register variable must be declared with `.b32` type.
     "tf32": ("uint32",),
     # `.e2m1x2` is the one that does not fit: the ISA types it .b8, and ptxas
     # rejects a wider register in that position, so it can only be reached
@@ -125,6 +138,24 @@ PTX_TYPE_DTYPES = {
     # is here so those entries can name it; the uint8 is the C-boundary
     # contract, not the register the instruction sees.
     "e2m1x2": ("uint8",),
+    # Private .b8 carrier for TMA attribute-override tensor sizes. PTX also
+    # permits a .b16 register; that legal carrier is represented by a sibling
+    # entry whose operand uses the ordinary b16 token.
+    "tma_size_b8": ("uint8",),
+    # Private carrier for cvt.scaled::n1::ue8m0's scale-factor. The ISA
+    # types that operand .b8; render.BRIDGE stages this uint8 C-boundary value
+    # through a block-local byte register. It is not a general .b8 carrier.
+    "cvt_scale_ue8m0": ("uint8",),
+    # Private carrier for st.async.release's byte source.  Inline asm has no
+    # 8-bit constraint, so render.BRIDGE stages the C-boundary value through a
+    # local .b8 register.  The entry's dtypes callback preserves the public
+    # b8/u8/s8 domains; this token never reaches the opcode or another family.
+    "st_async_b8reg": ("uint8", "int8"),
+    # Private carrier for PTX 9.3 mbarrier reportValue.  The ISA requires an
+    # actual .b8 destination register, while inline asm's narrowest constraint
+    # binds a 16-bit register.  render.BRIDGE materializes the result through a
+    # block-local .b8 register and exposes an ordinary uint8 at the boundary.
+    "mbarrier_report_b8reg": ("uint8",),
     # Mixed-precision sources live in a plain 16-bit register -- the ISA's own
     # example declares them `.reg .b16`.
     "f16": ("uint16",),
@@ -151,8 +182,8 @@ PTX_TYPE_DTYPES = {
 
 
 def escape_token(token: str) -> str:
-    """PTX token -> Python attribute name (``::`` -> ``__``, keyword -> trailing ``_``)."""
-    token = token.replace("::", "__")
+    """PTX token -> reversible Python attribute name."""
+    token = token.replace("::", "__").replace(":", "__colon__")
     if keyword.iskeyword(token):
         token += "_"
     return token
@@ -160,7 +191,8 @@ def escape_token(token: str) -> str:
 
 def unescape_token(token: str) -> str:
     """Python attribute name -> PTX token. Inverse of :func:`escape_token`."""
-    token = token.replace("__", "::")
+    colon = "\0"
+    token = token.replace("__colon__", colon).replace("__", "::").replace(colon, ":")
     if token.endswith("_"):
         token = token[:-1]
     return token
@@ -220,9 +252,9 @@ class OperandSlot:
         one helper generated per value (the way `cp.async.wait_group N` or
         `setmaxnreg`'s nreg exist only as integer literals in the ISA).
 
-    ``dtype`` names the ISA type, and two of those name a register class the
+    ``dtype`` names the ISA type, and a few of those name a register class the
     inline-asm constraint alphabet cannot bind (``.pred`` has no letter at
-    all, ``.b8`` is below ``"h"``). Those dtypes carry a *bridge* in
+    all, byte registers are below ``"h"``). Those dtypes carry a *bridge* in
     :data:`render.BRIDGE`: the value crosses the C boundary in a wider
     carrier, and a conversion instruction inside the asm block moves it
     between the carrier and a block-local register of the real class. ``rw``
@@ -265,6 +297,10 @@ class OperandSlot:
     space: str | None = None
     dtype: str | DtypeFn | None = None
     dtypes: tuple[str, ...] | DtypesFn | None = None
+    # Whether this independent byte-address operand accepts
+    # ``T.ptx.addr(base, byte_offset)``. Composite address members and tmem
+    # addresses are different PTX operand classes and must leave this false.
+    allow_imm_offset: bool = False
     # kind="imm" is a value in the instruction *text* (never a C parameter),
     # in one of three states, by who owns the value:
     #   literal set   -- the ISA fixed it; invisible to programs.
@@ -301,7 +337,7 @@ class OperandSlot:
     # A pipe-joined operand pair: adjacent slots naming the same `pipe` render
     # as one PTX operand written `p|q`, each keeping its own C parameter,
     # constraint and bridge. Same idea as `bracket` above, different separator
-    # and a different reason: `setp.lt.and.s32 p|q, a, b, r;` (ISA 9.7.6.2)
+    # and a different reason: `setp.lt.and.s32 p|q, a, b, r;` (ISA 9.7.7.2)
     # writes two predicates, the second one from the *complement* of the
     # compare result, so `q` is a second destination and not a restatement of
     # `p`. The ISA writes the pair in one operand position, so the table does
@@ -315,7 +351,7 @@ class OperandSlot:
     #   rw="w"   the element is not written   (ld's `d`, mov's unpack `d`)
     #   rw="rw"  neither read nor written     (clusterlaunchcontrol's `.v4`,
     #            whose own example is `{xctaid, _, _, _}`)
-    #   rw="r"   the element is not stored    (st's `b`, ISA 9.7.9.11)
+    #   rw="r"   the element is not stored    (st's `b`, ISA 9.7.10.11)
     # So this is a per-slot fact read off the syntax line, never derived from
     # the direction.
     #
@@ -323,10 +359,12 @@ class OperandSlot:
     # the condition per syntax line, and for the 256-bit ld/st it depends on
     # the vector width and the element type.
     #
-    # An always-sunk operand is NOT this: it is a fixed value in the
-    # instruction text, i.e. a `kind="imm"` with `literal="_"`, which is how
-    # mbarrier.arrive's `state` is registered. This field is for the case where
-    # the caller chooses.
+    # A whole-operand bit bucket is NOT this per-lane facility: it is a fixed
+    # value in the instruction text, i.e. a `kind="imm"` with `literal="_"`.
+    # That is how mbarrier.arrive's `state` is registered, and how atom's
+    # caller-selected bit-bucket spelling is represented by a sibling entry
+    # whose shorter arity selects it. This field is for choosing individual
+    # lanes inside a register-group operand.
     #
     # Unlike every other field this one grants a *per-call* choice rather than
     # describing the instruction, so the chosen mask is part of the variant:
@@ -337,6 +375,7 @@ class OperandSlot:
 
 
 CheckFn = Callable[[dict], str | None]
+ImmCheckFn = Callable[[dict, str, int], str | None]
 
 
 @dataclass(frozen=True)
@@ -355,6 +394,12 @@ class InstructionEntry:
     operands: tuple[OperandSlot, ...]
     slots: tuple[ModifierSlot, ...] = ()
     check: CheckFn | None = None  # cross-slot validation, mod_map -> error | None
+    # Optional validation for caller immediates after they become concrete.
+    # It runs at trace time for literal constants and again after unrolling /
+    # simplification in CUDA codegen.  Keeping it on the entry lets an
+    # instruction validate an operand without turning every OperandSlot into
+    # a range-policy schema.
+    imm_check: ImmCheckFn | None = None
     # Whether the emitted inline asm carries `volatile`. This is purely a
     # C-level optimization barrier — it never changes *which* PTX instruction
     # is emitted, only whether nvcc may common up or drop identical calls.
@@ -567,10 +612,12 @@ def sink_combos(entry: InstructionEntry, tokens) -> tuple[frozenset, ...]:
     """Every legal assignment of the sink symbol ``_`` to this entry's lanes.
 
     A sink is spelled per element, so the domain is the subsets of the
-    sinkable lanes -- minus the all-sunk one. ISA 9.7.9.4 states that
+    sinkable lanes -- minus the all-sunk one. ISA 9.7.10.4 states that
     exclusion for `mov` ("provided that at least one element is a scalar
-    register"); it is the conservative reading everywhere else, and an
-    instruction whose every destination is discarded has nothing left to do.
+    register"), and this per-lane facility keeps the same conservative rule
+    for every register group. A whole-operand bit bucket can still have a side
+    effect -- atom continues to update memory -- so those spellings are fixed
+    ``literal="_"`` sibling entries rather than an all-sunk lane mask.
 
     Empty set first, so the un-sunk variant keeps the helper name it had
     before the slot became sinkable.
@@ -679,15 +726,18 @@ def variants(entry: InstructionEntry) -> tuple:
 
 def _check_cache_hint(m):
     """`{.level::cache_hint}` and its `{, cache_policy}` operand, per ISA
-    9.7.9.8/9.7.9.11/9.7.12.x and MEASURED on ptxas 13.2 at -arch=sm_90.
+    9.7.10.8/9.7.10.9/9.7.10.11/9.7.15.5/9.7.15.6 and MEASURED on ptxas 13.4
+    at -arch=sm_90.
 
     The qualifier is an L2 policy, so it is spelled only on lines that can
-    reach L2: `.global` or generic addressing. `.local`, `.shared` and the
-    `.volatile` line (whose ISA syntax carries no `{.level::cache_hint}` at
-    all) are each answered with "Modifier '.L2::cache_hint' cannot be used
-    with ...". `.mmio` is excluded by its own "no cache qualifiers" rule, which
-    had to grow to name this qualifier: ptxas answers "Modifier
-    '.L2::cache_hint' cannot be combined with modifier '.mmio'".
+    reach L2: `.global` or generic addressing. `.local` and `.shared` are
+    answered with "Modifier '.L2::cache_hint' cannot be applied to '.shared'
+    space for instruction 'ld'" (resp. '.local'), and the `.volatile` line
+    (whose ISA syntax carries no `{.level::cache_hint}` at all) with "Modifier
+    '.L2::cache_hint' cannot be combined with modifier '.volatile'". `.mmio`
+    is excluded by its own "no cache qualifiers" rule, which had to grow to
+    name this qualifier: ptxas answers "Modifier '.L2::cache_hint' cannot be
+    combined with modifier '.mmio'".
     Accepted alongside .cop, .nc, both eviction priorities, .level::prefetch_size
     and the .acquire/.relaxed scoped lines -- probed, all OK.
     """
@@ -701,7 +751,7 @@ def _check_cache_hint(m):
 
 
 def _check_ld(m):
-    """Scalar ld grammar per PTX ISA 9.7.9.8 (ld) and 9.7.9.9 (ld.global.nc)."""
+    """Scalar ld grammar per PTX ISA 9.7.10.8 (ld) and 9.7.10.9 (ld.global.nc)."""
     hint = _check_cache_hint(m)
     if hint:
         return hint
@@ -723,11 +773,9 @@ def _check_ld(m):
         return "only ld.relaxed/ld.acquire take a scope"
     if mmio:
         # "ld.mmio.sem.sys{.global}": "Only .sys thread scope is valid";
-        # global or generic addressing only. The ISA also allows .acquire
-        # (PTX ISA 9.3+), but the current toolchain assembles 9.2 and ptxas
-        # rejects it — widen when the toolchain catches up.
-        if sem != "relaxed":
-            return "ld.mmio requires .relaxed"
+        # global or generic addressing only. PTX ISA 9.3 adds .acquire.
+        if sem not in ("relaxed", "acquire"):
+            return "ld.mmio requires .relaxed or .acquire"
         if scope != "sys":
             return "only the sys scope is valid for ld.mmio"
         if ss not in ("", "global"):
@@ -769,8 +817,8 @@ def _check_ld(m):
 
 
 # The vector entries declare no `mmio` slot -- it is the one qualifier with no
-# `{.vec}` position, since PTX ISA 9.7.9.8 spells it
-# `ld.mmio.sem.sys{.global}.type  d, [a];` and 9.7.9.11 spells it
+# `{.vec}` position, since PTX ISA 9.7.10.8 spells it
+# `ld.mmio.sem.sys{.global}.type  d, [a];` and 9.7.10.11 spells it
 # `st.mmio.sem.sys{.global}.type         [a], b;`, neither carrying a `{.vec}`.
 # `.l2ev` is declared only by the 256-bit entries. Both are read with a default
 # in the scalar checks, so a vector modifier map goes straight in.
@@ -791,7 +839,7 @@ def _check_st_vec(m):
 def _sink256(m):
     """Whether the 256-bit lines admit `_` under these modifiers.
 
-    ISA 9.7.9.8/9.7.9.11, verbatim: "sink symbol '_' can be used in vector
+    ISA 9.7.10.8/9.7.10.11, verbatim: "sink symbol '_' can be used in vector
     expression d when: .vec is .v8 and .type is .b32 or .s32 or .u32 or .f32
     OR .vec is .v4 and .type is .b64 or .s64 or .u64 or .f64" (and the same
     sentence for `b` on st). It is the same pairing that gates
@@ -799,7 +847,7 @@ def _sink256(m):
     properties of the 32-byte access, not of the qualifier.
 
     ptxas is looser than this: it also takes `_` on `.v4` with a 32-bit type
-    (measured, CUDA 13.2 at sm_100). The ISA is the law here -- toolchain
+    (MEASURED on CUDA 13.4 at sm_100). The ISA is the law here -- toolchain
     evidence narrows what the ISA permits, it never widens it -- so that
     spelling stays out.
     """
@@ -811,7 +859,7 @@ def _sink256(m):
 def _check_ld_vec256(m):
     """The 256-bit ld lines -- the only ld entry with a `.level2::eviction_priority`.
 
-    PTX ISA 9.7.9.8 spells the L2 priority only where the L1 priority already
+    PTX ISA 9.7.10.8 spells the L2 priority only where the L1 priority already
     is, and on no line that carries `.cop` or `.volatile`. The three lines that
     settle it, wrapped here but otherwise verbatim:
 
@@ -827,7 +875,7 @@ def _check_ld_vec256(m):
     with "The .weak, .volatile, .relaxed and .acquire qualifiers are mutually
     exclusive", so the third line is the only one `.volatile` can be on.
 
-    9.7.9.9 splits `ld.global.nc` the same way -- `ld.global{.cop}.nc{...}`
+    9.7.10.9 splits `ld.global.nc` the same way -- `ld.global{.cop}.nc{...}`
     against `ld.global.nc{.level1::eviction_priority}{.level2::eviction_priority}`
     -- so `.nc` with an L2 priority is on a syntax line while `.nc` with a
     `.cop` and one is not. The two priorities are grammatically joined: every
@@ -845,7 +893,7 @@ def _check_ld_vec256(m):
 def _check_st_vec256(m):
     """The 256-bit st lines -- the only st entry with a `.level2::eviction_priority`.
 
-    Same structure as `_check_ld_vec256`, from PTX ISA 9.7.9.11: the L2
+    Same structure as `_check_ld_vec256`, from PTX ISA 9.7.10.11: the L2
     priority shares its lines with the L1 one and appears on neither the `.cop`
     line nor the `.volatile` line, which spells no cache qualifier at all.
 
@@ -872,7 +920,7 @@ def _check_st_vec256(m):
 
 
 def _check_st(m):
-    """Scalar st grammar per PTX ISA 9.7.9.11 (the mirror of _check_ld)."""
+    """Scalar st grammar per PTX ISA 9.7.10.11 (the mirror of _check_ld)."""
     hint = _check_cache_hint(m)
     if hint:
         return hint
@@ -888,11 +936,9 @@ def _check_st(m):
         return "only st.relaxed/st.release take a scope"
     if mmio:
         # "st.mmio.sem.sys{.global}": "Only .sys thread scope is valid for the
-        # st.mmio operation." .release with .mmio arrives in PTX ISA 9.3; the
-        # toolchain here assembles 9.2 and ptxas rejects it, so keep .relaxed
-        # only and widen when the toolchain catches up.
-        if sem != "relaxed":
-            return "st.mmio requires .relaxed"
+        # st.mmio operation." PTX ISA 9.3 adds .release.
+        if sem not in ("relaxed", "release"):
+            return "st.mmio requires .relaxed or .release"
         if scope != "sys":
             return "only the sys scope is valid for st.mmio"
         if ss not in ("", "global"):
@@ -994,11 +1040,125 @@ def _wide_dtype(m):
     return _WIDE_RESULT[m["type"]]
 
 
-def _ld_dst_dtypes(m):
-    """Scalar ``ld.s32`` may sign-extend into a wider destination register."""
-    if m["type"] == "s32":
-        return ("int32", "int64")
-    return PTX_TYPE_DTYPES[m["type"]]
+_RELAXED_MEM_DTYPES = {
+    # ISA section 9.4.1 (Operand Size Exceeding Instruction-Type Size), Tables
+    # 27/28.  `ld`, `st`, and `ldu` accept wider data
+    # registers.  Bit-size instructions accept any fundamental register class;
+    # integer instructions accept bit/integer classes; floating instructions
+    # accept their native class or a bit carrier.  Canonical dtypes stay first
+    # so existing helper names and signatures remain stable.
+    "b8": (
+        "uint8",
+        "int8",
+        "uint16",
+        "int16",
+        "float16",
+        "bfloat16",
+        "uint32",
+        "int32",
+        "float32",
+        "uint64",
+        "int64",
+        "float64",
+        "uint128",
+        "int128",
+    ),
+    "b16": (
+        "uint16",
+        "int16",
+        "float16",
+        "bfloat16",
+        "uint32",
+        "int32",
+        "float32",
+        "uint64",
+        "int64",
+        "float64",
+        "uint128",
+        "int128",
+    ),
+    "b32": (
+        "uint32",
+        "int32",
+        "float32",
+        "uint64",
+        "int64",
+        "float64",
+        "uint128",
+        "int128",
+    ),
+    "b64": ("uint64", "int64", "float64", "uint128", "int128"),
+    "b128": ("uint128", "int128"),
+    "u8": (
+        "uint8",
+        "int8",
+        "uint16",
+        "int16",
+        "uint32",
+        "int32",
+        "uint64",
+        "int64",
+        "uint128",
+        "int128",
+    ),
+    "s8": (
+        "int8",
+        "uint8",
+        "int16",
+        "uint16",
+        "int32",
+        "uint32",
+        "int64",
+        "uint64",
+        "int128",
+        "uint128",
+    ),
+    "u16": (
+        "uint16",
+        "int16",
+        "uint32",
+        "int32",
+        "uint64",
+        "int64",
+        "uint128",
+        "int128",
+    ),
+    "s16": (
+        "int16",
+        "uint16",
+        "int32",
+        "uint32",
+        "int64",
+        "uint64",
+        "int128",
+        "uint128",
+    ),
+    "u32": ("uint32", "int32", "uint64", "int64", "uint128", "int128"),
+    "s32": ("int32", "uint32", "int64", "uint64", "int128", "uint128"),
+    "u64": ("uint64", "int64", "uint128", "int128"),
+    "s64": ("int64", "uint64", "int128", "uint128"),
+    "f32": ("float32", "uint32", "int32", "uint64", "int64", "uint128", "int128"),
+    "f64": ("float64", "uint64", "int64", "uint128", "int128"),
+}
+
+
+def _relaxed_mem_dtypes(m):
+    """Relaxed carriers for scalar and at-most-128-bit ``ld``, ``st``, and ``ldu``."""
+    return _RELAXED_MEM_DTYPES[m["type"]]
+
+
+def _st_vec_dtypes(m):
+    """Relaxed carriers accepted by CUDA 13.4 ptxas for the <=128-bit vector ``st`` lines."""
+    dtypes = _RELAXED_MEM_DTYPES[m["type"]]
+    # ISA section 9.4.1 permits a wider bit register, but CUDA 13.4 ptxas
+    # reports "(C7907) Internal compiler error" for an otherwise minimal
+    # `st.v2.f64` whose source
+    # lanes use 128-bit carriers.  The same carriers assemble for scalar st,
+    # ld/ldu and their <=128-bit vector forms, so keep the toolchain exception
+    # local to this one source-operand shape.
+    if m["vec"] == "v2" and m["type"] == "f64":
+        return tuple(dtype for dtype in dtypes if dtype not in ("uint128", "int128"))
+    return dtypes
 
 
 def _dp_acc_dtype(m):
@@ -1011,7 +1171,7 @@ def _dp_acc_dtype(m):
     return "u32" if (m["atype"], m["btype"]) == ("u32", "u32") else "s32"
 
 
-def _check_int_addsub(m):
+def _check_int_addsub(m, mnemonic):
     """Which types the integer add/sub lines take `.sat` on (ISA 9.7.1.1/9.7.1.2).
 
         add.type1        d, a, b;   .type1 = {.u16, .u64, .s16, .s64}
@@ -1019,18 +1179,32 @@ def _check_int_addsub(m):
         sub.type1        d, a, b;   .type1 = {.u16, .u32, .u64, .s16, .s64}
         sub{.sat}.type2  d, a, b;   .type2 = {.s32, .u8x4, .s8x4}
 
-    Of the saturating forms only `.s32` is registered: `add.sat` on
+    Of the saturating forms only `.s32` is registered. `add.sat` on
     .u32/.u16x2/.s16x2 arrived in PTX ISA 9.2 as "sm_120f or higher in the same
-    family", and the `.u8x4`/`.s8x4` types are excluded outright for the same
-    reason (see the `_MINMAX_INT_PLAIN` note below). `add.sat.s32` is the PTX
-    1.0 form and is supported everywhere.
+    family". The remaining types in these entries belong to syntax lines that
+    never carry `.sat`: .u16/.u64/.s16/.s64 for add, and
+    .u16/.u32/.u64/.s16/.s64 for sub. The `.u8x4`/`.s8x4` types are excluded
+    outright because they are sm_120f-only (see `_MINMAX_INT_PLAIN` below).
+    `add.sat.s32` and `sub.sat.s32` are the PTX 1.0 forms.
     """
-    if m["sat"] and m["type"] != "s32":
+    if not m["sat"] or m["type"] == "s32":
+        return None
+    if mnemonic == "add" and m["type"] in ("u32", "u16x2", "s16x2"):
         return (
-            f".sat is registered on .s32 only; .sat.{m['type']} is an sm_120f-only form "
-            f"(PTX ISA 9.2)"
+            f"add.sat.{m['type']} is an sm_120f-only form (PTX ISA 9.2); "
+            ".sat is registered on .s32 only"
         )
-    return None
+    return f".sat is not on the {mnemonic}.{m['type']} syntax line"
+
+
+def _check_int_add(m):
+    """Apply the integer add syntax-line split documented by `_check_int_addsub`."""
+    return _check_int_addsub(m, "add")
+
+
+def _check_int_sub(m):
+    """Apply the integer sub syntax-line split documented by `_check_int_addsub`."""
+    return _check_int_addsub(m, "sub")
 
 
 def _check_int_mad(m):
@@ -1060,7 +1234,7 @@ def _check_mbarrier_sem_scope(m):
     """`.sem` and `.scope` are one qualifier pair: both or neither.
 
     Stated in so many words by every mbarrier section that has the pair --
-    "Qualifiers .sem and .scope must be specified together." (ISA 9.7.14.16.14
+    "Qualifiers .sem and .scope must be specified together." (ISA 9.7.15.16.14
     expect_tx, .15 complete_tx, .16 arrive, .17 arrive_drop, .19 test_wait /
     try_wait). The rule is what the sections say, not how they spell it: some
     lines write the pair as one `{.sem.scope}` group and others as two
@@ -1076,11 +1250,127 @@ def _check_fence_proxy(m):
     """`.proxykind = { .alias, .async, .async.global, .async.shared::{cta,cluster} }`.
 
     Modelled as proxykind + an optional space so the surface can walk it one
-    attribute at a time; only `.async` carries a state space (ISA 9.7.14.4).
+    attribute at a time; only `.async` carries a state space (ISA 9.7.15.4).
     """
     if m["space"] and m["proxykind"] != "async":
         return f"fence.proxy.{m['proxykind']} takes no state space"
     return None
+
+
+_CP_REDUCE_BULK_TYPES = {
+    "shared::cluster": {
+        "add": ("u32", "s32", "u64"),
+        "min": ("u32", "s32"),
+        "max": ("u32", "s32"),
+        "inc": ("u32",),
+        "dec": ("u32",),
+        "and": ("b32",),
+        "or": ("b32",),
+        "xor": ("b32",),
+    },
+    "global": {
+        "add": ("u32", "s32", "u64", "f32", "f64", "f16", "bf16"),
+        "min": ("u32", "s32", "u64", "s64", "f16", "bf16"),
+        "max": ("u32", "s32", "u64", "s64", "f16", "bf16"),
+        "inc": ("u32",),
+        "dec": ("u32",),
+        "and": ("b32", "b64"),
+        "or": ("b32", "b64"),
+        "xor": ("b32", "b64"),
+    },
+}
+
+
+def _check_cp_reduce_async_bulk(m):
+    """Exact redOp/type grid of non-tensor cp.reduce.async.bulk (ISA 9.7.10.28.4.2).
+
+    This is the pre-9.4 grid: `.noftz` is required on `.add.f16`/`.add.bf16`
+    into .global and legal nowhere else.  PTX ISA 9.4's `.add.noftz.f32` line
+    (requires sm_90) is owned by the `*_f32_noftz` siblings in
+    `_PTX_94_ENTRIES`, so these entries keep their pre-9.4 grid and floor.
+    """
+    dst, op, ty = m["dst"], m["redop"], m["type"]
+    if ty not in _CP_REDUCE_BULK_TYPES[dst][op]:
+        allowed = " / ".join("." + item for item in _CP_REDUCE_BULK_TYPES[dst][op])
+        return f".{op} to .{dst} takes {allowed}"
+    noftz = bool(m.get("noftz", ""))
+    needs_noftz = dst == "global" and op == "add" and ty in ("f16", "bf16")
+    if needs_noftz and not noftz:
+        return f"cp.reduce.async.bulk.add.{ty} requires .noftz"
+    if noftz and not needs_noftz:
+        return (
+            ".noftz applies only to .add.f16/.bf16 into .global here "
+            "(.add.noftz.f32 is the PTX 9.4 sibling entry)"
+        )
+    return None
+
+
+_FABRIC_RED_TYPES = {
+    "and": ("b32", "b64"),
+    "or": ("b32", "b64"),
+    "xor": ("b32", "b64"),
+    "min": ("u32", "s32", "u64", "s64", "f16", "bf16"),
+    "max": ("u32", "s32", "u64", "s64", "f16", "bf16"),
+    "add": ("u32", "u64", "f16", "bf16", "f32", "f64"),
+}
+
+
+def _check_fabric_red(m):
+    """Exact fabric.try_red reduction/type grid (PTX ISA 9.3, 9.7.11.5.3)."""
+    op, ty = m["redop"], m["type"]
+    if ty not in _FABRIC_RED_TYPES[op]:
+        allowed = " / ".join("." + item for item in _FABRIC_RED_TYPES[op])
+        return f".{op} fabric reduction takes {allowed}"
+    return None
+
+
+# PTX ISA 9.4 (9.7.11, fabric.try_pullred) lists the extra pull-reduction
+# forms -- `.add.acc::f16`/`.add.acc::f32` and `.min`/`.max` on e4m3/e5m2 --
+# under sm_120a/sm_121a and the sm_100f/sm_110f families.  MEASURED on CUDA
+# 13.4: ptxas also assembles them at .target sm_103a.  NOT REGISTERED all the
+# same: no call site uses them, and the `.acc::f16`/`.acc::f32` spellings put
+# a second qualifier inside the redOp token, which this grid's single `redop`
+# slot does not model.  The grid below is the ISA's base syntax lines.
+_FABRIC_PULLRED_TYPES = {
+    "and": ("b32", "b64"),
+    "or": ("b32", "b64"),
+    "xor": ("b32", "b64"),
+    "min": ("u32", "s32", "u64", "s64", "f16", "bf16"),
+    "max": ("u32", "s32", "u64", "s64", "f16", "bf16"),
+    "add": ("u32", "u64", "f16", "bf16", "f32"),
+}
+
+
+def _check_fabric_pullred(m):
+    """The fabric.try_pullred reduction/type grid registered here (ISA 9.7.11 base lines)."""
+    op, ty = m["redop"], m["type"]
+    if ty not in _FABRIC_PULLRED_TYPES[op]:
+        allowed = " / ".join("." + item for item in _FABRIC_PULLRED_TYPES[op])
+        return f".{op} pull-reduction takes {allowed}"
+    return None
+
+
+def _check_cp_async_bulk_sem(m):
+    """PTX 9.3 strong bulk-copy qualifiers are one complete syntax line.
+
+    The legacy/default and explicit ``.weak`` spellings carry neither scope
+    nor type.  ``.relaxed`` requires both ``.scope`` and the fixed ``.b128``
+    suffix (ISA 9.7.10.28.4.1).
+    """
+    sem, scope, ty = m.get("sem", ""), m.get("scope", ""), m.get("type", "")
+    if sem == "relaxed":
+        if not scope or ty != "b128":
+            return ".relaxed bulk-copy requires both .scope and .b128"
+        return None
+    if scope or ty:
+        return ".scope/.b128 belong only to the .relaxed bulk-copy line"
+    return None
+
+
+def _check_cp_reduce_async_bulk_93(m):
+    """Reduction grid plus PTX 9.3's optional paired ``.relaxed.scope``."""
+    error = _check_mbarrier_sem_scope(m)
+    return error or _check_cp_reduce_async_bulk(m)
 
 
 def _check_minmax(m):
@@ -1209,7 +1499,7 @@ def _check_half_ex2(m):
     return None
 
 
-# The comparison operators of set/setp (PTX ISA 9.7.6.1/9.7.6.2), grouped the
+# The comparison operators of set/setp (PTX ISA 9.7.7.1/9.7.7.2), grouped the
 # way the Integer Notes and Floating Point Notes group them.
 _CMP_ORDERED_OPS = ("eq", "ne", "lt", "le", "gt", "ge")
 # "For unsigned values, the comparison operators lo, ls, hi, and hs ... may be
@@ -1225,7 +1515,7 @@ _CMP_TYPES = ("b16", "b32", "b64", "u16", "u32", "u64", "s16", "s32", "s64", "f3
 
 
 def _check_cmp(m):
-    """Which comparison operators each source type accepts (ISA 9.7.6.1/9.7.6.2).
+    """Which comparison operators each source type accepts (ISA 9.7.7.1/9.7.7.2).
 
     The `.CmpOp` line in the Syntax block is the union over all types; the
     per-type rule is in the Notes, and it is three disjoint sets:
@@ -1262,12 +1552,12 @@ def _check_cmp(m):
     return None
 
 
-# The `.CmpOp` line of the half-precision comparisons (PTX ISA 9.7.7): the
+# The `.CmpOp` line of the half-precision comparisons (PTX ISA 9.7.8): the
 # ordered six and the unordered six plus num/nan. The unsigned alternates
-# lo/ls/hi/hs of 9.7.6 are absent from this section's line entirely.
+# lo/ls/hi/hs of 9.7.7 are absent from this section's line entirely.
 #
 # MEASURED, NOT REGISTERED: ptxas does accept them on an integer source with a
-# half destination (`set.lo.f16.u32` assembles at sm_90), but no 9.7.7 syntax
+# half destination (`set.lo.f16.u32` assembles at sm_90), but no 9.7.8 syntax
 # line spells them, so they stay out -- the table follows the ISA where ptxas
 # is the more permissive of the two.
 _HALF_CMP_OPS = (*_CMP_ORDERED_OPS, *_CMP_UNORDERED_OPS)
@@ -1277,24 +1567,24 @@ _HALF_CMP_OPS = (*_CMP_ORDERED_OPS, *_CMP_UNORDERED_OPS)
 _SET_HALF_STYPES = (
     "b16", "b32", "b64", "u16", "u32", "u64", "s16", "s32", "s64", "f16", "f32", "f64",
 )  # fmt: skip
-# The packed half types, which 9.7.7 treats as one pair of lanes per register.
+# The packed half types, which 9.7.8 treats as one pair of lanes per register.
 _HALF_X2 = ("f16x2", "bf16x2")
 # The bit-size widths the logic and shift instructions operate on (PTX ISA
-# 9.7.8): "fundamentally untyped ... provided the operands are of the same
+# 9.7.9): "fundamentally untyped ... provided the operands are of the same
 # size". `_LOGIC_TYPES` adds the predicate line that and/or/xor/not also carry.
 _BIT_TYPES = ("b16", "b32", "b64")
 _LOGIC_TYPES = ("pred", *_BIT_TYPES)
-# scalar mov's type line (PTX ISA 9.7.9.3): "Although only predicate and
+# scalar mov's type line (PTX ISA 9.7.10.3): "Although only predicate and
 # bit-size types are required, we include the arithmetic types for the
 # programmer's convenience".
 _MOV_TYPES = ("pred", "b16", "b32", "b64", "u16", "u32", "u64", "s16", "s32", "s64", "f32", "f64")
-# The state spaces cvta converts between and isspacep queries (ISA 9.7.9.21,
-# 9.7.9.20) -- the same eight, spelled the same way, in both instructions.
+# The state spaces cvta converts between and isspacep queries (ISA 9.7.10.23,
+# 9.7.10.22) -- the same eight, spelled the same way, in both instructions.
 _CVTA_SPACES = (
     "const", "global", "local", "shared", "shared::cta", "shared::cluster", "param", "param::entry",
 )  # fmt: skip
 # The source types `set` will take `.ftz` with. MEASURED: the ISA writes
-# `{.ftz}` across the whole `set.CmpOp{.ftz}.f16.stype` line, but ptxas 13.2
+# `{.ftz}` across the whole `set.CmpOp{.ftz}.f16.stype` line, but ptxas 13.4
 # answers "Illegal modifier '.ftz' for instruction 'set'" for every source
 # outside this set -- probed over all 8 destination x 15 source pairs at
 # sm_90. The rule that survives the probe is the one the modifier means:
@@ -1304,7 +1594,7 @@ _FTZ_SET_STYPES = ("f16", "f32", "f16x2")
 
 
 def _check_half_set(m):
-    """The six syntax-line groups of the half-precision `set` (ISA 9.7.7.1).
+    """The six syntax-line groups of the half-precision `set` (ISA 9.7.8.1).
 
         set.CmpOp{.ftz}.f16.stype     / set.CmpOp.bf16.stype      .stype = the 12 above
         set.CmpOp{.ftz}.dtype.f16     / set.CmpOp.dtype.bf16      .dtype = {u16,s16,u32,s32}
@@ -1318,7 +1608,7 @@ def _check_half_set(m):
       on exactly one side of every line. The integer destinations reach only
       half sources, and the packed destinations only their own packed source.
       The wide integer cells this leaves out -- (u32, b32) and friends -- are
-      not lost: they are the 9.7.6 `set` lines, which own that dtype already.
+      not lost: they are the 9.7.7 `set` lines, which own that dtype already.
     - `.ftz` follows the *source* precision, not the line it is written on:
       only a `.f16`/`.f32`/`.f16x2` source has subnormals to flush at this
       width, and no bf16 destination takes the modifier at all. See
@@ -1338,13 +1628,13 @@ def _check_half_set(m):
         or (dt == "bf16x2" and st == "bf16x2")
     )
     if not paired:
-        return f"no half-precision syntax line pairs .{dt} with .{st} (ISA 9.7.7.1)"
+        return f"no half-precision syntax line pairs .{dt} with .{st} (ISA 9.7.8.1)"
     if m["ftz"]:
         if dt.startswith("bf16"):
             return f"a .{dt} destination takes no .ftz"
         if st not in _FTZ_SET_STYPES:
             return f".ftz flushes subnormal inputs, so a .{st} source does not take it"
-    if st.startswith("b"):
+    if st in _BIT_TYPES:
         if op not in ("eq", "ne"):
             return f"the bit-size source .{st} compares only with eq/ne"
     elif st[0] in "us":
@@ -1354,7 +1644,7 @@ def _check_half_set(m):
 
 
 def _check_half_setp(m):
-    """`.ftz` on the half-precision `setp` lines (ISA 9.7.7.2).
+    """`.ftz` on the half-precision `setp` lines (ISA 9.7.8.2).
 
     Spelled on `.f16`/`.f16x2`, on neither bf16 line -- the same split the half
     arithmetic lines make. The other half of this section's shape, single
@@ -1366,24 +1656,38 @@ def _check_half_setp(m):
     return None
 
 
-# --- PTX ISA 9.7.9.12 (st.async) and 9.7.9.15 (multimem) --------------------
+# --- PTX ISA 9.7.10.12 (st.async) and 9.7.10.15 (multimem) --------------------
 # The vector lines of st.async: "`.v2` is supported with .b32, .b64, .s32,
 # .s64, .u32, .u64, .f32 and .f64 types. `.v4` qualifier is supported with
 # .b32, .s32, .u32 and .f32 types."
 _ST_ASYNC_TYPES = ("b32", "b64", "b128", "u32", "u64", "s32", "s64", "f32", "f64")
 _ST_ASYNC_V2 = ("b32", "b64", "u32", "u64", "s32", "s64", "f32", "f64")
 _ST_ASYNC_V4 = ("b32", "u32", "s32", "f32")
-# The release line's type list (9.7.9.12, second syntax block), which reaches
-# below the 32-bit floor of the mbarrier line.
-# MEASURED: the ISA writes `.b8`, `.u8` and `.s8` into that list, but ptxas
-# 13.2 rejects all three at sm_100 -- with and without `.mmio`, at either scope
-# -- while every 16-bit and wider type assembles. So the line starts at 16 bits
-# here, and the byte forms wait for a toolchain that accepts them.
+# The release line's complete type list (9.7.10.12, second syntax block), which
+# reaches below the 32-bit floor of the mbarrier line.  The byte forms need an
+# exact local .b8 source register: inline asm has no 8-bit constraint,
+# and binding their C values directly through the usual 16-bit carrier makes
+# ptxas reject the instruction (MEASURED on CUDA 13.4 at sm_100: a .b16 source
+# is "Arguments mismatch for instruction 'st.async'"; a block-local .b8
+# assembles).  The private bridge is selected only here;
+# the separate dtypes callback retains each suffix's public type domain.
 _ST_ASYNC_REL_TYPES = (
-    "b16", "b32", "b64", "u16", "u32", "u64", "s16", "s32", "s64", "f32", "f64",
+    "b8", "b16", "b32", "b64", "u8", "u16", "u32", "u64",
+    "s8", "s16", "s32", "s64", "f32", "f64",
 )  # fmt: skip
 
-# createpolicy's `.level::primary_priority` line (ISA 9.7.9.19). Wider than
+
+def _st_async_rel_operand_type(m):
+    """Private byte-register bridge for ``st.async.release``'s 8-bit source."""
+    return "st_async_b8reg" if m["type"] in ("b8", "u8", "s8") else m["type"]
+
+
+def _st_async_rel_operand_dtypes(m):
+    """Public dtype domain remains the one named by the instruction suffix."""
+    return PTX_TYPE_DTYPES[m["type"]]
+
+
+# createpolicy's `.level::primary_priority` line (ISA 9.7.10.21). Wider than
 # the `_L2_EVICT` set the ld/st eviction hints use: this instruction is where
 # a priority is *created*, so it spells all four.
 _CACHE_PRIORITIES = (
@@ -1414,17 +1718,16 @@ _MM_VEC_TYPES = {
 
 
 def _check_multimem_sem(m):
-    """How `.sem` and `.scope` go together on every multimem line (ISA 9.7.9.15).
+    """How `.sem` and `.scope` go together on every multimem line (ISA 9.7.10.15).
 
-    The ISA writes two syntax lines per mnemonic -- `{.sem}{.scope}` and a
-    `.weak` one with no scope position -- which reads as "either may be
-    omitted". ptxas is stricter, and its rule is the one that makes the two
-    lines distinct: everywhere but `.weak`, the pair is the same both-or-
-    neither rule the mbarrier sections state in words, so that check is what
-    decides it here. ptxas says both halves -- "Modifier '.relaxed' requires
-    scope with 'multimem.st' instruction" and "Modifier '.cta' requires order
-    with 'multimem.st' instruction". What multimem adds is `.weak`: the line
-    with no scope position at all.
+    The ISA writes two syntax lines for `multimem.ld_reduce` and `multimem.st`:
+    `{.sem}{.scope}` and a `.weak` line with no scope position. `multimem.red`
+    has one line whose `.redsem` is `{.relaxed, .release}`, with no `.weak`
+    form. ptxas makes the non-weak semantic/scope pair the same both-or-neither
+    rule the mbarrier sections state in words, so that check decides it here.
+    It diagnoses both halves: "Modifier '.relaxed' requires scope with
+    'multimem.st' instruction" and "Modifier '.cta' requires order with
+    'multimem.st' instruction".
     """
     if m.get("sem", "") == "weak":
         return ".weak is a syntax line of its own and takes no scope" if m["scope"] else None
@@ -1432,7 +1735,7 @@ def _check_multimem_sem(m):
 
 
 def _check_multimem_int(m):
-    """op x type on the integer multimem lines (ISA 9.7.9.15).
+    """op x type on the integer multimem lines (ISA 9.7.10.15).
 
     The `.type` line in the Syntax block is the union over ops; the pairing is
     the "valid combinations of .op and base type" table, and `.add` is the row
@@ -1488,7 +1791,7 @@ def _check_multimem_f(m):
 
 
 def _check_st_async(m):
-    """st.async's mbarrier line (ISA 9.7.9.12), whose `.vec` narrows the types.
+    """st.async's mbarrier line (ISA 9.7.10.12), whose `.vec` narrows the types.
 
     `.v4` is the 32-bit four and `.v2` everything but `.b128`, which the ISA
     gives no vector form at all.
@@ -1502,25 +1805,36 @@ def _check_st_async(m):
 
 def _check_st_async_rel(m):
     """st.async's release line: "If .mmio is specified, .scope must be .sys"
-    (ISA 9.7.9.12), which ptxas enforces as an illegal-modifier error."""
+    (ISA 9.7.10.12), which ptxas enforces as an illegal-modifier error."""
     if m["mmio"] and m["scope"] != "sys":
         return ".mmio requires .sys scope"
     return None
 
 
-# --- PTX ISA 9.7.14 warp-level and async reductions -------------------------
-# red.async's four mbarrier lines (9.7.14.7), one op group each.
+def _multimem_async_operand_type(m):
+    """Use the measured byte-register bridge for 8-bit async stores."""
+    return "st_async_b8reg" if m["type"] in ("b8", "u8", "s8") else m["type"]
+
+
+def _multimem_async_operand_dtypes(m):
+    """Keep the public dtype domain named by the multimem async suffix."""
+    return PTX_TYPE_DTYPES[m["type"]]
+
+
+# --- PTX ISA 9.7.15 warp-level and async reductions -------------------------
+# red.async's four mbarrier lines (9.7.15.7), one op group each.
 _RED_ASYNC_OPS = {"inc": ("u32",), "dec": ("u32",), "min": ("u32", "s32"),
                   "max": ("u32", "s32"), "and": ("b32",), "or": ("b32",), "xor": ("b32",),
                   "add": ("u32", "s32", "u64")}  # fmt: skip
-# atom's two vector lines (9.7.14.5). A half element rides `.v2`/`.v4`/`.v8`;
-# a packed pair, being twice as wide, stops at `.v4`; and `.f32` has only the
-# `.add` line. Every cell probed.
+# atom/red's three vector lines (9.7.15.5 / 9.7.15.6): `.f32`, a half-word,
+# and a packed pair. The latter two share one table entry per mnemonic; a half
+# element rides `.v2`/`.v4`/`.v8`, while a packed pair stops at `.v4`.
+# `.f32` has only the `.add` line. Every cell probed.
 _ATOM_VEC_HALF = ("f16", "bf16")
 
 
 def _check_red_async(m):
-    """op x type on red.async's mbarrier lines (ISA 9.7.14.7).
+    """op x type on red.async's mbarrier lines (ISA 9.7.15.7).
 
     The ISA writes one syntax line per op group rather than a table, so the
     grid is read off those four lines: increment/decrement on the unsigned
@@ -1533,8 +1847,8 @@ def _check_red_async(m):
     return None
 
 
-def _check_atom_vec(m):
-    """`.vec` x type on atom's vector lines (ISA 9.7.14.5).
+def _check_atomic_vec(m):
+    """`.vec` x type on atom/red's vector lines (ISA 9.7.15.5 / 9.7.15.6).
 
         atom{.sem}{.scope}{.global}.add{.cache}.vec_32_bit.f32               d, [a], b;
         atom{...}.op.noftz{.cache}.vec_16_bit.half_word_type                 d, [a], b;
@@ -1551,8 +1865,37 @@ def _check_atom_vec(m):
     return None
 
 
+def _check_atom_bitbucket_bf16(m):
+    """Withhold the documented bf16 atom bit-bucket forms from this backend.
+
+    The ISA permits ``_`` as the destination of a simple ``atom`` reduction,
+    including the scalar and vector bf16 lines.  They were withheld because an
+    earlier toolchain crashed on them (an exact force-inlined kernel probe
+    containing ``atom...bf16 _`` terminated ptxas with a segmentation fault).
+    MEASURED on CUDA 13.4: raw ptxas and the same force-inlined nvcc probe both
+    compile ``atom.global.add.noftz.bf16 _`` and
+    ``atom.global.add.noftz.v2.bf16x2 _``.  The forms stay withheld until they
+    are added with full certification (follow-up); the returned-value bf16
+    forms and the f16 bit buckets are registered.
+    """
+    if m["type"].startswith("bf16"):
+        return (
+            "the ISA documents a bf16 atom bit-bucket destination, but this table "
+            "withholds it pending certification on CUDA 13.4"
+        )
+    return None
+
+
+def _check_atom_half_bitbucket(m):
+    return _check_cache_hint(m) or _check_atom_bitbucket_bf16(m)
+
+
+def _check_atom_vec_half_bitbucket(m):
+    return _check_atomic_vec(m) or _check_atom_bitbucket_bf16(m)
+
+
 def _check_slct(m):
-    """slct's two lines (ISA 9.7.6.4), which differ only in the selector type.
+    """slct's two lines (ISA 9.7.7.4), which differ only in the selector type.
 
         slct.dtype.s32        d, a, b, c;
         slct{.ftz}.dtype.f32  d, a, b, c;
@@ -1563,6 +1906,31 @@ def _check_slct(m):
     if m["ftz"] and m["ctype"] != "f32":
         return ".ftz is spelled only on the .f32 selector line"
     return None
+
+
+_SLCT_VALUE_DTYPES = {
+    # d/a/b are bit values of the first instruction type's width, not numeric
+    # operands of that type. Keep its native TVM dtype first so the canonical
+    # helper names and signatures remain stable; the rest are the carrier
+    # classes accepted by ptxas 13.4 (re-certified) over the full independent
+    # d x a x b grid.
+    "b16": ("uint16", "int16", "float16", "bfloat16"),
+    "u16": ("uint16", "int16", "float16", "bfloat16"),
+    "s16": ("int16", "uint16", "float16", "bfloat16"),
+    "b32": ("uint32", "int32", "float32"),
+    "u32": ("uint32", "int32"),
+    "s32": ("int32", "uint32"),
+    "f32": ("float32", "uint32", "int32"),
+    "b64": ("uint64", "int64", "float64"),
+    "u64": ("uint64", "int64"),
+    "s64": ("int64", "uint64"),
+    "f64": ("float64", "uint64", "int64"),
+}
+
+
+def _slct_value_dtypes(m):
+    """TVM carrier domain for slct's independently bit-typed d/a/b operands."""
+    return _SLCT_VALUE_DTYPES[m["dtype"]]
 
 
 def _check_absneg(m):
@@ -1602,7 +1970,7 @@ def _check_farith(m):
 
 
 def _check_prefetch(m):
-    """Each prefetch syntax line names exactly one target (PTX ISA 9.7.9.16).
+    """Each prefetch syntax line names exactly one target (PTX ISA 9.7.10.16).
 
     `.level::eviction_priority` stays bound to `.global` on purpose: its syntax
     line is `prefetch.global.level::eviction_priority`, with `.global` written
@@ -1635,12 +2003,12 @@ _ATOM_TYPES = ("b32", "b64", "u32", "u64", "s32", "s64", "f32", "f64")
 
 
 def _check_atomic(m):
-    """op x type pairings for atom/red (PTX ISA 9.7.14.5 / 9.7.14.6).
+    """op x type pairings for atom/red (PTX ISA 9.7.15.5 / 9.7.15.6).
 
-    Normative source: ISA Table 35 (atom) and Table 36 (red), which give the
-    pairing cell by cell. The `.type = {...}` line in the Syntax block is only
-    the union across ops, which is why it cannot be transcribed directly. Half-precision
-    types appear in ptxas' message but are excluded from this entry (they need
+    The op/type rules in those sections give the pairings cell by cell. The
+    `.type = {...}` line in the Syntax block is only the union across ops,
+    which is why it cannot be transcribed directly. Half-precision types
+    appear in ptxas' message but are excluded from this entry (they need
     .noftz and a half carrier type).
     """
     hint = _check_cache_hint(m)
@@ -1683,7 +2051,7 @@ _BITS64 = ("b64", "u64", "s64", "f64")
 
 
 def _vec_lanes(m):
-    # ISA 9.7.9.8/9.7.9.11: the destination/source is a brace-enclosed vector
+    # ISA 9.7.10.8/9.7.10.11: the destination/source is a brace-enclosed vector
     # of `.vec` registers.
     return int(m["vec"][1:])
 
@@ -1712,14 +2080,14 @@ _FRND = ("rn", "rz", "rm", "rp")  # .rnd on the floating-point arithmetic lines
 
 
 def _matrix_num_lanes(m):
-    # ISA 9.7.15.5.16 (stmatrix): "a brace-enclosed vector expression consisting
+    # ISA 9.7.16.5.16 (stmatrix): "a brace-enclosed vector expression consisting
     # of 1, 2, or 4 32-bit registers as per the value of .num" -- no shape term,
     # unlike ldmatrix's .m16n16 doubling.
     return int(m["num"][1:])
 
 
 def _ldmatrix_lanes(m):
-    # ISA 9.7.15.5.15: "a brace-enclosed vector expression consisting of 1, 2,
+    # ISA 9.7.16.5.15: "a brace-enclosed vector expression consisting of 1, 2,
     # or 4 32-bit registers as per the value of .num" -- and, for shape 16x16,
     # "two destination registers r0 and r1 of type .b32 must be specified" per
     # matrix, so .m16n16 doubles the count (ptxas: "Vector of size 2 is
@@ -1741,21 +2109,37 @@ def _check_ldmatrix_b8fmt(m):
 
 
 def _tcgen05_ldst_lanes(m):
-    # ISA 9.7.17.8.3 Table 52 / 9.7.17.8.4 Table 53: the register vector holds
-    # `.num` x (shape width / 32b) registers, capped at 128.
+    # ISA 9.7.18.8.3 Table 59 / 9.7.18.8.4 Table 61: the register vector holds
+    # `.num` x (rows x shape width / 1024b) registers -- 1 per `.num` for
+    # .16x32bx2/.16x64b/.32x32b, 2 for .16x128b, and 4 for .16x256b -- capped
+    # at 128.
     per_num = {"16x64b": 1, "32x32b": 1, "16x128b": 2, "16x256b": 4, "16x32bx2": 1}
     return int(m["num"][1:]) * per_num[m["shape"]]
 
 
 def _check_tcgen05_ldst(m):
-    """The Table 52/53 rows marked NA -- the products that exceed 128 registers."""
+    """The Table 59/61 rows marked NA -- the products that exceed 128 registers."""
     if _tcgen05_ldst_lanes(m) > 128:
         return f"shape {m['shape']} caps .num where the vector would exceed 128 registers"
     return None
 
 
+def _check_tcgen05_ld_red(m):
+    """tcgen05.ld.red qualifier grid (PTX ISA 9.4, 9.7.18.8.3), MEASURED on CUDA 13.4.
+
+    ``.x1`` is rejected ("Illegal modifier '.x1'"; the ISA requires .num of at
+    least .x2), and ``.abs``/``.NaN`` belong to the ``.f32`` line only -- ptxas
+    answers "Illegal modifier '.abs'" on the integer lines in either position.
+    """
+    if m["num"] == "x1":
+        return "tcgen05.ld.red requires .num of .x2 or greater"
+    if m["type"] != "f32" and (m.get("abs", "") or m.get("nan", "")):
+        return ".abs and .NaN apply only to the .f32 reduction line"
+    return None
+
+
 def _check_tcgen05_cp(m):
-    """The shape <-> multicast pairings ISA 9.7.17.9.2 states, and the fmt pair.
+    """The shape <-> multicast pairings ISA 9.7.18.9.2 states, and the fmt pair.
 
     ".64x128b requires .warpx2::02_13 or .warpx2::01_23" and ".32x128b
     requires .warpx4"; the wider shapes copy to all warps and take no
@@ -1776,15 +2160,16 @@ def _check_tcgen05_cp(m):
     return None
 
 
-# mma fragment sizes, per the Matrix Fragments tables of ISA 9.7.15.5.1-13.
+# mma fragment sizes, per the Matrix Fragments tables of ISA 9.7.16.5.1-13.
 # Each is `rows * cols * bits / threads / 32`, the register count a thread holds
 # of an MxN (or MxK / KxN) tile -- the ISA states the tables, this states the
 # rule they follow. .m8n8k4 with .f16 multiplicands is the one shape a warp
-# runs as four independent 8-thread MMAs, so its A/B fragments divide by 8.
+# runs as four independent 8-thread MMAs, so all four of its fragments -- A, B
+# and C/D alike -- divide by 8 rather than 32.
 _MMA_BITS = {
     "f16": 16, "bf16": 16, "tf32": 32, "f32": 32, "f64": 64, "s32": 32,
     "u8": 8, "s8": 8, "u4": 4, "s4": 4, "b1": 1,
-    "e4m3": 8, "e5m2": 8, "e3m2": 6, "e2m3": 6, "e2m1": 4,
+    "e4m3": 8, "e5m2": 8,
 }  # fmt: skip
 
 
@@ -1800,7 +2185,7 @@ def _mma_regs(dtype, rows, cols, threads, reg_bits=32):
 def _mma_threads(m):
     """Threads sharing one tile: 8 on the .f16 .m8n8k4 line, 32 everywhere else.
 
-    ISA 9.7.15.5.14: "A warp executing mma.sync.m8n8k4 instruction computes 4
+    ISA 9.7.16.5.14: "A warp executing mma.sync.m8n8k4 instruction computes 4
     matrix multiply and accumulate operations. Rest of the mma.sync operations
     compute a single matrix mutliply and accumulate operation per warp." Four
     operations to a warp is 8 threads each, so a thread's fragment of that line
@@ -1808,7 +2193,7 @@ def _mma_threads(m):
     (d=4, a=2, b=2 for .f16.f16.f16.f16; anything else is "Arguments mismatch").
 
     The division by 8 belongs to that line alone. The .f64 .m8n8k4 line has its
-    own fragment section, ISA 9.7.15.5.2, which opens "A warp executing
+    own fragment section, ISA 9.7.16.5.2, which opens "A warp executing
     mma.m8n8k4 with .f64 floating point type will compute an MMA operation of
     shape .m8n8k4" -- one operation, the whole warp -- and tabulates A and B as
     "A vector expression containing a single .f64 register" and C/D as "A
@@ -1847,10 +2232,13 @@ def _mma_lanes(which):
 def _mma_sp_lanes(which):
     """Like `_mma_lanes`, but A holds half of K -- the structured-sparse half.
 
-    ISA 9.7.15.6: "For an MxNxK sparse mma.sp{::ordered_metadata} operation,
-    the MxK matrix A is packed into MxK/2 elements" -- two of every four along
-    K, so the A fragment of an MxK sparse line is the dense fragment of MxK/2.
-    The other three groups are unchanged.
+    ISA 9.7.16.6: "For an MxNxK sparse mma.sp{::ordered_metadata} operation,
+    the MxK matrix A is packed into MxK/2 elements" -- 50% zeros per row at a
+    shape- and kind-specific granularity: e2m1 is 2:4 in the
+    f8f6f4/mxf8f6f4 lines and 4:8 only in mxf4/mxf4nvf4; the other forms have
+    the ratios stated by their own syntax line. Thus the stored A fragment of
+    an MxK sparse line is the dense fragment of MxK/2; the other three groups
+    are unchanged.
     """
 
     def lanes(m):
@@ -1880,12 +2268,173 @@ _CVT_INT_BITS = {"u8": 8, "s8": 8, "u16": 16, "s16": 16, "u32": 32, "s32": 32, "
 _CVT_IRND = ("rni", "rzi", "rmi", "rpi")
 _CVT_FRND = ("rn", "rz", "rm", "rp")
 
+# The generic scalar cvt line follows ISA section 9.4.1's relaxed type checking: an
+# integer instruction type may use a same-width or wider integer/bit register,
+# while a floating instruction type may use its native register or a same-width
+# or wider bit register. These are the base TVM carrier spellings, canonical
+# first so the pre-existing helper names remain stable. The cvt section
+# explicitly excludes `.bf16` from widening its own operand, so it stays pinned
+# to its exact 16-bit carrier. Packed/narrow cvt entries do not use these
+# callbacks; their operand prose gives exact carriers and several are stricter
+# than the generic relaxed rule in the current toolchain.
+_CVT_RELAXED_DTYPES = {
+    "u8": (
+        "uint8",
+        "int8",
+        "uint16",
+        "int16",
+        "uint32",
+        "int32",
+        "uint64",
+        "int64",
+        "uint128",
+        "int128",
+    ),
+    "s8": (
+        "int8",
+        "uint8",
+        "int16",
+        "uint16",
+        "int32",
+        "uint32",
+        "int64",
+        "uint64",
+        "int128",
+        "uint128",
+    ),
+    "u16": (
+        "uint16",
+        "int16",
+        "uint32",
+        "int32",
+        "uint64",
+        "int64",
+        "uint128",
+        "int128",
+    ),
+    "s16": (
+        "int16",
+        "uint16",
+        "int32",
+        "uint32",
+        "int64",
+        "uint64",
+        "int128",
+        "uint128",
+    ),
+    "u32": ("uint32", "int32", "uint64", "int64", "uint128", "int128"),
+    "s32": ("int32", "uint32", "int64", "uint64", "int128", "uint128"),
+    "u64": ("uint64", "int64", "uint128", "int128"),
+    "s64": ("int64", "uint64", "int128", "uint128"),
+    "f16": (
+        "uint16",
+        "int16",
+        "float16",
+        "bfloat16",
+        "uint32",
+        "int32",
+        "uint64",
+        "int64",
+        "uint128",
+        "int128",
+    ),
+    "bf16": ("uint16",),
+    "f32": ("float32", "uint32", "int32", "uint64", "int64", "uint128", "int128"),
+    "f64": ("float64", "uint64", "int64", "uint128", "int128"),
+}
+
+# The same-width subset of each relaxed domain.  This is intentionally broader
+# than the canonical dtype: for example, a `.f16` operand may ride any 16-bit
+# register class.  CUDA 13.4 ptxas needs this subset for a few cvt-specific
+# gaps in the general relaxed type-checking rules, documented at the callbacks
+# below.  Packed/narrow cvt entries do not use this table.
+_CVT_SAME_WIDTH_DTYPES = {
+    "u8": ("uint8", "int8"),
+    "s8": ("int8", "uint8"),
+    "u16": ("uint16", "int16"),
+    "s16": ("int16", "uint16"),
+    "u32": ("uint32", "int32"),
+    "s32": ("int32", "uint32"),
+    "u64": ("uint64", "int64"),
+    "s64": ("int64", "uint64"),
+    "f16": ("uint16", "int16", "float16", "bfloat16"),
+    "bf16": ("uint16",),
+    "f32": ("float32", "uint32", "int32"),
+    "f64": ("float64", "uint64", "int64"),
+}
+
+# ISA section 9.4.1 Table 27 and cvt's own notes permit a floating source
+# operand to use a wider bit register, with the instruction consuming its low
+# bits.  CUDA 13.4 ptxas accepts `.version 9.4` and the exact-width form, but a
+# direct probe such as
+#
+#   .reg .b16 d;
+#   .reg .b64 a;
+#   cvt.rn.ftz.bf16.f32 d, a;
+#
+# fails with "Arguments mismatch for instruction 'cvt'".  These entries expose
+# callable nvcc inline-asm helpers, not abstract PTX grammar, so do not advertise
+# floating source carriers the supported assembler cannot compile.  Destination
+# widening and integer source widening continue to use the documented relaxed
+# domains above; only the ptxas-rejected floating source direction is narrowed.
+_CVT_FLOAT_SRC_DTYPES = {
+    "f16": ("uint16", "int16", "float16", "bfloat16"),
+    "bf16": ("uint16",),
+    "f32": ("float32", "uint32", "int32"),
+    "f64": ("float64", "uint64", "int64"),
+}
+
+
+def _cvt_dst_dtypes(m):
+    """Destination carriers supported by CUDA 13.4 ptxas for scalar ``cvt``.
+
+    ISA section 9.4.1 Tables 27/28 describe a relaxed upper bound, but also
+    warn that a particular instruction may reject combinations from that grid.
+    Exact force-inlined CUDA 13.4 probes expose three operand-local gaps (ptxas
+    names the rejected 64/128-bit destinations "Arguments mismatch for
+    instruction 'mov'"):
+
+    - when the source instruction type is ``.bf16``, the destination carrier
+      cannot be wider than its own instruction type;
+    - ``.ftz`` forms ``{u64,s64}.f32``, ``f64.f32``, and ``f32.f64`` reject a
+      128-bit destination carrier;
+    - ``{rz,rm,rp}.ftz.f32.f64`` also rejects a 64-bit destination carrier,
+      while the corresponding ``.rn`` forms accept it.
+
+    These are ptxas restrictions, not additional PTX ISA rules.  In
+    particular, no-ftz 128-bit destinations and the accepted ``.rn`` 64-bit
+    forms remain in the callable domain.
+    """
+    dtypes = _CVT_RELAXED_DTYPES[m["dtype"]]
+    if m["atype"] == "bf16":
+        dtypes = _CVT_SAME_WIDTH_DTYPES[m["dtype"]]
+    if m["ftz"] and (
+        (m["dtype"] in ("u64", "s64", "f64") and m["atype"] == "f32")
+        or (m["dtype"], m["atype"]) == ("f32", "f64")
+    ):
+        dtypes = tuple(dtype for dtype in dtypes if dtype not in ("uint128", "int128"))
+    if m["ftz"] and (m["dtype"], m["atype"]) == ("f32", "f64") and m["rnd"] in ("rz", "rm", "rp"):
+        dtypes = tuple(dtype for dtype in dtypes if dtype not in ("uint64", "int64"))
+    return dtypes
+
+
+def _cvt_src_dtypes(m):
+    """Source carriers supported by ptxas for the generic scalar ``cvt`` line."""
+    atype = m["atype"]
+    dtypes = _CVT_FLOAT_SRC_DTYPES.get(atype, _CVT_RELAXED_DTYPES[atype])
+    # CUDA 13.4 ptxas rejects a wider carrier on the opposite operand whenever the
+    # destination instruction type is `.bf16`.  Same-width bit/integer carrier
+    # spellings still assemble and remain exposed.
+    if m["dtype"] == "bf16":
+        dtypes = _CVT_SAME_WIDTH_DTYPES[atype]
+    return dtypes
+
 
 def _present_lanes(slot: str) -> LanesFn:
     """A bracketed-optional operand: one register when its qualifier is written.
 
     The ISA spells several of these `{, operand}` against a `{.qualifier}`, and
-    says so in the same words each time -- ISA 9.7.9.22:180-182 for cvt's
+    says so in the same words each time -- ISA 9.7.10.24:180-182 for cvt's
     scale-factor is typical: "Operand scale-factor and qualifier
     .scaled::n2::ue8m0 must be used together." `lanes=0` is what makes the
     operand vanish from the helper signature (see render.operand_layout), so
@@ -1895,21 +2444,28 @@ def _present_lanes(slot: str) -> LanesFn:
 
 
 # `{, scale-factor}` exists exactly when `.scaled::n2::ue8m0` is written. ISA
-# 9.7.9.22:180-182: "Optional qualifier .scaled::n2::ue8m0 specifies that the
+# 9.7.10.24:180-182: "Optional qualifier .scaled::n2::ue8m0 specifies that the
 # instruction uses packed scale-factor with 2 scale values of ue8m0 type.
 # Operand scale-factor and qualifier .scaled::n2::ue8m0 must be used together."
 _cvt_scale_lanes = _present_lanes("scaled")
 
 
+def _check_cvt_94_narrow(m):
+    """Keep only the PTX 9.4 additions to the pre-existing narrow cvt shapes."""
+    if m["rnd"] == "rn" and not m["pzo"] and not m["scaled"]:
+        return "the bare .rn spelling is owned by the pre-9.4 narrow cvt entry"
+    return None
+
+
 def _check_cvt_tf32(m):
-    """The two `.tf32` lines, ISA 9.7.9.22:18-19 --
+    """The two `.tf32` lines, ISA 9.7.10.24:18-19 --
 
         cvt.rna{.satfinite}.tf32.f32               d, a;
         cvt.frnd2{.satfinite}{.relu}.tf32.f32      d, a;
 
     One entry: same `d, a` shape, same types, and the only difference is which
     modifiers each spelling admits. `.rna` is written on the line that has no
-    `{.relu}`, so the two never meet. (ptxas 13.2 agrees -- it answers
+    `{.relu}`, so the two never meet. (ptxas 13.4 agrees -- it answers
     "Modifier '.relu' cannot be combined with modifier '.rna'" -- but the
     grammar above is the reason this is rejected.)
     """
@@ -1940,7 +2496,7 @@ def _cvt_int_covers(d: str, a: str) -> bool:
 
 
 def _check_cvt_same_type(t, rnd):
-    """The `.dtype == .atype` sub-grid of the generic scalar line, ISA 9.7.9.22.
+    """The `.dtype == .atype` sub-grid of the generic scalar line, ISA 9.7.10.24.
 
     A same-type cvt is a real instruction, not a move: an *integer* rounding
     mode may ride a float-to-float conversion here. The ISA licenses that for
@@ -1948,10 +2504,10 @@ def _check_cvt_same_type(t, rnd):
     six pairs, not four -- `.f16` and `.bf16` are both 16-bit. This toolchain
     assembles only the same-type four; see the third ptxas-only restriction in
     `_check_cvt_scalar`, which is where the cross-type pairs are ruled on. ISA
-    9.7.9.22:329-331 (Integer Notes): "Integer rounding is required for
+    9.7.10.24:329-331 (Integer Notes): "Integer rounding is required for
     float-to-integer conversions, and for same-size float-to-float conversions
     where the value is rounded to an integer. Integer rounding is illegal in
-    all other instances." And 9.7.9.22:424-426: "A floating-point value may be
+    all other instances." And 9.7.10.24:424-426: "A floating-point value may be
     rounded to an integral value using the integer rounding modifiers (see
     Integer Notes). The operands must be of the same size. The result is an
     integral value, stored in floating-point format." The section's Examples
@@ -1975,11 +2531,11 @@ def _check_cvt_same_type(t, rnd):
     two types being equal, so the caller's shared tail applies them to this
     sub-grid too. (For an integer `t` that tail rejects `.sat` because
     `_cvt_int_covers(t, t)` holds -- the destination range is the source range
-    -- and it rejects `.sat` on .bf16 as a toolchain limit.)
+    -- and for `.bf16` it applies the ISA's destination-type exclusion.)
 
     Together with that tail this admits 53 of the 432 same-type spellings in this entry's slot grid,
-    which is exactly the set ptxas assembles (measured over the full grid, nvcc
-    13.2 -arch=sm_90; no spelling in either direction differs).
+    which is exactly the set ptxas assembles (MEASURED over the full 432-spelling
+    grid on ptxas 13.4 at sm_90; no spelling in either direction differs).
     """
     if rnd in _CVT_FRND:
         return f"{t} from {t} is exact, so a floating-point rounding mode is illegal"
@@ -1989,7 +2545,7 @@ def _check_cvt_same_type(t, rnd):
 
 
 def _check_cvt_frnd2_scalar(d, a, rnd, ftz, sat):
-    """The frnd2 *scalar* lines' sub-grid, ISA 9.7.9.22:10 and :14 --
+    """The frnd2 *scalar* lines' sub-grid, ISA 9.7.10.24:10 and :14 --
 
         cvt.frnd2{.relu}{.satfinite}.f16.f32       d, a;
         cvt.frnd2{.relu}{.satfinite}.bf16.f32      d, a;
@@ -2029,7 +2585,7 @@ def _check_cvt_frnd2_scalar(d, a, rnd, ftz, sat):
 
 
 def _check_cvt_scalar(m):
-    """The generic scalar line's rules, quoting ISA 9.7.9.22.
+    """The generic scalar line's rules, quoting ISA 9.7.10.24.
 
     Rounding: "Integer rounding is required for float-to-integer conversions,
     and for same-size float-to-float conversions where the value is rounded to
@@ -2054,13 +2610,17 @@ def _check_cvt_scalar(m):
     Three restrictions are ptxas's rather than the ISA's, and are recorded here
     because the certification pass would otherwise report legal-looking forms
     as illegal: this toolchain assembles no conversion between .bf16 and an
-    8-bit integer, takes no `.sat` on any .bf16 operand, and refuses an integer
-    rounding mode on the two same-size cross-type float pairs -- `cvt.rni.bf16.f16`
+    8-bit integer, takes no `.sat` when .bf16 is the source, and refuses an
+    integer rounding mode on the two same-size cross-type float pairs -- `cvt.rni.bf16.f16`
     and `cvt.rni.f16.bf16` are "Illegal rounding modifier for instruction 'cvt'"
-    at ptxas 13.2 / sm_90 even though the Integer Notes clause quoted above
+    at ptxas 13.4 / sm_90 even though the Integer Notes clause quoted above
     requires integer rounding for exactly those conversions. The `.dtype !=
     .atype` branch below therefore rejects them, which is a toolchain verdict,
     not the ISA's.
+
+    A `.bf16` destination is a different case: the ISA's own Floating Point
+    Notes limit `.sat` destinations to `.f16`, `.f32`, and `.f64`, so rejecting
+    `.sat.bf16` is an ISA rule rather than a toolchain deviation.
 
     ``.relu``/``.satfinite`` belong to the two frnd2 scalar lines, which share
     this entry's shape and type list; `_check_cvt_frnd2_scalar` is their
@@ -2097,8 +2657,10 @@ def _check_cvt_scalar(m):
         return ".ftz applies only where .f32 is one of the types"
     if sat and d_int and a_int and _cvt_int_covers(d, a):
         return f"{d} already covers {a}, so saturation is not possible"
-    if sat and "bf16" in (d, a):
-        return "this toolchain assembles no .sat on a .bf16 operand"
+    if sat and d == "bf16":
+        return "the ISA limits floating-point .sat destinations to .f16, .f32, and .f64"
+    if sat and a == "bf16":
+        return "this toolchain assembles no .sat when .bf16 is the source"
     if "bf16" in (d, a) and (d in ("u8", "s8") or a in ("u8", "s8")):
         return "this toolchain assembles no .bf16 <-> 8-bit-integer conversion"
     return None
@@ -2106,7 +2668,7 @@ def _check_cvt_scalar(m):
 
 # Which multiplicand-type *set* each mma / mma.sp syntax line draws BOTH of its
 # type positions from. A line never pairs a type from one set with a type from
-# another -- ISA 9.7.15.5.14 spells the integer lines as
+# another -- ISA 9.7.16.5.14 spells the integer lines as
 #
 #     mma.sync.aligned.shape.row.col{.satfinite}.s32.atype.btype.s32 d, a, b, c;
 #     .atype   = {.u8, .s8};
@@ -2121,12 +2683,16 @@ def _check_cvt_scalar(m):
 # and nowhere else. (`mma_sp_all` is the one entry whose slot domain does the
 # job on its own: its .atype/.btype are exactly `.f8type = {.e4m3, .e5m2}`.)
 _MMA_INT_LINE = {"u8": "i8", "s8": "i8", "u4": "i4", "s4": "i4", "b1": "b1"}
-# The one floating-point line that quantifies its two multiplicand positions
-# independently: "mma.sync.aligned.shape.row.col.dtype.f8type.f8type.ctype"
-# with ".f8type = {.e4m3, .e5m2};" (ISA 9.7.15.5.14:23,28). Every other fp line
-# writes a literal token in both positions (.f16.f16, .bf16.bf16, .tf32.tf32)
-# or, at .m16n8k8, names .atype/.btype separately and then requires them equal
-# (:129) -- so outside .f8type the two must simply match.
+# The one floating-point line registered here that quantifies its two
+# multiplicand positions independently is
+# "mma.sync.aligned.shape.row.col.dtype.f8type.f8type.ctype", with
+# ".f8type = {.e4m3, .e5m2};" (ISA 9.7.16.5.14:23,28). The unregistered
+# `.kind::f8f6f4` and `.block_scale` lines do the same over
+# `.f8f6f4type = {.e4m3, .e5m2, .e3m2, .e2m3, .e2m1}`. Every other fp line
+# registered here writes a literal token in both positions (.f16.f16,
+# .bf16.bf16, .tf32.tf32) or, at .m16n8k8, names .atype/.btype separately and
+# then requires them equal (:129). Thus among the registered lines, the two
+# types must match outside `.f8type`.
 _MMA_F8 = ("e4m3", "e5m2")
 
 
@@ -2139,7 +2705,7 @@ def _check_mma_fp_pair(a: str, b: str) -> str | None:
 
 def _check_mma_sp_fp_types(m):
     """The sparse floating-point lines spell one literal token in both
-    multiplicand positions, per ISA 9.7.15.6.3:8-21 --
+    multiplicand positions, per ISA 9.7.16.6.3:8-21 --
 
         mma.spvariant.sync.aligned.m16n8k16.row.col.dtype.f16.f16.ctype  d, a, b, c, e, f;
         mma.spvariant.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32     d, a, b, c, e, f;
@@ -2153,12 +2719,12 @@ def _check_mma_sp_fp_types(m):
     data-type of the elements in the matrices scale_A and scale_B. In case of
     shapes .m16n8k16, .m16n8k32 and .m16n8k64, .dtype must be the same as
     .ctype." -- .dtype/.ctype only; grepping "must be the same" over the whole
-    9.7.15.6.3 slice returns that line and nothing else, so the section states
+    9.7.16.6.3 slice returns that line and nothing else, so the section states
     no .atype/.btype equality rule.
 
     The blanket "the multiplicand types must match" this check used to apply to
     every sparse entry came from the **wmma.mma** section, a different
-    instruction: ISA 9.7.15.4.5:77-78, "For integer wmma, .ctype and .dtype must
+    instruction: ISA 9.7.16.4.5:77-78, "For integer wmma, .ctype and .dtype must
     be specified as .s32. Also, the values for .atype and .btype must be the
     same, i.e., either both are .s8 or both are .u8." The sparse lines that do
     name two independent type variables -- ".s32.atype.btype.s32" and
@@ -2175,7 +2741,7 @@ def _check_mma_sp_fp_types(m):
 
 
 def _check_mma_sp_int_types(m):
-    """The sparse integer lines pair by width class, per ISA 9.7.15.6.3:60-71 --
+    """The sparse integer lines pair by width class, per ISA 9.7.16.6.3:60-71 --
 
         mma.spvariant.sync.aligned.shape.row.col{.satfinite}.s32.atype.btype.s32 d, a, b, c, e, f;
         .atype     = {.u8, .s8};
@@ -2186,9 +2752,9 @@ def _check_mma_sp_int_types(m):
     mixed signedness (.u8 x .s8, .u4 x .s4) is in the grammar; only crossing
     the 8-bit and 4-bit lines is not.
 
-    9.7.15.6.3 states no .atype/.btype equality rule (see
+    9.7.16.6.3 states no .atype/.btype equality rule (see
     `_check_mma_sp_fp_types` for the section's one type-equality sentence);
-    the equality this check used to apply is wmma.mma's, ISA 9.7.15.4.5:77-78.
+    the equality this check used to apply is wmma.mma's, ISA 9.7.16.4.5:77-78.
     """
     a, b = m["atype"], m["btype"]
     if _MMA_INT_LINE[a] != _MMA_INT_LINE[b]:
@@ -2199,7 +2765,7 @@ def _check_mma_sp_int_types(m):
 def _check_mma_sp_fp_thread(m):
     """The floating-point lines whose selector names one thread of four.
 
-    ISA 9.7.15.6.1: .f16/.bf16 at .m16n8k16 and .tf32 at .m16n8k8. Sparse
+    ISA 9.7.16.6.1: .f16/.bf16 at .m16n8k16 and .tf32 at .m16n8k8. Sparse
     doubles K against the dense line it mirrors, so these shape lists differ
     from the dense `_check_mma_fp_f32`'s.
     """
@@ -2244,7 +2810,7 @@ def _check_mma_sp_int_all(m):
 def _check_mma_fp_f16(m):
     """The .f16-accumulator forms: the ISA's f16 and f8 lines.
 
-    The half-precision lines (ISA 9.7.15.5.14:8-10, with ".ctype   = {.f16,
+    The half-precision lines (ISA 9.7.16.5.14:8-10, with ".ctype   = {.f16,
     .f32};" / ".dtype   = {.f16, .f32};" at :14-15) spell the token literally in
     both multiplicand positions --
 
@@ -2252,7 +2818,7 @@ def _check_mma_fp_f16(m):
         mma.sync.aligned.m16n8k8.row.col.dtype.f16.f16.ctype  d, a, b, c;
         mma.sync.aligned.m16n8k16.row.col.dtype.f16.f16.ctype d, a, b, c;
 
-    -- while the f8 line, ISA 9.7.15.5.14:23 with ".f8type     = {.e4m3,
+    -- while the f8 line, ISA 9.7.16.5.14:23 with ".f8type     = {.e4m3,
     .e5m2};" (:28) and ".shape      = {.m16n8k16, .m16n8k32};" (:32),
 
         mma.sync.aligned.shape.row.col.dtype.f8type.f8type.ctype  d, a, b, c;
@@ -2264,10 +2830,10 @@ def _check_mma_fp_f16(m):
 
     This check used to reject every `.atype != .btype`. That blanket rule is a
     sentence from the **wmma.mma** section, a different instruction: ISA
-    9.7.15.4.5:77-78, "For integer wmma, .ctype and .dtype must be specified as
+    9.7.16.4.5:77-78, "For integer wmma, .ctype and .dtype must be specified as
     .s32. Also, the values for .atype and .btype must be the same, i.e., either
     both are .s8 or both are .u8." mma's own restriction block
-    (9.7.15.5.14:122-135) scopes ".atype must be the same as .btype." to
+    (9.7.16.5.14:122-135) scopes ".atype must be the same as .btype." to
     .m16n8k8 alone, and this entry reaches .m16n8k8 only through the .f16.f16
     line above -- the f8 line's shapes are .m16n8k16 / .m16n8k32 -- so that rule
     holds by construction here.
@@ -2289,7 +2855,7 @@ def _check_mma_fp_f16(m):
 
 
 def _check_mma_fp_f32(m):
-    """One check per floating-point syntax line of ISA 9.7.15.5.14.
+    """One check per floating-point syntax line of ISA 9.7.16.5.14.
 
     The lines differ in which shapes pair with which operand types, and only
     the .m8n8k4 line leaves the layouts free -- every other line spells
@@ -2297,10 +2863,10 @@ def _check_mma_fp_f32(m):
 
     Multiplicand types are NOT equal in general. This check used to reject
     every `.atype != .btype`; that blanket rule is a sentence from the
-    **wmma.mma** section, a different instruction -- ISA 9.7.15.4.5:77-78, "For
+    **wmma.mma** section, a different instruction -- ISA 9.7.16.4.5:77-78, "For
     integer wmma, .ctype and .dtype must be specified as .s32. Also, the values
     for .atype and .btype must be the same, i.e., either both are .s8 or both
-    are .u8." mma's own restriction block, ISA 9.7.15.5.14:122-135, reads:
+    are .u8." mma's own restriction block, ISA 9.7.16.5.14:122-135, reads:
 
         Specific shapes have type restrictions :
         .m8n8k4 : When .ctype is .f32, .dtype must also be .f32.
@@ -2312,7 +2878,7 @@ def _check_mma_fp_f32(m):
 
     so `.atype == .btype` binds at .m16n8k8 alone. That is exactly the one
     alternate-fp line whose two type positions are separate variables over one
-    set (9.7.15.5.14:21,26-27):
+    set (9.7.16.5.14:21,26-27):
 
         mma.sync.aligned.m16n8k8.row.col.f32.atype.btype.f32      d, a, b, c;
         .atype      = {.bf16, .tf32};
@@ -2360,18 +2926,18 @@ def _check_mma_fp_f32(m):
 
 
 def _check_mma_int(m):
-    """The integer / sub-byte / single-bit lines of ISA 9.7.15.5.14.
+    """The integer / sub-byte / single-bit lines of ISA 9.7.16.5.14.
 
     Mixed signedness is legal. This check used to reject every `.atype !=
     .btype` under the comment "the values for .atype and .btype must be the
     same" -- that sentence is the **wmma.mma** section's, a different
-    instruction: ISA 9.7.15.4.5:77-78, "For integer wmma, .ctype and .dtype
+    instruction: ISA 9.7.16.4.5:77-78, "For integer wmma, .ctype and .dtype
     must be specified as .s32. Also, the values for .atype and .btype must be
     the same, i.e., either both are .s8 or both are .u8." mma's own restriction
-    block (9.7.15.5.14:122-135) states no rule for the integer lines at all,
+    block (9.7.16.5.14:122-135) states no rule for the integer lines at all,
     and scopes ".atype must be the same as .btype." to .m16n8k8 -- a shape no
     integer or single-bit line lists. The integer lines quantify their two
-    positions independently (9.7.15.5.14:67-77):
+    positions independently (9.7.16.5.14:67-77):
 
         mma.sync.aligned.shape.row.col{.satfinite}.s32.atype.btype.s32 d, a, b, c;
         .shape   = {.m8n8k16, .m16n8k16, .m16n8k32}
@@ -2414,17 +2980,19 @@ def _check_mma_int(m):
     return None
 
 
-# wgmma.mma_async register fragments, per ISA 9.7.16.5.1.1 (Register
+# wgmma.mma_async register fragments, per ISA 9.7.17.5.1.1.1-.4 (Matrix
 # Fragments): across the 128-thread warpgroup the accumulator D holds
 # M*N/128 = N/2 registers per thread (.f32 and .s32), and M*N/256 = N/4
 # when .dtype is .f16 (two halves per register). The A fragment of the rs
 # form works out to M*K/128/(32/bits) = 4 registers for every (K, type)
 # pairing the ISA defines, so it is a plain `lanes=4`, not a function.
 #
-# The N domains, straight from each syntax line's `.shape =` set: the
-# floating-point and fp8 lines take every multiple of 8 up to 256; the
-# s8/u8 line drops 40, 56, ... (the odd multiples of 8 above 32) and stops
-# at 224; the single-bit line adds 240 and 256 back.
+# The N domains follow ISA 9.7.17.2 (Matrix Shape): the floating-point and
+# fp8 lines take every multiple of 8 up to 256; the integer and single-bit
+# lines drop 40, 56, ... (the odd multiples of 8 above 32). The integer
+# syntax enumeration in 9.7.17.5.2 stops at 224 even though the Matrix Shape
+# table includes 240 and 256.  The public surface follows the instruction's
+# concrete syntax line; the single-bit syntax separately includes both shapes.
 _WGMMA_N_FULL = tuple(str(8 * i) for i in range(1, 33))
 _WGMMA_N_S8 = ("8", "16", "24", "32", "48", "64", "80", "96", "112", "128",
                "144", "160", "176", "192", "208", "224")  # fmt: skip
@@ -2436,7 +3004,7 @@ def _wgmma_acc_lanes(m):
     return n // 4 if m["dtype"] == "f16" else n // 2
 
 
-# cp.async.bulk.tensor coordinate vectors, per ISA 9.7.9.26.5.2: "Vector of
+# cp.async.bulk.tensor coordinate vectors, per ISA 9.7.10.28.5.3: "Vector of
 # n elements where n = .dim" -- except the gather4/scatter4 load modes, whose
 # tensorCoords is a "fixed length vector of size 5" (one column index plus
 # four row indices) whatever the dimension.
@@ -2462,7 +3030,7 @@ def _check_tma_gather4(m):
     return None
 
 
-# tcgen05.mma disable-output-lane, per ISA 9.7.17.10.9.1: "The size of the
+# tcgen05.mma disable-output-lane, per ISA 9.7.18.10.10.1: "The size of the
 # vector is as follows: .cta_group::1 -> 4, .cta_group::2 -> 8".
 def _tcgen05_mma_mask_lanes(m):
     return 8 if m["cta_group"] == "cta_group::2" else 4
@@ -2482,8 +3050,7 @@ def _check_tcgen05_mma_block_scale(m):
 
 
 def _check_tcgen05_mma_block_scale_block(m):
-    """Valid block sizes per kind: mxf8f6f4/mxf4 use block32, while
-    mxf4nvf4 supports block16 and block32."""
+    """Validate documented block sizes and require collector A before collector B."""
     valid = {
         "kind::mxf8f6f4": ("block32",),
         "kind::mxf4": ("block32",),
@@ -2491,6 +3058,9 @@ def _check_tcgen05_mma_block_scale_block(m):
     }[m["kind"]]
     if m["block_size"] not in valid:
         return f"{m['kind']} supports {'/'.join(valid)}"
+    collector_b = m.get("collector_b", "")
+    if collector_b and not m.get("collector_a", ""):
+        return "collector B requires collector A"
     return None
 
 
@@ -2503,15 +3073,2669 @@ _cp_mask_lanes = _present_lanes("cp_mask")
 _ignore_oob_lanes = _present_lanes("ignore_oob")
 
 
+def _check_lop3_imm(_m, operand, value):
+    """PTX ISA 9.7.9.6 constrains immLut to one unsigned byte."""
+    if operand == "immLut" and not 0 <= value <= 255:
+        return f"operand 'immLut' must be in the inclusive range 0..255, got {value}"
+    return None
+
+
+def _multicast_mask_dtype(m):
+    """PTX 9.4's explicit ::32b multicast token selects a 32-bit CTA mask."""
+    return "u32" if m["multicast"].endswith("::32b") else "u16"
+
+
+def _sp_num(m):
+    return int(m["num"][1:])
+
+
+def _sp_bits(token):
+    return int(token[1:])
+
+
+def _spcompress_lanes(role):
+    """Return a PTX 9.4 spcompress register-vector length for one operand."""
+
+    def lanes(m):
+        num = _sp_num(m)
+        if role == "data":
+            return 2 * num
+        if role == "cdata":
+            return num
+        return (num * _sp_bits(m["idxsize"]) + _sp_bits(m["elemsize"]) - 1) // _sp_bits(
+            m["elemsize"]
+        )
+
+    return lanes
+
+
+def _spdecompress_factor(m):
+    src, dst = m["spfactor"].removeprefix("sp::").split(":")
+    return int(src), int(dst)
+
+
+def _spdecompress_lanes(role):
+    """Return a PTX 9.4 spdecompress register-vector length for one operand."""
+
+    def lanes(m):
+        src, dst = _spdecompress_factor(m)
+        num = _sp_num(m)
+        elem = _sp_bits(m["elemsize"])
+        idx = _sp_bits(m["idxsize"])
+        bits = {
+            "mdata": src * idx * num,
+            "cdata": src * elem * num,
+            "data": dst * elem * num,
+        }[role]
+        return (bits + 31) // 32
+
+    return lanes
+
+
+def _check_spdecompress(m):
+    """Enforce PTX 9.4's five spdecompress vector-size constraints."""
+    src, dst = _spdecompress_factor(m)
+    num = _sp_num(m)
+    elem = _sp_bits(m["elemsize"])
+    idx = _sp_bits(m["idxsize"])
+    if src * elem > 32:
+        return "one compressed iteration must fit in one .b32 register"
+    if 2**idx < dst:
+        return f".{m['idxsize']} cannot index {dst} target elements"
+    data_bits = dst * elem * num
+    if data_bits < 32 or data_bits > 4096:
+        return "the dense data vector must occupy 1..128 .b32 registers"
+    sizes = (
+        _spdecompress_lanes("mdata")(m),
+        _spdecompress_lanes("cdata")(m),
+        _spdecompress_lanes("data")(m),
+    )
+    if sum(sizes) > 253:
+        return "the three register vectors may contain at most 253 registers total"
+    return None
+
+
+def _tcgen05_spcompress_lanes(role):
+    """Return a PTX 9.4 tcgen05.ld.spcompress output-vector length."""
+    return lambda m: (_sp_num(m) + 31) // 32 if role == "mdata" else _sp_num(m) // 2
+
+
+def _check_report_ignore_oob(m):
+    """With .ignore_oob, PTX 9.4 permits only the explicitly disabled report."""
+    if m.get("ignore_oob") and m["report"] != "mbarrier::report::disabled":
+        return ".ignore_oob requires .mbarrier::report::disabled"
+    return None
+
+
+def _check_cp_async_bulk_cta_report(m):
+    """Enforce non-tensor bulk-copy semantics and the CTA report/OOB pairing."""
+    return _check_cp_async_bulk_sem(m) or _check_report_ignore_oob(m)
+
+
+_PTX_94_REPORT_MECHANISMS = (
+    "mbarrier::report::disabled",
+    "mbarrier::report::validity::per_16bytes::80000000",
+    "mbarrier::report::validity::per_16bytes::8000",
+    "mbarrier::report::validity::per_16bytes::80",
+    "mbarrier::report::validity::per_16bytes::8",
+    "mbarrier::report::validity::per_element::ff",
+)
+
+
+def _tma_dim_lanes(m):
+    return int(m["dim"][0])
+
+
+def _tma_lower_stride_lanes(m):
+    return int(m["dim"][0]) - 1
+
+
+def _tma_im2col_lanes(m):
+    return int(m["dim"][0]) - 2 if m["load_mode"] == "im2col" else 2
+
+
+def _check_tma_im2col(m):
+    """PTX im2col and im2col_no_offs modes require at least three dimensions."""
+    if int(m["dim"][0]) < 3:
+        return f".{m['load_mode']} requires .3d, .4d, or .5d"
+    return None
+
+
+def _tma_im2col_dtype(m):
+    return "u16" if m["load_mode"] == "im2col" else "b16"
+
+
+def _tma_global_dim_operands(bracket, size_type):
+    return (
+        OperandSlot("tmap", kind="addr", space="global", bracket=bracket),
+        OperandSlot("global_address", dtype="u64", bracket=bracket),
+        OperandSlot("tensor_size", dtype=size_type, lanes=1, vector=True, bracket=bracket),
+        OperandSlot("coords", dtype="s32", lanes=1, vector=True, bracket=bracket),
+    )
+
+
+def _tma_global_dim_stride_operands(bracket, size_type):
+    return (
+        OperandSlot("tmap", kind="addr", space="global", bracket=bracket),
+        OperandSlot("global_address", dtype="u64", bracket=bracket),
+        OperandSlot(
+            "tensor_size",
+            dtype=size_type,
+            lanes=_tma_dim_lanes,
+            bracket=bracket,
+        ),
+        OperandSlot(
+            "lower_stride",
+            dtype="b32",
+            lanes=_tma_lower_stride_lanes,
+            bracket=bracket,
+        ),
+        OperandSlot("upper_stride", dtype="b16", bracket=bracket),
+        OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket=bracket),
+    )
+
+
+_TCGEN05_COLLECTOR_A = (
+    "collector::a::fill",
+    "collector::a::use",
+    "collector::a::lastuse",
+    "collector::a::discard",
+)
+_TCGEN05_COLLECTOR_B = (
+    "collector::b::fill",
+    "collector::b::use",
+    "collector::b::lastuse",
+    "collector::b::discard",
+)
+_TCGEN05_WS_COLLECTOR_B = tuple(
+    f"collector::b{buffer}::{op}"
+    for buffer in range(4)
+    for op in ("fill", "use", "lastuse", "discard")
+)
+
+
+def _check_tcgen05_collector_ashift(m):
+    """An A collector fill/use operation cannot be combined with .ashift."""
+    if m.get("ashift") and m["collector_a"] in (
+        "collector::a::fill",
+        "collector::a::use",
+    ):
+        return ".ashift cannot be combined with collector A fill/use"
+    return None
+
+
+def _check_set_packed(m):
+    """Unsigned aliases .lo/.ls/.hi/.hs are invalid for signed packed types."""
+    if m["type"].startswith("s") and m["cmp"] in ("lo", "ls", "hi", "hs"):
+        return "unsigned comparison qualifier requires an unsigned packed type"
+    return None
+
+
+_PTX_94_ENTRIES = [
+    # PTX ISA 9.4, 9.7.5.1/2 -- SM107 mixed packed add/sub.  Keep the
+    # three type positions independent: the syntax defines one up-conversion
+    # line and two fixed down-conversion lines, not their Cartesian product.
+    *[
+        InstructionEntry(
+            name=f"{name}_mixed_vec_up",
+            mnemonic=name,
+            slots=(
+                ModifierSlot("rnd", _FRND, optional=True),
+                ModifierSlot("dtype", ("f32x2",)),
+                ModifierSlot("atype", ("f16x2", "bf16x2")),
+                ModifierSlot("ctype", ("f32x2",)),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("d", rw="w", dtype="dtype"),
+                OperandSlot("a", dtype="atype"),
+                OperandSlot("c", dtype="ctype"),
+            ),
+        )
+        for name in ("add", "sub")
+    ],
+    *[
+        InstructionEntry(
+            name=f"{name}_mixed_vec_down_f16",
+            mnemonic=name,
+            slots=(
+                ModifierSlot("rnd", ("rz",)),
+                ModifierSlot("ftz", ("ftz",)),
+                ModifierSlot("dtype", ("f16x2",)),
+                ModifierSlot("atype", ("f32x2",)),
+                ModifierSlot("ctype", ("f32x2",)),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("d", rw="w", dtype="dtype"),
+                OperandSlot("a", dtype="atype"),
+                OperandSlot("c", dtype="ctype"),
+            ),
+        )
+        for name in ("add", "sub")
+    ],
+    *[
+        InstructionEntry(
+            name=f"{name}_mixed_vec_down_bf16",
+            mnemonic=name,
+            slots=(
+                ModifierSlot("rnd", ("rz",)),
+                ModifierSlot("dtype", ("bf16x2",)),
+                ModifierSlot("atype", ("f32x2",)),
+                ModifierSlot("ctype", ("f32x2",)),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("d", rw="w", dtype="dtype"),
+                OperandSlot("a", dtype="atype"),
+                OperandSlot("c", dtype="ctype"),
+            ),
+        )
+        for name in ("add", "sub")
+    ],
+    # PTX ISA 9.4, 9.7.5.3 -- vector mixed-precision fused multiply-add.
+    InstructionEntry(
+        name="fma_mixed_vec",
+        mnemonic="fma",
+        slots=(
+            ModifierSlot("rnd", _FRND),
+            ModifierSlot("dtype", ("f32x2",)),
+            ModifierSlot("atype", ("f16x2", "bf16x2")),
+            ModifierSlot("btype", ("f32x2",)),
+            ModifierSlot("ctype", ("f32x2",)),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="dtype"),
+            OperandSlot("a", dtype="atype"),
+            OperandSlot("b", dtype="btype"),
+            OperandSlot("c", dtype="ctype"),
+        ),
+    ),
+    # PTX ISA 9.4, 9.7.5.4 -- the four mixed vector multiply syntax lines.
+    InstructionEntry(
+        name="mul_mixed_vec_down_f16",
+        mnemonic="mul",
+        slots=(
+            ModifierSlot("ftz", ("ftz",)),
+            ModifierSlot("rnd", ("rz",)),
+            ModifierSlot("dtype", ("f16x2",)),
+            ModifierSlot("atype", ("f32x2",)),
+            ModifierSlot("ctype", ("f32x2",)),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="dtype"),
+            OperandSlot("a", dtype="atype"),
+            OperandSlot("c", dtype="ctype"),
+        ),
+    ),
+    InstructionEntry(
+        name="mul_mixed_vec_down_bf16",
+        mnemonic="mul",
+        slots=(
+            ModifierSlot("rnd", ("rz",)),
+            ModifierSlot("dtype", ("bf16x2",)),
+            ModifierSlot("atype", ("f32x2",)),
+            ModifierSlot("ctype", ("f32x2",)),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="dtype"),
+            OperandSlot("a", dtype="atype"),
+            OperandSlot("c", dtype="ctype"),
+        ),
+    ),
+    InstructionEntry(
+        name="mul_mixed_vec_bf16_f16",
+        mnemonic="mul",
+        slots=(
+            ModifierSlot("dtype", ("bf16x2",)),
+            ModifierSlot("atype", ("bf16x2",)),
+            ModifierSlot("ctype", ("f16x2",)),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="dtype"),
+            OperandSlot("a", dtype="atype"),
+            OperandSlot("c", dtype="ctype"),
+        ),
+    ),
+    InstructionEntry(
+        name="mul_mixed_vec_f16_bf16",
+        mnemonic="mul",
+        slots=(
+            ModifierSlot("dtype", ("f16x2",)),
+            ModifierSlot("atype", ("f16x2",)),
+            ModifierSlot("ctype", ("bf16x2",)),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="dtype"),
+            OperandSlot("a", dtype="atype"),
+            OperandSlot("c", dtype="ctype"),
+        ),
+    ),
+    # PTX ISA 9.4, 9.7.7.1 -- packed integer comparisons on SM107.
+    # All three operands ride ordinary .b32 registers; the instruction type
+    # selects two half-word or four byte comparisons and packed all-ones/zero
+    # results.
+    InstructionEntry(
+        name="set_packed",
+        mnemonic="set",
+        slots=(
+            ModifierSlot("cmp", ("eq", "ne", "lt", "le", "gt", "ge", "lo", "ls", "hi", "hs")),
+            ModifierSlot("type", ("u8x4", "s8x4", "u16x2", "s16x2")),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="b32"),
+            OperandSlot("a", dtype="b32"),
+            OperandSlot("b", dtype="b32"),
+        ),
+        check=_check_set_packed,
+    ),
+    # PTX ISA 9.4, 9.7.10.8 -- readonly-proxy scalar load.
+    # The source is .global or a generic address pointing to global/const; this
+    # syntax line carries no memory-ordering or cache qualifiers.
+    # The ISA spells the qualifier in two places: the Syntax block prints it
+    # before .type (`ld.proxy::readonly{.ss}.type d, [a];`) and the Examples
+    # after it (`ld.global.u32.proxy::readonly %r0, [%rd0];`).  MEASURED on
+    # CUDA 13.4 ptxas (sm_90 and sm_107a): both orders assemble.  The Examples
+    # order is registered.
+    # MEASURED on CUDA 13.4: the shared grammar's .b128 production answers
+    # "Illegal modifier '.proxy::readonly' for instruction 'ld'" when the
+    # readonly proxy is present, so .b128 stays out of this entry's type slot.
+    InstructionEntry(
+        name="ld_proxy_readonly",
+        mnemonic="ld",
+        slots=(
+            ModifierSlot("space", ("global",), optional=True),
+            ModifierSlot("type", tuple(t for t in _LD_TYPES if t != "b128")),
+            ModifierSlot("proxy", ("proxy::readonly",)),
+        ),
+        cert_arch="sm_90",
+        operands=(
+            OperandSlot("d", rw="w", dtypes=_relaxed_mem_dtypes),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
+        ),
+    ),
+    # PTX ISA 9.4, 9.7.10.16 -- validity-checked 32-byte L1 prefetch.
+    # .valid_addr is mandatory on this syntax line and the address is global
+    # or generic pointing to global.
+    InstructionEntry(
+        name="prefetch_valid_addr",
+        mnemonic="prefetch",
+        slots=(
+            ModifierSlot("space", ("global",), optional=True),
+            ModifierSlot("level", ("L1::32B",)),
+            ModifierSlot("valid_addr", ("valid_addr",)),
+        ),
+        cert_arch="sm_90",
+        operands=(OperandSlot("addr", kind="addr", allow_imm_offset=True),),
+    ),
+    # PTX ISA 9.4, 9.7.10.24 -- .pzo on the scalar/vector/tf32 frnd2
+    # conversion lines.  Written .pzo makes these siblings disjoint from the
+    # pre-9.4 entries with the same operand shapes.
+    # Target floor of the 9.4 cvt additions (.pzo, .rz on the narrow packed
+    # destinations, .scaled::n1::ue8m0, .ue5m3x2): the 9.4 Target ISA Notes
+    # carry no explicit entry for them.  MEASURED on CUDA 13.4: sm_107a and
+    # sm_107f assemble them; sm_103a answers "Feature '.pzo' not supported on
+    # .target 'sm_103a'".  Every such entry below certifies at sm_107f.
+    InstructionEntry(
+        name="cvt_pzo_scalar_f32",
+        mnemonic="cvt",
+        slots=(
+            ModifierSlot("rnd", ("rn", "rz")),
+            ModifierSlot("relu", ("relu",), optional=True),
+            ModifierSlot("satfinite", ("satfinite",), optional=True),
+            ModifierSlot("pzo", ("pzo",)),
+            ModifierSlot("dtype", ("f16", "bf16")),
+            ModifierSlot("atype", ("f32",)),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="dtype"),
+            OperandSlot("a", dtype="f32"),
+        ),
+    ),
+    InstructionEntry(
+        name="cvt_pzo_fp16x2_f32",
+        mnemonic="cvt",
+        slots=(
+            ModifierSlot("rnd", ("rn", "rz")),
+            ModifierSlot("relu", ("relu",), optional=True),
+            ModifierSlot("satfinite", ("satfinite",), optional=True),
+            ModifierSlot("pzo", ("pzo",)),
+            ModifierSlot("dtype", ("f16x2", "bf16x2")),
+            ModifierSlot("atype", ("f32",)),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="dtype"),
+            OperandSlot("a", dtype="f32"),
+            OperandSlot("b", dtype="f32"),
+        ),
+    ),
+    InstructionEntry(
+        name="cvt_pzo_tf32_f32",
+        mnemonic="cvt",
+        slots=(
+            ModifierSlot("rnd", ("rn", "rz")),
+            ModifierSlot("satfinite", ("satfinite",), optional=True),
+            ModifierSlot("relu", ("relu",), optional=True),
+            ModifierSlot("pzo", ("pzo",)),
+            ModifierSlot("dtype", ("tf32",)),
+            ModifierSlot("atype", ("f32",)),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="tf32"),
+            OperandSlot("a", dtype="f32"),
+        ),
+    ),
+    # MEASURED on CUDA 13.4: PTX 9.4 also prints .pzo on the stochastic-rounding
+    # .rs lines, but ptxas rejects both the documented .rs.pzo order and .pzo.rs
+    # with "Illegal modifier '.pzo' for instruction 'cvt' with '.rs'"; do not
+    # expose uncertified helpers until the toolchain implements those lines.
+    # The five narrow packed destinations gain .rz, .pzo and n1 scaling.  The
+    # check removes only the already-owned bare .rn variant; every remaining
+    # combination contains at least one PTX 9.4 token.
+    InstructionEntry(
+        name="cvt_94_narrow_f32",
+        mnemonic="cvt",
+        slots=(
+            ModifierSlot("rnd", ("rn", "rz")),
+            ModifierSlot("satfinite", ("satfinite",)),
+            ModifierSlot("relu", ("relu",), optional=True),
+            ModifierSlot("pzo", ("pzo",), optional=True),
+            ModifierSlot("scaled", ("scaled::n1::ue8m0",), optional=True),
+            ModifierSlot("dtype", ("e4m3x2", "e5m2x2", "e2m1x2", "e2m3x2", "e3m2x2")),
+            ModifierSlot("atype", ("f32",)),
+        ),
+        check=_check_cvt_94_narrow,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="dtype"),
+            OperandSlot("a", dtype="f32"),
+            OperandSlot("b", dtype="f32"),
+            OperandSlot(
+                "scale_factor",
+                dtype="cvt_scale_ue8m0",
+                lanes=_cvt_scale_lanes,
+                vector=False,
+            ),
+        ),
+    ),
+    InstructionEntry(
+        name="cvt_94_narrow_fp16x2",
+        mnemonic="cvt",
+        slots=(
+            ModifierSlot("rnd", ("rn", "rz")),
+            ModifierSlot("satfinite", ("satfinite",)),
+            ModifierSlot("relu", ("relu",), optional=True),
+            ModifierSlot("pzo", ("pzo",), optional=True),
+            ModifierSlot("scaled", ("scaled::n1::ue8m0",), optional=True),
+            ModifierSlot("dtype", ("e4m3x2", "e5m2x2", "e2m1x2", "e2m3x2", "e3m2x2")),
+            ModifierSlot("atype", ("f16x2", "bf16x2")),
+        ),
+        check=_check_cvt_94_narrow,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="dtype"),
+            OperandSlot("a", dtype="atype"),
+            OperandSlot(
+                "scale_factor",
+                dtype="cvt_scale_ue8m0",
+                lanes=_cvt_scale_lanes,
+                vector=False,
+            ),
+        ),
+    ),
+    # PTX ISA 9.4's UE5M3 conversion family.  .ue5m3x2 always rides .b16;
+    # n1 scale factors ride the scoped .b8 bridge and n2 factors stay packed
+    # in the existing .b16 ue8m0x2 carrier.
+    InstructionEntry(
+        name="cvt_ue5m3x2_f32",
+        mnemonic="cvt",
+        slots=(
+            ModifierSlot("rnd", ("rn", "rz", "rp")),
+            ModifierSlot("satfinite", ("satfinite",), optional=True),
+            ModifierSlot("dtype", ("ue5m3x2",)),
+            ModifierSlot("atype", ("f32",)),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="ue5m3x2"),
+            OperandSlot("a", dtype="f32"),
+            OperandSlot("b", dtype="f32"),
+        ),
+    ),
+    InstructionEntry(
+        name="cvt_ue5m3x2_f32_scaled",
+        mnemonic="cvt",
+        slots=(
+            ModifierSlot("rnd", ("rn", "rz")),
+            ModifierSlot("satfinite", ("satfinite",), optional=True),
+            ModifierSlot("scaled", ("scaled::n1::ue8m0",)),
+            ModifierSlot("dtype", ("ue5m3x2",)),
+            ModifierSlot("atype", ("f32",)),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="ue5m3x2"),
+            OperandSlot("a", dtype="f32"),
+            OperandSlot("b", dtype="f32"),
+            OperandSlot("scale_factor", dtype="cvt_scale_ue8m0"),
+        ),
+    ),
+    InstructionEntry(
+        name="cvt_ue5m3x2_fp16x2",
+        mnemonic="cvt",
+        slots=(
+            ModifierSlot("rnd", ("rn", "rz", "rp")),
+            ModifierSlot("satfinite", ("satfinite",), optional=True),
+            ModifierSlot("dtype", ("ue5m3x2",)),
+            ModifierSlot("atype", ("f16x2", "bf16x2")),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="ue5m3x2"),
+            OperandSlot("a", dtype="atype"),
+        ),
+    ),
+    InstructionEntry(
+        name="cvt_ue5m3x2_fp16x2_scaled",
+        mnemonic="cvt",
+        slots=(
+            ModifierSlot("rnd", ("rn", "rz")),
+            ModifierSlot("satfinite", ("satfinite",), optional=True),
+            ModifierSlot("scaled", ("scaled::n1::ue8m0",)),
+            ModifierSlot("dtype", ("ue5m3x2",)),
+            ModifierSlot("atype", ("f16x2", "bf16x2")),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="ue5m3x2"),
+            OperandSlot("a", dtype="atype"),
+            OperandSlot("scale_factor", dtype="cvt_scale_ue8m0"),
+        ),
+    ),
+    InstructionEntry(
+        name="cvt_f16x2_ue5m3x2",
+        mnemonic="cvt",
+        slots=(
+            ModifierSlot("rnd", ("rn",)),
+            ModifierSlot("dtype", ("f16x2",)),
+            ModifierSlot("atype", ("ue5m3x2",)),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="f16x2"),
+            OperandSlot("a", dtype="ue5m3x2"),
+        ),
+    ),
+    InstructionEntry(
+        name="cvt_bf16x2_ue5m3x2",
+        mnemonic="cvt",
+        slots=(
+            ModifierSlot("rnd", ("rn",)),
+            ModifierSlot("satfinite", ("satfinite",), optional=True),
+            ModifierSlot("scaled", ("scaled::n2::ue8m0",), optional=True),
+            ModifierSlot("dtype", ("bf16x2",)),
+            ModifierSlot("atype", ("ue5m3x2",)),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("d", rw="w", dtype="bf16x2"),
+            OperandSlot("a", dtype="ue5m3x2"),
+            OperandSlot(
+                "scale_factor",
+                dtype="ue8m0x2",
+                lanes=_cvt_scale_lanes,
+                vector=False,
+            ),
+        ),
+    ),
+    # PTX ISA 9.4, 9.7.10.28.4.1 and 9.7.10.28.5.3 -- 32-bit cluster
+    # multicast masks for non-tensor and tensor global-to-shared copies.
+    InstructionEntry(
+        name="cp_async_bulk_g2s_cluster_multicast32",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("sem", ("weak", "relaxed"), optional=True),
+            ModifierSlot("scope", ("cta", "cluster", "gpu", "sys"), optional=True),
+            ModifierSlot("dst", ("shared::cluster",)),
+            ModifierSlot("src", ("global",)),
+            ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
+            ModifierSlot("multicast", ("multicast::cluster::32b",)),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+            ModifierSlot("type", ("b128",), optional=True),
+        ),
+        check=_check_cp_async_bulk_sem,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared::cluster"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="global"),
+            OperandSlot("size", dtype="u32"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
+            OperandSlot("cta_mask", dtype="u32"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    InstructionEntry(
+        name="cp_async_bulk_tensor_g2s_cluster_multicast32",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("1d", "2d", "3d", "4d", "5d")),
+            ModifierSlot("dst", ("shared::cluster",)),
+            ModifierSlot("src", ("global",)),
+            ModifierSlot("load_mode", ("tile", "tile::gather4"), optional=True),
+            ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
+            ModifierSlot("multicast", ("multicast::cluster::32b",)),
+            ModifierSlot("cta_group", ("cta_group::1", "cta_group::2"), optional=True),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+        ),
+        cert_arch="sm_107f",
+        check=_check_tma_gather4,
+        operands=(
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared::cluster"),
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
+            OperandSlot("cta_mask", dtype="u32"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    # PTX ISA 9.4, 9.7.15.16.14-17 -- 32-bit multicast mbarrier forms.
+    *[
+        InstructionEntry(
+            name=f"mbarrier_{action}_multicast32",
+            mnemonic="mbarrier",
+            slots=(
+                ModifierSlot("action", (action,)),
+                ModifierSlot("sem", ("relaxed",), optional=True),
+                ModifierSlot("scope", ("cta", "cluster"), optional=True),
+                ModifierSlot("space", ("shared::cluster",)),
+                ModifierSlot("multicast", ("multicast::cluster::32b",)),
+                ModifierSlot("type", ("b64",)),
+            ),
+            check=_check_mbarrier_sem_scope,
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("addr", kind="addr", allow_imm_offset=True, space="shared::cluster"),
+                OperandSlot("tx_count", dtype="u32"),
+                OperandSlot("cta_mask", dtype="u32"),
+            ),
+        )
+        for action in ("expect_tx", "complete_tx")
+    ],
+    *[
+        InstructionEntry(
+            name=f"mbarrier_{action}_multicast32_nocount",
+            mnemonic="mbarrier",
+            slots=(
+                ModifierSlot("action", (action,)),
+                ModifierSlot("sem", ("release", "relaxed"), optional=True),
+                ModifierSlot("scope", ("cta", "cluster"), optional=True),
+                ModifierSlot("space", ("shared::cluster",)),
+                ModifierSlot("multicast", ("multicast::cluster::32b",)),
+                ModifierSlot("type", ("b64",)),
+            ),
+            check=_check_mbarrier_sem_scope,
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("state", kind="imm", literal="_"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True, space="shared::cluster"),
+                OperandSlot("cta_mask", dtype="u32"),
+            ),
+        )
+        for action in ("arrive", "arrive_drop")
+    ],
+    *[
+        InstructionEntry(
+            name=f"mbarrier_{action}_multicast32",
+            mnemonic="mbarrier",
+            slots=(
+                ModifierSlot("action", (action,)),
+                ModifierSlot("sem", ("release", "relaxed"), optional=True),
+                ModifierSlot("scope", ("cta", "cluster"), optional=True),
+                ModifierSlot("space", ("shared::cluster",)),
+                ModifierSlot("multicast", ("multicast::cluster::32b",)),
+                ModifierSlot("type", ("b64",)),
+            ),
+            check=_check_mbarrier_sem_scope,
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("state", kind="imm", literal="_"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True, space="shared::cluster"),
+                OperandSlot("count", dtype="u32"),
+                OperandSlot("cta_mask", dtype="u32"),
+            ),
+        )
+        for action in ("arrive", "arrive_drop")
+    ],
+    *[
+        InstructionEntry(
+            name=f"mbarrier_{action}_expect_tx_multicast32",
+            mnemonic="mbarrier",
+            slots=(
+                ModifierSlot("action", (action,)),
+                ModifierSlot("expect_tx", ("expect_tx",)),
+                ModifierSlot("sem", ("release", "relaxed"), optional=True),
+                ModifierSlot("scope", ("cta", "cluster"), optional=True),
+                ModifierSlot("space", ("shared::cluster",)),
+                ModifierSlot("multicast", ("multicast::cluster::32b",)),
+                ModifierSlot("type", ("b64",)),
+            ),
+            check=_check_mbarrier_sem_scope,
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("state", kind="imm", literal="_"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True, space="shared::cluster"),
+                OperandSlot("tx_count", dtype="u32"),
+                OperandSlot("cta_mask", dtype="u32"),
+            ),
+        )
+        for action in ("arrive", "arrive_drop")
+    ],
+    # PTX ISA 9.4, 9.7.18.7.1 -- exclusive Tensor Memory ownership.
+    *[
+        InstructionEntry(
+            name=f"tcgen05_{action}_exclusive",
+            mnemonic="tcgen05",
+            slots=(
+                ModifierSlot("action", (action,)),
+                ModifierSlot("exclusive", ("exclusive",)),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
+                ModifierSlot("sync", ("sync",)),
+                ModifierSlot("aligned", ("aligned",)),
+                *(
+                    (ModifierSlot("space", ("shared::cta",), optional=True),)
+                    if action == "alloc"
+                    else ()
+                ),
+                ModifierSlot("type", ("b32",)),
+            ),
+            cert_arch="sm_107f",
+            orders_memory=True,
+            operands=(
+                *(
+                    (OperandSlot("dst", kind="addr", allow_imm_offset=True),)
+                    if action == "alloc"
+                    else (OperandSlot("taddr", dtype="u32"),)
+                ),
+                OperandSlot("ncols", dtype="u32"),
+            ),
+        )
+        for action in ("alloc", "dealloc")
+    ],
+    # PTX ISA 9.4, 9.7.18.12.1 -- explicit mask width and A-read completion.
+    InstructionEntry(
+        name="tcgen05_commit_multicast_width",
+        mnemonic="tcgen05",
+        slots=(
+            ModifierSlot("action", ("commit",)),
+            ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
+            ModifierSlot("completion", ("mbarrier::arrive::one",)),
+            ModifierSlot("space", ("shared::cluster",), optional=True),
+            ModifierSlot(
+                "multicast",
+                ("multicast::cluster::16b", "multicast::cluster::32b"),
+            ),
+            ModifierSlot("type", ("b64",)),
+        ),
+        cert_arch="sm_107f",
+        orders_memory=True,
+        operands=(
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True),
+            OperandSlot("cta_mask", dtype=_multicast_mask_dtype),
+        ),
+    ),
+    InstructionEntry(
+        name="tcgen05_commit_sync_restrict",
+        mnemonic="tcgen05",
+        slots=(
+            ModifierSlot("action", ("commit",)),
+            ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
+            ModifierSlot("completion", ("mbarrier::arrive::one",)),
+            ModifierSlot("sync_restrict", ("sync_restrict::shared::read::mma::a",)),
+            ModifierSlot("space", ("shared::cluster",), optional=True),
+            ModifierSlot("type", ("b64",)),
+        ),
+        cert_arch="sm_107f",
+        orders_memory=True,
+        operands=(OperandSlot("mbar", kind="addr", allow_imm_offset=True),),
+    ),
+    InstructionEntry(
+        name="tcgen05_commit_sync_restrict_multicast",
+        mnemonic="tcgen05",
+        slots=(
+            ModifierSlot("action", ("commit",)),
+            ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
+            ModifierSlot("completion", ("mbarrier::arrive::one",)),
+            ModifierSlot("sync_restrict", ("sync_restrict::shared::read::mma::a",)),
+            ModifierSlot("space", ("shared::cluster",), optional=True),
+            ModifierSlot(
+                "multicast",
+                (
+                    "multicast::cluster",
+                    "multicast::cluster::16b",
+                    "multicast::cluster::32b",
+                ),
+            ),
+            ModifierSlot("type", ("b64",)),
+        ),
+        cert_arch="sm_107f",
+        orders_memory=True,
+        operands=(
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True),
+            OperandSlot("cta_mask", dtype=_multicast_mask_dtype),
+        ),
+    ),
+    # PTX ISA 9.4, 9.7.10.18/19 -- bulk and tensor cache-priority operations.
+    InstructionEntry(
+        name="applypriority_async_bulk",
+        mnemonic="applypriority",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("src", ("global",), optional=True),
+            ModifierSlot("completion", ("bulk_group",)),
+            ModifierSlot("priority", ("L2::evict_normal",)),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("addr", kind="addr", allow_imm_offset=True, space="global"),
+            OperandSlot("size", dtype="u32"),
+        ),
+    ),
+    InstructionEntry(
+        name="applypriority_async_bulk_tensor",
+        mnemonic="applypriority",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("1d", "2d", "3d", "4d", "5d")),
+            ModifierSlot("src", ("global",), optional=True),
+            ModifierSlot("completion", ("bulk_group",)),
+            ModifierSlot("load_mode", ("tile", "tile::gather4"), optional=True),
+            ModifierSlot("priority", ("L2::evict_normal",)),
+        ),
+        check=_check_tma_gather4,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+        ),
+    ),
+    # PTX ISA 9.4, 9.7.10.30/31 -- register-vector sparse compression.
+    InstructionEntry(
+        name="spcompress",
+        slots=(
+            ModifierSlot("elemsize", ("b8", "b16")),
+            ModifierSlot("idxsize", ("b2", "b4")),
+            ModifierSlot("spfactor", ("sp::2:4",)),
+            ModifierSlot("num", ("x1", "x2", "x4", "x8", "x16", "x32", "x64")),
+        ),
+        cert_arch="sm_107a",
+        operands=(
+            OperandSlot("mdata", rw="w", dtype="b32", lanes=_spcompress_lanes("mdata")),
+            OperandSlot("cdata", rw="w", dtype="b32", lanes=_spcompress_lanes("cdata")),
+            OperandSlot("data", dtype="b32", lanes=_spcompress_lanes("data")),
+            OperandSlot("spdesc", dtype="u32"),
+        ),
+    ),
+    InstructionEntry(
+        name="spdecompress",
+        slots=(
+            ModifierSlot("elemsize", ("b8", "b16")),
+            ModifierSlot("idxsize", ("b2", "b4")),
+            ModifierSlot(
+                "spfactor",
+                (
+                    "sp::1:2",
+                    "sp::1:4",
+                    "sp::1:8",
+                    "sp::1:16",
+                    "sp::2:4",
+                    "sp::2:8",
+                    "sp::2:16",
+                    "sp::4:8",
+                    "sp::4:16",
+                ),
+            ),
+            ModifierSlot("num", ("x1", "x2", "x4", "x8", "x16", "x32", "x64")),
+        ),
+        check=_check_spdecompress,
+        cert_arch="sm_107a",
+        operands=(
+            OperandSlot("data", rw="w", dtype="b32", lanes=_spdecompress_lanes("data")),
+            OperandSlot("mdata", dtype="b32", lanes=_spdecompress_lanes("mdata")),
+            OperandSlot("cdata", dtype="b32", lanes=_spdecompress_lanes("cdata")),
+        ),
+    ),
+    # PTX ISA 9.4, 9.7.18.8.3 -- Tensor Memory load fused with 2:4 compression.
+    InstructionEntry(
+        name="tcgen05_ld_spcompress",
+        mnemonic="tcgen05",
+        slots=(
+            ModifierSlot("action", ("ld",)),
+            ModifierSlot("spcompress", ("spcompress",)),
+            ModifierSlot("sync", ("sync",)),
+            ModifierSlot("aligned", ("aligned",)),
+            ModifierSlot("shape", ("32x32b",)),
+            ModifierSlot("num", ("x4", "x8", "x16", "x32", "x64", "x128")),
+            ModifierSlot("rowop", ("min", "max")),
+            ModifierSlot("spfactor", ("sp::2:4",)),
+            ModifierSlot("abs", ("abs",), optional=True),
+            ModifierSlot("type", ("f32",)),
+            ModifierSlot("idxsize", ("b2",)),
+        ),
+        cert_arch="sm_107a",
+        operands=(
+            OperandSlot("mdata", rw="w", dtype="b32", lanes=_tcgen05_spcompress_lanes("mdata")),
+            OperandSlot("cdata", rw="w", dtype="b32", lanes=_tcgen05_spcompress_lanes("cdata")),
+            OperandSlot("taddr", kind="addr", space="tmem"),
+        ),
+    ),
+    InstructionEntry(
+        name="tcgen05_ld_red_spcompress",
+        mnemonic="tcgen05",
+        slots=(
+            ModifierSlot("action", ("ld",)),
+            ModifierSlot("red", ("red",)),
+            ModifierSlot("spcompress", ("spcompress",)),
+            ModifierSlot("sync", ("sync",)),
+            ModifierSlot("aligned", ("aligned",)),
+            ModifierSlot("shape", ("32x32b",)),
+            ModifierSlot("num", ("x4", "x8", "x16", "x32", "x64", "x128")),
+            ModifierSlot("rowop", ("min", "max")),
+            ModifierSlot("spfactor", ("sp::2:4",)),
+            ModifierSlot("abs", ("abs",), optional=True),
+            ModifierSlot("nan", ("NaN",), optional=True),
+            ModifierSlot("type", ("f32",)),
+            ModifierSlot("idxsize", ("b2",)),
+        ),
+        cert_arch="sm_107a",
+        operands=(
+            OperandSlot("mdata", rw="w", dtype="b32", lanes=_tcgen05_spcompress_lanes("mdata")),
+            OperandSlot("cdata", rw="w", dtype="b32", lanes=_tcgen05_spcompress_lanes("cdata")),
+            OperandSlot("redval", rw="w", dtype="f32"),
+            OperandSlot("taddr", kind="addr", space="tmem"),
+        ),
+    ),
+    # PTX ISA 9.4, 9.7.10.28.4.1 -- explicit 16-bit multicast spelling.
+    # (The tensor sibling is the corresponding 9.7.10.28.5.3 syntax line.)
+    InstructionEntry(
+        name="cp_async_bulk_g2s_cluster_multicast16",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("sem", ("weak", "relaxed"), optional=True),
+            ModifierSlot("scope", ("cta", "cluster", "gpu", "sys"), optional=True),
+            ModifierSlot("dst", ("shared::cluster",)),
+            ModifierSlot("src", ("global",)),
+            ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
+            ModifierSlot("multicast", ("multicast::cluster::16b",)),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+            ModifierSlot("type", ("b128",), optional=True),
+        ),
+        check=_check_cp_async_bulk_sem,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared::cluster"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="global"),
+            OperandSlot("size", dtype="u32"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
+            OperandSlot("cta_mask", dtype="u16"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    InstructionEntry(
+        name="cp_async_bulk_tensor_g2s_cluster_multicast16",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("1d", "2d", "3d", "4d", "5d")),
+            ModifierSlot("dst", ("shared::cluster",)),
+            ModifierSlot("src", ("global",)),
+            ModifierSlot("load_mode", ("tile", "tile::gather4"), optional=True),
+            ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
+            ModifierSlot("multicast", ("multicast::cluster::16b",)),
+            ModifierSlot("cta_group", ("cta_group::1", "cta_group::2"), optional=True),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+        ),
+        check=_check_tma_gather4,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared::cluster"),
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
+            OperandSlot("cta_mask", dtype="u16"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    # PTX ISA 9.4, 9.7.10.28.4.1 and 9.7.10.28.5.3: explicit report tokens
+    # are siblings of the pre-9.4 default-disabled forms.
+    InstructionEntry(
+        name="cp_async_bulk_g2s_cta_report",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("sem", ("weak", "relaxed"), optional=True),
+            ModifierSlot("scope", ("cta", "cluster", "gpu", "sys"), optional=True),
+            ModifierSlot("dst", ("shared::cta",)),
+            ModifierSlot("src", ("global",)),
+            ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
+            ModifierSlot("report", _PTX_94_REPORT_MECHANISMS),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+            ModifierSlot("ignore_oob", ("ignore_oob",), optional=True),
+            ModifierSlot("type", ("b128",), optional=True),
+        ),
+        check=_check_cp_async_bulk_cta_report,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="global"),
+            OperandSlot("size", dtype="u32"),
+            OperandSlot(
+                "ignore_bytes_left",
+                dtype="u32",
+                lanes=_ignore_oob_lanes,
+                vector=False,
+            ),
+            OperandSlot(
+                "ignore_bytes_right",
+                dtype="u32",
+                lanes=_ignore_oob_lanes,
+                vector=False,
+            ),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    InstructionEntry(
+        name="cp_async_bulk_g2s_cluster_report",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("sem", ("weak", "relaxed"), optional=True),
+            ModifierSlot("scope", ("cta", "cluster", "gpu", "sys"), optional=True),
+            ModifierSlot("dst", ("shared::cluster",)),
+            ModifierSlot("src", ("global",)),
+            ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
+            ModifierSlot("report", _PTX_94_REPORT_MECHANISMS),
+            ModifierSlot(
+                "multicast",
+                (
+                    "multicast::cluster",
+                    "multicast::cluster::16b",
+                    "multicast::cluster::32b",
+                ),
+                optional=True,
+            ),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+            ModifierSlot("type", ("b128",), optional=True),
+        ),
+        check=_check_cp_async_bulk_sem,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared::cluster"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="global"),
+            OperandSlot("size", dtype="u32"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
+            OperandSlot(
+                "cta_mask",
+                dtype=_multicast_mask_dtype,
+                lanes=_tma_mask_lanes,
+                vector=False,
+            ),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    InstructionEntry(
+        name="cp_async_bulk_tensor_g2s_cta_report",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("1d", "2d", "3d", "4d", "5d")),
+            ModifierSlot("dst", ("shared::cta",)),
+            ModifierSlot("src", ("global",)),
+            ModifierSlot("load_mode", ("tile", "tile::gather4"), optional=True),
+            ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
+            ModifierSlot("report", _PTX_94_REPORT_MECHANISMS),
+            ModifierSlot("cta_group", ("cta_group::1", "cta_group::2"), optional=True),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+        ),
+        check=_check_tma_gather4,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    InstructionEntry(
+        name="cp_async_bulk_tensor_g2s_cluster_report",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("1d", "2d", "3d", "4d", "5d")),
+            ModifierSlot("dst", ("shared::cluster",)),
+            ModifierSlot("src", ("global",)),
+            ModifierSlot("load_mode", ("tile", "tile::gather4"), optional=True),
+            ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
+            ModifierSlot("report", _PTX_94_REPORT_MECHANISMS),
+            ModifierSlot(
+                "multicast",
+                (
+                    "multicast::cluster",
+                    "multicast::cluster::16b",
+                    "multicast::cluster::32b",
+                ),
+                optional=True,
+            ),
+            ModifierSlot("cta_group", ("cta_group::1", "cta_group::2"), optional=True),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+        ),
+        check=_check_tma_gather4,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared::cluster"),
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
+            OperandSlot(
+                "cta_mask",
+                dtype=_multicast_mask_dtype,
+                lanes=_tma_mask_lanes,
+                vector=False,
+            ),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    # PTX ISA 9.4, 9.7.10.28.4.3/28.5.5: eviction-priority prefetch
+    # alternatives carry no cache-policy operand.
+    InstructionEntry(
+        name="cp_async_bulk_prefetch_evict_last",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("op", ("prefetch",)),
+            ModifierSlot("level", ("L2",)),
+            ModifierSlot("src", ("global",)),
+            ModifierSlot("priority", ("L2::evict_last",)),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="global"),
+            OperandSlot("size", dtype="u32"),
+        ),
+    ),
+    InstructionEntry(
+        name="cp_async_bulk_tensor_prefetch_evict_last",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("action", ("prefetch",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("1d", "2d", "3d", "4d", "5d")),
+            ModifierSlot("level", ("L2",)),
+            ModifierSlot("src", ("global",)),
+            ModifierSlot("load_mode", ("tile", "tile::gather4"), optional=True),
+            ModifierSlot("priority", ("L2::evict_last",)),
+        ),
+        check=_check_tma_gather4,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+        ),
+    ),
+    # TMA im2col load modes use a trailing vector outside the tensor address.
+    *[
+        InstructionEntry(
+            name=f"cp_async_bulk_tensor_g2s_{dst_name}_im2col",
+            mnemonic="cp",
+            slots=(
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("kind", ("bulk",)),
+                ModifierSlot("unit", ("tensor",)),
+                ModifierSlot("dim", ("3d", "4d", "5d")),
+                ModifierSlot("dst", (dst,)),
+                ModifierSlot("src", ("global",)),
+                ModifierSlot("load_mode", ("im2col", "im2col::w", "im2col::w::128")),
+                ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
+                ModifierSlot("report", _PTX_94_REPORT_MECHANISMS, optional=True),
+                *(
+                    (
+                        ModifierSlot(
+                            "multicast",
+                            (
+                                "multicast::cluster",
+                                "multicast::cluster::16b",
+                                "multicast::cluster::32b",
+                            ),
+                            optional=True,
+                        ),
+                    )
+                    if dst == "shared::cluster"
+                    else ()
+                ),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2"), optional=True),
+                ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+            ),
+            check=_check_tma_im2col,
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space=dst),
+                OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+                OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+                OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
+                OperandSlot(
+                    "im2col_info",
+                    dtype=_tma_im2col_dtype,
+                    lanes=_tma_im2col_lanes,
+                ),
+                *(
+                    (
+                        OperandSlot(
+                            "cta_mask",
+                            dtype=_multicast_mask_dtype,
+                            lanes=_tma_mask_lanes,
+                            vector=False,
+                        ),
+                    )
+                    if dst == "shared::cluster"
+                    else ()
+                ),
+                OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+            ),
+        )
+        for dst_name, dst in (("cta", "shared::cta"), ("cluster", "shared::cluster"))
+    ],
+    InstructionEntry(
+        name="cp_async_bulk_tensor_s2g_im2col_no_offs_w",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("3d", "4d", "5d")),
+            ModifierSlot("dst", ("global",)),
+            ModifierSlot("src", ("shared::cta",)),
+            ModifierSlot("load_mode", ("im2col_no_offs", "im2col_no_offs::w")),
+            ModifierSlot("completion", ("bulk_group",)),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+        ),
+        check=_check_tma_im2col,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="dst"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="dst"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    InstructionEntry(
+        name="cp_reduce_async_bulk_tensor_im2col_no_offs_w",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("op", ("reduce",)),
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("3d", "4d", "5d")),
+            ModifierSlot("dst", ("global",)),
+            ModifierSlot("src", ("shared::cta",)),
+            ModifierSlot("redop", ("add", "min", "max", "inc", "dec", "and", "or", "xor")),
+            ModifierSlot("load_mode", ("im2col_no_offs", "im2col_no_offs::w")),
+            ModifierSlot("completion", ("bulk_group",)),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+        ),
+        check=_check_tma_im2col,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="dst"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="dst"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    InstructionEntry(
+        name="cp_async_bulk_tensor_prefetch_im2col",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("action", ("prefetch",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("3d", "4d", "5d")),
+            ModifierSlot("level", ("L2",)),
+            ModifierSlot("src", ("global",)),
+            ModifierSlot("load_mode", ("im2col", "im2col::w", "im2col::w::128")),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+        ),
+        check=_check_tma_im2col,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+            OperandSlot(
+                "im2col_info",
+                dtype=_tma_im2col_dtype,
+                lanes=_tma_im2col_lanes,
+            ),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    InstructionEntry(
+        name="cp_async_bulk_tensor_prefetch_im2col_evict_last",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("action", ("prefetch",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("3d", "4d", "5d")),
+            ModifierSlot("level", ("L2",)),
+            ModifierSlot("src", ("global",)),
+            ModifierSlot("load_mode", ("im2col", "im2col::w", "im2col::w::128")),
+            ModifierSlot("priority", ("L2::evict_last",)),
+        ),
+        check=_check_tma_im2col,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+            OperandSlot(
+                "im2col_info",
+                dtype=_tma_im2col_dtype,
+                lanes=_tma_im2col_lanes,
+            ),
+        ),
+    ),
+    InstructionEntry(
+        name="applypriority_async_bulk_tensor_im2col",
+        mnemonic="applypriority",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("3d", "4d", "5d")),
+            ModifierSlot("src", ("global",), optional=True),
+            ModifierSlot("completion", ("bulk_group",)),
+            ModifierSlot("load_mode", ("im2col", "im2col::w", "im2col::w::128")),
+            ModifierSlot("priority", ("L2::evict_normal",)),
+        ),
+        check=_check_tma_im2col,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+            OperandSlot(
+                "im2col_info",
+                dtype=_tma_im2col_dtype,
+                lanes=_tma_im2col_lanes,
+            ),
+        ),
+    ),
+    # PTX ISA 9.4, 9.7.10.28.5.2: the TMA base-address override is a u64
+    # inside the composite tensor address immediately after tensorMap.
+    *[
+        InstructionEntry(
+            name=f"cp_async_bulk_tensor_g2s_{dst_name}_override_address",
+            mnemonic="cp",
+            slots=(
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("kind", ("bulk",)),
+                ModifierSlot("unit", ("tensor",)),
+                ModifierSlot("dim", ("1d", "2d", "3d", "4d", "5d")),
+                ModifierSlot("dst", (dst,)),
+                ModifierSlot("src", ("global",)),
+                ModifierSlot("load_mode", ("tile", "tile::gather4"), optional=True),
+                ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
+                ModifierSlot("report", _PTX_94_REPORT_MECHANISMS, optional=True),
+                *(
+                    (
+                        ModifierSlot(
+                            "multicast",
+                            (
+                                "multicast::cluster",
+                                "multicast::cluster::16b",
+                                "multicast::cluster::32b",
+                            ),
+                            optional=True,
+                        ),
+                    )
+                    if dst == "shared::cluster"
+                    else ()
+                ),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2"), optional=True),
+                ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+                ModifierSlot("override_address", ("override::global_address",)),
+            ),
+            check=_check_tma_gather4,
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space=dst),
+                OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+                OperandSlot("global_address", dtype="u64", bracket="src"),
+                OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+                OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
+                *(
+                    (
+                        OperandSlot(
+                            "cta_mask",
+                            dtype=_multicast_mask_dtype,
+                            lanes=_tma_mask_lanes,
+                            vector=False,
+                        ),
+                    )
+                    if dst == "shared::cluster"
+                    else ()
+                ),
+                OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+            ),
+        )
+        for dst_name, dst in (("cta", "shared::cta"), ("cluster", "shared::cluster"))
+    ],
+    InstructionEntry(
+        name="cp_async_bulk_tensor_s2g_override_address",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("1d", "2d", "3d", "4d", "5d")),
+            ModifierSlot("dst", ("global",)),
+            ModifierSlot("src", ("shared::cta",)),
+            ModifierSlot("load_mode", ("tile", "tile::scatter4"), optional=True),
+            ModifierSlot("completion", ("bulk_group",)),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+            ModifierSlot("override_address", ("override::global_address",)),
+        ),
+        check=_check_tma_gather4,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="dst"),
+            OperandSlot("global_address", dtype="u64", bracket="dst"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="dst"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    InstructionEntry(
+        name="cp_reduce_async_bulk_tensor_override_address",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("op", ("reduce",)),
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("1d", "2d", "3d", "4d", "5d")),
+            ModifierSlot("dst", ("global",)),
+            ModifierSlot("src", ("shared::cta",)),
+            ModifierSlot("redop", ("add", "min", "max", "inc", "dec", "and", "or", "xor")),
+            ModifierSlot("load_mode", ("tile",), optional=True),
+            ModifierSlot("completion", ("bulk_group",)),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+            ModifierSlot("override_address", ("override::global_address",)),
+        ),
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="dst"),
+            OperandSlot("global_address", dtype="u64", bracket="dst"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="dst"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    InstructionEntry(
+        name="cp_async_bulk_tensor_prefetch_override_address",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("action", ("prefetch",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("1d", "2d", "3d", "4d", "5d")),
+            ModifierSlot("level", ("L2",)),
+            ModifierSlot("src", ("global",)),
+            ModifierSlot("load_mode", ("tile", "tile::gather4"), optional=True),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+            ModifierSlot("override_address", ("override::global_address",)),
+        ),
+        check=_check_tma_gather4,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("global_address", dtype="u64", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    InstructionEntry(
+        name="cp_async_bulk_tensor_prefetch_override_address_evict_last",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("action", ("prefetch",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("1d", "2d", "3d", "4d", "5d")),
+            ModifierSlot("level", ("L2",)),
+            ModifierSlot("src", ("global",)),
+            ModifierSlot("load_mode", ("tile", "tile::gather4"), optional=True),
+            ModifierSlot("priority", ("L2::evict_last",)),
+            ModifierSlot("override_address", ("override::global_address",)),
+        ),
+        check=_check_tma_gather4,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("global_address", dtype="u64", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+        ),
+    ),
+    InstructionEntry(
+        name="applypriority_async_bulk_tensor_override_address",
+        mnemonic="applypriority",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("1d", "2d", "3d", "4d", "5d")),
+            ModifierSlot("src", ("global",), optional=True),
+            ModifierSlot("completion", ("bulk_group",)),
+            ModifierSlot("load_mode", ("tile", "tile::gather4"), optional=True),
+            ModifierSlot("priority", ("L2::evict_normal",)),
+            ModifierSlot("override_address", ("override::global_address",)),
+        ),
+        check=_check_tma_gather4,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("global_address", dtype="u64", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+        ),
+    ),
+    # Attribute override for 1D tensors: a singleton .b8/.b16 size vector.
+    *[
+        InstructionEntry(
+            name=f"cp_async_bulk_tensor_g2s_{dst_name}_override_global_dim_{size_name}",
+            mnemonic="cp",
+            slots=(
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("kind", ("bulk",)),
+                ModifierSlot("unit", ("tensor",)),
+                ModifierSlot("dim", ("1d",)),
+                ModifierSlot("dst", (dst,)),
+                ModifierSlot("src", ("global",)),
+                ModifierSlot("load_mode", ("tile",), optional=True),
+                ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
+                ModifierSlot("report", _PTX_94_REPORT_MECHANISMS, optional=True),
+                *(
+                    (
+                        ModifierSlot(
+                            "multicast",
+                            ("multicast::cluster::32b",),
+                            optional=True,
+                        ),
+                    )
+                    if dst == "shared::cluster"
+                    else ()
+                ),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2"), optional=True),
+                ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+                ModifierSlot("override_address", ("override::global_address",)),
+                ModifierSlot("override_attribute", ("override::global_dim",)),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space=dst),
+                *_tma_global_dim_operands("src", size_type),
+                OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
+                *(
+                    (
+                        OperandSlot(
+                            "cta_mask",
+                            dtype="u32",
+                            lanes=_tma_mask_lanes,
+                            vector=False,
+                        ),
+                    )
+                    if dst == "shared::cluster"
+                    else ()
+                ),
+                OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+            ),
+        )
+        for dst_name, dst in (("cta", "shared::cta"), ("cluster", "shared::cluster"))
+        for size_name, size_type in (("b8", "tma_size_b8"), ("b16", "b16"))
+    ],
+    *[
+        InstructionEntry(
+            name=f"cp_async_bulk_tensor_s2g_override_global_dim_{size_name}",
+            mnemonic="cp",
+            slots=(
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("kind", ("bulk",)),
+                ModifierSlot("unit", ("tensor",)),
+                ModifierSlot("dim", ("1d",)),
+                ModifierSlot("dst", ("global",)),
+                ModifierSlot("src", ("shared::cta",)),
+                ModifierSlot("load_mode", ("tile",), optional=True),
+                ModifierSlot("completion", ("bulk_group",)),
+                ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+                ModifierSlot("override_address", ("override::global_address",)),
+                ModifierSlot("override_attribute", ("override::global_dim",)),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                *_tma_global_dim_operands("dst", size_type),
+                OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+                OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+            ),
+        )
+        for size_name, size_type in (("b8", "tma_size_b8"), ("b16", "b16"))
+    ],
+    *[
+        InstructionEntry(
+            name=f"cp_reduce_async_bulk_tensor_override_global_dim_{size_name}",
+            mnemonic="cp",
+            slots=(
+                ModifierSlot("op", ("reduce",)),
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("kind", ("bulk",)),
+                ModifierSlot("unit", ("tensor",)),
+                ModifierSlot("dim", ("1d",)),
+                ModifierSlot("dst", ("global",)),
+                ModifierSlot("src", ("shared::cta",)),
+                ModifierSlot("redop", ("add", "min", "max", "inc", "dec", "and", "or", "xor")),
+                ModifierSlot("load_mode", ("tile",), optional=True),
+                ModifierSlot("completion", ("bulk_group",)),
+                ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+                ModifierSlot("override_address", ("override::global_address",)),
+                ModifierSlot("override_attribute", ("override::global_dim",)),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                *_tma_global_dim_operands("dst", size_type),
+                OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+                OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+            ),
+        )
+        for size_name, size_type in (("b8", "tma_size_b8"), ("b16", "b16"))
+    ],
+    *[
+        InstructionEntry(
+            name=f"cp_async_bulk_tensor_prefetch_override_global_dim_{size_name}",
+            mnemonic="cp",
+            slots=(
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("kind", ("bulk",)),
+                ModifierSlot("action", ("prefetch",)),
+                ModifierSlot("unit", ("tensor",)),
+                ModifierSlot("dim", ("1d",)),
+                ModifierSlot("level", ("L2",)),
+                ModifierSlot("src", ("global",)),
+                ModifierSlot("load_mode", ("tile",), optional=True),
+                ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+                ModifierSlot("override_address", ("override::global_address",)),
+                ModifierSlot("override_attribute", ("override::global_dim",)),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                *_tma_global_dim_operands("src", size_type),
+                OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+            ),
+        )
+        for size_name, size_type in (("b8", "tma_size_b8"), ("b16", "b16"))
+    ],
+    *[
+        InstructionEntry(
+            name=f"cp_async_bulk_tensor_prefetch_override_global_dim_evict_last_{size_name}",
+            mnemonic="cp",
+            slots=(
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("kind", ("bulk",)),
+                ModifierSlot("action", ("prefetch",)),
+                ModifierSlot("unit", ("tensor",)),
+                ModifierSlot("dim", ("1d",)),
+                ModifierSlot("level", ("L2",)),
+                ModifierSlot("src", ("global",)),
+                ModifierSlot("load_mode", ("tile",), optional=True),
+                ModifierSlot("priority", ("L2::evict_last",)),
+                ModifierSlot("override_address", ("override::global_address",)),
+                ModifierSlot("override_attribute", ("override::global_dim",)),
+            ),
+            cert_arch="sm_107f",
+            operands=_tma_global_dim_operands("src", size_type),
+        )
+        for size_name, size_type in (("b8", "tma_size_b8"), ("b16", "b16"))
+    ],
+    *[
+        InstructionEntry(
+            name=f"applypriority_async_bulk_tensor_override_global_dim_{size_name}",
+            mnemonic="applypriority",
+            slots=(
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("kind", ("bulk",)),
+                ModifierSlot("unit", ("tensor",)),
+                ModifierSlot("dim", ("1d",)),
+                ModifierSlot("src", ("global",), optional=True),
+                ModifierSlot("completion", ("bulk_group",)),
+                ModifierSlot("load_mode", ("tile",), optional=True),
+                ModifierSlot("priority", ("L2::evict_normal",)),
+                ModifierSlot("override_address", ("override::global_address",)),
+                ModifierSlot("override_attribute", ("override::global_dim",)),
+            ),
+            cert_arch="sm_107f",
+            operands=_tma_global_dim_operands("src", size_type),
+        )
+        for size_name, size_type in (("b8", "tma_size_b8"), ("b16", "b16"))
+    ],
+    # Attribute override for 2D-5D tensors: size, lower-stride, and packed
+    # upper-stride components inside the tensor address.
+    *[
+        InstructionEntry(
+            name=f"cp_async_bulk_tensor_g2s_{dst_name}_override_global_dim_stride_{size_name}",
+            mnemonic="cp",
+            slots=(
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("kind", ("bulk",)),
+                ModifierSlot("unit", ("tensor",)),
+                ModifierSlot("dim", ("2d", "3d", "4d", "5d")),
+                ModifierSlot("dst", (dst,)),
+                ModifierSlot("src", ("global",)),
+                ModifierSlot("load_mode", ("tile",), optional=True),
+                ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
+                ModifierSlot("report", _PTX_94_REPORT_MECHANISMS, optional=True),
+                *(
+                    (
+                        ModifierSlot(
+                            "multicast",
+                            ("multicast::cluster::32b",),
+                            optional=True,
+                        ),
+                    )
+                    if dst == "shared::cluster"
+                    else ()
+                ),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2"), optional=True),
+                ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+                ModifierSlot("override_address", ("override::global_address",)),
+                ModifierSlot("override_attribute", ("override::global_dim_stride",)),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space=dst),
+                *_tma_global_dim_stride_operands("src", size_type),
+                OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
+                *(
+                    (
+                        OperandSlot(
+                            "cta_mask",
+                            dtype="u32",
+                            lanes=_tma_mask_lanes,
+                            vector=False,
+                        ),
+                    )
+                    if dst == "shared::cluster"
+                    else ()
+                ),
+                OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+            ),
+        )
+        for dst_name, dst in (("cta", "shared::cta"), ("cluster", "shared::cluster"))
+        for size_name, size_type in (("b8", "tma_size_b8"), ("b16", "b16"))
+    ],
+    *[
+        InstructionEntry(
+            name=f"cp_async_bulk_tensor_s2g_override_global_dim_stride_{size_name}",
+            mnemonic="cp",
+            slots=(
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("kind", ("bulk",)),
+                ModifierSlot("unit", ("tensor",)),
+                ModifierSlot("dim", ("2d", "3d", "4d", "5d")),
+                ModifierSlot("dst", ("global",)),
+                ModifierSlot("src", ("shared::cta",)),
+                ModifierSlot("load_mode", ("tile",), optional=True),
+                ModifierSlot("completion", ("bulk_group",)),
+                ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+                ModifierSlot("override_address", ("override::global_address",)),
+                ModifierSlot("override_attribute", ("override::global_dim_stride",)),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                *_tma_global_dim_stride_operands("dst", size_type),
+                OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+                OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+            ),
+        )
+        for size_name, size_type in (("b8", "tma_size_b8"), ("b16", "b16"))
+    ],
+    *[
+        InstructionEntry(
+            name=f"cp_reduce_async_bulk_tensor_override_global_dim_stride_{size_name}",
+            mnemonic="cp",
+            slots=(
+                ModifierSlot("op", ("reduce",)),
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("kind", ("bulk",)),
+                ModifierSlot("unit", ("tensor",)),
+                ModifierSlot("dim", ("2d", "3d", "4d", "5d")),
+                ModifierSlot("dst", ("global",)),
+                ModifierSlot("src", ("shared::cta",)),
+                ModifierSlot("redop", ("add", "min", "max", "inc", "dec", "and", "or", "xor")),
+                ModifierSlot("load_mode", ("tile",), optional=True),
+                ModifierSlot("completion", ("bulk_group",)),
+                ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+                ModifierSlot("override_address", ("override::global_address",)),
+                ModifierSlot("override_attribute", ("override::global_dim_stride",)),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                *_tma_global_dim_stride_operands("dst", size_type),
+                OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+                OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+            ),
+        )
+        for size_name, size_type in (("b8", "tma_size_b8"), ("b16", "b16"))
+    ],
+    *[
+        InstructionEntry(
+            name=f"cp_async_bulk_tensor_prefetch_override_global_dim_stride_{size_name}",
+            mnemonic="cp",
+            slots=(
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("kind", ("bulk",)),
+                ModifierSlot("action", ("prefetch",)),
+                ModifierSlot("unit", ("tensor",)),
+                ModifierSlot("dim", ("2d", "3d", "4d", "5d")),
+                ModifierSlot("level", ("L2",)),
+                ModifierSlot("src", ("global",)),
+                ModifierSlot("load_mode", ("tile",), optional=True),
+                ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+                ModifierSlot("override_address", ("override::global_address",)),
+                ModifierSlot("override_attribute", ("override::global_dim_stride",)),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                *_tma_global_dim_stride_operands("src", size_type),
+                OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+            ),
+        )
+        for size_name, size_type in (("b8", "tma_size_b8"), ("b16", "b16"))
+    ],
+    *[
+        InstructionEntry(
+            name=f"cp_async_bulk_tensor_prefetch_override_global_dim_stride_evict_last_{size_name}",
+            mnemonic="cp",
+            slots=(
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("kind", ("bulk",)),
+                ModifierSlot("action", ("prefetch",)),
+                ModifierSlot("unit", ("tensor",)),
+                ModifierSlot("dim", ("2d", "3d", "4d", "5d")),
+                ModifierSlot("level", ("L2",)),
+                ModifierSlot("src", ("global",)),
+                ModifierSlot("load_mode", ("tile",), optional=True),
+                ModifierSlot("priority", ("L2::evict_last",)),
+                ModifierSlot("override_address", ("override::global_address",)),
+                ModifierSlot("override_attribute", ("override::global_dim_stride",)),
+            ),
+            cert_arch="sm_107f",
+            operands=_tma_global_dim_stride_operands("src", size_type),
+        )
+        for size_name, size_type in (("b8", "tma_size_b8"), ("b16", "b16"))
+    ],
+    *[
+        InstructionEntry(
+            name=f"applypriority_async_bulk_tensor_override_global_dim_stride_{size_name}",
+            mnemonic="applypriority",
+            slots=(
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("kind", ("bulk",)),
+                ModifierSlot("unit", ("tensor",)),
+                ModifierSlot("dim", ("2d", "3d", "4d", "5d")),
+                ModifierSlot("src", ("global",), optional=True),
+                ModifierSlot("completion", ("bulk_group",)),
+                ModifierSlot("load_mode", ("tile",), optional=True),
+                ModifierSlot("priority", ("L2::evict_normal",)),
+                ModifierSlot("override_address", ("override::global_address",)),
+                ModifierSlot("override_attribute", ("override::global_dim_stride",)),
+            ),
+            cert_arch="sm_107f",
+            operands=_tma_global_dim_stride_operands("src", size_type),
+        )
+        for size_name, size_type in (("b8", "tma_size_b8"), ("b16", "b16"))
+    ],
+    # PTX ISA 9.4, 9.7.18.10.10 -- SM107 family TensorCore MMA.
+    # .kind::ti16 encodes 16-bit signed s1z4m11 multiplicands in the
+    # instruction descriptor. Dense, sparse, weight-stationary, and
+    # weight-stationary sparse forms are separate syntax shapes.
+    *[
+        InstructionEntry(
+            name=f"tcgen05_mma_ti16_{form}" + ("_collector_b" if collector else ""),
+            mnemonic="tcgen05",
+            slots=(
+                ModifierSlot("action", ("mma",)),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
+                ModifierSlot("kind", ("kind::ti16",)),
+                *((ModifierSlot("collector_b", _TCGEN05_COLLECTOR_B),) if collector else ()),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("d_tmem", kind="addr", space="tmem"),
+                *(
+                    (OperandSlot("a_desc", dtype="u64"),)
+                    if form == "ss"
+                    else (OperandSlot("a_tmem", kind="addr", space="tmem"),)
+                ),
+                OperandSlot("b_desc", dtype="u64"),
+                OperandSlot("idesc", dtype="u32"),
+                OperandSlot(
+                    "disable_output_lane",
+                    dtype="u32",
+                    lanes=_tcgen05_mma_mask_lanes,
+                ),
+                OperandSlot("enable_input_d", dtype="pred"),
+            ),
+        )
+        for form in ("ss", "ts")
+        for collector in (False, True)
+    ],
+    # The 9.4 syntax line `tcgen05.mma.sp.cta_group.kind::ti16.collector_b_usage`
+    # (9.7.18.10.10.2, block 5) omits `[sp-meta-tmem]`; the sparse metadata
+    # operand is present on every other tcgen05.mma.sp line.  MEASURED on CUDA
+    # 13.4 ptxas: the spelling without it is "Arguments mismatch", with it
+    # assembles, so `sp_meta_tmem` stays on every sparse ti16 shape.
+    *[
+        InstructionEntry(
+            name=f"tcgen05_mma_sp_ti16_{form}" + ("_collector_b" if collector else ""),
+            mnemonic="tcgen05",
+            slots=(
+                ModifierSlot("action", ("mma",)),
+                ModifierSlot("sp", ("sp",)),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
+                ModifierSlot("kind", ("kind::ti16",)),
+                *((ModifierSlot("collector_b", _TCGEN05_COLLECTOR_B),) if collector else ()),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("d_tmem", kind="addr", space="tmem"),
+                *(
+                    (OperandSlot("a_desc", dtype="u64"),)
+                    if form == "ss"
+                    else (OperandSlot("a_tmem", kind="addr", space="tmem"),)
+                ),
+                OperandSlot("b_desc", dtype="u64"),
+                OperandSlot("sp_meta_tmem", kind="addr", space="tmem"),
+                OperandSlot("idesc", dtype="u32"),
+                OperandSlot(
+                    "disable_output_lane",
+                    dtype="u32",
+                    lanes=_tcgen05_mma_mask_lanes,
+                ),
+                OperandSlot("enable_input_d", dtype="pred"),
+            ),
+        )
+        for form in ("ss", "ts")
+        for collector in (False, True)
+    ],
+    *[
+        InstructionEntry(
+            name=(
+                f"tcgen05_mma_ws{'_sp' if sparse else ''}_ti16_{form}" + ("_mask" if mask else "")
+            ),
+            mnemonic="tcgen05",
+            slots=(
+                ModifierSlot("action", ("mma",)),
+                ModifierSlot("ws", ("ws",)),
+                *((ModifierSlot("sp", ("sp",)),) if sparse else ()),
+                ModifierSlot("cta_group", ("cta_group::1",)),
+                ModifierSlot("kind", ("kind::ti16",)),
+                ModifierSlot("collector_b", _TCGEN05_WS_COLLECTOR_B, optional=True),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("d_tmem", kind="addr", space="tmem"),
+                *(
+                    (OperandSlot("a_desc", dtype="u64"),)
+                    if form == "ss"
+                    else (OperandSlot("a_tmem", kind="addr", space="tmem"),)
+                ),
+                OperandSlot("b_desc", dtype="u64"),
+                *((OperandSlot("sp_meta_tmem", kind="addr", space="tmem"),) if sparse else ()),
+                OperandSlot("idesc", dtype="u32"),
+                OperandSlot("enable_input_d", dtype="pred"),
+                *((OperandSlot("zero_col_mask", dtype="u64"),) if mask else ()),
+            ),
+        )
+        for sparse in (False, True)
+        for form in ("ss", "ts")
+        for mask in (False, True)
+    ],
+    # PTX ISA 9.4 pre-compressed-B lookup-table decompression. The metadata
+    # and scale operands are Tensor Memory addresses. Collector A and B are
+    # independently optional exactly as the two syntax lines specify.
+    *[
+        InstructionEntry(
+            name=f"tcgen05_mma_lut_b_{form}",
+            mnemonic="tcgen05",
+            slots=(
+                ModifierSlot("action", ("mma",)),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
+                ModifierSlot("kind", ("kind::f8f6f4",)),
+                ModifierSlot("decompress", ("decompress::lut::b",)),
+                ModifierSlot("collector_a", _TCGEN05_COLLECTOR_A, optional=True),
+                ModifierSlot("collector_b", _TCGEN05_COLLECTOR_B, optional=True),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("d_tmem", kind="addr", space="tmem"),
+                *(
+                    (OperandSlot("a_desc", dtype="u64"),)
+                    if form == "ss"
+                    else (OperandSlot("a_tmem", kind="addr", space="tmem"),)
+                ),
+                OperandSlot("b_compressed_desc", dtype="u64"),
+                OperandSlot("b_decompress_metadata", kind="addr", space="tmem"),
+                OperandSlot("idesc", dtype="u32"),
+                OperandSlot(
+                    "disable_output_lane",
+                    dtype="u32",
+                    lanes=_tcgen05_mma_mask_lanes,
+                ),
+                OperandSlot("enable_input_d", dtype="pred"),
+            ),
+        )
+        for form in ("ss", "ts")
+    ],
+    *[
+        InstructionEntry(
+            name=f"tcgen05_mma_block_scale_lut_b_{form}",
+            mnemonic="tcgen05",
+            slots=(
+                ModifierSlot("action", ("mma",)),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
+                ModifierSlot("kind", ("kind::mxf8f6f4",)),
+                ModifierSlot("block_scale", ("block_scale",)),
+                ModifierSlot("decompress", ("decompress::lut::b",)),
+                ModifierSlot("block_size", ("block32",), optional=True),
+                ModifierSlot("collector_a", _TCGEN05_COLLECTOR_A, optional=True),
+                ModifierSlot("collector_b", _TCGEN05_COLLECTOR_B, optional=True),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("d_tmem", kind="addr", space="tmem"),
+                *(
+                    (OperandSlot("a_desc", dtype="u64"),)
+                    if form == "ss"
+                    else (OperandSlot("a_tmem", kind="addr", space="tmem"),)
+                ),
+                OperandSlot("b_compressed_desc", dtype="u64"),
+                OperandSlot("b_decompress_metadata", kind="addr", space="tmem"),
+                OperandSlot("idesc", dtype="u32"),
+                OperandSlot("sfa_tmem", kind="addr", space="tmem"),
+                OperandSlot("sfb_tmem", kind="addr", space="tmem"),
+                OperandSlot("enable_input_d", dtype="pred"),
+            ),
+        )
+        for form in ("ss", "ts")
+    ],
+    # PTX ISA 9.4 collector-B support on activation-stationary dense and
+    # sparse MMA.  The three entries partition the manual's overlapping
+    # shared-A, tmem-A+ashift, and tmem-A+collector-A syntax lines so a
+    # written opcode is owned by exactly one entry.
+    *[
+        InstructionEntry(
+            name=(f"tcgen05_mma{'_sp' if sparse else ''}_collector_ab_ss"),
+            mnemonic="tcgen05",
+            slots=(
+                ModifierSlot("action", ("mma",)),
+                *((ModifierSlot("sp", ("sp",)),) if sparse else ()),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
+                ModifierSlot(
+                    "kind",
+                    ("kind::f16", "kind::tf32", "kind::f8f6f4", "kind::ti16"),
+                ),
+                ModifierSlot("collector_a", _TCGEN05_COLLECTOR_A),
+                ModifierSlot("collector_b", _TCGEN05_COLLECTOR_B),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("d_tmem", kind="addr", space="tmem"),
+                OperandSlot("a_desc", dtype="u64"),
+                OperandSlot("b_desc", dtype="u64"),
+                *((OperandSlot("sp_meta_tmem", kind="addr", space="tmem"),) if sparse else ()),
+                OperandSlot("idesc", dtype="u32"),
+                OperandSlot(
+                    "disable_output_lane",
+                    dtype="u32",
+                    lanes=_tcgen05_mma_mask_lanes,
+                ),
+                OperandSlot("enable_input_d", dtype="pred"),
+            ),
+        )
+        for sparse in (False, True)
+    ],
+    *[
+        InstructionEntry(
+            name=(f"tcgen05_mma{'_sp' if sparse else ''}_ashift_collector_b_ts"),
+            mnemonic="tcgen05",
+            slots=(
+                ModifierSlot("action", ("mma",)),
+                *((ModifierSlot("sp", ("sp",)),) if sparse else ()),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
+                ModifierSlot(
+                    "kind",
+                    ("kind::f16", "kind::tf32", "kind::f8f6f4", "kind::ti16"),
+                ),
+                ModifierSlot("ashift", ("ashift",)),
+                ModifierSlot("collector_b", _TCGEN05_COLLECTOR_B),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("d_tmem", kind="addr", space="tmem"),
+                OperandSlot("a_tmem", kind="addr", space="tmem"),
+                OperandSlot("b_desc", dtype="u64"),
+                *((OperandSlot("sp_meta_tmem", kind="addr", space="tmem"),) if sparse else ()),
+                OperandSlot("idesc", dtype="u32"),
+                OperandSlot(
+                    "disable_output_lane",
+                    dtype="u32",
+                    lanes=_tcgen05_mma_mask_lanes,
+                ),
+                OperandSlot("enable_input_d", dtype="pred"),
+            ),
+        )
+        for sparse in (False, True)
+    ],
+    *[
+        InstructionEntry(
+            name=(f"tcgen05_mma{'_sp' if sparse else ''}_collector_ab_ts"),
+            mnemonic="tcgen05",
+            slots=(
+                ModifierSlot("action", ("mma",)),
+                *((ModifierSlot("sp", ("sp",)),) if sparse else ()),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
+                ModifierSlot(
+                    "kind",
+                    ("kind::f16", "kind::tf32", "kind::f8f6f4", "kind::ti16"),
+                ),
+                ModifierSlot("ashift", ("ashift",), optional=True),
+                ModifierSlot("collector_a", _TCGEN05_COLLECTOR_A),
+                ModifierSlot("collector_b", _TCGEN05_COLLECTOR_B),
+            ),
+            check=_check_tcgen05_collector_ashift,
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("d_tmem", kind="addr", space="tmem"),
+                OperandSlot("a_tmem", kind="addr", space="tmem"),
+                OperandSlot("b_desc", dtype="u64"),
+                *((OperandSlot("sp_meta_tmem", kind="addr", space="tmem"),) if sparse else ()),
+                OperandSlot("idesc", dtype="u32"),
+                OperandSlot(
+                    "disable_output_lane",
+                    dtype="u32",
+                    lanes=_tcgen05_mma_mask_lanes,
+                ),
+                OperandSlot("enable_input_d", dtype="pred"),
+            ),
+        )
+        for sparse in (False, True)
+    ],
+    # Activation-stationary block-scaled MMA requires collector A; PTX 9.4
+    # makes collector B independently available.  SM107 supports the omitted
+    # scale-vector spelling; explicit scale_vec/block qualifiers remain scoped
+    # to the SM100/SM110 families by the Target ISA notes.
+    *[
+        InstructionEntry(
+            name=(f"tcgen05_mma{'_sp' if sparse else ''}_block_scale_collector_ab_{form}"),
+            mnemonic="tcgen05",
+            slots=(
+                ModifierSlot("action", ("mma",)),
+                *((ModifierSlot("sp", ("sp",)),) if sparse else ()),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
+                ModifierSlot(
+                    "kind",
+                    ("kind::mxf8f6f4",) if sparse else ("kind::mxf8f6f4", "kind::mxf4"),
+                ),
+                ModifierSlot("block_scale", ("block_scale",)),
+                ModifierSlot("collector_a", _TCGEN05_COLLECTOR_A),
+                ModifierSlot("collector_b", _TCGEN05_COLLECTOR_B, optional=True),
+            ),
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("d_tmem", kind="addr", space="tmem"),
+                *(
+                    (OperandSlot("a_desc", dtype="u64"),)
+                    if form == "ss"
+                    else (OperandSlot("a_tmem", kind="addr", space="tmem"),)
+                ),
+                OperandSlot("b_desc", dtype="u64"),
+                *((OperandSlot("sp_meta_tmem", kind="addr", space="tmem"),) if sparse else ()),
+                OperandSlot("idesc", dtype="u32"),
+                OperandSlot("sfa_tmem", kind="addr", space="tmem"),
+                OperandSlot("sfb_tmem", kind="addr", space="tmem"),
+                OperandSlot("enable_input_d", dtype="pred"),
+            ),
+        )
+        for sparse in (False, True)
+        for form in ("ss", "ts")
+    ],
+    # PTX ISA 9.4, 9.7.18.10.10.1 syntax forms 2 and 4 have the same operand
+    # shape for each A location, so each entry owns its no-collector and
+    # collector-qualified variants. Table 68 permits block32 for mxf8f6f4,
+    # block32 for mxf4, and block16/block32 for mxf4nvf4. Form 4 requires
+    # collector A and makes collector B optional; collector B requires sm_107f.
+    *[
+        InstructionEntry(
+            name=f"tcgen05_mma_block_scale_block_{form}",
+            mnemonic="tcgen05",
+            slots=(
+                ModifierSlot("action", ("mma",)),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
+                ModifierSlot("kind", ("kind::mxf8f6f4", "kind::mxf4", "kind::mxf4nvf4")),
+                ModifierSlot("block_scale", ("block_scale",)),
+                ModifierSlot("block_size", ("block16", "block32")),
+                ModifierSlot("collector_a", _TCGEN05_COLLECTOR_A, optional=True),
+                ModifierSlot("collector_b", _TCGEN05_COLLECTOR_B, optional=True),
+            ),
+            check=_check_tcgen05_mma_block_scale_block,
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("d_tmem", kind="addr", space="tmem"),
+                *(
+                    (OperandSlot("a_desc", dtype="u64"),)
+                    if form == "ss"
+                    else (OperandSlot("a_tmem", kind="addr", space="tmem"),)
+                ),
+                OperandSlot("b_desc", dtype="u64"),
+                OperandSlot("idesc", dtype="u32"),
+                OperandSlot("sfa_tmem", kind="addr", space="tmem"),
+                OperandSlot("sfb_tmem", kind="addr", space="tmem"),
+                OperandSlot("enable_input_d", dtype="pred"),
+            ),
+        )
+        for form in ("ss", "ts")
+    ],
+    # PTX ISA 9.4, 9.7.10.28.5.2/3: the address override composes with the
+    # im2col load modes and report mechanism.  These siblings preserve the
+    # trailing im2col operand while placing global_address inside the address.
+    *[
+        InstructionEntry(
+            name=f"cp_async_bulk_tensor_g2s_{dst_name}_override_address_im2col",
+            mnemonic="cp",
+            slots=(
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("kind", ("bulk",)),
+                ModifierSlot("unit", ("tensor",)),
+                ModifierSlot("dim", ("3d", "4d", "5d")),
+                ModifierSlot("dst", (dst,)),
+                ModifierSlot("src", ("global",)),
+                ModifierSlot("load_mode", ("im2col", "im2col::w", "im2col::w::128")),
+                ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
+                ModifierSlot("report", _PTX_94_REPORT_MECHANISMS, optional=True),
+                *(
+                    (
+                        ModifierSlot(
+                            "multicast",
+                            (
+                                "multicast::cluster",
+                                "multicast::cluster::16b",
+                                "multicast::cluster::32b",
+                            ),
+                            optional=True,
+                        ),
+                    )
+                    if dst == "shared::cluster"
+                    else ()
+                ),
+                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2"), optional=True),
+                ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+                ModifierSlot("override_address", ("override::global_address",)),
+            ),
+            check=_check_tma_im2col,
+            cert_arch="sm_107f",
+            operands=(
+                OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space=dst),
+                OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+                OperandSlot("global_address", dtype="u64", bracket="src"),
+                OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+                OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
+                OperandSlot(
+                    "im2col_info",
+                    dtype=_tma_im2col_dtype,
+                    lanes=_tma_im2col_lanes,
+                ),
+                *(
+                    (
+                        OperandSlot(
+                            "cta_mask",
+                            dtype=_multicast_mask_dtype,
+                            lanes=_tma_mask_lanes,
+                            vector=False,
+                        ),
+                    )
+                    if dst == "shared::cluster"
+                    else ()
+                ),
+                OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+            ),
+        )
+        for dst_name, dst in (("cta", "shared::cta"), ("cluster", "shared::cluster"))
+    ],
+    InstructionEntry(
+        name="cp_async_bulk_tensor_s2g_override_address_im2col_no_offs_w",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("3d", "4d", "5d")),
+            ModifierSlot("dst", ("global",)),
+            ModifierSlot("src", ("shared::cta",)),
+            ModifierSlot("load_mode", ("im2col_no_offs", "im2col_no_offs::w")),
+            ModifierSlot("completion", ("bulk_group",)),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+            ModifierSlot("override_address", ("override::global_address",)),
+        ),
+        check=_check_tma_im2col,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="dst"),
+            OperandSlot("global_address", dtype="u64", bracket="dst"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="dst"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    InstructionEntry(
+        name="cp_reduce_async_bulk_tensor_override_address_im2col_no_offs_w",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("op", ("reduce",)),
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("3d", "4d", "5d")),
+            ModifierSlot("dst", ("global",)),
+            ModifierSlot("src", ("shared::cta",)),
+            ModifierSlot("redop", ("add", "min", "max", "inc", "dec", "and", "or", "xor")),
+            ModifierSlot("load_mode", ("im2col_no_offs", "im2col_no_offs::w")),
+            ModifierSlot("completion", ("bulk_group",)),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+            ModifierSlot("override_address", ("override::global_address",)),
+        ),
+        check=_check_tma_im2col,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="dst"),
+            OperandSlot("global_address", dtype="u64", bracket="dst"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="dst"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    InstructionEntry(
+        name="cp_async_bulk_tensor_prefetch_override_address_im2col",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("action", ("prefetch",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("3d", "4d", "5d")),
+            ModifierSlot("level", ("L2",)),
+            ModifierSlot("src", ("global",)),
+            ModifierSlot("load_mode", ("im2col", "im2col::w", "im2col::w::128")),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+            ModifierSlot("override_address", ("override::global_address",)),
+        ),
+        check=_check_tma_im2col,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("global_address", dtype="u64", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+            OperandSlot(
+                "im2col_info",
+                dtype=_tma_im2col_dtype,
+                lanes=_tma_im2col_lanes,
+            ),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    InstructionEntry(
+        name="cp_async_bulk_tensor_prefetch_override_address_im2col_evict_last",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("action", ("prefetch",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("3d", "4d", "5d")),
+            ModifierSlot("level", ("L2",)),
+            ModifierSlot("src", ("global",)),
+            ModifierSlot("load_mode", ("im2col", "im2col::w", "im2col::w::128")),
+            ModifierSlot("priority", ("L2::evict_last",)),
+            ModifierSlot("override_address", ("override::global_address",)),
+        ),
+        check=_check_tma_im2col,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("global_address", dtype="u64", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+            OperandSlot(
+                "im2col_info",
+                dtype=_tma_im2col_dtype,
+                lanes=_tma_im2col_lanes,
+            ),
+        ),
+    ),
+    InstructionEntry(
+        name="applypriority_async_bulk_tensor_override_address_im2col",
+        mnemonic="applypriority",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("unit", ("tensor",)),
+            ModifierSlot("dim", ("3d", "4d", "5d")),
+            ModifierSlot("src", ("global",), optional=True),
+            ModifierSlot("completion", ("bulk_group",)),
+            ModifierSlot("load_mode", ("im2col", "im2col::w", "im2col::w::128")),
+            ModifierSlot("priority", ("L2::evict_normal",)),
+            ModifierSlot("override_address", ("override::global_address",)),
+        ),
+        check=_check_tma_im2col,
+        cert_arch="sm_107f",
+        operands=(
+            OperandSlot("tmap", kind="addr", space="global", bracket="src"),
+            OperandSlot("global_address", dtype="u64", bracket="src"),
+            OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
+            OperandSlot(
+                "im2col_info",
+                dtype=_tma_im2col_dtype,
+                lanes=_tma_im2col_lanes,
+            ),
+        ),
+    ),
+    # PTX ISA 9.4, 9.7.15.5/6 -- .noftz is now legal on add.f32.
+    # Separate siblings keep the pre-9.4 bare forms and certification floor
+    # intact while the written qualifier makes dispatch unambiguous.
+    *[
+        InstructionEntry(
+            name=f"{mnem}_f32_noftz",
+            mnemonic=mnem,
+            slots=(
+                ModifierSlot("sem", _ATOM_SEM if mnem == "atom" else _RED_SEM, optional=True),
+                ModifierSlot("scope", _ATOM_SCOPES, optional=True),
+                ModifierSlot("space", _ATOM_SPACES, optional=True),
+                ModifierSlot("op", ("add",)),
+                ModifierSlot("noftz", ("noftz",)),
+                ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+                ModifierSlot("type", ("f32",)),
+            ),
+            check=_check_cache_hint,
+            cert_arch="sm_90",
+            operands=(
+                *((OperandSlot("d", rw="w", dtype="f32"),) if mnem == "atom" else ()),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
+                OperandSlot("value", dtype="f32"),
+                OperandSlot(
+                    "cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False
+                ),
+            ),
+        )
+        for mnem in ("atom", "red")
+    ],
+    *[
+        InstructionEntry(
+            name=f"{mnem}_vec_f32_noftz",
+            mnemonic=mnem,
+            slots=(
+                ModifierSlot("sem", _ATOM_SEM if mnem == "atom" else _RED_SEM, optional=True),
+                ModifierSlot("scope", _ATOM_SCOPES, optional=True),
+                ModifierSlot("space", ("global",), optional=True),
+                ModifierSlot("op", ("add",)),
+                ModifierSlot("noftz", ("noftz",)),
+                ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+                ModifierSlot("vec", ("v2", "v4")),
+                ModifierSlot("type", ("f32",)),
+            ),
+            check=_check_cache_hint,
+            cert_arch="sm_90",
+            operands=(
+                *(
+                    (OperandSlot("d", rw="w", dtype="f32", lanes=_vec_lanes),)
+                    if mnem == "atom"
+                    else ()
+                ),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
+                OperandSlot("value", dtype="f32", lanes=_vec_lanes),
+                OperandSlot(
+                    "cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False
+                ),
+            ),
+        )
+        for mnem in ("atom", "red")
+    ],
+    # PTX ISA 9.4, 9.7.10.28.4.2 / 9.7.10.28.4.5 -- `.noftz` is now legal with
+    # `.add.f32` on the non-tensor bulk reductions into .global (introduced in
+    # PTX ISA 9.4, requires sm_90).  Siblings, exactly as for atom/red above:
+    # the pre-9.4 entries keep their grid (noftz required for f16/bf16, illegal
+    # for f32) and their sm_103a floor, and the written `.noftz` + `.f32` pair
+    # makes dispatch unambiguous.  MEASURED on CUDA 13.4 ptxas: the bare and
+    # the `.relaxed.<scope>` spellings assemble at sm_90 and sm_103a.
+    InstructionEntry(
+        name="cp_reduce_async_bulk_s2g_f32_noftz",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("op", ("reduce",)),
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("sem", ("relaxed",), optional=True),
+            ModifierSlot("scope", ("cta", "cluster", "gpu", "sys"), optional=True),
+            ModifierSlot("dst", ("global",)),
+            ModifierSlot("src", ("shared::cta",)),
+            ModifierSlot("completion", ("bulk_group",)),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+            ModifierSlot("redop", ("add",)),
+            ModifierSlot("noftz", ("noftz",)),
+            ModifierSlot("type", ("f32",)),
+        ),
+        check=_check_mbarrier_sem_scope,
+        cert_arch="sm_90",
+        operands=(
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="global"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("size", dtype="u32"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    InstructionEntry(
+        name="multimem_cp_reduce_async_bulk_f32_noftz",
+        mnemonic="multimem.cp",
+        slots=(
+            ModifierSlot("op", ("reduce",)),
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("sem", ("relaxed",), optional=True),
+            ModifierSlot("scope", ("cta", "cluster", "gpu", "sys"), optional=True),
+            ModifierSlot("dst", ("global",)),
+            ModifierSlot("src", ("shared::cta",)),
+            ModifierSlot("completion", ("bulk_group",)),
+            ModifierSlot("redop", ("add",)),
+            ModifierSlot("noftz", ("noftz",)),
+            ModifierSlot("type", ("f32",)),
+        ),
+        check=_check_mbarrier_sem_scope,
+        cert_arch="sm_90",
+        operands=(
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="global"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("size", dtype="u32"),
+        ),
+    ),
+    # PTX ISA 9.4, 9.7.16.5.15 -- m8n16 signed-byte load from packed s4.
+    # The destination contains one .b32 register per matrix selected by .num.
+    InstructionEntry(
+        name="ldmatrix_s8_s4",
+        mnemonic="ldmatrix",
+        slots=(
+            ModifierSlot("sync", ("sync",)),
+            ModifierSlot("aligned", ("aligned",)),
+            ModifierSlot("shape", ("m8n16",)),
+            ModifierSlot("num", ("x1", "x2", "x4")),
+            ModifierSlot("space", ("shared", "shared::cta"), optional=True),
+            ModifierSlot("dtype", ("s8",)),
+            ModifierSlot("ctype", ("s4",)),
+        ),
+        cert_arch="sm_107a",
+        operands=(
+            OperandSlot("r", rw="w", dtype="b32", lanes=_ldmatrix_lanes),
+            OperandSlot("p", kind="addr", allow_imm_offset=True),
+        ),
+    ),
+]
+
 _ENTRIES = [
+    *_PTX_94_ENTRIES,
     # ------------------------------------------------------------------
     # PTX ISA 9.7.1 — Integer Arithmetic Instructions
     # ------------------------------------------------------------------
-    # The section is registered in full, with two exceptions, each stated at
-    # the entry it belongs to: the packed `.u8x4`/`.s8x4` types (and the
-    # saturating forms that arrived with them), which the ISA gives only to
-    # "sm_120f or higher in the same family"; and `clmad` (9.7.1.5), which is
-    # PTX ISA 9.3 and does not assemble on this toolchain.
+    # The existing public families cover this section with one exception,
+    # stated at the entry it belongs to: the packed `.u8x4`/`.s8x4` types
+    # (and the saturating forms that arrived with them), which the ISA gives
+    # only to "sm_120f or higher in the same family".  The distinct `clmad`
+    # family (9.7.1.5, introduced in PTX ISA 9.3) is registered below.
     #
     # Several mnemonics have a floating-point line further down the table. The
     # integer lines are separate entries because they share no qualifier with
@@ -2612,7 +5836,7 @@ _ENTRIES = [
             ModifierSlot("sat", ("sat",), optional=True),
             ModifierSlot("type", ("u16", "u32", "u64", "u16x2", "s16", "s32", "s64", "s16x2")),
         ),
-        check=_check_int_addsub,
+        check=_check_int_add,
         # `.u16x2`/`.s16x2` require sm_90 (ISA Target Notes); cert_arch is the
         # max floor over the entry's variants.
         cert_arch="sm_90",
@@ -2629,7 +5853,7 @@ _ENTRIES = [
             ModifierSlot("sat", ("sat",), optional=True),
             ModifierSlot("type", _INT_TYPES),
         ),
-        check=_check_int_addsub,
+        check=_check_int_sub,
         operands=(
             OperandSlot("d", rw="w"),
             OperandSlot("a"),
@@ -2702,12 +5926,22 @@ _ENTRIES = [
             OperandSlot("c", dtype=_wide_dtype),
         ),
     ),
-    # NOT REGISTERED: clmad (PTX ISA 9.7.1.5, `clmad.mode.u64 d, a, b, c;`).
-    # It was introduced in PTX ISA 9.3; this toolchain assembles 9.2, so ptxas
-    # rejects every form and certification could not prove a single variant.
-    # Register it when the toolchain catches up -- it is an ordinary
-    # mode + fixed-type entry with four .u64 operands.
-    #
+    # clmad, introduced in PTX ISA 9.3 (9.7.1.5): carryless 64-bit multiply
+    # followed by carryless add.  All four operands are unsigned 64-bit.
+    InstructionEntry(
+        name="clmad",
+        slots=(
+            ModifierSlot("mode", ("hi", "lo")),
+            ModifierSlot("type", ("u64",)),
+        ),
+        cert_arch="sm_80",
+        operands=(
+            OperandSlot("d", rw="w"),
+            OperandSlot("a"),
+            OperandSlot("b"),
+            OperandSlot("c"),
+        ),
+    ),
     # mul24 / mad24 per PTX ISA 9.7.1.6, 9.7.1.7: a 24x24-bit multiply held in
     # 32-bit registers, so there is no `.wide` and the type line is 32-bit only.
     #   mul24.mode.type d, a, b;     mad24.mode.type  d, a, b, c;
@@ -2964,13 +6198,16 @@ _ENTRIES = [
         # `mul` is the one line with no mixed-precision form (ISA 9.7.5).
         for name, mixed in (("add", True), ("sub", True), ("mul", False))
     ],
-    # NOT REGISTERED: across this whole arithmetic group, only the
+    # NOT REGISTERED:
+    # - Across the PTX 9.2 arithmetic group, only the
     # extended-precision lines add.cc/addc/sub.cc/subc (9.7.2.{1,2,3,4}), whose
     # carry flag is a piece of state no other instruction here has. Everything
     # else is registered: the integer lines (9.7.1.{1,2,3}) as
     # `add_int`/`sub_int`/`mul_int`/`mul_wide` above, and the half lines
     # (9.7.4.{1,2,3,4}) as `add_half`/`sub_half`/`mul_half`/`fma_half` below.
     #
+    # - PTX 9.4's FP8/FP6/FP4 x4 arithmetic types: the Target ISA notes allow
+    #   them on sm_100a/sm_103a, not on the SM107 target of this delta.
     # fma differs in shape, so it is its own entry: three sources, and .rnd is
     # mandatory on every line (PTX ISA 9.7.3.6 / 9.7.5.3).
     #   fma.rnd{.ftz}{.sat}.f32  d, a, b, c;   fma.rnd{.ftz}.f32x2  d, a, b, c;
@@ -3277,7 +6514,7 @@ _ENTRIES = [
         ),
     ),
     # ------------------------------------------------------------------
-    # PTX ISA 9.7.6 — Comparison and Selection Instructions
+    # PTX ISA 9.7.7 — Comparison and Selection Instructions
     # ------------------------------------------------------------------
     # The section is registered in full. Two spellings are deliberately absent,
     # neither of which is a syntax line:
@@ -3294,7 +6531,7 @@ _ENTRIES = [
     #   sink guard is per operand rather than per pipe group -- it would reject
     #   `p|_` as "every lane sunk" without surgery that buys nothing.
     #
-    # set / setp per PTX ISA 9.7.6.1, 9.7.6.2. Both compare a and b and
+    # set / setp per PTX ISA 9.7.7.1, 9.7.7.2. Both compare a and b and
     # optionally fold a third predicate in with a Boolean operator; they differ
     # in where the answer goes -- set writes a value of `.dtype` (0xffffffff or
     # 1.0f for true), setp writes predicates.
@@ -3355,7 +6592,7 @@ _ENTRIES = [
         for boolop in (False, True)
         for pq in (False, True)
     ],
-    # selp per PTX ISA 9.7.6.3: `selp.type d, a, b, c;` -- a if the predicate
+    # selp per PTX ISA 9.7.7.3: `selp.type d, a, b, c;` -- a if the predicate
     # is true, b otherwise. The one selection instruction whose selector is a
     # predicate rather than a number.
     InstructionEntry(
@@ -3368,11 +6605,18 @@ _ENTRIES = [
             OperandSlot("c", dtype="pred"),
         ),
     ),
-    # slct per PTX ISA 9.7.6.4: `slct{.ftz}.dtype.ctype d, a, b, c;` -- a if
+    # slct per PTX ISA 9.7.7.4: `slct{.ftz}.dtype.ctype d, a, b, c;` -- a if
     # c >= 0, else b. Two instruction types, because the value being selected
     # and the number whose sign selects it are independent: "operands d, a and
     # b are treated as a bitsize type of the same width as the first
     # instruction type; operand c must match the second".
+    #
+    # "Treated as a bitsize type" is load-bearing for the helper ABI: d, a,
+    # and b independently accept the same-width carrier classes ptxas accepts,
+    # with the instruction type's native dtype first. Exhaustively probing the
+    # product gives 996 helpers (up from the former exact-type domain's 378).
+    # c is different: its slot deliberately has no `dtypes` override, so it
+    # remains an exact .s32/.f32 operand through PTX_TYPE_DTYPES.
     InstructionEntry(
         name="slct",
         slots=(
@@ -3382,28 +6626,28 @@ _ENTRIES = [
         ),
         check=_check_slct,
         operands=(
-            OperandSlot("d", rw="w", dtype="dtype"),
-            OperandSlot("a", dtype="dtype"),
-            OperandSlot("b", dtype="dtype"),
+            OperandSlot("d", rw="w", dtype="dtype", dtypes=_slct_value_dtypes),
+            OperandSlot("a", dtype="dtype", dtypes=_slct_value_dtypes),
+            OperandSlot("b", dtype="dtype", dtypes=_slct_value_dtypes),
             OperandSlot("c", dtype="ctype"),
         ),
     ),
     # ------------------------------------------------------------------
-    # PTX ISA 9.7.7 — Half Precision Comparison Instructions
+    # PTX ISA 9.7.8 — Half Precision Comparison Instructions
     # ------------------------------------------------------------------
-    # The section is registered in full: `set` (9.7.7.1) and `setp` (9.7.7.2)
-    # over the half types, beside the 9.7.6 entries of the same two mnemonics.
-    # They are separate entries because the type grids are disjoint -- no 9.7.6
+    # The section is registered in full: `set` (9.7.8.1) and `setp` (9.7.8.2)
+    # over the half types, beside the 9.7.7 entries of the same two mnemonics.
+    # They are separate entries because the type grids are disjoint -- no 9.7.7
     # slot holds a half token -- and because this section's `.CmpOp` line is a
     # different set (no unsigned alternates; see `_HALF_CMP_OPS`).
     #
-    # `{!}c` is left out here for the reason given at the 9.7.6 banner above.
+    # `{!}c` is left out here for the reason given at the 9.7.7 banner above.
     # Three forms ptxas accepts that no syntax line spells are also left out,
     # each noted where it belongs: lo/ls/hi/hs on an integer source
     # (`_HALF_CMP_OPS`), `set.bf16.bf16` (`_SET_HALF_STYPES`), and a lone `p`
     # on the packed setp lines (at the pq entries below).
     #
-    # set per PTX ISA 9.7.7.1. Its two type tokens are a grid rather than a
+    # set per PTX ISA 9.7.8.1. Its two type tokens are a grid rather than a
     # product -- `_check_half_set` holds the six line groups.
     *[
         InstructionEntry(
@@ -3427,7 +6671,7 @@ _ENTRIES = [
         )
         for boolop in (False, True)
     ],
-    # setp per PTX ISA 9.7.7.2. Unlike 9.7.6's setp, which offers both
+    # setp per PTX ISA 9.7.8.2. Unlike 9.7.7's setp, which offers both
     # destination shapes on every type, here the type *decides* the shape: the
     # scalar lines spell one predicate, the packed lines spell `p|q`, and there
     # q is the second half's comparison rather than the complement of the first
@@ -3461,7 +6705,7 @@ _ENTRIES = [
         for pq in (False, True)
     ],
     # ------------------------------------------------------------------
-    # PTX ISA 9.7.8 — Logic and Shift Instructions
+    # PTX ISA 9.7.9 — Logic and Shift Instructions
     # ------------------------------------------------------------------
     # The section is registered in full. It is the one group that needs no
     # check function anywhere: "fundamentally untyped, performing bit-wise
@@ -3473,12 +6717,12 @@ _ENTRIES = [
     # `escape_token`/`unescape_token` carry them across the boundary. The PTX
     # text is unaffected; only the attribute a program types is.
     #
-    # and / or / xor (PTX ISA 9.7.8.1-9.7.8.3) and not (9.7.8.4): `op.type d,
-    # a, b;` over `.pred` and the three bit widths. The predicate line is a
-    # real one here -- "Allowed types include predicate registers" -- so with
-    # `.pred` the sources want `T.ptx.pred(x)` (or a bool expression) and the
-    # destination a uint32 lvalue, and the helper carries the setp/selp bridges
-    # around the single instruction.
+    # and / or / xor (PTX ISA 9.7.9.1-9.7.9.3): `op.type d, a, b;`, and not
+    # (9.7.9.4): `not.type d, a;` -- all four over `.pred` and the three bit
+    # widths. The predicate line is real here -- "Allowed types include
+    # predicate registers" -- so with `.pred` the sources want `T.ptx.pred(x)`
+    # (or a bool expression) and the destination a uint32 lvalue, and the
+    # helper carries the setp/selp bridges around the single instruction.
     *[
         InstructionEntry(
             name=name,
@@ -3499,7 +6743,7 @@ _ENTRIES = [
             OperandSlot("a"),
         ),
     ),
-    # cnot per PTX ISA 9.7.8.5: `d = (a==0) ? 1 : 0`, C's `!` rather than the
+    # cnot per PTX ISA 9.7.9.5: `d = (a==0) ? 1 : 0`, C's `!` rather than the
     # bitwise `not` above. Its type line stops at the bit widths -- ptxas
     # answers "Unexpected instruction types specified for 'cnot'" to `.pred`,
     # which is why this entry cannot share the domain of the four above.
@@ -3511,18 +6755,18 @@ _ENTRIES = [
             OperandSlot("a"),
         ),
     ),
-    # lop3 per PTX ISA 9.7.8.6: any of the 256 three-input logical functions,
+    # lop3 per PTX ISA 9.7.9.6: any of the 256 three-input logical functions,
     # named by a look-up table byte rather than by an opcode.
     #   lop3.b32          d,   a, b, c, immLut;
     #   lop3.BoolOp.b32   d|p, a, b, c, immLut, q;
-    # `immLut` is an OPEN immediate: it lives in the instruction text, and the
-    # ISA gives it a range (0..255) rather than a list of meaningful values, so
-    # enumerating 256 helpers per dtype combination would be certifying an
-    # arithmetic identity 256 times. Certification samples it, exactly as it
-    # does for tcgen05's immHalfSplitoff.
+    # `immLut` is an OPEN immediate because explicitly-unrolled expressions
+    # must survive tracing until they specialize.  The entry-level imm_check
+    # enforces the ISA's inclusive 0..255 range both for direct constants and
+    # after specialization without multiplying the rendering domain by 256.
     InstructionEntry(
         name="lop3",
         slots=(ModifierSlot("type", ("b32",)),),
+        imm_check=_check_lop3_imm,
         operands=(
             OperandSlot("d", rw="w"),
             OperandSlot("a"),
@@ -3537,9 +6781,7 @@ _ENTRIES = [
     # register classes -- the mechanism only groups the text, so each half
     # keeps its own constraint and its own bridge.
     # NOT REGISTERED: `.xor` (ptxas: "Illegal operation '.xor' for instruction
-    # 'lop3'" -- the ISA's `.BoolOp` line stops at `.or`/`.and`), and `_` in
-    # place of `d`, which the ISA allows here but which the engine's per-slot
-    # sink guard would read as "every lane sunk"; pass a scratch lvalue.
+    # 'lop3'" -- the ISA's `.BoolOp` line stops at `.or`/`.and`).
     InstructionEntry(
         name="lop3_bool",
         mnemonic="lop3",
@@ -3547,6 +6789,7 @@ _ENTRIES = [
             ModifierSlot("boolop", ("or", "and")),
             ModifierSlot("type", ("b32",)),
         ),
+        imm_check=_check_lop3_imm,
         operands=(
             OperandSlot("d", rw="w", pipe="dp"),
             OperandSlot("p", rw="w", dtype="pred", pipe="dp"),
@@ -3557,7 +6800,29 @@ _ENTRIES = [
             OperandSlot("q", dtype="pred"),
         ),
     ),
-    # shf per PTX ISA 9.7.8.7: the funnel shift. a and b are the low and high
+    # The same BoolOp line also permits the bit-size result to be discarded:
+    # `_|p`. This is a separate fixed operand shape, not a caller-selectable
+    # sink lane. A literal immediate models the ISA-owned `_` directly and
+    # leaves the global all-sunk rule untouched; arity selects this sibling.
+    InstructionEntry(
+        name="lop3_bool_sink",
+        mnemonic="lop3",
+        slots=(
+            ModifierSlot("boolop", ("or", "and")),
+            ModifierSlot("type", ("b32",)),
+        ),
+        imm_check=_check_lop3_imm,
+        operands=(
+            OperandSlot("d", kind="imm", literal="_", pipe="dp"),
+            OperandSlot("p", rw="w", dtype="pred", pipe="dp"),
+            OperandSlot("a"),
+            OperandSlot("b"),
+            OperandSlot("c"),
+            OperandSlot("immLut", kind="imm"),
+            OperandSlot("q", dtype="pred"),
+        ),
+    ),
+    # shf per PTX ISA 9.7.9.7: the funnel shift. a and b are the low and high
     # halves of one 64-bit source ("Operand b holds bits 63:32 and operand a
     # holds bits 31:0"), and the direction picks which 32 bits of the shifted
     # result land in d. `.mode` bounds the shift amount: 0..32 clamping, or
@@ -3576,7 +6841,7 @@ _ENTRIES = [
             OperandSlot("c", dtype="u32"),  # the shift amount
         ),
     ),
-    # shl / shr per PTX ISA 9.7.8.8, 9.7.8.9. They differ in their type line,
+    # shl / shr per PTX ISA 9.7.9.8, 9.7.9.9. They differ in their type line,
     # not their shape: shl is untyped because a left shift zero-fills whatever
     # the operand means, while shr has to know whether to fill with the sign
     # bit, so it carries the signed and unsigned lines too (and keeps the
@@ -3599,22 +6864,20 @@ _ENTRIES = [
         )
     ],
     # ------------------------------------------------------------------
-    # PTX ISA 9.7.9 — Data Movement and Conversion Instructions
+    # PTX ISA 9.7.10 — Data Movement and Conversion Instructions
     # ------------------------------------------------------------------
-    # The largest section of the ISA, and registered across all 27 of its
+    # The largest section of the ISA, and registered across all 26 of its
     # subsections. What is left out is listed at the entry it belongs to;
     # the exclusions that are about the toolchain or the architecture rather
     # than about this table are:
-    #   - `shfl` without `.sync` (9.7.9.5), removed by the ISA for sm_70+;
-    #   - `multimem.st.async` (9.7.9.13), PTX ISA 9.3, which ptxas 13.2
-    #     (ISA 9.2) cannot assemble;
-    #   - the FP8 multimem types and `.acc::f16` (9.7.9.15), and
-    #     `tensormap.replace.swizzle_atomicity` (9.7.9.27), all scoped to
+    #   - `shfl` without `.sync` (9.7.10.5), removed by the ISA for sm_70+;
+    #   - the FP8 multimem types and `.acc::f16` (9.7.10.15), and
+    #     `tensormap.replace.swizzle_atomicity` (9.7.10.29), all scoped to
     #     architectures above the one their instruction is certified at.
     # Everything else absent is an operand the helper ABI cannot carry -- a
     # symbol rather than a value -- and says so where it is excluded.
     #
-    # mov, vector pack/unpack form (PTX ISA 9.7.9.4)
+    # mov, vector pack/unpack form (PTX ISA 9.7.10.4)
     #
     #   mov.type  d, a;   .type = {.b16, .b32, .b64, .b128}
     #
@@ -3639,12 +6902,13 @@ _ENTRIES = [
     # a multi-instruction template, which this dialect forbids.
     #
     # The sink symbol `_` IS registered on the unpack destinations, per ISA
-    # 9.7.9.4: "When destination operand d is a vector register, the sink
+    # 9.7.10.4: "When destination operand d is a vector register, the sink
     # symbol '_' may be used for one or more elements provided that at least
     # one element is a scalar register." That proviso is `sink_combos`' rule.
     #
-    # Also unregistered: scalar mov (9.7.9.3), a different instruction that
-    # shares the mnemonic.
+    # Registered separately below: scalar mov (9.7.10.3), a different
+    # instruction that shares the mnemonic; dispatch tells them apart by
+    # arity.
     *[
         InstructionEntry(
             name=f"mov_{direction}_{lane_dtype}x{lanes}",
@@ -3683,14 +6947,14 @@ _ENTRIES = [
         )
         for direction, unpack in (("pack", False), ("unpack", True))
     ],
-    # Complete scalar `ld` per PTX ISA 9.7.9.8 + the 9.7.9.9 ld.global.nc forms.
+    # Complete scalar `ld` per PTX ISA 9.7.10.8 + the 9.7.10.9 ld.global.nc forms.
     # NOT REGISTERED: each is an operand the helper-function ABI cannot carry,
     # because it is a *symbol* rather than a value --
     # - .unified (asserts its address names a variable declared with that
     #   attribute: a declaration property, invisible from a register)
-    # - .param/.const spaces (kernel-parameter and const addresses are named,
-    #   not computed; taking `&param` in CUDA C already materializes a generic
-    #   pointer, so no C expression can deliver one)
+    # - .param/.const spaces (PTX can hold either state-space address in a
+    #   register, but the helper's CUDA-C ABI cannot originate one: taking an
+    #   address in C materializes a generic pointer instead)
     # Registering these needs a second rendering model that emits at the site
     # where the symbol is in scope, not a slot field.
     # The ISA permits @p on this instruction; ptx does not, because it writes a
@@ -3721,12 +6985,12 @@ _ENTRIES = [
         ),
         check=_check_ld,
         operands=(
-            OperandSlot("d", rw="w", dtypes=_ld_dst_dtypes),
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("d", rw="w", dtypes=_relaxed_mem_dtypes),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
             OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
     ),
-    # The `.vec` lines of ld / st (PTX ISA 9.7.9.8 / 9.7.9.11). Separate
+    # The `.vec` lines of ld / st (PTX ISA 9.7.10.8 / 9.7.10.11). Separate
     # entries rather than an optional slot on the scalar ones: a vector operand
     # is brace-enclosed even at one register, so vector-ness has to be a
     # property of the entry, and the .v8/.v4-64bit lines carry a
@@ -3734,14 +6998,14 @@ _ENTRIES = [
     #
     # The memory-synchronization lines carry `{.vec}` too, so `.relaxed` and
     # `.acquire`/`.release` are on every entry below, each with the `.scope`
-    # its line makes mandatory. PTX ISA 9.7.9.8, wrapped but otherwise verbatim:
+    # its line makes mandatory. PTX ISA 9.7.10.8, wrapped but otherwise verbatim:
     #
     #   ld.relaxed.scope{.ss}{.level1::eviction_priority}{.level2::eviction_priority}
     #      {.level::cache_hint}{.level::prefetch_size}{.vec}.type  d, [a]{, cache_policy};
     #   ld.acquire.scope{.ss}{.level1::eviction_priority}{.level2::eviction_priority}
     #      {.level::cache_hint}{.level::prefetch_size}{.vec}.type  d, [a]{, cache_policy};
     #
-    # and the 9.7.9.11 mirror with `.relaxed`/`.release` and no prefetch term.
+    # and the 9.7.10.11 mirror with `.relaxed`/`.release` and no prefetch term.
     # Note these lines carry *both* eviction priorities, which is why the
     # 256-bit entries let `.L2::*` ride them -- unlike `.volatile`, whose line
     # (`ld.volatile{.ss}{.level::prefetch_size}{.vec}.type  d, [a];`) spells no
@@ -3770,8 +7034,8 @@ _ENTRIES = [
         ),
         check=_check_ld_vec,
         operands=(
-            OperandSlot("d", rw="w", lanes=_vec_lanes),
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("d", rw="w", dtypes=_relaxed_mem_dtypes, lanes=_vec_lanes),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
             OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
     ),
@@ -3789,6 +7053,7 @@ _ENTRIES = [
             ModifierSlot("nc", ("nc",), optional=True),
             ModifierSlot("l1ev", _L1_EVICT, optional=True),
             ModifierSlot("l2ev", _L2_EVICT, optional=True),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
             ModifierSlot("prefetch", ("L2::64B", "L2::128B", "L2::256B"), optional=True),
             ModifierSlot("vec", ("v4", "v8")),
             ModifierSlot("type", _BITS32 + _BITS64),
@@ -3796,15 +7061,26 @@ _ENTRIES = [
         cert_arch="sm_100",
         check=_check_ld_vec256,
         operands=(
+            # ISA section 9.4.1 permits a data register wider than the
+            # instruction type, but that carrier axis is not uniformly
+            # available on the 256-bit ld lines.  MEASURED on CUDA 13.4: an
+            # exact force-inlined `ld.global.v8.b32` with 64-bit lanes is a
+            # ptxas "(C7907) Internal compiler error" (the .v4.b64 spelling
+            # with 128-bit lanes assembles).  Keep these lanes at
+            # PTX_TYPE_DTYPES' exact width. Scalar and <=128-bit vector ld
+            # retain the documented relaxed carriers above.
+            #
             # `_` means this element is not read from memory.
             OperandSlot("d", rw="w", lanes=_vec_lanes, sinkable=_sink256),
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
+            OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
     ),
-    # Complete scalar `st` per PTX ISA 9.7.9.11, at parity with `ld`.
-    # NOT REGISTERED: .param::func -- a kernel-parameter address is a symbol,
-    # not a value, so it cannot flow through the helper-function ABI (see the
-    # note on `ld` above).
+    # Complete scalar `st` per PTX ISA 9.7.10.11, at parity with `ld`.
+    # NOT REGISTERED: .param::func -- a device-function parameter address
+    # cannot originate on the helper's CUDA-C boundary (see the note on `ld`
+    # above). Bare `.param` has the same meaning here because it defaults to
+    # `.param::func`.
     InstructionEntry(
         name="st",
         slots=(
@@ -3823,8 +7099,8 @@ _ENTRIES = [
         ),
         check=_check_st,
         operands=(
-            OperandSlot("addr", kind="addr"),
-            OperandSlot("value"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
+            OperandSlot("value", dtypes=_relaxed_mem_dtypes),
             OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
     ),
@@ -3847,8 +7123,8 @@ _ENTRIES = [
         ),
         check=_check_st_vec,
         operands=(
-            OperandSlot("addr", kind="addr"),
-            OperandSlot("value", lanes=_vec_lanes),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
+            OperandSlot("value", dtypes=_st_vec_dtypes, lanes=_vec_lanes),
             OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
     ),
@@ -3862,27 +7138,35 @@ _ENTRIES = [
             ModifierSlot("cop", ("wb", "cg", "cs", "wt"), optional=True),
             ModifierSlot("l1ev", _L1_EVICT, optional=True),
             ModifierSlot("l2ev", _L2_EVICT, optional=True),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
             ModifierSlot("vec", ("v4", "v8")),
             ModifierSlot("type", _BITS32 + _BITS64),
         ),
         cert_arch="sm_100",
         check=_check_st_vec256,
         operands=(
-            OperandSlot("addr", kind="addr"),
-            # ISA 9.7.9.11 puts the sink in "vector expression b" -- the data
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
+            # ISA section 9.4.1 permits wider data registers.  MEASURED on CUDA
+            # 13.4: the wide `st.v8.b32` (64-bit lanes) and `st.v4.b64`
+            # (128-bit lanes) spellings assemble through exact force-inlined
+            # callers, but their ld_vec256 counterparts do not (C7907), so both
+            # 256-bit families register only exact-width carriers and stay
+            # symmetric; widening st alone is a follow-up.  Scalar and
+            # <=128-bit vector st keep the relaxed domain.
+            #
+            # ISA 9.7.10.11 puts the sink in "vector expression b" -- the data
             # being stored -- so here `_` means this element is not written to
             # memory. Sink is not a destination-only spelling.
             OperandSlot("value", lanes=_vec_lanes, sinkable=_sink256),
+            OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
     ),
-    # st.bulk per PTX ISA 9.7.9.14:
+    # st.bulk per PTX ISA 9.7.10.14:
     #   st.bulk{.weak}{.shared::cta} [a], size, initval;  // initval must be zero
-    # NOT REGISTERED: the 32-bit `size` form (ISA: "The 32-bit or 64-bit integer
-    # operand size ..."), because no modifier token distinguishes the two -- it
-    # would be an operand-shape axis, like mov's. Two ISA constraints are also
-    # unenforceable here, being properties of a value rather than of the
-    # modifier map that check() sees: "size must be a multiple of 8" and "The
-    # maximum value of size operand can be 16777216".
+    # `size` accepts the ISA's 32- or 64-bit integer register forms.  Its two
+    # numeric conditions remain caller preconditions because they depend on a
+    # runtime value rather than the modifier map: it must be a multiple of 8
+    # and at most 16777216, otherwise behavior is undefined.
     InstructionEntry(
         name="st_bulk",
         mnemonic="st.bulk",
@@ -3892,12 +7176,12 @@ _ENTRIES = [
             ModifierSlot("space", ("shared::cta",), optional=True),
         ),
         operands=(
-            OperandSlot("addr", kind="addr"),
-            OperandSlot("size", dtype="u64"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
+            OperandSlot("size", dtype="u64", dtypes=("uint64", "int64", "uint32", "int32")),
             OperandSlot("initval", kind="imm", literal="0"),
         ),
     ),
-    # prefetch per PTX ISA 9.7.9.16, covering three of its four syntax lines:
+    # prefetch per PTX ISA 9.7.10.16, covering three of its four syntax lines:
     #   prefetch{.space}.level [a]
     #   prefetch.global.level::eviction_priority [a]
     #   prefetch{.tensormap_space}.tensormap [a]
@@ -3911,9 +7195,9 @@ _ENTRIES = [
             ModifierSlot("tensormap", ("tensormap",), optional=True),
         ),
         check=_check_prefetch,
-        operands=(OperandSlot("addr", kind="addr"),),
+        operands=(OperandSlot("addr", kind="addr", allow_imm_offset=True),),
     ),
-    # st.async per PTX ISA 9.7.9.12. Two syntax blocks that share nothing but
+    # st.async per PTX ISA 9.7.10.12. Two syntax blocks that share nothing but
     # the mnemonic: one signals completion through an mbarrier, the other is a
     # release store to global memory.
     #   st.async{.weak}{.ss}.completion_mechanism{.vec}.type  [a], b, [mbar];
@@ -3934,12 +7218,12 @@ _ENTRIES = [
             check=_check_st_async if vec else None,
             cert_arch="sm_90",
             operands=(
-                OperandSlot("addr", kind="addr"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
                 OperandSlot("b", lanes=_vec_lanes if vec else 1),
                 # The mbarrier lives in the same state space as the destination
                 # ("`.ss` specifies the state space of the destination operand
                 # a and the mbarrier operand mbar").
-                OperandSlot("mbar", kind="addr"),
+                OperandSlot("mbar", kind="addr", allow_imm_offset=True),
             ),
         )
         for vec in (False, True)
@@ -3957,11 +7241,40 @@ _ENTRIES = [
         check=_check_st_async_rel,
         cert_arch="sm_100",
         operands=(
-            OperandSlot("addr", kind="addr"),
-            OperandSlot("b"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
+            OperandSlot(
+                "b",
+                dtype=_st_async_rel_operand_type,
+                dtypes=_st_async_rel_operand_dtypes,
+            ),
         ),
     ),
-    # multimem per PTX ISA 9.7.9.15: operations on a multimem address, which
+    # multimem.st.async, introduced in PTX ISA 9.3 (9.7.10.13).  MEASURED on
+    # CUDA 13.4 at sm_100: unlike st.async.release, the 8-bit source forms
+    # assemble with a .b8, .b16 or .b32 source register.  The byte forms keep
+    # the `st_async_b8reg` bridge anyway: .b8 is the register class the ISA
+    # names for them, it keeps the two st.async families' helper bodies alike,
+    # and the C boundary (a uint8/int8 carrier) is identical either way.
+    InstructionEntry(
+        name="multimem_st_async",
+        mnemonic="multimem.st.async",
+        slots=(
+            ModifierSlot("sem", ("release",)),
+            ModifierSlot("scope", ("gpu", "sys")),
+            ModifierSlot("space", ("global",), optional=True),
+            ModifierSlot("type", _ST_ASYNC_REL_TYPES),
+        ),
+        cert_arch="sm_100",
+        operands=(
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
+            OperandSlot(
+                "b",
+                dtype=_multimem_async_operand_type,
+                dtypes=_multimem_async_operand_dtypes,
+            ),
+        ),
+    ),
+    # multimem per PTX ISA 9.7.10.15: operations on a multimem address, which
     # names one location on each of several GPUs at once. Three mnemonics --
     # ld_reduce reduces across the copies into a register, st writes all of
     # them, red reduces into all of them -- and each splits into an integer and
@@ -3969,9 +7282,7 @@ _ENTRIES = [
     # `.acc::f32`, and their op x type tables are different.
     # NOT REGISTERED: the FP8 types (.e4m3*/.e5m2*) and `.acc::f16`, whose
     # Target Notes scope them to the sm_100a/sm_120a family architectures
-    # rather than to sm_90 where the rest of this subsection lives; and
-    # `multimem.st.async` (9.7.9.13), which is PTX ISA 9.3 and does not
-    # assemble on this toolchain.
+    # rather than to sm_90 where the rest of this subsection lives.
     InstructionEntry(
         name="multimem_ld_reduce",
         mnemonic="multimem.ld_reduce",
@@ -3986,7 +7297,7 @@ _ENTRIES = [
         cert_arch="sm_90",
         operands=(
             OperandSlot("d", rw="w"),
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
         ),
     ),
     InstructionEntry(
@@ -4001,7 +7312,7 @@ _ENTRIES = [
         check=_check_multimem_int,
         cert_arch="sm_90",
         operands=(
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
             OperandSlot("b"),
         ),
     ),
@@ -4021,7 +7332,7 @@ _ENTRIES = [
         check=_check_multimem_int,
         cert_arch="sm_90",
         operands=(
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
             OperandSlot("b"),
         ),
     ),
@@ -4052,11 +7363,11 @@ _ENTRIES = [
                 *(
                     (
                         OperandSlot("d", rw="w", lanes=_vec_lanes if vec else 1),
-                        OperandSlot("addr", kind="addr"),
+                        OperandSlot("addr", kind="addr", allow_imm_offset=True),
                     )
                     if mnem == "ld_reduce"
                     else (
-                        OperandSlot("addr", kind="addr"),
+                        OperandSlot("addr", kind="addr", allow_imm_offset=True),
                         OperandSlot("b", lanes=_vec_lanes if vec else 1),
                     )
                 ),
@@ -4079,7 +7390,7 @@ _ENTRIES = [
         )
         for vec in (False, True)
     ],
-    # createpolicy per PTX ISA 9.7.9.19: build the opaque 64-bit cache-eviction
+    # createpolicy per PTX ISA 9.7.10.21: build the opaque 64-bit cache-eviction
     # policy that the `.level::cache_hint` operand of ld/st/cp takes. Three
     # syntax lines, three shapes:
     #   createpolicy.range{.global}.pri{.sec}.b64  policy, [a], primary, total;
@@ -4109,7 +7420,7 @@ _ENTRIES = [
                 "createpolicy_range",
                 "range",
                 (
-                    OperandSlot("addr", kind="addr"),
+                    OperandSlot("addr", kind="addr", allow_imm_offset=True),
                     OperandSlot("primary_size", dtype="u32"),
                     OperandSlot("total_size", dtype="u32"),
                 ),
@@ -4134,7 +7445,7 @@ _ENTRIES = [
             OperandSlot("access_property", dtype="u64"),
         ),
     ),
-    # cp.async.bulk.prefetch per PTX ISA 9.7.9.26.4.3 -- the non-tensor bulk
+    # cp.async.bulk.prefetch per PTX ISA 9.7.10.28.4.3 -- the non-tensor bulk
     # prefetch, beside the tensor one further down:
     #   cp.async.bulk.prefetch.L2.src{.level::cache_hint} [srcMem], size{, policy};
     InstructionEntry(
@@ -4150,12 +7461,12 @@ _ENTRIES = [
         ),
         cert_arch="sm_90",
         operands=(
-            OperandSlot("src_mem", kind="addr", space="global"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="global"),
             OperandSlot("size", dtype="u32"),
             OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
     ),
-    # tensormap.replace per PTX ISA 9.7.9.27: overwrite one field of a 1024-bit
+    # tensormap.replace per PTX ISA 9.7.10.29: overwrite one field of a 1024-bit
     # tensor-map object in place. Three field groups, and they differ in shape
     # rather than in qualifier, so they are three entries:
     #   .field1 = {global_address, rank}                      [addr], new_val
@@ -4182,7 +7493,7 @@ _ENTRIES = [
             ),
             cert_arch="sm_90a",
             operands=(
-                OperandSlot("addr", kind="addr"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
                 *ops,
             ),
         )
@@ -4214,7 +7525,7 @@ _ENTRIES = [
         )
     ],
     # The field3 group, one entry per field because each names its own closed
-    # set of immediate values (ISA Table 33).
+    # set of immediate values (ISA Table 36).
     *[
         InstructionEntry(
             name=f"tensormap_replace_{field}",
@@ -4228,7 +7539,7 @@ _ENTRIES = [
             ),
             cert_arch="sm_90a",
             operands=(
-                OperandSlot("addr", kind="addr"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
                 OperandSlot("new_val", kind="imm", choices=values),
             ),
         )
@@ -4239,7 +7550,29 @@ _ENTRIES = [
             ("fill_mode", ("0", "1")),
         )
     ],
-    # mov, scalar form (PTX ISA 9.7.9.3): `mov.type d, a;`. A different
+    # Swizzle-mode immediate value 4 requires sm_103a (PTX ISA 9.4, 9.7.10.29
+    # Target ISA Notes; the value itself dates from PTX ISA 8.8).  MEASURED on
+    # CUDA 13.4: sm_90a rejects it ("value '4' expected to be in range
+    # [0..3]"), sm_103a assembles it.  Keep it in a sibling entry so the
+    # existing 0..3 helpers retain their sm_90a certification floor;
+    # immediate-domain validation disambiguates calls.
+    InstructionEntry(
+        name="tensormap_replace_swizzle_mode_sm103a",
+        mnemonic="tensormap.replace",
+        slots=(
+            ModifierSlot("mode", ("tile",)),
+            ModifierSlot("field", ("swizzle_mode",)),
+            ModifierSlot("space", ("global", "shared::cta"), optional=True),
+            ModifierSlot("width", ("b1024",)),
+            ModifierSlot("type", ("b32",)),
+        ),
+        cert_arch="sm_103a",
+        operands=(
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
+            OperandSlot("new_val", kind="imm", choices=("4",)),
+        ),
+    ),
+    # mov, scalar form (PTX ISA 9.7.10.3): `mov.type d, a;`. A different
     # instruction from the vector pack/unpack lines above that share the
     # mnemonic -- this one just copies a register -- and dispatch tells them
     # apart by arity, since every pack/unpack shape takes at least three.
@@ -4256,7 +7589,7 @@ _ENTRIES = [
         ),
         asm_volatile=False,  # a register copy: let nvcc common it up
     ),
-    # prmt per PTX ISA 9.7.9.7: pick four arbitrary bytes out of the eight in
+    # prmt per PTX ISA 9.7.10.7: pick four arbitrary bytes out of the eight in
     # {b, a} and reassemble them. Without `.mode`, operand c is four 4-bit
     # selectors; with one, its two low bits pick a row of the mode's table.
     # The mode comes *after* the type in the text (`prmt.b32{.mode}`), which is
@@ -4274,7 +7607,7 @@ _ENTRIES = [
             OperandSlot("c"),
         ),
     ),
-    # ldu per PTX ISA 9.7.9.10: a load whose address is uniform across the
+    # ldu per PTX ISA 9.7.10.10: a load whose address is uniform across the
     # warp. Two lines, scalar and vector, split the way ld's are.
     # Only `.global` or generic addressing: ptxas answers "State space
     # incorrect for instruction 'ldu'" to anything else, matching the ISA's
@@ -4286,8 +7619,8 @@ _ENTRIES = [
             ModifierSlot("type", _LD_TYPES),
         ),
         operands=(
-            OperandSlot("d", rw="w"),
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("d", rw="w", dtypes=_relaxed_mem_dtypes),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
         ),
     ),
     InstructionEntry(
@@ -4304,19 +7637,19 @@ _ENTRIES = [
         # to send those to, so here the check is the whole rule.
         check=_check_vec128,
         operands=(
-            OperandSlot("d", rw="w", lanes=_vec_lanes),
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("d", rw="w", dtypes=_relaxed_mem_dtypes, lanes=_vec_lanes),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
         ),
     ),
-    # prefetchu per PTX ISA 9.7.9.16, the fourth line of that subsection: the
-    # uniform cache rather than the data cache, so a different mnemonic and no
-    # state space (it "requires a generic address").
+    # prefetchu per PTX ISA 9.7.10.16, the third syntax form of that subsection.
+    # It targets the uniform cache rather than the data cache, so it has a
+    # different mnemonic and no state space (it "requires a generic address").
     InstructionEntry(
         name="prefetchu",
         slots=(ModifierSlot("level", ("L1",)),),
-        operands=(OperandSlot("addr", kind="addr"),),
+        operands=(OperandSlot("addr", kind="addr", allow_imm_offset=True),),
     ),
-    # applypriority / discard per PTX ISA 9.7.9.17, 9.7.9.18. Same shape: an
+    # applypriority / discard per PTX ISA 9.7.10.17, 9.7.10.20. Same shape: an
     # address range and a cache level, one hinting how to evict it and the
     # other saying it need not be written back at all.
     #   applypriority{.global}.L2::evict_normal  [a], size;
@@ -4332,13 +7665,13 @@ _ENTRIES = [
                 ModifierSlot("level", (level,)),
             ),
             operands=(
-                OperandSlot("addr", kind="addr"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
                 OperandSlot("size", kind="imm", literal="128"),
             ),
         )
         for name, level in (("applypriority", "L2::evict_normal"), ("discard", "L2"))
     ],
-    # isspacep per PTX ISA 9.7.9.20: does this generic address fall inside the
+    # isspacep per PTX ISA 9.7.10.22: does this generic address fall inside the
     # window of a given state space? A `.pred` result, so it rides the bridge.
     # The address is a plain pointer rather than an `addr` operand: the
     # instruction reads the value, it does not dereference it, so there is
@@ -4352,7 +7685,7 @@ _ENTRIES = [
         ),
         asm_volatile=False,  # a pure query of an address value
     ),
-    # getctarank per PTX ISA 9.7.9.25: which CTA of the cluster owns this
+    # getctarank per PTX ISA 9.7.10.27: which CTA of the cluster owns this
     # address. Two lines by whether the address is a shared one or a generic
     # one; `.type` describes the *source*, while "destination d is always a
     # 32-bit register".
@@ -4373,7 +7706,7 @@ _ENTRIES = [
         )
         for name, shared in (("getctarank", True), ("getctarank_generic", False))
     ],
-    # cvt.pack per PTX ISA 9.7.9.23: convert two .s32 values with saturation
+    # cvt.pack per PTX ISA 9.7.10.25: convert two .s32 values with saturation
     # and pack them into one register. Two syntax lines, and the operand count
     # is what separates them -- the sub-byte line needs `c` to supply the bits
     # the pair does not fill, and the 16-bit line has none left over.
@@ -4403,11 +7736,11 @@ _ENTRIES = [
             ("cvt_pack_c", ("u2", "s2", "u4", "s4", "u8", "s8"), True),
         )
     ],
-    # shfl.sync per PTX ISA 9.7.9.6: exchange a register between the lanes of a
+    # shfl.sync per PTX ISA 9.7.10.6: exchange a register between the lanes of a
     # warp. `d[|p]` is optional in the syntax and adds a destination, so the
     # two shapes are two entries; p reports whether the computed source lane
     # was in range.
-    # NOT REGISTERED: the non-sync `shfl` of 9.7.9.5, which the ISA removed for
+    # NOT REGISTERED: the non-sync `shfl` of 9.7.10.5, which the ISA removed for
     # sm_70 and higher in PTX ISA 6.4 -- ptxas agrees ("Instruction 'shfl'
     # without '.sync' is not supported on .target sm_70 and higher"), so it
     # assembles on no architecture this dialect targets.
@@ -4430,7 +7763,7 @@ _ENTRIES = [
         )
         for pq in (False, True)
     ],
-    # cvta per PTX ISA 9.7.9.21, both directions over all eight state spaces.
+    # cvta per PTX ISA 9.7.10.23, both directions over all eight state spaces.
     # The `.to` direction converts a generic address into a space-specific one
     # and the bare direction does the reverse; they are two entries because the
     # bare one takes a plain value where `.to` takes a pointer.
@@ -4465,7 +7798,7 @@ _ENTRIES = [
         ),
         asm_volatile=False,
     ),
-    # cvt per PTX ISA 9.7.9.22.
+    # cvt per PTX ISA 9.7.10.24.
     #
     # The generic scalar line first: `cvt{.irnd|.frnd}{.ftz}{.sat}.dtype.atype`
     # over the ISA's twelve-type dtype/atype product. The two spellings the ISA
@@ -4521,13 +7854,13 @@ _ENTRIES = [
         # {.f16x2, .bf16, .bf16x2, .tf32} destination formats require sm_80 or
         # higher."
         operands=(
-            OperandSlot("d", rw="w", dtype="dtype"),
-            OperandSlot("a", dtype="atype"),
+            OperandSlot("d", rw="w", dtype="dtype", dtypes=_cvt_dst_dtypes),
+            OperandSlot("a", dtype="atype", dtypes=_cvt_src_dtypes),
         ),
     ),
     # The two frnd2 lines that pack *two* .f32 sources into one register are a
     # different shape (`d, a, b`), so they are their own entries. ISA
-    # 9.7.9.22:65-68: "For .f16x2 and .bf16x2 instruction type, two inputs a and
+    # 9.7.10.24:65-68: "For .f16x2 and .bf16x2 instruction type, two inputs a and
     # b of .f32 type are converted into .f16 or .bf16 type and the converted
     # values are packed in the destination register d, such that the value
     # converted from input a is stored in the upper half of d and the value
@@ -4713,9 +8046,9 @@ _ENTRIES = [
             ModifierSlot("dtype", ("e4m3x2", "e5m2x2")),
             ModifierSlot("atype", ("f16x2", "bf16x2")),
         ),
-        # The .bf16x2 source is the PTX ISA 9.2 line: "cvt.rn.satfinite{.relu}
+        # The .bf16x2 source is the PTX ISA 9.1 line: "cvt.rn.satfinite{.relu}
         # {.e5m2x2/.e4m3x2}{.bf16x2} is supported on following family-specific
-        # architectures:" (9.7.9.22), listing sm_100f, sm_110f and sm_120f.
+        # architectures:" (9.7.10.24), listing sm_100f, sm_110f and sm_120f.
         cert_arch="sm_100a",
         operands=(
             OperandSlot("d", rw="w", dtype="dtype"),
@@ -4763,7 +8096,7 @@ _ENTRIES = [
         # ISA:634-639 puts this line on "following family-specific
         # architectures": "sm_100f or higher in the same family", "sm_110f or
         # higher in the same family", "sm_120f or higher in the same family".
-        # The entry certifies at sm_100a, which ptxas 13.2 accepts for every
+        # The entry certifies at sm_100a, which ptxas 13.4 accepts for every
         # variant here -- a toolchain fact; the sentence above is the rule.
         cert_arch="sm_100a",
         operands=(
@@ -4849,7 +8182,7 @@ _ENTRIES = [
         # ISA:619-624 puts this line on "following family-specific
         # architectures": "sm_100f or higher in the same family", "sm_110f or
         # higher in the same family", "sm_120f or higher in the same family".
-        # Certified at sm_100a, which ptxas 13.2 accepts here (toolchain fact),
+        # Certified at sm_100a, which ptxas 13.4 accepts here (toolchain fact),
         # the same treatment cvt_f6x2_fp16x2 gets from the same sentence.
         cert_arch="sm_100a",
         operands=(
@@ -4965,7 +8298,7 @@ _ENTRIES = [
         # ISA:619-624 puts this line on "following family-specific
         # architectures": "sm_100f or higher in the same family", "sm_110f or
         # higher in the same family", "sm_120f or higher in the same family".
-        # Certified at sm_100a, which ptxas 13.2 accepts here (toolchain fact).
+        # Certified at sm_100a, which ptxas 13.4 accepts here (toolchain fact).
         cert_arch="sm_100a",
         operands=(
             OperandSlot("d", rw="w", dtype="dtype"),
@@ -5118,13 +8451,15 @@ _ENTRIES = [
             ),
         ),
     ),
-    # mapa per PTX ISA 9.7.9.24: map a shared address into another CTA of the
-    # cluster. All four syntax lines differ only in how `a` is spelled at the
-    # PTX level (register / variable / variable+imm); through a C helper the
-    # operand is always a register, so they collapse to one entry.
-    # `.type` fixes the width of BOTH d and a, so the two type tokens are two
-    # entries: `.u64` maps a generic address (a pointer), `.u32` maps a 32-bit
-    # shared-window address (a plain register, not bracketed).
+    # mapa per PTX ISA 9.7.10.26: map a shared address into another CTA of the
+    # cluster. Syntax lines that differ only in how `a` is spelled at the PTX
+    # level (register / variable / variable+imm) collapse to a register operand
+    # through the C helper, while generic versus shared carrier semantics stay
+    # separate.
+    # `.type` fixes the width of BOTH d and a. `.u64` accepts either a pointer
+    # (with or without explicit `.shared::cluster`) or an already-materialized
+    # raw address register. The distinct carrier shapes are sibling entries;
+    # no space-aware pointer mechanism is needed.
     InstructionEntry(
         name="mapa",
         slots=(
@@ -5139,14 +8474,38 @@ _ENTRIES = [
         ),
     ),
     InstructionEntry(
+        name="mapa_u64_raw",
+        mnemonic="mapa",
+        slots=(ModifierSlot("type", ("u64",)),),
+        asm_volatile=False,
+        operands=(
+            OperandSlot("d", rw="w"),
+            OperandSlot("a", dtype="u64"),
+            OperandSlot("b", dtype="u32"),
+        ),
+    ),
+    InstructionEntry(
+        name="mapa_u64_shared",
+        mnemonic="mapa",
+        slots=(
+            ModifierSlot("space", ("shared::cluster",)),
+            ModifierSlot("type", ("u64",)),
+        ),
+        asm_volatile=False,
+        operands=(
+            OperandSlot("d", rw="w"),
+            OperandSlot("a", dtype="u64"),
+            OperandSlot("b", dtype="u32"),
+        ),
+    ),
+    InstructionEntry(
         name="mapa_u32",
         mnemonic="mapa",
         slots=(
-            # Not optional here, unlike the .u64 entry: the ISA says that with
-            # `.space` omitted "both a and d are registers containing generic
-            # addresses", and a generic address does not fit 32 bits on this
-            # target. ptxas tolerates the bare `mapa.u32`, but nothing can
-            # legitimately call it.
+            # The ISA says that with `.space` omitted "both a and d are
+            # registers containing generic addresses", and a generic address
+            # does not fit 32 bits on this target. ptxas tolerates the bare
+            # `mapa.u32`, but nothing can legitimately call it.
             ModifierSlot("space", ("shared::cluster",)),
             ModifierSlot("type", ("u32",)),
         ),
@@ -5157,6 +8516,12 @@ _ENTRIES = [
             OperandSlot("b", dtype="u32"),
         ),
     ),
+    # PTX ISA 9.7.10.28.3.3 / 9.7.10.28.6.2 defines N only as an integer
+    # constant and declares no value domain. Keep it OPEN: callers may use any
+    # compile-time integer, while certification samples the instruction shape.
+    # MEASURED on CUDA 13.4 ptxas at sm_107a: ordinary and bulk forms accept
+    # values beyond 7 (8, 9, 16, 255), and the bulk `.read` form also accepts
+    # 2147483647 and -1.
     *[
         InstructionEntry(  # cp.async{.bulk}.wait_group{.read} N;
             name=f"cp_async{'_bulk' if bulk else ''}_wait_group",
@@ -5168,11 +8533,11 @@ _ENTRIES = [
                 *((ModifierSlot("read", ("read",), optional=True),) if bulk else ()),
             ),
             orders_memory=True,
-            operands=(OperandSlot("group", kind="imm", choices=tuple(str(n) for n in range(8))),),
+            operands=(OperandSlot("group", kind="imm"),),
         )
         for bulk in (False, True)
     ],
-    # cp.async per PTX ISA 9.7.9.26.3.1: the non-bulk asynchronous copy.
+    # cp.async per PTX ISA 9.7.10.28.3.1: the non-bulk asynchronous copy.
     # cp-size is an integer constant the ISA closes to {4, 8, 16} (and to 16
     # alone under .cg) -- a choices immediate. The src-size arity zero-fills
     # the destination tail; it is a separate entry told apart by arity, the
@@ -5201,8 +8566,8 @@ _ENTRIES = [
             ),
             cert_arch="sm_90",
             operands=(
-                OperandSlot("dst_mem", kind="addr", space="shared"),
-                OperandSlot("src_mem", kind="addr", space="global"),
+                OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared"),
+                OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="global"),
                 OperandSlot(
                     "cp_size", kind="imm", choices=("4", "8", "16") if cop == "ca" else ("16",)
                 ),
@@ -5233,7 +8598,7 @@ _ENTRIES = [
         operands=(),
     ),
     InstructionEntry(  # cp.async.wait_all ;
-        # The ISA's second syntax line of 9.7.9.26.3.3, and the one with no
+        # The ISA's second syntax line of 9.7.10.28.3.3, and the one with no
         # operand: "cp.async.wait_all is equivalent to :
         #
         #     cp.async.commit_group;
@@ -5247,7 +8612,7 @@ _ENTRIES = [
         # it nvcc may hoist the loads of the copied data above the wait.
         # "Writes performed by cp.async operations are made visible to the
         # executing thread only after: The completion of cp.async.wait_all"
-        # (9.7.9.26.3.3) is exactly what that clobber has to protect.
+        # (9.7.10.28.3.3) is exactly what that clobber has to protect.
         name="cp_async_wait_all",
         mnemonic="cp",
         slots=(
@@ -5257,29 +8622,17 @@ _ENTRIES = [
         orders_memory=True,
         operands=(),
     ),
-    # cp.async.bulk (non-tensor), per PTX ISA 9.7.9.26.4.1: four directions.
-    #
-    # NOT REGISTERED:
-    # - the `.sem.scope`/`.type` lines: "Support for .weak and .relaxed
-    #   semantics, .scope and .type qualifiers are introduced in PTX ISA version
-    #   9.3", which ptxas 13.2 in this toolchain (9.2) cannot assemble, and no
-    #   call site uses them.
-    # - the `{.sem}` (`.weak`) position on the plain lines, for the same reason:
-    #   omitting an optional qualifier renders the same instruction, and the
-    #   token itself is 9.3. Same situation `_check_ld` records for
-    #   ld.mmio.acquire.
+    # cp.async.bulk (non-tensor), per PTX ISA 9.7.10.28.4.1: four directions.
     #
     # `.ignore_oob` is registered, on the one entry below whose direction the
     # ISA gives it: "The qualifier .ignore_oob is only available for the global
-    # to .shared::cta copy direction." (9.7.9.26.4.1). It is a PTX ISA 9.2
-    # feature -- "Support for .ignore_oob qualifier introduced in PTX ISA
-    # version 9.2." -- so unlike the .sem.scope/.type lines above it is inside
-    # what this toolchain assembles; ptxas takes it at sm_90 and sm_100.
+    # to .shared::cta copy direction." (9.7.10.28.4.1). It is a PTX ISA 9.2
+    # feature and ptxas 13.4 takes it at sm_90 and sm_100.
     InstructionEntry(  # global -> shared::cta
         # The `{.ignore_oob}` position and its two operands, from the syntax
-        # line (9.7.9.26.4.1), wrapped but otherwise verbatim:
+        # line (9.7.10.28.4.1), wrapped but otherwise verbatim:
         #
-        #   cp.async.bulk{.sem}.dst.src.completion_mechanism{.level::cache_hint}
+        #   cp.async.bulk.dst.src.completion_mechanism{.level::cache_hint}
         #      {.ignore_oob}
         #      [dstMem], [srcMem], size{, ignoreBytesLeft, ignoreBytesRight},
         #      [mbar] {, cache_policy};
@@ -5297,16 +8650,20 @@ _ENTRIES = [
         slots=(
             ModifierSlot("api", ("async",)),
             ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("sem", ("weak", "relaxed"), optional=True),
+            ModifierSlot("scope", ("cta", "cluster", "gpu", "sys"), optional=True),
             ModifierSlot("dst", ("shared::cta",)),
             ModifierSlot("src", ("global",)),
             ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
             ModifierSlot("cache", ("L2::cache_hint",), optional=True),
             ModifierSlot("ignore_oob", ("ignore_oob",), optional=True),
+            ModifierSlot("type", ("b128",), optional=True),
         ),
-        cert_arch="sm_90",
+        check=_check_cp_async_bulk_sem,
+        cert_arch="sm_103a",
         operands=(
-            OperandSlot("dst_mem", kind="addr", space="shared::cta"),
-            OperandSlot("src_mem", kind="addr", space="global"),
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="global"),
             OperandSlot("size", dtype="u32"),
             OperandSlot(
                 "ignore_bytes_left",
@@ -5320,7 +8677,7 @@ _ENTRIES = [
                 lanes=_ignore_oob_lanes,
                 vector=False,
             ),
-            OperandSlot("mbar", kind="addr", space="shared"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
             OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
         ),
     ),
@@ -5330,18 +8687,22 @@ _ENTRIES = [
         slots=(
             ModifierSlot("api", ("async",)),
             ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("sem", ("weak", "relaxed"), optional=True),
+            ModifierSlot("scope", ("cta", "cluster", "gpu", "sys"), optional=True),
             ModifierSlot("dst", ("shared::cluster",)),
             ModifierSlot("src", ("global",)),
             ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
             ModifierSlot("multicast", ("multicast::cluster",), optional=True),
             ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+            ModifierSlot("type", ("b128",), optional=True),
         ),
-        cert_arch="sm_90",
+        check=_check_cp_async_bulk_sem,
+        cert_arch="sm_103a",
         operands=(
-            OperandSlot("dst_mem", kind="addr", space="shared::cluster"),
-            OperandSlot("src_mem", kind="addr", space="global"),
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared::cluster"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="global"),
             OperandSlot("size", dtype="u32"),
-            OperandSlot("mbar", kind="addr", space="shared"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
             OperandSlot("cta_mask", dtype="u16", lanes=_tma_mask_lanes, vector=False),
             OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
         ),
@@ -5352,16 +8713,20 @@ _ENTRIES = [
         slots=(
             ModifierSlot("api", ("async",)),
             ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("sem", ("weak", "relaxed"), optional=True),
+            ModifierSlot("scope", ("cta", "cluster"), optional=True),
             ModifierSlot("dst", ("shared::cluster",)),
             ModifierSlot("src", ("shared::cta",)),
             ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
+            ModifierSlot("type", ("b128",), optional=True),
         ),
-        cert_arch="sm_90",
+        cert_arch="sm_103a",
+        check=_check_cp_async_bulk_sem,
         operands=(
-            OperandSlot("dst_mem", kind="addr", space="shared::cluster"),
-            OperandSlot("src_mem", kind="addr", space="shared::cta"),
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared::cluster"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
             OperandSlot("size", dtype="u32"),
-            OperandSlot("mbar", kind="addr", space="shared"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
         ),
     ),
     InstructionEntry(  # shared::cta -> global
@@ -5370,6 +8735,8 @@ _ENTRIES = [
         slots=(
             ModifierSlot("api", ("async",)),
             ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("sem", ("weak", "relaxed"), optional=True),
+            ModifierSlot("scope", ("cta", "cluster", "gpu", "sys"), optional=True),
             ModifierSlot("dst", ("global",)),
             ModifierSlot("src", ("shared::cta",)),
             ModifierSlot("completion", ("bulk_group",)),
@@ -5377,27 +8744,29 @@ _ENTRIES = [
             # .cp_mask masks bytes within each 16-byte chunk: "The i-th bit in
             # the 16-bit wide byteMask operand specifies whether the i-th byte
             # of each 16-byte wide chunk of source data is copied to the
-            # destination." (ISA 9.7.9.26.4.1:181-182). It is independent of
+            # destination." (ISA 9.7.10.28.4.1:181-182). It is independent of
             # .L2::cache_hint -- the syntax line brace-marks the two separately
-            # ("cp.async.bulk{.sem}.dst.src.completion_mechanism{.level::cache_hint}{.cp_mask}",
+            # ("cp.async.bulk.dst.src.completion_mechanism{.level::cache_hint}{.cp_mask}",
             # :72) and the section's only couplings are ":173 When the optional
             # argument cache_policy is specified, the qualifier
             # .level::cache_hint is required." and ":180 When the optional
             # qualifier .cp_mask is specified, the argument byteMask is
             # required." -- both of which this entry's operand `lanes` already
             # encode. This entry used to reject bare .cp_mask on the claim that
-            # ptxas required the pairing; ptxas (CUDA 13.2) assembles
+            # ptxas required the pairing; ptxas (CUDA 13.4) assembles
             # `cp.async.bulk.global.shared::cta.bulk_group.cp_mask [%rd], [%r1],
             # %r2, %h;` at sm_100 and sm_100a, so the claim was false.
             # .cp_mask is a Blackwell feature -- below sm_100 ptxas reports
             # "Feature '.cp_mask' requires .target sm_100 or higher", which the
             # entry's cert_arch already covers.
             ModifierSlot("cp_mask", ("cp_mask",), optional=True),
+            ModifierSlot("type", ("b128",), optional=True),
         ),
-        cert_arch="sm_100a",
+        cert_arch="sm_103a",
+        check=_check_cp_async_bulk_sem,
         operands=(
-            OperandSlot("dst_mem", kind="addr", space="global"),
-            OperandSlot("src_mem", kind="addr", space="shared::cta"),
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="global"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
             OperandSlot("size", dtype="u32"),
             OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
             # "the 16-bit wide byteMask operand" -- the legacy helper bound it
@@ -5406,7 +8775,113 @@ _ENTRIES = [
             OperandSlot("byte_mask", dtype="u16", lanes=_cp_mask_lanes, vector=False),
         ),
     ),
-    # cp.async.bulk.tensor (TMA), per ISA 9.7.9.26.5.2-4. The tensor address
+    # cp.reduce.async.bulk (non-tensor), per PTX ISA 9.7.10.28.4.2.
+    # PTX 9.2 exposes the original forms without explicit sem/scope tokens.
+    InstructionEntry(
+        name="cp_reduce_async_bulk_s2c",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("op", ("reduce",)),
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("sem", ("relaxed",), optional=True),
+            ModifierSlot("scope", ("cta", "cluster"), optional=True),
+            ModifierSlot("dst", ("shared::cluster",)),
+            ModifierSlot("src", ("shared::cta",)),
+            ModifierSlot("completion", ("mbarrier::complete_tx::bytes",)),
+            ModifierSlot("redop", tuple(_CP_REDUCE_BULK_TYPES["shared::cluster"])),
+            ModifierSlot("type", ("b32", "u32", "s32", "u64")),
+        ),
+        check=_check_cp_reduce_async_bulk_93,
+        cert_arch="sm_103a",
+        operands=(
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared::cluster"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("size", dtype="u32"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
+        ),
+    ),
+    InstructionEntry(
+        name="cp_reduce_async_bulk_s2g",
+        mnemonic="cp",
+        slots=(
+            ModifierSlot("op", ("reduce",)),
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("sem", ("relaxed",), optional=True),
+            ModifierSlot("scope", ("cta", "cluster", "gpu", "sys"), optional=True),
+            ModifierSlot("dst", ("global",)),
+            ModifierSlot("src", ("shared::cta",)),
+            ModifierSlot("completion", ("bulk_group",)),
+            ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+            ModifierSlot("redop", tuple(_CP_REDUCE_BULK_TYPES["global"])),
+            ModifierSlot("noftz", ("noftz",), optional=True),
+            ModifierSlot(
+                "type", ("f16", "bf16", "b32", "u32", "s32", "b64", "u64", "s64", "f32", "f64")
+            ),
+        ),
+        check=_check_cp_reduce_async_bulk_93,
+        cert_arch="sm_103a",
+        operands=(
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="global"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("size", dtype="u32"),
+            OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
+        ),
+    ),
+    # Multimem bulk-copy families were introduced in PTX 9.1; PTX 9.3 adds
+    # their explicit strong semantic/scope forms.  Register both the default
+    # weak spellings and the new paired `.relaxed.scope` spellings.
+    InstructionEntry(
+        name="multimem_cp_async_bulk",
+        mnemonic="multimem.cp",
+        slots=(
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("sem", ("weak", "relaxed"), optional=True),
+            ModifierSlot("scope", ("cta", "cluster", "gpu", "sys"), optional=True),
+            ModifierSlot("dst", ("global",)),
+            ModifierSlot("src", ("shared::cta",)),
+            ModifierSlot("completion", ("bulk_group",)),
+            ModifierSlot("cp_mask", ("cp_mask",), optional=True),
+            ModifierSlot("type", ("b128",), optional=True),
+        ),
+        check=_check_cp_async_bulk_sem,
+        cert_arch="sm_103a",
+        operands=(
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="global"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("size", dtype="u32"),
+            OperandSlot("byte_mask", dtype="u16", lanes=_cp_mask_lanes, vector=False),
+        ),
+    ),
+    InstructionEntry(
+        name="multimem_cp_reduce_async_bulk",
+        mnemonic="multimem.cp",
+        slots=(
+            ModifierSlot("op", ("reduce",)),
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("kind", ("bulk",)),
+            ModifierSlot("sem", ("relaxed",), optional=True),
+            ModifierSlot("scope", ("cta", "cluster", "gpu", "sys"), optional=True),
+            ModifierSlot("dst", ("global",)),
+            ModifierSlot("src", ("shared::cta",)),
+            ModifierSlot("completion", ("bulk_group",)),
+            ModifierSlot("redop", tuple(_CP_REDUCE_BULK_TYPES["global"])),
+            ModifierSlot("noftz", ("noftz",), optional=True),
+            ModifierSlot(
+                "type", ("f16", "bf16", "b32", "u32", "s32", "b64", "u64", "s64", "f32", "f64")
+            ),
+        ),
+        check=_check_cp_reduce_async_bulk_93,
+        cert_arch="sm_103a",
+        operands=(
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="global"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("size", dtype="u32"),
+        ),
+    ),
+    # cp.async.bulk.tensor (TMA), per ISA 9.7.10.28.5.3-5. The tensor address
     # is the composite `[tensorMap, tensorCoords]` -- one PTX operand holding
     # a 64-bit tensor-map pointer plus an .s32 coordinate vector -- which is
     # what OperandSlot.bracket transcribes. The coordinate count follows .dim
@@ -5415,9 +8890,6 @@ _ENTRIES = [
     # a zero-lanes function each.
     #
     # NOT REGISTERED:
-    # - the .im2col family of load modes (im2col/im2col::w/im2col::w::128 and
-    #   s2g's im2col_no_offs) with their `{, im2colInfo}` operand: no call
-    #   site uses im2col, and the legacy helpers never supported it.
     # - `.tile::scatter4` under cp.reduce: absent from that syntax line.
     InstructionEntry(  # global -> shared::cluster (the TMA load every kernel uses)
         name="cp_async_bulk_tensor_g2s_cluster",
@@ -5441,10 +8913,10 @@ _ENTRIES = [
         cert_arch="sm_100a",
         check=_check_tma_gather4,
         operands=(
-            OperandSlot("dst_mem", kind="addr", space="shared::cluster"),
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared::cluster"),
             OperandSlot("tmap", kind="addr", space="global", bracket="src"),
             OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
-            OperandSlot("mbar", kind="addr", space="shared"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
             OperandSlot("cta_mask", dtype="u16", lanes=_tma_mask_lanes, vector=False),
             OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
         ),
@@ -5467,10 +8939,10 @@ _ENTRIES = [
         cert_arch="sm_100a",
         check=_check_tma_gather4,
         operands=(
-            OperandSlot("dst_mem", kind="addr", space="shared::cta"),
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
             OperandSlot("tmap", kind="addr", space="global", bracket="src"),
             OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="src"),
-            OperandSlot("mbar", kind="addr", space="shared"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared"),
             OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
         ),
     ),
@@ -5493,7 +8965,7 @@ _ENTRIES = [
         operands=(
             OperandSlot("tmap", kind="addr", space="global", bracket="dst"),
             OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="dst"),
-            OperandSlot("src_mem", kind="addr", space="shared::cta"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
             OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
         ),
     ),
@@ -5517,7 +8989,7 @@ _ENTRIES = [
         operands=(
             OperandSlot("tmap", kind="addr", space="global", bracket="dst"),
             OperandSlot("coords", dtype="s32", lanes=_tma_coords_lanes, bracket="dst"),
-            OperandSlot("src_mem", kind="addr", space="shared::cta"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
             OperandSlot("cache_policy", dtype="u64", lanes=_tma_cache_lanes, vector=False),
         ),
     ),
@@ -5554,10 +9026,164 @@ _ENTRIES = [
         operands=(),
     ),
     # ------------------------------------------------------------------
-    # PTX ISA 9.7.14 — Parallel Synchronization and Communication Instructions
+    # PTX ISA 9.7.11 — Fabric Instructions (introduced in PTX ISA 9.3)
     # ------------------------------------------------------------------
-    # bar / barrier per PTX ISA 9.7.14.1, bar.warp.sync per 9.7.14.2,
-    # barrier.cluster per 9.7.14.3.
+    # A fabric handle is the composite [logical-endpoint id, byte offset].
+    # Counted completion adds a third counter-offset member and is therefore a
+    # distinct operand shape. Likewise, cp_mask has a trailing byte-mask
+    # operand and is incompatible with counted::bytes (ISA 9.7.11.5.2).
+    InstructionEntry(
+        name="fabric_try_get",
+        mnemonic="fabric",
+        slots=(
+            ModifierSlot("action", ("try_get",)),
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("dst", ("shared::cta",)),
+            ModifierSlot("completion", ("mbarrier::complete_tx::bytes.mbarrier::report::fabric",)),
+            ModifierSlot("sem", ("relaxed",)),
+            ModifierSlot("scope", ("sys",)),
+            ModifierSlot("type", ("b128",)),
+        ),
+        cert_arch="sm_103a",
+        operands=(
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("src_le_id", dtype="u32", bracket="src"),
+            OperandSlot("src_data_off", dtype="u64", bracket="src"),
+            OperandSlot("size", dtype="u32"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared::cta"),
+        ),
+    ),
+    *[
+        InstructionEntry(
+            name=name,
+            mnemonic="fabric",
+            slots=(
+                ModifierSlot("action", ("try_put",)),
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("multimem", ("multimem",), optional=True),
+                ModifierSlot("src", ("shared::cta",)),
+                ModifierSlot(
+                    "completion",
+                    (
+                        "mbarrier::complete_tx::16B.mbarrier::report::fabric"
+                        + (".counted::bytes" if counted else ""),
+                    ),
+                ),
+                *((ModifierSlot("cp_mask", ("cp_mask",)),) if cp_mask else ()),
+                ModifierSlot("sem", ("relaxed",)),
+                ModifierSlot("scope", ("sys",)),
+                ModifierSlot("type", ("b128",)),
+            ),
+            cert_arch="sm_103a",
+            operands=(
+                OperandSlot("dst_le_id", dtype="u32", bracket="dst"),
+                OperandSlot("dst_data_off", dtype="u64", bracket="dst"),
+                *((OperandSlot("dst_counter_off", dtype="u64", bracket="dst"),) if counted else ()),
+                OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+                OperandSlot("size", dtype="u32"),
+                OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared::cta"),
+                *((OperandSlot("byte_mask", dtype="u16"),) if cp_mask else ()),
+            ),
+        )
+        for name, counted, cp_mask in (
+            ("fabric_try_put", False, False),
+            ("fabric_try_put_cp_mask", False, True),
+            ("fabric_try_put_counted", True, False),
+        )
+    ],
+    *[
+        InstructionEntry(
+            name=name,
+            mnemonic="fabric",
+            slots=(
+                ModifierSlot("action", ("try_red",)),
+                ModifierSlot("api", ("async",)),
+                ModifierSlot("multimem", ("multimem",), optional=True),
+                ModifierSlot("src", ("shared::cta",)),
+                ModifierSlot(
+                    "completion",
+                    (
+                        "mbarrier::complete_tx::16B.mbarrier::report::fabric"
+                        + (".counted::bytes" if counted else ""),
+                    ),
+                ),
+                ModifierSlot("sem", ("relaxed",)),
+                ModifierSlot("scope", ("sys",)),
+                ModifierSlot("redop", tuple(_FABRIC_RED_TYPES)),
+                ModifierSlot(
+                    "type",
+                    ("b32", "b64", "u32", "s32", "u64", "s64", "f16", "bf16", "f32", "f64"),
+                ),
+            ),
+            check=_check_fabric_red,
+            cert_arch="sm_103a",
+            operands=(
+                OperandSlot("dst_le_id", dtype="u32", bracket="dst"),
+                OperandSlot("dst_data_off", dtype="u64", bracket="dst"),
+                *((OperandSlot("dst_counter_off", dtype="u64", bracket="dst"),) if counted else ()),
+                OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+                OperandSlot("size", dtype="u32"),
+                OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            ),
+        )
+        for name, counted in (
+            ("fabric_try_red", False),
+            ("fabric_try_red_counted", True),
+        )
+    ],
+    InstructionEntry(
+        name="fabric_try_pullred",
+        mnemonic="fabric",
+        slots=(
+            ModifierSlot("action", ("try_pullred",)),
+            ModifierSlot("api", ("async",)),
+            ModifierSlot("multimem", ("multimem",)),
+            ModifierSlot("dst", ("shared::cta",)),
+            ModifierSlot("completion", ("mbarrier::complete_tx::bytes.mbarrier::report::fabric",)),
+            ModifierSlot("sem", ("relaxed",)),
+            ModifierSlot("scope", ("sys",)),
+            ModifierSlot("redop", tuple(_FABRIC_PULLRED_TYPES)),
+            ModifierSlot("type", ("b32", "b64", "u32", "s32", "u64", "s64", "f16", "bf16", "f32")),
+            ModifierSlot("sync", ("sync",)),
+        ),
+        check=_check_fabric_pullred,
+        cert_arch="sm_103a",
+        operands=(
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("src_le_id", dtype="u32", bracket="src"),
+            OperandSlot("src_data_off", dtype="u64", bracket="src"),
+            OperandSlot("size", dtype="u32"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True, space="shared::cta"),
+            OperandSlot("membermask", kind="imm", literal="0xFFFFFFFF"),
+        ),
+    ),
+    InstructionEntry(
+        name="fabric_submit",
+        mnemonic="fabric",
+        slots=(
+            ModifierSlot("action", ("submit",)),
+            ModifierSlot("submitop", ("op_restrict::fetching",), optional=True),
+        ),
+        cert_arch="sm_103a",
+        orders_memory=True,
+        operands=(),
+    ),
+    InstructionEntry(
+        name="fabric_wait",
+        mnemonic="fabric",
+        slots=(
+            ModifierSlot("action", ("wait",)),
+            ModifierSlot("waitop", ("sync_restrict::reads",)),
+        ),
+        cert_arch="sm_103a",
+        orders_memory=True,
+        operands=(),
+    ),
+    # ------------------------------------------------------------------
+    # PTX ISA 9.7.15 — Parallel Synchronization and Communication Instructions
+    # ------------------------------------------------------------------
+    # bar / barrier per PTX ISA 9.7.15.1, bar.warp.sync per 9.7.15.2,
+    # barrier.cluster per 9.7.15.3.
     #
     #   barrier{.cta}.sync{.aligned}   a{, b};    bar{.cta}.sync   a{, b};
     #   barrier{.cta}.arrive{.aligned} a,  b;     bar{.cta}.arrive a,  b;
@@ -5640,7 +9266,7 @@ _ENTRIES = [
     *[
         InstructionEntry(  # barrier.cluster.arrive{.sem}{.aligned} / .wait{.acquire}{.aligned}
             name=f"barrier_cluster_{act}",
-            # Shares the `barrier` mnemonic with 9.7.14.1 so the surface reads
+            # Shares the `barrier` mnemonic with 9.7.15.1 so the surface reads
             # `T.ptx.barrier.cluster.arrive(...)`; `cluster` is the token that
             # tells the two ISA sections apart.
             mnemonic="barrier",
@@ -5660,7 +9286,7 @@ _ENTRIES = [
         for act in ("arrive", "wait")
     ],
     InstructionEntry(  # bar.warp.sync      membermask;
-        # The `bar` mnemonic's warp-level line, ISA 9.7.14.2 -- a different
+        # The `bar` mnemonic's warp-level line, ISA 9.7.15.2 -- a different
         # section from the CTA barriers above and a different operand: not a
         # barrier id but a lane mask. "Operand membermask specifies a 32-bit
         # integer which is a mask indicating threads participating in barrier
@@ -5685,7 +9311,7 @@ _ENTRIES = [
         orders_memory=True,
         operands=(OperandSlot("membermask", dtype="u32"),),
     ),
-    # The reduction forms of bar / barrier (PTX ISA 9.7.14.1), which combine a
+    # The reduction forms of bar / barrier (PTX ISA 9.7.15.1), which combine a
     # predicate across the barrier's threads instead of only waiting:
     #   bar{.cta}.red.popc.u32       d, a{, b}, {!}c;
     #   bar{.cta}.red.op.pred        p, a{, b}, {!}c;   .op = {.and, .or}
@@ -5722,10 +9348,10 @@ _ENTRIES = [
         for kind in ("popc", "pred")
         for count in (False, True)
     ],
-    # vote.sync per PTX ISA 9.7.14.10: reduce a predicate across a warp. The
+    # vote.sync per PTX ISA 9.7.15.10: reduce a predicate across a warp. The
     # `.ballot` line returns one bit per lane instead of a single answer, so it
     # is a second entry rather than a fourth `.mode` token.
-    # NOT REGISTERED: `vote` without `.sync` (9.7.14.9), deprecated in PTX ISA
+    # NOT REGISTERED: `vote` without `.sync` (9.7.15.9), deprecated in PTX ISA
     # 6.0 and rejected outright by ptxas at sm_70 and higher, exactly as the
     # non-sync `shfl` is; and the `{!}a` negation, per the usual policy.
     *[
@@ -5747,7 +9373,7 @@ _ENTRIES = [
             ("vote_sync_ballot", ("ballot",), "b32"),
         )
     ],
-    # match.sync per PTX ISA 9.7.14.11: which lanes of the warp hold the same
+    # match.sync per PTX ISA 9.7.15.11: which lanes of the warp hold the same
     # value. `.all` optionally reports, through a second predicate, whether
     # every lane agreed -- `.any` has no such answer to give, and ptxas says so
     # ("Predicate output not allowed for instruction 'match.any'"), so the
@@ -5783,14 +9409,14 @@ _ENTRIES = [
             ("match_all_sync_p", "all", True),
         )
     ],
-    # activemask per PTX ISA 9.7.14.12: the one instruction in the table that
+    # activemask per PTX ISA 9.7.15.12: the one instruction in the table that
     # writes a destination and reads nothing at all.
     InstructionEntry(
         name="activemask",
         slots=(ModifierSlot("type", ("b32",)),),
         operands=(OperandSlot("d", rw="w"),),
     ),
-    # elect.sync per PTX ISA 9.7.14.15: pick one leader lane out of the member
+    # elect.sync per PTX ISA 9.7.15.15: pick one leader lane out of the member
     # mask. Its `d|p` is not optional the way match's is -- ptxas answers
     # "Predicate output expected for instruction 'elect'" to a bare
     # destination -- so this family has exactly one shape, and it is the pipe.
@@ -5807,7 +9433,7 @@ _ENTRIES = [
             OperandSlot("membermask", dtype="u32"),
         ),
     ),
-    # redux.sync per PTX ISA 9.7.14.13: reduce a value across the warp.
+    # redux.sync per PTX ISA 9.7.15.13: reduce a value across the warp.
     *[
         InstructionEntry(
             name=name,
@@ -5853,16 +9479,16 @@ _ENTRIES = [
             OperandSlot("membermask", dtype="u32"),
         ),
     ),
-    # fence / membar per PTX ISA 9.7.14.4, griddepcontrol per 9.7.14.14.
+    # fence / membar per PTX ISA 9.7.15.4, griddepcontrol per 9.7.15.14.
     #
     # These name no address yet constrain everyone else's memory order, so they
     # set `orders_memory=True` -- see InstructionEntry for why `asm volatile`
     # alone is not enough. Each syntax line whose token sequence differs is its
     # own entry, all sharing the `fence` mnemonic, so the surface stays
     # `T.ptx.fence...` and the chain narrows on the tokens themselves.
-    # NOT REGISTERED: the `.sync_restrict` lines and the fabric-proxy line
-    # (fixed token sequences with no users yet), and the deprecated `membar`
-    # spellings, which the ISA itself marks as the old style for `fence`.
+    # NOT REGISTERED: the `.sync_restrict` lines (fixed token sequences with no
+    # users yet), and the deprecated `membar` spellings, which the ISA itself
+    # marks as the old style for `fence`.
     InstructionEntry(  # fence{.sem}.scope;
         name="fence",
         slots=(
@@ -5895,6 +9521,20 @@ _ENTRIES = [
         orders_memory=True,
         operands=(),
     ),
+    InstructionEntry(  # fence.proxy.{generic::fabric,...}.alias.{acquire,release}.sys;
+        name="fence_proxy_fabric",
+        mnemonic="fence",
+        slots=(
+            ModifierSlot("proxy", ("proxy",)),
+            ModifierSlot("direction", ("generic::fabric", "fabric::generic", "fabric::fabric")),
+            ModifierSlot("proxykind", ("alias",)),
+            ModifierSlot("sem", ("acquire", "release")),
+            ModifierSlot("scope", ("sys",)),
+        ),
+        cert_arch="sm_103a",
+        orders_memory=True,
+        operands=(),
+    ),
     InstructionEntry(  # fence.proxy.tensormap::generic.release.scope;
         name="fence_proxy_tensormap_release",
         mnemonic="fence",
@@ -5918,15 +9558,15 @@ _ENTRIES = [
         ),
         orders_memory=True,
         operands=(
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
             # "The only supported value for the size operand is 128, which must
-            # be a constant integer literal" -- ISA 9.7.14.4.
+            # be a constant integer literal" -- ISA 9.7.15.4.
             OperandSlot("size", kind="imm", literal="128"),
         ),
     ),
-    # The ISA permits @p on this instruction; ptx does not, because it writes a
-    # destination -- see InstructionEntry.has_dst for why that needs a "+"
-    # constraint first.
+    # The ISA permits @p. A returned-value call may use `preserve_dst=True` when
+    # the old destination must survive the false path; the bit-bucket sibling
+    # has no destination and therefore needs no read-write binding.
     InstructionEntry(
         name="atom",
         slots=(
@@ -5940,12 +9580,12 @@ _ENTRIES = [
         check=_check_atomic,
         operands=(
             OperandSlot("d", rw="w"),
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
             OperandSlot("value"),
             OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
     ),
-    # atom's other syntax lines (PTX ISA 9.7.14.5), each its own entry because
+    # atom's other syntax lines (PTX ISA 9.7.15.5), each its own entry because
     # each differs in shape or in type domain from the `.op` line above.
     #
     # `.cas` compares and swaps, so it takes a fourth value; it is also the one
@@ -5963,7 +9603,7 @@ _ENTRIES = [
         ),
         operands=(
             OperandSlot("d", rw="w"),
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
             OperandSlot("compare"),
             OperandSlot("value"),
         ),
@@ -5984,7 +9624,7 @@ _ENTRIES = [
         check=_check_cache_hint,
         operands=(
             OperandSlot("d", rw="w"),
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
             OperandSlot("value"),
             OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
@@ -6008,7 +9648,7 @@ _ENTRIES = [
             check=_check_cache_hint,
             operands=(
                 *((OperandSlot("d", rw="w"),) if mnem == "atom" else ()),
-                OperandSlot("addr", kind="addr"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
                 OperandSlot("value"),
                 OperandSlot(
                     "cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False
@@ -6017,10 +9657,11 @@ _ENTRIES = [
         )
         for mnem in ("atom", "red")
     ],
-    # atom's two vector lines. Both operands are register groups, so this is a
-    # different shape again; `_check_atom_vec` holds which widths pair with
-    # which element. `.f32` has no `.noftz` (there is no half to flush), which
-    # is why the two lines are two entries rather than one.
+    # atom's three vector syntax lines become two entries: the half-word and
+    # packed lines share one schema, and `_check_atomic_vec` withholds `.v8`
+    # from the packed types. Both data operands are register groups, so this is
+    # a different shape again. `.f32` has no `.noftz` (there is no half to
+    # flush), which is why it remains a separate entry.
     # The ISA's own examples spell these tokens in a different order than its
     # syntax line (`atom.global.v8.f16.max.noftz` against
     # `atom{...}.op.noftz{.cache}.vec.type`); ptxas accepts both, and the
@@ -6039,10 +9680,10 @@ _ENTRIES = [
                 ModifierSlot("vec", ("v2", "v4", "v8") if noftz else ("v2", "v4")),
                 ModifierSlot("type", types),
             ),
-            check=_check_atom_vec,
+            check=_check_atomic_vec,
             operands=(
                 OperandSlot("d", rw="w", lanes=_vec_lanes),
-                OperandSlot("addr", kind="addr"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
                 OperandSlot("value", lanes=_vec_lanes),
                 OperandSlot(
                     "cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False
@@ -6054,7 +9695,39 @@ _ENTRIES = [
             ("atom_vec_f32", ("add",), False, ("f32",)),
         )
     ],
-    # red / atom scalar `.op` forms per PTX ISA 9.7.14.6 and 9.7.14.5.
+    # red's same three vector syntax lines, represented by the same two shapes
+    # as atom but without the returned-value destination. Vector red is global
+    # or generic-only; the cache-policy operand is present exactly with its
+    # `.L2::cache_hint` qualifier.
+    *[
+        InstructionEntry(
+            name=name,
+            mnemonic="red",
+            slots=(
+                ModifierSlot("sem", _RED_SEM, optional=True),
+                ModifierSlot("scope", _ATOM_SCOPES, optional=True),
+                ModifierSlot("space", ("global",), optional=True),
+                ModifierSlot("op", ops),
+                *((ModifierSlot("noftz", ("noftz",)),) if noftz else ()),
+                ModifierSlot("cache", ("L2::cache_hint",), optional=True),
+                ModifierSlot("vec", ("v2", "v4", "v8") if noftz else ("v2", "v4")),
+                ModifierSlot("type", types),
+            ),
+            check=_check_atomic_vec,
+            operands=(
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
+                OperandSlot("value", lanes=_vec_lanes),
+                OperandSlot(
+                    "cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False
+                ),
+            ),
+        )
+        for name, ops, noftz, types in (
+            ("red_vec_half", ("add", "min", "max"), True, (*_ATOM_VEC_HALF, *_HALF_X2)),
+            ("red_vec_f32", ("add",), False, ("f32",)),
+        )
+    ],
+    # red / atom scalar `.op` forms per PTX ISA 9.7.15.6 and 9.7.15.5.
     InstructionEntry(
         name="red",
         slots=(
@@ -6067,7 +9740,7 @@ _ENTRIES = [
         ),
         check=_check_atomic,
         operands=(
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
             OperandSlot("value"),
             OperandSlot("cache_policy", dtype="u64", lanes=_present_lanes("cache"), vector=False),
         ),
@@ -6078,47 +9751,18 @@ _ENTRIES = [
         orders_memory=True,
         operands=(),
     ),
-    # mbarrier, per the PTX ISA 9.7.14.16 chapter: init 9.7.14.16.12, inval
-    # 9.7.14.16.13, expect_tx 9.7.14.16.14, complete_tx 9.7.14.16.15, arrive
-    # 9.7.14.16.16, arrive_drop 9.7.14.16.17, test_wait / try_wait 9.7.14.16.19,
-    # pending_count 9.7.14.16.20.
+    # mbarrier, per PTX ISA 9.7.15.16: the PTX 9.2 operation instructions from
+    # init through pending_count are registered below.
     #
-    # The arrive lines come in a `state`-returning form and a sink form
-    # (`_, [addr]`); the sink is what a void helper can express, so `_` is an
-    # ISA-fixed immediate the way `st.bulk`'s initval is. That also leaves the
-    # instruction without a destination, so `pred=` works.
+    # A syntax line with an optional operand is represented by one entry per
+    # arity. Likewise, a destination written as `state` or as the sink `_` is
+    # represented by sibling entries: the sink is an ISA-fixed text operand,
+    # `kind="imm", literal="_"`, rather than a caller-selectable sink mask.
+    # This covers the optional sink on local-CTA arrive/arrive_drop, including
+    # their noComplete forms, while the shared::cluster lines use the same
+    # always-sunk entries because they cannot return a state.
     #
-    # This is the same ISA facility `OperandSlot.sinkable` models elsewhere,
-    # spelled differently on purpose: here the sink is not a choice. The
-    # state-returning form needs a destination nothing reads today, so only the
-    # sunk spelling is registered, and an operand that is ALWAYS `_` is a fixed
-    # instruction-text value -- which is what a literal imm is. `sinkable`
-    # would let a caller ask for the other form, and there is no other form
-    # here. Unify the two the day the state-returning line is registered. arrive_drop's five
-    # syntax lines (9.7.14.16.17) are the same five shapes, so they are
-    # registered as the same four entries with the action token swapped.
-    #
-    # NOT REGISTERED:
-    # - the `state, [addr]` forms: the destination is the barrier's pre-arrival
-    #   state, which nothing reads today. (`arrive.noComplete` has no sink form
-    #   at all, so it is registered below with a real state result.)
-    # - the non-parity try_wait / test_wait lines (their `state` operand is the
-    #   arrive-returned token nothing reads today), the `.phase_type` qualifiers
-    #   (no call site), and try_wait's timeHint-less arity (every caller passes
-    #   the tick budget).
-    # - the mbarrier layout facility, all of it: `mbarrier.init{.layout}`
-    #   (9.7.14.16.12), `mbarrier.pending_count{.layout}` (9.7.14.16.20) and
-    #   the whole `mbarrier.check_layout.layout{.ss}.b64 p, [addr];`
-    #   instruction (9.7.14.16.21). Every one is a PTX ISA 9.3 feature --
-    #   "Support for .layout qualifier introduced in PTX ISA version 9.3."
-    #   (9.7.14.16.12, 9.7.14.16.20) and "Introduced in PTX ISA version 9.3."
-    #   (9.7.14.16.21) -- and ptxas 13.2 in this toolchain tops out at PTX ISA
-    #   9.2, so it cannot assemble them at any -arch: measured, sm_90 through
-    #   sm_120a, "Unknown modifier '.layout::v1'" and "Not a name of any known
-    #   instruction: 'mbarrier.check_layout'". Same reason the cp.async.bulk
-    #   `.sem.scope`/`.type` lines above are unregistered. Register them when
-    #   the toolchain moves to PTX ISA 9.3; the bare `mbarrier.pending_count`
-    #   line, which predates the qualifier, is registered below.
+    # try_wait's optional timeHint is split by arity in every applicable shape.
     #
     # The addr slot takes no fixed space: with `.space` omitted the ISA means
     # a generic address, which is 64-bit on sm_90+, so pinning the operand to
@@ -6130,15 +9774,16 @@ _ENTRIES = [
         mnemonic="mbarrier",
         slots=(
             ModifierSlot("action", ("init",)),
+            ModifierSlot("layout", ("layout::v0", "layout::v1"), optional=True),
             ModifierSlot("space", ("shared", "shared::cta"), optional=True),
             ModifierSlot("type", ("b64",)),
         ),
         operands=(
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
             OperandSlot("count", dtype="u32"),
         ),
     ),
-    # mbarrier.arrive (9.7.14.16.16) and mbarrier.arrive_drop (9.7.14.16.17)
+    # mbarrier.arrive (9.7.15.16.16) and mbarrier.arrive_drop (9.7.15.16.17)
     # are the same five syntax lines under two action tokens -- compare
     #
     #   mbarrier.arrive{.sem.scope}{.shared{::cta}}.b64           state, [addr]{, count};
@@ -6147,7 +9792,7 @@ _ENTRIES = [
     #   mbarrier.arrive.expect_tx{.sem.scope}{.shared::cluster}.b64   _, [addr], txCount;
     #   mbarrier.arrive.noComplete{.release.cta}{.shared{::cta}}.b64  state, [addr], count;
     #
-    # with 9.7.14.16.17's five, which differ only in the mnemonic's action and
+    # with 9.7.15.16.17's five, which differ only in the mnemonic's action and
     # in arrive_drop also decrementing the expected count ("Decrements the
     # expected arrival count of the mbarrier object by the value specified by
     # the 32-bit integer operand count"). So each shape below is one
@@ -6155,7 +9800,7 @@ _ENTRIES = [
     #
     # Both sections state the pairing rule `_check_mbarrier_sem_scope` enforces
     # in the same words: "Qualifiers .sem and .scope must be specified
-    # together." (9.7.14.16.16, 9.7.14.16.17).
+    # together." (9.7.15.16.16, 9.7.15.16.17).
     *[
         InstructionEntry(  # mbarrier.<act>{.sem.scope}{.space}.b64 _, [addr];
             # The `{, count}` optionality is one ISA line; here it is two entries
@@ -6172,7 +9817,7 @@ _ENTRIES = [
             check=_check_mbarrier_sem_scope,
             operands=(
                 OperandSlot("state", kind="imm", literal="_"),
-                OperandSlot("addr", kind="addr"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
             ),
         )
         for act in ("arrive", "arrive_drop")
@@ -6191,7 +9836,7 @@ _ENTRIES = [
             check=_check_mbarrier_sem_scope,
             operands=(
                 OperandSlot("state", kind="imm", literal="_"),
-                OperandSlot("addr", kind="addr"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
                 OperandSlot("count", dtype="u32"),
             ),
         )
@@ -6212,20 +9857,20 @@ _ENTRIES = [
             check=_check_mbarrier_sem_scope,
             operands=(
                 OperandSlot("state", kind="imm", literal="_"),
-                OperandSlot("addr", kind="addr"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
                 OperandSlot("tx_count", dtype="u32"),
             ),
         )
         for act in ("arrive", "arrive_drop")
     ],
-    # mbarrier.<act>.noComplete{.release.cta}{.shared{::cta}}.b64 state, [addr], count;
+    # mbarrier.<act>.noComplete{.release.cta}{.shared{::cta}}.b64 state|_, [addr], count;
     *[
         InstructionEntry(
-            # This line has no sink form, so `state` is a real register result.
-            # It rides rw="rw" rather than "w": "+" keeps the old value live
-            # under a false predicate, which is what lets `pred=` remain legal on
-            # an instruction that writes a register. Its qualifier pair is fixed
-            # (.release.cta only) and the space domain has no ::cluster.
+            # The state-result sibling rides rw="rw" rather than "w": "+"
+            # keeps the old value live under a false predicate, which is what
+            # lets `pred=` remain legal on an instruction that writes a
+            # register. Its qualifier pair is fixed (.release.cta only) and
+            # the space domain has no ::cluster.
             name=f"mbarrier_{act}_no_complete",
             mnemonic="mbarrier",
             slots=(
@@ -6242,7 +9887,30 @@ _ENTRIES = [
                 # carrier, and ptxas rejects an .f64 register as the state operand
                 # ("Arguments mismatch for instruction 'mbarrier.arrive'").
                 OperandSlot("state", rw="rw", dtype="b64i"),
-                OperandSlot("addr", kind="addr"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
+                OperandSlot("count", dtype="u32"),
+            ),
+        )
+        for act in ("arrive", "arrive_drop")
+    ],
+    *[
+        InstructionEntry(
+            # The optional sink spelling is its own fixed-text sibling. It has
+            # no destination and therefore accepts ordinary framework pred=.
+            name=f"mbarrier_{act}_no_complete_sink",
+            mnemonic="mbarrier",
+            slots=(
+                ModifierSlot("action", (act,)),
+                ModifierSlot("nocomplete", ("noComplete",)),
+                ModifierSlot("sem", ("release",), optional=True),
+                ModifierSlot("scope", ("cta",), optional=True),
+                ModifierSlot("space", ("shared", "shared::cta"), optional=True),
+                ModifierSlot("type", ("b64",)),
+            ),
+            check=_check_mbarrier_sem_scope,
+            operands=(
+                OperandSlot("state", kind="imm", literal="_"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
                 OperandSlot("count", dtype="u32"),
             ),
         )
@@ -6260,15 +9928,19 @@ _ENTRIES = [
             slots=(
                 ModifierSlot("action", (act,)),
                 ModifierSlot("parity", ("parity",)),
+                ModifierSlot(
+                    "phase_type", ("phase_type::primary", "phase_type::conditional"), optional=True
+                ),
                 ModifierSlot("sem", ("acquire", "relaxed"), optional=True),
                 ModifierSlot("scope", ("cta", "cluster"), optional=True),
                 ModifierSlot("space", ("shared", "shared::cta"), optional=True),
                 ModifierSlot("type", ("b64",)),
             ),
             check=_check_mbarrier_sem_scope,
+            cert_arch="sm_90",
             operands=(
                 OperandSlot("wait_complete", rw="w", dtype="pred"),
-                OperandSlot("addr", kind="addr"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
                 OperandSlot("phase", dtype="u32"),
                 *((OperandSlot("time_hint", dtype="u32"),) if act == "try_wait" else ()),
             ),
@@ -6281,15 +9953,19 @@ _ENTRIES = [
         slots=(
             ModifierSlot("action", ("try_wait",)),
             ModifierSlot("parity", ("parity",)),
+            ModifierSlot(
+                "phase_type", ("phase_type::primary", "phase_type::conditional"), optional=True
+            ),
             ModifierSlot("sem", ("acquire", "relaxed"), optional=True),
             ModifierSlot("scope", ("cta", "cluster"), optional=True),
             ModifierSlot("space", ("shared", "shared::cta"), optional=True),
             ModifierSlot("type", ("b64",)),
         ),
         check=_check_mbarrier_sem_scope,
+        cert_arch="sm_90",
         operands=(
             OperandSlot("wait_complete", rw="w", dtype="pred"),
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
             OperandSlot("phase", dtype="u32"),
         ),
     ),
@@ -6306,7 +9982,7 @@ _ENTRIES = [
             ),
             check=_check_mbarrier_sem_scope,
             operands=(
-                OperandSlot("addr", kind="addr"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
                 OperandSlot("tx_count", dtype="u32"),
             ),
         )
@@ -6320,9 +9996,9 @@ _ENTRIES = [
             ModifierSlot("space", ("shared", "shared::cta"), optional=True),
             ModifierSlot("type", ("b64",)),
         ),
-        operands=(OperandSlot("addr", kind="addr"),),
+        operands=(OperandSlot("addr", kind="addr", allow_imm_offset=True),),
     ),
-    # The state-returning arrive lines (PTX ISA 9.7.14.16.16 / .17). The
+    # The state-returning arrive lines (PTX ISA 9.7.15.16.16 / .17). The
     # entries above bake `_` into the text, which is the only spelling the
     # `.shared::cluster` lines offer; these return the phase state instead, and
     # the ISA gives them `.shared{::cta}` alone.
@@ -6344,45 +10020,81 @@ _ENTRIES = [
                 # integer register of either signedness and rejects a float one
                 # ("Arguments mismatch"), which is what `b64i` names.
                 OperandSlot("state", rw="w", dtype="b64i"),
-                OperandSlot("addr", kind="addr"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
                 *((OperandSlot("count", dtype="u32"),) if count else ()),
             ),
         )
         for act in ("arrive", "arrive_drop")
         # Three shapes per action, mirroring the `_` family above: bare, with a
-        # thread count, and with a transaction count. The noComplete line needs
-        # no twin -- it has no `_` spelling, so `mbarrier_*_no_complete` above
-        # is already the state-returning entry.
+        # thread count, and with a transaction count. noComplete always has a
+        # count and its state/sink siblings are registered separately above.
         for suffix, count in (("", False), ("_count", True), ("_expect_tx", True))
     ],
-    # The non-parity waits (PTX ISA 9.7.14.16.19), which take the state token
-    # an arrive returned rather than a phase parity. try_wait may also carry a
-    # sleep hint, which is a separate syntax line and so a separate entry.
-    # NOT REGISTERED: the `.phase_type::*` qualifiers and the
-    # `waitComplete|reportPredicate{, reportValue}` report forms -- both are
-    # PTX ISA 9.3, and ptxas 13.2 (9.2) rejects the token outright.
+    # The non-parity waits (PTX ISA 9.7.15.16.19), which take the state token
+    # an arrive returned rather than a phase parity. try_wait's optional
+    # timeHint is represented by two arities of the same ISA syntax line.
     *[
         InstructionEntry(
             name=f"mbarrier_{act}{'_hint' if hint else ''}",
             mnemonic="mbarrier",
             slots=(
                 ModifierSlot("action", (act,)),
+                ModifierSlot("phase_type", ("phase_type::primary",), optional=True),
                 ModifierSlot("sem", ("acquire", "relaxed"), optional=True),
                 ModifierSlot("scope", ("cta", "cluster"), optional=True),
                 ModifierSlot("space", ("shared", "shared::cta"), optional=True),
                 ModifierSlot("type", ("b64",)),
             ),
             check=_check_mbarrier_sem_scope,
+            cert_arch="sm_90",
             operands=(
                 OperandSlot("wait_complete", rw="w", dtype="pred"),
-                OperandSlot("addr", kind="addr"),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
                 OperandSlot("state", dtype="b64i"),  # the token an arrive returned
                 *((OperandSlot("time_hint", dtype="u32"),) if hint else ()),
             ),
         )
         for act, hint in (("test_wait", False), ("try_wait", False), ("try_wait", True))
     ],
-    # tensormap.cp_fenceproxy per PTX ISA 9.7.14.17: copy a tensor-map object
+    # PTX 9.3 report forms write `waitComplete|reportPredicate` and may also
+    # return an 8-bit reportValue.  Each arity is its own syntax shape; the
+    # reportValue sibling uses a measured block-local .b8 bridge.
+    *[
+        InstructionEntry(
+            name=(
+                f"mbarrier_{act}{'_parity' if parity else ''}_report"
+                f"{'_value' if report_value else ''}{'_hint' if hint else ''}"
+            ),
+            mnemonic="mbarrier",
+            slots=(
+                ModifierSlot("action", (act,)),
+                *((ModifierSlot("parity", ("parity",)),) if parity else ()),
+                ModifierSlot("phase_type", ("phase_type::primary",)),
+                ModifierSlot("sem", ("acquire", "relaxed"), optional=True),
+                ModifierSlot("scope", ("cta", "cluster"), optional=True),
+                ModifierSlot("space", ("shared", "shared::cta"), optional=True),
+                ModifierSlot("type", ("b64",)),
+            ),
+            check=_check_mbarrier_sem_scope,
+            cert_arch="sm_90",
+            operands=(
+                OperandSlot("wait_complete", rw="w", dtype="pred", pipe="report"),
+                OperandSlot("report_predicate", rw="w", dtype="pred", pipe="report"),
+                *(
+                    (OperandSlot("report_value", rw="w", dtype="mbarrier_report_b8reg"),)
+                    if report_value
+                    else ()
+                ),
+                OperandSlot("addr", kind="addr", allow_imm_offset=True),
+                OperandSlot("phase", dtype="u32" if parity else "b64i"),
+                *((OperandSlot("time_hint", dtype="u32"),) if hint else ()),
+            ),
+        )
+        for parity in (False, True)
+        for act, hint in (("test_wait", False), ("try_wait", False), ("try_wait", True))
+        for report_value in (False, True)
+    ],
+    # tensormap.cp_fenceproxy per PTX ISA 9.7.15.17: copy a tensor-map object
     # from shared to global and fence the tensormap proxy over it, in one
     # instruction. `size` is the literal 128 -- ptxas both refuses a register
     # there ("Arguments mismatch") and names the only legal value ("unexpected
@@ -6401,12 +10113,12 @@ _ENTRIES = [
         ),
         cert_arch="sm_90",
         operands=(
-            OperandSlot("dst_mem", kind="addr", space="global"),
-            OperandSlot("src_mem", kind="addr", space="shared::cta"),
+            OperandSlot("dst_mem", kind="addr", allow_imm_offset=True, space="global"),
+            OperandSlot("src_mem", kind="addr", allow_imm_offset=True, space="shared::cta"),
             OperandSlot("size", kind="imm", literal="128"),
         ),
     ),
-    # red.async per PTX ISA 9.7.14.7: an asynchronous reduction whose
+    # red.async per PTX ISA 9.7.15.7: an asynchronous reduction whose
     # completion is signalled through an mbarrier. The ISA writes one syntax
     # line per op group; `_check_red_async` is that grid.
     InstructionEntry(
@@ -6423,16 +10135,14 @@ _ENTRIES = [
         check=_check_red_async,
         cert_arch="sm_90",
         operands=(
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
             OperandSlot("value"),
-            OperandSlot("mbar", kind="addr"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True),
         ),
     ),
     # The release line of the same subsection, which reduces straight into
     # global memory and needs no mbarrier. Like st.async's release line it is
     # sm_100, and `.mmio` is system-scoped only.
-    # NOT REGISTERED: `multimem.red.async` (9.7.14.8) -- ptxas 13.2 rejects the
-    # mnemonic at sm_90 and sm_100 alike, as it does `multimem.st.async`.
     InstructionEntry(
         name="red_async_release",
         mnemonic="red.async",
@@ -6447,22 +10157,41 @@ _ENTRIES = [
         check=_check_st_async_rel,
         cert_arch="sm_100",
         operands=(
-            OperandSlot("addr", kind="addr"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
+            OperandSlot("value"),
+        ),
+    ),
+    # multimem.red.async, introduced in PTX ISA 9.3 (9.7.15.8): an
+    # asynchronous add with release ordering to every location named by a
+    # multimem address.
+    InstructionEntry(
+        name="multimem_red_async",
+        mnemonic="multimem.red.async",
+        slots=(
+            ModifierSlot("sem", ("release",)),
+            ModifierSlot("scope", ("gpu", "sys")),
+            ModifierSlot("space", ("global",), optional=True),
+            ModifierSlot("op", ("add",)),
+            ModifierSlot("type", ("u32", "s32", "u64")),
+        ),
+        cert_arch="sm_100",
+        operands=(
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
             OperandSlot("value"),
         ),
     ),
     # cp.async completion tracking: cp.async.mbarrier.arrive per PTX ISA
-    # 9.7.14.16.18, cp.async.commit_group per 9.7.9.26.3.2, cp.async.wait_group
-    # and cp.async.wait_all per 9.7.9.26.3.3, cp.async.bulk.commit_group /
-    # .wait_group per 9.7.9.26.6.1 / 9.7.9.26.6.2.
+    # 9.7.15.16.18, cp.async.commit_group per 9.7.10.28.3.2, cp.async.wait_group
+    # and cp.async.wait_all per 9.7.10.28.3.3, cp.async.bulk.commit_group /
+    # .wait_group per 9.7.10.28.6.1 / 9.7.10.28.6.2.
     #
-    # The wait_group counts are caller-chosen immediates: the ISA gives N no
-    # register form, so each value is its own helper, and the closed `choices`
-    # set is what makes every one of them certifiable. 0..7 covers every call
-    # site (pipeline depths); widen the tuple if a deeper pipeline appears.
+    # The wait_group counts are caller-chosen OPEN immediates: the ISA gives N
+    # no register form or value domain. Each call-site constant becomes its own
+    # helper; enumeration and full-table certification sample the open operand
+    # at 0 and therefore certify the instruction shape rather than every value.
     #
     # (The `cp.async` ca/cg copy lines this note once excluded are registered
-    # in the 9.7.9 group above, ignore-src operand and all.)
+    # in the 9.7.10 group above, ignore-src operand and all.)
     InstructionEntry(  # cp.async.mbarrier.arrive{.noinc}{.shared{::cta}}.b64 [addr];
         name="cp_async_mbarrier_arrive",
         mnemonic="cp",
@@ -6476,17 +10205,17 @@ _ENTRIES = [
         ),
         # No fixed space on addr, for the reason the mbarrier family states at
         # length below: "If no state space is specified then Generic Addressing
-        # is used." (ISA 9.7.14.16.18), and a generic address is 64-bit on
+        # is used." (ISA 9.7.15.16.18), and a generic address is 64-bit on
         # sm_90+, so pinning the operand to shared would bind a 32-bit register
         # under the space-omitted spelling. `operand_space` reads the entry's
         # `space` slot instead, so the carrier follows the spelling.
-        operands=(OperandSlot("addr", kind="addr"),),
+        operands=(OperandSlot("addr", kind="addr", allow_imm_offset=True),),
     ),
     InstructionEntry(  # mbarrier.pending_count.b64 count, state;
-        # The reader of the `state` result the two `.noComplete` entries above
-        # produce: "The state operand is a 64-bit register that must be the
-        # result of a prior mbarrier.arrive.noComplete or
-        # mbarrier.arrive_drop.noComplete instruction." (ISA 9.7.14.16.20).
+        # The reader of the `state` result the state-returning `.noComplete`
+        # entries above produce: "The state operand is a 64-bit register that
+        # must be the result of a prior mbarrier.arrive.noComplete or
+        # mbarrier.arrive_drop.noComplete instruction." (ISA 9.7.15.16.20).
         #
         # No address and no state space -- the instruction reads a register,
         # not the mbarrier object -- so there is no `space` slot here and
@@ -6495,22 +10224,37 @@ _ENTRIES = [
         # mbarrier object prior to the arrive-on operation from which the state
         # register was obtained."
         #
-        # `state` is pinned u64 for the reason its producer is: the bit-type
-        # dtype axis would otherwise offer an .f64 carrier the instruction has
-        # no use for. The `{.layout}` position is unregistered -- see the
-        # region note above.
+        # `state` uses the integer-only bit carrier for the reason its producer
+        # does: the ordinary b64 dtype axis would also offer an f64 register,
+        # which ptxas rejects in this position.
         name="mbarrier_pending_count",
         mnemonic="mbarrier",
         slots=(
             ModifierSlot("action", ("pending_count",)),
+            ModifierSlot("layout", ("layout::v0",), optional=True),
             ModifierSlot("type", ("b64",)),
         ),
         operands=(
             OperandSlot("count", rw="w", dtype="u32"),
-            OperandSlot("state", dtype="u64"),
+            OperandSlot("state", dtype="b64i"),
         ),
     ),
-    # clusterlaunchcontrol.try_cancel per PTX ISA 9.7.14.18.
+    InstructionEntry(
+        name="mbarrier_check_layout",
+        mnemonic="mbarrier",
+        slots=(
+            ModifierSlot("action", ("check_layout",)),
+            ModifierSlot("layout", ("layout::v0", "layout::v1")),
+            ModifierSlot("space", ("shared::cta",), optional=True),
+            ModifierSlot("type", ("b64",)),
+        ),
+        cert_arch="sm_90",
+        operands=(
+            OperandSlot("matches", rw="w", dtype="pred"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
+        ),
+    ),
+    # clusterlaunchcontrol.try_cancel per PTX ISA 9.7.15.18.
     InstructionEntry(
         name="clusterlaunchcontrol_try_cancel",
         mnemonic="clusterlaunchcontrol",
@@ -6523,24 +10267,27 @@ _ENTRIES = [
             ModifierSlot("type", ("b128",)),
         ),
         # The instruction itself needs sm_100, but `.multicast::cluster::all`
-        # is only on the arch-specific targets (ISA: sm_100a / sm_101a / sm_120a).
+        # is restricted: ISA 9.7.15.18 lists sm_100a, sm_101a and sm_120a,
+        # plus the family-specific sm_100f / sm_101f / sm_110f / sm_120f "or
+        # higher in the same family" from PTX ISA 8.8. sm_100a is the
+        # certification target.
         cert_arch="sm_100a",
         # Neither address operand takes a fixed space: `.space` is optional on
         # the syntax line, and "The .space qualifier is specified, both operands
         # addr and mbar must be in the .shared::cta state space. Otherwise,
-        # generic addressing will be assumed for both." (ISA 9.7.14.18). A
+        # generic addressing will be assumed for both." (ISA 9.7.15.18). A
         # generic address is 64-bit on sm_100, so pinning both to shared would
         # bind 32-bit registers under the space-omitted spelling. Letting
         # `operand_space` read the entry's `space` slot gives each variant the
         # carrier its own spelling promises -- the mbarrier-family rule.
         operands=(
-            OperandSlot("addr", kind="addr"),
-            OperandSlot("mbar", kind="addr"),
+            OperandSlot("addr", kind="addr", allow_imm_offset=True),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True),
         ),
     ),
-    # clusterlaunchcontrol.query_cancel per PTX ISA 9.7.14.19: decode the
+    # clusterlaunchcontrol.query_cancel per PTX ISA 9.7.15.19: decode the
     # opaque b128 response a try_cancel wrote. Three syntax shapes, so three
-    # entries -- the ISA writes them as separate lines (9.7.14.19, wrapped but
+    # entries -- the ISA writes them as separate lines (9.7.15.19, wrapped but
     # otherwise verbatim):
     #
     #   clusterlaunchcontrol.query_cancel.is_canceled.pred.b128
@@ -6555,8 +10302,8 @@ _ENTRIES = [
     # are the x, y and z coordinate of first CTA in canceled cluster." Writing
     # the third line with `{::dimension}` omitted therefore does not give a
     # single-register form -- ptxas resolves the bare name to the `.v4` shape
-    # and reports "Vector of size 4 is expected for argument 0 of instruction
-    # 'clusterlaunchcontrol.query_cancel'" (toolchain fact, CUDA 13.2, sm_100a).
+    # and reports "Unexpected instruction types specified for
+    # 'clusterlaunchcontrol.query_cancel'" (toolchain fact, CUDA 13.4, sm_100a).
     # So the bare form is a different operand shape, i.e. its own entry below,
     # not a fourth token on the per-dimension slot.
     #
@@ -6632,9 +10379,9 @@ _ENTRIES = [
         ),
     ),
     # ------------------------------------------------------------------
-    # PTX ISA 9.7.15 — Warp Level Matrix Multiply-Accumulate Instructions
+    # PTX ISA 9.7.16 — Warp Level Matrix Multiply-Accumulate Instructions
     # ------------------------------------------------------------------
-    # mma per PTX ISA 9.7.15.5.14. Four operand groups (d, a, b, c), each a
+    # mma per PTX ISA 9.7.16.5.14. Four operand groups (d, a, b, c), each a
     # register vector whose length follows the Matrix Fragments tables -- four
     # callable `lanes`, one per group. `d` and `c` are separate operands: the
     # ISA lists them separately and the legacy helper bound them to separate
@@ -6644,7 +10391,8 @@ _ENTRIES = [
     # NOT REGISTERED:
     # - The `.kind::`/`.block_scale` lines and the .e3m2/.e2m3/.e2m1 types,
     #   which require sm_120a -- outside the architectures this table certifies.
-    # - `mma.sp`, a separate instruction with a metadata operand.
+    # (`mma.sp` / `mma.sp::ordered_metadata` per 9.7.16.6.3 is registered in
+    # the `mma_sp*` entries below.)
     InstructionEntry(  # half precision, and the alternate formats that share it
         name="mma",
         slots=(
@@ -6695,7 +10443,7 @@ _ENTRIES = [
     ),
     InstructionEntry(  # mma.sync.aligned.m8n8k4.alayout.blayout.f32.f16.f16.f16
         # The one dense mma line whose .dtype and .ctype differ. The
-        # half-precision syntax line of 9.7.15.5.14 quantifies both ends
+        # half-precision syntax line of 9.7.16.5.14 quantifies both ends
         # independently --
         #
         #   mma.sync.aligned.m8n8k4.alayout.blayout.dtype.f16.f16.ctype  d, a, b, c;
@@ -6722,7 +10470,7 @@ _ENTRIES = [
         # be the same as .ctype." and the identical rule at .m16n8k16 /
         # .m16n8k32.
         #
-        # ptxas 13.2 assembles all four layout pairs at sm_90. Its sm_90a SASS
+        # ptxas 13.4 assembles all four layout pairs at sm_90. Its sm_90a SASS
         # is an FFMA expansion rather than an HMMA -- the same expansion the
         # already-registered .m8n8k4 spellings get there, and what the ISA's
         # own note leads one to expect: "mma.sync.m8n8k4 is optimized for
@@ -6798,7 +10546,7 @@ _ENTRIES = [
             # floating point type mma operation with .m8n8k4 shape introduced
             # in PTX ISA version 7.0.", ".f64 floating point type mma operation
             # with .m8n8k4 shape requires sm_80 or higher.", and a fragment
-            # section of its own, 9.7.15.5.2 "Matrix Fragments for mma.m8n8k4
+            # section of its own, 9.7.16.5.2 "Matrix Fragments for mma.m8n8k4
             # with .f64 floating point type".
             #
             # This slot used to omit the shape under a note claiming ptxas
@@ -6806,7 +10554,7 @@ _ENTRIES = [
             # evidence were both wrong: that probe fed the operand vectors
             # `_mma_threads` produced while it still divided every .m8n8k4 by
             # 8, and ptxas was objecting to the vectors, not to the shape. With
-            # 9.7.15.5.2's counts (a = b = 1, c = d = 2) ptxas 13.2 assembles
+            # 9.7.16.5.2's counts (a = b = 1, c = d = 2) ptxas 13.4 assembles
             # the line at sm_80, sm_90 and sm_90a, and its sm_90a SASS is
             # `DMMA.8x8x4 R4, R4, R6, R8` -- one real hardware instruction,
             # unlike the .m8n8k4 .bf16 / .tf32 spellings ptxas takes and then
@@ -6829,7 +10577,7 @@ _ENTRIES = [
             # are : .rn : mantissa LSB rounds to nearest even. This is the
             # default. .rz : mantissa LSB rounds towards zero. .rm : mantissa
             # LSB rounds towards negative infinity. .rp : mantissa LSB rounds
-            # towards positive infinity." (9.7.15.5.14)
+            # towards positive infinity." (9.7.16.5.14)
             #
             # The syntax line leaves the position out; the section's own f64
             # examples spell it, last, after .ctype -- they write the operands
@@ -6845,7 +10593,7 @@ _ENTRIES = [
             # -- so that is where the slot sits. Optional because .rn is the
             # default, which keeps every spelling this entry rendered before
             # exactly as it was. All four modifiers assemble on all four
-            # shapes (ptxas 13.2, sm_90).
+            # shapes (ptxas 13.4, sm_90).
             ModifierSlot("rnd", ("rn", "rz", "rm", "rp"), optional=True),
         ),
         operands=(
@@ -6917,7 +10665,7 @@ _ENTRIES = [
             ("_all", ("m16n8k64", "m16n8k128"), ("0",), _check_mma_sp_int_all),
         )
     ],
-    # ldmatrix per PTX ISA 9.7.15.5.15 -- warp-level matrix load. Three syntax
+    # ldmatrix per PTX ISA 9.7.16.5.15 -- warp-level matrix load. Three syntax
     # lines; the destination is a brace-enclosed vector of 1/2/4 32-bit
     # registers "as per the value of .num", which is what a callable `lanes`
     # transcribes. The first line's two shapes split into two entries because
@@ -6942,7 +10690,7 @@ _ENTRIES = [
         ),
         operands=(
             OperandSlot("r", rw="w", dtype="b32", lanes=_ldmatrix_lanes),
-            OperandSlot("p", kind="addr"),
+            OperandSlot("p", kind="addr", allow_imm_offset=True),
         ),
     ),
     InstructionEntry(  # line 1, .m16n16.b8: "only .x1 and .x2 are valid"
@@ -6964,7 +10712,7 @@ _ENTRIES = [
         cert_arch="sm_100a",
         operands=(
             OperandSlot("r", rw="w", dtype="b32", lanes=_ldmatrix_lanes),
-            OperandSlot("p", kind="addr"),
+            OperandSlot("p", kind="addr", allow_imm_offset=True),
         ),
     ),
     InstructionEntry(  # lines 2+3: the 6/4-bit decompression loads
@@ -6984,10 +10732,29 @@ _ENTRIES = [
         check=_check_ldmatrix_b8fmt,
         operands=(
             OperandSlot("r", rw="w", dtype="b32", lanes=_ldmatrix_lanes),
-            OperandSlot("p", kind="addr"),
+            OperandSlot("p", kind="addr", allow_imm_offset=True),
         ),
     ),
-    # stmatrix per PTX ISA 9.7.15.5.16 -- the store mirror of ldmatrix. One
+    # movmatrix per PTX ISA 9.7.16.5.17 -- transpose one distributed m8n8
+    # matrix whose 16-bit elements are carried by one b32 register per lane.
+    #
+    #   movmatrix.sync.aligned.m8n8.trans.b16 d, a;
+    InstructionEntry(
+        name="movmatrix",
+        slots=(
+            ModifierSlot("sync", ("sync",)),
+            ModifierSlot("aligned", ("aligned",)),
+            ModifierSlot("shape", ("m8n8",)),
+            ModifierSlot("trans", ("trans",)),
+            ModifierSlot("type", ("b16",)),
+        ),
+        cert_arch="sm_75",
+        operands=(
+            OperandSlot("d", rw="w", dtype="b32"),
+            OperandSlot("a", dtype="b32"),
+        ),
+    ),
+    # stmatrix per PTX ISA 9.7.16.5.16 -- the store mirror of ldmatrix. One
     # syntax line; the two shapes split into two entries because their type and
     # target floors differ.
     #
@@ -7010,7 +10777,7 @@ _ENTRIES = [
         ),
         cert_arch="sm_90",  # ISA: "Requires sm_90 or higher."
         operands=(
-            OperandSlot("p", kind="addr"),
+            OperandSlot("p", kind="addr", allow_imm_offset=True),
             OperandSlot("r", dtype="b32", lanes=_matrix_num_lanes),
         ),
     ),
@@ -7029,18 +10796,18 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         operands=(
-            OperandSlot("p", kind="addr"),
+            OperandSlot("p", kind="addr", allow_imm_offset=True),
             OperandSlot("r", dtype="b32", lanes=_matrix_num_lanes),
         ),
     ),
-    # mma.sp / mma.sp::ordered_metadata per PTX ISA 9.7.15.6.3: the same
+    # mma.sp / mma.sp::ordered_metadata per PTX ISA 9.7.16.6.3: the same
     # multiply-accumulate with a structured-sparse A. A holds half of K (the
     # other half is implied), so only its group shrinks; `e` carries the
     # sparsity metadata and `f` selects which threads contributed it -- the ISA
     # calls it "a 32-bit integer constant with values in the range 0..3", an
     # instruction-text immediate rather than a register.
     #
-    # That domain is not 0..3 everywhere: ISA 9.7.15.6.1 states it per shape and
+    # That domain is not 0..3 everywhere: ISA 9.7.16.6.1 states it per shape and
     # type as "one thread within a group of four" (0..3), "a thread-pair" (0 or
     # 1), or "all threads ... must be 0". A `check` sees only the modifier map,
     # never the immediate axis, so each selector domain is its own entry -- the
@@ -7099,7 +10866,7 @@ _ENTRIES = [
             ),
             # "All threads within a group of four ... must be 0."
             #
-            # No check: this entry is one syntax line, ISA 9.7.15.6.3:22,
+            # No check: this entry is one syntax line, ISA 9.7.16.6.3:22,
             # "mma.spvariant.sync.aligned.m16n8k64.row.col.f32.f8type.f8type.f32
             # d, a, b, c, e, f;" with ".f8type     = {.e4m3, .e5m2};", and the
             # slots spell it exactly -- one shape, and .atype/.btype domains
@@ -7107,28 +10874,25 @@ _ENTRIES = [
             # so .e4m3 x .e5m2 is in the grammar (the section's own example at
             # :249 is "mma.sp.sync.aligned.m16n8k64.row.col.f32.e5m2.e4m3.f32").
             # The same-type rule this entry used to carry was wmma.mma's
-            # (9.7.15.4.5:77-78), not mma.sp's -- see `_check_mma_sp_fp_types`.
+            # (9.7.16.4.5:77-78), not mma.sp's -- see `_check_mma_sp_fp_types`.
             ("_all", ("m16n8k64",), ("e4m3", "e5m2"), ("0",), None),
         )
     ],
     # ------------------------------------------------------------------
-    # PTX ISA 9.7.16 — Asynchronous Warpgroup Level Matrix Multiply-Accumulate Instructions
+    # PTX ISA 9.7.17 — Asynchronous Warpgroup Level Matrix Multiply-Accumulate Instructions
     # ------------------------------------------------------------------
-    # wgmma.mma_async per PTX ISA 9.7.16.5.2 (sm_90a). Six type groups, each
+    # wgmma.mma_async per PTX ISA 9.7.17.5.2 (sm_90a). Six type groups, each
     # with an ss line (both A and B from shared memory, named by 64-bit matrix
     # descriptors) and an rs line (A from registers -- always four .b32, see
     # the fragment note above -- which also drops imm-trans-a). Like mma, one
     # entry per accumulator register type so every operand dtype is pinned.
     #
     # The accumulator is read and written in place: D = A*B + D, so `d` is
-    # rw="rw", the "+" constraint. The trailing arguments all live in the
-    # instruction text as caller immediates:
-    #   - scale-d: "the operation of the form D = A*B is issued when the input
-    #     predicate argument scale-d is false". The syntax calls it a
-    #     predicate, but ptxas accepts the literals 0 and 1 in that position
-    #     (certified), and every call site passes a compile-time constant --
-    #     so it is a choices immediate, not a runtime operand. (The legacy
-    #     helper burned a setp + predicate register on it per call.)
+    # rw="rw", the "+" constraint. The trailing arguments are:
+    #   - scale-d: a predicate operand. False issues D = A*B; true issues
+    #     D = A*B+D. It is a runtime operand and uses the ordinary `.pred`
+    #     bridge. Because the operation is warpgroup-collective, callers must
+    #     ensure every thread in the warpgroup supplies the same predicate.
     #   - imm-scale-a/b: "the valid values ... are -1 and 1". The legacy
     #     helper emitted 0 for "no negate", outside the ISA's domain; ptx
     #     transcribes the documented set.
@@ -7137,7 +10901,7 @@ _ENTRIES = [
     #
     # NOT REGISTERED: `wgmma.mma_async.sp` (sparse A, a separate instruction
     # with a metadata operand) and the `wgmma.fence`/`commit_group`/
-    # `wait_group` companions (registered above).
+    # `wait_group` companions (registered below).
     *[
         InstructionEntry(  # .f16 inputs, .f32 accumulator
             name=f"wgmma_f16_{form}",
@@ -7160,7 +10924,7 @@ _ENTRIES = [
                     else (OperandSlot("a", dtype="u32", lanes=4),)
                 ),
                 OperandSlot("b_desc", dtype="u64"),
-                OperandSlot("scale_d", kind="imm", choices=("0", "1")),
+                OperandSlot("scale_d", dtype="pred"),
                 OperandSlot("scale_a", kind="imm", choices=("-1", "1")),
                 OperandSlot("scale_b", kind="imm", choices=("-1", "1")),
                 *(
@@ -7195,7 +10959,7 @@ _ENTRIES = [
                     else (OperandSlot("a", dtype="u32", lanes=4),)
                 ),
                 OperandSlot("b_desc", dtype="u64"),
-                OperandSlot("scale_d", kind="imm", choices=("0", "1")),
+                OperandSlot("scale_d", dtype="pred"),
                 OperandSlot("scale_a", kind="imm", choices=("-1", "1")),
                 OperandSlot("scale_b", kind="imm", choices=("-1", "1")),
                 *(
@@ -7230,7 +10994,7 @@ _ENTRIES = [
                     else (OperandSlot("a", dtype="u32", lanes=4),)
                 ),
                 OperandSlot("b_desc", dtype="u64"),
-                OperandSlot("scale_d", kind="imm", choices=("0", "1")),
+                OperandSlot("scale_d", dtype="pred"),
                 OperandSlot("scale_a", kind="imm", choices=("-1", "1")),
                 OperandSlot("scale_b", kind="imm", choices=("-1", "1")),
                 *(
@@ -7265,7 +11029,7 @@ _ENTRIES = [
                     else (OperandSlot("a", dtype="u32", lanes=4),)
                 ),
                 OperandSlot("b_desc", dtype="u64"),
-                OperandSlot("scale_d", kind="imm", choices=("0", "1")),
+                OperandSlot("scale_d", dtype="pred"),
                 OperandSlot("scale_a", kind="imm", choices=("-1", "1")),
                 OperandSlot("scale_b", kind="imm", choices=("-1", "1")),
             ),
@@ -7294,7 +11058,7 @@ _ENTRIES = [
                     else (OperandSlot("a", dtype="u32", lanes=4),)
                 ),
                 OperandSlot("b_desc", dtype="u64"),
-                OperandSlot("scale_d", kind="imm", choices=("0", "1")),
+                OperandSlot("scale_d", dtype="pred"),
                 OperandSlot("scale_a", kind="imm", choices=("-1", "1")),
                 OperandSlot("scale_b", kind="imm", choices=("-1", "1")),
             ),
@@ -7323,7 +11087,7 @@ _ENTRIES = [
                     else (OperandSlot("a", dtype="u32", lanes=4),)
                 ),
                 OperandSlot("b_desc", dtype="u64"),
-                OperandSlot("scale_d", kind="imm", choices=("0", "1")),
+                OperandSlot("scale_d", dtype="pred"),
                 OperandSlot("scale_a", kind="imm", choices=("-1", "1")),
                 OperandSlot("scale_b", kind="imm", choices=("-1", "1")),
             ),
@@ -7355,7 +11119,7 @@ _ENTRIES = [
                     else (OperandSlot("a", dtype="u32", lanes=4),)
                 ),
                 OperandSlot("b_desc", dtype="u64"),
-                OperandSlot("scale_d", kind="imm", choices=("0", "1")),
+                OperandSlot("scale_d", dtype="pred"),
             ),
         )
         for form in ("ss", "rs")
@@ -7384,15 +11148,15 @@ _ENTRIES = [
                     else (OperandSlot("a", dtype="u32", lanes=4),)
                 ),
                 OperandSlot("b_desc", dtype="u64"),
-                OperandSlot("scale_d", kind="imm", choices=("0", "1")),
+                OperandSlot("scale_d", dtype="pred"),
             ),
         )
         for form in ("ss", "rs")
     ],
-    # wgmma group synchronisation, per PTX ISA 9.7.16.7: fence 9.7.16.7.1,
-    # commit_group 9.7.16.7.2, wait_group 9.7.16.7.3. (wait_group's textual
-    # group count is the `choices` immediate registered above; the mma_async
-    # lines are the acc-role entries further down.)
+    # wgmma group synchronisation, per PTX ISA 9.7.17.7: fence 9.7.17.7.1,
+    # commit_group 9.7.17.7.2, wait_group 9.7.17.7.3. (wait_group's textual
+    # group count is the `choices` immediate registered below; the mma_async
+    # lines are the accumulator entries above.)
     *[
         InstructionEntry(
             name=f"wgmma_{act}",
@@ -7408,11 +11172,11 @@ _ENTRIES = [
         )
         for act in ("fence", "commit_group")
     ],
-    # wgmma.wait_group per PTX ISA 9.7.16.7.3, same caller-immediate shape.
+    # wgmma.wait_group per PTX ISA 9.7.17.7.3, same caller-immediate shape.
     #
     # The ISA's domain for N is open: the whole section says only "Operand N is
-    # an integer constant." (9.7.16.7.3:14), with no upper bound anywhere --
-    # unlike setmaxnreg above, whose [24, 256] the ISA closes itself. The 0..7
+    # an integer constant." (9.7.17.7.3:14), with no upper bound anywhere --
+    # unlike setmaxnreg, whose [24, 256] the ISA closes itself. The 0..7
     # below is therefore this table's closure, not an ISA rule: `choices` needs
     # a finite set to enumerate and certify, and every variant of a registered
     # entry must assemble.
@@ -7438,11 +11202,11 @@ _ENTRIES = [
         operands=(OperandSlot("group", kind="imm", choices=tuple(str(n) for n in range(8))),),
     ),
     # ------------------------------------------------------------------
-    # PTX ISA 9.7.17 — TensorCore 5th Generation Family Instructions
+    # PTX ISA 9.7.18 — TensorCore 5th Generation Family Instructions
     # ------------------------------------------------------------------
-    # tcgen05 memory-allocation and synchronisation, per PTX ISA 9.7.17:
-    # alloc / dealloc / relinquish_alloc_permit 9.7.17.7.1, wait 9.7.17.8.5,
-    # fence 9.7.17.11.1, commit 9.7.17.12.1.
+    # tcgen05 memory-allocation and synchronisation, per PTX ISA 9.7.18:
+    # alloc / dealloc / relinquish_alloc_permit 9.7.18.7.1, wait 9.7.18.8.5,
+    # fence 9.7.18.11.1, commit 9.7.18.12.1.
     #
     # Every one of these carries `orders_memory=True`: the legacy helpers all
     # had `::: "memory"`, and the waits/fences name no address at all.
@@ -7465,7 +11229,7 @@ _ENTRIES = [
         cert_arch="sm_100a",
         orders_memory=True,
         operands=(
-            OperandSlot("dst", kind="addr", space="shared::cta"),
+            OperandSlot("dst", kind="addr", allow_imm_offset=True),
             OperandSlot("ncols", dtype="u32"),
         ),
     ),
@@ -7500,9 +11264,10 @@ _ENTRIES = [
         orders_memory=True,
         operands=(),
     ),
-    # tcgen05.ld / .st per PTX ISA 9.7.17.8.3 / 9.7.17.8.4. The register vector
-    # length is `.num` scaled by the shape width, which is what a callable
-    # `lanes` transcribes; `taddr` is a tmem address, a packed 32-bit
+    # tcgen05.ld / .st per PTX ISA 9.7.18.8.3 / 9.7.18.8.4. Per Table 59 / 61,
+    # the register vector is `.num` lanes for .16x32bx2/.16x64b/.32x32b,
+    # 2x`.num` for .16x128b, and 4x`.num` for .16x256b; that table is what a
+    # callable `lanes` transcribes. `taddr` is a tmem address, a packed 32-bit
     # (row << 16 | col) value rather than a pointer.
     #
     #   tcgen05.ld.sync.aligned.shape.num{.pack::16b}.b32   r, [taddr];
@@ -7513,9 +11278,10 @@ _ENTRIES = [
     # The `.16x32bx2` shape is the entry pair below: its syntax line carries an
     # extra `immHalfSplitoff` operand, which is a different operand shape.
     #
-    # NOT REGISTERED:
-    # - `tcgen05.ld.red`, which is sm_101a-only (not sm_100a, so it cannot be
-    #   certified here) and has no call sites.
+    # The `tcgen05.ld.red` shapes are registered below at their own sm_103a
+    # floor (the ISA lists them for sm_101a and the sm_103f/sm_110f families,
+    # not sm_100a); PTX 9.4's distinct `.ld.red.spcompress` shape is registered
+    # in the SM107 delta.
     InstructionEntry(
         name="tcgen05_ld",
         mnemonic="tcgen05",
@@ -7535,7 +11301,7 @@ _ENTRIES = [
             OperandSlot("taddr", kind="addr", space="tmem"),
         ),
     ),
-    # The `.16x32bx2` lines, ISA 9.7.17.8.3:11 / 9.7.17.8.4:9 --
+    # The `.16x32bx2` lines, ISA 9.7.18.8.3:11 / 9.7.18.8.4:9 --
     #
     #   tcgen05.ld.sync.aligned.16x32bx2.num{.pack}.b32   r, [taddr], immHalfSplitoff;
     #   tcgen05.st.sync.aligned.16x32bx2.num{.unpack}.b32 [taddr], immHalfSplitoff, r;
@@ -7566,6 +11332,42 @@ _ENTRIES = [
             OperandSlot("imm_half_splitoff", kind="imm"),
         ),
     ),
+    # tcgen05.ld.red (PTX ISA 9.4, 9.7.18.8.3; an SM103a capability first
+    # exposed by PTX ISA 9.3).  Slot order follows the documented syntax lines
+    #   tcgen05.ld.red.sync.aligned.shape.num.redOp{.abs}{.NaN}.f32  r, redval, [taddr];
+    #   tcgen05.ld.red.sync.aligned.shape.num.redOp.type             r, redval, [taddr];
+    # -- the same order the 9.4 `tcgen05_ld_red_spcompress` entry uses.
+    # MEASURED on CUDA 13.4 ptxas at sm_103a: this order and the `.type.redOp`
+    # order NVIDIA's generated wrappers spell both assemble for every type and
+    # for the 16x32bx2 split form; the ISA's order is the one registered.
+    # `.x1` is "Illegal modifier '.x1'" (the ISA: .num must be at least .x2).
+    *[
+        InstructionEntry(
+            name=f"tcgen05_ld_red{'_split' if split else ''}",
+            mnemonic="tcgen05",
+            slots=(
+                ModifierSlot("action", ("ld",)),
+                ModifierSlot("red", ("red",)),
+                ModifierSlot("sync", ("sync",)),
+                ModifierSlot("aligned", ("aligned",)),
+                ModifierSlot("shape", (("16x32bx2",) if split else ("32x32b",))),
+                ModifierSlot("num", ("x1", "x2", "x4", "x8", "x16", "x32", "x64", "x128")),
+                ModifierSlot("redop", ("min", "max")),
+                ModifierSlot("abs", ("abs",), optional=True),
+                ModifierSlot("nan", ("NaN",), optional=True),
+                ModifierSlot("type", ("u32", "s32", "f32")),
+            ),
+            check=_check_tcgen05_ld_red,
+            cert_arch="sm_103a",
+            operands=(
+                OperandSlot("r", rw="w", lanes=_tcgen05_ldst_lanes),
+                OperandSlot("redval", rw="w"),
+                OperandSlot("taddr", kind="addr", space="tmem"),
+                *((OperandSlot("imm_half_splitoff", kind="imm"),) if split else ()),
+            ),
+        )
+        for split in (False, True)
+    ],
     InstructionEntry(
         name="tcgen05_st",
         mnemonic="tcgen05",
@@ -7616,7 +11418,7 @@ _ENTRIES = [
         orders_memory=True,
         operands=(),
     ),
-    # tcgen05.cp per PTX ISA 9.7.17.9.2: an async shared -> tmem copy of one
+    # tcgen05.cp per PTX ISA 9.7.18.9.2: an async shared -> tmem copy of one
     # shape, optionally multicast across the warps of a warpgroup and
     # optionally decompressing fp4/fp6 into fp8 on the way. `s-desc` is the
     # same 64-bit shared-memory matrix descriptor tcgen05.mma takes.
@@ -7642,7 +11444,7 @@ _ENTRIES = [
             OperandSlot("s_desc", dtype="b64"),
         ),
     ),
-    # tcgen05.mma per PTX ISA 9.7.17.10.9.1 (sm_100a): D = A*B + D where D
+    # tcgen05.mma per PTX ISA 9.7.18.10.10.1 (sm_100a): D = A*B + D where D
     # lives in Tensor Memory (an address, not registers -- so the instruction
     # has no dst and @p stays available). Two entries per family split on the
     # A operand's home: a 64-bit shared-memory descriptor ("ss") or a tmem
@@ -7654,13 +11456,16 @@ _ENTRIES = [
     # NOT REGISTERED:
     # - `{, scale-input-d}`: an instruction-text immediate in [0, 15], no
     #   call site uses it.
-    # - `tcgen05.mma.sp` / `.ws.sp` (sparse metadata operand), the
-    #   .collector::/.ashift qualifiers, and the i8 convolution lines that
-    #   only differ by those qualifiers: no call sites.
-    # - .ws without the zero-column-mask-desc operand: every caller passes
-    #   the mask (as literal zero).
-    # - block_scale's scale_vec-omitted spelling without a .block16/.block32
-    #   size: no call site uses that form.
+    # - Pre-9.4 sparse MMA forms without `.kind::ti16` or collector B, and
+    #   convolution ashift forms: no call sites. The shared-A dense form below
+    #   carries optional collector A for SM107 kernels.
+    #   PTX 9.4's ti16 dense/sparse/WS shapes and every SM107 collector-B
+    #   shape are registered in `_PTX_94_ENTRIES`.
+    # - The pre-9.4 .ws kinds without zero-column-mask-desc: every existing
+    #   caller passes the mask (as literal zero). The new ti16 siblings expose
+    #   both documented arities.
+    # - Pre-9.4 block_scale's scale-vector-omitted spelling without collector
+    #   B. The SM107 collector-A+B spelling and LUT-B spellings are registered.
     *[
         InstructionEntry(
             name=f"tcgen05_mma_{form}",
@@ -7669,6 +11474,11 @@ _ENTRIES = [
                 ModifierSlot("action", ("mma",)),
                 ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
                 ModifierSlot("kind", ("kind::f16", "kind::tf32", "kind::f8f6f4", "kind::i8")),
+                *(
+                    (ModifierSlot("collector_a", _TCGEN05_COLLECTOR_A, optional=True),)
+                    if form == "ss"
+                    else ()
+                ),
             ),
             cert_arch="sm_100a",
             operands=(
@@ -7719,35 +11529,7 @@ _ENTRIES = [
         )
         for form in ("ss", "ts")
     ],
-    *[
-        InstructionEntry(  # block-scaled with an explicit scale block size
-            name=f"tcgen05_mma_block_scale_block_{form}",
-            mnemonic="tcgen05",
-            slots=(
-                ModifierSlot("action", ("mma",)),
-                ModifierSlot("cta_group", ("cta_group::1", "cta_group::2")),
-                ModifierSlot("kind", ("kind::mxf8f6f4", "kind::mxf4", "kind::mxf4nvf4")),
-                ModifierSlot("block_scale", ("block_scale",)),
-                ModifierSlot("block_size", ("block16", "block32")),
-            ),
-            cert_arch="sm_100a",
-            check=_check_tcgen05_mma_block_scale_block,
-            operands=(
-                OperandSlot("d_tmem", kind="addr", space="tmem"),
-                *(
-                    (OperandSlot("a_desc", dtype="u64"),)
-                    if form == "ss"
-                    else (OperandSlot("a_tmem", kind="addr", space="tmem"),)
-                ),
-                OperandSlot("b_desc", dtype="u64"),
-                OperandSlot("idesc", dtype="u32"),
-                OperandSlot("sfa_tmem", kind="addr", space="tmem"),
-                OperandSlot("sfb_tmem", kind="addr", space="tmem"),
-                OperandSlot("enable_input_d", dtype="pred"),
-            ),
-        )
-        for form in ("ss", "ts")
-    ],
+    # PTX ISA 9.7.18.10.10.3: optional collector::b{0,1,2,3}::{fill,use,lastuse,discard}.
     *[
         InstructionEntry(  # weight-stationary: no mask vector, a zero-column desc
             name=f"tcgen05_mma_ws_{form}",
@@ -7757,6 +11539,7 @@ _ENTRIES = [
                 ModifierSlot("ws", ("ws",)),
                 ModifierSlot("cta_group", ("cta_group::1",)),
                 ModifierSlot("kind", ("kind::f16", "kind::tf32", "kind::f8f6f4", "kind::i8")),
+                ModifierSlot("collector_b", _TCGEN05_WS_COLLECTOR_B, optional=True),
             ),
             cert_arch="sm_100a",
             operands=(
@@ -7795,7 +11578,7 @@ _ENTRIES = [
         ),
         cert_arch="sm_100a",
         orders_memory=True,
-        operands=(OperandSlot("mbar", kind="addr", space="shared::cluster"),),
+        operands=(OperandSlot("mbar", kind="addr", allow_imm_offset=True),),
     ),
     # tcgen05.commit...{.shared::cluster}.multicast::cluster.b64 [mbar], ctaMask;
     # The multicast form: `pred` is keyword-only, so the trailing mask
@@ -7815,14 +11598,14 @@ _ENTRIES = [
         cert_arch="sm_100a",
         orders_memory=True,
         operands=(
-            OperandSlot("mbar", kind="addr", space="shared::cluster"),
+            OperandSlot("mbar", kind="addr", allow_imm_offset=True),
             OperandSlot("mask", dtype="u16"),
         ),
     ),
     # ------------------------------------------------------------------
-    # PTX ISA 9.7.20 — Miscellaneous Instructions
+    # PTX ISA 9.7.21 — Miscellaneous Instructions
     # ------------------------------------------------------------------
-    # setmaxnreg per PTX ISA 9.7.20.5: the register count is an immediate the
+    # setmaxnreg per PTX ISA 9.7.21.5: the register count is an immediate the
     # ISA bounds to [24, 256] in steps of 8 -- exactly a closed choices set.
     InstructionEntry(
         name="setmaxnreg",
@@ -7840,6 +11623,83 @@ _ENTRIES = [
     ),
 ]
 
+# ISA 9.7.15.5: "Simple reductions may be specified by using the bit bucket
+# destination operand `_`." This is a whole PTX operand, including on vector
+# atom, rather than a brace group of per-lane sinks. Derive one fixed-literal
+# sibling from every returned-value atom shape; the shorter Python-call arity
+# selects the bit bucket.
+#
+# One documented subset is withheld: the scalar and vector bf16 atom bit
+# buckets.  An earlier toolchain crashed on them (ptxas segmentation fault on
+# exact force-inlined probes); MEASURED on CUDA 13.4 they compile, but they have
+# not been added with full certification yet (follow-up).  The two half-entry
+# checks below therefore withhold only bf16/bf16x2 bit buckets.  This is a
+# registration decision, not an ISA restriction.
+_ATOM_BITBUCKET_BASES = (
+    "atom",
+    "atom_cas",
+    "atom_exch",
+    "atom_half",
+    "atom_vec_half",
+    "atom_vec_f32",
+    "atom_f32_noftz",
+    "atom_vec_f32_noftz",
+)
+
+
+def _atom_bitbucket_sibling(entry: InstructionEntry) -> InstructionEntry:
+    destination, *tail = entry.operands
+    if not (
+        entry.ptx_name == "atom"
+        and destination.name == "d"
+        and destination.kind == "reg"
+        and destination.rw == "w"
+    ):
+        raise ValueError(f"{entry.name}: atom bit-bucket base must start with a written register d")
+    bitbucket_checks = {
+        "atom_half": _check_atom_half_bitbucket,
+        "atom_vec_half": _check_atom_vec_half_bitbucket,
+    }
+    return replace(
+        entry,
+        name=f"{entry.name}_bitbucket",
+        mnemonic="atom",
+        check=bitbucket_checks.get(entry.name, entry.check),
+        operands=(OperandSlot("d", kind="imm", literal="_"), *tail),
+    )
+
+
+_entries_by_name = {entry.name: entry for entry in _ENTRIES}
+_ENTRIES.extend(_atom_bitbucket_sibling(_entries_by_name[name]) for name in _ATOM_BITBUCKET_BASES)
+
+
+def _validate_imm_offset_slots(entries) -> None:
+    """Reject capability bits on operand classes that cannot spell ``[addr+imm]``."""
+    errors = []
+    for entry in entries:
+        for slot in entry.operands:
+            if not slot.allow_imm_offset:
+                continue
+            reasons = []
+            if slot.kind != "addr":
+                reasons.append(f"kind={slot.kind!r}, expected 'addr'")
+            if slot.bracket is not None:
+                reasons.append("is a composite bracket member")
+            if slot.space == "tmem" or (
+                slot.space is None
+                and any(
+                    modifier.name == "space" and "tmem" in modifier.choices
+                    for modifier in entry.slots
+                )
+            ):
+                reasons.append("is a tmem address")
+            if reasons:
+                errors.append(f"{entry.name}.{slot.name}: " + "; ".join(reasons))
+    if errors:
+        raise ValueError("invalid allow_imm_offset slots:\n  " + "\n  ".join(errors))
+
+
+_validate_imm_offset_slots(_ENTRIES)
 TABLE: dict[str, InstructionEntry] = {e.name: e for e in _ENTRIES}
 # Keying by name silently drops a duplicate, and a dropped entry is an ISA line
 # that stops being reachable. Two entries never legitimately share a name.

@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
@@ -52,7 +53,13 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
   }
   void Match(const PrimExpr& param, const PrimExpr& arg) {
     VisitExpr(param, arg);
-    must_prove_ = analyzer_->Simplify(Substitute(must_prove_, *var_remap_));
+    auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = var_remap_->Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
+    must_prove_ =
+        analyzer_->Simplify(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(must_prove_, f_substitute)
+                                .as_or_throw<PrimExpr>());
     TVM_FFI_ICHECK(!is_zero(must_prove_));
   }
 
@@ -81,23 +88,23 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
     }                                                                    \
   }
 
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(AddNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(SubNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(MulNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(DivNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(ModNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(EQNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(NENode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(LTNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(LENode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(GTNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(GENode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(AndNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(OrNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(MinNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(MaxNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(FloorDivNode);
-  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(FloorModNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::AddNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::SubNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::MulNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::DivNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::ModNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::EQNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::NENode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::LTNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::LENode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::GTNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::GENode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::AndNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::OrNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::MinNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::MaxNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::FloorDivNode);
+  TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::FloorModNode);
 
   void VisitExpr_(const IntImmNode* op, const PrimExpr& other) {
     const auto* rhs = other.as<IntImmNode>();
@@ -118,8 +125,8 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
     }
   }
 
-  void VisitExpr_(const CastNode* op, const PrimExpr& other) {
-    const auto* rhs = other.as<CastNode>();
+  void VisitExpr_(const prim::CastNode* op, const PrimExpr& other) {
+    const auto* rhs = other.as<prim::CastNode>();
     if (!rhs) {
       TVM_FFI_THROW(InternalError)
           << "Parameter expression " << ffi::GetRef<PrimExpr>(op) << " expected an cast to "
@@ -146,8 +153,8 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
     }
   }
 
-  void VisitExpr_(const SelectNode* op, const PrimExpr& other) {
-    const auto* rhs = other.as<SelectNode>();
+  void VisitExpr_(const prim::SelectNode* op, const PrimExpr& other) {
+    const auto* rhs = other.as<prim::SelectNode>();
     if (rhs) {
       VisitExpr(op->true_value, rhs->true_value);
       VisitExpr(op->false_value, rhs->false_value);
@@ -208,16 +215,14 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const BufferLoadNode* _op) final {
-    BufferLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<BufferLoad>();
-    const BufferVar& buffer = SubstituteBuffer(load->buffer);
-    if (buffer.same_as(load->buffer)) {
+  Expr VisitExpr_(const TensorLoadNode* _op) final {
+    TensorLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<TensorLoad>();
+    const BufferVar& buffer = SubstituteBuffer(load->source.as_or_throw<tvm::tirx::BufferVar>());
+    if (buffer.same_as(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
       return load;
 
     } else {
-      auto n = ffi::make_object<BufferLoadNode>(*load.get());
-      n->buffer = buffer;
-      return BufferLoad(n);
+      return BufferLoad(buffer, load->indices, load->span);
     }
   }
 

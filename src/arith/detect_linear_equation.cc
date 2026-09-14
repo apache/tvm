@@ -22,13 +22,13 @@
  * \brief Utility to detect patterns in the expression.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace arith {
@@ -62,7 +62,7 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const Pri
     return true;
   }
 
-  LinearEqEntry VisitExpr_(const AddNode* op, const PrimExpr& e) final {
+  LinearEqEntry VisitExpr_(const prim::AddNode* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
     LinearEqEntry a = VisitExpr(op->a, op->a);
     LinearEqEntry b = VisitExpr(op->b, op->b);
@@ -72,7 +72,7 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const Pri
     return ret;
   }
 
-  LinearEqEntry VisitExpr_(const SubNode* op, const PrimExpr& e) final {
+  LinearEqEntry VisitExpr_(const prim::SubNode* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
     LinearEqEntry a = VisitExpr(op->a, op->a);
     LinearEqEntry b = VisitExpr(op->b, op->b);
@@ -82,7 +82,7 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const Pri
     return ret;
   }
 
-  LinearEqEntry VisitExpr_(const MulNode* op, const PrimExpr& e) final {
+  LinearEqEntry VisitExpr_(const prim::MulNode* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
     LinearEqEntry a = VisitExpr(op->a, op->a);
     LinearEqEntry b = VisitExpr(op->b, op->b);
@@ -110,7 +110,11 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const Pri
   }
   LinearEqEntry VisitExprDefault_(const ffi::Object* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
-    if (UsesVar(e, [this](const VarNode* var) { return var == var_.get(); })) {
+    auto walkfn = [this](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return var.get() == var_.get() ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                     : ffi::WalkResult::Advance();
+    };
+    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(e, walkfn).has_value()) {
       fail_ = true;
       return LinearEqEntry();
     } else {
@@ -157,11 +161,15 @@ ffi::Array<PrimExpr> DetectLinearEquation(const PrimExpr& e, const ffi::Array<Pr
 
   std::unordered_set<const VarNode*> vset;
   auto vset_contains = [&](const VarNode* node) { return vset.count(node) != 0; };
+  auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    return vset_contains(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                    : ffi::WalkResult::Advance();
+  };
 
   for (size_t i = vars.size(); i > 1; --i) {
     vset.insert(vars[i - 1].get());
     // The previous coeff contains the variable
-    if (UsesVar(coeff[i - 2], vset_contains)) {
+    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(coeff[i - 2], walkfn).has_value()) {
       return ffi::Array<PrimExpr>();
     }
   }
@@ -174,41 +182,42 @@ bool DetectClipBound(const PrimExpr& cond,
                      std::unordered_map<const VarNode*, IntervalEntry>* bmap) {
   int flag = 0;
   PrimVar var;
-  auto fvisit = [&bmap, &flag, &var](const ffi::ObjectRef& n) {
-    if (auto prim_var = n.as<PrimVar>()) {
-      const VarNode* v = prim_var->get();
-      if (bmap->count(v)) {
+  auto fvisit = [&bmap, &flag, &var](const Var& v) -> ffi::Expected<ffi::WalkResult> {
+    if (auto prim_var = v.as<PrimVar>()) {
+      const VarNode* var_node = prim_var->get();
+      if (bmap->count(var_node)) {
         if (flag == 0) {
           var = *prim_var;
           flag = 1;
         } else if (flag == 1) {
-          if (!var.same_as(n)) {
+          if (!var.same_as(*prim_var)) {
             flag = -1;
           }
         }
       }
     }
+    return ffi::WalkResult::Advance();
   };
-  PostOrderVisit(cond, fvisit);
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(cond, fvisit);
   if (flag != 1) return false;
   // canonical form: exp >= 0
   bool is_eq = false;
   PrimExpr canonical;
-  if (const LTNode* op = cond.as<LTNode>()) {
+  if (const prim::LTNode* op = cond.as<prim::LTNode>()) {
     PrimType a_ty = op->a.ty();
     if (!a_ty.MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->b - op->a - MakeConst(a_ty, 1);
-  } else if (const LENode* op = cond.as<LENode>()) {
+  } else if (const prim::LENode* op = cond.as<prim::LENode>()) {
     if (!op->a.ty().MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->b - op->a;
-  } else if (const GTNode* op = cond.as<GTNode>()) {
+  } else if (const prim::GTNode* op = cond.as<prim::GTNode>()) {
     PrimType a_ty = op->a.ty();
     if (!a_ty.MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->a - op->b - MakeConst(a_ty, 1);
-  } else if (const GENode* op = cond.as<GENode>()) {
+  } else if (const prim::GENode* op = cond.as<prim::GENode>()) {
     if (!op->a.ty().MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->a - op->b;
-  } else if (const EQNode* op = cond.as<EQNode>()) {
+  } else if (const prim::EQNode* op = cond.as<prim::EQNode>()) {
     if (!op->a.ty().MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->a - op->b;
     is_eq = true;
@@ -271,7 +280,7 @@ void SplitCommExpr(const PrimExpr& e, std::vector<PrimExpr>* ret) {
 ffi::Array<PrimExpr> DetectClipBound(const PrimExpr& e, const ffi::Array<PrimVar>& vars) {
   std::vector<PrimExpr> splits;
   Analyzer analyzer;
-  SplitCommExpr<tirx::AndNode>(analyzer->Simplify(e), &splits);
+  SplitCommExpr<prim::AndNode>(analyzer->Simplify(e), &splits);
   std::unordered_map<const VarNode*, IntervalEntry> rmap;
   for (PrimVar v : vars) {
     rmap[v.get()] = IntervalEntry();

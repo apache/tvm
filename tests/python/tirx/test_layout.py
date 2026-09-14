@@ -1796,13 +1796,13 @@ def _evaluate_layout_expr(expr, values):
     if node_type == "Call":
         args = [_evaluate_layout_expr(arg, values) for arg in expr.args]
         op_name = str(expr.op.name)
-        if op_name == "tirx.bitwise_xor":
+        if op_name == "ir.prim.bitwise_xor":
             return args[0] ^ args[1]
-        if op_name == "tirx.bitwise_and":
+        if op_name == "ir.prim.bitwise_and":
             return args[0] & args[1]
-        if op_name == "tirx.shift_left":
+        if op_name == "ir.prim.shift_left":
             return args[0] << args[1]
-        if op_name == "tirx.shift_right":
+        if op_name == "ir.prim.shift_right":
             return args[0] >> args[1]
         raise AssertionError(f"Cannot evaluate call {op_name}")
     raise AssertionError(f"Cannot evaluate node type {node_type}")

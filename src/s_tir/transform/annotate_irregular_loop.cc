@@ -20,15 +20,17 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 class IrregularLoopAnnotator : public StmtMutator {
@@ -67,7 +69,8 @@ class IrregularLoopAnnotator : public StmtMutator {
 
   Stmt VisitStmt_(const EvaluateNode* op) final {
     if (const CallNode* call = op->value.as<CallNode>()) {
-      if (call->op.same_as(builtin::continue_loop()) || call->op.same_as(builtin::break_loop())) {
+      if (call->op.same_as(tirx::builtin::continue_loop()) ||
+          call->op.same_as(tirx::builtin::break_loop())) {
         has_jump_ = true;
       }
     }

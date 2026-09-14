@@ -17,18 +17,58 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include "./utils.h"
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  InstructionKindNode::RegisterReflection();
-  InstructionNode::RegisterReflection();
+namespace {
+
+ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
+  ffi::Array<Any> inputs;
+  inputs.reserve(self->inputs.size());
+  for (const Any& obj : self->inputs) {
+    if (obj == nullptr) {
+      inputs.push_back(ffi::String("None"));
+    } else if (auto opt_str = obj.as<ffi::String>()) {
+      inputs.push_back(ffi::String('"' + (*opt_str).operator std::string() + '"'));
+    } else if (obj.as<SBlockRVNode>() || obj.as<LoopRVNode>()) {
+      inputs.push_back(ffi::String("_"));
+    } else if (obj.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
+      inputs.push_back(obj);
+    } else if (obj.as<IntImmNode>() || obj.as<FloatImmNode>()) {
+      inputs.push_back(obj);
+    } else if (auto expr = obj.as<PrimExpr>()) {
+      auto f_substitute = [](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        return ffi::Any(Var("_", var->ty, var->span).as_or_throw<PrimExpr>());
+      };
+      PrimExpr new_expr = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr.value(), f_substitute)
+                              .as_or_throw<PrimExpr>();
+      std::ostringstream os;
+      os << new_expr;
+      inputs.push_back(ffi::String(os.str()));
+    } else if (obj.as<IndexMapNode>()) {
+      inputs.push_back(obj);
+    } else {
+      TVM_FFI_THROW(TypeError) << "Stringifying is not supported for type: " << obj.GetTypeKey();
+      throw;
+    }
+  }
+  return self->kind->f_as_python(
+      /*inputs=*/inputs,
+      /*attrs=*/self->attrs,
+      /*decision=*/Any(nullptr),
+      /*outputs=*/ffi::Array<ffi::String>(self->outputs.size(), ffi::String("_")));
 }
+
+}  // namespace
+
+TVM_FFI_STATIC_INIT_BLOCK() { InstructionKindNode::RegisterReflection(); }
 
 bool InstructionKindNode::IsPostproc() const {
   static InstructionKind inst_enter_postproc = InstructionKind::Get("EnterPostproc");
@@ -43,6 +83,21 @@ Instruction::Instruction(InstructionKind kind, ffi::Array<Any> inputs, ffi::Arra
   n->attrs = std::move(attrs);
   n->outputs = std::move(outputs);
   this->data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  InstructionNode::RegisterReflection();
+  refl::TypeAttrDef<InstructionNode>().def(refl::type_attr::kRepr,
+                                           [](Instruction inst, ffi::Function) -> ffi::String {
+                                             return InstructionAsPythonRepr(inst.get());
+                                           });
+
+  refl::GlobalDef().def("s_tir.schedule.Instruction",
+                        [](InstructionKind kind, ffi::Array<Any> inputs, ffi::Array<Any> attrs,
+                           ffi::Array<Any> outputs) -> Instruction {
+                          return Instruction(kind, inputs, attrs, outputs);
+                        });
 }
 
 using InstructionKindRegistry = AttrRegistry<InstructionKindRegEntry, InstructionKind>;
@@ -64,60 +119,13 @@ InstructionKindRegEntry& InstructionKindRegEntry::RegisterOrGet(const ffi::Strin
 
 /**************** Repr ****************/
 
-namespace {
-ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
-  ffi::Array<Any> inputs;
-  inputs.reserve(self->inputs.size());
-  for (const Any& obj : self->inputs) {
-    if (obj == nullptr) {
-      inputs.push_back(ffi::String("None"));
-    } else if (auto opt_str = obj.as<ffi::String>()) {
-      inputs.push_back(ffi::String('"' + (*opt_str).operator std::string() + '"'));
-    } else if (obj.as<SBlockRVNode>() || obj.as<LoopRVNode>()) {
-      inputs.push_back(ffi::String("_"));
-    } else if (obj.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
-      inputs.push_back(obj);
-    } else if (obj.as<IntImmNode>() || obj.as<FloatImmNode>()) {
-      inputs.push_back(obj);
-    } else if (auto expr = obj.as<PrimExpr>()) {
-      PrimExpr new_expr = Substitute(expr.value(), [](const Var& var) -> ffi::Optional<Expr> {
-        return Var("_", var->ty, var->span).as_or_throw<PrimExpr>();
-      });
-      std::ostringstream os;
-      os << new_expr;
-      inputs.push_back(ffi::String(os.str()));
-    } else if (obj.as<IndexMapNode>()) {
-      inputs.push_back(obj);
-    } else {
-      TVM_FFI_THROW(TypeError) << "Stringifying is not supported for type: " << obj.GetTypeKey();
-      throw;
-    }
-  }
-  return self->kind->f_as_python(
-      /*inputs=*/inputs,
-      /*attrs=*/self->attrs,
-      /*decision=*/Any(nullptr),
-      /*outputs=*/ffi::Array<ffi::String>(self->outputs.size(), ffi::String("_")));
-}
-}  // namespace
-
 // AC: kRepr already registered below in TVM_FFI_STATIC_INIT_BLOCK.
 
 /**************** FFI ****************/
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("s_tir.schedule.InstructionKindGet", InstructionKind::Get)
-      .def("s_tir.schedule.Instruction",
-           [](InstructionKind kind, ffi::Array<Any> inputs, ffi::Array<Any> attrs,
-              ffi::Array<Any> outputs) -> Instruction {
-             return Instruction(kind, inputs, attrs, outputs);
-           });
-  refl::TypeAttrDef<InstructionNode>().def(refl::type_attr::kRepr,
-                                           [](Instruction inst, ffi::Function) -> ffi::String {
-                                             return InstructionAsPythonRepr(inst.get());
-                                           });
+  refl::GlobalDef().def("s_tir.schedule.InstructionKindGet", InstructionKind::Get);
 }
 
 }  // namespace s_tir

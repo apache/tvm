@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include "../../../tirx/transform/ir_utils.h"
@@ -24,6 +25,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Information used to create new padding block */
@@ -98,11 +100,20 @@ class PaddingInfoAnalyzer {
       return false;
     }
     const CallNode* if_then_else = store->value.as<CallNode>();
-    if (!if_then_else || !if_then_else->op.same_as(tirx::builtin::if_then_else())) {
+    if (!if_then_else || !if_then_else->op.same_as(prim::builtin::if_then_else())) {
       SetError("Value of BufferStore expect to be constrained by a padding predicate");
       return false;
     }
-    PrimExpr pad_predicate = Substitute(if_then_else->args[0].as_or_throw<PrimExpr>(), iter_values);
+    auto f_substitute =
+        [&iter_values](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto it = iter_values.find(var.get()); it != iter_values.end()) {
+        return ffi::Any(it->second);
+      }
+      return ffi::Unchanged();
+    };
+    PrimExpr pad_predicate = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                                 if_then_else->args[0].as_or_throw<PrimExpr>(), f_substitute)
+                                 .as_or_throw<PrimExpr>();
     PrimExpr in_bound_value = if_then_else->args[1].as_or_throw<PrimExpr>();
     PrimExpr pad_value = if_then_else->args[2].as_or_throw<PrimExpr>();
     if (!is_const_number(pad_value)) {
@@ -147,7 +158,7 @@ class PaddingInfoAnalyzer {
         update(b.Eval());
       } else {
         if (const CallNode* call = e.as<CallNode>()) {
-          if (call->op.same_as(builtin::likely())) {
+          if (call->op.same_as(prim::builtin::likely())) {
             e = call->args[0].as_or_throw<PrimExpr>();
           }
         }
@@ -214,9 +225,15 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
     repl_dict.Set(origin_iter->var, new_var);
   }
 
+  auto f_substitute = [&repl_dict](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = repl_dict.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
   // rewrite expr helper
-  auto rewrite_expr = [&repl_dict, analyzer](const PrimExpr& e) {
-    return analyzer->Simplify(Substitute(e, repl_dict));
+  auto rewrite_expr = [&f_substitute, analyzer](const PrimExpr& e) {
+    // The replacement map contains only fresh variables, so pre-order is safe here.
+    return analyzer->Simplify(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute).as_or_throw<PrimExpr>());
   };
 
   // create new write region
@@ -310,9 +327,15 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
     }
   }
 
+  auto f_substitute = [&repl_dict](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = repl_dict.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
   // rewrite helpers
-  auto rewrite_expr = [&repl_dict, analyzer](const PrimExpr& e) {
-    return analyzer->Simplify(Substitute(e, repl_dict));
+  auto rewrite_expr = [&f_substitute, analyzer](const PrimExpr& e) {
+    // The map is self-referential, so post-order must not revisit replacement expressions.
+    return analyzer->Simplify(
+        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(e, f_substitute).as_or_throw<PrimExpr>());
   };
   auto rewrite_region = [rewrite_expr](const Region& region) {
     return region.Map([rewrite_expr](const Range& r) {

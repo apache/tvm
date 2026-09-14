@@ -28,14 +28,16 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/pattern.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -371,10 +373,10 @@ class WarpAccessRewriter : protected StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) override {
-    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) override {
+    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
 
-    if (load->buffer.get() != buffer_) {
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().get() != buffer_) {
       return load;
     }
 
@@ -383,14 +385,15 @@ class WarpAccessRewriter : protected StmtExprMutator {
 
     auto [local_index, group] = SplitIndexByGroup(op->indices[0]);
     // invariance: local index must do not contain warp id
-    TVM_FFI_ICHECK(
-        !UsesVar(local_index, [this](const VarNode* var) { return var == warp_index_.get(); }))
+    auto walkfn = [this](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return var.get() == warp_index_.get() ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                            : ffi::WalkResult::Advance();
+    };
+    TVM_FFI_ICHECK(!ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(local_index, walkfn).has_value())
         << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->indices[0]
         << " local_index=" << local_index;
 
-    auto writer = load.CopyOnWrite();
-    writer->buffer = new_buffer_;
-    writer->indices = {local_index};
+    load = BufferLoad(new_buffer_, {local_index}, load->span);
 
     if (analyzer_->CanProveEqual(group, warp_index_.as_or_throw<PrimExpr>())) {
       return load;
@@ -415,7 +418,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
       TVM_FFI_ICHECK(arith::ramp(base, 1, index_ty.lanes()).Match(index));
 
       auto [local_index, group] = SplitIndexByGroup(base.Eval());
-      local_index = Ramp(local_index, IntImm(local_index.ty(), 1), index_ty.lanes());
+      local_index = prim::Ramp(local_index, IntImm(local_index.ty(), 1), index_ty.lanes());
       return std::make_pair(local_index, group);
     }
     PrimExpr m = IntImm(index_ty, warp_coeff_);
@@ -499,7 +502,8 @@ class WarpMemoryRewriter : private StmtMutator {
     return stmt;
   }
 
-  std::unordered_map<const VarNode*, ffi::String> new_storage_scopes_;
+  // Keep the old variables alive until UpdatePointerStorageScope reads their types.
+  std::unordered_map<Var, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> new_storage_scopes_;
 
  private:
   Stmt VisitStmt_(const SeqStmtNode* op) {
@@ -509,7 +513,7 @@ class WarpMemoryRewriter : private StmtMutator {
     for (size_t i = 0; i < op->seq.size(); ++i) {
       const auto* alloc = op->seq[i].as<AllocBufferNode>();
       if (alloc && alloc->buffer.scope() == "warp") {
-        new_storage_scopes_[alloc->buffer.get()] = "local";
+        new_storage_scopes_[alloc->buffer.var()] = "local";
         // Gather remaining siblings as the "body" for rewriting.
         ffi::Array<Stmt> remaining;
         for (size_t j = i + 1; j < op->seq.size(); ++j) {

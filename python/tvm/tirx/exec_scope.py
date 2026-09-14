@@ -68,7 +68,7 @@ _SCOPE_KIND_TO_NAME = {
 # Mirror of ``enum class ScopeBinding`` in tvm/tirx/exec_scope.h. Maps the
 # ``int`` value of ``ScopeIdDef.scope`` back to the ``(parent, cur)`` pair
 # that ``ScopeIdDef.__init__`` accepts — needed when Python code wants to
-# rebuild a ``ScopeIdDef`` from an existing one (e.g. a StmtMutator
+# rebuild a ``ScopeIdDef`` from an existing one (e.g. a structural map
 # walking and rewriting extents).
 _SCOPE_BINDING_TO_PARENT_CUR = {
     0: ("kernel", "cluster"),

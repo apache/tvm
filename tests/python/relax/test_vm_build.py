@@ -84,6 +84,30 @@ def test_vm_compile_without_target_arg(exec_mode):
     tvm.testing.assert_allclose(inp2.numpy(), inp1.numpy(), rtol=1e-7, atol=1e-7)
 
 
+def test_vm_compile_unlowered_operator_error(exec_mode):
+    @tvm.script.ir_module
+    class Conv2dTranspose:
+        @R.function
+        def main(
+            x: R.Tensor((1, 4, 4, 1), "float32"),
+            w: R.Tensor((1, 2, 3, 3), "float32"),
+        ):
+            gv = R.nn.conv2d_transpose(
+                x,
+                w,
+                data_layout="NHWC",
+                kernel_layout="IOHW",
+            )
+            return gv
+
+    mod = relax.transform.LegalizeOps()(Conv2dTranspose)
+    with pytest.raises(
+        tvm.error.InternalError,
+        match=r"(?s)Offending call:.*(?:R|relax)\.nn\.conv2d_transpose.*data_layout.*NHWC",
+    ):
+        relax.build(mod, target="llvm", exec_mode=exec_mode)
+
+
 def test_match_check(exec_mode):
     @tvm.script.ir_module
     class TestMatchCheck:

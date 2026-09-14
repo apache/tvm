@@ -94,12 +94,12 @@ class Bridge(NamedTuple):
     """How one PTX register class that inline asm cannot bind is reached.
 
     ``C_BINDING`` above answers "what C type carries this value"; this answers
-    the other half, "what does the instruction actually name". Two ISA types
-    need it, for the same reason from opposite ends of the constraint
-    alphabet: ``.pred`` has no letter at all, and ``.b8`` is below the
-    narrowest one (``"h"``). Both are reached the way hand-written PTX reaches
-    them -- declare a register of the real class inside the asm block, and
-    convert between it and the bound carrier.
+    the other half, "what does the instruction actually name". The bridged
+    classes sit outside the constraint alphabet: ``.pred`` has no letter at
+    all, and the byte registers are below the narrowest constraint (``"h"``).
+    They are reached the way hand-written PTX reaches them -- declare a
+    register of the real class inside the asm block, and convert between it
+    and the bound carrier.
 
     ``read``/``write`` are the local register's name (``{slot}`` = the operand
     name, ``{n}`` = how many of this direction the block already declared).
@@ -126,11 +126,11 @@ BRIDGE = {
     "pred": Bridge(
         ".pred", "ps{n}", "pd{n}", "setp.ne.b32 {reg}, %{idx}, 0;", "selp.b32 %{idx}, 1, 0, {reg};"
     ),
-    # `.e2m1x2`: the ISA types this operand .b8 (9.7.9.22:92 for the
+    # `.e2m1x2`: the ISA types this operand .b8 (9.7.10.24:92 for the
     # destination, :101 for the source). Its general prose says a wider
     # register may be used and names no exception for e2m1x2 (:476-486), but
     # the toolchain disagrees, so the width here is measured, not read:
-    # ptxas 13.2 at -arch=sm_100a answers "Arguments mismatch for instruction
+    # ptxas 13.4 at -arch=sm_100a answers "Arguments mismatch for instruction
     # 'cvt'" for BOTH carrier widths ("h" and "r") in BOTH directions, across
     # cvt.rn.satfinite.e2m1x2.{f32,f16x2,bf16x2} and
     # cvt.rn.{f16x2,bf16x2}.e2m1x2 -- ten probes, ten rejections.
@@ -144,11 +144,72 @@ BRIDGE = {
     "e2m1x2": Bridge(
         ".b8", "raw_{slot}", "raw_{slot}", "cvt.u8.u16 {reg}, %{idx};", "cvt.u16.u8 %{idx}, {reg};"
     ),
+    # PTX ISA 9.4 types cvt.scaled::n1::ue8m0's scale-factor as .b8.  Keep
+    # this scoped to that private table token: inline asm still has no byte
+    # constraint, and widening the instruction operand itself is rejected.
+    "cvt_scale_ue8m0": Bridge(
+        ".b8", "raw_{slot}", "raw_{slot}", "cvt.u8.u16 {reg}, %{idx};", "cvt.u16.u8 %{idx}, {reg};"
+    ),
+    # PTX ISA 9.4 permits tensorSizeToOverride elements in .b8 registers.
+    # Inline asm has no byte constraint, so stage the uint8 API carrier through
+    # the exact register class named by the instruction operand.
+    "tma_size_b8": Bridge(
+        ".b8",
+        "raw_{slot}_{n}",
+        "raw_{slot}_{n}",
+        "cvt.u8.u16 {reg}, %{idx};",
+        "cvt.u16.u8 %{idx}, {reg};",
+    ),
+    # st.async.release's b8/u8/s8 sources share one private .b8 staging
+    # register. Stores preserve the low eight bits; the instruction suffix
+    # still supplies the public signed/unsigned interpretation.
+    "st_async_b8reg": Bridge(
+        ".b8", "raw_{slot}", "raw_{slot}", "cvt.u8.u16 {reg}, %{idx};", "cvt.u16.u8 %{idx}, {reg};"
+    ),
+    # MEASURED on CUDA 13.4 / sm_103a: mbarrier's reportValue destination
+    # rejects .b16/.b32/.b64 registers and accepts an actual local .b8.  Use a
+    # family-private key so ordinary `.b8` operands keep their established
+    # carrier behavior.
+    "mbarrier_report_b8reg": Bridge(
+        ".b8", "raw_{slot}", "raw_{slot}", "cvt.u8.u16 {reg}, %{idx};", "cvt.u16.u8 %{idx}, {reg};"
+    ),
 }
 
 
+def _normalize_addr_offsets(entry: InstructionEntry, addr_offsets) -> tuple[tuple[int, int], ...]:
+    """Validate and canonicalize ``(logical_address_slot, byte_offset)`` metadata."""
+    address_slots = tuple(slot for slot in entry.operands if slot.kind == "addr")
+    normalized = {}
+    for logical_slot, offset in addr_offsets or ():
+        if isinstance(logical_slot, bool) or not isinstance(logical_slot, int):
+            raise ValueError(f"{entry.name}: address slot index must be an integer")
+        if not 0 <= logical_slot < len(address_slots):
+            raise ValueError(f"{entry.name}: no address slot {logical_slot}")
+        slot = address_slots[logical_slot]
+        if not slot.allow_imm_offset:
+            raise ValueError(
+                f"{entry.name}: operand '{slot.name}' does not support an immediate offset"
+            )
+        if isinstance(offset, bool) or not isinstance(offset, int):
+            raise ValueError(f"{entry.name}: address byte offset must be an integer")
+        if not -(1 << 31) <= offset <= (1 << 31) - 1:
+            raise ValueError(f"{entry.name}: address byte offset {offset} is outside int32 range")
+        if logical_slot in normalized:
+            raise ValueError(f"{entry.name}: duplicate address slot {logical_slot}")
+        if offset:
+            normalized[logical_slot] = offset
+    return tuple(sorted(normalized.items()))
+
+
 def _helper_name(
-    entry: InstructionEntry, written, imms, dtypes, canonical, mod_map, sinks=()
+    entry: InstructionEntry,
+    written,
+    imms,
+    dtypes,
+    canonical,
+    mod_map,
+    sinks=(),
+    addr_offsets=(),
 ) -> str:
     """The helper's C identifier: the instruction's ISA identity, plus a
     signature discriminator only when it is no longer enough.
@@ -184,15 +245,19 @@ def _helper_name(
         f"sink_{name}" + "".join(str(lane) for _, lane in sorted(group))
         for name, group in itertools.groupby(sorted(sinks), key=lambda pair: pair[0])
     ]
-    isa_name = [entry.name, *written, *(imms or ()), *sunk]
+    offset_suffixes = [
+        f"addr{logical_slot}_{'p' if offset > 0 else 'm'}{abs(offset)}"
+        for logical_slot, offset in addr_offsets
+    ]
+    isa_name = [entry.name, *written, *(imms or ()), *offset_suffixes, *sunk]
     discriminator = (
         []
         if all(dtype == canon for dtype, canon in present)
         else [C_BINDING[dtype].suffix for dtype, _ in present]
     )
     return "tvm_builtin_ptx_" + "_".join([*isa_name, *discriminator]).replace("::", "__").replace(
-        ".", "_"
-    ).replace("-", "m")
+        ":", "_"
+    ).replace(".", "_").replace("-", "m")
 
 
 def render_variant(
@@ -203,6 +268,7 @@ def render_variant(
     imms=None,
     sinks=frozenset(),
     preserve_dst=False,
+    addr_offsets=(),
 ):
     """Render one variant: ``(opcode, helper_name, helper_source)``.
 
@@ -231,6 +297,8 @@ def render_variant(
     value on the inactive path.
     """
     mod_map = mods(entry, tokens)
+    addr_offsets = _normalize_addr_offsets(entry, addr_offsets)
+    addr_offset_of = dict(addr_offsets)
     written = [tok for tok in tokens if tok]
     opcode = ".".join([entry.ptx_name, *written])
     canonical = canonical_dtypes(entry, tokens)
@@ -241,7 +309,7 @@ def render_variant(
         # derived the same way so dispatch, stubs and certification do not
         # need to know the difference.
         assert not predicated, f"{opcode}: raw entries have no @p twin"
-        helper = _helper_name(entry, written, imms, dtypes, canonical, mod_map, sinks)
+        helper = _helper_name(entry, written, imms, dtypes, canonical, mod_map, sinks, addr_offsets)
         return opcode, helper, entry.raw_render(entry, opcode, helper, tokens, tuple(dtypes))
     # A helper name is the instruction's ISA identity plus, only when it is no
     # longer enough, a signature discriminator. The opcode alone stopped being
@@ -250,7 +318,7 @@ def render_variant(
     # ones that changed collides whenever two operands swap which of them is
     # non-canonical (atom's d and b do exactly that).
     imm_of = dict(zip(imm_slots(entry), imms or (), strict=True))
-    helper = _helper_name(entry, written, imms, dtypes, canonical, mod_map, sinks)
+    helper = _helper_name(entry, written, imms, dtypes, canonical, mod_map, sinks, addr_offsets)
     assert not preserve_dst or entry.has_dst, "preserve_dst requires a written destination"
     if predicated:
         if entry.has_dst:
@@ -269,6 +337,7 @@ def render_variant(
     bridge_counts: dict[str, int] = collections.defaultdict(int)
     dtype_of = dict(zip(entry.typed_operands, dtypes, strict=True))
     idx = 0
+    logical_addr_slot = 0
     for slot in entry.operands:
         pname = f"__{slot.name}"
         if slot.kind == "imm":
@@ -350,9 +419,11 @@ def render_variant(
                 inputs.append(f'"{cb.constraint}"({cb.to_carrier.format(lname)})')
             bridge = BRIDGE.get(operand_type(slot, mod_map)) if slot.kind == "reg" else None
             if bridge is None:
-                regs.append(
-                    f"[%{idx}]" if slot.kind == "addr" and slot.bracket is None else f"%{idx}"
-                )
+                if slot.kind == "addr" and slot.bracket is None:
+                    offset = addr_offset_of.get(logical_addr_slot)
+                    regs.append(f"[%{idx}{f'+{offset}' if offset is not None else ''}]")
+                else:
+                    regs.append(f"%{idx}")
             else:
                 # The C side above bound the carrier; the instruction names a
                 # block-local register of the class the ISA actually asks for,
@@ -368,6 +439,8 @@ def render_variant(
                 regs.append(reg)
             idx += 1
         rendered.append((slot, "{" + ", ".join(regs) + "}" if is_group else regs[0]))
+        if slot.kind == "addr":
+            logical_addr_slot += 1
 
     # Adjacent slots naming the same `pipe` are one operand written `p|q`
     # (setp's two predicate destinations). Merged first, and into a plain text
@@ -379,7 +452,8 @@ def render_variant(
         if key is None:
             piped.extend((slot.bracket, text) for slot, text in members)
         else:
-            piped.append((members[0][0].bracket, "|".join(text for _, text in members)))
+            slot = members[0][0]
+            piped.append((slot.bracket, "|".join(text for _, text in members)))
 
     # Adjacent slots naming the same `bracket` are one composite memory operand:
     # `[tensorMap, {c0, c1}]` is a single PTX operand whose members keep their

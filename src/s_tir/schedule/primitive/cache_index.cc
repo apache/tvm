@@ -18,6 +18,8 @@
  */
 #include <tvm/arith/int_set.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 
 #include "../../../tirx/transform/replace_selected_expr.h"
 #include "../utils.h"
@@ -25,6 +27,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /******** Helper Functions/Classes ********/
@@ -171,21 +174,21 @@ class IndexInfoCollector : public StmtExprVisitor {
 
       // Record the final sub expr with repeat time greater than cse_thresh_
       // In order to make the result stable, sort it by post order and then by complexity
-      PostOrderVisit(store->value, [&semantic_comp_done_by_stmt, this](const ffi::ObjectRef& node) {
-        if (auto prim = node.as<PrimExpr>()) {
-          PrimExpr this_expr = prim.value();
-          for (auto& it : semantic_comp_done_by_stmt) {
-            if (it.second >= this->cse_thresh_ && EquivalentTerms(this_expr, it.first, true)) {
-              auto find_result =
-                  std::find_if(this->exprs_.begin(), this->exprs_.end(),
-                               [&](PrimExpr expr) { return expr.get() == it.first.get(); });
-              if (find_result == this->exprs_.end()) {
-                this->exprs_.push_back(it.first);
-              }
+      auto walk_fn = [&semantic_comp_done_by_stmt,
+                      this](const PrimExpr& this_expr) -> ffi::Expected<ffi::WalkResult> {
+        for (auto& it : semantic_comp_done_by_stmt) {
+          if (it.second >= this->cse_thresh_ && EquivalentTerms(this_expr, it.first, true)) {
+            auto find_result =
+                std::find_if(this->exprs_.begin(), this->exprs_.end(),
+                             [&](PrimExpr expr) { return expr.get() == it.first.get(); });
+            if (find_result == this->exprs_.end()) {
+              this->exprs_.push_back(it.first);
             }
           }
         }
-      });
+        return ffi::WalkResult::Advance();
+      };
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(store->value, walk_fn);
       auto cmp = [&](const PrimExpr& lhs, const PrimExpr& rhs) -> bool {
         return CalculateExprComplexity(lhs) > CalculateExprComplexity(rhs);
       };
@@ -234,9 +237,10 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
 
     // Collect the block vars in original index computation
     info->origin_block_vars.push_back({});
-    PostOrderVisit(index_expr, [&info, &expr_index](const ffi::ObjectRef& node) {
-      if (auto var = node.as<PrimVar>()) {
-        Var iter_var = var.value();
+    auto collect_origin_var = [&info,
+                               &expr_index](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      if (auto prim_var = var.as<PrimVar>()) {
+        Var iter_var = prim_var.value();
         const ffi::Array<Var>& origin_block_var = info->origin_block_vars[expr_index];
         auto find_result = std::find_if(origin_block_var.begin(), origin_block_var.end(),
                                         [&](Var it) { return it.get() == iter_var.get(); });
@@ -244,21 +248,25 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
           info->origin_block_vars[expr_index].push_back(iter_var);
         }
       }
-    });
+      return ffi::WalkResult::Advance();
+    };
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(index_expr, collect_origin_var);
 
     // Collect the loop vars corresponding to collected block vars,
     // which will be used to create new loop vars
     std::vector<Var> iter_vars;
-    for (const Var& it : info->origin_block_vars[expr_index]) {
-      PostOrderVisit(info->var_binding.at(it), [/*&info,*/ &iter_vars](const ffi::ObjectRef& node) {
-        if (auto var = node.as<PrimVar>()) {
-          Var iter_var = var.value();
-          if (std::find_if(iter_vars.begin(), iter_vars.end(),
-                           [&](Var it) { return it.get() == iter_var.get(); }) == iter_vars.end()) {
-            iter_vars.push_back(iter_var);
-          }
+    auto collect_iter_var = [&iter_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      if (auto prim_var = var.as<PrimVar>()) {
+        Var iter_var = prim_var.value();
+        if (std::find_if(iter_vars.begin(), iter_vars.end(),
+                         [&](Var it) { return it.get() == iter_var.get(); }) == iter_vars.end()) {
+          iter_vars.push_back(iter_var);
         }
-      });
+      }
+      return ffi::WalkResult::Advance();
+    };
+    for (const Var& it : info->origin_block_vars[expr_index]) {
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(info->var_binding.at(it), collect_iter_var);
     }
 
     PrimType data_ty = index_expr.ty();
@@ -282,8 +290,15 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     }
     // Create iter_values from the original block.
     std::vector<PrimExpr> iter_values;
+    auto f_substitute =
+        [&replace_table](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = replace_table.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
     for (const Var& it : info->origin_block_vars[expr_index]) {
-      iter_values.push_back(Substitute(info->var_binding.at(it), replace_table));
+      iter_values.push_back(
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(info->var_binding.at(it), f_substitute)
+              .as_or_throw<PrimExpr>());
     }
     // block variables
     ffi::Array<IterVar> block_vars;
@@ -309,7 +324,14 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     }
 
     // Create the index computing block
-    PrimExpr new_expr = Substitute(index_expr, block_var_map);
+    auto f_substitute_block =
+        [&block_var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = block_var_map.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
+    PrimExpr new_expr =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index_expr, f_substitute_block)
+            .as_or_throw<PrimExpr>();
     SBlock block(
         /*iter_vars=*/std::move(block_vars),
         /*reads=*/{},
@@ -418,7 +440,7 @@ class CacheIndexRewriter : public StmtExprMutator {
             [computation](const PrimExpr& current_expr) {
               return (EquivalentTerms(current_expr, computation, true));
             };
-        BufferLoad load = BufferLoad(info_->cache_buffer[i], cache_indices_[i]);
+        TensorLoad load = BufferLoad(info_->cache_buffer[i], cache_indices_[i]);
         ret_stmt = ReplaceSelectedExpr::ReplaceSelectedExprInStmt(
             ret_stmt, predicate_selector, std::move(load),
             [](const PrimExpr& expr) { return true; });

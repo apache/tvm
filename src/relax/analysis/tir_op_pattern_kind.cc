@@ -19,6 +19,8 @@
 
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/op_attr_types.h>
@@ -67,8 +69,8 @@ class PatternKindAnalyzer : public StmtExprVisitor {
     StmtVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    loads_.push_back(ffi::GetRef<BufferLoad>(op));
+  void VisitExpr_(const TensorLoadNode* op) final {
+    loads_.push_back(ffi::GetRef<TensorLoad>(op));
     ExprVisitor::VisitExpr_(op);
   }
 
@@ -97,7 +99,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
     // Step 3. Checking load store indices pattern
     OpPatternKind index_pair_pattern = kElemWise;
     bool has_elem_wise = false;
-    for (const BufferLoad& load : loads_) {
+    for (const TensorLoad& load : loads_) {
       // Since elemwise is stricter than broadcast and broadcast is stricter than injective,
       // while the order amount enums: kElemWise < kBroadcast < kInjective.
       // We can simply use `std::max` to detect these three patterns.
@@ -183,7 +185,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    * It's elemwise pattern iff load indices and store indices are the same.
    * E.g A[i, j] = B[i, j]
    */
-  static bool IsElemwisePattern(const BufferStore& store, const BufferLoad& load) {
+  static bool IsElemwisePattern(const BufferStore& store, const TensorLoad& load) {
     return IsSameArray(store->indices, load->indices);
   }
 
@@ -194,12 +196,13 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    *      A[i, j] = B[i, k] is not broadcast since `k` are not in the store indices.
    *      A[i, j] = B[j, i] is not broadcast the load indices are not in the same order as store's
    */
-  static bool IsBroadcastPattern(const BufferStore& store, const BufferLoad& load) {
-    size_t ndim_load_buf = load->buffer->shape.size();
+  static bool IsBroadcastPattern(const BufferStore& store, const TensorLoad& load) {
+    size_t ndim_load_buf = load->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size();
     size_t ndim_store_buf = store->buffer->shape.size();
 
     for (size_t i = 0, j = 0; i < ndim_load_buf; ++i) {
-      if (is_const_int(load->buffer->shape[i], 1) && is_const_int(load->indices[i], 0)) {
+      if (is_const_int(load->source.as_or_throw<tvm::tirx::BufferVar>()->shape[i], 1) &&
+          is_const_int(load->indices[i], 0)) {
         // Skip unit load dimensions
         // E.g. A[i, j] = B[1, j] is still broadcast
         continue;
@@ -225,7 +228,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    * E.g. A[i, j] = B[j, i] is injective.
    *      A[i, j] = B[i - j] is injective since the load index vars are only i, j
    */
-  static bool IsInjectivePattern(const BufferStore& store, const BufferLoad& load) {
+  static bool IsInjectivePattern(const BufferStore& store, const TensorLoad& load) {
     std::unordered_set<const tirx::VarNode*> vars;
     for (const PrimExpr& store_index : store->indices) {
       if (auto var = store_index.as<tirx::PrimVar>()) {
@@ -234,10 +237,13 @@ class PatternKindAnalyzer : public StmtExprVisitor {
         return false;
       }
     }
+    auto walkfn = [&vars](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return !vars.count(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                    : ffi::WalkResult::Advance();
+    };
     for (const PrimExpr& load_index : load->indices) {
       // return false if there are vars used in load indices but not in store indices.
-      if (tirx::UsesVar(load_index,
-                        [&vars](const tirx::VarNode* var) { return !vars.count(var); })) {
+      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(load_index, walkfn).has_value()) {
         return false;
       }
     }
@@ -250,7 +256,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    * E.g. Store = A[i, j] and Load = B[i, j, k] allow data reuse.
    *      Store = A[i, j] and Load = B[i, j + k] allow data reuse.
    */
-  static bool IsAllowReusePattern(const BufferStore& store, const BufferLoad& load) {
+  static bool IsAllowReusePattern(const BufferStore& store, const TensorLoad& load) {
     std::unordered_set<const tirx::VarNode*> vars;
     for (const PrimExpr& index : store->indices) {
       if (auto var = index.as<tirx::PrimVar>()) {
@@ -259,22 +265,21 @@ class PatternKindAnalyzer : public StmtExprVisitor {
         return false;
       }
     }
+    auto walk_fn = [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+      if (auto prim_var = var.as<tirx::PrimVar>()) {
+        vars.erase(prim_var.value().get());
+      }
+      return ffi::WalkResult::Advance();
+    };
     for (const PrimExpr& index : load->indices) {
-      PreOrderVisit(index, [&](const ffi::ObjectRef& node) {
-        if (auto var = node.as<tirx::PrimVar>()) {
-          if (vars.count(var.value().get())) {
-            vars.erase(var.value().get());
-          }
-        }
-        return true;
-      });
+      ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(index, walk_fn);
     }
     return !vars.empty();
   }
 
   static PrimExpr RemoveCast(PrimExpr e) {
     for (;;) {
-      if (const auto* cast = e.as<tirx::CastNode>()) {
+      if (const auto* cast = e.as<prim::CastNode>()) {
         e = cast->value;
       } else {
         break;
@@ -286,21 +291,22 @@ class PatternKindAnalyzer : public StmtExprVisitor {
   /*! \brief Checking if the stmt is multiply add. E.g. C[i, j] += A[i, k] * B[j, k] */
   static bool IsFMA(const Stmt& body) {
     if (const auto* store = body.as<BufferStoreNode>()) {
-      if (const auto* add = RemoveCast(store->value).as<tirx::AddNode>()) {
-        if (const auto* mul = RemoveCast(add->b).as<tirx::MulNode>()) {
-          const auto* store_lhs = RemoveCast(add->a).as<tirx::BufferLoadNode>();
-          if (!store_lhs || !store->buffer.same_as(store_lhs->buffer) ||
+      if (const auto* add = RemoveCast(store->value).as<prim::AddNode>()) {
+        if (const auto* mul = RemoveCast(add->b).as<prim::MulNode>()) {
+          const auto* store_lhs = RemoveCast(add->a).as<TensorLoadNode>();
+          if (!store_lhs ||
+              !store->buffer.same_as(store_lhs->source.as_or_throw<tvm::tirx::BufferVar>()) ||
               !IsSameArray(store->indices, store_lhs->indices)) {
             return false;
           }
-          const auto* lhs = RemoveCast(mul->a).as<tirx::BufferLoadNode>();
-          const auto* rhs = RemoveCast(mul->b).as<tirx::BufferLoadNode>();
+          const auto* lhs = RemoveCast(mul->a).as<TensorLoadNode>();
+          const auto* rhs = RemoveCast(mul->b).as<TensorLoadNode>();
           if (!lhs || !rhs) {
             return false;
           }
           return IsAllowReusePattern(ffi::GetRef<BufferStore>(store),
-                                     ffi::GetRef<BufferLoad>(lhs)) &&
-                 IsAllowReusePattern(ffi::GetRef<BufferStore>(store), ffi::GetRef<BufferLoad>(rhs));
+                                     ffi::GetRef<TensorLoad>(lhs)) &&
+                 IsAllowReusePattern(ffi::GetRef<BufferStore>(store), ffi::GetRef<TensorLoad>(rhs));
         }
       }
     }
@@ -316,17 +322,20 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    */
   static bool IsPureReducePattern(ffi::Array<tirx::Var> reduce_loops,
                                   ffi::Array<PrimExpr> indices) {
+    auto walkfn = [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return std::any_of(reduce_loops.begin(), reduce_loops.end(),
+                         [&](const tirx::Var& loop) { return loop.same_as(var); })
+                 ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                 : ffi::WalkResult::Advance();
+    };
     for (const PrimExpr& e : indices) {
-      int id = -1;
-      if (UsesVar(e, [&](const tirx::VarNode* var) {
-            for (size_t i = 0; i < reduce_loops.size(); ++i) {
-              if (reduce_loops[i].get() == var) {
-                id = i;
-                return true;
-              }
-            }
-            return false;
-          })) {
+      auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(e, walkfn);
+      if (result.has_value()) {
+        tirx::Var var = result.value()->value.cast<tirx::Var>();
+        int id =
+            std::distance(reduce_loops.begin(),
+                          std::find_if(reduce_loops.begin(), reduce_loops.end(),
+                                       [&](const tirx::Var& loop) { return loop.same_as(var); }));
         if (!reduce_loops[id].same_as(e)) {
           return false;
         }
@@ -341,8 +350,8 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    * \note We only support one BufferStore node in a block (usually generated by TE compute)
    */
   ffi::Optional<BufferStore> store_;
-  /*! \brief The BufferLoad nodes in the current block. */
-  ffi::Array<BufferLoad> loads_;
+  /*! \brief The TensorLoad nodes in the current block. */
+  ffi::Array<TensorLoad> loads_;
   /*! \brief The result of op pattern. */
   OpPatternKind kind_ = kElemWise;
   /*! \brief The buffers from function params. I.e. the input and output buffers. */
@@ -416,19 +425,19 @@ bool HasReshapePattern(const PrimFunc& func) {
 
       // Step 1. Get the load/store pattern of the block body.
       // To detect the reshape pattern, we require the block body to be a
-      // BufferStore, which has a BufferLoad as value.
+      // BufferStore, which has a TensorLoad as value.
       const auto* buffer_store = block->body.as<BufferStoreNode>();
       if (buffer_store == nullptr) {
         return;
       }
-      const auto* buffer_load = buffer_store->value.as<BufferLoadNode>();
+      const auto* buffer_load = buffer_store->value.as<TensorLoadNode>();
       if (buffer_load == nullptr) {
         return;
       }
       // Further, we require the buffer being stored and being loaded to
       // match the parameter of the PrimFunc, namely `dst_buffer_` and `src_buffer_`.
       if (!(buffer_store->buffer.same_as(dst_buffer_) &&
-            buffer_load->buffer.same_as(src_buffer_))) {
+            buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(src_buffer_))) {
         return;
       }
 
@@ -497,8 +506,15 @@ bool HasReshapePattern(const PrimFunc& func) {
                                            block->iter_vars[i]->dom->extent));
           stride *= block->iter_vars[i]->dom->extent;
         }
+        auto f_substitute = [&inverse_indices_map](
+                                const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (auto repl = inverse_indices_map.Get(var)) return ffi::Any(*std::move(repl));
+          return ffi::Unchanged();
+        };
         PrimExpr flattened_idx = f_calc_flattened_idx(nontrivial_buffer, nontrivial_indices);
-        flattened_idx = Substitute(std::move(flattened_idx), inverse_indices_map);
+        flattened_idx =
+            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(flattened_idx), f_substitute)
+                .as_or_throw<PrimExpr>();
 
         ffi::Array<PrimExpr> simplify_res = arith::IterMapSimplify(
             /*indices=*/{flattened_idx},

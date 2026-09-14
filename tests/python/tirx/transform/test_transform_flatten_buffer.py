@@ -23,6 +23,8 @@ the rebuilt identity, or SplitHostDevice later sees them as undefined
 and hoists dead variables into the kernel ABI.
 """
 
+import tvm_ffi
+
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
@@ -36,7 +38,7 @@ def _collect_defined_buffers(func):
         if isinstance(node, tvm.tirx.AllocBuffer | tvm.tirx.DeclBuffer):
             defined.add(node.buffer)
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, visit)
+    tvm_ffi.structural_walk(func.body, visit)
     return defined
 
 
@@ -53,24 +55,25 @@ def _assert_loads_reference_defined_buffers(func):
 
     def check_expr(expr, where):
         def visit(node):
-            if isinstance(node, tvm.tirx.BufferLoad) and not is_defined(node.buffer):
-                stale.append(f"{where}: load of {node.buffer.name}")
+            if isinstance(node, tvm.ir.TensorLoad) and not is_defined(node.source):
+                stale.append(f"{where}: load of {node.source.name}")
 
-        tvm.tirx.stmt_functor.post_order_visit(expr, visit)
+        tvm_ffi.structural_walk(expr, visit)
 
     def visit(node):
-        if isinstance(node, tvm.tirx.BufferLoad | tvm.tirx.BufferStore):
-            if not is_defined(node.buffer):
-                stale.append(f"access of {node.buffer.name}")
+        if isinstance(node, tvm.ir.TensorLoad | tvm.tirx.BufferStore):
+            buffer = node.source if isinstance(node, tvm.ir.TensorLoad) else node.buffer
+            if not is_defined(buffer):
+                stale.append(f"access of {buffer.name}")
             for index in node.indices:
-                check_expr(index, f"index of {node.buffer.name}")
+                check_expr(index, f"index of {buffer.name}")
         if isinstance(node, tvm.tirx.AllocBuffer | tvm.tirx.DeclBuffer):
             for extent in node.buffer.shape:
                 check_expr(extent, f"shape of {node.buffer.name}")
             if node.buffer.elem_offset is not None:
                 check_expr(node.buffer.elem_offset, f"elem_offset of {node.buffer.name}")
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, visit)
+    tvm_ffi.structural_walk(func.body, visit)
     assert not stale, f"stale buffer references after FlattenBuffer: {stale}"
 
 
@@ -118,12 +121,12 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
         if isinstance(node, tvm.tirx.BufferStore) and node.buffer.name.startswith("mbar"):
 
             def inner(sub):
-                if isinstance(sub, tvm.tirx.BufferLoad):
+                if isinstance(sub, tvm.ir.TensorLoad):
                     found.append(sub)
 
-            tvm.tirx.stmt_functor.post_order_visit(node.indices[0], inner)
+            tvm_ffi.structural_walk(node.indices[0], inner)
 
-    tvm.tirx.stmt_functor.post_order_visit(after.body, visit)
+    tvm_ffi.structural_walk(after.body, visit)
     assert found, "expected the folded elem_offset load in the mbar store index"
 
 
@@ -142,7 +145,7 @@ def test_flatten_keeps_identity_of_already_flat_buffers():
         if isinstance(node, tvm.tirx.AllocBuffer):
             before_allocs[node.buffer.name] = node.buffer
 
-    tvm.tirx.stmt_functor.post_order_visit(before.body, collect_before)
+    tvm_ffi.structural_walk(before.body, collect_before)
 
     after = _flatten(before)
     preserved = []
@@ -151,7 +154,7 @@ def test_flatten_keeps_identity_of_already_flat_buffers():
         if isinstance(node, tvm.tirx.AllocBuffer) and node.buffer.name in before_allocs:
             preserved.append(node.buffer.same_as(before_allocs[node.buffer.name]))
 
-    tvm.tirx.stmt_functor.post_order_visit(after.body, visit)
+    tvm_ffi.structural_walk(after.body, visit)
     assert preserved and all(preserved), "already-flat buffer identity was not preserved"
 
 

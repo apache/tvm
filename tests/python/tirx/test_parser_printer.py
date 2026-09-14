@@ -17,6 +17,7 @@
 import math
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.script
@@ -743,7 +744,7 @@ def test_alloc_apis():
         def init(self):
             self.Ta = self.Ta + T.float16(1)
             self.Tb = self.Tb + T.float16(2)
-            self.idx.buffer[0] = T.int32(0)
+            self.idx.source[0] = T.int32(0)
             self.idx = self.idx + T.int32(1)
             self.inner_pool2 = self.inner_pool2 + T.float16(1)
             T.evaluate(T.address_of(self.Ta))
@@ -773,7 +774,7 @@ def test_alloc_apis():
         A[0] = C
         A[0] = C + D  # noqa: F821
         A[1] = B[0] * C
-        D.buffer[0] = D + T.float16(1)  # noqa: F821
+        D.source[0] = D + T.float16(1)  # noqa: F821
         D = D + T.float16(1)  # noqa: F821
         C = D
         T.evaluate(E)
@@ -784,14 +785,15 @@ def test_alloc_apis():
         C += D
         D += E + C + D
         T.evaluate(T.address_of(C))
-        T.evaluate(C.buffer.access_ptr("rw", offset=0))
-        T.evaluate(C.buffer.data)
+        T.evaluate(C.source.access_ptr("rw", offset=0))
+        T.evaluate(C.source.data)
         T.evaluate(D)
         T.evaluate(T.address_of(D))
         # fmt: on
 
     code = test.script()
     print(code)
+    assert ".buffer" not in code
     assert from_source(code).script() == code
 
 
@@ -1018,6 +1020,16 @@ def test_buffer():
     assert_structural_equal(test, from_source(code))
 
 
+def test_buffer_shape_repeated_var_prints_out_of_line():
+    n = tvm.tirx.Var("n", "int32")
+    buffer = tvm.tirx.decl_buffer((n + n,), name="A")
+    func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(0))
+
+    code = func.script()
+    assert "n = T.int32()" in code
+    assert_structural_equal(func, from_source(code))
+
+
 def test_kwargs_op_call():
     # fmt: off
     @T.prim_func(private=True)
@@ -1240,6 +1252,35 @@ def test_let_annotation_syntax():
     assert_structural_equal(test, from_source(code))
 
 
+def test_tuple_let_binding_and_traversal():
+    @T.prim_func
+    def from_list(x: T.int32, y: T.float32) -> T.int32:
+        pair: T.let = [x, (y,)]
+        return pair[0]
+
+    @T.prim_func
+    def from_tuple(x: T.int32, y: T.float32) -> T.int32:
+        pair: T.let = (x, (y,))
+        return pair[0]
+
+    def tuple_value(func):
+        visited = []
+        tvm_ffi.structural_walk(func.body, visited.append)
+        bind = next(node for node in visited if isinstance(node, tvm.tirx.Bind))
+        return bind.value
+
+    list_value = tuple_value(from_list)
+    tuple_value = tuple_value(from_tuple)
+    assert isinstance(list_value, tvm.ir.Tuple)
+    assert isinstance(list_value.fields[1], tvm.ir.Tuple)
+    assert_structural_equal(list_value, tuple_value, map_free_vars=True)
+
+    code = from_list.script()
+    assert "pair: T.let[T.Tuple(T.int32, T.Tuple(T.float32))] = x, (y,)" in code
+    assert from_source(code).script() == code
+    assert_structural_equal(from_list, from_source(code))
+
+
 def test_annotation_syntax_comprehensive():
     """Comprehensive test for scalar annotation, T.let, banned annotations, and bare assignment."""
 
@@ -1336,7 +1377,7 @@ def _collect_buffers(func):
         if isinstance(node, tvm.tirx.DeclBuffer | tvm.tirx.AllocBuffer):
             bufs[node.buffer.name] = node.buffer
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, _visit)
+    tvm_ffi.structural_walk(func.body, _visit)
     return bufs
 
 
@@ -1348,7 +1389,7 @@ def _collect_buffer_sources(func):
         if isinstance(node, tvm.tirx.DeclBuffer):
             sources[node.buffer.name] = node.data
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, _visit)
+    tvm_ffi.structural_walk(func.body, _visit)
     return sources
 
 
@@ -1668,7 +1709,7 @@ def test_pointer_expression_assignment_uses_bind():
     # fmt: on
 
     binds = []
-    tvm.tirx.stmt_functor.post_order_visit(
+    tvm_ffi.structural_walk(
         func.body, lambda node: binds.append(node) if isinstance(node, tvm.tirx.Bind) else None
     )
     assert len(binds) == 1
@@ -1705,7 +1746,7 @@ def func() -> None:
     func = tvm.script.from_source(source, extra_vars={"T": T, "ptr": object()})
 
     binds = []
-    tvm.tirx.stmt_functor.post_order_visit(
+    tvm_ffi.structural_walk(
         func.body, lambda node: binds.append(node) if isinstance(node, tvm.tirx.Bind) else None
     )
     assert len(binds) == 1
@@ -2233,24 +2274,53 @@ def test_buffer_slice_region():
     assert int(br.region[0].extent) == 32
     assert int(br.region[1].extent) == 32
 
+    load = buf[1, 2]
+    assert isinstance(load, tvm.ir.TensorLoad)
 
-def test_buffer_region_slice():
-    """Verify BufferRegion slicing returns BufferRegion."""
-    from tvm.tirx.stmt import BufferRegion
+    partial = buf[1]
+    assert isinstance(partial, BufferRegion)
 
-    buf = tvm.tirx.decl_buffer((128, 64), "float16")
+    narrowed = br[4:12, 2:10]
+    assert isinstance(narrowed, BufferRegion)
+    assert narrowed.buffer.same_as(buf)
+    assert [(int(dim.min), int(dim.extent)) for dim in narrowed.region] == [
+        (36, 8),
+        (2, 8),
+    ]
 
-    br1 = buf[32:64, 0:32]
-    assert isinstance(br1, BufferRegion)
+    chained_load = br[3, 4]
+    assert isinstance(chained_load, tvm.ir.TensorLoad)
+    assert chained_load.source.same_as(buf)
+    assert [int(index) for index in chained_load.indices] == [35, 4]
 
-    # BufferRegion chained slice
-    br3 = br1[0:16, 0:16]
-    assert isinstance(br3, BufferRegion)
-    assert br3.buffer.same_as(buf), "chained region slice must reference root buffer"
-    assert int(br3.region[0].min) == 32
-    assert int(br3.region[0].extent) == 16
-    assert int(br3.region[1].min) == 0
-    assert int(br3.region[1].extent) == 16
+    point_then_region = br[3]
+    assert isinstance(point_then_region, BufferRegion)
+    assert [(int(dim.min), int(dim.extent)) for dim in point_then_region.region] == [
+        (35, 1),
+        (0, 32),
+    ]
+
+    with pytest.raises(ValueError, match="non-unit step"):
+        _ = br[::2]
+
+
+def test_global_call_realizes_buffer_elements():
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(private=True, s_tir=True)
+        def add(a: T.float32, b: T.float32) -> T.float32:
+            return a + b
+
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((16,), "float32"),
+            B: T.Buffer((16,), "float32"),
+            C: T.Buffer((16,), "float32"),
+        ):
+            for i in range(16):
+                C[i] = Module.add(A[i], B[i])
+
+    assert isinstance(Module["main"], tvm.tirx.PrimFunc)
 
 
 def test_roundtrip_serial_unroll_false():
@@ -2656,7 +2726,7 @@ def test_vector_annotation_with_python_variable_size():
 def test_roundtrip_tmem_decl_buffer():
     """DeclBuffer with tmem scope: data kwarg must be suppressed, allocated_addr
     must print as Expr (not Array), and scalar buffer index must not get
-    a .buffer suffix."""
+    a .source suffix."""
 
     # fmt: off
     @T.prim_func
@@ -2664,7 +2734,7 @@ def test_roundtrip_tmem_decl_buffer():
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
             addr = T.alloc_shared((1,), "uint32", layout=None)
-            addr_alias = T.Buffer((1,), "uint32", data=addr.data, scope="shared")
+            addr_alias = T.decl_buffer((1,), "uint32", data=addr.data, scope="shared")
             buf = T.decl_buffer((64,), scope="tmem", layout=None, allocated_addr=addr_alias[0])
     # fmt: on
 
@@ -2672,11 +2742,12 @@ def test_roundtrip_tmem_decl_buffer():
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
     decls = []
-    tvm.tirx.stmt_functor.post_order_visit(
+    tvm_ffi.structural_walk(
         func.body,
         lambda node: decls.append(node) if isinstance(node, tvm.tirx.DeclBuffer) else None,
     )
-    assert len(decls) == 1
+    # The shared alias has an explicit definition before the tensor-memory use.
+    assert len(decls) == 2
     tmem_decl = next(decl for decl in decls if decl.buffer.scope() == "tmem")
     assert tmem_decl.data.op.name == "tirx.reinterpret"
 
@@ -2931,7 +3002,7 @@ def test_scope_id_dtype_uint32():
     # fmt: on
 
     scope_defs = []
-    tvm.tirx.stmt_functor.post_order_visit(
+    tvm_ffi.structural_walk(
         func.body,
         lambda s: (
             scope_defs.append(getattr(s, "def")) if isinstance(s, tvm.tirx.ScopeIdDefStmt) else None
@@ -3000,7 +3071,7 @@ def test_scope_id_dtype_uint32_deferred_extent():
     # fmt: on
 
     scope_defs = []
-    tvm.tirx.stmt_functor.post_order_visit(
+    tvm_ffi.structural_walk(
         func.body,
         lambda s: (
             scope_defs.append(getattr(s, "def")) if isinstance(s, tvm.tirx.ScopeIdDefStmt) else None

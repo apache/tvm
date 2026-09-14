@@ -581,7 +581,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
   Expr VisitExprDefault_(const ffi::Object* op) final {
     Expr expr = ffi::GetRef<Expr>(static_cast<const ExprNode*>(op));
-    if (expr.as<PrimExpr>()) return expr;
+    if (expr.as<PrimExpr>() || expr.as<OpaqueExpr>()) return expr;
     return ExprFunctor::VisitExprDefault_(op);
   }
 

@@ -97,7 +97,7 @@ void CodeGenAArch64::VisitStmt_(const AttrStmtNode* op) {
     return;
   }
 
-  const auto* attr_value = op->value.as<StringImmNode>();
+  const auto* attr_value = op->value.as<prim::StringImmNode>();
   TVM_FFI_ICHECK(attr_value) << "Expect " << attr_key << " to have a ffi::String value but was "
                              << op->value->GetTypeKey();
 

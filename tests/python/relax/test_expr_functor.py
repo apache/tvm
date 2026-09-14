@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import relax, tirx
+from tvm import relax, te, tirx
 from tvm.ir import Call, Op
 from tvm.ir.base import assert_structural_equal
 from tvm.relax import PyExprMutator, PyExprVisitor
@@ -444,6 +444,18 @@ def test_call():
         "\n".join(["Call", "\tOp", "\tVar", "\tVar"]),
         "\n".join(["Op", "Var", "Var", "Var", "Var", "ShapeExpr", "Call"]),
     )
+
+    tensor_load = te.placeholder((1,), name="A")(0)
+    BasicVisitor().visit_expr(tensor_load)
+    assert BasicMutator().visit_expr(tensor_load).same_as(tensor_load)
+
+    visitor = ASTPrinter()
+    visitor.visit_expr(tensor_load)
+    assert str(visitor.log) == "\n".join(["Call", "\tExprFallback"])
+
+    mutator = ASTPostPrinterMutator()
+    assert mutator.visit_expr(tensor_load).same_as(tensor_load)
+    assert str(mutator.log) == "\n".join(["ExprFallback", "Call"])
 
 
 def test_if():

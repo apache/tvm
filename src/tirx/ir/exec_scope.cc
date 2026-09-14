@@ -18,6 +18,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
@@ -363,10 +364,12 @@ PrimExpr GetLinearThreadIndex(const LaunchParams& params) {
   return tx + ty * ex + tz * ex * ey;
 }
 
-ffi::Array<PrimExpr> Trivial3DResolve(const LaunchParams& params, const char* prefix, int out_dim) {
+ffi::Array<PrimExpr> Trivial3DResolve(const LaunchParams& params, const char* prefix, int out_dim,
+                                      bool allow_missing = false) {
   ffi::Array<PrimExpr> ret;
   for (int i = 0; i < out_dim; ++i) {
-    ret.push_back(GetThread(std::string(prefix) + static_cast<char>('x' + i), params).first);
+    ret.push_back(
+        GetThread(std::string(prefix) + static_cast<char>('x' + i), params, allow_missing).first);
   }
   return ret;
 }
@@ -379,7 +382,10 @@ ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
     case ScopeBinding::kKernelCta:
       return Trivial3DResolve(params, "blockIdx.", out_dim);
     case ScopeBinding::kClusterCta:
-      return Trivial3DResolve(params, "clusterCtaIdx.", out_dim);
+      // Keep the missing-tag fallback for compatibility with pre-existing IR. A missing
+      // clusterCtaIdx coordinate resolves to the constant zero; blockIdx and threadIdx are
+      // always bound, so they keep the strict lookup.
+      return Trivial3DResolve(params, "clusterCtaIdx.", out_dim, /*allow_missing=*/true);
     case ScopeBinding::kCtaThread:
       return Trivial3DResolve(params, "threadIdx.", out_dim);
     case ScopeBinding::kKernelCluster: {
@@ -388,15 +394,16 @@ ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
       static const Op& cuda_mov_sreg_op = Op::Get("tirx.cuda.mov_sreg");
       ffi::Array<PrimExpr> ret;
       for (int i = 0; i < out_dim; ++i) {
-        ret.push_back(Call(PrimType::Int(32), cuda_mov_sreg_op,
-                           {IntImm::Int32(32), StringImm("clusterid." + std::string(1, 'x' + i))})
-                          .as_or_throw<PrimExpr>());
+        ret.push_back(
+            Call(PrimType::Int(32), cuda_mov_sreg_op,
+                 {IntImm::Int32(32), prim::StringImm("clusterid." + std::string(1, 'x' + i))})
+                .as_or_throw<PrimExpr>());
       }
       return ret;
     }
     case ScopeBinding::kCtaWarpgroup: {
       TVM_FFI_ICHECK_EQ(out_dim, 1) << "ValueError: cta->warpgroup must be 1D";
-      return {ana->Simplify(FloorDiv(GetThread("warp_id_in_cta", params).first, 4))};
+      return {ana->Simplify(prim::FloorDiv(GetThread("warp_id_in_cta", params).first, 4))};
     }
     case ScopeBinding::kCtaWarp: {
       TVM_FFI_ICHECK_EQ(out_dim, 1) << "ValueError: cta->warp must be 1D";
@@ -404,15 +411,15 @@ ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
     }
     case ScopeBinding::kWarpgroupWarp: {
       TVM_FFI_ICHECK_EQ(out_dim, 1) << "ValueError: warpgroup->warp must be 1D";
-      return {ana->Simplify(FloorMod(GetThread("warp_id_in_cta", params).first, 4))};
+      return {ana->Simplify(prim::FloorMod(GetThread("warp_id_in_cta", params).first, 4))};
     }
     case ScopeBinding::kWarpgroupThread: {
       TVM_FFI_ICHECK_EQ(out_dim, 1) << "ValueError: warpgroup->thread must be 1D";
-      return {ana->Simplify(FloorMod(GetLinearThreadIndex(params), 128))};
+      return {ana->Simplify(prim::FloorMod(GetLinearThreadIndex(params), 128))};
     }
     case ScopeBinding::kWarpThread: {
       TVM_FFI_ICHECK_EQ(out_dim, 1) << "ValueError: warp->thread must be 1D";
-      return {ana->Simplify(FloorMod(GetLinearThreadIndex(params), 32))};
+      return {ana->Simplify(prim::FloorMod(GetLinearThreadIndex(params), 32))};
     }
     case ScopeBinding::kClusterCtaPair: {
       TVM_FFI_ICHECK_EQ(out_dim, 1) << "ValueError: cluster->cta_pair must be 1D";
@@ -420,7 +427,7 @@ ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
       std::tie(cbx, ex) = GetThread("clusterCtaIdx.x", params, true);
       std::tie(cby, ey) = GetThread("clusterCtaIdx.y", params, true);
       std::tie(cbz, ez) = GetThread("clusterCtaIdx.z", params, true);
-      return {ana->Simplify(FloorMod(cbx + cby * ex + cbz * ex * ey, 2))};
+      return {ana->Simplify(prim::FloorMod(cbx + cby * ex + cbz * ex * ey, 2))};
     }
   }
   LOG(FATAL) << "Internal Error: unknown ScopeBinding " << static_cast<int>(binding);
@@ -437,7 +444,7 @@ ffi::Array<PrimExpr> ScopeIdResolve::Resolve(ScopeBinding binding,
 }
 
 PrimExpr ScopeIdResolve::ComputeWarpIdInCta(const LaunchParams& params) {
-  PrimExpr warp_id = FloorDiv(GetLinearThreadIndex(params), 32);
+  PrimExpr warp_id = prim::FloorDiv(GetLinearThreadIndex(params), 32);
   PrimExpr mask = IntImm(PrimType::UInt(32), 0xffffffff);
   return Call(warp_id.ty(), builtin::tvm_warp_shuffle(),
               {mask, warp_id, IntImm::Int32(0), IntImm::Int32(32), IntImm::Int32(32)})

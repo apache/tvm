@@ -189,7 +189,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
       const BufferVar& preproc_buffer = op->reads[0]->buffer;
       int buffer_index = -1;
       for (size_t i = 0; i < original_func_->params.size(); ++i) {
-        BufferVar buffer = original_func_->params[i].as_or_throw<BufferVar>();
+        BufferVar buffer = original_func_->params[i].as_or_throw<tvm::tirx::BufferVar>();
         if (buffer == preproc_buffer) {
           buffer_index = i;
           break;
@@ -301,7 +301,7 @@ class SplitLayoutRewritePreproc : public ExprMutator {
       preproc_args.push_back(call_tir_args[info.buffer_index]);
       tirx::BufferVar rewritten_buffer = info.post_rewrite_buffer;
       for (const auto& shape_expr : rewritten_buffer->shape) {
-        TVM_FFI_ICHECK(shape_expr.as<tirx::IntImmNode>())
+        TVM_FFI_ICHECK(shape_expr.as<IntImmNode>())
             << "Currently does not support rewrite buffer with "
                "dynamic shape.";
       }

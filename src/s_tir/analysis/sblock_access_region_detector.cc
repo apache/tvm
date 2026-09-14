@@ -24,6 +24,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -125,7 +126,7 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   void VisitStmt_(const DeclBufferNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const BindNode* op) override;
-  void VisitExpr_(const BufferLoadNode* op) override;
+  void VisitExpr_(const TensorLoadNode* op) override;
   void VisitExpr_(const VarNode* op) override;
   void VisitExpr_(const CallNode* op) override;
 };
@@ -161,17 +162,26 @@ ffi::Array<BufferRegion> BlockReadWriteDetector::CollectOpaques() {
 
 void BlockReadWriteDetector::VisitExpr_(const VarNode* op) { UpdateOpaque(ffi::GetRef<Var>(op)); }
 
-void BlockReadWriteDetector::VisitExpr_(const BufferLoadNode* op) {
+void BlockReadWriteDetector::VisitExpr_(const TensorLoadNode* op) {
+  auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto it = let_bindings_.find(var.get()); it != let_bindings_.end()) {
+      return ffi::Any(it->second);
+    }
+    return ffi::Unchanged();
+  };
   std::vector<arith::IntSet> relaxed_region;
   for (PrimExpr index : op->indices) {
-    PrimExpr remapped_index = Substitute(index, let_bindings_);
+    PrimExpr remapped_index =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index, f_substitute).as_or_throw<PrimExpr>();
     while (!remapped_index.same_as(index)) {
       index = remapped_index;
-      remapped_index = Substitute(index, let_bindings_);
+      remapped_index = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index, f_substitute)
+                           .as_or_throw<PrimExpr>();
     }
     relaxed_region.push_back(arith::EvalSet(arith::IntSet::Vector(remapped_index), dom_map_));
   }
-  Update(&read_buffers_, &read_regions_, op->buffer, relaxed_region);
+  Update(&read_buffers_, &read_regions_, op->source.as_or_throw<tvm::tirx::BufferVar>(),
+         relaxed_region);
   ExprVisitor::VisitExpr_(op);
 }
 
@@ -210,10 +220,47 @@ void BlockReadWriteDetector::VisitStmt_(const BindNode* op) {
 }
 
 void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
-  if (op->op.same_as(builtin::tvm_access_ptr())) {
+  auto update_masked_access = [this](const BufferVar& buffer, const ffi::Array<PrimExpr>& indices,
+                                     std::vector<BufferVar>* buffers,
+                                     std::vector<std::vector<arith::IntSet>>* regions) {
+    auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto it = let_bindings_.find(var.get()); it != let_bindings_.end()) {
+        return ffi::Any(it->second);
+      }
+      return ffi::Unchanged();
+    };
+    std::vector<arith::IntSet> relaxed_region;
+    for (PrimExpr index : indices) {
+      PrimExpr remapped_index = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index, f_substitute)
+                                    .as_or_throw<PrimExpr>();
+      while (!remapped_index.same_as(index)) {
+        index = remapped_index;
+        remapped_index = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index, f_substitute)
+                             .as_or_throw<PrimExpr>();
+      }
+      relaxed_region.push_back(arith::EvalSet(arith::IntSet::Vector(remapped_index), dom_map_));
+    }
+    Update(buffers, regions, buffer, relaxed_region);
+  };
+  if (op->op.same_as(tirx::builtin::masked_load()) ||
+      op->op.same_as(tirx::builtin::masked_store())) {
+    bool is_load = op->op.same_as(tirx::builtin::masked_load());
+    BufferVar buffer(op->args[0].as_or_throw<Var>());
+    ffi::Array<PrimExpr> indices;
+    for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
+      indices.push_back(op->args[i].as_or_throw<PrimExpr>());
+    }
+    update_masked_access(buffer, indices, is_load ? &read_buffers_ : &writes_buffers_,
+                         is_load ? &read_regions_ : &write_regions_);
+    for (size_t i = 1; i < op->args.size(); ++i) {
+      VisitExpr(op->args[i]);
+    }
+    return;
+  }
+  if (op->op.same_as(tirx::builtin::tvm_access_ptr())) {
     const VarNode* buffer_var = op->args[1].as<VarNode>();
     if (const auto* data = op->args[1].as<CallNode>();
-        data && data->op.same_as(builtin::buffer_data())) {
+        data && data->op.same_as(tirx::builtin::buffer_data())) {
       buffer_var = data->args[0].as<VarNode>();
     }
     const IntImmNode* access_mask = op->args[4].as<IntImmNode>();
@@ -242,7 +289,7 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
     }
     return;
   }
-  if (op->op.same_as(builtin::if_then_else())) {
+  if (op->op.same_as(prim::builtin::if_then_else())) {
     PrimExpr condition = op->args[0].as_or_throw<PrimExpr>();
     VisitExpr(condition);
     {
@@ -261,12 +308,20 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
 }
 
 void BlockReadWriteDetector::VisitStmt_(const BufferStoreNode* op) {
+  auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto it = let_bindings_.find(var.get()); it != let_bindings_.end()) {
+      return ffi::Any(it->second);
+    }
+    return ffi::Unchanged();
+  };
   std::vector<arith::IntSet> relaxed_region;
   for (PrimExpr index : op->indices) {
-    PrimExpr remapped_index = Substitute(index, let_bindings_);
+    PrimExpr remapped_index =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index, f_substitute).as_or_throw<PrimExpr>();
     while (!remapped_index.same_as(index)) {
       index = remapped_index;
-      remapped_index = Substitute(index, let_bindings_);
+      remapped_index = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index, f_substitute)
+                           .as_or_throw<PrimExpr>();
     }
     relaxed_region.push_back(arith::EvalSet(arith::IntSet::Vector(remapped_index), dom_map_));
   }
@@ -280,23 +335,31 @@ void BlockReadWriteDetector::VisitStmt_(const SBlockRealizeNode* op) {
   for (size_t i = 0; i < op->block->iter_vars.size(); ++i) {
     vmap[op->block->iter_vars[i]->var.get()] = op->iter_values[i];
   }
+  auto f_substitute = [&vmap](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto it = vmap.find(var.get()); it != vmap.end()) return ffi::Any(it->second);
+    return ffi::Unchanged();
+  };
   for (const auto& read : op->block->reads) {
     std::vector<arith::IntSet> relaxed_region;
     for (const auto& range : read->region) {
+      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+                         .as_or_throw<PrimExpr>();
+      PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
+                            .as_or_throw<PrimExpr>();
       relaxed_region.push_back(
-          arith::EvalSet(arith::IntSet::FromRange(Range::FromMinExtent(
-                             Substitute(range->min, vmap), Substitute(range->extent, vmap))),
-                         dom_map_));
+          arith::EvalSet(arith::IntSet::FromRange(Range::FromMinExtent(min, extent)), dom_map_));
     }
     Update(&read_buffers_, &read_regions_, read->buffer, relaxed_region);
   }
   for (const auto& write : op->block->writes) {
     std::vector<arith::IntSet> relaxed_region;
     for (const auto& range : write->region) {
+      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+                         .as_or_throw<PrimExpr>();
+      PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
+                            .as_or_throw<PrimExpr>();
       relaxed_region.push_back(
-          arith::EvalSet(arith::IntSet::FromRange(Range::FromMinExtent(
-                             Substitute(range->min, vmap), Substitute(range->extent, vmap))),
-                         dom_map_));
+          arith::EvalSet(arith::IntSet::FromRange(Range::FromMinExtent(min, extent)), dom_map_));
     }
     Update(&writes_buffers_, &write_regions_, write->buffer, relaxed_region);
   }

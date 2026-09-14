@@ -54,6 +54,65 @@ def _has_reduction_loop(block_info):
     return any([info.kind == "R" for info in block_info.iters])
 
 
+def _suggest_inner_spatial_tx(s_factor: int | tirx.Expr) -> int:
+    """Pick the largest divisor no greater than 16."""
+    if not isinstance(s_factor, int):
+        return 1
+    len_tx = 16
+    while len_tx > 1 and s_factor % len_tx != 0:
+        len_tx -= 1
+    return len_tx
+
+
+def _get_spatial_domains_in_access_order(
+    block_info: SBlockInfo, access: arith.IterSumExpr
+) -> list[int | tirx.Expr] | None:
+    """Return normalized spatial extents in access order."""
+    iter_to_info = {info.var: info for info in block_info.iters}
+    spatial_domains = []
+    seen = set()
+    for split_expr in access.args:
+        var = split_expr.source.source
+        info = iter_to_info.get(var)
+        if info is None:
+            return None
+        if info.kind == "S":
+            if var in seen:
+                return None
+            seen.add(var)
+            # `_normalize` fuses the outer loop produced by this split.
+            if split_expr.lower_factor > 1:
+                extent = split_expr.extent
+                extent = int(extent) if isinstance(extent, tirx.IntImm) else extent
+                spatial_domains.append(extent)
+            else:
+                spatial_domains.append(info.dom)
+
+    # `_normalize` appends omitted unit spatial loops.
+    for info in block_info.iters:
+        if info.kind == "S" and info.var not in seen:
+            if not isinstance(info.dom, int) or info.dom != 1:
+                return None
+            spatial_domains.append(info.dom)
+
+    if len(spatial_domains) != sum(info.kind == "S" for info in block_info.iters):
+        return None
+    return spatial_domains
+
+
+def _inner_spatial_write_back_is_affine(spatial_domains: list[int | tirx.Expr]) -> bool:
+    """Check whether the write-back bindings remain quasi-affine."""
+    if not spatial_domains:
+        return False
+    # Each non-unit outer dimension adds a div/mod component to the binding.
+    components = sum(1 for dom in spatial_domains[:-1] if not isinstance(dom, int) or dom > 1)
+    innermost = spatial_domains[-1]
+    if not isinstance(innermost, int) or _suggest_inner_spatial_tx(innermost) < innermost:
+        # A partial innermost tile adds one more component.
+        components += 1
+    return components < 3
+
+
 class Reduction(GPUScheduleRule):
     """A rule for Reduction."""
 
@@ -92,13 +151,15 @@ class Reduction(GPUScheduleRule):
         ):
             return None
         # Step 2. Normalize the block, merge spatial and reduction iters
+        access = arith.normalize_to_iter_sum(
+            detect_dominant_read(block_stmt),
+            input_iters={i.var: i.dom for i in block_stmt.iter_vars},
+        )
+        spatial_domains = _get_spatial_domains_in_access_order(block_info, access)
+        if spatial_domains is None:
+            return None
         is_inner_reduction, c_factor, loop_order, s_split_index = self._normalize(
-            sch,
-            block_info,
-            arith.normalize_to_iter_sum(
-                detect_dominant_read(block_stmt),
-                input_iters={i.var: i.dom for i in block_stmt.iter_vars},
-            ),
+            sch, block_info, access
         )
         if is_inner_reduction is None and c_factor is None:
             return None
@@ -108,8 +169,17 @@ class Reduction(GPUScheduleRule):
                 sch, target, block, c_factor, epilogue, loop_order, s_split_index
             )
         else:
+            if not _inner_spatial_write_back_is_affine(spatial_domains):
+                return None
             self._sch_inner_spatial(
-                sch, target, block, block_info, c_factor, epilogue, loop_order, s_split_index
+                sch,
+                target,
+                block,
+                spatial_domains[-1],
+                c_factor,
+                epilogue,
+                loop_order,
+                s_split_index,
             )
         return sch
 
@@ -239,7 +309,7 @@ class Reduction(GPUScheduleRule):
         sch: s_tir.Schedule,
         _: Target,
         block: s_tir.schedule.SBlockRV,
-        block_info: SBlockInfo,
+        s_factor: int | tirx.Expr,
         unroll_spatial_factor: int | None,
         epilogue_info: SBlockInfo | None,
         loop_order,
@@ -247,14 +317,10 @@ class Reduction(GPUScheduleRule):
     ):
         # pylint: disable=invalid-name
         s, r, _ = sch.get_loops(block)
-        len_tx, len_ty = 16, 16
-        s_factor = [i.dom for i in block_info.iters if i.kind == "S"][-1]
+        len_ty = 16
         # get perfect spatial factor, spatial factor should be divide the innermost spatial loop so
         # that the block after r_factor and be reversed compute at the original scope
-        while len_tx > 1:
-            if s_factor % len_tx == 0:
-                break
-            len_tx -= 1
+        len_tx = _suggest_inner_spatial_tx(s_factor)
         _, _ = sch.split(s, factors=[None, len_tx])
         _, ty = sch.split(r, factors=[None, len_ty])
         # Schedule the RF block

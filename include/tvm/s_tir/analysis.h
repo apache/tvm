@@ -25,6 +25,7 @@
 #define TVM_S_TIR_ANALYSIS_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/function.h>
@@ -95,6 +96,7 @@ class Analyzer;
 }  // namespace arith
 
 namespace s_tir {
+using namespace tvm::prim;
 
 using namespace tvm::tirx;
 
@@ -141,6 +143,17 @@ struct MemCpyDetails {
  */
 TVM_DLL std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop,
                                                     const arith::Analyzer& analyzer);
+
+/*!
+ * \brief Infer the domain touched by buffer accesses within a statement.
+ * \param body The statement to analyze.
+ * \param buffer The buffer whose accesses are analyzed.
+ * \param consider_loads Whether to include loads.
+ * \param consider_stores Whether to include stores.
+ * \return The domain covering the selected accesses.
+ */
+TVM_DLL Region DomainTouched(const Stmt& body, const BufferVar& buffer, bool consider_loads,
+                             bool consider_stores);
 
 /*!
  * \brief Calculate the allocated memory per scope in bytes needed inside the TIR PrimFunc

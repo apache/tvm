@@ -23,14 +23,17 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/bound.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <optional>
@@ -43,6 +46,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 struct LoopPartitionConfigNode : public ffi::Object {
@@ -184,11 +188,11 @@ class CandidateSelector final : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::likely())) {
+    if (op->op.same_as(prim::builtin::likely())) {
       in_likely_ = true;
       StmtExprVisitor::VisitExpr_(op);
       in_likely_ = false;
-    } else if (op->op.same_as(builtin::tvm_thread_allreduce())) {
+    } else if (op->op.same_as(tirx::builtin::tvm_thread_allreduce())) {
       // no split if the body contains allreduce.
       no_split_ = true;
       return;
@@ -246,7 +250,14 @@ class PartitionFinder : public StmtExprVisitor {
 
   void VisitStmt_(const ForNode* op) final {
     auto f_vset_contains = [this](const VarNode* var) { return out_vars_.count(var); };
-    if (UsesVar(op->min, f_vset_contains) || UsesVar(op->extent, f_vset_contains)) return;
+    auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return f_vset_contains(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                        : ffi::WalkResult::Advance();
+    };
+    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(op->min, walkfn).has_value() ||
+        ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(op->extent, walkfn).has_value()) {
+      return;
+    }
 
     const VarNode* var = op->loop_var.get();
     hint_map_.insert({var, IntSet::Interval(op->min, op->min + op->extent - 1)});
@@ -274,9 +285,9 @@ class PartitionFinder : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::likely())) {
+    if (op->op.same_as(prim::builtin::likely())) {
       DeduceCondition(op->args[0].as_or_throw<PrimExpr>());
-    } else if (op->op.same_as(builtin::ignore_loop_partition())) {
+    } else if (op->op.same_as(tirx::builtin::ignore_loop_partition())) {
       return;
     } else {
       StmtExprVisitor::VisitExpr_(op);
@@ -297,7 +308,11 @@ class PartitionFinder : public StmtExprVisitor {
     // For cond, find out the interval, if exists, in which we can prove that cond is
     // true. Also find the interval, if exists, in which we can prove that cond is
     // false.
-    if (UsesVar(cond, [this](const VarNode* var) { return var == current_var_.get(); })) {
+    auto walkfn = [this](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return var.get() == current_var_.get() ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                             : ffi::WalkResult::Advance();
+    };
+    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(cond, walkfn).has_value()) {
       IntSet interval =
           DeduceBound(current_var_.as_or_throw<PrimExpr>(), cond, hint_map_, relax_map_);
       if (!interval.IsNothing()) {
@@ -700,8 +715,15 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
       }
       if (!analyzer_->CanProve(extent <= 0)) {
         if (!partition_thread_scope) {
-          Stmt pre_body =
-              Substitute(body, ffi::Map<Var, Expr>{{var, var.as_or_throw<PrimExpr>() + min}});
+          auto f_substitute =
+              [&var, &min](const Var& candidate) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+            if (candidate.same_as(var)) {
+              return ffi::Any(var.as_or_throw<PrimExpr>() + min);
+            }
+            return ffi::Unchanged();
+          };
+          Stmt pre_body = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(body, f_substitute)
+                              .as_or_throw<Stmt>();
           pre_stmt = MakeFor(stmt.get(), body_begin - min, pre_body);
         }
       }
@@ -727,8 +749,16 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
       }
       if (!analyzer_->CanProve(extent <= 0)) {
         if (!partition_thread_scope) {
-          Stmt post_body = Substitute(
-              body, ffi::Map<Var, Expr>{{var, var.as_or_throw<PrimExpr>() + post_doubt_begin}});
+          auto f_substitute =
+              [&var, &post_doubt_begin](
+                  const Var& candidate) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+            if (candidate.same_as(var)) {
+              return ffi::Any(var.as_or_throw<PrimExpr>() + post_doubt_begin);
+            }
+            return ffi::Unchanged();
+          };
+          Stmt post_body = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(body, f_substitute)
+                               .as_or_throw<Stmt>();
           post_stmt = MakeFor(stmt.get(), extent, post_body);
         }
       }
@@ -745,8 +775,15 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
     if (!analyzer_->CanProve(body_begin >= post_doubt_begin)) {
       // [body_begin, post_doubt_begin)
       Stmt simplified_body = ConditionEliminator(cond_set, cond_value)(body);
-      Stmt new_body = Substitute(
-          simplified_body, ffi::Map<Var, Expr>{{var, var.as_or_throw<PrimExpr>() + body_begin}});
+      auto f_substitute =
+          [&var, &body_begin](const Var& candidate) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        if (candidate.same_as(var)) {
+          return ffi::Any(var.as_or_throw<PrimExpr>() + body_begin);
+        }
+        return ffi::Unchanged();
+      };
+      Stmt new_body = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(simplified_body, f_substitute)
+                          .as_or_throw<Stmt>();
       mid_stmt = MakeFor(stmt.get(), post_doubt_begin - body_begin, new_body);
       // Recurse until partitions is empty
       mid_stmt = VisitAndMutate(mid_stmt);
@@ -782,7 +819,12 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
   if (analyzer_->CanProve(extent == IntImm::Int32(1)) && !no_unroll_loop_with_extent_one_ &&
       for_node->annotations.empty()) {
     // If the loop extent is 1, do not create the loop anymore
-    return Substitute(body, {{Var{for_node->loop_var}, IntImm::Int32(0)}});
+    auto f_substitute = [loop_var = for_node->loop_var](
+                            const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (var.same_as(loop_var)) return ffi::Any(IntImm::Int32(0));
+      return ffi::Unchanged();
+    };
+    return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, f_substitute).as_or_throw<Stmt>();
   } else {
     TVM_FFI_ICHECK(for_node->kind != ForKind::kThreadBinding);
     auto new_loop = ffi::make_object<ForNode>(*for_node);
@@ -796,10 +838,10 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
 class RemoveLikelyTagsAndHints : public StmtExprMutator {
  public:
   Expr VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::likely())) {
+    if (op->op.same_as(prim::builtin::likely())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::VisitExpr(op->args[0].as_or_throw<PrimExpr>());
-    } else if (op->op.same_as(builtin::ignore_loop_partition())) {
+    } else if (op->op.same_as(tirx::builtin::ignore_loop_partition())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::VisitExpr(op->args[0].as_or_throw<PrimExpr>());
     } else {

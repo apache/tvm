@@ -34,7 +34,7 @@ namespace relax {
 class PyExprVisitorNode : public ffi::Object, public ExprVisitor {
  private:
   using TSelf = PyExprVisitorNode;
-  using FType = tvm::NodeFunctor<void(const ffi::ObjectRef& n, TSelf* self)>;
+  using FType = tvm::ObjectFunctor<void(const ffi::ObjectRef& n, TSelf* self)>;
 
  public:
   /*! \brief The packed function to the `VisitExpr(const Expr& expr)` function. */
@@ -103,7 +103,7 @@ class PyExprVisitorNode : public ffi::Object, public ExprVisitor {
     } else {
       // Need to init the overwrite VTable
       static FType vtable = InitVTable();
-      if (vtable.can_dispatch(expr)) {
+      if (vtable.CanDispatch(expr)) {
         vtable(expr, this);
       } else {
         ExprVisitor::VisitExpr(expr);
@@ -279,7 +279,7 @@ class PyExprVisitor : public ffi::ObjectRef {
 class PyExprMutatorNode : public ffi::Object, public ExprMutator {
  private:
   using TSelf = PyExprMutatorNode;
-  using FType = tvm::NodeFunctor<Expr(const ffi::ObjectRef& n, TSelf* self)>;
+  using FType = tvm::ObjectFunctor<Expr(const ffi::ObjectRef& n, TSelf* self)>;
 
  public:
   /*! \brief The packed function to the `VisitExpr(const Expr& expr)` function. */
@@ -347,7 +347,7 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
       return builder_->Normalize(f_visit_expr(expr).cast<Expr>());
     } else {
       static FType vtable = InitVTable();
-      if (vtable.can_dispatch(expr)) {
+      if (vtable.CanDispatch(expr)) {
         return builder_->Normalize(vtable(expr, this));
       }
       return ExprMutator::VisitExpr(expr);
@@ -406,7 +406,7 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
    */
   Expr VisitExprPostOrder(const Expr& expr) {
     static FType post_order_vtable = InitPostOrderVTable();
-    if (post_order_vtable.can_dispatch(expr)) {
+    if (post_order_vtable.CanDispatch(expr)) {
       return post_order_vtable(expr, this);
     }
     return builder_->Normalize(ExprMutator::VisitExprFallback_(expr.get()));

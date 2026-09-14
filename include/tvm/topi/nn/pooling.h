@@ -148,15 +148,15 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
           out_idx.Set(height_axis, (inds[height_axis] + pad_top) / stride_height - windowh);
           out_idx.Set(width_axis, (inds[width_axis] + pad_left) / stride_width - windoww);
 
-          PrimExpr out_idx_lower_h = tirx::Select(
+          PrimExpr out_idx_lower_h = prim::Select(
               pad_inds[height_axis] < kernel_height, IntImm(pad_inds[height_axis].ty(), 0),
               (pad_inds[height_axis] - kernel_height) / stride_height + 1);
-          PrimExpr out_idx_lower_w = tirx::Select(
+          PrimExpr out_idx_lower_w = prim::Select(
               pad_inds[width_axis] < kernel_width, IntImm(pad_inds[width_axis].ty(), 0),
               (pad_inds[width_axis] - kernel_width) / stride_width + 1);
 
           return tvm::sum(
-              tvm::if_then_else(tirx::And(tirx::And(out_idx[height_axis] >= out_idx_lower_h,
+              tvm::if_then_else(prim::And(prim::And(out_idx[height_axis] >= out_idx_lower_h,
                                                     out_idx[width_axis] >= out_idx_lower_w),
                                           mp_inds(out_idx) == idx),
                                 out_grad(out_idx), MakeConst(PrimType(x->dtype), 0)),
@@ -181,10 +181,10 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
           out_idx.Set(width_axis, (pad_w_idx / stride_width - windoww));
 
           PrimExpr out_idx_lower_h =
-              tirx::Select(pad_h_idx < kernel_height, IntImm(pad_h_idx.ty(), 0),
+              prim::Select(pad_h_idx < kernel_height, IntImm(pad_h_idx.ty(), 0),
                            (pad_h_idx - kernel_height) / stride_height + 1);
           PrimExpr out_idx_lower_w =
-              tirx::Select(pad_w_idx < kernel_width, IntImm(pad_w_idx.ty(), 0),
+              prim::Select(pad_w_idx < kernel_width, IntImm(pad_w_idx.ty(), 0),
                            (pad_w_idx - kernel_width) / stride_width + 1);
 
           PrimExpr divide_factor;  // number of pooled elements
@@ -201,9 +201,9 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
             divide_factor = max((h_end - h_start) * (w_end - w_start), IntImm(h_end.ty(), 1));
           }
           return tvm::sum(
-              tvm::if_then_else(tirx::And(tirx::And(out_idx[height_axis] >= out_idx_lower_h,
+              tvm::if_then_else(prim::And(prim::And(out_idx[height_axis] >= out_idx_lower_h,
                                                     out_idx[height_axis] < out_height),
-                                          tirx::And(out_idx[width_axis] >= out_idx_lower_w,
+                                          prim::And(out_idx[width_axis] >= out_idx_lower_w,
                                                     out_idx[width_axis] < out_width)),
                                 out_grad(out_idx) / divide_factor,
                                 MakeConst(PrimType(out_grad->dtype), 0)),
@@ -315,7 +315,7 @@ inline PrimExpr start_index(const PrimVar& out_index, const PrimExpr& odim, cons
 
 inline PrimExpr end_index(const PrimVar& out_index, const PrimExpr& odim, const PrimExpr& idim) {
   PrimExpr tmp = indexdiv((out_index + 1) * idim, odim);
-  return tvm::tirx::Select(indexmod((out_index + 1) * idim, odim) == 0, tmp, tmp + 1);
+  return tvm::prim::Select(indexmod((out_index + 1) * idim, odim) == 0, tmp, tmp + 1);
 }
 
 /*!

@@ -30,6 +30,23 @@ export interface GPUDeviceDetectOutput {
   device: GPUDevice;
 }
 
+function roundUpToFourBytes(nbytes: number): number {
+  if (!Number.isSafeInteger(nbytes) || nbytes < 0) {
+    throw new Error(`Invalid WebGPU buffer size: ${nbytes}`);
+  }
+  const aligned = Math.ceil(nbytes / 4) * 4;
+  if (!Number.isSafeInteger(aligned)) {
+    throw new Error(`WebGPU buffer size is too large to align: ${nbytes}`);
+  }
+  return aligned;
+}
+
+function validateWebGPUCopyOffset(offset: number, name: string): void {
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset % 4 != 0) {
+    throw new Error(`${name} must be a nonnegative multiple of four: ${offset}`);
+  }
+}
+
 /**
  * DetectGPU device in the environment.
  */
@@ -914,16 +931,14 @@ export class WebGPUContext {
 
   // DeviceAPI
   private deviceAllocDataSpace(nbytes: number): GPUPointer {
-    // allocate 0 bytes buffer as 1 bytes buffer.
-    if (nbytes == 0) {
-      nbytes = 1;
-    }
+    // WebGPU buffer copies and queue writes operate in four-byte units.
+    const allocationBytes = Math.max(4, roundUpToFourBytes(nbytes));
     const buffer = tryCreateBuffer(this.device, {
-      size: nbytes,
+      size: allocationBytes,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
     });
-    this.currAllocatedBytes += nbytes;
-    this.allAllocatedBytes += nbytes;
+    this.currAllocatedBytes += buffer.size;
+    this.allAllocatedBytes += buffer.size;
     if (this.currAllocatedBytes > this.peakAllocatedBytes) {
       this.peakAllocatedBytes = this.currAllocatedBytes;
     }
@@ -951,11 +966,12 @@ export class WebGPUContext {
     toOffset: number,
     nbytes: number
   ): void {
+    validateWebGPUCopyOffset(toOffset, "WebGPU destination offset");
     // Flush batched compute passes before writing to a GPU buffer,
     // otherwise the write may be reordered before pending dispatches
     // that read from the same buffer.
     this.flushCommands();
-    let rawBytes = this.memory.loadRawBytes(from, nbytes);
+    let rawBytes = this.memory.viewRawBytes(from, nbytes);
     if (rawBytes.length % 4 !== 0) {
       // writeBuffer requires length to be multiples of 4, so we pad here
       const toPad = 4 - rawBytes.length % 4;
@@ -1016,9 +1032,15 @@ export class WebGPUContext {
     to: Pointer,
     nbytes: number
   ): void {
+    validateWebGPUCopyOffset(fromOffset, "WebGPU source offset");
     // Flush batched compute passes before the readback copy.
     this.flushCommands();
-    const gpuTemp = this.getOrCreateReadStagingBuffer(nbytes);
+    if (nbytes == 0) {
+      this.memory.storeRawBytes(to, new Uint8Array(0));
+      return;
+    }
+    const copyBytes = roundUpToFourBytes(nbytes);
+    const gpuTemp = this.getOrCreateReadStagingBuffer(copyBytes);
 
     const copyEncoder = this.device.createCommandEncoder();
     copyEncoder.copyBufferToBuffer(
@@ -1026,14 +1048,14 @@ export class WebGPUContext {
       fromOffset,
       gpuTemp,
       0,
-      nbytes
+      copyBytes
     );
     const copyCommands = copyEncoder.finish();
     this.device.queue.submit([copyCommands]);
 
     const readPromise = gpuTemp.mapAsync(GPUMapMode.READ).then(() => {
-      const data = gpuTemp.getMappedRange(0, nbytes);
-      this.memory.storeRawBytes(to, new Uint8Array(data));
+      const data = gpuTemp.getMappedRange(0, copyBytes);
+      this.memory.storeRawBytes(to, new Uint8Array(data).subarray(0, nbytes));
       this.recycleReadStagingBuffer(gpuTemp);
     });
     // Chain with any existing pending read so sync() awaits all of them.

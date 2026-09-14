@@ -21,6 +21,8 @@
  * \file tensor.cc
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/operation.h>
@@ -28,6 +30,44 @@
 
 namespace tvm {
 namespace te {
+
+namespace {
+
+ffi::Array<PrimExpr> ValidateTensorLoad(const Call& call, Tensor* tensor_out) {
+  const auto* tensor_node = call->op.as<TensorNode>();
+  TVM_FFI_ICHECK(tensor_node != nullptr) << "Expected a Call whose callee is a TE Tensor";
+  Tensor tensor = ffi::GetRef<Tensor>(tensor_node);
+  TVM_FFI_ICHECK_EQ(call->args.size(), tensor->shape.size())
+      << "Tensor-load index count must match tensor rank";
+  TVM_FFI_ICHECK(call->ty.as<PrimTypeNode>() != nullptr && call->ty == tensor->dtype)
+      << "Tensor-load result type must match the tensor element type";
+
+  ffi::Array<PrimExpr> indices;
+  indices.reserve(call->args.size());
+  for (const Expr& arg : call->args) {
+    auto index = arg.as<PrimExpr>();
+    TVM_FFI_ICHECK(index.has_value()) << "Tensor-load indices must have primitive type";
+    indices.push_back(index.value());
+  }
+  if (tensor_out != nullptr) {
+    *tensor_out = std::move(tensor);
+  }
+  return indices;
+}
+
+TVMFFIAny TensorVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny TensorMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny TensorMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+}  // namespace
 
 void TensorNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
@@ -37,8 +77,6 @@ void TensorNode::RegisterReflection() {
       .def_ro("op", &TensorNode::op)
       .def_ro("value_index", &TensorNode::value_index);
 }
-
-TVM_FFI_STATIC_INIT_BLOCK() { TensorNode::RegisterReflection(); }
 
 IterVar thread_axis(Range dom, std::string tag) {
   return IterVar(dom, PrimVar(tag, dom.defined() ? dom->extent.ty() : PrimType::Int(32)),
@@ -56,20 +94,23 @@ inline PrimExpr Tensor::IndexTensor(ffi::Array<PrimExpr> indices,
                                     bool support_negative_indices) const {
   ffi::Array<PrimExpr> shape = (*this)->shape;
 
-  if (shape.size() != 0) {
-    TVM_FFI_ICHECK_EQ(shape.size(), indices.size())
-        << "Tensor dimension mismatch in read "
-        << "ndim = " << ndim() << ", indices.size=" << indices.size();
-  }
+  TVM_FFI_ICHECK_EQ(shape.size(), indices.size())
+      << "Tensor dimension mismatch in read "
+      << "ndim = " << ndim() << ", indices.size=" << indices.size();
 
   if (support_negative_indices) {
     for (size_t i = 0; i < shape.size(); i++) {
       PrimExpr new_index =
-          Select(indices[i] < IntImm(indices[i].ty(), 0), indices[i] + shape[i], indices[i]);
+          prim::Select(indices[i] < IntImm(indices[i].ty(), 0), indices[i] + shape[i], indices[i]);
       indices.Set(i, new_index);
     }
   }
-  return ProducerLoad((*this), indices);
+  ffi::Array<Expr> args;
+  args.reserve(indices.size());
+  for (const PrimExpr& index : indices) {
+    args.push_back(index);
+  }
+  return PrimExpr(Call((*this)->dtype, *this, args));
 }
 
 PrimExpr Tensor::operator()(ffi::Array<PrimVar> indices) const {
@@ -96,24 +137,43 @@ ffi::String TensorNode::GetNameHint() const {
   return op->num_outputs() == 1 ? op->name : (op->name + ".v" + std::to_string(value_index));
 }
 
-PrimExpr TensorNode::ToPrimExpr() const { return ffi::GetRef<Tensor>(this)(); }
-
 Tensor Operation::output(size_t i) const {
-  auto node = ffi::make_object<TensorNode>();
-  node->op = *this;
-  node->value_index = i;
-  node->dtype = (*this)->output_dtype(i);
-  node->shape = (*this)->output_shape(i);
-  return Tensor(node);
+  return Tensor((*this)->output_shape(i), (*this)->output_dtype(i), *this, static_cast<int>(i));
 }
 
 Tensor::Tensor(ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int value_index) {
   auto n = ffi::make_object<TensorNode>();
+  n->ExprNode::ty = OpaqueType();
   n->shape = std::move(shape);
   n->dtype = dtype;
   n->op = op;
   n->value_index = value_index;
   data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  TensorNode::RegisterReflection();
+  refl::TypeAttrDef<TensorNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TensorVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TensorMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&TensorMaybeInplaceMutate));
+}
+
+bool IsTensorLoad(const Expr& expr) {
+  const auto* call = expr.as<CallNode>();
+  return call != nullptr && call->op.as<TensorNode>() != nullptr;
+}
+
+Tensor GetTensorFromLoad(const Call& call) {
+  Tensor tensor;
+  ValidateTensorLoad(call, &tensor);
+  return tensor;
+}
+
+ffi::Array<PrimExpr> GetTensorLoadIndices(const Call& call) {
+  return ValidateTensorLoad(call, nullptr);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -132,6 +192,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def_method("te.TensorEqual", &Tensor::operator==)
       .def("te.TensorDType", [](Tensor tensor) -> PrimType { return tensor->dtype; })
+      .def("te.TensorLoad",
+           [](Tensor tensor, ffi::Array<PrimExpr> indices) { return tensor(indices); })
       .def("te.TensorHash",
            [](Tensor tensor) -> int64_t {
              return static_cast<int64_t>(std::hash<Tensor>()(tensor));

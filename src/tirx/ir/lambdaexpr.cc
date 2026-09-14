@@ -22,7 +22,7 @@
  * \brief Implementation of LambdaExpr, a reified lambda used by tile primitive ops.
  */
 
-#include "tvm/tirx/stmt_functor.h"
+#include "tvm/ffi/extra/structural_mutate.h"
 #include "tvm/tirx/tile_primitive.h"
 
 namespace tvm {
@@ -38,8 +38,12 @@ PrimExpr LambdaExprNode::Apply(const ffi::Array<PrimExpr>& indices) const {
   for (size_t i = 0; i < vars.size(); i++) {
     vmap.Set(vars[i], indices[i]);
   }
-
-  return Substitute(std::move(pred), vmap);
+  auto f_substitute = [&vmap](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = vmap.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
+  return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(pred), f_substitute)
+      .as_or_throw<PrimExpr>();
 }
 
 LambdaExpr::LambdaExpr(ffi::Array<Var> vars, PrimExpr pred) {

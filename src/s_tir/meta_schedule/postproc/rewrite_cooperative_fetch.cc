@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
@@ -24,6 +25,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -90,23 +92,29 @@ bool ParseWarpExecutionAnn(const Schedule& sch, const Instruction& inst) {
 
 size_t GetMaxUsedDtypeBytes(SBlock block) {
   size_t max_bytes = 1;
-
-  tirx::PostOrderVisit(block->body, [&](const ffi::ObjectRef& obj) {
-    if (const auto* store = obj.as<tirx::BufferStoreNode>()) {
-      max_bytes = std::max(max_bytes, store->value.ty().StorageBytes());
-    } else if (const auto* load = obj.as<tirx::BufferLoadNode>()) {
-      max_bytes = std::max(max_bytes, load->ty.as_or_throw<PrimType>().StorageBytes());
-    } else if (const auto* call = obj.as<CallNode>()) {
-      static const Op& q_multiply_shift_per_axis_op = Op::Get("tirx.q_multiply_shift_per_axis");
-      static const Op& q_multiply_shift_op = Op::Get("tirx.q_multiply_shift");
-      if (call->op.same_as(q_multiply_shift_per_axis_op) || call->op.same_as(q_multiply_shift_op)) {
-        // q_multiply_shift uses 64 bit multiply
-        max_bytes = std::max<size_t>(max_bytes, 8);
-      }
-    } else if (const auto* cast = obj.as<tirx::CastNode>()) {
-      max_bytes = std::max(max_bytes, cast->ty.as_or_throw<PrimType>().StorageBytes());
+  auto visit_store = [&](const tirx::BufferStore& store) -> ffi::Expected<ffi::WalkResult> {
+    max_bytes = std::max(max_bytes, store->value.ty().StorageBytes());
+    return ffi::WalkResult::Advance();
+  };
+  auto visit_load = [&](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
+    max_bytes = std::max(max_bytes, load->ty.as_or_throw<PrimType>().StorageBytes());
+    return ffi::WalkResult::Advance();
+  };
+  auto visit_call = [&](const Call& call) -> ffi::Expected<ffi::WalkResult> {
+    static const Op& q_multiply_shift_per_axis_op = Op::Get("tirx.q_multiply_shift_per_axis");
+    static const Op& q_multiply_shift_op = Op::Get("tirx.q_multiply_shift");
+    if (call->op.same_as(q_multiply_shift_per_axis_op) || call->op.same_as(q_multiply_shift_op)) {
+      // q_multiply_shift uses 64 bit multiply
+      max_bytes = std::max<size_t>(max_bytes, 8);
     }
-  });
+    return ffi::WalkResult::Advance();
+  };
+  auto visit_cast = [&](const prim::Cast& cast) -> ffi::Expected<ffi::WalkResult> {
+    max_bytes = std::max(max_bytes, cast->ty.as_or_throw<PrimType>().StorageBytes());
+    return ffi::WalkResult::Advance();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(block->body, visit_store, visit_load, visit_call,
+                                                  visit_cast);
 
   return max_bytes;
 }
@@ -114,6 +122,7 @@ size_t GetMaxUsedDtypeBytes(SBlock block) {
 }  // namespace s_tir
 
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 /*!

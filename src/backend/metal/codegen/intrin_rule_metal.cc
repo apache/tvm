@@ -78,7 +78,7 @@ TVM_REGISTER_OP("tirx.round")
       // Metal's rint() uses ties-to-even, matching constant-folding semantics.
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      ffi::Array<PrimExpr> new_args = {tirx::StringImm("rint")};
+      ffi::Array<PrimExpr> new_args = {prim::StringImm("rint")};
       for (const PrimExpr& arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
         new_args.push_back(arg);
       }

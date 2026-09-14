@@ -25,6 +25,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -34,7 +34,7 @@ from tvm_ffi.core import String
 
 from tvm import DataType, ir
 from tvm import tirx as tir
-from tvm.ir import Call, Type, is_prim_expr
+from tvm.ir import Call, TensorLoad, Type, is_prim_expr
 from tvm.ir import register_op_attr as _register_op_attr
 from tvm.ir.base import deprecated
 from tvm.runtime import convert
@@ -76,7 +76,6 @@ from tvm.tirx.expr import (
     Mul,
     Not,
     Or,
-    ProducerLoad,
     Ramp,
     Reduce,
     Select,
@@ -329,6 +328,7 @@ def buffer(
         The declared buffer.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
+    shape = tuple(shape)
     if strides is not None:
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:
@@ -449,8 +449,20 @@ def func_ret(ret_type: Type | None) -> Type:
     return _ffi_api.FuncRet(ret_type)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
+def Tuple(*fields: Type) -> Type:  # pylint: disable=invalid-name
+    """Construct a tuple type for a TIRx function or binding annotation."""
+    normalized_fields = []
+    for field in fields:
+        if callable(field) and not isinstance(field, Expr):
+            field = field()
+        if isinstance(field, Expr):
+            field = field.ty
+        normalized_fields.append(field)
+    return ir.TupleType(normalized_fields)
+
+
 def match_buffer(
-    param: Var | BufferLoad | BufferRegion,
+    param: Var | TensorLoad | BufferRegion,
     shape: list[Expr] | tuple[Expr] | Expr | Integral = None,
     dtype: str = "float32",
     data: Var = None,
@@ -481,7 +493,7 @@ def match_buffer(
 
     Parameters
     ----------
-    param : Union[Var, BufferLoad, BufferRegion]
+    param : Union[Var, TensorLoad, BufferRegion]
         The parameter of the PrimFunc to match.
 
     shape : Union[List[Expr], Tuple[Expr], Expr, Integral]
@@ -757,12 +769,12 @@ def where(predicate: Expr | int) -> None:
     _ffi_api.Where(predicate)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def reads(*buffer_slices: list[BufferRegion | BufferLoad]) -> None:
+def reads(*buffer_slices: list[BufferRegion | TensorLoad]) -> None:
     """The block buffer region reading statement.
 
     Parameters
     ----------
-    buffer_slices : List[Union[BufferRegion, BufferLoad]]
+    buffer_slices : List[Union[BufferRegion, TensorLoad]]
         The array of buffer regions to read.
     """
     if len(buffer_slices) == 1:
@@ -777,12 +789,12 @@ def reads(*buffer_slices: list[BufferRegion | BufferLoad]) -> None:
     _ffi_api.Reads(buffer_slices)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def writes(*buffer_slices: list[BufferRegion | BufferLoad]) -> None:
+def writes(*buffer_slices: list[BufferRegion | TensorLoad]) -> None:
     """The block buffer region writing statement.
 
     Parameters
     ----------
-    buffer_slices : List[Union[BufferRegion, BufferLoad]]
+    buffer_slices : List[Union[BufferRegion, TensorLoad]]
         The array of buffer regions to write.
     """
     if len(buffer_slices) == 1:
@@ -1834,6 +1846,7 @@ def decl_buffer(
         The declared buffer.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
+    shape = tuple(shape)
     if strides is not None:
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:
@@ -1968,8 +1981,8 @@ else:
     class scalar_wrapper:
         """Internal wrapper to allow IRBuilder auto-naming on scalar assignment."""
 
-        def __init__(self, scalar: BufferLoad):
-            assert isinstance(scalar, BufferLoad)
+        def __init__(self, scalar: TensorLoad):
+            assert isinstance(scalar, TensorLoad)
             self.scalar = scalar
 
         def __getattr__(self, name: str) -> Any:
@@ -2054,7 +2067,7 @@ else:
             return ~self.scalar
 
 
-def alloc_scalar(dtype: str = "float32", scope: str = "global") -> BufferLoad:
+def alloc_scalar(dtype: str = "float32", scope: str = "global") -> TensorLoad:
     """Allocate a zero-dimensional buffer (scalar)."""
     buf = alloc_buffer(shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]))
     assert is_buffer_var(buf)
@@ -2064,7 +2077,7 @@ def alloc_scalar(dtype: str = "float32", scope: str = "global") -> BufferLoad:
     return scalar_wrapper(scalar)
 
 
-def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> BufferLoad:
+def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> TensorLoad:
     """Declare a zero-dimensional buffer (scalar) from a pointer."""
     buf = decl_buffer(
         shape=(1,),
@@ -2084,12 +2097,12 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> Buffe
     return scalar_wrapper(scalar)
 
 
-def shared_scalar(dtype: str = "float32") -> BufferLoad:
+def shared_scalar(dtype: str = "float32") -> TensorLoad:
     """Allocate a zero-dimensional buffer in shared memory."""
     return alloc_scalar(dtype=dtype, scope="shared")
 
 
-def local_scalar(dtype: str = "float32") -> BufferLoad:
+def local_scalar(dtype: str = "float32") -> TensorLoad:
     """Allocate a zero-dimensional buffer in local memory."""
     return alloc_scalar(dtype=dtype, scope="local")
 
@@ -2110,9 +2123,9 @@ def _sanitize_meta_name_part(value: Any, fallback: str) -> str:
 
 def _meta_resource_for_value(value: Any) -> Any | None:
     if isinstance(value, scalar_wrapper):
-        return value.scalar.buffer
-    if isinstance(value, BufferLoad):
-        return value.buffer
+        return value.scalar.source
+    if isinstance(value, TensorLoad):
+        return value.source
     if is_buffer_var(value):
         return value
     return None
@@ -2325,7 +2338,6 @@ def buffer_store(
     buffer: Buffer,  # pylint: disable=redefined-outer-name
     value: Expr,
     indices: list[Expr | slice],
-    predicate: Expr | None = None,
 ) -> None:
     """Buffer store node.
 
@@ -2340,10 +2352,6 @@ def buffer_store(
     indices : List[Union[Expr, slice]]
         The indices location to be stored.
 
-    predicate : Optional[Expr]
-        A vector mask of boolean values indicating which lanes of a vector are to be
-        stored. The number lanes of the mask must be equal to the number of lanes in
-        value.
     """
     from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
 
@@ -2366,7 +2374,7 @@ def buffer_store(
     if isinstance(value, bool) and buffer.ty.dtype == "bool":
         value = IntImm("bool", value)
     return _ffi_api.BufferStore(  # type: ignore[attr-defined] # pylint: disable=no-member
-        buffer, value, expr_indices, predicate
+        buffer, value, expr_indices
     )
 
 
@@ -2382,6 +2390,11 @@ def evaluate(value: Expr) -> None:
         value = StringImm(value)
     if isinstance(value, bool):
         value = IntImm("bool", value)
+    if isinstance(value, tir.BufferRegion):
+        raise TypeError(
+            "T.evaluate does not accept BufferRegion values; "
+            "construct a BufferLoad with explicit indices"
+        )
     return _ffi_api.Evaluate(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
@@ -3212,6 +3225,8 @@ vectorlow = _dtype_forward(_tir_op.vectorlow)
 vectorhigh = _dtype_forward(_tir_op.vectorhigh)
 vectorcombine = _dtype_forward(_tir_op.vectorcombine)
 get_active_lane_mask = _dtype_forward(_tir_op.get_active_lane_mask)
+masked_load = _dtype_forward(_tir_op.masked_load)
+masked_store = _op_wrapper(_tir_op.masked_store)
 dp4a = _dtype_forward(_tir_op.dp4a)
 
 
@@ -3355,6 +3370,7 @@ __all__ = [
     "func_name",
     "func_attr",
     "func_ret",
+    "Tuple",
     "match_buffer",
     "sblock",
     "block_name_suffix_context",
@@ -3560,7 +3576,6 @@ __all__ = [
     "Not",
     "Select",
     "BufferLoad",
-    "ProducerLoad",
     "Ramp",
     "Broadcast",
     "Shuffle",
@@ -3578,6 +3593,8 @@ __all__ = [
     "Range",
     "vscale",
     "get_active_lane_mask",
+    "masked_load",
+    "masked_store",
     "call_kernel",
     "ignore_loop_partition",
 ]

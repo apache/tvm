@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
 
 #include "./utils.h"
@@ -23,6 +25,21 @@
 namespace tvm {
 namespace script {
 namespace printer {
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<Tuple>(
+      "tirx", [](Tuple tuple, AccessPath tuple_p, IRDocsifier d) -> Doc {
+        return TupleDoc(d->AsDoc<ListDoc>(tuple->fields, tuple_p->Attr("fields"))->elements);
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<TupleGetItem>(
+      "tirx", [](TupleGetItem get_item, AccessPath get_item_p, IRDocsifier d) -> Doc {
+        ExprDoc index = LiteralDoc::Int(get_item->index, get_item_p->Attr("index"));
+        return d->AsDoc<ExprDoc>(get_item->tuple, get_item_p->Attr("tuple"))[{index}];
+      });
+}
 
 ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d) {
   Type type = var->ty;
@@ -85,145 +102,162 @@ Doc PrintVar(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d
   TVM_FFI_UNREACHABLE();
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
-    .set_dispatch<tirx::Var>("", [](tirx::Var var, AccessPath p, IRDocsifier d) -> Doc {
-      if (var->ty.as<tirx::BufferTypeNode>()) {
-        tirx::BufferVar buffer(var);
-        if (!d->IsVarDefined(buffer)) {
-          if (ffi::Optional<Frame> opt_f = FindLowestVarDef(buffer, d)) {
-            ExprDoc lhs = DefineBuffer(buffer, opt_f.value(), d);
-            ExprDoc rhs = BufferDecl(buffer, "Buffer", {}, p, opt_f.value(), d,
-                                     BufferVarDefinition::DataPointer);
-            opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable()  //
+      .set_dispatch<tirx::Var>("", [](tirx::Var var, AccessPath p, IRDocsifier d) -> Doc {
+        if (var->ty.as<tirx::BufferTypeNode>()) {
+          tirx::BufferVar buffer(var);
+          if (!d->IsVarDefined(buffer)) {
+            if (ffi::Optional<Frame> opt_f = FindLowestVarDef(buffer, d)) {
+              ExprDoc lhs = DefineBuffer(buffer, opt_f.value(), d);
+              ExprDoc rhs = BufferDecl(buffer, "Buffer", {}, p, opt_f.value(), d,
+                                       BufferVarDefinition::DataPointer);
+              opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
+            }
           }
-        }
-        if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(buffer)) {
-          // special case for scalar buffer
-          if (buffer.IsScalar()) {
-            return doc.value()->Attr("buffer");
+          if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(buffer)) {
+            // special case for scalar buffer
+            if (buffer.IsScalar()) {
+              return doc.value()->Attr("source");
+            }
+            return doc.value();
           }
-          return doc.value();
+          TVM_FFI_THROW(IndexError) << "BufferVar is not defined in the environment: " << buffer;
         }
-        TVM_FFI_THROW(IndexError) << "BufferVar is not defined in the environment: " << buffer;
-      }
-      if (var->ty.as<PrimTypeNode>() || var->ty.as<PointerTypeNode>()) {
-        return PrintVar(var, p, d);
-      }
-      if (!d->IsVarDefined(var)) {
-        ExprDoc ann = d->AsDoc<ExprDoc>(var->ty, p->Attr("ty"));
-        Frame f = d->frames.back();
-        ExprDoc lhs = d->Define(var, f, var->name.empty() ? "v" : var->name);
-        f->stmts.push_back(AssignDoc(lhs, std::nullopt, ann));
-      }
-      return d->GetVarDoc(var).value();
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::IterVar>("", [](tirx::IterVar var, AccessPath var_p, IRDocsifier d) -> Doc {
-      return TIR(d, "iter_var")
-          ->Call({
-              d->AsDoc<ExprDoc>(var->var, var_p->Attr("var")),
-              d->AsDoc<ExprDoc>(var->dom, var_p->Attr("dom")),
-              LiteralDoc::Str(IterVarType2String(var->iter_type), var_p->Attr("iter_type")),
-              LiteralDoc::Str(var->thread_tag, var_p->Attr("thread_tag")),
-          });
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Not>("", [](tirx::Not node, AccessPath p, IRDocsifier d) -> Doc {
-      ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
-      if (a->IsInstance<LiteralDocNode>()) {
-        return TIR(d, "Not")->Call({a});
-      }
-      return OperationDoc(OperationDocNode::Kind::kNot, {a});
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::StringImm>("", [](tirx::StringImm s, AccessPath p, IRDocsifier d) -> Doc {
-      if (HasMultipleLines(s->value)) {
-        return d->AddMetadata(s);
-      } else {
-        return d->AsDoc<ExprDoc>(s->value, p->Attr("value"));
-      }
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Cast>("", [](tirx::Cast cast, AccessPath p, IRDocsifier d) -> Doc {
-      ExprDoc dtype = LiteralDoc::DataType(cast.ty()->dtype, p->Attr("dtype"));
-      ExprDoc value = d->AsDoc<ExprDoc>(cast->value, p->Attr("value"));
-      return TIR(d, "Cast")->Call({dtype, value});
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Select>("", [](tirx::Select select, AccessPath p, IRDocsifier d) -> Doc {
-      return TIR(d, "Select")
-          ->Call({
-              d->AsDoc<ExprDoc>(select->condition, p->Attr("condition")),
-              d->AsDoc<ExprDoc>(select->true_value, p->Attr("true_value")),
-              d->AsDoc<ExprDoc>(select->false_value, p->Attr("false_value")),
-          });
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Ramp>("", [](tirx::Ramp ramp, AccessPath ramp_p, IRDocsifier d) -> Doc {
-      return TIR(d, "Ramp")->Call({
-          d->AsDoc<ExprDoc>(ramp->base, ramp_p->Attr("base")),
-          d->AsDoc<ExprDoc>(ramp->stride, ramp_p->Attr("stride")),
-          d->AsDoc<ExprDoc>(ramp->lanes, ramp_p->Attr("lanes")),
+        if (var->ty.as<PrimTypeNode>() || var->ty.as<PointerTypeNode>()) {
+          return PrintVar(var, p, d);
+        }
+        if (!d->IsVarDefined(var)) {
+          ExprDoc ann = d->AsDoc<ExprDoc>(var->ty, p->Attr("ty"));
+          Frame f = d->frames.back();
+          ExprDoc lhs = d->Define(var, f, var->name.empty() ? "v" : var->name);
+          f->stmts.push_back(AssignDoc(lhs, std::nullopt, ann));
+        }
+        return d->GetVarDoc(var).value();
       });
-    });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Broadcast>("",
-                                   [](tirx::Broadcast bc, AccessPath bc_p, IRDocsifier d) -> Doc {
-                                     return TIR(d, "Broadcast")
-                                         ->Call({
-                                             d->AsDoc<ExprDoc>(bc->value, bc_p->Attr("value")),
-                                             d->AsDoc<ExprDoc>(bc->lanes, bc_p->Attr("lanes")),
-                                         });
-                                   });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tirx::IterVar>(
+      "", [](tirx::IterVar var, AccessPath var_p, IRDocsifier d) -> Doc {
+        return TIR(d, "iter_var")
+            ->Call({
+                d->AsDoc<ExprDoc>(var->var, var_p->Attr("var")),
+                d->AsDoc<ExprDoc>(var->dom, var_p->Attr("dom")),
+                LiteralDoc::Str(IterVarType2String(var->iter_type), var_p->Attr("iter_type")),
+                LiteralDoc::Str(var->thread_tag, var_p->Attr("thread_tag")),
+            });
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Shuffle>(  //
-        "", [](tirx::Shuffle shuffle, AccessPath p, IRDocsifier d) -> Doc {
-          return TIR(d, "Shuffle")
-              ->Call({
-                  d->AsDoc<ExprDoc>(shuffle->vectors, p->Attr("vectors")),
-                  d->AsDoc<ExprDoc>(shuffle->indices, p->Attr("indices")),
-              });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<prim::Not>(
+      "", [](prim::Not node, AccessPath p, IRDocsifier d) -> Doc {
+        ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
+        if (a->IsInstance<LiteralDocNode>()) {
+          return TIR(d, "Not")->Call({a});
+        }
+        return OperationDoc(OperationDocNode::Kind::kNot, {a});
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<prim::StringImm>(
+      "", [](prim::StringImm s, AccessPath p, IRDocsifier d) -> Doc {
+        if (HasMultipleLines(s->value)) {
+          return d->AddMetadata(s);
+        } else {
+          return d->AsDoc<ExprDoc>(s->value, p->Attr("value"));
+        }
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<prim::Cast>(
+      "", [](prim::Cast cast, AccessPath p, IRDocsifier d) -> Doc {
+        ExprDoc dtype = LiteralDoc::DataType(cast.ty()->dtype, p->Attr("dtype"));
+        ExprDoc value = d->AsDoc<ExprDoc>(cast->value, p->Attr("value"));
+        return TIR(d, "Cast")->Call({dtype, value});
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<prim::Select>(
+      "", [](prim::Select select, AccessPath p, IRDocsifier d) -> Doc {
+        return TIR(d, "Select")
+            ->Call({
+                d->AsDoc<ExprDoc>(select->condition, p->Attr("condition")),
+                d->AsDoc<ExprDoc>(select->true_value, p->Attr("true_value")),
+                d->AsDoc<ExprDoc>(select->false_value, p->Attr("false_value")),
+            });
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<prim::Ramp>(
+      "", [](prim::Ramp ramp, AccessPath ramp_p, IRDocsifier d) -> Doc {
+        return TIR(d, "Ramp")->Call({
+            d->AsDoc<ExprDoc>(ramp->base, ramp_p->Attr("base")),
+            d->AsDoc<ExprDoc>(ramp->stride, ramp_p->Attr("stride")),
+            d->AsDoc<ExprDoc>(ramp->lanes, ramp_p->Attr("lanes")),
         });
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::CommReducer>(  //
-        "", [](tirx::CommReducer r, AccessPath p, IRDocsifier d) -> Doc {
-          TVM_FFI_ICHECK_EQ(r->lhs.size(), r->rhs.size());
-          ffi::Optional<LambdaDoc> lambda;
-          {
-            With<TIRFrame> f(d, r);
-            int n_vars = r->lhs.size();
-            ffi::Array<IdDoc> vars;
-            vars.reserve(n_vars + n_vars);
-            for (int i = 0; i < n_vars; ++i) {
-              vars.push_back(DefineVar(r->lhs[i], *f, d).as_or_throw<IdDoc>());
-            }
-            for (int i = 0; i < n_vars; ++i) {
-              vars.push_back(DefineVar(r->rhs[i], *f, d).as_or_throw<IdDoc>());
-            }
-            int n_results = r->result.size();
-            ffi::Array<ExprDoc> results;
-            results.reserve(n_results);
-            for (int i = 0; i < n_results; ++i) {
-              results.push_back(d->AsDoc<ExprDoc>(r->result[i], p->Attr("result")->ArrayItem(i)));
-            }
-            if (results.size() == 1) {
-              lambda = LambdaDoc(vars, results[0]);
-            } else {
-              lambda = LambdaDoc(vars, TupleDoc(results));
-            }
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<prim::Broadcast>(
+      "", [](prim::Broadcast bc, AccessPath bc_p, IRDocsifier d) -> Doc {
+        return TIR(d, "Broadcast")
+            ->Call({
+                d->AsDoc<ExprDoc>(bc->value, bc_p->Attr("value")),
+                d->AsDoc<ExprDoc>(bc->lanes, bc_p->Attr("lanes")),
+            });
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<prim::Shuffle>(  //
+      "", [](prim::Shuffle shuffle, AccessPath p, IRDocsifier d) -> Doc {
+        return TIR(d, "Shuffle")
+            ->Call({
+                d->AsDoc<ExprDoc>(shuffle->vectors, p->Attr("vectors")),
+                d->AsDoc<ExprDoc>(shuffle->indices, p->Attr("indices")),
+            });
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<te::CommReducer>(  //
+      "", [](te::CommReducer r, AccessPath p, IRDocsifier d) -> Doc {
+        TVM_FFI_ICHECK_EQ(r->lhs.size(), r->rhs.size());
+        ffi::Optional<LambdaDoc> lambda;
+        {
+          With<TIRFrame> f(d, r);
+          int n_vars = r->lhs.size();
+          ffi::Array<IdDoc> vars;
+          vars.reserve(n_vars + n_vars);
+          for (int i = 0; i < n_vars; ++i) {
+            vars.push_back(DefineVar(r->lhs[i], *f, d).as_or_throw<IdDoc>());
           }
-          ExprDoc id = d->AsDoc<ExprDoc>(r->identity_element, p->Attr("identity_element"));
-          return TIR(d, "comm_reducer")->Call({lambda.value(), id});
-        });
+          for (int i = 0; i < n_vars; ++i) {
+            vars.push_back(DefineVar(r->rhs[i], *f, d).as_or_throw<IdDoc>());
+          }
+          int n_results = r->result.size();
+          ffi::Array<ExprDoc> results;
+          results.reserve(n_results);
+          for (int i = 0; i < n_results; ++i) {
+            results.push_back(d->AsDoc<ExprDoc>(r->result[i], p->Attr("result")->ArrayItem(i)));
+          }
+          if (results.size() == 1) {
+            lambda = LambdaDoc(vars, results[0]);
+          } else {
+            lambda = LambdaDoc(vars, TupleDoc(results));
+          }
+        }
+        ExprDoc id = d->AsDoc<ExprDoc>(r->identity_element, p->Attr("identity_element"));
+        return TIR(d, "comm_reducer")->Call({lambda.value(), id});
+      });
+}
 
 LambdaDoc PrintIndexMap(const ffi::ObjectRef& map, const ffi::Array<tirx::PrimVar>& vs,
                         const AccessPath& vs_p, const ffi::Array<PrimExpr>& es,
@@ -240,22 +274,23 @@ LambdaDoc PrintIndexMap(const ffi::ObjectRef& map, const ffi::Array<tirx::PrimVa
   return LambdaDoc(vars, TupleDoc(exprs));
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::IndexMap>(  //
-        "", [](tirx::IndexMap m, AccessPath m_p, IRDocsifier d) -> Doc {
-          LambdaDoc map = PrintIndexMap(m, m->initial_indices, m_p->Attr("initial_indices"),
-                                        m->final_indices, m_p->Attr("final_indices"), d);
-          if (m->inverse_index_map.has_value()) {
-            tirx::IndexMap inverse = m->inverse_index_map.value().as_or_throw<tirx::IndexMap>();
-            LambdaDoc inv = PrintIndexMap(inverse, inverse->initial_indices,
-                                          m_p->Attr("inverse_index_map")->Attr("initial_indices"),
-                                          inverse->final_indices,
-                                          m_p->Attr("inverse_index_map")->Attr("final_indices"), d);
-            return TIR(d, "index_map")->Call({map}, {"inverse_index_map"}, {inv});
-          } else {
-            return TIR(d, "index_map")->Call({map});
-          }
-        });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tirx::IndexMap>(  //
+      "", [](tirx::IndexMap m, AccessPath m_p, IRDocsifier d) -> Doc {
+        LambdaDoc map = PrintIndexMap(m, m->initial_indices, m_p->Attr("initial_indices"),
+                                      m->final_indices, m_p->Attr("final_indices"), d);
+        if (m->inverse_index_map.has_value()) {
+          tirx::IndexMap inverse = m->inverse_index_map.value().as_or_throw<tirx::IndexMap>();
+          LambdaDoc inv = PrintIndexMap(inverse, inverse->initial_indices,
+                                        m_p->Attr("inverse_index_map")->Attr("initial_indices"),
+                                        inverse->final_indices,
+                                        m_p->Attr("inverse_index_map")->Attr("final_indices"), d);
+          return TIR(d, "index_map")->Call({map}, {"inverse_index_map"}, {inv});
+        } else {
+          return TIR(d, "index_map")->Call({map});
+        }
+      });
+}
 
 LambdaDoc PrintLambda(const ffi::ObjectRef& pred, const ffi::Array<tirx::Var>& vs,
                       const AccessPath& vs_p, const PrimExpr& p, const AccessPath& p_p,
@@ -269,20 +304,22 @@ LambdaDoc PrintLambda(const ffi::ObjectRef& pred, const ffi::Array<tirx::Var>& v
   return LambdaDoc(vars, pred_doc);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::LambdaExpr>("",
-                                    [](tirx::LambdaExpr pred, AccessPath p, IRDocsifier d) -> Doc {
-                                      return PrintLambda(pred, pred->vars, p->Attr("vars"),
-                                                         pred->pred, p->Attr("pred"), d);
-                                    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tirx::LambdaExpr>(
+      "", [](tirx::LambdaExpr pred, AccessPath p, IRDocsifier d) -> Doc {
+        return PrintLambda(pred, pred->vars, p->Attr("vars"), pred->pred, p->Attr("pred"), d);
+      });
+}
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Let>("", [](tirx::Let let, AccessPath p, IRDocsifier d) -> Doc {
-      DictDoc where({d->AsDoc<ExprDoc>(let->var, p->Attr("var"))},
-                    {d->AsDoc<ExprDoc>(let->value, p->Attr("value"))});
-      return TIR(d, "Let")->Call({d->AsDoc<ExprDoc>(let->body, p->Attr("body"))},  //
-                                 {"where"}, {where});
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<prim::Let>(
+      "", [](prim::Let let, AccessPath p, IRDocsifier d) -> Doc {
+        DictDoc where({d->AsDoc<ExprDoc>(let->var, p->Attr("var"))},
+                      {d->AsDoc<ExprDoc>(let->value, p->Attr("value"))});
+        return TIR(d, "Let")->Call({d->AsDoc<ExprDoc>(let->body, p->Attr("body"))},  //
+                                   {"where"}, {where});
+      });
+}
 
 Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
   if (call->op.same_as(tirx::builtin::buffer_data())) {
@@ -381,7 +418,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
       // storing multiline source code in metadata (which can't be reparsed).
       ffi::Array<ffi::String> kw_keys;
       ffi::Array<ExprDoc> kw_vals;
-      const auto* src_str = call->args[n_args - 1].as<tirx::StringImmNode>();
+      const auto* src_str = call->args[n_args - 1].as<prim::StringImmNode>();
       TVM_FFI_ICHECK(src_str) << "cuda_func_call: last arg (source_code) must be StringImm";
       ExprDoc src = LiteralDoc::Str(src_str->value, call_p->Attr("args")->ArrayItem(n_args - 1));
       kw_keys.push_back("source_code");
@@ -396,7 +433,8 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
   } else if (call->op.as<GlobalVarNode>()) {
     prefix = d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
   } else {
-    TVM_FFI_THROW(InternalError) << "call: " << call;
+    TVM_FFI_THROW(TypeError) << "Cannot print a Call whose callee has type "
+                             << call->op->GetTypeKey();
   }
   ffi::Array<ExprDoc> args;
   int n_args = call->args.size();
@@ -414,112 +452,118 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
   return prefix.value()->Call(args);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<Call>("tirx", PrintTIRCall);
+TVM_FFI_STATIC_INIT_BLOCK() { IRDocsifier::vtable().set_dispatch<Call>("tirx", PrintTIRCall); }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Reduce>("", [](tirx::Reduce r, AccessPath p, IRDocsifier d) -> Doc {
-      ExprDoc combiner = d->AsDoc<ExprDoc>(r->combiner, p->Attr("combiner"));
-      ExprDoc source = d->AsDoc<ExprDoc>(r->source, p->Attr("source"));
-      ExprDoc init = d->AsDoc<ExprDoc>(r->init, p->Attr("init"));
-      ExprDoc axis = d->AsDoc<ExprDoc>(r->axis, p->Attr("axis"));
-      ExprDoc condition = d->AsDoc<ExprDoc>(r->condition, p->Attr("condition"));
-      ExprDoc value_index = LiteralDoc::Int(r->value_index, p->Attr("value_index"));
-      return TIR(d, "reduce")
-          ->Call({combiner}, {"source", "init", "axis", "condition", "value_index"},
-                 {source, init, axis, condition, value_index});
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<te::Reduce>(
+      "", [](te::Reduce r, AccessPath p, IRDocsifier d) -> Doc {
+        ExprDoc combiner = d->AsDoc<ExprDoc>(r->combiner, p->Attr("combiner"));
+        ExprDoc source = d->AsDoc<ExprDoc>(r->source, p->Attr("source"));
+        ExprDoc init = d->AsDoc<ExprDoc>(r->init, p->Attr("init"));
+        ExprDoc axis = d->AsDoc<ExprDoc>(r->axis, p->Attr("axis"));
+        ExprDoc condition = d->AsDoc<ExprDoc>(r->condition, p->Attr("condition"));
+        ExprDoc value_index = LiteralDoc::Int(r->value_index, p->Attr("value_index"));
+        return TIR(d, "reduce")
+            ->Call({combiner}, {"source", "init", "axis", "condition", "value_index"},
+                   {source, init, axis, condition, value_index});
+      });
+}
 
-#define TVM_SCRIPT_PRINTER_DEF_BINARY(NodeType, OpString)                                         \
-  TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)                                                      \
-      .set_dispatch<tirx::NodeType>("",                                                           \
-                                    [](tirx::NodeType node, AccessPath p, IRDocsifier d) -> Doc { \
-                                      ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));       \
-                                      ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));       \
-                                      return TIR(d, OpString)->Call({a, b});                      \
-                                    });
+#define TVM_SCRIPT_PRINTER_DEF_BINARY(NodeType, OpString)               \
+  IRDocsifier::vtable().set_dispatch<prim::NodeType>(                   \
+      "", [](prim::NodeType node, AccessPath p, IRDocsifier d) -> Doc { \
+        ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));           \
+        ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));           \
+        return TIR(d, OpString)->Call({a, b});                          \
+      });
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Div>("", [](tirx::Div node, AccessPath p, IRDocsifier d) -> Doc {
-      ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
-      ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));
-      PrimExpr ret = tvm::div(node->a, node->b);
-      if (!ret->IsInstance<tirx::DivNode>()) {
-        return TIR(d, "Div")->Call({a, b});
-      }
-      PrimType a_ty = node->a.ty();
-      PrimType b_ty = node->b.ty();
-      if (a_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) &&
-          b_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
-        return TIR(d, "Div")->Call({a, b});
-      }
-      return OperationDoc(OperationDocNode::Kind::kDiv, {a, b});
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<prim::Div>(
+      "", [](prim::Div node, AccessPath p, IRDocsifier d) -> Doc {
+        ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
+        ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));
+        PrimExpr ret = tvm::div(node->a, node->b);
+        if (!ret->IsInstance<prim::DivNode>()) {
+          return TIR(d, "Div")->Call({a, b});
+        }
+        PrimType a_ty = node->a.ty();
+        PrimType b_ty = node->b.ty();
+        if (a_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) &&
+            b_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
+          return TIR(d, "Div")->Call({a, b});
+        }
+        return OperationDoc(OperationDocNode::Kind::kDiv, {a, b});
+      });
+}
 
 #define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, NodeObj, NodeFunc, OpString, OpKind) \
-  TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)                                                    \
-      .set_dispatch<tirx::NodeType>(                                                            \
-          "", [](tirx::NodeType node, AccessPath p, IRDocsifier d) -> Doc {                     \
-            ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));                               \
-            ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));                               \
-            PrimExpr ret = tvm::NodeFunc(node->a, node->b);                                     \
-            if (const auto* ret_node = ret.as<tvm::tirx::NodeObj>()) {                          \
-              if (ret_node->a.same_as(node->a) && ret_node->b.same_as(node->b)) {               \
-                return OperationDoc(OperationDocNode::Kind::OpKind, {a, b});                    \
-              }                                                                                 \
-            }                                                                                   \
-            return TIR(d, OpString)->Call({a, b});                                              \
-          });
+  IRDocsifier::vtable().set_dispatch<prim::NodeType>(                                           \
+      "", [](prim::NodeType node, AccessPath p, IRDocsifier d) -> Doc {                         \
+        ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));                                   \
+        ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));                                   \
+        PrimExpr ret = tvm::NodeFunc(node->a, node->b);                                         \
+        if (const auto* ret_node = ret.as<tvm::NodeObj>()) {                                    \
+          if (ret_node->a.same_as(node->a) && ret_node->b.same_as(node->b)) {                   \
+            return OperationDoc(OperationDocNode::Kind::OpKind, {a, b});                        \
+          }                                                                                     \
+        }                                                                                       \
+        return TIR(d, OpString)->Call({a, b});                                                  \
+      });
 
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Add, AddNode, add, "Add", kAdd);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Sub, SubNode, sub, "Sub", kSub);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Mul, MulNode, mul, "Mul", kMult);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorDiv, FloorDivNode, floordiv, "FloorDiv", kFloorDiv);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorMod, FloorModNode, floormod, "FloorMod", kMod);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LT, LTNode, less, "LT", kLt);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LE, LENode, less_equal, "LE", kLtE);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(EQ, EQNode, equal, "EQ", kEq);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NE, NENode, not_equal, "NE", kNotEq);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GT, GTNode, greater, "GT", kGt);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GE, GENode, greater_equal, "GE", kGtE);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(And, AndNode, logical_and, "And", kAnd);
-TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Or, OrNode, logical_or, "Or", kOr);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Add, prim::AddNode, add, "Add", kAdd);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Sub, prim::SubNode, sub, "Sub", kSub);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Mul, prim::MulNode, mul, "Mul", kMult);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorDiv, prim::FloorDivNode, floordiv, "FloorDiv",
+                                           kFloorDiv);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorMod, prim::FloorModNode, floormod, "FloorMod",
+                                           kMod);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LT, prim::LTNode, less, "LT", kLt);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LE, prim::LENode, less_equal, "LE", kLtE);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(EQ, prim::EQNode, equal, "EQ", kEq);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NE, prim::NENode, not_equal, "NE", kNotEq);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GT, prim::GTNode, greater, "GT", kGt);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GE, prim::GENode, greater_equal, "GE", kGtE);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(And, prim::AndNode, logical_and, "And", kAnd);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Or, prim::OrNode, logical_or, "Or", kOr);
 
-TVM_SCRIPT_PRINTER_DEF_BINARY(Mod, "truncmod");
-TVM_SCRIPT_PRINTER_DEF_BINARY(Min, "min");
-TVM_SCRIPT_PRINTER_DEF_BINARY(Max, "max");
+  TVM_SCRIPT_PRINTER_DEF_BINARY(Mod, "truncmod");
+  TVM_SCRIPT_PRINTER_DEF_BINARY(Min, "min");
+  TVM_SCRIPT_PRINTER_DEF_BINARY(Max, "max");
+}
 
 #undef TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR
 #undef TVM_SCRIPT_PRINTER_DEF_BINARY
 
 TVM_SCRIPT_REPR(tirx::IterVarNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::StringImmNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::CastNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::AddNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::SubNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::MulNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::DivNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::ModNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::FloorDivNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::FloorModNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::MinNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::MaxNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::LTNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::LENode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::EQNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::NENode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::GTNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::GENode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::AndNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::OrNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::NotNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::SelectNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::RampNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::BroadcastNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::LetNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::ShuffleNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::CommReducerNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::StringImmNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::CastNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::AddNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::SubNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::MulNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::DivNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::ModNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::FloorDivNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::FloorModNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::MinNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::MaxNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::LTNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::LENode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::EQNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::NENode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::GTNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::GENode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::AndNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::OrNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::NotNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::SelectNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::RampNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::BroadcastNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::LetNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::ShuffleNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(te::CommReducerNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::IndexMapNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::ReduceNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(te::ReduceNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::LambdaExprNode, ReprPrintTIR);
 
 }  // namespace printer

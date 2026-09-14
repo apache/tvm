@@ -80,7 +80,7 @@ class CodeGenHexagon final : public CodeGenCPU {
   void InitTarget() final;
 
   using CodeGenCPU::VisitStmt_;
-  llvm::Value* VisitExpr_(const BufferLoadNode* op) override;
+  llvm::Value* VisitExpr_(const TensorLoadNode* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
 
   llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
@@ -199,10 +199,11 @@ llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, ffi::String global_
   return CodeGenCPU::CreateCallExtern(ret_type, global_symbol, args, skip_first_arg);
 }
 
-llvm::Value* CodeGenHexagon::VisitExpr_(const BufferLoadNode* op) {
+llvm::Value* CodeGenHexagon::VisitExpr_(const TensorLoadNode* op) {
   // Check if we can generate a vector lookup.
-  if (!op->indices[0].as<RampNode>()) {
-    if (auto* vlut = VectorLookupLoad(op->buffer, op->ty.as_or_throw<PrimType>(), op->indices)) {
+  if (!op->indices[0].as<prim::RampNode>()) {
+    if (auto* vlut = VectorLookupLoad(op->source.as_or_throw<tvm::tirx::BufferVar>(),
+                                      op->ty.as_or_throw<PrimType>(), op->indices)) {
       return vlut;
     }
   }
@@ -343,17 +344,17 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(BufferVar buffer, PrimType buffer_
   auto native_vector_bytes = native_vector_bits_ / 8;
 
   // Indexes
-  llvm::Value* trunc = MakeValue(Cast(index_ty.WithBits(8), index));
+  llvm::Value* trunc = MakeValue(prim::Cast(index_ty.WithBits(8), index));
   llvm::Value* index_pad = CreateVecPad(trunc, native_vector_bytes);
 
   // Values
   std::vector<llvm::Value*> vloads;
   PrimType table_type = buffer_type.WithLanes(table_elem_count);
 
-  auto table_all =
-      MakeValue(BufferLoad(buffer, {
-                                       Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count),
-                                   }));
+  auto table_all = MakeValue(
+      BufferLoad(buffer, {
+                             prim::Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count),
+                         }));
 
   // The number of value vectors should be a power of 2.
   int table_vec_count = llvm::PowerOf2Ceil(GetVectorBytes(table_type) / native_vector_bytes);
@@ -566,7 +567,7 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
   TVM_FFI_ICHECK(f.has_value()) << "tvm.contrib.hexagon.link_shared does not to exist, "
                                    "do import tvm.contrib.hexagon";
 
-  ffi::Array<PrimExpr> o_names = {StringImm(o_name)};
+  ffi::Array<PrimExpr> o_names = {prim::StringImm(o_name)};
   ffi::Map<ffi::String, ffi::String> extra_args;
   if (target->attrs.count("mcpu")) {
     std::string mcpu = target->attrs.at("mcpu").as_or_throw<ffi::String>();

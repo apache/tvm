@@ -23,6 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/base.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 #include <tvm/s_tir/meta_schedule/cost_model.h>
@@ -33,6 +34,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 // Forward declaration

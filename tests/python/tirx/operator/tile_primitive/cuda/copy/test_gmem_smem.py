@@ -23,6 +23,7 @@ wrong the round trip leaves B mismatched against A.
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -479,14 +480,21 @@ def test_layout_permute_copy_preserves_smem_strides():
     # S is K-tiled : s_off(tid) = (tid // 8) * 8 + (tid % 8) * 1024.
     # For tid=1 the two MUST differ — they're identical iff S was
     # collapsed to row-major (the regression).
-    from tvm.tirx import stmt_functor
-
     analyzer = tvm.arith.Analyzer()
+    value_map = {tid_var: _IntImm("int32", 1)}
     s_off_at_1 = analyzer.simplify(
-        stmt_functor.substitute(s_off_expr, {tid_var: _IntImm("int32", 1)})
+        tvm_ffi.structural_map(
+            s_off_expr,
+            (tvm.tirx.Var, lambda var: value_map.get(var, var)),
+            order="post",
+        )
     )
     g_off_at_1 = analyzer.simplify(
-        stmt_functor.substitute(g_off_expr, {tid_var: _IntImm("int32", 1)})
+        tvm_ffi.structural_map(
+            g_off_expr,
+            (tvm.tirx.Var, lambda var: value_map.get(var, var)),
+            order="post",
+        )
     )
     assert int(s_off_at_1) == 1024, (
         f"s_p.apply at tid=1 produced offset {s_off_at_1}, expected 1024 "

@@ -17,11 +17,14 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 
 #include "memhammer_rewrite_rule.h"
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 Stmt CopyLoopChain(const std::vector<const ForNode*> loops, const Stmt& inner_body, int ith = -1,
@@ -202,11 +205,11 @@ class IndexPatternFinder : public ExprVisitor {
 
 class BufferLoadReplacer : public StmtExprMutator {
  public:
-  BufferLoadReplacer(const BufferVar& tgt_buffer, const BufferLoad& new_buffer_load)
+  BufferLoadReplacer(const BufferVar& tgt_buffer, const TensorLoad& new_buffer_load)
       : tgt_buffer_(tgt_buffer), new_buffer_load_(new_buffer_load) {}
 
-  Expr VisitExpr_(const BufferLoadNode* op) {
-    if (op->buffer.same_as(tgt_buffer_)) {
+  Expr VisitExpr_(const TensorLoadNode* op) {
+    if (op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(tgt_buffer_)) {
       return new_buffer_load_;
     }
     return StmtExprMutator::VisitExpr_(op);
@@ -214,7 +217,7 @@ class BufferLoadReplacer : public StmtExprMutator {
 
  private:
   BufferVar tgt_buffer_;
-  BufferLoad new_buffer_load_;
+  TensorLoad new_buffer_load_;
 };
 
 /*!
@@ -279,27 +282,27 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   }
 
   arith::Analyzer analyzer;
-  const BufferLoadNode* target_buffer_load = nullptr;
+  const TensorLoadNode* target_buffer_load = nullptr;
   if (is_write_cache) {
-    tirx::PreOrderVisit(stmt, [&](const ffi::ObjectRef& obj) {
-      if (const auto* buffer_load = obj.as<BufferLoadNode>()) {
-        if (buffer_load->buffer.scope() == "wmma.accumulator" ||
-            buffer_load->buffer.scope() == "m16n8k8.matrixC") {
-          if (target_buffer_load == nullptr) {
-            target_buffer_load = buffer_load;
-          } else {
-            TVM_FFI_ICHECK(target_buffer_load->buffer.same_as(buffer_load->buffer))
-                << "More than one target buffer found";
-            TVM_FFI_ICHECK(target_buffer_load->indices.size() == buffer_load->indices.size());
-            for (size_t i = 0; i < target_buffer_load->indices.size(); i++) {
-              TVM_FFI_ICHECK(
-                  analyzer->CanProveEqual(target_buffer_load->indices[i], buffer_load->indices[i]));
-            }
+    auto walk_fn = [&](const TensorLoad& buffer_load) -> ffi::Expected<ffi::WalkResult> {
+      if (buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "wmma.accumulator" ||
+          buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "m16n8k8.matrixC") {
+        if (target_buffer_load == nullptr) {
+          target_buffer_load = buffer_load.get();
+        } else {
+          TVM_FFI_ICHECK(target_buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
+              buffer_load->source.as_or_throw<tvm::tirx::BufferVar>()))
+              << "More than one target buffer found";
+          TVM_FFI_ICHECK(target_buffer_load->indices.size() == buffer_load->indices.size());
+          for (size_t i = 0; i < target_buffer_load->indices.size(); i++) {
+            TVM_FFI_ICHECK(
+                analyzer->CanProveEqual(target_buffer_load->indices[i], buffer_load->indices[i]));
           }
         }
       }
-      return true;
-    });
+      return ffi::WalkResult::Advance();
+    };
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(stmt, walk_fn);
     TVM_FFI_ICHECK(target_buffer_load);
   }
 
@@ -307,9 +310,9 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   ffi::Array<PrimExpr> cache_indices;
   ffi::Array<PrimExpr> new_shape;
   bool use_rank_promotion = false;
-  if (!is_write_cache && buf_store->value.as<BufferLoadNode>()) {
+  if (!is_write_cache && buf_store->value.as<TensorLoadNode>()) {
     ffi::Array<PrimExpr> indices =
-        is_write_cache ? buf_store->indices : buf_store->value.as<BufferLoadNode>()->indices;
+        is_write_cache ? buf_store->indices : buf_store->value.as<TensorLoadNode>()->indices;
     new_shape = IndexPatternFinder::getRankPromotedShape(indices, var_range, &cache_indices);
     // write cache disabled for now
     // rank promotion for write cache cannot guarantee the shape fits wmma.accumulator
@@ -347,22 +350,29 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
       cache_indices.push_back(loop->loop_var);
     }
   }
+  auto map_var = [&subst_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = subst_map.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
   ffi::Array<PrimExpr> subst_indices;
   ffi::Array<PrimExpr> subst_cache_indices;
   if (is_write_cache) {
     for (PrimExpr e : buf_store->indices) {
-      subst_indices.push_back(Substitute(e, subst_map));
+      subst_indices.push_back(
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, map_var).as_or_throw<PrimExpr>());
     }
   }
   for (PrimExpr e : cache_indices) {
-    subst_cache_indices.push_back(Substitute(e, subst_map));
+    subst_cache_indices.push_back(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, map_var).as_or_throw<PrimExpr>());
   }
 
   BufferVar new_buffer;
   if (is_write_cache) {
     // this is needed for global <- cast(load(wmma))
     // shared stage should have the same dtype as wmma
-    new_buffer = WithScope(target_buffer_load->buffer, storage_scope);
+    new_buffer =
+        WithScope(target_buffer_load->source.as_or_throw<tvm::tirx::BufferVar>(), storage_scope);
   } else {
     new_buffer = WithScope(buf_store->buffer, storage_scope);
   }
@@ -374,20 +384,27 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   Stmt generate_body;
   if (is_write_cache) {
     // copy from wmma to new cache buffer
-    BufferLoad new_buffer_load{new_buffer, cache_indices};
-    generate_body = BufferLoadReplacer(target_buffer_load->buffer,
-                                       new_buffer_load)(ffi::GetRef<Stmt>(buf_store));
-    generate_body = Substitute(generate_body, subst_map);
+    TensorLoad new_buffer_load = BufferLoad(new_buffer, cache_indices);
+    generate_body =
+        BufferLoadReplacer(target_buffer_load->source.as_or_throw<tvm::tirx::BufferVar>(),
+                           new_buffer_load)(ffi::GetRef<Stmt>(buf_store));
+    generate_body =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(generate_body, map_var).as_or_throw<Stmt>();
   } else {
     generate_body =
-        BufferStore(new_buffer, Substitute(buf_store->value, subst_map), subst_cache_indices);
+        BufferStore(new_buffer,
+                    ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(buf_store->value, map_var)
+                        .as_or_throw<PrimExpr>(),
+                    subst_cache_indices);
   }
 
   if (predicate.has_value()) {
     // generated by coalescing
     TVM_FFI_ICHECK_EQ(loops_under_compute_location.size(), 2);
     PrimExpr subst_value = 0;
-    PrimExpr subst_predicate = Substitute(predicate.value(), subst_map);
+    PrimExpr subst_predicate =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(predicate.value(), map_var)
+            .as_or_throw<PrimExpr>();
     generate_body = IfThenElse(subst_predicate, generate_body);
   }
 
@@ -410,9 +427,9 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   }
   Stmt rewrite_body;
   if (is_write_cache) {
-    BufferLoad new_buffer_load{new_buffer, cache_indices};
+    TensorLoad new_buffer_load = BufferLoad(new_buffer, cache_indices);
     rewrite_body =
-        BufferStore(new_buffer, ffi::GetRef<BufferLoad>(target_buffer_load), cache_indices);
+        BufferStore(new_buffer, ffi::GetRef<TensorLoad>(target_buffer_load), cache_indices);
   } else {
     rewrite_body =
         BufferStore(buf_store->buffer, BufferLoad(new_buffer, cache_indices), buf_store->indices);

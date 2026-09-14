@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
@@ -24,6 +25,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -209,6 +211,12 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
   for (size_t i = 0; i < realize->iter_values.size(); i++) {
     binding_map[realize->block->iter_vars[i]->var.get()] = realize->iter_values[i];
   }
+  auto f_substitute = [&binding_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto it = binding_map.find(var.get()); it != binding_map.end()) {
+      return ffi::Any(it->second);
+    }
+    return ffi::Unchanged();
+  };
   int max_fusible = INT32_MAX;
   // for each block read/write, get the strides of the loop vars and find the fusible
   // (vectorizable) axes
@@ -222,7 +230,9 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
       const auto* var = loop_sref->StmtAs<ForNode>();
       arith::Analyzer analyzer;
       for (int i = access->region.size() - 1; i >= 0; i--) {
-        PrimExpr idx = analyzer->Simplify(Substitute(access->region[i]->min, binding_map));
+        PrimExpr idx = analyzer->Simplify(
+            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(access->region[i]->min, f_substitute)
+                .as_or_throw<PrimExpr>());
         int64_t coef = StrideExtractor::Extract(idx, var->loop_var);
         if (coef != 0) {
           stride = coef * buffer_stride;
@@ -425,6 +435,7 @@ void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const
 }  // namespace s_tir
 
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 using s_tir::Schedule;

@@ -19,13 +19,14 @@
 
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -40,6 +41,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using support::NDIntSet;
@@ -198,11 +200,11 @@ class AutoPadder {
           : buffer_map_(buffer_map) {}
 
      private:
-      Expr VisitExpr_(const BufferLoadNode* _op) final {
-        BufferLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<BufferLoad>();
-        BufferLoadNode* op = load.CopyOnWrite();
-        if (buffer_map_.count(op->buffer)) {
-          op->buffer = buffer_map_[op->buffer];
+      Expr VisitExpr_(const TensorLoadNode* _op) final {
+        TensorLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<TensorLoad>();
+        BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
+        if (buffer_map_.count(buffer)) {
+          return BufferLoad(buffer_map_[buffer], load->indices, load->span);
         }
         return load;
       }
@@ -464,22 +466,26 @@ class AutoPadder {
 
    private:
     bool CheckVarContiguous(PrimExpr e, Var var, const ffi::Map<Var, PrimExpr>& subst_map) {
-      PrimExpr e1 = Substitute(e, [var](const Var& v) -> ffi::Optional<Expr> {
-        if (v.same_as(var)) {
-          return IntImm::Int32(0);
-        } else {
-          return std::nullopt;
-        }
-      });
-      PrimExpr e2 = Substitute(e, [var](const Var& v) -> ffi::Optional<Expr> {
-        if (v.same_as(var)) {
-          return IntImm::Int32(1);
-        } else {
-          return std::nullopt;
-        }
-      });
+      auto f_substitute_zero = [var](const Var& v) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        if (v.same_as(var)) return ffi::Any(IntImm::Int32(0));
+        return ffi::Unchanged();
+      };
+      auto f_substitute_one = [var](const Var& v) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        if (v.same_as(var)) return ffi::Any(IntImm::Int32(1));
+        return ffi::Unchanged();
+      };
+      auto f_substitute = [&subst_map](const Var& v) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        if (auto repl = subst_map.Get(v)) return ffi::Any(*std::move(repl));
+        return ffi::Unchanged();
+      };
+      PrimExpr e1 = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute_zero)
+                        .as_or_throw<PrimExpr>();
+      PrimExpr e2 = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute_one)
+                        .as_or_throw<PrimExpr>();
       arith::Analyzer analyzer;
-      return !analyzer->CanProve(Substitute(e2 - e1, subst_map) != 1);
+      PrimExpr delta = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e2 - e1, f_substitute)
+                           .as_or_throw<PrimExpr>();
+      return !analyzer->CanProve(delta != 1);
     }
 
     void VisitStmt_(const ForNode* op) final {
@@ -514,8 +520,14 @@ class AutoPadder {
       if (scope.rank == runtime::StorageRank::kShared) {
         ffi::Array<PrimExpr> substitued_indices;
         arith::Analyzer analyzer;
+        auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (auto repl = substitute_map_.Get(var)) return ffi::Any(*std::move(repl));
+          return ffi::Unchanged();
+        };
         for (const PrimExpr& e : op->indices) {
-          substitued_indices.push_back(analyzer->Simplify(Substitute(e, substitute_map_)));
+          substitued_indices.push_back(
+              analyzer->Simplify(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute)
+                                     .as_or_throw<PrimExpr>()));
         }
         std::vector<std::vector<int>> iter_space =
             PatternCollector::CollectIterationSpace(substitued_indices, var_range_, data_bits_);
@@ -537,23 +549,30 @@ class AutoPadder {
      * The iteration space would be {{0, 1}, {0, 4, ..., 60}}.
      * \param op the buffer load
      */
-    void VisitExpr_(const BufferLoadNode* op) final {
-      runtime::StorageScope scope = runtime::StorageScope::Create(op->buffer.scope());
+    void VisitExpr_(const TensorLoadNode* op) final {
+      BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
+      runtime::StorageScope scope = runtime::StorageScope::Create(buffer.scope());
       if (scope.rank == runtime::StorageRank::kShared) {
         ffi::Array<PrimExpr> substitued_indices;
         arith::Analyzer analyzer;
+        auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          if (auto repl = substitute_map_.Get(var)) return ffi::Any(*std::move(repl));
+          return ffi::Unchanged();
+        };
         for (const PrimExpr& e : op->indices) {
-          substitued_indices.push_back(analyzer->Simplify(Substitute(e, substitute_map_)));
+          substitued_indices.push_back(
+              analyzer->Simplify(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute)
+                                     .as_or_throw<PrimExpr>()));
         }
         std::vector<std::vector<int>> iter_space =
             PatternCollector::CollectIterationSpace(substitued_indices, var_range_, data_bits_);
         if (!iter_space.empty()) {
-          self->iter_spaces_[op->buffer.get()].push_back(iter_space);
+          self->iter_spaces_[buffer.get()].push_back(iter_space);
         }
         if (vector_length_ != -1 &&
             CheckVarContiguous(substitued_indices.back(), vector_var, substitute_map_)) {
-          int64_t m = self->padding_min_.Get(op->buffer).value_or(1);
-          self->padding_min_.Set(op->buffer, std::max(static_cast<int64_t>(vector_length_), m));
+          int64_t m = self->padding_min_.Get(buffer).value_or(1);
+          self->padding_min_.Set(buffer, std::max(static_cast<int64_t>(vector_length_), m));
         }
       }
       StmtExprVisitor::VisitExpr_(op);
@@ -586,8 +605,15 @@ class AutoPadder {
                 }
                 ffi::Array<PrimExpr> substitued_indices;
                 arith::Analyzer analyzer;
+                auto f_substitute =
+                    [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                  if (auto repl = substitute_map_.Get(var)) return ffi::Any(*std::move(repl));
+                  return ffi::Unchanged();
+                };
                 for (const PrimExpr& e : indices) {
-                  substitued_indices.push_back(analyzer->Simplify(Substitute(e, substitute_map_)));
+                  substitued_indices.push_back(analyzer->Simplify(
+                      ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute)
+                          .as_or_throw<PrimExpr>()));
                 }
                 std::vector<std::vector<int>> iter_space = PatternCollector::CollectIterationSpace(
                     substitued_indices, var_range_, data_bits_);

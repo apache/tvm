@@ -299,10 +299,11 @@ class RewriteSimplifier {
   /*!
    * \brief Update the internal state to enter constraint.
    * \param constraint A constraint expression.
+   * \param is_assume Whether the constraint comes from an assumption.
    *
    * \return an exit function that must be called to cleanup the constraint can be nullptr.
    */
-  TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint);
+  TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume = false);
 
   /*! \brief Flags to enable more computationally-intensive simplifications
    *
@@ -598,14 +599,16 @@ class IntSetAnalyzer {
 /*!
  * \brief Enter a thread-local Z3 context scope.
  *
- * The outermost scope creates a fresh Z3 context. Nested scopes on the same
- * thread reuse that context so all Analyzers created during one compilation
- * can share it.
+ * Deprecated no-op. Every materialized Z3 solver owns a private context,
+ * which subsumes the per-compilation isolation these scopes provided; kept
+ * only until the remaining downstream call sites are removed.
  */
 TVM_DLL void EnterZ3ContextScope();
 
 /*!
  * \brief Exit the current thread-local Z3 context scope.
+ *
+ * Deprecated no-op, see EnterZ3ContextScope.
  */
 TVM_DLL void ExitZ3ContextScope();
 
@@ -648,9 +651,10 @@ class Z3Prover {
    * \brief Update the internal state to enter constraint.
    *
    * \param constraint A constraint expression.
+   * \param is_assume Whether the constraint comes from an assumption.
    * \return an exit function that must be called to cleanup the constraint can be nullptr.
    */
-  std::function<void()> EnterConstraint(const PrimExpr& constraint);
+  std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume = false);
 
   /*!
    * \brief Get the SMTLIB2 representation of the current context.
@@ -989,9 +993,9 @@ class ConstraintContext {
   ConstraintContext(AnalyzerObj* analyzer, PrimExpr constraint, bool is_assume)
       : ConstraintContext(ffi::GetRef<Analyzer>(analyzer), std::move(constraint), is_assume) {}
   // enter the scope.
-  void EnterWithScope();
+  TVM_DLL void EnterWithScope();
   // exit the scope.
-  void ExitWithScope();
+  TVM_DLL void ExitWithScope();
   /*! \brief Analyzer kept alive while the context is active. */
   Analyzer analyzer_;
   /*! \brief The constraint */

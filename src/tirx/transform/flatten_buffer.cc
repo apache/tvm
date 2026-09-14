@@ -240,14 +240,32 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     return store;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    BufferVar original_buffer = op->buffer;
-    BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    BufferVar original_buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
+    // Mutate the indices while keeping the original source opaque.  The base
+    // statement mutator remaps buffer sources immediately, but this pass also
+    // changes their rank, so reconstruction must wait until after FoldIndices.
+    TensorLoad load = ExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     load = VisitBufferAccess(load, original_buffer);
     return load;
   }
 
   Expr VisitExpr_(const CallNode* op) final {
+    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
+      bool is_load = op->op.same_as(builtin::masked_load());
+      BufferVar original(op->args[0].as_or_throw<Var>());
+      ffi::Array<PrimExpr> indices;
+      for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
+        indices.push_back(this->VisitPrimExpr(op->args[i].as_or_throw<PrimExpr>()));
+      }
+      buffers_used_.insert(original);
+      const FlatInfo& info = Lookup(original);
+      ffi::Array<Expr> args{info.flattened.var()};
+      if (!is_load) args.push_back(this->VisitExpr(op->args[1]));
+      for (const PrimExpr& index : FoldIndices(info, indices)) args.push_back(index);
+      args.push_back(this->VisitExpr(op->args.back()));
+      return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
+    }
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>()) {
         if (var.value()->ty.as<BufferTypeNode>()) {
@@ -276,6 +294,12 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     writer->buffer = info.flattened;
     writer->indices = flattened_indices;
     return node;
+  }
+
+  TensorLoad VisitBufferAccess(TensorLoad node, const BufferVar& original_buffer) {
+    buffers_used_.insert(original_buffer);
+    const FlatInfo& info = Lookup(original_buffer);
+    return BufferLoad(info.flattened, FoldIndices(info, node->indices), node->span);
   }
 
   BufferRegion MutateBufferRegion(BufferRegion region) {

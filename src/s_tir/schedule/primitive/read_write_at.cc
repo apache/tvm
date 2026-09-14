@@ -18,6 +18,8 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/s_tir/stmt.h>
 
 #include <string>
@@ -26,6 +28,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using support::NDIntSet;
@@ -44,10 +47,22 @@ void RelaxBufferRegions(const ffi::Array<BufferRegion>& buffer_regions,
                         const ffi::Map<Var, arith::IntSet>& var_dom,  //
                         const ffi::Map<Var, PrimExpr>& bindings,      //
                         std::vector<NDIntSet>* relaxed_regions) {
+  auto f_substitute = [&bindings](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = bindings.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
   for (const BufferRegion& buffer_region : buffer_regions) {
     if (buffer_region->buffer.same_as(buffer)) {
-      ffi::Array<arith::IntSet> relaxed_region =
-          arith::EvalSet(Substitute(buffer_region->region, bindings), var_dom);
+      ffi::Array<Range> mapped_region =
+          buffer_region->region.Map([&f_substitute](const Range& range) {
+            PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+                               .as_or_throw<PrimExpr>();
+            PrimExpr extent =
+                ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
+                    .as_or_throw<PrimExpr>();
+            return Range::FromMinExtent(min, extent);
+          });
+      ffi::Array<arith::IntSet> relaxed_region = arith::EvalSet(mapped_region, var_dom);
       relaxed_regions->push_back({relaxed_region.begin(), relaxed_region.end()});
     }
   }
@@ -99,12 +114,10 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* _load) final {
-    BufferLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<BufferLoad>();
-    if (load->buffer.same_as(src_)) {
-      ffi::ObjectPtr<BufferLoadNode> new_load = ffi::make_object<BufferLoadNode>(*load.get());
-      new_load->buffer = dst_;
-      return BufferLoad(new_load);
+  Expr VisitExpr_(const TensorLoadNode* _load) final {
+    TensorLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<TensorLoad>();
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(src_)) {
+      return BufferLoad(dst_, load->indices, load->span);
     }
     return load;
   }
@@ -185,11 +198,7 @@ struct ReadWriteAtImpl {
       bool r_visited = false;
       bool w_visited = false;
       auto f_visit = [this, &relaxed_regions, &r_visited, &w_visited,
-                      &scope](const ffi::ObjectRef& obj) -> bool {
-        const SBlockRealizeNode* realize = obj.as<SBlockRealizeNode>();
-        if (realize == nullptr) {
-          return true;
-        }
+                      &scope](const SBlockRealize& realize) -> ffi::Expected<ffi::WalkResult> {
         const SBlockNode* block = realize->block.get();
         bool has_r = HasBuffer(block->reads, src_);
         bool has_w = HasBuffer(block->writes, src_);
@@ -204,12 +213,12 @@ struct ReadWriteAtImpl {
                   /*low_inclusive=*/ffi::GetRef<StmtSRef>(self_->stmt2ref.at(block)->parent),
                   /*high_exclusive=*/loop_sref_,
                   /*extra_relax_scope=*/scope)),
-              /*bindings=*/GetBindings(ffi::GetRef<SBlockRealize>(realize)),
+              /*bindings=*/GetBindings(realize),
               /*relaxed_regions=*/&relaxed_regions);
         }
-        return false;
+        return ffi::WalkResult::Skip();
       };
-      PreOrderVisit(subtrees[i], f_visit);
+      ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(subtrees[i], f_visit);
       if (r_visited) {
         r_pos.push_back(i);
       }
@@ -282,22 +291,25 @@ struct ReadWriteAtImpl {
     iter_values.reserve(n);
     indices.reserve(n);
     for (int i = 0; i < n; ++i) {
-      auto f_substitute = [&loop_domain, &bindings, &iter_vars,
-                           &iter_values](const Var& var) -> ffi::Optional<Expr> {
+      auto f_substitute = [&loop_domain, &bindings, &iter_vars, &iter_values](
+                              const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
         auto it = bindings.find(var);
         if (it != bindings.end()) {
-          return (*it).second;
+          return ffi::Any((*it).second);
         }
         Range range = loop_domain.at(var);
         Var v("v" + std::to_string(iter_vars.size()), var->ty, var->span);
         bindings.Set(var, v.as_or_throw<PrimExpr>());
         iter_values.push_back(var.as_or_throw<PrimExpr>());
         iter_vars.push_back(IterVar(range, v.as_or_throw<PrimVar>(), IterVarType::kDataPar));
-        return v.as_or_throw<PrimExpr>();
+        return ffi::Any(v.as_or_throw<PrimExpr>());
       };
       ffi::ObjectPtr<RangeNode> dom = ffi::make_object<RangeNode>(*domain[i].get());
-      dom->min = Substitute(std::move(dom->min), f_substitute);
-      dom->extent = Substitute(std::move(dom->extent), f_substitute);
+      dom->min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(dom->min), f_substitute)
+                     .as_or_throw<PrimExpr>();
+      dom->extent =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(dom->extent), f_substitute)
+              .as_or_throw<PrimExpr>();
       domain.Set(i, Range(dom));
     }
     for (int i = 0; i < n; ++i) {

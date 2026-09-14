@@ -33,13 +33,20 @@ def test_tensor():
     print(T)
     print(T.op.body)
     assert tuple(T.shape) == (m, n, l)
+    assert isinstance(A, tvm.ir.OpaqueExpr)
+    assert isinstance(A.ty, tvm.ir.OpaqueType)
     assert isinstance(A.op, tvm.te.PlaceholderOp)
     assert A == A
     assert T.op.output(0) == T
     assert T.op.output(0).__hash__() == T.__hash__()
     d = {T.op.output(0): 1}
     assert d[T] == 1
-    assert T[0][0][0].astype("float16").ty == tvm.ir.PrimType("float16")
+    load = T[0][0][0].asobject()
+    assert isinstance(load, tvm.ir.Call)
+    assert load.op.same_as(T)
+    assert list(load.args) == [0, 0, 0]
+    assert load.ty == T.dtype
+    assert load.astype("float16").ty == tvm.ir.PrimType("float16")
 
 
 def test_rank_zero():

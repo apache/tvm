@@ -21,6 +21,7 @@ Runtime error tests are in tests/python/codegen/test_codegen_error_handling.py.
 """
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -37,7 +38,7 @@ def _find_compute_scope(func):
             nonlocal result
             result = stmt
 
-    tirx.stmt_functor.post_order_visit(func.body, _visitor)
+    tvm_ffi.structural_walk(func.body, _visitor)
 
     return result
 
@@ -215,7 +216,7 @@ def test_pointer_return():
         if isinstance(field, tvm.tirx.IntImm) and int(field) == 13:
             return_type_indices.append(int(node.args[3]))
 
-    tvm.tirx.stmt_functor.post_order_visit(after.body, collect)
+    tvm_ffi.structural_walk(after.body, collect)
     assert 4 in return_type_indices  # ffi::TypeIndex::kTVMFFIOpaquePtr
 
 
@@ -482,7 +483,7 @@ def test_buffer_alignment_attached_to_buffer_var():
         if isinstance(node, tirx.DeclBuffer):
             declared_buffers.append(node.buffer)
 
-    tirx.stmt_functor.post_order_visit(after.body, collect)
+    tvm_ffi.structural_walk(after.body, collect)
     assert len(alignment_nodes) == 1
     assert any(alignment_nodes[0].same_as(buffer) for buffer in declared_buffers)
 

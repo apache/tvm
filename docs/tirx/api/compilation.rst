@@ -15,7 +15,18 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.tirx.stmt_functor
----------------------
-.. automodule:: tvm.tirx.stmt_functor
+Compilation
+===========
+
+tvm.tirx.build
+--------------
+.. currentmodule:: tvm.tirx
+
+.. autofunction:: build
+   :no-index:
+
+tvm.tirx.compilation_pipeline
+-----------------------------
+.. automodule:: tvm.tirx.compilation_pipeline
    :members:
+   :no-index:

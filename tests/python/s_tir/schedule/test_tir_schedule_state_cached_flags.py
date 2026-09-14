@@ -19,13 +19,13 @@
 import sys
 
 import pytest
+from tvm_ffi import structural_walk
 
 import tvm
 import tvm.testing
 from tvm import s_tir, tirx
 from tvm.s_tir.schedule.state import CachedFlags
 from tvm.script import tirx as T
-from tvm.tirx.stmt_functor import post_order_visit
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 # fmt: off
@@ -472,7 +472,7 @@ def _get_sblock(s: s_tir.ScheduleState, name_hint: str) -> s_tir.StmtSRef:
             result = node
 
     func = s.mod["main"]
-    post_order_visit(func.body, f_visit)
+    structural_walk(func.body, f_visit, order="post")
     assert result is not None and isinstance(result, tvm.tirx.SBlock)
     return s.get_sref(result)
 

@@ -59,7 +59,7 @@ _LEGACY_RELAX_VAR_JSON = """{
     {"type": "ffi.String", "data": "legacy"},
     {"type": "relax.expr.Var", "data": {"span": 1, "ty": 3, "name_hint": 6}},
     {"type": "ffi.Array", "data": [7, 7]},
-    {"type": "relax.expr.Tuple", "data": {"span": 1, "ty": 5, "fields": 8}}
+    {"type": "ir.Tuple", "data": {"span": 1, "ty": 5, "fields": 8}}
   ],
   "metadata": {"tvm_version": "0.26.dev0"}
 }"""
@@ -107,6 +107,9 @@ def test_var_name_legacy_json_graph_rewrite(legacy_json, expected_type, var_inde
 
     original = json.loads(legacy_json)
     expected = copy.deepcopy(original)
+    for node in expected["nodes"]:
+        if node["type"] == "tirx.Add":
+            node["type"] = "ir.prim.Add"
     expected["nodes"][var_index]["type"] = expected_type
     fields = expected["nodes"][var_index]["data"]
     if "name_hint" in fields:
@@ -149,7 +152,7 @@ def test_var_exact_base_legacy_tirx_json_load():
     _check_legacy_var(restored.a, "legacy_tirx.py", 7, 9, 2, 14)
     assert restored.span.same_as(restored.a.span)
     assert {node["type"] for node in json.loads(tvm.ir.save_json(restored))["nodes"]}.isdisjoint(
-        {"relax.expr.Var", "tirx.Var"}
+        {"relax.expr.Var", "tirx.Var", "tirx.Add"}
     )
 
 

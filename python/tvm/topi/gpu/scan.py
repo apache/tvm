@@ -102,25 +102,25 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                                 reduction[bx] = cast(identity_value, out_dtype)
             with T.Else():
                 nthread_tx = max_threads
-                nthread_bx = ceil_div(scan_axis_size, max_threads)
-                nthread_by = batch_size
+                blocks_per_batch = ceil_div(scan_axis_size, max_threads)
 
+                # Flatten the batch and scan-block axes into blockIdx.x.  On CUDA,
+                # blockIdx.y is limited to 65535 even when blockIdx.x can be much larger.
                 # Copy data to output
                 tx = te.thread_axis("threadIdx.x")
                 bx = te.thread_axis("blockIdx.x")
-                by = te.thread_axis("blockIdx.y")
                 with T.frame_scope(
                     [
                         T.attr(tx, "thread_extent", nthread_tx),
-                        T.attr(bx, "thread_extent", nthread_bx),
-                        T.attr(by, "thread_extent", nthread_by),
+                        T.attr(bx, "thread_extent", blocks_per_batch * batch_size),
                     ]
                 ):
-                    tid = bx * nthread_tx + tx
+                    batch = tvm.tirx.indexdiv(bx, blocks_per_batch)
+                    tid = tvm.tirx.indexmod(bx, blocks_per_batch) * nthread_tx + tx
                     with T.If(tid < scan_axis_size):
                         with T.Then():
-                            output[by * scan_axis_size + tid] = cast(
-                                data[by * scan_axis_size + tid], out_dtype
+                            output[batch * scan_axis_size + tid] = cast(
+                                data[batch * scan_axis_size + tid], out_dtype
                             )
 
                 # The following algorithm performs parallel exclusive scan
@@ -132,7 +132,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
 
                     tx = te.thread_axis("threadIdx.x")
                     bx = te.thread_axis("blockIdx.x")
-                    by = te.thread_axis("blockIdx.y")
+                    blocks_per_batch = cast(ceil_div(scan_axis_size, max_threads * width), "int32")
                     start_buf = T.decl_buffer([1], "int32", scope="local")
                     middle_buf = T.decl_buffer([1], "int32", scope="local")
                     end_buf = T.decl_buffer([1], "int32", scope="local")
@@ -142,12 +142,12 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                             T.attr(
                                 bx,
                                 "thread_extent",
-                                cast(ceil_div(scan_axis_size, max_threads * width), "int32"),
+                                blocks_per_batch * batch_size,
                             ),
-                            T.attr(by, "thread_extent", nthread_by),
                         ]
                     ):
-                        tid = bx * nthread_tx + tx
+                        batch = tvm.tirx.indexdiv(bx, blocks_per_batch)
+                        tid = tvm.tirx.indexmod(bx, blocks_per_batch) * nthread_tx + tx
                         start = T.buffer_proxy(start_buf)
                         middle = T.buffer_proxy(middle_buf)
                         end = T.buffer_proxy(end_buf)
@@ -158,9 +158,9 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                                 end[0] = tvm.te.min(start[0] + width, scan_axis_size)
                                 with T.If(middle[0] < scan_axis_size):
                                     with T.Then():
-                                        output[by * scan_axis_size + end[0] - 1] = binop(
-                                            output[by * scan_axis_size + end[0] - 1],
-                                            output[by * scan_axis_size + middle[0] - 1],
+                                        output[batch * scan_axis_size + end[0] - 1] = binop(
+                                            output[batch * scan_axis_size + end[0] - 1],
+                                            output[batch * scan_axis_size + middle[0] - 1],
                                         )
 
                 # Down Sweep of exclusive scan
@@ -177,7 +177,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
 
                     tx = te.thread_axis("threadIdx.x")
                     bx = te.thread_axis("blockIdx.x")
-                    by = te.thread_axis("blockIdx.y")
+                    blocks_per_batch = cast(ceil_div(scan_axis_size, max_threads * width), "int32")
                     start_buf = T.decl_buffer([1], "int32", scope="local")
                     middle_buf = T.decl_buffer([1], "int32", scope="local")
                     end_buf = T.decl_buffer([1], "int32", scope="local")
@@ -188,12 +188,12 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                             T.attr(
                                 bx,
                                 "thread_extent",
-                                cast(ceil_div(scan_axis_size, max_threads * width), "int32"),
+                                blocks_per_batch * batch_size,
                             ),
-                            T.attr(by, "thread_extent", nthread_by),
                         ]
                     ):
-                        tid = bx * nthread_tx + tx
+                        batch = tvm.tirx.indexdiv(bx, blocks_per_batch)
+                        tid = tvm.tirx.indexmod(bx, blocks_per_batch) * nthread_tx + tx
                         start = T.buffer_proxy(start_buf)
                         middle = T.buffer_proxy(middle_buf)
                         end = T.buffer_proxy(end_buf)
@@ -205,12 +205,12 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                                 end[0] = tvm.tirx.min(start[0] + width, scan_axis_size)
                                 with T.If(middle[0] < scan_axis_size):
                                     with T.Then():
-                                        tmp[0] = output[by * scan_axis_size + middle[0] - 1]
-                                        output[by * scan_axis_size + middle[0] - 1] = output[
-                                            by * scan_axis_size + end[0] - 1
+                                        tmp[0] = output[batch * scan_axis_size + middle[0] - 1]
+                                        output[batch * scan_axis_size + middle[0] - 1] = output[
+                                            batch * scan_axis_size + end[0] - 1
                                         ]
-                                        output[by * scan_axis_size + end[0] - 1] = binop(
-                                            output[by * scan_axis_size + end[0] - 1], tmp[0]
+                                        output[batch * scan_axis_size + end[0] - 1] = binop(
+                                            output[batch * scan_axis_size + end[0] - 1], tmp[0]
                                         )
 
         return ib.get()

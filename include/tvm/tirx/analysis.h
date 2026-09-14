@@ -25,10 +25,10 @@
 #define TVM_TIR_ANALYSIS_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
@@ -105,22 +105,6 @@ TVM_DLL ffi::Array<Var> UndefinedVars(const PrimExpr& expr, const ffi::Array<Var
  * \return CallEffectKind, can be kPure, kReadState or kUpdateState
  */
 TVM_DLL CallEffectKind SideEffect(const PrimExpr& expr);
-
-/*!
- * \brief Whether the given Stmt uses any var in the given variable set.
- * \param stmt The Stmt to be checked.
- * \param vset_contains The check function to see if a var is in the variable set.
- * \return Whether `stmt` uses any var in the given variable set.
- */
-TVM_DLL bool UsesVar(const Stmt& stmt, std::function<bool(const VarNode*)> vset_contains);
-
-/*!
- * \brief Whether the given PrimExpr uses any var in the given variable set.
- * \param expr The PrimExpr to be checked.
- * \param vset_contains The check function to see if var is in the variable set.
- * \return Whether `expr` uses any var in the given variable set.
- */
-TVM_DLL bool UsesVar(const PrimExpr& expr, std::function<bool(const VarNode*)> vset_contains);
 
 /*!
  * \brief Verifies whether the IR stmt or Expr is in SSA form.

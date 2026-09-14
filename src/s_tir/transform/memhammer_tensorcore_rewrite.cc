@@ -18,12 +18,15 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/op.h>
 
 #include "./memhammer_rewrite_rule.h"
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -55,13 +58,18 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
       /*2:*/ loops[n - 2]->loop_var.CopyWithSuffix("_1"),
       /*3:*/ loops[n - 1]->loop_var.CopyWithSuffix("_1"),
   };
-  body = Substitute(std::move(body),
-                    ffi::Map<Var, PrimExpr>{
-                        {loops[n - 2]->loop_var, new_loop_vars[0].as_or_throw<PrimExpr>() * 16 +
-                                                     new_loop_vars[2].as_or_throw<PrimExpr>()},
-                        {loops[n - 1]->loop_var, new_loop_vars[1].as_or_throw<PrimExpr>() * 16 +
-                                                     new_loop_vars[3].as_or_throw<PrimExpr>()},
-                    });
+  ffi::Map<Var, PrimExpr> loop_var_map{
+      {loops[n - 2]->loop_var,
+       new_loop_vars[0].as_or_throw<PrimExpr>() * 16 + new_loop_vars[2].as_or_throw<PrimExpr>()},
+      {loops[n - 1]->loop_var,
+       new_loop_vars[1].as_or_throw<PrimExpr>() * 16 + new_loop_vars[3].as_or_throw<PrimExpr>()},
+  };
+  auto f_substitute = [&loop_var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = loop_var_map.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
+  body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(body), f_substitute)
+             .as_or_throw<Stmt>();
   {
     PrimExpr factor[4] = {
         /*0:*/ floordiv(extent_last2, 16),  //
@@ -127,11 +135,11 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
       {loops[n - 1]->loop_var, IntSet::FromMinExtent(loops[n - 1]->min, loops[n - 1]->extent)},
       {loops[n - 2]->loop_var, IntSet::FromMinExtent(loops[n - 2]->min, loops[n - 2]->extent)},
   };
-  // TODO(tian): the assumption that the RHS of BufferStore is BufferLoad may not be accurate
+  // TODO(tian): the assumption that the RHS of BufferStore is TensorLoad may not be accurate
   const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
-  const BufferLoadNode* buf_load = TVM_TYPE_AS(buf_store->value, BufferLoadNode);
+  const TensorLoadNode* buf_load = TVM_TYPE_AS(buf_store->value, TensorLoadNode);
 
-  BufferVar src_buffer = buf_load->buffer;
+  BufferVar src_buffer = buf_load->source.as_or_throw<tvm::tirx::BufferVar>();
   BufferVar tgt_buffer = buf_store->buffer;
   std::string layout = tgt_buffer.scope() == "wmma.matrix_a" ? "row_major" : "col_major";
   BufferVar new_src_buffer(
@@ -175,7 +183,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                   /*5:*/
                   Call(
                       /*dtype=*/new_src_buffer.data()->ty,
-                      /*op=*/builtin::tvm_access_ptr(),
+                      /*op=*/tirx::builtin::tvm_access_ptr(),
                       /*args=*/
                       ffi::Array<Expr>{
                           /*0:*/ TypeAnnotation(new_src_buffer->dtype),
@@ -224,19 +232,21 @@ Stmt RewriteWmmaStore(Stmt stmt) {
       {loops[n - 1]->loop_var, IntSet::FromMinExtent(loops[n - 1]->min, loops[n - 1]->extent)},
       {loops[n - 2]->loop_var, IntSet::FromMinExtent(loops[n - 2]->min, loops[n - 2]->extent)},
   };
-  // TODO(tian): the assumption that the RHS of BufferStore is BufferLoad may not be accurate
+  // TODO(tian): the assumption that the RHS of BufferStore is TensorLoad may not be accurate
   const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
-  const BufferLoadNode* buf_load = nullptr;
-  PostOrderVisit(buf_store->value, [&](const ffi::ObjectRef& obj) {
-    const BufferLoadNode* load = obj.as<BufferLoadNode>();
-    if (load && load->buffer.scope() == "wmma.accumulator") {
-      TVM_FFI_ICHECK(buf_load == nullptr || buf_load->buffer.same_as(load->buffer))
+  const TensorLoadNode* buf_load = nullptr;
+  auto walk_fn = [&](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "wmma.accumulator") {
+      TVM_FFI_ICHECK(buf_load == nullptr ||
+                     buf_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
+                         load->source.as_or_throw<tvm::tirx::BufferVar>()))
           << "More than one source buffer of wmma accumulator found";
-      buf_load = load;
+      buf_load = load.get();
     }
-    return true;
-  });
-  BufferVar src_buffer = buf_load->buffer;
+    return ffi::WalkResult::Advance();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(buf_store->value, walk_fn);
+  BufferVar src_buffer = buf_load->source.as_or_throw<tvm::tirx::BufferVar>();
   BufferVar tgt_buffer = buf_store->buffer;
 
   PrimType dtype_ty = src_buffer->dtype;
@@ -272,7 +282,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                                   /*5:*/
                                   Call(
                                       /*data=*/new_tgt_buffer.data()->ty,
-                                      /*op=*/builtin::tvm_access_ptr(),
+                                      /*op=*/tirx::builtin::tvm_access_ptr(),
                                       ffi::Array<Expr>{
                                           /*0:*/ TypeAnnotation(new_tgt_buffer->dtype),
                                           /*1:*/ new_tgt_buffer.data(),
@@ -378,13 +388,18 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
       /*2:*/ loops[n - 2]->loop_var.CopyWithSuffix("_1"),
       /*3:*/ loops[n - 1]->loop_var.CopyWithSuffix("_1"),
   };
-  body = Substitute(std::move(body),
-                    ffi::Map<Var, PrimExpr>{
-                        {loops[n - 2]->loop_var, new_loop_vars[0].as_or_throw<PrimExpr>() * 8 +
-                                                     new_loop_vars[2].as_or_throw<PrimExpr>()},
-                        {loops[n - 1]->loop_var, new_loop_vars[1].as_or_throw<PrimExpr>() * 8 +
-                                                     new_loop_vars[3].as_or_throw<PrimExpr>()},
-                    });
+  ffi::Map<Var, PrimExpr> loop_var_map{
+      {loops[n - 2]->loop_var,
+       new_loop_vars[0].as_or_throw<PrimExpr>() * 8 + new_loop_vars[2].as_or_throw<PrimExpr>()},
+      {loops[n - 1]->loop_var,
+       new_loop_vars[1].as_or_throw<PrimExpr>() * 8 + new_loop_vars[3].as_or_throw<PrimExpr>()},
+  };
+  auto f_substitute = [&loop_var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = loop_var_map.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
+  body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(body), f_substitute)
+             .as_or_throw<Stmt>();
   {
     PrimExpr factor[4] = {
         /*0:*/ floordiv(extent_last2, 8),  //
@@ -435,16 +450,18 @@ Stmt RewriteMmaStore(Stmt stmt) {
 
   // Step 2. Find matrixC buffer
   const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
-  const BufferLoadNode* buf_load = nullptr;
-  PostOrderVisit(buf_store->value, [&](const ffi::ObjectRef& obj) {
-    const BufferLoadNode* load = obj.as<BufferLoadNode>();
-    if (load && load->buffer.scope() == "m16n8k8.matrixC") {
-      TVM_FFI_ICHECK(buf_load == nullptr || buf_load->buffer.same_as(load->buffer))
+  const TensorLoadNode* buf_load = nullptr;
+  auto walk_fn = [&](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
+    if (load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "m16n8k8.matrixC") {
+      TVM_FFI_ICHECK(buf_load == nullptr ||
+                     buf_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
+                         load->source.as_or_throw<tvm::tirx::BufferVar>()))
           << "More than one source buffer of mma accumulator found";
-      buf_load = load;
+      buf_load = load.get();
     }
-    return true;
-  });
+    return ffi::WalkResult::Advance();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(buf_store->value, walk_fn);
 
   // Step 3. Create new mma body
   // We have the assumption that two innermost loops are the 8 * 8 loop generated by
@@ -455,7 +472,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
   // https://docs.nvidia.com/cuda/archive/11.1.0/pdf/ptx_isa_7.1.pdf
 
   // Step 3.1. Generate new buffer
-  BufferVar src_buffer = buf_load->buffer;
+  BufferVar src_buffer = buf_load->source.as_or_throw<tvm::tirx::BufferVar>();
   BufferVar tgt_buffer = buf_store->buffer;
   PrimType dtype_ty = src_buffer->dtype;
   const PrimType& dtype = dtype_ty;

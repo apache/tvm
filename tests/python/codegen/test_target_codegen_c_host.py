@@ -193,7 +193,15 @@ def test_round():
         fround = m["test_round"]
         dev = tvm.cpu(0)
         n = nn
-        a = tvm.runtime.tensor(np.random.rand(n).astype("float32"), dev)
+        # Exact midpoints first: this is where ties-to-even (np.round, and the
+        # semantics every other backend and the constant folder use) differs
+        # from ties-away-from-zero. np.random.rand never produces them, so the
+        # random tail alone cannot exercise the tie rule.
+        midpoints = np.array([0.5, 1.5, 2.5, 3.5, -0.5, -1.5, -2.5, -3.5], dtype="float32")
+        a_np = np.concatenate(
+            [midpoints, np.random.rand(n - len(midpoints)).astype("float32")]
+        ).astype("float32")
+        a = tvm.runtime.tensor(a_np, dev)
         b = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
         fround(a, b)
         tvm.testing.assert_allclose(b.numpy(), (np.round(a.numpy()).view("float32")))
@@ -283,6 +291,34 @@ def test_vector_access_ptr_address_uses_ramp_base():
     assert "int32_t2" not in call
     assert "float2*" in call
     assert " + 4" in call
+
+
+def test_if_then_else_avoids_extraneous_parentheses():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((8,), "int32"), B: T.Buffer((8,), "int32")):
+            for i in range(8):
+                B[i] = T.if_then_else(i == 0, 1, A[i])
+
+    built = tvm.tirx.build(Module, target="c")
+    source = built.inspect_source()
+    assert "if ((" not in source, (
+        "Generated code contains extraneous parentheses in the if condition, "
+        "which triggers clang's -Wparentheses-equality warning"
+    )
+
+    temp = utils.tempdir()
+    path_dso = temp.relpath("if_then_else.so")
+    built.export_library(path_dso)
+    loaded = tvm.runtime.load_module(path_dso)
+
+    a = tvm.runtime.tensor(np.arange(8, dtype="int32"))
+    b = tvm.runtime.tensor(np.zeros(8, dtype="int32"))
+    loaded["main"](a, b)
+    tvm.testing.assert_allclose(
+        b.numpy(), np.where(np.arange(8) == 0, 1, np.arange(8)).astype("int32")
+    )
 
 
 if __name__ == "__main__":

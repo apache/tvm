@@ -522,7 +522,11 @@ class FunctionCreator : public ExprMutator {
       params_.insert(params_.begin() + param_idx, item_params.begin(), item_params.end());
     }
 
-    // Step 3. Visit each binding and collect outputs one by one.
+    // Step 3. Now that the complete function boundary is known, inline primitive arguments whose
+    // symbols participate in the boundary's tensor/shape types.
+    InlineShapeDependentPrimArgs();
+
+    // Step 4. Visit each binding and collect outputs one by one.
     ffi::Array<Expr> outputs(output_vars_.size(), Expr());
     for (const Binding& binding : bindings_) {
       // Special handing for TupleGetItem.
@@ -554,7 +558,7 @@ class FunctionCreator : public ExprMutator {
       }
     }
 
-    // Step 4. Finish constructing the new block.
+    // Step 5. Finish constructing the new block.
     BindingBlock new_block = builder_->EndBlock();
     if (outputs.empty()) {
       // If the result is not used outside
@@ -606,6 +610,53 @@ class FunctionCreator : public ExprMutator {
     return std::nullopt;
   }
 
+  Expr ResolveOuterBinding(const Expr& expr) {
+    Expr bound_value = expr;
+    std::unordered_set<const VarNode*> visited;
+    while (const auto* current_var = bound_value.as<VarNode>()) {
+      if (!visited.insert(current_var).second) break;
+      auto it = outer_bindings_.find(ffi::GetRef<Var>(current_var));
+      if (it == outer_bindings_.end()) break;
+      bound_value = (*it).second;
+    }
+    return bound_value;
+  }
+
+  void InlineShapeDependentPrimArgs() {
+    ffi::Array<Type> boundary_types = params_.Map([](const Var& param) { return GetType(param); });
+    for (const VarNode* output_var : output_vars_) {
+      boundary_types.push_back(GetType(ffi::GetRef<Var>(output_var)));
+    }
+
+    std::unordered_set<tirx::Var> boundary_shape_vars;
+    for (const tirx::Var& var : TIRVarsInType(TupleType(boundary_types))) {
+      boundary_shape_vars.insert(var);
+    }
+
+    for (const Expr& argument : deferred_prim_args_) {
+      auto it = std::find_if(arguments_.begin(), arguments_.end(),
+                             [&](const Expr& candidate) { return candidate.same_as(argument); });
+      TVM_FFI_ICHECK(it != arguments_.end());
+
+      Expr bound_value = ResolveOuterBinding(argument);
+      bool inline_argument =
+          bound_value.same_as(argument) && IsShapeDependentPrimExpr(argument, boundary_shape_vars);
+      bool inline_bound_value = !bound_value.same_as(argument) &&
+                                IsShapeDependentPrimExpr(bound_value, boundary_shape_vars);
+      if (!inline_argument && !inline_bound_value) continue;
+
+      if (inline_bound_value) {
+        const auto* argument_var = argument.as<VarNode>();
+        TVM_FFI_ICHECK(argument_var);
+        inlined_bindings_[argument_var] = bound_value;
+      }
+
+      size_t param_idx = it - arguments_.begin();
+      arguments_.erase(arguments_.begin() + param_idx);
+      params_.erase(params_.begin() + param_idx);
+    }
+  }
+
   /*!
    * \brief Check whether the input expression is defined within this function. If not, create a new
    * parameter for the expression.
@@ -624,14 +675,7 @@ class FunctionCreator : public ExprMutator {
     const auto* var = expr.as<VarNode>();
     if (var != nullptr && defined_vars_.count(var) == 0) {
       Var bound_var = ffi::GetRef<Var>(var);
-      Expr bound_value = bound_var;
-      std::unordered_set<const VarNode*> visited;
-      while (const auto* current_var = bound_value.as<VarNode>()) {
-        if (!visited.insert(current_var).second) break;
-        auto it = outer_bindings_.find(ffi::GetRef<Var>(current_var));
-        if (it == outer_bindings_.end()) break;
-        bound_value = (*it).second;
-      }
+      Expr bound_value = ResolveOuterBinding(bound_var);
       if (!bound_value.same_as(bound_var) && IsInlinableConstants(bound_value)) {
         inlined_bindings_[var] = bound_value;
         return;
@@ -646,6 +690,9 @@ class FunctionCreator : public ExprMutator {
         Var param(std::move(name), GetType(expr));
         arguments_.push_back(expr);
         params_.push_back(param);
+        if (IsSymbolicPrimExpr(expr)) {
+          deferred_prim_args_.push_back(expr);
+        }
       }
 
       // Mark the tuple parameter is partially referenced in the beginning.
@@ -675,6 +722,22 @@ class FunctionCreator : public ExprMutator {
 
   // Check if the expression is constant PrimExpr or ShapeExpr or tuple of them that can be
   // inlined in the composite functions and excluded from args/params.
+  bool IsSymbolicPrimExpr(const Expr& expr) {
+    if (expr.as<CallNode>()) return false;
+    if (auto prim_value = expr.as<PrimExpr>()) {
+      return !tvm::tirx::UndefinedVars(prim_value.value()).empty();
+    }
+    return false;
+  }
+
+  bool IsShapeDependentPrimExpr(const Expr& expr,
+                                const std::unordered_set<tirx::Var>& referenced_shape_vars) {
+    if (!IsSymbolicPrimExpr(expr)) return false;
+    ffi::Array<tirx::Var> undefined_vars = tvm::tirx::UndefinedVars(expr.as_or_throw<PrimExpr>());
+    return std::all_of(undefined_vars.begin(), undefined_vars.end(),
+                       [&](const tirx::Var& var) { return referenced_shape_vars.count(var); });
+  }
+
   bool IsInlinableConstants(const Expr& expr) {
     if (const auto* tuple = expr.as<TupleNode>()) {
       return std::all_of(tuple->fields.begin(), tuple->fields.end(),
@@ -695,6 +758,8 @@ class FunctionCreator : public ExprMutator {
   std::unordered_set<const VarNode*> defined_vars_;
   /*! \brief Caller variables replaced by statically inlinable bound values. */
   std::unordered_map<const VarNode*, Expr> inlined_bindings_;
+  /*! \brief Symbolic primitive arguments classified after the complete boundary is known. */
+  ffi::Array<Expr> deferred_prim_args_;
   /*! \brief The number of parameters reserved for constants */
   int n_param_for_const_ = 0;
   /*! \brief The output vars */

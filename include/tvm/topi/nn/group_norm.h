@@ -145,7 +145,7 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
     PrimExpr group_norm = (data_reshaped(indices) - mean) *
                           tvm::rsqrt(var + MakeConst(PrimType(data->dtype), epsilon));
     if (is_float16) {
-      group_norm = Cast(PrimType::Float(16), group_norm);
+      group_norm = prim::Cast(PrimType::Float(16), group_norm);
     }
     if (gamma.defined()) {
       group_norm = topi::multiply(group_norm, gamma_reshaped(gamma_indices));

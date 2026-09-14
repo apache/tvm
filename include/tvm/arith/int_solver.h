@@ -25,7 +25,7 @@
 #define TVM_ARITH_INT_SOLVER_H_
 
 #include <tvm/ir/expr.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/op.h>
 
 #include <unordered_map>
@@ -101,11 +101,6 @@ class IntGroupBounds : public ffi::ObjectRef {
    * \return constructed bounds.
    */
   static IntGroupBounds FromRange(const Range& r);
-
-  /*!
-   * \brief Perform substitution on all components of the struct.
-   */
-  IntGroupBounds Substitute(const ffi::Map<Var, PrimExpr>& subst) const;
 
   /*!
    * \brief Find the best range from the grouped bounds.

@@ -27,6 +27,8 @@ Slice/canonicalize both sides, align via perm+group, then emit a per-thread
 vectorized copy loop. Direction-symmetric: covers R2S / S2R / R2G / G2R.
 """
 
+import tvm_ffi
+
 import tvm
 from tvm.arith import Analyzer, ConstIntBound
 from tvm.runtime import DataType
@@ -477,7 +479,12 @@ def _axis_substitution(placeholders: dict[str, _TirVar], sctx: DispatchContext):
 def _apply_s_layout(layout, thread_coords, flat_outer, shape, placeholders, sctx):
     coord = [*thread_coords, flat_outer]
     mapped = layout.apply(*coord, shape=shape)["m"]
-    return tvm.tirx.stmt_functor.substitute(mapped, _axis_substitution(placeholders, sctx))
+    var_map = _axis_substitution(placeholders, sctx)
+    return tvm_ffi.structural_map(
+        mapped,
+        (_TirVar, lambda var: var_map.get(var, var)),
+        order="post",
+    )
 
 
 def _flat_coords(outer_atoms, flat_idx: int) -> list[int]:

@@ -56,7 +56,7 @@ TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
 
 std::string Script(const ffi::ObjectRef& node, const ffi::Optional<PrinterConfig>& cfg) {
   PrinterConfig config = cfg.value_or(PrinterConfig());
-  if (!TVMScriptPrinter::vtable().can_dispatch(node)) {
+  if (!TVMScriptPrinter::vtable().CanDispatch(node)) {
     // Fall back to ffi::ReprPrint for types not registered with TVMScriptPrinter.
     return RenderFallbackWithInvisiblePathInfo(ffi::ReprPrint(ffi::Any(node)), config);
   }

@@ -63,7 +63,7 @@ def test_rewrite_Select():
             )
 
     aa = tvm.s_tir.transform.RewriteUnsafeSelect()(ModuleA)["main"].body.seq[-1].value
-    builtin_if_then_else = tvm.ir.Op.get("tirx.if_then_else")
+    builtin_if_then_else = tvm.ir.Op.get("ir.prim.if_then_else")
 
     assert yy.op.same_as(builtin_if_then_else)
     assert yy.op.same_as(builtin_if_then_else)

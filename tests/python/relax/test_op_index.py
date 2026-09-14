@@ -954,9 +954,9 @@ def test_legalize_dynamic_begin_inf_end():
             for ax0, ax1 in T.grid(T.max(T.int64(16) - T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(0)), T.int64(16)):
                 with T.sblock("T_dynamic_strided_slice_with_axes"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0 + index, v_ax1])
+                    T.reads(A[v_ax0 : v_ax0 + T.int64(17), v_ax1])
                     T.writes(T_dynamic_strided_slice_with_axes[v_ax0, v_ax1])
-                    T_dynamic_strided_slice_with_axes[v_ax0, v_ax1] = A[v_ax0 + index, v_ax1]
+                    T_dynamic_strided_slice_with_axes[v_ax0, v_ax1] = A[T.min(T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(16)) + v_ax0, v_ax1]
 
         @R.function
         def main(A: R.Tensor((16, 16), dtype="float32"), B: R.Shape(["index"])) -> R.Tensor(("T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0)", 16), dtype="float32"):

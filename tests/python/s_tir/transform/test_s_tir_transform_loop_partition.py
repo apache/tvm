@@ -17,6 +17,7 @@
 # ruff: noqa: F401
 import numpy
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -26,7 +27,7 @@ from tvm.script import tirx as T
 
 def collect_visit(stmt, f):
     ret = []
-    tvm.tirx.stmt_functor.post_order_visit(stmt, lambda x: ret.append(f(x)))
+    tvm_ffi.structural_walk(stmt, lambda x: ret.append(f(x)))
     return ret
 
 

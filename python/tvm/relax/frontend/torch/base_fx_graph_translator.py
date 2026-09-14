@@ -34,6 +34,29 @@ from tvm.ir import PrimType
 from tvm.runtime import DataTypeCode
 
 
+def _diagonal_einsum_subscripts(ndim: int, dim1: int, dim2: int) -> str:
+    """Return explicit einsum subscripts that extract the ``dim1``/``dim2`` diagonal.
+
+    This is the fast-path lowering for :meth:`BaseFXGraphImporter._diagonal`
+    when ``offset == 0`` and both diagonal axes have the same extent. The
+    non-diagonal axes keep their natural order in the output while the diagonal
+    axis is appended last, matching ``aten.diagonal``. Non-diagonal axes are
+    labelled ``a``, ``b``, ... and the repeated (diagonal) label is ``z``, e.g.
+    an ``N x N`` input with ``dim1 == 0``, ``dim2 == 1`` gives ``"zz->z"``.
+    """
+    labels = [None] * ndim
+    # Non-diagonal axes are labelled from ``a`` to ``y``; ``z`` is reserved for
+    # the repeated (diagonal) label so the two never collide.
+    letters = iter(ch for ch in "abcdefghijklmnopqrstuvwxyz" if ch != "z")
+    for i in range(ndim):
+        if i != dim1 and i != dim2:
+            labels[i] = next(letters)
+    labels[dim1] = "z"
+    labels[dim2] = "z"
+    leading = "".join(labels[i] for i in range(ndim) if i != dim1 and i != dim2)
+    return f"{''.join(labels)}->{leading}z"
+
+
 class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     """Base class for FX Graph Importer."""
 
@@ -454,12 +477,57 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if decimals == 0:
             return self.block_builder.emit(relax.op.round(arg))
 
-        # For decimals != 0, use: round(x * 10^decimals) / 10^decimals
-        dtype = arg.ty.dtype
-        scale = relax.const(10**decimals, dtype)
-        scaled = relax.op.multiply(arg, scale)
-        rounded = relax.op.round(scaled)
-        result = relax.op.divide(rounded, scale)
+        # For decimals != 0, round on the exact power-of-10 scale and scale back:
+        # round(x * 10^decimals) / 10^decimals. The scaling must always use an
+        # integer power of 10: multiply for positive decimals, divide for negative
+        # ones. Dividing for negative decimals (instead of multiplying by
+        # 10**decimals, i.e. 0.1 / 0.01 / ...) avoids float precision errors such as
+        # 25 * 0.1 == 2.5000000000000004 in float64, which would round up to 30
+        # instead of 20 for torch.round(25, -1).
+        #
+        # For float16/bfloat16 inputs the scaling is done in float32 and cast
+        # back, because 10**|decimals| can overflow the input range: 10**4 == 10000
+        # with 25 * 10000 == 250000 overflows float16 (max 65504) to inf, and 10**5
+        # already overflows float16 to inf, turning decimals=5 and -5 into NaN.
+        input_dtype = arg.ty.dtype
+        dtype = input_dtype
+        if dtype in ("float16", "bfloat16"):
+            dtype = "float32"
+            arg = self.block_builder.emit(relax.op.astype(arg, dtype))
+
+        # Build the scale 10**|decimals| directly in `dtype` instead of as a host
+        # Python int. relax.const(10**n, dtype) first materializes 10**n as an
+        # unbounded int, which is both wasteful for large n and, once n >= 309, dies
+        # in the int-to-float conversion with "OverflowError: int too large to
+        # convert to float". PyTorch accepts such decimals (e.g.
+        # torch.round(x, decimals=309)) and exports a valid aten.round.decimals
+        # node, so importing these programs must not crash. Computing the power as a
+        # float and saturating it to inf once it leaves the finite range of `dtype`
+        # is exactly what happens when PyTorch evaluates the same power in the input
+        # dtype.
+        scale_exp = abs(decimals)
+        # Largest exponent for which 10**n is still finite in `dtype`.
+        # (float16/bfloat16 are upcast to float32 above, so dtype is float32 or
+        # float64 here.) Note that `dtype` may be a tvm.DataType-like object whose
+        # repr is "T.float32" instead of a plain str, so select via == rather than
+        # indexing a str-keyed dict.
+        max_scale_exp = 308 if dtype == "float64" else 38
+        if scale_exp > max_scale_exp:
+            scale = relax.const(float("inf"), dtype)
+        else:
+            scale = relax.const(10.0**scale_exp, dtype)
+
+        if decimals > 0:
+            scaled = relax.op.multiply(arg, scale)
+            rounded = relax.op.round(scaled)
+            result = relax.op.divide(rounded, scale)
+        else:
+            scaled = relax.op.divide(arg, scale)
+            rounded = relax.op.round(scaled)
+            result = relax.op.multiply(rounded, scale)
+
+        if input_dtype in ("float16", "bfloat16"):
+            result = relax.op.astype(result, input_dtype)
         return self.block_builder.emit(result)
 
     def _softmax(self, node: fx.Node) -> relax.Var:
@@ -1264,6 +1332,84 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         operands = args[1] if isinstance(args[1], torch.Size | tuple | list) else args[1:]
         return self.block_builder.emit(relax.op.einsum(operands, args[0]))
 
+    def _diagonal(self, node: fx.Node) -> relax.Var:
+        """Convert ``aten.diagonal`` / ``torch.diagonal`` to Relax.
+
+        ``diagonal(input, offset=0, dim1=0, dim2=1)`` extracts the elements
+        ``input[..., i, i + offset]`` along the ``dim1`` / ``dim2`` axes. It
+        shows up in the exported graph through ``run_decompositions`` of
+        ``torch.einsum`` with repeated subscripts (e.g. ``"ii->i"``,
+        ``"ii->"``, ``"...ii->...i"``), which lower to an ``aten.diagonal``
+        followed by a ``sum`` reduction.
+
+        We lower it as: when ``offset == 0`` and both diagonal axes have equal
+        extent (the common ``torch.einsum("ii->i")`` case), a single einsum
+        whose subscript repeats one label over the two axes extracts the
+        diagonal directly, so no full-size permute / slice intermediate is
+        materialized. Otherwise we permute ``dim1`` / ``dim2`` to the trailing
+        two axes, slice each trailing axis to the diagonal length (min of the
+        two extents, adjusted by ``offset``), and take the diagonal with an
+        einsum contraction ``...zz->...z`` (the repeated ``z`` label runs over
+        both trailing axes simultaneously).
+        """
+
+        args = self.retrieve_args(node)
+        x = args[0]
+        offset = args[1] if len(args) > 1 else node.kwargs.get("offset", 0)
+        dim1 = args[2] if len(args) > 2 else node.kwargs.get("dim1", 0)
+        dim2 = args[3] if len(args) > 3 else node.kwargs.get("dim2", 1)
+
+        shape = self.shape_of(x)
+        ndim = len(shape.values)
+        dim1 = dim1 if dim1 >= 0 else ndim + dim1
+        dim2 = dim2 if dim2 >= 0 else ndim + dim2
+        if dim1 == dim2:
+            raise ValueError(f"diagonal requires dim1 != dim2, got {dim1} == {dim2}")
+
+        offset = int(offset)
+
+        n = shape.values[dim1]
+        m = shape.values[dim2]
+        # Fast path for the common ``offset == 0`` case with equal extents on the
+        # diagonal axes (e.g. torch.einsum("ii->i") on an N x N input). The
+        # diagonal can be read with a single einsum that repeats one subscript
+        # label over the two axes (``relax.op.einsum`` lowers it to one O(N)
+        # loop), avoiding the identity permute / strided-slice that would each
+        # materialize a full-size O(N^2) copy. Non-diagonal axes must still fit
+        # in the single-letter einsum label alphabet.
+        if offset == 0 and ndim - 2 <= 25 and tvm_ffi.structural_equal(n, m):
+            subscripts = _diagonal_einsum_subscripts(ndim, dim1, dim2)
+            return self.block_builder.emit(relax.op.einsum([x], subscripts))
+
+        # Move dim1, dim2 to the trailing two axes.
+        perm = [i for i in range(ndim) if i != dim1 and i != dim2] + [dim1, dim2]
+        permuted = self.block_builder.emit(relax.op.permute_dims(x, perm))
+
+        if offset >= 0:
+            diag_len = tirx.max(0, tirx.min(n, m - offset))
+            begin1, end1 = 0, diag_len
+            begin2, end2 = offset, offset + diag_len
+        else:
+            diag_len = tirx.max(0, tirx.min(n + offset, m))
+            begin1, end1 = -offset, -offset + diag_len
+            begin2, end2 = 0, diag_len
+
+        # Crop both diagonal axes to the diagonal length so the einsum ``z``
+        # label sees equal extents on both trailing axes.
+        cropped = self.block_builder.emit(
+            relax.op.strided_slice(
+                permuted, axes=[ndim - 2], begin=[begin1], end=[end1], strides=[1]
+            )
+        )
+        cropped = self.block_builder.emit(
+            relax.op.strided_slice(
+                cropped, axes=[ndim - 1], begin=[begin2], end=[end2], strides=[1]
+            )
+        )
+
+        # ``...zz -> ...z``: keep every leading axis, contract the diagonal pair.
+        return self.block_builder.emit(relax.op.einsum([cropped], "...zz->...z"))
+
     def _embedding_impl(
         self,
         x,
@@ -1648,6 +1794,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = args[0]
         dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
         keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+        dtype = node.kwargs.get("dtype", None)
+        if dtype is not None:
+            x = self.block_builder.emit(
+                relax.op.astype(x, self._convert_data_type(dtype, self.env))
+            )
         return self.block_builder.emit(relax.op.mean(x, dim, keepdims=keepdim))
 
     def _median(self, node: fx.Node) -> relax.Var:
@@ -1851,7 +2002,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         descending = node.args[2] if len(node.args) > 2 else node.kwargs.get("descending", False)
-        return self.block_builder.emit(relax.op.argsort(x, dim, descending))
+        return self.block_builder.emit(relax.op.argsort(x, dim, descending, dtype="int64"))
 
     def _broadcast_to(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
@@ -1905,14 +2056,21 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = args[0]
         broadcast_shape = []
         in_shape = self.shape_of(x)
+        input_rank = len(in_shape) if in_shape is not None else None
+        if input_rank is None and hasattr(node.args[0], "meta") and "val" in node.args[0].meta:
+            input_rank = len(node.args[0].meta["val"].shape)
+        rank_offset = len(sizes) - input_rank if input_rank is not None else 0
         for idx, i in enumerate(sizes):
             if isinstance(i, int) and i == -1:
+                input_idx = idx - rank_offset
+                if input_idx < 0:
+                    raise ValueError(f"Cannot use -1 in expand for new leading dim {idx}")
                 if in_shape is not None:
-                    broadcast_shape.append(in_shape[idx])
+                    broadcast_shape.append(in_shape[input_idx])
                 elif hasattr(node.args[0], "meta") and "val" in node.args[0].meta:
                     # Fallback: get shape from FX node metadata (FakeTensor)
                     fake_shape = node.args[0].meta["val"].shape
-                    broadcast_shape.append(fake_shape[idx])
+                    broadcast_shape.append(fake_shape[input_idx])
                 else:
                     raise ValueError(
                         f"Cannot use -1 in expand for dim {idx} when input shape is unknown"
@@ -1931,13 +2089,41 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _flatten_impl(self, x, start_dim, end_dim) -> relax.Var:
         shape = self.shape_of(x)
-        start_dim = start_dim if start_dim >= 0 else len(shape) + start_dim
-        end_dim = end_dim if end_dim >= 0 else len(shape) + end_dim
+        rank = len(shape)
+
+        # torch.flatten() normalizes its dims against a rank of at least one, so a 0-d
+        # input still accepts a start_dim/end_dim of 0 or -1.
+        dim_post_expr = max(rank, 1)
+        norm_start_dim = start_dim + dim_post_expr if start_dim < 0 else start_dim
+        norm_end_dim = end_dim + dim_post_expr if end_dim < 0 else end_dim
+
+        # torch rejects invalid flatten dims only when the model is executed. fx.symbolic_trace
+        # does not execute it, so an invalid flatten reaches this converter as a traceable node
+        # and has to be rejected here instead of failing later on an empty reduce().
+        if not 0 <= norm_start_dim < dim_post_expr:
+            raise ValueError(
+                f"flatten start_dim {start_dim} is out of range "
+                f"[-{dim_post_expr}, {dim_post_expr - 1}] for an input of rank {rank}"
+            )
+        if not 0 <= norm_end_dim < dim_post_expr:
+            raise ValueError(
+                f"flatten end_dim {end_dim} is out of range "
+                f"[-{dim_post_expr}, {dim_post_expr - 1}] for an input of rank {rank}"
+            )
+        if norm_start_dim > norm_end_dim:
+            raise ValueError("flatten() has invalid args: start_dim cannot come after end_dim")
+
+        start_dim, end_dim = norm_start_dim, norm_end_dim
+
+        # torch.flatten() on a 0-d input returns a 1-d tensor holding the single element.
+        if rank == 0:
+            return self.block_builder.emit(relax.op.reshape(x, [1]))
+
         flattened = reduce(lambda x, y: x * y, [shape[i] for i in range(start_dim, end_dim + 1)])
         new_shape = (
             [shape[i] for i in range(0, start_dim)]
             + [flattened]
-            + [shape[i] for i in range(end_dim + 1, len(shape))]
+            + [shape[i] for i in range(end_dim + 1, rank)]
         )
         return self.block_builder.emit(relax.op.reshape(x, new_shape))
 
@@ -2309,7 +2495,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         descending = node.args[2] if len(node.args) > 2 else node.kwargs.get("descending", False)
 
-        indices = self.block_builder.emit(relax.op.argsort(x, dim, descending))
+        indices = self.block_builder.emit(relax.op.argsort(x, dim, descending, dtype="int64"))
         values = self.block_builder.emit(relax.op.gather_elements(x, indices, axis=dim))
         return self.block_builder.emit(relax.Tuple([values, indices]))
 
@@ -2323,7 +2509,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 cum_sum = 0 if not n_section else n_section[-1]
                 n_section.append(s + cum_sum)
         else:
-            n_section = (self.shape_of(x)[dim].value + split_size - 1) // split_size
+            # torch.split(x, s, dim) splits dim into chunks of size s, with the
+            # last chunk smaller if D % s != 0. relax.op.split's integer argument
+            # is the number of *equal* sections, so passing ceil(D / s) yields
+            # wrong shapes whenever ceil(D / ceil(D / s)) != s (e.g. s > D/2).
+            # Convert the per-chunk size to the cumulative cut positions instead,
+            # mirroring the list/tuple branch above.
+            dim_size = self.shape_of(x)[dim].value
+            num_chunks = (dim_size + split_size - 1) // split_size
+            n_section = [split_size * i for i in range(1, num_chunks)]
         return self.block_builder.emit(relax.op.split(x, n_section, dim))
 
     def _squeeze(self, node: fx.Node) -> relax.Var:
@@ -2494,15 +2688,35 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _fill(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
-        dtype = x.ty.dtype
-        value = args[1] if isinstance(args[1], relax.Expr) else relax.const(args[1], dtype)
+        dtype = str(x.ty.dtype)
+        value = self._convert_scalar_fill_value(args[1], dtype)
         return self.block_builder.emit(relax.op.full(x.ty.shape, value, dtype))
+
+    def _prim_value_to_scalar_tensor(self, value: relax.Expr, dtype: str) -> relax.Var:
+        """Materialize an integer or boolean primitive value as a rank-zero tensor."""
+        if not value.ty.matches_code(DataTypeCode.INT, DataTypeCode.UINT, DataTypeCode.BOOL):
+            raise TypeError(f"Cannot materialize primitive value of dtype {value.ty} as a tensor")
+        shape_value = value if str(value.ty) == "int64" else value.astype("int64")
+        value_tensor = self.block_builder.emit(
+            relax.op.shape_to_tensor(relax.ShapeExpr([shape_value]))
+        )
+        if dtype != "int64":
+            value_tensor = self.block_builder.emit(relax.op.astype(value_tensor, dtype))
+        return self.block_builder.emit(relax.op.squeeze(value_tensor, axis=[0]))
+
+    def _convert_scalar_fill_value(self, value, dtype: str) -> relax.Expr:
+        """Convert a PyTorch scalar fill value to a rank-zero Relax tensor."""
+        if isinstance(getattr(value, "ty", None), PrimType):
+            return self._prim_value_to_scalar_tensor(value, dtype)
+        if isinstance(value, relax.Expr):
+            return value
+        return relax.const(value, dtype)
 
     def _inplace_fill(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
-        dtype = x.ty.dtype.dtype
-        value = args[1] if isinstance(args[1], relax.Expr) else relax.const(args[1], dtype)
+        dtype = str(x.ty.dtype)
+        value = self._convert_scalar_fill_value(args[1], dtype)
         filled = self.block_builder.emit(relax.op.full(x.ty.shape, value, dtype))
         self.env[node.args[0]] = filled
         return filled
@@ -2512,10 +2726,23 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         args = self.retrieve_args(node)
         size = relax.ShapeExpr(args[0] if isinstance(args[0], list | tuple) else (args[0],))
-        dtype = self._convert_data_type(
-            node.kwargs.get("dtype", torch.get_default_dtype()), self.env
-        )
-        value = args[1] if isinstance(args[1], relax.expr.Constant) else relax.const(args[1], dtype)
+        torch_dtype = node.kwargs.get("dtype")
+        if torch_dtype is None:
+            output_meta = node.meta.get("val")
+            if output_meta is None:
+                output_meta = node.meta.get("tensor_meta")
+            torch_dtype = getattr(output_meta, "dtype", None)
+        if torch_dtype is None:
+            if isinstance(args[1], bool):
+                torch_dtype = "bool"
+            elif isinstance(args[1], int):
+                torch_dtype = "int64"
+            elif isinstance(getattr(args[1], "ty", None), PrimType):
+                torch_dtype = args[1].ty.dtype
+            else:
+                torch_dtype = torch.get_default_dtype()
+        dtype = self._convert_data_type(torch_dtype, self.env)
+        value = self._convert_scalar_fill_value(args[1], dtype)
         return self.block_builder.emit(
             relax.op.full(
                 size,
@@ -2525,15 +2752,28 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         )
 
     def _full_like(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        value = node.args[1]
-        fill_value = relax.const(value)
-
-        x_dtype = x.ty.dtype.dtype
-        fill_dtype = None
-        if isinstance(value, int | float) and (math.isinf(value) or math.isnan(value)):
+        args = self.retrieve_args(node)
+        x = args[0]
+        value = args[1]
+        x_dtype = str(x.ty.dtype)
+        torch_dtype = node.kwargs.get("dtype")
+        dtype = self._convert_data_type(x_dtype if torch_dtype is None else torch_dtype, self.env)
+        fill_dtype = dtype if dtype != x_dtype else None
+        if (
+            fill_dtype is None
+            and isinstance(value, int | float)
+            and (math.isinf(value) or math.isnan(value))
+        ):
             if not ("float" in x_dtype or "bfloat16" in x_dtype):
                 fill_dtype = "float32"
+                dtype = fill_dtype
+
+        if isinstance(getattr(value, "ty", None), PrimType):
+            fill_value = self._prim_value_to_scalar_tensor(value, dtype)
+        elif isinstance(value, relax.Expr):
+            fill_value = value
+        else:
+            fill_value = relax.const(value, dtype)
 
         return self.block_builder.emit(relax.op.full_like(x, fill_value, dtype=fill_dtype))
 
@@ -2544,16 +2784,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(relax.op.take(x, index, dim))
 
     def _inplace_masked_fill(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        mask = self.env[node.args[1]]
-        value = node.args[2]
-        rx_value = relax.const(value)
-
-        x_dtype = x.ty.dtype.dtype
+        args = self.retrieve_args(node)
+        x, mask, value = args[:3]
+        x_dtype = str(x.ty.dtype)
         fill_dtype = None
         if isinstance(value, int | float) and (math.isinf(value) or math.isnan(value)):
             if not ("float" in x_dtype or "bfloat16" in x_dtype):
                 fill_dtype = "float32"
+        rx_value = self._convert_scalar_fill_value(value, fill_dtype or x_dtype)
 
         values = self.block_builder.emit(relax.op.full_like(x, rx_value, dtype=fill_dtype))
 
@@ -2589,16 +2827,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         )
 
     def _masked_fill(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        mask = self.env[node.args[1]]
-        value = node.args[2]
-        rx_value = relax.const(value)
-
-        x_dtype = x.ty.dtype.dtype
+        args = self.retrieve_args(node)
+        x, mask, value = args[:3]
+        x_dtype = str(x.ty.dtype)
         fill_dtype = None
         if isinstance(value, int | float) and (math.isinf(value) or math.isnan(value)):
             if not ("float" in x_dtype or "bfloat16" in x_dtype):
                 fill_dtype = "float32"
+        rx_value = self._convert_scalar_fill_value(value, fill_dtype or x_dtype)
 
         values = self.block_builder.emit(relax.op.full_like(x, rx_value, dtype=fill_dtype))
 
@@ -2800,6 +3036,23 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _item(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
+        shape = self.shape_of(x)
+        dtype = x.ty.dtype
+        analyzer = tvm.arith.Analyzer()
+        has_single_element = shape is not None and all(
+            analyzer.can_prove_equal(dim, 1) for dim in shape
+        )
+        if has_single_element and dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT):
+            scalar = x
+            if str(dtype) != "int64":
+                scalar = self.block_builder.emit(relax.op.astype(scalar, "int64"))
+            scalar = self.block_builder.emit(relax.op.reshape(scalar, [1]))
+            shape_value = self.block_builder.emit(relax.op.tensor_to_shape(scalar))
+            dim = tirx.Var(f"{node.name}_dim", "int64")
+            self.block_builder.match_cast(shape_value, relax.ShapeType([dim]))
+            return dim
+        if shape is not None and len(shape) == 0:
+            return x
         return self.block_builder.emit(relax.op.take(x, relax.const(0, "int64"), axis=0))
 
     def _sym_size_int(self, node: fx.Node) -> relax.Expr:

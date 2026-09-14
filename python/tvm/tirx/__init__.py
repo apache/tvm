@@ -30,7 +30,6 @@ from .buffer import (
     Buffer,
     BufferAccessKind,
     BufferType,
-    DataProducer,
     buffer_data,
     buffer_data_pointer_type,
     decl_buffer,
@@ -40,7 +39,7 @@ from .expr import convert
 from .expr import Var, Reduce, FloatImm, IntImm, StringImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
-from .expr import Select, BufferLoad, ProducerLoad, Ramp, Broadcast, Shuffle
+from .expr import Select, BufferLoad, Ramp, Broadcast, Shuffle
 from .expr import CallEffectKind, Let, IterVar, CommReducer
 
 from .stmt import Stmt, Bind, AssertStmt, ForKind, For, While, Return, Break, Continue
@@ -52,7 +51,7 @@ from .stmt import BufferStore, AllocBuffer, AttrStmt, DeclBuffer
 
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
-from .stmt import BufferRegion, MatchBufferRegion, SBlock, SBlockRealize
+from .stmt import BufferRegion, BufferRegionType, MatchBufferRegion, SBlock, SBlockRealize
 from .stmt import ScopeIdDefStmt
 from .tile_primitive import DispatchContext, LambdaExpr, TilePrimitiveCall
 
@@ -96,14 +95,9 @@ from .op import ignore_loop_partition
 # TIRX-specific imports (must come before subpackage imports to avoid circular imports)
 from .exec_scope import ExecScope, ScopeIdDef
 from .layout import TileLayout, Layout, ComposeLayout
-from .expr_functor import ExprFunctor
-
 from . import transform
 from . import analysis
 from . import backend
-from . import stmt_functor
-
-from .functor import PyStmtExprVisitor, PyStmtExprMutator
 
 # Compiler-only submodules. Skip under `TVM_USE_RUNTIME_LIB=1` since they
 # perform compiler-side FFI at module load (schema engine looks up

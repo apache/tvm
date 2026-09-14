@@ -29,6 +29,7 @@
 
 #include <tvm/target/codegen.h>
 
+#include <cstddef>
 #include <string>
 
 #include "../../../target/source/codegen_c.h"
@@ -65,14 +66,14 @@ class CodeGenWebGPU final : public CodeGenC {
                          const std::string& value) final;
 
   // overload visitor
-  void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;   // NOLINT(*)
-  void VisitExpr_(const CallNode* op, std::ostream& os) final;        // NOLINT(*)
-  void VisitExpr_(const BufferLoadNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const CastNode* op, std::ostream& os) final;        // NOLINT(*)
-  void VisitExpr_(const SelectNode* op, std::ostream& os) final;      // NOLINT(*)
-  void VisitExpr_(const LetNode* op, std::ostream& os) final;         // NOLINT(*)
-  void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;    // NOLINT(*)
-  void VisitExpr_(const IntImmNode* op, std::ostream& os) final;      // NOLINT(*)
+  void VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os) final;             // NOLINT(*)
+  void VisitExpr_(const TensorLoadNode* op, std::ostream& os) final;       // NOLINT(*)
+  void VisitExpr_(const prim::CastNode* op, std::ostream& os) final;       // NOLINT(*)
+  void VisitExpr_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
+  void VisitExpr_(const prim::LetNode* op, std::ostream& os) final;        // NOLINT(*)
+  void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;         // NOLINT(*)
+  void VisitExpr_(const IntImmNode* op, std::ostream& os) final;           // NOLINT(*)
 
   // stmt printing
   void VisitStmt_(const BindNode* op) final;
@@ -98,6 +99,9 @@ class CodeGenWebGPU final : public CodeGenC {
   bool enable_fp16_{false};
   // whether enable subgroups
   bool enable_subgroups_{false};
+
+  /*! \brief Total bytes declared in the WGSL workgroup address space. */
+  size_t workgroup_memory_bytes_{0};
 
   /*! \brief the header stream for function label and enable directive if any, goes before any other
    * declaration */

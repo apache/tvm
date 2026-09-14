@@ -24,9 +24,9 @@
 #ifndef TVM_TIR_TRANSFORM_H_
 #define TVM_TIR_TRANSFORM_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 
 #include <string>
@@ -269,7 +269,7 @@ TVM_DLL Pass InlinePrivateFunctions();
 TVM_DLL Pass PointerValueTypeRewrite();
 
 /*!
- * \brief Flatten the multi-dimensional BufferLoad and BufferStore to single dimensional
+ * \brief Flatten the multi-dimensional TensorLoad and BufferStore to single dimensional
  *        BufferLoad/BufferStore for the TIR not contains opaque block.
  * \return The pass.
  */

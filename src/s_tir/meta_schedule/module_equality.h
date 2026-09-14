@@ -20,12 +20,14 @@
 #define TVM_S_TIR_META_SCHEDULE_MODULE_EQUALITY_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <memory>
 #include <string>
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief Method to compute hash and determine equality of modules  */

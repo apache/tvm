@@ -18,17 +18,19 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/tirx/op.h>
 
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
  * \brief Check if buffer indices are all Vars and expr
- * \param buffer_access The BufferLoad or BufferStore
+ * \param buffer_access The TensorLoad or BufferStore
  * \return The indices if the indices are all Vars, otherwise std::nullopt
  */
 ffi::Optional<ffi::Array<Var>> CheckTrivialBufferIndices(
@@ -361,9 +363,10 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const BufferLoadNode* old_load_ptr) final {
-    BufferLoad load = ExprMutator::VisitExpr_(old_load_ptr).as_or_throw<BufferLoad>();
-    if (ffi::Optional<BufferVar> buffer = buffer_map_.Get(load->buffer)) {
+  Expr VisitExpr_(const TensorLoadNode* old_load_ptr) final {
+    TensorLoad load = ExprMutator::VisitExpr_(old_load_ptr).as_or_throw<TensorLoad>();
+    if (ffi::Optional<BufferVar> buffer =
+            buffer_map_.Get(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
       return BufferLoad(buffer.value(), load->indices);
     } else {
       return load;
@@ -421,13 +424,14 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   // Step 4. Find out the block of our interest
   int pos = -1;
   for (int i = 0; i < static_cast<int>(scope_body.size()); ++i) {
-    bool found = false;
-    PostOrderVisit(scope_body[i], [&found, &block](const ffi::ObjectRef& node) {
+    auto walk_fn = [&block](const SBlock& node) -> ffi::Expected<ffi::WalkResult> {
       if (node.get() == block) {
-        found = true;
+        return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
       }
-    });
-    if (found) {
+      return ffi::WalkResult::Advance();
+    };
+    auto result = ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(scope_body[i], walk_fn);
+    if (result.has_value() && result.value()->value.cast<bool>()) {
       pos = i;
       break;
     }

@@ -24,7 +24,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/expr_functor.h>
 
 #include <unordered_map>
@@ -105,13 +105,13 @@ class BoundDeducer : public ExprFunctor<void(const Expr&)> {
 
   void VisitExpr_(const VarNode* op) final {}
 
-  void VisitExpr_(const AddNode* op) final {
+  void VisitExpr_(const prim::AddNode* op) final {
     bool left = op->a.get() == path_[iter_];
     result_ -= left ? op->b : op->a;
     this->VisitExpr(left ? op->a : op->b);
   }
 
-  void VisitExpr_(const SubNode* op) final {
+  void VisitExpr_(const prim::SubNode* op) final {
     bool left = op->a.get() == path_[iter_];
     if (left) {
       result_ += op->b;
@@ -123,7 +123,7 @@ class BoundDeducer : public ExprFunctor<void(const Expr&)> {
     this->VisitExpr(left ? op->a : op->b);
   }
 
-  void VisitExpr_(const MulNode* op) final {
+  void VisitExpr_(const prim::MulNode* op) final {
     bool left = op->a.get() == path_[iter_];
     PrimExpr operand = left ? op->b : op->a;
     PrimExpr target_var = left ? op->a : op->b;
@@ -165,7 +165,7 @@ class BoundDeducer : public ExprFunctor<void(const Expr&)> {
     this->VisitExpr(left ? op->a : op->b);
   }
 
-  void VisitExpr_(const FloorDivNode* op) final {
+  void VisitExpr_(const prim::FloorDivNode* op) final {
     if (op->b.get() == path_[iter_]) {
       // Skip cases where the var is divisor.
       success_ = false;
@@ -270,7 +270,7 @@ CompareOp BoundDeducer::ReverseOp(CompareOp comp_op) {
 
 void BoundDeducer::Transform() {
   // We will ensure to set expr_ such that it contains target_
-  if (const LTNode* op = expr_.as<LTNode>()) {
+  if (const prim::LTNode* op = expr_.as<prim::LTNode>()) {
     if (GetPath(target_, op->a).empty()) {
       // a < b -> b >= a + 1
       comp_op = kGreater;
@@ -282,7 +282,7 @@ void BoundDeducer::Transform() {
       expr_ = op->a;
       result_ = op->b - 1;
     }
-  } else if (const LENode* op = expr_.as<LENode>()) {
+  } else if (const prim::LENode* op = expr_.as<prim::LENode>()) {
     if (GetPath(target_, op->a).empty()) {
       // a <= b -> b >= a
       comp_op = kGreater;
@@ -293,7 +293,7 @@ void BoundDeducer::Transform() {
       expr_ = op->a;
       result_ = op->b;
     }
-  } else if (const GTNode* op = expr_.as<GTNode>()) {
+  } else if (const prim::GTNode* op = expr_.as<prim::GTNode>()) {
     if (GetPath(target_, op->a).empty()) {
       // a > b -> b <= a - 1
       comp_op = kLess;
@@ -305,7 +305,7 @@ void BoundDeducer::Transform() {
       expr_ = op->a;
       result_ = op->b + 1;
     }
-  } else if (const GENode* op = expr_.as<GENode>()) {
+  } else if (const prim::GENode* op = expr_.as<prim::GENode>()) {
     if (GetPath(target_, op->a).empty()) {
       // a >= b -> b <= a
       comp_op = kLess;
@@ -316,7 +316,7 @@ void BoundDeducer::Transform() {
       expr_ = op->a;
       result_ = op->b;
     }
-  } else if (const EQNode* op = expr_.as<EQNode>()) {
+  } else if (const prim::EQNode* op = expr_.as<prim::EQNode>()) {
     comp_op = kEqual;
     if (GetPath(target_, op->a).empty()) {
       // if the b == a -> a == b

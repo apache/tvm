@@ -230,8 +230,8 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
     return std::move(store);
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     load = VisitBufferAccess(load);
     return std::move(load);
   }
@@ -295,6 +295,14 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
     return node;
   }
 
+  TensorLoad VisitBufferAccess(TensorLoad node) {
+    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    TVM_FFI_ICHECK(buffer.defined());
+    if (target_->kind->name == "trn" && !buffer->layout.has_value()) return node;
+    return BufferLoad(GetFlattenedBuffer(buffer), GetSimplifiedElemOffset(buffer, node->indices),
+                      node->span);
+  }
+
   /*! \brief Map of variables being remapped, including buffer variables. */
   std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap_;
 
@@ -335,7 +343,7 @@ class BufferOffsetRemover : public StmtExprMutator {
 
   Expr VisitExpr_(const CallNode* call) final {
     if (call->op.same_as(tirx::builtin::buffer_offset())) {
-      auto buffer_load = call->args[0].as_or_throw<BufferLoad>();
+      auto buffer_load = call->args[0].as_or_throw<TensorLoad>();
       TVM_FFI_ICHECK_EQ(buffer_load->indices.size(), 1) << "Expected a single index";
       return buffer_load->indices[0];
     }
@@ -367,8 +375,8 @@ class BufferOffsetRemover : public StmtExprMutator {
     return std::move(store);
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
+  Expr VisitExpr_(const TensorLoadNode* op) final {
+    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     load = VisitBufferAccess(load);
     return std::move(load);
   }
@@ -383,6 +391,14 @@ class BufferOffsetRemover : public StmtExprMutator {
       return node;
     }
     return node;
+  }
+
+  TensorLoad VisitBufferAccess(TensorLoad node) {
+    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    TVM_FFI_ICHECK(buffer.defined());
+    auto it = var_remap_.find(buffer.var());
+    return it == var_remap_.end() ? node
+                                  : BufferLoad(BufferVar(it->second), node->indices, node->span);
   }
 
   std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap_;

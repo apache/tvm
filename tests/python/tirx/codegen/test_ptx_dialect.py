@@ -16,6 +16,7 @@
 # under the License.
 """Tests for the table-driven PTX dialect (``T.ptx``)."""
 
+import itertools
 import os
 import re
 import shutil
@@ -33,9 +34,9 @@ TARGET = tvm.target.Target("cuda")
 requires_nvcc = pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc not available")
 
 
-def _cuda_source(func) -> str:
-    with TARGET:
-        mod = tvm.compile(tvm.IRModule({"main": func}), target=TARGET, tir_pipeline="tirx")
+def _cuda_source(func, target=TARGET) -> str:
+    with target:
+        mod = tvm.compile(tvm.IRModule({"main": func}), target=target, tir_pipeline="tirx")
     return mod.mod.imports[0].inspect_source("cuda")
 
 
@@ -63,7 +64,7 @@ def test_ptx_registration():
         op = Op.get(entry.op_name)  # raises if unregistered
         assert op.get_attr("TCallEffectKind") is not None, entry.name
         # The printer name is the attribute path a program types, so it is the
-        # *escaped* family: `and`/`or`/`not` (ISA 9.7.8) are Python keywords and
+        # *escaped* family: `and`/`or`/`not` (ISA 9.7.9) are Python keywords and
         # print as `T.ptx.and_`. Identity for every other family.
         family = escape_token(entry.family)  # several entries may share a mnemonic
         assert op.get_attr("TScriptPrinterName") == f"ptx.{family}", entry.name
@@ -201,6 +202,91 @@ def test_ptx_predication_codegen():
     assert "setp.ne.b32 p, %2, 0; @p red.relaxed.gpu.global.add.u32 [%0], %1;" in src
 
 
+def test_ptx_red_vector_codegen_and_roundtrip():
+    @T.prim_func
+    def kernel(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (16,), "uint32")
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([32])
+        half = T.local_scalar("uint16")
+        packed = T.local_scalar("uint32")
+        value = T.local_scalar("float32")
+        policy = T.local_scalar("uint64")
+        T.ptx.red.relaxed.gpu.global_.add.noftz.v8.f16(
+            A.ptr_to([0]), half, half, half, half, half, half, half, half
+        )
+        T.ptx.red.release.sys.global_.max.noftz.L2__cache_hint.v4.f16x2(
+            A.ptr_to([1]), packed, packed, packed, packed, policy
+        )
+        T.ptx.red.global_.add.v4.f32(A.ptr_to([2]), value, value, value, value)
+        A[tx % 16] = A[tx % 16]
+
+    src = _cuda_source(kernel)
+    assert (
+        "red.relaxed.gpu.global.add.noftz.v8.f16 [%0], {%1, %2, %3, %4, %5, %6, %7, %8};"
+    ) in src
+    assert (
+        "red.release.sys.global.max.noftz.L2::cache_hint.v4.f16x2 [%0], {%1, %2, %3, %4}, %5;"
+    ) in src
+    assert "red.global.add.v4.f32 [%0], {%1, %2, %3, %4};" in src
+
+    reparsed = tvm.script.from_source(kernel.script())
+    tvm.ir.assert_structural_equal(kernel, reparsed)
+
+    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="already a 32-bit pair"):
+
+        @T.prim_func
+        def packed_v8(a_ptr: T.handle):
+            A = T.match_buffer(a_ptr, (1,), "uint32")
+            T.device_entry()
+            v = T.local_scalar("uint32")
+            T.ptx.red.global_.add.noftz.v8.f16x2(A.ptr_to([0]), v, v, v, v, v, v, v, v)
+
+    with pytest.raises((AttributeError, tvm.error.DiagnosticError), match="not a valid modifier"):
+
+        @T.prim_func
+        def f32_max(a_ptr: T.handle):
+            A = T.match_buffer(a_ptr, (1,), "float32")
+            T.device_entry()
+            v = T.local_scalar("float32")
+            T.ptx.red.global_.max.v2.f32(A.ptr_to([0]), v, v)
+
+
+def test_ptx_atom_bitbucket_codegen_and_roundtrip():
+    @T.prim_func
+    def kernel(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (16,), "uint32")
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([32])
+        word = T.local_scalar("uint32")
+        half = T.local_scalar("uint16")
+        value = T.local_scalar("float32")
+        T.ptx.atom.global_.add.u32(A.ptr_to([0]), word)
+        T.ptx.atom.global_.cas.b32(A.ptr_to([1]), word, word)
+        T.ptx.atom.global_.exch.b32(A.ptr_to([2]), word)
+        T.ptx.atom.global_.add.noftz.f16(A.ptr_to([3]), half)
+        T.ptx.atom.global_.add.noftz.v2.f16(A.ptr_to([4]), half, half)
+        T.ptx.atom.global_.add.v2.f32(A.ptr_to([5]), value, value, pred=tx)
+        A[tx % 16] = A[tx % 16]
+
+    src = _cuda_source(kernel)
+    for text in (
+        "atom.global.add.u32 _, [%0], %1;",
+        "atom.global.cas.b32 _, [%0], %1, %2;",
+        "atom.global.exch.b32 _, [%0], %1;",
+        "atom.global.add.noftz.f16 _, [%0], %1;",
+        "atom.global.add.noftz.v2.f16 _, [%0], {%1, %2};",
+        "@p atom.global.add.v2.f32 _, [%0], {%1, %2};",
+    ):
+        assert text in src, text
+    assert "atom.global.add.v2.f32 {_," not in src
+
+    reparsed = tvm.script.from_source(kernel.script())
+    tvm.ir.assert_structural_equal(kernel, reparsed)
+
+
 @requires_nvcc
 def test_ptx_predicated_destination_preserves_old_value():
     @T.prim_func
@@ -265,6 +351,325 @@ def test_ptx_string_form_matches_chain():
     tvm.ir.assert_structural_equal(make(chain_call), make(string_call))
 
 
+def test_ptx_92_cp_bulk_exact_renderings():
+    """PTX 9.2 bulk-copy and non-tensor reduction forms render exactly."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+
+    cases = (
+        (
+            "cp_async_bulk_g2s_cta",
+            dict(
+                api="async",
+                kind="bulk",
+                dst="shared::cta",
+                src="global",
+                completion="mbarrier::complete_tx::bytes",
+                cache="L2::cache_hint",
+                ignore_oob="ignore_oob",
+            ),
+            "cp.async.bulk.shared::cta.global.mbarrier::complete_tx::bytes."
+            "L2::cache_hint.ignore_oob [%0], [%1], %2, %3, %4, [%5], %6;",
+        ),
+        (
+            "cp_reduce_async_bulk_s2c",
+            dict(
+                op="reduce",
+                api="async",
+                kind="bulk",
+                dst="shared::cluster",
+                src="shared::cta",
+                completion="mbarrier::complete_tx::bytes",
+                redop="xor",
+                type="b32",
+            ),
+            "cp.reduce.async.bulk.shared::cluster.shared::cta."
+            "mbarrier::complete_tx::bytes.xor.b32 [%0], [%1], %2, [%3];",
+        ),
+        (
+            "cp_reduce_async_bulk_s2g",
+            dict(
+                op="reduce",
+                api="async",
+                kind="bulk",
+                dst="global",
+                src="shared::cta",
+                completion="bulk_group",
+                cache="L2::cache_hint",
+                redop="add",
+                noftz="noftz",
+                type="f16",
+            ),
+            "cp.reduce.async.bulk.global.shared::cta.bulk_group.L2::cache_hint."
+            "add.noftz.f16 [%0], [%1], %2, %3;",
+        ),
+    )
+    for name, modifiers, expected in cases:
+        entry = TABLE[name]
+        _, _, source = render_variant(entry, tokens_for(entry, **modifiers))
+        assert f'asm volatile("{expected}"' in source, source
+
+
+def test_ptx_93_sm103a_exact_renderings():
+    """Representative PTX 9.3 forms keep their documented operand shapes."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+
+    cases = (
+        (
+            "clmad",
+            dict(mode="hi", type="u64"),
+            "clmad.hi.u64 %0, %1, %2, %3;",
+        ),
+        (
+            "ld",
+            dict(mmio="mmio", sem="acquire", scope="sys", space="global", type="u32"),
+            "ld.mmio.acquire.sys.global.u32 %0, [%1];",
+        ),
+        (
+            "st",
+            dict(mmio="mmio", sem="release", scope="sys", space="global", type="u32"),
+            "st.mmio.release.sys.global.u32 [%0], %1;",
+        ),
+        (
+            "multimem_st_async",
+            dict(sem="release", scope="sys", space="global", type="u32"),
+            "multimem.st.async.release.sys.global.u32 [%0], %1;",
+        ),
+        (
+            "cp_async_bulk_s2c",
+            dict(
+                api="async",
+                kind="bulk",
+                sem="relaxed",
+                scope="cluster",
+                dst="shared::cluster",
+                src="shared::cta",
+                completion="mbarrier::complete_tx::bytes",
+                type="b128",
+            ),
+            "cp.async.bulk.relaxed.cluster.shared::cluster.shared::cta."
+            "mbarrier::complete_tx::bytes.b128 [%0], [%1], %2, [%3];",
+        ),
+        (
+            "fabric_try_put_counted",
+            dict(
+                action="try_put",
+                api="async",
+                src="shared::cta",
+                completion=("mbarrier::complete_tx::16B.mbarrier::report::fabric.counted::bytes"),
+                sem="relaxed",
+                scope="sys",
+                type="b128",
+            ),
+            "fabric.try_put.async.shared::cta.mbarrier::complete_tx::16B."
+            "mbarrier::report::fabric.counted::bytes.relaxed.sys.b128 "
+            "[%0, %1, %2], [%3], %4, [%5];",
+        ),
+        (
+            "fence_proxy_fabric",
+            dict(
+                proxy="proxy",
+                direction="generic::fabric",
+                proxykind="alias",
+                sem="release",
+                scope="sys",
+            ),
+            "fence.proxy.generic::fabric.alias.release.sys;",
+        ),
+        (
+            "mbarrier_check_layout",
+            dict(action="check_layout", layout="layout::v1", space="shared::cta", type="b64"),
+            "mbarrier.check_layout.layout::v1.shared::cta.b64 pd0, [%1];",
+        ),
+        (
+            "tcgen05_ld_red",
+            dict(
+                action="ld",
+                red="red",
+                sync="sync",
+                aligned="aligned",
+                shape="32x32b",
+                num="x2",
+                type="f32",
+                redop="max",
+                abs="abs",
+                nan="NaN",
+            ),
+            "tcgen05.ld.red.sync.aligned.32x32b.x2.max.abs.NaN.f32 {%0, %1}, %2, [%3];",
+        ),
+        (
+            "tcgen05_ld_red",
+            dict(
+                action="ld",
+                red="red",
+                sync="sync",
+                aligned="aligned",
+                shape="32x32b",
+                num="x2",
+                redop="min",
+                type="u32",
+            ),
+            "tcgen05.ld.red.sync.aligned.32x32b.x2.min.u32 {%0, %1}, %2, [%3];",
+        ),
+    )
+    for name, modifiers, expected in cases:
+        entry = TABLE[name]
+        _, _, source = render_variant(entry, tokens_for(entry, **modifiers))
+        assert expected in source, source
+    # The split shape carries the immHalfSplitoff immediate after the address.
+    split = TABLE["tcgen05_ld_red_split"]
+    _, _, source = render_variant(
+        split,
+        tokens_for(
+            split,
+            action="ld",
+            red="red",
+            sync="sync",
+            aligned="aligned",
+            shape="16x32bx2",
+            num="x2",
+            redop="min",
+            type="s32",
+        ),
+        imms=("0",),
+    )
+    assert "tcgen05.ld.red.sync.aligned.16x32bx2.x2.min.s32 {%0, %1}, %2, [%3], 0;" in source, (
+        source
+    )
+
+    report = TABLE["mbarrier_test_wait_report_value"]
+    _, _, source = render_variant(
+        report,
+        tokens_for(
+            report,
+            action="test_wait",
+            phase_type="phase_type::primary",
+            space="shared::cta",
+            type="b64",
+        ),
+    )
+    assert ".reg .b8 raw_report_value;" in source
+    assert "pd0|pd1, raw_report_value, [%3], %4;" in source
+
+
+def test_ptx_92_cp_reduce_negative_grids():
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+    from tvm.ir.type import PointerType, PrimType
+
+    shared_reduce = TABLE["cp_reduce_async_bulk_s2c"]
+    with pytest.raises(ValueError, match=r"\.add to \.shared::cluster takes"):
+        tokens_for(
+            shared_reduce,
+            op="reduce",
+            api="async",
+            kind="bulk",
+            dst="shared::cluster",
+            src="shared::cta",
+            completion="mbarrier::complete_tx::bytes",
+            redop="add",
+            type="b32",
+        )
+
+    global_reduce = TABLE["cp_reduce_async_bulk_s2g"]
+    with pytest.raises(ValueError, match=r"add\.f16 requires \.noftz"):
+        tokens_for(
+            global_reduce,
+            op="reduce",
+            api="async",
+            kind="bulk",
+            dst="global",
+            src="shared::cta",
+            completion="bulk_group",
+            redop="add",
+            type="f16",
+        )
+
+    shared_ptr = tvm.tirx.Var("shared_ptr", PointerType(PrimType("uint32"), "shared"))
+    global_ptr = tvm.tirx.Var("global_ptr", PointerType(PrimType("uint32"), "global"))
+    size = tvm.tirx.Var("size", "uint32")
+    with pytest.raises(ValueError, match=r"\.add to \.shared::cluster takes"):
+        T.ptx[
+            "cp.reduce.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes.add.b32"
+        ](shared_ptr, shared_ptr, size, shared_ptr)
+    with pytest.raises(ValueError, match=r"add\.f16 requires \.noftz"):
+        T.ptx["cp.reduce.async.bulk.global.shared::cta.bulk_group.add.f16"](
+            global_ptr, shared_ptr, size
+        )
+
+    # `.add.noftz.f32` is PTX ISA 9.4: the pre-9.4 entry refuses it and names
+    # the sibling, which renders the documented spelling and is the single
+    # dispatch hit for the string form.
+    with pytest.raises(ValueError, match=r"PTX 9\.4 sibling"):
+        tokens_for(
+            global_reduce,
+            op="reduce",
+            api="async",
+            kind="bulk",
+            dst="global",
+            src="shared::cta",
+            completion="bulk_group",
+            redop="add",
+            noftz="noftz",
+            type="f32",
+        )
+    sibling = TABLE["cp_reduce_async_bulk_s2g_f32_noftz"]
+    _, _, source = render_variant(
+        sibling,
+        tokens_for(
+            sibling,
+            op="reduce",
+            api="async",
+            kind="bulk",
+            dst="global",
+            src="shared::cta",
+            completion="bulk_group",
+            redop="add",
+            noftz="noftz",
+            type="f32",
+        ),
+    )
+    assert (
+        "cp.reduce.async.bulk.global.shared::cta.bulk_group.add.noftz.f32 [%0], [%1], %2;" in source
+    )
+    T.ptx["cp.reduce.async.bulk.global.shared::cta.bulk_group.add.noftz.f32"](
+        global_ptr, shared_ptr, size
+    )
+    T.ptx["multimem_cp.reduce.async.bulk.relaxed.gpu.global.shared::cta.bulk_group.add.noftz.f32"](
+        global_ptr, shared_ptr, size
+    )
+
+
+def test_ptx_92_cp_bulk_roundtrip():
+    @T.prim_func
+    def kernel(src: T.Buffer((64,), "uint32"), dst: T.Buffer((64,), "uint32")):
+        T.device_entry()
+        smem = T.alloc_buffer((64,), "uint32", scope="shared")
+        mbar = T.alloc_buffer((2,), "uint64", scope="shared")
+        T.ptx[
+            "cp.async.bulk.shared::cta.global."
+            "mbarrier::complete_tx::bytes.L2::cache_hint.ignore_oob"
+        ](
+            smem.ptr_to([0]),
+            src.ptr_to([0]),
+            T.uint32(16),
+            T.uint32(0),
+            T.uint32(0),
+            mbar.ptr_to([0]),
+            T.uint64(0),
+        )
+        T.ptx[
+            "cp.reduce.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes.xor.b32"
+        ](smem.ptr_to([16]), smem.ptr_to([0]), T.uint32(16), mbar.ptr_to([0]))
+        T.ptx["cp.reduce.async.bulk.global.shared::cta.bulk_group.add.noftz.f16"](
+            dst.ptr_to([0]), smem.ptr_to([0]), T.uint32(16)
+        )
+
+    reparsed = tvm.script.from_source(kernel.script())
+    tvm.ir.assert_structural_equal(kernel, reparsed)
+
+
 def test_ptx_trace_time_errors():
     # Global ld fed a raw uint32 address.
     with pytest.raises((ValueError, tvm.error.DiagnosticError), match="shared state space"):
@@ -282,15 +687,16 @@ def test_ptx_trace_time_errors():
             T.device_entry()
             T.ptx.ld.global_.bogus.b32(out[0], T.uint32(0))
 
-    # Value dtype of the wrong *width*. A bit type accepts any dtype of its own
-    # width (see test_ptx_bit_width_axis), so the rejection is about size.
+    # A floating register is not compatible with an integer instruction type,
+    # even when it is wider (the relaxed ld/st rule admits a bit carrier, not a
+    # differently typed floating register).
     with pytest.raises((ValueError, tvm.error.DiagnosticError), match="must have dtype"):
 
         @T.prim_func
         def bad_value_dtype(a_ptr: T.handle):
             A = T.match_buffer(a_ptr, (1,), "uint32")
             T.device_entry()
-            T.ptx.st.global_.b32(A.ptr_to([0]), T.float64(1.0))
+            T.ptx.st.global_.u32(A.ptr_to([0]), T.float64(1.0))
 
     # Missing required modifier (no type token).
     with pytest.raises((ValueError, tvm.error.DiagnosticError), match="missing required modifier"):
@@ -322,14 +728,15 @@ def test_ptx_trace_time_errors():
 
 def test_ptx_destination_errors():
     """A destination is a register the caller declared: it must be a writable lvalue."""
-    # Destination of the wrong width (a .b32 load into a 64-bit slot).
+    # A floating destination is incompatible with an integer instruction type;
+    # relaxed widening does not numerically convert between the two.
     with pytest.raises((ValueError, tvm.error.DiagnosticError), match="must have dtype"):
 
         @T.prim_func
         def wrong_dst_dtype(out: T.Buffer((1,), "float64"), a_ptr: T.handle):
             A = T.match_buffer(a_ptr, (1,), "uint32")
             T.device_entry()
-            T.ptx.ld.global_.b32(out[0], A.ptr_to([0]))
+            T.ptx.ld.global_.u32(out[0], A.ptr_to([0]))
 
     # A T.let binding is immutable, so it cannot be written into. This is the
     # gate that keeps the analyzer from re-expanding one call into N.
@@ -355,7 +762,7 @@ def test_ptx_destination_errors():
 def test_ptx_register_group_codegen():
     """A `.lanes > 1` operand renders as braces in the asm, flat params in C.
 
-    `{%1, %2}` is ONE PTX operand occupying two registers (ISA 9.7.9.4), which
+    `{%1, %2}` is ONE PTX operand occupying two registers (ISA 9.7.10.4), which
     is why the lane count appears nowhere in the instruction text -- `mov.b64`
     names the aggregate width, and the operand shape carries the rest.
     """
@@ -487,6 +894,85 @@ def test_ptx_optional_operand_arity_dispatch():
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
+def test_ptx_mbarrier_92_shapes_render_and_roundtrip():
+    """PTX 9.2 noComplete sink/state and wait shapes render exactly."""
+
+    @T.prim_func
+    def kernel(out_ptr: T.handle):
+        out = T.match_buffer(out_ptr, (4,), "uint32")
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([32])
+        bar = T.alloc_buffer((2,), "uint64", scope="shared")
+        state = T.local_scalar("uint64")
+        pending = T.local_scalar("uint32")
+        wait_complete = T.local_scalar("uint32")
+
+        T.ptx.mbarrier.init.shared.b64(bar.ptr_to([0]), T.uint32(1))
+        T.ptx.mbarrier.arrive.noComplete.shared.b64(bar.ptr_to([0]), T.uint32(1))
+        T.ptx.mbarrier.arrive_drop.noComplete.shared__cta.b64(state, bar.ptr_to([1]), T.uint32(1))
+        T.ptx.mbarrier.pending_count.b64(pending, state)
+        T.ptx.mbarrier.test_wait.shared__cta.b64(wait_complete, bar.ptr_to([0]), state)
+        T.ptx.mbarrier.try_wait.parity.relaxed.cluster.shared__cta.b64(
+            wait_complete, bar.ptr_to([1]), T.uint32(0), T.uint32(20)
+        )
+        out[tx % 4] = pending + wait_complete
+
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE
+
+    selected = (
+        ("mbarrier_init", ("init", "", "shared", "b64"), False),
+        (
+            "mbarrier_arrive_no_complete_sink",
+            ("arrive", "noComplete", "", "", "shared", "b64"),
+            False,
+        ),
+        (
+            "mbarrier_arrive_drop_no_complete",
+            ("arrive_drop", "noComplete", "", "", "shared::cta", "b64"),
+            False,
+        ),
+        ("mbarrier_pending_count", ("pending_count", "", "b64"), False),
+        ("mbarrier_test_wait", ("test_wait", "", "", "", "shared::cta", "b64"), False),
+        (
+            "mbarrier_try_wait_parity",
+            ("try_wait", "parity", "", "relaxed", "cluster", "shared::cta", "b64"),
+            False,
+        ),
+    )
+    src = "\n".join(
+        render_variant(TABLE[name], tokens, predicated)[2] for name, tokens, predicated in selected
+    )
+    for text in (
+        "mbarrier.init.shared.b64 [%0], %1;",
+        "mbarrier.arrive.noComplete.shared.b64 _, [%0], %1;",
+        "mbarrier.arrive_drop.noComplete.shared::cta.b64 %0, [%1], %2;",
+        "mbarrier.pending_count.b64 %0, %1;",
+        "mbarrier.test_wait.shared::cta.b64 pd0, [%1], %2;",
+        "mbarrier.try_wait.parity.relaxed.cluster.shared::cta.b64 pd0, [%1], %2, %3;",
+    ):
+        assert text in src, text
+
+    reparsed = tvm.script.from_source(kernel.script())
+    tvm.ir.assert_structural_equal(kernel, reparsed)
+
+
+def test_ptx_mbarrier_92_state_carriers():
+    from tvm.backend.cuda.ptx.table import TABLE, mods, operand_dtypes, variants
+
+    pending = TABLE["mbarrier_pending_count"]
+    for tokens in variants(pending):
+        mod_map = mods(pending, tokens)
+        assert operand_dtypes(pending.operands[1], mod_map) == ("uint64", "int64")
+
+    for name in ("mbarrier_arrive_no_complete", "mbarrier_arrive_drop_no_complete"):
+        entry = TABLE[name]
+        for tokens in variants(entry):
+            mod_map = mods(entry, tokens)
+            assert operand_dtypes(entry.operands[0], mod_map) == ("uint64", "int64")
+
+
 def test_ptx_bit_width_axis():
     """A `.bN` operand takes any dtype of that width, each with its own helper.
 
@@ -528,6 +1014,173 @@ def test_ptx_bit_width_axis():
     ld = TABLE["ld"]
     tokens = tokens_for(ld, space="global", type="b32")
     assert render_variant(ld, tokens)[1] == "tvm_builtin_ptx_ld_global_b32"
+
+
+def test_ptx_relaxed_load_store_typing():
+    """Scalar/vector ld, st and ldu accept ISA section 9.4.1's wider register carriers."""
+
+    @T.prim_func
+    def kernel(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (8,), "uint64")
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([32])
+        wide = T.local_scalar("uint64")
+        signed0 = T.local_scalar("int64")
+        signed1 = T.local_scalar("int64")
+        T.ptx.ld.global_.b8(wide, A.ptr_to([0]))
+        T.ptx.ld.global_.v2.s8(signed0, signed1, A.ptr_to([1]))
+        T.ptx.st.global_.b8(A.ptr_to([2]), wide)
+        T.ptx.st.global_.v2.u16(A.ptr_to([3]), wide, wide)
+        T.ptx.ldu.global_.u16(wide, A.ptr_to([4]))
+        T.ptx.ldu.global_.v2.s8(signed0, signed1, A.ptr_to([5]))
+        A[tx % 8] = wide + T.uint64(signed0 + signed1)
+
+    src = _cuda_source(kernel)
+    for text in (
+        "ld.global.b8 %0, [%1];",
+        "ld.global.v2.s8 {%0, %1}, [%2];",
+        "st.global.b8 [%0], %1;",
+        "st.global.v2.u16 [%0], {%1, %2};",
+        "ldu.global.u16 %0, [%1];",
+        "ldu.global.v2.s8 {%0, %1}, [%2];",
+    ):
+        assert text in src, text
+    # All data operands above use 64-bit registers; widening is expressed by
+    # the inline-asm constraint and does not insert a numeric conversion.
+    assert '"=l"(__d)' in src or '"=l"(__d0)' in src
+    assert '"l"(__value)' in src or '"l"(__value0)' in src
+    assert "cvt." not in src
+
+    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="must have dtype"):
+
+        @T.prim_func
+        def floating_source_for_integer_type(a_ptr: T.handle):
+            A = T.match_buffer(a_ptr, (1,), "uint16")
+            T.device_entry()
+            T.ptx.st.global_.u16(A.ptr_to([0]), T.float32(1))
+
+
+def test_ptx_st_vec_f64_cuda_13_4_carrier_gap():
+    """Keep CUDA 13.4's st.v2.f64 carrier gap (ptxas C7907) local to that source-operand shape."""
+    from tvm.backend.cuda.ptx.table import TABLE, dtype_combos, tokens_for
+
+    st_vec_tokens = tokens_for(TABLE["st_vec"], vec="v2", type="f64")
+    assert dtype_combos(TABLE["st_vec"], st_vec_tokens) == (
+        ("float64", "uint64"),
+        ("uint64", "uint64"),
+        ("int64", "uint64"),
+    )
+
+    for name, tokens in (
+        ("st", tokens_for(TABLE["st"], type="f64")),
+        ("ld_vec", tokens_for(TABLE["ld_vec"], vec="v2", type="f64")),
+        ("ldu_vec", tokens_for(TABLE["ldu_vec"], vec="v2", type="f64")),
+    ):
+        combos = dtype_combos(TABLE[name], tokens)
+        assert any(combo[0] == "uint128" for combo in combos), name
+        assert any(combo[0] == "int128" for combo in combos), name
+
+
+def test_ptx_vec256_cache_policy():
+    """Pin the PTX 9.2 256-bit cache-policy arity and exact-width carriers."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, mods, operand_dtypes, tokens_for
+
+    ld256 = TABLE["ld_vec256"]
+    ld_tokens = tokens_for(ld256, space="global", cache="L2::cache_hint", vec="v8", type="b32")
+    ld_src = render_variant(ld256, ld_tokens)[2]
+    assert "uint64_t __cache_policy" in ld_src
+    assert "ld.global.L2::cache_hint.v8.b32 {%0, %1, %2, %3, %4, %5, %6, %7}, [%8], %9;" in ld_src
+
+    st256 = TABLE["st_vec256"]
+    st_tokens = tokens_for(st256, space="global", cache="L2::cache_hint", vec="v8", type="b32")
+    st_src = render_variant(st256, st_tokens)[2]
+    assert "uint64_t __cache_policy" in st_src
+    assert "st.global.L2::cache_hint.v8.b32 [%0], {%1, %2, %3, %4, %5, %6, %7, %8}, %9;" in st_src
+    assert operand_dtypes(st256.operands[1], mods(st256, st_tokens)) == (
+        "uint32",
+        "int32",
+        "float32",
+    )
+
+    @T.prim_func
+    def vec256_calls(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (8,), "uint32")
+        T.device_entry()
+        policy = T.local_scalar("uint64")
+        x0 = T.local_scalar("uint32")
+        x1 = T.local_scalar("uint32")
+        x2 = T.local_scalar("uint32")
+        x3 = T.local_scalar("uint32")
+        x4 = T.local_scalar("uint32")
+        x5 = T.local_scalar("uint32")
+        x6 = T.local_scalar("uint32")
+        x7 = T.local_scalar("uint32")
+        T.ptx.ld.global_.L2__cache_hint.v8.b32(
+            x0, x1, x2, x3, x4, x5, x6, x7, A.ptr_to([0]), policy
+        )
+        T.ptx.st.global_.L2__cache_hint.v8.b32(
+            A.ptr_to([0]), x0, x1, x2, x3, x4, x5, x6, x7, policy
+        )
+
+    reparsed = tvm.script.from_source(vec256_calls.script())
+    tvm.ir.assert_structural_equal(vec256_calls, reparsed)
+
+
+@requires_nvcc
+def test_ptx_st_bulk_size_carriers_and_st_async_byte_bridge():
+    """st.bulk takes 32/64-bit sizes; st.async stages one private .b8 register."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, dtype_combos, tokens_for
+
+    bulk = TABLE["st_bulk"]
+    bulk_tokens = tokens_for(bulk, space="shared::cta")
+    assert dtype_combos(bulk, bulk_tokens) == (
+        ("uint64",),
+        ("int64",),
+        ("uint32",),
+        ("int32",),
+    )
+    assert "uint32_t __size" in render_variant(bulk, bulk_tokens, dtypes=("uint32",))[2]
+
+    release = TABLE["st_async_release"]
+    for ty, dtype in (
+        ("b8", "uint8"),
+        ("u8", "uint8"),
+        ("s8", "int8"),
+    ):
+        tokens = tokens_for(release, sem="release", scope="sys", space="global", type=ty)
+        source = render_variant(release, tokens, dtypes=(dtype,))[2]
+        assert ".reg .b8 raw_b;" in source
+        assert "cvt.u8.u16 raw_b, %1;" in source
+        assert f"st.async.release.sys.global.{ty} [%0], raw_b;" in source
+        asm_text = _ASM_RE.findall(source)[0]
+        assert _sole_instruction(asm_text) == f"st.async.release.sys.global.{ty} [%0], raw_b;"
+
+    # The C-boundary casts preserve all byte patterns; the bridge conversion
+    # consumes their low 8 bits in the exact register class named above.
+    for bits in (0x00, 0x7F, 0x80, 0xFF):
+        signed_value = bits if bits < 0x80 else bits - 0x100
+        assert (bits & 0xFF) == bits
+        assert (signed_value & 0xFF) == bits
+
+    @T.prim_func
+    def carrier_calls(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (8,), "uint8")
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([1])
+        T.ptx.st_async.release.sys.global_.b8(A.ptr_to([0]), T.uint8(0x00))
+        T.ptx.st_async.release.sys.global_.b8(A.ptr_to([1]), T.uint8(0x7F))
+        T.ptx.st_async.release.sys.global_.b8(A.ptr_to([2]), T.uint8(0x80))
+        T.ptx.st_async.release.sys.global_.b8(A.ptr_to([3]), T.uint8(0xFF))
+        T.ptx.st_async.release.sys.global_.u8(A.ptr_to([4]), T.uint8(0xFF))
+        T.ptx.st_async.release.sys.global_.s8(A.ptr_to([5]), T.int8(-1))
+
+    reparsed = tvm.script.from_source(carrier_calls.script())
+    tvm.ir.assert_structural_equal(carrier_calls, reparsed)
+    _assert_ptxas_ok(_cuda_source(carrier_calls), arch="sm_100")
 
 
 def test_ptx_u64_address_handle_is_reinterpreted():
@@ -607,6 +1260,31 @@ def test_ptx_integer_arithmetic_dispatch():
         def sat_on_lo(out: T.Buffer((1,), "int32")):
             T.device_entry()
             T.ptx.mad.lo.sat.s32(out[0], T.int32(2), T.int32(3), T.int32(4))
+
+    # The unavailable add.sat forms added in PTX 9.2 are distinct from the
+    # integer lines on which `.sat` has never been legal. Keep both reasons
+    # visible so an invalid spelling is not misreported as an architecture
+    # gate. In particular, sub.sat.u32 is not the counterpart of add.sat.u32.
+    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="sm_120f-only"):
+
+        @T.prim_func
+        def add_sat_sm120(out: T.Buffer((1,), "uint32")):
+            T.device_entry()
+            T.ptx.add.sat.u32(out[0], T.uint32(2), T.uint32(3))
+
+    with pytest.raises((ValueError, tvm.error.DiagnosticError), match=r"not on the add\.u64"):
+
+        @T.prim_func
+        def add_sat_no_syntax_line(out: T.Buffer((1,), "uint64")):
+            T.device_entry()
+            T.ptx.add.sat.u64(out[0], T.uint64(2), T.uint64(3))
+
+    with pytest.raises((ValueError, tvm.error.DiagnosticError), match=r"not on the sub\.u32"):
+
+        @T.prim_func
+        def sub_sat_no_syntax_line(out: T.Buffer((1,), "uint32")):
+            T.device_entry()
+            T.ptx.sub.sat.u32(out[0], T.uint32(2), T.uint32(3))
 
 
 def test_ptx_floating_point_dispatch():
@@ -845,7 +1523,7 @@ def test_ptx_mixed_precision_dispatch():
 
 
 def test_ptx_comparison_selection_dispatch():
-    """ISA 9.7.6, the section whose results and selectors are predicates.
+    """ISA 9.7.7, the section whose results and selectors are predicates.
 
     Four mnemonics, eight entries: `setp` alone is four, because `{.BoolOp}`
     adds an operand and `[|q]` adds a destination, and those are two
@@ -864,13 +1542,17 @@ def test_ptx_comparison_selection_dispatch():
         q = T.local_scalar("uint32")
         d = T.local_scalar("uint32")
         f = T.local_scalar("float32")
-        T.ptx.setp.lt.s32(p, A[0], A[1])  # one destination
+        p_buffer = T.alloc_local((1,), "uint32")
+        T.ptx.setp.lt.s32(p_buffer[0], A[0], A[1])  # one destination
         T.ptx.setp.lt.s32(p, q, A[0], A[1])  # ... two: `p|q`, chosen by arity
         T.ptx.setp.lt.and_.s32(p, A[0], A[1], T.ptx.pred(q))  # ... plus a BoolOp
         T.ptx.setp.gt.or_.s32(p, q, A[2], A[3], T.ptx.pred(d))  # ... and both
         T.ptx.set.lt.u32.f32(d, f, f)  # writes a value, not a predicate
-        T.ptx.selp.b32(d, d, p, T.ptx.pred(q))  # predicate selects
+        T.ptx.selp.b32(d, d, p, T.ptx.pred(p_buffer[0]))  # predicate selects
         T.ptx.slct.ftz.b32.f32(d, d, p, f)  # a sign selects
+        # slct treats d/a/b independently as bit-size values. This mixes all
+        # three 32-bit carrier classes while c remains exactly .s32.
+        T.ptx.slct.f32.s32(d, f, A[0], A[1])
         A[tx % 4] = T.int32(p + q + d)
 
     src = _cuda_source(kernel)
@@ -882,6 +1564,7 @@ def test_ptx_comparison_selection_dispatch():
         "set.lt.u32.f32 %0, %1, %2;",
         "selp.b32 %0, %1, %2, ps0;",
         "slct.ftz.b32.f32 %0, %1, %2, %3;",
+        "slct.f32.s32 %0, %1, %2, %3;",
     ):
         assert text in src, text
 
@@ -930,9 +1613,59 @@ def test_ptx_comparison_selection_dispatch():
             T.device_entry()
             T.ptx.slct.ftz.b32.s32(out[0], T.uint32(1), T.uint32(2), T.int32(3))
 
+    # Only d/a/b receive slct's relaxed bit-size typing. The selector must
+    # still match the second instruction type exactly, even when another
+    # same-constraint integer carrier would fit through inline asm.
+    with pytest.raises(
+        (ValueError, tvm.error.DiagnosticError), match=r"operand 'c'.*int32.*uint32"
+    ):
+
+        @T.prim_func
+        def relaxed_selector(out: T.Buffer((1,), "uint32")):
+            T.device_entry()
+            T.ptx.slct.f32.s32(out[0], T.float32(1), T.int32(2), T.uint32(3))
+
+
+def test_ptx_slct_relaxed_value_dtype_domain():
+    """The ptxas-proven d/a/b carrier product is complete and native-first."""
+    from tvm.backend.cuda.ptx.table import (
+        PTX_TYPE_DTYPES,
+        TABLE,
+        dtype_combos,
+        mods,
+        operand_dtypes,
+        tokens_for,
+        variants,
+    )
+
+    expected = {
+        "b16": ("uint16", "int16", "float16", "bfloat16"),
+        "u16": ("uint16", "int16", "float16", "bfloat16"),
+        "s16": ("int16", "uint16", "float16", "bfloat16"),
+        "b32": ("uint32", "int32", "float32"),
+        "u32": ("uint32", "int32"),
+        "s32": ("int32", "uint32"),
+        "f32": ("float32", "uint32", "int32"),
+        "b64": ("uint64", "int64", "float64"),
+        "u64": ("uint64", "int64"),
+        "s64": ("int64", "uint64"),
+        "f64": ("float64", "uint64", "int64"),
+    }
+    entry = TABLE["slct"]
+    for dtype, value_dtypes in expected.items():
+        for ctype in ("s32", "f32"):
+            tokens = tokens_for(entry, dtype=dtype, ctype=ctype)
+            mod_map = mods(entry, tokens)
+            domains = tuple(operand_dtypes(slot, mod_map) for slot in entry.typed_operands)
+            assert domains == (value_dtypes, value_dtypes, value_dtypes, PTX_TYPE_DTYPES[ctype])
+
+    # The three value operands form an independent product. Across the legal
+    # (dtype, ctype, ftz) variants this is the exhaustively certified 996.
+    assert sum(len(dtype_combos(entry, tokens)) for tokens in variants(entry)) == 996
+
 
 def test_ptx_half_comparison_dispatch():
-    """ISA 9.7.7, the half twin of 9.7.6 -- same two mnemonics, different grids.
+    """ISA 9.7.8, the half twin of 9.7.7 -- same two mnemonics, different grids.
 
     Two things separate it from the section it shares names with. `setp`'s
     destination shape is decided by the type rather than chosen: the scalar
@@ -958,6 +1691,8 @@ def test_ptx_half_comparison_dispatch():
         T.ptx.setp.eq.and_.bf16(p, h, h, T.ptx.pred(q))
         T.ptx.setp.gt.or_.bf16x2(p, q, x2, x2, T.ptx.pred(d32))
         T.ptx.set.lt.u32.f16(d32, h, h)  # integer answer to a half compare
+        T.ptx.set.lt.u32.bf16(d32, h, h)  # bf16 is floating, not a .b* bit type
+        T.ptx.set.nan.u32.bf16x2(d32, x2, x2)  # nor is packed bf16x2
         T.ptx.set.gt.f16.f32(h, T.float32(1.0), T.float32(2.0))  # ... and back
         T.ptx.set.eq.f16x2.f16x2(x2, x2, x2)  # packed both sides
         A[tx % 4] = p + q + d32 + T.uint32(h) + x2
@@ -969,6 +1704,8 @@ def test_ptx_half_comparison_dispatch():
         "setp.eq.and.bf16 pd0, %1, %2, ps0;",
         "setp.gt.or.bf16x2 pd0|pd1, %2, %3, ps0;",
         "set.lt.u32.f16 %0, %1, %2;",
+        "set.lt.u32.bf16 %0, %1, %2;",
+        "set.nan.u32.bf16x2 %0, %1, %2;",
         "set.gt.f16.f32 %0, %1, %2;",
         "set.eq.f16x2.f16x2 %0, %1, %2;",
     ):
@@ -1017,7 +1754,16 @@ def test_ptx_half_comparison_dispatch():
             T.device_entry()
             T.ptx.set.equ.f16.s32(out[0], T.int32(0), T.int32(0))
 
-    # 9.7.7 spells no unsigned alternates at all, so `lo` never resolves here.
+    # The classification fix is narrow: a real .b16 source remains a bit-size
+    # value and therefore still permits equality comparisons only.
+    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="bit-size source"):
+
+        @T.prim_func
+        def ordered_on_bitsize(out: T.Buffer((1,), "uint16")):
+            T.device_entry()
+            T.ptx.set.lt.f16.b16(out[0], T.uint16(0), T.uint16(0))
+
+    # 9.7.8 spells no unsigned alternates at all, so `lo` never resolves here.
     with pytest.raises((AttributeError, tvm.error.DiagnosticError), match="not a valid modifier"):
 
         @T.prim_func
@@ -1027,7 +1773,7 @@ def test_ptx_half_comparison_dispatch():
 
 
 def test_ptx_logic_shift_dispatch():
-    """ISA 9.7.8, including the three mnemonics that are Python keywords.
+    """ISA 9.7.9, including the three mnemonics that are Python keywords.
 
     `and`, `or` and `not` cannot be attributes as they stand, so the surface
     spells them `and_`/`or_`/`not_` and the escape is carried through both
@@ -1058,6 +1804,7 @@ def test_ptx_logic_shift_dispatch():
         T.ptx.cnot.b32(d, d)
         T.ptx.lop3.b32(d, d, d, d, 0x80)  # a & b & c, by look-up table
         T.ptx.lop3.or_.b32(d, p, d, d, d, 0xFE, T.ptx.pred(q))  # d|p pair
+        T.ptx.lop3.and_.b32(p, d, d, d, 0x80, T.ptx.pred(q))  # fixed _|p sibling
         T.ptx.shf.l.clamp.b32(d, d, d, T.uint32(4))  # funnel shift
         T.ptx.shl.b32(d, d, T.uint32(2))
         T.ptx.shr.s32(s, s, T.uint32(1))  # signed: fills with the sign bit
@@ -1074,6 +1821,7 @@ def test_ptx_logic_shift_dispatch():
         "cnot.b32 %0, %1;",
         "lop3.b32 %0, %1, %2, %3, 128;",
         "lop3.or.b32 %0|pd0, %2, %3, %4, 254, ps0;",
+        "lop3.and.b32 _|pd0, %1, %2, %3, 128, ps0;",
         "shf.l.clamp.b32 %0, %1, %2, %3;",
         "shl.b32 %0, %1, %2;",
         "shr.s32 %0, %1, %2;",
@@ -1112,19 +1860,87 @@ def test_ptx_logic_shift_dispatch():
             T.device_entry()
             T.ptx.shl.s32(out[0], T.int32(1), T.uint32(2))
 
-    # The LUT byte lives in the instruction text, so it has to be a constant.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="compile-time integer"):
-
-        @T.prim_func
-        def lut_runtime(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
-            T.device_entry()
+    # Open immediates may survive tracing so explicitly-unrolled expressions
+    # can specialize, but a runtime LUT byte still has no register form and is
+    # rejected at CUDA codegen.
+    @T.prim_func
+    def lut_runtime(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (1,), "uint32")
+        T.device_entry()
+        tx = T.thread_id([32])
+        if tx == 0:
             d = T.local_scalar("uint32")
             T.ptx.lop3.b32(d, A[0], A[0], A[0], A[0])
 
+    with pytest.raises((ValueError, tvm.error.InternalError), match="compile-time constants"):
+        _cuda_source(lut_runtime)
+
+    @T.prim_func
+    def lut_unrolled(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (1,), "uint32")
+        T.device_entry()
+        tx = T.thread_id([32])
+        if tx == 0:
+            d = T.local_scalar("uint32")
+            for i in T.unroll(2):
+                T.ptx.lop3.b32(d, A[0], A[0], A[0], i * 128)
+
+    unrolled_src = _cuda_source(lut_unrolled)
+    assert "lop3.b32 %0, %1, %2, %3, 0;" in unrolled_src
+    assert "lop3.b32 %0, %1, %2, %3, 128;" in unrolled_src
+
+    @T.prim_func
+    def lut_boundaries(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (1,), "uint32")
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([1])
+        d = T.local_scalar("uint32")
+        T.ptx.lop3.b32(d, A[0], A[0], A[0], 0)
+        T.ptx.lop3.b32(d, A[0], A[0], A[0], 255)
+
+    boundary_src = _cuda_source(lut_boundaries)
+    assert "lop3.b32 %0, %1, %2, %3, 0;" in boundary_src
+    assert "lop3.b32 %0, %1, %2, %3, 255;" in boundary_src
+
+    with pytest.raises(
+        (ValueError, tvm.error.DiagnosticError), match=r"inclusive range 0\.\.255, got -1"
+    ):
+
+        @T.prim_func
+        def lut_below_range(a_ptr: T.handle):
+            A = T.match_buffer(a_ptr, (1,), "uint32")
+            T.device_entry()
+            d = T.local_scalar("uint32")
+            T.ptx.lop3.b32(d, A[0], A[0], A[0], -1)
+
+    with pytest.raises(
+        (ValueError, tvm.error.DiagnosticError), match=r"inclusive range 0\.\.255, got 256"
+    ):
+
+        @T.prim_func
+        def lut_above_range(a_ptr: T.handle):
+            A = T.match_buffer(a_ptr, (1,), "uint32")
+            T.device_entry()
+            d = T.local_scalar("uint32")
+            T.ptx.lop3.b32(d, A[0], A[0], A[0], 256)
+
+    @T.prim_func
+    def lut_unrolled_out_of_range(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (1,), "uint32")
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([1])
+        d = T.local_scalar("uint32")
+        for i in T.unroll(2):
+            T.ptx.lop3.b32(d, A[0], A[0], A[0], i * 256)
+
+    with pytest.raises(ValueError, match=r"inclusive range 0\.\.255, got 256"):
+        _cuda_source(lut_unrolled_out_of_range)
+
 
 def test_ptx_data_movement_dispatch():
-    """ISA 9.7.9's newly registered instructions, end to end.
+    """ISA 9.7.10's newly registered instructions, end to end.
 
     The section's own difficulty is that its shapes vary more than its
     qualifiers: `mov` shares a mnemonic with ten vector pack/unpack entries and
@@ -1161,6 +1977,10 @@ def test_ptx_data_movement_dispatch():
         T.ptx.applypriority.global_.L2__evict_normal(A.ptr_to([6]))
         T.ptx.discard.global_.L2(A.ptr_to([7]))
         T.ptx.prefetchu.L1(A.ptr_to([0]))
+        T.ptx.cp.async_.wait_group(255)
+        T.ptx.cp.async_.bulk.wait_group(255)
+        T.ptx.cp.async_.bulk.wait_group.read(8)
+        T.ptx.cp.async_.bulk.wait_group.read(-1)
         T.ptx.multimem_ld_reduce.add.u32(v, A.ptr_to([0]))
         T.ptx.multimem_red.relaxed.gpu.add.u32(A.ptr_to([0]), v)
         smem[tx % 4] = d + p + v
@@ -1184,6 +2004,10 @@ def test_ptx_data_movement_dispatch():
         "applypriority.global.L2::evict_normal [%0], 128;",
         "discard.global.L2 [%0], 128;",
         "prefetchu.L1 [%0];",
+        "cp.async.wait_group 255;",
+        "cp.async.bulk.wait_group 255;",
+        "cp.async.bulk.wait_group.read 8;",
+        "cp.async.bulk.wait_group.read -1;",
         "multimem.ld_reduce.add.u32 %0, [%1];",
         "multimem.red.relaxed.gpu.add.u32 [%0], %1;",
     ):
@@ -1254,13 +2078,13 @@ def test_ptx_data_movement_dispatch():
 
 
 def test_ptx_parallel_sync_dispatch():
-    """ISA 9.7.14's warp-level primitives and the atom shapes beside `.op`.
+    """ISA 9.7.15's warp-level primitives and the atom shapes beside `.op`.
 
     The section is where predicates are most load-bearing: they are sources
     (bar.red's `c`), destinations (vote, elect), and both at once. It is also
-    where one mnemonic carries the most shapes -- `atom` now has the `.op`
-    line, `.cas`, `.exch`, the half-precision adds and two vector lines, all
-    resolved by tokens and arity alone.
+    where one mnemonic carries the most shapes -- `atom` has the `.op` line,
+    `.cas`, `.exch`, the half-precision adds and three vector syntax lines
+    represented by two entries, all resolved by tokens and arity alone.
     """
 
     @T.prim_func
@@ -1348,6 +2172,28 @@ def test_ptx_parallel_sync_dispatch():
             )
 
 
+def test_ptx_lazy_subscript_operands_realize():
+    """Raw buffer elements realize before PTX predicate operand validation."""
+
+    @T.prim_func
+    def kernel(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (1,), "uint32")
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+        regs = T.alloc_buffer((2,), "uint32", scope="local")
+        full = T.uint32(0xFFFFFFFF)
+        T.ptx.elect_sync(regs[0], regs[1], full)
+        T.ptx.vote_sync.all.pred(regs[0], T.ptx.pred(regs[1]), full)
+        T.ptx.activemask.b32(regs[1], pred=regs[0])
+        A[0] = regs[0] + regs[1]
+
+    src = _cuda_source(kernel)
+    assert "elect.sync" in src
+    assert "vote.sync.all.pred" in src
+    assert "@p activemask.b32" in src
+
+
 def test_ptx_parser_roundtrip():
     """script() output re-parses to a structurally equal PrimFunc."""
 
@@ -1411,6 +2257,163 @@ def test_ptx_pred_operand_roundtrip():
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
+def test_ptx_wgmma_scale_d_runtime_predicate_roundtrip():
+    """WGMMA scale-d is a runtime predicate, not a 0/1 text immediate."""
+
+    @T.prim_func
+    def kernel(out_ptr: T.handle):
+        Out = T.match_buffer(out_ptr, (128,), "uint32")
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([128])
+        scale_d: T.uint32 = T.cast(tx < 128, "uint32")
+        d0: T.uint32 = T.uint32(0)
+        d1: T.uint32 = T.uint32(0)
+        d2: T.uint32 = T.uint32(0)
+        d3: T.uint32 = T.uint32(0)
+        T.ptx.wgmma.mma_async.sync.aligned.m64n8k32.s32.s8.s8(
+            d0, d1, d2, d3, T.uint64(0), T.uint64(0), T.ptx.pred(scale_d)
+        )
+        Out[tx] = d0 + d1 + d2 + d3
+
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
+    with target:
+        mod = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+    src = mod.mod.imports[0].inspect_source("cuda")
+    assert "wgmma.mma_async.sync.aligned.m64n8k32.s32.s8.s8" in src
+    assert ".reg .pred ps0;" in src
+    assert "setp.ne.b32 ps0," in src
+    assert "}, %4, %5, ps0;" in src
+
+    reparsed = tvm.script.from_source(kernel.script())
+    tvm.ir.assert_structural_equal(kernel, reparsed)
+
+    # There is deliberately no compatibility overload for the old integer
+    # immediate spelling. A bool already identifies a predicate; a runtime
+    # integer must carry the explicit T.ptx.pred(...) register-class marker.
+    with pytest.raises((ValueError, tvm.error.DiagnosticError), match=r"T\.ptx\.pred"):
+
+        @T.prim_func
+        def bare_integer_scale_d():
+            T.device_entry()
+            d0: T.uint32 = T.uint32(0)
+            d1: T.uint32 = T.uint32(0)
+            d2: T.uint32 = T.uint32(0)
+            d3: T.uint32 = T.uint32(0)
+            T.ptx.wgmma.mma_async.sync.aligned.m64n8k32.s32.s8.s8(
+                d0, d1, d2, d3, T.uint64(0), T.uint64(0), 0
+            )
+
+
+def test_ptx_wgmma_integer_shape_domains_follow_concrete_syntax():
+    """s8/u8 stop at N=224, while the b1 syntax includes N=240/256."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, lanes_of, mods, tokens_for
+
+    for form in ("ss", "rs"):
+        entry = TABLE[f"wgmma_int_{form}"]
+        shape_slot = next(slot for slot in entry.slots if slot.name == "shape")
+        assert "m64n224k32" in shape_slot.choices
+        assert "m64n240k32" not in shape_slot.choices
+        assert "m64n256k32" not in shape_slot.choices
+        assert entry.operands[-1].dtype == "pred"
+
+        tokens = tokens_for(
+            entry,
+            action="mma_async",
+            sync="sync",
+            aligned="aligned",
+            shape="m64n224k32",
+            dtype="s32",
+            atype="s8",
+            btype="s8",
+        )
+        assert lanes_of(entry.operands[0], mods(entry, tokens)) == 112
+        opcode, _, source = render_variant(entry, tokens)
+        assert opcode == "wgmma.mma_async.sync.aligned.m64n224k32.s32.s8.s8"
+        assert f"{opcode} {{" in source
+        assert ", ps0;" in source
+
+        b1_entry = TABLE[f"wgmma_b1_{form}"]
+        b1_shapes = next(slot for slot in b1_entry.slots if slot.name == "shape").choices
+        assert "m64n240k256" in b1_shapes
+        assert "m64n256k256" in b1_shapes
+
+
+@pytest.mark.parametrize("form", ("ss", "ts"))
+@pytest.mark.parametrize("collector", ("", "b0::fill", "b1::use", "b2::lastuse", "b3::discard"))
+def test_ptx_tcgen05_mma_ws_collector_dispatch(form, collector):
+    opcode = "tcgen05.mma.ws.cta_group::1.kind::f16"
+    if collector:
+        opcode += f".collector::{collector}"
+    a_dtype = "uint64" if form == "ss" else "uint32"
+
+    @T.prim_func
+    def kernel():
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+        T.ptx[opcode](
+            T.uint32(0),
+            T.cast(0, a_dtype),
+            T.uint64(0),
+            T.uint32(0),
+            T.ptx.pred(T.uint32(0)),
+            T.uint64(0),
+        )
+
+    src = _cuda_source(kernel, tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}))
+    a_operand = "%1" if form == "ss" else "[%1]"
+    assert f"{opcode} [%0], {a_operand}, %2, %3, ps0, %5;" in src
+    tvm.ir.assert_structural_equal(kernel, tvm.script.from_source(kernel.script()))
+
+
+@requires_nvcc
+def test_ptx_tcgen05_mma_ws_collectors_certify_sm100a():
+    """All WS kinds, B buffers/operations, and predication assemble on SM100a."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, renderings
+
+    by_arch = {}
+    for form in ("ss", "ts"):
+        entry = TABLE[f"tcgen05_mma_ws_{form}"]
+        for rendering in renderings(entry):
+            _, helper, source = render_variant(entry, *_as_render_args(rendering))
+            _append_certification(by_arch, "sm_100a", helper, source)
+    _assert_certifications_ok(by_arch)
+
+
+@pytest.mark.parametrize("mismatch", ("modifier", "operand"))
+def test_ptx_codegen_rejects_stale_table_layout(mismatch):
+    """A traced call must not silently feed modifier strings to an old helper."""
+    from dataclasses import replace
+
+    from tvm.backend.cuda.ptx.engine import PTXNamespace, _make_codegen
+    from tvm.backend.cuda.ptx.table import TABLE, ModifierSlot, OperandSlot
+
+    entry = TABLE["tcgen05_mma_ws_ss"]
+    if mismatch == "modifier":
+        changed = replace(entry, slots=(*entry.slots, ModifierSlot("extra", ("extra",))))
+        opcode = "tcgen05.mma.ws.cta_group::1.kind::f16.extra"
+        extra = ()
+    else:
+        changed = replace(entry, operands=(*entry.operands, OperandSlot("extra", dtype="u64")))
+        opcode = "tcgen05.mma.ws.cta_group::1.kind::f16"
+        extra = (T.uint64(0),)
+    namespace = PTXNamespace({changed.name: changed})
+    call = namespace[opcode](
+        T.uint32(0),
+        T.uint64(0),
+        T.uint64(0),
+        T.uint32(0),
+        namespace.pred(T.uint32(0)),
+        T.uint64(0),
+        *extra,
+    )
+    with pytest.raises(ValueError, match="PTX call and registered table entry may be inconsistent"):
+        _make_codegen(entry)(*call.args)
+
+
 @requires_nvcc
 def test_ptx_tcgen05_mma_block_size_form():
     @T.prim_func
@@ -1445,6 +2448,152 @@ def test_ptx_tcgen05_mma_block_size_form():
             T.ptx["tcgen05.mma.cta_group::1.kind::mxf4.block_scale.block16"](
                 tmem, desc, desc, idesc, tmem, tmem, T.ptx.pred(flag)
             )
+
+
+@pytest.mark.skipif(
+    not env.has_nvcc_version(13, 4),
+    reason="collector-qualified block_scale MMA is a PTX 9.4 form; need nvcc >= 13.4",
+)
+@requires_nvcc
+def test_ptx_tcgen05_mma_block_size_collector_form():
+    """PTX 9.4 collector qualifiers on block-scaled MMA certify at their sm_107f floor."""
+
+    @T.prim_func
+    def sm107_collector_kernel(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (32,), "uint32")
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([32])
+        if tx == 0:
+            tmem = T.local_scalar("uint32")
+            desc = T.local_scalar("uint64")
+            idesc = T.local_scalar("uint32")
+            flag = T.local_scalar("uint32")
+            T.ptx[
+                "tcgen05.mma.cta_group::1.kind::mxf4nvf4.block_scale.block16"
+                ".collector::a::discard.collector::b::fill"
+            ](tmem, desc, desc, idesc, tmem, tmem, T.ptx.pred(flag))
+            T.ptx[
+                "tcgen05.mma.cta_group::1.kind::mxf4.block_scale.block32"
+                ".collector::a::fill.collector::b::lastuse"
+            ](tmem, tmem, desc, idesc, tmem, tmem, T.ptx.pred(flag))
+        A[tx] = A[tx]
+
+    collector_src = _cuda_source(
+        sm107_collector_kernel, tvm.target.Target({"kind": "cuda", "arch": "sm_107f"})
+    )
+    ss_collector_opcode = (
+        "tcgen05.mma.cta_group::1.kind::mxf4nvf4.block_scale.block16"
+        ".collector::a::discard.collector::b::fill"
+    )
+    ts_collector_opcode = (
+        "tcgen05.mma.cta_group::1.kind::mxf4.block_scale.block32"
+        ".collector::a::fill.collector::b::lastuse"
+    )
+    assert ss_collector_opcode in collector_src
+    assert ts_collector_opcode in collector_src
+    _assert_ptxas_ok(collector_src, arch="sm_107f")
+
+
+@pytest.mark.skipif(
+    not env.has_nvcc_version(13, 4),
+    reason="collector-qualified block_scale MMA is a PTX 9.4 form; need nvcc >= 13.4",
+)
+@requires_nvcc
+def test_ptx_tcgen05_mma_block_scale_collector_a_without_block_size():
+    """SM107 activation-stationary FP8 accepts collector A without `.block*`."""
+
+    @T.prim_func
+    def kernel(a_ptr: T.handle):
+        A = T.match_buffer(a_ptr, (32,), "uint32")
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([32])
+        if tx == 0:
+            tmem = T.local_scalar("uint32")
+            desc = T.local_scalar("uint64")
+            idesc = T.local_scalar("uint32")
+            flag = T.local_scalar("uint32")
+            T.ptx["tcgen05.mma.cta_group::1.kind::mxf8f6f4.block_scale.collector::a::discard"](
+                tmem, desc, desc, idesc, tmem, tmem, T.ptx.pred(flag)
+            )
+        A[tx] = A[tx]
+
+    src = _cuda_source(kernel)
+    opcode = "tcgen05.mma.cta_group::1.kind::mxf8f6f4.block_scale.collector::a::discard"
+    assert opcode in src
+    _assert_ptxas_ok(src, arch="sm_107a")
+
+
+def test_ptx_tcgen05_mma_block_size_collector_legality():
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+
+    kind_blocks = (
+        ("kind::mxf8f6f4", "block32"),
+        ("kind::mxf4", "block32"),
+        ("kind::mxf4nvf4", "block16"),
+        ("kind::mxf4nvf4", "block32"),
+    )
+    for form in ("ss", "ts"):
+        entry = TABLE[f"tcgen05_mma_block_scale_block_{form}"]
+        for kind, block_size in kind_blocks:
+            required = {
+                "action": "mma",
+                "cta_group": "cta_group::1",
+                "kind": kind,
+                "block_scale": "block_scale",
+                "block_size": block_size,
+            }
+            tokens_for(entry, **required, collector_a="collector::a::fill")
+            tokens_for(
+                entry,
+                **required,
+                collector_a="collector::a::fill",
+                collector_b="collector::b::lastuse",
+            )
+        with pytest.raises(ValueError, match="collector B requires collector A"):
+            tokens_for(
+                entry,
+                action="mma",
+                cta_group="cta_group::1",
+                kind="kind::mxf4",
+                block_scale="block_scale",
+                block_size="block32",
+                collector_b="collector::b::fill",
+            )
+
+
+@requires_nvcc
+def test_ptx_tcgen05_mma_block_size_no_b_certifies_at_sm100f():
+    """No-collector and collector-A-only forms retain their documented lower floor."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+
+    kind_blocks = (
+        ("kind::mxf8f6f4", "block32"),
+        ("kind::mxf4", "block32"),
+        ("kind::mxf4nvf4", "block16"),
+        ("kind::mxf4nvf4", "block32"),
+    )
+    sources = []
+    for form in ("ss", "ts"):
+        entry = TABLE[f"tcgen05_mma_block_scale_block_{form}"]
+        for kind, block_size in kind_blocks:
+            for collector_a in ("", "collector::a::fill"):
+                kwargs = {
+                    "action": "mma",
+                    "cta_group": "cta_group::1",
+                    "kind": kind,
+                    "block_scale": "block_scale",
+                    "block_size": block_size,
+                }
+                if collector_a:
+                    kwargs["collector_a"] = collector_a
+                tokens = tokens_for(entry, **kwargs)
+                _, helper, helper_source = render_variant(entry, tokens)
+                sources.append(_certification_kernel(helper, helper_source, len(sources)))
+
+    _assert_ptxas_ok("\n".join((_CERT_PRELUDE, *sources)), arch="sm_100f")
 
 
 def test_ptx_pred_operand_rejects_untagged_integer():
@@ -1532,7 +2681,7 @@ def test_ptx_sink_rejected_where_the_isa_has_no_underscore():
             T.ptx.mov.b64(packed, lo, T.ptx.SINK)
             T.evaluate(hi)
 
-    # ISA 9.7.9.4: "provided that at least one element is a scalar register".
+    # ISA 9.7.10.4: "provided that at least one element is a scalar register".
     with pytest.raises((ValueError, tvm.error.DiagnosticError), match="must be a real register"):
 
         @T.prim_func
@@ -1563,6 +2712,567 @@ def test_ptx_printer_form():
 # Registered-instruction unit tests: pin down the engine's generated helpers
 # and its trace-time coercion so the behavior is readable here, not implicit.
 # ---------------------------------------------------------------------------
+def test_ptx_94_sm107_helpers_render():
+    """Representative SM107 forms preserve PTX 9.4 modifier order and shape."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, escape_token, tokens_for, unescape_token
+
+    cases = (
+        (
+            "mul_mixed_vec_bf16_f16",
+            dict(dtype="bf16x2", atype="bf16x2", ctype="f16x2"),
+            "mul.bf16x2.bf16x2.f16x2",
+        ),
+        (
+            "mul_mixed_vec_f16_bf16",
+            dict(dtype="f16x2", atype="f16x2", ctype="bf16x2"),
+            "mul.f16x2.f16x2.bf16x2",
+        ),
+        ("set_packed", dict(cmp="eq", type="u8x4"), "set.eq.u8x4"),
+        (
+            "ld_proxy_readonly",
+            dict(space="global", type="u32", proxy="proxy::readonly"),
+            "ld.global.u32.proxy::readonly",
+        ),
+        (
+            "prefetch_valid_addr",
+            dict(space="global", level="L1::32B", valid_addr="valid_addr"),
+            "prefetch.global.L1::32B.valid_addr",
+        ),
+        (
+            "spcompress",
+            dict(elemsize="b8", idxsize="b2", spfactor="sp::2:4", num="x4"),
+            "spcompress.b8.b2.sp::2:4.x4",
+        ),
+        (
+            "tcgen05_mma_ti16_ss_collector_b",
+            dict(
+                action="mma",
+                cta_group="cta_group::1",
+                kind="kind::ti16",
+                collector_b="collector::b::fill",
+            ),
+            "tcgen05.mma.cta_group::1.kind::ti16.collector::b::fill",
+        ),
+        (
+            "tcgen05_mma_ss",
+            dict(
+                action="mma",
+                cta_group="cta_group::2",
+                kind="kind::f8f6f4",
+                collector_a="collector::a::discard",
+            ),
+            "tcgen05.mma.cta_group::2.kind::f8f6f4.collector::a::discard",
+        ),
+        (
+            "tcgen05_mma_lut_b_ts",
+            dict(
+                action="mma",
+                cta_group="cta_group::1",
+                kind="kind::f8f6f4",
+                decompress="decompress::lut::b",
+                collector_b="collector::b::use",
+            ),
+            "tcgen05.mma.cta_group::1.kind::f8f6f4.decompress::lut::b.collector::b::use",
+        ),
+        (
+            "cp_async_bulk_tensor_g2s_cta_override_address_im2col",
+            dict(
+                api="async",
+                kind="bulk",
+                unit="tensor",
+                dim="3d",
+                dst="shared::cta",
+                src="global",
+                load_mode="im2col",
+                completion="mbarrier::complete_tx::bytes",
+                override_address="override::global_address",
+            ),
+            (
+                "cp.async.bulk.tensor.3d.shared::cta.global.im2col."
+                "mbarrier::complete_tx::bytes.override::global_address"
+            ),
+        ),
+        (
+            "cp_async_bulk_tensor_g2s_cta_override_address",
+            dict(
+                api="async",
+                kind="bulk",
+                unit="tensor",
+                dim="2d",
+                dst="shared::cta",
+                src="global",
+                load_mode="tile",
+                completion="mbarrier::complete_tx::bytes",
+                report="mbarrier::report::disabled",
+                override_address="override::global_address",
+            ),
+            (
+                "cp.async.bulk.tensor.2d.shared::cta.global.tile."
+                "mbarrier::complete_tx::bytes.mbarrier::report::disabled."
+                "override::global_address"
+            ),
+        ),
+        (
+            "cp_async_bulk_tensor_s2g_im2col_no_offs_w",
+            dict(
+                api="async",
+                kind="bulk",
+                unit="tensor",
+                dim="3d",
+                dst="global",
+                src="shared::cta",
+                load_mode="im2col_no_offs",
+                completion="bulk_group",
+            ),
+            "cp.async.bulk.tensor.3d.global.shared::cta.im2col_no_offs.bulk_group",
+        ),
+        (
+            "atom_f32_noftz_bitbucket",
+            dict(space="global", op="add", noftz="noftz", type="f32"),
+            "atom.global.add.noftz.f32",
+        ),
+        (
+            "ldmatrix_s8_s4",
+            dict(
+                sync="sync",
+                aligned="aligned",
+                shape="m8n16",
+                num="x1",
+                space="shared",
+                dtype="s8",
+                ctype="s4",
+            ),
+            "ldmatrix.sync.aligned.m8n16.x1.shared.s8.s4",
+        ),
+    )
+    for name, slots, expected in cases:
+        entry = TABLE[name]
+        opcode, _, source = render_variant(entry, tokens_for(entry, **slots))
+        assert opcode == expected
+        assert f"{expected} " in source
+
+    cluster_override_im2col = TABLE["cp_async_bulk_tensor_g2s_cluster_override_address_im2col"]
+    opcode, _, source = render_variant(
+        cluster_override_im2col,
+        tokens_for(
+            cluster_override_im2col,
+            api="async",
+            kind="bulk",
+            unit="tensor",
+            dim="3d",
+            dst="shared::cluster",
+            src="global",
+            load_mode="im2col",
+            completion="mbarrier::complete_tx::bytes",
+            multicast="multicast::cluster::16b",
+            override_address="override::global_address",
+        ),
+    )
+    assert (
+        opcode == "cp.async.bulk.tensor.3d.shared::cluster.global.im2col."
+        "mbarrier::complete_tx::bytes.multicast::cluster::16b.override::global_address"
+    )
+    assert "uint16_t __cta_mask" in source
+
+    tma = TABLE["cp_async_bulk_tensor_g2s_cta_override_address_im2col"]
+    _, _, source = render_variant(
+        tma,
+        tokens_for(
+            tma,
+            api="async",
+            kind="bulk",
+            unit="tensor",
+            dim="3d",
+            dst="shared::cta",
+            src="global",
+            load_mode="im2col",
+            completion="mbarrier::complete_tx::bytes",
+            override_address="override::global_address",
+        ),
+    )
+    assert "[%1, %2, {%3, %4, %5}], [%6], {%7};" in source
+
+    escaped = escape_token("sp::2:4")
+    assert escaped == "sp__2__colon__4"
+    assert unescape_token(escaped) == "sp::2:4"
+
+
+def test_ptx_94_cp_bulk_semantic_renderings():
+    """Report and mask-width siblings retain every non-tensor semantic line."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+
+    cases = (
+        (
+            "cp_async_bulk_g2s_cta_report",
+            dict(
+                api="async",
+                kind="bulk",
+                sem="weak",
+                dst="shared::cta",
+                src="global",
+                completion="mbarrier::complete_tx::bytes",
+                report="mbarrier::report::disabled",
+                ignore_oob="ignore_oob",
+            ),
+            "cp.async.bulk.weak.shared::cta.global.mbarrier::complete_tx::bytes."
+            "mbarrier::report::disabled.ignore_oob "
+            "[%0], [%1], %2, %3, %4, [%5];",
+        ),
+        (
+            "cp_async_bulk_g2s_cta_report",
+            dict(
+                api="async",
+                kind="bulk",
+                sem="relaxed",
+                scope="sys",
+                dst="shared::cta",
+                src="global",
+                completion="mbarrier::complete_tx::bytes",
+                report="mbarrier::report::validity::per_16bytes::8",
+                cache="L2::cache_hint",
+                type="b128",
+            ),
+            "cp.async.bulk.relaxed.sys.shared::cta.global."
+            "mbarrier::complete_tx::bytes."
+            "mbarrier::report::validity::per_16bytes::8.L2::cache_hint.b128 "
+            "[%0], [%1], %2, [%3], %4;",
+        ),
+        (
+            "cp_async_bulk_g2s_cluster_multicast16",
+            dict(
+                api="async",
+                kind="bulk",
+                sem="weak",
+                dst="shared::cluster",
+                src="global",
+                completion="mbarrier::complete_tx::bytes",
+                multicast="multicast::cluster::16b",
+            ),
+            "cp.async.bulk.weak.shared::cluster.global.mbarrier::complete_tx::bytes."
+            "multicast::cluster::16b [%0], [%1], %2, [%3], %4;",
+        ),
+        (
+            "cp_async_bulk_g2s_cluster_multicast32",
+            dict(
+                api="async",
+                kind="bulk",
+                sem="relaxed",
+                scope="cluster",
+                dst="shared::cluster",
+                src="global",
+                completion="mbarrier::complete_tx::bytes",
+                multicast="multicast::cluster::32b",
+                type="b128",
+            ),
+            "cp.async.bulk.relaxed.cluster.shared::cluster.global."
+            "mbarrier::complete_tx::bytes.multicast::cluster::32b.b128 "
+            "[%0], [%1], %2, [%3], %4;",
+        ),
+        (
+            "cp_async_bulk_g2s_cluster_report",
+            dict(
+                api="async",
+                kind="bulk",
+                sem="relaxed",
+                scope="gpu",
+                dst="shared::cluster",
+                src="global",
+                completion="mbarrier::complete_tx::bytes",
+                report="mbarrier::report::validity::per_element::ff",
+                multicast="multicast::cluster::32b",
+                type="b128",
+            ),
+            "cp.async.bulk.relaxed.gpu.shared::cluster.global."
+            "mbarrier::complete_tx::bytes."
+            "mbarrier::report::validity::per_element::ff."
+            "multicast::cluster::32b.b128 [%0], [%1], %2, [%3], %4;",
+        ),
+    )
+    for name, modifiers, expected in cases:
+        entry = TABLE[name]
+        _, _, source = render_variant(entry, tokens_for(entry, **modifiers))
+        assert f'asm volatile("{expected}"' in source, source
+
+
+def test_ptx_94_cp_bulk_semantics_roundtrip():
+    """The string namespace dispatches every widened PTX 9.4 sibling."""
+
+    @T.prim_func
+    def kernel(src: T.Buffer((64,), "uint32")):
+        T.device_entry()
+        smem = T.alloc_buffer((64,), "uint32", scope="shared")
+        mbar = T.alloc_buffer((2,), "uint64", scope="shared")
+        T.ptx[
+            "cp.async.bulk.relaxed.sys.shared::cta.global."
+            "mbarrier::complete_tx::bytes."
+            "mbarrier::report::validity::per_16bytes::8.L2::cache_hint.b128"
+        ](
+            smem.ptr_to([0]),
+            src.ptr_to([0]),
+            T.uint32(16),
+            mbar.ptr_to([0]),
+            T.uint64(0),
+        )
+        T.ptx[
+            "cp.async.bulk.weak.shared::cluster.global."
+            "mbarrier::complete_tx::bytes.multicast::cluster::16b"
+        ](
+            T.uint32(0),
+            src.ptr_to([0]),
+            T.uint32(16),
+            mbar.ptr_to([0]),
+            T.uint16(1),
+        )
+        T.ptx[
+            "cp.async.bulk.relaxed.cluster.shared::cluster.global."
+            "mbarrier::complete_tx::bytes.multicast::cluster::32b.b128"
+        ](
+            T.uint32(0),
+            src.ptr_to([0]),
+            T.uint32(16),
+            mbar.ptr_to([0]),
+            T.uint32(1),
+        )
+        T.ptx[
+            "cp.async.bulk.relaxed.gpu.shared::cluster.global."
+            "mbarrier::complete_tx::bytes."
+            "mbarrier::report::validity::per_element::ff."
+            "multicast::cluster::32b.b128"
+        ](
+            T.uint32(0),
+            src.ptr_to([0]),
+            T.uint32(16),
+            mbar.ptr_to([0]),
+            T.uint32(1),
+        )
+
+    reparsed = tvm.script.from_source(kernel.script())
+    tvm.ir.assert_structural_equal(kernel, reparsed)
+
+
+def test_ptx_94_cp_bulk_semantic_negative_grids():
+    """The widened siblings reject malformed strong semantics and report/OOB pairs."""
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+
+    multicast = TABLE["cp_async_bulk_g2s_cluster_multicast32"]
+    required = dict(
+        api="async",
+        kind="bulk",
+        dst="shared::cluster",
+        src="global",
+        completion="mbarrier::complete_tx::bytes",
+        multicast="multicast::cluster::32b",
+    )
+    with pytest.raises(ValueError, match=r"requires both \.scope and \.b128"):
+        tokens_for(multicast, **required, sem="relaxed")
+    with pytest.raises(ValueError, match=r"belong only to the \.relaxed"):
+        tokens_for(multicast, **required, sem="weak", scope="cta", type="b128")
+
+    report = TABLE["cp_async_bulk_g2s_cta_report"]
+    with pytest.raises(ValueError, match=r"\.ignore_oob requires .*report::disabled"):
+        tokens_for(
+            report,
+            api="async",
+            kind="bulk",
+            dst="shared::cta",
+            src="global",
+            completion="mbarrier::complete_tx::bytes",
+            report="mbarrier::report::validity::per_element::ff",
+            ignore_oob="ignore_oob",
+        )
+
+
+def test_ptx_94_sm107_arch_floors_and_delta():
+    """Entries owning SM107 variants certify at 107f and remain in the 9.4 delta."""
+    from tvm.backend.cuda.ptx.table import _PTX_94_ENTRIES, TABLE
+
+    sm107_entries = {
+        "add_mixed_vec_up",
+        "sub_mixed_vec_up",
+        "add_mixed_vec_down_f16",
+        "sub_mixed_vec_down_f16",
+        "add_mixed_vec_down_bf16",
+        "sub_mixed_vec_down_bf16",
+        "fma_mixed_vec",
+        "mul_mixed_vec_down_f16",
+        "mul_mixed_vec_down_bf16",
+        "mul_mixed_vec_bf16_f16",
+        "mul_mixed_vec_f16_bf16",
+        "set_packed",
+        "tcgen05_mma_block_scale_block_ss",
+        "tcgen05_mma_block_scale_block_ts",
+    }
+    assert {TABLE[name].cert_arch for name in sm107_entries} == {"sm_107f"}
+
+    delta_names = {entry.name for entry in _PTX_94_ENTRIES}
+    noftz_siblings = {
+        "atom_f32_noftz",
+        "red_f32_noftz",
+        "atom_vec_f32_noftz",
+        "red_vec_f32_noftz",
+        "cp_reduce_async_bulk_s2g_f32_noftz",
+        "multimem_cp_reduce_async_bulk_f32_noftz",
+    }
+    assert {"ldmatrix_s8_s4", *noftz_siblings} <= delta_names
+    # `.noftz` with `.f32` is a PTX ISA 9.4 line that requires sm_90, not a
+    # family-specific one; the siblings certify at that floor.
+    assert {TABLE[name].cert_arch for name in noftz_siblings} == {"sm_90"}
+
+
+def test_ptx_tcgen05_mapa_address_rendering():
+    """Optional state spaces select generic versus shared address carriers."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for, variants
+
+    def render(name, **by_name):
+        entry = TABLE[name]
+        return render_variant(entry, tokens_for(entry, **by_name))[2]
+
+    bare_alloc = render(
+        "tcgen05_alloc",
+        action="alloc",
+        cta_group="cta_group::1",
+        sync="sync",
+        aligned="aligned",
+        type="b32",
+    )
+    shared_alloc = render(
+        "tcgen05_alloc",
+        action="alloc",
+        cta_group="cta_group::1",
+        sync="sync",
+        aligned="aligned",
+        space="shared::cta",
+        type="b32",
+    )
+    assert "(const void* __dst, uint32_t __ncols)" in bare_alloc
+    assert '"l"(__dst), "r"(__ncols)' in bare_alloc
+    assert "tcgen05.alloc.cta_group::1.sync.aligned.b32 [%0], %1;" in bare_alloc
+    assert "(uint32_t __dst, uint32_t __ncols)" in shared_alloc
+    assert '"r"(__dst), "r"(__ncols)' in shared_alloc
+    assert "tcgen05.alloc.cta_group::1.sync.aligned.shared::cta.b32 [%0], %1;" in shared_alloc
+
+    for name, extra in (
+        ("tcgen05_commit", {}),
+        ("tcgen05_commit_multicast", {"multicast": "multicast::cluster"}),
+    ):
+        required = {
+            "action": "commit",
+            "cta_group": "cta_group::2",
+            "completion": "mbarrier::arrive::one",
+            "type": "b64",
+            **extra,
+        }
+        bare = render(name, **required)
+        shared = render(name, space="shared::cluster", **required)
+        assert "(const void* __mbar" in bare
+        assert '"l"(__mbar)' in bare
+        assert "(uint32_t __mbar" in shared
+        assert '"r"(__mbar)' in shared
+
+    generic_mapa = render("mapa", type="u64")
+    shared_mapa_ptr = render("mapa", space="shared::cluster", type="u64")
+    raw_mapa = render("mapa_u64_raw", type="u64")
+    shared_mapa_u64 = render("mapa_u64_shared", space="shared::cluster", type="u64")
+    shared_mapa_u32 = render("mapa_u32", space="shared::cluster", type="u32")
+    assert "(uint64_t& __d, const void* __a, uint32_t __b)" in generic_mapa
+    assert '"=l"(__d) : "l"(__a), "r"(__b)' in generic_mapa
+    assert "mapa.u64 %0, %1, %2;" in generic_mapa
+    assert "(uint64_t& __d, const void* __a, uint32_t __b)" in shared_mapa_ptr
+    assert "mapa.shared::cluster.u64 %0, %1, %2;" in shared_mapa_ptr
+    assert "(uint64_t& __d, uint64_t __a, uint32_t __b)" in raw_mapa
+    assert '"=l"(__d) : "l"(__a), "r"(__b)' in raw_mapa
+    assert "mapa.u64 %0, %1, %2;" in raw_mapa
+    assert "(uint64_t& __d, uint64_t __a, uint32_t __b)" in shared_mapa_u64
+    assert '"=l"(__d) : "l"(__a), "r"(__b)' in shared_mapa_u64
+    assert "mapa.shared::cluster.u64 %0, %1, %2;" in shared_mapa_u64
+    assert "(uint32_t& __d, uint32_t __a, uint32_t __b)" in shared_mapa_u32
+
+    # Two entries share bare mapa.u64's ISA spelling but accept disjoint
+    # pointer/register call shapes; explicit shared has both carrier shapes.
+    assert (
+        sum(
+            len(variants(TABLE[name]))
+            for name in ("mapa", "mapa_u64_raw", "mapa_u64_shared", "mapa_u32")
+        )
+        == 5
+    )
+
+
+def test_ptx_tcgen05_mapa_address_coercion():
+    """Bare forms preserve generic pointers; explicit shared forms coerce only addresses."""
+    from tvm.ir.type import PointerType, PrimType
+
+    generic_ptr = tvm.tirx.Var("g", PointerType(PrimType("uint64"), "global"))
+    shared_ptr = tvm.tirx.Var("s", PointerType(PrimType("uint64"), "shared"))
+    raw_u32 = tvm.tirx.Var("a32", "uint32")
+    raw_u64 = tvm.tirx.Var("a64", "uint64")
+    ncols = tvm.tirx.Var("n", "uint32")
+    mask = tvm.tirx.Var("mask", "uint16")
+    out32 = tvm.tirx.decl_buffer((1,), "uint32", name="out32", scope="local")
+    out64 = tvm.tirx.decl_buffer((1,), "uint64", name="out64", scope="local")
+
+    bare_alloc = T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.b32(generic_ptr, ncols)
+    assert bare_alloc.args[0].same_as(generic_ptr)
+    shared_alloc = T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(shared_ptr, ncols)
+    assert shared_alloc.args[0].op.name == "tirx.cuda.cvta_generic_to_shared"
+    assert shared_alloc.args[0].args[0].same_as(shared_ptr)
+
+    bare_commit = T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.b64(generic_ptr)
+    assert bare_commit.args[0].same_as(generic_ptr)
+    shared_commit = T.ptx[
+        "tcgen05.commit.cta_group::2.mbarrier::arrive::one.shared::cluster.multicast::cluster.b64"
+    ](raw_u32, mask)
+    assert shared_commit.args[0].same_as(raw_u32)
+
+    generic_mapa = T.ptx.mapa.u64(out64[0], generic_ptr, ncols)
+    assert generic_mapa.args[1].same_as(generic_ptr)
+    raw_mapa = T.ptx.mapa.u64(out64[0], raw_u64, ncols)
+    assert raw_mapa.args[1].same_as(raw_u64)
+    shared_mapa_u64 = T.ptx.mapa.shared__cluster.u64(out64[0], raw_u64, ncols)
+    assert shared_mapa_u64.args[1].same_as(raw_u64)
+    shared_mapa_u32 = T.ptx.mapa.shared__cluster.u32(out32[0], raw_u32, ncols)
+    assert shared_mapa_u32.args[1].same_as(raw_u32)
+
+    shared_mapa_ptr = T.ptx.mapa.shared__cluster.u64(out64[0], shared_ptr, ncols)
+    assert shared_mapa_ptr.args[1].same_as(shared_ptr)
+
+
+def test_ptx_tcgen05_mapa_address_roundtrip():
+    """The generic/shared split remains exact through TVMScript print and parse."""
+
+    @T.prim_func
+    def kernel(ptr: T.handle):
+        generic = T.match_buffer(ptr, (4,), "uint64")
+        T.device_entry()
+        mapped32 = T.local_scalar("uint32")
+        mapped64 = T.local_scalar("uint64")
+        window64 = T.local_scalar("uint64")
+        T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.b32(generic.ptr_to([0]), T.uint32(32))
+        T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
+            generic.ptr_to([0]), T.uint32(32)
+        )
+        T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.b64(generic.ptr_to([0]))
+        T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
+            generic.ptr_to([0])
+        )
+        T.ptx.tcgen05.commit.cta_group__2.mbarrier__arrive__one.multicast__cluster.b64(
+            generic.ptr_to([0]), T.uint16(3)
+        )
+        T.ptx[
+            "tcgen05.commit.cta_group::2.mbarrier::arrive::one"
+            ".shared::cluster.multicast::cluster.b64"
+        ](generic.ptr_to([0]), T.uint16(3))
+        T.ptx.mapa.u64(mapped64, generic.ptr_to([0]), T.uint32(1))
+        T.ptx.cvta.to.shared__cluster.u64(window64, generic.ptr_to([0]))
+        T.ptx.mapa.u64(mapped64, window64, T.uint32(1))
+        T.ptx.mapa.shared__cluster.u64(mapped64, window64, T.uint32(1))
+        T.ptx.mapa.shared__cluster.u32(mapped32, T.uint32(0), T.uint32(1))
+
+    reparsed = tvm.script.from_source(kernel.script())
+    tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
 def test_ptx_helper_source_golden():
@@ -1808,7 +3518,7 @@ def test_ptx_helper_source_golden():
         "}\n"
     )
 
-    # Comparison and selection (ISA 9.7.6). setp's `p|q`: ONE operand position
+    # Comparison and selection (ISA 9.7.7). setp's `p|q`: ONE operand position
     # holding two predicate destinations, joined by the ISA's own separator
     # rather than a comma. Each half is a real register with its own selp on
     # the way out -- q carries the Boolean applied to the complement of the
@@ -1847,9 +3557,24 @@ def test_ptx_helper_source_golden():
         '"r"(__b), "f"(__c));\n'
         "}\n"
     )
+    # The first type controls the bit width, but does not force d/a/b to share
+    # an interpretation or a carrier class. A noncanonical helper names all
+    # four operand dtypes so independently mixed products cannot collide.
+    assert render(
+        "slct",
+        dtypes=("uint32", "float32", "int32", "int32"),
+        dtype="f32",
+        ctype="s32",
+    ) == (
+        "__forceinline__ __device__ void tvm_builtin_ptx_slct_f32_s32_u32_f32_s32_s32"
+        "(uint32_t& __d, float __a, int32_t __b, int32_t __c) {\n"
+        '  asm volatile("slct.f32.s32 %0, %1, %2, %3;" : "=r"(__d) : "f"(__a), '
+        '"r"(__b), "r"(__c));\n'
+        "}\n"
+    )
 
-    # Half-precision comparison (ISA 9.7.7). The packed setp reuses the pipe
-    # pair, but its two halves mean something else than 9.7.6's: p and q are
+    # Half-precision comparison (ISA 9.7.8). The packed setp reuses the pipe
+    # pair, but its two halves mean something else than 9.7.7's: p and q are
     # the two lanes' comparisons, not a result and its complement.
     assert render("setp_half_pq", cmp="lt", ftz="ftz", type="f16x2") == (
         "__forceinline__ __device__ void tvm_builtin_ptx_setp_half_pq_lt_ftz_f16x2"
@@ -1876,7 +3601,7 @@ def test_ptx_helper_source_golden():
         "}\n"
     )
 
-    # Logic and shift (ISA 9.7.8). `.pred` as an instruction type, rather than
+    # Logic and shift (ISA 9.7.9). `.pred` as an instruction type, rather than
     # as one operand's class: three bridges -- two setp in, one selp out --
     # wrapped around a single instruction that never touches the carriers.
     assert render("and", type="pred") == (
@@ -1901,6 +3626,16 @@ def test_ptx_helper_source_golden():
         ': "=r"(__d), "=r"(__p) : "r"(__a), "r"(__b), "r"(__c), "r"(__q));\n'
         "}\n"
     )
+    # Discarding d is a fixed syntax sibling, so `_` is table-owned text and
+    # neither a C parameter nor a use of the caller-selectable sink mechanism.
+    assert render("lop3_bool_sink", boolop="and", type="b32", imms=("128",)) == (
+        "__forceinline__ __device__ void tvm_builtin_ptx_lop3_bool_sink_and_b32_128"
+        "(uint32_t& __p, uint32_t __a, uint32_t __b, uint32_t __c, uint32_t __q) {\n"
+        '  asm volatile("{ .reg .pred pd0; .reg .pred ps0; setp.ne.b32 ps0, %4, 0; '
+        'lop3.and.b32 _|pd0, %1, %2, %3, 128, ps0; selp.b32 %0, 1, 0, pd0; }" '
+        ': "=r"(__p) : "r"(__a), "r"(__b), "r"(__c), "r"(__q));\n'
+        "}\n"
+    )
     # The shift amount is a 32-bit value "regardless of the instruction type",
     # so a 16-bit shl still takes a uint32 there.
     assert render("shl", type="b16") == (
@@ -1910,7 +3645,7 @@ def test_ptx_helper_source_golden():
         "}\n"
     )
 
-    # Data movement (ISA 9.7.9). shfl.sync's `d|p`: a pipe pair whose halves
+    # Data movement (ISA 9.7.10). shfl.sync's `d|p`: a pipe pair whose halves
     # are DIFFERENT register classes -- an ordinary b32 result bound straight
     # to %0, and an in-range predicate that rides the bridge.
     assert render("shfl_sync_p", mode="up", type="b32") == (
@@ -1961,7 +3696,7 @@ def test_ptx_helper_source_golden():
         "}\n"
     )
 
-    # Parallel synchronization (ISA 9.7.14). elect.sync's `d|p` is the one
+    # Parallel synchronization (ISA 9.7.15). elect.sync's `d|p` is the one
     # pipe pair the ISA makes mandatory -- ptxas rejects a bare destination --
     # and its halves are two different register classes.
     assert render("elect_sync") == (
@@ -1979,6 +3714,62 @@ def test_ptx_helper_source_golden():
         "__uint128_t __value) {\n"
         '  asm volatile("atom.global.cas.b128 %0, [%1], %2, %3;" : "=q"(__d) : '
         '"l"(__addr), "q"(__compare), "q"(__value) : "memory");\n'
+        "}\n"
+    )
+    # The bit-bucket overload is a fixed `_` operand, selected by omitting the
+    # returned-value destination from the call. It has no output constraint.
+    assert render("atom_bitbucket", space="global", op="add", type="u32") == (
+        "__forceinline__ __device__ void tvm_builtin_ptx_atom_bitbucket_global_add_u32"
+        "(const void* __addr, uint32_t __value) {\n"
+        '  asm volatile("atom.global.add.u32 _, [%0], %1;" :  : "l"(__addr), '
+        '"r"(__value) : "memory");\n'
+        "}\n"
+    )
+    # Vector atom also uses one whole bit bucket, not a brace group of lane
+    # sinks. The value remains a normal register group.
+    assert render("atom_vec_f32_bitbucket", space="global", op="add", vec="v2", type="f32") == (
+        "__forceinline__ __device__ void "
+        "tvm_builtin_ptx_atom_vec_f32_bitbucket_global_add_v2_f32"
+        "(const void* __addr, float __value0, float __value1) {\n"
+        '  asm volatile("atom.global.add.v2.f32 _, [%0], {%1, %2};" :  : '
+        '"l"(__addr), "f"(__value0), "f"(__value1) : "memory");\n'
+        "}\n"
+    )
+    # The ISA documents the same bit-bucket spelling for bf16 atom; the table
+    # withholds it pending certification on CUDA 13.4 (see
+    # `_check_atom_half_bitbucket`).  Returned-value bf16 atom and f16 bit
+    # buckets remain registered.
+    for entry_name, by_name in (
+        ("atom_half_bitbucket", {"op": "add", "noftz": "noftz", "type": "bf16"}),
+        (
+            "atom_vec_half_bitbucket",
+            {"op": "add", "noftz": "noftz", "vec": "v2", "type": "bf16"},
+        ),
+    ):
+        with pytest.raises(ValueError, match="bf16 atom bit-bucket destination.*withholds"):
+            tokens_for(TABLE[entry_name], **by_name)
+    # red's half-word and packed vector syntax lines share this entry; the
+    # conditional policy operand follows the value group.
+    assert render(
+        "red_vec_half",
+        sem="release",
+        scope="sys",
+        space="global",
+        op="max",
+        noftz="noftz",
+        cache="L2::cache_hint",
+        vec="v4",
+        type="f16x2",
+    ) == (
+        "__forceinline__ __device__ void "
+        "tvm_builtin_ptx_red_vec_half_release_sys_global_max_noftz_"
+        "L2__cache_hint_v4_f16x2"
+        "(const void* __addr, uint32_t __value0, uint32_t __value1, "
+        "uint32_t __value2, uint32_t __value3, uint64_t __cache_policy) {\n"
+        '  asm volatile("red.release.sys.global.max.noftz.L2::cache_hint.v4.f16x2 '
+        '[%0], {%1, %2, %3, %4}, %5;" :  : "l"(__addr), "r"(__value0), '
+        '"r"(__value1), "r"(__value2), "r"(__value3), "l"(__cache_policy) '
+        ': "memory");\n'
         "}\n"
     )
     # bar.red reduces a predicate across a barrier, so a predicate crosses the
@@ -2091,6 +3882,129 @@ def test_ptx_coercion_ir_forms():
 # fp16/bf16 dtypes bring in __half / __nv_bfloat16 and their bit-cast helpers.
 _CERT_PRELUDE = "#include <cstdint>\n#include <cuda_fp16.h>\n#include <cuda_bf16.h>"
 
+# A certification unit must be small enough that ptxas is checking helpers,
+# rather than being stress-tested by one translation unit containing every
+# sampled table variant.  The limit is on generated source (not helper count),
+# because helper sizes vary substantially across instruction families.
+_CERT_MAX_SOURCE_CHARS = 256 * 1024
+_CERT_HELPER_SIGNATURE_RE = re.compile(
+    r"\A__forceinline__ __device__ void (?P<helper>[A-Za-z_]\w*)\((?P<params>[^)]*)\) \{"
+)
+_CERT_PARAM_RE = re.compile(r"(?P<type>.+?)(?P<reference>&)?\s+(?P<name>__[A-Za-z_]\w*)\Z")
+
+
+def _certification_kernel(helper, helper_source, kernel_index):
+    """Keep a helper inline and call it from a retained, production-shaped kernel.
+
+    Merely placing an unreferenced ``__forceinline__`` helper in a translation
+    unit does not certify it: nvcc may discard it before ptxas sees its body.
+    The old workaround stripped ``__forceinline__`` and retained the resulting
+    device function with RDC.  That changes the device ABI and is not an
+    equivalent compilation shape for wide inline-asm operands.
+
+    A global caller is retained without RDC and forces the original helper to
+    inline, which is the shape emitted code uses.  Pointer arguments come from
+    the runtime sink so address instructions are not specialized to null.
+    Register inputs are locals, avoiding an artificial device ABI boundary;
+    ordinary values and raw 32-bit addresses are loaded through the sink so
+    they keep the runtime data flow of generated calls.  Predicate and b128
+    inputs remain local because crossing either through the certification ABI
+    creates a tool-only compilation shape.  Written values are loaded and
+    stored through the sink so non-volatile output instructions cannot be
+    optimized away before ptxas.
+    """
+    match = _CERT_HELPER_SIGNATURE_RE.match(helper_source)
+    assert match is not None, f"cannot parse certification signature for {helper}"
+    assert match.group("helper") == helper
+
+    declarations = []
+    arguments = []
+    stores = []
+    params = match.group("params")
+    parsed_params = params.split(", ") if params else ()
+    for param_index, param in enumerate(parsed_params):
+        param_match = _CERT_PARAM_RE.fullmatch(param)
+        assert param_match is not None, f"cannot parse {helper} parameter: {param}"
+        c_type = param_match.group("type")
+        param_name = param_match.group("name")
+        local = f"__cert_arg{param_index}"
+        input_offset = 16 * param_index
+        if c_type.endswith("*"):
+            declarations.append(f"  {c_type} {local} = __cert_sink + {input_offset};")
+        elif param_match.group("reference"):
+            declarations.append(
+                f"  {c_type} {local} = "
+                f"*reinterpret_cast<const {c_type}*>(__cert_sink + {input_offset});"
+            )
+        elif c_type in ("__int128_t", "__uint128_t") or param_name == "__pred":
+            declarations.append(f"  {c_type} {local}{{}};")
+        else:
+            declarations.append(
+                f"  {c_type} {local} = "
+                f"*reinterpret_cast<const {c_type}*>(__cert_sink + {input_offset});"
+            )
+        arguments.append(local)
+        if param_match.group("reference"):
+            # Every C binding is at most 16 bytes.  Distinct, aligned locations
+            # keep all outputs observable without imposing a constraint letter
+            # of our own on the value being certified.
+            stores.append(
+                f"  *reinterpret_cast<{c_type}*>(__cert_sink + "
+                f"{16 * (len(parsed_params) + len(stores))}) = {local};"
+            )
+
+    kernel = [
+        f'extern "C" __global__ void __ptx_cert_{kernel_index}(char* __cert_sink) {{',
+        *declarations,
+        f"  {helper}({', '.join(arguments)});",
+        *stores,
+        "}",
+    ]
+    return "\n".join((helper_source, *kernel))
+
+
+def _append_certification(by_arch, arch, helper, helper_source):
+    items = by_arch.setdefault(arch, [])
+    items.append((helper, _certification_kernel(helper, helper_source, len(items))))
+
+
+def _certification_batches(items):
+    """Yield deterministic, source-size-bounded groups of certification kernels."""
+    batch = []
+    size = len(_CERT_PRELUDE) + 1
+    for item in items:
+        item_size = len(item[1]) + 1
+        assert item_size + len(_CERT_PRELUDE) <= _CERT_MAX_SOURCE_CHARS, (
+            f"single certification helper exceeds source limit: {item[0]}"
+        )
+        if batch and size + item_size > _CERT_MAX_SOURCE_CHARS:
+            yield batch
+            batch = []
+            size = len(_CERT_PRELUDE) + 1
+        batch.append(item)
+        size += item_size
+    if batch:
+        yield batch
+
+
+def _assert_certifications_ok(by_arch):
+    for arch, items in by_arch.items():
+        for batch_index, batch in enumerate(_certification_batches(items)):
+            names, sources = zip(*batch, strict=True)
+            try:
+                _assert_ptxas_ok("\n".join((_CERT_PRELUDE, *sources)), arch=arch)
+            except Exception as err:
+                message = str(err)
+                marker = "Compilation error:"
+                diagnostic = (
+                    message[message.rfind(marker) :] if marker in message else message[-4000:]
+                )
+                raise AssertionError(
+                    f"PTX certification failed for {arch} batch {batch_index} "
+                    f"({len(names)} helpers, {names[0]} .. {names[-1]}):\n{diagnostic}"
+                ) from None
+
+
 _ASM_RE = re.compile(r'asm(?: volatile)?\("(.*?)"\s*:', re.S)
 _BLOCK_RE = re.compile(r"^\{ (?P<body>.*) \}$")
 # The asm block's sanctioned non-instructions: `render.BRIDGE`'s register
@@ -2099,7 +4013,7 @@ _BLOCK_RE = re.compile(r"^\{ (?P<body>.*) \}$")
 # semantics -- see BRIDGE.
 #
 # Matched in FULL, not by opcode prefix, because an opcode is no longer a
-# discriminator: `setp` and `selp` are registered instructions (ISA 9.7.6), so
+# discriminator: `setp` and `selp` are registered instructions (ISA 9.7.7), so
 # a helper's one real instruction can carry the same mnemonic as the bridge
 # statements around it. What separates them is the shape the bridge always
 # has -- it names a bridge-local register (`p`, `ps<n>`, `pd<n>`, `raw_<slot>`)
@@ -2111,21 +4025,50 @@ _BOUNDARY_RE = re.compile(
     r"|".join(
         (
             r"\.reg \.pred (?:p|ps\d+|pd\d+);",  # @p guard / pred bridge declarations
-            r"\.reg \.b8 raw_\w+;",  # b8 bridge declaration
+            r"\.reg \.b8 raw_\w+;",  # st.async byte-register bridge declaration
             r"setp\.ne\.b32 (?:p|ps\d+), %\d+, 0;",  # @p guard, pred_src conversion in
             r"selp\.b32 %\d+, 1, 0, pd\d+;",  # pred_dst materialization out
-            r"cvt\.u8\.u16 raw_\w+, %\d+;",  # b8 conversion in
-            r"cvt\.u16\.u8 %\d+, raw_\w+;",  # b8 conversion out
+            r"cvt\.u8\.u16 raw_\w+, %\d+;",  # st.async byte conversion in
+            r"cvt\.u16\.u8 %\d+, raw_\w+;",  # st.async byte conversion out
         )
     )
 )
 
 
 def _as_render_args(rendering):
-    """`renderings` yields (tokens, dtypes, predicated, imms); render_variant
-    takes (tokens, predicated, dtypes, imms)."""
+    """Reorder a five-field ``renderings`` item for ``render_variant``."""
     tokens, dtypes, predicated, imms, sinks = rendering
     return tokens, predicated, dtypes, imms, sinks
+
+
+def _addr_offset_samples(entry):
+    """Small certification axis for address immediates, separate from modifier products."""
+    from tvm.backend.cuda.ptx.table import renderings
+
+    enabled = [
+        logical_slot
+        for logical_slot, slot in enumerate(s for s in entry.operands if s.kind == "addr")
+        if slot.allow_imm_offset
+    ]
+    if not enabled:
+        return ()
+    representative = _as_render_args(next(iter(renderings(entry))))
+    samples = [
+        (representative, ((logical_slot, offset),))
+        for logical_slot in enabled
+        for offset in (16, -16)
+    ]
+    if len(enabled) > 1:
+        samples.append(
+            (
+                representative,
+                tuple(
+                    (logical_slot, 16 if index % 2 == 0 else -16)
+                    for index, logical_slot in enumerate(enabled)
+                ),
+            )
+        )
+    return tuple(samples)
 
 
 def _sole_instruction(asm_text):
@@ -2158,13 +4101,11 @@ def test_ptx_single_instruction_invariant():
     rather than adding one. cvta coercion is a separate IR node and must never
     appear inside a helper body.
 
-    ``RAW_ENTRIES`` below is the one exemption, and it is a list of names, not
-    a predicate: the entries whose helper body the table cannot derive because
-    one operand is typed ``.b8`` and inline asm has no 8-bit constraint, so the
-    value has to be staged through a block-local ``.reg .b8``. Naming them here
-    and asserting the set equals the table's own ``raw_render`` entries means a
-    new one can never be added without editing this test. Every other assertion
-    still applies to them.
+    Framework boundary conversions such as predicate materialization and the
+    byte-register bridges are peeled before counting. ``RAW_ENTRIES`` is the
+    separate closed exemption list for a genuinely hand-written helper body;
+    asserting that it equals the table's ``raw_render`` entries means a new one
+    cannot be added without editing this test.
     """
     from tvm.backend.cuda.ptx.render import render_variant
     from tvm.backend.cuda.ptx.table import TABLE, renderings
@@ -2188,9 +4129,9 @@ def test_ptx_single_instruction_invariant():
             asm_blocks = asm_re.findall(source)
             assert len(asm_blocks) == 1, f"{opcode}: {len(asm_blocks)} asm blocks, expected 1"
             if raw:
-                # The `.reg .b8` prologue is several statements, which is why
-                # this entry is exempt. The instruction must still be in there
-                # as its own statement. The helper name needs no assertion:
+                # A raw helper may contain several statements, which is why it
+                # is exempt. The instruction must still be in there as its own
+                # statement. The helper name needs no assertion:
                 # `render_variant` passes the name it derived into
                 # `raw_render`, so a raw body cannot declare a different one.
                 assert f"; {opcode} " in asm_blocks[0], (
@@ -2275,17 +4216,20 @@ def test_ptx_all_variants_render_unique():
                     or f"; {opcode};" in source
                 )
             total += not predicated  # a @p twin is not a separate variant
-    assert total == 200018  # update when the table grows
+        for args, addr_offsets in _addr_offset_samples(entry):
+            _, helper, _ = render_variant(entry, *args, addr_offsets=addr_offsets)
+            assert helper not in names, f"address-offset helper name collision: {helper}"
+            names.add(helper)
+    assert total == 762178  # update when the table grows or a ptxas gap narrows it
 
 
 def test_ptx_no_instruction_registered_twice():
-    """One PTX instruction, one entry.
+    """No two entries register the same PTX instruction and C-call shape.
 
-    The table's law is the ISA: an entry models one syntax group, and no two
-    entries may model the same one. Strip the helper name and the parameter
-    names off a rendering and what is left is the instruction itself plus its
-    operand constraints — if two entries ever produce the same one, the ISA
-    line has been registered twice and calls to it are unresolvable.
+    Sibling entries may intentionally share an opcode when their public call
+    shapes are disjoint (bare mapa.u64 accepts a pointer or a raw uint64).
+    Strip only helper and parameter *names*; the remaining C types, asm text,
+    and constraints form the identity whose duplication would be ambiguous.
     """
     from tvm.backend.cuda.ptx.render import render_variant
     from tvm.backend.cuda.ptx.table import TABLE, renderings
@@ -2303,9 +4247,10 @@ def test_ptx_no_instruction_registered_twice():
 def test_ptx_dispatch_unambiguous():
     """No two entries may accept the same call.
 
-    Models what the engine resolves by, and only that: the written tokens (slot
-    names and order are invisible to `_fill`), the operand count, and each
-    position's acceptance class. Declared spaces that `_coerce_address` treats
+    Models what the engine resolves by, and only that: the written token
+    multiset (slot names are invisible to `_fill`, but repeated tokens remain
+    repeated), the operand count, and each position's acceptance class.
+    Declared spaces that `_coerce_address` treats
     alike collapse into one class, which is what makes this stricter than the
     rendering check above — two entries can emit different assembly and still
     leave a call with nothing to choose between them.
@@ -2326,6 +4271,8 @@ def test_ptx_dispatch_unambiguous():
             if space == "tmem":
                 return ("addr", "tmem")
             return ("addr", "shared*" if space.startswith("shared") else "generic")
+        if slot.kind == "imm":
+            return ("imm", slot.literal, slot.choices)
         if slot.kind != "reg":
             return (slot.kind,)
         if pred_is_distinct and operand_type(slot, mod_map) == "pred":
@@ -2344,7 +4291,7 @@ def test_ptx_dispatch_unambiguous():
             mod_map = mods(entry, tokens)
             layout = operand_layout(entry, mod_map)
             shape = tuple(accepts(s, mod_map) for s, _, n in layout for _ in range(n))
-            key = (entry.family, frozenset(t for t in tokens if t), shape)
+            key = (entry.family, tuple(sorted(t for t in tokens if t)), shape)
             first = owners.setdefault(key, entry.name)
             assert first == entry.name, (
                 f"{first} and {entry.name} both accept "
@@ -2378,6 +4325,8 @@ def test_ptx_dispatch_model_detects_a_collapsed_class():
             if space == "tmem":
                 return ("addr", "tmem")
             return ("addr", "shared*" if space.startswith("shared") else "generic")
+        if slot.kind == "imm":
+            return ("imm", slot.literal, slot.choices)
         if slot.kind != "reg":
             return (slot.kind,)
         return (slot.rw, tuple(sorted(operand_dtypes(slot, mod_map))))
@@ -2388,7 +4337,7 @@ def test_ptx_dispatch_model_detects_a_collapsed_class():
             mod_map = mods(entry, tokens)
             layout = operand_layout(entry, mod_map)
             shape = tuple(accepts(s, mod_map) for s, _, n in layout for _ in range(n))
-            key = (entry.family, frozenset(t for t in tokens if t), shape)
+            key = (entry.family, tuple(sorted(t for t in tokens if t)), shape)
             first = owners.setdefault(key, entry.name)
             if first != entry.name:
                 collisions.add(tuple(sorted((first, entry.name))))
@@ -2413,14 +4362,130 @@ def test_ptx_stub_up_to_date():
 @requires_nvcc
 def test_ptxas_gate_rejects_invalid():
     """Honesty check: the gate path must actually reject bad instructions."""
-    bogus = '__device__ void f(unsigned x) { asm volatile("totally.bogus.instr %0;" : : "r"(x)); }'
+    bogus = (
+        "__forceinline__ __device__ void f(uint32_t __x) {\n"
+        '  asm volatile("totally.bogus.instr %0;" : : "r"(__x));\n'
+        "}\n"
+    )
+    source = "\n".join((_CERT_PRELUDE, _certification_kernel("f", bogus, 0)))
     with pytest.raises(Exception, match="bogus|error"):
-        _assert_ptxas_ok(bogus, rdc=True)
+        _assert_ptxas_ok(source)
 
 
+def test_ptx_vec256_wide_carriers_not_registered():
+    """PTX documents wider carriers; CUDA 13.4 ptxas does not compile the axis uniformly (C7907)."""
+    from tvm.backend.cuda.ptx.table import TABLE, dtype_combos, tokens_for
+
+    expected = (
+        ("uint32", "uint64"),
+        ("int32", "uint64"),
+        ("float32", "uint64"),
+    )
+    for name in ("ld_vec256", "st_vec256"):
+        entry = TABLE[name]
+        tokens = tokens_for(entry, vec="v8", type="b32")
+        assert dtype_combos(entry, tokens) == expected
+
+
+_PTX_93_SM103A_FULL_ENTRIES = frozenset(
+    {
+        "clmad",
+        "multimem_st_async",
+        "multimem_red_async",
+        "tensormap_replace_swizzle_mode_sm103a",
+        "multimem_cp_async_bulk",
+        "multimem_cp_reduce_async_bulk",
+        "mbarrier_check_layout",
+        "tcgen05_ld_red",
+        "tcgen05_ld_red_split",
+        "fabric_try_get",
+        "fabric_try_put",
+        "fabric_try_put_cp_mask",
+        "fabric_try_put_counted",
+        "fabric_try_red",
+        "fabric_try_red_counted",
+        "fabric_try_pullred",
+        "fabric_submit",
+        "fabric_wait",
+        "fence_proxy_fabric",
+    }
+)
+_PTX_93_SM103A_BULK_ENTRIES = frozenset(
+    {
+        "cp_async_bulk_g2s_cta",
+        "cp_async_bulk_g2s_cluster",
+        "cp_async_bulk_s2c",
+        "cp_async_bulk_s2g",
+        "cp_reduce_async_bulk_s2c",
+        "cp_reduce_async_bulk_s2g",
+    }
+)
+_PTX_93_SM103A_PHASE_ENTRIES = frozenset(
+    {
+        "mbarrier_test_wait_parity",
+        "mbarrier_try_wait_parity",
+        "mbarrier_try_wait_parity_no_hint",
+        "mbarrier_test_wait",
+        "mbarrier_try_wait",
+        "mbarrier_try_wait_hint",
+    }
+)
+
+
+def _ptx_93_sm103a_manifest():
+    """Yield every rendering introduced or extended by PTX 9.3 for SM103a."""
+    from tvm.backend.cuda.ptx.table import _PTX_94_ENTRIES, TABLE, mods, renderings
+
+    ptx94 = {entry.name for entry in _PTX_94_ENTRIES}
+    for name, entry in TABLE.items():
+        if name in ptx94:
+            # The 9.4 delta (sm_107f floors, including the cp.async.bulk
+            # `*_report` entries) is certified at its own arch by
+            # test_ptx_all_helpers_certify, not at sm_103a here.
+            continue
+        for rendering in renderings(entry):
+            tokens = rendering[0]
+            mod_map = mods(entry, tokens)
+            if (
+                name in _PTX_93_SM103A_FULL_ENTRIES
+                or "_report" in name
+                or (name == "ld" and mod_map["mmio"] and mod_map["sem"] == "acquire")
+                or (name == "st" and mod_map["mmio"] and mod_map["sem"] == "release")
+                or (name in _PTX_93_SM103A_BULK_ENTRIES and bool(mod_map.get("sem")))
+                or (name == "mbarrier_init" and bool(mod_map["layout"]))
+                or (name == "mbarrier_pending_count" and bool(mod_map["layout"]))
+                or (name in _PTX_93_SM103A_PHASE_ENTRIES and bool(mod_map["phase_type"]))
+            ):
+                yield entry, rendering
+
+
+@pytest.mark.skipif(
+    not os.environ.get("PTX_CERT"),
+    reason="exhaustive PTX 9.3 helpers; run with PTX_CERT=1 after changing the table",
+)
+@requires_nvcc
+def test_ptx_93_sm103a_helpers_certify():
+    """Every PTX 9.3 addition assembles as a production-shaped SM103a caller."""
+    from tvm.backend.cuda.ptx.render import render_variant
+
+    by_arch = {}
+    covered = 0
+    for entry, rendering in _ptx_93_sm103a_manifest():
+        tokens, dtypes, predicated, imms, sinks = rendering
+        _, helper, source = render_variant(entry, tokens, predicated, dtypes, imms, sinks)
+        _append_certification(by_arch, "sm_103a", helper, source)
+        covered += 1
+    assert covered == 2668
+    _assert_certifications_ok(by_arch)
+
+
+@pytest.mark.skipif(
+    not env.has_nvcc_version(13, 4),
+    reason="whole-table certification includes PTX 9.4 forms; need nvcc >= 13.4",
+)
 @requires_nvcc
 def test_ptx_sampled_helpers_assemble():
-    """Fast tier: a seeded sample of every family's variants assembles."""
+    """Fast tier: production-shaped calls to a seeded sample assemble."""
     import random
 
     from tvm.backend.cuda.ptx.render import render_variant
@@ -2430,12 +4495,18 @@ def test_ptx_sampled_helpers_assemble():
     by_arch = {}
     for entry in TABLE.values():
         arch = entry.cert_arch or PTX_ARCH
-        rendered = list(renderings(entry))
+        # Some dtype domains originate in sets/frozensets.  Sort the complete
+        # rendering tuple so the seeded certification sample is reproducible
+        # across Python hash seeds and can be isolated from a reported helper
+        # name alone.
+        rendered = sorted(renderings(entry), key=repr)
         for i in rng.sample(range(len(rendered)), min(48, len(rendered))):
-            _, _, source = render_variant(entry, *_as_render_args(rendered[i]))
-            by_arch.setdefault(arch, []).append(source.replace("__forceinline__ ", ""))
-    for arch, sources in by_arch.items():
-        _assert_ptxas_ok("\n".join([_CERT_PRELUDE, *sources]), rdc=True, arch=arch)
+            _, helper, source = render_variant(entry, *_as_render_args(rendered[i]))
+            _append_certification(by_arch, arch, helper, source)
+        for args, addr_offsets in _addr_offset_samples(entry):
+            _, helper, source = render_variant(entry, *args, addr_offsets=addr_offsets)
+            _append_certification(by_arch, arch, helper, source)
+    _assert_certifications_ok(by_arch)
 
 
 _CERT_SHARDS = 32
@@ -2444,6 +4515,10 @@ _CERT_SHARDS = 32
 @pytest.mark.skipif(
     not os.environ.get("PTX_CERT"),
     reason="full-table ptxas certification; run with PTX_CERT=1 after changing the table",
+)
+@pytest.mark.skipif(
+    not env.has_nvcc_version(13, 4),
+    reason="whole-table certification includes PTX 9.4 forms; need nvcc >= 13.4",
 )
 @requires_nvcc
 @pytest.mark.parametrize("shard", range(_CERT_SHARDS))
@@ -2464,26 +4539,35 @@ def test_ptx_all_helpers_certify(shard):
     Stride slicing keeps shards balanced (ld dominates the variant count).
     Variants are grouped by their family's arch floor and each group is
     assembled at that arch: below an instruction's floor ptxas rejects legal
-    variants, and believing it would delete real coverage.
-    __forceinline__ must be stripped and -rdc used: unreferenced inline
-    device functions are silently dropped before ptxas ever sees them.
+    variants, and believing it would delete real coverage.  Every helper keeps
+    ``__forceinline__`` and is called by a retained certification kernel, so
+    ptxas sees the same inline-asm shape as a real generated caller.  Each
+    pytest shard is further split by source size to avoid oversized compiler
+    translation units.
     """
     from tvm.backend.cuda.ptx.render import render_variant
     from tvm.backend.cuda.ptx.table import TABLE, renderings
 
     by_arch = {}
     covered = 0
-    for index, (entry, rendering) in enumerate(
-        (TABLE[name], r) for name in sorted(TABLE) for r in renderings(TABLE[name])
-    ):
+    baseline = (
+        (TABLE[name], _as_render_args(rendering), ())
+        for name in sorted(TABLE)
+        for rendering in renderings(TABLE[name])
+    )
+    address_samples = (
+        (TABLE[name], args, addr_offsets)
+        for name in sorted(TABLE)
+        for args, addr_offsets in _addr_offset_samples(TABLE[name])
+    )
+    for index, (entry, args, addr_offsets) in enumerate(itertools.chain(baseline, address_samples)):
         if index % _CERT_SHARDS == shard:
             covered += 1
             arch = entry.cert_arch or PTX_ARCH
-            _, _, src = render_variant(entry, *_as_render_args(rendering))
-            by_arch.setdefault(arch, []).append(src.replace("__forceinline__ ", ""))
+            _, helper, src = render_variant(entry, *args, addr_offsets=addr_offsets)
+            _append_certification(by_arch, arch, helper, src)
     assert covered, "empty shard: lower _CERT_SHARDS"
-    for arch, sources in by_arch.items():
-        _assert_ptxas_ok("\n".join([_CERT_PRELUDE, *sources]), rdc=True, arch=arch)
+    _assert_certifications_ok(by_arch)
 
 
 @requires_nvcc
@@ -2535,6 +4619,52 @@ def test_ptx_ld_st_gpu_roundtrip():
         np.testing.assert_array_equal(b.numpy(), a_np)
 
     tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+def test_ptx_tcgen05_ld_red_binds_redval_as_output():
+    """ISA 9.7.18.8.3: `tcgen05.ld.red... r, redval, [taddr]` writes the reduction result into
+    `redval`. The helper must bind it with an output constraint; an input binding compiles but
+    the kernel never observes the hardware max (measured on GB300: the probe's redval stayed at
+    its initial value until the binding was fixed)."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+
+    for name, modifiers, binding in (
+        (
+            "tcgen05_ld_red",
+            dict(
+                action="ld",
+                red="red",
+                sync="sync",
+                aligned="aligned",
+                shape="32x32b",
+                num="x2",
+                redop="max",
+                type="f32",
+            ),
+            '"=f"(__redval)',
+        ),
+        (
+            "tcgen05_ld_red_split",
+            dict(
+                action="ld",
+                red="red",
+                sync="sync",
+                aligned="aligned",
+                shape="16x32bx2",
+                num="x2",
+                redop="min",
+                type="s32",
+            ),
+            '"=r"(__redval)',
+        ),
+    ):
+        entry = TABLE[name]
+        assert next(s for s in entry.operands if s.name == "redval").rw == "w"
+        imms = ("0",) if name.endswith("_split") else ()
+        _, _, source = render_variant(entry, tokens_for(entry, **modifiers), imms=imms)
+        assert binding in source, source
+        assert '"r"(__redval)' not in source and '"f"(__redval)' not in source
 
 
 if __name__ == "__main__":

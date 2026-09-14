@@ -24,6 +24,7 @@
 #ifndef TVM_TIRX_IR_TIR_VISITOR_WITH_PATH_H_
 #define TVM_TIRX_IR_TIR_VISITOR_WITH_PATH_H_
 
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
@@ -62,6 +63,14 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
       VisitExpr_(var, path);
     } else if (auto* call = obj.as<CallNode>()) {
       VisitExpr_(call, path);
+    } else if (auto* tuple = obj.as<TupleNode>()) {
+      VisitExpr_(tuple, path);
+    } else if (auto* tuple_get_item = obj.as<TupleGetItemNode>()) {
+      VisitExpr_(tuple_get_item, path);
+    } else if (auto* buffer_region = obj.as<BufferRegionNode>()) {
+      VisitExpr_(buffer_region, path);
+    } else if (obj.as<OpaqueExprNode>()) {
+      VisitExpr(obj, path);
     } else {
       TVM_FFI_THROW(TypeError) << "Unsupported non-primitive TIR expression " << obj.GetTypeKey();
     }
@@ -145,37 +154,39 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
 
   using ExprFunctor::VisitExpr;
   void VisitExpr_(const VarNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const BufferLoadNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const ProducerLoadNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const LetNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const TensorLoadNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const BufferRegionNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const OpaqueExprNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const TupleNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const TupleGetItemNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::LetNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const CallNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const AddNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const SubNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const MulNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const DivNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const ModNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const FloorDivNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const FloorModNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const MinNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const MaxNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const EQNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const NENode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const LTNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const LENode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const GTNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const GENode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const AndNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const OrNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const ReduceNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const CastNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const NotNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const SelectNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const RampNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const BroadcastNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const ShuffleNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::AddNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::SubNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::MulNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::DivNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::ModNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::FloorDivNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::FloorModNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::MinNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::MaxNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::EQNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::NENode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::LTNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::LENode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::GTNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::GENode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::AndNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::OrNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::CastNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::NotNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::SelectNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::RampNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::BroadcastNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::ShuffleNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const IntImmNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const FloatImmNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const StringImmNode* op, ffi::reflection::AccessPath path) override;
+  void VisitExpr_(const prim::StringImmNode* op, ffi::reflection::AccessPath path) override;
 
   // Utility to call EnterDef/ExitDef.  Used in the implementation of
   // WithDef.
@@ -263,13 +274,13 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
     auto shape_path = path->Attr("shape");
     for (size_t i = 0; i < buf->shape.size(); i++) {
       auto dim_path = shape_path->ArrayItem(i);
-      PostOrderVisit(buf->shape[i], [this, &context, &dim_path](const ffi::ObjectRef& obj) {
-        if (auto opt = obj.as<Var>()) {
-          if (auto var_def = WithDefIfUndefined(opt.value(), dim_path)) {
-            context.push_back(std::move(var_def).value());
-          }
+      auto walk_fn = [this, &context, &dim_path](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+        if (auto var_def = WithDefIfUndefined(var, dim_path)) {
+          context.push_back(std::move(var_def).value());
         }
-      });
+        return ffi::WalkResult::Advance();
+      };
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(buf->shape[i], walk_fn);
     }
 
     auto strides_path = path->Attr("strides");

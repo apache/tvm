@@ -25,6 +25,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -175,13 +176,15 @@ class SymbolicVarCanonicalizer : public ExprMutator {
   };
 
   PrimExpr CanonicalizeShapeValue(const PrimExpr& expr) {
-    PrimExpr output = tirx::Substitute(expr, [this](const Var& var) -> ffi::Optional<Expr> {
+    auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       auto prim_var = var.as<tirx::PrimVar>();
-      if (!prim_var) return std::nullopt;
+      if (!prim_var) return ffi::Unchanged();
       auto it = known_values_.find(*prim_var);
-      if (it == known_values_.end()) return std::nullopt;
-      return it->second.expr;
-    });
+      if (it == known_values_.end()) return ffi::Unchanged();
+      return ffi::Any(it->second.expr);
+    };
+    PrimExpr output =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr, f_substitute).as_or_throw<PrimExpr>();
     return output.same_as(expr) ? expr : builder_->GetAnalyzer()->Simplify(output);
   }
 

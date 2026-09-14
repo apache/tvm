@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -31,6 +32,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 #define STMT_REGENERATE_VAR_DEF(NODE, FIELD)                                       \
@@ -58,14 +60,14 @@ class RenewDefMutator : public StmtExprMutator {
     for (const auto& param : func->params) {
       if (auto opt_buffer = param.as<BufferVar>()) {
         const BufferVar& buffer = opt_buffer.value();
+        auto walk_fn = [&generator](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+          if (generator.remap_.count(var) == 0) {
+            generator.ReDefineVar(var);
+          }
+          return ffi::WalkResult::Advance();
+        };
         for (const PrimExpr& e : buffer->shape) {
-          PostOrderVisit(e, [&generator](const ffi::ObjectRef& obj) {
-            if (auto var = obj.as<Var>()) {
-              if (generator.remap_.count(var.value()) == 0) {
-                generator.ReDefineVar(var.value());
-              }
-            }
-          });
+          ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(e, walk_fn);
         }
       }
     }
@@ -171,7 +173,7 @@ class RenewDefMutator : public StmtExprMutator {
   BufferVar DefineBuffer(const BufferVar& buffer) {
     auto it = remap_.find(buffer);
     if (it != remap_.end()) {
-      return (*it).second.as_or_throw<BufferVar>();
+      return (*it).second.as_or_throw<tvm::tirx::BufferVar>();
     }
 
     auto redefine_if_is_var = [this](const Expr& expr) -> Expr {
@@ -209,7 +211,7 @@ class RenewDefMutator : public StmtExprMutator {
     // remap it without creating new var definitions.
     auto it = remap_.find(buffer);
     if (it != remap_.end()) {
-      return (*it).second.as_or_throw<BufferVar>();
+      return (*it).second.as_or_throw<tvm::tirx::BufferVar>();
     }
     auto visit_expr = [this](const PrimExpr& e) -> PrimExpr { return this->VisitPrimExpr(e); };
     ffi::Array<PrimExpr> shape = buffer->shape.Map(visit_expr);

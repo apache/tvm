@@ -16,6 +16,7 @@
 # under the License.
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -362,7 +363,7 @@ def test_buffer_used_only_through_data_projection():
         if isinstance(node, tvm.tirx.DeclBuffer):
             declared_buffers.append(node.buffer)
 
-    tvm.tirx.stmt_functor.post_order_visit(kernel.body, collect)
+    tvm_ffi.structural_walk(kernel.body, collect)
     assert len(declared_buffers) == 1
     assert not tvm.tirx.analysis.undefined_vars(kernel.body, kernel.params)
 
@@ -435,6 +436,67 @@ def test_cuda_launch_preserves_flag_metadata():
     # Programmatic launch is flag-only and therefore adds no packed operand.
     assert len(launch.args) == 3
     assert int(launch.args[-1]) == 16
+
+
+def test_cuda_required_block_size_coexists_with_launch_bounds():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(4, "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            T.attr(T.target("cuda"), "target", 0)
+            T.attr(0, "tirx.required_block_size", 1)
+            with T.attr(0, "tirx.launch_bounds_min_blocks_per_sm", 1):
+                bx = T.launch_thread("blockIdx.x", 4)
+                tx = T.launch_thread("threadIdx.x", 128)
+                if tx == 0:
+                    A[bx] = 0.0
+
+    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    kernel = after["main_kernel"]
+    assert int(kernel.attrs["tirx.required_block_size"]) == 1
+    assert int(kernel.attrs["tirx.launch_bounds_min_blocks_per_sm"]) == 1
+    assert list(kernel.attrs["tirx.kernel_launch_params"]) == [
+        "blockIdx.x",
+        "threadIdx.x",
+        "tirx.use_required_block_dimension",
+    ]
+
+    launch = after["main"].body.value
+    assert isinstance(launch, tvm.ir.Call)
+    # The required-block flag reaches FunctionInfo metadata but adds no packed operand.
+    assert len(launch.args) == 4
+    assert int(launch.args[-2]) == 4
+    assert int(launch.args[-1]) == 128
+
+
+def test_cuda_launch_preserves_singleton_cluster_dimensions():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            with T.attr(T.target("cuda"), "target", 0):
+                T.launch_thread("blockIdx.x", 4)
+                T.launch_thread("clusterCtaIdx.x", 1)
+                T.launch_thread("clusterCtaIdx.y", 1)
+                T.launch_thread("clusterCtaIdx.z", 1)
+                T.launch_thread("threadIdx.x", 32)
+                A[0] = 0.0
+
+    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    kernel = after["main_kernel"]
+    assert list(kernel.attrs["tirx.kernel_launch_params"]) == [
+        "blockIdx.x",
+        "clusterCtaIdx.x",
+        "clusterCtaIdx.y",
+        "clusterCtaIdx.z",
+        "threadIdx.x",
+    ]
+
+    launch = after["main"].body.value
+    assert isinstance(launch, tvm.ir.Call)
+    assert [int(arg) for arg in launch.args[-5:]] == [4, 1, 1, 1, 32]
 
 
 def test_device_scope_region_extracted_as_device_kernel():

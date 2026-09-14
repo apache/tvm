@@ -829,12 +829,16 @@ def single_reduction_loop_with_tensorize(
                 C = T.match_buffer(
                     output[n, oc_chunk, oh, ow, 0:32], [32], dtype="int32", offset_factor=1
                 )
-                A_u8x4: T.uint8x4 = A[0:4]
+                A_u8x4: T.uint8x4 = A[T.ramp(0, 1, 4)]
                 A_i32: T.int32 = T.reinterpret(A_u8x4, dtype="int32")
-                B_i8x128 = B[0, 0:128]
+                B_i8x128 = B[0, T.ramp(0, 1, 128)]
                 B_i32x32: T.int32x32 = T.reinterpret(B_i8x128, dtype="int32x32")
-                C[0:32] = T.call_llvm_pure_intrin(
-                    4217, C[0:32], T.broadcast(A_i32, 32), B_i32x32, dtype="int32x32"
+                C[T.ramp(0, 1, 32)] = T.call_llvm_pure_intrin(
+                    4217,
+                    C[T.ramp(0, 1, 32)],
+                    T.broadcast(A_i32, 32),
+                    B_i32x32,
+                    dtype="int32x32",
                 )
 
 
@@ -881,9 +885,9 @@ def nested_reduction_loop_with_inner_match_buffers(
                             offset_factor=1,
                         )
                         C = T.match_buffer(out[yi, xr], [1], dtype="int32", offset_factor=1)
-                        A_i8x4: T.int8x4 = A[0:4]
+                        A_i8x4: T.int8x4 = A[T.ramp(0, 1, 4)]
                         A_i32: T.int32 = T.reinterpret(A_i8x4, dtype="int32")
-                        B_i8x4: T.int8x4 = B[0:4]
+                        B_i8x4: T.int8x4 = B[T.ramp(0, 1, 4)]
                         B_i32: T.int32 = T.reinterpret(B_i8x4, dtype="int32")
                         C[0] = A_i32 + B_i32 + C[0]
 

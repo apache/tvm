@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 
@@ -23,6 +24,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief The visitor that finds all the reduction block to be decomposed */
@@ -66,6 +68,10 @@ struct ReductionBlockFinder : private StmtVisitor {
       return true;
     }
     auto f_find = [this](const VarNode* var) -> bool { return thread_bound_loop_vars_.count(var); };
+    auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return f_find(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                               : ffi::WalkResult::Advance();
+    };
     const SBlockNode* block = realize->block.get();
     TVM_FFI_ICHECK_EQ(block->iter_vars.size(), realize->iter_values.size());
     int n = block->iter_vars.size();
@@ -73,7 +79,7 @@ struct ReductionBlockFinder : private StmtVisitor {
       IterVar iter_var = block->iter_vars[i];
       PrimExpr binding = realize->iter_values[i];
       if (iter_var->iter_type == tirx::kCommReduce) {
-        if (UsesVar(binding, f_find)) {
+        if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(binding, walkfn).has_value()) {
           return false;
         }
       }
@@ -109,6 +115,7 @@ int FindDecomposePoint(const StmtSRef& block_sref) {
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief Rewrite reduction block by moving the init block out */

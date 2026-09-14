@@ -28,10 +28,11 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -43,6 +44,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Rewriter for the block storing to the target buffer. Create an intermediate cache stage
@@ -71,11 +73,8 @@ class IntermediateStageRewriter {
     // Step 2: Create the local stage block
     Stmt local_stage = MakeLocalStage(block, new_buffer, buffer_indices, relaxed_loops, store);
 
-    // Step 3: Create BufferLoad from the intermediate buffer
-    TVM_FFI_ICHECK(!store->predicate.has_value())
-        << "Predicated buffer store is not currently supported in "
-           "manifest shared memory local stage pass.";
-    BufferLoad new_buffer_load = BufferLoad(new_buffer, buffer_indices);
+    // Step 3: Create TensorLoad from the intermediate buffer
+    TensorLoad new_buffer_load = BufferLoad(new_buffer, buffer_indices);
     BufferStore new_buffer_store = block->body.as_or_throw<BufferStore>();
     new_buffer_store.CopyOnWrite()->value = new_buffer_load;
     SBlock new_block = ffi::GetRef<SBlock>(block);
@@ -148,7 +147,12 @@ class IntermediateStageRewriter {
       local_stage = For(for_node);
       subst_map.Set(relaxed_loop->loop_var, for_node->loop_var);
     }
-    local_stage = Substitute(local_stage, subst_map);
+    auto f_substitute = [&subst_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = subst_map.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
+    local_stage = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(local_stage, f_substitute)
+                      .as_or_throw<Stmt>();
     return local_stage;
   }
 

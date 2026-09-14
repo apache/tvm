@@ -20,17 +20,21 @@ Compiling and inspecting
 
 Wrap the ``PrimFunc`` in an ``IRModule`` and compile with
 ``tvm.compile(mod, target=..., tir_pipeline="tirx")``; it runs the TIRx lowering
-pipeline and returns an ``Executable`` you call directly. The arch (e.g.
-``sm_100a``) is auto-detected from the device, so the target ``"cuda"`` is enough.
+pipeline and returns an ``Executable`` you call directly. With an active CUDA
+device, target ``"cuda"`` auto-detects its architecture (for example
+``sm_100a``). If no device is available during compilation, TVM warns and falls
+back to ``sm_50``; specify ``-arch=...`` when cross-compiling or when the emitted
+instructions require a newer architecture.
 
 .. code-block:: python
 
     target = tvm.target.Target("cuda")
     exe = tvm.compile(tvm.IRModule({"main": scale}), target=target, tir_pipeline="tirx")
 
-``tir_pipeline="tirx"`` selects the TIRx lowering pipeline (``LowerTIRx`` →
-tile-primitive dispatch → host/device split → finalize). Compiling inside a
-``with target:`` block also works and lets the kernel pick up the target context.
+``tir_pipeline="tirx"`` selects the TIRx lowering pipeline (tile-primitive
+dispatch and cleanup inside ``LowerTIRx`` → host/device split → finalize).
+Compiling inside a ``with target:`` block also works and lets the kernel pick
+up the target context.
 
 Inspecting the result
 ---------------------
@@ -46,8 +50,8 @@ compiled module.
     # the generated CUDA C source, from the compiled Executable:
     print(exe.mod.imports[0].inspect_source())
 
-Debug aids: ``T.print_buffer(C.data, "float32", False, False, 1, (M,))`` emits a
-runtime ``printf`` of a buffer into the kernel; ``T.hint("message")`` (statement
+Debug aids: ``Tx.print_buffer(C.data, "float32", False, False, 1, (M,))`` emits a
+runtime ``printf`` of a buffer into the kernel; ``Tx.hint("message")`` (statement
 or ``with`` block) attaches structured hints that survive a script round-trip.
 
 From simple to complex
@@ -57,39 +61,39 @@ A natural native progression, each rung adding one capability:
 
 #. **Elementwise** — ``device_entry`` + ``thread_id`` + a guarded store (the first
    kernel).
-#. **Shared-memory reduction** — stage into ``T.alloc_shared``, then a
+#. **Shared-memory reduction** — stage into ``Tx.alloc_shared``, then a
    ``cta_sync``-separated tree (shown in full below). Adds shared memory and a
    block barrier.
-#. **Warp / block reduction** — ``T.tvm_warp_shuffle_xor`` or ``T.cuda.cta_sum``
+#. **Warp / block reduction** — ``Tx.tvm_warp_shuffle_xor`` or ``Tx.cuda.cta_sum``
    to combine partial results across lanes/warps (the warp all-reduce in
    :doc:`threads_sync`).
-#. **Async pipeline** — ``T.ptx.cp.async_`` (or TMA ``cp.async.bulk.tensor``) with
-   ``T.ptx.mbarrier.*`` / ``T.cuda.mbarrier_wait`` to overlap loads with compute.
+#. **Async pipeline** — ``Tx.ptx.cp.async_`` (or TMA ``cp.async.bulk.tensor``) with
+   ``Tx.ptx.mbarrier.*`` / ``Tx.cuda.mbarrier_wait`` to overlap loads with compute.
 
 Rung 2 in full — a 256-element block sum via a shared-memory tree reduction
 (shared buffer, ``cta_sync``, a ``while`` loop, and a thread predicate):
 
 .. code-block:: python
 
-    @T.prim_func
-    def block_sum(A_ptr: T.handle, out_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (256,), "float32")
-        out = T.match_buffer(out_ptr, (1,), "float32")
+    @Tx.prim_func
+    def block_sum(A_ptr: Tx.handle, out_ptr: Tx.handle):
+        A = Tx.match_buffer(A_ptr, (256,), "float32")
+        out = Tx.match_buffer(out_ptr, (1,), "float32")
 
-        T.device_entry()
-        bx = T.cta_id([1])
-        tx = T.thread_id([256])
+        Tx.device_entry()
+        bx = Tx.cta_id([1])
+        tx = Tx.thread_id([256])
 
-        sm = T.alloc_shared((256,), "float32")
+        sm = Tx.alloc_shared((256,), "float32")
         sm[tx] = A[tx]
-        T.cuda.cta_sync()
+        Tx.cuda.cta_sync()
 
-        s = T.alloc_local((1,), "int32")
+        s = Tx.alloc_local((1,), "int32")
         s[0] = 128
         while s[0] >= 1:
             if tx < s[0]:
                 sm[tx] += sm[tx + s[0]]
-            T.cuda.cta_sync()
+            Tx.cuda.cta_sync()
             s[0] = s[0] // 2
 
         if tx == 0:

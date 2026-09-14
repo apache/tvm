@@ -17,6 +17,7 @@
 # pylint: disable=missing-function-docstring
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -53,7 +54,7 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
         if isinstance(node, tvm.ir.Call) and node.op.name == arrive_op_name:
             arrive_calls.append(node)
 
-    tvm.tirx.stmt_functor.post_order_visit(func.body, visit)
+    tvm_ffi.structural_walk(func.body, visit)
     assert len(bindings) == 1
     assert len(buffers) == 1
     assert len(mapa_calls) == 1
@@ -71,7 +72,7 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
     # instruction has no remote operand of its own, it just takes the mapped
     # address.
     mapped_dst, mapped_ptr, _rank = mapa_calls[0].args[:3]
-    assert isinstance(mapped_dst, tvm.tirx.BufferLoad)
+    assert isinstance(mapped_dst, tvm.ir.TensorLoad)
     assert mapped_ptr is not None
     assert len(arrive_calls) == n_arrives
 
@@ -177,6 +178,39 @@ def test_mbarrier_remote_view_codegen():
         assert "tvm_builtin_ptx_mbarrier_arrive_arrive_shared__cluster_b64" in src
         assert "mbarrier.arrive.shared::cluster.b64" in src
         assert 'asm volatile("mbarrier.arrive.shared.b64' not in src
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+def test_mbarrier_local_arrive_forwards_predicate_and_count():
+    from tvm.tirx.lang.pipeline import MBarrier
+
+    # fmt: off
+    @T.prim_func
+    def test_local_arrive():
+        T.device_entry()
+        thread = T.thread_id([32])
+        pool = T.SMEMPool()
+        bar = MBarrier(pool, 1)
+        pool.commit()
+        bar.arrive(0, pred=(thread == 0), count=2)
+    # fmt: on
+
+    arrive_calls = []
+
+    def visit(node):
+        if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.ptx.mbarrier_arrive":
+            arrive_calls.append(node)
+
+    tvm_ffi.structural_walk(test_local_arrive.body, visit)
+    assert len(arrive_calls) == 1
+    call = arrive_calls[0]
+    assert call.args[1].value == 2
+    assert call.args[-1].value == "pred"
+
+    with tvm.target.Target("cuda"):
+        src, _ = _get_source(test_local_arrive)
+        assert "@p mbarrier.arrive.shared.b64 _, [%0], %1;" in src
 
 
 @pytest.mark.gpu

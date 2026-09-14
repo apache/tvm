@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/transform.h>
@@ -33,6 +34,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using support::NDIntSet;
@@ -261,13 +263,11 @@ Pass SimplifyForFeatureExtraction() {
 
    private:
     static bool HasBufferLoad(const PrimExpr& expr) {
-      bool found = false;
-      PostOrderVisit(expr, [&found](const ffi::ObjectRef& node) {
-        if (node->IsInstance<BufferLoadNode>()) {
-          found = true;
-        }
-      });
-      return found;
+      auto walk_fn = [](const TensorLoad&) -> ffi::Expected<ffi::WalkResult> {
+        return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
+      };
+      auto result = ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(expr, walk_fn);
+      return result.has_value() ? result.value()->value.cast<bool>() : false;
     }
 
     Expr VisitExpr_(const SelectNode* node) final {
@@ -797,28 +797,28 @@ void Feature::Init(const BufferStoreNode* store, int n_loops) {
     info.access_type = AccessType::kWrite;
     info.multi_indices.push_back({store->indices.begin(), store->indices.end()});
   }
-  PostOrderVisit(store->value, [&buffer_info](const ffi::ObjectRef& obj) -> void {
-    if (const BufferLoadNode* load = obj.as<BufferLoadNode>()) {
-      BufferVar buffer = load->buffer;
-      Info& info = buffer_info[buffer];
-      switch (info.access_type) {
-        case AccessType::kRead:
-          break;
-        case AccessType::kWrite:
-          info.access_type = AccessType::kReadWrite;
-          break;
-        case AccessType::kReadWrite:
-          break;
-        case AccessType::kUnknownRW:
-        default:
-          info.access_type = AccessType::kRead;
-          break;
-      }
-      if (info.access_type != AccessType::kReadWrite) {
-        info.multi_indices.push_back({load->indices.begin(), load->indices.end()});
-      }
+  auto walk_fn = [&buffer_info](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
+    BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
+    Info& info = buffer_info[buffer];
+    switch (info.access_type) {
+      case AccessType::kRead:
+        break;
+      case AccessType::kWrite:
+        info.access_type = AccessType::kReadWrite;
+        break;
+      case AccessType::kReadWrite:
+        break;
+      case AccessType::kUnknownRW:
+      default:
+        info.access_type = AccessType::kRead;
+        break;
     }
-  });
+    if (info.access_type != AccessType::kReadWrite) {
+      info.multi_indices.push_back({load->indices.begin(), load->indices.end()});
+    }
+    return ffi::WalkResult::Advance();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(store->value, walk_fn);
   this->sub_features.reserve(buffer_info.size());
   for (const auto& kv : buffer_info) {
     this->sub_features.emplace_back(kv.first, kv.second.access_type,
@@ -919,13 +919,15 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
   BufferVar buffer = this->buffer;
   // Step 3.1. Collect all `Var`s that appears in the buffer region
   std::unordered_set<const VarNode*> region_vars;
+  auto walk_fn = [&region_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    if (auto prim_var = var.as<PrimVar>()) {
+      region_vars.insert(prim_var.value().get());
+    }
+    return ffi::WalkResult::Advance();
+  };
   for (const MultiIndex& multi_index : this->multi_indices) {
     for (const PrimExpr& index : multi_index) {
-      PostOrderVisit(index, [&region_vars](const ffi::ObjectRef& obj) -> void {
-        if (auto var = obj.as<PrimVar>()) {
-          region_vars.insert(var.value().get());
-        }
-      });
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(index, walk_fn);
     }
   }
   // Default case: no reuse
@@ -1375,6 +1377,7 @@ class PerStoreFeatureCollector : private StmtVisitor {
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 class PerStoreFeatureNode : public FeatureExtractorNode {

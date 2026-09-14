@@ -25,6 +25,7 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
@@ -42,6 +43,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using support::NDIntSet;
@@ -79,8 +81,9 @@ class Var2BufferCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    var2buffer_[op->buffer.var()].insert(op->buffer);
+  void VisitExpr_(const TensorLoadNode* op) final {
+    BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
+    var2buffer_[buffer.var()].insert(buffer);
     StmtExprVisitor::VisitExpr_(op);
   }
 
@@ -150,12 +153,13 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     VisitExpr(op->value);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    auto explicit_it = explicit_access_annotations_.find(op->buffer);
+  void VisitExpr_(const TensorLoadNode* op) final {
+    BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
+    auto explicit_it = explicit_access_annotations_.find(buffer);
     if (explicit_it != explicit_access_annotations_.end()) {
       VisitBufferAccess(explicit_it->second);
     } else {
-      VisitBufferAccess(BufferRegion::FromPoint(op->buffer, op->indices));
+      VisitBufferAccess(BufferRegion::FromPoint(buffer, op->indices));
     }
     StmtExprVisitor::VisitExpr_(op);
   }
@@ -217,7 +221,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::if_then_else())) {
+    if (op->op.same_as(prim::builtin::if_then_else())) {
       PrimExpr condition = op->args[0].as_or_throw<PrimExpr>();
       PrimExpr then_value = op->args[1].as_or_throw<PrimExpr>();
       PrimExpr else_value = op->args[2].as_or_throw<PrimExpr>();
@@ -469,7 +473,11 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         return std::any_of(ancestor_iters_.begin(), ancestor_iters_.end(),
                            [v](const IterVar& n) { return n->var.get() == v; });
       };
-      if (UsesVar(extent, is_loop_var)) {
+      auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+        return is_loop_var(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                                      : ffi::WalkResult::Advance();
+      };
+      if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(extent, walkfn).has_value()) {
         // try estimate a constant upperbound on region's extent
         int64_t upperbound = dom_analyzer_->const_int_bound(extent)->max_value;
         if (upperbound != arith::ConstIntBound::kPosInf) {
@@ -579,11 +587,13 @@ class BufferCompactor : public StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const BufferLoadNode* _op) final {
-    BufferLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<BufferLoad>();
-    BufferLoadNode* op = load.CopyOnWrite();
-    RewriteBufferAccess(_op->buffer, &op->buffer, &op->indices);
-    return load;
+  Expr VisitExpr_(const TensorLoadNode* _op) final {
+    TensorLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<TensorLoad>();
+    BufferVar original_buffer = _op->source.as_or_throw<tvm::tirx::BufferVar>();
+    BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
+    ffi::Array<PrimExpr> indices = load->indices;
+    RewriteBufferAccess(original_buffer, &buffer, &indices);
+    return BufferLoad(buffer, indices, load->span);
   }
 
   Stmt VisitStmt_(const SBlockNode* op) final {

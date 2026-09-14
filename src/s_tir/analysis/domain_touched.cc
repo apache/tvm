@@ -18,26 +18,29 @@
  */
 
 /*!
- * \file bound_deducer.cc
- * \brief Utility to deduce bound of expression
+ * \file domain_touched.cc
+ * \brief Analyze buffer domains touched by a statement
  */
+#include <tvm/arith/int_set.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/te/tensor.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 
-#include "ir_visitor_with_analyzer.h"
+#include "../../arith/ir_visitor_with_analyzer.h"
 
 namespace tvm {
-namespace arith {
+namespace s_tir {
 
 using namespace tirx;
+using arith::IntSet;
 
 namespace {
 
@@ -60,7 +63,7 @@ using BufferDomainAccess = std::tuple<LoadAccess, StoreAccess, CombinedAccess>;
 }  // namespace
 
 // Find Read region of the tensor in the stmt.
-class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
+class BufferTouchedDomain final : public arith::IRVisitorWithAnalyzer {
  public:
   BufferTouchedDomain(const Stmt& stmt) { operator()(stmt); }
 
@@ -72,7 +75,7 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
     Region ret;
     auto kv = buffer_access_map_.find(buffer.get());
     if (kv == buffer_access_map_.end()) {
-      LOG(WARNING) << "[arith::BufferDomainTouched] "
+      LOG(WARNING) << "[s_tir::BufferDomainTouched] "
                    << "The requested buffer is not contained in the provided stmt body: " << buffer;
       return ret;
     }
@@ -96,15 +99,16 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
   }
 
  private:
-  using Parent = IRVisitorWithAnalyzer;
+  using Parent = arith::IRVisitorWithAnalyzer;
   using Parent::VisitExpr_;
   using Parent::VisitStmt_;
 
-  void VisitExpr_(const BufferLoadNode* op) final {
+  void VisitExpr_(const TensorLoadNode* op) final {
+    BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
     // Record load-exclusive buffer access
-    Touch(&std::get<LoadAccess>(buffer_access_map_[op->buffer.get()]).set, op->indices);
+    Touch(&std::get<LoadAccess>(buffer_access_map_[buffer.get()]).set, op->indices);
     // Record load-store inclusive buffer access
-    Touch(&std::get<CombinedAccess>(buffer_access_map_[op->buffer.get()]).set, op->indices);
+    Touch(&std::get<CombinedAccess>(buffer_access_map_[buffer.get()]).set, op->indices);
     Parent::VisitExpr_(op);
   }
 
@@ -122,7 +126,7 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
       bounds->resize(args.size());
     }
     for (size_t i = 0; i < args.size(); ++i) {
-      if (args[i].as<RampNode>()) {
+      if (args[i].as<prim::RampNode>()) {
         (*bounds)[i].emplace_back(IntSet::Vector(args[i]));
       } else {
         (*bounds)[i].emplace_back(analyzer_->int_set(args[i]));
@@ -170,9 +174,9 @@ ffi::Map<BufferVar, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const Pri
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("arith.DomainTouched", DomainTouched)
-      .def("arith.DomainTouchedAccessMap", DomainTouchedAccessMap);
+      .def("s_tir.DomainTouched", DomainTouched)
+      .def("s_tir.DomainTouchedAccessMap", DomainTouchedAccessMap);
 }
 
-}  // namespace arith
+}  // namespace s_tir
 }  // namespace tvm

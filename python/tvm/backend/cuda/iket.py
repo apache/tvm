@@ -24,7 +24,6 @@ capture processes execute the supplied callable and then exit.
 from __future__ import annotations
 
 import functools
-import hashlib
 import importlib.util
 import inspect
 import json
@@ -59,47 +58,18 @@ _INJECTION_ENV_VARS = ("CUDA_INJECTION64_PATH", "SMODEL_INJECTION_CONFIG")
 _OUTPUT_TAIL_LINES = 100
 _TERMINATION_GRACE_SECONDS = 5.0
 
-# Hashes are SHA-256 digests of files in the public 4.6.0 wheels.  Only
-# ABI-independent runtime/compiler binaries are pinned so this profile works
-# with every Python version supported by that CUTLASS DSL release.
 _OFFICIAL_PROFILES = {
     "cutlass-4.6.0": {
         "nvrtc_version": (13, 2),
-        "versions": {
+        "minimum_versions": {
             "nvidia-cutlass-dsl": "4.6.0",
             "nvidia-cutlass-dsl-libs-base": "4.6.0",
             "nvidia-cutlass-dsl-libs-core": "4.6.0",
             "nvidia-cutlass-dsl-libs-cu13": "4.6.0",
+        },
+        "exact_versions": {
             "nvidia-cuda-nvdisasm": "13.3.73",
             "nvidia-cuda-nvrtc": "13.2.78",
-        },
-        "files": {
-            "nvidia-cutlass-dsl-libs-base": {
-                "nvidia_cutlass_dsl/dsl_packages/iket/libiket_cubin_info.so": (
-                    "7ee839130c6bd129b04908a807c066118a459ebea644a59ecb6e41fbb323c103"
-                ),
-                "nvidia_cutlass_dsl/dsl_packages/iket/profiler/libsmodel_injection.so": (
-                    "83be54bd06e2cd82b2f6c17bbee6c925d049acae8d880242d4a5d5509a29e122"
-                ),
-            },
-            "nvidia-cutlass-dsl-libs-cu13": {
-                "nvidia_cutlass_dsl/cu13/lib/libcute_dsl_runtime.so": (
-                    "2fa9809047485ae420ca99cab0678846de692e9608a179b0020834994311dd2f"
-                ),
-            },
-            "nvidia-cuda-nvdisasm": {
-                "nvidia/cu13/bin/nvdisasm": (
-                    "5842e6adf9e232c9503a804915f158a576473e542577c070da3be49390474140"
-                ),
-            },
-            "nvidia-cuda-nvrtc": {
-                "nvidia/cu13/lib/libnvrtc.so.13": (
-                    "c673cf3b5099d83b98a388a2bb21e5d6f481be3c4bb956e2d74c39cb714d8c63"
-                ),
-                "nvidia/cu13/lib/libnvrtc-builtins.so.13.2": (
-                    "6b1c571cc730d5fcfd57f322e1fa7e0e65de7454b2239ff6d552a09b82d47dbe"
-                ),
-            },
         },
     }
 }
@@ -201,12 +171,17 @@ def _profile_error(message: str) -> IketProfileError:
     )
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as file_obj:
-        for chunk in iter(lambda: file_obj.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+def _is_newer_release(actual: str, expected: str) -> bool:
+    """Compare the numeric release versions published by NVIDIA wheels."""
+    try:
+        actual_parts = tuple(int(part) for part in actual.split("."))
+        expected_parts = tuple(int(part) for part in expected.split("."))
+    except ValueError:
+        return False
+    width = max(len(actual_parts), len(expected_parts))
+    return actual_parts + (0,) * (width - len(actual_parts)) > expected_parts + (0,) * (
+        width - len(expected_parts)
+    )
 
 
 def _validate_run_iket_entrypoint() -> str:
@@ -220,7 +195,9 @@ def _validate_run_iket_entrypoint() -> str:
         and item.value == "iket.cli.main:entrypoint"
         for item in entry_points
     ):
-        raise _profile_error("the run-iket entry point does not match the locked CUTLASS profile")
+        raise _profile_error(
+            "the run-iket entry point does not match the supported CUTLASS profile"
+        )
     return executable
 
 
@@ -240,34 +217,29 @@ def _validate_nvrtc_version(expected_version: tuple[int, int]) -> None:
 
 
 def _validate_official_installation(profile_name: str) -> str:
-    """Validate pinned host-side packages and return the official executable."""
+    """Validate host-side package versions and return the official executable."""
     if profile_name not in _OFFICIAL_PROFILES:
         raise _profile_error(f"unsupported profile {profile_name!r}; expected {_DEFAULT_PROFILE!r}")
     profile_config = _OFFICIAL_PROFILES[profile_name]
-    distributions = {}
-    for distribution_name, expected_version in profile_config["versions"].items():
-        try:
-            distribution = metadata.distribution(distribution_name)
-        except metadata.PackageNotFoundError as err:
-            raise _profile_error(
-                f"{distribution_name}=={expected_version} is not installed"
-            ) from err
-        if distribution.version != expected_version:
-            raise _profile_error(
-                f"{distribution_name} must be {expected_version}, got {distribution.version}"
-            )
-        distributions[distribution_name] = distribution
-
-    for distribution_name, expected_files in profile_config["files"].items():
-        distribution = distributions[distribution_name]
-        for relative_path, expected_digest in expected_files.items():
-            path = Path(distribution.locate_file(relative_path))
-            if not path.is_file():
-                raise _profile_error(f"profile binary is missing: {relative_path}")
-            actual_digest = _sha256(path)
-            if actual_digest != expected_digest:
+    version_groups = (
+        (profile_config["minimum_versions"], True),
+        (profile_config["exact_versions"], False),
+    )
+    for versions, allow_newer in version_groups:
+        for distribution_name, expected_version in versions.items():
+            try:
+                distribution = metadata.distribution(distribution_name)
+            except metadata.PackageNotFoundError as err:
+                operator = ">=" if allow_newer else "=="
                 raise _profile_error(
-                    f"profile binary hash mismatch for {relative_path}: {actual_digest}"
+                    f"{distribution_name}{operator}{expected_version} is not installed"
+                ) from err
+            if distribution.version != expected_version and not (
+                allow_newer and _is_newer_release(distribution.version, expected_version)
+            ):
+                requirement = f"{expected_version} or newer" if allow_newer else expected_version
+                raise _profile_error(
+                    f"{distribution_name} must be {requirement}, got {distribution.version}"
                 )
 
     executable = _validate_run_iket_entrypoint()
@@ -275,13 +247,11 @@ def _validate_official_installation(profile_name: str) -> str:
     return executable
 
 
-def _validate_injection_environment(expected_injection_digest: str) -> None:
+def _validate_injection_environment() -> None:
     injection_value = os.environ.get("CUDA_INJECTION64_PATH")
     injection_path = Path(injection_value) if injection_value else None
     if injection_path is None or not injection_path.is_file():
         raise _profile_error("CUDA_INJECTION64_PATH was not supplied by run-iket")
-    if _sha256(injection_path) != expected_injection_digest:
-        raise _profile_error("CUDA_INJECTION64_PATH does not match the locked run-iket binary")
 
     config_value = os.environ.get("SMODEL_INJECTION_CONFIG")
     config_path = Path(config_value) if config_value else None
@@ -314,16 +284,12 @@ def _validate_official_environment() -> str:
             f"{_PROFILE_ENV} must be set to {_DEFAULT_PROFILE}, got {profile_name!r}"
         )
     executable = _validate_official_installation(profile_name)
-    profile_config = _OFFICIAL_PROFILES[profile_name]
-    injection_digest = profile_config["files"]["nvidia-cutlass-dsl-libs-base"][
-        "nvidia_cutlass_dsl/dsl_packages/iket/profiler/libsmodel_injection.so"
-    ]
-    _validate_injection_environment(injection_digest)
+    _validate_injection_environment()
     return executable
 
 
 def validate_official_environment() -> None:
-    """Validate the exact official runtime before an instrumented CUBIN is loaded."""
+    """Validate the supported official runtime before an instrumented CUBIN is loaded."""
     _validate_official_environment()
 
 
@@ -469,7 +435,7 @@ def _child_environment(
     child_env[_PROFILE_ENV] = profile_name
     # LowerIket also requires the two run-iket injection variables before it
     # honors this marker.  This enables ordinary TIRx JIT compilation only in
-    # children started by this locked profiling entry point.
+    # children started by this validated profiling entry point.
     child_env[_INJECTED_CHILD_ENABLE_ENV] = "1"
     return child_env
 

@@ -18,12 +18,15 @@
 gemm
 ====
 
-``gemm`` computes ``D = alpha·A@B + beta·C`` at **warp** scope as a fully-unrolled
-nest of warp-collective ``mma.sync.aligned.m16n8k{16,8}`` instructions. A and B
-fragments and the C/D accumulators **all live in registers** — the caller stages A
-and B into register fragments first (typically via :doc:`copy/ldstmatrix`). The
-dispatch tiles M/N/K into ``m16n8k`` atoms and emits one ``mma`` per output tile,
-accumulating over K in place. Source:
+``gemm`` computes ``D = alpha·A@B + beta·C`` as a fully-unrolled nest of
+warp-collective ``mma.sync.aligned.m16n8k{16,8}`` instructions. A warp call is
+the usual form. A full warpgroup or CTA scope is also accepted; each contained
+warp executes the fragment program, and the operand thread-axis tiling determines
+whether those warps own distinct output tiles or repeat the same tile. A and B
+fragments and the C/D accumulators **all live in registers** — the caller stages
+A and B into register fragments first (typically via :doc:`copy/ldstmatrix`).
+The dispatch tiles M/N/K into ``m16n8k`` atoms and emits one ``mma`` per output
+tile, accumulating over K in place. Source:
 ``python/tvm/backend/cuda/tile_primitive/gemm/mma_m16n8k_.py``. (For the
 Blackwell async tensor-core path see :doc:`gemm_async`.)
 
@@ -33,7 +36,7 @@ What it accepts
 .. code-block:: python
 
     # register_dispatch("gemm", "cuda", priority=10, when=[
-    predicate("full_active_lanes", _full_active_lanes),   # whole warp, un-narrowed
+    predicate("full_active_lanes", _full_active_lanes),   # complete warp(s), un-narrowed
     predicate("no_replica", _no_replica),                 # no broadcast axes on D/A/B/C
     # ])
     # in the impl:
@@ -48,18 +51,24 @@ What it accepts
    * - Property
      - Requirement
    * - target / scope / priority
-     - ``cuda``; **warp** (``mma.sync`` is warp-collective — all 32 lanes active,
-       ``_full_active_lanes``); priority ``10``
+     - ``cuda``; priority ``10``. The predicate has no scope-kind allowlist: it
+       requires every axis present in ``sctx.intra`` to be a complete,
+       zero-offset ``laneid`` / ``wid_in_wg`` / ``warpid`` axis. This admits the
+       normal warp / warpgroup / CTA call sites and rejects unrecognized axes
+       such as a cluster axis. ``mma.sync`` remains warp-collective, so callers
+       use a warp or a wider scope made of complete warps
    * - operand scope
      - **A, B, C, D all in registers** (``local``); a shared operand makes the
        dispatch ``fail`` (stage with ldmatrix first)
    * - no replica
      - none of D/A/B/C may carry a broadcast/replica axis (``_no_replica``)
    * - shape
-     - ``M % 16 == 0``, ``N % 8 == 0``, ``K % 8`` (k8) or ``% 16`` (k16) — each
-       dim must tile into the m16n8k fragment frame
+     - ``M % 16 == 0``, ``N % 8 == 0``, and ``K % 8 == 0``. The dispatcher
+       first tries ``m16n8k16`` and then ``m16n8k8``; the selected instruction
+       must tile all operand layouts exactly
    * - dtype
-     - inputs ``float16`` / ``bfloat16``; accumulator ``float32``
+     - A and B are both ``float16`` or both ``bfloat16``; C and D are
+       ``float32``
    * - alpha / beta
      - ``alpha == 1.0``; ``beta ∈ {0.0, 1.0}`` (0 → ``D = A@B``; 1 → ``D = A@B + C``)
 
@@ -78,25 +87,25 @@ accumulate) — one ``m16n8k16`` atom (from ``test_gemm_mma_m16n8k_.py``):
     B_FRAG_K8 = TileLayout(S[(4, 2, 8) : (1 @ laneid, 1, 4 @ laneid)])
     A_FRAG = A_FRAG_K8.tile_to([16, 16], [16, 8]); B_FRAG = B_FRAG_K8.tile_to([16, 8], [8, 8])
 
-    @T.prim_func
-    def gemm(A_ptr: T.handle, B_ptr: T.handle, D_ptr: T.handle):
-        A_g = T.match_buffer(A_ptr, (16, 16), "float16"); B_g = T.match_buffer(B_ptr, (16, 8), "float16")
-        D_g = T.match_buffer(D_ptr, (16, 8), "float32")
-        T.device_entry(); T.cta_id([1]); T.warp_id([1]); lane = T.lane_id([32])
-        A_f = T.alloc_buffer((16, 16), "float16", scope="local", layout=A_FRAG)
-        B_f = T.alloc_buffer((16, 8),  "float16", scope="local", layout=B_FRAG)
-        D_f = T.alloc_buffer((16, 8),  "float32", scope="local", layout=D_FRAG)
+    @Tx.prim_func
+    def gemm(A_ptr: Tx.handle, B_ptr: Tx.handle, D_ptr: Tx.handle):
+        A_g = Tx.match_buffer(A_ptr, (16, 16), "float16"); B_g = Tx.match_buffer(B_ptr, (16, 8), "float16")
+        D_g = Tx.match_buffer(D_ptr, (16, 8), "float32")
+        Tx.device_entry(); Tx.cta_id([1]); Tx.warp_id([1]); lane = Tx.lane_id([32])
+        A_f = Tx.alloc_buffer((16, 16), "float16", scope="local", layout=A_FRAG)
+        B_f = Tx.alloc_buffer((16, 8),  "float16", scope="local", layout=B_FRAG)
+        D_f = Tx.alloc_buffer((16, 8),  "float32", scope="local", layout=D_FRAG)
         A_reg = A_f.local(8)                              # stage A into the lane's 8 regs
-        for s in T.unroll(8):
+        for s in Tx.unroll(8):
             kp, rM, kHi = s % 2, (s // 2) % 2, s // 4
             A_reg[s] = A_g[lane // 4 + 8 * rM, 2 * (lane % 4) + kp + 8 * kHi]
         B_reg = B_f.local(4)                              # stage B into the lane's 4 regs
-        for s in T.unroll(4):
+        for s in Tx.unroll(4):
             kp, kHi = s % 2, s // 2
             B_reg[s] = B_g[2 * (lane % 4) + kp + 8 * kHi, lane // 4]
-        Tx.warp.gemm(D_f, A_f, B_f, D_f, transpose_A=False, transpose_B=False, alpha=1.0, beta=0.0)
+        Tx.tile.warp.gemm(D_f, A_f, B_f, D_f, transpose_A=False, transpose_B=False, alpha=1.0, beta=0.0)
         D_reg = D_f.local(4)                              # write the 4 result regs out
-        for s in T.unroll(4):
+        for s in Tx.unroll(4):
             rN, rM = s % 2, s // 2
             D_g[lane // 4 + 8 * rM, 2 * (lane % 4) + rN] = D_reg[s]
 
@@ -122,16 +131,16 @@ accumulate over K in place, one ``mma`` per (m, n) tile:
 
 .. code-block:: python
 
-    for m in T.unroll(M_tiles):
-        for n in T.unroll(N_tiles):
-            for rM, rN in ...: d_local[m, n, rM, rN] = c_local[...] if use_c else T.float32(0)
-            for k in T.unroll(K_tiles):
-                d_ptrs = [d_local.ptr_to([m, n, rM, rN]) for rM in range(2) for rN in range(2)]  # 4 f32
-                a_ptrs = [a_local.ptr_to([m, k, rM, kHi, 0]) for kHi in range(n_kHi) for rM in range(2)]
-                b_ptrs = [b_local.ptr_to([k, n, kHi, 0]) for kHi in range(n_kHi)]
+    for m in Tx.unroll(M_tiles):
+        for n in Tx.unroll(N_tiles):
+            for rM, rN in ...: d_local[m, n, rM, rN] = c_local[...] if use_c else Tx.float32(0)
+            for k in Tx.unroll(K_tiles):
+                d_regs = [d_local[m, n, rM, rN] for rM in range(2) for rN in range(2)]  # 4 f32
+                a_regs = [a_words[m, k, rM, kHi, 0] for kHi in range(n_kHi) for rM in range(2)]
+                b_regs = [b_words[k, n, kHi, 0] for kHi in range(n_kHi)]
                 mma_chain = (f"mma.sync.aligned.{shape_str}.row.col"
                              f".f32.{a_elem}.{b_elem}.f32")
-                T.ptx[mma_chain](*d_regs, *a_regs, *b_regs, *d_regs)   # d = a·b + d
+                Tx.ptx[mma_chain](*d_regs, *a_regs, *b_regs, *d_regs)   # d = a·b + d
 
 Generated TIRx IR
 -----------------
@@ -140,7 +149,7 @@ The single 16×8×16 tile lowers to one ``mma`` (4 D regs, 4 A regs, 2 B regs):
 
 .. code-block:: python
 
-    T.ptx["mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32"](
+    Tx.ptx["mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32"](
         d_local[0], d_local[1], d_local[2], d_local[3], a_local[0], ...)
 
 Generated CUDA
@@ -176,6 +185,9 @@ How inputs change the algorithm
    * - beta
      - ``0`` → D zero-initialized; ``1`` → D initialized from C (the ``mma`` itself
        is identical)
+   * - transpose_A / transpose_B
+     - transpose the logical A or B region before shape and layout matching;
+       the transformed operands must still fit the selected ``m16n8k`` frame
    * - operand scope
      - A/B **must** be register fragments; a shared operand makes the dispatch
        ``fail`` (stage via :doc:`copy/ldstmatrix` first)

@@ -24,9 +24,10 @@
 // Unrolls the loop as in Halide pipeline.
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -165,9 +166,10 @@ class LoopUnroller : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const TensorLoadNode* op) final {
     if (unroll_local_access_) {
-      auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
+      auto storage_scope =
+          runtime::StorageScope::Create(op->source.as_or_throw<tvm::tirx::BufferVar>().scope());
       if (storage_scope.rank == runtime::StorageRank::kLocal ||
           storage_scope.rank == runtime::StorageRank::kWarp) {
         VarLocalAccessMarker marker(&var_touched_local_);
@@ -224,9 +226,17 @@ class LoopUnroller : public StmtExprMutator {
     Stmt body = op->body;
     ffi::Map<Var, PrimExpr> vmap;
     ffi::Array<Stmt> unrolled;
+    auto f_substitute = [&vmap](
+                            const Var& var,
+                            TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
+      if (auto repl = vmap.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
     for (int i = 0; i < value; ++i) {
       vmap.Set(op->loop_var, op->min + IntImm(op->loop_var.ty(), i));
-      Stmt step = Substitute(body, vmap);
+      Stmt step =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, f_substitute).as_or_throw<Stmt>();
       unrolled.push_back(step);
     }
     return SeqStmt::Flatten(unrolled);

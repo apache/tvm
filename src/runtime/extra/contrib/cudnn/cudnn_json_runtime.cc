@@ -215,10 +215,19 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
     } else {
       TVM_FFI_THROW(InternalError) << "Unsupported layout: " << layout;
     }
+    // A `None` scale is serialized as an empty string, so HasAttrValue (not HasAttr) decides
+    // whether the default applies. GetAttr throws on a type mismatch, so a scale we cannot
+    // read is loud rather than silently replaced by the default.
     double scale = 1 / std::sqrt(head_size);
-    if (node.HasAttr("scale")) {
+    if (node.HasAttrValue("scale")) {
       scale = node.GetAttr<double>("scale");
     }
+
+    // The SDPA graph below is built without any mask, so masked attention must not reach here.
+    TVM_FFI_ICHECK(!node.HasAttrValue("causal_mask"))
+        << "cuDNN attention does not support causal_mask yet";
+    TVM_FFI_ICHECK(!node.HasAttrValue("window_size"))
+        << "cuDNN attention does not support window_size yet";
 
     auto runner = tvm::contrib::CuDNNSDPARunner::Create();
     runner->Init(batch, seq_len, num_heads, num_kv_heads, head_size, head_size_v, scale, dtype,

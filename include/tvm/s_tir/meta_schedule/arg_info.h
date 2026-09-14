@@ -23,10 +23,12 @@
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/function.h>
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief The argument information. */

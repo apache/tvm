@@ -25,10 +25,10 @@
 #include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 
 #include <functional>
@@ -36,80 +36,11 @@
 namespace tvm {
 namespace relax {
 
-/*! \brief Tuple container */
-class TupleNode : public ExprNode {
- public:
-  /*! \brief the fields of the tuple */
-  tvm::ffi::Array<Expr> fields;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TupleNode>().def_ro("fields", &TupleNode::fields);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Tuple", TupleNode, ExprNode);
-};
-
-class Tuple : public Expr {
- public:
-  /*!
-   * \brief The constructor
-   * \param fields The fields of a tuple.
-   * \param span The source span of the expression.
-   */
-  TVM_DLL explicit Tuple(tvm::ffi::Array<Expr> fields, Span span = Span());
-
-  /*!
-   * \brief Utility constructor to handle conversion to relax::Expr
-   *
-   * If the calling scope already has an array of a specific type of
-   * relax expression (e.g. `ffi::Array<Var>`), it must be converted
-   * into an array of base type.  This constructor handles the
-   * conversion to the base `ffi::Array<relax::Expr>`.
-   *
-   * \tparam ExprType The type of relax expression passed in as an argument.
-   *
-   * \param fields The fields of a tuple.
-   *
-   * \param span The source span of the expression.
-   */
-  template <typename ExprType, typename = std::enable_if_t<std::is_base_of_v<Expr, ExprType>>>
-  TVM_DLL explicit Tuple(tvm::ffi::Array<ExprType> fields, Span span = Span())
-      : Tuple(fields.Map([](const ExprType& expr) -> Expr { return expr; }), span) {}
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tuple, Expr, TupleNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
-};
-
-/*! \brief Get index-th field out of a tuple. */
-class TupleGetItemNode : public ExprNode {
- public:
-  /*! \brief The tuple Expression */
-  Expr tuple;
-  /*! \brief which value to get */
-  int index;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TupleGetItemNode>()
-        .def_ro("tuple_value", &TupleGetItemNode::tuple)
-        .def_ro("index", &TupleGetItemNode::index);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.TupleGetItem", TupleGetItemNode, ExprNode);
-};
-
-class TupleGetItem : public Expr {
- public:
-  /*!
-   * \brief The constructor
-   * \param tuple The tuple to get an element from.
-   * \param index The index for extracting a value in the tuple.
-   * \param span The source span of the expression.
-   */
-  TVM_DLL TupleGetItem(Expr tuple, int index, Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TupleGetItem, Expr, TupleGetItemNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleGetItemNode);
-};
+// Compatibility aliases. Tuple expressions are defined in the common IR.
+using ::tvm::Tuple;
+using ::tvm::TupleGetItem;
+using ::tvm::TupleGetItemNode;
+using ::tvm::TupleNode;
 
 /*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
  */
@@ -268,8 +199,8 @@ class BindingNode : public ffi::Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BindingNode>()
         .def_ro("span", &BindingNode::span, refl::AttachFieldFlag::SEqHashIgnore())
-        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
-        .def_ro("var", &BindingNode::var, refl::AttachFieldFlag::SEqHashDefRecursive());
+        // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
+        .def_ro("var", &BindingNode::var, refl::AttachFieldFlag::SEqHashDefPattern());
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
@@ -311,8 +242,8 @@ class MatchCastNode : public BindingNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MatchCastNode>()
         .def_ro("value", &MatchCastNode::value)
-        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
-        .def_ro("ty", &MatchCastNode::ty, refl::AttachFieldFlag::SEqHashDefRecursive());
+        // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
+        .def_ro("ty", &MatchCastNode::ty, refl::AttachFieldFlag::SEqHashDefPattern());
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.MatchCast", MatchCastNode, BindingNode);
 };
@@ -527,7 +458,7 @@ class FunctionNode : public BaseFuncNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FunctionNode>()
-        .def_ro("params", &FunctionNode::params, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("params", &FunctionNode::params, refl::AttachFieldFlag::SEqHashDefPattern())
         .def_ro("body", &FunctionNode::body)
         .def_ro("ret_ty", &FunctionNode::ret_ty)
         .def_ro("is_pure", &FunctionNode::is_pure);

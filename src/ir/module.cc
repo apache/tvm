@@ -39,8 +39,6 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK() { IRModuleNode::RegisterReflection(); }
-
 IRModule::IRModule(tvm::ffi::Map<GlobalVar, BaseFunc> functions, SourceMap source_map,
                    DictAttrs attrs, ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_infos) {
   auto n = ffi::make_object<IRModuleNode>();
@@ -111,6 +109,30 @@ int64_t IRModuleNode::SHash(int64_t init_hash,
     hash_value = hash(std::get<2>(temp[i]), hash_value, false);
   }
   return hash_value;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  IRModuleNode::RegisterReflection();
+
+  refl::GlobalDef().def(
+      "ir.IRModule", [](tvm::ffi::Map<GlobalVar, BaseFunc> funcs, tvm::ffi::ObjectRef attrs,
+                        ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_infos) {
+        auto dict_attrs = [&attrs]() {
+          if (!attrs.defined()) {
+            return DictAttrs();
+          } else if (auto* as_dict_attrs = attrs.as<tvm::DictAttrsNode>()) {
+            return ffi::GetRef<tvm::DictAttrs>(as_dict_attrs);
+          } else if (attrs.as<ffi::MapObj>()) {
+            return tvm::DictAttrs(attrs.as_or_throw<ffi::Map<ffi::String, Any>>());
+          } else {
+            TVM_FFI_THROW(InternalError) << "Expected attrs argument to be either DictAttrs or "
+                                            "ffi::Map<ffi::String,ObjectRef>";
+          }
+        }();
+
+        return IRModule(funcs, {}, dict_attrs, global_infos);
+      });
 }
 
 bool IRModuleNode::ContainGlobalVar(const ffi::String& name) const {
@@ -249,25 +271,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         return rtmod;
       });
   refl::GlobalDef()
-      .def("ir.IRModule",
-           [](tvm::ffi::Map<GlobalVar, BaseFunc> funcs, tvm::ffi::ObjectRef attrs,
-              ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_infos) {
-             auto dict_attrs = [&attrs]() {
-               if (!attrs.defined()) {
-                 return DictAttrs();
-               } else if (auto* as_dict_attrs = attrs.as<tvm::DictAttrsNode>()) {
-                 return ffi::GetRef<tvm::DictAttrs>(as_dict_attrs);
-               } else if (attrs.as<ffi::MapObj>()) {
-                 return tvm::DictAttrs(attrs.as_or_throw<ffi::Map<ffi::String, Any>>());
-               } else {
-                 TVM_FFI_THROW(InternalError)
-                     << "Expected attrs argument to be either DictAttrs or "
-                        "ffi::Map<ffi::String,ObjectRef>";
-               }
-             }();
-
-             return IRModule(funcs, {}, dict_attrs, global_infos);
-           })
       .def("ir.Module_Clone",
            [](IRModule mod) -> IRModule {
              IRModule clone = mod;

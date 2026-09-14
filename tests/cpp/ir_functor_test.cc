@@ -18,16 +18,23 @@
  */
 
 #include <gtest/gtest.h>
+#include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/module.h>
-#include <tvm/ir/node_functor.h>
+#include <tvm/ir/object_functor.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
+
+#include <initializer_list>
+#include <unordered_set>
 
 TEST(IRF, Basic) {
   using namespace tvm;
@@ -35,11 +42,58 @@ TEST(IRF, Basic) {
   PrimVar x("x");
   auto z = x + 1;
 
-  NodeFunctor<int(const ffi::ObjectRef& n, int b)> f;
-  f.set_dispatch<VarNode>([](const ffi::ObjectRef& n, int b) { return b; });
-  f.set_dispatch<AddNode>([](const ffi::ObjectRef& n, int b) { return b + 2; });
+  ObjectFunctor<int(const ffi::ObjectRef& n, int b)> f;
+  f.SetDispatch<VarNode>([](const ffi::ObjectRef& n, int b) { return b; });
+  f.SetDispatch<prim::AddNode>([](const ffi::ObjectRef& n, int b) { return b + 2; });
   TVM_FFI_ICHECK_EQ(f(x, 2), 2);
   TVM_FFI_ICHECK_EQ(f(z, 2), 4);
+}
+
+TEST(IRF, ObjectFunctorDispatch) {
+  using namespace tvm;
+  tirx::PrimVar x("x");
+  ObjectFunctor<int(const ffi::ObjectRef&)> f;
+
+  EXPECT_FALSE(f.CanDispatch(x));
+  EXPECT_THROW(f(x), ffi::Error);
+  f.SetDispatch<ffi::Object>([](const ffi::ObjectRef&) {
+     return 1;
+   }).SetDispatch<ExprNode>([](const ffi::ObjectRef&) { return 2; });
+  // Invocation uses the nearest registered ancestor; CanDispatch checks only the exact type.
+  EXPECT_FALSE(f.CanDispatch(x));
+  EXPECT_EQ(f(x), 2);
+  f.SetDispatch<VarNode>([](const ffi::ObjectRef&) { return 3; });
+  EXPECT_TRUE(f.CanDispatch(x));
+  EXPECT_EQ(f(x), 3);
+  EXPECT_THROW(f.SetDispatch<VarNode>([](const ffi::ObjectRef&) { return 4; }), ffi::Error);
+
+  f.ClearDispatch<VarNode>();
+  EXPECT_FALSE(f.CanDispatch(x));
+  EXPECT_EQ(f(x), 2);
+  f.ClearDispatch<ExprNode>();
+  EXPECT_EQ(f(x), 1);
+  f.SetDispatch<VarNode>([](const ffi::ObjectRef&) { return 4; });
+  EXPECT_TRUE(f.CanDispatch(x));
+  EXPECT_EQ(f(x), 4);
+}
+
+TEST(IRF, ObjectFunctorFinalize) {
+  using namespace tvm;
+  tirx::PrimVar x("x");
+  PrimExpr z = x + 1;
+  ObjectFunctor<int(const ffi::ObjectRef&, int)> f;
+  f.SetDispatch<ExprNode>([](const ffi::ObjectRef&, int b) {
+     return b;
+   }).SetDispatch<prim::AddNode>([](const ffi::ObjectRef&, int b) { return b + 2; });
+
+  f.Finalize();
+  EXPECT_FALSE(f.CanDispatch(x));
+  EXPECT_TRUE(f.CanDispatch(z));
+  EXPECT_EQ(f(x, 2), 2);
+  EXPECT_EQ(f(z, 2), 4);
+  EXPECT_THROW(f.Finalize(), ffi::Error);
+  EXPECT_THROW(f.SetDispatch<VarNode>([](const ffi::ObjectRef&, int b) { return b; }), ffi::Error);
+  EXPECT_THROW(f.ClearDispatch<ExprNode>(), ffi::Error);
 }
 
 TEST(IRF, CountVar) {
@@ -49,13 +103,18 @@ TEST(IRF, CountVar) {
   PrimVar x("x"), y("y");
 
   auto z = x + 1 + y + y;
-  tirx::PostOrderVisit(z, [&n_var](const ffi::ObjectRef& n) {
-    if (n.as<VarNode>()) ++n_var;
-  });
+  std::unordered_set<const ffi::Object*> visited;
+  auto walk_fn = [&n_var, &visited](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    if (visited.insert(var.get()).second) {
+      ++n_var;
+    }
+    return ffi::WalkResult::Advance();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(z, walk_fn);
   TVM_FFI_ICHECK_EQ(n_var, 2);
 }
 
-TEST(IRF, PreOrderVisit) {
+TEST(IRF, PreOrderStructuralWalk) {
   using namespace tvm;
   using namespace tvm::tirx;
   Stmt init =
@@ -67,24 +126,23 @@ TEST(IRF, PreOrderVisit) {
   bool init_visited = false;
   bool stopped_at_if = true;
   bool body_visited = false;
-  PreOrderVisit(block, [&](const ffi::ObjectRef& n) -> bool {
-    if (n->IsInstance<IfThenElseNode>()) {
-      init_visited = true;
-      return false;
-    }
-    if (const auto* eval = n.as<EvaluateNode>()) {
-      if (const auto* int_imm = eval->value.as<IntImmNode>()) {
-        if (int_imm->value == 0) {
-          stopped_at_if = false;
-        } else if (int_imm->value == 1) {
-          body_visited = true;
-        } else {
-          TVM_FFI_THROW(InternalError) << "Unreachable";
-        }
+  auto visit_if = [&](const IfThenElse&) -> ffi::Expected<ffi::WalkResult> {
+    init_visited = true;
+    return ffi::WalkResult::Skip();
+  };
+  auto visit_evaluate = [&](const Evaluate& eval) -> ffi::Expected<ffi::WalkResult> {
+    if (const auto* int_imm = eval->value.as<IntImmNode>()) {
+      if (int_imm->value == 0) {
+        stopped_at_if = false;
+      } else if (int_imm->value == 1) {
+        body_visited = true;
+      } else {
+        TVM_FFI_THROW(InternalError) << "Unreachable";
       }
     }
-    return true;
-  });
+    return ffi::WalkResult::Advance();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(block, visit_if, visit_evaluate);
   ASSERT_EQ(init_visited, true);
   ASSERT_EQ(stopped_at_if, true);
   ASSERT_EQ(body_visited, true);
@@ -100,7 +158,7 @@ TEST(IRF, ExprTransform) {
    public:
     int VisitExpr_(const VarNode* op, int b) final { return b; }
     int VisitExpr_(const IntImmNode* op, int b) final { return op->value; }
-    int VisitExpr_(const AddNode* op, int b) final {
+    int VisitExpr_(const prim::AddNode* op, int b) final {
       return VisitExpr(op->a, b) + VisitExpr(op->b, b);
     }
   };
@@ -127,7 +185,7 @@ TEST(IRF, ExprVisit) {
     // implementation
     void VisitExpr_(const VarNode* op) final { ++count; }
     void VisitExpr_(const IntImmNode* op) final {}
-    void VisitExpr_(const AddNode* op) final {
+    void VisitExpr_(const prim::AddNode* op) final {
       VisitExpr(op->a);
       VisitExpr(op->b);
     }
@@ -201,7 +259,7 @@ TEST(IRF, StmtMutator) {
 
    protected:
     // implementation
-    Expr VisitExpr_(const AddNode* op) final { return op->a; }
+    Expr VisitExpr_(const prim::AddNode* op) final { return op->a; }
     Stmt VisitStmt_(const SeqStmtNode* op) final { return StmtMutator::VisitSeqStmt_(op, true); }
     Expr VisitExpr(const Expr& expr) final { return ExprMutator::VisitExpr(expr); }
   };
@@ -258,7 +316,7 @@ TEST(IRF, StmtMutator) {
 
   {
     auto body =
-        Evaluate(Call(PrimType::Int(32), builtin::call_extern(), {StringImm("xyz"), x + 1}));
+        Evaluate(Call(PrimType::Int(32), builtin::call_extern(), {prim::StringImm("xyz"), x + 1}));
     auto res = v(std::move(body));
     TVM_FFI_ICHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[1].same_as(x));
   }
@@ -328,7 +386,284 @@ TEST(IRF, StmtMutator) {
   }
 }
 
-TEST(IRF, Substitute) {
+TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
+  using namespace tvm;
+  using namespace tvm::tirx;
+
+  auto make_input = []() -> Stmt {
+    return SeqStmt(
+        {Evaluate(IntImm::Int32(5)), Evaluate(IntImm::Int32(1)), Evaluate(IntImm::Int32(4))});
+  };
+  auto expand_one = [](const Evaluate& evaluate) -> Stmt {
+    const auto* value = evaluate->value.as<IntImmNode>();
+    if (value != nullptr && value->value == 1) {
+      return SeqStmt({Evaluate(IntImm::Int32(2)), Evaluate(IntImm::Int32(3))});
+    }
+    return evaluate;
+  };
+  auto check_values = [](const Stmt& stmt, std::initializer_list<int64_t> expected) {
+    const auto* seq = stmt.as<SeqStmtNode>();
+    ASSERT_NE(seq, nullptr);
+    ASSERT_EQ(seq->seq.size(), expected.size());
+    size_t i = 0;
+    for (int64_t expected_value : expected) {
+      const auto* evaluate = seq->seq[i].as<EvaluateNode>();
+      ASSERT_NE(evaluate, nullptr);
+      const auto* value = evaluate->value.as<IntImmNode>();
+      ASSERT_NE(value, nullptr);
+      EXPECT_EQ(value->value, expected_value);
+      ++i;
+    }
+  };
+  {
+    Stmt input = make_input();
+    Stmt shared = input;
+    Stmt mapped =
+        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(input, expand_one).as_or_throw<Stmt>();
+    EXPECT_FALSE(mapped.same_as(input));
+    EXPECT_EQ(shared.as<SeqStmtNode>()->seq.size(), 3);
+    check_values(mapped, {5, 2, 3, 4});
+  }
+
+  {
+    Stmt input = make_input();
+    const auto* original = input.get();
+    const auto* original_array = input.as<SeqStmtNode>()->seq.GetArrayObj();
+    Stmt mapped = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), expand_one)
+                      .as_or_throw<Stmt>();
+    EXPECT_EQ(mapped.get(), original);
+    EXPECT_NE(mapped.as<SeqStmtNode>()->seq.GetArrayObj(), original_array);
+    check_values(mapped, {5, 2, 3, 4});
+  }
+
+  auto make_boundary_input = []() -> Stmt {
+    return SeqStmt({Evaluate(IntImm::Int32(1)), Evaluate(IntImm::Int32(2)),
+                    Evaluate(IntImm::Int32(3)), Evaluate(IntImm::Int32(4))});
+  };
+  auto check_differential = [&](const auto& transform, std::initializer_list<int64_t> expected,
+                                bool expect_array_reuse) {
+    Stmt ordinary_input = make_boundary_input();
+    Stmt ordinary = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(ordinary_input, transform)
+                        .template as_or_throw<Stmt>();
+
+    Stmt inplace_input = make_boundary_input();
+    const auto* original_root = inplace_input.get();
+    const auto* original_array = inplace_input.as<SeqStmtNode>()->seq.GetArrayObj();
+    Stmt inplace =
+        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(inplace_input), transform)
+            .template as_or_throw<Stmt>();
+
+    EXPECT_EQ(inplace.get(), original_root);
+    if (expect_array_reuse) {
+      EXPECT_EQ(inplace.as<SeqStmtNode>()->seq.GetArrayObj(), original_array);
+    } else {
+      EXPECT_NE(inplace.as<SeqStmtNode>()->seq.GetArrayObj(), original_array);
+    }
+    EXPECT_TRUE(ffi::StructuralEqual()(ordinary, inplace));
+    check_values(inplace, expected);
+  };
+
+  auto shrink_first_grow_last = [](const Evaluate& evaluate) -> Stmt {
+    const auto* value = evaluate->value.as<IntImmNode>();
+    if (value != nullptr && value->value == 1) {
+      return Evaluate(0);
+    }
+    if (value != nullptr && value->value == 4) {
+      return SeqStmt({Evaluate(IntImm::Int32(30)), Evaluate(IntImm::Int32(31))});
+    }
+    return evaluate;
+  };
+  check_differential(shrink_first_grow_last, {2, 3, 30, 31}, true);
+
+  auto empty_first_grow_last = [](const Evaluate& evaluate) -> Stmt {
+    const auto* value = evaluate->value.as<IntImmNode>();
+    if (value != nullptr && value->value == 1) {
+      auto empty = ffi::make_object<SeqStmtNode>();
+      empty->seq = {};
+      return Stmt(std::move(empty));
+    }
+    if (value != nullptr && value->value == 4) {
+      return SeqStmt({Evaluate(IntImm::Int32(30)), Evaluate(IntImm::Int32(31))});
+    }
+    return evaluate;
+  };
+  check_differential(empty_first_grow_last, {2, 3, 30, 31}, true);
+
+  int overflow_callback_count = 0;
+  auto grow_first_shrink_last = [&overflow_callback_count](const Evaluate& evaluate) -> Stmt {
+    ++overflow_callback_count;
+    const auto* value = evaluate->value.as<IntImmNode>();
+    if (value != nullptr && value->value == 1) {
+      return SeqStmt({Evaluate(IntImm::Int32(10)), Evaluate(IntImm::Int32(11))});
+    }
+    if (value != nullptr && value->value == 4) {
+      return Evaluate(0);
+    }
+    return evaluate;
+  };
+  check_differential(grow_first_shrink_last, {10, 11, 2, 3}, true);
+  EXPECT_EQ(overflow_callback_count, 8);
+
+  auto grow_last_over_capacity = [](const Evaluate& evaluate) -> Stmt {
+    const auto* value = evaluate->value.as<IntImmNode>();
+    if (value != nullptr && value->value == 4) {
+      return SeqStmt({Evaluate(IntImm::Int32(40)), Evaluate(IntImm::Int32(41))});
+    }
+    return evaluate;
+  };
+  check_differential(grow_last_over_capacity, {1, 2, 3, 40, 41}, false);
+
+  auto replace_middle_with_one = [](const Evaluate& evaluate) -> Stmt {
+    const auto* value = evaluate->value.as<IntImmNode>();
+    if (value != nullptr && value->value == 2) {
+      return Evaluate(IntImm::Int32(10));
+    }
+    return evaluate;
+  };
+  check_differential(replace_middle_with_one, {1, 10, 3, 4}, true);
+
+  auto remove_first = [](const Evaluate& evaluate) -> Stmt {
+    const auto* value = evaluate->value.as<IntImmNode>();
+    return value != nullptr && value->value == 1 ? Evaluate(0) : Stmt(evaluate);
+  };
+  check_differential(remove_first, {2, 3, 4}, true);
+
+  auto remove_all = [](const Evaluate&) -> Stmt { return Evaluate(0); };
+  Stmt ordinary_input = make_boundary_input();
+  Stmt ordinary = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(ordinary_input, remove_all)
+                      .as_or_throw<Stmt>();
+  Stmt inplace_input = make_boundary_input();
+  Stmt inplace =
+      ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(inplace_input), remove_all)
+          .as_or_throw<Stmt>();
+  EXPECT_TRUE(ffi::StructuralEqual()(ordinary, inplace));
+  for (const Stmt& result : {ordinary, inplace}) {
+    const auto* evaluate = result.as<EvaluateNode>();
+    ASSERT_NE(evaluate, nullptr);
+    const auto* value = evaluate->value.as<IntImmNode>();
+    ASSERT_NE(value, nullptr);
+    EXPECT_EQ(value->value, 0);
+  }
+
+  auto keep_last = [](const Evaluate& evaluate) -> Stmt {
+    const auto* value = evaluate->value.as<IntImmNode>();
+    return value != nullptr && value->value == 4 ? Stmt(evaluate) : Stmt(Evaluate(0));
+  };
+  ordinary_input = make_boundary_input();
+  ordinary =
+      ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(ordinary_input, keep_last).as_or_throw<Stmt>();
+  inplace_input = make_boundary_input();
+  inplace = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(inplace_input), keep_last)
+                .as_or_throw<Stmt>();
+  EXPECT_TRUE(ffi::StructuralEqual()(ordinary, inplace));
+  for (const Stmt& result : {ordinary, inplace}) {
+    const auto* evaluate = result.as<EvaluateNode>();
+    ASSERT_NE(evaluate, nullptr);
+    const auto* value = evaluate->value.as<IntImmNode>();
+    ASSERT_NE(value, nullptr);
+    EXPECT_EQ(value->value, 4);
+  }
+}
+
+TEST(IRF, StructuralMapPreservesSeqStmtElementUniqueness) {
+  using namespace tvm;
+  using namespace tvm::tirx;
+
+  auto replace_one = [](const IntImm& value) -> PrimExpr {
+    return value->value == 1 ? IntImm::Int32(2) : PrimExpr(value);
+  };
+
+  {
+    Stmt input = SeqStmt({Evaluate(IntImm::Int32(1)), Evaluate(IntImm::Int32(3))});
+    const auto* original_root = input.get();
+    const auto* original_first = input.as<SeqStmtNode>()->seq[0].as<EvaluateNode>();
+    Stmt mapped = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), replace_one)
+                      .as_or_throw<Stmt>();
+
+    const auto* mapped_seq = mapped.as<SeqStmtNode>();
+    ASSERT_NE(mapped_seq, nullptr);
+    EXPECT_EQ(mapped.get(), original_root);
+    EXPECT_EQ(mapped_seq->seq[0].get(), original_first);
+    EXPECT_EQ(mapped_seq->seq[0].as<EvaluateNode>()->value.as<IntImmNode>()->value, 2);
+  }
+
+  {
+    ffi::Array<Stmt> shared_seq = {Evaluate(IntImm::Int32(1)), Evaluate(IntImm::Int32(3))};
+    const auto* shared_first = shared_seq[0].as<EvaluateNode>();
+    Stmt input = SeqStmt(shared_seq);
+    Stmt mapped = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), replace_one)
+                      .as_or_throw<Stmt>();
+
+    const auto* mapped_seq = mapped.as<SeqStmtNode>();
+    ASSERT_NE(mapped_seq, nullptr);
+    EXPECT_FALSE(mapped_seq->seq.same_as(shared_seq));
+    EXPECT_EQ(shared_seq[0].get(), shared_first);
+    EXPECT_EQ(shared_seq[0].as<EvaluateNode>()->value.as<IntImmNode>()->value, 1);
+    EXPECT_EQ(mapped_seq->seq[0].as<EvaluateNode>()->value.as<IntImmNode>()->value, 2);
+
+    Stmt unchanged_input = SeqStmt(shared_seq);
+    const auto* unchanged_root = unchanged_input.get();
+    auto no_float_match = [](const FloatImm& value) -> PrimExpr { return value; };
+    Stmt unchanged =
+        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(unchanged_input), no_float_match)
+            .as_or_throw<Stmt>();
+    EXPECT_EQ(unchanged.get(), unchanged_root);
+    EXPECT_TRUE(unchanged.as<SeqStmtNode>()->seq.same_as(shared_seq));
+  }
+}
+
+TEST(IRF, StructuralHooksPreserveScopeIdDefRegions) {
+  using namespace tvm;
+  using namespace tvm::tirx;
+
+  auto make_input = []() -> Stmt {
+    return ScopeIdDefStmt(ScopeIdDef({PrimVar("binder")}, ffi::Array<PrimExpr>{PrimVar("extent")},
+                                     ScopeBinding::kCtaThread,
+                                     ffi::Array<PrimExpr>{PrimVar("preferred")}));
+  };
+  auto check_kinds = [](int binder, int extent, int preferred) {
+    EXPECT_EQ(binder, kTVMFFIDefRegionKindSimple);
+    EXPECT_EQ(extent, kTVMFFIDefRegionKindNone);
+    EXPECT_EQ(preferred, kTVMFFIDefRegionKindNone);
+  };
+
+  {
+    int binder = -1;
+    int extent = -1;
+    int preferred = -1;
+    auto walk_fn = [&](const Var& var, TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::WalkResult> {
+      if (var->name == "binder") binder = kind;
+      if (var->name == "extent") extent = kind;
+      if (var->name == "preferred") preferred = kind;
+      return ffi::WalkResult::Advance();
+    };
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(make_input(), walk_fn);
+    check_kinds(binder, extent, preferred);
+  }
+
+  auto check_map = [&](Stmt input) {
+    int binder = -1;
+    int extent = -1;
+    int preferred = -1;
+    ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+        std::move(input), [&](const Var& var, TVMFFIDefRegionKind kind) -> Var {
+          if (var->name == "binder") binder = kind;
+          if (var->name == "extent") extent = kind;
+          if (var->name == "preferred") preferred = kind;
+          return var;
+        });
+    check_kinds(binder, extent, preferred);
+  };
+
+  {
+    Stmt input = make_input();
+    Stmt shared = input;
+    check_map(input);
+  }
+  check_map(make_input());
+}
+
+TEST(IRF, StructuralMapBufferDefinition) {
   using namespace tvm;
   using namespace tvm::tirx;
   PrimType dtype = PrimType::Float(32);
@@ -354,12 +689,13 @@ TEST(IRF, Substitute) {
     BufferVar buffer = fmakebuffer();
     Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});
     Stmt decl = SeqStmt({DeclBuffer(buffer, x), store});
-    auto f_subst = [&](const tirx::Var& var) -> ffi::Optional<Expr> {
-      if (var.same_as(x)) return Expr(y);
-      if (var.same_as(n)) return Expr(m);
-      return std::nullopt;
+    auto f_subst = [&](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (var.same_as(x)) return ffi::Any(y);
+      if (var.same_as(n)) return ffi::Any(m);
+      return ffi::Unchanged();
     };
-    Stmt new_decl = Substitute(decl, f_subst);
+    Stmt new_decl =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(decl, f_subst).as_or_throw<Stmt>();
     auto* seq_node = new_decl.as<SeqStmtNode>();
     TVM_FFI_ICHECK(seq_node != nullptr);
     auto* decl_node = seq_node->seq[0].as<DeclBufferNode>();
@@ -376,9 +712,33 @@ TEST(IRF, Substitute) {
     // test identity substitution on expression
     BufferVar buffer = fmakebuffer();
     PrimExpr expr = BufferLoad(buffer, {IntImm::Int32(0)});
-    auto f_subst = [&](const tirx::Var& var) -> ffi::Optional<Expr> { return Expr(var); };
-    PrimExpr new_expr = Substitute(expr, f_subst);
+    auto f_subst = [&](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      return ffi::Any(var);
+    };
+    PrimExpr new_expr =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr, f_subst).as_or_throw<PrimExpr>();
     // the expression is not changed
     TVM_FFI_ICHECK(new_expr.same_as(expr));
   }
+}
+
+TEST(IRF, SubstituteWithDataTypeLegalizationPreservesShiftAmounts) {
+  using namespace tvm;
+  using namespace tvm::tirx;
+
+  PrimVar x("x", PrimType::Int(64));
+  PrimVar y("y", PrimType::Int(32));
+  auto f_subst = [&](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
+    if (var.same_as(x)) return PrimExpr(y);
+    return std::nullopt;
+  };
+
+  PrimExpr shift_amount = IntImm::Int64(40);
+  PrimExpr widened_y = cast(PrimType::Int(64), y);
+  PrimExpr actual_left = SubstituteWithDataTypeLegalization(x << shift_amount, f_subst);
+  PrimExpr actual_right = SubstituteWithDataTypeLegalization(x >> shift_amount, f_subst);
+
+  ffi::StructuralEqual structural_equal;
+  EXPECT_TRUE(structural_equal(actual_left, widened_y << shift_amount));
+  EXPECT_TRUE(structural_equal(actual_right, widened_y >> shift_amount));
 }

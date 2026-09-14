@@ -958,6 +958,29 @@ def test_llvm_order_functions():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+@pytest.mark.parametrize("extent", [2**32 + 1, 2**32 + 4])
+def test_llvm_large_stack_allocation_uses_64bit_extent(extent):
+    @T.prim_func(s_tir=True)
+    def main(A: T.Buffer((1,), "float32")):
+        B = T.alloc_buffer(
+            (extent,),
+            "float32",
+            scope="global",
+            annotations={"disable_lower_builtin": True},
+        )
+        A[0] = B[extent - 1]
+
+    module = tvm.tirx.build(
+        main,
+        target={"kind": "llvm", "opt-level": 0},
+        pipeline="tirx",
+    )
+    llvm_ir = module.inspect_source("ll")
+
+    assert re.search(rf"alloca float, i64 {extent}(?:,|$)", llvm_ir)
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 @tvm.testing.skip_if_32bit
 def test_llvm_import():
     """all-platform-minimal-test: check shell dependent clang behavior."""
@@ -1255,7 +1278,13 @@ def test_invalid_volatile_masked_buffer_load():
         def main(b: T.handle):
             B = T.match_buffer(b, [4])
             A = T.alloc_buffer((4,), annotations={"tirx.volatile": True})
-            B[0:4] = A.vload([T.Ramp(0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
+            B[0:4] = T.call_intrin(
+                "float32x4",
+                "tirx.masked_load",
+                A,
+                T.Ramp(0, 1, 4),
+                T.Broadcast(T.bool(True), 4),
+            )
 
     err_msg = "The masked load intrinsic does not support declaring load as volatile."
     with pytest.raises(RuntimeError, match=err_msg):
@@ -1271,7 +1300,13 @@ def test_invalid_volatile_masked_decl_buffer_load():
             B = T.match_buffer(b, [4])
             A = T.alloc_buffer((4,), annotations={"tirx.volatile": True})
             A_alias = T.decl_buffer((4,), data=A.data)
-            B[0:4] = A_alias.vload([T.Ramp(0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
+            B[0:4] = T.call_intrin(
+                "float32x4",
+                "tirx.masked_load",
+                A_alias,
+                T.Ramp(0, 1, 4),
+                T.Broadcast(T.bool(True), 4),
+            )
 
     err_msg = "The masked load intrinsic does not support declaring load as volatile."
     with pytest.raises(RuntimeError, match=err_msg):
@@ -1285,10 +1320,15 @@ def test_invalid_volatile_masked_buffer_store():
         @T.prim_func(s_tir=True)
         def main():
             A = T.alloc_buffer((4,), annotations={"tirx.volatile": True})
-            A.vstore(
-                [T.Ramp(0, 1, 4)],
-                T.Broadcast(0.0, 4),
-                predicate=T.Broadcast(T.bool(True), 4),
+            T.evaluate(
+                T.call_intrin(
+                    "void",
+                    "tirx.masked_store",
+                    A,
+                    T.Broadcast(0.0, 4),
+                    T.Ramp(0, 1, 4),
+                    T.Broadcast(T.bool(True), 4),
+                )
             )
 
     err_msg = "The masked store intrinsic does not support declaring store as volatile."

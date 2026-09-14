@@ -84,13 +84,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("tirx.AxisGetSubscope", [](Axis axis) { return axis->GetSubscope(); });
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::TypeAttrDef<AxisNode>()
-      .def("__data_to_json__", [](const AxisNode* node) -> ffi::String { return node->name; })
-      .def("__data_from_json__", [](const ffi::String& name) -> Axis { return Axis::Get(name); });
-}
-
 // Axis
 Axis Axis::Get(const ffi::String& name) {
   const AxisRegEntry* reg = AxisRegistry::Global()->Get(name);
@@ -113,6 +106,14 @@ AxisRegEntry::AxisRegEntry(uint32_t index) {
   ffi::ObjectPtr<AxisNode> n = ffi::make_object<AxisNode>();
   n->index_ = index;
   axis_ = Axis(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  AxisNode::RegisterReflection();
+  refl::TypeAttrDef<AxisNode>()
+      .def("__data_to_json__", [](const AxisNode* node) -> ffi::String { return node->name; })
+      .def("__data_from_json__", [](const ffi::String& name) -> Axis { return Axis::Get(name); });
 }
 
 AxisRegEntry& AxisRegEntry::RegisterOrGet(const ffi::String& name) {
