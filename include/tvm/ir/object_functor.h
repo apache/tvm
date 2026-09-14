@@ -188,6 +188,8 @@ class ObjectFunctor<R(NodeArg, Args...)> {
   }
 
  private:
+  // Map null pointers and undefined handles to None so CanDispatch rejects them without
+  // dereferencing.
   TVM_FFI_INLINE static uint32_t GetTypeIndex(NodeArg n) {
     if constexpr (std::is_pointer_v<NodeArg>) {
       return n != nullptr ? n->type_index() : ffi::TypeIndex::kTVMFFINone;
@@ -361,7 +363,8 @@ class TVM_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
    * \param value The borrowed object or inline value to mutate.
    * \param inplace_mode Inherited permission along the path to this value.
    * \return A replacement, Unchanged, or an Error if mutation fails.
-   * \note Overrides must establish current uniqueness before writing or forwarding permission,
+   * \note The base implementation establishes current uniqueness before invoking typed hooks.
+   *       Entry overrides must check uniqueness before writing or forwarding permission,
    *       never promote kDisallow, and convert thrown errors from their own work into Expected.
    *       Expr inputs require Expr replacements. A qualified Parent::MutateExpected(value, mode)
    *       bypasses the current entry override while descendants remain virtual.
