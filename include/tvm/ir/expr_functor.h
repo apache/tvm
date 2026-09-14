@@ -386,22 +386,6 @@ class TVM_DLL ExprMutator : public ObjectMutator {
 
   using ObjectMutator::MutateExpected;
 
-  /*!
-   * \brief Mutate a borrowed expression through the virtual AnyView entry.
-   * \param value The borrowed expression to mutate.
-   * \param inplace_mode Inherited permission along the path to this expression.
-   * \return An Expr replacement, Unchanged, or an Error if mutation fails.
-   * \note Native hooks and AnyView entry overrides must preserve the Expr replacement contract.
-   *       Use AnyView for qualified parent calls that bypass the current entry override.
-   */
-  TVM_FFI_INLINE Expected<UnchangedOr<Expr>> MutateExpected(
-      const Expr& value, ffi::InplaceMode inplace_mode = ffi::InplaceMode::kDisallow) noexcept {
-    return ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<UnchangedOr<Expr>>(
-        ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(
-            static_cast<ObjectMutator*>(this)->MutateExpected(
-                static_cast<const ffi::ObjectRef&>(value), inplace_mode)));
-  }
-
   // A downstream class overrides any existing hook without rebuilding the table.
   // Extra node types use a fresh inherited table and SetDispatch<Self, ExtraNode>.
   // Hooks borrow the node and return an owning Expr replacement in Any, Unchanged, or Error.

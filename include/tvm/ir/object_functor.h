@@ -95,11 +95,13 @@ class ObjectFunctor<R(NodeArg, Args...)> {
   using result_type = R;
   /*!
    * \brief Whether a dispatch function is registered for the exact runtime type.
-   * \param n The object to be dispatched.
+   * \param n The borrowed NodeArg or AnyView value to be dispatched.
+   * \tparam T The input representation, convertible to NodeArg or AnyView.
    * \return Whether a dispatch function is registered for n's type, excluding ancestors.
    */
-  TVM_FFI_INLINE bool CanDispatch(ffi::AnyView n) const {
-    uint32_t type_index = n.type_index();
+  template <typename T>
+  TVM_FFI_INLINE bool CanDispatch(const T& n) const {
+    uint32_t type_index = GetTypeIndex(n);
     if (type_index < begin_type_index_) return false;
     type_index -= begin_type_index_;
     return type_index < func_.size() && func_[type_index] != nullptr;
@@ -186,6 +188,15 @@ class ObjectFunctor<R(NodeArg, Args...)> {
   }
 
  private:
+  TVM_FFI_INLINE static uint32_t GetTypeIndex(NodeArg n) {
+    if constexpr (std::is_pointer_v<NodeArg>) {
+      return n != nullptr ? n->type_index() : ffi::TypeIndex::kTVMFFINone;
+    } else {
+      return n.defined() ? n->type_index() : ffi::TypeIndex::kTVMFFINone;
+    }
+  }
+  TVM_FFI_INLINE static uint32_t GetTypeIndex(ffi::AnyView n) { return n.type_index(); }
+
   [[noreturn]] TVM_FFI_COLD_CODE static void ThrowUnregistered(NodeArg n) {
     TVM_FFI_THROW(InternalError) << "ObjectFunctor calls un-registered function on type "
                                  << n->GetTypeKey();
@@ -221,21 +232,12 @@ class TVM_DLL ObjectVisitor : public ffi::StructuralVisitorObj {
   ObjectVisitor& operator=(const ObjectVisitor& other) = delete;
 
   /*!
-   * \brief Visit a borrowed object and propagate an interrupt or error.
-   * \param value The borrowed object to visit.
-   * \return None on completion, an owning VisitInterrupt, or an Error.
-   */
-  TVM_FFI_INLINE Expected<ffi::Optional<VisitInterrupt>> VisitExpected(
-      const ffi::ObjectRef& value) noexcept {
-    return VisitExpected(ffi::AnyView(value));
-  }
-  /*!
    * \brief Visit a borrowed object or inline value.
    * \param value The borrowed value to visit.
    * \return None on completion, an owning VisitInterrupt, or an Error.
    * \note Overrides must convert thrown errors and propagate errors and interrupts from their
    *       own work. A qualified Parent::VisitExpected(value) bypasses the current entry override;
-   *       descendant calls still use virtual dispatch. Use AnyView for the qualified parent call.
+   *       descendant calls still use virtual dispatch.
    */
   virtual Expected<ffi::Optional<VisitInterrupt>> VisitExpected(ffi::AnyView value) noexcept {
     if (native_vtable_->CanDispatch(value)) {
@@ -354,25 +356,6 @@ class TVM_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
   ObjectMutator& operator=(const ObjectMutator& other) = delete;
 
   /*!
-   * \brief Mutate a borrowed object through the virtual AnyView entry.
-   * \param value The borrowed object to mutate.
-   * \param inplace_mode Inherited permission along the path to this value.
-   * \return A replacement, Unchanged, or an Error if mutation fails.
-   * \note A null object preserves the original Unchanged result when the entry returns None.
-   */
-  TVM_FFI_INLINE Expected<UnchangedOr<ffi::Any>> MutateExpected(
-      const ffi::ObjectRef& value,
-      ffi::InplaceMode inplace_mode = ffi::InplaceMode::kDisallow) noexcept {
-    Expected<UnchangedOr<ffi::Any>> result =
-        this->MutateExpected(ffi::AnyView(value), inplace_mode);
-    if (!value.defined() && result.is_ok() && !result.value().IsUnchanged()) {
-      ffi::Any replacement = std::move(result).value().ValueUnchecked();
-      if (replacement.type_index() == ffi::TypeIndex::kTVMFFINone) return ffi::Unchanged();
-      return UnchangedOr<ffi::Any>(std::move(replacement));
-    }
-    return result;
-  }
-  /*!
    * \brief Mutate a borrowed value, checking current uniqueness before in-place dispatch.
    * \param value The borrowed object or inline value to mutate.
    * \param inplace_mode Inherited permission along the path to this value.
@@ -380,7 +363,7 @@ class TVM_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
    * \note Overrides must establish current uniqueness before writing or forwarding permission,
    *       never promote kDisallow, and convert thrown errors from their own work into Expected.
    *       Expr inputs require Expr replacements. A qualified Parent::MutateExpected(value, mode)
-   *       with AnyView input bypasses the current entry override while descendants remain virtual.
+   *       bypasses the current entry override while descendants remain virtual.
    *       DefaultMutateExpected trusts its caller's established mode and does not recheck it.
    */
   virtual Expected<UnchangedOr<ffi::Any>> MutateExpected(

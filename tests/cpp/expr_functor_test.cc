@@ -123,7 +123,7 @@ TEST(ExprVisitor, VirtualEntryAndQualifiedParent) {
     ASSERT_EQ(visitor->entries.size(), 3);
     EXPECT_EQ(visitor->entries.front(), root.get());
     visitor->entries.clear();
-    EXPECT_TRUE(visitor->Collect::VisitExpected(ffi::AnyView(root)).is_ok());
+    EXPECT_TRUE(visitor->Collect::VisitExpected(root).is_ok());
     EXPECT_EQ(visitor->entries.size(), 2);
     EXPECT_NE(visitor->entries.front(), root.get());
     visitor->entries.clear();
@@ -177,7 +177,7 @@ TEST(ExprMutator, PermissionAndOwnership) {
       mutator->leaf_modes.clear();
       mutator->entry_modes.clear();
       auto result = mutator->MutateExpected(root, mode).value();
-      Expr changed = std::move(result).ValueOrUnchanged(root);
+      Expr changed = std::move(result).ValueOrUnchanged(ffi::AnyView(root)).cast<Expr>();
       EXPECT_EQ(mutator->entry_modes.front(), mode);
       bool reuse = mode == InplaceMode::kAllow && !alias_root;
       EXPECT_EQ(changed.get() == original, reuse);
@@ -215,12 +215,12 @@ TEST(ExprMutator, VirtualEntryAndQualifiedParent) {
   for (Expr root : {Expr(Tuple({IntImm::Int32(1), IntImm::Int32(2)})),
                     Expr(PairExpr(IntImm::Int32(1), IntImm::Int32(2)))}) {
     mutator->entries.clear();
-    auto typed = mutator->MutateExpected(root);
-    ASSERT_TRUE(typed.is_ok());
+    auto result = mutator->MutateExpected(root);
+    ASSERT_TRUE(result.is_ok());
     EXPECT_EQ(mutator->entries.size(), 3);
     EXPECT_EQ(mutator->entries.front(), root.get());
     mutator->entries.clear();
-    EXPECT_TRUE(mutator->Rewrite::MutateExpected(ffi::AnyView(root)).is_ok());
+    EXPECT_TRUE(mutator->Rewrite::MutateExpected(root).is_ok());
     EXPECT_EQ(mutator->entries.size(), 2);
     EXPECT_NE(mutator->entries.front(), root.get());
     mutator->entries.clear();
@@ -255,7 +255,7 @@ TEST(ExprMutator, TrustedDefaultAfterAcquiringReference) {
   Expr root = Tuple({IntImm::Int32(1)});
   const auto* original = root.get();
   auto result = mutator->MutateExpected(root, InplaceMode::kAllow).value();
-  Expr changed = std::move(result).ValueOrUnchanged(root);
+  Expr changed = std::move(result).ValueOrUnchanged(ffi::AnyView(root)).cast<Expr>();
   EXPECT_EQ(changed.get(), original);
   EXPECT_EQ(changed.as<TupleNode>()->fields[0].as<IntImmNode>()->value, 2);
 }
@@ -276,11 +276,15 @@ TEST(ExprMutator, NullAndInlineResults) {
     }
   };
   auto mutator = ffi::make_object<NullEntry>();
-  EXPECT_TRUE(mutator->MutateExpected(Expr()).value().IsUnchanged());
-  EXPECT_TRUE(mutator->MutateExpected(ffi::ObjectRef()).value().IsUnchanged());
-  auto none = mutator->MutateExpected(ffi::AnyView(nullptr)).value();
-  ASSERT_FALSE(none.IsUnchanged());
-  EXPECT_EQ(std::move(none).ValueUnchecked().type_index(), ffi::TypeIndex::kTVMFFINone);
+  auto check_none = [](Expected<UnchangedOr<ffi::Any>> result) {
+    ASSERT_TRUE(result.is_ok());
+    auto none = std::move(result).value();
+    ASSERT_FALSE(none.IsUnchanged());
+    EXPECT_EQ(std::move(none).ValueUnchecked().type_index(), ffi::TypeIndex::kTVMFFINone);
+  };
+  check_none(mutator->MutateExpected(Expr()));
+  check_none(mutator->MutateExpected(ffi::ObjectRef()));
+  check_none(mutator->MutateExpected(ffi::AnyView(nullptr)));
   EXPECT_EQ(mutator->calls, 3);
   auto integer = mutator->MutateExpected(ffi::AnyView(9)).value();
   ASSERT_FALSE(integer.IsUnchanged());
