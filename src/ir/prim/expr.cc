@@ -86,9 +86,9 @@ TVMFFIAny BinaryMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   TNode* self = const_cast<TNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, a,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->a));
+                                    mutator->MutateExpected(self->a, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, b,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->b));
+                                    mutator->MutateExpected(self->b, ffi::InplaceMode::kAllow));
   if (a.UnchangedOrSameAs(self->a) && b.UnchangedOrSameAs(self->b)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
@@ -145,7 +145,7 @@ TVMFFIAny CastMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyVie
   CastNode* self = const_cast<CastNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CastNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_value,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->value));
+                                    mutator->MutateExpected(self->value, ffi::InplaceMode::kAllow));
   if (mapped_value.UnchangedOrSameAs(self->value)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
@@ -180,7 +180,7 @@ TVMFFIAny NotMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView
   NotNode* self = const_cast<NotNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const NotNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_a,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->a));
+                                    mutator->MutateExpected(self->a, ffi::InplaceMode::kAllow));
   if (mapped_a.UnchangedOrSameAs(self->a)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
@@ -225,12 +225,15 @@ TVMFFIAny SelectMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   // skips: PrimExpr types are always PrimType and remain unchanged in normal mutation.
   SelectNode* self = const_cast<SelectNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const SelectNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_condition,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->condition));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_true_value,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->true_value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_false_value,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->false_value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<PrimExpr>, mapped_condition,
+      mutator->MutateExpected(self->condition, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<PrimExpr>, mapped_true_value,
+      mutator->MutateExpected(self->true_value, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<PrimExpr>, mapped_false_value,
+      mutator->MutateExpected(self->false_value, ffi::InplaceMode::kAllow));
   if (mapped_condition.UnchangedOrSameAs(self->condition) &&
       mapped_true_value.UnchangedOrSameAs(self->true_value) &&
       mapped_false_value.UnchangedOrSameAs(self->false_value)) {
@@ -285,12 +288,13 @@ TVMFFIAny LetMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const LetNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Var>, mapped_var,
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
-                                      return mutator->MaybeInplaceMutateIfUniqueExpected(self->var);
+                                      return mutator->MutateExpected(self->var,
+                                                                     ffi::InplaceMode::kAllow);
                                     }));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_value,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->value));
+                                    mutator->MutateExpected(self->value, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_body,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->body));
+                                    mutator->MutateExpected(self->body, ffi::InplaceMode::kAllow));
   if (mapped_var.UnchangedOrSameAs(self->var) && mapped_value.UnchangedOrSameAs(self->value) &&
       mapped_body.UnchangedOrSameAs(self->body)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
