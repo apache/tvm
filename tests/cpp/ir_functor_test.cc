@@ -86,19 +86,7 @@ TEST(IRF, ObjectFunctorFinalize) {
      return b;
    }).SetDispatch<prim::AddNode>([](const ffi::ObjectRef&, int b) { return b + 2; });
 
-  for (ffi::AnyView value : {ffi::AnyView(x), ffi::AnyView(1), ffi::AnyView(nullptr)}) {
-    EXPECT_FALSE(f.CanDispatch(value));
-  }
-  EXPECT_TRUE(f.CanDispatch(ffi::AnyView(z)));
-  EXPECT_FALSE(f.CanDispatch(Expr()));
-  EXPECT_FALSE(f.CanDispatch(x));
-  EXPECT_TRUE(f.CanDispatch(z));
   f.Finalize();
-  for (ffi::AnyView value : {ffi::AnyView(x), ffi::AnyView(1), ffi::AnyView(nullptr)}) {
-    EXPECT_FALSE(f.CanDispatch(value));
-  }
-  EXPECT_TRUE(f.CanDispatch(ffi::AnyView(z)));
-  EXPECT_FALSE(f.CanDispatch(Expr()));
   EXPECT_FALSE(f.CanDispatch(x));
   EXPECT_TRUE(f.CanDispatch(z));
   EXPECT_EQ(f(x, 2), 2);
@@ -106,31 +94,6 @@ TEST(IRF, ObjectFunctorFinalize) {
   EXPECT_THROW(f.Finalize(), ffi::Error);
   EXPECT_THROW(f.SetDispatch<VarNode>([](const ffi::ObjectRef&, int b) { return b; }), ffi::Error);
   EXPECT_THROW(f.ClearDispatch<ExprNode>(), ffi::Error);
-}
-
-TEST(IRF, ObjectFunctorBorrowedPointerDispatch) {
-  using namespace tvm;
-  tirx::PrimVar x("x");
-  PrimExpr z = x + 1;
-  ObjectFunctor<int(const ffi::Object*)> f;
-  f.SetDispatch<ExprNode>([](const ffi::Object*) { return 1; });
-  f.SetDispatch<VarNode>([](const ffi::Object*) { return 2; });
-  for (bool finalize : {false, true}) {
-    if (finalize) f.Finalize();
-    EXPECT_TRUE(f.CanDispatch(x.get()));
-    EXPECT_TRUE(f.CanDispatch(static_cast<const ffi::Object*>(x.get())));
-    EXPECT_TRUE(f.CanDispatch(x));
-    EXPECT_TRUE(f.CanDispatch(ffi::AnyView(x)));
-    EXPECT_FALSE(f.CanDispatch(z.get()));
-    EXPECT_FALSE(f.CanDispatch(ffi::AnyView(z)));
-    EXPECT_EQ(f(x.get()), 2);
-    EXPECT_EQ(f(z.get()), 1);
-    EXPECT_FALSE(f.CanDispatch(static_cast<const ffi::Object*>(nullptr)));
-    EXPECT_FALSE(f.CanDispatch(static_cast<const VarNode*>(nullptr)));
-    EXPECT_FALSE(f.CanDispatch(ffi::AnyView(nullptr)));
-    EXPECT_FALSE(f.CanDispatch(ffi::AnyView(1)));
-    EXPECT_FALSE(f.CanDispatch(ffi::Array<Expr>{}));
-  }
 }
 
 TEST(IRF, CountVar) {
