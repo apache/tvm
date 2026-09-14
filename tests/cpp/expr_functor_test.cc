@@ -72,7 +72,8 @@ TEST(ExprVisitor, StructuralFallback) {
 class Rewrite : public ExprMutator {
  public:
   using ExprMutator::Mutate_;
-  Expected<UnchangedOr<ffi::Any>> Mutate_(const IntImmNode* node, bool allow_inplace) override {
+  Expected<UnchangedOr<ffi::Any>> Mutate_(const IntImmNode* node,
+                                          InplaceMode inplace_mode) override {
     return ffi::Any(IntImm::Int32(node->value + 1));
   }
 };

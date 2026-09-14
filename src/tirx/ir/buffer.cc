@@ -186,28 +186,31 @@ TVMFFIAny BufferTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   BufferTypeNode* self = const_cast<BufferTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferTypeNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimType>, mapped_dtype,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->dtype));
+                                    mutator->MutateExpected(self->dtype, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<PrimExpr>>, mapped_shape,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->shape));
+                                    mutator->MutateExpected(self->shape, ffi::InplaceMode::kAllow));
   // Empty strides denote the common compact layout.  Broad callbacks do not see the empty
   // container; explicit strides retain normal container descent and callback behavior.
   ffi::UnchangedOr<ffi::Array<PrimExpr>> mapped_strides = ffi::Unchanged();
   if (!self->strides.empty()) {
-    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<PrimExpr>>, descended_strides,
-                                      mutator->MaybeInplaceMutateIfUniqueExpected(self->strides));
+    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+        ffi::UnchangedOr<ffi::Array<PrimExpr>>, descended_strides,
+        mutator->MutateExpected(self->strides, ffi::InplaceMode::kAllow));
     mapped_strides = std::move(descended_strides);
   }
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_elem_offset,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->elem_offset));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Layout>>, mapped_layout,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->layout));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<PrimExpr>, mapped_elem_offset,
+      mutator->MutateExpected(self->elem_offset, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Optional<Layout>>, mapped_layout,
+      mutator->MutateExpected(self->layout, ffi::InplaceMode::kAllow));
   // allocated_addr is empty outside specialized storage scopes.  Broad callbacks do not see the
   // empty container; present addresses retain normal container descent and callback behavior.
   ffi::UnchangedOr<ffi::Array<PrimExpr>> mapped_allocated_addr = ffi::Unchanged();
   if (!self->allocated_addr.empty()) {
     TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
         ffi::UnchangedOr<ffi::Array<PrimExpr>>, descended_allocated_addr,
-        mutator->MaybeInplaceMutateIfUniqueExpected(self->allocated_addr));
+        mutator->MutateExpected(self->allocated_addr, ffi::InplaceMode::kAllow));
     mapped_allocated_addr = std::move(descended_allocated_addr);
   }
   if (mapped_dtype.UnchangedOrSameAs(self->dtype) && mapped_shape.UnchangedOrSameAs(self->shape) &&
