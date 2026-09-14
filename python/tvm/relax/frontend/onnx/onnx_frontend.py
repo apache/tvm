@@ -674,6 +674,15 @@ class Div(BinaryBase):
             return int(expr.value) == 0
         return False
 
+    @staticmethod
+    def _numpy_integer_divide(lhs, rhs, signed):
+        quotient, remainder = _np.divmod(lhs, rhs)
+        if signed:
+            signs_differ = _np.signbit(lhs) != _np.signbit(rhs)
+            adjust_toward_zero = _np.logical_and(signs_differ, remainder != 0)
+            quotient = quotient + adjust_toward_zero.astype(quotient.dtype)
+        return quotient
+
     @classmethod
     def _impl_v7(cls, bb, inputs, attr, params):
         try:
@@ -699,6 +708,12 @@ class Div(BinaryBase):
 
         if cls._is_zero(inputs[1]):
             raise ValueError("ONNX Div with integer inputs encountered divisor value 0.")
+
+        if all(isinstance(inp, relax.Constant) for inp in inputs):
+            lhs = inputs[0].data.numpy()
+            rhs = inputs[1].data.numpy()
+            output = cls._numpy_integer_divide(lhs, rhs, lhs_code == DataTypeCode.INT)
+            return relax.const(output, lhs_dtype)
 
         has_prim_expr = any(tvm.ir.is_prim_expr(inp) for inp in inputs)
         lhs = cls._as_scalar_prim_expr(inputs[0], lhs_dtype)
@@ -6339,7 +6354,7 @@ class ONNXGraphImporter:
             # Create variables for constants.
             if self._keep_params_in_input:
                 # Pytorch sometimes inserts silly weight prefix. Remove it.
-                var_name = init_tensor.name.strip("onnx::")
+                var_name = init_tensor.name.removeprefix("onnx::")
                 init_var = self._new_var(var_name, shape=array.shape, dtype=array.dtype)
                 self._nodes[init_tensor.name] = init_var
                 # We need to keep track of both the real value and variable for this variable.
