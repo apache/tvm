@@ -43,11 +43,6 @@ namespace tvm {
 template <typename FType>
 class ExprFunctor;
 
-/*!
- * \brief Expression functor specialized for a result and additional arguments.
- * \tparam R The hook result type.
- * \tparam Args The additional hook argument types.
- */
 template <typename R, typename... Args>
 class ExprFunctor<R(const Expr&, Args...)> {
  private:
@@ -78,318 +73,108 @@ class ExprFunctor<R(const Expr&, Args...)> {
     return (*vtable_)(node, this, std::forward<Args>(args)...);
   }
 
-  /*!
-   * \brief Dispatch OpaqueExprNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const OpaqueExprNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch TupleNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const TupleNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch TupleGetItemNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const TupleGetItemNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch TensorLoadNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const TensorLoadNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch VarNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const VarNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch GlobalVarNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const GlobalVarNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch CallNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const CallNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch IntImmNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const IntImmNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch FloatImmNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const FloatImmNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch OpNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const OpNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::StringImmNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::StringImmNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::CastNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::CastNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::AddNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::AddNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::SubNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::SubNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::MulNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::MulNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::DivNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::DivNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::ModNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::ModNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::FloorDivNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::FloorDivNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::FloorModNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::FloorModNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::MinNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::MinNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::MaxNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::MaxNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::EQNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::EQNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::NENode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::NENode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::LTNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::LTNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::LENode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::LENode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::GTNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::GTNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::GENode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::GENode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::AndNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::AndNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::OrNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::OrNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::NotNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::NotNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::SelectNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::SelectNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::LetNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::LetNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::RampNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::RampNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::BroadcastNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::BroadcastNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  /*!
-   * \brief Dispatch prim::ShuffleNode to the default hook.
-   * \param node The borrowed expression node.
-   * \param args Additional arguments forwarded to the default hook.
-   * \return The default hook result.
-   */
   virtual R Dispatch_(const prim::ShuffleNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
@@ -517,215 +302,40 @@ class TVM_DLL ExprVisitor : public ObjectVisitor {
 
   // Override existing hooks directly. Extra types need a fresh inherited table.
   // Hooks borrow the node and return None or an owning interrupt, and throw on failure.
-  /*!
-   * \brief Visit OpaqueExprNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const OpaqueExprNode* node);
-  /*!
-   * \brief Visit TupleNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const TupleNode* node);
-  /*!
-   * \brief Visit TupleGetItemNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const TupleGetItemNode* node);
-  /*!
-   * \brief Visit TensorLoadNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* node);
-  /*!
-   * \brief Visit VarNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const VarNode* node);
-  /*!
-   * \brief Visit GlobalVarNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const GlobalVarNode* node);
-  /*!
-   * \brief Visit CallNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const CallNode* node);
-  /*!
-   * \brief Visit IntImmNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const IntImmNode* node);
-  /*!
-   * \brief Visit FloatImmNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const FloatImmNode* node);
-  /*!
-   * \brief Visit OpNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const OpNode* node);
-  /*!
-   * \brief Visit prim::StringImmNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::StringImmNode* node);
-  /*!
-   * \brief Visit prim::CastNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::CastNode* node);
-  /*!
-   * \brief Visit prim::AddNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::AddNode* node);
-  /*!
-   * \brief Visit prim::SubNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::SubNode* node);
-  /*!
-   * \brief Visit prim::MulNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::MulNode* node);
-  /*!
-   * \brief Visit prim::DivNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::DivNode* node);
-  /*!
-   * \brief Visit prim::ModNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::ModNode* node);
-  /*!
-   * \brief Visit prim::FloorDivNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::FloorDivNode* node);
-  /*!
-   * \brief Visit prim::FloorModNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::FloorModNode* node);
-  /*!
-   * \brief Visit prim::MinNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::MinNode* node);
-  /*!
-   * \brief Visit prim::MaxNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::MaxNode* node);
-  /*!
-   * \brief Visit prim::EQNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::EQNode* node);
-  /*!
-   * \brief Visit prim::NENode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::NENode* node);
-  /*!
-   * \brief Visit prim::LTNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::LTNode* node);
-  /*!
-   * \brief Visit prim::LENode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::LENode* node);
-  /*!
-   * \brief Visit prim::GTNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::GTNode* node);
-  /*!
-   * \brief Visit prim::GENode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::GENode* node);
-  /*!
-   * \brief Visit prim::AndNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::AndNode* node);
-  /*!
-   * \brief Visit prim::OrNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::OrNode* node);
-  /*!
-   * \brief Visit prim::NotNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::NotNode* node);
-  /*!
-   * \brief Visit prim::SelectNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::SelectNode* node);
-  /*!
-   * \brief Visit prim::LetNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* node);
-  /*!
-   * \brief Visit prim::RampNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::RampNode* node);
-  /*!
-   * \brief Visit prim::BroadcastNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::BroadcastNode* node);
-  /*!
-   * \brief Visit prim::ShuffleNode using its structural fields.
-   * \param node The borrowed expression node.
-   * \return None on completion or an owning interrupt that halts traversal.
-   */
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::ShuffleNode* node);
 
  protected:
@@ -777,7 +387,7 @@ class TVM_DLL ExprMutator : public ObjectMutator {
   using ObjectMutator::Mutate;
 
   /*!
-   * \brief Mutate primitive expression, preserving its expression category.
+   * \brief Mutate a primitive expression, preserving its expression category.
    * \param expr The borrowed primitive expression.
    * \param inplace_mode Inherited mutation permission.
    * \return Unchanged or an owning primitive expression replacement.
@@ -809,250 +419,40 @@ class TVM_DLL ExprMutator : public ObjectMutator {
   // Hooks borrow the node and return Unchanged or an owning replacement in its expression
   // category, throwing on failure. Narrower field types are checked separately. Forward
   // inplace_mode on every child edge.
-  /*!
-   * \brief Mutate OpaqueExprNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning expression replacement.
-   */
   virtual UnchangedOr<Expr> Mutate_(const OpaqueExprNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate TupleNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning expression replacement.
-   */
   virtual UnchangedOr<Expr> Mutate_(const TupleNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate TupleGetItemNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning expression replacement.
-   */
   virtual UnchangedOr<Expr> Mutate_(const TupleGetItemNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate TensorLoadNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate VarNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning expression replacement.
-   */
   virtual UnchangedOr<Expr> Mutate_(const VarNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate GlobalVarNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning expression replacement.
-   */
   virtual UnchangedOr<Expr> Mutate_(const GlobalVarNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate CallNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning expression replacement.
-   */
   virtual UnchangedOr<Expr> Mutate_(const CallNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate IntImmNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const IntImmNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate FloatImmNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const FloatImmNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate OpNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning expression replacement.
-   */
   virtual UnchangedOr<Expr> Mutate_(const OpNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::StringImmNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::StringImmNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::CastNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::CastNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::AddNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::SubNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::SubNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::MulNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::MulNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::DivNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::DivNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::ModNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::ModNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::FloorDivNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::FloorModNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::MinNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::MinNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::MaxNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::MaxNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::EQNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::EQNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::NENode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::NENode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::LTNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::LTNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::LENode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::LENode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::GTNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::GTNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::GENode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::GENode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::AndNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::AndNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::OrNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::OrNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::NotNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::NotNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::SelectNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::LetNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::RampNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::RampNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::BroadcastNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::BroadcastNode* node, InplaceMode inplace_mode);
-  /*!
-   * \brief Mutate prim::ShuffleNode, preserving its expression category.
-   * \param node The borrowed expression node.
-   * \param inplace_mode Inherited permission to mutate unique nodes in place.
-   * \return Unchanged or an owning primitive expression replacement.
-   */
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::ShuffleNode* node, InplaceMode inplace_mode);
 
  protected:

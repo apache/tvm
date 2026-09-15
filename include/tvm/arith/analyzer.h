@@ -59,7 +59,6 @@ class ConstraintContext;
 
 using tirx::Var;
 
-/*! \brief Integer division and remainder convention. */
 enum DivMode {
   /*! \brief Truncated division. */
   kTruncDiv,
@@ -91,12 +90,9 @@ enum class ProofStrength : int {
  */
 class ConstIntBoundNode : public ffi::Object {
  public:
-  /*! \brief Inclusive lower bound. */
   int64_t min_value;
-  /*! \brief Inclusive upper bound. */
   int64_t max_value;
 
-  /*! \brief Register the node's fields for FFI reflection. */
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ConstIntBoundNode>()
@@ -112,7 +108,6 @@ class ConstIntBoundNode : public ffi::Object {
    */
   static const constexpr int64_t kNegInf = -kPosInf;
 
-  /*! \brief Compare and hash this bound structurally as a tree node. */
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.ConstIntBound", ConstIntBoundNode, ffi::Object);
 };
@@ -130,9 +125,7 @@ class ConstIntBound : public ffi::ObjectRef {
    */
   TVM_DLL ConstIntBound(int64_t min_value, int64_t max_value);
 
-  /*! \brief Constant representing positive infinity. */
   static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
-  /*! \brief Constant representing negative infinity. */
   static const constexpr int64_t kNegInf = ConstIntBoundNode::kNegInf;
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ConstIntBound, ffi::ObjectRef, ConstIntBoundNode);
 };
@@ -142,7 +135,6 @@ class ConstIntBound : public ffi::ObjectRef {
  */
 class ConstIntBoundAnalyzer {
  public:
-  /*! \brief Memoized bounds keyed by expression identity. */
   using BoundMapType =
       std::unordered_map<PrimExpr, ConstIntBound, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
   /*!
@@ -188,17 +180,8 @@ class ConstIntBoundAnalyzer {
  private:
   friend class AnalyzerObj;
   friend class ConstraintContext;
-  /*!
-   * \brief Construct an analyzer associated with its parent.
-   * \param parent The borrowed parent analyzer that owns this sub-analyzer.
-   */
   explicit ConstIntBoundAnalyzer(AnalyzerObj* parent);
-  /*! \brief Release the internal analyzer state. */
   TVM_DLL ~ConstIntBoundAnalyzer();
-  /*!
-   * \brief Copy the accumulated state from another analyzer of this kind.
-   * \param other The analyzer whose state is copied.
-   */
   void CopyFrom(const ConstIntBoundAnalyzer& other);
   /*!
    * \brief Update the internal state to enter constraint.
@@ -232,7 +215,6 @@ class ModularSetNode : public ffi::Object {
   /*! \brief The base */
   int64_t base;
 
-  /*! \brief Register the node's fields for FFI reflection. */
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ModularSetNode>()
@@ -240,7 +222,6 @@ class ModularSetNode : public ffi::Object {
         .def_ro("base", &ModularSetNode::base);
   }
 
-  /*! \brief Compare and hash this modular set structurally as a tree node. */
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.ModularSet", ModularSetNode, ffi::Object);
 };
@@ -251,11 +232,6 @@ class ModularSetNode : public ffi::Object {
  */
 class ModularSet : public ffi::ObjectRef {
  public:
-  /*!
-   * \brief Construct the set of integers of the form coeff * x + base.
-   * \param coeff The coefficient of the arbitrary integer x.
-   * \param base The constant offset.
-   */
   TVM_DLL ModularSet(int64_t coeff, int64_t base);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ModularSet, ffi::ObjectRef, ModularSetNode);
@@ -284,17 +260,8 @@ class ModularSetAnalyzer {
  private:
   friend class AnalyzerObj;
   friend class ConstraintContext;
-  /*!
-   * \brief Construct an analyzer associated with its parent.
-   * \param parent The borrowed parent analyzer that owns this sub-analyzer.
-   */
   explicit ModularSetAnalyzer(AnalyzerObj* parent);
-  /*! \brief Release the internal analyzer state. */
   TVM_DLL ~ModularSetAnalyzer();
-  /*!
-   * \brief Copy the accumulated state from another analyzer of this kind.
-   * \param other The analyzer whose state is copied.
-   */
   void CopyFrom(const ModularSetAnalyzer& other);
   /*!
    * \brief Update the internal state to enter constraint.
@@ -325,7 +292,7 @@ class RewriteSimplifier {
    * \brief Update binding of var to a new expression.
    *
    * \param var The variable of interest.
-   * \param new_expr The expression bound to the variable.
+   * \param new_expr
    * \param allow_override Whether we allow override of existing information.
    */
   TVM_DLL void Update(const Var& var, const PrimExpr& new_expr, bool allow_override = false);
@@ -352,17 +319,17 @@ class RewriteSimplifier {
    * flags for each desired extension.
    */
   enum Extension {
-    /*! \brief No optional simplifications enabled. */
+    // No extensions enabled
     kNone = 0,
 
-    /*! \brief When simplifying an inequality, attempt to use scope-based knowns.
+    /* When simplifying an inequality, attempt to use scope-based knowns.
      *
      * Example:
      * if_then_else(i<j && j<k, i<k, false) => if_then_else(i<j && j<k, true, false)
      */
     kTransitivelyProveInequalities = (1 << 0),
 
-    /*! \brief When simplifying a boolean expression, convert to an AND of ORs
+    /* When simplifying a boolean expression, convert to an AND of ORs
      * (conjunctive normal form).
      *
      * Example:
@@ -370,7 +337,7 @@ class RewriteSimplifier {
      */
     kConvertBooleanToAndOfOrs = (1 << 1),
 
-    /*! \brief When simplifying a boolean AND or a boolean OR, simplify each
+    /* When simplifying a boolean AND or a boolean OR, simplify each
      * branch under the assumption that the other branch does not
      * already dominate the result.  That is, simplify each branch of
      * (A && B) under the assumption that the other branch is true,
@@ -383,7 +350,7 @@ class RewriteSimplifier {
      */
     kApplyConstraintsToBooleanBranches = (1 << 2),
 
-    /*! \brief Special handling for expressions `(A+B)*C < (A*B)*D`
+    /* Special handling for expressions `(A+B)*C < (A*B)*D`
      *
      * Expressions of the form `(A+B)*C < (A*B)*D` can occur occur
      * when comparing the number of operations required for two
@@ -392,10 +359,10 @@ class RewriteSimplifier {
      * optimal order of execution to be selected, even for dynamic
      * argument shapes.
      *
-     * The default behavior of ConstIntBoundAnalyzer assumes that each term
+     * The default behavior of `ConstIntBounds` assumes that each term
      * in an expression is independent, and is insufficient to prove
-     * these inequalities. For example, the maximum value of
-     * `(A+B)*C - (A*B)*D` is determined by taking the maximum value of
+     * these inequalities.  For example, the maximum value of `(A+B)*C
+     * - (A*B)*D` is determined by taking the maximum value of
      * `(A+B)*C` and subtracting the minimum value of `(A*B)*D`.
      * While this algorithm can be applied in all cases, the bound it
      * provides is looser than strictly required.
@@ -420,23 +387,16 @@ class RewriteSimplifier {
    */
   TVM_DLL void SetEnabledExtensions(Extension flags);
 
-  /*!
-   * \brief Return the currently enabled extensions.
-   * \return The bitwise combination of enabled extension flags.
-   */
+  /*! \brief Return the currently enabled extensions */
   TVM_DLL Extension GetEnabledExtensions() const;
 
-  /*!
-   * \brief Return the statistics counters.
-   * \return The object containing the current rewrite statistics.
-   */
+  /*! \brief Return the statistics counters */
   TVM_DLL ffi::ObjectRef GetStatsCounters() const;
 
   /*! \brief Reset the statistics counters */
   TVM_DLL void ResetStatsCounters();
 
   /*! \brief Set the maximum allowed number of rewrite steps
-   * \param maximum The rewrite step limit; non-positive values impose no limit.
    *
    * By default, the simplifier may perform as many steps as are
    * required.  If a positive limit is set, then the simplifier will
@@ -456,17 +416,8 @@ class RewriteSimplifier {
   friend class AnalyzerObj;
   friend class ConstraintContext;
   friend class CanonicalSimplifier;
-  /*!
-   * \brief Construct an analyzer associated with its parent.
-   * \param parent The borrowed parent analyzer that owns this sub-analyzer.
-   */
   explicit RewriteSimplifier(AnalyzerObj* parent);
-  /*! \brief Release the internal analyzer state. */
   TVM_DLL ~RewriteSimplifier();
-  /*!
-   * \brief Copy the accumulated state from another analyzer of this kind.
-   * \param other The analyzer whose state is copied.
-   */
   void CopyFrom(const RewriteSimplifier& other);
   class Impl;
   /*! \brief Internal impl */
@@ -489,7 +440,7 @@ class CanonicalSimplifier {
    * \brief Update binding of var to a new expression.
    *
    * \param var The variable of interest.
-   * \param new_expr The expression bound to the variable.
+   * \param new_expr
    * \param allow_override whether we allow override of existing information.
    */
   TVM_DLL void Update(const Var& var, const PrimExpr& new_expr, bool allow_override = false);
@@ -497,17 +448,8 @@ class CanonicalSimplifier {
  private:
   friend class AnalyzerObj;
   friend class ConstraintContext;
-  /*!
-   * \brief Construct an analyzer associated with its parent.
-   * \param parent The borrowed parent analyzer that owns this sub-analyzer.
-   */
   explicit CanonicalSimplifier(AnalyzerObj* parent);
-  /*! \brief Release the internal analyzer state. */
   TVM_DLL ~CanonicalSimplifier();
-  /*!
-   * \brief Copy the accumulated state from another analyzer of this kind.
-   * \param other The analyzer whose state is copied.
-   */
   void CopyFrom(const CanonicalSimplifier& other);
   class Impl;
   /*! \brief Internal impl */
@@ -520,39 +462,19 @@ class CanonicalSimplifier {
  * operations.
  */
 enum class CompareResult : int {
-  /*! \brief No consistent comparison outcome. */
   kInconsistent = 0,
-  /*! \brief Equal. */
   kEQ = 1,
-  /*! \brief Strictly less than. */
   kLT = 2,
-  /*! \brief Less than or equal. */
   kLE = 3,
-  /*! \brief Strictly greater than. */
   kGT = 4,
-  /*! \brief Greater than or equal. */
   kGE = 5,
-  /*! \brief Not equal. */
   kNE = 6,
-  /*! \brief Any comparison outcome is possible. */
   kUnknown = 7
 };
 
-/*!
- * \brief Intersect the possible outcomes of two comparisons.
- * \param lhs The left comparison result.
- * \param rhs The right comparison result.
- * \return The outcomes common to both results.
- */
 inline constexpr CompareResult operator&(CompareResult lhs, CompareResult rhs) {
   return CompareResult(static_cast<int>(lhs) & static_cast<int>(rhs));
 }
-/*!
- * \brief Combine the possible outcomes of two comparisons.
- * \param lhs The left comparison result.
- * \param rhs The right comparison result.
- * \return The outcomes allowed by either result.
- */
 inline constexpr CompareResult operator|(CompareResult lhs, CompareResult rhs) {
   return CompareResult(static_cast<int>(lhs) | static_cast<int>(rhs));
 }
@@ -565,7 +487,7 @@ inline constexpr CompareResult operator|(CompareResult lhs, CompareResult rhs) {
  */
 class TransitiveComparisonAnalyzer {
  public:
-  /*! \brief Using previously specified knowns, compare the expressions provided
+  /* \brief Using previously specified knowns, compare the expressions provided
    *
    * \param lhs The left-hand side of the comparison
    *
@@ -612,14 +534,8 @@ class TransitiveComparisonAnalyzer {
  private:
   friend class AnalyzerObj;
   friend class ConstraintContext;
-  /*! \brief Construct an analyzer with no known comparisons. */
   TransitiveComparisonAnalyzer();
-  /*! \brief Release the internal analyzer state. */
   TVM_DLL ~TransitiveComparisonAnalyzer();
-  /*!
-   * \brief Copy the accumulated state from another analyzer of this kind.
-   * \param other The analyzer whose state is copied.
-   */
   void CopyFrom(const TransitiveComparisonAnalyzer& other);
   class Impl;
   /*! \brief Internal impl */
@@ -669,26 +585,12 @@ class IntSetAnalyzer {
    */
   TVM_DLL void Bind(const Var& var, const Range& new_range, bool allow_override = false);
 
-  /*!
-   * \brief Apply a constraint to the integer-set analysis state.
-   * \param constraint The constraint expression to apply.
-   * \return A function that restores the previous state, or nullptr if no update is needed.
-   */
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
  private:
   friend class AnalyzerObj;
-  /*!
-   * \brief Construct an analyzer associated with its parent.
-   * \param parent The borrowed parent analyzer that owns this sub-analyzer.
-   */
   explicit IntSetAnalyzer(AnalyzerObj* parent);
-  /*! \brief Release the internal analyzer state. */
   TVM_DLL ~IntSetAnalyzer();
-  /*!
-   * \brief Copy the accumulated state from another analyzer of this kind.
-   * \param other The analyzer whose state is copied.
-   */
   void CopyFrom(const IntSetAnalyzer& other);
   class Impl;
   /*! \brief Internal impl */
@@ -711,7 +613,6 @@ TVM_DLL void EnterZ3ContextScope();
  */
 TVM_DLL void ExitZ3ContextScope();
 
-/*! \brief Prove arithmetic predicates with an optional Z3 backend. */
 class Z3Prover {
  public:
   /*!
@@ -810,17 +711,8 @@ class Z3Prover {
  private:
   friend class AnalyzerObj;
   friend class Analyzer;
-  /*!
-   * \brief Construct an analyzer associated with its parent.
-   * \param parent The borrowed parent analyzer that owns this sub-analyzer.
-   */
   explicit Z3Prover(AnalyzerObj* parent);
-  /*! \brief Release the internal analyzer state. */
   TVM_DLL ~Z3Prover();
-  /*!
-   * \brief Copy the accumulated state from another analyzer of this kind.
-   * \param other The analyzer whose state is copied.
-   */
   void CopyFrom(const Z3Prover& other);
   class Impl;
   std::unique_ptr<Impl> impl_;
@@ -872,7 +764,6 @@ class TVM_DLL AnalyzerObj : public ffi::Object {
    * can be handled in a simpler way than the generic constraints.
    *
    * This function may call into the Update function of the sub-analyzers.
-   * \param value The expression known to be globally non-negative.
    */
   void MarkGlobalNonNegValue(const PrimExpr& value);
   /*!
@@ -1042,10 +933,6 @@ class Analyzer : public ffi::ObjectRef {
  public:
   /*! \brief Default-construct a fresh analyzer (allocates an AnalyzerObj). */
   Analyzer() : Analyzer(ffi::make_object<AnalyzerObj>()) {}
-  /*!
-   * \brief Construct a handle to an existing analyzer object.
-   * \param n The non-null analyzer object to retain.
-   */
   explicit Analyzer(ffi::ObjectPtr<AnalyzerObj> n) : ffi::ObjectRef(std::move(n)) {
     TVM_FFI_ICHECK(this->get() != nullptr);
   }
@@ -1106,9 +993,9 @@ class ConstraintContext {
    */
   ConstraintContext(AnalyzerObj* analyzer, PrimExpr constraint, bool is_assume)
       : ConstraintContext(ffi::GetRef<Analyzer>(analyzer), std::move(constraint), is_assume) {}
-  /*! \brief Apply the constraint and save the functions that restore analyzer state. */
+  // enter the scope.
   TVM_DLL void EnterWithScope();
-  /*! \brief Restore analyzer state by running the saved recovery functions. */
+  // exit the scope.
   TVM_DLL void ExitWithScope();
   /*! \brief Analyzer kept alive while the context is active. */
   Analyzer analyzer_;
