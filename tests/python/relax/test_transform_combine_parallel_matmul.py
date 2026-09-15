@@ -696,6 +696,120 @@ def test_limit_one_dynamic_shape_in_combined_matmul():
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_skip_bias_fusion_with_incompatible_bias_shapes():
+    """Do not fuse biases whose shapes are broadcast-compatible with their
+    own matmul but not concat-compatible with each other
+
+    Regression test for https://github.com/apache/tvm/issues/20205.  Both
+    branches are individually valid: `b0` broadcasts against `lv0`'s [2, 4]
+    output, and `b1` already matches `lv1`'s [2, 5] output exactly.  But
+    `b0` and `b1` disagree on dimension 0 (1 vs 2).
+    """
+
+    @R.function(private=True)
+    def before(
+        x: R.Tensor((2, 3), "float32"),
+        w0: R.Tensor((3, 4), "float32"),
+        w1: R.Tensor((3, 5), "float32"),
+        b0: R.Tensor((1, 4), "float32"),
+        b1: R.Tensor((2, 5), "float32"),
+    ):
+        with R.dataflow():
+            lv0 = R.matmul(x, w0)
+            lv1 = R.matmul(x, w1)
+            y0 = R.add(lv0, b0)
+            y1 = R.add(lv1, b1)
+            out = (y0, y1)
+            R.output(out)
+        return out
+
+    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
+
+    tvm.ir.assert_structural_equal(after, before)
+
+
+def test_fuse_bias_with_compatible_non_concat_axes():
+    """Biases with the same rank and matching non-concat axes still fuse
+
+    Companion to `test_skip_bias_fusion_with_incompatible_bias_shapes`:
+    here `b0` and `b1` both have a leading dimension of 1, so they agree
+    on every axis except the one being concatenated, and the bias-fusing
+    shortcut remains valid.
+    """
+
+    @R.function(private=True)
+    def before(
+        x: R.Tensor((2, 3), "float32"),
+        w0: R.Tensor((3, 4), "float32"),
+        w1: R.Tensor((3, 5), "float32"),
+        b0: R.Tensor((1, 4), "float32"),
+        b1: R.Tensor((1, 5), "float32"),
+    ):
+        with R.dataflow():
+            lv0 = R.matmul(x, w0)
+            lv1 = R.matmul(x, w1)
+            y0 = R.add(lv0, b0)
+            y1 = R.add(lv1, b1)
+            out = (y0, y1)
+            R.output(out)
+        return out
+
+    @R.function(private=True)
+    def expected(
+        x: R.Tensor((2, 3), dtype="float32"),
+        w0: R.Tensor((3, 4), dtype="float32"),
+        w1: R.Tensor((3, 5), dtype="float32"),
+        b0: R.Tensor((1, 4), dtype="float32"),
+        b1: R.Tensor((1, 5), dtype="float32"),
+    ):
+        with R.dataflow():
+            lv = R.concat((w0, w1), axis=1)
+            lv1 = R.matmul(x, lv, out_dtype="float32")
+            lv2 = R.concat((b0, b1), axis=1)
+            lv3 = R.add(lv1, lv2)
+            lv4 = R.split(lv3, indices_or_sections=[4], axis=1)
+            lv0 = lv4[0]
+            lv1_1 = lv4[1]
+            out = (lv0, lv1_1)
+            R.output(out)
+        return out
+
+    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
+
+    tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_skip_bias_fusion_when_bias_relies_on_its_own_broadcast():
+    """Do not fuse biases whose last dimension only matches via broadcast
+
+    Biases can agree with each other on every non-concat axis and still be
+    unsafe to fuse if a bias's own last dimension doesn't equal its
+    branch's actual output width and it was only valid by broadcasting
+    against that branch's own matmul.
+    """
+
+    @R.function(private=True)
+    def before(
+        x: R.Tensor((2, 3), "float32"),
+        w0: R.Tensor((3, 4), "float32"),
+        w1: R.Tensor((3, 5), "float32"),
+        b0: R.Tensor((2, 1), "float32"),
+        b1: R.Tensor((2, 1), "float32"),
+    ):
+        with R.dataflow():
+            lv0 = R.matmul(x, w0)
+            lv1 = R.matmul(x, w1)
+            y0 = R.add(lv0, b0)
+            y1 = R.add(lv1, b1)
+            out = (y0, y1)
+            R.output(out)
+        return out
+
+    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
+
+    tvm.ir.assert_structural_equal(after, before)
+
+
 @pytest.mark.parametrize("float32_branch", [0, 1])
 def test_skip_matmuls_with_different_output_dtypes(float32_branch):
     if float32_branch == 0:
