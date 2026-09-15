@@ -807,8 +807,13 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
           return ffi::WalkResult::Advance();
         } else if (const VarNode* var = obj.as<VarNode>()) {
           PrimType var_ty = var->ty.as_or_throw<PrimType>();
-          if (var_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
+          if (var_ty.MatchesCode(DLDataTypeCode::kDLInt)) {
             cand_vars.push_back(ffi::GetRef<Var>(var).as_or_throw<PrimVar>());
+          } else {
+            // The inequality solver constructs signed coefficients in the
+            // variable's type. Unsigned arithmetic cannot be treated as
+            // ordered integer arithmetic; leave such conditions unresolved.
+            is_simple = false;
           }
         } else {
           is_simple &= obj->IsInstance<prim::AddNode>() || obj->IsInstance<prim::SubNode>() ||
