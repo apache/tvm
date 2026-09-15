@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/arithmetic/ir_mutator_with_analyzer.h
+ * \file tirx/ir_mutator_with_analyzer.h
  * \brief IR mutator base-class with an analyzer context.
  */
-#ifndef TVM_ARITH_IR_MUTATOR_WITH_ANALYZER_H_
-#define TVM_ARITH_IR_MUTATOR_WITH_ANALYZER_H_
+#ifndef TVM_TIRX_IR_MUTATOR_WITH_ANALYZER_H_
+#define TVM_TIRX_IR_MUTATOR_WITH_ANALYZER_H_
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
@@ -36,7 +36,7 @@
 #include <utility>
 
 namespace tvm {
-namespace arith {
+namespace tirx {
 
 /*!
  * \brief IRMutator with an analyzer context.
@@ -45,24 +45,24 @@ namespace arith {
  * It will populates scope-related info such as bounds of loop-variables and constraints
  * for the analyzer, so that the child class can do accurate context-dependent analysis.
  *
- * \sa src/arithmetic/ir_mutator_with_analyzer.cc
+ * \sa src/tirx/ir_mutator_with_analyzer.cc
  */
-class IRMutatorWithAnalyzer : public tirx::StmtExprMutator {
+class IRMutatorWithAnalyzer : public StmtExprMutator {
  public:
-  explicit IRMutatorWithAnalyzer(const Analyzer& analyzer) : analyzer_(analyzer.get()) {}
-  explicit IRMutatorWithAnalyzer(AnalyzerObj* analyzer) : analyzer_(analyzer) {}
+  explicit IRMutatorWithAnalyzer(const arith::Analyzer& analyzer) : analyzer_(analyzer.get()) {}
+  explicit IRMutatorWithAnalyzer(arith::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
   using StmtExprMutator::VisitExpr_;
   using StmtExprMutator::VisitStmt_;
 
   // override functions that need to populate the context information.
-  tirx::Stmt VisitStmt_(const tirx::ForNode* op) override;
-  tirx::Stmt VisitStmt_(const tirx::SBlockNode* op) override;
-  tirx::Stmt VisitStmt_(const tirx::BindNode* op) override;
-  tirx::Stmt VisitStmt_(const tirx::IfThenElseNode* op) override;
-  tirx::Stmt VisitStmt_(const tirx::AttrStmtNode* op) override;
-  tirx::Stmt VisitStmt_(const tirx::AssertStmtNode* op) override;
-  tirx::Stmt VisitStmt_(const tirx::SeqStmtNode* op) override;
+  Stmt VisitStmt_(const ForNode* op) override;
+  Stmt VisitStmt_(const SBlockNode* op) override;
+  Stmt VisitStmt_(const BindNode* op) override;
+  Stmt VisitStmt_(const IfThenElseNode* op) override;
+  Stmt VisitStmt_(const AttrStmtNode* op) override;
+  Stmt VisitStmt_(const AssertStmtNode* op) override;
+  Stmt VisitStmt_(const SeqStmtNode* op) override;
   Expr VisitExpr_(const prim::LetNode* op) override;
   Expr VisitExpr_(const prim::SelectNode* op) override;
   Expr VisitExpr_(const CallNode* op) override;
@@ -74,7 +74,7 @@ class IRMutatorWithAnalyzer : public tirx::StmtExprMutator {
    * \note call this function before Visit function's body to maximize
    *       simplification efficiency
    */
-  void MarkBufferParamShapes(const tirx::PrimFunc& func);
+  void MarkBufferParamShapes(const PrimFunc& func);
 
   /*!
    * \brief Use internal bound information to perform inter map simplification of indices.
@@ -84,15 +84,15 @@ class IRMutatorWithAnalyzer : public tirx::StmtExprMutator {
                                                   bool non_trivial_only);
 
   /*! \brief internal analyzer field. */
-  AnalyzerObj* analyzer_;
+  arith::AnalyzerObj* analyzer_;
   /*! \brief Scope stack for accumulated assert constraints. */
-  ScopeStack<WithGroup<ConstraintContext>> constraint_scope_;
+  ScopeStack<WithGroup<arith::ConstraintContext>> constraint_scope_;
   // the following two fields are useful in case we want
   // note however that iter map analysis are usually more
   // expensive and we only encourage doing them during
   // necessary cases like layout remapping
   /*! \brief Recorded loop iterators */
-  ffi::Map<tirx::PrimVar, Range> iter_vars_;
+  ffi::Map<PrimVar, Range> iter_vars_;
   /*! \brief iterator predicates */
   ffi::Array<PrimExpr> iter_predicates_;
   /*!
@@ -102,7 +102,7 @@ class IRMutatorWithAnalyzer : public tirx::StmtExprMutator {
    */
   template <typename FLambda>
   void WithRecordIterPredicate(PrimExpr condition, FLambda callback) {
-    std::unordered_set<const tirx::VarNode*> iter_var_nodes;
+    std::unordered_set<const VarNode*> iter_var_nodes;
     for (const auto& [var, _] : iter_vars_) {
       iter_var_nodes.insert(var.get());
     }
@@ -123,6 +123,6 @@ class IRMutatorWithAnalyzer : public tirx::StmtExprMutator {
     }
   }
 };
-}  // namespace arith
+}  // namespace tirx
 }  // namespace tvm
-#endif  // TVM_ARITH_IR_MUTATOR_WITH_ANALYZER_H_
+#endif  // TVM_TIRX_IR_MUTATOR_WITH_ANALYZER_H_

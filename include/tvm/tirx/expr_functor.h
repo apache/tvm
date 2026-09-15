@@ -21,6 +21,10 @@
  * \file tvm/tirx/expr_functor.h
  *
  * \brief Functors for tirx expressions.
+ *
+ * Arithmetic analyses use the shared IR functors in tvm/ir/expr_functor.h.
+ * Keep common core expression handling aligned with those functors; TIRX-owned
+ * expression nodes, such as BufferRegion, belong only in this dialect's table.
  */
 #ifndef TVM_TIR_EXPR_FUNCTOR_H_
 #define TVM_TIR_EXPR_FUNCTOR_H_

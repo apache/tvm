@@ -29,8 +29,8 @@
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../arith/pattern_match.h"
+#include "../../tirx/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {

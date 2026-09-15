@@ -29,9 +29,9 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/utils.h"
+#include "../../tirx/ir_mutator_with_analyzer.h"
 #include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {

@@ -33,7 +33,7 @@
 
 #include <unordered_set>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
+#include "../../tirx/ir_mutator_with_analyzer.h"
 #include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
@@ -215,7 +215,7 @@ class VarTouchedAnalysis : public StmtVisitor {
 
 // Inject virtual thread loop
 // rewrite the buffer access pattern when necessary.
-class VTInjector : public arith::IRMutatorWithAnalyzer {
+class VTInjector : public tirx::IRMutatorWithAnalyzer {
  public:
   using IRMutatorWithAnalyzer::VisitExpr_;
   using IRMutatorWithAnalyzer::VisitStmt_;
@@ -616,7 +616,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buf_remap_;
 };
 
-class VirtualThreadInjector : public arith::IRMutatorWithAnalyzer {
+class VirtualThreadInjector : public tirx::IRMutatorWithAnalyzer {
  public:
   using IRMutatorWithAnalyzer::IRMutatorWithAnalyzer;
   using IRMutatorWithAnalyzer::VisitStmt_;

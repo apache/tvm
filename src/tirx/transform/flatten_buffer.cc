@@ -32,7 +32,7 @@
 
 #include <unordered_set>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
+#include "../ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -57,7 +57,7 @@ namespace tirx {
  *  Every use site then only looks the pair up; a use before its definition is
  *  a hard error instead of a silently stale reference.
  */
-class BufferFlattener : public arith::IRMutatorWithAnalyzer {
+class BufferFlattener : public IRMutatorWithAnalyzer {
  public:
   static PrimFunc Flatten(PrimFunc func) {
     arith::Analyzer ana;

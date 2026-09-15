@@ -22,7 +22,6 @@
  */
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/arith/bound.h>
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -37,7 +36,7 @@
 #include <optional>
 #include <set>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
+#include "../../tirx/ir_mutator_with_analyzer.h"
 #include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
@@ -45,7 +44,7 @@ namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
 
-class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
+class AsyncDMALowerer : public tirx::IRMutatorWithAnalyzer {
  public:
   explicit AsyncDMALowerer(bool dma_bypass_cache, const arith::Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer), dma_bypass_cache_(dma_bypass_cache) {}
@@ -54,7 +53,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const ForNode* loop) final {
     // if for loop is not within async_commit_queue_scope
     if (!async_queue_id_.has_value()) {
-      return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
+      return tirx::IRMutatorWithAnalyzer::VisitStmt_(loop);
     }
 
     // if for loop is not a memcpy of a contiguous region, it might be a cuda cp.async behavior
@@ -62,7 +61,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
         s_tir::IdentifyMemCpy(ffi::GetRef<For>(loop), ffi::GetRef<arith::Analyzer>(analyzer_));
     if (!mem_copy.has_value() || mem_copy->dest->region.size() != 1 ||
         mem_copy->source->region.size() != 1) {
-      return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
+      return tirx::IRMutatorWithAnalyzer::VisitStmt_(loop);
     }
 
     // now that we are about to perform the `copy` transform
@@ -93,7 +92,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     // populate analyzer knowledge of loop iterators
-    auto previsit = arith::IRMutatorWithAnalyzer::VisitStmt_(op);
+    auto previsit = tirx::IRMutatorWithAnalyzer::VisitStmt_(op);
 
     // Convert this, for example:
     // attr [0] "async_wait_queue_scope" = 0;
@@ -131,7 +130,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
                                         .as_or_throw<PrimExpr>());
 
       // concatenate the call with the body and return
-      return SeqStmt({call_dma_wait, arith::IRMutatorWithAnalyzer::VisitStmt(async_wait->body)});
+      return SeqStmt({call_dma_wait, tirx::IRMutatorWithAnalyzer::VisitStmt(async_wait->body)});
 
       // Convert this, for example:
       // attr [0] "async_commit_queue_scope" = 0;
@@ -153,7 +152,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
       auto queue_id_node = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(queue_id_node);
       async_queue_id_ = queue_id_node->value;
-      auto result = arith::IRMutatorWithAnalyzer::VisitStmt_(op);
+      auto result = tirx::IRMutatorWithAnalyzer::VisitStmt_(op);
       if (dmas_in_group_ > 1) {
         auto call_dma_start_group =
             Evaluate(Call(PrimType::Int(32), tirx::builtin::dma_start_group(),
@@ -169,7 +168,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
       dmas_in_group_ = 0;
       return result;
     }
-    return arith::IRMutatorWithAnalyzer::VisitStmt_(op);
+    return tirx::IRMutatorWithAnalyzer::VisitStmt_(op);
   }
 
  private:

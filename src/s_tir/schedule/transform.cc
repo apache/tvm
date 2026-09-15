@@ -458,7 +458,7 @@ void BlockBufferAccessSimplifier::SimplifyBufferIndices(ffi::Array<PrimExpr>* in
 }
 
 Stmt BlockBufferAccessSimplifier::VisitStmt_(const SBlockNode* op) {
-  SBlock block = arith::IRMutatorWithAnalyzer::VisitStmt_(op).as_or_throw<SBlock>();
+  SBlock block = tirx::IRMutatorWithAnalyzer::VisitStmt_(op).as_or_throw<SBlock>();
   auto* n = block.CopyOnWrite();
   SimplifyAccessRegion(&n->reads);
   SimplifyAccessRegion(&n->writes);
@@ -466,13 +466,13 @@ Stmt BlockBufferAccessSimplifier::VisitStmt_(const SBlockNode* op) {
 }
 
 Stmt BlockBufferAccessSimplifier::VisitStmt_(const BufferStoreNode* op) {
-  BufferStore node = arith::IRMutatorWithAnalyzer::VisitStmt_(op).as_or_throw<BufferStore>();
+  BufferStore node = tirx::IRMutatorWithAnalyzer::VisitStmt_(op).as_or_throw<BufferStore>();
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
   return node;
 }
 
 Expr BlockBufferAccessSimplifier::VisitExpr_(const TensorLoadNode* op) {
-  TensorLoad node = arith::IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<TensorLoad>();
+  TensorLoad node = tirx::IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<TensorLoad>();
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
   return node;
 }

@@ -33,9 +33,9 @@
 
 #include <unordered_map>
 
-#include "../../../arith/ir_visitor_with_analyzer.h"
 #include "../../../backend/opencl/runtime/texture.h"
 #include "../../../runtime/thread_storage_scope.h"
+#include "../../../tirx/ir_visitor_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
@@ -43,7 +43,6 @@ using namespace tvm::prim;
 namespace backend {
 namespace adreno {
 using namespace tvm::tirx;
-using arith::IRVisitorWithAnalyzer;
 using runtime::ApplyTexture2DFlattening;
 using runtime::DefaultTextureLayoutSeparator;
 using runtime::IsTextureStorage;

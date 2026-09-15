@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file tvm/arithmetic/ir_visitor_with_analyzer.h
+ * \file tirx/ir_visitor_with_analyzer.h
  * \brief IR visitor class with an analyzer context.
  */
 
-#ifndef TVM_ARITH_IR_VISITOR_WITH_ANALYZER_H_
-#define TVM_ARITH_IR_VISITOR_WITH_ANALYZER_H_
+#ifndef TVM_TIRX_IR_VISITOR_WITH_ANALYZER_H_
+#define TVM_TIRX_IR_VISITOR_WITH_ANALYZER_H_
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
@@ -32,22 +32,22 @@
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
-namespace arith {
+namespace tirx {
 
-class IRVisitorWithAnalyzer : public tirx::StmtExprVisitor {
+class IRVisitorWithAnalyzer : public StmtExprVisitor {
  public:
   PrimExpr Simplify(const PrimExpr& expr) { return analyzer_->Simplify(expr); }
 
   using StmtExprVisitor::VisitExpr_;
   using StmtExprVisitor::VisitStmt_;
 
-  void VisitStmt_(const tirx::ForNode* op);
-  void VisitStmt_(const tirx::SBlockNode* op);
-  void VisitStmt_(const tirx::BindNode* op);
-  void VisitStmt_(const tirx::IfThenElseNode* op);
-  void VisitStmt_(const tirx::AttrStmtNode* op);
-  void VisitStmt_(const tirx::AssertStmtNode* op);
-  void VisitStmt_(const tirx::SeqStmtNode* op);
+  void VisitStmt_(const ForNode* op);
+  void VisitStmt_(const SBlockNode* op);
+  void VisitStmt_(const BindNode* op);
+  void VisitStmt_(const IfThenElseNode* op);
+  void VisitStmt_(const AttrStmtNode* op);
+  void VisitStmt_(const AssertStmtNode* op);
+  void VisitStmt_(const SeqStmtNode* op);
   void VisitExpr_(const CallNode* op);
   void VisitExpr_(const prim::LetNode* op);
 
@@ -60,7 +60,7 @@ class IRVisitorWithAnalyzer : public tirx::StmtExprVisitor {
   arith::Analyzer analyzer_;
 
   /*! \brief Scope stack for accumulated assert constraints. */
-  ScopeStack<WithGroup<ConstraintContext>> constraint_scope_;
+  ScopeStack<WithGroup<arith::ConstraintContext>> constraint_scope_;
 
   /*! \brief Extract a constraint from a conditional statement
    *
@@ -70,6 +70,6 @@ class IRVisitorWithAnalyzer : public tirx::StmtExprVisitor {
   PrimExpr ExtractRealCondition(PrimExpr condition) const;
 };
 
-}  // namespace arith
+}  // namespace tirx
 }  // namespace tvm
-#endif  // TVM_ARITH_IR_VISITOR_WITH_ANALYZER_H_
+#endif  // TVM_TIRX_IR_VISITOR_WITH_ANALYZER_H_

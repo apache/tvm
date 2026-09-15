@@ -27,7 +27,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
 
 #include <algorithm>
@@ -263,7 +262,7 @@ IntConstraintsTransform IntConstraintsTransform::operator+(
   Analyzer ana_first;
   ana_first->Bind(operator->()->src->ranges);
   auto f_dst_to_src = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-    if (auto repl = operator->()->dst_to_src.Get(var)) return ffi::Any(*std::move(repl));
+    if (auto repl = operator->()->dst_to_src.Get(var)) return *std::move(repl);
     return ffi::Unchanged();
   };
   for (auto p : other->dst_to_src) {
@@ -275,7 +274,7 @@ IntConstraintsTransform IntConstraintsTransform::operator+(
   Analyzer ana_second;
   ana_second->Bind(other->dst->ranges);
   auto f_src_to_dst = [&other](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-    if (auto repl = other->src_to_dst.Get(var)) return ffi::Any(*std::move(repl));
+    if (auto repl = other->src_to_dst.Get(var)) return *std::move(repl);
     return ffi::Unchanged();
   };
   for (auto p : operator->()->src_to_dst) {

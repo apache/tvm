@@ -451,7 +451,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
 
   // Add the rest conditions
   auto f_subst = [&old_to_new_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-    if (auto repl = old_to_new_map.Get(var)) return ffi::Any(*std::move(repl));
+    if (auto repl = old_to_new_map.Get(var)) return *std::move(repl);
     return ffi::Unchanged();
   };
   for (const PrimExpr& cond : rest) {

@@ -38,7 +38,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../../arith/ir_mutator_with_analyzer.h"
+#include "../../../tirx/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace tirx {
@@ -53,7 +53,7 @@ static bool IsTrainiumLayout(const TileLayoutNode* layout) {
   });
 }
 
-class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
+class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
  public:
   static std::pair<Stmt, ffi::Array<Var>> Lower(const Stmt& stmt, const ffi::Array<Var>& params) {
     arith::Analyzer ana;
@@ -90,7 +90,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitStmt_;
 
   explicit TrainiumLayoutApplier(const arith::Analyzer& analyzer)
-      : arith::IRMutatorWithAnalyzer(analyzer) {}
+      : tirx::IRMutatorWithAnalyzer(analyzer) {}
 
   ffi::Any VisitAny(const ffi::Any& any) {
     if (any == nullptr) {
