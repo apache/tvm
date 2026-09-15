@@ -34,7 +34,7 @@ using namespace tvm::tirx;
 
 /******** Error Classes ********/
 
-class NotSingleWriteBlock : public ScheduleError {
+class NotSingleWriteBlock : public ScheduleErrorContextObj {
  public:
   explicit NotSingleWriteBlock(IRModule mod, BufferVar buffer, ffi::Array<StmtSRef> write_blocks)
       : mod_(std::move(mod)), buffer_(std::move(buffer)) {
@@ -117,7 +117,7 @@ struct ReindexCacheStageInfo : CacheStageInfo {
 
 /* \brief The schedule error that accessed buffer region is not a single point for
  * reindex_cache_read/write. */
-class NotSinglePointAccess : public ScheduleError {
+class NotSinglePointAccess : public ScheduleErrorContextObj {
  public:
   explicit NotSinglePointAccess(IRModule mod, SBlock block, BufferRegion cache_region,
                                 bool is_cache_read)
@@ -522,7 +522,7 @@ ffi::Optional<StmtSRef> GetOnlyWriteBlock(ScheduleState self, const StmtSRef& sc
     const ffi::Array<StmtSRef>& block_srefs = it->second;
     TVM_FFI_ICHECK(!block_srefs.empty());
     if (block_srefs.size() > 1) {
-      throw NotSingleWriteBlock(self->mod, buffer, block_srefs);
+      throw MakeScheduleError<NotSingleWriteBlock>(self->mod, buffer, block_srefs);
     }
     return block_srefs[0];
   }
@@ -1492,7 +1492,7 @@ BufferVar CreateReindexBuffer(const BufferVar& buffer, const ffi::Array<IterVar>
 /*!
  * \brief The schedule error that the target is not a leaf block.
  */
-class NotLeafBlockError : public ScheduleError {
+class NotLeafBlockError : public ScheduleErrorContextObj {
  public:
   NotLeafBlockError(IRModule mod, SBlock block) : mod_(std::move(mod)), block_(std::move(block)) {}
   ffi::String FastErrorString() const final {
@@ -1510,7 +1510,7 @@ class NotLeafBlockError : public ScheduleError {
 };
 
 /*! \brief The schedule error that the buffer access is invalid for reindex. */
-class InvalidBufferAccessError : public ScheduleError {
+class InvalidBufferAccessError : public ScheduleErrorContextObj {
  public:
   enum class ErrorKind {
     kNoAccess,         // buffer access not found
@@ -1557,8 +1557,8 @@ class ReIndexCollector : public StmtExprVisitor {
     ReIndexCollector collector(mod, buffer, block);
     collector(block->body);
     if (!collector.buffer_access_indices_.has_value()) {
-      throw InvalidBufferAccessError(mod, buffer, block,
-                                     InvalidBufferAccessError::ErrorKind::kNoAccess);
+      throw MakeScheduleError<InvalidBufferAccessError>(
+          mod, buffer, block, InvalidBufferAccessError::ErrorKind::kNoAccess);
     }
     return collector.buffer_access_indices_.value();
   }
@@ -1576,7 +1576,7 @@ class ReIndexCollector : public StmtExprVisitor {
 
   void VisitStmt_(const SBlockNode* block) final {
     // no sub-blocks under this block
-    throw NotLeafBlockError(mod_, block_);
+    throw MakeScheduleError<NotLeafBlockError>(mod_, block_);
   }
 
   void VisitStmt_(const BufferStoreNode* store) final {
@@ -1593,15 +1593,15 @@ class ReIndexCollector : public StmtExprVisitor {
     } else if (!std::equal(buffer_access_indices_.value().begin(),
                            buffer_access_indices_.value().end(), indices.begin(), indices.end(),
                            ExprDeepEqual())) {
-      throw InvalidBufferAccessError(mod_, buffer_, block_,
-                                     InvalidBufferAccessError::ErrorKind::kNonUniqueAccess);
+      throw MakeScheduleError<InvalidBufferAccessError>(
+          mod_, buffer_, block_, InvalidBufferAccessError::ErrorKind::kNonUniqueAccess);
     }
   }
 
   void VisitExpr_(const VarNode* var) final {
     if (var == buffer_.get()) {
-      throw InvalidBufferAccessError(mod_, buffer_, block_,
-                                     InvalidBufferAccessError::ErrorKind::kOpaqueAccess);
+      throw MakeScheduleError<InvalidBufferAccessError>(
+          mod_, buffer_, block_, InvalidBufferAccessError::ErrorKind::kOpaqueAccess);
     }
   }
   /*! \brief The IR module */
@@ -1720,7 +1720,7 @@ class ReIndexRewriter : public StmtExprMutator {
 };
 
 void CheckRegionCover(const ScheduleState& self, StmtSRef scope_root, BufferVar read_buffer) {
-  class NotRegionCoverError : public ScheduleError {
+  class NotRegionCoverError : public ScheduleErrorContextObj {
    public:
     explicit NotRegionCoverError(IRModule mod, SBlock block) : mod_(mod), block_(block) {}
     IRModule mod() const final { return mod_; }
@@ -1743,7 +1743,7 @@ The region cover property require to hold for every of its child blocks
       if (region->buffer.same_as(read_buffer)) {
         if (!self->block_info.at(child_block_sref).region_cover) {
           const SBlockNode* block = TVM_SREF_TO_SBLOCK(scope_root);
-          throw NotRegionCoverError(self->mod, ffi::GetRef<SBlock>(block));
+          throw MakeScheduleError<NotRegionCoverError>(self->mod, ffi::GetRef<SBlock>(block));
         }
       }
     }
@@ -1968,7 +1968,7 @@ ffi::Array<StmtSRef> GetLoopsUnderScope(const StmtSRef& block_sref, const StmtSR
  * \brief The schedule error that block iter vars appears in old buffer and new
  * allocated cache buffer does not match.
  */
-class ReindexCacheReadWriteNotMatchError : public ScheduleError {
+class ReindexCacheReadWriteNotMatchError : public ScheduleErrorContextObj {
  public:
   ReindexCacheReadWriteNotMatchError(IRModule mod, SBlock block, Var var,
                                      ffi::Array<PrimExpr> old_indices,
@@ -2054,8 +2054,8 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
     bool appears_in_new = collector_new.use_count_.count(block_iter_var->var.get());
     bool appears_in_old = collector_old.use_count_.count(block_iter_var->var.get());
     if (appears_in_new != appears_in_old) {
-      throw ReindexCacheReadWriteNotMatchError(mod, block, block_iter_var->var, old_indices,
-                                               new_indices, is_cache_read, appears_in_old);
+      throw MakeScheduleError<ReindexCacheReadWriteNotMatchError>(
+          mod, block, block_iter_var->var, old_indices, new_indices, is_cache_read, appears_in_old);
     }
     if (appears_in_new) {
       info->block_iter_vars.push_back(block_iter_var);
@@ -2099,7 +2099,7 @@ void CheckSinglePoint(ScheduleState self, const SBlock& block, const BufferRegio
     }
   }
   if (!single_point) {
-    throw NotSinglePointAccess(self->mod, block, cache_region, is_cache_read);
+    throw MakeScheduleError<NotSinglePointAccess>(self->mod, block, cache_region, is_cache_read);
   }
 }
 
@@ -2243,7 +2243,7 @@ StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref, int w
 }
 
 /*! \brief The schedule error that the target block doesn't both read&write target buffer. */
-class NotReadWriteError : public ScheduleError {
+class NotReadWriteError : public ScheduleErrorContextObj {
  public:
   NotReadWriteError(IRModule mod, SBlock block, BufferVar buffer)
       : mod_(std::move(mod)), block_(std::move(block)), buffer_(std::move(buffer)) {}
@@ -2285,7 +2285,7 @@ ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref
   ffi::Optional<BufferRegion> read_region = GetBufferRegionFromBuffer(rw_block->reads, buffer);
   ffi::Optional<BufferRegion> write_region = GetBufferRegionFromBuffer(rw_block->writes, buffer);
   if (!read_region.has_value() || !write_region.has_value()) {
-    throw NotReadWriteError(self->mod, ffi::GetRef<SBlock>(rw_block), buffer);
+    throw MakeScheduleError<NotReadWriteError>(self->mod, ffi::GetRef<SBlock>(rw_block), buffer);
   }
 
   ffi::Array<StmtSRef> results_block_sref;

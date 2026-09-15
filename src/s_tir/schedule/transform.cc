@@ -237,7 +237,7 @@ Stmt ReplaceBufferMutator::VisitStmt_(const SBlockNode* block) {
 
 void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_sref,
                           Stmt* src_stmt, Stmt* tgt_stmt) {
-  class OnlyLeafError : public ScheduleError {
+  class OnlyLeafError : public ScheduleErrorContextObj {
    public:
     explicit OnlyLeafError(IRModule mod, SBlock leaf_block, SBlock scope_root)
         : mod_(mod), leaf_block_(leaf_block), scope_root_(scope_root) {}
@@ -300,7 +300,8 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
   TVM_FFI_ICHECK(sref != nullptr && sref->stmt != nullptr);
   const auto* leaf_block = TVM_SREF_TO_SBLOCK(leaf_block_sref);
   const auto* scope_block = TVM_SREF_TO_SBLOCK(sref);
-  throw OnlyLeafError(self->mod, ffi::GetRef<SBlock>(leaf_block), ffi::GetRef<SBlock>(scope_block));
+  throw MakeScheduleError<OnlyLeafError>(self->mod, ffi::GetRef<SBlock>(leaf_block),
+                                         ffi::GetRef<SBlock>(scope_block));
 }
 
 ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,

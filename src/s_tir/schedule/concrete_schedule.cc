@@ -209,22 +209,32 @@ Schedule ConcreteScheduleNode::Copy() {
 
 /*! \brief Macro that guards the beginning of each invocation of TensorIR schedule primitive */
 #define TVM_TIR_SCHEDULE_BEGIN() try {
+/*! \brief Keep the payload on rendered errors for outer scheduling error handlers. */
+#define TVM_TIR_SCHEDULE_THROW(error)                                            \
+  ffi::details::ErrorBuilder(                                                    \
+      "ScheduleError", TVMFFIBacktrace(__FILE__, __LINE__, TVM_FFI_FUNC_SIG, 0), \
+      TVM_FFI_ALWAYS_LOG_BEFORE_THROW, std::nullopt, (error).extra_context())    \
+      .stream()
 /*!
  * \brief Macro that pairs with `TVM_TIR_SCHEDULE_BEGIN`, handling potential errors and error
- * message rendering
+ * message rendering. Already rendered errors retain their original diagnostic.
  * \param level An ScheduleErrorRenderLevel enum, level of error rendering
  * \sa ScheduleErrorRenderLevel
  */
-#define TVM_TIR_SCHEDULE_END(primitive, level)                       \
-  }                                                                  \
-  catch (const ScheduleError& error) {                               \
-    if ((level) == ScheduleErrorRenderLevel::kDetail) {              \
-      TVM_FFI_THROW(ScheduleError) << error.RenderReport(primitive); \
-    } else if ((level) == ScheduleErrorRenderLevel::kFast) {         \
-      TVM_FFI_THROW(ScheduleError) << error.FastErrorString();       \
-    } else if ((level) == ScheduleErrorRenderLevel::kNone) {         \
-      TVM_FFI_THROW(ScheduleError) << "(not rendered)";              \
-    }                                                                \
+#define TVM_TIR_SCHEDULE_END(primitive, level)                           \
+  }                                                                      \
+  catch (const ffi::Error& error) {                                      \
+    const auto* context = GetScheduleErrorContext(error);                \
+    if (context == nullptr || !error.message().empty()) {                \
+      throw;                                                             \
+    }                                                                    \
+    if ((level) == ScheduleErrorRenderLevel::kDetail) {                  \
+      TVM_TIR_SCHEDULE_THROW(error) << context->RenderReport(primitive); \
+    } else if ((level) == ScheduleErrorRenderLevel::kFast) {             \
+      TVM_TIR_SCHEDULE_THROW(error) << context->FastErrorString();       \
+    } else if ((level) == ScheduleErrorRenderLevel::kNone) {             \
+      TVM_TIR_SCHEDULE_THROW(error) << "(not rendered)";                 \
+    }                                                                    \
   }
 
 /******** Schedule: Schedule: Sampling ********/
@@ -281,7 +291,7 @@ LoopRV ConcreteScheduleNode::SampleComputeLocation(const SBlockRV& block_rv,
 
 SBlockRV ConcreteScheduleNode::GetSBlock(const ffi::String& name,
                                          const ffi::Optional<ffi::String>& func_name) {
-  class NotSingleResult : public ScheduleError {
+  class NotSingleResult : public ScheduleErrorContextObj {
    public:
     explicit NotSingleResult(ffi::String name, IRModule mod, const ffi::Array<StmtSRef>& blocks)
         : name_(name), mod_(mod), blocks_{} {
@@ -331,7 +341,7 @@ SBlockRV ConcreteScheduleNode::GetSBlock(const ffi::String& name,
   ffi::Array<StmtSRef> blocks = s_tir::GetSBlocks(this->state_, name, gv);
   if (blocks.size() != 1) {
     TVM_TIR_SCHEDULE_BEGIN();
-    throw NotSingleResult(name, this->state_->mod, blocks);
+    throw MakeScheduleError<NotSingleResult>(name, this->state_->mod, blocks);
     TVM_TIR_SCHEDULE_END("get-block", this->error_render_level_);
   }
   return CreateRV<SBlockRV>(blocks[0]);
@@ -404,7 +414,7 @@ LoopRV ConcreteScheduleNode::Fuse(const ffi::Array<LoopRV>& loop_rvs, bool prese
   return CreateRV<LoopRV>(result);
 }
 
-class NotSingleInferFactorError : public ScheduleError {
+class NotSingleInferFactorError : public ScheduleErrorContextObj {
  public:
   explicit NotSingleInferFactorError(IRModule mod) : mod_(mod) {}
 
@@ -422,7 +432,7 @@ class NotSingleInferFactorError : public ScheduleError {
   IRModule mod_;
 };
 
-class WrongFactorError : public ScheduleError {
+class WrongFactorError : public ScheduleErrorContextObj {
  public:
   explicit WrongFactorError(IRModule mod, For loop, bool product)
       : mod_(mod), loop_(std::move(loop)), product_(product) {}
@@ -450,7 +460,7 @@ class WrongFactorError : public ScheduleError {
   bool product_;
 };
 
-class NonPositiveFactorError : public ScheduleError {
+class NonPositiveFactorError : public ScheduleErrorContextObj {
  public:
   explicit NonPositiveFactorError(IRModule mod, int64_t factor, size_t idx)
       : mod_(std::move(mod)), factor_(factor), idx_(idx) {}
@@ -491,13 +501,14 @@ ffi::Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
     if (!factor_rvs[i].has_value()) {
       factors.push_back(IntImm::Int32(-1));
       if (infer_index != -1) {
-        throw NotSingleInferFactorError(state_->mod);
+        throw MakeScheduleError<NotSingleInferFactorError>(state_->mod);
       }
       infer_index = i;
     } else {
       PrimExpr factor = this->Get(factor_rvs[i].value());
       if (is_const_int(factor) && !is_positive_const(factor)) {
-        throw NonPositiveFactorError(state_->mod, factor.as<IntImmNode>()->value, i);
+        throw MakeScheduleError<NonPositiveFactorError>(state_->mod, factor.as<IntImmNode>()->value,
+                                                        i);
       }
       if (factor.ty().bits() > loop->extent.ty().bits()) {
         factor = cast(loop->extent.ty(), factor);
@@ -510,7 +521,7 @@ ffi::Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
     factors.Set(infer_index,
                 this->analyzer_->Simplify(floordiv(loop->extent + tot_length - 1, tot_length)));
   } else if (!this->analyzer_->CanProve(tot_length >= loop->extent)) {
-    throw WrongFactorError(state_->mod, ffi::GetRef<For>(loop), true);
+    throw MakeScheduleError<WrongFactorError>(state_->mod, ffi::GetRef<For>(loop), true);
   }
   results = s_tir::Split(state_, loop_sref, factors, preserve_unit_iters, disable_predication);
   TVM_TIR_SCHEDULE_END("split", this->error_render_level_);
@@ -521,7 +532,7 @@ ffi::Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
 ffi::Array<LoopRV> ConcreteScheduleNode::LoopPartition(
     const LoopRV& loop_rv, const ffi::Array<ffi::Optional<ExprRV>>& factor_rvs,
     bool preserve_unit_iters) {
-  class SymbolicShapeError : public ScheduleError {
+  class SymbolicShapeError : public ScheduleErrorContextObj {
    public:
     explicit SymbolicShapeError(IRModule mod, For loop) : mod_(mod), loop_(std::move(loop)) {}
 
@@ -551,20 +562,21 @@ ffi::Array<LoopRV> ConcreteScheduleNode::LoopPartition(
   ffi::Array<StmtSRef> results;
   TVM_TIR_SCHEDULE_BEGIN();
   if (!is_const_number(loop->min) || !is_const_number(loop->extent)) {
-    throw SymbolicShapeError(state_->mod, ffi::GetRef<For>(loop));
+    throw MakeScheduleError<SymbolicShapeError>(state_->mod, ffi::GetRef<For>(loop));
   }
   // infer factor if needed and check validity of factors
   for (size_t i = 0; i < factor_rvs.size(); i++) {
     if (!factor_rvs[i].has_value()) {
       factors.push_back(IntImm::Int32(-1));
       if (infer_index != -1) {
-        throw NotSingleInferFactorError(state_->mod);
+        throw MakeScheduleError<NotSingleInferFactorError>(state_->mod);
       }
       infer_index = i;
     } else {
       PrimExpr factor = this->Get(factor_rvs[i].value());
       if (is_const_int(factor) && !is_positive_const(factor)) {
-        throw NonPositiveFactorError(state_->mod, factor.as<IntImmNode>()->value, i);
+        throw MakeScheduleError<NonPositiveFactorError>(state_->mod, factor.as<IntImmNode>()->value,
+                                                        i);
       }
       if (factor.ty().bits() > loop->extent.ty().bits()) {
         factor = cast(loop->extent.ty(), factor);
@@ -574,7 +586,7 @@ ffi::Array<LoopRV> ConcreteScheduleNode::LoopPartition(
     }
   }
   if (this->analyzer_->CanProve(tot_length >= loop->extent)) {
-    throw WrongFactorError(state_->mod, ffi::GetRef<For>(loop), false);
+    throw MakeScheduleError<WrongFactorError>(state_->mod, ffi::GetRef<For>(loop), false);
   }
   if (infer_index != -1) {
     // if there is a 'None' in the factor list, 'None' becomes the difference between the extent and

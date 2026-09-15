@@ -47,7 +47,7 @@ T DeepCopy(const T& stmt) {
  * \brief ScheduleError that the bindings of the inner block are not divisible by the subspace
  * represented by the outer loops.
  */
-class SubspaceNotDivisibleError : public ScheduleError {
+class SubspaceNotDivisibleError : public ScheduleErrorContextObj {
  public:
   explicit SubspaceNotDivisibleError(IRModule mod, For scope_loop, SBlock inner_block)
       : mod_(std::move(mod)),
@@ -523,7 +523,8 @@ SBlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
   ffi::Array<ffi::Array<arith::IterMark>> division =
       SubspaceDivide(block_realize, block_sref, loop_sref, &loops, analyzer, preserve_unit_iters);
   if (division.empty()) {
-    throw SubspaceNotDivisibleError(self->mod, ffi::GetRef<For>(loops.back()), block);
+    throw MakeScheduleError<SubspaceNotDivisibleError>(self->mod, ffi::GetRef<For>(loops.back()),
+                                                       block);
   }
   PrimExpr outer_predicate = division.back()[0]->extent;
   PrimExpr inner_predicate = division.back()[1]->extent;
@@ -614,7 +615,8 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
     ffi::Array<ffi::Array<arith::IterMark>> division = SubspaceDivide(
         block_realize, block_sref, lca, &loops, analyzer.get(), preserve_unit_iters, true);
     if (division.empty()) {
-      throw SubspaceNotDivisibleError(self->mod, ffi::GetRef<For>(loops.back()), block);
+      throw MakeScheduleError<SubspaceNotDivisibleError>(self->mod, ffi::GetRef<For>(loops.back()),
+                                                         block);
     }
     outer_predicate = division.back()[0]->extent;
     PrimExpr inner_predicate = division.back()[1]->extent;

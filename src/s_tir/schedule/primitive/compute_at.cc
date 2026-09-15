@@ -35,7 +35,7 @@ using support::NDIntSet;
  * \tparam is_consumer Indicates if all the required blocks are consumers or producers
  */
 template <bool is_consumer>
-class NotAllRequiredBlocksAreVisitedError : public ScheduleError {
+class NotAllRequiredBlocksAreVisitedError : public ScheduleErrorContextObj {
  public:
   explicit NotAllRequiredBlocksAreVisitedError(IRModule mod, int num_not_visited,
                                                const ffi::Array<StmtSRef>& required)
@@ -80,7 +80,7 @@ class NotAllRequiredBlocksAreVisitedError : public ScheduleError {
  * \brief An error raised when the given block is not in the same block scope as the given loop,
  * or the given loop is the ancestor of the given block.
  */
-class NotInSameScopeError : public ScheduleError {
+class NotInSameScopeError : public ScheduleErrorContextObj {
  public:
   static void CheckAndBindLoopDomain(const ScheduleState& self, const StmtSRef& block_sref,
                                      const StmtSRef& loop_sref, const StmtSRef& scope_root_sref,
@@ -89,14 +89,14 @@ class NotInSameScopeError : public ScheduleError {
       if (const ForNode* loop = p->StmtAs<ForNode>()) {
         analyzer->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
       } else if (p != scope_root_sref.get()) {
-        throw NotInSameScopeError(self->mod, block_sref, loop_sref);
+        throw MakeScheduleError<NotInSameScopeError>(self->mod, block_sref, loop_sref);
       } else {
         break;
       }
     }
     for (const StmtSRefNode* p = block_sref->parent; p != scope_root_sref.get(); p = p->parent) {
       if (p == loop_sref.get()) {
-        throw NotInSameScopeError(self->mod, block_sref, loop_sref);
+        throw MakeScheduleError<NotInSameScopeError>(self->mod, block_sref, loop_sref);
       }
     }
   }
@@ -112,12 +112,12 @@ class NotInSameScopeError : public ScheduleError {
   IRModule mod() const final { return mod_; }
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_, loop_}; }
 
- private:
   explicit NotInSameScopeError(IRModule mod, const StmtSRef& block_sref, const StmtSRef& loop_sref)
       : mod_(mod),
         block_(ffi::GetRef<SBlock>(block_sref->StmtAs<SBlockNode>())),
         loop_(ffi::GetRef<For>(loop_sref->StmtAs<ForNode>())) {}
 
+ private:
   IRModule mod_;
   SBlock block_;
   For loop_;
@@ -153,7 +153,7 @@ int FindInsertionPoint(
   if (require_all_producers_visited) {
     int num_producers = producer_srefs.size();
     if (split.n_producers_visited < num_producers) {
-      throw NotAllRequiredBlocksAreVisitedError<false>(
+      throw MakeScheduleError<NotAllRequiredBlocksAreVisitedError<false>>(
           self->mod, num_producers - split.n_producers_visited, producer_srefs);
     }
   }
@@ -161,7 +161,7 @@ int FindInsertionPoint(
   if (require_all_consumers_visited) {
     int num_consumers = consumer_srefs.size();
     if (split.n_consumers_visited < num_consumers) {
-      throw NotAllRequiredBlocksAreVisitedError<true>(
+      throw MakeScheduleError<NotAllRequiredBlocksAreVisitedError<true>>(
           self->mod, num_consumers - split.n_consumers_visited, consumer_srefs);
     }
   }
