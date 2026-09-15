@@ -26,7 +26,6 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/op.h>
 
 #include <unordered_map>
 #include <utility>
@@ -38,9 +37,6 @@ namespace tvm {
 namespace arith {
 
 using tirx::IterVar;
-using tirx::PrimVar;
-using tirx::Var;
-using tirx::VarNode;
 
 // According to experiments two best simplifications orders were can->rw and rw->can->rw,
 // but rw->can->rw is better for a couple of cases.

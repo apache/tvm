@@ -462,7 +462,7 @@ PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
 
   auto sort_key = [](PrimExpr expr) -> ffi::String {
     if (const auto* equal = expr.as<prim::EQNode>()) {
-      if (auto var = equal->a.as<tirx::PrimVar>()) {
+      if (auto var = equal->a.as<PrimVar>()) {
         return var.value()->name;
       }
     }

@@ -63,7 +63,7 @@ inline tvm::te::Tensor broadcast_to(const tvm::te::Tensor& t,
       oshape.push_back(bh.common_shape[i]);
     }
   }
-  auto l = [&](tvm::ffi::Array<tvm::tirx::PrimVar> ovars) {
+  auto l = [&](tvm::ffi::Array<tvm::PrimVar> ovars) {
     return t(detail::InputIndexFromBroadcast(ovars, t, bh.vars2, bh.all_vars));
   };
   return tvm::te::compute(oshape, l, name, tag);
@@ -80,15 +80,15 @@ inline tvm::te::Tensor broadcast_to(const tvm::te::Tensor& t,
                               std::string name = "T_" #Name, std::string tag = kElementWise) {  \
     auto l = [](tvm::PrimExpr a, tvm::PrimExpr b) { ComputeRule; };                             \
     return tvm::te::compute(                                                                    \
-        A->shape, [&](const ::tvm::ffi::Array<::tvm::tirx::PrimVar>& i) { return l(A(i), B); }, \
-        name, tag);                                                                             \
+        A->shape, [&](const ::tvm::ffi::Array<::tvm::PrimVar>& i) { return l(A(i), B); }, name, \
+        tag);                                                                                   \
   }                                                                                             \
   inline tvm::te::Tensor Name(const tvm::PrimExpr& A, const tvm::te::Tensor& B,                 \
                               std::string name = "T_" #Name, std::string tag = kElementWise) {  \
     auto l = [&](tvm::PrimExpr a, tvm::PrimExpr b) { ComputeRule; };                            \
     return tvm::te::compute(                                                                    \
-        B->shape, [&](const ::tvm::ffi::Array<::tvm::tirx::PrimVar>& i) { return l(A, B(i)); }, \
-        name, tag);                                                                             \
+        B->shape, [&](const ::tvm::ffi::Array<::tvm::PrimVar>& i) { return l(A, B(i)); }, name, \
+        tag);                                                                                   \
   }
 
 #define TOPI_DEFINE_OP_OVERLOAD(Name, OpName)                                       \

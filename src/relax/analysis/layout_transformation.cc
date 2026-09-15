@@ -41,7 +41,7 @@ using namespace tirx;
 
 /*! \brief Checks if a transformation is bijective affine over the given ranges */
 static bool IsBijectiveAffine(const IndexMap& m, const ffi::Array<Range>& ranges) {
-  ffi::Map<tirx::PrimVar, Range> input_iters;
+  ffi::Map<PrimVar, Range> input_iters;
   TVM_FFI_ICHECK_EQ(m->initial_indices.size(), ranges.size());
   for (size_t i = 0; i < ranges.size(); i++) {
     input_iters.Set(m->initial_indices[i], ranges[i]);
@@ -85,7 +85,7 @@ class IndexAnalyzer : public ExprVisitor {
   }
 
   void VisitIterMark(const arith::IterMark& op) {
-    if (auto var = op->source.as<tirx::PrimVar>())
+    if (auto var = op->source.as<PrimVar>())
       iterators_.push_back(var.value());
     else
       VisitExpr(op->source);
@@ -298,7 +298,7 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
       continue;
     }
 
-    tirx::PrimVar new_dim("d");
+    PrimVar new_dim("d");
     PrimExpr new_dim_expr = new_dim;
     initial_indices_it = initial_indices.insert(initial_indices_it, new_dim);
     final_indices_it = final_indices.insert(final_indices_it, new_dim_expr);
@@ -309,7 +309,7 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
 
   ffi::Array<tirx::Var> initial_array(initial_indices.begin(), initial_indices.end());
   ffi::Array<PrimExpr> final_array(final_indices.begin(), final_indices.end());
-  return IndexMap(initial_array.Map([](tirx::Var var) { return var.as_or_throw<tirx::PrimVar>(); }),
+  return IndexMap(initial_array.Map([](tirx::Var var) { return var.as_or_throw<PrimVar>(); }),
                   final_array);
 }
 
@@ -534,7 +534,7 @@ class BlockAnalyzer : public StmtExprVisitor {
  private:
   bool can_transform_block_;
   IndexMap write_transformation_;
-  ffi::Map<tirx::PrimVar, Range> spatial_dom_;
+  ffi::Map<PrimVar, Range> spatial_dom_;
   arith::Analyzer arith_analyzer_;
 
   SBlock block_;

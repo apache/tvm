@@ -63,7 +63,7 @@ class TransitiveComparisonAnalyzer::Impl {
    * \param expr The bound expression
    * \param allow_override Whether to allow override of existing information.
    */
-  void Bind(const tirx::Var& var, const PrimExpr& expr, bool allow_override = false);
+  void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
 
   /*! \brief Bind a variable as being within a specified range
    *
@@ -71,7 +71,7 @@ class TransitiveComparisonAnalyzer::Impl {
    * \param range The known range
    * \param allow_override Whether to allow override of existing information.
    */
-  void Bind(const tirx::Var& var, const Range& expr, bool allow_override = false);
+  void Bind(const Var& var, const Range& expr, bool allow_override = false);
 
   /*!
    * \brief Update the internal state to enter constraint.
@@ -566,7 +566,7 @@ void TransitiveComparisonAnalyzer::Impl::AddKnown(const PrimExpr& expr,
   }
 }
 
-void TransitiveComparisonAnalyzer::Impl::Bind(const tirx::Var& var, const Range& range,
+void TransitiveComparisonAnalyzer::Impl::Bind(const Var& var, const Range& range,
                                               bool allow_override) {
   auto it = prev_bindings_.find(var);
   if (it != prev_bindings_.end()) {
@@ -595,7 +595,7 @@ void TransitiveComparisonAnalyzer::Impl::Bind(const tirx::Var& var, const Range&
   }
 }
 
-void TransitiveComparisonAnalyzer::Impl::Bind(const tirx::Var& var, const PrimExpr& expr,
+void TransitiveComparisonAnalyzer::Impl::Bind(const Var& var, const PrimExpr& expr,
                                               bool allow_override) {
   Bind(var, Range::FromMinExtent(expr, 1), allow_override);
 }

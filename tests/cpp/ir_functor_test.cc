@@ -51,7 +51,7 @@ TEST(IRF, Basic) {
 
 TEST(IRF, ObjectFunctorDispatch) {
   using namespace tvm;
-  tirx::PrimVar x("x");
+  PrimVar x("x");
   ObjectFunctor<int(const ffi::ObjectRef&)> f;
 
   EXPECT_FALSE(f.CanDispatch(x));
@@ -79,7 +79,7 @@ TEST(IRF, ObjectFunctorDispatch) {
 
 TEST(IRF, ObjectFunctorFinalize) {
   using namespace tvm;
-  tirx::PrimVar x("x");
+  PrimVar x("x");
   PrimExpr z = x + 1;
   ObjectFunctor<int(const ffi::ObjectRef&, int)> f;
   f.SetDispatch<ExprNode>([](const ffi::ObjectRef&, int b) {

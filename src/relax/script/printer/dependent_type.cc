@@ -47,7 +47,7 @@ ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifie
   bool func_var_mode = false;
   if (f != nullptr) {
     auto walk_fn = [f, &func_var_mode](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
-      if (auto prim_var = var.as<tirx::PrimVar>()) {
+      if (auto prim_var = var.as<PrimVar>()) {
         if (f->func_vars->count(prim_var.value().get())) {
           func_var_mode = true;
         }
@@ -59,7 +59,7 @@ ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifie
   // Step 3. Stringify the PrimExpr if func var exists
   bool is_bare_type_var = false;
   if (f != nullptr && f->type_vars != nullptr) {
-    if (auto var = e.as<tirx::PrimVar>()) {
+    if (auto var = e.as<PrimVar>()) {
       is_bare_type_var = f->type_vars->count(var.value().get());
     }
   }

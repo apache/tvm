@@ -563,7 +563,7 @@ class FusedTIRConstructor : public ExprVisitor {
   void VisitExpr_(const FunctionNode* func) final {
     auto relax_to_tir_var_map =
         RelaxToTIRVarMapCollector::Collect(mod_, ffi::GetRef<Function>(func));
-    std::vector<ffi::Variant<tirx::PrimVar, tirx::BufferVar>> prim_func_params;
+    std::vector<ffi::Variant<PrimVar, tirx::BufferVar>> prim_func_params;
     for (const Var& relax_param : func->params) {
       size_t size_before = prim_func_params.size();
       CollectPrimFuncParams(relax_param, &prim_func_params, relax_to_tir_var_map.Get(relax_param));
@@ -596,7 +596,7 @@ class FusedTIRConstructor : public ExprVisitor {
         tirx::Var param = tirx::Var("p_" + buffer.name(), PointerType::VoidPointerTy());
         func_info_.params.push_back(param);
         func_info_.buffer_map.Set(param, buffer);
-      } else if (auto var = param.as<tirx::PrimVar>()) {
+      } else if (auto var = param.as<PrimVar>()) {
         func_info_.params.push_back(var.value());
       }
     }
@@ -927,7 +927,7 @@ class FusedTIRConstructor : public ExprVisitor {
    * \param out The vector into which to collect the params/buffers
    */
   static void CollectPrimFuncParams(const Var& relax_param,
-                                    std::vector<ffi::Variant<tirx::PrimVar, tirx::BufferVar>>* out,
+                                    std::vector<ffi::Variant<PrimVar, tirx::BufferVar>>* out,
                                     const ffi::Optional<tirx::BufferVar>& tir_buffer_param) {
     auto ty = GetType(relax_param);
 
@@ -953,12 +953,12 @@ class FusedTIRConstructor : public ExprVisitor {
 
     } else if (ty.as<PrimTypeNode>()) {
       // Case 2. The relax param is a scalar, so its canonical Var is a TIR parameter.
-      out->push_back(relax_param.as_or_throw<tirx::PrimVar>());
+      out->push_back(relax_param.as_or_throw<PrimVar>());
 
     } else if (const auto* shape_expr = ty.as<ShapeTypeNode>()) {
       // Case 3. The relax param is a tuple of scalars, each represented as a tirx var
       for (const auto& var : shape_expr->values.value()) {
-        auto prim_var = var.as<tirx::PrimVar>();
+        auto prim_var = var.as<PrimVar>();
         TVM_FFI_ICHECK(prim_var.has_value());
         out->push_back(prim_var.value());
       }
@@ -1228,7 +1228,7 @@ class TIRFuseMutator : public ExprMutator {
         TVM_FFI_ICHECK(shape->values.has_value())
             << "FuseTIR requires all shape input has ty value.";
         for (const PrimExpr& prim_value : shape->values.value()) {
-          TVM_FFI_ICHECK(prim_value.as<tirx::PrimVar>())
+          TVM_FFI_ICHECK(prim_value.as<PrimVar>())
               << "All shape inputs are expected to be single tirx var.";
           arg_list.push_back(prim_value);
         }
