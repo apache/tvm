@@ -45,7 +45,7 @@ Doc PrintCanonicalVar(Var n, AccessPath n_p, IRDocsifier d) {
   if (!n->ty.as<PrimTypeNode>()) {
     return PrintRelaxVar(n, n_p, d);
   }
-  tirx::PrimVar prim_var = n.as_or_throw<tirx::PrimVar>();
+  PrimVar prim_var = n.as_or_throw<PrimVar>();
   if (!d->IsVarDefined(n)) {
     PrimType n_ty = n->ty.as_or_throw<PrimType>();
     TVM_FFI_CHECK(!n_ty.IsScalableVector() && !n_ty.IsFixedLengthVector(), TypeError)

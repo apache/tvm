@@ -904,7 +904,7 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_tir_v
       auto it = info->tensor2buffers.find(tensor);
       TVM_FFI_ICHECK(it != info->tensor2buffers.end());
       parameters.push_back(it->second.var());
-    } else if (auto var = arg.as<tirx::PrimVar>()) {
+    } else if (auto var = arg.as<PrimVar>()) {
       parameters.push_back(var.value());
     }
   }

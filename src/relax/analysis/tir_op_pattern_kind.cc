@@ -231,7 +231,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
   static bool IsInjectivePattern(const BufferStore& store, const TensorLoad& load) {
     std::unordered_set<const tirx::VarNode*> vars;
     for (const PrimExpr& store_index : store->indices) {
-      if (auto var = store_index.as<tirx::PrimVar>()) {
+      if (auto var = store_index.as<PrimVar>()) {
         vars.insert(var.value().get());
       } else {
         return false;
@@ -259,14 +259,14 @@ class PatternKindAnalyzer : public StmtExprVisitor {
   static bool IsAllowReusePattern(const BufferStore& store, const TensorLoad& load) {
     std::unordered_set<const tirx::VarNode*> vars;
     for (const PrimExpr& index : store->indices) {
-      if (auto var = index.as<tirx::PrimVar>()) {
+      if (auto var = index.as<PrimVar>()) {
         vars.insert(var.value().get());
       } else {
         return false;
       }
     }
     auto walk_fn = [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
-      if (auto prim_var = var.as<tirx::PrimVar>()) {
+      if (auto prim_var = var.as<PrimVar>()) {
         vars.erase(prim_var.value().get());
       }
       return ffi::WalkResult::Advance();
@@ -417,7 +417,7 @@ bool HasReshapePattern(const PrimFunc& func) {
         return;
       }
 
-      ffi::Map<tirx::PrimVar, Range> var_range;
+      ffi::Map<PrimVar, Range> var_range;
       for (const IterVar& v : block->iter_vars) {
         ana_->Bind(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
         var_range.Set(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
@@ -497,7 +497,7 @@ bool HasReshapePattern(const PrimFunc& func) {
       if (nontrivial_indices.defined() && !has_zero_extent) {
         PrimType dtype =
             !block->iter_vars.empty() ? block->iter_vars[0]->var.ty() : PrimType::Int(64);
-        tirx::PrimVar fused_var("fused", dtype);
+        PrimVar fused_var("fused", dtype);
         ffi::Map<tirx::Var, PrimExpr> inverse_indices_map;
         PrimExpr stride = IntImm(dtype, /*value=*/1);
         for (int i = static_cast<int>(block->iter_vars.size()) - 1; i >= 0; --i) {
@@ -519,7 +519,7 @@ bool HasReshapePattern(const PrimFunc& func) {
         ffi::Array<PrimExpr> simplify_res = arith::IterMapSimplify(
             /*indices=*/{flattened_idx},
             /*input_iters=*/
-            ffi::Map<tirx::PrimVar, Range>{{fused_var, Range(IntImm(dtype, /*value=*/0), stride)}},
+            ffi::Map<PrimVar, Range>{{fused_var, Range(IntImm(dtype, /*value=*/0), stride)}},
             /*input_pred=*/IntImm::Bool(true),
             /*check_level=*/arith::IterMapLevel::Surjective,
             /*analyzer=*/this->ana_,

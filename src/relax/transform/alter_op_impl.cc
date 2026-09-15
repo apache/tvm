@@ -208,7 +208,7 @@ class AlterOpImplMutator : public ExprMutator {
     // Output tensor of remove_pad op
     te::Tensor output_tensor = te::compute(
         dyn_old_shape,
-        [&placeholder_tensor](const ffi::Array<tirx::PrimVar>& indices) {
+        [&placeholder_tensor](const ffi::Array<PrimVar>& indices) {
           return placeholder_tensor(indices);
         },
         "output", topi::kElementWise);

@@ -47,7 +47,6 @@ using tirx::CallEffectKind;
 using tirx::is_const_int;
 using tirx::IterVar;
 using tirx::MakeConst;
-using tirx::PrimVar;
 using tirx::TCallEffectKind;
 using tirx::TGlobalSymbol;
 using tirx::TIRxOpCategory;

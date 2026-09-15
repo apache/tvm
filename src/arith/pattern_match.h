@@ -44,7 +44,7 @@
  *    return (max(x, y) + z).Eval();
  *  }
  *
- *  tvm::tirx::Var tx, ty;
+ *  tvm::Var tx, ty;
  *  arith::PVar<IntImm> c;
  *  arith::PVar<Var> v;
  *  // We can match integer and Var, both of which are
@@ -179,9 +179,9 @@ class PEqualChecker<FloatImm> {
 };
 
 template <>
-class PEqualChecker<tirx::Var> {
+class PEqualChecker<Var> {
  public:
-  bool operator()(const tirx::Var& lhs, const tirx::Var& rhs) const { return lhs.same_as(rhs); }
+  bool operator()(const Var& lhs, const Var& rhs) const { return lhs.same_as(rhs); }
 };
 
 /*!

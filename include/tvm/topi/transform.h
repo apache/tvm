@@ -738,7 +738,7 @@ inline te::Tensor dynamic_strided_slice_with_axes(
 
   return te::compute(
       out_shape,
-      [&](const ffi::Array<tvm::tirx::PrimVar>& indices) {
+      [&](const ffi::Array<tvm::PrimVar>& indices) {
         ffi::Array<PrimExpr> real_indices =
             indices.Map([](const auto& var) -> PrimExpr { return var; });
 
@@ -793,7 +793,7 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const ffi::Array<PrimExpr>&
       out_shape.push_back(
           analyzer->Simplify(GetLength(begin[i], end[i], strides[i], x->shape[i], assume_inbound)));
     } else {
-      out_shape.push_back(tvm::tirx::PrimVar("dim"));
+      out_shape.push_back(tvm::PrimVar("dim"));
     }
   }
 
@@ -803,7 +803,7 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const ffi::Array<PrimExpr>&
 
   return te::compute(
       out_shape,
-      [&](const ffi::Array<tvm::tirx::PrimVar>& indices) {
+      [&](const ffi::Array<tvm::PrimVar>& indices) {
         ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < num_slice_axes; ++i) {
           PrimExpr begin_index = tvm::min(begin[i], x->shape[i] - 1);
@@ -938,7 +938,7 @@ inline Tensor strided_slice_with_axes(
 
   return te::compute(
       out_shape,
-      [&](const ffi::Array<tirx::PrimVar>& indices) {
+      [&](const ffi::Array<PrimVar>& indices) {
         ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < out_shape.size(); ++i) real_indices.push_back(indices[i]);
         for (size_t i = 0; i < normalized_axes.size(); ++i) {
@@ -1354,7 +1354,7 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
   auto x_bh = detail::BroadcastShape(x->shape, oshape);
   auto y_bh = detail::BroadcastShape(y->shape, oshape);
 
-  auto select = [&](tvm::ffi::Array<tvm::tirx::PrimVar> ovars) {
+  auto select = [&](tvm::ffi::Array<tvm::PrimVar> ovars) {
     auto c = condition(InputIndexFromBroadcast(ovars, condition, c_bh.vars1, c_bh.all_vars));
     auto true_val = x(InputIndexFromBroadcast(ovars, x, x_bh.vars1, x_bh.all_vars));
     auto false_val = y(InputIndexFromBroadcast(ovars, y, y_bh.vars1, y_bh.all_vars));
@@ -1643,7 +1643,7 @@ inline tvm::te::Tensor matmul(const tvm::te::Tensor& A, const tvm::te::Tensor& B
                               std::string name = "T_matmul", std::string tag = kMatMul) {
   tvm::ffi::Array<tvm::PrimExpr> output_shape{A->shape[trans_a ? 1 : 0], B->shape[trans_b ? 0 : 1]};
   auto k = tvm::te::reduce_axis(tvm::Range{0, A->shape[trans_a ? 0 : 1]}, "k");
-  auto l = [&](tvm::tirx::PrimVar i, tvm::tirx::PrimVar j) {
+  auto l = [&](tvm::PrimVar i, tvm::PrimVar j) {
     return tvm::sum((trans_a ? A[k][i] : A[i][k]) * (trans_b ? B[j][k] : B[k][j]), {k});
   };
   return tvm::te::compute(output_shape, l, name, tag);
@@ -2320,7 +2320,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
 
   return te::compute(
       output_shape,
-      [&](const ffi::Array<tvm::tirx::PrimVar>& indices) {
+      [&](const ffi::Array<tvm::PrimVar>& indices) {
         ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < num_dynamic_axes; ++i) {
           auto ind = IntImm::Int64(i);

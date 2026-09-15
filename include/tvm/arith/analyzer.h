@@ -57,8 +57,6 @@ class AnalyzerObj;
 class Analyzer;
 class ConstraintContext;
 
-using tirx::Var;
-
 enum DivMode {
   /*! \brief Truncated division. */
   kTruncDiv,

@@ -136,7 +136,7 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
   void VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     if (collect_scalar_ && !var.as<DataflowVarNode>()) {
-      if (auto prim_var = var.as<tirx::PrimVar>();
+      if (auto prim_var = var.as<PrimVar>();
           prim_var && prim_var.value().ty()->dtype == DLDataType{kDLInt, 64, 1}) {
         HandlePrimExpr(prim_var.value());
       }
@@ -301,7 +301,7 @@ class VMShapeLowerMutator
   Expr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     if (!var.as<DataflowVarNode>()) {
-      if (auto prim_var = var.as<tirx::PrimVar>(); prim_var && slot_map_.count(*prim_var)) {
+      if (auto prim_var = var.as<PrimVar>(); prim_var && slot_map_.count(*prim_var)) {
         return RewritePrimValue(*prim_var);
       }
     }
@@ -419,7 +419,7 @@ class VMShapeLowerMutator
 
   PrimExprSlot* GetPrimValueSlot(const Var& var) const {
     if (var.as<DataflowVarNode>()) return nullptr;
-    auto prim_var = var.as<tirx::PrimVar>();
+    auto prim_var = var.as<PrimVar>();
     if (!prim_var) return nullptr;
     auto it = slot_map_.find(PrimExpr(*prim_var));
     return it == slot_map_.end() ? nullptr : it->second;

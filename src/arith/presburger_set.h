@@ -61,10 +61,10 @@ using namespace presburger;
 class PresburgerSetNode : public IntSetNode {
  public:
   PresburgerSetNode() : space(PresburgerSpace::getRelationSpace()) {}
-  explicit PresburgerSetNode(const PresburgerSpace& space, const ffi::Array<tirx::PrimVar>& vars)
+  explicit PresburgerSetNode(const PresburgerSpace& space, const ffi::Array<PrimVar>& vars)
       : disjuncts({}), space(space), vars(vars) {}
   explicit PresburgerSetNode(const std::vector<IntegerRelation>& disjuncts,
-                             const PresburgerSpace& space, const ffi::Array<tirx::PrimVar>& vars)
+                             const PresburgerSpace& space, const ffi::Array<PrimVar>& vars)
       : disjuncts(disjuncts), space(space), vars(vars) {}
 
   /*! \brief Represent the union of multiple IntegerRelation */
@@ -92,7 +92,7 @@ class PresburgerSetNode : public IntSetNode {
    * \param constraint The added constraint to the PresburgerSet.
    * \param vars The specified domain vars in constraint expression.
    */
-  void UpdateConstraint(const PrimExpr& constraint, const ffi::Array<tirx::PrimVar>& vars);
+  void UpdateConstraint(const PrimExpr& constraint, const ffi::Array<PrimVar>& vars);
 
   /*!
    * \brief Generate expression that represents the constraint
@@ -104,13 +104,13 @@ class PresburgerSetNode : public IntSetNode {
    * \brief Set domain vars
    * \param new_vars Vars that will be taken as the domain vars
    */
-  void SetVars(const ffi::Array<tirx::PrimVar>& new_vars) { vars = new_vars; }
+  void SetVars(const ffi::Array<PrimVar>& new_vars) { vars = new_vars; }
 
   /*!
    * \brief Get the current domain vars
    * \return The current doamin vars
    */
-  ffi::Array<tirx::PrimVar> GetVars() const { return vars; }
+  ffi::Array<PrimVar> GetVars() const { return vars; }
 
   /*! \return whether integer set is empty */
   bool IsEmpty() const {
@@ -120,7 +120,7 @@ class PresburgerSetNode : public IntSetNode {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.PresburgerSet", PresburgerSetNode, IntSetNode);
 
  private:
-  ffi::Array<tirx::PrimVar> vars;
+  ffi::Array<PrimVar> vars;
 };
 
 /*!
@@ -136,7 +136,7 @@ class PresburgerSet : public IntSet {
    * \return The created PresburgerSet.
    */
   TVM_DLL PresburgerSet(const std::vector<IntegerRelation>& disjuncts,
-                        const ffi::Array<tirx::PrimVar>& vars);
+                        const ffi::Array<PrimVar>& vars);
 
   /*!
    * \brief Make a new instance of PresburgerSet, collect all vars as space vars.

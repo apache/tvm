@@ -107,7 +107,7 @@ void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
   //
   // We may consider enhance the sub analyzer to directly take
   // MarkPositiveVar so their bounds do not overlap
-  if (auto prim_var = symbol.as<tirx::PrimVar>()) {
+  if (auto prim_var = symbol.as<PrimVar>()) {
     Var var = *prim_var;
     // skip non-index type, keep it to be compatible
     // with any_dim that do not represent any value

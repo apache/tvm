@@ -393,7 +393,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
       // The j-th variable can take any integer value, create a tvm variable for it
       PrimExpr to_old = analyzer_problem->Simplify(V_inv_x[j]);
       std::string name_hint = "n" + std::to_string(new_vars.size());
-      if (auto old_var = to_old.as<tirx::PrimVar>()) {
+      if (auto old_var = to_old.as<PrimVar>()) {
         name_hint += "_" + (*old_var)->name;
       }
       PrimVar v(name_hint, V_inv_x[j].ty());

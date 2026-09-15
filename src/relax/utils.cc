@@ -122,7 +122,7 @@ tvm::ffi::Map<Var, Expr> InferSymbolicVarMap(
   tvm::ffi::Map<Var, Expr> var_remap = relax_var_remap;
 
   for (const auto& [var, value] : relax_var_remap) {
-    if (!var.as<tirx::PrimVar>()) continue;
+    if (!var.as<PrimVar>()) continue;
     TVM_FFI_CHECK(value.as<PrimExpr>().has_value(), ValueError)
         << "Explicit binding for symbolic variable " << var
         << " must be a primitive expression, but received " << value;
@@ -130,7 +130,7 @@ tvm::ffi::Map<Var, Expr> InferSymbolicVarMap(
 
   auto bind_from_prim_expr = [&relax_var_remap, &var_remap, &analyzer](const PrimExpr& var_shape,
                                                                        const PrimExpr& expr_shape) {
-    if (auto var = var_shape.as<tirx::PrimVar>()) {
+    if (auto var = var_shape.as<PrimVar>()) {
       if (auto it = relax_var_remap.find(var.value()); it != relax_var_remap.end()) {
         auto explicit_value = (*it).second.as<PrimExpr>();
         TVM_FFI_CHECK(explicit_value.has_value(), ValueError)
