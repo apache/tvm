@@ -2184,8 +2184,7 @@ class IterMapToExprNormalizer : public tvm::ExprMutator {
     if (!expr->args.unique()) args_mode = InplaceMode::kDisallow;
     // Borrow stored elements: an owning typed iterator would suppress in-place mutation.
     for (const ffi::Any& arg : *expr->args.GetArrayObj()) {
-      res += ffi::details::AnyUnsafe::MoveFromAnyAfterCheck<PrimExpr>(
-          Mutate(arg, args_mode).ValueOrUnchanged(arg));
+      res += Mutate(arg, args_mode).ValueOrUnchanged(arg).as_or_throw<PrimExpr>();
     }
     res += expr->base;
     return res;

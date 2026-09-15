@@ -84,6 +84,12 @@ namespace tvm {
 template <typename FType>
 class ObjectFunctor;
 
+/*!
+ * \brief Dispatch table specialized for an object argument and additional arguments.
+ * \tparam R The dispatch result type.
+ * \tparam NodeArg The borrowed object argument type.
+ * \tparam Args The additional dispatch argument types.
+ */
 template <typename R, typename NodeArg, typename... Args>
 class ObjectFunctor<R(NodeArg, Args...)> {
   static_assert(std::is_same_v<NodeArg, const ffi::ObjectRef&> ||
@@ -231,7 +237,16 @@ class TVM_DLL ObjectVisitor : public ffi::StructuralVisitorObj {
   ObjectVisitor() : ObjectVisitor(GlobalVTable()) {}
   /*! \brief Release the managed visitor state. */
   ~ObjectVisitor() = default;
+  /*!
+   * \brief Disallow copying visitor traversal state.
+   * \param other The visitor that cannot be copied.
+   */
   ObjectVisitor(const ObjectVisitor& other) = delete;
+  /*!
+   * \brief Disallow assigning visitor traversal state.
+   * \param other The visitor that cannot be assigned.
+   * \return A reference to this visitor; this operation is deleted.
+   */
   ObjectVisitor& operator=(const ObjectVisitor& other) = delete;
 
   /*!
@@ -351,7 +366,16 @@ class TVM_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
   ObjectMutator() : ObjectMutator(GlobalVTable()) {}
   /*! \brief Release the managed mutator state. */
   ~ObjectMutator() = default;
+  /*!
+   * \brief Disallow copying mutator traversal state.
+   * \param other The mutator that cannot be copied.
+   */
   ObjectMutator(const ObjectMutator& other) = delete;
+  /*!
+   * \brief Disallow assigning mutator traversal state.
+   * \param other The mutator that cannot be assigned.
+   * \return A reference to this mutator; this operation is deleted.
+   */
   ObjectMutator& operator=(const ObjectMutator& other) = delete;
 
   /*!
@@ -417,9 +441,17 @@ class TVM_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
     }
   }
 
-  /*! \brief Look up a variable replacement, throwing on failure. */
+  /*!
+   * \brief Look up a variable replacement, throwing on failure.
+   * \param var The borrowed variable identity to look up.
+   * \return The owning replacement, or None if there is no mapping.
+   */
   ffi::Any VarRemapGet(ffi::AnyView var) { return VarRemapGetExpected(var).value(); }
-  /*! \brief Record a variable replacement, throwing on failure. */
+  /*!
+   * \brief Record a variable replacement, throwing on failure.
+   * \param var The borrowed variable identity to bind.
+   * \param value The borrowed replacement value.
+   */
   void VarRemapSet(ffi::AnyView var, ffi::AnyView value) {
     VarRemapSetExpected(var, value).value();
   }

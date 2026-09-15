@@ -82,23 +82,23 @@ UnchangedOr<Expr> SimplifierBase::Mutate_(const CallNode* op, InplaceMode inplac
     const auto* args = op->args.GetArrayObj();
     PrimExpr cond =
         Mutate((*args)[0], inplace_mode_args).ValueOrUnchanged((*args)[0]).as_or_throw<PrimExpr>();
-    Expr true_value = ffi::details::AnyUnsafe::MoveFromAnyAfterCheck<Expr>(
-        constraint_scope_
-            .WithNewScope([&]() {
-              EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, cond);
-              return Mutate((*args)[1], inplace_mode_args);
-            })
-            .ValueOrUnchanged((*args)[1]));
+    Expr true_value = constraint_scope_
+                          .WithNewScope([&]() {
+                            EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, cond);
+                            return Mutate((*args)[1], inplace_mode_args);
+                          })
+                          .ValueOrUnchanged((*args)[1])
+                          .as_or_throw<Expr>();
     Expr false_value;
     {
       PrimExpr not_cond = prim::Not(cond);
-      false_value = ffi::details::AnyUnsafe::MoveFromAnyAfterCheck<Expr>(
-          constraint_scope_
-              .WithNewScope([&]() {
-                constraint_scope_.Current().Emplace(analyzer_, not_cond);
-                return Mutate((*args)[2], inplace_mode_args);
-              })
-              .ValueOrUnchanged((*args)[2]));
+      false_value = constraint_scope_
+                        .WithNewScope([&]() {
+                          constraint_scope_.Current().Emplace(analyzer_, not_cond);
+                          return Mutate((*args)[2], inplace_mode_args);
+                        })
+                        .ValueOrUnchanged((*args)[2])
+                        .as_or_throw<Expr>();
     }
     if (tirx::is_zero(cond)) return false_value;
     if (tirx::is_one(cond)) return true_value;
