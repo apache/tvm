@@ -132,6 +132,9 @@ find . -type f -path "*.pyc" | xargs rm -f
 # setup tvm-ffi into python folder
 uv pip install -v --target=python ./3rdparty/tvm-ffi/
 
+# LLVMModule JIT execution, needed by the tutorials this build runs.
+uv pip install --no-deps apache-tvm-ffi-orcjit==0.1.1
+
 
 cd docs
 PYTHONPATH=$(pwd)/../python make htmldepoly SPHINXOPTS='-j auto' |& tee /tmp/$$.log.txt
