@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F811, F841
+# ruff: noqa: F841
 
 
 import pytest
@@ -819,19 +819,6 @@ def test_reshape_pattern_reject_seqstmt():
 
     assert not has_reshape_pattern(identity_bias)
     assert not has_reshape_pattern(identity_identity)
-
-
-def test_reshape_pattern_reject_reduction():
-    @T.prim_func(s_tir=True)
-    def reduction(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4,), "float32")):
-        for i0, i1 in T.grid(4, 4):
-            with T.sblock("identity"):
-                vi0, vi1 = T.axis.remap("SR", [i0, i1])
-                with T.init():
-                    B[vi0] = T.float32(0)
-                B[vi0] = B[vi0] + A[vi0, vi1]
-
-    assert not has_reshape_pattern(reduction)
 
 
 def test_reshape_pattern_reject_reduction():
