@@ -36,8 +36,8 @@
 #include <unordered_map>
 
 #include "../../arith/const_fold.h"
-#include "../../arith/ir_mutator_with_analyzer.h"
 #include "../analysis/var_use_def_analysis.h"
+#include "../ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -73,7 +73,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { RemoveNoOpConfigNode::RegisterReflection(); }
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.RemoveNoOp", RemoveNoOpConfig);
 
 // Mark the statement of each stage.
-class NoOpRemover : public arith::IRMutatorWithAnalyzer {
+class NoOpRemover : public IRMutatorWithAnalyzer {
  public:
   static Stmt Apply(Stmt stmt, const arith::Analyzer& analyzer, bool ignore_profiler_call = false) {
     NoOpRemover visitor(analyzer, ignore_profiler_call);

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/arith/ir_visitor_with_analyzer.cc
+ * \file tirx/ir_visitor_with_analyzer.cc
  */
 #include "ir_visitor_with_analyzer.h"
 
@@ -30,9 +30,7 @@
 #include <tvm/tirx/op.h>
 
 namespace tvm {
-namespace arith {
-
-using namespace tirx;
+namespace tirx {
 
 void IRVisitorWithAnalyzer::VisitStmt_(const ForNode* op) {
   constraint_scope_.WithNewScope([&]() {
@@ -141,5 +139,5 @@ PrimExpr IRVisitorWithAnalyzer::ExtractRealCondition(PrimExpr condition) const {
   return condition;
 }
 
-}  // namespace arith
+}  // namespace tirx
 }  // namespace tvm

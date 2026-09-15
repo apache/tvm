@@ -24,10 +24,10 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr_functor.h>
 
 #include <algorithm>
 #include <optional>
@@ -93,7 +93,9 @@ struct ConstIntBoundAnalyzer::Entry {
   }
 };
 
-class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::Entry(const Expr&)> {
+class ConstIntBoundAnalyzer::Impl
+    : public ffi::Object,
+      public tvm::ExprFunctor<ConstIntBoundAnalyzer::Entry(const Expr&)> {
  public:
   explicit Impl(AnalyzerObj* parent) : parent_(parent) {}
   /*! \brief additional bound info about expr in bound */
@@ -110,8 +112,8 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
   bool IsBound(const Var& var) const { return var_map_.find(var) != var_map_.end(); }
 
   void Bind(const Var& var, const Range& range, bool allow_override) {
-    Entry a = VisitExpr(range->min);
-    Entry b = VisitExpr(range->extent);
+    Entry a = Dispatch(range->min);
+    Entry b = Dispatch(range->extent);
     Entry ret;
     ret.min_value = a.min_value;
     ret.max_value = InfAwareAdd(a.max_value, InfAwareAdd(b.max_value, -1));
@@ -132,16 +134,16 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     var_map_[var] = info;
   }
 
-  Entry VisitExpr_(const prim::LetNode* op) final {
+  Entry Dispatch_(const prim::LetNode* op) final {
     auto it = var_map_.find(op->var);
     // if the var has not been binded, update the info.
     if (it == var_map_.end()) {
-      var_map_[op->var] = this->VisitExpr(op->value);
-      Entry ret = VisitExpr(op->body);
+      var_map_[op->var] = this->Dispatch(op->value);
+      Entry ret = Dispatch(op->body);
       var_map_.erase(op->var);
       return ret;
     } else {
-      return VisitExpr(op->body);
+      return Dispatch(op->body);
     }
   }
 
@@ -150,13 +152,13 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
   }
 
   // Override visitor behaviors
-  Entry VisitExprDefault_(const ffi::Object* op) final {
+  Entry DispatchDefault_(const ffi::Object* op) final {
     return Everything(static_cast<const ExprNode*>(op)->ty.as_or_throw<PrimType>());
   }
 
-  Entry VisitExpr(const Expr& expr) final {
+  Entry Dispatch(const Expr& expr) final {
     PrimExpr prim_expr = expr.as_or_throw<PrimExpr>();
-    Entry res = ExprFunctor::VisitExpr(expr);
+    Entry res = ExprFunctor::Dispatch(expr);
     tirx::ExprDeepEqual equal;
     // a linear search over additional info
     // assume we won't have a lot of conditions
@@ -180,19 +182,19 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     return res;
   }
 
-  Entry VisitExpr_(const prim::RampNode* op) final {
+  Entry Dispatch_(const prim::RampNode* op) final {
     // op = {base + i * stride | 0 <= i < lanes}
     // Entry(op) = Union(Entry(base + i * stride) | 0 <= i < lanes)
     // Note that `base + i * stride` is linear w.r.t. `i`
     // Entry(op) = Union(Entry(base + i * stride) | i = 0, i = lanes-1)
-    Entry a = VisitExpr(op->base);
-    Entry b = VisitExpr(op->base + (op->lanes - 1) * op->stride);
+    Entry a = Dispatch(op->base);
+    Entry b = Dispatch(op->base + (op->lanes - 1) * op->stride);
     return Union(a, b);
   }
 
-  Entry VisitExpr_(const prim::BroadcastNode* op) final { return VisitExpr(op->value); }
+  Entry Dispatch_(const prim::BroadcastNode* op) final { return Dispatch(op->value); }
 
-  Entry VisitExpr_(const prim::CastNode* op) final {
+  Entry Dispatch_(const prim::CastNode* op) final {
     Entry a;
 
     // int(ceil(log2(cast(n,"float64")))) is used as the
@@ -201,7 +203,7 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     if (auto opt = FindCeilLog2Arg(op)) {
       a = CeilLog2Bounds(opt.value());
     } else {
-      a = VisitExpr(op->value);
+      a = Dispatch(op->value);
     }
 
     Entry b = Everything(op->ty.as_or_throw<PrimType>());
@@ -233,11 +235,11 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     return divisor;
   }
 
-  Entry VisitExpr_(const IntImmNode* op) final { return MakeBound(op->value, op->value); }
+  Entry Dispatch_(const IntImmNode* op) final { return MakeBound(op->value, op->value); }
 
-  Entry VisitExpr_(const prim::AddNode* op) final {
-    Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
+  Entry Dispatch_(const prim::AddNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = Dispatch(op->b);
     Entry ret;
     ret.min_value = InfAwareAdd(a.min_value, b.min_value);
     ret.max_value = InfAwareAdd(a.max_value, b.max_value);
@@ -245,9 +247,9 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     return ret;
   }
 
-  Entry VisitExpr_(const prim::SubNode* op) final {
-    Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
+  Entry Dispatch_(const prim::SubNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = Dispatch(op->b);
     Entry ret;
     ret.min_value = InfAwareAdd(a.min_value, -b.max_value);
     ret.max_value = InfAwareAdd(a.max_value, -b.min_value);
@@ -255,21 +257,21 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     return ret;
   }
 
-  Entry VisitExpr_(const prim::MulNode* op) final {
-    Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
+  Entry Dispatch_(const prim::MulNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = Dispatch(op->b);
     return BinaryOpBoundary(a, b, InfAwareMul);
   }
 
-  Entry VisitExpr_(const prim::DivNode* op) final {
-    Entry a = VisitExpr(op->a);
-    Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
+  Entry Dispatch_(const prim::DivNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = AssumeNoZeroDivisor(Dispatch(op->b));
     return HandleDivision(a, b, op->ty.as_or_throw<PrimType>(), InfAwareDiv);
   }
 
-  Entry VisitExpr_(const prim::ModNode* op) final {
-    Entry a = VisitExpr(op->a);
-    Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
+  Entry Dispatch_(const prim::ModNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = AssumeNoZeroDivisor(Dispatch(op->b));
 
     if (b.min_value > 0) {
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
@@ -357,13 +359,13 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     }
   }
 
-  Entry VisitExpr_(const prim::FloorDivNode* op) final {
-    Entry a = VisitExpr(op->a);
-    Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
+  Entry Dispatch_(const prim::FloorDivNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = AssumeNoZeroDivisor(Dispatch(op->b));
     return HandleDivision(a, b, op->ty.as_or_throw<PrimType>(), InfAwareFloorDiv);
   }
 
-  Entry VisitExpr_(const prim::FloorModNode* op) final {
+  Entry Dispatch_(const prim::FloorModNode* op) final {
     /* let a / b = x + y, where x is integer, y \in [0, 1)
      * floormod(a, b) = a - floordiv(a, b) * b
      * floordiv(a, b) = x
@@ -381,8 +383,8 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
      *               min(0, b_min + 1) <= b * y <= max(0, b_max - 1)
      * That is, min(0, b_min + 1) <= floormod(a, b) <= max(0, b_max - 1)
      */
-    Entry a = VisitExpr(op->a);
-    Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
+    Entry a = Dispatch(op->a);
+    Entry b = AssumeNoZeroDivisor(Dispatch(op->b));
 
     if (b.min_value > 0) {
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
@@ -445,31 +447,31 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     }
   }
 
-  Entry VisitExpr_(const prim::MinNode* op) final {
-    Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
+  Entry Dispatch_(const prim::MinNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = Dispatch(op->b);
     Entry ret;
     ret.min_value = std::min(a.min_value, b.min_value);
     ret.max_value = std::min(a.max_value, b.max_value);
     return ret;
   }
 
-  Entry VisitExpr_(const prim::MaxNode* op) final {
-    Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
+  Entry Dispatch_(const prim::MaxNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = Dispatch(op->b);
     Entry ret;
     ret.min_value = std::max(a.min_value, b.min_value);
     ret.max_value = std::max(a.max_value, b.max_value);
     return ret;
   }
 
-  Entry VisitExpr_(const prim::SelectNode* op) final {
-    Entry a = VisitExpr(op->true_value);
-    Entry b = VisitExpr(op->false_value);
+  Entry Dispatch_(const prim::SelectNode* op) final {
+    Entry a = Dispatch(op->true_value);
+    Entry b = Dispatch(op->false_value);
     return Union(a, b);
   }
 
-  Entry VisitExpr_(const CallNode* op) final {
+  Entry Dispatch_(const CallNode* op) final {
     // only special handle >> and & which can be
     // used for index calculation.
 
@@ -484,7 +486,7 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     }
   }
 
-  Entry VisitExpr_(const VarNode* op) final {
+  Entry Dispatch_(const VarNode* op) final {
     Var v = ffi::GetRef<Var>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {
@@ -495,8 +497,8 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
   }
 
   Entry VisitLeftShift(const CallNode* op) {
-    Entry a = VisitExpr(op->args[0].as_or_throw<PrimExpr>());
-    Entry b = VisitExpr(op->args[1].as_or_throw<PrimExpr>());
+    Entry a = Dispatch(op->args[0].as_or_throw<PrimExpr>());
+    Entry b = Dispatch(op->args[1].as_or_throw<PrimExpr>());
 
     if (a.min_value < 0 || b.min_value < 0) {
       // If either operand can negative, we may run into undefined
@@ -509,14 +511,14 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
   }
 
   Entry VisitRightShift(const CallNode* op) {
-    Entry a = VisitExpr(op->args[0].as_or_throw<PrimExpr>());
-    Entry b = VisitExpr(op->args[1].as_or_throw<PrimExpr>());
+    Entry a = Dispatch(op->args[0].as_or_throw<PrimExpr>());
+    Entry b = Dispatch(op->args[1].as_or_throw<PrimExpr>());
     return BinaryOpBoundary(a, b, InfAwareRightShift);
   }
 
   Entry VisitBitwiseAnd(const CallNode* op) {
-    Entry a = VisitExpr(op->args[0].as_or_throw<PrimExpr>());
-    Entry b = VisitExpr(op->args[1].as_or_throw<PrimExpr>());
+    Entry a = Dispatch(op->args[0].as_or_throw<PrimExpr>());
+    Entry b = Dispatch(op->args[1].as_or_throw<PrimExpr>());
     // handle positive index case.
     if (a.min_value >= 0 && b.min_value >= 0) {
       return MakeBound(0, std::min(a.max_value, b.max_value));
@@ -874,7 +876,7 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
       int64_t val = std::ceil(std::log2(as_float->value));
       return MakeBound(val, val);
     } else {
-      Entry arg_bounds = VisitExpr(arg);
+      Entry arg_bounds = Dispatch(arg);
       return MakeBound(std::ceil(std::log2(arg_bounds.min_value)),
                        std::ceil(std::log2(arg_bounds.max_value)));
     }
@@ -882,13 +884,13 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
 };
 
 ConstIntBound ConstIntBoundAnalyzer::operator()(const PrimExpr& expr) const {
-  Entry ret = impl_->VisitExpr(expr);
+  Entry ret = impl_->Dispatch(expr);
   return ConstIntBound(ret.min_value, ret.max_value);
 }
 
 ConstIntBound ConstIntBoundAnalyzer::operator()(const PrimExpr& expr, BoundMapType* bound) {
   impl_->bound_ = bound;
-  Entry ret = impl_->VisitExpr(expr);
+  Entry ret = impl_->Dispatch(expr);
   impl_->bound_ = nullptr;
   return ConstIntBound(ret.min_value, ret.max_value);
 }
@@ -907,9 +909,10 @@ std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const PrimExpr& con
   return impl_->EnterConstraint(constraint);
 }
 
-ConstIntBoundAnalyzer::ConstIntBoundAnalyzer(AnalyzerObj* parent) : impl_(new Impl(parent)) {}
+ConstIntBoundAnalyzer::ConstIntBoundAnalyzer(AnalyzerObj* parent)
+    : impl_(ffi::make_object<Impl>(parent)) {}
 
-ConstIntBoundAnalyzer::~ConstIntBoundAnalyzer() { delete impl_; }
+ConstIntBoundAnalyzer::~ConstIntBoundAnalyzer() = default;
 
 void ConstIntBoundAnalyzer::CopyFrom(const ConstIntBoundAnalyzer& other) {
   impl_->CopyFrom(*other.impl_);
