@@ -978,7 +978,7 @@ class TransformLayoutRewriter : private tirx::IRMutatorWithAnalyzer {
   arith::Analyzer index_simplifier_;
 };
 
-class BufferIsSubregionError : public ScheduleError {
+class BufferIsSubregionError : public ScheduleErrorContextObj {
  public:
   explicit BufferIsSubregionError(IRModule mod, BufferVar buffer) : mod_(mod), buffer_(buffer) {}
 
@@ -1003,7 +1003,7 @@ class BufferIsSubregionError : public ScheduleError {
   BufferVar buffer_;
 };
 
-class TransformationPaddingIndexMapError : public ScheduleError {
+class TransformationPaddingIndexMapError : public ScheduleErrorContextObj {
  public:
   TransformationPaddingIndexMapError(IRModule mod, IndexMap pad_value)
       : mod_(mod), pad_value_(pad_value) {}
@@ -1030,7 +1030,7 @@ class TransformationPaddingIndexMapError : public ScheduleError {
   IndexMap pad_value_;
 };
 
-class TransformationPaddingTypeError : public ScheduleError {
+class TransformationPaddingTypeError : public ScheduleErrorContextObj {
  public:
   TransformationPaddingTypeError(IRModule mod, BufferVar buffer, IndexMap pad_value)
       : mod_(mod), buffer_(buffer), pad_value_(pad_value) {
@@ -1062,7 +1062,7 @@ class TransformationPaddingTypeError : public ScheduleError {
   DLDataType pad_value_dtype_;
 };
 
-class TransformationPaddingExpressionError : public ScheduleError {
+class TransformationPaddingExpressionError : public ScheduleErrorContextObj {
  public:
   static void Check(IRModule mod, BufferVar buffer, IndexMap pad_value) {
     Visitor visitor(buffer);
@@ -1070,8 +1070,8 @@ class TransformationPaddingExpressionError : public ScheduleError {
         << "Internal error: Should be caught by ScheduleError checks prior to this point";
     visitor(pad_value->final_indices[0]);
     if (visitor.illegal_load) {
-      throw TransformationPaddingExpressionError(mod, buffer, pad_value,
-                                                 visitor.illegal_load.value());
+      throw MakeScheduleError<TransformationPaddingExpressionError>(mod, buffer, pad_value,
+                                                                    visitor.illegal_load.value());
     }
   }
 
@@ -1090,10 +1090,12 @@ class TransformationPaddingExpressionError : public ScheduleError {
     ffi::Optional<TensorLoad> illegal_load;
   };
 
+ public:
   TransformationPaddingExpressionError(IRModule mod, BufferVar buffer, IndexMap pad_value,
                                        TensorLoad illegal_load)
       : mod_(mod), buffer_(buffer), pad_value_(pad_value), illegal_load_(illegal_load) {}
 
+ private:
   ffi::String FastErrorString() const final {
     std::ostringstream ss;
     ss << "ScheduleError: Pad value may not contain load from "
@@ -1118,7 +1120,7 @@ class TransformationPaddingExpressionError : public ScheduleError {
   TensorLoad illegal_load_;
 };
 
-class TransformationIntroducesPaddingError : public ScheduleError {
+class TransformationIntroducesPaddingError : public ScheduleErrorContextObj {
  public:
   TransformationIntroducesPaddingError(IRModule mod, BufferVar buffer, IndexMap index_map,
                                        PrimExpr padding_predicate)
@@ -1220,14 +1222,15 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
 
   auto [defining_site_sref, is_alloc] = GetBufferDefiningSite(block_sref, old_buffer);
   if (defining_site_sref.has_value() && !is_alloc) {
-    throw BufferIsSubregionError(self->mod, old_buffer);
+    throw MakeScheduleError<BufferIsSubregionError>(self->mod, old_buffer);
   }
   if (pad_value) {
     if (pad_value.value()->final_indices.size() != 1) {
-      throw TransformationPaddingIndexMapError(self->mod, pad_value.value());
+      throw MakeScheduleError<TransformationPaddingIndexMapError>(self->mod, pad_value.value());
     }
     if (pad_value.value()->final_indices[0].ty() != old_buffer->dtype) {
-      throw TransformationPaddingTypeError(self->mod, old_buffer, pad_value.value());
+      throw MakeScheduleError<TransformationPaddingTypeError>(self->mod, old_buffer,
+                                                              pad_value.value());
     }
 
     TransformationPaddingExpressionError::Check(self->mod, old_buffer, pad_value.value());
@@ -1252,7 +1255,8 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
 
   bool has_padding = !is_zero(padding_predicate);
   if (has_padding && !pad_value.has_value()) {
-    throw TransformationIntroducesPaddingError(self->mod, old_buffer, index_map, padding_predicate);
+    throw MakeScheduleError<TransformationIntroducesPaddingError>(self->mod, old_buffer, index_map,
+                                                                  padding_predicate);
   }
 
   // Step 2: Infer the shape of the new buffer
@@ -1325,7 +1329,7 @@ IterVarType DetectNewBlockIterType(
   return result;
 }
 
-class NotBijectiveAffineIndexMapError : public ScheduleError {
+class NotBijectiveAffineIndexMapError : public ScheduleErrorContextObj {
  public:
   NotBijectiveAffineIndexMapError(IRModule mod, IndexMap index_map)
       : mod_(std::move(mod)), index_map_(std::move(index_map)) {}
@@ -1348,11 +1352,11 @@ class NotBijectiveAffineIndexMapError : public ScheduleError {
   IndexMap index_map_;
 };
 
-class IndexMapNotApplicableToBlockIterError : public ScheduleError {
+class IndexMapNotApplicableToBlockIterError : public ScheduleErrorContextObj {
  public:
   static void Check(const IRModule mod, const SBlock& block, const IndexMap& index_map) {
     if (index_map->initial_indices.size() != block->iter_vars.size()) {
-      throw IndexMapNotApplicableToBlockIterError(mod, block, index_map);
+      throw MakeScheduleError<IndexMapNotApplicableToBlockIterError>(mod, block, index_map);
     }
   }
   explicit IndexMapNotApplicableToBlockIterError(IRModule mod, SBlock block, IndexMap index_map)
@@ -1382,7 +1386,7 @@ class IndexMapNotApplicableToBlockIterError : public ScheduleError {
   IndexMap index_map_;
 };
 
-class OpaqueNewIterTypeError : public ScheduleError {
+class OpaqueNewIterTypeError : public ScheduleErrorContextObj {
  public:
   explicit OpaqueNewIterTypeError(IRModule mod, SBlock block, PrimExpr iter_value)
       : mod_(std::move(mod)), block_(std::move(block)), iter_value_(std::move(iter_value)) {}
@@ -1472,8 +1476,8 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
       iter_type = DetectNewBlockIterType(transformed_block_iters[i], block_iter_type);
     }
     if (iter_type == kOpaque) {
-      throw OpaqueNewIterTypeError(self->mod, ffi::GetRef<SBlock>(block_ptr),
-                                   transformed_block_iters[i]);
+      throw MakeScheduleError<OpaqueNewIterTypeError>(self->mod, ffi::GetRef<SBlock>(block_ptr),
+                                                      transformed_block_iters[i]);
     }
     PrimType dtype = new_block_var->ty.as_or_throw<PrimType>();
     new_block_iters.push_back(IterVar(
@@ -1494,7 +1498,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     try {
       inverse_index_map = index_map.Inverse(initial_ranges, analyzer);
     } catch (...) {
-      throw NotBijectiveAffineIndexMapError(self->mod, index_map);
+      throw MakeScheduleError<NotBijectiveAffineIndexMapError>(self->mod, index_map);
     }
     // old block vars written in terms of new block vars
     ffi::Array<PrimExpr> inversed_new_block_vars =

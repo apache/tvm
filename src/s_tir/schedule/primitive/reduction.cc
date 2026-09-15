@@ -110,7 +110,7 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
   SBlock new_reduction_block_;
 };
 
-class LoopHeightError : public ScheduleError {
+class LoopHeightError : public ScheduleErrorContextObj {
  public:
   static void CheckLoopHigherThanReduceLoops(const IRModule& mod, const SBlockNode* block,
                                              const SBlockRealizeNode* realize,
@@ -136,7 +136,8 @@ class LoopHeightError : public ScheduleError {
         };
         if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(binding, walkfn).has_value()) {
           const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-          throw LoopHeightError(mod, ffi::GetRef<For>(loop), ffi::GetRef<SBlock>(block));
+          throw MakeScheduleError<LoopHeightError>(mod, ffi::GetRef<For>(loop),
+                                                   ffi::GetRef<SBlock>(block));
         }
       }
     }
@@ -205,8 +206,8 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   if (self->enable_check) {
     // Cond 0. Check loop_sref is an ancestor of block_sref
     if (std::find(loops.begin(), loops.end(), loop_sref) == loops.end()) {
-      throw LoopPositionError(self->mod, ffi::GetRef<For>(loop), ffi::GetRef<SBlock>(block),
-                              "decompose_reduction");
+      throw MakeScheduleError<LoopPositionError>(self->mod, ffi::GetRef<For>(loop),
+                                                 ffi::GetRef<SBlock>(block), "decompose_reduction");
     }
     // Cond 1. Check block is reduction
     CheckReductionBlock(self, block_sref, scope_root_sref);
@@ -553,7 +554,7 @@ GetReducerGetters() {
   return ReducerRegistry::Global()->reducer_getters;
 }
 
-class NotSerialLoopKindError : public ScheduleError {
+class NotSerialLoopKindError : public ScheduleErrorContextObj {
  public:
   explicit NotSerialLoopKindError(IRModule mod, For loop)
       : mod_(std::move(mod)), loop_(std::move(loop)) {}
@@ -578,7 +579,7 @@ class NotSerialLoopKindError : public ScheduleError {
   For loop_;
 };
 
-class FactorAxisOutOfRangeError : public ScheduleError {
+class FactorAxisOutOfRangeError : public ScheduleErrorContextObj {
  public:
   explicit FactorAxisOutOfRangeError(IRModule mod, BufferVar buffer, int factor_axis)
       : mod_(std::move(mod)), buffer_(std::move(buffer)), factor_axis_(factor_axis) {}
@@ -604,7 +605,7 @@ class FactorAxisOutOfRangeError : public ScheduleError {
   static int CheckAndUpdate(const IRModule& mod, const BufferVar& buffer, int factor_axis) {
     int ndim = static_cast<int>(buffer->shape.size());
     if (factor_axis < -(ndim + 1) || factor_axis > ndim) {
-      throw FactorAxisOutOfRangeError(mod, buffer, factor_axis);
+      throw MakeScheduleError<FactorAxisOutOfRangeError>(mod, buffer, factor_axis);
     }
     // If factor_axis is negative, convert it to a non-negative one.
     if (factor_axis < 0) {
@@ -618,7 +619,7 @@ class FactorAxisOutOfRangeError : public ScheduleError {
   int factor_axis_;
 };
 
-class LoopPropertyError : public ScheduleError {
+class LoopPropertyError : public ScheduleErrorContextObj {
  public:
   enum ErrorType {
     kDataParIterTouchRFactorLoop = 0,
@@ -678,7 +679,8 @@ class LoopPropertyError : public ScheduleError {
     ffi::Array<SBlockRealize> children_of_outermost_loop =
         GetChildBlockRealizeOnSRefTree(self->stmt2ref.at(loops[0].get()));
     if (!children_of_outermost_loop[0]->block.same_as(block)) {
-      throw LoopPropertyError(self->mod, loops[0], kNotFirstChildBlockOfOutermostLoop);
+      throw MakeScheduleError<LoopPropertyError>(self->mod, loops[0],
+                                                 kNotFirstChildBlockOfOutermostLoop);
     }
 
     bool meet_reduction_loop = false;
@@ -687,10 +689,11 @@ class LoopPropertyError : public ScheduleError {
       bool reduction_touched = reduce_loop_vars.count(loop->loop_var.get());
 
       if (data_par_touched && reduction_touched) {
-        throw LoopPropertyError(self->mod, loop, kLoopTouchedByBothKindsOfBlockIters);
+        throw MakeScheduleError<LoopPropertyError>(self->mod, loop,
+                                                   kLoopTouchedByBothKindsOfBlockIters);
       } else if (data_par_touched) {
         if (loop.get() == rf_loop) {
-          throw LoopPropertyError(self->mod, loop, kDataParIterTouchRFactorLoop);
+          throw MakeScheduleError<LoopPropertyError>(self->mod, loop, kDataParIterTouchRFactorLoop);
         }
         continue;
       } else if (reduction_touched) {
@@ -700,7 +703,7 @@ class LoopPropertyError : public ScheduleError {
         }
         continue;
       } else if (meet_reduction_loop && !is_one(loop->extent)) {
-        throw LoopPropertyError(self->mod, loop, kUnboundLoopUnderReductionLoop);
+        throw MakeScheduleError<LoopPropertyError>(self->mod, loop, kUnboundLoopUnderReductionLoop);
       }
     }
   }
@@ -1368,7 +1371,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   }
   const ForNode* rf_loop = TVM_SREF_TO_FOR(rf_loop_sref);
   if (rf_loop->kind != ForKind::kSerial) {
-    throw NotSerialLoopKindError(self->mod, ffi::GetRef<For>(rf_loop));
+    throw MakeScheduleError<NotSerialLoopKindError>(self->mod, ffi::GetRef<For>(rf_loop));
   }
 
   // Step 2. Collect loop vars that are touched by data parallel block iters and reduction block

@@ -29,7 +29,7 @@ namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
 
-class StorageAlignAxisOutOfRangeError : public ScheduleError {
+class StorageAlignAxisOutOfRangeError : public ScheduleErrorContextObj {
  public:
   explicit StorageAlignAxisOutOfRangeError(IRModule mod, BufferVar buffer, int axis)
       : mod_(std::move(mod)), buffer_(std::move(buffer)), axis_(axis) {}
@@ -56,7 +56,7 @@ class StorageAlignAxisOutOfRangeError : public ScheduleError {
   static int CheckAndUpdate(const IRModule& mod, const BufferVar& buffer, int axis) {
     int ndim = static_cast<int>(buffer->shape.size());
     if (axis < -ndim || axis >= ndim) {
-      throw StorageAlignAxisOutOfRangeError(mod, buffer, axis);
+      throw MakeScheduleError<StorageAlignAxisOutOfRangeError>(mod, buffer, axis);
     }
     // If axis is negative, convert it to a non-negative one.
     if (axis < 0) {
@@ -71,7 +71,7 @@ class StorageAlignAxisOutOfRangeError : public ScheduleError {
   int axis_;
 };
 
-class NonAllocatedBufferError : public ScheduleError {
+class NonAllocatedBufferError : public ScheduleErrorContextObj {
  public:
   explicit NonAllocatedBufferError(IRModule mod, BufferVar buffer) : mod_(mod), buffer_(buffer) {}
 
@@ -92,7 +92,7 @@ class NonAllocatedBufferError : public ScheduleError {
                                                   const BufferVar& buffer) {
     auto [defining_site_sref, is_alloc] = GetBufferDefiningSite(block_sref, buffer);
     if (!defining_site_sref.has_value() || !is_alloc) {
-      throw NonAllocatedBufferError(mod, buffer);
+      throw MakeScheduleError<NonAllocatedBufferError>(mod, buffer);
     }
 
     return defining_site_sref.value();
@@ -106,7 +106,7 @@ class NonAllocatedBufferError : public ScheduleError {
   BufferVar buffer_;
 };
 
-class StorageAlignInvalidFactorError : public ScheduleError {
+class StorageAlignInvalidFactorError : public ScheduleErrorContextObj {
  public:
   explicit StorageAlignInvalidFactorError(IRModule mod, int factor)
       : mod_(std::move(mod)), factor_(factor) {}
@@ -126,7 +126,7 @@ class StorageAlignInvalidFactorError : public ScheduleError {
 
   static void Check(const IRModule& mod, int factor) {
     if (factor <= 0) {
-      throw StorageAlignInvalidFactorError(mod, factor);
+      throw MakeScheduleError<StorageAlignInvalidFactorError>(mod, factor);
     }
   }
 
@@ -138,7 +138,7 @@ class StorageAlignInvalidFactorError : public ScheduleError {
   int factor_;
 };
 
-class StorageAlignInvalidAnnotationError : public ScheduleError {
+class StorageAlignInvalidAnnotationError : public ScheduleErrorContextObj {
  public:
   explicit StorageAlignInvalidAnnotationError(IRModule mod, SBlock block)
       : mod_(std::move(mod)), block_(std::move(block)) {}
@@ -162,7 +162,7 @@ class StorageAlignInvalidAnnotationError : public ScheduleError {
     auto it = block->annotations.find(s_tir::attr::buffer_dim_align);
     if (it != block->annotations.end()) {
       if (!IsValidAnnotation(block, (*it).second)) {
-        throw StorageAlignInvalidAnnotationError(mod, block);
+        throw MakeScheduleError<StorageAlignInvalidAnnotationError>(mod, block);
       }
       return (*it).second.as_or_throw<StorageAlignAnnotation>();
     }

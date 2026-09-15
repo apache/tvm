@@ -40,7 +40,7 @@ struct PaddingSBlockInfo {
   PrimExpr pad_value;
 };
 
-class PaddingPatternMatchError : public ScheduleError {
+class PaddingPatternMatchError : public ScheduleErrorContextObj {
  public:
   PaddingPatternMatchError(IRModule mod, SBlock block, const std::string& error_msg)
       : mod_(std::move(mod)), block_(std::move(block)), error_msg_(error_msg) {}
@@ -76,7 +76,8 @@ class PaddingInfoAnalyzer {
                                                   arith::AnalyzerObj* analyzer) {
     PaddingInfoAnalyzer padding_analyzer(analyzer);
     if (!padding_analyzer.MatchPadding(realize, dom_map)) {
-      throw PaddingPatternMatchError(mod, realize->block, padding_analyzer.error_msg_);
+      throw MakeScheduleError<PaddingPatternMatchError>(mod, realize->block,
+                                                        padding_analyzer.error_msg_);
     }
     return padding_analyzer.info_;
   }
@@ -480,8 +481,8 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
   }
   TVM_FFI_ICHECK(in_bound_filling_pos.defined());
   if (!found_const_filling_pos) {
-    throw LoopPositionError(self->mod, const_filling_pos, ffi::GetRef<SBlock>(block),
-                            "decompose_padding");
+    throw MakeScheduleError<LoopPositionError>(self->mod, const_filling_pos,
+                                               ffi::GetRef<SBlock>(block), "decompose_padding");
   }
 
   // Check 3. match padding pattern and return padding operation info.
