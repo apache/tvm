@@ -218,6 +218,7 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const IfThenElseNode* op) 
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const AssertStmtNode* op) {
+  // Constant message_parts are intentionally skipped.
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->condition));
   return this->Visit(op->error_kind);
 }

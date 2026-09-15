@@ -241,9 +241,9 @@ TEST(IRF, StmtVisitor) {
 
     v->count = 0;
     v->Visit(block_realize);
-    // x visited in: reads range (1), writes range (1), match_buffers range (1),
-    // init DeclBuffer data(1) + AllocBuffer shape(2) + Evaluate(1) = 4,
-    // body DeclBuffer data(1) + AllocBuffer shape(2) + Evaluate(1) = 4.
+    // x visited in: reads range (1), writes range (1), match_buffers range (1).
+    // init: DeclBuffer data b(1) + AllocBuffer shape x,x(2) + Evaluate x(1) = 4.
+    // body: DeclBuffer data b(1) + AllocBuffer shape x,x(2) + Evaluate x(1) = 4.
     // Total: 1 + 1 + 1 + 4 + 4 = 11.
     TVM_FFI_ICHECK_EQ(v->count, 11);
   }
