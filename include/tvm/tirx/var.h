@@ -24,8 +24,12 @@
 #ifndef TVM_TIR_VAR_H_
 #define TVM_TIR_VAR_H_
 
+#include <tvm/ffi/dtype.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/type.h>
+
+#include <utility>
 
 namespace tvm {
 namespace tirx {
