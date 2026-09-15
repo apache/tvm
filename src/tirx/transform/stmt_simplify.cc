@@ -142,18 +142,18 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 
   Stmt Simplify(Stmt stmt) { return operator()(std::move(stmt)); }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
     With<ConstraintContext> ctx2(analyzer_,
                                  static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
-    return Parent::VisitStmt_(op);
+    return Parent::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const BindNode* op) override {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override {
     auto prim_value = op->value.as<PrimExpr>();
     if (!prim_value) {
-      return Parent::VisitStmt_(op);
+      return Parent::Mutate_(op, inplace_mode);
     }
     PrimExpr value = this->VisitPrimExpr(prim_value.value());
     // Bind in analyzer for constraint proving and simplification of
@@ -180,21 +180,21 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     }
   }
 
-  Stmt VisitStmt_(const IfThenElseNode* op) override {
+  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) override {
     if (ffi::Optional<bool> cond = ProveCondition(op->condition)) {
       if (cond.value()) {
-        return this->VisitStmt(op->then_case);
+        return this->Mutate(op->then_case, inplace_mode).ValueOrUnchanged(op->then_case);
       } else if (op->else_case) {
         return this->VisitStmt(op->else_case.value());
       } else {
         return Evaluate(0);
       }
     } else {
-      return Parent::VisitStmt_(op);
+      return Parent::Mutate_(op, inplace_mode);
     }
   }
 
-  Expr Dispatch_(const CallNode* op) override {
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
     if (op->op.same_as(prim::builtin::if_then_else())) {
       if (ffi::Optional<bool> cond = ProveCondition(op->args[0].as_or_throw<PrimExpr>())) {
         if (cond.value()) {
@@ -204,14 +204,14 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
         }
       }
     }
-    return Parent::Dispatch_(op);
+    return Parent::Mutate_(op, inplace_mode);
   }
 
   Expr Dispatch_(const TensorLoadNode* op) override { return Parent::Dispatch_(op); }
 
   // eliminate useless stores
-  Stmt VisitStmt_(const BufferStoreNode* op) override {
-    BufferStore store = Parent::VisitStmt_(op).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) override {
+    BufferStore store = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<BufferStore>();
     if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
       BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
       if (buffer.same_as(store->buffer) && ArrayDeepEqual(load->indices, store->indices) &&

@@ -143,7 +143,7 @@ class ReplaceBufferMutator : public StmtExprMutator {
   using StmtExprMutator::Dispatch_;
   using StmtExprMutator::VisitStmt_;
 
-  Expr Dispatch_(const VarNode* var) final;
+  UnchangedOr<Expr> Mutate_(const VarNode* var, InplaceMode inplace_mode) final;
 
   template <typename Node>
   Node VisitBufferAccess(Node node) {
@@ -166,7 +166,7 @@ class ReplaceBufferMutator : public StmtExprMutator {
 
   virtual MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer);
 
-  Stmt VisitStmt_(const SBlockNode* block) override;
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) override;
 
   /*!
    * \brief A mapping which maps old buffer vars to new buffers, including the buffers defined in
@@ -259,9 +259,9 @@ class BlockBufferAccessSimplifier : public tirx::IRMutatorWithAnalyzer {
   void SimplifyAccessRegion(ffi::Array<BufferRegion>* old_access_regions);
   void SimplifyBufferIndices(ffi::Array<PrimExpr>* indices);
 
-  Stmt VisitStmt_(const SBlockNode* op) final;
-  Stmt VisitStmt_(const BufferStoreNode* op) final;
-  Expr Dispatch_(const TensorLoadNode* op) final;
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final;
 };
 
 }  // namespace s_tir

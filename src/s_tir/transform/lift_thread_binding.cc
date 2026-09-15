@@ -128,7 +128,7 @@ FindLoopLCA(const Stmt& root) {
  */
 class ThreadBindingLifter : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const ForNode* _op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* _op, InplaceMode inplace_mode) final {
     For op = ffi::GetRef<For>(_op);
     bool is_kernel_root = false;
     if (op->kind == ForKind::kThreadBinding) {
@@ -166,7 +166,7 @@ class ThreadBindingLifter : public StmtExprMutator {
     this->var_subst = std::move(result.second);
   }
 
-  Expr Dispatch_(const VarNode* op) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     auto it = var_subst.find(ffi::GetRef<Var>(op));
     if (it != var_subst.end()) {
       return (*it).second;

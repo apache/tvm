@@ -38,7 +38,7 @@ class BlockPredicateAppender : public StmtMutator {
 
  private:
   // For each direct child of type BlockRealizeNode, append the predicate
-  Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
     // We do not recursively do this
     ffi::ObjectPtr<SBlockRealizeNode> n = CopyOnWrite(realize);
     n->predicate = n->predicate && to_append_;
@@ -57,7 +57,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
       : vmap_(vmap), opaque_blocks_(opaque_blocks) {}
 
  private:
-  Expr Dispatch_(const VarNode* op) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     Var var = ffi::GetRef<Var>(op);
     if (ffi::Optional<Expr> ret = vmap_(var)) {
       return tvm::cast(var->ty.as_or_throw<PrimType>(), ret.value().as_or_throw<PrimExpr>());
@@ -66,8 +66,8 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
-    SBlockRealize realize = StmtMutator::VisitStmt_(op).as_or_throw<SBlockRealize>();
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
+    SBlockRealize realize = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlockRealize>();
     if (realize->block->iter_vars.empty()) {
       opaque_blocks_->Set(op->block, realize->block);
     }
@@ -103,18 +103,18 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
   }
 
  private:
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     loop_var2extent_.Set(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-    Stmt res = StmtMutator::VisitStmt_(op);
+    Stmt res = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     loop_var2extent_.erase(op->loop_var);
     return res;
   }
 
-  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     // skip opaque block and update mapping
     if (op->iter_values.empty()) {
       SBlock block = op->block;
-      SBlockRealize realize = StmtMutator::VisitStmt_(op).as_or_throw<SBlockRealize>();
+      SBlockRealize realize = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlockRealize>();
       for (const auto& entry : *opaque_blocks_) {
         if (entry.second.same_as(block)) {
           opaque_blocks_->at(entry.first) = realize->block;
@@ -554,8 +554,8 @@ class BlockMutator : public StmtExprMutator {
       : new_loop_var_(new_loop_var), min_(min), extent_(extent) {}
 
  private:
-  Stmt VisitStmt_(const SBlockNode* _op) final {
-    SBlock new_block = StmtMutator::VisitStmt_(_op).as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* _op, InplaceMode inplace_mode) final {
+    SBlock new_block = StmtMutator::Mutate_(_op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(_op)).as_or_throw<SBlock>();
 
     // If iter_vars.size() is 0, then the block most probably be an Opaque block
     if (new_block->iter_vars.size() == 0 || inner_iter_var_index == -1) {
@@ -629,7 +629,7 @@ class BlockMutator : public StmtExprMutator {
     return block_stmt;
   }
 
-  Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
     ffi::Array<PrimExpr> iter_values = realize->iter_values;
     for (size_t i = 0; i < iter_values.size(); i++) {
       if (new_loop_var_.same_as(iter_values[i])) {
@@ -638,12 +638,12 @@ class BlockMutator : public StmtExprMutator {
         break;
       }
     }
-    SBlockRealize stmt = StmtExprMutator::VisitStmt_(realize).as_or_throw<SBlockRealize>();
+    SBlockRealize stmt = StmtExprMutator::Mutate_(realize, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(realize)).as_or_throw<SBlockRealize>();
     return stmt;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
-    For res = StmtMutator::VisitStmt_(op).as_or_throw<For>();
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    For res = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<For>();
     Var new_var = Var(op->loop_var->name, op->loop_var.ty());
 
     if (!op->loop_var.same_as(new_var)) {
@@ -807,21 +807,21 @@ class LoopReconstructor : private StmtMutator {
   }
 
  private:
-  Stmt VisitStmt_(const SBlockNode* block) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     if (block != scope_root_.get()) {
       return ffi::GetRef<SBlock>(block);
     }
-    return StmtMutator::VisitStmt_(block);
+    return StmtMutator::Mutate_(block, inplace_mode);
   }
 
-  Stmt VisitStmt_(const ForNode* loop) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     if (ffi::GetRef<For>(loop) == need_remove_loop_.back()) {
       return new_outer_loop_;
     } else if (std::count(need_remove_loop_.begin(), need_remove_loop_.end(),
                           ffi::GetRef<For>(loop))) {
       return Evaluate(0);
     }
-    return StmtMutator::VisitStmt_(loop);
+    return StmtMutator::Mutate_(loop, inplace_mode);
   }
 
   Stmt VisitStmt_(const SeqStmtNode* seq_stmt) final {
@@ -1210,13 +1210,13 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
    public:
     explicit NewLoopCreator(const StmtNode* src_block) : src_block_(src_block) {}
 
-    Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
+    UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
       if (realize->block.get() == src_block_) {
         new_loop_ = For(PrimVar("u", PrimType::Int(32)), 0, 1, ForKind::kSerial,
                         ffi::GetRef<SBlockRealize>(realize));
         return new_loop_;
       }
-      return StmtMutator::VisitStmt_(realize);
+      return StmtMutator::Mutate_(realize, inplace_mode);
     }
 
     const StmtNode* src_block_;

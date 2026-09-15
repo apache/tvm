@@ -411,21 +411,21 @@ class ThreadPartitionInserter : public StmtMutator {
   explicit ThreadPartitionInserter(const ExpressionSet& ps, PrimExpr cond)
       : ps_(ps), cond_(cond), innermost_thread_scope_(false) {}
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == tirx::attr::thread_extent) {
       innermost_thread_scope_ = true;
-      Stmt stmt = StmtMutator::VisitStmt_(op);
+      Stmt stmt = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       // add branch code inside the innermost thread scope
       if (innermost_thread_scope_) {
         Stmt simplified_body = ConditionEliminator(ps_)(op->body);
         Stmt body = IfThenElse(cond_, simplified_body, op->body);
-        PrimExpr value = this->VisitPrimExpr(op->value);
+        PrimExpr value = this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
         stmt = AttrStmt(op->node, op->attr_key, value, body);
       }
       innermost_thread_scope_ = false;
       return stmt;
     } else {
-      return StmtMutator::VisitStmt_(op);
+      return StmtMutator::Mutate_(op, inplace_mode);
     }
   }
 
@@ -450,7 +450,7 @@ class LoopPartitioner : public StmtMutator {
     return operator()(std::move(stmt));
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent), true);
     auto fs = ffi::GetRef<Stmt>(op);
     if (selector->candidates.count(fs)) {
@@ -466,9 +466,9 @@ class LoopPartitioner : public StmtMutator {
     return res;
   }
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key != tirx::attr::thread_extent) {
-      return StmtMutator::VisitStmt_(op);
+      return StmtMutator::Mutate_(op, inplace_mode);
     }
 
     const IterVarNode* iv = op->node.as<IterVarNode>();
@@ -844,7 +844,7 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
 
 class RemoveLikelyTagsAndHints : public StmtExprMutator {
  public:
-  Expr Dispatch_(const CallNode* op) final {
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     if (op->op.same_as(prim::builtin::likely())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::Dispatch(op->args[0].as_or_throw<PrimExpr>());
@@ -852,15 +852,15 @@ class RemoveLikelyTagsAndHints : public StmtExprMutator {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::Dispatch(op->args[0].as_or_throw<PrimExpr>());
     } else {
-      return StmtExprMutator::Dispatch_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == s_tir::attr::pragma_loop_partition_hint) {
-      return VisitStmt(op->body);
+      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 };
 

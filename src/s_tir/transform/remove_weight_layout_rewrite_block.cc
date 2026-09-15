@@ -51,8 +51,8 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
   }
 
  private:
-  Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = StmtMutator::VisitStmt_(op).as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    SBlock block = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
 
     auto it = block->annotations.find(s_tir::attr::meta_schedule_layout_rewrite_preproc);
     if (it == block->annotations.end() || !is_one((*it).second.cast<PrimExpr>())) {

@@ -202,35 +202,35 @@ class IRConvertSSA final : public StmtExprMutator {
   // undefined SSA-renamed variables.
   BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) override { return buffer; }
 
-  Expr Dispatch_(const VarNode* op) final { return GetRemappedVar(ffi::GetRef<Var>(op)); }
-  Expr Dispatch_(const prim::LetNode* op) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final { return GetRemappedVar(ffi::GetRef<Var>(op)); }
+  UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final {
     const Var& v = op->var;
     if (defined_.count(v.get())) {
-      PrimExpr value = this->VisitPrimExpr(op->value);
+      PrimExpr value = this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
       Var new_var = MakeNewVar(v);
       PushVarRemap(v, new_var);
-      PrimExpr body = this->VisitPrimExpr(op->body);
+      PrimExpr body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
       PopVarRemap(v, new_var);
       return prim::Let(new_var, value, body);
     } else {
       defined_.insert(v.get());
-      return StmtExprMutator::Dispatch_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) final {
-    auto node = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op)).as_or_throw<TensorLoad>();
     auto output = VisitBufferAccess(std::move(node));
     return output;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<BufferStore>();
     auto output = VisitBufferAccess(std::move(node));
     return output;
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
     Var v = op->buffer.var();
     if (defined_.count(v.get())) {
       Var new_var = MakeNewVar(v);
@@ -238,7 +238,7 @@ class IRConvertSSA final : public StmtExprMutator {
     } else {
       defined_.insert(v.get());
     }
-    DeclBuffer decl = StmtExprMutator::VisitStmt_(op).as_or_throw<DeclBuffer>();
+    DeclBuffer decl = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<DeclBuffer>();
     BufferVar new_buffer = GetRemappedBuffer(decl->buffer);
     if (!new_buffer.same_as(decl->buffer)) {
       decl.CopyOnWrite()->buffer = std::move(new_buffer);
@@ -246,7 +246,7 @@ class IRConvertSSA final : public StmtExprMutator {
     return decl;
   }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     SBlock block = ffi::GetRef<SBlock>(op);
 
     // The SBlockNode is the point of definition for the IterVar
@@ -404,27 +404,27 @@ class IRConvertSSA final : public StmtExprMutator {
     return new_buf;
   }
 
-  Stmt VisitStmt_(const BindNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     // Bind var remaps are tracked in the current scope so they persist
     // across SeqStmt siblings and are cleaned up when the enclosing
     // body-carrying statement's scope exits.
     const Var& v = op->var;
     if (defined_.count(v.get())) {
-      Expr value = this->Dispatch(op->value);
+      Expr value = this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
       Var new_var = MakeNewVar(v);
       PushVarRemap(v, new_var);
       return Bind(new_var, value);
     } else {
       defined_.insert(v.get());
-      return StmtExprMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 
-  Stmt VisitStmt_(const IfThenElseNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final {
     // Each branch gets its own scope so Bind remaps in one branch
     // do not leak into the other.
     PrimExpr condition = VisitPrimExpr(op->condition);
-    Stmt then_case = scope_.WithNewScope([&]() -> Stmt { return VisitStmt(op->then_case); });
+    Stmt then_case = scope_.WithNewScope([&]() -> Stmt { return Mutate(op->then_case, inplace_mode).ValueOrUnchanged(op->then_case); });
     ffi::Optional<Stmt> else_case;
     if (op->else_case) {
       else_case = scope_.WithNewScope([&]() -> Stmt { return VisitStmt(op->else_case.value()); });
@@ -436,26 +436,26 @@ class IRConvertSSA final : public StmtExprMutator {
     return IfThenElse(condition, then_case, else_case);
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     const Var& v = op->loop_var;
     if (defined_.count(v.get())) {
       return scope_.WithNewScope([&]() -> Stmt {
         Var new_var = MakeNewVar(v);
         PushVarRemap(v, new_var);
-        Stmt stmt = StmtExprMutator::VisitStmt_(op);
+        Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
         auto n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
         n->loop_var = new_var.as_or_throw<PrimVar>();
         return For(n);
       });
     } else {
       defined_.insert(v.get());
-      return scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::VisitStmt_(op); });
+      return scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)); });
     }
   }
-  Stmt VisitStmt_(const WhileNode* op) final {
-    return scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::VisitStmt_(op); });
+  UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode) final {
+    return scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)); });
   }
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     Var v = op->buffer.var();
     if (defined_.count(v.get())) {
       Var new_var = MakeNewVar(v);
@@ -463,7 +463,7 @@ class IRConvertSSA final : public StmtExprMutator {
     } else {
       defined_.insert(v.get());
     }
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<AllocBufferNode>();
     // Use GetRemappedBuffer so that the AllocBuffer's buffer is the same
     // object as the one used by BufferStore/TensorLoad in subsequent siblings.
@@ -475,7 +475,7 @@ class IRConvertSSA final : public StmtExprMutator {
     }
     return stmt;
   }
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (const IterVarNode* iter_var = op->node.as<IterVarNode>()) {
       Range dom = iter_var->dom;
       if (dom.defined()) {
@@ -525,7 +525,7 @@ class IRConvertSSA final : public StmtExprMutator {
       }
 
       auto value = VisitPrimExpr(op->value);
-      auto body = scope_.WithNewScope([&]() -> Stmt { return VisitStmt(op->body); });
+      auto body = scope_.WithNewScope([&]() -> Stmt { return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body); });
 
       Stmt output;
       if (new_iter_var.get() == iter_var && body.same_as(op->body) && value.same_as(op->value)) {
@@ -544,7 +544,7 @@ class IRConvertSSA final : public StmtExprMutator {
       return output;
 
     } else if (const VarNode* v = op->node.as<VarNode>()) {
-      Stmt stmt = scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::VisitStmt_(op); });
+      Stmt stmt = scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)); });
       op = stmt.as<AttrStmtNode>();
       if (var_remap_.count(v) && var_remap_[v].size() != 0) {
         return AttrStmt(var_remap_[v].back(), op->attr_key, op->value, op->body);
@@ -552,7 +552,7 @@ class IRConvertSSA final : public StmtExprMutator {
         return stmt;
       }
     } else {
-      return scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::VisitStmt_(op); });
+      return scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)); });
     }
   }
 

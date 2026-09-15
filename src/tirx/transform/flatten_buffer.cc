@@ -176,7 +176,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     return it->second;
   }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     TVM_FFI_ICHECK_EQ(op->match_buffers.size(), 0)
         << "Unexpected MatchBufferRegion found during tirx.transform.FlattenBuffer.  "
         << "All MatchBufferRegion should be removed in tirx.transform.LowerMatchBuffer.";
@@ -204,7 +204,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     return StmtExprMutator::VisitStmt_(block.get());
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     const FlatInfo& info = Define(op->buffer);
     if (info.flattened.same_as(op->buffer)) {
       return ffi::GetRef<Stmt>(op);
@@ -214,7 +214,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     return Stmt(n);
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
     Expr data = op->data;
     bool is_extern_buffer_source = false;
     if (const auto* call = op->data.as<CallNode>();
@@ -224,7 +224,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
       }
     }
     if (!is_extern_buffer_source) {
-      data = Dispatch(op->data);
+      data = Mutate(op->data, inplace_mode).ValueOrUnchanged(op->data);
     }
     const FlatInfo& info = Define(op->buffer);
     if (info.flattened.same_as(op->buffer) && data.same_as(op->data)) {
@@ -233,14 +233,14 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     return DeclBuffer(info.flattened, std::move(data), op->span);
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
     BufferVar original_buffer = op->buffer;
     BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     store = VisitBufferAccess(store, original_buffer);
     return store;
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     BufferVar original_buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
     // Mutate the indices while keeping the original source opaque.  The base
     // statement mutator remaps buffer sources immediately, but this pass also
@@ -250,7 +250,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     return load;
   }
 
-  Expr Dispatch_(const CallNode* op) final {
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
       bool is_load = op->op.same_as(builtin::masked_load());
       BufferVar original(op->args[0].as_or_throw<Var>());
@@ -275,7 +275,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
         }
       }
     }
-    return IRMutatorWithAnalyzer::Dispatch_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   ffi::Array<PrimExpr> FoldIndices(const FlatInfo& info, const ffi::Array<PrimExpr>& indices) {

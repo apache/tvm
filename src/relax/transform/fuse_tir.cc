@@ -354,8 +354,8 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
 /*! \brief A mutator which detect block name duplication and deduplicate the names. */
 class SBlockNameDeduplicator : public tirx::StmtMutator {
  private:
-  Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = tirx::StmtMutator::VisitStmt_(op).as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    SBlock block = tirx::StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
 
     ffi::String name = GetUniqueName(block->name_hint);
 

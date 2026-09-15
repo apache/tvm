@@ -525,8 +525,8 @@ class ExpressionHoister : public tirx::IRMutatorWithAnalyzer {
     return stmt;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
-    Stmt stmt = Parent::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
 
     auto it = loop_info_lookup.find(op);
     TVM_FFI_ICHECK(it != loop_info_lookup.end())
@@ -534,8 +534,8 @@ class ExpressionHoister : public tirx::IRMutatorWithAnalyzer {
     return WrapHoistedStatements(stmt, it->second);
   }
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    Stmt stmt = Parent::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
 
     auto it = loop_info_lookup.find(op);
     if (it == loop_info_lookup.end()) {
@@ -545,20 +545,20 @@ class ExpressionHoister : public tirx::IRMutatorWithAnalyzer {
     }
   }
 
-  Stmt VisitStmt_(const BindNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (hoisted_let_bindings.count(op->var.get())) {
       // The binding was hoisted; remove it from this location.
       return Evaluate(0);
     } else {
-      return Parent::VisitStmt_(op);
+      return Parent::Mutate_(op, inplace_mode);
     }
   }
 
-  Expr Dispatch_(const LetNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const LetNode* op, InplaceMode inplace_mode) final {
     if (hoisted_let_bindings.count(op->var.get())) {
-      return this->Dispatch(op->body);
+      return this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else {
-      return Parent::Dispatch_(op);
+      return Parent::Mutate_(op, inplace_mode);
     }
   }
 

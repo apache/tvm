@@ -47,17 +47,17 @@ class TIRxOpaqueLower : public StmtExprMutator {
   static Stmt Rewrite(Stmt body) { return TIRxOpaqueLower()(std::move(body)); }
 
  private:
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Step 1. Update unit loop info.
-    PrimExpr min = this->VisitPrimExpr(op->min);
-    PrimExpr extent = this->VisitPrimExpr(op->extent);
+    PrimExpr min = this->Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min);
+    PrimExpr extent = this->Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
     if (is_one(extent) && op->annotations.empty()) {
       // handling unit loop
       unit_loop_vars_[op->loop_var] = min;
     }
 
     // Step 2. Visit recursively
-    Stmt body = this->VisitStmt(op->body);
+    Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
 
     // Step 3. Handle annotations
     std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
@@ -85,13 +85,13 @@ class TIRxOpaqueLower : public StmtExprMutator {
     return body;
   }
 
-  Expr Dispatch_(const VarNode* op) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     Var var = ffi::GetRef<Var>(op);
     auto it = unit_loop_vars_.find(var);
     if (it == unit_loop_vars_.end()) {
       // Fall through to the base visitor so buffer-variable remapping from
       // any rebuild in this pass reaches remaining use sites.
-      return StmtExprMutator::Dispatch_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     } else {
       PrimExpr expr = it->second;
       PrimType var_ty = var->ty.as_or_throw<PrimType>();

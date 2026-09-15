@@ -200,8 +200,8 @@ class AutoPadder {
           : buffer_map_(buffer_map) {}
 
      private:
-      Expr Dispatch_(const TensorLoadNode* _op) final {
-        TensorLoad load = StmtExprMutator::Dispatch_(_op).as_or_throw<TensorLoad>();
+      UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* _op, InplaceMode inplace_mode) final {
+        TensorLoad load = StmtExprMutator::Mutate_(_op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(_op)).as_or_throw<TensorLoad>();
         BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
         if (buffer_map_.count(buffer)) {
           return BufferLoad(buffer_map_[buffer], load->indices, load->span);
@@ -209,8 +209,8 @@ class AutoPadder {
         return load;
       }
 
-      Stmt VisitStmt_(const BufferStoreNode* _op) final {
-        BufferStore store = StmtExprMutator::VisitStmt_(_op).as_or_throw<BufferStore>();
+      UnchangedOr<Stmt> Mutate_(const BufferStoreNode* _op, InplaceMode inplace_mode) final {
+        BufferStore store = StmtExprMutator::Mutate_(_op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(_op)).as_or_throw<BufferStore>();
         BufferStoreNode* op = store.CopyOnWrite();
         if (buffer_map_.count(op->buffer)) {
           op->buffer = buffer_map_[op->buffer];
@@ -218,7 +218,7 @@ class AutoPadder {
         return store;
       }
 
-      Stmt VisitStmt_(const SBlockNode* op) final {
+      UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
         // To reduce the number of blocks in block sref reuse map, we check whether the block is
         // really mutated (i.e., the old buffer appears in the block). If so, we return the block
         // after mutation. Otherwise we just return the original block.
@@ -257,7 +257,7 @@ class AutoPadder {
           }
         }
         // Step 5. Recursively mutate the block.
-        Stmt res = StmtMutator::VisitStmt_(op);
+        Stmt res = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
         if (res.get() != op) {
           changed = true;
         }
@@ -707,8 +707,8 @@ class AutoCopyMutator : public StmtExprMutator {
   Stmt RewritePaddingBody(const Stmt& stmt) { return padder.RewriteBufferAccess(stmt); }
 
  private:
-  Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = StmtMutator::VisitStmt_(op).as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    SBlock block = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
     // only rewrite the block annotated with "auto_copy"
     if (!GetAnn<bool>(op, s_tir::attr::auto_copy).value_or(false)) {
       SBlockNode* n = block.CopyOnWrite();
@@ -754,7 +754,7 @@ class AutoCopyMutator : public StmtExprMutator {
     return block;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     outer_loops_.push_back(ffi::GetRef<For>(op));
     Stmt stmt = StmtMutator::VisitStmt_(op);
     outer_loops_.pop_back();

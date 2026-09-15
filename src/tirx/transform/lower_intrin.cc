@@ -174,7 +174,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     return result;
   }
 
-  Expr Dispatch_(const CallNode* op) final {
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
       return this->Dispatch(LowerAccessPtr(op, &access_ptr_buffer_aliases_));
     }
@@ -188,7 +188,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
             PrimExpr r = f(prim_e.value());
             TVM_FFI_ICHECK(r.defined()) << "intrinsic rule must always return valid Expr";
             if (!r.same_as(prim_e.value())) {
-              r = this->VisitPrimExpr(r);
+              r = this->Mutate(r, inplace_mode).ValueOrUnchanged(r);
               if (r.defined()) {
                 return r;
               }
@@ -197,23 +197,23 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
         }
       }
     }
-    return IRMutatorWithAnalyzer::Dispatch_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  Expr Dispatch_(const prim::AddNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* op, InplaceMode inplace_mode) final {
     if (const prim::MulNode* mb = op->b.as<prim::MulNode>()) {
       return MakeFMA(mb->a, mb->b, op->a, op);
     } else if (const prim::MulNode* ma = op->a.as<prim::MulNode>()) {
       return MakeFMA(ma->a, ma->b, op->b, op);
     }
-    return IRMutatorWithAnalyzer::Dispatch_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   // We use floordiv for integer analysis,
   // but will need to lower them to native truncdiv instructions
-  Expr Dispatch_(const prim::FloorDivNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) final {
     auto e = ffi::GetRef<PrimExpr>(op);
-    PrimExpr ret = IRMutatorWithAnalyzer::Dispatch_(op).as_or_throw<PrimExpr>();
+    PrimExpr ret = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op)).as_or_throw<PrimExpr>();
     op = ret.as<prim::FloorDivNode>();
     if (op == nullptr) return ret;
     int shift;
@@ -271,8 +271,8 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     }
   }
 
-  Expr Dispatch_(const prim::FloorModNode* op) final {
-    PrimExpr ret = IRMutatorWithAnalyzer::Dispatch_(op).as_or_throw<PrimExpr>();
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) final {
+    PrimExpr ret = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op)).as_or_throw<PrimExpr>();
     op = ret.as<prim::FloorModNode>();
     if (op == nullptr) return ret;
     // Lower floordiv to native truncdiv.
@@ -334,7 +334,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     }
   }
 
-  Expr Dispatch_(const prim::MaxNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::MaxNode* op, InplaceMode inplace_mode) final {
     using namespace arith;
     PVar<PrimExpr> x, y;
     PVar<IntImm> c;
@@ -343,27 +343,27 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
         analyzer_->CanProveGreaterEqual(y.Eval(), 0)) {
       return max(VisitPrimExpr(truncdiv(x, y).Eval()), c.Eval());
     }
-    return IRMutatorWithAnalyzer::Dispatch_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  Expr Dispatch_(const prim::EQNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::EQNode* op, InplaceMode inplace_mode) final {
     using namespace arith;
     PVar<PrimExpr> x, y;
     auto e = ffi::GetRef<PrimExpr>(op);
     if ((floormod(x, y) == 0).Match(e)) {
       return VisitPrimExpr((truncmod(x, y) == 0).Eval());
     }
-    return IRMutatorWithAnalyzer::Dispatch_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  Expr Dispatch_(const prim::NENode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::NENode* op, InplaceMode inplace_mode) final {
     using namespace arith;
     PVar<PrimExpr> x, y;
     auto e = ffi::GetRef<PrimExpr>(op);
     if ((floormod(x, y) != 0).Match(e)) {
       return VisitPrimExpr((truncmod(x, y) != 0).Eval());
     }
-    return IRMutatorWithAnalyzer::Dispatch_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
  private:

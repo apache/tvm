@@ -311,9 +311,9 @@ class RollingBufferRewriter : public StmtExprMutator {
     *indices = std::move(new_indices);
   }
 
-  Stmt VisitStmt_(const SBlockNode* block) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     SBlock old_stmt = ffi::GetRef<SBlock>(block);
-    SBlock stmt = StmtExprMutator::VisitStmt_(block).as_or_throw<SBlock>();
+    SBlock stmt = StmtExprMutator::Mutate_(block, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(block)).as_or_throw<SBlock>();
     SBlockNode* n = stmt.CopyOnWrite();
     if (block == scope_sref_->stmt) {
       ffi::Array<BufferVar> new_alloc_buffers;
@@ -355,8 +355,8 @@ class RollingBufferRewriter : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
-    SBlockRealize stmt = StmtExprMutator::VisitStmt_(realize).as_or_throw<SBlockRealize>();
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
+    SBlockRealize stmt = StmtExprMutator::Mutate_(realize, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(realize)).as_or_throw<SBlockRealize>();
     // Append block predicate to avoid recomputing elements.
     if (rewrite_block_predicate_) {
       rewrite_block_predicate_ = false;
@@ -380,8 +380,8 @@ class RollingBufferRewriter : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore stmt = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    BufferStore stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<BufferStore>();
     if (stmt->buffer.same_as(info_->old_buffer)) {
       BufferStoreNode* n = stmt.CopyOnWrite();
       RewriteBufferAccess(&n->buffer, &n->indices);
@@ -391,8 +391,8 @@ class RollingBufferRewriter : public StmtExprMutator {
     return stmt;
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) final {
-    TensorLoad stmt = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    TensorLoad stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op)).as_or_throw<TensorLoad>();
     if (stmt->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->old_buffer)) {
       BufferVar buffer = stmt->source.as_or_throw<tvm::tirx::BufferVar>();
       ffi::Array<PrimExpr> indices = stmt->indices;

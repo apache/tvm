@@ -28,7 +28,7 @@ namespace tirx {
 
 class AssertSkipper : public StmtMutator {
  public:
-  Stmt VisitStmt_(const AssertStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AssertStmtNode* op, InplaceMode inplace_mode) final {
     // AssertStmt is a leaf — just remove it.
     return Evaluate(0);
   }

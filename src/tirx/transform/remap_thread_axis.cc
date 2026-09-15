@@ -39,7 +39,7 @@ class ThreadAxisRewriter : private StmtExprMutator {
   Stmt Rewrite(Stmt stmt) { return operator()(std::move(stmt)); }
 
  private:
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == attr::thread_extent) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
@@ -52,17 +52,17 @@ class ThreadAxisRewriter : private StmtExprMutator {
         } else {
           TVM_FFI_ICHECK(vmap_[v].same_as(new_iv->var));
         }
-        Stmt body = this->VisitStmt(op->body);
+        Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
         return AttrStmt(new_iv, op->attr_key, op->value, body);
       }
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Expr Dispatch_(const VarNode* op) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     auto it = vmap_.find(op);
     if (it != vmap_.end()) return it->second;
-    return StmtExprMutator::Dispatch_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
   // The thread map
   const std::unordered_map<std::string, IterVar>& tmap_;

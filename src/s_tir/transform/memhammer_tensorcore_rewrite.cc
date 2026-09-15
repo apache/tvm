@@ -328,14 +328,14 @@ class WmmaToGlobalRewriter : public StmtExprMutator {
       : tgt_stmt_(tgt_stmt), constraints_(constraints) {}
 
  private:
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
     if (op == tgt_stmt_) {
       TVM_FFI_ICHECK_EQ(op->seq.size(), 2);
       Stmt wmma_to_shared = RewriteWmmaStore(op->seq[0]);
       Stmt shared_to_global = CoalescedAccess().Rewrite(op->seq[1], constraints_, nullptr);
       return SeqStmt({wmma_to_shared, shared_to_global});
     } else {
-      return StmtMutator::VisitStmt_(op);
+      return StmtMutator::Mutate_(op, inplace_mode);
     }
   }
 
@@ -539,7 +539,7 @@ class MmaToGlobalRewriter : public StmtExprMutator {
       : tgt_stmt_(tgt_stmt), constraints_(constraints) {}
 
  private:
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
     if (op == tgt_stmt_) {
       TVM_FFI_ICHECK_EQ(op->seq.size(), 2);
       // Rewrite for local to shared.dyn
@@ -549,7 +549,7 @@ class MmaToGlobalRewriter : public StmtExprMutator {
       Stmt shared_to_global = CoalescedAccess().Rewrite(op->seq[1], constraints_, nullptr);
       return SeqStmt({mma_to_shared, shared_to_global});
     } else {
-      return StmtMutator::VisitStmt_(op);
+      return StmtMutator::Mutate_(op, inplace_mode);
     }
   }
 

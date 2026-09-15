@@ -51,7 +51,7 @@ class DeviceRegionAnnotater : public StmtMutator {
  public:
   explicit DeviceRegionAnnotater(Target device_target) : device_target_(device_target) {}
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == tvm::attr::kTarget) {
       // If a target attribute already exists, use it as-is.
       return ffi::GetRef<Stmt>(op);
@@ -62,7 +62,7 @@ class DeviceRegionAnnotater : public StmtMutator {
       return AttrStmt(device_target_, tvm::attr::kTarget, 0, body);
     } else {
       // All other annotations are ignored.
-      return StmtMutator::VisitStmt_(op);
+      return StmtMutator::Mutate_(op, inplace_mode);
     }
   }
 
@@ -112,7 +112,7 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
   std::optional<int64_t> required_block_size() const { return required_block_size_; }
 
  private:
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == tirx::attr::kLaunchBoundsMinBlocksPerSM) {
       const auto* min_blocks_per_sm = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(min_blocks_per_sm)
@@ -124,7 +124,7 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
             << "Conflicting " << tirx::attr::kLaunchBoundsMinBlocksPerSM << " values";
       }
       min_blocks_per_sm_ = min_blocks_per_sm->value;
-      return VisitStmt(op->body);
+      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else if (op->attr_key == tirx::attr::kLaunchBoundsMaxBlocksPerCluster) {
       const auto* max_blocks_per_cluster = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(max_blocks_per_cluster)
@@ -136,7 +136,7 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
             << "Conflicting " << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " values";
       }
       max_blocks_per_cluster_ = max_blocks_per_cluster->value;
-      return VisitStmt(op->body);
+      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else if (op->attr_key == tirx::attr::kMaxRegisters) {
       const auto* max_registers = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(max_registers) << tirx::attr::kMaxRegisters << " expects an integer value";
@@ -147,7 +147,7 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
             << "Conflicting " << tirx::attr::kMaxRegisters << " values";
       }
       max_registers_ = max_registers->value;
-      return VisitStmt(op->body);
+      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else if (op->attr_key == tirx::attr::kRequiredBlockSize) {
       const auto* required_block_size = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(required_block_size)
@@ -159,9 +159,9 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
             << "Conflicting " << tirx::attr::kRequiredBlockSize << " values";
       }
       required_block_size_ = required_block_size->value;
-      return VisitStmt(op->body);
+      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     }
-    return StmtMutator::VisitStmt_(op);
+    return StmtMutator::Mutate_(op, inplace_mode);
   }
 
   std::optional<int64_t> min_blocks_per_sm_;
@@ -176,12 +176,12 @@ class HostDeviceSplitter : public StmtMutator {
                               PrimFunc cur_func)
       : device_mod_(device_mod), var_supply_(var_supply), cur_func_(cur_func) {}
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == tvm::attr::kTarget) {
       auto device_target = op->node.as<Target>().value().WithoutHost();
       return SplitDeviceFunc(op->body, device_target);
     }
-    return StmtMutator::VisitStmt_(op);
+    return StmtMutator::Mutate_(op, inplace_mode);
   }
 
  private:
@@ -590,7 +590,7 @@ class ReturnRemover : public StmtExprMutator {
  private:
   explicit ReturnRemover(bool remove) : remove_(remove) {}
 
-  Stmt VisitStmt_(const ReturnNode* op) override {
+  UnchangedOr<Stmt> Mutate_(const ReturnNode* op, InplaceMode inplace_mode) override {
     auto as_int = op->value.as<IntImmNode>();
     TVM_FFI_ICHECK(as_int && as_int->value == 0)
         << "Device kernel may only contain a successful return, return 0";
@@ -690,11 +690,11 @@ class DeviceKernelMutator : public StmtExprMutator {
         // The dyn-smem size declaration was consumed by DeviceInfoCollector;
         // it has no meaning inside the kernel body.
         class StripDynSmemAttr : public StmtMutator {
-          Stmt VisitStmt_(const AttrStmtNode* op) final {
+          UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
             if (op->attr_key == "tirx.dyn_smem_bytes") {
-              return VisitStmt(op->body);
+              return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
             }
-            return StmtMutator::VisitStmt_(op);
+            return StmtMutator::Mutate_(op, inplace_mode);
           }
         };
         write_ptr->body = StripDynSmemAttr()(std::move(write_ptr->body));
@@ -713,8 +713,8 @@ class DeviceKernelMutator : public StmtExprMutator {
   }
 
  private:
-  Expr Dispatch_(const CallNode* op) override {
-    auto node = Parent::Dispatch_(op).as_or_throw<Call>();
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
+    auto node = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op)).as_or_throw<Call>();
 
     auto* gvar = op->op.as<GlobalVarNode>();
     if (!gvar) return node;

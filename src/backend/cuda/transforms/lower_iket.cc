@@ -594,28 +594,28 @@ class StripIket : public StmtExprMutator {
   explicit StripIket(TokenBufferSet token_buffers) : token_buffers_(std::move(token_buffers)) {}
 
  private:
-  Stmt VisitStmt_(const AllocBufferNode* alloc) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* alloc, InplaceMode inplace_mode) final {
     if (token_buffers_.count(alloc->buffer.get())) return Evaluate(0);
-    return StmtExprMutator::VisitStmt_(alloc);
+    return StmtExprMutator::Mutate_(alloc, inplace_mode);
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* store) final {
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) final {
     if (token_buffers_.count(store->buffer.get())) return Evaluate(0);
-    return StmtExprMutator::VisitStmt_(store);
+    return StmtExprMutator::Mutate_(store, inplace_mode);
   }
 
-  Stmt VisitStmt_(const EvaluateNode* evaluate) final {
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* evaluate, InplaceMode inplace_mode) final {
     if (const auto* call = evaluate->value.as<CallNode>(); call && IsIketOp(call->op)) {
       return Evaluate(0);
     }
-    return StmtExprMutator::VisitStmt_(evaluate);
+    return StmtExprMutator::Mutate_(evaluate, inplace_mode);
   }
 
-  Expr Dispatch_(const CallNode* call) final {
+  UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) final {
     if (call->op.same_as(IketRangeStartOp()) || call->op.same_as(IketSentinelOp())) {
       return IntImm(PrimType::UInt(32), 0);
     }
-    return StmtExprMutator::Dispatch_(call);
+    return StmtExprMutator::Mutate_(call, inplace_mode);
   }
 
   TokenBufferSet token_buffers_;
@@ -659,16 +659,16 @@ class RemoveStrippedIketNoOps : public StmtExprMutator {
                loop->thread_binding, loop->annotations, loop->step, loop->span);
   }
 
-  Stmt VisitStmt_(const WhileNode* loop) final {
+  UnchangedOr<Stmt> Mutate_(const WhileNode* loop, InplaceMode inplace_mode) final {
     Stmt body = VisitStmt(loop->body);
     if (IsEvaluateZero(body)) return body;
     if (body.same_as(loop->body)) return ffi::GetRef<Stmt>(loop);
-    return While(Dispatch(loop->condition).as_or_throw<PrimExpr>(), body, loop->span);
+    return While(Mutate(loop->condition, inplace_mode).ValueOrUnchanged(loop->condition).as_or_throw<PrimExpr>(), body, loop->span);
   }
 
-  Stmt VisitStmt_(const IfThenElseNode* branch) final {
-    PrimExpr condition = Dispatch(branch->condition).as_or_throw<PrimExpr>();
-    Stmt then_case = VisitStmt(branch->then_case);
+  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* branch, InplaceMode inplace_mode) final {
+    PrimExpr condition = Mutate(branch->condition, inplace_mode).ValueOrUnchanged(branch->condition).as_or_throw<PrimExpr>();
+    Stmt then_case = Mutate(branch->then_case, inplace_mode).ValueOrUnchanged(branch->then_case);
     if (!branch->else_case.has_value()) {
       if (IsEvaluateZero(then_case)) return PreserveConditionEffects(condition);
       return IfThenElse(condition, then_case, std::nullopt, branch->span);
@@ -1141,7 +1141,7 @@ class InstrumentOfficialKernel : public StmtExprMutator {
     return payload;
   }
 
-  Stmt VisitStmt_(const EvaluateNode* evaluate) final {
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* evaluate, InplaceMode inplace_mode) final {
     if (const auto* call = evaluate->value.as<CallNode>();
         call && call->op.same_as(IketRangeEndOp())) {
       PrimExpr token = Dispatch(call->args[0]).as_or_throw<PrimExpr>();
@@ -1153,10 +1153,10 @@ class InstrumentOfficialKernel : public StmtExprMutator {
       }
       return Evaluate(Event(token));
     }
-    return StmtExprMutator::VisitStmt_(evaluate);
+    return StmtExprMutator::Mutate_(evaluate, inplace_mode);
   }
 
-  Expr Dispatch_(const CallNode* call) final {
+  UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) final {
     if (call->op.same_as(IketRangeStartOp())) {
       const Declaration& declaration = Lookup(DeclarationKind::kRange, call);
       PrimExpr event_id = IntImm(PrimType::UInt(32), declaration.event_id);
@@ -1191,7 +1191,7 @@ class InstrumentOfficialKernel : public StmtExprMutator {
     if (call->op.same_as(IketRangeEndOp())) {
       TVM_FFI_THROW(ValueError) << "range_end must be emitted in statement position";
     }
-    return StmtExprMutator::Dispatch_(call);
+    return StmtExprMutator::Mutate_(call, inplace_mode);
   }
 
   const KernelIketInfo& info_;

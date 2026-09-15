@@ -99,15 +99,15 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     return any;
   }
 
-  Expr Dispatch_(const VarNode* op) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     Var var = ffi::GetRef<Var>(op);
     if (auto it = var_remap_.find(var); it != var_remap_.end()) {
       return it->second;
     }
-    return IRMutatorWithAnalyzer::Dispatch_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  Expr Dispatch_(const CallNode* op) final {
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
@@ -122,10 +122,10 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
         return BufferVar(root).data();
       }
     }
-    return IRMutatorWithAnalyzer::Dispatch_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     buffer_aliases_.Set(op->buffer.var(), op->buffer.var());
     auto mutate = [this](BufferVar buf) {
       if (target_->kind->name == "trn" && !buf->layout.has_value()) {
@@ -142,7 +142,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     return Stmt(n);
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
     RegisterBufferAlias(op->buffer, op->data);
     Expr data = Dispatch(op->data);
     auto buffer = GetFlattenedBuffer(op->buffer);
@@ -224,19 +224,19 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     return flattened;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
     BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     store = VisitBufferAccess(store);
     return std::move(store);
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) final {
-    TensorLoad load = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     load = VisitBufferAccess(load);
     return std::move(load);
   }
 
-  Stmt VisitStmt_(const tirx::TilePrimitiveCallNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const tirx::TilePrimitiveCallNode* op, InplaceMode inplace_mode) final {
     ffi::Array<ffi::Any> args = op->args;
     args.MutateByApply([this](ffi::Any arg) -> ffi::Any { return VisitAny(arg); });
     if (args.same_as(op->args)) {
@@ -341,13 +341,13 @@ class BufferOffsetRemover : public StmtExprMutator {
     return StmtExprMutator::Dispatch_(op);
   }
 
-  Expr Dispatch_(const CallNode* call) final {
+  UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) final {
     if (call->op.same_as(tirx::builtin::buffer_offset())) {
       auto buffer_load = call->args[0].as_or_throw<TensorLoad>();
       TVM_FFI_ICHECK_EQ(buffer_load->indices.size(), 1) << "Expected a single index";
       return buffer_load->indices[0];
     }
-    return StmtExprMutator::Dispatch_(call);
+    return StmtExprMutator::Mutate_(call, inplace_mode);
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) {

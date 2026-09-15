@@ -197,8 +197,8 @@ class InferFragmenter : public StmtMutator {
  public:
   explicit InferFragmenter(const FragmentGetter& getter) : fragment_getter(getter) {}
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Stmt stmt = StmtMutator::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     const VarNode* buffer = op->buffer.get();
     if (fragment_getter.fragments.count(buffer)) {
       FragmentInfo info = fragment_getter.fragments.at(buffer);

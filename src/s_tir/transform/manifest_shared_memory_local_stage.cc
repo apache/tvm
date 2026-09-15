@@ -182,21 +182,21 @@ class IntermediateStageRewriter {
 
 class SharedMemoryLocalStageInserter : public StmtMutator {
  public:
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     ancestor_loop_or_blocks_.push_back(ffi::GetRef<Stmt>(op));
     Stmt new_stmt = StmtMutator::VisitStmt_(op);
     ancestor_loop_or_blocks_.pop_back();
     return new_stmt;
   }
 
-  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     ancestor_loop_or_blocks_.push_back(ffi::GetRef<Stmt>(op));
     Stmt new_stmt = StmtMutator::VisitStmt_(op);
     ancestor_loop_or_blocks_.pop_back();
     return new_stmt;
   }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     if (op->annotations.count(s_tir::attr::manifest_shared_memory_local_stage)) {
       // Rewrite the shared memory access to load from the intermediate buffer.
       // The annotated block must be a leaf block (will be checked during rewriting). No need to

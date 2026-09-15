@@ -43,9 +43,9 @@ class LoopCanonicalizer : public StmtExprMutator {
   LoopCanonicalizer() = default;
 
  private:
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     if (is_zero(op->min) && op->HasTrivialStep()) {
-      return StmtExprMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     const auto* loop_var = op->loop_var.get();
     PrimType loop_var_ty = loop_var->ty.as_or_throw<PrimType>();
@@ -60,7 +60,7 @@ class LoopCanonicalizer : public StmtExprMutator {
 
     new_iter_info_[loop_var] = std::make_pair(step, op->min);
     auto n = CopyOnWrite(op);
-    n->body = VisitStmt(op->body);
+    n->body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     n->min = IntImm(loop_var_ty, 0);
     n->extent = analyzer_->Simplify(ceildiv(op->extent, step));
     n->step = std::nullopt;
@@ -68,7 +68,7 @@ class LoopCanonicalizer : public StmtExprMutator {
     return For(n);
   }
 
-  Expr Dispatch_(const VarNode* op) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     auto it = new_iter_info_.find(op);
     if (it != new_iter_info_.end()) {
       const auto& [stride, offset] = it->second;

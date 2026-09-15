@@ -326,8 +326,8 @@ class DTypeMutator : private ReplaceBufferMutator {
     }
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore node = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    BufferStore node = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<BufferStore>();
     auto it = buffer_var_map_.find(node->buffer.get());
     if (it != buffer_var_map_.end()) {
       node.CopyOnWrite()->buffer = it->second;
@@ -336,8 +336,8 @@ class DTypeMutator : private ReplaceBufferMutator {
     return node;
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) final {
-    TensorLoad node = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    TensorLoad node = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op)).as_or_throw<TensorLoad>();
     auto it = buffer_var_map_.find(node->source.as_or_throw<tvm::tirx::BufferVar>().get());
     if (it != buffer_var_map_.end()) {
       return Cast(src_dtype_, BufferLoad(it->second, node->indices));

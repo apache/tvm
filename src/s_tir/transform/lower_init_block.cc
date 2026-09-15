@@ -35,12 +35,12 @@ using namespace tvm::tirx;
 
 class InitBlockLower : public StmtMutator {
  private:
-  Stmt VisitStmt_(const SBlockNode* block) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     if (!block->init.has_value()) {
-      return StmtMutator::VisitStmt_(block);
+      return StmtMutator::Mutate_(block, inplace_mode);
     }
     Stmt init = DoLowering(block->init.value(), block->iter_vars);
-    Stmt body = VisitStmt(block->body);
+    Stmt body = Mutate(block->body, inplace_mode).ValueOrUnchanged(block->body);
     auto n = CopyOnWrite(block);
     n->init = std::nullopt;
     n->body = SeqStmt::Flatten(init, body);

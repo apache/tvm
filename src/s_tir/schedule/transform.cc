@@ -138,7 +138,7 @@ ReplaceBufferMutator::ReplaceBufferMutator(const ffi::Map<BufferVar, BufferVar>&
   }
 }
 
-Expr ReplaceBufferMutator::Dispatch_(const VarNode* var) {
+UnchangedOr<Expr> ReplaceBufferMutator::Mutate_(const VarNode* var, InplaceMode inplace_mode) {
   auto it = buffer_var_map_.find(var);
   return it != buffer_var_map_.end() ? it->second.var() : ffi::GetRef<Var>(var);
 }
@@ -164,7 +164,7 @@ MatchBufferRegion ReplaceBufferMutator::VisitMatchBufferRegion(
   }
 }
 
-Stmt ReplaceBufferMutator::VisitStmt_(const SBlockNode* block) {
+UnchangedOr<Stmt> ReplaceBufferMutator::Mutate_(const SBlockNode* block, InplaceMode inplace_mode) {
   // To reduce the number of blocks in block sref reuse map, we check whether the block is really
   // mutated (i.e., the old buffer appears in the block). If so, we return the block after
   // mutation. Otherwise we just return the original block.
@@ -211,7 +211,7 @@ Stmt ReplaceBufferMutator::VisitStmt_(const SBlockNode* block) {
   // Step 3. Mutate `alloc_buffers` for the old buffer allocated in this block.
   ffi::Array<BufferVar> alloc_buffers = block->alloc_buffers.Map(f_mutate_alloc_buffers);
   // Step 4. Recursively mutate the block.
-  SBlock mutated_block = StmtMutator::VisitStmt_(block).as_or_throw<SBlock>();
+  SBlock mutated_block = StmtMutator::Mutate_(block, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(block)).as_or_throw<SBlock>();
 
   if (mutated_block.get() == block && reads.same_as(mutated_block->reads) &&
       writes.same_as(mutated_block->writes) &&
@@ -458,22 +458,25 @@ void BlockBufferAccessSimplifier::SimplifyBufferIndices(ffi::Array<PrimExpr>* in
   *indices = this->IterMapSimplifyWithContext(*indices, true);
 }
 
-Stmt BlockBufferAccessSimplifier::VisitStmt_(const SBlockNode* op) {
-  SBlock block = tirx::IRMutatorWithAnalyzer::VisitStmt_(op).as_or_throw<SBlock>();
+UnchangedOr<Stmt> BlockBufferAccessSimplifier::Mutate_(const SBlockNode* op,
+                                                       InplaceMode inplace_mode) {
+  SBlock block = tirx::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
   auto* n = block.CopyOnWrite();
   SimplifyAccessRegion(&n->reads);
   SimplifyAccessRegion(&n->writes);
   return block;
 }
 
-Stmt BlockBufferAccessSimplifier::VisitStmt_(const BufferStoreNode* op) {
-  BufferStore node = tirx::IRMutatorWithAnalyzer::VisitStmt_(op).as_or_throw<BufferStore>();
+UnchangedOr<Stmt> BlockBufferAccessSimplifier::Mutate_(const BufferStoreNode* op,
+                                                       InplaceMode inplace_mode) {
+  BufferStore node = tirx::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<BufferStore>();
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
   return node;
 }
 
-Expr BlockBufferAccessSimplifier::Dispatch_(const TensorLoadNode* op) {
-  TensorLoad node = tirx::IRMutatorWithAnalyzer::Dispatch_(op).as_or_throw<TensorLoad>();
+UnchangedOr<PrimExpr> BlockBufferAccessSimplifier::Mutate_(const TensorLoadNode* op,
+                                                           InplaceMode inplace_mode) {
+  TensorLoad node = tirx::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op)).as_or_throw<TensorLoad>();
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
   return node;
 }

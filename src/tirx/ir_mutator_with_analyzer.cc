@@ -70,7 +70,7 @@ ffi::Array<PrimExpr> IRMutatorWithAnalyzer::IterMapSimplifyWithContext(
   return simplified;
 }
 
-Stmt IRMutatorWithAnalyzer::VisitStmt_(const ForNode* op) {
+UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
   return constraint_scope_.WithNewScope([&]() -> Stmt {
     // record the loop variable as iterators
     Range dom = Range::FromMinExtent(op->min, op->extent);
@@ -86,7 +86,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const ForNode* op) {
     Stmt body = constraint_scope_.WithNewScope([&]() -> Stmt {
       EnterConstraintFacts(&constraint_scope_.Current(), analyzer_,
                            extent > IntImm(extent.ty(), 0));
-      return this->VisitStmt(op->body);
+      return this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     });
     if (min.same_as(op->min) && extent.same_as(op->extent) && body.same_as(op->body) &&
         step.same_as(op->step)) {
@@ -102,18 +102,18 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const ForNode* op) {
   });
 }
 
-Stmt IRMutatorWithAnalyzer::VisitStmt_(const SBlockNode* op) {
+UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
   return constraint_scope_.WithNewScope([&]() -> Stmt {
     for (const auto& iter_var : op->iter_vars) {
       analyzer_->Bind(iter_var->var, iter_var->dom);
       iter_vars_.Set(iter_var->var, iter_var->dom);
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   });
 }
 
-Stmt IRMutatorWithAnalyzer::VisitStmt_(const BindNode* op) {
-  Expr value = this->Dispatch(op->value);
+UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
+  Expr value = this->VisitExpr(op->value);
   if (auto prim_value = value.as<PrimExpr>()) {
     if (SideEffect(prim_value.value()) <= CallEffectKind::kPure) {
       analyzer_->Bind(op->var, prim_value.value());
@@ -125,7 +125,8 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const BindNode* op) {
   return Stmt(n);
 }
 
-Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
+UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const IfThenElseNode* op,
+                                                 InplaceMode inplace_mode) {
   return constraint_scope_.WithNewScope([&]() -> Stmt {
     PrimExpr condition = this->VisitPrimExpr(op->condition);
     PrimExpr real_condition = condition;
@@ -141,7 +142,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
     ffi::Optional<Stmt> else_case;
     constraint_scope_.WithNewScope([&]() {
       EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, real_condition);
-      WithRecordIterPredicate(real_condition, [&] { then_case = this->VisitStmt(op->then_case); });
+      WithRecordIterPredicate(real_condition, [&] { then_case = this->Mutate(op->then_case, inplace_mode).ValueOrUnchanged(op->then_case); });
     });
     if (op->else_case) {
       PrimExpr neg_condition = analyzer_->rewrite_simplify(prim::Not(real_condition));
@@ -168,7 +169,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
   });
 }
 
-Stmt IRMutatorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
+UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
   return constraint_scope_.WithNewScope([&]() -> Stmt {
     if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iv = op->node.as_or_throw<IterVar>();
@@ -177,11 +178,12 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
       analyzer_->Bind(iv->var, dom);
       iter_vars_.Set(iv->var, dom);
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   });
 }
 
-Stmt IRMutatorWithAnalyzer::VisitStmt_(const AssertStmtNode* op) {
+UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const AssertStmtNode* op,
+                                                 InplaceMode inplace_mode) {
   PrimExpr condition = this->VisitPrimExpr(op->condition);
   constraint_scope_.Current().Emplace(analyzer_, condition);
 
@@ -199,7 +201,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const SeqStmtNode* op) {
   return StmtExprMutator::VisitStmt_(op);
 }
 
-Expr IRMutatorWithAnalyzer::Dispatch_(const CallNode* op) {
+UnchangedOr<Expr> IRMutatorWithAnalyzer::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
   // add condition context to if_then_else
   static const Op& if_then_else_op = Op::Get("ir.prim.if_then_else");
   if (op->op.same_as(if_then_else_op)) {
@@ -229,10 +231,11 @@ Expr IRMutatorWithAnalyzer::Dispatch_(const CallNode* op) {
       return Call(op->ty, op->op, {cond, true_value, false_value}, op->attrs, {}, op->span);
     }
   }
-  return StmtExprMutator::Dispatch_(op);
+  return StmtExprMutator::Mutate_(op, inplace_mode);
 }
 
-Expr IRMutatorWithAnalyzer::Dispatch_(const prim::LetNode* op) {
+UnchangedOr<PrimExpr> IRMutatorWithAnalyzer::Mutate_(const prim::LetNode* op,
+                                                     InplaceMode inplace_mode) {
   PrimExpr value = this->VisitPrimExpr(op->value);
   if (SideEffect(value) <= CallEffectKind::kPure) {
     analyzer_->Bind(op->var, value);
@@ -247,18 +250,19 @@ Expr IRMutatorWithAnalyzer::Dispatch_(const prim::LetNode* op) {
   }
 }
 
-Expr IRMutatorWithAnalyzer::Dispatch_(const prim::SelectNode* op) {
+UnchangedOr<PrimExpr> IRMutatorWithAnalyzer::Mutate_(const prim::SelectNode* op,
+                                                     InplaceMode inplace_mode) {
   PrimExpr cond = this->VisitPrimExpr(op->condition);
   PrimExpr true_value, false_value;
   constraint_scope_.WithNewScope([&]() {
     EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, cond);
-    true_value = VisitPrimExpr(op->true_value);
+    true_value = Mutate(op->true_value, inplace_mode).ValueOrUnchanged(op->true_value);
   });
   {
     PrimExpr neg_cond = analyzer_->rewrite_simplify(prim::Not(cond));
     constraint_scope_.WithNewScope([&]() {
       constraint_scope_.Current().Emplace(analyzer_, neg_cond);
-      false_value = VisitPrimExpr(op->false_value);
+      false_value = Mutate(op->false_value, inplace_mode).ValueOrUnchanged(op->false_value);
     });
   }
   if (is_zero(cond)) {

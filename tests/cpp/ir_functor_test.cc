@@ -261,7 +261,7 @@ TEST(IRF, StmtMutator) {
 
    protected:
     // implementation
-    Expr Dispatch_(const prim::AddNode* op) final { return op->a; }
+    UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* op, InplaceMode) final { return op->a; }
     Stmt VisitStmt_(const SeqStmtNode* op) final { return StmtMutator::VisitSeqStmt_(op, true); }
     Expr Dispatch(const Expr& expr) final { return ExprMutator::Dispatch(expr); }
   };

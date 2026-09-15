@@ -364,7 +364,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
       this->new_iter_values = new_iter_values;
     }
 
-    Stmt VisitStmt_(const BufferStoreNode* op) final {
+    UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
       bool can_replace = [&]() -> bool {
         if (!op->buffer.same_as(info.store->buffer)) {
           return false;
@@ -397,8 +397,8 @@ class TransformLayoutPlanner : public StmtExprVisitor {
       return StmtExprMutator::VisitStmt_(store.get());
     }
 
-    Stmt VisitStmt_(const SBlockRealizeNode* op) final {
-      SBlockRealize realize = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlockRealize>();
+    UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
+      SBlockRealize realize = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlockRealize>();
 
       if (info.innermost_block_realize.has_value() &&
           op == info.innermost_block_realize.value().get()) {
@@ -419,15 +419,15 @@ class TransformLayoutPlanner : public StmtExprVisitor {
       return realize;
     }
 
-    Stmt VisitStmt_(const SBlockNode* op) final {
+    UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
       SBlock orig = ffi::GetRef<SBlock>(op);
-      SBlock mutated = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
+      SBlock mutated = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
 
       RecordReplacement(orig, mutated);
       return mutated;
     }
 
-    Expr Dispatch_(const VarNode* op) final {
+    UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
       Var var = ffi::GetRef<Var>(op);
       if (auto opt = var_remap.Get(var)) {
         return opt.value();
@@ -870,7 +870,7 @@ class TransformLayoutRewriter : private tirx::IRMutatorWithAnalyzer {
     return output;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Some replacements may include the original string, such as
     // replacing `loop` with `{loop, post_proc}`.  In this case, avoid
     // infinite recursion.
@@ -882,11 +882,11 @@ class TransformLayoutRewriter : private tirx::IRMutatorWithAnalyzer {
         return VisitStmt((*it).second);
       }
     }
-    return Parent::VisitStmt_(op);
+    return Parent::Mutate_(op, inplace_mode);
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) final {
-    TensorLoad buffer_load = Parent::Dispatch_(op).as_or_throw<TensorLoad>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    TensorLoad buffer_load = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op)).as_or_throw<TensorLoad>();
     if (buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)) {
       BufferVar buffer = buffer_load->source.as_or_throw<tvm::tirx::BufferVar>();
       ffi::Array<PrimExpr> indices = buffer_load->indices;
@@ -896,8 +896,8 @@ class TransformLayoutRewriter : private tirx::IRMutatorWithAnalyzer {
     return buffer_load;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore buffer_store = Parent::VisitStmt_(op).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    BufferStore buffer_store = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<BufferStore>();
     if (buffer_store->buffer.same_as(old_buffer_)) {
       auto* n = buffer_store.CopyOnWrite();
       RewriteBufferAccess(&n->buffer, &n->indices);
@@ -924,7 +924,7 @@ class TransformLayoutRewriter : private tirx::IRMutatorWithAnalyzer {
     (*old_access_regions).MutateByApply(fmutate);
   }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     SBlock orig = [&]() {
       SBlock block = ffi::GetRef<SBlock>(op);
       while (true) {
@@ -937,7 +937,7 @@ class TransformLayoutRewriter : private tirx::IRMutatorWithAnalyzer {
       return block;
     }();
 
-    SBlock block = Parent::VisitStmt_(op).as_or_throw<SBlock>();
+    SBlock block = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
 
     auto infered_access_regions = GetSBlockReadWriteRegion(block, buffer_data_to_buffer_);
     auto* n = block.CopyOnWrite();

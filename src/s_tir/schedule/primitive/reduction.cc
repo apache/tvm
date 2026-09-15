@@ -58,8 +58,8 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
         decomposed_body_(std::move(decomposed_body)),
         old_reduction_block_(std::move(old_reduction_block)) {}
 
-  Stmt VisitStmt_(const ForNode* loop) final {
-    Stmt mutated_stmt = StmtMutator::VisitStmt_(loop);
+  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
+    Stmt mutated_stmt = StmtMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
     if (loop == target_loop_.get()) {
       return SeqStmt({decomposed_body_, mutated_stmt});
     } else {
@@ -67,7 +67,7 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
     }
   }
 
-  Stmt VisitStmt_(const SBlockNode* block) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     if (block == old_reduction_block_.get()) {
       ffi::ObjectPtr<SBlockNode> p_new_block = CopyOnWrite(block);
       p_new_block->name_hint = p_new_block->name_hint + "_update";
@@ -90,7 +90,7 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
       new_reduction_block_ = SBlock(p_new_block);
       return new_reduction_block_;
     } else {
-      return StmtMutator::VisitStmt_(block);
+      return StmtMutator::Mutate_(block, inplace_mode);
     }
   }
 
@@ -1304,7 +1304,7 @@ class BlockReplacer : public StmtMutator {
         reduce_loop_vars_(std::move(reduce_loop_vars)),
         loop_vars2loop_(std::move(loop_vars2loop)) {}
 
-  Stmt VisitStmt_(const ForNode* loop) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     // Step 1. Check whether this loop is outside the reduction block. Given that we've made sure
     // that the scope root block has stage-pipeline property, if this loop is not outside the
     // reduction block, there's no need to recursively mutate.
@@ -1328,7 +1328,8 @@ class BlockReplacer : public StmtMutator {
     return loop == outermost_loop_.get() ? SeqStmt({rf_body_, body}) : body;
   }
 
-  Stmt VisitStmt_(const SBlockRealizeNode* block_realize) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* block_realize,
+                            InplaceMode inplace_mode) final {
     // Due to the visitor's behavior on ForNode, this block-realize must be the reduction block's
     // block-realize. And we directly return the new `wb_block_realize`.
     TVM_FFI_ICHECK_EQ(block_realize, old_block_realize_.get());

@@ -105,27 +105,27 @@ class LoopUnroller : public StmtExprMutator {
         explicit_unroll_(explicit_unroll),
         unroll_local_access_(unroll_local_access) {}
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == "pragma_auto_unroll_max_step") {
       int value = static_cast<int>(op->value.as_or_throw<IntImm>()->value);
       std::swap(value, auto_max_step_);
-      Stmt ret = this->VisitStmt(op->body);
+      Stmt ret = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
       std::swap(value, auto_max_step_);
       return ret;
     } else if (op->attr_key == "pragma_unroll_explicit") {
       bool explicit_unroll = op->value.as_or_throw<IntImm>()->value;
       std::swap(explicit_unroll, explicit_unroll_);
-      Stmt ret = this->VisitStmt(op->body);
+      Stmt ret = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
       std::swap(explicit_unroll, explicit_unroll_);
       return ret;
     } else {
-      return StmtExprMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 
-  Stmt VisitStmt_(const ForNode* op) {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) {
     // Post order so we can collect more information
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<ForNode>();
     int value = GetExtent(op);
     // condition for auto unroll
@@ -169,7 +169,7 @@ class LoopUnroller : public StmtExprMutator {
     }
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     if (unroll_local_access_) {
       auto storage_scope =
           runtime::StorageScope::Create(op->source.as_or_throw<tvm::tirx::BufferVar>().scope());
@@ -184,7 +184,7 @@ class LoopUnroller : public StmtExprMutator {
     return ffi::GetRef<PrimExpr>(op);
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
     ++step_count_;
     if (unroll_local_access_) {
       auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
@@ -196,15 +196,15 @@ class LoopUnroller : public StmtExprMutator {
         }
       }
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const EvaluateNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     ++step_count_;
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
     auto fmutate = [this](const Stmt& s) {
       int step_count = step_count_;
       int unroll_depth = unroll_depth_;

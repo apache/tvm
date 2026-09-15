@@ -304,9 +304,9 @@ class InvalidProducerError : public ScheduleErrorContextObj {
 
 class PadEinsumBufferReplacer : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const SBlockNode* old_block_ptr) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* old_block_ptr, InplaceMode inplace_mode) final {
     SBlock old_block = ffi::GetRef<SBlock>(old_block_ptr);
-    SBlock block = StmtMutator::VisitStmt_(old_block_ptr).as_or_throw<SBlock>();
+    SBlock block = StmtMutator::Mutate_(old_block_ptr, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(old_block_ptr)).as_or_throw<SBlock>();
     ffi::Array<IterVar> iter_vars;
     iter_vars.reserve(block->iter_vars.size());
     for (const IterVar& iter_var : block->iter_vars) {
@@ -343,9 +343,9 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     return new_block;
   }
 
-  Stmt VisitStmt_(const ForNode* old_for_ptr) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* old_for_ptr, InplaceMode inplace_mode) final {
     For old_for = ffi::GetRef<For>(old_for_ptr);
-    For new_for = StmtMutator::VisitStmt_(old_for_ptr).as_or_throw<For>();
+    For new_for = StmtMutator::Mutate_(old_for_ptr, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(old_for_ptr)).as_or_throw<For>();
     if (ffi::Optional<PrimExpr> new_extent = loop_var2padded_extent.Get(new_for->loop_var)) {
       ffi::ObjectPtr<ForNode> new_for_ptr = ffi::make_object<ForNode>(*new_for.get());
       new_for_ptr->extent = new_extent.value();
@@ -354,8 +354,8 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     return new_for;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* old_store_ptr) final {
-    BufferStore store = StmtMutator::VisitStmt_(old_store_ptr).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* old_store_ptr, InplaceMode inplace_mode) final {
+    BufferStore store = StmtMutator::Mutate_(old_store_ptr, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(old_store_ptr)).as_or_throw<BufferStore>();
     if (ffi::Optional<BufferVar> buffer = buffer_map_.Get(store->buffer)) {
       return BufferStore(buffer.value(), store->value, store->indices);
     } else {
@@ -363,8 +363,9 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     }
   }
 
-  Expr Dispatch_(const TensorLoadNode* old_load_ptr) final {
-    TensorLoad load = ExprMutator::Dispatch_(old_load_ptr).as_or_throw<TensorLoad>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* old_load_ptr,
+                                InplaceMode inplace_mode) final {
+    TensorLoad load = ExprMutator::Mutate_(old_load_ptr, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(old_load_ptr)).as_or_throw<TensorLoad>();
     if (ffi::Optional<BufferVar> buffer =
             buffer_map_.Get(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
       return BufferLoad(buffer.value(), load->indices);

@@ -213,11 +213,11 @@ class BufferLoadReplacer : public StmtExprMutator {
   BufferLoadReplacer(const BufferVar& tgt_buffer, const TensorLoad& new_buffer_load)
       : tgt_buffer_(tgt_buffer), new_buffer_load_(new_buffer_load) {}
 
-  Expr Dispatch_(const TensorLoadNode* op) {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) {
     if (op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(tgt_buffer_)) {
       return new_buffer_load_;
     }
-    return StmtExprMutator::Dispatch_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  private:

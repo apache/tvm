@@ -407,13 +407,13 @@ class DecomposePaddingBlockReplacer : public StmtMutator {
  private:
   explicit DecomposePaddingBlockReplacer(const ReplaceDesc& desc) : desc_(desc) {}
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     Stmt new_loop;
     if (op == desc_.in_bound_filling_pos.get()) {
       // position to rewrite inbound filling code
       new_loop = desc_.in_bound_filling_loop;
     } else {
-      new_loop = StmtMutator::VisitStmt_(op);
+      new_loop = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     }
     if (op == desc_.const_filling_pos.get()) {
       // position to insert pad value filling code

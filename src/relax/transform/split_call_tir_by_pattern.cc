@@ -532,8 +532,8 @@ class BlockRemover : public StmtExprMutator {
                bool is_library_part)
       : block_partition(block_partition), allocs_(allocs), is_library_part_(is_library_part) {}
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
     ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block.operator->());
     if (op->name_hint != "root") {
       TVM_FFI_ICHECK(block_partition.count(ffi::GetRef<SBlock>(op)));
@@ -554,7 +554,7 @@ class BlockRemover : public StmtExprMutator {
     return SBlock(n);
   }
 
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
     ffi::Array<Stmt> seq;
     for (const Stmt& s : op->seq) {
       Stmt new_s = VisitStmt(s);

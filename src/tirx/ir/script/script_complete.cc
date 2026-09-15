@@ -43,16 +43,16 @@ class ScriptCompleter : public StmtMutator {
 
  private:
   ffi::Map<Var, BufferVar>* buffer_var_map_;
-  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     for (const PrimExpr& value : op->iter_values) {
       PrimType value_ty = value.ty();
       TVM_FFI_ICHECK(value_ty.code() == DLDataTypeCode::kDLInt)
           << "BlockRealize iter_value expected a IntImm, but got " << value_ty->dtype;
     }
-    return StmtMutator::VisitStmt_(op);
+    return StmtMutator::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     // Buffers allocated in the block can be accessed by its body.
     for (const auto& alloc_buffer : op->alloc_buffers) {
       buffer_var_map_->Set(alloc_buffer.var(), alloc_buffer);
@@ -64,7 +64,7 @@ class ScriptCompleter : public StmtMutator {
 
     bool is_root_block = this->is_root_block_;
     this->is_root_block_ = false;
-    SBlock block = StmtMutator::VisitStmt_(op).as_or_throw<SBlock>();
+    SBlock block = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
     this->is_root_block_ = is_root_block;
 
     // Remove buffers allocated inside block to detect its access region
@@ -104,20 +104,20 @@ class ScriptCompleter : public StmtMutator {
     }
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     // AllocBuffer is flat: register buffer for subsequent siblings
     if (!buffer_var_map_->count(op->buffer.var())) {
       buffer_var_map_->Set(op->buffer.var(), op->buffer);
     }
-    return StmtMutator::VisitStmt_(op);
+    return StmtMutator::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
     // DeclBuffer is flat: register buffer for subsequent siblings
     if (!buffer_var_map_->count(op->buffer.var())) {
       buffer_var_map_->Set(op->buffer.var(), op->buffer);
     }
-    return StmtMutator::VisitStmt_(op);
+    return StmtMutator::Mutate_(op, inplace_mode);
   }
 
   bool is_root_block_ = true;

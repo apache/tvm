@@ -602,15 +602,15 @@ class BufferCompactor : public StmtExprMutator {
   explicit BufferCompactor(std::unordered_map<Var, BufferAllocInfo> buffer_info)
       : buffer_info_(std::move(buffer_info)) {}
 
-  Stmt VisitStmt_(const BufferStoreNode* _op) final {
-    BufferStore store = StmtExprMutator::VisitStmt_(_op).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* _op, InplaceMode inplace_mode) final {
+    BufferStore store = StmtExprMutator::Mutate_(_op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(_op)).as_or_throw<BufferStore>();
     BufferStoreNode* op = store.CopyOnWrite();
     RewriteBufferAccess(_op->buffer, &op->buffer, &op->indices);
     return store;
   }
 
-  Expr Dispatch_(const TensorLoadNode* _op) final {
-    TensorLoad load = StmtExprMutator::Dispatch_(_op).as_or_throw<TensorLoad>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* _op, InplaceMode inplace_mode) final {
+    TensorLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<TensorLoad>();
     BufferVar original_buffer = _op->source.as_or_throw<tvm::tirx::BufferVar>();
     BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
     ffi::Array<PrimExpr> indices = load->indices;
@@ -618,7 +618,7 @@ class BufferCompactor : public StmtExprMutator {
     return BufferLoad(buffer, indices, load->span);
   }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     // Step 0. Check there is no Init part.
     TVM_FFI_ICHECK(!op->init.has_value());
     // Rewrite the signature while its buffer identities still match buffer_info_.
@@ -633,14 +633,14 @@ class BufferCompactor : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(block.get());
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
     RewriteAllocBuffer(op->buffer);
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     RewriteAllocBuffer(op->buffer);
-    AllocBuffer alloc_buf = StmtExprMutator::VisitStmt_(op).as_or_throw<AllocBuffer>();
+    AllocBuffer alloc_buf = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<AllocBuffer>();
     auto it = buffer_info_.find(op->buffer.var());
     if (it == buffer_info_.end()) {
       return alloc_buf;

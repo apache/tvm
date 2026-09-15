@@ -1014,8 +1014,8 @@ class CacheReadRewriter : public StmtExprMutator {
     };
   }
 
-  Stmt VisitStmt_(const ForNode* loop) final {
-    Stmt stmt = StmtMutator::VisitStmt_(loop);
+  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
+    Stmt stmt = StmtMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
     // Check the insertion point
     if (loop == info_->loc_sref->stmt) {
       // Insert cache stage into the loop if it is the right place
@@ -1026,7 +1026,7 @@ class CacheReadRewriter : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt_(const SBlockNode* block) override {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) override {
     SBlock old_stmt = ffi::GetRef<SBlock>(block);
     // Check if this block is one of the specified consumers.
     // If no consumer blocks are specified, all blocks should be considered consumers.
@@ -1047,7 +1047,7 @@ class CacheReadRewriter : public StmtExprMutator {
       return old_stmt;
     }
     // Mutate the body
-    SBlock stmt = StmtMutator::VisitStmt_(block).as_or_throw<SBlock>();
+    SBlock stmt = StmtMutator::Mutate_(block, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(block)).as_or_throw<SBlock>();
     // Check the insertion point
     if (block == info_->loc_sref->stmt) {
       // Insert cache stage into the block if it is the right place
@@ -1091,7 +1091,7 @@ class CacheReadRewriter : public StmtExprMutator {
     return ret;
   }
 
-  Expr Dispatch_(const TensorLoadNode* load) override {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* load, InplaceMode inplace_mode) override {
     if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->read_buffer) &&
         current_block_consumes) {
       ffi::Array<PrimExpr> indices = load->indices;
@@ -1103,7 +1103,7 @@ class CacheReadRewriter : public StmtExprMutator {
     return ExprMutator::Dispatch_(load);
   }
 
-  Expr Dispatch_(const VarNode* op) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     if (op == info_->read_buffer.get()) {
       return info_->write_buffer.var();
     }
@@ -1184,12 +1184,12 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
     };
   }
 
-  Expr Dispatch_(const TensorLoadNode* load) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* load, InplaceMode inplace_mode) final {
     if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->read_buffer) &&
         current_block_consumes) {
       return BufferLoad(info_->write_buffer, new_indices_, load->span);
     }
-    return ExprMutator::Dispatch_(load);
+    return ExprMutator::Mutate_(load, inplace_mode);
   }
 
   /*! \brief The indices to use for new buffer. */
@@ -1269,8 +1269,8 @@ class CacheWriteRewriter : public StmtExprMutator {
     };
   }
 
-  Stmt VisitStmt_(const ForNode* loop) final {
-    Stmt stmt = StmtMutator::VisitStmt_(loop);
+  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
+    Stmt stmt = StmtMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
     // Check the insertion point
     if (loop == info_->loc_sref->stmt) {
       // Insert cache stage into the loop if it is the right place
@@ -1281,7 +1281,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt_(const SBlockNode* block) override {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) override {
     SBlock old_stmt = ffi::GetRef<SBlock>(block);
 
     // Check if this block is one of the specified cache consumers.
@@ -1299,7 +1299,7 @@ class CacheWriteRewriter : public StmtExprMutator {
           n->writes = std::move(writes);
           n->reads = std::move(reads);
           n->match_buffers = std::move(match_buffers);
-          n->body = VisitStmt(block->body);
+          n->body = Mutate(block->body, inplace_mode).ValueOrUnchanged(block->body);
           SBlock new_consumer = SBlock(n);
           info_->block_reuse.Set(old_stmt, new_consumer);
           return new_consumer;
@@ -1316,7 +1316,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     // Mutate the body
     bool under_scope = under_writer_block_ || block == writer_block_sref_->stmt;
     std::swap(under_scope, under_writer_block_);
-    SBlock stmt = StmtMutator::VisitStmt_(block).as_or_throw<SBlock>();
+    SBlock stmt = StmtMutator::Mutate_(block, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(block)).as_or_throw<SBlock>();
     std::swap(under_scope, under_writer_block_);
 
     // Find the insertion point
@@ -1359,8 +1359,8 @@ class CacheWriteRewriter : public StmtExprMutator {
     return ret;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* store) override {
-    BufferStore stmt = StmtMutator::VisitStmt_(store).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) override {
+    BufferStore stmt = StmtMutator::Mutate_(store, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(store)).as_or_throw<BufferStore>();
     if (stmt->buffer.same_as(info_->write_buffer)) {
       auto n = CopyOnWrite(stmt.get());
       n->buffer = info_->read_buffer;
@@ -1373,7 +1373,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     }
   }
 
-  Expr Dispatch_(const TensorLoadNode* load) override {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* load, InplaceMode inplace_mode) override {
     if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->write_buffer)) {
       ffi::Array<PrimExpr> indices = load->indices;
       if (!cache_full_region_) {
@@ -1381,10 +1381,10 @@ class CacheWriteRewriter : public StmtExprMutator {
       }
       return BufferLoad(info_->read_buffer, indices, load->span);
     }
-    return ExprMutator::Dispatch_(load);
+    return ExprMutator::Mutate_(load, inplace_mode);
   }
 
-  Expr Dispatch_(const VarNode* op) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     if (op == info_->write_buffer.get()) {
       return info_->read_buffer.var();
     }
@@ -1470,8 +1470,8 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
     };
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* store) final {
-    BufferStore stmt = StmtMutator::VisitStmt_(store).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) final {
+    BufferStore stmt = StmtMutator::Mutate_(store, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(store)).as_or_throw<BufferStore>();
     if (stmt->buffer.same_as(info_->write_buffer)) {
       auto n = CopyOnWrite(stmt.get());
       n->buffer = info_->read_buffer;
@@ -1482,11 +1482,11 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
     }
   }
 
-  Expr Dispatch_(const TensorLoadNode* load) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* load, InplaceMode inplace_mode) final {
     if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->write_buffer)) {
       return BufferLoad(info_->read_buffer, new_indices_, load->span);
     }
-    return ExprMutator::Dispatch_(load);
+    return ExprMutator::Mutate_(load, inplace_mode);
   }
 
   /*! \brief The indices to use for new buffer. */
@@ -1669,11 +1669,11 @@ class ReIndexRewriter : public StmtExprMutator {
     old_buffer_ = info->read_buffer.same_as(new_buffer_) ? info->write_buffer : info->read_buffer;
   }
 
-  Stmt VisitStmt_(const SBlockNode* block) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     SBlock old_stmt = ffi::GetRef<SBlock>(block);
     if (is_scope_) {
       is_scope_ = false;
-      SBlock stmt = StmtExprMutator::VisitStmt_(block).as_or_throw<SBlock>();
+      SBlock stmt = StmtExprMutator::Mutate_(block, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(block)).as_or_throw<SBlock>();
       // Insert cache stage into the loop
       ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
       n->body = InsertCacheStage(n->body, info_->loc_pos, info_->cache_stage);
@@ -1692,7 +1692,7 @@ class ReIndexRewriter : public StmtExprMutator {
           region_.push_back(Range::FromMinExtent(iter->var, IntImm(iter->var.ty(), 1)));
         }
       }
-      SBlock stmt = StmtExprMutator::VisitStmt_(block).as_or_throw<SBlock>();
+      SBlock stmt = StmtExprMutator::Mutate_(block, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(block)).as_or_throw<SBlock>();
       // Update block reads/writes to use the intermediate reindex buffer
       auto writes =
           ReplaceBufferRegion(block->writes, old_buffer_, BufferRegion{new_buffer_, region_});
@@ -1728,13 +1728,13 @@ class ReIndexRewriter : public StmtExprMutator {
                ? BufferLoad(new_buffer_, indices_, node->span)
                : node;
   }
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore buffer_store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    BufferStore buffer_store = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<BufferStore>();
     return VisitBufferAccess(std::move(buffer_store));
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) final {
-    TensorLoad buffer_load = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    TensorLoad buffer_load = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op)).as_or_throw<TensorLoad>();
     return VisitBufferAccess(std::move(buffer_load));
   }
 

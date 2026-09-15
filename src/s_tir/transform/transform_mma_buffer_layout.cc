@@ -46,7 +46,7 @@ using namespace tvm::tirx;
  */
 class MmaBufferLayoutTransformer : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const SBlockNode* op) {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
     SBlock block = ffi::GetRef<SBlock>(op);
     auto* n = block.CopyOnWrite();
     auto fmutate = [this](const BufferVar& buffer) {
@@ -124,11 +124,11 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
       return buffer;
     };
     n->alloc_buffers.MutateByApply(fmutate);
-    n->body = VisitStmt(n->body);
+    n->body = Mutate(n->body, inplace_mode).ValueOrUnchanged(n->body);
     return block;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) {
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) {
     BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     if (buffer_map_.count(store->buffer)) {
       auto* n = store.CopyOnWrite();
@@ -150,8 +150,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
     return store;
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) {
-    TensorLoad load = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) {
+    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
     if (buffer_map_.count(buffer)) {
       ffi::Array<PrimExpr> indices = load->indices;
@@ -171,7 +171,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
     return load;
   }
 
-  Expr Dispatch_(const VarNode* op) {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) {
     if (buffer_var_map_.count(ffi::GetRef<Var>(op))) {
       return buffer_var_map_[ffi::GetRef<Var>(op)];
     }

@@ -43,8 +43,8 @@
 namespace tvm {
 namespace tirx {
 
-Stmt DataTypeLegalizer::VisitStmt_(const ForNode* op) {
-  Stmt s = StmtExprMutator::VisitStmt_(op);
+UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
+  Stmt s = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
   op = s.as<ForNode>();
   TVM_FFI_ICHECK(op != nullptr) << "Expected type to be ForNode, but get " << s->GetTypeKey();
   PrimExpr e = Dispatch(op->loop_var).as_or_throw<PrimExpr>();
@@ -59,8 +59,9 @@ Stmt DataTypeLegalizer::VisitStmt_(const ForNode* op) {
   return For(n);
 }
 
-Stmt DataTypeLegalizer::VisitStmt_(const SBlockRealizeNode* op) {
-  SBlockRealize realize = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlockRealize>();
+UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const SBlockRealizeNode* op,
+                                             InplaceMode inplace_mode) {
+  SBlockRealize realize = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlockRealize>();
   ffi::Array<PrimExpr> new_iter_values;
   bool changed = false;
   for (int i = 0; i < static_cast<int>(op->iter_values.size()); ++i) {
@@ -78,8 +79,8 @@ Stmt DataTypeLegalizer::VisitStmt_(const SBlockRealizeNode* op) {
   return realize;
 }
 
-Stmt DataTypeLegalizer::VisitStmt_(const SBlockNode* op) {
-  SBlock new_block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
+UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
+  SBlock new_block = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
   ffi::Array<IterVar> new_iter_vars =
       MutateArray(new_block->iter_vars, [/*this*/](const IterVar& iter) {
         PrimType dtype = iter->var.ty();
@@ -98,9 +99,9 @@ Stmt DataTypeLegalizer::VisitStmt_(const SBlockNode* op) {
   return new_block;
 }
 
-Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
+UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
   if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
-    Stmt s = StmtExprMutator::VisitStmt_(op);
+    Stmt s = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = s.as<AttrStmtNode>();
     TVM_FFI_ICHECK(op != nullptr) << "Expected type to be AttrStmtNode"
                                   << ", but get " << s->GetTypeKey();
@@ -125,10 +126,11 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
     }
     return AttrStmt(ivmap_[iv], op->attr_key, cast(var.ty(), op->value), op->body);
   }
-  return StmtExprMutator::VisitStmt_(op);
+  return StmtExprMutator::Mutate_(op, inplace_mode);
 }
 
-Expr DataTypeLegalizer::Dispatch_(const prim::LetNode* op) {
+UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const prim::LetNode* op,
+                                                 InplaceMode inplace_mode) {
   PrimExpr value = this->VisitPrimExpr(op->value);
   Var var = op->var;
 
@@ -146,8 +148,8 @@ Expr DataTypeLegalizer::Dispatch_(const prim::LetNode* op) {
   }
 }
 
-Stmt DataTypeLegalizer::VisitStmt_(const BindNode* op) {
-  Expr value = this->Dispatch(op->value);
+UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
+  Expr value = this->VisitExpr(op->value);
   Var var = op->var;
 
   if (auto prim_value = value.as<PrimExpr>()) {
@@ -164,7 +166,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const BindNode* op) {
   }
 }
 
-Expr DataTypeLegalizer::Dispatch_(const VarNode* op) {
+UnchangedOr<Expr> DataTypeLegalizer::Mutate_(const VarNode* op, InplaceMode inplace_mode) {
   if (op->ty.as<BufferTypeNode>()) {
     return VisitBufferUse(GetBufferVar(op)).var();
   }
@@ -174,7 +176,8 @@ Expr DataTypeLegalizer::Dispatch_(const VarNode* op) {
   return ffi::GetRef<Var>(op);
 }
 
-Expr DataTypeLegalizer::Dispatch_(const prim::SelectNode* op) {
+UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const prim::SelectNode* op,
+                                                 InplaceMode inplace_mode) {
   PrimExpr condition = this->VisitPrimExpr(op->condition);
   PrimExpr true_value = this->VisitPrimExpr(op->true_value);
   PrimExpr false_value = this->VisitPrimExpr(op->false_value);
@@ -192,7 +195,8 @@ Expr DataTypeLegalizer::Dispatch_(const prim::SelectNode* op) {
   }
 }
 
-Expr DataTypeLegalizer::Dispatch_(const prim::RampNode* op) {
+UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const prim::RampNode* op,
+                                                 InplaceMode inplace_mode) {
   PrimExpr base = VisitPrimExpr(op->base);
   PrimExpr stride = VisitPrimExpr(op->stride);
   if (base.same_as(op->base) && stride.same_as(op->stride) && base.ty() == stride.ty()) {
@@ -215,7 +219,7 @@ Expr DataTypeLegalizer::Dispatch_(const prim::CastNode* op) {
 }
 
 #define TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)       \
-  Expr DataTypeLegalizer::Dispatch_(const OP* op) {                 \
+  UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const OP* op, InplaceMode inplace_mode) { \
     PrimExpr a = this->VisitPrimExpr(op->a);                        \
     PrimExpr b = this->VisitPrimExpr(op->b);                        \
     if (op->a.same_as(a) && op->b.same_as(b) && a.ty() == b.ty()) { \
@@ -243,7 +247,7 @@ TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::GENode, operator>=);
 
 #undef TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH
 
-Expr DataTypeLegalizer::Dispatch_(const CallNode* op) {
+UnchangedOr<Expr> DataTypeLegalizer::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
   Call before = ffi::GetRef<Call>(op);
   Expr e = StmtExprMutator::Dispatch_(op);
   op = e.as<CallNode>();
@@ -315,15 +319,15 @@ Expr DataTypeLegalizer::Dispatch_(const CallNode* op) {
   return prim_e;
 }
 
-Stmt IndexDataTypeRewriter::VisitStmt_(const AttrStmtNode* op) {
+UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
   if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
     bool is_enabled = is_enabled_;
     is_enabled_ = true;
-    auto stmt = DataTypeLegalizer::VisitStmt_(op);
+    auto stmt = DataTypeLegalizer::Mutate_(op, inplace_mode);
     is_enabled_ = is_enabled;
     return stmt;
   }
-  return DataTypeLegalizer::VisitStmt_(op);
+  return DataTypeLegalizer::Mutate_(op, inplace_mode);
 }
 
 BufferVar IndexDataTypeRewriter::VisitBufferDef(const BufferVar& buffer, bool alloc_data) {
@@ -338,7 +342,8 @@ BufferVar IndexDataTypeRewriter::VisitBufferUse(const BufferVar& buffer) {
   return StmtMutator::VisitBufferUse(buffer);
 }
 
-Stmt IndexDataTypeRewriter::VisitStmt_(const SBlockRealizeNode* op) {
+UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const SBlockRealizeNode* op,
+                                                 InplaceMode inplace_mode) {
   bool is_condition = is_condition_;
   is_condition_ = true;
   auto new_predicate = VisitPrimExpr(op->predicate);
@@ -349,7 +354,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const SBlockRealizeNode* op) {
   auto new_iter_values =
       op->iter_values.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
   is_enabled_ = is_enabled;
-  SBlock new_body = this->VisitStmt(op->block).as_or_throw<SBlock>();
+  SBlock new_body = this->Mutate(op->block, inplace_mode).ValueOrUnchanged(op->block).as_or_throw<SBlock>();
   if (!new_predicate.same_as(op->predicate) || !new_iter_values.same_as(op->iter_values) ||
       !new_body.same_as(op->block)) {
     SBlockRealize new_block_realize = ffi::GetRef<SBlockRealize>(op);
@@ -364,7 +369,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const SBlockRealizeNode* op) {
   }
 }
 
-Stmt IndexDataTypeRewriter::VisitStmt_(const SBlockNode* op) {
+UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
   ffi::Array<BufferVar> new_alloc_buffers = op->alloc_buffers.Map([this](const BufferVar& buffer) {
     return this->VisitBufferDef(buffer, /*alloc_data=*/true);
   });
@@ -479,7 +484,8 @@ BufferRegion IndexDataTypeRewriter::VisitBufferRegion(const BufferRegion& buffer
   }
 }
 
-Stmt IndexDataTypeRewriter::VisitStmt_(const BufferStoreNode* op) {
+UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const BufferStoreNode* op,
+                                                 InplaceMode inplace_mode) {
   BufferStore store = ffi::GetRef<BufferStore>(op);
 
   BufferVar new_buffer = VisitBufferUse(op->buffer);
@@ -488,7 +494,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BufferStoreNode* op) {
   if (new_buffer->dtype != value_dtype && value_dtype.IsScalar()) {
     value = cast(new_buffer->dtype, value);
   }
-  auto indices = VisitIndices(op->indices);
+  auto indices = VisitIndices(op->indices, inplace_mode);
 
   if (!new_buffer.same_as(op->buffer) || !value.same_as(op->value) ||
       !indices.same_as(op->indices)) {
@@ -501,11 +507,12 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BufferStoreNode* op) {
   return store;
 }
 
-Expr IndexDataTypeRewriter::Dispatch_(const TensorLoadNode* op) {
+UnchangedOr<PrimExpr> IndexDataTypeRewriter::Mutate_(const TensorLoadNode* op,
+                                                     InplaceMode inplace_mode) {
   TensorLoad load = ffi::GetRef<TensorLoad>(op);
 
   BufferVar new_buffer = VisitBufferUse(op->source.as_or_throw<tvm::tirx::BufferVar>());
-  auto indices = VisitIndices(op->indices);
+  auto indices = VisitIndices(op->indices, inplace_mode);
 
   if (!new_buffer.same_as(op->source.as_or_throw<tvm::tirx::BufferVar>()) ||
       !indices.same_as(op->indices)) {
@@ -527,7 +534,8 @@ ffi::Array<PrimExpr> IndexDataTypeRewriter::VisitIndices(ffi::Array<PrimExpr> in
   return indices;
 }
 
-Stmt IndexDataTypeRewriter::VisitStmt_(const IfThenElseNode* op) {
+UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const IfThenElseNode* op,
+                                                 InplaceMode inplace_mode) {
   bool is_condition = is_condition_;
   is_condition_ = true;
   PrimExpr cond = VisitPrimExpr(op->condition);
@@ -549,10 +557,10 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const IfThenElseNode* op) {
   return ffi::GetRef<Stmt>(op);
 }
 
-Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
+UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
-  PrimVar new_loop_var = VisitPrimExpr(op->loop_var).as_or_throw<PrimVar>();
+  PrimVar new_loop_var = Mutate(op->loop_var, inplace_mode).ValueOrUnchanged(op->loop_var).as_or_throw<PrimVar>();
   PrimExpr min = VisitPrimExpr(op->min);
   PrimExpr extent = VisitPrimExpr(op->extent);
   is_enabled_ = is_enabled;
@@ -580,14 +588,14 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
   }
 }
 
-Stmt IndexDataTypeRewriter::VisitStmt_(const BindNode* op) {
-  Bind bind_stmt = DataTypeLegalizer::VisitStmt_(op).as_or_throw<Bind>();
+UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
+  Bind bind_stmt = DataTypeLegalizer::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<Bind>();
   if (var_remap_.find(bind_stmt->var.get()) == var_remap_.end()) {
     return bind_stmt;
   }
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
-  PrimExpr value = Dispatch(op->value).as_or_throw<PrimExpr>();
+  PrimExpr value = Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value).as_or_throw<PrimExpr>();
   Var var = var_remap_[bind_stmt->var.get()];
   is_enabled_ = is_enabled;
   TVM_FFI_ICHECK(value.ty() == var->ty.as_or_throw<PrimType>());
@@ -595,11 +603,11 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BindNode* op) {
 }
 
 #define TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)                       \
-  Expr IndexDataTypeRewriter::Dispatch_(const OP* op) {                              \
+  UnchangedOr<PrimExpr> IndexDataTypeRewriter::Mutate_(const OP* op, InplaceMode inplace_mode) { \
     bool is_enabled = is_enabled_;                                                   \
     is_enabled_ = is_condition_ && op->a.ty().MatchesCode(DLDataTypeCode::kDLInt) && \
                   op->b.ty().MatchesCode(DLDataTypeCode::kDLInt);                    \
-    auto result = Parent::Dispatch_(op);                                             \
+    auto result = Parent::Mutate_(op, inplace_mode);                                             \
     is_enabled_ = is_enabled;                                                        \
     return result;                                                                   \
   }
@@ -611,7 +619,7 @@ TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::LTNode, operator<);  // NOLIN
 TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::GTNode, operator>);  // NOLINT(*)
 TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::GENode, operator>=);
 
-Expr IndexDataTypeRewriter::Dispatch_(const CallNode* op) {
+UnchangedOr<Expr> IndexDataTypeRewriter::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
   // handle if_then_else condition
   if (op->op.same_as(prim::builtin::if_then_else())) {
     bool is_condition = is_condition_;
@@ -628,10 +636,11 @@ Expr IndexDataTypeRewriter::Dispatch_(const CallNode* op) {
     return Call(dtype, op->op, {cond, true_value, false_value}, op->attrs, {}, op->span)
         .as_or_throw<PrimExpr>();
   }
-  return Parent::Dispatch_(op);
+  return Parent::Mutate_(op, inplace_mode);
 }
 
-Expr IndexDataTypeRewriter::Dispatch_(const prim::SelectNode* op) {
+UnchangedOr<PrimExpr> IndexDataTypeRewriter::Mutate_(const prim::SelectNode* op,
+                                                     InplaceMode inplace_mode) {
   bool is_condition = true;
   std::swap(is_condition_, is_condition);
   PrimExpr condition = this->VisitPrimExpr(op->condition);
@@ -695,7 +704,8 @@ bool IndexDataTypeNormalizer::CanRewriteDType(PrimType dtype) const {
   return dtype.code() == DLDataTypeCode::kDLInt && dtype.bits() >= 32;
 }
 
-Expr IndexDataTypeNormalizer::Dispatch_(const IntImmNode* op) {
+UnchangedOr<PrimExpr> IndexDataTypeNormalizer::Mutate_(const IntImmNode* op,
+                                                       InplaceMode inplace_mode) {
   if (is_enabled_ && CanRewriteDType(op->ty.as_or_throw<PrimType>())) {
     TVM_FFI_ICHECK_LE(op->value, max_value(target_data_type_).as_or_throw<IntImm>()->value);
     return cast(target_data_type_, ffi::GetRef<IntImm>(op));
@@ -703,29 +713,30 @@ Expr IndexDataTypeNormalizer::Dispatch_(const IntImmNode* op) {
   return ffi::GetRef<IntImm>(op);
 }
 
-Expr IndexDataTypeNormalizer::Dispatch_(const VarNode* op) {
+UnchangedOr<Expr> IndexDataTypeNormalizer::Mutate_(const VarNode* op, InplaceMode inplace_mode) {
   auto dtype_opt = op->ty.as<PrimType>();
   if (!dtype_opt) {
-    return DataTypeLegalizer::Dispatch_(op);
+    return DataTypeLegalizer::Mutate_(op, inplace_mode);
   }
   PrimType dtype = dtype_opt.value();
   if (is_enabled_ && CanRewriteDType(dtype) && dtype->dtype != target_data_type_->dtype &&
       !var_remap_.count(op)) {
     var_remap_[op] = ffi::GetRef<Var>(op).CopyWithDType(target_data_type_);
   }
-  return DataTypeLegalizer::Dispatch_(op);
+  return DataTypeLegalizer::Mutate_(op, inplace_mode);
 }
 
-Expr IndexDataTypeNormalizer::Dispatch_(const prim::CastNode* op) {
+UnchangedOr<PrimExpr> IndexDataTypeNormalizer::Mutate_(const prim::CastNode* op,
+                                                       InplaceMode inplace_mode) {
   // Unwrap the cast only when the dtype of this cast is integer dtype.
   // When the dtype of this cast is not integer dtype, it means that this cast
   // has some other purpose, and we should not unwrap the cast.
   PrimType dtype = op->ty.as_or_throw<PrimType>();
   if (is_enabled_ && CanRewriteDType(dtype)) {
-    PrimExpr value = this->VisitPrimExpr(op->value);
+    PrimExpr value = this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
     return value.ty() == target_data_type_ ? value : prim::Cast(target_data_type_, value);
   }
-  return IndexDataTypeRewriter::Dispatch_(op);
+  return IndexDataTypeRewriter::Mutate_(op, inplace_mode);
 }
 
 }  // namespace tirx

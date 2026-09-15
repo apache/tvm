@@ -56,7 +56,7 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
 
   bool ShouldClampShiftAmounts() const final { return true; }
 
-  Expr Dispatch_(const IntImmNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const IntImmNode* op, InplaceMode inplace_mode) final {
     // ignore the enabled condition and always rewrite i64
     if (op->ty.as_or_throw<PrimType>() == PrimType::Int(64)) {
       TVM_FFI_ICHECK_LE(op->value, max_value(target_data_type_).as_or_throw<IntImm>()->value);
@@ -65,8 +65,8 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
     return ffi::GetRef<IntImm>(op);
   }
 
-  Stmt VisitStmt_(const SBlockNode* block) final {
-    SBlock block_ = IndexDataTypeNormalizer::VisitStmt_(block).as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
+    SBlock block_ = IndexDataTypeNormalizer::Mutate_(block, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(block)).as_or_throw<SBlock>();
     // Check if the allocated integer buffers have dtype other than int32.
     for (const BufferVar& buf : block_->alloc_buffers) {
       if (buf->dtype.MatchesCode(DLDataTypeCode::kDLInt) && buf->dtype.bits() > 32) {

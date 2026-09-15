@@ -301,7 +301,7 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
  public:
   explicit ThreadSyncAfterWaitQueueInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
       auto sync = Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(),
                                 {StringImm(sync_scope_.to_string())})
@@ -312,7 +312,7 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
       return AttrStmt(0, s_tir::attr::async_wait_queue_scope, op->value,
                       AttrStmt(0, s_tir::attr::async_wait_inflight_count, inner->value, new_body));
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  private:

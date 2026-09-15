@@ -171,11 +171,11 @@ class PrimFuncInliner : StmtExprMutator {
   PSet<GlobalVar> GetRemovableFunctions() const { return removable_funcs_; }
 
  private:
-  Stmt VisitStmt_(const EvaluateNode* eval) override {
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* eval, InplaceMode inplace_mode) override {
     if (auto inlined = GetInlinedFunction(eval)) {
       return inlined.value();
     } else {
-      return StmtExprMutator::VisitStmt_(eval);
+      return StmtExprMutator::Mutate_(eval, inplace_mode);
     }
   }
 
@@ -204,7 +204,7 @@ class PrimFuncInliner : StmtExprMutator {
     return VisitStmt(inlined);
   }
 
-  Expr Dispatch_(const CallNode* call) override {
+  UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) override {
     // Because the current implementation inlines a subroutine inserts
     // the `tirx::Stmt` body at the point of use, replacement must
     // occur in a context where a `tirx::Stmt` can be returned. Support
@@ -222,7 +222,7 @@ class PrimFuncInliner : StmtExprMutator {
     if (auto gvar = call->op.as<GlobalVar>()) {
       removable_funcs_.erase(gvar.value());
     }
-    return StmtExprMutator::Dispatch_(call);
+    return StmtExprMutator::Mutate_(call, inplace_mode);
   }
 
   Stmt InlineArguments(const GlobalVar& gvar, PrimFunc callee, const ffi::Array<Expr>& args) const {

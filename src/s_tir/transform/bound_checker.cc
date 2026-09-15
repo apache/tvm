@@ -76,21 +76,21 @@ class BoundChecker : public StmtExprMutator {
       const std::unordered_map<const VarNode*, ffi::Array<PrimExpr>>& mem_to_shape)
       : mem_to_shape_(mem_to_shape) {}
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     if (UpdateIsNeeded(op->buffer.var())) {
       Update(op->buffer.var(), op->buffer->shape, op->buffer->dtype);
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Expr Dispatch_(const CallNode* op) final {
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     if (process_store_ && op->op.same_as(prim::builtin::if_then_else())) {
       unsafe_rewritten_ = true;
     }
-    return StmtExprMutator::Dispatch_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
     store_scope_bound_collector_.clear();
     process_store_ = true;
     unsafe_rewritten_ = false;
@@ -113,11 +113,11 @@ class BoundChecker : public StmtExprMutator {
     return ffi::GetRef<Stmt>(op);
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     if (CanInstrument(op->indices, op->source.as_or_throw<tvm::tirx::BufferVar>().var())) {
       Collect(op->indices, op->source.as_or_throw<tvm::tirx::BufferVar>().var());
     }
-    return StmtExprMutator::Dispatch_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  private:

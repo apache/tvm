@@ -194,7 +194,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
     return SeqStmt::Flatten(seq);
   }
 
-  Expr Dispatch_(const VarNode* op) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     Var v = ffi::GetRef<Var>(op);
     auto it = var_remap_.find(v);
     if (it != var_remap_.end()) {
@@ -203,7 +203,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
     return v;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     PrimExpr min = VisitPrimExpr(op->min);
     PrimExpr extent = VisitPrimExpr(op->extent);
     emitted_keys_.emplace_back(std::vector<ffi::Array<Expr>>());
@@ -220,7 +220,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const WhileNode* op) {
+  UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode) {
     PrimExpr condition = VisitPrimExpr(op->condition);
     emitted_keys_.emplace_back(std::vector<ffi::Array<Expr>>());
     Stmt body = VisitStmt(op->body);
@@ -235,7 +235,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const IfThenElseNode* op) {
+  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) {
     PrimExpr condition = VisitPrimExpr(op->condition);
     emitted_keys_.emplace_back(std::vector<ffi::Array<Expr>>());
     Stmt then_case = VisitStmt(op->then_case);
@@ -258,8 +258,8 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const BindNode* op) final {
-    Expr value = Dispatch(op->value);
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    Expr value = VisitExpr(op->value);
     if (IsTensorMapAlloca(op)) {
       // If this bind allocates a tensormap that is remapped to a canonical var, drop it.
       auto it = var_remap_.find(op->var);
@@ -273,9 +273,9 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
     return Bind(op->var, value, op->span);
   }
 
-  Stmt VisitStmt_(const EvaluateNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     // Default mutation
-    Evaluate eval = StmtExprMutator::VisitStmt_(op).as_or_throw<Evaluate>();
+    Evaluate eval = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<Evaluate>();
     if (const CallNode* call = AsCuTensorMapEncode(eval.get())) {
       // Build key after var remapping
       auto [maybe_var, key] = ExtractEncodeKey(call);

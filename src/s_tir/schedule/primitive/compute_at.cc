@@ -316,7 +316,7 @@ class ScopeReconstructor : private StmtMutator {
   }
 
  private:
-  Stmt VisitStmt_(const SBlockNode* block) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     if (block != scope_root_.get()) {
       return ffi::GetRef<SBlock>(block);
     }
@@ -326,7 +326,7 @@ class ScopeReconstructor : private StmtMutator {
     return StmtMutator::VisitStmt_(block);
   }
 
-  Stmt VisitStmt_(const ForNode* loop) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     if (loop == rm_src_stmt_.get()) {
       loop = TVM_TYPE_AS(rm_tgt_stmt_, ForNode);
     }

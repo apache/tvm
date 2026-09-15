@@ -83,13 +83,13 @@ class ScopeReplacer : public StmtMutator {
       : old_loop_(old_loop), new_loop_(new_loop), found_(false) {}
 
   Stmt VisitStmt(const Stmt& stmt) final { return found_ ? stmt : StmtMutator::VisitStmt(stmt); }
-  Stmt VisitStmt_(const SBlockNode* block) final { return ffi::GetRef<SBlock>(block); }
-  Stmt VisitStmt_(const ForNode* loop) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final { return ffi::GetRef<SBlock>(block); }
+  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     if (loop == old_loop_) {
       found_ = true;
       return ffi::GetRef<For>(new_loop_);
     }
-    return StmtMutator::VisitStmt_(loop);
+    return StmtMutator::Mutate_(loop, inplace_mode);
   }
 
   const ForNode* old_loop_;
@@ -104,8 +104,8 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
       : src_(src), dst_(dst), block_sref_reuse_(block_sref_reuse) {}
 
  private:
-  Stmt VisitStmt_(const BufferStoreNode* _store) final {
-    BufferStore store = StmtExprMutator::VisitStmt_(_store).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* _store, InplaceMode inplace_mode) final {
+    BufferStore store = StmtExprMutator::Mutate_(_store, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(_store)).as_or_throw<BufferStore>();
     if (store->buffer.same_as(src_)) {
       ffi::ObjectPtr<BufferStoreNode> new_store = ffi::make_object<BufferStoreNode>(*store.get());
       new_store->buffer = dst_;
@@ -114,15 +114,15 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
     return store;
   }
 
-  Expr Dispatch_(const TensorLoadNode* _load) final {
-    TensorLoad load = StmtExprMutator::Dispatch_(_load).as_or_throw<TensorLoad>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* _load, InplaceMode inplace_mode) final {
+    TensorLoad load = StmtExprMutator::Mutate_(_load, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(_load)).as_or_throw<TensorLoad>();
     if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(src_)) {
       return BufferLoad(dst_, load->indices, load->span);
     }
     return load;
   }
 
-  Stmt VisitStmt_(const SBlockNode* _block) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* _block, InplaceMode inplace_mode) final {
     SBlock old_block = ffi::GetRef<SBlock>(_block);
     SBlock block = StmtExprMutator::VisitStmt_(_block).as_or_throw<SBlock>();
     ffi::ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block.get());

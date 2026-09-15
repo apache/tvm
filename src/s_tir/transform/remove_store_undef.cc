@@ -145,19 +145,19 @@ class StoreUndefRemover : public StmtExprMutator {
   explicit StoreUndefRemover(const UndefInfo& info)
       : stores_to_remove_(info.undef_stores), bind_vars_to_remove_(info.undef_bind_vars) {}
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
     if (stores_to_remove_.count(op)) {
       return Evaluate(0);
     } else {
-      return Parent::VisitStmt_(op);
+      return Parent::Mutate_(op, inplace_mode);
     }
   }
 
-  Stmt VisitStmt_(const BindNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (bind_vars_to_remove_.count(op->var.get())) {
       return Evaluate(0);
     } else {
-      return Parent::VisitStmt_(op);
+      return Parent::Mutate_(op, inplace_mode);
     }
   }
 

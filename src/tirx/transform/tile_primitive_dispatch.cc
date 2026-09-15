@@ -172,7 +172,7 @@ class ScopeIdDefRemover : public StmtExprMutator {
  public:
   static Stmt Remove(const Stmt& stmt) { return ScopeIdDefRemover()(stmt); }
 
-  Stmt VisitStmt_(const ScopeIdDefStmtNode* op) override {
+  UnchangedOr<Stmt> Mutate_(const ScopeIdDefStmtNode* op, InplaceMode inplace_mode) override {
     // Drop the def stmt by replacing with a no-op Evaluate(0). It will be
     // flattened away by SeqStmt::Flatten elsewhere or stay as a benign
     // no-op for downstream passes.
@@ -213,7 +213,7 @@ class ImplicitScopeIdEvalInjector : public StmtExprMutator {
     return evals;
   }
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     Stmt body = VisitStmt(op->body);
     if (op->attr_key == tvm::tirx::attr::kDeviceEntry) {
       auto evals = ConsumeEvalsFor(op);
@@ -292,22 +292,22 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     }
 
    private:
-    Stmt VisitStmt_(const EvaluateNode* op) final {
+    UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
       const auto* call = op->value.as<CallNode>();
       if (call != nullptr && call->op.same_as(tirx::builtin::tvm_kernel_replace_point())) {
         return body_;
       }
-      return StmtExprMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
 
     Stmt body_;
   };
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == tirx::attr::kDeviceEntry) {
       return ProcessDeviceEntry(op);
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   Stmt ProcessDeviceEntry(const AttrStmtNode* entry_node) {
@@ -437,18 +437,18 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return res;
   }
 
-  Stmt VisitStmt_(const ScopeIdDefStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ScopeIdDefStmtNode* op, InplaceMode inplace_mode) final {
     // Register the def at the current (innermost) ExecScope's level so
     // ResolveScopeIdTarget / ScopeIdTargets can find it. The def remains
     // visible to subsequent sibling stmts within this scope.
     if (!scope_id_defs_at_level_.empty()) {
       scope_id_defs_at_level_.back().push_back(op->def);
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     if (post_buffer_def_stmts_.empty()) {
       return stmt;
     }
@@ -474,8 +474,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return SeqStmt::Flatten(rebuilt);
   }
 
-  Stmt VisitStmt_(const BindNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     const auto* bind = stmt.as<BindNode>();
     TVM_FFI_ICHECK(bind);
     if (auto value = bind->value.as<PrimExpr>()) {
@@ -488,12 +488,12 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Collect the loop variables
     auto loop_var = op->loop_var.as_or_throw<Var>();
     TVM_FFI_ICHECK(!var_range_map_.count(loop_var)) << "Internal Error: Duplicate loop variable";
     var_range_map_.Set(loop_var, Range::FromMinExtent(op->min, op->extent));
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   /*!
@@ -542,7 +542,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& buffer_root)
         : buffer_root_(buffer_root) {}
 
-    Expr Dispatch_(const CallNode* op) final {
+    UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
       if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
         if (auto var = op->args[0].as<Var>();
             var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
@@ -552,15 +552,15 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
           }
         }
       }
-      return StmtExprMutator::Dispatch_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
 
     const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& buffer_root_;
   };
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     BufferVar old_buffer = op->buffer;
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<AllocBufferNode>();
     TVM_FFI_ICHECK(op);
     RegisterStorageRoot(old_buffer.var(), op->buffer.var(), std::nullopt);
@@ -570,9 +570,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return SeqStmt::Flatten(seq);
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
     BufferVar old_buffer = op->buffer;
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<DeclBufferNode>();
     TVM_FFI_ICHECK(op);
     RegisterStorageRoot(old_buffer.var(), op->buffer.var(), op->data);
@@ -582,7 +582,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return SeqStmt::Flatten(seq);
   }
 
-  Stmt VisitStmt_(const IfThenElseNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final {
     // Narrow ExecContext for structurally recognized predicates on the
     // then-branch. The canonical-form classifier (filter_canonical.h)
     // recognizes the dominant shapes: pure conjunctions of `scopeid_var op
@@ -610,7 +610,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return IfThenElse(new_cond, then_case, else_case);
   }
 
-  Stmt VisitStmt_(const tirx::TilePrimitiveCallNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const tirx::TilePrimitiveCallNode* op, InplaceMode inplace_mode) final {
     // Scope is a per-call field on the node. Derive the (inter, intra) split
     // on the spot from the current active set ``A`` (tracked through control
     // flow on ``ctx_stack_``) under this call's own ``op->scope``.

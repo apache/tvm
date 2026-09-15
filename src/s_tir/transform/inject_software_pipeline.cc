@@ -281,11 +281,11 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return buffer_region;
   }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     for (const BufferVar& alloc_buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.Set(alloc_buffer.var(), alloc_buffer);
     }
-    SBlock block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
     SBlockNode* n = block.CopyOnWrite();
     n->reads.MutateByApply([this](const BufferRegion& buffer_region) {
       return RewritePipelineBufferRegion(buffer_region);
@@ -299,8 +299,8 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return block;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    BufferStore store = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<BufferStore>();
     auto it = buffer_remap_.find(store->buffer);
     if (it == buffer_remap_.end()) {
       return store;
@@ -314,8 +314,8 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return store;
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) final {
-    TensorLoad load = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    TensorLoad load = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op)).as_or_throw<TensorLoad>();
     auto it = buffer_remap_.find(load->source.as_or_throw<tvm::tirx::BufferVar>());
     if (it == buffer_remap_.end()) {
       return load;
@@ -328,8 +328,8 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return BufferLoad(new_buffer, indices, load->span);
   }
 
-  Expr Dispatch_(const CallNode* op) final {
-    Call call = StmtExprMutator::Dispatch_(op).as_or_throw<Call>();
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+    Call call = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op)).as_or_throw<Call>();
     return opaque_access_rewriter_.Rewrite(call);
   }
 
@@ -1139,9 +1139,9 @@ class PipelineInjector : private StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Step 1: Recursively rewrite the children first.
-    For for_node = StmtExprMutator::VisitStmt_(op).as_or_throw<For>();
+    For for_node = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<For>();
     if (!HasPipelineAnnotation(op)) {
       return for_node;
     }
@@ -1266,7 +1266,7 @@ class PipelineInjector : private StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     for (const auto& buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.Set(buffer.var(), buffer);
     }
@@ -1280,7 +1280,7 @@ class PipelineInjector : private StmtExprMutator {
           << buffer_index << " vs. " << op->writes.size() << ")";
       double_buffers.insert(op->writes[buffer_index]->buffer);
     }
-    SBlock block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
 
     for (const auto& buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.erase(buffer.var());

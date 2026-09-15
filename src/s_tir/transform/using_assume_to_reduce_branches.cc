@@ -190,7 +190,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     return predicate;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     /* Create and delete the scope with bind.
     Add the minimum and maximum bound for the variables to the conditions_ list using
     InternalConstraintContext */
@@ -198,10 +198,10 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     InternalConstraintContext ctx1(this, op->loop_var >= op->min);
     InternalConstraintContext ctx2(this,
                                    static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
-    return Parent::VisitStmt_(op);
+    return Parent::Mutate_(op, inplace_mode);
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) override {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) override {
     if (map_buffer_assumption.find(op->source.as_or_throw<tvm::tirx::BufferVar>()) !=
         map_buffer_assumption.end()) {
       PrimExpr buf_value;
@@ -225,8 +225,8 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     return ffi::GetRef<PrimExpr>(op);
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore store = Parent::VisitStmt_(op).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    BufferStore store = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<BufferStore>();
 
     // Eliminate the builtin if_then_else statement
     if (auto* call = op->value.as<CallNode>()) {
@@ -269,18 +269,18 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
           n->value = analyzer_->Simplify(then_clause);
           return Stmt(n);
         } else {
-          return Parent::VisitStmt_(op);
+          return Parent::Mutate_(op, inplace_mode);
         }
       }
     }
-    return Parent::VisitStmt_(op);
+    return Parent::Mutate_(op, inplace_mode);
   }
 
-  Expr Dispatch_(const CallNode* op) override {
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
     if (op->op.same_as(tirx::builtin::assume())) {
       Assume(op->args[0].as_or_throw<PrimExpr>());
     }
-    return Parent::Dispatch_(op);
+    return Parent::Mutate_(op, inplace_mode);
   }
 
   void Assume(PrimExpr assumption) {

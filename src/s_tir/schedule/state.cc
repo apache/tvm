@@ -812,10 +812,10 @@ class ChildReplacer : private StmtMutator {
   }
 
   // Skipping sibling blocks and loops other than `src_stmt_`
-  Stmt VisitStmt_(const SBlockNode* op) final { return ffi::GetRef<Stmt>(op); }
-  Stmt VisitStmt_(const ForNode* op) final { return ffi::GetRef<Stmt>(op); }
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final { return ffi::GetRef<Stmt>(op); }
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final { return ffi::GetRef<Stmt>(op); }
 
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
     int i = this->seq_index_;
     int n = static_cast<int>(op->seq.size());
     if (0 <= i && i < n) {
@@ -847,7 +847,7 @@ class ChildReplacer : private StmtMutator {
         return SeqStmt(std::move(new_seq_stmt));
       }
     }
-    return StmtMutator::VisitStmt_(op);
+    return StmtMutator::Mutate_(op, inplace_mode);
   }
 
   Stmt CopyOnWriteAndVisit(const StmtNode* parent_stmt) {

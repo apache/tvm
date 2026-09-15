@@ -38,7 +38,7 @@ class VtcmAllocator : public StmtExprMutator {
   using StmtExprMutator::VisitStmt_;
   VtcmAllocator() {}
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     std::string storage_scope = op->buffer.scope();
     if (IsVtcmStorage(storage_scope)) {
       ffi::Array<Expr> args;
@@ -49,7 +49,7 @@ class VtcmAllocator : public StmtExprMutator {
       return DeclBuffer(op->buffer, Call(op->buffer.DataPointerType(),
                                          tirx::builtin::nd_mem_alloc_with_scope(), args));
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  protected:

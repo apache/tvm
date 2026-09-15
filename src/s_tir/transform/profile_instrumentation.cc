@@ -181,8 +181,8 @@ class InstrumentIntrin : public StmtMutator {
     return SeqStmt::Flatten(stmt);
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
-    Stmt stmt = StmtMutator::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     if (loops_.count(op) < 1) return stmt;
 
     LoopInfo loop_info = loops_[op];

@@ -35,8 +35,8 @@ class AnnotateRegionRewriter : public StmtExprMutator {
         new_region_(new_region),
         buffer_index_type_(buffer_index_type) {}
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
 
     ffi::Array<BufferRegion> regions =
         buffer_index_type_ == BufferIndexType::kWrite ? block->writes : block->reads;

@@ -46,14 +46,14 @@ class OpaqueBlockLower : public StmtExprMutator {
   }
 
  private:
-  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     // We have convert blocks into opaque blocks in previous passes.
     TVM_FFI_ICHECK(op->iter_values.empty())
         << "Non-opaque blocks are not allowed in FlattenBuffer. Please "
            "call pass ConvertBlocksToOpaque before.";
     // Step 1. Visit the body
-    SBlock new_block = this->VisitStmt(op->block).as_or_throw<SBlock>();
-    PrimExpr predicate = this->VisitPrimExpr(op->predicate);
+    SBlock new_block = this->Mutate(op->block, inplace_mode).ValueOrUnchanged(op->block).as_or_throw<SBlock>();
+    PrimExpr predicate = this->Mutate(op->predicate, inplace_mode).ValueOrUnchanged(op->predicate);
     // Step 2. Transform the `predicate` to if-then-else
     Stmt body = new_block->body;
     if (!is_one(predicate)) {
@@ -86,17 +86,17 @@ class OpaqueBlockLower : public StmtExprMutator {
     return body;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Step 1. Update unit loop info.
-    PrimExpr min = this->VisitPrimExpr(op->min);
-    PrimExpr extent = this->VisitPrimExpr(op->extent);
+    PrimExpr min = this->Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min);
+    PrimExpr extent = this->Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
     if (is_one(extent) && op->annotations.empty()) {
       // handling unit loop
       unit_loop_vars_[op->loop_var] = min;
     }
 
     // Step 2. Visit recursively
-    Stmt body = this->VisitStmt(op->body);
+    Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
 
     // Step 3. Handle annotations
     std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
@@ -124,7 +124,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     return body;
   }
 
-  Expr Dispatch_(const VarNode* op) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     Var var = ffi::GetRef<Var>(op);
     auto it = unit_loop_vars_.find(var);
     if (it == unit_loop_vars_.end()) {

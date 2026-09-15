@@ -49,32 +49,32 @@ namespace tirx {
  */
 class DataTypeLegalizer : public StmtExprMutator {
  protected:
-  Stmt VisitStmt_(const ForNode* op) override;
-  Stmt VisitStmt_(const AttrStmtNode* op) override;
-  Stmt VisitStmt_(const SBlockRealizeNode* op) override;
-  Stmt VisitStmt_(const SBlockNode* op) override;
-  Stmt VisitStmt_(const BindNode* op) override;
-  Expr Dispatch_(const VarNode* op) override;
-  Expr Dispatch_(const prim::SelectNode* op) override;
-  Expr Dispatch_(const prim::RampNode* op) override;
-  Expr Dispatch_(const prim::AddNode* op) override;
-  Expr Dispatch_(const prim::SubNode* op) override;
-  Expr Dispatch_(const prim::MulNode* op) override;
-  Expr Dispatch_(const prim::DivNode* op) override;
-  Expr Dispatch_(const prim::ModNode* op) override;
-  Expr Dispatch_(const prim::FloorDivNode* op) override;
-  Expr Dispatch_(const prim::FloorModNode* op) override;
-  Expr Dispatch_(const prim::MinNode* op) override;
-  Expr Dispatch_(const prim::MaxNode* op) override;
-  Expr Dispatch_(const prim::EQNode* op) override;
-  Expr Dispatch_(const prim::NENode* op) override;
-  Expr Dispatch_(const prim::LTNode* op) override;
-  Expr Dispatch_(const prim::LENode* op) override;
-  Expr Dispatch_(const prim::GTNode* op) override;
-  Expr Dispatch_(const prim::GENode* op) override;
-  Expr Dispatch_(const CallNode* op) override;
-  Expr Dispatch_(const prim::CastNode* op) override;
-  Expr Dispatch_(const prim::LetNode* op) override;
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::RampNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::SubNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::MulNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::DivNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::ModNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::MinNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::MaxNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::EQNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::NENode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LTNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LENode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::GTNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::GENode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
+  Expr VisitExpr_(const prim::CastNode* op) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) override;
 
   /*! \brief Whether to clamp shift amounts after narrowing signed integers. */
   virtual bool ShouldClampShiftAmounts() const { return false; }
@@ -123,7 +123,7 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   Expr Dispatch_(const CallNode* op) override;
   Expr Dispatch_(const prim::SelectNode* op) override;
 
-  Stmt VisitStmt_(const ForNode* op) override;
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
 
   ffi::Map<ffi::String, ffi::Any> VisitBlockAnnotations(
       const ffi::Map<ffi::String, ffi::Any>& annotations);
@@ -151,9 +151,9 @@ class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
   using Parent = IndexDataTypeRewriter;
   using Parent::Dispatch_;
   using Parent::VisitStmt_;
-  Expr Dispatch_(const IntImmNode* op) override;
-  Expr Dispatch_(const VarNode* op) override;
-  Expr Dispatch_(const prim::CastNode* op) override;
+  UnchangedOr<PrimExpr> Mutate_(const IntImmNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::CastNode* op, InplaceMode inplace_mode) override;
 
   /*! \brief Specifies which data type we can rewrite */
   virtual bool CanRewriteDType(PrimType dtype) const;

@@ -142,15 +142,15 @@ class BufferAllocationLocator : public StmtExprMutator {
   }
 
  private:
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     auto it = alloc_buffers_.find(op);
     if (it == alloc_buffers_.end()) {
-      return StmtMutator::VisitStmt_(op);
+      return StmtMutator::Mutate_(op, inplace_mode);
     }
     for (const BufferVar& buf : it->second) {
       buffer_data_to_buffer_.Set(buf.var(), buf);
     }
-    auto node = StmtMutator::VisitStmt_(op).as_or_throw<For>();
+    auto node = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<For>();
 
     ffi::Array<BufferVar> new_block_alloc_bufs;
     for (const BufferVar& buf : it->second) {
@@ -167,7 +167,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     return node;
   }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     TVM_FFI_ICHECK(!op->init.has_value());
     ffi::Array<BufferVar> alloc_buffers;
     auto it = alloc_buffers_.find(op);
@@ -183,7 +183,7 @@ class BufferAllocationLocator : public StmtExprMutator {
       TVM_FFI_ICHECK(buffer_data_to_buffer_.count(source_var));
       buffer_data_to_buffer_.Set(target_var, match_buffer->buffer);
     }
-    Stmt stmt = StmtMutator::VisitStmt_(op);
+    Stmt stmt = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<SBlockNode>();
     TVM_FFI_ICHECK(op != nullptr);
 

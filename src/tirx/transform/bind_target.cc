@@ -174,8 +174,8 @@ class CallSubstitutor : public StmtExprMutator {
  private:
   using StmtExprMutator::VisitStmt_;
 
-  Expr Dispatch_(const CallNode* op) final {
-    auto call = StmtExprMutator::Dispatch_(op).as_or_throw<Call>();
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+    auto call = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op)).as_or_throw<Call>();
 
     // Only substitute calls when not under GPU scope
     if (!is_under_gpu_scope_) {
@@ -188,30 +188,30 @@ class CallSubstitutor : public StmtExprMutator {
     return call;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     if (op->kind == ForKind::kThreadBinding) {
       // Enter GPU scope for thread binding loops
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
       is_under_gpu_scope_ = true;
-      auto stmt = StmtExprMutator::VisitStmt_(op);
+      auto stmt = StmtExprMutator::Mutate_(op, inplace_mode);
       is_under_gpu_scope_ = last_is_under_gpu_scope;
       return stmt;
     } else {
-      return StmtExprMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread ||
         op->attr_key == attr::kDeviceEntry) {
       // Enter GPU scope for thread extent and virtual thread attributes
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
       is_under_gpu_scope_ = true;
-      auto stmt = StmtExprMutator::VisitStmt_(op);
+      auto stmt = StmtExprMutator::Mutate_(op, inplace_mode);
       is_under_gpu_scope_ = last_is_under_gpu_scope;
       return stmt;
     } else {
-      return StmtExprMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 

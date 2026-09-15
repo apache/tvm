@@ -54,7 +54,7 @@ inline bool IsParam(const PrimFunc& func, const Var& param) {
 
 // Try fold constants if op's child get specialized to constant.
 #define DEFINE_SPECIALIZER_BINARY_OP_MUTATE(BinaryNode, BinaryFunc) \
-  Expr Dispatch_(const BinaryNode* op) final {                      \
+  UnchangedOr<PrimExpr> Mutate_(const BinaryNode* op, InplaceMode inplace_mode) final { \
     PrimExpr a = VisitPrimExpr(op->a);                              \
     PrimExpr b = VisitPrimExpr(op->b);                              \
     if (a.same_as(op->a) && b.same_as(op->b)) {                     \
@@ -64,7 +64,7 @@ inline bool IsParam(const PrimFunc& func, const Var& param) {
     }                                                               \
   }
 #define DEFINE_SPECIALIZER_UNARY_OP_MUTATE(UnaryNode, UnaryFunc) \
-  Expr Dispatch_(const UnaryNode* op) final {                    \
+  UnchangedOr<PrimExpr> Mutate_(const UnaryNode* op, InplaceMode inplace_mode) final { \
     PrimExpr a = VisitPrimExpr(op->a);                           \
     if (a.same_as(op->a)) {                                      \
       return ffi::GetRef<PrimExpr>(op);                          \
@@ -130,13 +130,13 @@ class PrimFuncSpecializer : public StmtExprMutator {
   }
 
  private:
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     // Step.0. Define buffer mappings which is allocated inside the block
     ffi::Array<BufferVar> alloc_buffers =
         op->alloc_buffers.Map([this](const auto& buf) { return MutateAllocBuffer(buf); });
 
     // Step.1. Recursively visit block body
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<SBlockNode>();
     TVM_FFI_ICHECK(op != nullptr);
 
@@ -157,12 +157,12 @@ class PrimFuncSpecializer : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
     // Visit the buffer before delegating to StmtExprMutator, so the
     // buffer's replacement will be defined before the point of use.
     BufferVar new_buf = MutateAllocBuffer(op->buffer);
 
-    auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<DeclBuffer>();
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<DeclBuffer>();
 
     if (!new_buf.same_as(node->buffer)) {
       node.CopyOnWrite()->buffer = new_buf;
@@ -174,14 +174,14 @@ class PrimFuncSpecializer : public StmtExprMutator {
   // Override VisitBufferUse to use our own buffer_map_ instead of base class field visiting.
   BufferVar VisitBufferUse(const BufferVar& buffer) final { return GetNewBuffer(buffer); }
 
-  Expr Dispatch_(const VarNode* op) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     Var var = ffi::GetRef<Var>(op);
     if (constrained_buffer_params_.count(op)) {
       return var;
     }
     auto it = var_map_.find(var);
     if (it == var_map_.end()) {
-      return StmtExprMutator::Dispatch_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     } else {
       return it->second;
     }

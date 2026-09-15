@@ -106,7 +106,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     return any;
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     if (!op->buffer->layout.has_value()) {
       return ffi::GetRef<Stmt>(op);
     }
@@ -119,8 +119,8 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     return Stmt(n);
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
-    Expr data = Dispatch(op->data);
+  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
+    Expr data = VisitExpr(op->data);
     auto buffer = GetFlattenedBuffer(op->buffer);
     if (buffer.same_as(op->buffer) && data.same_as(op->data)) {
       return ffi::GetRef<Stmt>(op);
@@ -193,8 +193,8 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     return flattened;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    BufferStore store = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<BufferStore>();
     PrimType store_value_ty = op->value.ty();
     bool store_returns_bool = store_value_ty.MatchesCode(DLDataTypeCode::kDLBool);
     store = VisitBufferAccess(store);
@@ -209,10 +209,10 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     return std::move(store);
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     PrimType load_ty = op->ty.as_or_throw<PrimType>();
     bool load_returns_bool = load_ty.MatchesCode(DLDataTypeCode::kDLBool);
-    TensorLoad load = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
+    TensorLoad load = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op)).as_or_throw<TensorLoad>();
     load = VisitBufferAccess(load);
     if (load_returns_bool) {
       TVM_FFI_ICHECK_EQ(load->source.as_or_throw<tvm::tirx::BufferVar>()->dtype->dtype,
@@ -225,7 +225,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     }
   }
 
-  Stmt VisitStmt_(const tirx::TilePrimitiveCallNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const tirx::TilePrimitiveCallNode* op, InplaceMode inplace_mode) final {
     ffi::Array<ffi::Any> args = op->args;
     args.MutateByApply([this](ffi::Any arg) -> ffi::Any { return VisitAny(arg); });
     if (args.same_as(op->args)) {
@@ -300,13 +300,13 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
   static Stmt Remove(const Stmt& stmt) { return TrainiumBufferOffsetRemover()(stmt); }
 
  private:
-  Expr Dispatch_(const CallNode* call) final {
+  UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) final {
     if (call->op.same_as(tirx::builtin::buffer_offset())) {
       auto buffer_load = call->args[0].as_or_throw<TensorLoad>();
       TVM_FFI_ICHECK_EQ(buffer_load->indices.size(), 1) << "Expected a single index";
       return buffer_load->indices[0];
     }
-    return StmtExprMutator::Dispatch_(call);
+    return StmtExprMutator::Mutate_(call, inplace_mode);
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) {

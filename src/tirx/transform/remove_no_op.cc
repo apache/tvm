@@ -93,7 +93,7 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
     // Unused Bind elimination can be done later via a separate two-pass approach.
     return Parent::VisitStmt_(op);
   }
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == "pragma_debug_skip_region") {
       return MakeEvaluate(0);
     } else if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
@@ -110,12 +110,12 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
       }
     }
 
-    Stmt stmt = Parent::VisitStmt_(op);
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<AttrStmtNode>();
     return is_no_op(op->body) ? MakeEvaluate(op->value) : stmt;
   }
-  Stmt VisitStmt_(const IfThenElseNode* op) final {
-    Stmt stmt = Parent::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<IfThenElseNode>();
     // Sometimes the condition can be statically determined,
     // in which the type of the `stmt` will not be IfThenElseNode.
@@ -142,14 +142,14 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
       }
     }
   }
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     auto extent_range = arith::EvalSet(op->extent, var_range_map_);
     if (!arith::is_neg_inf(extent_range.max()) && !arith::is_pos_inf(extent_range.max()) &&
         analyzer_->CanProve(extent_range.max() <= 0)) {
       return Evaluate(0);
     }
     var_range_map_[op->loop_var.get()] = arith::IntSet::FromMinExtent(op->min, op->extent);
-    Stmt stmt = Parent::VisitStmt_(op);
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     var_range_map_.erase(op->loop_var.get());
     op = stmt.as<ForNode>();
     if (is_zero(op->extent)) {
@@ -160,7 +160,7 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const AllocBufferNode* op) final { return StmtMutator::VisitStmt_(op); }
 
-  Stmt VisitStmt_(const EvaluateNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     if (HasSideEffect(op->value)) {
       return ffi::GetRef<Stmt>(op);
     } else {
@@ -176,7 +176,7 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
     return value.as<CallNode>() != nullptr;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
     BufferStore store = ffi::GetRef<BufferStore>(op);
 
     // Helper function that returns a statement containing only the

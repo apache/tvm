@@ -415,16 +415,16 @@ Stmt ReplaceAndSimplify(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
       return result;
     }
 
-    Expr Dispatch_(const VarNode* op) final {
+    UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
       if (ffi::Optional<PrimExpr> e = sub_.Get(ffi::GetRef<Var>(op))) {
         return e.value();
       }
-      return StmtExprMutator::Dispatch_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
 
-    Stmt VisitStmt_(const SBlockNode* op) final {
+    UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
       SBlock src = ffi::GetRef<SBlock>(op);
-      SBlock tgt = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
+      SBlock tgt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
       if (!src.same_as(tgt)) {
         block_sref_reuse_->Set(src, tgt);
       }
@@ -740,15 +740,15 @@ class BlockizeRewriter : public StmtMutator {
     return SeqStmt(new_seq, seq->span);
   }
 
-  Stmt VisitStmt_(const ForNode* loop) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     if (loop == lca_->stmt) {
       return For(loop->loop_var, loop->min, loop->extent, loop->kind, RewriteSeq(loop->body),
                  loop->thread_binding, loop->annotations, loop->step, loop->span);
     }
-    return StmtMutator::VisitStmt_(loop);
+    return StmtMutator::Mutate_(loop, inplace_mode);
   }
 
-  Stmt VisitStmt_(const SBlockNode* block) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     if (block == lca_->stmt) {
       return SBlock(block->iter_vars, block->reads, block->writes, block->name_hint,
                     RewriteSeq(block->body), block->init, block->alloc_buffers,
@@ -817,7 +817,8 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   f_update_max_dtype_bits_from_region(block_realize->block->reads);
   f_update_max_dtype_bits_from_region(block_realize->block->writes);
   TVM_FFI_ICHECK(index_dtype_bits > 0);
-  intrin_impl = IndexDataTypeNormalizer(PrimType::Int(index_dtype_bits)).Rewrite(intrin_impl);
+  intrin_impl = ffi::make_object<IndexDataTypeNormalizer>(PrimType::Int(index_dtype_bits))
+                    ->Rewrite(intrin_impl);
   // Step 2: Structural pattern matching
   TensorizeComparator comparator(self->mod, /*assert_mode=*/true);
   comparator.VisitStmt(block_realize, intrin_desc->body);

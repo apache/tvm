@@ -49,24 +49,24 @@ class ThreadBindingUnifier : public StmtExprMutator {
   static Stmt Unify(Stmt stmt) { return ThreadBindingUnifier()(std::move(stmt)); }
 
  private:
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     // If this AttrStmt is not thread binding attribute, return as usual.
     if (op->attr_key != tirx::attr::thread_extent && op->attr_key != s_tir::attr::virtual_thread) {
-      return StmtMutator::VisitStmt_(op);
+      return StmtMutator::Mutate_(op, inplace_mode);
     }
     IterVar old_iter_var = op->node.as_or_throw<IterVar>();
     return UnifyThreadBindingImpl(op, old_iter_var->var, old_iter_var,
                                   Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value));
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // If this For is not thread binding attribute, return as usual.
     if (op->kind != ForKind::kThreadBinding) {
-      return StmtExprMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     ffi::Map<ffi::String, Any> annotations = op->annotations;
     Stmt stmt = UnifyThreadBindingImpl(op, op->loop_var, op->thread_binding.value(),
-                                       Range::FromMinExtent(op->min, op->extent));
+                                       Range::FromMinExtent(op->min, op->extent), inplace_mode);
     if (annotations.empty()) {
       return stmt;
     }
@@ -90,7 +90,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
 
   template <typename Node>
   Stmt UnifyThreadBindingImpl(const Node* op, const Var& old_var, const IterVar& old_iter_var,
-                              const Range& dom) {
+                              const Range& dom, InplaceMode inplace_mode) {
     // Step 1. Fetch the thread tag.
     IterVar new_iter_var{nullptr};
     const ffi::String& thread_tag = old_iter_var->thread_tag;
@@ -137,7 +137,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
     // Step 5. Mutate recursively, update the body with the new IterVar, and restore the depth
     // counter. Emit for-loops to launch threads if current statement is the outermost thread
     // binding of the kernel.
-    Stmt new_stmt = StmtMutator::VisitStmt_(op);
+    Stmt new_stmt = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     auto* new_node = new_stmt.as<Node>();
     TVM_FFI_ICHECK(new_node);
     thread_block_depth_ = old_thread_block_depth;
@@ -169,7 +169,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
     return result;
   }
 
-  Expr Dispatch_(const VarNode* var) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* var, InplaceMode inplace_mode) final {
     // If this variable appears as a key in `var_substitution_map_`, we substitute it with its
     // corresponding value in the mapping.
     ffi::Map<Var, PrimExpr>::iterator it = var_substitution_map_.find(ffi::GetRef<Var>(var));

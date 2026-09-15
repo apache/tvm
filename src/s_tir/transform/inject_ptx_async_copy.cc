@@ -43,15 +43,15 @@ using namespace tvm::tirx;
 
 class PTXAsyncCopyInjector : public StmtMutator {
  public:
-  Stmt VisitStmt_(const AttrStmtNode* attr) {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* attr, InplaceMode inplace_mode) {
     if (attr->attr_key == s_tir::attr::async_scope) {
       TVM_FFI_ICHECK(in_async == false) << "Nested async scopes not supported";
       in_async = true;
-      auto body = this->VisitStmt(attr->body);
+      auto body = this->Mutate(attr->body, inplace_mode).ValueOrUnchanged(attr->body);
       in_async = false;
       return body;
     }
-    return StmtMutator::VisitStmt_(attr);
+    return StmtMutator::Mutate_(attr, inplace_mode);
   }
 
   Stmt InjectPTX(const TensorLoadNode* load, const BufferStoreNode* store, bool predicated = false,
@@ -171,7 +171,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
     return StmtMutator::VisitStmt_(store);
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* store) {
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) {
     if (in_async && (store->buffer.scope() == "shared" || store->buffer.scope() == "shared.dyn")) {
       if (auto* load = store->value.as<TensorLoadNode>()) {
         return InjectPTX(load, store);
@@ -198,7 +198,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
         }
       }
     }
-    return StmtMutator::VisitStmt_(store);
+    return StmtMutator::Mutate_(store, inplace_mode);
   }
 
  private:

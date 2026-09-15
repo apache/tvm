@@ -50,16 +50,16 @@ class ReturnRewriter : public StmtMutator {
  public:
   explicit ReturnRewriter(Var ret_var) : ret_var_(ret_var) {}
 
-  Stmt VisitStmt_(const ForNode* node) override {
+  UnchangedOr<Stmt> Mutate_(const ForNode* node, InplaceMode inplace_mode) override {
     if (node->kind == ForKind::kParallel) in_parallel_ += 1;
-    Stmt ret = StmtMutator::VisitStmt_(node);
+    Stmt ret = StmtMutator::Mutate_(node, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(node));
     if (node->kind == ForKind::kParallel) in_parallel_ -= 1;
     return ret;
   }
 
-  Stmt VisitStmt_(const ReturnNode* node) override {
+  UnchangedOr<Stmt> Mutate_(const ReturnNode* node, InplaceMode inplace_mode) override {
     TVM_FFI_ICHECK_EQ(in_parallel_, 0) << "Return cannot be used in parallel scope.";
-    return WriteToOut(this->Dispatch(node->value));
+    return WriteToOut(this->Mutate(node->value, inplace_mode).ValueOrUnchanged(node->value));
   }
 
  private:
@@ -141,8 +141,8 @@ class SubroutineCallRewriter : public StmtExprMutator {
   explicit SubroutineCallRewriter(const ffi::Map<GlobalVar, ffi::String>& packed_func_methods)
       : packed_func_methods(packed_func_methods) {}
 
-  Expr Dispatch_(const CallNode* op) override {
-    auto node = StmtExprMutator::Dispatch_(op).as_or_throw<Call>();
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op)).as_or_throw<Call>();
 
     if (auto* gvar_ptr = node->op.as<GlobalVarNode>()) {
       auto gvar = ffi::GetRef<GlobalVar>(gvar_ptr);

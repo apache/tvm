@@ -39,13 +39,13 @@ class AssumeRemover : public StmtExprMutator {
  public:
   using Parent = StmtExprMutator;
 
-  Stmt VisitStmt_(const EvaluateNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     if (auto* call = op->value.as<CallNode>()) {
       if (call->op.same_as(builtin::assume())) {
         return Evaluate(0);
       }
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 };
 

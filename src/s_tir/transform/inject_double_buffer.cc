@@ -130,11 +130,11 @@ class DoubleBufferDetector : public StmtExprVisitor {
 
 class StripDoubleBufferWrite : public StmtMutator {
  public:
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == s_tir::attr::double_buffer_write) {
-      return VisitStmt(op->body);
+      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else {
-      return StmtMutator::VisitStmt_(op);
+      return StmtMutator::Mutate_(op, inplace_mode);
     }
   }
 };
@@ -153,15 +153,15 @@ class DoubleBufferInjector : public StmtExprMutator {
     return ConvertSSA(operator()(std::move(stmt)));
   }
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == s_tir::attr::double_buffer_scope) {
-      return MakeProducer(op);
+      return MakeProducer(op, inplace_mode);
     } else {
-      return StmtExprMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     const VarNode* buf = op->buffer.get();
     auto it = dbuffer_info_.find(buf);
     if (it != dbuffer_info_.end()) {
@@ -180,13 +180,13 @@ class DoubleBufferInjector : public StmtExprMutator {
       // Remove the original AllocBuffer (will be re-emitted in ForNode visitor)
       return Evaluate(0);
     } else {
-      return StmtExprMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     loop_nest_.push_back(op);
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     // Process any pending double-buffer allocations that were deferred
     // from VisitStmt_(AllocBufferNode*) -- now entry.loop should be set.
     for (auto pend_it = pending_dbuffer_allocs_.begin();
@@ -255,7 +255,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
     auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
 
     auto it = dbuffer_info_.find(node->buffer.get());
@@ -275,8 +275,8 @@ class DoubleBufferInjector : public StmtExprMutator {
     return node;
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) final {
-    auto node = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
     BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
 
     auto it = dbuffer_info_.find(buffer.get());
@@ -319,19 +319,19 @@ class DoubleBufferInjector : public StmtExprMutator {
     return buf;
   }
 
-  Expr Dispatch_(const VarNode* op) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     TVM_FFI_ICHECK(!dbuffer_info_.count(op));
     return ffi::GetRef<Var>(op);
   }
 
  private:
-  Stmt MakeProducer(const AttrStmtNode* op) {
+  Stmt MakeProducer(const AttrStmtNode* op, InplaceMode inplace_mode) {
     const Var buffer = GetBufferDataVar(op->node).value();
     TVM_FFI_ICHECK_NE(loop_nest_.size(), 0U) << "Double buffer scope must be inside a loop";
     auto it = dbuffer_info_.find(buffer.get());
     if (it == dbuffer_info_.end()) {
       LOG(WARNING) << "Skip double buffer scope " << op->node;
-      return this->VisitStmt(op->body);
+      return this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     }
     StorageEntry& e = it->second;
     e.loop = loop_nest_.back();
@@ -342,7 +342,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     e.switch_write_var = Var(e.loop->loop_var->name + ".db", e.loop->loop_var.ty());
     e.switch_read_var = indexmod(e.loop->loop_var, two);
     in_double_buffer_scope_ = true;
-    Stmt body = this->VisitStmt(op->body);
+    Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     in_double_buffer_scope_ = false;
     std::unordered_map<const VarNode*, PrimExpr> vmap;
     auto map_var = [&vmap](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {

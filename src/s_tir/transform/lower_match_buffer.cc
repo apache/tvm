@@ -52,7 +52,7 @@ class MatchBufferLower : public StmtExprMutator {
   }
 
  private:
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     for (const MatchBufferRegion& match_buffer : op->match_buffers) {
       CheckAndUpdateVarMap(match_buffer);
     }
@@ -65,7 +65,7 @@ class MatchBufferLower : public StmtExprMutator {
     for (const auto& kv : match_buffers_) {
       orig_buffers.push_back(kv.first);
     }
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     // Add remapped buffer keys to match_buffers_
     for (const BufferVar& orig_buf : orig_buffers) {
       if (auto remap_it = buffer_remap_.find(orig_buf); remap_it != buffer_remap_.end()) {
@@ -93,12 +93,12 @@ class MatchBufferLower : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Expr Dispatch_(const VarNode* op) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     Var v = ffi::GetRef<Var>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {
@@ -108,7 +108,7 @@ class MatchBufferLower : public StmtExprMutator {
     }
   }
 
-  Expr Dispatch_(const CallNode* op) final {
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     if ((op->op.same_as(tirx::builtin::masked_load()) ||
          op->op.same_as(tirx::builtin::masked_store())) &&
         !op->args.empty()) {
@@ -127,13 +127,13 @@ class MatchBufferLower : public StmtExprMutator {
         }
       }
     }
-    return StmtExprMutator::Dispatch_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
     // Save the original buffer before base class mutation may remap it
     BufferVar orig_buffer = op->buffer;
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BufferStoreNode>();
     TVM_FFI_ICHECK(op != nullptr);
 
@@ -152,10 +152,10 @@ class MatchBufferLower : public StmtExprMutator {
     }
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     // Save the original buffer before base class mutation may remap it
     BufferVar orig_buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
-    PrimExpr expr = StmtExprMutator::Dispatch_(op).as_or_throw<PrimExpr>();
+    PrimExpr expr = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op)).as_or_throw<PrimExpr>();
     op = expr.as<TensorLoadNode>();
     TVM_FFI_ICHECK(op != nullptr);
 

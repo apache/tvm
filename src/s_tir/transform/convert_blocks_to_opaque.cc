@@ -48,7 +48,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
  private:
   OpaqueBlockConverter() = default;
 
-  Expr Dispatch_(const VarNode* var) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* var, InplaceMode inplace_mode) final {
     TVM_FFI_ICHECK(!forbidden_iter_vars_.count(var))
         << "Variable " << var->name << " occurs in the predicate or iter_values of a block, "
         << "but isn't defined until the body of the block";
@@ -60,17 +60,17 @@ class OpaqueBlockConverter : public StmtExprMutator {
     return ffi::GetRef<Var>(var);
   }
 
-  Stmt VisitStmt_(const SBlockNode* block) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     TVM_FFI_ICHECK(!block->init.has_value())
         << "Block Init part is not allowed in pass ConvertBlocksToOpaque";
-    SBlock new_block = StmtExprMutator::VisitStmt_(block).as_or_throw<SBlock>();
+    SBlock new_block = StmtExprMutator::Mutate_(block, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(block)).as_or_throw<SBlock>();
     if (!new_block->iter_vars.empty()) {
       new_block.CopyOnWrite()->iter_vars.clear();
     }
     return new_block;
   }
 
-  Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
     const auto* block_op = realize->block.get();
     TVM_FFI_ICHECK(!block_op->init.has_value());
 

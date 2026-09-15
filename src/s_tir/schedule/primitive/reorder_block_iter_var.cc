@@ -62,7 +62,7 @@ class BlockIterVarRewriter : public StmtMutator {
  private:
   std::vector<int> order_;
   const SBlockNode* block_to_rewrite;
-  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     if (op->block.get() == block_to_rewrite) {
       auto block_n = CopyOnWrite(op->block.get());
       SBlock block = op->block;
@@ -80,7 +80,7 @@ class BlockIterVarRewriter : public StmtMutator {
       block_realize_n->iter_values = new_iter_values;
       return SBlockRealize(block_realize_n);
     } else {
-      return StmtMutator::VisitStmt_(op);
+      return StmtMutator::Mutate_(op, inplace_mode);
     }
   }
 };

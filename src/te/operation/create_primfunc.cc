@@ -76,11 +76,11 @@ class TensorLoadToBufferTransformer : public StmtExprMutator {
       const std::unordered_map<te::Tensor, BufferVar>& tensor2buffers)
       : tensor2buffers_(tensor2buffers) {}
 
-  Expr Dispatch_(const OpaqueExprNode* op) final {
+  UnchangedOr<Expr> Mutate_(const OpaqueExprNode* op, InplaceMode inplace_mode) final {
     const auto* reduce =
         op->IsInstance<te::ReduceNode>() ? static_cast<const te::ReduceNode*>(op) : nullptr;
     if (reduce == nullptr) {
-      return StmtExprMutator::Dispatch_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
 
     auto fitervar = [this](const IterVar& iter_var) {
@@ -108,8 +108,8 @@ class TensorLoadToBufferTransformer : public StmtExprMutator {
                       reduce->span);
   }
 
-  Expr Dispatch_(const CallNode* op) final {
-    Call call = StmtExprMutator::Dispatch_(op).as_or_throw<Call>();
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+    Call call = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op)).as_or_throw<Call>();
     if (!te::IsTensorLoad(call)) {
       return call;
     }
@@ -132,12 +132,12 @@ class BufferSubstituter : public StmtExprMutator {
                              const std::unordered_map<const VarNode*, BufferVar>& buffer_map)
       : var_map_(var_map), buffer_map_(buffer_map) {}
 
-  Expr Dispatch_(const VarNode* op) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     auto it = var_map_.find(op);
     if (it != var_map_.end()) {
       return it->second;
     }
-    return StmtExprMutator::Dispatch_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   Expr Dispatch_(const TensorLoadNode* op) final {
@@ -208,8 +208,8 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
     return WithAttr(std::move(func), s_tir::attr::layout_free_buffers, indices);
   }
 
-  Stmt VisitStmt_(const SBlockNode* _block) final {
-    SBlock block = StmtMutator::VisitStmt_(_block).as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* _block, InplaceMode inplace_mode) final {
+    SBlock block = StmtMutator::Mutate_(_block, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(_block)).as_or_throw<SBlock>();
     SBlockNode* n = block.CopyOnWrite();
     if (auto opt_ann = n->annotations.Get(topi_attr)) {
       ffi::Array<BufferVar> new_buffers;

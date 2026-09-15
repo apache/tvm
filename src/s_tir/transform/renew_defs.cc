@@ -36,9 +36,9 @@ using namespace tvm::prim;
 using namespace tvm::tirx;
 
 #define STMT_REGENERATE_VAR_DEF(NODE, FIELD)                                       \
-  Stmt VisitStmt_(const NODE* op) final {                                          \
+  UnchangedOr<Stmt> Mutate_(const NODE* op, InplaceMode inplace_mode) final {               \
     Var new_var = this->ReDefineVar(op->FIELD);                                    \
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);                                   \
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));                                   \
     op = stmt.as<NODE>();                                                          \
     TVM_FFI_ICHECK(op != nullptr);                                                 \
     auto n = ffi::make_object<NODE>(*op);                                          \
@@ -118,7 +118,7 @@ class RenewDefMutator : public StmtExprMutator {
   // (BufferStore, BufferLoad, SBlock reads/writes)
   BufferVar VisitBufferUse(const BufferVar& buffer) final { return UseOrRemapBuffer(buffer); }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     // Step 0. Re-define Itervars
     ffi::Array<IterVar> iter_vars =
         op->iter_vars.Map(std::bind(&RenewDefMutator::VisitIterVar, this, std::placeholders::_1));
@@ -136,7 +136,7 @@ class RenewDefMutator : public StmtExprMutator {
     if (op->init.has_value()) {
       init = this->VisitStmt(op->init.value());
     }
-    Stmt body = this->VisitStmt(op->body);
+    Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
 
     // Step 4. Revisit access region
     ffi::Array<BufferRegion> reads =

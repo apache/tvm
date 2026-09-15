@@ -62,8 +62,8 @@ class TextureAllocInjector : public tirx::IRMutatorWithAnalyzer {
 
   explicit TextureAllocInjector(const arith::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     std::string storage_scope = op->buffer.scope();
     if (IsTextureStorage(storage_scope)) {
       op = stmt.as<AllocBufferNode>();

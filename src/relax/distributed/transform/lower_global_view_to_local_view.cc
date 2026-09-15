@@ -280,8 +280,8 @@ class DistributedBufferCompactor : StmtExprMutator {
     return BufferVar(buffer.name(), std::move(new_type), buffer.span());
   }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
     auto collector = ffi::make_object<DistSBlockInfoCollector>();
     collector->Visit(block);
     ffi::Array<IterVar> new_iter_vars = ShardIterVar(block, collector->buffer_access_indices);
@@ -317,8 +317,8 @@ class DistributedBufferCompactor : StmtExprMutator {
 
   void AddAllReduceBlock(std::string reduce_kind) { add_allreduce_kind_ = reduce_kind; }
 
-  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
-    SBlockRealize realize = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlockRealize>();
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
+    SBlockRealize realize = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlockRealize>();
 
     for (int i = 0; i < static_cast<int>(realize->iter_values.size()); i++) {
       PrimExpr iter_value = realize->iter_values[i];
@@ -333,8 +333,8 @@ class DistributedBufferCompactor : StmtExprMutator {
     return realize;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
-    For new_loop = StmtExprMutator::VisitStmt_(op).as_or_throw<For>();
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    For new_loop = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<For>();
     if (loop_var_shards_.count(op->loop_var)) {
       int shard = loop_var_shards_[op->loop_var];
       if (shard > 1) {

@@ -89,8 +89,8 @@ class TextureFlattener : public TextureLoweringBase {
   explicit TextureFlattener(const ffi::Array<Var>& params, IRVisitorWithAnalyzer* bound_analyzer)
       : TextureLoweringBase(params, bound_analyzer) {}
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BufferStoreNode>();
     std::string storage_scope = GetStorageScope(op->buffer);
     // Lower to two dimensional access
@@ -103,8 +103,8 @@ class TextureFlattener : public TextureLoweringBase {
     return stmt;
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::Dispatch_(op).as_or_throw<PrimExpr>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    PrimExpr expr = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op)).as_or_throw<PrimExpr>();
     op = expr.as<TensorLoadNode>();
     // Lower to two dimensional access
     std::string storage_scope = GetStorageScope(op->source.as_or_throw<tvm::tirx::BufferVar>());

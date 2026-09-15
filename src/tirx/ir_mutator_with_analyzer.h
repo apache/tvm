@@ -56,16 +56,16 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
   using StmtExprMutator::VisitStmt_;
 
   // override functions that need to populate the context information.
-  Stmt VisitStmt_(const ForNode* op) override;
-  Stmt VisitStmt_(const SBlockNode* op) override;
-  Stmt VisitStmt_(const BindNode* op) override;
-  Stmt VisitStmt_(const IfThenElseNode* op) override;
-  Stmt VisitStmt_(const AttrStmtNode* op) override;
-  Stmt VisitStmt_(const AssertStmtNode* op) override;
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const AssertStmtNode* op, InplaceMode inplace_mode) override;
   Stmt VisitStmt_(const SeqStmtNode* op) override;
-  Expr Dispatch_(const prim::LetNode* op) override;
-  Expr Dispatch_(const prim::SelectNode* op) override;
-  Expr Dispatch_(const CallNode* op) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
 
  protected:
   /*!

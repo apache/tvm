@@ -48,8 +48,8 @@ class PTXRewriter : public StmtMutator {
     return body;
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Stmt result = StmtMutator::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+    Stmt result = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     if (needs_buffer && !has_buffer_2) {
       EnsureBuffers();
       has_buffer_2 = true;
@@ -58,8 +58,8 @@ class PTXRewriter : public StmtMutator {
     return result;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* store) final {
-    Stmt result = StmtMutator::VisitStmt_(store);
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) final {
+    Stmt result = StmtMutator::Mutate_(store, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(store));
     BufferVar load_buffer = store->buffer;
     PrimExpr load_value = store->value;
     // const TensorLoadNode* gload = load_value.as<TensorLoadNode>(); // take

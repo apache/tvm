@@ -161,8 +161,8 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
           << "There should be a compute block if there is only one subtree under the root.";
     }
   }
-  Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = StmtMutator::VisitStmt_(op).as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    SBlock block = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
     auto it = op->annotations.find(s_tir::attr::meta_schedule_layout_rewrite_preproc);
     bool is_layout_rewrite_preproc =
         it != op->annotations.end() && is_one((*it).second.cast<PrimExpr>());

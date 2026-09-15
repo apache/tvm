@@ -275,7 +275,7 @@ Pass SimplifyForFeatureExtraction() {
       return result.has_value() ? result.value()->value.cast<bool>() : false;
     }
 
-    Expr Dispatch_(const SelectNode* node) final {
+    UnchangedOr<PrimExpr> Mutate_(const SelectNode* node, InplaceMode inplace_mode) final {
       if (HasBufferLoad(node->true_value) || HasBufferLoad(node->false_value) ||
           HasBufferLoad(node->condition)) {
         return ffi::GetRef<Select>(node);
@@ -283,23 +283,23 @@ Pass SimplifyForFeatureExtraction() {
       return MakeConst(node->ty.as_or_throw<PrimType>(), 1.0);
     }
 
-    Expr Dispatch_(const VarNode* var) final {
+    UnchangedOr<Expr> Mutate_(const VarNode* var, InplaceMode inplace_mode) final {
       if (unit_vars_.count(ffi::GetRef<Var>(var))) {
         return MakeConst(var->ty.as_or_throw<PrimType>(), 0.0);
       }
       return ffi::GetRef<Var>(var);
     }
 
-    Stmt VisitStmt_(const ForNode* loop) final {
+    UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
       if (is_zero(loop->extent)) {
         return Evaluate(0);
       }
       if (is_zero(loop->min) && is_one(loop->extent) && loop->kind == ForKind::kSerial &&
           loop->annotations.empty()) {
         unit_vars_.insert(loop->loop_var);
-        return VisitStmt(loop->body);
+        return Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
       } else {
-        return StmtExprMutator::VisitStmt_(loop);
+        return StmtExprMutator::Mutate_(loop, inplace_mode);
       }
     }
 
