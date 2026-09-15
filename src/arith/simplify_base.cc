@@ -76,6 +76,8 @@ UnchangedOr<ffi::Any> SimplifierBase::Mutate_(const TensorLoadNode* op, InplaceM
 UnchangedOr<ffi::Any> SimplifierBase::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
   if (op->op.same_as(prim::builtin::if_then_else())) {
     InplaceMode inplace_mode_args = inplace_mode;
+    // Ensure uniqueness along op -> args -> args[i].
+    // op was already checked; check args here, and Mutate checks args[i].
     if (!op->args.unique()) inplace_mode_args = InplaceMode::kDisallow;
     // Borrow stored elements: owning typed handles would suppress in-place mutation.
     const auto* args = op->args.GetArrayObj();

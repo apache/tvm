@@ -358,17 +358,33 @@ class TVM_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
    * \brief Mutate a borrowed value, throwing on failure.
    * \param value The borrowed object or inline value to mutate.
    * \param inplace_mode Inherited permission along the path to this value.
-   * \return An owning replacement or Unchanged. Non-object inputs return Unchanged.
+   * \return An owning replacement or Unchanged. Non-object inputs return their inline value.
    * \note Establishes uniqueness before invoking typed hooks. Entry overrides
    *       must preserve inherited denial and check uniqueness before writing or
    *       forwarding permission. Qualified Parent::Mutate bypasses the current
    *       override while descendants remain virtual. Completed in-place changes
    *       are not rolled back on error.
+   *
+   * In-place mutation requires every node and owning container on the root-to-current
+   * path to be unique. Inherited inplace_mode records ancestor permission; Mutate
+   * checks the current target. Never promote inherited denial to permission.
+   * Within a Mutate_ hook, forward mode to a parent hook or an immediate child:
+   * \code
+   * Parent_::Mutate_(node, mode);  // The current node was already checked.
+   * Mutate(node->elem, mode);     // Mutate checks elem's uniqueness.
+   * \endcode
+   * Direct descent that skips an owning ancestor must check that ancestor too:
+   * \code
+   * auto child_mode = node->elem.unique() ? mode : InplaceMode::kDisallow;
+   * Mutate(node->elem->a, child_mode);
+   * \endcode
+   * When in doubt, omit inplace_mode. The default kDisallow is always safe; pass
+   * permission explicitly only when the full ancestor path is accounted for.
    */
   virtual UnchangedOr<ffi::Any> Mutate(ffi::AnyView value,
                                        InplaceMode inplace_mode = InplaceMode::kDisallow) {
     const auto* object = value.as<ffi::Object>();
-    if (object == nullptr) return ffi::Unchanged();
+    if (object == nullptr) return ffi::Any(value);
     if (!object->unique()) inplace_mode = InplaceMode::kDisallow;
     if (native_vtable_->CanDispatch(object)) {
       try {
