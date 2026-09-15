@@ -572,6 +572,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
 
   explicit Impl(AnalyzerObj* parent) : Rewriter(parent) {}
 
+  // Bypass only this entry override; the parent checks the target and descendants stay virtual.
   TVM_FFI_INLINE UnchangedOr<PrimExpr> DirectMutate(
       const PrimExpr& value, InplaceMode inplace_mode = InplaceMode::kDisallow) {
     return ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(

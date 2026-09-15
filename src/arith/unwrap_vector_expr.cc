@@ -174,10 +174,9 @@ class Scalarizer : public tvm::ExprMutator {
   template <typename Node, typename F>
   auto Rebuild(const Node* op, F rebuild)
       -> decltype(tvm::ExprMutator::Mutate_(op, InplaceMode::kDisallow)) {
-    UnchangedOr<Expr> rewritten_u = tvm::ExprMutator::Mutate_(op, InplaceMode::kDisallow)
-                                        .template as_or_throw<UnchangedOr<Expr>>();
+    auto rewritten_u = tvm::ExprMutator::Mutate_(op, InplaceMode::kDisallow);
     if (rewritten_u.IsUnchanged()) return ffi::Unchanged();
-    Expr rewritten = std::move(rewritten_u).ValueUnchecked();
+    auto rewritten = std::move(rewritten_u).ValueUnchecked();
     return rebuild(static_cast<const Node*>(rewritten.get()));
   }
 

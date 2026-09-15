@@ -321,6 +321,7 @@ class IterMapRewriter : public tvm::ExprMutator {
     return true;
   }
 
+  // Bypass only this entry override; the parent checks the target and descendants stay virtual.
   TVM_FFI_INLINE UnchangedOr<PrimExpr> DirectMutate(
       const PrimExpr& value, InplaceMode inplace_mode = InplaceMode::kDisallow) {
     return ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
@@ -2179,6 +2180,7 @@ class IterMapToExprNormalizer : public tvm::ExprMutator {
   PrimExpr ConvertIterSumExpr(const IterSumExpr& expr, InplaceMode inplace_mode) {
     PrimExpr res = 0;
     InplaceMode args_mode = inplace_mode;
+    // Ensure uniqueness along expr -> args -> arg; Mutate checks each arg.
     if (!expr->args.unique()) args_mode = InplaceMode::kDisallow;
     // Borrow stored elements: an owning typed iterator would suppress in-place mutation.
     for (const ffi::Any& arg : *expr->args.GetArrayObj()) {
@@ -2195,6 +2197,7 @@ class IterMapToExprNormalizer : public tvm::ExprMutator {
       source = opt.value().as_or_throw<PrimExpr>();
     } else {
       InplaceMode source_mode = inplace_mode;
+      // Ensure uniqueness along expr -> source -> source; the IterMark is skipped.
       if (!expr->source.unique()) source_mode = InplaceMode::kDisallow;
       source = Mutate(expr->source->source, source_mode).ValueOrUnchanged(expr->source->source);
     }
