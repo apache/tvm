@@ -600,15 +600,15 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
   }
 
   using Rewriter::Mutate_;
-  UnchangedOr<ffi::Any> Mutate_(const prim::AddNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<ffi::Any> Mutate_(const prim::SubNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<ffi::Any> Mutate_(const prim::MulNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<ffi::Any> Mutate_(const prim::DivNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<ffi::Any> Mutate_(const prim::ModNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<ffi::Any> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<ffi::Any> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<ffi::Any> Mutate_(const prim::CastNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<ffi::Any> Mutate_(const prim::LTNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::SubNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::MulNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::DivNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::ModNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::CastNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LTNode* op, InplaceMode inplace_mode) final;
 
  private:
   /*!
@@ -733,7 +733,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
   }
 };
 
-UnchangedOr<ffi::Any> CanonicalSimplifier::Impl::Mutate_(const prim::AddNode* op,
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::AddNode* op,
                                                          InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::Mutate_(op, inplace_mode);
@@ -758,7 +758,7 @@ UnchangedOr<ffi::Any> CanonicalSimplifier::Impl::Mutate_(const prim::AddNode* op
   return ret;
 }
 
-UnchangedOr<ffi::Any> CanonicalSimplifier::Impl::Mutate_(const prim::SubNode* op,
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::SubNode* op,
                                                          InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::Mutate_(op, inplace_mode);
@@ -783,7 +783,7 @@ UnchangedOr<ffi::Any> CanonicalSimplifier::Impl::Mutate_(const prim::SubNode* op
   return ret;
 }
 
-UnchangedOr<ffi::Any> CanonicalSimplifier::Impl::Mutate_(const prim::MulNode* op,
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::MulNode* op,
                                                          InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::Mutate_(op, inplace_mode);
@@ -955,7 +955,7 @@ bool CanonicalSimplifier::Impl::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
   return true;
 }
 
-UnchangedOr<ffi::Any> CanonicalSimplifier::Impl::Mutate_(const prim::DivNode* op,
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::DivNode* op,
                                                          InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::Mutate_(op, inplace_mode);
@@ -1021,7 +1021,7 @@ UnchangedOr<ffi::Any> CanonicalSimplifier::Impl::Mutate_(const prim::DivNode* op
   }
 }
 
-UnchangedOr<ffi::Any> CanonicalSimplifier::Impl::Mutate_(const prim::FloorDivNode* op,
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::FloorDivNode* op,
                                                          InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::Mutate_(op, inplace_mode);
@@ -1177,7 +1177,7 @@ SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, int64_t cval, 
   return lhs;
 }
 
-UnchangedOr<ffi::Any> CanonicalSimplifier::Impl::Mutate_(const prim::ModNode* op,
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::ModNode* op,
                                                          InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::Mutate_(op, inplace_mode);
@@ -1253,7 +1253,7 @@ UnchangedOr<ffi::Any> CanonicalSimplifier::Impl::Mutate_(const prim::ModNode* op
   }
 }
 
-UnchangedOr<ffi::Any> CanonicalSimplifier::Impl::Mutate_(const prim::FloorModNode* op,
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::FloorModNode* op,
                                                          InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::Mutate_(op, inplace_mode);
@@ -1320,7 +1320,7 @@ UnchangedOr<ffi::Any> CanonicalSimplifier::Impl::Mutate_(const prim::FloorModNod
   }
 }
 
-UnchangedOr<ffi::Any> CanonicalSimplifier::Impl::Mutate_(const prim::CastNode* op,
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::CastNode* op,
                                                          InplaceMode inplace_mode) {
   // The cast reasoning below is index-centric; for unsigned operands it runs
   // only under the caller's no-overflow assertion (uint_as_index).
@@ -1349,7 +1349,7 @@ UnchangedOr<ffi::Any> CanonicalSimplifier::Impl::Mutate_(const prim::CastNode* o
   return Rewriter::Mutate_(op, inplace_mode);
 }
 
-UnchangedOr<ffi::Any> CanonicalSimplifier::Impl::Mutate_(const prim::LTNode* op,
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::LTNode* op,
                                                          InplaceMode inplace_mode) {
   // First convert a < b into a - b < 0
   PrimExpr difference = op->a - op->b;

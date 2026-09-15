@@ -351,12 +351,12 @@ class IterMapRewriter : public tvm::ExprMutator {
     }
   }
 
-  UnchangedOr<ffi::Any> Mutate_(const VarNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<ffi::Any> Mutate_(const prim::AddNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<ffi::Any> Mutate_(const prim::SubNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<ffi::Any> Mutate_(const prim::MulNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<ffi::Any> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<ffi::Any> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::SubNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::MulNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) final;
 
  private:
   /* \brief Preprocessing common to both FloorDiv and FloorMod
@@ -1601,7 +1601,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-UnchangedOr<ffi::Any> IterMapRewriter::Mutate_(const VarNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Expr> IterMapRewriter::Mutate_(const VarNode* op, InplaceMode inplace_mode) {
   auto var = ffi::GetRef<Var>(op);
   auto it = var_map_.find(var);
   if (it != var_map_.end()) return it->second;
@@ -1609,7 +1609,7 @@ UnchangedOr<ffi::Any> IterMapRewriter::Mutate_(const VarNode* op, InplaceMode in
   return ffi::Unchanged();
 }
 
-UnchangedOr<ffi::Any> IterMapRewriter::Mutate_(const prim::AddNode* op, InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> IterMapRewriter::Mutate_(const prim::AddNode* op, InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Parent::Mutate_(op, inplace_mode);
   }
@@ -1643,7 +1643,7 @@ UnchangedOr<ffi::Any> IterMapRewriter::Mutate_(const prim::AddNode* op, InplaceM
   return ret;
 }
 
-UnchangedOr<ffi::Any> IterMapRewriter::Mutate_(const prim::SubNode* op, InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> IterMapRewriter::Mutate_(const prim::SubNode* op, InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Parent::Mutate_(op, inplace_mode);
   }
@@ -1679,7 +1679,7 @@ UnchangedOr<ffi::Any> IterMapRewriter::Mutate_(const prim::SubNode* op, InplaceM
   return ret;
 }
 
-UnchangedOr<ffi::Any> IterMapRewriter::Mutate_(const prim::MulNode* op, InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> IterMapRewriter::Mutate_(const prim::MulNode* op, InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Parent::Mutate_(op, inplace_mode);
   }
@@ -1994,7 +1994,7 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
   }
 }
 
-UnchangedOr<ffi::Any> IterMapRewriter::Mutate_(const prim::FloorDivNode* op,
+UnchangedOr<PrimExpr> IterMapRewriter::Mutate_(const prim::FloorDivNode* op,
                                                InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Parent::Mutate_(op, inplace_mode);
@@ -2100,7 +2100,7 @@ PrimExpr IterMapRewriter::SplitFloorModConst(IterSplitExpr lhs, PrimExpr base, P
                        /* scale = */ padded->scale);
 }
 
-UnchangedOr<ffi::Any> IterMapRewriter::Mutate_(const prim::FloorModNode* op,
+UnchangedOr<PrimExpr> IterMapRewriter::Mutate_(const prim::FloorModNode* op,
                                                InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Parent::Mutate_(op, inplace_mode);
@@ -2155,11 +2155,11 @@ class IterMapToExprNormalizer : public tvm::ExprMutator {
   explicit IterMapToExprNormalizer(AnalyzerObj* analyzer)
       : Parent(NativeVTable()), analyzer_(analyzer) {}
 
-  UnchangedOr<ffi::Any> Mutate_(const IterSplitExprNode* op, InplaceMode inplace_mode) {
+  UnchangedOr<PrimExpr> Mutate_(const IterSplitExprNode* op, InplaceMode inplace_mode) {
     return ConvertIterSplitExpr(ffi::GetRef<IterSplitExpr>(op), inplace_mode);
   }
 
-  UnchangedOr<ffi::Any> Mutate_(const IterSumExprNode* op, InplaceMode inplace_mode) {
+  UnchangedOr<PrimExpr> Mutate_(const IterSumExprNode* op, InplaceMode inplace_mode) {
     return ConvertIterSumExpr(ffi::GetRef<IterSumExpr>(op), inplace_mode);
   }
 

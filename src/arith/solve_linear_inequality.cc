@@ -83,22 +83,22 @@ void DebugPrint(const std::vector<PrimExpr>& current_ineq_set,
  */
 class NormalizeComparisons : public tvm::ExprMutator {
  public:
-  UnchangedOr<ffi::Any> Mutate_(const prim::EQNode* op, InplaceMode inplace_mode) override {
+  UnchangedOr<PrimExpr> Mutate_(const prim::EQNode* op, InplaceMode inplace_mode) override {
     return Make<prim::EQ>(op->a, op->b);
   }
-  UnchangedOr<ffi::Any> Mutate_(const prim::NENode* op, InplaceMode inplace_mode) override {
+  UnchangedOr<PrimExpr> Mutate_(const prim::NENode* op, InplaceMode inplace_mode) override {
     return Make<prim::NE>(op->a, op->b);
   }
-  UnchangedOr<ffi::Any> Mutate_(const prim::LTNode* op, InplaceMode inplace_mode) override {
+  UnchangedOr<PrimExpr> Mutate_(const prim::LTNode* op, InplaceMode inplace_mode) override {
     return Make<prim::LT>(op->a, op->b);
   }
-  UnchangedOr<ffi::Any> Mutate_(const prim::LENode* op, InplaceMode inplace_mode) override {
+  UnchangedOr<PrimExpr> Mutate_(const prim::LENode* op, InplaceMode inplace_mode) override {
     return Make<prim::LE>(op->a, op->b);
   }
-  UnchangedOr<ffi::Any> Mutate_(const prim::GTNode* op, InplaceMode inplace_mode) override {
+  UnchangedOr<PrimExpr> Mutate_(const prim::GTNode* op, InplaceMode inplace_mode) override {
     return Make<prim::LT>(op->b, op->a);
   }
-  UnchangedOr<ffi::Any> Mutate_(const prim::GENode* op, InplaceMode inplace_mode) override {
+  UnchangedOr<PrimExpr> Mutate_(const prim::GENode* op, InplaceMode inplace_mode) override {
     return Make<prim::LE>(op->b, op->a);
   }
 

@@ -314,7 +314,7 @@ void ExprMutator::InitVTable(VTable* vtable) {
   SetDispatch<ExprMutator, prim::ShuffleNode>(vtable);
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const OpaqueExprNode* node, InplaceMode inplace_mode) {
+UnchangedOr<Expr> ExprMutator::Mutate_(const OpaqueExprNode* node, InplaceMode inplace_mode) {
   auto ty = this->Mutate(node->ty, inplace_mode).as_or_throw<UnchangedOr<Type>>();
   if (ty.UnchangedOrSameAs(node->ty)) return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
@@ -328,7 +328,7 @@ UnchangedOr<ffi::Any> ExprMutator::Mutate_(const OpaqueExprNode* node, InplaceMo
   }
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const TupleNode* node, InplaceMode inplace_mode) {
+UnchangedOr<Expr> ExprMutator::Mutate_(const TupleNode* node, InplaceMode inplace_mode) {
   auto ty = this->Mutate(node->ty, inplace_mode).as_or_throw<UnchangedOr<Type>>();
   auto fields =
       this->Mutate(node->fields, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();
@@ -347,7 +347,7 @@ UnchangedOr<ffi::Any> ExprMutator::Mutate_(const TupleNode* node, InplaceMode in
   }
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const TupleGetItemNode* node, InplaceMode inplace_mode) {
+UnchangedOr<Expr> ExprMutator::Mutate_(const TupleGetItemNode* node, InplaceMode inplace_mode) {
   auto ty = this->Mutate(node->ty, inplace_mode).as_or_throw<UnchangedOr<Type>>();
   auto tuple = Mutate(node->tuple, inplace_mode);
   if (ty.UnchangedOrSameAs(node->ty) && tuple.UnchangedOrSameAs(node->tuple))
@@ -365,7 +365,7 @@ UnchangedOr<ffi::Any> ExprMutator::Mutate_(const TupleGetItemNode* node, Inplace
   }
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const TensorLoadNode* node, InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> ExprMutator::Mutate_(const TensorLoadNode* node, InplaceMode inplace_mode) {
   auto ty = this->Mutate(node->ty, inplace_mode).as_or_throw<UnchangedOr<Type>>();
   auto source = Mutate(node->source, inplace_mode);
   auto indices =
@@ -384,16 +384,16 @@ UnchangedOr<ffi::Any> ExprMutator::Mutate_(const TensorLoadNode* node, InplaceMo
     copy->ty = std::move(ty).ValueOrUnchanged(std::move(copy->ty));
     copy->source = std::move(source).ValueOrUnchanged(std::move(copy->source));
     copy->indices = std::move(indices).ValueOrUnchanged(std::move(copy->indices));
-    return Expr(std::move(copy));
+    return PrimExpr(std::move(copy));
   }
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const GlobalVarNode* node, InplaceMode inplace_mode) {
+UnchangedOr<Expr> ExprMutator::Mutate_(const GlobalVarNode* node, InplaceMode inplace_mode) {
   // Registry atoms and constant leaves do not descend into metadata or types.
   return ffi::Unchanged();
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const CallNode* node, InplaceMode inplace_mode) {
+UnchangedOr<Expr> ExprMutator::Mutate_(const CallNode* node, InplaceMode inplace_mode) {
   UnchangedOr<Type> ty = ffi::Unchanged();
   if (!node->ty.as<PrimTypeNode>()) {
     auto mapped_ty = this->Mutate(node->ty, inplace_mode).as_or_throw<UnchangedOr<Type>>();
@@ -431,28 +431,28 @@ UnchangedOr<ffi::Any> ExprMutator::Mutate_(const CallNode* node, InplaceMode inp
   }
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const IntImmNode* node, InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> ExprMutator::Mutate_(const IntImmNode* node, InplaceMode inplace_mode) {
   // Registry atoms and constant leaves do not descend into metadata or types.
   return ffi::Unchanged();
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const FloatImmNode* node, InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> ExprMutator::Mutate_(const FloatImmNode* node, InplaceMode inplace_mode) {
   // Registry atoms and constant leaves do not descend into metadata or types.
   return ffi::Unchanged();
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const OpNode* node, InplaceMode inplace_mode) {
+UnchangedOr<Expr> ExprMutator::Mutate_(const OpNode* node, InplaceMode inplace_mode) {
   // Registry atoms and constant leaves do not descend into metadata or types.
   return ffi::Unchanged();
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::StringImmNode* node,
+UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::StringImmNode* node,
                                            InplaceMode inplace_mode) {
   // Registry atoms and constant leaves do not descend into metadata or types.
   return ffi::Unchanged();
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::CastNode* node, InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::CastNode* node, InplaceMode inplace_mode) {
   auto value = Mutate(node->value, inplace_mode);
   if (value.UnchangedOrSameAs(node->value)) return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
@@ -462,12 +462,12 @@ UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::CastNode* node, InplaceMo
   } else {
     auto copy = ffi::make_object<prim::CastNode>(*node);
     copy->value = std::move(value).ValueOrUnchanged(std::move(copy->value));
-    return Expr(std::move(copy));
+    return PrimExpr(std::move(copy));
   }
 }
 
 #define TVM_IR_BINARY_MUTATE_IMPL(Name)                                                        \
-  UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::Name##Node* node,                     \
+  UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::Name##Node* node,                     \
                                              InplaceMode inplace_mode) {                       \
     auto a = Mutate(node->a, inplace_mode);                                                    \
     auto b = Mutate(node->b, inplace_mode);                                                    \
@@ -481,7 +481,7 @@ UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::CastNode* node, InplaceMo
       auto copy = ffi::make_object<prim::Name##Node>(*node);                                   \
       copy->a = std::move(a).ValueOrUnchanged(std::move(copy->a));                             \
       copy->b = std::move(b).ValueOrUnchanged(std::move(copy->b));                             \
-      return Expr(std::move(copy));                                                            \
+      return PrimExpr(std::move(copy));                                                        \
     }                                                                                          \
   }
 TVM_IR_BINARY_MUTATE_IMPL(Add)
@@ -503,7 +503,7 @@ TVM_IR_BINARY_MUTATE_IMPL(And)
 TVM_IR_BINARY_MUTATE_IMPL(Or)
 #undef TVM_IR_BINARY_MUTATE_IMPL
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::NotNode* node, InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::NotNode* node, InplaceMode inplace_mode) {
   auto a = Mutate(node->a, inplace_mode);
   if (a.UnchangedOrSameAs(node->a)) return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
@@ -513,11 +513,11 @@ UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::NotNode* node, InplaceMod
   } else {
     auto copy = ffi::make_object<prim::NotNode>(*node);
     copy->a = std::move(a).ValueOrUnchanged(std::move(copy->a));
-    return Expr(std::move(copy));
+    return PrimExpr(std::move(copy));
   }
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::SelectNode* node, InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::SelectNode* node, InplaceMode inplace_mode) {
   auto condition = Mutate(node->condition, inplace_mode);
   auto true_value = Mutate(node->true_value, inplace_mode);
   auto false_value = Mutate(node->false_value, inplace_mode);
@@ -536,11 +536,11 @@ UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::SelectNode* node, Inplace
     copy->condition = std::move(condition).ValueOrUnchanged(std::move(copy->condition));
     copy->true_value = std::move(true_value).ValueOrUnchanged(std::move(copy->true_value));
     copy->false_value = std::move(false_value).ValueOrUnchanged(std::move(copy->false_value));
-    return Expr(std::move(copy));
+    return PrimExpr(std::move(copy));
   }
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::LetNode* node, InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::LetNode* node, InplaceMode inplace_mode) {
   auto var = WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
                return Mutate(node->var, inplace_mode);
              }).as_or_throw<UnchangedOr<Var>>();
@@ -560,11 +560,11 @@ UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::LetNode* node, InplaceMod
     copy->var = std::move(var).ValueOrUnchanged(std::move(copy->var));
     copy->value = std::move(value).ValueOrUnchanged(std::move(copy->value));
     copy->body = std::move(body).ValueOrUnchanged(std::move(copy->body));
-    return Expr(std::move(copy));
+    return PrimExpr(std::move(copy));
   }
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::RampNode* node, InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::RampNode* node, InplaceMode inplace_mode) {
   auto base = Mutate(node->base, inplace_mode);
   auto stride = Mutate(node->stride, inplace_mode);
   auto lanes = Mutate(node->lanes, inplace_mode);
@@ -582,11 +582,11 @@ UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::RampNode* node, InplaceMo
     copy->base = std::move(base).ValueOrUnchanged(std::move(copy->base));
     copy->stride = std::move(stride).ValueOrUnchanged(std::move(copy->stride));
     copy->lanes = std::move(lanes).ValueOrUnchanged(std::move(copy->lanes));
-    return Expr(std::move(copy));
+    return PrimExpr(std::move(copy));
   }
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::BroadcastNode* node,
+UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::BroadcastNode* node,
                                            InplaceMode inplace_mode) {
   auto value = Mutate(node->value, inplace_mode);
   auto lanes = Mutate(node->lanes, inplace_mode);
@@ -601,11 +601,11 @@ UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::BroadcastNode* node,
     auto copy = ffi::make_object<prim::BroadcastNode>(*node);
     copy->value = std::move(value).ValueOrUnchanged(std::move(copy->value));
     copy->lanes = std::move(lanes).ValueOrUnchanged(std::move(copy->lanes));
-    return Expr(std::move(copy));
+    return PrimExpr(std::move(copy));
   }
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::ShuffleNode* node,
+UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::ShuffleNode* node,
                                            InplaceMode inplace_mode) {
   auto vectors =
       this->Mutate(node->vectors, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
@@ -622,11 +622,11 @@ UnchangedOr<ffi::Any> ExprMutator::Mutate_(const prim::ShuffleNode* node,
     auto copy = ffi::make_object<prim::ShuffleNode>(*node);
     copy->vectors = std::move(vectors).ValueOrUnchanged(std::move(copy->vectors));
     copy->indices = std::move(indices).ValueOrUnchanged(std::move(copy->indices));
-    return Expr(std::move(copy));
+    return PrimExpr(std::move(copy));
   }
 }
 
-UnchangedOr<ffi::Any> ExprMutator::Mutate_(const VarNode* node, InplaceMode inplace_mode) {
+UnchangedOr<Expr> ExprMutator::Mutate_(const VarNode* node, InplaceMode inplace_mode) {
   if (node->ty.as<PrimTypeNode>()) return ffi::Unchanged();
   if (TVM_FFI_PREDICT_TRUE(var_remap_.empty() && def_region_kind() == kTVMFFIDefRegionKindNone)) {
     return ffi::Unchanged();
@@ -636,7 +636,7 @@ UnchangedOr<ffi::Any> ExprMutator::Mutate_(const VarNode* node, InplaceMode inpl
     return std::move(remap_result).as_or_throw<UnchangedOr<Expr>>();
   }
   if (def_region_kind() == kTVMFFIDefRegionKindNone) return ffi::Unchanged();
-  UnchangedOr<ffi::Any> result = ffi::Unchanged();
+  UnchangedOr<Expr> result = ffi::Unchanged();
   ffi::Any mapped_value = ffi::Unchanged();
   // PrimType has no children; dynamic type fields inherit Pattern but are visited outside Simple.
   if (!node->ty.as<PrimTypeNode>()) {
@@ -647,15 +647,17 @@ UnchangedOr<ffi::Any> ExprMutator::Mutate_(const VarNode* node, InplaceMode inpl
             : this->Mutate(node->ty, inplace_mode);
     auto mapped_ty = std::move(mapped_ty_result).as_or_throw<UnchangedOr<Type>>();
     if (!mapped_ty.UnchangedOrSameAs(node->ty)) {
+      Expr mapped_expr;
       if (inplace_mode == InplaceMode::kAllow) {
         const_cast<VarNode*>(node)->ty = std::move(mapped_ty).ValueUnchecked();
-        mapped_value = ffi::Any(node);
+        mapped_expr = ffi::GetRef<Expr>(node);
       } else {
         auto copy = ffi::make_object<VarNode>(*node);
         copy->ty = std::move(mapped_ty).ValueUnchecked();
-        mapped_value = ffi::Any(std::move(copy));
+        mapped_expr = Expr(std::move(copy));
       }
-      result = mapped_value;
+      result = mapped_expr;
+      mapped_value = std::move(mapped_expr);
     }
   }
   if (!result.IsUnchanged() || def_region_kind() == kTVMFFIDefRegionKindPattern) {

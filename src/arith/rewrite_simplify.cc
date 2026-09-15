@@ -421,7 +421,7 @@ void RewriteSimplifier::Impl::Update(const Var& var, const PrimExpr& info, bool 
   var_map_[var] = info;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::AddNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::AddNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
                      .as_or_throw<UnchangedOr<PrimExpr>>()
@@ -576,7 +576,7 @@ RewriteSimplifier::Extension RewriteSimplifier::Impl::GetEnabledExtensions() con
   return enabled_extensions_;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::SubNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::SubNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
                      .as_or_throw<UnchangedOr<PrimExpr>>()
@@ -768,7 +768,7 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::SubNode* op,
   return ret;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::MulNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::MulNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
                      .as_or_throw<UnchangedOr<PrimExpr>>()
@@ -810,7 +810,7 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::MulNode* op,
   return ret;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::DivNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::DivNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
                      .as_or_throw<UnchangedOr<PrimExpr>>()
@@ -966,7 +966,7 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::DivNode* op,
   return ret;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::ModNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::ModNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
                      .as_or_throw<UnchangedOr<PrimExpr>>()
@@ -1060,7 +1060,7 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::ModNode* op,
   return ret;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
                      .as_or_throw<UnchangedOr<PrimExpr>>()
@@ -1265,7 +1265,7 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode*
   return ret;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
                      .as_or_throw<UnchangedOr<PrimExpr>>()
@@ -1440,7 +1440,7 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
   return ret;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::MinNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::MinNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
                      .as_or_throw<UnchangedOr<PrimExpr>>()
@@ -1627,7 +1627,7 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::MinNode* op,
   return ret;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::MaxNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::MaxNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
                      .as_or_throw<UnchangedOr<PrimExpr>>()
@@ -1839,7 +1839,7 @@ ffi::Optional<PrimExpr> RewriteSimplifier::Impl::TryMatchLiteralConstraint(
   return std::nullopt;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::EQNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::EQNode* op,
                                                        InplaceMode inplace_mode) {
   // The qualified native hook preserves EQ; primitive children use unchecked category-preserving
   // results.
@@ -1900,7 +1900,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(prim::EQ ret, InplaceMode in
   return ret;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::NENode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::NENode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
                      .as_or_throw<UnchangedOr<PrimExpr>>()
@@ -1940,7 +1940,7 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::NENode* op,
                            inplace_mode);
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::LENode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::LENode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
                      .as_or_throw<UnchangedOr<PrimExpr>>()
@@ -1988,19 +1988,19 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::LENode* op,
   return ret;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::GTNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::GTNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr expr = op->b < op->a;
   return Mutate(expr, inplace_mode).ValueOrUnchanged(expr);
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::GENode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::GENode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr expr = op->b <= op->a;
   return Mutate(expr, inplace_mode).ValueOrUnchanged(expr);
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::LTNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::LTNode* op,
                                                        InplaceMode inplace_mode) {
   // The qualified native hook preserves LT; primitive children use unchecked category-preserving
   // results.
@@ -2179,7 +2179,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(prim::LT ret, InplaceMode in
   return ret;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::NotNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::NotNode* op,
                                                        InplaceMode inplace_mode) {
   // The qualified native hook preserves Not; primitive children use unchecked category-preserving
   // results.
@@ -2212,7 +2212,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(prim::Not ret, InplaceMode i
   return ret;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::AndNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::AndNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr ret;
   // If this extension isn't enabled, just delegate out.
@@ -2364,7 +2364,7 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::AndNode* op,
   return ret;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::OrNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::OrNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr orig = ffi::GetRef<PrimExpr>(op);
 
@@ -2469,7 +2469,7 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::OrNode* op,
   return ret;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::SelectNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::SelectNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
                      .as_or_throw<UnchangedOr<PrimExpr>>()
@@ -2482,8 +2482,7 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::SelectNode* o
   return ret;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const CallNode* op,
-                                                       InplaceMode inplace_mode) {
+UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
   // add condition context to if_then_else
   Expr expr = SimplifierBase::Mutate_(op, inplace_mode)
                   .as_or_throw<UnchangedOr<Expr>>()
@@ -2579,8 +2578,7 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const CallNode* op,
   return ret;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const VarNode* op,
-                                                       InplaceMode inplace_mode) {
+UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const VarNode* op, InplaceMode inplace_mode) {
   Var var = ffi::GetRef<Var>(op);
   auto prim_var = var.as<PrimVar>();
   if (!prim_var) {
@@ -2603,7 +2601,7 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const VarNode* op,
   return ffi::Unchanged();
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::CastNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::CastNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
                      .as_or_throw<UnchangedOr<PrimExpr>>()
@@ -2620,7 +2618,7 @@ bool RewriteSimplifier::Impl::CanInlineLet(const prim::LetNode* op) {
   return false;
 }
 
-UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::LetNode* op,
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::LetNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr value = Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
   if (CanInlineLet(op)) {

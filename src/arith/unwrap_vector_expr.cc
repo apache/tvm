@@ -47,7 +47,7 @@ class Scalarizer : public tvm::ExprMutator {
   explicit Scalarizer(PrimExpr lane) : lane_(lane) {}
 
 #define TVM_SCALARIZER_BINARY_MUTATE_(Name)                                                        \
-  UnchangedOr<ffi::Any> Mutate_(const prim::Name##Node* op, InplaceMode inplace_mode) final {      \
+  UnchangedOr<PrimExpr> Mutate_(const prim::Name##Node* op, InplaceMode inplace_mode) final {      \
     return Rebuild(op, [](const prim::Name##Node* node) { return prim::Name(node->a, node->b); }); \
   }
 
@@ -71,46 +71,46 @@ class Scalarizer : public tvm::ExprMutator {
 
 #undef TVM_SCALARIZER_BINARY_MUTATE_
 
-  UnchangedOr<ffi::Any> Mutate_(const prim::CastNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::CastNode* op, InplaceMode inplace_mode) final {
     return Rebuild(op, [](const prim::CastNode* node) {
       return prim::Cast(node->ExprNode::ty.as_or_throw<PrimType>(), node->value);
     });
   }
 
-  UnchangedOr<ffi::Any> Mutate_(const prim::NotNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::NotNode* op, InplaceMode inplace_mode) final {
     return Rebuild(op, [](const prim::NotNode* node) { return prim::Not(node->a); });
   }
 
-  UnchangedOr<ffi::Any> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) final {
     return Rebuild(op, [](const prim::SelectNode* node) {
       return prim::Select(node->condition, node->true_value, node->false_value);
     });
   }
 
-  UnchangedOr<ffi::Any> Mutate_(const prim::ShuffleNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::ShuffleNode* op, InplaceMode inplace_mode) final {
     return Rebuild(op, [](const prim::ShuffleNode* node) {
       return prim::Shuffle(node->vectors, node->indices);
     });
   }
 
-  UnchangedOr<ffi::Any> Mutate_(const TupleNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Expr> Mutate_(const TupleNode* op, InplaceMode inplace_mode) final {
     return Rebuild(op, [](const TupleNode* node) { return tvm::Tuple(node->fields, node->span); });
   }
 
-  UnchangedOr<ffi::Any> Mutate_(const TupleGetItemNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Expr> Mutate_(const TupleGetItemNode* op, InplaceMode inplace_mode) final {
     return Rebuild(op, [](const TupleGetItemNode* node) {
       return TupleGetItem(node->tuple, node->index, node->span);
     });
   }
 
-  UnchangedOr<ffi::Any> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     return Rebuild(op, [](const TensorLoadNode* node) {
       return tirx::BufferLoad(node->source.as_or_throw<tirx::BufferVar>(), node->indices,
                               node->span);
     });
   }
 
-  UnchangedOr<ffi::Any> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     return Rebuild(op, [op](const CallNode* node) -> Expr {
       if (!op->op.same_as(tirx::builtin::buffer_data()) || node->args.same_as(op->args)) {
         return ffi::GetRef<Call>(node);
@@ -125,15 +125,15 @@ class Scalarizer : public tvm::ExprMutator {
     });
   }
 
-  UnchangedOr<ffi::Any> Mutate_(const prim::RampNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::RampNode* op, InplaceMode inplace_mode) final {
     return op->base + lane_ * op->stride;
   }
 
-  UnchangedOr<ffi::Any> Mutate_(const prim::BroadcastNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::BroadcastNode* op, InplaceMode inplace_mode) final {
     return op->value;
   }
 
-  UnchangedOr<ffi::Any> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     auto it = let_var_remap_.find(op);
     if (it != let_var_remap_.end()) {
       return it->second;
@@ -141,7 +141,7 @@ class Scalarizer : public tvm::ExprMutator {
       return tvm::ExprMutator::Mutate_(op, inplace_mode);
     }
   }
-  UnchangedOr<ffi::Any> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final {
     PrimType value_ty = op->value.ty();
     if (value_ty.lanes() == 1) {
       return Rebuild(op, [](const prim::LetNode* node) {
@@ -172,7 +172,8 @@ class Scalarizer : public tvm::ExprMutator {
   // then the existing constructors to derive the type and check their invariants.
   // Disable in-place mutation so changed children cannot be reported as Unchanged.
   template <typename Node, typename F>
-  UnchangedOr<ffi::Any> Rebuild(const Node* op, F rebuild) {
+  auto Rebuild(const Node* op, F rebuild)
+      -> decltype(tvm::ExprMutator::Mutate_(op, InplaceMode::kDisallow)) {
     UnchangedOr<Expr> rewritten_u = tvm::ExprMutator::Mutate_(op, InplaceMode::kDisallow)
                                         .template as_or_throw<UnchangedOr<Expr>>();
     if (rewritten_u.IsUnchanged()) return ffi::Unchanged();

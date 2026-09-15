@@ -477,7 +477,9 @@ class TVM_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
   template <typename Self, typename Node>
   static UnchangedOr<ffi::Any> DispatchNode(const ffi::Object* node, ObjectMutator* self,
                                             InplaceMode inplace_mode) {
-    return static_cast<Self*>(self)->Mutate_(static_cast<const Node*>(node), inplace_mode);
+    return ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<ffi::Any>(
+        ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
+            static_cast<Self*>(self)->Mutate_(static_cast<const Node*>(node), inplace_mode)));
   }
 
   using ffi::StructuralMutatorObj::DefaultMutateExpected;

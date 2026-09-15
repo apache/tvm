@@ -72,7 +72,7 @@ TEST(ExprVisitor, StructuralFallback) {
 class Rewrite : public ExprMutator {
  public:
   using ExprMutator::Mutate_;
-  UnchangedOr<ffi::Any> Mutate_(const IntImmNode* node, InplaceMode inplace_mode) override {
+  UnchangedOr<PrimExpr> Mutate_(const IntImmNode* node, InplaceMode inplace_mode) override {
     return IntImm::Int32(node->value + 1);
   }
 };
@@ -95,7 +95,7 @@ class ThrowNativeError : public ExprMutator {
  public:
   using ExprMutator::Mutate_;
   ffi::Error error{"ValueError", "native mutation error", ""};
-  UnchangedOr<ffi::Any> Mutate_(const IntImmNode*, InplaceMode) override { throw error; }
+  UnchangedOr<PrimExpr> Mutate_(const IntImmNode*, InplaceMode) override { throw error; }
 };
 
 TEST(ExprMutator, NativeErrorContextThroughStructuralFallback) {
