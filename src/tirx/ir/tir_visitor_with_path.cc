@@ -350,34 +350,34 @@ void TIRVisitorWithPath::VisitStmt_(const ScopeIdDefStmtNode* op, AccessPath pat
   }
 }
 
-void TIRVisitorWithPath::VisitExpr_(const VarNode* op, AccessPath path) {}
+void TIRVisitorWithPath::Dispatch_(const VarNode* op, AccessPath path) {}
 
-void TIRVisitorWithPath::VisitExpr_(const TensorLoadNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const TensorLoadNode* op, AccessPath path) {
   VisitBufferUse(op->source.as_or_throw<tvm::tirx::BufferVar>(), path->Attr("source"));
   Visit(op->indices, path->Attr("indices"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const BufferRegionNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const BufferRegionNode* op, AccessPath path) {
   Visit(ffi::GetRef<BufferRegion>(op), path);
 }
 
-void TIRVisitorWithPath::VisitExpr_(const OpaqueExprNode* op, AccessPath path) {}
+void TIRVisitorWithPath::Dispatch_(const OpaqueExprNode* op, AccessPath path) {}
 
-void TIRVisitorWithPath::VisitExpr_(const TupleNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const TupleNode* op, AccessPath path) {
   Visit(op->fields, path->Attr("fields"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const TupleGetItemNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const TupleGetItemNode* op, AccessPath path) {
   Visit(op->tuple, path->Attr("tuple"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const prim::LetNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const prim::LetNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
   auto context = WithDef(op->var, path->Attr("var"));
   Visit(op->body, path->Attr("body"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const CallNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const CallNode* op, AccessPath path) {
   if (auto gvar = op->op.as<GlobalVar>()) {
     Visit(gvar.value(), path->Attr("op"));
   } else if (op->op.as<OpaqueExprNode>()) {
@@ -386,10 +386,10 @@ void TIRVisitorWithPath::VisitExpr_(const CallNode* op, AccessPath path) {
   Visit(op->args, path->Attr("args"));
 }
 
-#define DEFINE_BINOP_VISIT_(OP)                                        \
-  void TIRVisitorWithPath::VisitExpr_(const OP* op, AccessPath path) { \
-    Visit(op->a, path->Attr("a"));                                     \
-    Visit(op->b, path->Attr("b"));                                     \
+#define DEFINE_BINOP_VISIT_(OP)                                       \
+  void TIRVisitorWithPath::Dispatch_(const OP* op, AccessPath path) { \
+    Visit(op->a, path->Attr("a"));                                    \
+    Visit(op->b, path->Attr("b"));                                    \
   }
 
 DEFINE_BINOP_VISIT_(prim::AddNode);
@@ -412,36 +412,36 @@ DEFINE_BINOP_VISIT_(prim::OrNode);
 
 #undef DEFINE_BINOP_VISIT_
 
-void TIRVisitorWithPath::VisitExpr_(const IntImmNode* op, AccessPath path) {}
-void TIRVisitorWithPath::VisitExpr_(const FloatImmNode* op, AccessPath path) {}
-void TIRVisitorWithPath::VisitExpr_(const prim::StringImmNode* op, AccessPath path) {}
+void TIRVisitorWithPath::Dispatch_(const IntImmNode* op, AccessPath path) {}
+void TIRVisitorWithPath::Dispatch_(const FloatImmNode* op, AccessPath path) {}
+void TIRVisitorWithPath::Dispatch_(const prim::StringImmNode* op, AccessPath path) {}
 
-void TIRVisitorWithPath::VisitExpr_(const prim::CastNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const prim::CastNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const prim::NotNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const prim::NotNode* op, AccessPath path) {
   Visit(op->a, path->Attr("a"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const prim::SelectNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const prim::SelectNode* op, AccessPath path) {
   Visit(op->condition, path->Attr("condition"));
   Visit(op->true_value, path->Attr("true_value"));
   Visit(op->false_value, path->Attr("false_value"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const prim::RampNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const prim::RampNode* op, AccessPath path) {
   Visit(op->base, path->Attr("base"));
   Visit(op->stride, path->Attr("stride"));
   Visit(op->lanes, path->Attr("lanes"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const prim::ShuffleNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const prim::ShuffleNode* op, AccessPath path) {
   Visit(op->indices, path->Attr("indices"));
   Visit(op->vectors, path->Attr("vectors"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const prim::BroadcastNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const prim::BroadcastNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
   Visit(op->lanes, path->Attr("lanes"));
 }

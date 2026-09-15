@@ -208,7 +208,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
     previously_defined_.insert({var, path});
   }
 
-  void VisitExpr_(const VarNode* op, AccessPath path) override {
+  void Dispatch_(const VarNode* op, AccessPath path) override {
     auto var = ffi::GetRef<Var>(op);
 
     auto active_def = currently_defined_.find(var);
@@ -312,7 +312,7 @@ class TensorLoadTypeVerifier : public Verifier<TensorLoadTypeVerifier> {
   using Verifier::Verifier;
 
  private:
-  void VisitExpr_(const TensorLoadNode* op, AccessPath path) override {
+  void Dispatch_(const TensorLoadNode* op, AccessPath path) override {
     auto buffer = op->source.as<BufferVar>();
     auto valid_source = Verify(buffer.has_value());
     valid_source << "TypeError: TIR TensorLoad source at " << path->Attr("source")
@@ -376,7 +376,7 @@ class TensorLoadTypeVerifier : public Verifier<TensorLoadTypeVerifier> {
                              asserted_ty.value() == expected_ty.value());
     valid_type << "TypeError: TIR TensorLoad at " << path << " asserts result type " << op->ty
                << ", but its source and indices imply " << expected->ty << ".";
-    TIRVisitorWithPath::VisitExpr_(op, path);
+    TIRVisitorWithPath::Dispatch_(op, path);
   }
 };
 

@@ -914,13 +914,13 @@ void CodeGenCUDA::AddUtilFunction(const std::string& func_name, const std::strin
   this->util_funcs_.insert({func_name, code});
 }
 
-void CodeGenCUDA::VisitExpr_(const prim::CastNode* op, std::ostream& os) {
+void CodeGenCUDA::Dispatch_(const prim::CastNode* op, std::ostream& os) {
   PrimType from_ty = op->value.ty();
   PrimType target_ty = op->ty.as_or_throw<PrimType>();
   TVM_FFI_ICHECK_EQ(target_ty.lanes(), from_ty.lanes());
 
   // Emit simple C-style type conversion.
-  if (from_ty.IsScalar()) return CodeGenC::VisitExpr_(op, os);
+  if (from_ty.IsScalar()) return CodeGenC::Dispatch_(op, os);
 
   if (IsPackedFloat(target_ty) || IsPackedFloat(from_ty)) {
     std::ostringstream val;
@@ -1019,7 +1019,7 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
   }
 }
 
-void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
+void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
   if (auto opt_call_opt = op->op.as<Op>()) {
     Op call_op = opt_call_opt.value();
     // This is only for backward compatibility with __shfl_{up/down}.
@@ -1364,7 +1364,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     }
 
     if (!tgt_prim_type || !src_prim_type) {
-      return CodeGenC::VisitExpr_(op, os);
+      return CodeGenC::Dispatch_(op, os);
     }
 
     PrimType tgt_ty = op->ty.as_or_throw<PrimType>();
@@ -1373,10 +1373,10 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
 
     // Handle float4_e2m1fn reinterpret
     if (!IsFloat4(src_ty) && !IsFloat4(tgt_ty)) {
-      return CodeGenC::VisitExpr_(op, os);
+      return CodeGenC::Dispatch_(op, os);
     }
     if (src_ty == tgt_ty || tgt_ty.lanes() * tgt_ty.bits() == src_ty.lanes() * src_ty.bits()) {
-      return CodeGenC::VisitExpr_(op, os);
+      return CodeGenC::Dispatch_(op, os);
     }
     TVM_FFI_ICHECK_EQ(tgt_ty.lanes(), src_ty.lanes())
         << "E2M1 float4 reinterpret expects source and target to have the same number of lanes. "
@@ -1599,7 +1599,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(builtin::thread_return())) {
     os << "return";
   } else {
-    CodeGenC::VisitExpr_(op, os);
+    CodeGenC::Dispatch_(op, os);
   }
 }
 
@@ -1624,7 +1624,7 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
              {prim::StringImm("async"), prim::StringImm("commit_group"), prim::StringImm("")})
             .as_or_throw<PrimExpr>();
     this->PrintIndent();
-    this->VisitExpr(commit_group, this->stream);
+    this->Dispatch(commit_group, this->stream);
     this->stream << ";\n";
     return;
   } else if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
@@ -1642,7 +1642,7 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
                             prim::StringImm("")})
                           .as_or_throw<PrimExpr>();
     this->PrintIndent();
-    this->VisitExpr(wait_group, this->stream);
+    this->Dispatch(wait_group, this->stream);
     this->stream << ";\n";
     auto inner = op->body.as<AttrStmtNode>();
     TVM_FFI_ICHECK(inner);
@@ -1756,7 +1756,7 @@ void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
   }
 }
 
-void CodeGenCUDA::VisitExpr_(const prim::RampNode* op, std::ostream& os) {
+void CodeGenCUDA::Dispatch_(const prim::RampNode* op, std::ostream& os) {
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   int lanes = op_ty.lanes();
   if (lanes <= 4) {
@@ -1791,7 +1791,7 @@ void CodeGenCUDA::VisitExpr_(const prim::RampNode* op, std::ostream& os) {
   os << sret;
 }
 
-void CodeGenCUDA::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCUDA::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   int lanes = op_ty.lanes();
   if ((op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && op_ty.bits() == 8 &&
@@ -1914,11 +1914,11 @@ void CodeGenCUDA::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) { 
   os << ')';
 }
 
-void CodeGenCUDA::VisitExpr_(const prim::SelectNode* op, std::ostream& os) {
+void CodeGenCUDA::Dispatch_(const prim::SelectNode* op, std::ostream& os) {
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   // Non-vector cases.
   if (!op_ty.IsFixedLengthVector()) {
-    CodeGenC::VisitExpr_(op, os);
+    CodeGenC::Dispatch_(op, os);
     return;
   }
 
@@ -2023,7 +2023,7 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p)
   }
 }
 
-void CodeGenCUDA::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCUDA::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
 
