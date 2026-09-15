@@ -820,7 +820,7 @@ class VMShapeLowerMutator
                   const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     // emit runtime check of shape
     auto* shape_expr = op->shape.as<ShapeExprNode>();
-    if (dynamic_only &&
+    if (dynamic_only && shape_expr != nullptr &&
         std::all_of(shape_expr->values.begin(), shape_expr->values.end(),
                     [](const PrimExpr& e) { return e->IsInstance<IntImmNode>(); })) {
       // if we only check dynamic shapes, and the shape is static, we can skip.
