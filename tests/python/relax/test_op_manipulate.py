@@ -17,9 +17,10 @@
 # ruff: noqa: E731, F841
 import pytest
 
+import numpy as np
 import tvm
 import tvm.testing
-from tvm import relax, tirx
+from tvm import relax, te, tirx, topi
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -3207,6 +3208,33 @@ def test_gather_nd_infer_ty_wrong_inputs():
         bb.normalize(relax.op.gather_nd(x0, i0))
     with pytest.raises(TypeError):
         bb.normalize(relax.op.gather_nd(x0, i1))
+
+
+@pytest.mark.parametrize("batch_dims", [0, 1])
+def test_gather_nd_negative_indices_topi(batch_dims):
+    # topi.gather_nd supports in-range negative indices (ONNX GatherND
+    # semantics) even when the indices are runtime values, matching what
+    # topi.scatter_elements already does.
+    data_np = np.arange(24, dtype="int32").reshape(2, 3, 4)
+    if batch_dims == 0:
+        # index row k addresses data axis k (sizes 2, 3, 4)
+        indices_np = np.array(
+            [[[0, -1], [-1, 1]], [[-2, 1], [2, -2]], [[-4, 3], [3, -1]]], dtype="int64"
+        )
+        expected = data_np[tuple(indices_np)]
+    else:
+        indices_np = np.array([[[-1, -2], [-3, 1]], [[2, -1], [0, -3]]], dtype="int64")
+        expected = np.stack([data_np[b][tuple(indices_np[:, b])] for b in range(2)])
+
+    data = te.placeholder(tuple(data_np.shape), dtype="int32", name="data")
+    indices = te.placeholder(tuple(indices_np.shape), dtype="int64", name="indices")
+    out = topi.gather_nd(data, indices, batch_dims)
+    func = te.create_prim_func([data, indices, out]).with_attr("target", tvm.target.Target("llvm"))
+    f = tvm.build(tvm.IRModule({"main": func}), target="llvm")
+
+    out_t = tvm.runtime.tensor(np.zeros(expected.shape, dtype="int32"))
+    f(tvm.runtime.tensor(data_np), tvm.runtime.tensor(indices_np), out_t)
+    tvm.testing.assert_allclose(out_t.numpy(), expected)
 
 
 def test_scatter_elements_infer_ty():

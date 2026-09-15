@@ -1606,11 +1606,16 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
           // Index tensors are validated by integer element kind; vector lane encoding is
           // irrelevant for choosing whether an index cast is needed.
           PrimType indices_ty = indices->dtype;
-          if (indices_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
-            real_indices.push_back(indices(indices_position));
-          } else {
-            real_indices.push_back(tvm::cast(tvm::PrimType::Int(32), indices(indices_position)));
+          PrimExpr idx = indices(indices_position);
+          if (!indices_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
+            idx = tvm::cast(tvm::PrimType::Int(32), idx);
           }
+          // Support negative indices like the ONNX GatherND op does (and
+          // topi.scatter_elements already does): an in-range negative index
+          // counts from the end of the corresponding data axis.
+          PrimExpr axis_size = data->shape[batch_dims + i];
+          idx = idx + tvm::cast(tvm::PrimType::Int(32), idx < 0) * axis_size;
+          real_indices.push_back(idx);
         }
         if (real_indices.size() == ndim_d) {
           return data(real_indices);
