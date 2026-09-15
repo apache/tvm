@@ -36,8 +36,6 @@
 namespace tvm {
 namespace arith {
 
-using tirx::IterVar;
-
 // According to experiments two best simplifications orders were can->rw and rw->can->rw,
 // but rw->can->rw is better for a couple of cases.
 // Also we should end with rw because it factors multipliers out.
