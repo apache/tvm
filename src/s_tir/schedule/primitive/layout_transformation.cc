@@ -1086,7 +1086,7 @@ class TransformationPaddingExpressionError : public ScheduleErrorContextObj {
     visitor->Visit(pad_value->final_indices[0]);
     if (visitor->illegal_load) {
       throw MakeScheduleError<TransformationPaddingExpressionError>(mod, buffer, pad_value,
-                                                 visitor->illegal_load.value());
+                                                                    visitor->illegal_load.value());
     }
   }
 

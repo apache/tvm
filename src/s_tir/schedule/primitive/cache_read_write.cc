@@ -1585,8 +1585,8 @@ class ReIndexCollector : public StmtExprVisitor {
     auto collector = ffi::make_object<ReIndexCollector>(mod, buffer, block);
     collector->Visit(block->body);
     if (!collector->buffer_access_indices_.has_value()) {
-      throw MakeScheduleError<InvalidBufferAccessError>(mod, buffer, block,
-                                     InvalidBufferAccessError::ErrorKind::kNoAccess);
+      throw MakeScheduleError<InvalidBufferAccessError>(
+          mod, buffer, block, InvalidBufferAccessError::ErrorKind::kNoAccess);
     }
     return collector->buffer_access_indices_.value();
   }
@@ -1628,16 +1628,16 @@ class ReIndexCollector : public StmtExprVisitor {
     } else if (!std::equal(buffer_access_indices_.value().begin(),
                            buffer_access_indices_.value().end(), indices.begin(), indices.end(),
                            ExprDeepEqual())) {
-      throw MakeScheduleError<InvalidBufferAccessError>(mod_, buffer_, block_,
-                                     InvalidBufferAccessError::ErrorKind::kNonUniqueAccess);
+      throw MakeScheduleError<InvalidBufferAccessError>(
+          mod_, buffer_, block_, InvalidBufferAccessError::ErrorKind::kNonUniqueAccess);
     }
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* var) final {
     if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
     if (var == buffer_.get()) {
-      throw MakeScheduleError<InvalidBufferAccessError>(mod_, buffer_, block_,
-                                     InvalidBufferAccessError::ErrorKind::kOpaqueAccess);
+      throw MakeScheduleError<InvalidBufferAccessError>(
+          mod_, buffer_, block_, InvalidBufferAccessError::ErrorKind::kOpaqueAccess);
     }
     return std::nullopt;
   }
