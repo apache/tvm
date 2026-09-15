@@ -37,9 +37,10 @@ class SortScanDispatcher(BackendDispatcher):
 
     calls_to_update: dict[GlobalVar, Target]
 
-    def __init__(self, mod):
+    def __init__(self, mod, index_bits: int | None = None):
         super().__init__(mod)
         self.calls_to_update = {}
+        self.index_bits = index_bits
 
     def apply_dlight_gpu_fallback(
         self,
@@ -172,10 +173,15 @@ class SortScanDispatcher(BackendDispatcher):
                 if normalized_axis == len(shape) - 1:
                     outer = reduce(mul, shape_values[:-1], 1)
                     kernel_shape = relax.ShapeExpr([outer, shape[-1]])
+                    index_bits = self.index_bits
+                    if index_bits is None:
+                        index_bits = 32 if tgt.kind.name == "webgpu" else 64
+                    if tgt.kind.name == "webgpu" and index_bits != 32:
+                        raise ValueError("WebGPU scan kernels require index_bits=32")
                     kernel = gpu_2d_continuous_cumsum(
                         in_dtype=in_dtype,
                         out_dtype=out_dtype,
-                        index_bits=32 if tgt.kind.name == "webgpu" else 64,
+                        index_bits=index_bits,
                     )
                     kernel_name = "gpu_2d_continuous_cumsum"
                 else:
@@ -263,10 +269,29 @@ class SortScanDispatcher(BackendDispatcher):
 class DispatchSortScan:
     """
     Pass to dispatch scan and sort operators to platform dependent implementation.
+
+    Parameters
+    ----------
+    index_bits : Optional[int]
+        Signed index-width budget for the generated continuous GPU cumsum hierarchy.
+        Must be 32 or 64. By default, use 32 for WebGPU and 64 for other targets.
+        WebGPU does not support an explicit 64-bit budget.
+
+        Pipelines that subsequently force indices to int32 should request 32 to
+        avoid generating hierarchy thresholds outside the signed int32 range.
+        The caller must ensure runtime indices fit the requested width; this
+        option does not insert runtime bounds checks.
+        This option does not narrow the generated TIR, change tensor dtypes, or
+        affect other sort/scan implementations.
     """
 
+    def __init__(self, index_bits: int | None = None):
+        if index_bits not in (None, 32, 64):
+            raise ValueError("index_bits must be either 32 or 64")
+        self.index_bits = index_bits
+
     def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
-        sort_scan_dispater = SortScanDispatcher(mod)
+        sort_scan_dispater = SortScanDispatcher(mod, self.index_bits)
         for gv, func in mod.functions_items():
             if isinstance(func, relax.Function):
                 func = sort_scan_dispater.visit_expr(func)
