@@ -136,20 +136,17 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
 
   class PrimitiveExprChecker : public tirx::StmtExprVisitor {
    public:
-    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
-      if (value.as<OpaqueExprNode>()) return std::nullopt;
-      return tirx::StmtExprVisitor::Visit(value);
-    }
-
-    ffi::Optional<VisitInterrupt> Visit_(const tvm::TensorLoadNode* op) final {
-      // Preserve expression-only traversal: the source need not be a TIRx BufferVar.
-      return Visit(op->indices);
-    }
-
-    TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(PrimitiveExprChecker, tirx::StmtExprVisitor)
-    explicit PrimitiveExprChecker(WellFormedChecker* parent) : PrimitiveExprChecker() {
-      parent_ = parent;
-    }
+    explicit PrimitiveExprChecker(WellFormedChecker* parent)
+        : tirx::StmtExprVisitor([] {
+            static const VTable table = [] {
+              VTable table;
+              PrimitiveExprChecker::InitVTable(&table);
+              table.Finalize();
+              return table;
+            }();
+            return &table;
+          }()),
+          parent_(parent) {}
 
    private:
     ffi::Optional<VisitInterrupt> Visit_(const tvm::VarNode* op) final {

@@ -61,11 +61,6 @@ static bool IsBijectiveAffine(const IndexMap& m, const ffi::Array<Range>& ranges
  */
 class IndexAnalyzer : public tirx::StmtExprVisitor {
  public:
-  ffi::Optional<VisitInterrupt> Visit_(const tvm::TensorLoadNode* op) final {
-    // Preserve expression-only traversal: the source need not be a TIRx BufferVar.
-    return Visit(op->indices);
-  }
-
   ffi::Array<tirx::Var> Analyze(const arith::IterSumExpr& expr) {
     Visit(expr);
     return iterators_;
@@ -75,30 +70,24 @@ class IndexAnalyzer : public tirx::StmtExprVisitor {
   /*! \brief Override Visit for iter expr type processing */
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (const auto* op = value.as<arith::IterSumExprNode>()) {
-      for (const auto& arg : op->args)
-        if (auto interrupt = Visit(arg)) return interrupt;
-      if (auto interrupt = Visit(op->base)) return interrupt;
-      return std::nullopt;
+      for (const auto& arg : op->args) TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(arg));
+      return Visit(op->base);
     }
     if (const auto* op = value.as<arith::IterSplitExprNode>()) {
-      if (auto interrupt = VisitIterMark(op->source)) return interrupt;
-      if (auto interrupt = Visit(op->lower_factor)) return interrupt;
-      if (auto interrupt = Visit(op->extent)) return interrupt;
-      if (auto interrupt = Visit(op->scale)) return interrupt;
-      return std::nullopt;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitIterMark(op->source));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->lower_factor));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->extent));
+      return Visit(op->scale);
     }
-    if (value.as<OpaqueExprNode>()) return std::nullopt;
     return tirx::StmtExprVisitor::Visit(value);
   }
 
   ffi::Optional<VisitInterrupt> VisitIterMark(const arith::IterMark& op) {
     if (auto var = op->source.as<PrimVar>())
       iterators_.push_back(var.value());
-    else if (auto interrupt = Visit(op->source))
-      return interrupt;
-    if (auto interrupt = Visit(op->extent)) return interrupt;
-
-    return std::nullopt;
+    else
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->source));
+    return Visit(op->extent);
   }
 
  private:
@@ -496,7 +485,7 @@ class BlockAnalyzer : public StmtExprVisitor {
     return std::nullopt;
   }
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
 
     BufferAccessInfo& access_info = buffer_access_info_[op->buffer];
 
@@ -607,8 +596,7 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     if (op->name_hint == "root") {
       // Skip the root block
-      if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
-      return std::nullopt;
+      return StmtExprVisitor::Visit_(op);
     }
 
     SBlock block = ffi::GetRef<SBlock>(op);

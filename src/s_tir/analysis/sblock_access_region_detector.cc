@@ -122,6 +122,15 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   /*! \brief Helper function to relax the buffer indices */
   arith::IntSet RelaxAccessIndex(const PrimExpr& index);
 
+  // Declared regions carry bounds, not opaque runtime accesses.
+  ffi::Optional<VisitInterrupt> Visit_(const BufferRegionNode* op) final {
+    for (const Range& range : op->region) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->min));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
+    }
+    return std::nullopt;
+  }
+
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* op) override;
@@ -163,6 +172,7 @@ ffi::Array<BufferRegion> BlockReadWriteDetector::CollectOpaques() {
 }
 
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const VarNode* op) {
+  if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
   UpdateOpaque(ffi::GetRef<Var>(op));
   return std::nullopt;
 }
@@ -187,7 +197,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const TensorLoadNod
   }
   Update(&read_buffers_, &read_regions_, op->source.as_or_throw<tvm::tirx::BufferVar>(),
          relaxed_region);
-  return StmtExprVisitor::Visit_(op);
+  return Visit(op->indices);
 }
 
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const ForNode* op) {
@@ -216,7 +226,9 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const IfThenElseNod
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const DeclBufferNode* op) {
   // A DeclBuffer data expression defines the alias source.  It is not an
   // opaque buffer access by the containing block.
-  return VisitBufferDef(op->buffer, /*alloc_data=*/false);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(
+      WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() { return Visit(op->buffer); }));
+  return VisitBufferMetadata(op->buffer);
 }
 
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const BindNode* op) {
@@ -335,7 +347,8 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const BufferStoreNo
     relaxed_region.push_back(arith::EvalSet(arith::IntSet::Vector(remapped_index), dom_map_));
   }
   Update(&writes_buffers_, &write_regions_, op->buffer, relaxed_region);
-  return StmtExprVisitor::Visit_(op);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
+  return Visit(op->indices);
 }
 
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const SBlockRealizeNode* op) {

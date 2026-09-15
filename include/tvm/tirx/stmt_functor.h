@@ -147,7 +147,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
  * hooks return the first interrupt or throw on failure.
  *
  * Native hooks match exact types. Unregistered OpaqueExprNode subclasses use
- * structural traversal; callers needing opaque leaves must guard or register them.
+ * structural traversal; leaf types register non-descending structural hooks.
  */
 class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
  public:
@@ -155,16 +155,6 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
 
   using tvm::ExprVisitor::Visit;
   using tvm::ExprVisitor::Visit_;
-
-  /*!
-   * \brief Visit buffer fields at their definition site.
-   * \param buffer The buffer being defined.
-   * \param alloc_data Whether the data pointer is a new allocation (AllocBuffer)
-   *                   or references an existing variable (DeclBuffer).
-   */
-  virtual ffi::Optional<VisitInterrupt> VisitBufferDef(const BufferVar& buffer, bool alloc_data);
-  /*! \brief Observe a buffer use without revisiting its definition fields. */
-  virtual ffi::Optional<VisitInterrupt> VisitBufferUse(const BufferVar& buffer);
 
   virtual ffi::Optional<VisitInterrupt> Visit_(const BindNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op);
@@ -199,6 +189,9 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const prim::ShuffleNode* op) override;
 
  protected:
+  // Visit definition metadata as uses, separately from the buffer Var definition.
+  ffi::Optional<VisitInterrupt> VisitBufferMetadata(const BufferVar& buffer);
+
   explicit StmtExprVisitor(const VTable* vtable) : tvm::ExprVisitor(vtable) {}
   static void InitVTable(VTable* vtable);
 };

@@ -475,7 +475,7 @@ class CSEPlanner : public StmtExprVisitor {
   // Binary arithmetic operators (op->a, op->b)
 #define CSE_VISIT_BINARY(NodeType)                                    \
   ffi::Optional<VisitInterrupt> Visit_(const NodeType* op) override { \
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;     \
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));  \
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->a, op->b});            \
     return std::nullopt;                                              \
   }
@@ -499,17 +499,17 @@ class CSEPlanner : public StmtExprVisitor {
 #undef CSE_VISIT_BINARY
 
   ffi::Optional<VisitInterrupt> Visit_(const prim::NotNode* op) override {
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->a});
     return std::nullopt;
   }
   ffi::Optional<VisitInterrupt> Visit_(const prim::CastNode* op) override {
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->value});
     return std::nullopt;
   }
   ffi::Optional<VisitInterrupt> Visit_(const prim::SelectNode* op) override {
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->condition, op->true_value, op->false_value});
     return std::nullopt;
   }
@@ -523,9 +523,9 @@ class CSEPlanner : public StmtExprVisitor {
    * to a position before the containing statement where it is undefined.
    */
   ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op) override {
-    if (auto result = Visit(op->value)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
     ++let_depth_;
-    if (auto result = Visit(op->body)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
     --let_depth_;
     return std::nullopt;
   }
@@ -550,11 +550,11 @@ class CSEPlanner : public StmtExprVisitor {
 
   /*! \brief For loops: bounds in parent scope, body in child scope. */
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override {
-    if (auto result = Visit(op->min)) return result;
-    if (auto result = Visit(op->extent)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->min));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->extent));
     int saved = current_scope_;
     current_scope_ = AllocScope(saved, ffi::GetRef<Stmt>(op));
-    if (auto result = Visit(op->body)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
     current_scope_ = saved;
     return std::nullopt;
   }
@@ -568,14 +568,14 @@ class CSEPlanner : public StmtExprVisitor {
    * one branch are not hoisted above the If.
    */
   ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) override {
-    if (auto result = Visit(op->condition)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->condition));
     int saved = current_scope_;
     Stmt stmt = ffi::GetRef<Stmt>(op);
     current_scope_ = AllocScope(saved, stmt);
-    if (auto result = Visit(op->then_case)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->then_case));
     if (op->else_case) {
       current_scope_ = AllocScope(saved, stmt);
-      if (auto result = Visit(op->else_case.value())) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->else_case.value()));
     }
     current_scope_ = saved;
     return std::nullopt;
@@ -583,27 +583,29 @@ class CSEPlanner : public StmtExprVisitor {
 
   /*! \brief While loops: condition in parent scope, body in child scope. */
   ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) override {
-    if (auto result = Visit(op->condition)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->condition));
     int saved = current_scope_;
     current_scope_ = AllocScope(saved, ffi::GetRef<Stmt>(op));
-    if (auto result = Visit(op->body)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
     current_scope_ = saved;
     return std::nullopt;
   }
 
   /*! \brief AttrStmt: value in parent scope, body in child scope. */
   ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) override {
-    if (auto result = Visit(op->value)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
     int saved = current_scope_;
     current_scope_ = AllocScope(saved, ffi::GetRef<Stmt>(op));
-    if (auto result = Visit(op->body)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
     current_scope_ = saved;
     return std::nullopt;
   }
 
   /*! \brief DeclBuffer is flat (no body). Visit buffer shape expressions. */
   ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) override {
-    return VisitBufferDef(op->buffer, false);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(
+        WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() { return Visit(op->buffer); }));
+    return VisitBufferMetadata(op->buffer);
   }
 
   // ------------------------------------------------------------------

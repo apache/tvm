@@ -20,8 +20,6 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 
-#include <exception>
-
 #include "../utils.h"
 
 namespace tvm {
@@ -174,37 +172,25 @@ class BlockPropertyError : public ScheduleErrorContextObj {
                                                     const StmtSRefNode* top)
           : state_(state), top_(top) {}
 
-      void Check(const Stmt& stmt) {
-        Visit(stmt);
-        if (error_) std::rethrow_exception(error_);
-      }
-
      private:
       ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
-        try {
-          for (const IterVar& iter_var : op->iter_vars) {
-            if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) {
-              throw MakeScheduleError<BlockPropertyError>(state_->mod, ffi::GetRef<SBlock>(op));
-            }
-            ffi::Optional<StmtSRef> high_exclusive = top_->parent
-                                                         ? ffi::GetRef<StmtSRef>(top_->parent)
-                                                         : ffi::Optional<StmtSRef>(std::nullopt);
-            CheckPartialAffineBinding(state_, ffi::GetRef<SBlock>(op), high_exclusive);
+        for (const IterVar& iter_var : op->iter_vars) {
+          if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) {
+            throw MakeScheduleError<BlockPropertyError>(state_->mod, ffi::GetRef<SBlock>(op));
           }
-        } catch (const ffi::Error&) {
-          // Structural callbacks would slice the subclass before the schedule can render it.
-          error_ = std::current_exception();
-          return VisitInterrupt();
+          ffi::Optional<StmtSRef> high_exclusive = top_->parent
+                                                       ? ffi::GetRef<StmtSRef>(top_->parent)
+                                                       : ffi::Optional<StmtSRef>(std::nullopt);
+          CheckPartialAffineBinding(state_, ffi::GetRef<SBlock>(op), high_exclusive);
         }
         return std::nullopt;
       }
-      std::exception_ptr error_;
       const ScheduleState& state_;
       const StmtSRefNode* top_;
     };
 
     auto checker = ffi::make_object<BlockIterTypeAndAffineBindingChecker>(self, top);
-    checker->Check(ffi::GetRef<Stmt>(sref->stmt));
+    checker->Visit(ffi::GetRef<Stmt>(sref->stmt));
   }
 
   explicit BlockPropertyError(IRModule mod, SBlock block) : mod_(mod), block_(std::move(block)) {}

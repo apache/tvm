@@ -265,18 +265,29 @@ class LCADetector : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
+  // Declared regions carry bounds, not opaque runtime accesses.
+  ffi::Optional<VisitInterrupt> Visit_(const BufferRegionNode* op) final {
+    for (const Range& range : op->region) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->min));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
+    }
+    return std::nullopt;
+  }
+
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     UpdateBufferLCA(op->source.as_or_throw<tvm::tirx::BufferVar>().get(), ancestor_scopes_.back());
-    return StmtExprVisitor::Visit_(op);
+    return Visit(op->indices);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
     UpdateBufferLCA(op->buffer.get(), ancestor_scopes_.back());
-    return StmtExprVisitor::Visit_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
+    return Visit(op->indices);
   }
 
   // Works for Load/Store and opaque access.
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
     VisitBufferVar(op);
     return std::nullopt;
   }

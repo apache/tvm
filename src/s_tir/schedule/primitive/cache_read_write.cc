@@ -580,7 +580,6 @@ bool AllConsumersUnderStmt(ScheduleState self, BufferVar buffer, StmtSRef scope_
 static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const BufferVar& buffer,
                                              BufferIndexType index_type) {
   struct Collector : public StmtExprVisitor {
-   public:
     using StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
@@ -1583,17 +1582,8 @@ class ReIndexCollector : public StmtExprVisitor {
 
   static ffi::Array<PrimExpr> Collect(const IRModule& mod, const BufferVar& buffer,
                                       const SBlock& block) {
-    auto collector = ffi::make_object<ReIndexCollector>(buffer);
-    // Throw outside structural traversal so ScheduleError retains its derived type.
-    if (auto interrupt = collector->Visit(block->body)) {
-      const ffi::Any& node = interrupt.value()->value;
-      if (node.as<SBlockNode>()) {
-        throw MakeScheduleError<NotLeafBlockError>(mod, block);
-      }
-      auto kind = node.as<VarNode>() ? InvalidBufferAccessError::ErrorKind::kOpaqueAccess
-                                     : InvalidBufferAccessError::ErrorKind::kNonUniqueAccess;
-      throw MakeScheduleError<InvalidBufferAccessError>(mod, buffer, block, kind);
-    }
+    auto collector = ffi::make_object<ReIndexCollector>(mod, buffer, block);
+    collector->Visit(block->body);
     if (!collector->buffer_access_indices_.has_value()) {
       throw MakeScheduleError<InvalidBufferAccessError>(mod, buffer, block,
                                      InvalidBufferAccessError::ErrorKind::kNoAccess);
@@ -1601,51 +1591,62 @@ class ReIndexCollector : public StmtExprVisitor {
     return collector->buffer_access_indices_.value();
   }
 
-  explicit ReIndexCollector(const BufferVar& buffer) : buffer_(buffer) {}
+  explicit ReIndexCollector(const IRModule& mod, const BufferVar& buffer, const SBlock& block)
+      : mod_(mod), buffer_(buffer), block_(block) {}
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(load));
+    for (const PrimExpr& index : load->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
     if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
-      if (!CheckAndUpdateBufferAccessIndices(load->indices)) {
-        return VisitInterrupt(ffi::GetRef<TensorLoad>(load));
-      }
+      CheckAndUpdateBufferAccessIndices(load->indices);
     }
     return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
     // no sub-blocks under this block
-    return VisitInterrupt(ffi::GetRef<SBlock>(block));
+    throw MakeScheduleError<NotLeafBlockError>(mod_, block_);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(store));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(store->value));
+    for (const PrimExpr& index : store->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
     if (store->buffer.same_as(buffer_)) {
-      if (!CheckAndUpdateBufferAccessIndices(store->indices)) {
-        return VisitInterrupt(ffi::GetRef<BufferStore>(store));
-      }
+      CheckAndUpdateBufferAccessIndices(store->indices);
     }
     return std::nullopt;
   }
 
-  bool CheckAndUpdateBufferAccessIndices(const ffi::Array<PrimExpr> indices) {
+  void CheckAndUpdateBufferAccessIndices(const ffi::Array<PrimExpr> indices) {
     if (!buffer_access_indices_.has_value()) {
       buffer_access_indices_ = indices;
-      return true;
+      return;
+    } else if (!std::equal(buffer_access_indices_.value().begin(),
+                           buffer_access_indices_.value().end(), indices.begin(), indices.end(),
+                           ExprDeepEqual())) {
+      throw MakeScheduleError<InvalidBufferAccessError>(mod_, buffer_, block_,
+                                     InvalidBufferAccessError::ErrorKind::kNonUniqueAccess);
     }
-    return std::equal(buffer_access_indices_.value().begin(), buffer_access_indices_.value().end(),
-                      indices.begin(), indices.end(), ExprDeepEqual());
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* var) final {
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
     if (var == buffer_.get()) {
-      return VisitInterrupt(ffi::GetRef<Var>(var));
+      throw MakeScheduleError<InvalidBufferAccessError>(mod_, buffer_, block_,
+                                     InvalidBufferAccessError::ErrorKind::kOpaqueAccess);
     }
     return std::nullopt;
   }
+  /*! \brief The IR module */
+  IRModule mod_;
   /*! \brief The buffer to rewrite */
   BufferVar buffer_;
+  /*! \brief The block to visit */
+  SBlock block_;
   /*! \brief The indices of buffer acess to rewrite */
   ffi::Optional<ffi::Array<PrimExpr>> buffer_access_indices_;
 };

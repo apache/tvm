@@ -92,7 +92,27 @@ class DoubleBufferDetector : public StmtExprVisitor {
     return std::nullopt;
   }
 
+  // Known loads and stores are not opaque escapes of the buffer variable.
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
+    return Visit(op->indices);
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
+    return Visit(op->indices);
+  }
+
+  // Declared regions carry bounds, not opaque runtime accesses.
+  ffi::Optional<VisitInterrupt> Visit_(const BufferRegionNode* op) final {
+    for (const Range& range : op->region) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->min));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
+    }
+    return std::nullopt;
+  }
+
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
     if (touched_.count(op)) {
       touched_.erase(op);
     }

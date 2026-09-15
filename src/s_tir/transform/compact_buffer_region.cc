@@ -134,8 +134,6 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
  private:
-  using StmtExprVisitor::VisitBufferDef;
-
   struct BufferAccessInfo {
     /*! \brief The buffer. */
     BufferVar buffer;
@@ -152,6 +150,15 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
  private:
   /**************** Visitor overload ****************/
 
+  // Declared regions carry bounds, not opaque runtime accesses.
+  ffi::Optional<VisitInterrupt> Visit_(const BufferRegionNode* op) final {
+    for (const Range& range : op->region) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->min));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
+    }
+    return std::nullopt;
+  }
+
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
     VisitBufferAccess(BufferRegion::FromPoint(op->buffer, op->indices));
     return Visit(op->value);
@@ -165,10 +172,11 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     } else {
       VisitBufferAccess(BufferRegion::FromPoint(buffer, op->indices));
     }
-    return StmtExprVisitor::Visit_(op);
+    return Visit(op->indices);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
     VisitBufferVar(ffi::GetRef<Var>(op));
     return std::nullopt;
   }

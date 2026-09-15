@@ -65,12 +65,6 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final;
 
-  // Piggyback on base class VisitBufferDef/VisitBufferUse to handle buffer
-  // def/use tracking. Base class calls these from AllocBuffer, DeclBuffer,
-  // BufferStore, BufferLoad, and SBlock visitors.
-  ffi::Optional<VisitInterrupt> VisitBufferDef(const BufferVar& buffer, bool alloc_data) final;
-  ffi::Optional<VisitInterrupt> VisitBufferUse(const BufferVar& buffer) final;
-
   void HandleDef(const Var& v);
   void HandleUse(const Var& v);
 

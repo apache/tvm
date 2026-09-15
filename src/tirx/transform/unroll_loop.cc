@@ -88,14 +88,6 @@ class VarLocalAccessMarker : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    // Preserve expression-only traversal: the source need not be a TIRx BufferVar.
-    for (const auto& index : op->indices) {
-      if (auto result = Visit(index)) return result;
-    }
-    return std::nullopt;
-  }
-
  private:
   std::unordered_set<Var>* var_touched_local_;
 };

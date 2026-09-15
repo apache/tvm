@@ -148,7 +148,8 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->indices));
     RecordAccess(op->buffer);
     StmtEntry e = scope_.back();
     scope_.pop_back();
@@ -160,7 +161,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->indices));
     RecordAccess(op->source.as_or_throw<tvm::tirx::BufferVar>());
     return std::nullopt;
   }
@@ -168,7 +169,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     StmtEntry e = scope_.back();
     scope_.pop_back();
     if (e.touched.size() != 0) {
@@ -180,7 +181,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const ReturnNode* op) final {
     scope_.push_back(StmtEntry());
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     StmtEntry e = scope_.back();
     scope_.pop_back();
     if (e.touched.size() != 0) {
@@ -191,6 +192,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* buf) final {
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
     // Directly reference to the variable count as a read.
     if (buf->ty.as<BufferTypeNode>()) {
       Var var = ffi::GetRef<Var>(buf);
@@ -212,7 +214,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     int64_t begin_index = static_cast<int64_t>(linear_seq_.size());
     // before scope.
     linear_seq_.push_back(e);
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     // after scope.
     e.touched = std::move(scope_.back().touched);
     scope_.pop_back();
@@ -230,14 +232,14 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     // Only record the outer most thread extent.
     if (op->attr_key == attr::thread_extent && !in_thread_env_) {
       in_thread_env_ = true;
-      if (auto result = VisitNewScope(op)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
       in_thread_env_ = false;
     } else if (op->attr_key == attr::extern_scope) {
-      if (auto result = VisitNewScope(op)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
     } else if (op->attr_key == s_tir::attr::virtual_thread) {
-      if (auto result = VisitNewScope(op)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
     } else {
-      if (auto result = StmtExprVisitor::Visit_(op)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
     return std::nullopt;
   }
@@ -253,7 +255,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr (the value may contain BufferLoad)
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     StmtEntry e = scope_.back();
     scope_.pop_back();
     if (e.touched.size() != 0) {
@@ -358,6 +360,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
     // assume all opaque access is unsafe
     if (op == dst_ || op == src_) {
       result_ = false;
@@ -369,15 +372,15 @@ class InplaceOpVerifier : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
     ++mem_nest_;
     for (const auto& index : op->indices) {
-      if (auto result = this->Visit(index)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(index));
     }
     --mem_nest_;
     if (op->buffer.get() == dst_) {
       store_ = op;
-      if (auto result = this->Visit(op->value)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
       store_ = nullptr;
     } else {
-      if (auto result = this->Visit(op->value)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
     }
     return std::nullopt;
   }
@@ -428,7 +431,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
       }
     }
     ++mem_nest_;
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->indices));
     --mem_nest_;
     return std::nullopt;
   }

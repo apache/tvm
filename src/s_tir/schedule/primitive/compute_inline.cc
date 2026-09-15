@@ -197,10 +197,7 @@ class NonSingleProducerError : public ScheduleErrorContextObj {
                                              const StmtSRef& scope_root_sref,
                                              const BufferVar& buffer, const SBlock& scope_block) {
         auto finder = ffi::make_object<ProducerFinder>(self, scope_root_sref, buffer);
-        // Preserve the ScheduleError subclass outside structural traversal.
-        if (auto interrupt = finder->Visit(scope_block)) {
-          throw MakeScheduleError<NonSingleProducerError>(self->mod, interrupt.value()->value.as_or_throw<SBlock>());
-        }
+        finder->Visit(scope_block);
         return finder->producer_across_scope_.back();
       }
 
@@ -230,7 +227,7 @@ class NonSingleProducerError : public ScheduleErrorContextObj {
             // Check if the producer block is a complete block
             StmtSRef producer_block_sref = self_->stmt2ref.at(node);
             if (!IsCompleteBlock(self_, producer_block_sref, scope_root_sref_)) {
-              return VisitInterrupt(ffi::GetRef<SBlock>(node));
+              throw MakeScheduleError<NonSingleProducerError>(self_->mod, ffi::GetRef<SBlock>(node));
             }
             producer_across_scope_.back().push_back(ffi::GetRef<SBlock>(node));
             break;
@@ -868,7 +865,6 @@ class ReverseComputeInliner : public BaseInliner {
   static std::vector<const TensorLoadNode*> ExtractBufferLoad(const BufferVar& buffer,
                                                               const BufferStoreNode* from) {
     struct Extractor : public StmtExprVisitor {
-     public:
       using StmtExprVisitor::Visit_;
 
       ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
@@ -1068,7 +1064,6 @@ class ReductionEpilogueFuser : public BaseInliner {
   static std::vector<const TensorLoadNode*> ExtractBufferLoad(const BufferVar& buffer,
                                                               const BufferStoreNode* from) {
     struct Extractor : public StmtExprVisitor {
-     public:
       using StmtExprVisitor::Visit_;
 
       ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
@@ -1145,7 +1140,8 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
    public:
     using StmtExprVisitor::Visit_;
 
-    explicit ScalingDetector(const BufferVar& buffer) : buffer_(buffer) {}
+    explicit ScalingDetector(const BufferVar& buffer)
+        : finder_(ffi::make_object<TargetFinder>(buffer)) {}
 
     bool HasScaling(const PrimExpr& expr) {
       has_scaling_ = false;
@@ -1154,36 +1150,33 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
     }
 
    private:
+    class TargetFinder : public StmtExprVisitor {
+     public:
+      using StmtExprVisitor::Visit_;
+
+      explicit TargetFinder(const BufferVar& buffer) : buffer_(buffer) {}
+
+      bool Find(const PrimExpr& e) {
+        found_ = false;
+        Visit(e);
+        return found_;
+      }
+
+     private:
+      ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
+        if (op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
+          found_ = true;
+          return std::nullopt;
+        }
+        return StmtExprVisitor::Visit_(op);
+      }
+
+      BufferVar buffer_;
+      bool found_{false};
+    };
+
     // Helper to check if a subtree contains a load from the reduction buffer
-    bool ContainsTarget(const PrimExpr& expr) {
-      class TargetFinder : public StmtExprVisitor {
-       public:
-        using StmtExprVisitor::Visit_;
-
-        explicit TargetFinder(const BufferVar& buffer) : buffer_(buffer) {}
-
-        bool Find(const PrimExpr& e) {
-          found_ = false;
-          Visit(e);
-          return found_;
-        }
-
-       private:
-        ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-          if (op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
-            found_ = true;
-            return std::nullopt;
-          }
-          return StmtExprVisitor::Visit_(op);
-        }
-
-        BufferVar buffer_;
-        bool found_{false};
-      };
-
-      auto finder = ffi::make_object<TargetFinder>(buffer_);
-      return finder->Find(expr);
-    }
+    bool ContainsTarget(const PrimExpr& expr) { return finder_->Find(expr); }
 
     ffi::Optional<VisitInterrupt> Visit_(const MulNode* op) final {
       if (has_scaling_) return std::nullopt;
@@ -1214,7 +1207,7 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
       return StmtExprVisitor::Visit_(op);
     }
 
-    BufferVar buffer_;
+    ffi::ObjectPtr<TargetFinder> finder_;
     bool has_scaling_{false};
   };
 
@@ -1264,7 +1257,6 @@ void ReductionEpilogueFuser::ExtractEpilogueInfo() {
   // Generalized approach: extract all non-reduction buffers from epilogue expression
   // Find all buffers in epilogue expression (except the reduction buffer)
   struct BufferExtractor : public StmtExprVisitor {
-   public:
     using StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {

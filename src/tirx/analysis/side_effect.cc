@@ -35,17 +35,12 @@ class ExprSideEffect : public StmtExprVisitor {
  public:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView e) final {
     if (kind_ == CallEffectKind::kUpdateState) return std::nullopt;
-    if (e.as<OpaqueExprNode>()) return std::nullopt;
     return StmtExprVisitor::Visit(e);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    // Preserve expression-only traversal: the source need not be a TIRx BufferVar.
     this->UpdateEffect(CallEffectKind::kReadState);
-    for (const auto& index : op->indices) {
-      if (auto result = Visit(index)) return result;
-    }
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {

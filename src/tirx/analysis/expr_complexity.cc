@@ -38,18 +38,9 @@ class PrimExprSizeCounter : public StmtExprVisitor {
     return prim_expr_size_counter->counter_;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    // Preserve expression-only traversal: the source need not be a TIRx BufferVar.
-    for (const auto& index : op->indices) {
-      if (auto result = Visit(index)) return result;
-    }
-    return std::nullopt;
-  }
-
  private:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView expr) final {
     if (expr.as<ExprNode>()) counter_++;
-    if (expr.as<OpaqueExprNode>()) return std::nullopt;
     return StmtExprVisitor::Visit(expr);
   }
 

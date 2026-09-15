@@ -207,18 +207,20 @@ namespace {
  */
 class ComputeVerifier final : public tirx::StmtExprVisitor {
  public:
-  ffi::Optional<VisitInterrupt> Visit_(const tvm::TensorLoadNode* op) final {
-    // Preserve expression-only traversal: the source need not be a TIRx BufferVar.
-    return Visit(op->indices);
-  }
-
   /// Special member functions
   //@{
-  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(ComputeVerifier, tirx::StmtExprVisitor)
-  explicit ComputeVerifier(const ComputeOpNode* compute) : ComputeVerifier() {
-    compute_ = compute;
-    reduce_ = compute->body[0].as<te::ReduceNode>();
-  }
+  explicit ComputeVerifier(const ComputeOpNode* compute)
+      : tirx::StmtExprVisitor([] {
+          static const VTable table = [] {
+            VTable table;
+            ComputeVerifier::InitVTable(&table);
+            table.Finalize();
+            return table;
+          }();
+          return &table;
+        }()),
+        compute_(compute),
+        reduce_(compute->body[0].as<te::ReduceNode>()) {}
   ~ComputeVerifier() = default;
   ComputeVerifier(const ComputeVerifier&) = delete;
   ComputeVerifier(ComputeVerifier&&) = delete;
@@ -257,16 +259,16 @@ class ComputeVerifier final : public tirx::StmtExprVisitor {
     TVM_FFI_ICHECK(0 == level_) << "Reductions are only allowed at the top level of compute. "
                                 << "Please create another tensor for further composition.";
     for (const PrimExpr& expr : reduce->combiner->result) {
-      if (auto interrupt = Visit(expr)) return interrupt;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(expr));
     }
     for (const PrimExpr& expr : reduce->combiner->identity_element) {
-      if (auto interrupt = Visit(expr)) return interrupt;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(expr));
     }
     for (const PrimExpr& expr : reduce->source) {
-      if (auto interrupt = Visit(expr)) return interrupt;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(expr));
     }
     for (const PrimExpr& expr : reduce->init) {
-      if (auto interrupt = Visit(expr)) return interrupt;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(expr));
     }
     return Visit(reduce->condition);
   }

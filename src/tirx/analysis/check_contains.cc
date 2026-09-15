@@ -72,7 +72,6 @@ ffi::Optional<VisitInterrupt> CheckContains::Visit(ffi::AnyView value) {
     return std::nullopt;
   }
   if (value.as<StmtNode>() && contains_it_) return std::nullopt;
-  if (value.as<OpaqueExprNode>()) return std::nullopt;
   return StmtExprVisitor::Visit(value);
 }
 

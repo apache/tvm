@@ -46,12 +46,12 @@ ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const AttrStmtNode* op) 
     }
 
     if (visit_thread_extent_) {
-      if (auto result = this->Visit(op->value)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
     }
 
-    if (auto result = this->Visit(op->body)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->body));
   } else {
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
   }
   return std::nullopt;
 }
@@ -74,7 +74,7 @@ ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const prim::LetNode* op)
   // expression to construct a nested expr.
   // (let x = 1 in x + 1) * (let x = 1 in x + 1)
   auto it = let_binding_.find(op->var.get());
-  if (auto result = this->Visit(op->value)) return result;
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
   if (it != let_binding_.end()) {
     TVM_FFI_ICHECK(deep_equal_(it->second->value, op->value))
         << "Let cannot bind the same var to two different values";
@@ -88,34 +88,20 @@ ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const prim::LetNode* op)
 ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const VarNode* op) {
   Var var = ffi::GetRef<Var>(op);
   if (var->ty.as<BufferTypeNode>()) {
-    if (auto result = this->VisitBufferUse(BufferVar(var))) return result;
+    BufferVar buffer(var);
+    if (def_region_kind() == kTVMFFIDefRegionKindSimple) {
+      bool is_first_buffer_definition = !buffer_def_count_.count(op);
+      HandleDef(buffer);
+      if (is_first_buffer_definition && !use_count_.count(op)) {
+        HandleDef(var);
+      }
+    } else {
+      HandleUse(buffer);
+      HandleUse(var);
+    }
   } else {
     this->HandleUse(var);
   }
-  return std::nullopt;
-}
-
-ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::VisitBufferDef(const BufferVar& buffer,
-                                                                bool alloc_data) {
-  bool is_first_buffer_definition = !buffer_def_count_.count(buffer.get());
-  HandleDef(buffer);
-  if (is_first_buffer_definition) {
-    auto it = use_count_.find(buffer.get());
-    if (it == use_count_.end()) {
-      HandleDef(buffer.var());
-    }
-  }
-  // Visit shape/strides/elem_offset as uses of vars from the enclosing scope.
-  for (const auto& e : buffer->shape)
-    if (auto result = this->Visit(e)) return result;
-  for (const auto& e : buffer->strides)
-    if (auto result = this->Visit(e)) return result;
-  return this->Visit(buffer->elem_offset);
-}
-
-ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::VisitBufferUse(const BufferVar& buffer) {
-  HandleUse(buffer);
-  HandleUse(buffer.var());
   return std::nullopt;
 }
 
@@ -155,7 +141,7 @@ void VarUseDefAnalyzer::HandleDef(const BufferVar& buf) {
   }
   buffer_def_count_[ptr] = 1;
   // BufferVar fields (data, shape, strides) are visited by the caller
-  // (VisitBufferDef) via the base class, not here.
+  // at the definition site in the base class, not here.
 }
 
 void VarUseDefAnalyzer::HandleUse(const BufferVar& buf) {
@@ -170,7 +156,7 @@ void VarUseDefAnalyzer::HandleUse(const BufferVar& buf) {
     buffer_use_count_[ptr] = -1;
   }
   // BufferVar fields (shape, strides, data) are visited at the definition
-  // site via VisitBufferDef.  Do not re-visit them at use sites, as the
+  // site.  Do not re-visit them at use sites, as the
   // buffer's shape variables may not be in scope at the point of use.
 }
 
