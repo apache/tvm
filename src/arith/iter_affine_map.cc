@@ -345,9 +345,7 @@ class IterMapRewriter : public tvm::ExprMutator {
       }
       return value;
     } catch (ffi::Error& error) {
-      if (const auto* node = input.as<ffi::Object>()) {
-        ffi::details::UpdateVisitErrorContext(error, ffi::GetRef<ffi::ObjectRef>(node));
-      }
+      ffi::details::UpdateVisitErrorContext(error, input);
       throw;
     }
   }
@@ -2445,17 +2443,16 @@ class SubspaceDivider {
     if (need_predicate) {
       // if we have a predicate on this sum expr, then we cannot divide it into Y*E+X
       // it should either be Y*1+0 or 0*E(X)+X
-      auto converter = ffi::make_object<IterMapToExprNormalizer>(analyzer_);
       if (inner_args.empty()) {
         // Y*1+0
-        PrimExpr converted =
-            converter->Mutate(outer_source).ValueOrUnchanged(std::as_const(outer_source));
+        auto converter = ffi::make_object<IterMapToExprNormalizer>(analyzer_);
+        PrimExpr converted = converter->Mutate(outer_source).ValueOrUnchanged(outer_source);
         outer_preds_ = outer_preds_ && (converted < mark_extent);
         return DivisionResult::Outer(outer_source, mark_extent);
       } else if (outer_args.empty()) {
         // 0*E(X)+X
-        PrimExpr converted =
-            converter->Mutate(inner_source).ValueOrUnchanged(std::as_const(inner_source));
+        auto converter = ffi::make_object<IterMapToExprNormalizer>(analyzer_);
+        PrimExpr converted = converter->Mutate(inner_source).ValueOrUnchanged(inner_source);
         inner_preds_ = inner_preds_ && (converted < mark_extent);
         return DivisionResult::Inner(inner_source, mark_extent);
       } else {

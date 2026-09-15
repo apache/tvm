@@ -20,6 +20,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr_functor.h>
 
+#include <stdexcept>
 #include <vector>
 
 namespace tvm {
@@ -112,6 +113,106 @@ TEST(ExprMutator, NativeErrorContextThroughStructuralFallback) {
   EXPECT_TRUE(pattern[0].same_as(sum.as<prim::AddNode>()->a));
   EXPECT_TRUE(pattern[1].same_as(sum));
   EXPECT_TRUE(pattern[2].same_as(pair));
+}
+
+class ThrowStandardMutationError : public ExprMutator {
+ public:
+  using ExprMutator::Mutate_;
+  UnchangedOr<PrimExpr> Mutate_(const IntImmNode*, InplaceMode) override {
+    throw std::runtime_error("standard mutation error");
+  }
+};
+
+class ThrowStandardVisitError : public ExprVisitor {
+ public:
+  using ExprVisitor::Visit_;
+  ffi::Optional<VisitInterrupt> Visit_(const IntImmNode*) override {
+    throw std::runtime_error("standard visit error");
+  }
+};
+
+TEST(ExprFunctor, StandardErrorsAdaptAtExpectedBoundaries) {
+  auto mutator = ffi::make_object<ThrowStandardMutationError>();
+  auto visitor = ffi::make_object<ThrowStandardVisitError>();
+  PrimExpr value = IntImm::Int32(1);
+  EXPECT_THROW(mutator->Mutate(value), std::runtime_error);
+  EXPECT_THROW(visitor->Visit(value), std::runtime_error);
+  auto mutation = mutator->MutateExpected(value);
+  ASSERT_TRUE(mutation.is_err());
+  EXPECT_EQ(mutation.error().kind(), "InternalError");
+  EXPECT_EQ(mutation.error().message(), "standard mutation error");
+  auto visit = visitor->VisitExpected(value);
+  ASSERT_TRUE(visit.is_err());
+  EXPECT_EQ(visit.error().kind(), "InternalError");
+  EXPECT_EQ(visit.error().message(), "standard visit error");
+
+  // The structural fallback re-enters native hooks through the noexcept ABI vtable.
+  PairExpr pair(value, IntImm::Int32(2));
+  ffi::StructuralMutatorObj* erased_mutator = mutator.get();
+  auto structural_mutation = erased_mutator->MutateExpected(pair);
+  ASSERT_TRUE(structural_mutation.is_err());
+  EXPECT_EQ(structural_mutation.error().kind(), "InternalError");
+  EXPECT_EQ(structural_mutation.error().message(), "standard mutation error");
+  ffi::StructuralVisitorObj* erased_visitor = visitor.get();
+  auto structural_visit = erased_visitor->VisitExpected(pair);
+  ASSERT_TRUE(structural_visit.is_err());
+  EXPECT_EQ(structural_visit.error().kind(), "InternalError");
+  EXPECT_EQ(structural_visit.error().message(), "standard visit error");
+}
+
+class RecordMutationEntries : public ExprMutator {
+ public:
+  using ExprMutator::Mutate;
+  std::vector<const ffi::Object*> entered;
+  std::vector<InplaceMode> modes;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    entered.push_back(value.as<ffi::Object>());
+    modes.push_back(inplace_mode);
+    return ExprMutator::Mutate(value, inplace_mode);
+  }
+  UnchangedOr<PrimExpr> DirectMutate(const PrimExpr& value, InplaceMode inplace_mode) {
+    return ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
+        ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
+            ExprMutator::Mutate(ffi::AnyView(value), inplace_mode)));
+  }
+};
+
+TEST(ExprMutator, DirectMutationBypassesOnlyCurrentEntry) {
+  auto mutator = ffi::make_object<RecordMutationEntries>();
+  const PrimExpr root = prim::Add(IntImm::Int32(1), IntImm::Int32(2));
+  const auto* add = root.as<prim::AddNode>();
+  EXPECT_TRUE(mutator->Mutate(root).IsUnchanged());
+  EXPECT_EQ(mutator->entered,
+            (std::vector<const ffi::Object*>{root.get(), add->a.get(), add->b.get()}));
+  for (InplaceMode mode : {InplaceMode::kDisallow, InplaceMode::kAllow}) {
+    mutator->entered.clear();
+    mutator->modes.clear();
+    auto result = mutator->DirectMutate(root, mode);
+    EXPECT_TRUE(result.IsUnchanged());
+    EXPECT_TRUE(std::move(result).ValueOrUnchanged(root).same_as(root));
+    EXPECT_EQ(mutator->entered, (std::vector<const ffi::Object*>{add->a.get(), add->b.get()}));
+    EXPECT_EQ(mutator->modes, (std::vector<InplaceMode>{mode, mode}));
+  }
+}
+
+TEST(ExprMutator, NonObjectMutationSkipsStructuralFallback) {
+  auto mutator = ffi::make_object<ExprMutator>();
+  const ffi::Any value = int64_t(42);
+  ffi::StructuralMutatorObj* structural = mutator.get();
+  // Inline values remain owning replacements at both native and ABI entrypoints,
+  // matching the default engine rather than being reported as Unchanged.
+  auto direct_u = mutator->Mutate(ffi::AnyView(value), InplaceMode::kAllow);
+  ASSERT_FALSE(direct_u.IsUnchanged());
+  EXPECT_EQ(std::move(direct_u).ValueUnchecked().as_or_throw<int64_t>(), 42);
+  auto expected_u = mutator->MutateExpected(value).value();
+  ASSERT_FALSE(expected_u.IsUnchanged());
+  EXPECT_EQ(std::move(expected_u).ValueUnchecked().as_or_throw<int64_t>(), 42);
+  auto erased_u = structural->MutateExpected(value).value();
+  ASSERT_FALSE(erased_u.IsUnchanged());
+  EXPECT_EQ(std::move(erased_u).ValueUnchecked().as_or_throw<int64_t>(), 42);
+  auto fallback_u = structural->DefaultMutateExpected(value).value();
+  ASSERT_FALSE(fallback_u.IsUnchanged());
+  EXPECT_EQ(std::move(fallback_u).ValueUnchecked().as_or_throw<int64_t>(), 42);
 }
 
 }  // namespace

@@ -47,8 +47,6 @@ class SimplifierBase : public tvm::ExprMutator {
   using Parent = tvm::ExprMutator;
   explicit SimplifierBase(AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
-  virtual ~SimplifierBase() = default;
-
   using Parent::Mutate_;
 
   UnchangedOr<Expr> Mutate_(const OpaqueExprNode* op, InplaceMode inplace_mode) override {

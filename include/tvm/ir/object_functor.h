@@ -208,7 +208,7 @@ class ObjectFunctor<R(NodeArg, Args...)> {
   [[noreturn]] TVM_FFI_COLD_CODE static void ThrowUnregistered(NodeArg n) {
     TVM_FFI_THROW(InternalError) << "ObjectFunctor calls un-registered function on type "
                                  << n->GetTypeKey();
-    throw;
+    TVM_FFI_UNREACHABLE();
   }
 
   /*! \brief internal function pointer type */
@@ -235,8 +235,6 @@ class TVM_DLL ObjectVisitor : public ffi::StructuralVisitorObj {
  public:
   /*! \brief Construct a visitor using structural fallback for every value. */
   ObjectVisitor() : ObjectVisitor(GlobalVTable()) {}
-  /*! \brief Release the managed visitor state. */
-  ~ObjectVisitor() = default;
   /*!
    * \brief Disallow copying visitor traversal state.
    * \param other The visitor that cannot be copied.
@@ -280,8 +278,8 @@ class TVM_DLL ObjectVisitor : public ffi::StructuralVisitorObj {
   Expected<ffi::Optional<VisitInterrupt>> VisitExpected(ffi::AnyView value) noexcept {
     try {
       return Visit(value);
-    } catch (const ffi::Error& error) {
-      return ffi::Unexpected(error);
+    } catch (ffi::Error& error) {
+      return ffi::Unexpected(std::move(error));
     } catch (const std::exception& error) {
       return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
     }
@@ -364,8 +362,6 @@ class TVM_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
  public:
   /*! \brief Construct a mutator using structural fallback for every object. */
   ObjectMutator() : ObjectMutator(GlobalVTable()) {}
-  /*! \brief Release the managed mutator state. */
-  ~ObjectMutator() = default;
   /*!
    * \brief Disallow copying mutator traversal state.
    * \param other The mutator that cannot be copied.
@@ -434,8 +430,8 @@ class TVM_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
       ffi::AnyView value, InplaceMode inplace_mode = InplaceMode::kDisallow) noexcept {
     try {
       return Mutate(value, inplace_mode);
-    } catch (const ffi::Error& error) {
-      return ffi::Unexpected(error);
+    } catch (ffi::Error& error) {
+      return ffi::Unexpected(std::move(error));
     } catch (const std::exception& error) {
       return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
     }
