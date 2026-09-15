@@ -230,10 +230,10 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
   std::vector<PrimExpr> rest;
 
   // Simplify each inequality into the form `expr <= 0` and add to current formulas
+  auto normalizer = ffi::make_object<NormalizeComparisons>();
   for (const PrimExpr& ineq : system_to_solve->relations) {
     PrimExpr simplified = analyzer->Simplify(ineq, kSimplifyRewriteCanonicalRewrite);
-    PrimExpr normalized =
-        ffi::make_object<NormalizeComparisons>()->Mutate(simplified).ValueOrUnchanged(simplified);
+    PrimExpr normalized = normalizer->Mutate(simplified).ValueOrUnchanged(simplified);
     AddInequality(&current_ineq_set_to_solve, normalized, analyzer.get());
   }
 
@@ -275,8 +275,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
         // to help simplify things like (((y + 10) - (-1*(y - 20))) <= 0) => y - 5 <= 0
         // with steps = 2 it's (y*2) - 10 <= 0
         new_ineq = analyzer->Simplify(new_ineq, kSimplifyRewriteCanonicalRewrite);
-        new_ineq =
-            ffi::make_object<NormalizeComparisons>()->Mutate(new_ineq).ValueOrUnchanged(new_ineq);
+        new_ineq = normalizer->Mutate(new_ineq).ValueOrUnchanged(new_ineq);
         AddInequality(&next_ineq_set_to_solve, new_ineq, analyzer.get());
       }
     }

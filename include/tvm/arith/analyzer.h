@@ -193,7 +193,7 @@ class ConstIntBoundAnalyzer {
   struct Entry;
   class Impl;
   /*! \brief Internal impl */
-  ffi::ObjectPtr<Impl> impl_;
+  std::unique_ptr<Impl> impl_;
 };
 
 /*!
@@ -273,7 +273,7 @@ class ModularSetAnalyzer {
   struct Entry;
   class Impl;
   /*! \brief Internal impl */
-  ffi::ObjectPtr<Impl> impl_;
+  std::unique_ptr<Impl> impl_;
 };
 
 /*!
@@ -715,7 +715,7 @@ class Z3Prover {
   TVM_DLL ~Z3Prover();
   void CopyFrom(const Z3Prover& other);
   class Impl;
-  ffi::ObjectPtr<Impl> impl_;
+  std::unique_ptr<Impl> impl_;
 };
 
 /*!
