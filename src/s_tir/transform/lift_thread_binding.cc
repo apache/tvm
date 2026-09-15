@@ -39,15 +39,21 @@ std::pair<std::unordered_map<Stmt, std::vector<std::pair<IterVar, ffi::Map<ffi::
                              ffi::ObjectPtrHash, ffi::ObjectPtrEqual>,
           ffi::Map<Var, Var>>
 FindLoopLCA(const Stmt& root) {
-  class LCAFinder : public StmtVisitor {
+  class LCAFinder : public StmtExprVisitor {
    public:
-    void VisitStmt_(const ForNode* op) final {
+    using StmtExprVisitor::Visit_;
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return StmtExprVisitor::Visit(value);
+    }
+    ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
       stack.push_back(ffi::GetRef<Stmt>(op));
-      StmtVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (op->kind == ForKind::kThreadBinding) {
         UpdateLCA(op);
       }
       stack.pop_back();
+      return std::nullopt;
     }
 
     void UpdateLCA(const ForNode* loop) {
@@ -88,13 +94,13 @@ FindLoopLCA(const Stmt& root) {
     ffi::Map<Var, Var> var_subst;
     std::vector<Stmt> stack;
   };
-  LCAFinder finder;
-  finder(root);
+  auto finder = ffi::make_object<LCAFinder>();
+  finder->Visit(root);
   std::unordered_map<Stmt, std::vector<std::pair<IterVar, ffi::Map<ffi::String, ffi::Any>>>,
                      ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       result;
   std::vector<std::string> sorted_thread_tags;
-  for (const auto& kv : finder.lca) {
+  for (const auto& kv : finder->lca) {
     sorted_thread_tags.push_back(kv.first);
   }
   std::sort(sorted_thread_tags.begin(), sorted_thread_tags.end(),
@@ -108,12 +114,12 @@ FindLoopLCA(const Stmt& root) {
               return lhs_scope.dim_index < rhs_scope.dim_index;
             });
   for (const auto& thread_tag : sorted_thread_tags) {
-    Stmt lca = finder.lca[thread_tag].back();
-    const IterVar& iter = finder.iters[thread_tag];
-    const ffi::Map<ffi::String, ffi::Any>& annotations = finder.annotations[thread_tag];
+    Stmt lca = finder->lca[thread_tag].back();
+    const IterVar& iter = finder->iters[thread_tag];
+    const ffi::Map<ffi::String, ffi::Any>& annotations = finder->annotations[thread_tag];
     result[lca].emplace_back(iter, annotations);
   }
-  return {result, finder.var_subst};
+  return {result, finder->var_subst};
 }
 
 /*!

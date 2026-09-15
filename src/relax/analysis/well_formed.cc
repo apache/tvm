@@ -75,6 +75,7 @@
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <sstream>
 #include <string>
@@ -133,14 +134,35 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
     kMatchVarDef
   };
 
-  class PrimitiveExprChecker : public tirx::ExprVisitor {
+  class PrimitiveExprChecker : public tirx::StmtExprVisitor {
    public:
-    explicit PrimitiveExprChecker(WellFormedChecker* parent) : parent_(parent) {}
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
+      if (value.as<OpaqueExprNode>()) return std::nullopt;
+      return tirx::StmtExprVisitor::Visit(value);
+    }
+
+    ffi::Optional<VisitInterrupt> Visit_(const tvm::TensorLoadNode* op) final {
+      // Preserve expression-only traversal: the source need not be a TIRx BufferVar.
+      return Visit(op->indices);
+    }
+
+    TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(PrimitiveExprChecker, tirx::StmtExprVisitor)
+    explicit PrimitiveExprChecker(WellFormedChecker* parent) : PrimitiveExprChecker() {
+      parent_ = parent;
+    }
 
    private:
-    void VisitExpr_(const tvm::VarNode* op) final { parent_->VisitExpr(ffi::GetRef<Expr>(op)); }
+    ffi::Optional<VisitInterrupt> Visit_(const tvm::VarNode* op) final {
+      parent_->VisitExpr(ffi::GetRef<Expr>(op));
+      return std::nullopt;
+    }
 
-    WellFormedChecker* parent_;
+    static void InitVTable(VTable* table) {
+      tirx::StmtExprVisitor::InitVTable(table);
+      SetDispatch<tirx::StmtExprVisitor, DataflowVarNode>(table);
+    }
+
+    WellFormedChecker* parent_{nullptr};
   };
 
   /*! \brief Get the name of a function for use in error messages. */
@@ -629,7 +651,9 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
     }
   }
 
-  void VisitPrimitiveExpr(const PrimExpr& expr) { PrimitiveExprChecker(this)(expr); }
+  void VisitPrimitiveExpr(const PrimExpr& expr) {
+    ffi::make_object<PrimitiveExprChecker>(this)->Visit(expr);
+  }
 
   void MarkTypeVarDefinition(const Var& var) {
     var_set_.insert(var);

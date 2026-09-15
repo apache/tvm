@@ -78,12 +78,23 @@ TVM_FFI_STATIC_INIT_BLOCK() { UnrollLoopConfigNode::RegisterReflection(); }
 
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.UnrollLoop", UnrollLoopConfig);
 
-class VarLocalAccessMarker : public ExprVisitor {
+class VarLocalAccessMarker : public StmtExprVisitor {
  public:
   explicit VarLocalAccessMarker(std::unordered_set<Var>* var_touched_local)
       : var_touched_local_(var_touched_local) {}
 
-  void VisitExpr_(const VarNode* op) final { var_touched_local_->insert(ffi::GetRef<Var>(op)); }
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
+    var_touched_local_->insert(ffi::GetRef<Var>(op));
+    return std::nullopt;
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
+    // Preserve expression-only traversal: the source need not be a TIRx BufferVar.
+    for (const auto& index : op->indices) {
+      if (auto result = Visit(index)) return result;
+    }
+    return std::nullopt;
+  }
 
  private:
   std::unordered_set<Var>* var_touched_local_;
@@ -172,9 +183,9 @@ class LoopUnroller : public StmtExprMutator {
           runtime::StorageScope::Create(op->source.as_or_throw<tvm::tirx::BufferVar>().scope());
       if (storage_scope.rank == runtime::StorageRank::kLocal ||
           storage_scope.rank == runtime::StorageRank::kWarp) {
-        VarLocalAccessMarker marker(&var_touched_local_);
+        auto marker = ffi::make_object<VarLocalAccessMarker>(&var_touched_local_);
         for (PrimExpr e : op->indices) {
-          marker(e);
+          marker->Visit(e);
         }
       }
     }
@@ -187,9 +198,9 @@ class LoopUnroller : public StmtExprMutator {
       auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
       if (storage_scope.rank == runtime::StorageRank::kLocal ||
           storage_scope.rank == runtime::StorageRank::kWarp) {
-        VarLocalAccessMarker marker(&var_touched_local_);
+        auto marker = ffi::make_object<VarLocalAccessMarker>(&var_touched_local_);
         for (PrimExpr e : op->indices) {
-          marker(e);
+          marker->Visit(e);
         }
       }
     }

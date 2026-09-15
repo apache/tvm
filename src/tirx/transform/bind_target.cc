@@ -69,7 +69,7 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
   static std::tuple<std::unordered_set<const GlobalVarNode*>,
                     std::unordered_set<const GlobalVarNode*>>
   GetFunctionCallers(const IRModule& mod) {
-    FunctionClassifierVisitor visitor;
+    auto visitor = ffi::make_object<FunctionClassifierVisitor>();
 
     // Only analyze externally exposed functions as potential callers
     // since they represent the entry points where host/device calls originate
@@ -78,17 +78,17 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
       const auto* prim_func = func.as<PrimFuncNode>();
 
       if (is_externally_exposed && prim_func != nullptr) {
-        visitor.VisitStmt(prim_func->body);
+        visitor->Visit(prim_func->body);
       }
     }
 
-    return std::make_tuple(visitor.host_called_global_vars_, visitor.device_called_global_vars_);
+    return std::make_tuple(visitor->host_called_global_vars_, visitor->device_called_global_vars_);
   }
 
  private:
-  using StmtExprVisitor::VisitStmt_;
+  using StmtExprVisitor::Visit_;
 
-  void VisitExpr_(const CallNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     const auto* global_var = op->op.as<GlobalVarNode>();
     if (global_var != nullptr) {
       // Classify the call based on current scope
@@ -98,32 +98,34 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
         host_called_global_vars_.insert(global_var);
       }
     }
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const ForNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     if (op->kind == ForKind::kThreadBinding) {
       // Enter GPU scope for thread binding loops
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
       is_under_gpu_scope_ = true;
-      StmtExprVisitor::VisitStmt_(op);
+      if (auto result = StmtExprVisitor::Visit_(op)) return result;
       is_under_gpu_scope_ = last_is_under_gpu_scope;
     } else {
-      StmtExprVisitor::VisitStmt_(op);
+      if (auto result = StmtExprVisitor::Visit_(op)) return result;
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const AttrStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread ||
         op->attr_key == attr::kDeviceEntry) {
       // Enter GPU scope for thread extent and virtual thread attributes
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
       is_under_gpu_scope_ = true;
-      StmtExprVisitor::VisitStmt_(op);
+      if (auto result = StmtExprVisitor::Visit_(op)) return result;
       is_under_gpu_scope_ = last_is_under_gpu_scope;
     } else {
-      StmtExprVisitor::VisitStmt_(op);
+      if (auto result = StmtExprVisitor::Visit_(op)) return result;
     }
+    return std::nullopt;
   }
 
  private:

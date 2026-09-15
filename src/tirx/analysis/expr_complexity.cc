@@ -22,26 +22,35 @@
  * \brief Calculate expr complexity.
  */
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace tirx {
 
 /*! \brief Count the size of the PrimExpr. */
-class PrimExprSizeCounter : public ExprVisitor {
+class PrimExprSizeCounter : public StmtExprVisitor {
  public:
   PrimExprSizeCounter() = default;
 
   static size_t Count(const PrimExpr& expr) {
-    PrimExprSizeCounter prim_expr_size_counter;
-    prim_expr_size_counter.VisitExpr(expr);
-    return prim_expr_size_counter.counter_;
+    auto prim_expr_size_counter = ffi::make_object<PrimExprSizeCounter>();
+    prim_expr_size_counter->Visit(expr);
+    return prim_expr_size_counter->counter_;
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
+    // Preserve expression-only traversal: the source need not be a TIRx BufferVar.
+    for (const auto& index : op->indices) {
+      if (auto result = Visit(index)) return result;
+    }
+    return std::nullopt;
   }
 
  private:
-  void VisitExpr(const Expr& expr) final {
-    counter_++;
-    ExprVisitor::VisitExpr(expr);
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView expr) final {
+    if (expr.as<ExprNode>()) counter_++;
+    if (expr.as<OpaqueExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(expr);
   }
 
   size_t counter_{0};

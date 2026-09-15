@@ -41,15 +41,11 @@ class SSAVerifier final : public StmtExprVisitor {
  public:
   bool is_ssa_{true};
 
-  void VisitExpr(const Expr& n) final {
-    if (!is_ssa_) return;
-    StmtExprVisitor::VisitExpr(n);
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView n) final {
+    if (!is_ssa_) return std::nullopt;
+    return StmtExprVisitor::Visit(n);
   }
-  void VisitStmt(const Stmt& n) final {
-    if (!is_ssa_) return;
-    StmtExprVisitor::VisitStmt(n);
-  }
-  void VisitExpr_(const prim::LetNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op) final {
     // Weaker SSA condition
     // A single var can be binded in multiple lets
     // but they have to bind to the same value.
@@ -60,32 +56,33 @@ class SSAVerifier final : public StmtExprVisitor {
     if (it != def_map_.end()) {
       if (!deep_equal_(it->second.as_or_throw<PrimExpr>(), op->value)) {
         is_ssa_ = false;
-        return;
+        return std::nullopt;
       }
     } else {
       MarkDef(op->var, op->value);
     }
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const BindNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     MarkDef(op->var, op->value);
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
-  void VisitStmt_(const ForNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     MarkDef(op->loop_var, op->loop_var);
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
-  void VisitStmt_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
     MarkDef(op->buffer.var(), op->buffer.var());
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitExpr_(const VarNode* node) final {
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* node) final {
     auto var = ffi::GetRef<Var>(node);
     if (match_scope_) {
       MarkDef(var, var, true);
     }
+    return std::nullopt;
   }
 
   void Run(const PrimFunc& func) {
@@ -98,24 +95,25 @@ class SSAVerifier final : public StmtExprVisitor {
         this->DefineBuffer(buffer.value());
       }
     }
-    this->VisitStmt(func->body);
+    this->Visit(func->body);
   }
 
-  void DefineBuffer(const BufferVar& buffer) {
+  ffi::Optional<VisitInterrupt> DefineBuffer(const BufferVar& buffer) {
     match_scope_ = true;
-    this->VisitExpr(buffer.var());
+    if (auto result = this->Visit(buffer.var())) return result;
     for (size_t i = 0; i < buffer->shape.size(); ++i) {
-      this->VisitExpr(buffer->shape[i]);
+      if (auto result = this->Visit(buffer->shape[i])) return result;
     }
 
     if (buffer->strides.defined()) {
       for (size_t i = 0; i < buffer->strides.size(); ++i) {
-        this->VisitExpr(buffer->strides[i]);
+        if (auto result = this->Visit(buffer->strides[i])) return result;
       }
     }
-    this->VisitExpr(buffer->elem_offset);
+    if (auto result = this->Visit(buffer->elem_offset)) return result;
 
     match_scope_ = false;
+    return std::nullopt;
   }
 
  private:
@@ -138,9 +136,9 @@ class SSAVerifier final : public StmtExprVisitor {
 };
 
 bool VerifySSA(const PrimFunc& func) {
-  SSAVerifier visitor;
-  visitor.Run(func);
-  return visitor.is_ssa_;
+  auto visitor = ffi::make_object<SSAVerifier>();
+  visitor->Run(func);
+  return visitor->is_ssa_;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

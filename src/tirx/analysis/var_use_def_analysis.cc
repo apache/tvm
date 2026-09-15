@@ -35,7 +35,7 @@ VarUseDefAnalyzer::VarUseDefAnalyzer(const ffi::Array<Var>& defined_vars, bool v
   }
 }
 
-void VarUseDefAnalyzer::VisitStmt_(const AttrStmtNode* op) {
+ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const AttrStmtNode* op) {
   if (op->attr_key == attr::thread_extent) {
     IterVar iv = op->node.as_or_throw<IterVar>();
     TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
@@ -46,32 +46,27 @@ void VarUseDefAnalyzer::VisitStmt_(const AttrStmtNode* op) {
     }
 
     if (visit_thread_extent_) {
-      this->VisitExpr(op->value);
+      if (auto result = this->Visit(op->value)) return result;
     }
 
-    this->VisitStmt(op->body);
+    if (auto result = this->Visit(op->body)) return result;
   } else {
-    StmtExprVisitor::VisitStmt_(op);
+    if (auto result = StmtExprVisitor::Visit_(op)) return result;
   }
+  return std::nullopt;
 }
 
-void VarUseDefAnalyzer::VisitStmt_(const BindNode* op) {
+ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const BindNode* op) {
   this->HandleDef(op->var);
-  StmtExprVisitor::VisitStmt_(op);
+  return StmtExprVisitor::Visit_(op);
 }
 
-void VarUseDefAnalyzer::VisitStmt_(const ForNode* op) {
+ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const ForNode* op) {
   this->HandleDef(op->loop_var);
-  StmtExprVisitor::VisitStmt_(op);
+  return StmtExprVisitor::Visit_(op);
 }
 
-void VarUseDefAnalyzer::VisitStmt_(const AllocBufferNode* op) {
-  // VisitBufferDef (called by base) defines the typed buffer Var and visits
-  // its dependent BufferType expressions.
-  StmtExprVisitor::VisitStmt_(op);
-}
-
-void VarUseDefAnalyzer::VisitExpr_(const prim::LetNode* op) {
+ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const prim::LetNode* op) {
   // Weaker SSA condition
   // A single var can be binded in multiple lets
   // but they have to bind to the same value.
@@ -79,7 +74,7 @@ void VarUseDefAnalyzer::VisitExpr_(const prim::LetNode* op) {
   // expression to construct a nested expr.
   // (let x = 1 in x + 1) * (let x = 1 in x + 1)
   auto it = let_binding_.find(op->var.get());
-  this->VisitExpr(op->value);
+  if (auto result = this->Visit(op->value)) return result;
   if (it != let_binding_.end()) {
     TVM_FFI_ICHECK(deep_equal_(it->second->value, op->value))
         << "Let cannot bind the same var to two different values";
@@ -87,20 +82,21 @@ void VarUseDefAnalyzer::VisitExpr_(const prim::LetNode* op) {
     this->HandleDef(op->var);
     let_binding_[op->var.get()] = op;
   }
-  this->VisitExpr(op->body);
+  return this->Visit(op->body);
 }
 
-void VarUseDefAnalyzer::VisitExpr_(const VarNode* op) {
+ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const VarNode* op) {
   Var var = ffi::GetRef<Var>(op);
   if (var->ty.as<BufferTypeNode>()) {
-    this->VisitBufferUse(BufferVar(var));
+    if (auto result = this->VisitBufferUse(BufferVar(var))) return result;
   } else {
     this->HandleUse(var);
   }
-  StmtExprVisitor::VisitExpr_(op);
+  return std::nullopt;
 }
 
-void VarUseDefAnalyzer::VisitBufferDef(const BufferVar& buffer, bool alloc_data) {
+ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::VisitBufferDef(const BufferVar& buffer,
+                                                                bool alloc_data) {
   bool is_first_buffer_definition = !buffer_def_count_.count(buffer.get());
   HandleDef(buffer);
   if (is_first_buffer_definition) {
@@ -110,14 +106,17 @@ void VarUseDefAnalyzer::VisitBufferDef(const BufferVar& buffer, bool alloc_data)
     }
   }
   // Visit shape/strides/elem_offset as uses of vars from the enclosing scope.
-  for (const auto& e : buffer->shape) this->VisitExpr(e);
-  for (const auto& e : buffer->strides) this->VisitExpr(e);
-  this->VisitExpr(buffer->elem_offset);
+  for (const auto& e : buffer->shape)
+    if (auto result = this->Visit(e)) return result;
+  for (const auto& e : buffer->strides)
+    if (auto result = this->Visit(e)) return result;
+  return this->Visit(buffer->elem_offset);
 }
 
-void VarUseDefAnalyzer::VisitBufferUse(const BufferVar& buffer) {
+ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::VisitBufferUse(const BufferVar& buffer) {
   HandleUse(buffer);
   HandleUse(buffer.var());
+  return std::nullopt;
 }
 
 void VarUseDefAnalyzer::HandleDef(const Var& var) {
@@ -176,21 +175,21 @@ void VarUseDefAnalyzer::HandleUse(const BufferVar& buf) {
 }
 
 ffi::Array<Var> UndefinedVars(const Stmt& stmt, const ffi::Array<Var>& args) {
-  VarUseDefAnalyzer m(args);
-  m(stmt);
-  return m.undefined_;
+  auto m = ffi::make_object<VarUseDefAnalyzer>(args);
+  m->Visit(stmt);
+  return m->undefined_;
 }
 
 ffi::Array<Var> UndefinedVars(const PrimExpr& expr) {
-  VarUseDefAnalyzer m({});
-  m(expr);
-  return m.undefined_;
+  auto m = ffi::make_object<VarUseDefAnalyzer>(ffi::Array<Var>{});
+  m->Visit(expr);
+  return m->undefined_;
 }
 
 ffi::Array<Var> UndefinedVars(const PrimExpr& expr, const ffi::Array<Var>& args) {
-  VarUseDefAnalyzer m(args);
-  m(expr);
-  return m.undefined_;
+  auto m = ffi::make_object<VarUseDefAnalyzer>(args);
+  m->Visit(expr);
+  return m->undefined_;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

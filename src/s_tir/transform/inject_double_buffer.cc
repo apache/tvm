@@ -79,21 +79,24 @@ TVM_REGISTER_PASS_CONFIG_OPTION("s_tir.InjectDoubleBuffer", InjectDoubleBufferCo
 // Detect double buffer variables.
 class DoubleBufferDetector : public StmtExprVisitor {
  public:
-  void VisitStmt_(const AttrStmtNode* op) final {
+  using StmtExprVisitor::Visit_;
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
     if (op->attr_key == s_tir::attr::double_buffer_scope) {
       if (auto buffer = GetBufferDataVar(op->node)) {
         touched_.insert(buffer.value().get());
       }
-      StmtExprVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     } else {
-      StmtExprVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const VarNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     if (touched_.count(op)) {
       touched_.erase(op);
     }
+    return std::nullopt;
   }
   // The set of touched variable.
   std::unordered_set<const VarNode*> touched_;
@@ -115,10 +118,10 @@ class DoubleBufferInjector : public StmtExprMutator {
   explicit DoubleBufferInjector(int split_loop) : split_loop_(split_loop) {}
 
   Stmt Inject(Stmt stmt) {
-    DoubleBufferDetector detector;
-    detector(stmt);
-    if (detector.touched_.empty()) return stmt;
-    for (const VarNode* v : detector.touched_) {
+    auto detector = ffi::make_object<DoubleBufferDetector>();
+    detector->Visit(stmt);
+    if (detector->touched_.empty()) return stmt;
+    for (const VarNode* v : detector->touched_) {
       dbuffer_info_[v] = StorageEntry();
     }
     return ConvertSSA(operator()(std::move(stmt)));

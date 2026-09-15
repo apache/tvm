@@ -29,14 +29,16 @@ using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Check if an IRModule has any async strided mem copies. */
-struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
+struct AsyncStridedMemCopyFinder : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
   static bool Find(const IRModule& mod) {
-    AsyncStridedMemCopyFinder finder;
+    auto finder = ffi::make_object<AsyncStridedMemCopyFinder>();
     for (const auto& kv : mod->functions) {
       if (const auto* prim_func = kv.second.as<PrimFuncNode>()) {
-        finder(prim_func->body);
-        if (finder.found_) {
+        finder->Visit(prim_func->body);
+        if (finder->found_) {
           return true;
         }
       }
@@ -45,36 +47,37 @@ struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
   }
 
  private:
-  void VisitStmt_(const ForNode* loop) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
     if (!found_) {
       input_iters.Set(loop->loop_var, Range(loop->min, loop->extent));
-      StmtExprVisitor::VisitStmt_(loop);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const AttrStmtNode* attrStmt) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* attrStmt) final {
     if (!found_) {
       if (attrStmt->attr_key == s_tir::attr::async_commit_queue_scope) {
         auto async_scope = attrStmt->body.as<AttrStmtNode>();
         if (!async_scope) {
-          StmtExprVisitor::VisitStmt_(attrStmt);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(attrStmt));
         }
 
         auto for_loop = async_scope->body.as<ForNode>();
         if (!for_loop) {
-          StmtExprVisitor::VisitStmt_(attrStmt);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(attrStmt));
         }
 
         input_iters.Set(for_loop->loop_var, Range(for_loop->min, for_loop->extent));
 
         auto bufferstorenode = for_loop->body.as<BufferStoreNode>();
         if (!bufferstorenode) {
-          StmtExprVisitor::VisitStmt_(attrStmt);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(attrStmt));
         }
 
         auto bufferloadnode = bufferstorenode->value.as<TensorLoadNode>();
         if (!bufferloadnode) {
-          StmtExprVisitor::VisitStmt_(attrStmt);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(attrStmt));
         }
 
         // get store buffer; assert it exists and is contiguous given it uses a single index
@@ -85,7 +88,7 @@ struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
         auto bufferload = load_buffer.as<BufferTypeNode>();
 
         if (!bufferstore || !bufferload) {
-          StmtExprVisitor::VisitStmt_(attrStmt);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(attrStmt));
         }
 
         // map loop variable to zero for the store index & simplify
@@ -110,9 +113,10 @@ struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
         }
       }
       if (!found_) {
-        StmtExprVisitor::VisitStmt_(attrStmt);
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(attrStmt));
       }
     }
+    return std::nullopt;
   }
 
   bool found_ = false;

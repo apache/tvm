@@ -151,14 +151,14 @@ class CSEPlanner : public StmtExprVisitor {
    *         planned CSE transformations.
    */
   static std::pair<InsertBeforeTable, ExprRemapTable> Plan(const Stmt& body) {
-    CSEPlanner planner;
+    auto planner = ffi::make_object<CSEPlanner>();
     // Root scope (no parent, depth 0, no creator statement)
-    planner.scopes_.push_back({-1, 0, Stmt()});
-    planner.current_scope_ = 0;
-    // Scan the tree (VisitStmt sets current_stmt_ automatically)
-    planner.VisitStmt(body);
+    planner->scopes_.push_back({-1, 0, Stmt()});
+    planner->current_scope_ = 0;
+    // Scan the tree (Visit sets current_stmt_ automatically)
+    planner->Visit(body);
     // Convert scan results into the plan
-    return planner.ComputePlan();
+    return planner->ComputePlan();
   }
 
  private:
@@ -470,13 +470,14 @@ class CSEPlanner : public StmtExprVisitor {
   // recorded before their parents.
   // ------------------------------------------------------------------
 
-  using StmtExprVisitor::VisitExpr_;
+  using StmtExprVisitor::Visit_;
 
   // Binary arithmetic operators (op->a, op->b)
-#define CSE_VISIT_BINARY(NodeType)                         \
-  void VisitExpr_(const NodeType* op) override {           \
-    StmtExprVisitor::VisitExpr_(op);                       \
-    RecordExpr(ffi::GetRef<PrimExpr>(op), {op->a, op->b}); \
+#define CSE_VISIT_BINARY(NodeType)                                    \
+  ffi::Optional<VisitInterrupt> Visit_(const NodeType* op) override { \
+    if (auto result = StmtExprVisitor::Visit_(op)) return result;     \
+    RecordExpr(ffi::GetRef<PrimExpr>(op), {op->a, op->b});            \
+    return std::nullopt;                                              \
   }
   CSE_VISIT_BINARY(prim::AddNode)
   CSE_VISIT_BINARY(prim::SubNode)
@@ -497,17 +498,20 @@ class CSEPlanner : public StmtExprVisitor {
   CSE_VISIT_BINARY(prim::OrNode)
 #undef CSE_VISIT_BINARY
 
-  void VisitExpr_(const prim::NotNode* op) override {
-    StmtExprVisitor::VisitExpr_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const prim::NotNode* op) override {
+    if (auto result = StmtExprVisitor::Visit_(op)) return result;
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->a});
+    return std::nullopt;
   }
-  void VisitExpr_(const prim::CastNode* op) override {
-    StmtExprVisitor::VisitExpr_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const prim::CastNode* op) override {
+    if (auto result = StmtExprVisitor::Visit_(op)) return result;
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->value});
+    return std::nullopt;
   }
-  void VisitExpr_(const prim::SelectNode* op) override {
-    StmtExprVisitor::VisitExpr_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const prim::SelectNode* op) override {
+    if (auto result = StmtExprVisitor::Visit_(op)) return result;
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->condition, op->true_value, op->false_value});
+    return std::nullopt;
   }
 
   /*!
@@ -518,11 +522,12 @@ class CSEPlanner : public StmtExprVisitor {
    * extracting expressions that may reference the Let-bound variable
    * to a position before the containing statement where it is undefined.
    */
-  void VisitExpr_(const prim::LetNode* op) override {
-    VisitExpr(op->value);
+  ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op) override {
+    if (auto result = Visit(op->value)) return result;
     ++let_depth_;
-    VisitExpr(op->body);
+    if (auto result = Visit(op->body)) return result;
     --let_depth_;
+    return std::nullopt;
   }
 
   // ------------------------------------------------------------------
@@ -530,25 +535,28 @@ class CSEPlanner : public StmtExprVisitor {
   // ------------------------------------------------------------------
 
   /*!
-   * \brief Override VisitStmt to track current_stmt_ for insertion-point determination.
+   * \brief Override Visit to track current_stmt_ for insertion-point determination.
    *
-   * Every VisitStmt call updates current_stmt_ before dispatching. This ensures
+   * Every statement visit updates current_stmt_ before dispatching. This ensures
    * that RecordExpr always sees the innermost statement containing the expression,
    * whether it's a SeqStmt child, a for-loop body, or any other statement.
    */
-  void VisitStmt(const Stmt& stmt) override {
-    current_stmt_ = stmt;
-    StmtExprVisitor::VisitStmt(stmt);
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    auto stmt = value.as<Stmt>();
+    if (!stmt) return StmtExprVisitor::Visit(value);
+    current_stmt_ = stmt.value();
+    return StmtExprVisitor::Visit(value);
   }
 
   /*! \brief For loops: bounds in parent scope, body in child scope. */
-  void VisitStmt_(const ForNode* op) override {
-    VisitExpr(op->min);
-    VisitExpr(op->extent);
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override {
+    if (auto result = Visit(op->min)) return result;
+    if (auto result = Visit(op->extent)) return result;
     int saved = current_scope_;
     current_scope_ = AllocScope(saved, ffi::GetRef<Stmt>(op));
-    VisitStmt(op->body);
+    if (auto result = Visit(op->body)) return result;
     current_scope_ = saved;
+    return std::nullopt;
   }
 
   /*!
@@ -559,42 +567,44 @@ class CSEPlanner : public StmtExprVisitor {
    * Each branch gets its own scope so that expressions appearing in only
    * one branch are not hoisted above the If.
    */
-  void VisitStmt_(const IfThenElseNode* op) override {
-    VisitExpr(op->condition);
+  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) override {
+    if (auto result = Visit(op->condition)) return result;
     int saved = current_scope_;
     Stmt stmt = ffi::GetRef<Stmt>(op);
     current_scope_ = AllocScope(saved, stmt);
-    VisitStmt(op->then_case);
+    if (auto result = Visit(op->then_case)) return result;
     if (op->else_case) {
       current_scope_ = AllocScope(saved, stmt);
-      VisitStmt(op->else_case.value());
+      if (auto result = Visit(op->else_case.value())) return result;
     }
     current_scope_ = saved;
+    return std::nullopt;
   }
 
   /*! \brief While loops: condition in parent scope, body in child scope. */
-  void VisitStmt_(const WhileNode* op) override {
-    VisitExpr(op->condition);
+  ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) override {
+    if (auto result = Visit(op->condition)) return result;
     int saved = current_scope_;
     current_scope_ = AllocScope(saved, ffi::GetRef<Stmt>(op));
-    VisitStmt(op->body);
+    if (auto result = Visit(op->body)) return result;
     current_scope_ = saved;
+    return std::nullopt;
   }
 
   /*! \brief AttrStmt: value in parent scope, body in child scope. */
-  void VisitStmt_(const AttrStmtNode* op) override {
-    VisitExpr(op->value);
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) override {
+    if (auto result = Visit(op->value)) return result;
     int saved = current_scope_;
     current_scope_ = AllocScope(saved, ffi::GetRef<Stmt>(op));
-    VisitStmt(op->body);
+    if (auto result = Visit(op->body)) return result;
     current_scope_ = saved;
+    return std::nullopt;
   }
 
-  /*! \brief AllocBuffer is flat (no body). Visit buffer shape expressions. */
-  void VisitStmt_(const AllocBufferNode* op) override { VisitBufferDef(op->buffer, true); }
-
   /*! \brief DeclBuffer is flat (no body). Visit buffer shape expressions. */
-  void VisitStmt_(const DeclBufferNode* op) override { VisitBufferDef(op->buffer, false); }
+  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) override {
+    return VisitBufferDef(op->buffer, false);
+  }
 
   // ------------------------------------------------------------------
   // ComputePlan: convert scan results into the output plan
@@ -696,7 +706,7 @@ class CSEPlanner : public StmtExprVisitor {
   ExprTable table_;
   /*! \brief Scope ID of the currently visited node. */
   int current_scope_ = 0;
-  /*! \brief Current statement for insertion-point tracking. Set by VisitStmt. */
+  /*! \brief Current statement for insertion-point tracking. Set by Visit. */
   Stmt current_stmt_;
   /*! \brief Nesting depth of Let expression bodies. When > 0, recording is suppressed. */
   int let_depth_ = 0;

@@ -188,11 +188,12 @@ class HostDeviceSplitter : public StmtMutator {
   Stmt SplitDeviceFunc(Stmt body, Target device_target) {
     auto [params,
           buffers_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<BufferVar>> {
-      VarUseDefAnalyzer use_def(/*defined_vars=*/{}, /*visit_thread_extent=*/true);
-      use_def(body);
+      auto use_def =
+          ffi::make_object<VarUseDefAnalyzer>(ffi::Array<Var>{}, /*visit_thread_extent=*/true);
+      use_def->Visit(body);
 
       // Sort first by variable type, then by variable name
-      std::vector<Var> params{use_def.undefined_.begin(), use_def.undefined_.end()};
+      std::vector<Var> params{use_def->undefined_.begin(), use_def->undefined_.end()};
       if (device_target->kind->name != "trn") {
         std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
           auto sort_key = [](const Var& var) {
@@ -214,7 +215,7 @@ class HostDeviceSplitter : public StmtMutator {
         std::sort(params.begin(), params.end(),
                   [&](const Var& a, const Var& b) { return param_order[a] < param_order[b]; });
       }
-      return {params, use_def.undefined_buffers_};
+      return {params, use_def->undefined_buffers_};
     }();
 
     // Buffer Vars are compiler-side values, not ABI values.  Thread their
@@ -376,36 +377,40 @@ struct KernelInfo {
 /*!
  * \brief Visitor class to collect device-side program information.
  */
-class DeviceInfoCollector : public StmtVisitor {
+class DeviceInfoCollector : public StmtExprVisitor {
  public:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
   static KernelInfo Collect(const GlobalVar& gvar, const PrimFunc& func) {
-    DeviceInfoCollector collector;
-    collector.info_.target = func->GetAttr<Target>(tvm::attr::kTarget).value().WithoutHost();
-    collector.info_.params = func->params;
+    auto collector = ffi::make_object<DeviceInfoCollector>();
+    collector->info_.target = func->GetAttr<Target>(tvm::attr::kTarget).value().WithoutHost();
+    collector->info_.params = func->params;
 
     if (auto requested = func->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams)) {
       for (const ffi::String& tag : requested.value()) {
         if (tag == tvm::runtime::launch_param::kUseProgramaticDependentLaunch) {
-          collector.use_programmatic_dependent_launch_ = true;
+          collector->use_programmatic_dependent_launch_ = true;
         } else if (tag == tvm::runtime::launch_param::kUseCooperativeLaunch) {
-          collector.use_cooperative_launch_ = true;
+          collector->use_cooperative_launch_ = true;
         }
       }
     }
-    collector.use_required_block_dimension_ =
+    collector->use_required_block_dimension_ =
         func->GetAttr<int64_t>(tirx::attr::kRequiredBlockSize).value_or(0) == 1;
 
-    collector(func->body);
+    collector->Visit(func->body);
 
-    if (collector.use_programmatic_dependent_launch_) {
-      collector.info_.launch_params.push_back(
+    if (collector->use_programmatic_dependent_launch_) {
+      collector->info_.launch_params.push_back(
           tvm::runtime::launch_param::kUseProgramaticDependentLaunch);
     }
-    if (collector.use_cooperative_launch_) {
-      collector.info_.launch_params.push_back(tvm::runtime::launch_param::kUseCooperativeLaunch);
+    if (collector->use_cooperative_launch_) {
+      collector->info_.launch_params.push_back(tvm::runtime::launch_param::kUseCooperativeLaunch);
     }
-    if (collector.use_required_block_dimension_) {
-      collector.info_.launch_params.push_back(
+    if (collector->use_required_block_dimension_) {
+      collector->info_.launch_params.push_back(
           tvm::runtime::launch_param::kUseRequiredBlockDimension);
     }
     // The dynamic shared memory is required to be the last of the kernel
@@ -413,33 +418,33 @@ class DeviceInfoCollector : public StmtVisitor {
     // otherwise fall back to the size inferred from the allocation extent.
     // A zero-extent allocation is a pool-style extern placeholder, so having
     // neither a declaration nor a usable extent is an authoring error.
-    if (!collector.dyn_shmem_size.has_value() && collector.inferred_shmem_size_.has_value()) {
-      const auto* inferred = collector.inferred_shmem_size_.value().as<IntImmNode>();
+    if (!collector->dyn_shmem_size.has_value() && collector->inferred_shmem_size_.has_value()) {
+      const auto* inferred = collector->inferred_shmem_size_.value().as<IntImmNode>();
       TVM_FFI_ICHECK(!(inferred && inferred->value == 0))
           << "PrimFunc " << gvar->name_hint
           << " allocates dynamic shared memory with a placeholder extent but does not declare "
              "its size; annotate the kernel with tirx.dyn_smem_bytes (SMEMPool.commit() emits "
              "it).";
-      collector.dyn_shmem_size = collector.inferred_shmem_size_;
+      collector->dyn_shmem_size = collector->inferred_shmem_size_;
     }
-    if (collector.dyn_shmem_size) {
-      collector.info_.launch_params.push_back(
+    if (collector->dyn_shmem_size) {
+      collector->info_.launch_params.push_back(
           tvm::runtime::launch_param::kUseDynamicSharedMemoryTag);
     }
 
-    collector.info_.global_symbol =
+    collector->info_.global_symbol =
         func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
 
-    for (const ffi::String& param : collector.info_.launch_params) {
+    for (const ffi::String& param : collector->info_.launch_params) {
       if (param == tvm::runtime::launch_param::kUseProgramaticDependentLaunch ||
           param == tvm::runtime::launch_param::kUseCooperativeLaunch ||
           param == tvm::runtime::launch_param::kUseRequiredBlockDimension) {
         continue;
       }
-      collector.info_.launch_args.push_back(collector.GetArgument(param));
+      collector->info_.launch_args.push_back(collector->GetArgument(param));
     }
 
-    return collector.info_;
+    return collector->info_;
   }
 
  private:
@@ -458,7 +463,7 @@ class DeviceInfoCollector : public StmtVisitor {
     return extent.value();
   }
 
-  void VisitStmt_(const BindNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     // Track Bind definitions so that thread_extent values and
     // dyn_shmem_size expressions that reference locally-bound
     // variables (e.g. CSE variables) can be inlined back to
@@ -466,8 +471,7 @@ class DeviceInfoCollector : public StmtVisitor {
     // bindings into the value to handle chains (cse_v2 = f(cse_v1)).
     auto prim_value = op->value.as<PrimExpr>();
     if (!prim_value) {
-      StmtVisitor::VisitStmt_(op);
-      return;
+      return StmtExprVisitor::Visit_(op);
     }
     auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       if (auto repl = bind_map_.Get(var)) return ffi::Any(*std::move(repl));
@@ -478,10 +482,10 @@ class DeviceInfoCollector : public StmtVisitor {
                                             .as_or_throw<PrimExpr>()
                                       : prim_value.value();
     bind_map_.Set(op->var, value);
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const AttrStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
     if (op->attr_key == "tirx.dyn_smem_bytes") {
       // Kernel-level declaration of the dynamic shared memory launch size.
       // The backing shared.dyn allocation is an extern placeholder; this
@@ -522,10 +526,10 @@ class DeviceInfoCollector : public StmtVisitor {
       }
     }
 
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
     auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       TVM_FFI_ICHECK(!saw_dyn_shared_alloc_)
@@ -552,7 +556,7 @@ class DeviceInfoCollector : public StmtVisitor {
       }
       inferred_shmem_size_ = dyn_size;
     }
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   // The collected results.
@@ -599,23 +603,23 @@ class ReturnRemover : public StmtExprMutator {
 class GlobalVarCallCollector : public StmtExprVisitor {
  public:
   static std::unordered_set<const GlobalVarNode*> Collect(const IRModule& mod) {
-    GlobalVarCallCollector collector;
+    auto collector = ffi::make_object<GlobalVarCallCollector>();
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto prim_func = base_func.as<PrimFunc>()) {
-        collector(prim_func.value()->body);
+        collector->Visit(prim_func.value()->body);
       }
     }
-    return collector.called_gvars_;
+    return collector->called_gvars_;
   }
 
  private:
   using Parent = StmtExprVisitor;
 
-  void VisitExpr_(const CallNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     if (auto* gvar = op->op.as<GlobalVarNode>()) {
       called_gvars_.insert(gvar);
     }
-    Parent::VisitExpr_(op);
+    return Parent::Visit_(op);
   }
 
   std::unordered_set<const GlobalVarNode*> called_gvars_;

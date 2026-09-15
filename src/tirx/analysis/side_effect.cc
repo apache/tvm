@@ -25,25 +25,30 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace tirx {
 
-class ExprSideEffect : public ExprVisitor {
+class ExprSideEffect : public StmtExprVisitor {
  public:
-  void VisitExpr(const Expr& e) final {
-    if (kind_ == CallEffectKind::kUpdateState) return;
-    ExprVisitor::VisitExpr(e);
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView e) final {
+    if (kind_ == CallEffectKind::kUpdateState) return std::nullopt;
+    if (e.as<OpaqueExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(e);
   }
 
-  void VisitExpr_(const TensorLoadNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
+    // Preserve expression-only traversal: the source need not be a TIRx BufferVar.
     this->UpdateEffect(CallEffectKind::kReadState);
-    ExprVisitor::VisitExpr_(op);
+    for (const auto& index : op->indices) {
+      if (auto result = Visit(index)) return result;
+    }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const CallNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     static auto op_call_effect = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
 
     if (te::IsTensorLoad(ffi::GetRef<Call>(op))) {
@@ -53,7 +58,7 @@ class ExprSideEffect : public ExprVisitor {
     } else {
       this->UpdateEffect(CallEffectKind::kOpaque);
     }
-    ExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   void UpdateEffect(CallEffectKind effect_kind) {
@@ -69,9 +74,9 @@ class ExprSideEffect : public ExprVisitor {
 };
 
 CallEffectKind SideEffect(const PrimExpr& e) {
-  ExprSideEffect visitor;
-  visitor(e);
-  return visitor.kind_;
+  auto visitor = ffi::make_object<ExprSideEffect>();
+  visitor->Visit(e);
+  return visitor->kind_;
 }
 
 }  // namespace tirx

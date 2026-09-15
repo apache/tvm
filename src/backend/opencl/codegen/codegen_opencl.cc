@@ -77,10 +77,8 @@ class InferTextureAccess : public StmtExprVisitor {
   static constexpr const uint8_t kWriteAccess = 2;
 
   InferTextureAccess() {}
-  using StmtExprVisitor::VisitExpr_;
-  using StmtExprVisitor::VisitStmt_;
   std::unordered_map<const VarNode*, std::string> Infer(const Stmt& n) {
-    StmtExprVisitor::VisitStmt(n);
+    StmtExprVisitor::Visit(n);
     std::unordered_map<const VarNode*, std::string> storage_scope_qualifiers;
     for (auto& texture : var_access_map_) {
       if (texture.second == kReadAccess) {
@@ -93,14 +91,16 @@ class InferTextureAccess : public StmtExprVisitor {
     }
     return storage_scope_qualifiers;
   }
-  void VisitStmt_(const DeclBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
     if (const VarNode* source = TryUnwrapTextureVar(op->data)) {
       auto it = buffer_data_map_.find(source);
       buffer_data_map_[op->buffer.get()] = it == buffer_data_map_.end() ? source : it->second;
     }
-    StmtExprVisitor::VisitStmt_(op);
+    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
+
+    return std::nullopt;
   }
-  void VisitExpr_(const CallNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     if (op->op.same_as(builtin::texture2d_load())) {
       const VarNode* texture = UnwrapTextureArgument(op->args[0]).var;
       auto it = buffer_data_map_.find(texture);
@@ -110,7 +110,9 @@ class InferTextureAccess : public StmtExprVisitor {
       auto it = buffer_data_map_.find(texture);
       var_access_map_[it == buffer_data_map_.end() ? texture : it->second] |= kWriteAccess;
     }
-    StmtExprVisitor::VisitExpr_(op);
+    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
+
+    return std::nullopt;
   }
 
  private:
@@ -125,7 +127,7 @@ CodeGenOpenCL::CodeGenOpenCL() {
 
 void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
-  this->SetTextureScope(InferTextureAccess().Infer(f->body));
+  this->SetTextureScope(ffi::make_object<InferTextureAccess>()->Infer(f->body));
   for (Var arg : f->params) {
     auto ptr_type = arg->ty.as<PointerTypeNode>();
     if (ptr_type && runtime::IsTextureStorage(std::string(ptr_type->storage_scope))) {

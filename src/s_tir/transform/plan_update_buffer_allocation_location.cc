@@ -37,14 +37,15 @@ using namespace tvm::tirx;
 
 class CollectManagedAllocations : public StmtExprVisitor {
  public:
-  void VisitStmt_(const SBlockNode* op) final {
+  using StmtExprVisitor::Visit_;
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     for (const auto& buf : op->alloc_buffers) {
       managed_allocations.insert(buf.get());
     }
     for (const auto& buf : op->match_buffers) {
       managed_allocations.insert(buf->buffer.get());
     }
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   /*! \brief Buffers that are allocated outside of the BlockNode, and should not be moved by
@@ -55,15 +56,16 @@ class CollectManagedAllocations : public StmtExprVisitor {
 /*! \brief Collect the allocate buffer order. */
 class BufferAllocateOrderCollector : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
   static ffi::Array<BufferVar> Collect(const PrimFunc& func) {
-    BufferAllocateOrderCollector collector;
+    auto collector = ffi::make_object<BufferAllocateOrderCollector>();
     for (const Var& param : func->params) {
       if (auto buffer = param.as<BufferVar>()) {
-        collector.buffer_alloc_recorder_.push_back(buffer.value());
+        collector->buffer_alloc_recorder_.push_back(buffer.value());
       }
     }
-    collector(func->body);
-    return std::move(collector.buffer_alloc_recorder_);
+    collector->Visit(func->body);
+    return std::move(collector->buffer_alloc_recorder_);
   }
 
  private:
@@ -72,7 +74,7 @@ class BufferAllocateOrderCollector : public StmtExprVisitor {
            buffer_alloc_recorder_.end();
   }
 
-  void VisitStmt_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     for (const BufferVar& buffer : op->alloc_buffers) {
       buffer_alloc_recorder_.push_back(buffer);
     }
@@ -84,21 +86,21 @@ class BufferAllocateOrderCollector : public StmtExprVisitor {
       }
     }
 
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitExpr_(const TensorLoadNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     if (!find(op->source.as_or_throw<tvm::tirx::BufferVar>())) {
       buffer_alloc_recorder_.push_back(op->source.as_or_throw<tvm::tirx::BufferVar>());
     }
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
     if (!find(op->buffer)) {
       buffer_alloc_recorder_.push_back(op->buffer);
     }
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   /*! \brief The buffer allocated order recorder. */
@@ -113,9 +115,9 @@ class BufferAllocationLocator : public StmtExprMutator {
     // since the buffer_lca Map is unordered.
     ffi::Array<BufferVar> buffer_alloc_recorder = BufferAllocateOrderCollector::Collect(func);
     std::unordered_set<const VarNode*> arg_buffer_vars;
-    CollectManagedAllocations collector;
-    collector(func->body);
-    managed_allocations_ = collector.managed_allocations;
+    auto collector = ffi::make_object<CollectManagedAllocations>();
+    collector->Visit(func->body);
+    managed_allocations_ = collector->managed_allocations;
 
     for (const Var& param : func->params) {
       if (auto buffer = param.as<BufferVar>()) {

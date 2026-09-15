@@ -46,7 +46,7 @@ namespace {
  *  This pass performs such verification by checking if all
  *  memory accesses are bound with threads when device type is GPU.
  */
-class MemoryAccessVerifier final : protected StmtExprVisitor {
+class MemoryAccessVerifier final : public StmtExprVisitor {
  public:
   /// Special member functions
   //@{
@@ -61,7 +61,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   /// Interface to perform memory access verification
   void Run() {
     if (!IsGPUDevice(dev_type_)) return;
-    StmtExprVisitor::VisitStmt(func_->body);
+    StmtExprVisitor::Visit(func_->body);
   }
 
   /// Verification result
@@ -70,42 +70,40 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
  protected:
   /// Visitor implementation
   //@{
-  void VisitExpr(const Expr& n) final { StmtExprVisitor::VisitExpr(n); }
 
-  void VisitStmt(const Stmt& n) final { StmtExprVisitor::VisitStmt(n); }
-
-  void VisitStmt_(const BindNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     // Book keep definitions
     defs_[op->var.get()] = op->value;
-    return StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const AttrStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
     if (!InThreadEnv() && op->attr_key == attr::thread_extent) {
       EnterThreadEnv();
-      StmtExprVisitor::VisitStmt_(op);
+      if (auto result = StmtExprVisitor::Visit_(op)) return result;
       ExitThreadEnv();
     } else {
-      StmtExprVisitor::VisitStmt_(op);
+      if (auto result = StmtExprVisitor::Visit_(op)) return result;
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const TensorLoadNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     HandleLoadStoreToVariable(op->source.as_or_throw<tvm::tirx::BufferVar>().var());
-    return StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
     HandleLoadStoreToVariable(op->buffer.var());
-    return StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitExpr_(const CallNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     if ((op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) &&
         !op->args.empty()) {
       HandleLoadStoreToVariable(op->args[0].as_or_throw<Var>());
     }
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
   //@}
 
@@ -188,9 +186,9 @@ std::vector<ffi::String> VerifyMemory_(const PrimFunc& func) {
 
   if (func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value() ==
       CallingConv::kDefault) {
-    MemoryAccessVerifier v(func, target.value()->GetTargetDeviceType());
-    v.Run();
-    return v.Errors();
+    auto v = ffi::make_object<MemoryAccessVerifier>(func, target.value()->GetTargetDeviceType());
+    v->Run();
+    return v->Errors();
   } else {
     return {};
   }

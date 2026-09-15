@@ -388,18 +388,26 @@ inline ffi::String BufferIndexType2Str(BufferIndexType buffer_index_type) {
 
 /*! \brief Returns the names of the blocks in the provided module. */
 inline std::unordered_set<std::string> GetSBlockNames(const IRModule& mod) {
-  struct BlockNameCollector : public tirx::StmtVisitor {
-    void VisitStmt_(const tirx::SBlockNode* block) override {
+  struct BlockNameCollector : public tirx::StmtExprVisitor {
+   public:
+    using tirx::StmtExprVisitor::Visit_;
+
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return tirx::StmtExprVisitor::Visit(value);
+    }
+
+    ffi::Optional<VisitInterrupt> Visit_(const tirx::SBlockNode* block) override {
       block_names.insert(block->name_hint);
-      StmtVisitor::VisitStmt(block->body);
+      return StmtExprVisitor::Visit(block->body);
     }
     std::unordered_set<std::string> block_names;
   };
 
   if (auto prim_func = tirx::FindEntryFunc(mod, nullptr)) {
-    BlockNameCollector collector;
-    collector(prim_func->body);
-    return collector.block_names;
+    auto collector = ffi::make_object<BlockNameCollector>();
+    collector->Visit(prim_func->body);
+    return collector->block_names;
   }
   return {};
 }

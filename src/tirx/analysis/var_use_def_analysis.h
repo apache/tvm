@@ -55,23 +55,21 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
  private:
   ExprDeepEqual deep_equal_;
   std::unordered_map<const VarNode*, const prim::LetNode*> let_binding_;
-  void VisitStmt_(const AttrStmtNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final;
 
-  void VisitStmt_(const BindNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final;
 
-  void VisitStmt_(const ForNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final;
 
-  void VisitStmt_(const AllocBufferNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op) final;
 
-  void VisitExpr_(const prim::LetNode* op) final;
-
-  void VisitExpr_(const VarNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final;
 
   // Piggyback on base class VisitBufferDef/VisitBufferUse to handle buffer
   // def/use tracking. Base class calls these from AllocBuffer, DeclBuffer,
   // BufferStore, BufferLoad, and SBlock visitors.
-  void VisitBufferDef(const BufferVar& buffer, bool alloc_data) final;
-  void VisitBufferUse(const BufferVar& buffer) final;
+  ffi::Optional<VisitInterrupt> VisitBufferDef(const BufferVar& buffer, bool alloc_data) final;
+  ffi::Optional<VisitInterrupt> VisitBufferUse(const BufferVar& buffer) final;
 
   void HandleDef(const Var& v);
   void HandleUse(const Var& v);

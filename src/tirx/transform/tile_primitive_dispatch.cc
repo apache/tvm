@@ -64,22 +64,21 @@ struct ScopeIdDefWithSource {
 class ScopeIdDefGather : public StmtExprVisitor {
  public:
   static std::vector<ScopeIdDefWithSource> Gather(const Stmt& stmt) {
-    ScopeIdDefGather gather;
-    gather(stmt);
-    return std::move(gather.out_);
+    auto gather = ffi::make_object<ScopeIdDefGather>();
+    gather->Visit(stmt);
+    return std::move(gather->out_);
   }
 
-  void VisitStmt_(const AttrStmtNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) override {
     if (op->attr_key == tvm::tirx::attr::kDeviceEntry) {
-      EnterSourceAndPartition(op, [&]() { StmtExprVisitor::VisitStmt_(op); });
-      return;
+      return EnterSourceAndPartition(op, [&]() { return StmtExprVisitor::Visit_(op); });
     }
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const ScopeIdDefStmtNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const ScopeIdDefStmtNode* op) override {
     out_.push_back({op->def, source_stmt_});
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
  private:
@@ -87,11 +86,11 @@ class ScopeIdDefGather : public StmtExprVisitor {
   // newly-added defs so direct-children defs come after nested ones —
   // preserves LIFO order required by ExtractKernelLaunchParams.
   template <typename F>
-  void EnterSourceAndPartition(const StmtNode* src, F&& visit_body) {
+  ffi::Optional<VisitInterrupt> EnterSourceAndPartition(const StmtNode* src, F&& visit_body) {
     const StmtNode* prev_source = source_stmt_;
     size_t baseline = out_.size();
     source_stmt_ = src;
-    visit_body();
+    if (auto result = visit_body()) return result;
     source_stmt_ = prev_source;
 
     std::vector<ScopeIdDefWithSource> direct;
@@ -107,6 +106,7 @@ class ScopeIdDefGather : public StmtExprVisitor {
     out_.resize(baseline);
     out_.insert(out_.end(), nested.begin(), nested.end());
     out_.insert(out_.end(), direct.begin(), direct.end());
+    return std::nullopt;
   }
 
   std::vector<ScopeIdDefWithSource> out_;
@@ -116,25 +116,24 @@ class ScopeIdDefGather : public StmtExprVisitor {
 class ElectSyncFinder : public StmtExprVisitor {
  public:
   static bool Contains(const PrimExpr& expr) {
-    ElectSyncFinder finder;
-    finder(expr);
-    return finder.found_;
+    auto finder = ffi::make_object<ElectSyncFinder>();
+    finder->Visit(expr);
+    return finder->found_;
   }
 
  private:
-  using StmtExprVisitor::VisitExpr_;
-  using StmtExprVisitor::VisitStmt_;
+  using StmtExprVisitor::Visit_;
 
-  void VisitExpr_(const CallNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     auto is_canonical_elect_sync = [&]() {
       static const Op& ptx_elect_sync_op = Op::Get("tirx.cuda.elect_sync");
       return op->op.same_as(ptx_elect_sync_op);
     };
     if (is_canonical_elect_sync()) {
       found_ = true;
-      return;
+      return std::nullopt;
     }
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   bool found_{false};
@@ -143,24 +142,24 @@ class ElectSyncFinder : public StmtExprVisitor {
 class ScopeIdVarFinder : public StmtExprVisitor {
  public:
   static bool Contains(const PrimExpr& expr, const std::vector<PrimVar>& vars) {
-    ScopeIdVarFinder finder(vars);
-    finder(expr);
-    return finder.found_;
+    auto finder = ffi::make_object<ScopeIdVarFinder>(vars);
+    finder->Visit(expr);
+    return finder->found_;
   }
 
- private:
   explicit ScopeIdVarFinder(const std::vector<PrimVar>& vars) : vars_(vars) {}
 
-  using StmtExprVisitor::VisitExpr_;
-  using StmtExprVisitor::VisitStmt_;
+ private:
+  using StmtExprVisitor::Visit_;
 
-  void VisitExpr_(const VarNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     for (const PrimVar& candidate : vars_) {
       if (candidate.get() == op) {
         found_ = true;
-        return;
+        return std::nullopt;
       }
     }
+    return std::nullopt;
   }
 
   const std::vector<PrimVar>& vars_;

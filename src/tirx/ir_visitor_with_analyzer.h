@@ -38,18 +38,16 @@ class IRVisitorWithAnalyzer : public StmtExprVisitor {
  public:
   PrimExpr Simplify(const PrimExpr& expr) { return analyzer_->Simplify(expr); }
 
-  using StmtExprVisitor::VisitExpr_;
-  using StmtExprVisitor::VisitStmt_;
+  using StmtExprVisitor::Visit_;
 
-  void VisitStmt_(const ForNode* op);
-  void VisitStmt_(const SBlockNode* op);
-  void VisitStmt_(const BindNode* op);
-  void VisitStmt_(const IfThenElseNode* op);
-  void VisitStmt_(const AttrStmtNode* op);
-  void VisitStmt_(const AssertStmtNode* op);
-  void VisitStmt_(const SeqStmtNode* op);
-  void VisitExpr_(const CallNode* op);
-  void VisitExpr_(const prim::LetNode* op);
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op);
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op);
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op);
+  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op);
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op);
+  ffi::Optional<VisitInterrupt> Visit_(const AssertStmtNode* op);
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op);
+  ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op);
 
   // IRVisitorWithAnalyzer deliberately does not handle Select nodes,
   // because both sides of a Select node are visited regardless of the

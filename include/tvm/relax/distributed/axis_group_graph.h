@@ -68,8 +68,9 @@ Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
 class BufferAxisGraphExtractor : public StmtExprVisitor {
  public:
   static std::vector<std::vector<TIRVarAxis>> GetTIRVarAxisGraph(const PrimFunc& prim_func) {
-    BufferAxisGraphExtractor extractor;
-    extractor(prim_func->body);
+    auto extractor_owner = ffi::make_object<BufferAxisGraphExtractor>();
+    auto& extractor = *extractor_owner;
+    extractor.Visit(prim_func->body);
     ffi::Map<BufferVar, Var> inverse_buffer_map;
     for (const Var& param : prim_func->params) {
       if (param->ty.as<BufferTypeNode>()) {
@@ -118,14 +119,18 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
   }
 
  private:
-  void VisitStmt_(const BufferStoreNode* op) final {
-    StmtExprVisitor::VisitStmt_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
     buffer_access_indices_.push_back({op->buffer, op->indices});
+
+    return std::nullopt;
   }
 
-  void VisitExpr_(const TensorLoadNode* op) final {
-    StmtExprVisitor::VisitExpr_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
+    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
     buffer_access_indices_.push_back({op->source.as_or_throw<tvm::tirx::BufferVar>(), op->indices});
+
+    return std::nullopt;
   }
 
   bool Match(PrimExpr a, PrimExpr buffer_shape_a, PrimExpr b, PrimExpr buffer_shape_b,
@@ -154,13 +159,13 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
     return true;
   }
 
-  void VisitStmt_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     if (op->name_hint == "root") {
-      StmtExprVisitor::VisitStmt_(op);
-      return;
+      if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
+      return std::nullopt;
     }
     buffer_access_indices_.clear();
-    StmtExprVisitor::VisitStmt_(op);
+    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
     iter_var_range_.clear();
     for (const auto& iter_var : op->iter_vars) {
       iter_var_range_.Set(iter_var->var, iter_var->dom);
@@ -185,6 +190,8 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
         }
       }
     }
+
+    return std::nullopt;
   }
 
   void JoinBufferAxis(BufferAxis axis1, BufferAxis axis2) {

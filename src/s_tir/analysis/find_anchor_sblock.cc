@@ -32,34 +32,54 @@ namespace tvm {
 namespace tirx {
 
 Stmt GetEnclosingLoop(const SBlockNode* block, Stmt func_body) {
-  struct GetRootSeqStmt : public StmtVisitor {
-    void VisitStmt_(const SeqStmtNode* seq) override { result = seq; }
+  struct GetRootSeqStmt : public StmtExprVisitor {
+   public:
+    using StmtExprVisitor::Visit_;
+
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return StmtExprVisitor::Visit(value);
+    }
+
+    ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq) override {
+      result = seq;
+      return std::nullopt;
+    }
     const SeqStmtNode* result;
   };
 
-  struct BlockFinder : public StmtVisitor {
+  struct BlockFinder : public StmtExprVisitor {
+   public:
+    using StmtExprVisitor::Visit_;
+
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return StmtExprVisitor::Visit(value);
+    }
+
     explicit BlockFinder(const SBlockNode* tgt) : target(tgt) {}
 
-    void VisitStmt_(const SBlockNode* block) override {
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) override {
       if (block == target) {
         found = true;
       }
+      return std::nullopt;
     }
 
     const SBlockNode* target;
     bool found = false;
   };
 
-  GetRootSeqStmt seq_finder;
-  seq_finder(func_body);
+  auto seq_finder = ffi::make_object<GetRootSeqStmt>();
+  seq_finder->Visit(func_body);
 
-  TVM_FFI_ICHECK(seq_finder.result);
+  TVM_FFI_ICHECK(seq_finder->result);
 
-  for (auto stmt : seq_finder.result->seq) {
+  for (auto stmt : seq_finder->result->seq) {
     if (stmt->IsInstance<ForNode>()) {
-      BlockFinder finder(block);
-      finder(stmt);
-      if (finder.found) {
+      auto finder = ffi::make_object<BlockFinder>(block);
+      finder->Visit(stmt);
+      if (finder->found) {
         return stmt;
       }
     }
@@ -71,21 +91,29 @@ Stmt GetEnclosingLoop(const SBlockNode* block, Stmt func_body) {
 }
 
 const SBlockNode* FindAnchorBlock(const IRModule& mod) {
-  struct ReductionSBlockCollector : public StmtVisitor {
-    void VisitStmt_(const SBlockNode* block) override {
+  struct ReductionSBlockCollector : public StmtExprVisitor {
+   public:
+    using StmtExprVisitor::Visit_;
+
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return StmtExprVisitor::Visit(value);
+    }
+
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) override {
       if (block->init) {
         blocks.push_back(block);
       }
-      StmtVisitor::VisitStmt(block->body);
+      return StmtExprVisitor::Visit(block->body);
     }
     std::vector<const SBlockNode*> blocks;
   };
 
   if (auto prim_func = FindEntryFunc(mod, nullptr)) {
-    ReductionSBlockCollector collector;
-    collector(prim_func->body);
+    auto collector = ffi::make_object<ReductionSBlockCollector>();
+    collector->Visit(prim_func->body);
 
-    const auto& candidates = collector.blocks;
+    const auto& candidates = collector->blocks;
 
     if (candidates.empty()) {
       return nullptr;

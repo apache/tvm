@@ -50,18 +50,26 @@ using s_tir::meta_schedule::ModuleHash;
  *   Then we will have a ExtractedTask for all three functions, whose weight
  *   is 5 + 3 + 2 = 10.
  */
-class BlockCounter : public tirx::StmtVisitor {
+class BlockCounter : public tirx::StmtExprVisitor {
  public:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<tvm::ExprNode>()) return std::nullopt;
+    return tirx::StmtExprVisitor::Visit(value);
+  }
+
   static size_t GetSBlockCount(const tirx::PrimFunc& func) {
-    BlockCounter counter;
-    counter(func->body);
+    auto counter_owner = ffi::make_object<BlockCounter>();
+    auto& counter = *counter_owner;
+    counter.Visit(func->body);
     return counter.count;
   }
 
  private:
-  void VisitStmt_(const tirx::SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const tirx::SBlockNode* op) final {
     ++count;
-    StmtVisitor::VisitStmt_(op);
+    if (auto interrupt = tirx::StmtExprVisitor::Visit_(op)) return interrupt;
+
+    return std::nullopt;
   }
   size_t count{0};
 };

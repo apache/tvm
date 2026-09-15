@@ -20,6 +20,8 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 
+#include <exception>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -159,30 +161,50 @@ class BlockPropertyError : public ScheduleErrorContextObj {
    */
   static void CheckBlockIterTypeAndAffineBinding(const ScheduleState& self, const StmtSRefNode* top,
                                                  const StmtSRefNode* sref) {
-    class BlockIterTypeAndAffineBindingChecker : public StmtVisitor {
+    class BlockIterTypeAndAffineBindingChecker : public StmtExprVisitor {
      public:
+      using StmtExprVisitor::Visit_;
+
+      ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+        if (value.as<ExprNode>()) return std::nullopt;
+        return StmtExprVisitor::Visit(value);
+      }
+
       explicit BlockIterTypeAndAffineBindingChecker(const ScheduleState& state,
                                                     const StmtSRefNode* top)
           : state_(state), top_(top) {}
 
-     private:
-      void VisitStmt_(const SBlockNode* op) final {
-        for (const IterVar& iter_var : op->iter_vars) {
-          if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) {
-            throw MakeScheduleError<BlockPropertyError>(state_->mod, ffi::GetRef<SBlock>(op));
-          }
-          ffi::Optional<StmtSRef> high_exclusive = top_->parent
-                                                       ? ffi::GetRef<StmtSRef>(top_->parent)
-                                                       : ffi::Optional<StmtSRef>(std::nullopt);
-          CheckPartialAffineBinding(state_, ffi::GetRef<SBlock>(op), high_exclusive);
-        }
+      void Check(const Stmt& stmt) {
+        Visit(stmt);
+        if (error_) std::rethrow_exception(error_);
       }
+
+     private:
+      ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
+        try {
+          for (const IterVar& iter_var : op->iter_vars) {
+            if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) {
+              throw MakeScheduleError<BlockPropertyError>(state_->mod, ffi::GetRef<SBlock>(op));
+            }
+            ffi::Optional<StmtSRef> high_exclusive = top_->parent
+                                                         ? ffi::GetRef<StmtSRef>(top_->parent)
+                                                         : ffi::Optional<StmtSRef>(std::nullopt);
+            CheckPartialAffineBinding(state_, ffi::GetRef<SBlock>(op), high_exclusive);
+          }
+        } catch (const ffi::Error&) {
+          // Structural callbacks would slice the subclass before the schedule can render it.
+          error_ = std::current_exception();
+          return VisitInterrupt();
+        }
+        return std::nullopt;
+      }
+      std::exception_ptr error_;
       const ScheduleState& state_;
       const StmtSRefNode* top_;
     };
 
-    BlockIterTypeAndAffineBindingChecker checker(self, top);
-    checker(ffi::GetRef<Stmt>(sref->stmt));
+    auto checker = ffi::make_object<BlockIterTypeAndAffineBindingChecker>(self, top);
+    checker->Check(ffi::GetRef<Stmt>(sref->stmt));
   }
 
   explicit BlockPropertyError(IRModule mod, SBlock block) : mod_(mod), block_(std::move(block)) {}
@@ -470,16 +492,18 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
 
 class BufferIndicesMapExtractor : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
   explicit BufferIndicesMapExtractor(Var loop_var) : loop_var_(loop_var) {}
 
   static ffi::Map<ffi::String, ffi::Array<ffi::String>> Extract(Var loop_var, SBlock& block) {
-    BufferIndicesMapExtractor extractor(loop_var);
-    extractor(std::move(block->body));
-    return extractor.buffer_indices_map;
+    auto extractor = ffi::make_object<BufferIndicesMapExtractor>(loop_var);
+    extractor->Visit(std::move(block->body));
+    return extractor->buffer_indices_map;
   }
 
  private:
-  void VisitStmt_(const BufferStoreNode* store) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
     ffi::Array<ffi::String> indices;
     bool check_ = false;
     for (size_t i = 0; i < store->indices.size(); i++) {
@@ -492,10 +516,10 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
     }
     if (buffer_indices_map.find(store->buffer.name()) == buffer_indices_map.end() && !check_)
       buffer_indices_map.Set(store->buffer.name(), indices);
-    StmtExprVisitor::VisitStmt_(store);
+    return StmtExprVisitor::Visit_(store);
   }
 
-  void VisitExpr_(const TensorLoadNode* load) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
     ffi::Array<ffi::String> indices;
     bool check_ = false;
     for (size_t i = 0; i < load->indices.size(); i++) {
@@ -510,10 +534,8 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
     if (buffer_indices_map.find(buffer.name()) == buffer_indices_map.end() && !check_) {
       buffer_indices_map.Set(buffer.name(), indices);
     }
-    StmtExprVisitor::VisitExpr_(load);
+    return StmtExprVisitor::Visit_(load);
   }
-
-  void VisitStmt_(const SBlockNode* op) final { StmtVisitor::VisitStmt_(op); }
 
   Var loop_var_;
   ffi::Map<ffi::String, ffi::Array<ffi::String>> buffer_indices_map;

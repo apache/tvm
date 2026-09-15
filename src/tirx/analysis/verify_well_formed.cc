@@ -49,27 +49,22 @@ using AccessPath = ffi::reflection::AccessPath;
 class BlockVarAccessVerifier : public StmtExprVisitor {
  public:
   static bool Verify(const PrimFunc& func, bool assert_mode) {
-    BlockVarAccessVerifier verifier(assert_mode);
-    verifier(func->body);
-    return !verifier.has_error_;
+    auto verifier = ffi::make_object<BlockVarAccessVerifier>(assert_mode);
+    verifier->Visit(func->body);
+    return !verifier->has_error_;
   }
 
- private:
   explicit BlockVarAccessVerifier(bool assert_mode) : assert_mode_(assert_mode) {}
 
-  void VisitStmt(const Stmt& stmt) final {
+ private:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView stmt) final {
     if (!has_error_) {
-      StmtExprVisitor::VisitStmt(stmt);
+      if (auto result = StmtExprVisitor::Visit(stmt)) return result;
     }
+    return std::nullopt;
   }
 
-  void VisitExpr(const Expr& expr) final {
-    if (!has_error_) {
-      StmtExprVisitor::VisitExpr(expr);
-    }
-  }
-
-  void VisitExpr_(const VarNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     auto it = loop_vars_.find(op);
     if (it != loop_vars_.end() && it->second < block_stack_.size()) {
       has_error_ = true;
@@ -90,16 +85,18 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
         }
       }
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const ForNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     TVM_FFI_ICHECK(loop_vars_.find(op->loop_var.get()) == loop_vars_.end());
     loop_vars_[op->loop_var.get()] = block_stack_.size();
-    StmtExprVisitor::VisitStmt_(op);
+    if (auto result = StmtExprVisitor::Visit_(op)) return result;
     loop_vars_.erase(op->loop_var.get());
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     // Do not check boundary if it's a opaque block.
     bool is_non_opaque = op->iter_vars.size();
     if (is_non_opaque) {
@@ -109,30 +106,35 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
     // Step 0. Skip block iter var's domain
 
     // Step 1. Visit read/write regions
-    auto fvisit_buffer_region = [this](const BufferRegion& s) {
+    auto fvisit_buffer_region = [this](const BufferRegion& s) -> ffi::Optional<VisitInterrupt> {
       for (const auto& range : s->region) {
-        this->VisitExpr(range->min);
-        this->VisitExpr(range->extent);
+        if (auto result = this->Visit(range->min)) return result;
+        if (auto result = this->Visit(range->extent)) return result;
       }
+      return std::nullopt;
     };
-    VisitArray(op->reads, fvisit_buffer_region);
-    VisitArray(op->writes, fvisit_buffer_region);
+    for (const auto& region : op->reads) {
+      if (auto result = fvisit_buffer_region(region)) return result;
+    }
+    for (const auto& region : op->writes) {
+      if (auto result = fvisit_buffer_region(region)) return result;
+    }
 
     // Step 2. Visit match buffers
-    VisitArray(op->match_buffers,
-               [fvisit_buffer_region](const MatchBufferRegion& match_buffer_region) {
-                 fvisit_buffer_region(match_buffer_region->source);
-               });
+    for (const auto& match_buffer_region : op->match_buffers) {
+      if (auto result = fvisit_buffer_region(match_buffer_region->source)) return result;
+    }
 
     // Step 3. Visit init and body
     if (op->init.has_value()) {
-      this->VisitStmt(op->init.value());
+      if (auto result = this->Visit(op->init.value())) return result;
     }
-    this->VisitStmt(op->body);
+    if (auto result = this->Visit(op->body)) return result;
 
     if (is_non_opaque) {
       block_stack_.pop_back();
     }
+    return std::nullopt;
   }
 
  private:

@@ -59,37 +59,46 @@ static bool IsBijectiveAffine(const IndexMap& m, const ffi::Array<Range>& ranges
  * are used in it. This is important to get which spatial iterators are accessed in each index
  * of buffer access.
  */
-class IndexAnalyzer : public ExprVisitor {
+class IndexAnalyzer : public tirx::StmtExprVisitor {
  public:
+  ffi::Optional<VisitInterrupt> Visit_(const tvm::TensorLoadNode* op) final {
+    // Preserve expression-only traversal: the source need not be a TIRx BufferVar.
+    return Visit(op->indices);
+  }
+
   ffi::Array<tirx::Var> Analyze(const arith::IterSumExpr& expr) {
-    VisitExpr(expr);
+    Visit(expr);
     return iterators_;
   }
 
  private:
-  /*! \brief Override VisitExpr for iter expr type processing */
-  void VisitExpr(const Expr& expr) override {
-    if (const auto* op = expr.as<arith::IterSumExprNode>()) {
-      for (const auto& arg : op->args) VisitExpr(arg);
-      VisitExpr(op->base);
-      return;
+  /*! \brief Override Visit for iter expr type processing */
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (const auto* op = value.as<arith::IterSumExprNode>()) {
+      for (const auto& arg : op->args)
+        if (auto interrupt = Visit(arg)) return interrupt;
+      if (auto interrupt = Visit(op->base)) return interrupt;
+      return std::nullopt;
     }
-    if (const auto* op = expr.as<arith::IterSplitExprNode>()) {
-      VisitIterMark(op->source);
-      VisitExpr(op->lower_factor);
-      VisitExpr(op->extent);
-      VisitExpr(op->scale);
-      return;
+    if (const auto* op = value.as<arith::IterSplitExprNode>()) {
+      if (auto interrupt = VisitIterMark(op->source)) return interrupt;
+      if (auto interrupt = Visit(op->lower_factor)) return interrupt;
+      if (auto interrupt = Visit(op->extent)) return interrupt;
+      if (auto interrupt = Visit(op->scale)) return interrupt;
+      return std::nullopt;
     }
-    return ExprVisitor::VisitExpr(expr);
+    if (value.as<OpaqueExprNode>()) return std::nullopt;
+    return tirx::StmtExprVisitor::Visit(value);
   }
 
-  void VisitIterMark(const arith::IterMark& op) {
+  ffi::Optional<VisitInterrupt> VisitIterMark(const arith::IterMark& op) {
     if (auto var = op->source.as<PrimVar>())
       iterators_.push_back(var.value());
-    else
-      VisitExpr(op->source);
-    VisitExpr(op->extent);
+    else if (auto interrupt = Visit(op->source))
+      return interrupt;
+    if (auto interrupt = Visit(op->extent)) return interrupt;
+
+    return std::nullopt;
   }
 
  private:
@@ -116,7 +125,8 @@ static SpatialLayout GetSpatialLayout(const arith::IterMapResult& iter_map_resul
   TVM_FFI_ICHECK(!iter_map_result->indices.empty());
   SpatialLayout result;
   for (const arith::IterSumExpr& index : iter_map_result->indices) {
-    IndexAnalyzer index_analyzer;
+    auto index_analyzer_owner = ffi::make_object<IndexAnalyzer>();
+    auto& index_analyzer = *index_analyzer_owner;
     ffi::Array<tirx::Var> iter_vars = index_analyzer.Analyze(index);
     if (iter_vars.size() >= 2) {
       LOG(WARNING) << "[LayoutInference] Unable to get spatial layout of access: "
@@ -333,14 +343,17 @@ class BlockAnalyzer : public StmtExprVisitor {
       : can_transform_block_(true),
         write_transformation_(write_transformation),
         block_(block),
-        buffer_transformation_cache_(transformation_cache) {
+        buffer_transformation_cache_(transformation_cache) {}
+
+  void Analyze() {
+    const auto& block = block_;
     TVM_FFI_ICHECK(block_->writes.size() == 1);
     auto write_buffer = block_->writes[0]->buffer;
 
     ComputeBlockSpatialDomain();
 
     // Visit the block body to collect load/store access patterns of different buffers.
-    VisitStmt(block_->body);
+    Visit(block_->body);
 
     // While visiting the load/store accesses it is possible we see an unexpected pattern, such as
     // nested block or write access to multiple buffers. In such a case, we can return early as we
@@ -475,18 +488,20 @@ class BlockAnalyzer : public StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     // Blocks with nested blocks cannot be handled yet.
     LOG(WARNING) << "[LayoutInference] Nested blocks are not supported for layout inference yet";
     can_transform_block_ = false;
+
+    return std::nullopt;
   }
-  void VisitStmt_(const BufferStoreNode* op) final {
-    StmtExprVisitor::VisitStmt_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
 
     BufferAccessInfo& access_info = buffer_access_info_[op->buffer];
 
     // Fast path to ignore further analysis if we know that the buffer access is invalid.
-    if (!access_info.IsValid()) return;
+    if (!access_info.IsValid()) return std::nullopt;
 
     // Only single write buffer is supported for each block.
     if (!op->buffer.same_as(block_->writes[0]->buffer)) {
@@ -495,22 +510,24 @@ class BlockAnalyzer : public StmtExprVisitor {
                       "inference, found two: "
                    << op->buffer << " and " << block_->writes[0]->buffer;
       can_transform_block_ = false;
-      return;
+      return std::nullopt;
     }
 
     // If the write buffer access cannot be analyzed, no transformation to the block will be made.
     auto detected_spatial_layout = DetectBufferAccessIterMap(op->indices);
     if (detected_spatial_layout.empty()) {
       access_info.Invalidate();
-      return;
+      return std::nullopt;
     }
 
     // Check if we have access info for this buffer, if present, the two accesses must be
     // identical.
     access_info.Update(detected_spatial_layout);
+
+    return std::nullopt;
   }
 
-  void VisitExpr_(const TensorLoadNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     BufferVar read_buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
     BufferAccessInfo& access_info =
         buffer_access_info_[op->source.as_or_throw<tvm::tirx::BufferVar>()];
@@ -519,9 +536,11 @@ class BlockAnalyzer : public StmtExprVisitor {
 
     if (detected_spatial_layout.empty()) {
       access_info.Invalidate();
-      return;
+      return std::nullopt;
     }
     access_info.Update(detected_spatial_layout);
+
+    return std::nullopt;
   }
 
  public:
@@ -570,7 +589,6 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
           << "Mismatch between output buffer shape and index map";
       buffer_transformation_cache_.Set(param_buf.value(), write_transformations[i]);
     }
-    VisitStmt(func->body);
   }
   ffi::Map<SBlock, ffi::Map<ffi::ObjectRef, IndexMap>> GetSuggestedTransforms() {
     ffi::Map<SBlock, ffi::Map<ffi::ObjectRef, IndexMap>> result;
@@ -586,22 +604,24 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
   }
 
  private:
-  void VisitStmt_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     if (op->name_hint == "root") {
       // Skip the root block
-      StmtVisitor::VisitStmt_(op);
-      return;
+      if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
+      return std::nullopt;
     }
 
     SBlock block = ffi::GetRef<SBlock>(op);
     // Get block write buffer transformation.
-    if (block->writes.size() != 1) return;
+    if (block->writes.size() != 1) return std::nullopt;
     auto write_buffer = block->writes[0]->buffer;
     block_to_buffer_[block].push_back(write_buffer);
-    BlockAnalyzer block_analyzer(block, buffer_transformation_cache_,
-                                 buffer_transformation_cache_[write_buffer]);
+    auto block_analyzer_owner = ffi::make_object<BlockAnalyzer>(
+        block, buffer_transformation_cache_, buffer_transformation_cache_[write_buffer]);
+    auto& block_analyzer = *block_analyzer_owner;
+    block_analyzer.Analyze();
 
-    if (!block_analyzer.CanBeTransformed()) return;
+    if (!block_analyzer.CanBeTransformed()) return std::nullopt;
     // Collect the suggested transformations
     block_transformations_.Set(block, block_analyzer.GetSBlockTransformation());
 
@@ -613,6 +633,8 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
       buffer_transformation_cache_.Set(buffer, index_map);
       block_to_buffer_[block].push_back(buffer);
     }
+
+    return std::nullopt;
   }
 
  private:
@@ -627,7 +649,10 @@ ffi::Map<tirx::SBlock, ffi::Map<ffi::ObjectRef, tirx::IndexMap>> SuggestLayoutTr
   // No changes to the PrimFunc are required if no transformations on output buffers.
   if (write_buffer_transformations.empty()) return {};
 
-  PrimFuncAnalyzer analyzer(prim_func, write_buffer_transformations);
+  auto analyzer_owner = ffi::make_object<PrimFuncAnalyzer>(prim_func, write_buffer_transformations);
+
+  auto& analyzer = *analyzer_owner;
+  analyzer.Visit(prim_func->body);
   return analyzer.GetSuggestedTransforms();
 }
 

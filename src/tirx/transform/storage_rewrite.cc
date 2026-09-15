@@ -126,7 +126,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     const AllocBufferNode* alloc{nullptr};
   };
 
-  void VisitStmt_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
     size_t level = scope_.size();
     const VarNode* buf = op->buffer.get();
     buffer_aliases_.Set(op->buffer.var(), op->buffer.var());
@@ -137,15 +137,18 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     entry.num_physical_dimensions = op->buffer->shape.size();
     alloc_info_[buf] = entry;
 
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const DeclBufferNode* op) final { RegisterBufferAlias(op->buffer, op->data); }
+  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
+    RegisterBufferAlias(op->buffer, op->data);
+    return std::nullopt;
+  }
 
-  void VisitStmt_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
-    StmtExprVisitor::VisitStmt_(op);
+    if (auto result = StmtExprVisitor::Visit_(op)) return result;
     RecordAccess(op->buffer);
     StmtEntry e = scope_.back();
     scope_.pop_back();
@@ -153,37 +156,41 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       e.stmt = op;
       linear_seq_.push_back(e);
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const TensorLoadNode* op) final {
-    StmtExprVisitor::VisitExpr_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
+    if (auto result = StmtExprVisitor::Visit_(op)) return result;
     RecordAccess(op->source.as_or_throw<tvm::tirx::BufferVar>());
+    return std::nullopt;
   }
 
-  void VisitStmt_(const EvaluateNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
-    StmtExprVisitor::VisitStmt_(op);
+    if (auto result = StmtExprVisitor::Visit_(op)) return result;
     StmtEntry e = scope_.back();
     scope_.pop_back();
     if (e.touched.size() != 0) {
       e.stmt = op;
       linear_seq_.push_back(e);
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const ReturnNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ReturnNode* op) final {
     scope_.push_back(StmtEntry());
-    StmtExprVisitor::VisitStmt_(op);
+    if (auto result = StmtExprVisitor::Visit_(op)) return result;
     StmtEntry e = scope_.back();
     scope_.pop_back();
     if (e.touched.size() != 0) {
       e.stmt = op;
       linear_seq_.push_back(e);
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const VarNode* buf) final {
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* buf) final {
     // Directly reference to the variable count as a read.
     if (buf->ty.as<BufferTypeNode>()) {
       Var var = ffi::GetRef<Var>(buf);
@@ -194,17 +201,18 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       TVM_FFI_ICHECK_LT(it->second.level, scope_.size()) << " buf=" << buf->name;
       scope_[it->second.level].touched.push_back(buf);
     }
+    return std::nullopt;
   }
 
   template <typename T>
-  void VisitNewScope(const T* op) {
+  ffi::Optional<VisitInterrupt> VisitNewScope(const T* op) {
     scope_.push_back(StmtEntry());
     StmtEntry e;
     e.stmt = op;
     int64_t begin_index = static_cast<int64_t>(linear_seq_.size());
     // before scope.
     linear_seq_.push_back(e);
-    StmtExprVisitor::VisitStmt_(op);
+    if (auto result = StmtExprVisitor::Visit_(op)) return result;
     // after scope.
     e.touched = std::move(scope_.back().touched);
     scope_.pop_back();
@@ -215,41 +223,44 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     // record the pointer to end index.
     TVM_FFI_ICHECK_NE(end_index, 0U);
     linear_seq_[begin_index].scope_pair_offset = end_index - begin_index;
+    return std::nullopt;
   }
 
-  void VisitStmt_(const AttrStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
     // Only record the outer most thread extent.
     if (op->attr_key == attr::thread_extent && !in_thread_env_) {
       in_thread_env_ = true;
-      VisitNewScope(op);
+      if (auto result = VisitNewScope(op)) return result;
       in_thread_env_ = false;
     } else if (op->attr_key == attr::extern_scope) {
-      VisitNewScope(op);
+      if (auto result = VisitNewScope(op)) return result;
     } else if (op->attr_key == s_tir::attr::virtual_thread) {
-      VisitNewScope(op);
+      if (auto result = VisitNewScope(op)) return result;
     } else {
-      StmtExprVisitor::VisitStmt_(op);
+      if (auto result = StmtExprVisitor::Visit_(op)) return result;
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const IfThenElseNode* op) final { VisitNewScope(op); }
+  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final { return VisitNewScope(op); }
 
-  void VisitStmt_(const ForNode* op) final { VisitNewScope(op); }
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final { return VisitNewScope(op); }
 
-  void VisitStmt_(const WhileNode* op) final { VisitNewScope(op); }
+  ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) final { return VisitNewScope(op); }
 
-  void VisitStmt_(const AssertStmtNode* op) final { VisitNewScope(op); }
+  ffi::Optional<VisitInterrupt> Visit_(const AssertStmtNode* op) final { return VisitNewScope(op); }
 
-  void VisitStmt_(const BindNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr (the value may contain BufferLoad)
-    StmtExprVisitor::VisitStmt_(op);
+    if (auto result = StmtExprVisitor::Visit_(op)) return result;
     StmtEntry e = scope_.back();
     scope_.pop_back();
     if (e.touched.size() != 0) {
       e.stmt = op;
       linear_seq_.push_back(e);
     }
+    return std::nullopt;
   }
 
   void RecordAccess(const BufferVar& buffer) {
@@ -324,89 +335,87 @@ class InplaceOpVerifier : public StmtExprVisitor {
     src_ = src;
     result_ = true;
     if (stmt->IsInstance<AttrStmtNode>()) {
-      VisitStmt_(static_cast<const AttrStmtNode*>(stmt));
+      Visit_(static_cast<const AttrStmtNode*>(stmt));
     } else if (stmt->IsInstance<ForNode>()) {
-      VisitStmt_(static_cast<const ForNode*>(stmt));
+      Visit_(static_cast<const ForNode*>(stmt));
     } else if (stmt->IsInstance<IfThenElseNode>()) {
-      VisitStmt_(static_cast<const IfThenElseNode*>(stmt));
+      Visit_(static_cast<const IfThenElseNode*>(stmt));
     } else if (stmt->IsInstance<WhileNode>()) {
-      VisitStmt_(static_cast<const WhileNode*>(stmt));
+      Visit_(static_cast<const WhileNode*>(stmt));
     } else if (stmt->IsInstance<BufferStoreNode>()) {
-      VisitStmt_(static_cast<const BufferStoreNode*>(stmt));
+      Visit_(static_cast<const BufferStoreNode*>(stmt));
     } else {
       return false;
     }
     return result_;
   }
 
-  using StmtExprVisitor::VisitStmt_;
+  using StmtExprVisitor::Visit_;
 
-  void VisitStmt(const Stmt& n) final {
-    if (!result_) return;
-    StmtExprVisitor::VisitStmt(n);
-  }
-  void VisitExpr(const Expr& n) final {
-    if (!result_) return;
-    StmtExprVisitor::VisitExpr(n);
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView n) final {
+    if (!result_) return std::nullopt;
+    return StmtExprVisitor::Visit(n);
   }
 
-  void VisitExpr_(const VarNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     // assume all opaque access is unsafe
     if (op == dst_ || op == src_) {
       result_ = false;
-      return;
+      return std::nullopt;
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
     ++mem_nest_;
     for (const auto& index : op->indices) {
-      this->VisitExpr(index);
+      if (auto result = this->Visit(index)) return result;
     }
     --mem_nest_;
     if (op->buffer.get() == dst_) {
       store_ = op;
-      this->VisitExpr(op->value);
+      if (auto result = this->Visit(op->value)) return result;
       store_ = nullptr;
     } else {
-      this->VisitExpr(op->value);
+      if (auto result = this->Visit(op->value)) return result;
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const AttrStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
     // always reject extern code
     if (op->attr_key == attr::extern_scope) {
       result_ = false;
-      return;
+      return std::nullopt;
     }
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
     // reject inplace for volatile buffers
     if (op->annotations.count(attr::kVolatile)) {
       result_ = false;
-      return;
+      return std::nullopt;
     }
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitExpr_(const TensorLoadNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     const VarNode* buf = op->source.as_or_throw<tvm::tirx::BufferVar>().get();
     // cannot read from dst_ (no reduction)
     if (buf == dst_) {
       result_ = false;
-      return;
+      return std::nullopt;
     }
     // do not allow indirect memory load
     if (mem_nest_ != 0) {
       result_ = false;
-      return;
+      return std::nullopt;
     }
     if (src_ == buf) {
       if (store_ == nullptr || store_->value.ty() != op->ty.as_or_throw<PrimType>()) {
         result_ = false;
-        return;
+        return std::nullopt;
       }
       TVM_FFI_ICHECK_EQ(store_->indices.size(), op->indices.size())
           << "Store/Load occur to the same buffer " << buf->name
@@ -414,13 +423,14 @@ class InplaceOpVerifier : public StmtExprVisitor {
       for (size_t i = 0; i < store_->indices.size(); i++) {
         if (!tirx::ExprDeepEqual()(store_->indices[i], op->indices[i])) {
           result_ = false;
-          return;
+          return std::nullopt;
         }
       }
     }
     ++mem_nest_;
-    StmtExprVisitor::VisitExpr_(op);
+    if (auto result = StmtExprVisitor::Visit_(op)) return result;
     --mem_nest_;
+    return std::nullopt;
   }
 
  private:
@@ -454,12 +464,12 @@ class StoragePlanRewriter : public StmtExprMutator {
                bool reuse_require_exact_matched_dtype) {
     detect_inplace_ = detect_inplace;
     // plan the rewrite
-    LinearAccessPatternFinder finder(params);
-    finder(stmt);
-    this->LivenessAnalysis(finder.linear_seq_);
-    this->PlanMemory(finder.linear_seq_, finder.alloc_info_, enable_reuse,
+    auto finder = ffi::make_object<LinearAccessPatternFinder>(params);
+    finder->Visit(stmt);
+    this->LivenessAnalysis(finder->linear_seq_);
+    this->PlanMemory(finder->linear_seq_, finder->alloc_info_, enable_reuse,
                      reuse_require_exact_matched_dtype);
-    buffer_aliases_ = std::move(finder.buffer_aliases_);
+    buffer_aliases_ = std::move(finder->buffer_aliases_);
     this->PrepareNewAlloc();
     // start rewrite
     stmt = operator()(std::move(stmt));
@@ -991,13 +1001,13 @@ class StoragePlanRewriter : public StmtExprMutator {
             bool inplace_found = false;
             for (const VarNode* src : it->second.kill) {
               if (!inplace_flag.count(src) && alloc_map_.count(src)) {
-                InplaceOpVerifier visitor;
+                auto visitor = ffi::make_object<InplaceOpVerifier>();
                 StorageEntry* src_entry = alloc_map_.at(src);
                 if (src_entry->scope == storage_scope &&
                     src_entry->attach_scope_ == thread_scope_ &&
                     !alloc->buffer->dtype.IsScalableVector() &&
                     src_entry->elem_type == alloc->buffer->dtype.WithLanes(1) &&
-                    visitor.Check(s.stmt, var, src)) {
+                    visitor->Check(s.stmt, var, src)) {
                   int64_t const_size = AllocBuffer(ffi::GetRef<AllocBuffer>(alloc))
                                            .ConstantAllocationSize()
                                            .value_or(0);
@@ -1323,19 +1333,19 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const TensorLoadNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     OnArrayAccess(op->ty.as_or_throw<PrimType>(),
                   op->source.as_or_throw<tvm::tirx::BufferVar>().get(), op->indices,
                   /*is_buffer_load=*/true);
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
     OnArrayAccess(op->value.ty(), op->buffer.get(), op->indices, /*is_buffer_load=*/false);
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitExpr_(const CallNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
       bool is_load = op->op.same_as(builtin::masked_load());
       BufferVar buffer(op->args[0].as_or_throw<Var>());
@@ -1363,35 +1373,35 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
                       /*is_buffer_load=*/false);
       }
     }
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
     buffer_aliases_.Set(op->buffer.var(), op->buffer.var());
     const ffi::Array<PrimExpr>& shape = op->buffer->shape;
     PrimExpr extent = shape.size() ? shape[shape.size() - 1] : PrimExpr(0);
     OnArrayDeclaration(op->buffer.var(), op->buffer->dtype, extent,
                        BufferVarInfo::kAllocBufferNode);
 
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const DeclBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
     RegisterBufferAlias(op->buffer, op->data);
     const ffi::Array<PrimExpr>& shape = op->buffer->shape;
     PrimExpr extent = shape.size() ? shape.back() : PrimExpr(0);
     OnArrayDeclaration(op->buffer.var(), op->buffer->dtype, extent, BufferVarInfo::kDeclBufferNode);
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitExpr_(const prim::LetNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op) final {
     HandleLetNode(op->var);
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const BindNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     HandleLetNode(op->var);
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   void HandleLetNode(Var let_var) {
@@ -2028,11 +2038,11 @@ PrimFunc PointerValueTypeRewrite(PrimFunc f, bool allow_untyped_pointers = false
                                  bool rewrite_alloc_buffer_node = true, bool rewrite_indices = true,
                                  bool rewrite_let_node = true,
                                  bool rewrite_scalar_read_to_vector_shuffle = true) {
-  VectorTypeAccessChecker checker(f->params, allow_untyped_pointers,
-                                  rewrite_scalar_read_to_vector_shuffle);
-  checker(f->body);
+  auto checker = ffi::make_object<VectorTypeAccessChecker>(f->params, allow_untyped_pointers,
+                                                           rewrite_scalar_read_to_vector_shuffle);
+  checker->Visit(f->body);
 
-  VectorTypeRewriter rewriter(checker.info_map_, checker.buffer_aliases_, rewrite_buffer_params,
+  VectorTypeRewriter rewriter(checker->info_map_, checker->buffer_aliases_, rewrite_buffer_params,
                               rewrite_pointer_params, rewrite_alloc_buffer_node, rewrite_indices,
                               rewrite_let_node, rewrite_scalar_read_to_vector_shuffle);
   PrimFuncNode* n = f.CopyOnWrite();

@@ -44,6 +44,7 @@ using namespace tvm::tirx;
 
 class ThreadSyncPlanner : public StorageAccessVisitor {
  public:
+  using StorageAccessVisitor::Visit_;
   explicit ThreadSyncPlanner(StorageScope sync_scope) : sync_scope_(sync_scope) {}
 
   // The syncs inserted before each statement
@@ -349,9 +350,9 @@ Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
   if (sync_scope.rank == StorageRank::kShared && sync_scope.tag == "") {
     stmt = ThreadSyncAfterWaitQueueInserter(sync_scope)(stmt);
   }
-  ThreadSyncPlanner planner(sync_scope);
-  planner(stmt);
-  return ThreadSyncInserter(sync_scope, planner.syncs_inserted_)(std::move(stmt));
+  auto planner = ffi::make_object<ThreadSyncPlanner>(sync_scope);
+  planner->Visit(stmt);
+  return ThreadSyncInserter(sync_scope, planner->syncs_inserted_)(std::move(stmt));
 }
 
 namespace transform {

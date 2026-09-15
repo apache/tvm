@@ -478,7 +478,7 @@ class FunctionPartitioner : public StmtExprVisitor {
   bool fail = false;
 
  private:
-  void VisitStmt_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     block_counter_++;
     bool is_matching_ = block_counter_ <= num_matched_ops_;
     if (block_counter_ == num_matched_ops_) {
@@ -496,7 +496,7 @@ class FunctionPartitioner : public StmtExprVisitor {
         allocs1.insert(write->buffer);
       } else if (allocs1.count(write->buffer)) {
         fail = true;
-        return;
+        return std::nullopt;
       } else {
         allocs2.insert(write->buffer);
       }
@@ -507,6 +507,8 @@ class FunctionPartitioner : public StmtExprVisitor {
       }
     }
     block_partition.Set(ffi::GetRef<SBlock>(op), is_matching_);
+
+    return std::nullopt;
   }
   // The number of matched ops in the function
   size_t num_matched_ops_;
@@ -599,8 +601,9 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   if (num_matched_ops == 0) {
     return {func, std::nullopt};
   }
-  FunctionPartitioner partitioner(num_matched_ops);
-  partitioner(body);
+  auto partitioner_owner = ffi::make_object<FunctionPartitioner>(num_matched_ops);
+  auto& partitioner = *partitioner_owner;
+  partitioner.Visit(body);
   if (partitioner.fail) {
     return {func, std::nullopt};
   }

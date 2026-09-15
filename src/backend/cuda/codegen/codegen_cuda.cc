@@ -194,9 +194,15 @@ void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const
   CodeGenC::PrintFunctionSignature(function_name, func, os);
 }
 
-class ThreadIdxExtractor : public tirx::StmtVisitor {
+class ThreadIdxExtractor : public tirx::StmtExprVisitor {
+ public:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<tvm::ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
  private:
-  void VisitStmt_(const AttrStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
     if (op->attr_key == tirx::attr::thread_extent) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       if (iv->var->name == "threadIdx.x" || iv->thread_tag == "threadIdx.x") {
@@ -218,7 +224,9 @@ class ThreadIdxExtractor : public tirx::StmtVisitor {
         clusterCtaIdx_z_ext = op->value;
       }
     }
-    StmtVisitor::VisitStmt_(op);
+    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
+
+    return std::nullopt;
   }
 
  public:
@@ -231,8 +239,9 @@ class ThreadIdxExtractor : public tirx::StmtVisitor {
 };
 
 void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
-  ThreadIdxExtractor extractor;
-  extractor(f->body);
+  auto extractor_owner = ffi::make_object<ThreadIdxExtractor>();
+  auto& extractor = *extractor_owner;
+  extractor.Visit(f->body);
   arith::Analyzer analyzer;
   PrimExpr threadIdx_ext = analyzer->Simplify(
       extractor.threadIdx_x_ext * extractor.threadIdx_y_ext * extractor.threadIdx_z_ext);
@@ -1166,7 +1175,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // "//" and "%" in the index map are translated to FloorDiv/Mod, but the plain Div/Mod are fine.
     // FloorDiv/Mod are supposed to be lowered before they reach codegen, so manually replace them
     // to the plain ones here.
-    class LowerFloorDivMod : public ExprMutator {
+    class LowerFloorDivMod : public tirx::ExprMutator {
      public:
       Expr VisitExpr_(const prim::FloorDivNode* op) {
         return prim::Div(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
@@ -1268,7 +1277,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         IndexMap::FromFunc(2, *index_map_func).Inverse({Range(0, m), Range(0, n)}, analyzer);
     auto indices_16x16 = inverse_index_map->final_indices;
 
-    class LowerFloorDivMod : public ExprMutator {
+    class LowerFloorDivMod : public tirx::ExprMutator {
      public:
       Expr VisitExpr_(const prim::FloorDivNode* op) {
         return prim::Div(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));

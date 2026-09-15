@@ -85,7 +85,7 @@ struct TResult {
   std::unordered_map<int32_t, double> data_;
 };
 
-class FlopEstimator : private ExprFunctor<TResult(const Expr& n)>,
+class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
                       private StmtFunctor<TResult(const Stmt& n)> {
   arith::Analyzer ana;
 

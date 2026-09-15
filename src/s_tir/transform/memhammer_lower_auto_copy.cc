@@ -290,9 +290,13 @@ class AutoPadder {
    * \brief Collect pattern from indices
    */
   class PatternCollector : public StmtExprVisitor {
-    void VisitExpr_(const VarNode* op) final {
+   public:
+    using StmtExprVisitor::Visit_;
+
+   private:
+    ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
       if (!success_) {
-        return;
+        return std::nullopt;
       }
       int extent = var_range_[ffi::GetRef<Var>(op)]->extent.as<IntImmNode>()->value;
       if (extent > 1) {
@@ -300,12 +304,13 @@ class AutoPadder {
       } else {
         stack_.push({});
       }
+      return std::nullopt;
     }
 
-    void VisitExpr_(const AddNode* op) final {
-      ExprVisitor::VisitExpr_(op);
+    ffi::Optional<VisitInterrupt> Visit_(const AddNode* op) final {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (!success_) {
-        return;
+        return std::nullopt;
       }
       std::vector<Pattern> merged_patterns;
       std::vector<Pattern> r = stack_.top();
@@ -320,7 +325,7 @@ class AutoPadder {
       }
       if (merged_patterns.empty()) {
         stack_.push({});
-        return;
+        return std::nullopt;
       }
       std::vector<Pattern> ret;
       ret.push_back(merged_patterns[0]);
@@ -333,12 +338,13 @@ class AutoPadder {
         }
       }
       stack_.push(ret);
+      return std::nullopt;
     }
 
-    void VisitExpr_(const FloorDivNode* op) final {
-      ExprVisitor::VisitExpr_(op);
+    ffi::Optional<VisitInterrupt> Visit_(const FloorDivNode* op) final {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (!success_) {
-        return;
+        return std::nullopt;
       }
       std::vector<Pattern> inner = stack_.top();
       stack_.pop();
@@ -360,12 +366,13 @@ class AutoPadder {
         }
       }
       stack_.push(ret);
+      return std::nullopt;
     }
 
-    void VisitExpr_(const FloorModNode* op) final {
-      ExprVisitor::VisitExpr_(op);
+    ffi::Optional<VisitInterrupt> Visit_(const FloorModNode* op) final {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (!success_) {
-        return;
+        return std::nullopt;
       }
       std::vector<Pattern> inner = stack_.top();
       stack_.pop();
@@ -385,12 +392,13 @@ class AutoPadder {
         }
       }
       stack_.push(ret);
+      return std::nullopt;
     }
 
-    void VisitExpr_(const MulNode* op) final {
-      ExprVisitor::VisitExpr_(op);
+    ffi::Optional<VisitInterrupt> Visit_(const MulNode* op) final {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (!success_) {
-        return;
+        return std::nullopt;
       }
       std::vector<Pattern> inner = stack_.top();
       stack_.pop();
@@ -400,6 +408,7 @@ class AutoPadder {
         ret.push_back({pattern.extent, pattern.scale * scale});
       }
       stack_.push(ret);
+      return std::nullopt;
     }
 
    public:
@@ -418,12 +427,12 @@ class AutoPadder {
      */
     static std::vector<std::vector<int>> CollectIterationSpace(
         const ffi::Array<PrimExpr>& indices, const ffi::Map<Var, Range>& var_range, int data_bits) {
-      PatternCollector collector(var_range);
+      auto collector = ffi::make_object<PatternCollector>(var_range);
       std::vector<std::vector<int>> ret;
       for (int i = 0; i < static_cast<int>(indices.size()); i++) {
-        collector(indices[i]);
-        if (collector.success_ && collector.stack_.size() == 1) {
-          auto patterns = collector.stack_.top();
+        collector->Visit(indices[i]);
+        if (collector->success_ && collector->stack_.size() == 1) {
+          auto patterns = collector->stack_.top();
           int extent_prod = 1;
           for (const Pattern& p : patterns) {
             extent_prod *= p.extent;
@@ -441,7 +450,7 @@ class AutoPadder {
           }
 
           ret.push_back(iter_space);
-          collector.stack_.pop();
+          collector->stack_.pop();
         } else {
           ret.push_back({});
         }
@@ -457,6 +466,7 @@ class AutoPadder {
   /*! A utility class for calling CollectIterationSpace to each buffer access*/
   class IterSpaceAnalyzer : public StmtExprVisitor {
    public:
+    using StmtExprVisitor::Visit_;
     IterSpaceAnalyzer(const ffi::Map<Var, PrimExpr>& substitute_map, AutoPadder* self,
                       int data_bits, const ffi::Map<ffi::String, int64_t> warp_thread_extent)
         : substitute_map_(substitute_map),
@@ -488,7 +498,7 @@ class AutoPadder {
       return !analyzer->CanProve(delta != 1);
     }
 
-    void VisitStmt_(const ForNode* op) final {
+    ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
       if (op->kind != ForKind::kThreadBinding) {
         substitute_map_.Set(op->loop_var, op->min);
       } else {
@@ -500,13 +510,14 @@ class AutoPadder {
         vector_var = op->loop_var;
         vector_length_ = op->extent.as<IntImmNode>()->value;
       }
-      StmtExprVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (op->kind == ForKind::kVectorized) {
         vector_length_ = -1;
       }
       if (op->kind != ForKind::kThreadBinding) {
         substitute_map_.erase(op->loop_var);
       }
+      return std::nullopt;
     }
     /*!
      * \brief Take a typical warp and collect the iteration space for buffer store
@@ -515,7 +526,7 @@ class AutoPadder {
      * The iteration space would be {{0, 1}, {0, 4, ..., 60}}.
      * \param op the buffer store
      */
-    void VisitStmt_(const BufferStoreNode* op) final {
+    ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
       runtime::StorageScope scope = runtime::StorageScope::Create(op->buffer.scope());
       if (scope.rank == runtime::StorageRank::kShared) {
         ffi::Array<PrimExpr> substitued_indices;
@@ -540,7 +551,7 @@ class AutoPadder {
           self->padding_min_.Set(op->buffer, std::max(static_cast<int64_t>(vector_length_), m));
         }
       }
-      StmtExprVisitor::VisitStmt_(op);
+      return StmtExprVisitor::Visit_(op);
     }
     /*!
      * \brief Take a typical warp and collect the iteration space for buffer load
@@ -549,7 +560,7 @@ class AutoPadder {
      * The iteration space would be {{0, 1}, {0, 4, ..., 60}}.
      * \param op the buffer load
      */
-    void VisitExpr_(const TensorLoadNode* op) final {
+    ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
       BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
       runtime::StorageScope scope = runtime::StorageScope::Create(buffer.scope());
       if (scope.rank == runtime::StorageRank::kShared) {
@@ -575,7 +586,7 @@ class AutoPadder {
           self->padding_min_.Set(buffer, std::max(static_cast<int64_t>(vector_length_), m));
         }
       }
-      StmtExprVisitor::VisitExpr_(op);
+      return StmtExprVisitor::Visit_(op);
     }
 
     /*!
@@ -585,7 +596,7 @@ class AutoPadder {
      * threadIdx. The iteration space would be {{0, 1, ..., 15}, {0, 1, ..., 15}}.
      * \param op the call node
      */
-    void VisitStmt_(const SBlockNode* op) final {
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
       if (const auto* eval = op->body.as<EvaluateNode>()) {
         if (const auto* call = eval->value.as<CallNode>()) {
           static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
@@ -625,6 +636,7 @@ class AutoPadder {
           }
         }
       }
+      return std::nullopt;
     }
 
     ffi::Map<Var, PrimExpr> substitute_map_;
@@ -665,8 +677,9 @@ class AutoPadder {
     for (const For& loop : outer_loops) {
       substitute_map.Set(loop->loop_var, loop->min);
     }
-    IterSpaceAnalyzer iter_space_analyzer(substitute_map, this, data_bits, warp_thread_extent);
-    iter_space_analyzer(stmt);
+    auto iter_space_analyzer =
+        ffi::make_object<IterSpaceAnalyzer>(substitute_map, this, data_bits, warp_thread_extent);
+    iter_space_analyzer->Visit(stmt);
   }
 
  private:
@@ -768,30 +781,35 @@ class AutoCopyMutator : public StmtExprMutator {
 /*!
  * \brief Collect the extent for all thread binding loops.
  */
-class ThreadExtentCollector : public StmtVisitor {
+class ThreadExtentCollector : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
   static ffi::Map<ffi::String, int64_t> CollectThreadExtent(const Stmt& stmt) {
-    ThreadExtentCollector collector;
-    collector(stmt);
-    return collector.thread_extent_;
+    auto collector = ffi::make_object<ThreadExtentCollector>();
+    collector->Visit(stmt);
+    return collector->thread_extent_;
   }
 
  private:
-  void VisitStmt_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     if (ffi::Optional<int64_t> warp_execution = GetAnn<int64_t>(op, "warp_execution")) {
       if (warp_execution.value() != 0) {
         thread_extent_.Set("threadIdx.x", 32);
       }
     }
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
-  void VisitStmt_(const ForNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     if (op->thread_binding.has_value() && op->thread_binding.value()->iter_type == kThreadIndex) {
       if (const auto* extent = op->extent.as<IntImmNode>()) {
         thread_extent_.Set(op->thread_binding.value()->thread_tag, extent->value);
       }
     }
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   /*! \brief the map from thread tag to its extent */

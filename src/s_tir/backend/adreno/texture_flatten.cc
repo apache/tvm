@@ -161,9 +161,9 @@ class TextureFlattener : public TextureLoweringBase {
 
 PrimFunc TextureFlattenHandler(PrimFunc func) {
   auto fptr = func.CopyOnWrite();
-  IRVisitorWithAnalyzer bound_analyzer;
-  bound_analyzer(fptr->body);
-  fptr->body = TextureFlattener(fptr->params, &bound_analyzer)(std::move(fptr->body));
+  auto bound_analyzer = ffi::make_object<IRVisitorWithAnalyzer>();
+  bound_analyzer->Visit(fptr->body);
+  fptr->body = TextureFlattener(fptr->params, bound_analyzer.get())(std::move(fptr->body));
   return func;
 }
 
