@@ -404,8 +404,7 @@ CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, int64_t val
 
 UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate(ffi::AnyView value,
                                                       InplaceMode inplace_mode) {
-  // Preserve object-visit accounting; inline values and None are not IR nodes.
-  if (value.as<ffi::Object>()) ++stats_.nodes_visited;
+  ++stats_.nodes_visited;
   return SimplifierBase::Mutate(value, inplace_mode);
 }
 
@@ -424,9 +423,8 @@ void RewriteSimplifier::Impl::Update(const Var& var, const PrimExpr& info, bool 
 
 UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::AddNode* op,
                                                        InplaceMode inplace_mode) {
-  PrimExpr ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
-                     ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                         SimplifierBase::Mutate_(op, inplace_mode)))
+  PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
+                     .as_or_throw<UnchangedOr<PrimExpr>>()
                      .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   op = ret.as<prim::AddNode>();
   if (auto const_res = TryConstFold<prim::Add>(op->a, op->b)) return *std::move(const_res);
@@ -580,9 +578,8 @@ RewriteSimplifier::Extension RewriteSimplifier::Impl::GetEnabledExtensions() con
 
 UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::SubNode* op,
                                                        InplaceMode inplace_mode) {
-  PrimExpr ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
-                     ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                         SimplifierBase::Mutate_(op, inplace_mode)))
+  PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
+                     .as_or_throw<UnchangedOr<PrimExpr>>()
                      .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   op = ret.as<prim::SubNode>();
   if (auto const_res = TryConstFold<prim::Sub>(op->a, op->b)) return *std::move(const_res);
@@ -773,9 +770,8 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::SubNode* op,
 
 UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::MulNode* op,
                                                        InplaceMode inplace_mode) {
-  PrimExpr ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
-                     ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                         SimplifierBase::Mutate_(op, inplace_mode)))
+  PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
+                     .as_or_throw<UnchangedOr<PrimExpr>>()
                      .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   op = ret.as<prim::MulNode>();
   if (auto const_res = TryConstFold<prim::Mul>(op->a, op->b)) return *std::move(const_res);
@@ -816,9 +812,8 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::MulNode* op,
 
 UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::DivNode* op,
                                                        InplaceMode inplace_mode) {
-  PrimExpr ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
-                     ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                         SimplifierBase::Mutate_(op, inplace_mode)))
+  PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
+                     .as_or_throw<UnchangedOr<PrimExpr>>()
                      .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   op = ret.as<prim::DivNode>();
   if (auto const_res = TryConstFold<prim::Div>(op->a, op->b)) return *std::move(const_res);
@@ -973,9 +968,8 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::DivNode* op,
 
 UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::ModNode* op,
                                                        InplaceMode inplace_mode) {
-  PrimExpr ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
-                     ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                         SimplifierBase::Mutate_(op, inplace_mode)))
+  PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
+                     .as_or_throw<UnchangedOr<PrimExpr>>()
                      .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   op = ret.as<prim::ModNode>();
   if (auto const_res = TryConstFold<prim::Mod>(op->a, op->b)) return *std::move(const_res);
@@ -1068,9 +1062,8 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::ModNode* op,
 
 UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode* op,
                                                        InplaceMode inplace_mode) {
-  PrimExpr ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
-                     ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                         SimplifierBase::Mutate_(op, inplace_mode)))
+  PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
+                     .as_or_throw<UnchangedOr<PrimExpr>>()
                      .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   op = ret.as<prim::FloorDivNode>();
   if (auto const_res = TryConstFold<prim::FloorDiv>(op->a, op->b)) return *std::move(const_res);
@@ -1274,9 +1267,8 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode*
 
 UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode* op,
                                                        InplaceMode inplace_mode) {
-  PrimExpr ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
-                     ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                         SimplifierBase::Mutate_(op, inplace_mode)))
+  PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
+                     .as_or_throw<UnchangedOr<PrimExpr>>()
                      .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   op = ret.as<prim::FloorModNode>();
   if (auto const_res = TryConstFold<prim::FloorMod>(op->a, op->b)) return *std::move(const_res);
@@ -1450,9 +1442,8 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
 
 UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::MinNode* op,
                                                        InplaceMode inplace_mode) {
-  PrimExpr ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
-                     ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                         SimplifierBase::Mutate_(op, inplace_mode)))
+  PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
+                     .as_or_throw<UnchangedOr<PrimExpr>>()
                      .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   op = ret.as<prim::MinNode>();
   if (auto const_res = TryConstFold<prim::Min>(op->a, op->b)) return *std::move(const_res);
@@ -1638,9 +1629,8 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::MinNode* op,
 
 UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::MaxNode* op,
                                                        InplaceMode inplace_mode) {
-  PrimExpr ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
-                     ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                         SimplifierBase::Mutate_(op, inplace_mode)))
+  PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
+                     .as_or_throw<UnchangedOr<PrimExpr>>()
                      .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   op = ret.as<prim::MaxNode>();
   if (auto const_res = TryConstFold<prim::Max>(op->a, op->b)) return *std::move(const_res);
@@ -1853,9 +1843,8 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::EQNode* op,
                                                        InplaceMode inplace_mode) {
   // The qualified native hook preserves EQ; primitive children use unchecked category-preserving
   // results.
-  prim::EQ ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<prim::EQ>(
-                     ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                         SimplifierBase::Mutate_(op, inplace_mode)))
+  prim::EQ ret = SimplifierBase::Mutate_(op, inplace_mode)
+                     .as_or_throw<UnchangedOr<prim::EQ>>()
                      .ValueOrUnchanged(ffi::GetRef<prim::EQ>(op));
   op = ret.get();
 
@@ -1913,9 +1902,8 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(prim::EQ ret, InplaceMode in
 
 UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::NENode* op,
                                                        InplaceMode inplace_mode) {
-  PrimExpr ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
-                     ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                         SimplifierBase::Mutate_(op, inplace_mode)))
+  PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
+                     .as_or_throw<UnchangedOr<PrimExpr>>()
                      .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   op = ret.as<prim::NENode>();
 
@@ -1954,9 +1942,8 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::NENode* op,
 
 UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::LENode* op,
                                                        InplaceMode inplace_mode) {
-  PrimExpr ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
-                     ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                         SimplifierBase::Mutate_(op, inplace_mode)))
+  PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
+                     .as_or_throw<UnchangedOr<PrimExpr>>()
                      .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   op = ret.as<prim::LENode>();
   TVM_FFI_ICHECK(op);
@@ -2017,9 +2004,8 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::LTNode* op,
                                                        InplaceMode inplace_mode) {
   // The qualified native hook preserves LT; primitive children use unchecked category-preserving
   // results.
-  prim::LT node = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<prim::LT>(
-                      ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                          SimplifierBase::Mutate_(op, inplace_mode)))
+  prim::LT node = SimplifierBase::Mutate_(op, inplace_mode)
+                      .as_or_throw<UnchangedOr<prim::LT>>()
                       .ValueOrUnchanged(ffi::GetRef<prim::LT>(op));
   op = node.get();
 
@@ -2197,9 +2183,8 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::NotNode* op,
                                                        InplaceMode inplace_mode) {
   // The qualified native hook preserves Not; primitive children use unchecked category-preserving
   // results.
-  prim::Not ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<prim::Not>(
-                      ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                          SimplifierBase::Mutate_(op, inplace_mode)))
+  prim::Not ret = SimplifierBase::Mutate_(op, inplace_mode)
+                      .as_or_throw<UnchangedOr<prim::Not>>()
                       .ValueOrUnchanged(ffi::GetRef<prim::Not>(op));
   if (auto const_res = TryConstFold<prim::Not>(ret->a)) return *std::move(const_res);
   if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
@@ -2232,9 +2217,8 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::AndNode* op,
   PrimExpr ret;
   // If this extension isn't enabled, just delegate out.
   if (!(enabled_extensions_ & kApplyConstraintsToBooleanBranches)) {
-    ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
-              ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                  SimplifierBase::Mutate_(op, inplace_mode)))
+    ret = SimplifierBase::Mutate_(op, inplace_mode)
+              .as_or_throw<UnchangedOr<PrimExpr>>()
               .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   } else {
     PrimExpr a = op->a;
@@ -2387,9 +2371,8 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::OrNode* op,
   PrimExpr ret;
   // If this extension isn't enabled, just delegate out.
   if (!(enabled_extensions_ & kApplyConstraintsToBooleanBranches)) {
-    ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
-              ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                  SimplifierBase::Mutate_(op, inplace_mode)))
+    ret = SimplifierBase::Mutate_(op, inplace_mode)
+              .as_or_throw<UnchangedOr<PrimExpr>>()
               .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   } else {
     PrimExpr a = op->a;
@@ -2488,9 +2471,8 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::OrNode* op,
 
 UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::SelectNode* op,
                                                        InplaceMode inplace_mode) {
-  PrimExpr ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
-                     ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                         SimplifierBase::Mutate_(op, inplace_mode)))
+  PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
+                     .as_or_throw<UnchangedOr<PrimExpr>>()
                      .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   op = ret.as<prim::SelectNode>();
   if (op == nullptr) return ret;
@@ -2503,9 +2485,8 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::SelectNode* o
 UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const CallNode* op,
                                                        InplaceMode inplace_mode) {
   // add condition context to if_then_else
-  Expr expr = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<Expr>(
-                  ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                      SimplifierBase::Mutate_(op, inplace_mode)))
+  Expr expr = SimplifierBase::Mutate_(op, inplace_mode)
+                  .as_or_throw<UnchangedOr<Expr>>()
                   .ValueOrUnchanged(ffi::GetRef<Expr>(op));
   auto opt_ret = expr.as<PrimExpr>();
   if (!opt_ret) {
@@ -2624,9 +2605,8 @@ UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const VarNode* op,
 
 UnchangedOr<ffi::Any> RewriteSimplifier::Impl::Mutate_(const prim::CastNode* op,
                                                        InplaceMode inplace_mode) {
-  PrimExpr ret = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
-                     ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                         SimplifierBase::Mutate_(op, inplace_mode)))
+  PrimExpr ret = SimplifierBase::Mutate_(op, inplace_mode)
+                     .as_or_throw<UnchangedOr<PrimExpr>>()
                      .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   op = ret.as<prim::CastNode>();
   return cast(ret.ty(), op->value);

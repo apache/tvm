@@ -173,9 +173,8 @@ class Scalarizer : public tvm::ExprMutator {
   // Disable in-place mutation so changed children cannot be reported as Unchanged.
   template <typename Node, typename F>
   UnchangedOr<ffi::Any> Rebuild(const Node* op, F rebuild) {
-    UnchangedOr<Expr> rewritten_u = ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<Expr>(
-        ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-            tvm::ExprMutator::Mutate_(op, InplaceMode::kDisallow)));
+    UnchangedOr<Expr> rewritten_u = tvm::ExprMutator::Mutate_(op, InplaceMode::kDisallow)
+                                        .template as_or_throw<UnchangedOr<Expr>>();
     if (rewritten_u.IsUnchanged()) return ffi::Unchanged();
     Expr rewritten = std::move(rewritten_u).ValueUnchecked();
     return rebuild(static_cast<const Node*>(rewritten.get()));
