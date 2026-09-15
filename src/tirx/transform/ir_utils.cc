@@ -785,6 +785,82 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
   return result;
 }
 
+namespace {
+
+std::optional<uint64_t> GetConstUInt(const PrimExpr& value) {
+  if (const auto* imm = value.as<IntImmNode>()) {
+    if (imm->value >= 0) return static_cast<uint64_t>(imm->value);
+  } else if (const auto* call = value.as<CallNode>()) {
+    if (call->op.same_as(builtin::large_uint_imm())) {
+      return static_cast<uint64_t>(call->args[0].as_or_throw<IntImm>()->value) |
+             (static_cast<uint64_t>(call->args[1].as_or_throw<IntImm>()->value) << 32);
+    }
+  }
+  return std::nullopt;
+}
+
+std::optional<std::pair<Var, Range>> GetUnsignedRange(const PrimExpr& e) {
+  auto match = [&e](const auto* op) -> std::optional<std::pair<Var, Range>> {
+    if (!op) return std::nullopt;
+    for (bool reverse : {false, true}) {
+      PrimExpr value = reverse ? op->b : op->a;
+      PrimExpr bound = reverse ? op->a : op->b;
+      const auto* var = value.as<VarNode>();
+      PrimType dtype = value.ty();
+      // Only direct comparisons are safe; unsigned arithmetic may wrap.
+      if (!var || !dtype.IsScalar() || !dtype.MatchesCode(DLDataTypeCode::kDLUInt) ||
+          dtype.bits() > 64) {
+        continue;
+      }
+      auto constant = GetConstUInt(bound);
+      if (!constant) continue;
+      uint64_t c = *constant;
+      uint64_t maximum = UINT64_MAX >> (64 - dtype.bits());
+      uint64_t lower = 0, upper = maximum;
+      if (e->IsInstance<prim::EQNode>()) {
+        lower = upper = c;
+      } else if (e->IsInstance<prim::NENode>()) {
+        // Only an excluded endpoint can be represented by a single interval.
+        if (c == 0) {
+          lower = 1;
+        } else if (c == maximum) {
+          upper = maximum - 1;
+        } else {
+          return std::nullopt;
+        }
+      } else {
+        bool is_lower = e->IsInstance<prim::GTNode>() || e->IsInstance<prim::GENode>();
+        bool strict = e->IsInstance<prim::GTNode>() || e->IsInstance<prim::LTNode>();
+        if (reverse) is_lower = !is_lower;
+        // Leave impossible endpoint comparisons unresolved, rather than wrap.
+        if (strict && ((is_lower && c == maximum) || (!is_lower && c == 0))) {
+          return std::nullopt;
+        }
+        if (is_lower) {
+          lower = c + strict;
+        } else {
+          upper = c - strict;
+        }
+      }
+      // The full type domain has no representable unsigned extent and adds no bound.
+      if (lower == 0 && upper == maximum) return std::nullopt;
+      return std::make_pair(
+          ffi::GetRef<Var>(var),
+          Range::FromMinExtent(MakeConst(dtype, lower), MakeConst(dtype, upper - lower + 1)));
+    }
+    return std::nullopt;
+  };
+  if (const auto* op = e.as<prim::EQNode>()) return match(op);
+  if (const auto* op = e.as<prim::NENode>()) return match(op);
+  if (const auto* op = e.as<prim::LTNode>()) return match(op);
+  if (const auto* op = e.as<prim::LENode>()) return match(op);
+  if (const auto* op = e.as<prim::GTNode>()) return match(op);
+  if (const auto* op = e.as<prim::GENode>()) return match(op);
+  return std::nullopt;
+}
+
+}  // namespace
+
 ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition() {
   // extract equations and related vars from condition expression.
   // currently only extract simple integral equations which could be solvable.
@@ -799,6 +875,10 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
     if (e->IsInstance<prim::GENode>() || e->IsInstance<prim::GTNode>() ||
         e->IsInstance<prim::LENode>() || e->IsInstance<prim::LTNode>() ||
         e->IsInstance<prim::EQNode>() || e->IsInstance<prim::NENode>()) {
+      if (GetUnsignedRange(e)) {
+        equations.push_back(e);
+        return;
+      }
       bool is_simple = true;
       std::vector<PrimVar> cand_vars;
       auto walk_fn = [&cand_vars, &is_simple,
@@ -807,8 +887,13 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
           return ffi::WalkResult::Advance();
         } else if (const VarNode* var = obj.as<VarNode>()) {
           PrimType var_ty = var->ty.as_or_throw<PrimType>();
-          if (var_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
+          if (var_ty.MatchesCode(DLDataTypeCode::kDLInt)) {
             cand_vars.push_back(ffi::GetRef<Var>(var).as_or_throw<PrimVar>());
+          } else {
+            // The inequality solver constructs signed coefficients in the
+            // variable's type. Unsigned arithmetic cannot be treated as
+            // ordered integer arithmetic; leave such conditions unresolved.
+            is_simple = false;
           }
         } else {
           is_simple &= obj->IsInstance<prim::AddNode>() || obj->IsInstance<prim::SubNode>() ||
@@ -839,7 +924,7 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
     }
   };
   fvisit(condition);
-  if (equations.empty() || vars.empty()) {
+  if (equations.empty()) {
     return std::nullopt;
   }
   // build dom ranges for related vars
@@ -859,13 +944,39 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
       ranges.Set(v, Range::FromMinExtent(dom.min(), analyzer->Simplify(dom.max() - dom.min() + 1)));
     }
   }
-  // solve constraints
-  arith::IntConstraints constraint(vars, ranges, equations);
-  arith::IntConstraints result = arith::SolveInequalitiesToRange(constraint);
-  if (!result->relations.empty()) {
-    return std::nullopt;
+  // Keep unsigned comparisons out of signed-coefficient elimination.
+  ffi::Array<PrimExpr> signed_equations;
+  for (const PrimExpr& e : equations) {
+    if (!GetUnsignedRange(e)) signed_equations.push_back(e);
   }
-  return result;
+  arith::IntConstraints constraint(vars, ranges, signed_equations);
+  arith::IntConstraints result =
+      vars.empty() ? constraint : arith::SolveInequalitiesToRange(constraint);
+  if (result->relations.empty()) {
+    ranges = result->ranges;
+  } else {
+    ranges.clear();
+  }
+  // Reuse the same range map for directly solved unsigned comparisons.
+  for (const PrimExpr& e : equations) {
+    if (auto bound = GetUnsignedRange(e)) {
+      auto [var, range] = *bound;
+      if (auto previous = ranges.Get(var)) {
+        uint64_t min = GetConstUInt(range->min).value();
+        uint64_t extent = GetConstUInt(range->extent).value();
+        uint64_t previous_min = GetConstUInt(previous.value()->min).value();
+        uint64_t previous_extent = GetConstUInt(previous.value()->extent).value();
+        uint64_t lower = std::max(min, previous_min);
+        uint64_t upper = std::min(min + (extent - 1), previous_min + (previous_extent - 1));
+        if (lower > upper) return std::nullopt;
+        range = Range::FromMinExtent(MakeConst(range->min.ty(), lower),
+                                     MakeConst(range->min.ty(), upper - lower + 1));
+      }
+      ranges.Set(var, range);
+    }
+  }
+  if (ranges.empty()) return std::nullopt;
+  return arith::IntConstraints(vars, ranges, {});
 }
 
 ConditionalBoundsContext::ConditionalBoundsContext(
@@ -888,7 +999,18 @@ void ConditionalBoundsContext::EnterWithScope() {
   // update solved var ranges
   for (const auto& kv : constraints.value()->ranges) {
     const VarNode* var = kv.first.get();
-    arith::IntSet new_dom = arith::IntSet::FromRange(kv.second);
+    arith::IntSet new_dom;
+    if (var->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLUInt)) {
+      // These static ranges are nonempty. Compute the endpoint without unsigned
+      // wraparound or signed-int64 constant folding in IntSet::FromRange.
+      uint64_t min = GetConstUInt(kv.second->min).value();
+      uint64_t extent = GetConstUInt(kv.second->extent).value();
+      new_dom = arith::IntSet::Interval(
+          kv.second->min,
+          extent == 1 ? kv.second->min : MakeConst(kv.second->min.ty(), min + (extent - 1)));
+    } else {
+      new_dom = arith::IntSet::FromRange(kv.second);
+    }
     auto relax_it = relax_map_->find(var);
     if (relax_it != relax_map_->end()) {
       // this is a bound for relaxed var
