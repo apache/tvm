@@ -1395,7 +1395,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         // and finally reinterpret the result as fp4x2.
         value =
             Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
-        tirx::PrimVar temp_var("temp_var", PrimType::UInt(16));
+        PrimVar temp_var("temp_var", PrimType::UInt(16));
         value = prim::Let(temp_var, value,
                           prim::Cast(PrimType::UInt(8),
                                      (temp_var & IntImm(PrimType::UInt(16), 0xF)) |
@@ -1404,7 +1404,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         value = prim::Cast(
             PrimType::UInt(16),
             Call(PrimType::UInt(8), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>());
-        tirx::PrimVar temp_var("temp_var", PrimType::UInt(16));
+        PrimVar temp_var("temp_var", PrimType::UInt(16));
         value = prim::Let(temp_var, value,
                           (temp_var & IntImm(PrimType::UInt(16), 0xF)) |
                               ((temp_var & IntImm(PrimType::UInt(16), 0xF0)) << 4));
@@ -1416,7 +1416,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         // and finally reinterpret the result as fp4x4.
         value =
             Call(PrimType::UInt(32), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
-        tirx::PrimVar temp_var("temp_var", PrimType::UInt(32));
+        PrimVar temp_var("temp_var", PrimType::UInt(32));
         value = prim::Let(temp_var, value,
                           prim::Cast(PrimType::UInt(16),
                                      (temp_var & IntImm(PrimType::UInt(32), 0xF)) |
@@ -1427,7 +1427,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         value = prim::Cast(PrimType::UInt(32),
                            Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value})
                                .as_or_throw<PrimExpr>());
-        tirx::PrimVar temp_var("temp_var", PrimType::UInt(32));
+        PrimVar temp_var("temp_var", PrimType::UInt(32));
         value = prim::Let(temp_var, value,
                           (temp_var & IntImm(PrimType::UInt(32), 0xF)) |
                               ((temp_var & IntImm(PrimType::UInt(32), 0xF0)) << 4) |

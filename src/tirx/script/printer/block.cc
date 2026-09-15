@@ -53,7 +53,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
       PrimExpr value = realize->iter_values[i];
       if (iter_var->iter_type == tirx::IterVarType::kDataPar ||
           iter_var->iter_type == tirx::IterVarType::kCommReduce) {
-        if (auto var = value.as<tirx::PrimVar>()) {
+        if (auto var = value.as<PrimVar>()) {
           if (loop_vars.count(var.value().get())) {
             tirx::For for_loop = loop_vars.at(var.value().get());
             if (expr_equal(for_loop->min, iter_var->dom->min) &&
