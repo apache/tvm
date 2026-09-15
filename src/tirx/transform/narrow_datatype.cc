@@ -22,6 +22,7 @@
  * \brief narrow the datatype of indexing vars
  */
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -29,10 +30,9 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
-#include "../../arith/ir_visitor_with_analyzer.h"
 #include "../ir/data_type_rewriter.h"
 
 namespace tvm {
@@ -63,7 +63,6 @@ namespace tirx {
 
 using arith::Analyzer;
 using arith::ConstIntBound;
-using arith::IRMutatorWithAnalyzer;
 
 // Determine the result dtype for Var, IntImm and Cast,
 // which will be stored in `vmap` eventually.

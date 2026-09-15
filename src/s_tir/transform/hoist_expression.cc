@@ -36,8 +36,8 @@
 #include <utility>
 
 #include "../../arith/interval_set.h"
-#include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "../../tirx/ir_mutator_with_analyzer.h"
 #include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
@@ -451,7 +451,7 @@ class HoistInfoCollector : public StmtExprVisitor {
   std::unordered_set<const VarNode*> active_loop_vars;
 };
 
-class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
+class ExpressionHoister : public tirx::IRMutatorWithAnalyzer {
  public:
   static Stmt Hoist(Stmt stmt, HoistExpressionConfig config) {
     auto loop_info = HoistInfoCollector::Collect(stmt, config);
@@ -464,7 +464,7 @@ class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
   }
 
  private:
-  using Parent = arith::IRMutatorWithAnalyzer;
+  using Parent = tirx::IRMutatorWithAnalyzer;
   using Parent::VisitExpr_;
   using Parent::VisitStmt_;
 

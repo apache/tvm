@@ -22,8 +22,7 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt.h>
-
-#include "../../arith/ir_visitor_with_analyzer.h"
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace s_tir {

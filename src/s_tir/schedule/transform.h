@@ -27,8 +27,8 @@
 #include <unordered_map>
 #include <utility>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../tirx/ir/functor_common.h"
+#include "../../tirx/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
@@ -236,7 +236,7 @@ ffi::Optional<s_tir::LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
 /*!
  * \brief Simplifier for indices of buffer access and block buffer access regions.
  */
-class BlockBufferAccessSimplifier : public arith::IRMutatorWithAnalyzer {
+class BlockBufferAccessSimplifier : public tirx::IRMutatorWithAnalyzer {
  public:
   /*!
    * \brief Simplify indices of buffer access and block buffer access regions in the statement

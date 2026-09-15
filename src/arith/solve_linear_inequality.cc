@@ -28,9 +28,9 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
 
 #include <utility>
@@ -81,14 +81,26 @@ void DebugPrint(const std::vector<PrimExpr>& current_ineq_set,
 /*!
  * \brief normalize to the form `expr <= 0`
  */
-class NormalizeComparisons : public ExprMutator {
+class NormalizeComparisons : public tvm::ExprMutator {
  public:
-  Expr VisitExpr_(const prim::EQNode* op) override { return Make<prim::EQ>(op->a, op->b); }
-  Expr VisitExpr_(const prim::NENode* op) override { return Make<prim::NE>(op->a, op->b); }
-  Expr VisitExpr_(const prim::LTNode* op) override { return Make<prim::LT>(op->a, op->b); }
-  Expr VisitExpr_(const prim::LENode* op) override { return Make<prim::LE>(op->a, op->b); }
-  Expr VisitExpr_(const prim::GTNode* op) override { return Make<prim::LT>(op->b, op->a); }
-  Expr VisitExpr_(const prim::GENode* op) override { return Make<prim::LE>(op->b, op->a); }
+  UnchangedOr<PrimExpr> Mutate_(const prim::EQNode* op, InplaceMode inplace_mode) override {
+    return Make<prim::EQ>(op->a, op->b);
+  }
+  UnchangedOr<PrimExpr> Mutate_(const prim::NENode* op, InplaceMode inplace_mode) override {
+    return Make<prim::NE>(op->a, op->b);
+  }
+  UnchangedOr<PrimExpr> Mutate_(const prim::LTNode* op, InplaceMode inplace_mode) override {
+    return Make<prim::LT>(op->a, op->b);
+  }
+  UnchangedOr<PrimExpr> Mutate_(const prim::LENode* op, InplaceMode inplace_mode) override {
+    return Make<prim::LE>(op->a, op->b);
+  }
+  UnchangedOr<PrimExpr> Mutate_(const prim::GTNode* op, InplaceMode inplace_mode) override {
+    return Make<prim::LT>(op->b, op->a);
+  }
+  UnchangedOr<PrimExpr> Mutate_(const prim::GENode* op, InplaceMode inplace_mode) override {
+    return Make<prim::LE>(op->b, op->a);
+  }
 
  private:
   template <class T>
@@ -219,10 +231,10 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
 
   // Simplify each inequality into the form `expr <= 0` and add to current formulas
   for (const PrimExpr& ineq : system_to_solve->relations) {
-    AddInequality(&current_ineq_set_to_solve,
-                  NormalizeComparisons()(analyzer->Simplify(ineq, kSimplifyRewriteCanonicalRewrite))
-                      .as_or_throw<PrimExpr>(),
-                  analyzer.get());
+    PrimExpr simplified = analyzer->Simplify(ineq, kSimplifyRewriteCanonicalRewrite);
+    PrimExpr normalized =
+        ffi::make_object<NormalizeComparisons>()->Mutate(simplified).ValueOrUnchanged(simplified);
+    AddInequality(&current_ineq_set_to_solve, normalized, analyzer.get());
   }
 
   ffi::Map<Var, IntGroupBounds> res_bounds;
@@ -262,9 +274,9 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
         // we need rewrite_simplify -> canonical_simplify -> rewrite_simplify
         // to help simplify things like (((y + 10) - (-1*(y - 20))) <= 0) => y - 5 <= 0
         // with steps = 2 it's (y*2) - 10 <= 0
+        new_ineq = analyzer->Simplify(new_ineq, kSimplifyRewriteCanonicalRewrite);
         new_ineq =
-            NormalizeComparisons()(analyzer->Simplify(new_ineq, kSimplifyRewriteCanonicalRewrite))
-                .as_or_throw<PrimExpr>();
+            ffi::make_object<NormalizeComparisons>()->Mutate(new_ineq).ValueOrUnchanged(new_ineq);
         AddInequality(&next_ineq_set_to_solve, new_ineq, analyzer.get());
       }
     }
@@ -471,12 +483,12 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
   analyzer->Bind(vranges);
 
   auto subst = [&res_src_to_dst](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-    if (auto repl = res_src_to_dst.Get(var)) return ffi::Any(*std::move(repl));
+    if (auto repl = res_src_to_dst.Get(var)) return *std::move(repl);
     return ffi::Unchanged();
   };
   auto f_dst_to_src =
       [&res_dst_to_src](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-    if (auto repl = res_dst_to_src.Get(var)) return ffi::Any(*std::move(repl));
+    if (auto repl = res_dst_to_src.Get(var)) return *std::move(repl);
     return ffi::Unchanged();
   };
 

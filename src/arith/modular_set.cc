@@ -25,9 +25,9 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
 
 #include <limits>
@@ -98,7 +98,8 @@ struct ModularSetAnalyzer::Entry {
   }
 };
 
-class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(const Expr&)> {
+class ModularSetAnalyzer::Impl : public ffi::Object,
+                                 public tvm::ExprFunctor<ModularSetAnalyzer::Entry(const Expr&)> {
  public:
   explicit Impl(AnalyzerObj* parent) : parent_(parent) {}
 
@@ -133,42 +134,42 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   }
 
   // Override visitor behaviors
-  Entry VisitExprDefault_(const ffi::Object* op) final { return Everything(); }
+  Entry DispatchDefault_(const ffi::Object* op) final { return Everything(); }
 
-  Entry VisitExpr_(const prim::LetNode* op) final {
+  Entry Dispatch_(const prim::LetNode* op) final {
     auto it = var_map_.find(op->var);
     // if the var has not been binded, update the info.
     if (it == var_map_.end()) {
-      var_map_[op->var] = this->VisitExpr(op->value);
-      Entry ret = VisitExpr(op->body);
+      var_map_[op->var] = this->Dispatch(op->value);
+      Entry ret = Dispatch(op->body);
       var_map_.erase(op->var);
       return ret;
     } else {
-      return VisitExpr(op->body);
+      return Dispatch(op->body);
     }
   }
 
-  Entry VisitExpr_(const prim::CastNode* op) final { return VisitExpr(op->value); }
+  Entry Dispatch_(const prim::CastNode* op) final { return Dispatch(op->value); }
 
-  Entry VisitExpr_(const IntImmNode* op) final { return Entry(0, op->value); }
+  Entry Dispatch_(const IntImmNode* op) final { return Entry(0, op->value); }
 
-  Entry VisitExpr_(const prim::AddNode* op) final {
-    Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
+  Entry Dispatch_(const prim::AddNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = Dispatch(op->b);
     int64_t coeff = ZeroAwareGCD(a.coeff, b.coeff);
     return Entry(coeff, a.base + b.base);
   }
 
-  Entry VisitExpr_(const prim::SubNode* op) final {
-    Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
+  Entry Dispatch_(const prim::SubNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = Dispatch(op->b);
     int64_t coeff = ZeroAwareGCD(a.coeff, b.coeff);
     return Entry(coeff, a.base - b.base);
   }
 
-  Entry VisitExpr_(const prim::MulNode* op) final {
-    Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
+  Entry Dispatch_(const prim::MulNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = Dispatch(op->b);
     // Simplification rule, x, y, z are in Z
     // (p x + n) (q y + m)
     // -> pq xy + pm x + qn y + mn
@@ -181,7 +182,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   }
 
   Entry DivByConst(const PrimExpr& lhs, int64_t val, bool round_down) {
-    Entry a = VisitExpr(lhs);
+    Entry a = Dispatch(lhs);
     TVM_FFI_ICHECK_NE(val, 0);
     if (a.coeff % val == 0) {
       if (a.base == 0) {
@@ -197,42 +198,42 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     return Everything();
   }
 
-  Entry VisitExpr_(const prim::DivNode* op) final {
-    Entry b = VisitExpr(op->b);
+  Entry Dispatch_(const prim::DivNode* op) final {
+    Entry b = Dispatch(op->b);
     if (b.is_const()) {
       return DivByConst(op->a, b.base, false);
     }
     return Everything();
   }
 
-  Entry VisitExpr_(const prim::FloorDivNode* op) final {
-    Entry b = VisitExpr(op->b);
+  Entry Dispatch_(const prim::FloorDivNode* op) final {
+    Entry b = Dispatch(op->b);
     if (b.is_const()) {
       return DivByConst(op->a, b.base, true);
     }
     return Everything();
   }
 
-  Entry VisitExpr_(const prim::MinNode* op) final {
-    Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
+  Entry Dispatch_(const prim::MinNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = Dispatch(op->b);
     return Union(a, b);
   }
 
-  Entry VisitExpr_(const prim::MaxNode* op) final {
-    Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
+  Entry Dispatch_(const prim::MaxNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = Dispatch(op->b);
     return Union(a, b);
   }
 
-  Entry VisitExpr_(const prim::SelectNode* op) final {
-    Entry a = VisitExpr(op->true_value);
-    Entry b = VisitExpr(op->false_value);
+  Entry Dispatch_(const prim::SelectNode* op) final {
+    Entry a = Dispatch(op->true_value);
+    Entry b = Dispatch(op->false_value);
     return Union(a, b);
   }
 
   Entry ModByConst(const PrimExpr& lhs, int64_t val, bool round_down) {
-    Entry a = VisitExpr(lhs);
+    Entry a = Dispatch(lhs);
     TVM_FFI_ICHECK_NE(val, 0);
     int64_t coeff = ZeroAwareGCD(a.coeff, val);
     if (a.base % coeff == 0 ||
@@ -242,23 +243,23 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     return Everything();
   }
 
-  Entry VisitExpr_(const prim::FloorModNode* op) final {
-    Entry b = VisitExpr(op->b);
+  Entry Dispatch_(const prim::FloorModNode* op) final {
+    Entry b = Dispatch(op->b);
     if (b.is_const()) {
       return ModByConst(op->a, b.base, true);
     }
     return Everything();
   }
 
-  Entry VisitExpr_(const prim::ModNode* op) final {
-    Entry b = VisitExpr(op->b);
+  Entry Dispatch_(const prim::ModNode* op) final {
+    Entry b = Dispatch(op->b);
     if (b.is_const()) {
       return ModByConst(op->a, b.base, false);
     }
     return Everything();
   }
 
-  Entry VisitExpr_(const CallNode* op) final {
+  Entry Dispatch_(const CallNode* op) final {
     // only special handle >> which can be
     // used for index calculation.
     if (op->op.same_as(prim::builtin::shift_right())) {
@@ -272,7 +273,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     }
   }
 
-  Entry VisitExpr_(const VarNode* op) final {
+  Entry Dispatch_(const VarNode* op) final {
     Var v = ffi::GetRef<Var>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {
@@ -283,8 +284,8 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   }
 
   Entry VisitLeftShift(const CallNode* op) {
-    Entry a = VisitExpr(op->args[0].as_or_throw<PrimExpr>());
-    Entry b = VisitExpr(op->args[1].as_or_throw<PrimExpr>());
+    Entry a = Dispatch(op->args[0].as_or_throw<PrimExpr>());
+    Entry b = Dispatch(op->args[1].as_or_throw<PrimExpr>());
     if (b.is_const()) {
       return Entry(a.coeff << b.base, a.base << b.base);
     }
@@ -292,7 +293,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   }
 
   Entry VisitRightShift(const CallNode* op) {
-    Entry b = VisitExpr(op->args[1].as_or_throw<PrimExpr>());
+    Entry b = Dispatch(op->args[1].as_or_throw<PrimExpr>());
     // a c x  / c -> a x
     if (b.is_const()) {
       return DivByConst(op->args[0].as_or_throw<PrimExpr>(), static_cast<int64_t>(1) << b.base,
@@ -302,7 +303,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   }
 
   Entry VisitBitwiseAnd(const CallNode* op) {
-    Entry b = VisitExpr(op->args[1].as_or_throw<PrimExpr>());
+    Entry b = Dispatch(op->args[1].as_or_throw<PrimExpr>());
     if (b.is_const()) {
       int shift;
       if (is_const_power_of_two_integer(IntImm::Int32(b.base + 1), &shift)) {
@@ -396,7 +397,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
 };
 
 ModularSet ModularSetAnalyzer::operator()(const PrimExpr& expr) {
-  Entry ret = impl_->VisitExpr(expr);
+  Entry ret = impl_->Dispatch(expr);
   return ModularSet(ret.coeff, ret.base);
 }
 
@@ -408,9 +409,10 @@ std::function<void()> ModularSetAnalyzer::EnterConstraint(const PrimExpr& constr
   return impl_->EnterConstraint(constraint);
 }
 
-ModularSetAnalyzer::ModularSetAnalyzer(AnalyzerObj* parent) : impl_(new Impl(parent)) {}
+ModularSetAnalyzer::ModularSetAnalyzer(AnalyzerObj* parent)
+    : impl_(ffi::make_object<Impl>(parent)) {}
 
-ModularSetAnalyzer::~ModularSetAnalyzer() { delete impl_; }
+ModularSetAnalyzer::~ModularSetAnalyzer() = default;
 
 void ModularSetAnalyzer::CopyFrom(const ModularSetAnalyzer& other) {
   impl_->CopyFrom(*other.impl_);

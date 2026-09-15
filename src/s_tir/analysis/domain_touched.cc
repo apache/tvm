@@ -34,7 +34,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../arith/ir_visitor_with_analyzer.h"
+#include "../../tirx/ir_visitor_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
@@ -63,7 +63,7 @@ using BufferDomainAccess = std::tuple<LoadAccess, StoreAccess, CombinedAccess>;
 }  // namespace
 
 // Find Read region of the tensor in the stmt.
-class BufferTouchedDomain final : public arith::IRVisitorWithAnalyzer {
+class BufferTouchedDomain final : public tirx::IRVisitorWithAnalyzer {
  public:
   BufferTouchedDomain(const Stmt& stmt) { operator()(stmt); }
 
@@ -99,7 +99,7 @@ class BufferTouchedDomain final : public arith::IRVisitorWithAnalyzer {
   }
 
  private:
-  using Parent = arith::IRVisitorWithAnalyzer;
+  using Parent = tirx::IRVisitorWithAnalyzer;
   using Parent::VisitExpr_;
   using Parent::VisitStmt_;
 

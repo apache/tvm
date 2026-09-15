@@ -30,12 +30,12 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -108,9 +108,9 @@ void EnterZ3ContextScope() {}
 
 void ExitZ3ContextScope() {}
 
-class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
+class Z3Prover::Impl : public ffi::Object, tvm::ExprFunctor<z3::expr(const Expr&)> {
  public:
-  using Base = ExprFunctor<z3::expr(const Expr&)>;
+  using Base = tvm::ExprFunctor<z3::expr(const Expr&)>;
   using Self = Z3Prover::Impl;
 
   AnalyzerObj* analyzer;
@@ -405,7 +405,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
 
   void ApplyBindValue(const Var& var, const PrimExpr& value) {
     // we add the binding whenever the value is pure,
-    // because non-pure parts are handling by creating free variables in VisitExpr
+    // because non-pure parts are handling by creating free variables in Dispatch
     MemoPut(var.as_or_throw<PrimExpr>(), ConvertInt(value));
   }
 
@@ -710,12 +710,12 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   }
 
   /// @brief Visit expression with memoization
-  z3::expr VisitExpr(const Expr& expr) override {
+  z3::expr Dispatch(const Expr& expr) override {
     PrimExpr e = expr.as_or_throw<PrimExpr>();
     if (const z3::expr* hit = MemoGet(e)) {
       return *hit;
     }
-    auto res = Base::VisitExpr(e);
+    auto res = Base::Dispatch(e);
     auto side_effect = SideEffect(e);
     if (side_effect <= CallEffectKind::kPure) {
       MemoPut(e, res);
@@ -754,7 +754,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
 
   /// @brief Visit the expression and convert it into z3 integer expression
   z3::expr VisitInt(const PrimExpr& expr) {
-    auto e = VisitExpr(expr);
+    auto e = Dispatch(expr);
     if (e.is_bool()) {
       return z3::ite(e, ctx->int_val(1), ctx->int_val(0));
     } else {
@@ -764,7 +764,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
 
   /// @brief Visit the expression and convert it into z3 boolean expression
   z3::expr VisitBool(const PrimExpr& e) {
-    auto expr = VisitExpr(e);
+    auto expr = Dispatch(e);
     if (expr.is_bool()) {
       return expr;
     } else {
@@ -781,13 +781,13 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     }
   }
 
-  z3::expr VisitExpr_(const prim::LetNode* op) override {
+  z3::expr Dispatch_(const prim::LetNode* op) override {
     if (IsZ3SupportedExpr(op->var.get())) {
       MemoPut(op->var.as_or_throw<PrimExpr>(), VisitInt(op->value));
     }
-    return VisitExpr(op->body);
+    return Dispatch(op->body);
   }
-  z3::expr VisitExpr_(const prim::CastNode* op) override {
+  z3::expr Dispatch_(const prim::CastNode* op) override {
     // if the inner dtype is valid, we just visit it
     if (IsZ3SupportedExpr(op->value.get()) && IsZ3SupportedExpr(op)) {
       return VisitInt(op->value);
@@ -796,14 +796,14 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
       return Create(op);
     }
   }
-  z3::expr VisitExpr_(const VarNode* op) override { return Create(op); }
-  z3::expr VisitExpr_(const TensorLoadNode* op) override { return Create(op); }
-  z3::expr VisitExpr_(const prim::MinNode* op) override {
+  z3::expr Dispatch_(const VarNode* op) override { return Create(op); }
+  z3::expr Dispatch_(const TensorLoadNode* op) override { return Create(op); }
+  z3::expr Dispatch_(const prim::MinNode* op) override {
     auto a = VisitInt(op->a);
     auto b = VisitInt(op->b);
     return z3::ite(a < b, a, b);
   }
-  z3::expr VisitExpr_(const prim::MaxNode* op) override {
+  z3::expr Dispatch_(const prim::MaxNode* op) override {
     auto a = VisitInt(op->a);
     auto b = VisitInt(op->b);
     return z3::ite(a > b, a, b);
@@ -828,59 +828,59 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
   static z3::expr floormod(const z3::expr& a, const z3::expr& b) {
     return z3::ite(b > 0, a % b, -((-a) % b));
   }
-  z3::expr VisitExpr_(const prim::AddNode* op) override {
+  z3::expr Dispatch_(const prim::AddNode* op) override {
     return VisitArith(z3::operator+, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const prim::SubNode* op) override {
+  z3::expr Dispatch_(const prim::SubNode* op) override {
     return VisitArith(z3::operator-, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const prim::MulNode* op) override {
+  z3::expr Dispatch_(const prim::MulNode* op) override {
     return VisitArith(z3::operator*, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const prim::DivNode* op) override {
+  z3::expr Dispatch_(const prim::DivNode* op) override {
     return VisitArith(truncdiv, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const prim::ModNode* op) override {
+  z3::expr Dispatch_(const prim::ModNode* op) override {
     return VisitArith(truncmod, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const prim::FloorDivNode* op) override {
+  z3::expr Dispatch_(const prim::FloorDivNode* op) override {
     return VisitArith(floordiv, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const prim::FloorModNode* op) override {
+  z3::expr Dispatch_(const prim::FloorModNode* op) override {
     return VisitArith(floormod, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const prim::EQNode* op) override {
+  z3::expr Dispatch_(const prim::EQNode* op) override {
     return VisitArith(z3::operator==, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const prim::NENode* op) override {
+  z3::expr Dispatch_(const prim::NENode* op) override {
     return VisitArith(z3::operator!=, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const prim::LTNode* op) override {
+  z3::expr Dispatch_(const prim::LTNode* op) override {
     return VisitArith(z3::operator<, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const prim::LENode* op) override {
+  z3::expr Dispatch_(const prim::LENode* op) override {
     return VisitArith(z3::operator<=, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const prim::GTNode* op) override {
+  z3::expr Dispatch_(const prim::GTNode* op) override {
     return VisitArith(z3::operator>, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const prim::GENode* op) override {
+  z3::expr Dispatch_(const prim::GENode* op) override {
     return VisitArith(z3::operator>=, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const prim::AndNode* op) override {
+  z3::expr Dispatch_(const prim::AndNode* op) override {
     return VisitBool(op->a) && VisitBool(op->b);
   }
-  z3::expr VisitExpr_(const prim::OrNode* op) override {
+  z3::expr Dispatch_(const prim::OrNode* op) override {
     return VisitBool(op->a) || VisitBool(op->b);
   }
-  z3::expr VisitExpr_(const prim::NotNode* op) override { return !VisitBool(op->a); }
-  z3::expr VisitExpr_(const prim::SelectNode* op) override {
+  z3::expr Dispatch_(const prim::NotNode* op) override { return !VisitBool(op->a); }
+  z3::expr Dispatch_(const prim::SelectNode* op) override {
     return z3::ite(VisitBool(op->condition), VisitInt(op->true_value), VisitInt(op->false_value));
   }
-  z3::expr VisitExpr_(const IntImmNode* op) override { return ctx->int_val(op->value); }
+  z3::expr Dispatch_(const IntImmNode* op) override { return ctx->int_val(op->value); }
 
   // Bitwise operations
-  z3::expr VisitExpr_(const CallNode* op) override {
+  z3::expr Dispatch_(const CallNode* op) override {
     // Check if this is a bitwise operation
     if (op->op.same_as(prim::builtin::bitwise_and())) {
       return VisitBitwiseOp(z3::operator&, op);
@@ -978,7 +978,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
     }
   }
 
-  z3::expr VisitExprDefault_(const Object* op) override {
+  z3::expr DispatchDefault_(const Object* op) override {
     // Z3 is a best-effort fallback that runs only after the native analyzers
     // have already failed. An unsupported node must not crash the build, so we
     // model it as a fresh unconstrained free variable, which keeps the proof
@@ -1014,8 +1014,8 @@ TVM_DLL int64_t Z3Prover::CountSatisfyingValues(const Var& var, int64_t max_coun
                                                 int64_t min_consecutive) {
   return impl_->CountSatisfyingValues(var, max_count, min_consecutive);
 }
-Z3Prover::Z3Prover(AnalyzerObj* parent) : impl_(new Impl{parent}) {}
-TVM_DLL Z3Prover::~Z3Prover() { delete impl_; }
+Z3Prover::Z3Prover(AnalyzerObj* parent) : impl_(ffi::make_object<Impl>(parent)) {}
+TVM_DLL Z3Prover::~Z3Prover() = default;
 
 }  // namespace tvm::arith
 
@@ -1038,7 +1038,7 @@ void ExitZ3ContextScope() {}
 
 // Stub implementation used when Z3 support is not built. All proving queries
 // conservatively report "cannot prove" while keeping the public API available.
-class Z3Prover::Impl {};
+class Z3Prover::Impl : public ffi::Object {};
 
 TVM_DLL bool Z3Prover::IsEnabled() const { return false; }
 TVM_DLL bool Z3Prover::CanProve(const PrimExpr& expr) { return false; }
@@ -1061,7 +1061,7 @@ TVM_DLL int64_t Z3Prover::CountSatisfyingValues(const Var& var, int64_t max_coun
 void Z3Prover::CopyFrom(const Z3Prover& other) {}
 ffi::String Z3Prover::GetStats() { return "; Z3 Prover is disabled."; }
 Z3Prover::Z3Prover(AnalyzerObj*) : impl_(nullptr) {}
-TVM_DLL Z3Prover::~Z3Prover() {}
+TVM_DLL Z3Prover::~Z3Prover() = default;
 
 }  // namespace tvm::arith
 

@@ -18,141 +18,24 @@
  */
 
 /*!
- * \file tvm/arith/ir_mutator_with_analyzer.cc
+ * \file tirx/ir_mutator_with_analyzer.cc
  */
 #include "ir_mutator_with_analyzer.h"
 
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
-#include <vector>
+#include "../arith/constraint_helpers.h"
 
 namespace tvm {
-namespace arith {
+namespace tirx {
 
-using namespace tirx;
-
-namespace {
-
-enum class CompareKind { kEQ, kLT, kLE, kGT, kGE };
-
-bool TryGetIntImm(const PrimExpr& expr, int64_t* value) {
-  if (const auto* imm = expr.as<IntImmNode>()) {
-    *value = imm->value;
-    return true;
-  }
-  return false;
-}
-
-void AppendFloorDivConstraints(const prim::FloorDivNode* div, int64_t value, CompareKind kind,
-                               std::vector<PrimExpr>* out) {
-  int64_t divisor_value = 0;
-  if (!TryGetIntImm(div->b, &divisor_value) || divisor_value <= 0) return;
-
-  PrimType dtype = div->a.ty();
-  PrimExpr divisor = IntImm(dtype, divisor_value);
-  PrimExpr k = IntImm(dtype, value);
-  PrimExpr lo = k * divisor;
-  PrimExpr hi = (k + IntImm(dtype, 1)) * divisor;
-
-  switch (kind) {
-    case CompareKind::kEQ:
-      out->push_back(div->a >= lo);
-      out->push_back(div->a < hi);
-      break;
-    case CompareKind::kLT:
-      out->push_back(div->a < lo);
-      break;
-    case CompareKind::kLE:
-      out->push_back(div->a < hi);
-      break;
-    case CompareKind::kGT:
-      out->push_back(div->a >= hi);
-      break;
-    case CompareKind::kGE:
-      out->push_back(div->a >= lo);
-      break;
-  }
-}
-
-CompareKind InvertCompare(CompareKind kind) {
-  switch (kind) {
-    case CompareKind::kEQ:
-      return CompareKind::kEQ;
-    case CompareKind::kLT:
-      return CompareKind::kGT;
-    case CompareKind::kLE:
-      return CompareKind::kGE;
-    case CompareKind::kGT:
-      return CompareKind::kLT;
-    case CompareKind::kGE:
-      return CompareKind::kLE;
-  }
-  return CompareKind::kEQ;
-}
-
-void CollectFloorDivConstraintsFromCompare(const PrimExpr& lhs, const PrimExpr& rhs,
-                                           CompareKind kind, std::vector<PrimExpr>* out) {
-  int64_t value = 0;
-  if (const auto* div = lhs.as<prim::FloorDivNode>()) {
-    if (TryGetIntImm(rhs, &value)) AppendFloorDivConstraints(div, value, kind, out);
-  }
-  if (const auto* div = rhs.as<prim::FloorDivNode>()) {
-    if (TryGetIntImm(lhs, &value)) {
-      AppendFloorDivConstraints(div, value, InvertCompare(kind), out);
-    }
-  }
-}
-
-void CollectDerivedConstraintFacts(const PrimExpr& condition, std::vector<PrimExpr>* out) {
-  if (const auto* and_node = condition.as<prim::AndNode>()) {
-    CollectDerivedConstraintFacts(and_node->a, out);
-    CollectDerivedConstraintFacts(and_node->b, out);
-    return;
-  }
-  if (const auto* call = condition.as<CallNode>()) {
-    if (call->op.same_as(prim::builtin::bitwise_and()) && call->args.size() == 2) {
-      PrimExpr lhs = call->args[0].as_or_throw<PrimExpr>();
-      PrimExpr rhs = call->args[1].as_or_throw<PrimExpr>();
-      if (lhs.ty().MatchesElementType(DLDataTypeCode::kDLBool, 8) &&
-          rhs.ty().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
-        CollectDerivedConstraintFacts(lhs, out);
-        CollectDerivedConstraintFacts(rhs, out);
-        return;
-      }
-    }
-  }
-  if (const auto* eq = condition.as<prim::EQNode>()) {
-    CollectFloorDivConstraintsFromCompare(eq->a, eq->b, CompareKind::kEQ, out);
-  } else if (const auto* lt = condition.as<prim::LTNode>()) {
-    CollectFloorDivConstraintsFromCompare(lt->a, lt->b, CompareKind::kLT, out);
-  } else if (const auto* le = condition.as<prim::LENode>()) {
-    CollectFloorDivConstraintsFromCompare(le->a, le->b, CompareKind::kLE, out);
-  } else if (const auto* gt = condition.as<prim::GTNode>()) {
-    CollectFloorDivConstraintsFromCompare(gt->a, gt->b, CompareKind::kGT, out);
-  } else if (const auto* ge = condition.as<prim::GENode>()) {
-    CollectFloorDivConstraintsFromCompare(ge->a, ge->b, CompareKind::kGE, out);
-  }
-}
-
-void EnterConstraintFacts(WithGroup<ConstraintContext>* constraints, AnalyzerObj* analyzer,
-                          const PrimExpr& condition) {
-  arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
-  constraints->Emplace(analyzer_ref, condition);
-  std::vector<PrimExpr> derived;
-  CollectDerivedConstraintFacts(condition, &derived);
-  for (const PrimExpr& fact : derived) {
-    constraints->Emplace(analyzer_ref, fact);
-  }
-}
-
-}  // namespace
+using arith::detail::EnterConstraintFacts;
 
 void IRMutatorWithAnalyzer::MarkBufferParamShapes(const tirx::PrimFunc& func) {
   // Mark all symbolic buffer-parameter shape values as positive.
@@ -393,5 +276,5 @@ Expr IRMutatorWithAnalyzer::VisitExpr_(const prim::SelectNode* op) {
   }
 }
 
-}  // namespace arith
+}  // namespace tirx
 }  // namespace tvm

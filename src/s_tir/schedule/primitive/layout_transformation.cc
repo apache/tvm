@@ -26,7 +26,7 @@
 #include <optional>
 #include <variant>
 
-#include "../../../arith/ir_mutator_with_analyzer.h"
+#include "../../../tirx/ir_mutator_with_analyzer.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -783,7 +783,7 @@ class ReuseBlocksCollector : public tirx::StmtVisitor {
   ffi::Map<SBlock, SBlock> new_block_to_old_;
 };
 
-class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
+class TransformLayoutRewriter : private tirx::IRMutatorWithAnalyzer {
  public:
   /*!
    * \brief Rewrite the access to the buffer after the transformation
@@ -840,7 +840,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
     *indices = this->IterMapSimplifyWithContext(*indices, true);
   }
 
-  using Parent = arith::IRMutatorWithAnalyzer;
+  using Parent = tirx::IRMutatorWithAnalyzer;
   using Parent::VisitExpr_;
   using Parent::VisitStmt_;
 

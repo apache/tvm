@@ -38,7 +38,7 @@
 #include <string>
 #include <variant>
 
-#include "../../arith/ir_visitor_with_analyzer.h"
+#include "../../tirx/ir_visitor_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
@@ -297,7 +297,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("s_tir.analysis._identify_memcpy", [](const Stmt& stmt) {
     ffi::Array<ffi::ObjectRef> output;
 
-    struct Visitor : arith::IRVisitorWithAnalyzer {
+    struct Visitor : tirx::IRVisitorWithAnalyzer {
       explicit Visitor(ffi::Array<ffi::ObjectRef>* output) : output(output) {}
       ffi::Array<ffi::ObjectRef>* output;
 
