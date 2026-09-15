@@ -38,8 +38,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../arith/unwrap_vector_expr.h"
-
 namespace tvm {
 namespace s_tir {
 using namespace tvm::prim;
@@ -209,7 +207,7 @@ class BoundChecker : public StmtExprMutator {
         PrimExpr upper_bound = shape[i];
 
         if (const RampNode* ramp_index = index.as<RampNode>()) {
-          index = arith::UnwrapVectorExpr(ffi::GetRef<Ramp>(ramp_index), ramp_index->lanes);
+          index = ramp_index->base + ramp_index->lanes * ramp_index->stride;
         }
 
         // Try to simplify index and bound.
