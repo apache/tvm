@@ -41,6 +41,41 @@ def _check_json_roundtrip(x):
     return xret
 
 
+@pytest.mark.parametrize("use_range", [False, True])
+@pytest.mark.parametrize(
+    "shape,count",
+    [((2, 2), 3), ((2**31, 2), 0), ((2**32,), 0), ((2**62, 4), 0), ((-2, -2), 4), ((0, -1), 0)],
+)
+def test_device_mesh_invalid_cardinality(shape, count, use_range):
+    ids = Range(0, count) if use_range else list(range(count))
+    with pytest.raises((ValueError, tvm.error.InternalError)):
+        rx.distributed.DeviceMesh(shape, ids)
+
+
+@pytest.mark.parametrize("use_range", [False, True])
+@pytest.mark.parametrize("shape,count", [((2, 2), 4), ((), 1), ((0, 2), 0), ((2**62, 4, 0), 0)])
+def test_device_mesh_cardinality(shape, count, use_range):
+    ids = Range(0, count) if use_range else list(range(count))
+    mesh = rx.distributed.DeviceMesh(shape, ids)
+    assert tuple(mesh.shape) == shape
+    assert list(mesh.device_ids) == list(range(count))
+
+
+def test_device_mesh_range_large_start():
+    mesh = rx.distributed.DeviceMesh((2,), Range(2**32, 2**32 + 2))
+    assert list(mesh.device_ids) == [2**32, 2**32 + 1]
+
+
+@pytest.mark.parametrize(
+    "start,extent,shape",
+    [(0, -1, (0,)), (2**63 - 1, 2, (2,)), (tirx.Var("start", "int64"), 1, (1,))],
+)
+def test_device_mesh_invalid_range(start, extent, shape):
+    device_range = Range.from_min_extent(start, extent)
+    with pytest.raises(ValueError):
+        rx.distributed.DeviceMesh(shape, device_range)
+
+
 def test_dtensor_type():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
