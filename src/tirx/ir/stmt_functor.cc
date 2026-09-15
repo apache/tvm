@@ -290,11 +290,7 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const TilePrimitiveCallNod
   fvisit = [this, &fvisit](const ffi::Any& e) -> ffi::Optional<VisitInterrupt> {
     if (e == nullptr) return std::nullopt;
     if (auto buffer_region = e.as<BufferRegion>()) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer_region.value()->buffer));
-      for (const auto& range : buffer_region.value()->region) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->min));
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->extent));
-      }
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer_region.value()));
     } else if (auto var = e.as<Var>(); var && var.value()->ty.as<BufferTypeNode>()) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(BufferVar(var.value())));
     } else if (auto expr = e.as<PrimExpr>()) {

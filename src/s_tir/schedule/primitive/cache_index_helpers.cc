@@ -370,8 +370,9 @@ DirectSubexpr::DirectSubexpr(std::function<bool(const PrimExpr&)> is_eligible_co
  * \brief Find direct eligible subexpressions through the generic entry
  */
 ffi::Optional<VisitInterrupt> DirectSubexpr::Visit(ffi::AnyView expr_value) {
-  if (!expr_value.as<ExprNode>()) return StmtExprVisitor::Visit(expr_value);
-  PrimExpr expr = expr_value.cast<PrimExpr>();
+  auto opt_expr = expr_value.as<PrimExpr>();
+  if (!opt_expr) return StmtExprVisitor::Visit(expr_value);
+  PrimExpr expr = opt_expr.value();
   if (entered_) {
     if (is_eligible_computation_(expr)) {
       direct_subexpr_.push_back(expr);
