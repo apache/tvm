@@ -1935,7 +1935,6 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::LENode* op,
   PrimExpr ret =
       SimplifierBase::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   op = ret.as<prim::LENode>();
-  TVM_FFI_ICHECK(op);
 
   if (auto const_res = TryConstFold<prim::LE>(op->a, op->b)) return *std::move(const_res);
   if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
@@ -2225,8 +2224,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::AndNode* op,
       With<ConstraintContext> context(analyzer_, constraint);
       // Keep this iteration out of place: convergence uses same_as() to detect updates.
       // An in-place change would preserve identity and could stop the loop early.
-      PrimExpr updated =
-          Mutate(to_update, InplaceMode::kDisallow).ValueOrUnchanged(std::as_const(to_update));
+      PrimExpr updated = Mutate(to_update, InplaceMode::kDisallow).ValueOrUnchanged(to_update);
 
       if (!to_update.same_as(updated)) {
         to_update = updated;
@@ -2377,8 +2375,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::OrNode* op,
       With<ConstraintContext> context(analyzer_, NormalizeBooleanOperators(prim::Not(constraint)));
       // Keep this iteration out of place: convergence uses same_as() to detect updates.
       // An in-place change would preserve identity and could stop the loop early.
-      PrimExpr updated =
-          Mutate(to_update, InplaceMode::kDisallow).ValueOrUnchanged(std::as_const(to_update));
+      PrimExpr updated = Mutate(to_update, InplaceMode::kDisallow).ValueOrUnchanged(to_update);
 
       if (!to_update.same_as(updated)) {
         to_update = updated;
@@ -2623,7 +2620,7 @@ PrimExpr RewriteSimplifier::operator()(const PrimExpr& expr) {
   int max_iter = 2;
   for (int i = 0; i < max_iter; ++i) {
     // Keep the default kDisallow: convergence requires same_as to detect updates.
-    PrimExpr new_expr = impl_->Mutate(res).ValueOrUnchanged(std::as_const(res));
+    PrimExpr new_expr = impl_->Mutate(res).ValueOrUnchanged(res);
     if (new_expr.same_as(res)) return res;
     res = new_expr;
   }
