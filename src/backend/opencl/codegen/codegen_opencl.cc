@@ -96,9 +96,7 @@ class InferTextureAccess : public StmtExprVisitor {
       auto it = buffer_data_map_.find(source);
       buffer_data_map_[op->buffer.get()] = it == buffer_data_map_.end() ? source : it->second;
     }
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
-
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     if (op->op.same_as(builtin::texture2d_load())) {
@@ -110,9 +108,7 @@ class InferTextureAccess : public StmtExprVisitor {
       auto it = buffer_data_map_.find(texture);
       var_access_map_[it == buffer_data_map_.end() ? texture : it->second] |= kWriteAccess;
     }
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
-
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
 
  private:

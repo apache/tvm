@@ -224,9 +224,7 @@ class ThreadIdxExtractor : public tirx::StmtExprVisitor {
         clusterCtaIdx_z_ext = op->value;
       }
     }
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
-
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
 
  public:

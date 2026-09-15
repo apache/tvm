@@ -92,30 +92,30 @@ class CuTensorMapDedupAnalyzer : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-    if (auto result = StmtExprVisitor::Visit(op->min)) return result;
-    if (auto result = StmtExprVisitor::Visit(op->extent)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->min));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->extent));
     canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
-    if (auto result = StmtExprVisitor::Visit(op->body)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->body));
     canonical_list_.pop_back();
     return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) final {
-    if (auto result = StmtExprVisitor::Visit(op->condition)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->condition));
     canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
-    if (auto result = StmtExprVisitor::Visit(op->body)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->body));
     canonical_list_.pop_back();
     return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final {
-    if (auto result = StmtExprVisitor::Visit(op->condition)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->condition));
     canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
-    if (auto result = StmtExprVisitor::Visit(op->then_case)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->then_case));
     canonical_list_.pop_back();
     if (op->else_case) {
       canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
-      if (auto result = StmtExprVisitor::Visit(op->else_case.value())) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->else_case.value()));
       canonical_list_.pop_back();
     }
     return std::nullopt;

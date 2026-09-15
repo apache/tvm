@@ -389,7 +389,6 @@ inline ffi::String BufferIndexType2Str(BufferIndexType buffer_index_type) {
 /*! \brief Returns the names of the blocks in the provided module. */
 inline std::unordered_set<std::string> GetSBlockNames(const IRModule& mod) {
   struct BlockNameCollector : public tirx::StmtExprVisitor {
-   public:
     using tirx::StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {

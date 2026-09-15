@@ -99,10 +99,10 @@ class DataTypeVisitor final : public StmtExprVisitor {
       }
       int tmp = bits > bits_ ? bits : bits_;
       std::swap(bits_, tmp);
-      if (auto result = StmtExprVisitor::Visit(expr)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(expr));
       std::swap(bits_, tmp);
     } else {
-      if (auto result = StmtExprVisitor::Visit(expr)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(expr));
     }
     return std::nullopt;
   }
@@ -110,7 +110,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) {
     int tmp = bits_;
     bits_ = target_bits_;
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     bits_ = tmp;
     return std::nullopt;
   }
@@ -135,9 +135,9 @@ class DataTypeVisitor final : public StmtExprVisitor {
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
       vextent_.insert_or_assign(iv->var.as<VarNode>(), op->value.ty());
-      if (auto result = StmtExprVisitor::Visit_(op)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     } else {
-      if (auto result = StmtExprVisitor::Visit_(op)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
     return std::nullopt;
   }

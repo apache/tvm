@@ -106,10 +106,10 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
       // Enter GPU scope for thread binding loops
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
       is_under_gpu_scope_ = true;
-      if (auto result = StmtExprVisitor::Visit_(op)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       is_under_gpu_scope_ = last_is_under_gpu_scope;
     } else {
-      if (auto result = StmtExprVisitor::Visit_(op)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
     return std::nullopt;
   }
@@ -120,10 +120,10 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
       // Enter GPU scope for thread extent and virtual thread attributes
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
       is_under_gpu_scope_ = true;
-      if (auto result = StmtExprVisitor::Visit_(op)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       is_under_gpu_scope_ = last_is_under_gpu_scope;
     } else {
-      if (auto result = StmtExprVisitor::Visit_(op)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
     return std::nullopt;
   }

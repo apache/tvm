@@ -67,9 +67,7 @@ class BlockCounter : public tirx::StmtExprVisitor {
  private:
   ffi::Optional<VisitInterrupt> Visit_(const tirx::SBlockNode* op) final {
     ++count;
-    if (auto interrupt = tirx::StmtExprVisitor::Visit_(op)) return interrupt;
-
-    return std::nullopt;
+    return tirx::StmtExprVisitor::Visit_(op);
   }
   size_t count{0};
 };

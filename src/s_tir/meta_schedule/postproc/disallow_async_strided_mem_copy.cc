@@ -30,7 +30,6 @@ using namespace tvm::tirx;
 
 /*! \brief Check if an IRModule has any async strided mem copies. */
 struct AsyncStridedMemCopyFinder : public StmtExprVisitor {
- public:
   using StmtExprVisitor::Visit_;
 
   static bool Find(const IRModule& mod) {

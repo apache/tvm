@@ -83,16 +83,12 @@ class DistSBlockInfoCollector : public StmtExprVisitor {
  private:
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
     buffer_access_indices[op->buffer].push_back(op->indices);
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
-
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     buffer_access_indices[op->source.as_or_throw<tvm::tirx::BufferVar>()].push_back(op->indices);
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
-
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
@@ -102,9 +98,7 @@ class DistSBlockInfoCollector : public StmtExprVisitor {
         reduce_buffer_ = op->writes[0]->buffer;
       }
     }
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
-
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
 
   bool IsReduceBufferAccess(const PrimExpr& expr) {
@@ -118,36 +112,28 @@ class DistSBlockInfoCollector : public StmtExprVisitor {
     if (IsReduceBufferAccess(op->a) || IsReduceBufferAccess(op->b)) {
       reduce_kind = "sum";
     }
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
-
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const prim::MulNode* op) final {
     if (IsReduceBufferAccess(op->a) || IsReduceBufferAccess(op->b)) {
       reduce_kind = "prod";
     }
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
-
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const prim::MinNode* op) final {
     if (IsReduceBufferAccess(op->a) || IsReduceBufferAccess(op->b)) {
       reduce_kind = "min";
     }
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
-
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const prim::MaxNode* op) final {
     if (IsReduceBufferAccess(op->a) || IsReduceBufferAccess(op->b)) {
       reduce_kind = "max";
     }
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
-
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
 
   BufferVar reduce_buffer_;

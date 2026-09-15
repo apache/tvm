@@ -332,8 +332,7 @@ class AnnotationCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* call) final {
     if (!IsIketOp(call->op)) {
-      if (auto interrupt = StmtExprVisitor::Visit_(call)) return interrupt;
-      return std::nullopt;
+      return StmtExprVisitor::Visit_(call);
     }
     has_annotations = true;
     if (call->op.same_as(IketMarkOp())) {
@@ -394,9 +393,7 @@ class TokenBufferCollector : public StmtExprVisitor {
       is_token_value = buffers_->count(load->source.as_or_throw<tvm::tirx::BufferVar>().get());
     }
     if (is_token_value && buffers_->insert(store->buffer.get()).second) changed = true;
-    if (auto interrupt = StmtExprVisitor::Visit_(store)) return interrupt;
-
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(store);
   }
 
   TokenBufferSet* buffers_;
@@ -406,10 +403,9 @@ TokenBufferSet CollectTokenBuffers(const Stmt& body) {
   TokenBufferSet buffers;
   bool changed = true;
   while (changed) {
-    auto collector_owner = ffi::make_object<TokenBufferCollector>(&buffers);
-    auto& collector = *collector_owner;
-    collector.Visit(body);
-    changed = collector.changed;
+    auto collector = ffi::make_object<TokenBufferCollector>(&buffers);
+    collector->Visit(body);
+    changed = collector->changed;
   }
   return buffers;
 }
@@ -438,9 +434,7 @@ class TokenDeclarationCollector : public StmtExprVisitor {
       target.insert(possible.begin(), possible.end());
       changed = changed || target.size() != old_size;
     }
-    if (auto interrupt = StmtExprVisitor::Visit_(store)) return interrupt;
-
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(store);
   }
 
   TokenDeclarationMap* declarations_;
@@ -450,10 +444,9 @@ TokenDeclarationMap CollectTokenDeclarations(const Stmt& body) {
   TokenDeclarationMap declarations;
   bool changed = true;
   while (changed) {
-    auto collector_owner = ffi::make_object<TokenDeclarationCollector>(&declarations);
-    auto& collector = *collector_owner;
-    collector.Visit(body);
-    changed = collector.changed;
+    auto collector = ffi::make_object<TokenDeclarationCollector>(&declarations);
+    collector->Visit(body);
+    changed = collector->changed;
   }
   return declarations;
 }
@@ -467,8 +460,7 @@ class RangeEndSchemaVerifier : public StmtExprVisitor {
  private:
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* call) final {
     if (!call->op.same_as(IketRangeEndOp())) {
-      if (auto interrupt = StmtExprVisitor::Visit_(call)) return interrupt;
-      return std::nullopt;
+      return StmtExprVisitor::Visit_(call);
     }
     const auto* token = call->args[0].as<TensorLoadNode>();
     TVM_FFI_ICHECK(token != nullptr);
@@ -496,9 +488,7 @@ class RangeEndSchemaVerifier : public StmtExprVisitor {
         declaration.end_payload_type = payload_type;
       }
     }
-    if (auto interrupt = StmtExprVisitor::Visit_(call)) return interrupt;
-
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(call);
   }
 
   const TokenDeclarationMap& token_declarations_;
@@ -525,8 +515,7 @@ class TokenVerifier : public StmtExprVisitor {
  private:
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
     if (!token_buffers_.count(store->buffer.get())) {
-      if (auto interrupt = StmtExprVisitor::Visit_(store)) return interrupt;
-      return std::nullopt;
+      return StmtExprVisitor::Visit_(store);
     }
     TVM_FFI_CHECK(store->buffer->dtype->dtype.code == kDLUInt &&
                       store->buffer->dtype->dtype.bits == 32 &&
@@ -541,18 +530,18 @@ class TokenVerifier : public StmtExprVisitor {
     if (const auto* call = store->value.as<CallNode>()) {
       valid_value = IsTokenProducer(call);
       allow_producer_ = valid_value;
-      if (auto interrupt = Visit(store->value)) return interrupt;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(store->value));
       allow_producer_ = false;
     } else if (const auto* load = store->value.as<TensorLoadNode>()) {
       valid_value = token_buffers_.count(load->source.as_or_throw<tvm::tirx::BufferVar>().get());
       allow_token_load_ = valid_value;
-      if (auto interrupt = Visit(store->value)) return interrupt;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(store->value));
       allow_token_load_ = false;
     }
     TVM_FFI_CHECK(valid_value, ValueError)
         << "RangeToken may only be assigned another token, range_start, or sentinel_token";
     for (const PrimExpr& index : store->indices) {
-      if (auto interrupt = Visit(index)) return interrupt;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
     }
     return std::nullopt;
   }
@@ -562,8 +551,7 @@ class TokenVerifier : public StmtExprVisitor {
       TVM_FFI_CHECK(allow_token_load_, ValueError)
           << "RangeToken may only be assigned or passed directly to range_end";
     }
-    if (auto interrupt = StmtExprVisitor::Visit_(load)) return interrupt;
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(load);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* call) final {
@@ -573,7 +561,7 @@ class TokenVerifier : public StmtExprVisitor {
       bool old_allow_producer = allow_producer_;
       allow_producer_ = false;
       for (const Expr& arg : call->args) {
-        if (auto interrupt = Visit(arg)) return interrupt;
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(arg));
       }
       allow_producer_ = old_allow_producer;
       return std::nullopt;
@@ -586,15 +574,14 @@ class TokenVerifier : public StmtExprVisitor {
           ValueError)
           << "range_end requires a directly loaded RangeToken";
       allow_token_load_ = true;
-      if (auto interrupt = Visit(call->args[0])) return interrupt;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(call->args[0]));
       allow_token_load_ = false;
       for (size_t i = 1; i < call->args.size(); ++i) {
-        if (auto interrupt = Visit(call->args[i])) return interrupt;
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(call->args[i]));
       }
       return std::nullopt;
     }
-    if (auto interrupt = StmtExprVisitor::Visit_(call)) return interrupt;
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(call);
   }
 
   const TokenBufferSet& token_buffers_;
@@ -1228,21 +1215,18 @@ IRModule LowerIketImpl(IRModule module) {
       const auto* prim_func = base_function.as<PrimFuncNode>();
       if (!prim_func) continue;
       PrimFunc function = ffi::GetRef<PrimFunc>(prim_func);
-      auto collector_owner = ffi::make_object<AnnotationCollector>();
-      auto& collector = *collector_owner;
-      collector.Visit(function->body);
+      auto collector = ffi::make_object<AnnotationCollector>();
+      collector->Visit(function->body);
       TokenBufferSet tokens = CollectTokenBuffers(function->body);
-      if (!collector.has_annotations && tokens.empty()) continue;
-      if (collector.has_annotations) {
-        auto verifier_owner = ffi::make_object<TokenVerifier>(tokens);
-        auto& verifier = *verifier_owner;
-        verifier.Visit(function->body);
+      if (!collector->has_annotations && tokens.empty()) continue;
+      if (collector->has_annotations) {
+        auto verifier = ffi::make_object<TokenVerifier>(tokens);
+        verifier->Visit(function->body);
         TokenDeclarationMap token_declarations = CollectTokenDeclarations(function->body);
-        auto schema_verifier_owner =
-            ffi::make_object<RangeEndSchemaVerifier>(token_declarations, &collector.declarations);
-        auto& schema_verifier = *schema_verifier_owner;
-        schema_verifier.Visit(function->body);
-        ValidateRangeSchemas(collector.declarations);
+        auto schema_verifier =
+            ffi::make_object<RangeEndSchemaVerifier>(token_declarations, &collector->declarations);
+        schema_verifier->Visit(function->body);
+        ValidateRangeSchemas(collector->declarations);
       }
       StripIket strip(std::move(tokens));
       Stmt body = RemoveStrippedIketNoOps()(strip(function->body));
@@ -1259,31 +1243,28 @@ IRModule LowerIketImpl(IRModule module) {
     const auto* prim_func = base_function.as<PrimFuncNode>();
     if (!prim_func) continue;
     PrimFunc function = ffi::GetRef<PrimFunc>(prim_func);
-    auto collector_owner = ffi::make_object<AnnotationCollector>();
-    auto& collector = *collector_owner;
-    collector.Visit(function->body);
-    if (!collector.has_annotations) continue;
+    auto collector = ffi::make_object<AnnotationCollector>();
+    collector->Visit(function->body);
+    if (!collector->has_annotations) continue;
 
     std::string function_name = FunctionName(global_var, function);
     TVM_FFI_CHECK(IsCudaDeviceFunction(function), ValueError)
         << "IKET annotations are only valid in a split CUDA device kernel";
 
     TokenBufferSet tokens = CollectTokenBuffers(function->body);
-    auto verifier_owner = ffi::make_object<TokenVerifier>(tokens);
-    auto& verifier = *verifier_owner;
-    verifier.Visit(function->body);
+    auto verifier = ffi::make_object<TokenVerifier>(tokens);
+    verifier->Visit(function->body);
     TokenDeclarationMap token_declarations = CollectTokenDeclarations(function->body);
-    auto schema_verifier_owner =
-        ffi::make_object<RangeEndSchemaVerifier>(token_declarations, &collector.declarations);
-    auto& schema_verifier = *schema_verifier_owner;
-    schema_verifier.Visit(function->body);
-    ValidateRangeSchemas(collector.declarations);
+    auto schema_verifier =
+        ffi::make_object<RangeEndSchemaVerifier>(token_declarations, &collector->declarations);
+    schema_verifier->Visit(function->body);
+    ValidateRangeSchemas(collector->declarations);
     TVM_FFI_CHECK(IsSm90OrNewer(function), ValueError)
         << "NVIDIA IKET requires SM90 or newer for kernel " << function_name;
 
     kernels.push_back(KernelIketInfo{global_var, function, std::move(function_name),
-                                     std::move(collector.declarations),
-                                     collector.has_payload_calls});
+                                     std::move(collector->declarations),
+                                     collector->has_payload_calls});
   }
 
   std::sort(

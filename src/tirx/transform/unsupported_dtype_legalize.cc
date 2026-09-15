@@ -104,13 +104,13 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   virtual bool MatchType(const Type& type) const = 0;
 
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     this->PopulateBufferRemap(op->buffer);
     return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     this->PopulateBufferRemap(op->source.as_or_throw<tvm::tirx::BufferVar>());
     return std::nullopt;
   }
@@ -128,7 +128,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     this->PopulateBufferRemap(op->buffer);
     return std::nullopt;
   }

@@ -107,7 +107,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     Var buffer_var = ffi::GetRef<Var>(op);
     if (buffer_var->ty.as<PointerTypeNode>()) {
       info_.write_access_set.insert(buffer_var);
@@ -117,7 +117,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     info_.write_access_set.insert(ResolveBuffer(op->buffer.var()));
 
     return std::nullopt;
@@ -128,9 +128,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
       buffer_aliases_.insert_or_assign(op->buffer.get(), ResolveBuffer(source.value()));
       return std::nullopt;
     }
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
-
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
@@ -154,9 +152,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
       }
     }
     // normal operation
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
-
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
   WebGPUWorkGroupInfo info_;
   std::unordered_map<const VarNode*, Var> buffer_aliases_;

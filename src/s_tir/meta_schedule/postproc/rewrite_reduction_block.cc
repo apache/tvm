@@ -29,7 +29,6 @@ using namespace tvm::tirx;
 
 /*! \brief The visitor that finds all the reduction block to be decomposed */
 struct ReductionBlockFinder : public StmtExprVisitor {
- public:
   using StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {

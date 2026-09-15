@@ -129,7 +129,6 @@ Definition of a scope that is a stage pipeline:
 
 ScopeBlockLoopInfo GetScopeBlockLoopInfo(const SBlock& scope_block) {
   struct Collector : public StmtExprVisitor {
-   public:
     using StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
@@ -810,7 +809,6 @@ ffi::Array<StmtSRef> GetChildBlockSRefOnSRefTree(const ScheduleState& self,
 
 ffi::Array<SBlockRealize> GetChildBlockRealizeOnSRefTree(const StmtSRef& parent_sref) {
   struct Collector : public StmtExprVisitor {
-   public:
     using StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
@@ -881,7 +879,6 @@ SBlockRealize CheckGetSingleChildBlockRealizeOnSRefTree(const ScheduleState& sel
 
 SBlockRealize GetSBlockRealize(const ScheduleState& self, const StmtSRef& block_sref) {
   struct BlockRealizeFinder : public StmtExprVisitor {
-   public:
     using StmtExprVisitor::Visit_;
 
     explicit BlockRealizeFinder(const SBlockNode* target_sblock)
@@ -1114,7 +1111,6 @@ ffi::Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const SBlockScope&
 
 ffi::Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const SBlockNode* scope_block) {
   struct OutputSBlockCollector : public StmtExprVisitor {
-   public:
     using StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {

@@ -33,7 +33,6 @@ namespace tirx {
 
 Stmt GetEnclosingLoop(const SBlockNode* block, Stmt func_body) {
   struct GetRootSeqStmt : public StmtExprVisitor {
-   public:
     using StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
@@ -49,7 +48,6 @@ Stmt GetEnclosingLoop(const SBlockNode* block, Stmt func_body) {
   };
 
   struct BlockFinder : public StmtExprVisitor {
-   public:
     using StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
@@ -92,7 +90,6 @@ Stmt GetEnclosingLoop(const SBlockNode* block, Stmt func_body) {
 
 const SBlockNode* FindAnchorBlock(const IRModule& mod) {
   struct ReductionSBlockCollector : public StmtExprVisitor {
-   public:
     using StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {

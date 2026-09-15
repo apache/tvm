@@ -145,31 +145,31 @@ class VarTouchedAnalysis : public StmtExprVisitor {
   }
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     auto tc = ffi::make_object<ExprTouched>(touched_var_, false);
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(tc->Visit(op->value));
+    tc->Visit(op->value);
     Record(op->var.get(), *tc);
     return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
     auto tc = ffi::make_object<ExprTouched>(touched_var_, false);
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(tc->Visit(op->value));
+    tc->Visit(op->value);
     for (const auto& index : op->indices) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(tc->Visit(index));
+      tc->Visit(index);
     }
     Record(op->buffer.get(), *tc);
     return std::nullopt;
   }
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     auto tc = ffi::make_object<ExprTouched>(touched_var_, false);
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(tc->Visit(op->min));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(tc->Visit(op->extent));
+    tc->Visit(op->min);
+    tc->Visit(op->extent);
     Record(op->loop_var.get(), *tc);
     return this->Visit(op->body);
   }
   // external function call
   ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op) final {
     auto tc = ffi::make_object<ExprTouched>(touched_var_, true);
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(tc->Visit(op->value));
+    tc->Visit(op->value);
     for (const VarNode* var : tc->write_vars_) {
       Record(var, *tc);
     }
@@ -178,7 +178,7 @@ class VarTouchedAnalysis : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
     auto tc = ffi::make_object<ExprTouched>(touched_var_, false);
     for (size_t i = 0; i < op->buffer->shape.size(); ++i) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(tc->Visit(op->buffer->shape[i]));
+      tc->Visit(op->buffer->shape[i]);
     }
     Record(op->buffer.get(), *tc);
     return StmtExprVisitor::Visit_(op);

@@ -63,7 +63,7 @@ struct TIRxCalleeCollector : tirx::StmtExprVisitor {
   explicit TIRxCalleeCollector(std::vector<GlobalVar>* out) : callees(out) {}
   using tirx::StmtExprVisitor::Visit_;
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* node) final {
-    if (auto interrupt = tirx::StmtExprVisitor::Visit_(node)) return interrupt;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(tirx::StmtExprVisitor::Visit_(node));
     if (auto opt_gvar = node->op.as<GlobalVar>()) {
       callees->push_back(opt_gvar.value());
     }

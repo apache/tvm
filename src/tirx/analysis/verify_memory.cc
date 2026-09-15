@@ -80,10 +80,10 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
     if (!InThreadEnv() && op->attr_key == attr::thread_extent) {
       EnterThreadEnv();
-      if (auto result = StmtExprVisitor::Visit_(op)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       ExitThreadEnv();
     } else {
-      if (auto result = StmtExprVisitor::Visit_(op)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
     return std::nullopt;
   }

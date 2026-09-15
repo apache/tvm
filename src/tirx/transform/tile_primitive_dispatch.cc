@@ -90,7 +90,7 @@ class ScopeIdDefGather : public StmtExprVisitor {
     const StmtNode* prev_source = source_stmt_;
     size_t baseline = out_.size();
     source_stmt_ = src;
-    if (auto result = visit_body()) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visit_body());
     source_stmt_ = prev_source;
 
     std::vector<ScopeIdDefWithSource> direct;

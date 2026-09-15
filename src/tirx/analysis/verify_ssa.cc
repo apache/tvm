@@ -100,17 +100,17 @@ class SSAVerifier final : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> DefineBuffer(const BufferVar& buffer) {
     match_scope_ = true;
-    if (auto result = this->Visit(buffer.var())) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer.var()));
     for (size_t i = 0; i < buffer->shape.size(); ++i) {
-      if (auto result = this->Visit(buffer->shape[i])) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer->shape[i]));
     }
 
     if (buffer->strides.defined()) {
       for (size_t i = 0; i < buffer->strides.size(); ++i) {
-        if (auto result = this->Visit(buffer->strides[i])) return result;
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer->strides[i]));
       }
     }
-    if (auto result = this->Visit(buffer->elem_offset)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer->elem_offset));
 
     match_scope_ = false;
     return std::nullopt;

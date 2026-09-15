@@ -120,14 +120,14 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     buffer_access_indices_.push_back({op->buffer, op->indices});
 
     return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     buffer_access_indices_.push_back({op->source.as_or_throw<tvm::tirx::BufferVar>(), op->indices});
 
     return std::nullopt;
@@ -161,11 +161,10 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     if (op->name_hint == "root") {
-      if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
-      return std::nullopt;
+      return StmtExprVisitor::Visit_(op);
     }
     buffer_access_indices_.clear();
-    if (auto interrupt = StmtExprVisitor::Visit_(op)) return interrupt;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     iter_var_range_.clear();
     for (const auto& iter_var : op->iter_vars) {
       iter_var_range_.Set(iter_var->var, iter_var->dom);

@@ -59,7 +59,7 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
  private:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView stmt) final {
     if (!has_error_) {
-      if (auto result = StmtExprVisitor::Visit(stmt)) return result;
+      return StmtExprVisitor::Visit(stmt);
     }
     return std::nullopt;
   }
@@ -91,7 +91,7 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     TVM_FFI_ICHECK(loop_vars_.find(op->loop_var.get()) == loop_vars_.end());
     loop_vars_[op->loop_var.get()] = block_stack_.size();
-    if (auto result = StmtExprVisitor::Visit_(op)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     loop_vars_.erase(op->loop_var.get());
     return std::nullopt;
   }
@@ -108,28 +108,28 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
     // Step 1. Visit read/write regions
     auto fvisit_buffer_region = [this](const BufferRegion& s) -> ffi::Optional<VisitInterrupt> {
       for (const auto& range : s->region) {
-        if (auto result = this->Visit(range->min)) return result;
-        if (auto result = this->Visit(range->extent)) return result;
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->min));
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->extent));
       }
       return std::nullopt;
     };
     for (const auto& region : op->reads) {
-      if (auto result = fvisit_buffer_region(region)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit_buffer_region(region));
     }
     for (const auto& region : op->writes) {
-      if (auto result = fvisit_buffer_region(region)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit_buffer_region(region));
     }
 
     // Step 2. Visit match buffers
     for (const auto& match_buffer_region : op->match_buffers) {
-      if (auto result = fvisit_buffer_region(match_buffer_region->source)) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit_buffer_region(match_buffer_region->source));
     }
 
     // Step 3. Visit init and body
     if (op->init.has_value()) {
-      if (auto result = this->Visit(op->init.value())) return result;
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->init.value()));
     }
-    if (auto result = this->Visit(op->body)) return result;
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->body));
 
     if (is_non_opaque) {
       block_stack_.pop_back();

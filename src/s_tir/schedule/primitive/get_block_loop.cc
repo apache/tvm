@@ -29,7 +29,6 @@ using namespace tvm::tirx;
 ffi::Array<StmtSRef> GetSBlocks(const ScheduleState& self, const ffi::String& name,
                                 const GlobalVar& gv) {
   struct Finder : public StmtExprVisitor {
-   public:
     using StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
@@ -72,7 +71,6 @@ ffi::Array<StmtSRef> GetLoops(const StmtSRef& block_sref) {
 
 ffi::Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent_sref) {
   struct Collector : public StmtExprVisitor {
-   public:
     using StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
