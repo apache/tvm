@@ -108,7 +108,7 @@ void EnterZ3ContextScope() {}
 
 void ExitZ3ContextScope() {}
 
-class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
+class Z3Prover::Impl : public ffi::Object, tvm::ExprFunctor<z3::expr(const Expr&)> {
  public:
   using Base = tvm::ExprFunctor<z3::expr(const Expr&)>;
   using Self = Z3Prover::Impl;
@@ -1014,8 +1014,8 @@ TVM_DLL int64_t Z3Prover::CountSatisfyingValues(const Var& var, int64_t max_coun
                                                 int64_t min_consecutive) {
   return impl_->CountSatisfyingValues(var, max_count, min_consecutive);
 }
-Z3Prover::Z3Prover(AnalyzerObj* parent) : impl_(new Impl{parent}) {}
-TVM_DLL Z3Prover::~Z3Prover() { delete impl_; }
+Z3Prover::Z3Prover(AnalyzerObj* parent) : impl_(ffi::make_object<Impl>(parent)) {}
+TVM_DLL Z3Prover::~Z3Prover() = default;
 
 }  // namespace tvm::arith
 
@@ -1038,7 +1038,7 @@ void ExitZ3ContextScope() {}
 
 // Stub implementation used when Z3 support is not built. All proving queries
 // conservatively report "cannot prove" while keeping the public API available.
-class Z3Prover::Impl {};
+class Z3Prover::Impl : public ffi::Object {};
 
 TVM_DLL bool Z3Prover::IsEnabled() const { return false; }
 TVM_DLL bool Z3Prover::CanProve(const PrimExpr& expr) { return false; }
@@ -1061,7 +1061,7 @@ TVM_DLL int64_t Z3Prover::CountSatisfyingValues(const Var& var, int64_t max_coun
 void Z3Prover::CopyFrom(const Z3Prover& other) {}
 ffi::String Z3Prover::GetStats() { return "; Z3 Prover is disabled."; }
 Z3Prover::Z3Prover(AnalyzerObj*) : impl_(nullptr) {}
-TVM_DLL Z3Prover::~Z3Prover() {}
+TVM_DLL Z3Prover::~Z3Prover() = default;
 
 }  // namespace tvm::arith
 

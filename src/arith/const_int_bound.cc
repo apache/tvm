@@ -94,7 +94,8 @@ struct ConstIntBoundAnalyzer::Entry {
 };
 
 class ConstIntBoundAnalyzer::Impl
-    : public tvm::ExprFunctor<ConstIntBoundAnalyzer::Entry(const Expr&)> {
+    : public ffi::Object,
+      public tvm::ExprFunctor<ConstIntBoundAnalyzer::Entry(const Expr&)> {
  public:
   explicit Impl(AnalyzerObj* parent) : parent_(parent) {}
   /*! \brief additional bound info about expr in bound */
@@ -908,9 +909,10 @@ std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const PrimExpr& con
   return impl_->EnterConstraint(constraint);
 }
 
-ConstIntBoundAnalyzer::ConstIntBoundAnalyzer(AnalyzerObj* parent) : impl_(new Impl(parent)) {}
+ConstIntBoundAnalyzer::ConstIntBoundAnalyzer(AnalyzerObj* parent)
+    : impl_(ffi::make_object<Impl>(parent)) {}
 
-ConstIntBoundAnalyzer::~ConstIntBoundAnalyzer() { delete impl_; }
+ConstIntBoundAnalyzer::~ConstIntBoundAnalyzer() = default;
 
 void ConstIntBoundAnalyzer::CopyFrom(const ConstIntBoundAnalyzer& other) {
   impl_->CopyFrom(*other.impl_);

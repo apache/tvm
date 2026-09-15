@@ -98,7 +98,8 @@ struct ModularSetAnalyzer::Entry {
   }
 };
 
-class ModularSetAnalyzer::Impl : public tvm::ExprFunctor<ModularSetAnalyzer::Entry(const Expr&)> {
+class ModularSetAnalyzer::Impl : public ffi::Object,
+                                 public tvm::ExprFunctor<ModularSetAnalyzer::Entry(const Expr&)> {
  public:
   explicit Impl(AnalyzerObj* parent) : parent_(parent) {}
 
@@ -408,9 +409,10 @@ std::function<void()> ModularSetAnalyzer::EnterConstraint(const PrimExpr& constr
   return impl_->EnterConstraint(constraint);
 }
 
-ModularSetAnalyzer::ModularSetAnalyzer(AnalyzerObj* parent) : impl_(new Impl(parent)) {}
+ModularSetAnalyzer::ModularSetAnalyzer(AnalyzerObj* parent)
+    : impl_(ffi::make_object<Impl>(parent)) {}
 
-ModularSetAnalyzer::~ModularSetAnalyzer() { delete impl_; }
+ModularSetAnalyzer::~ModularSetAnalyzer() = default;
 
 void ModularSetAnalyzer::CopyFrom(const ModularSetAnalyzer& other) {
   impl_->CopyFrom(*other.impl_);
