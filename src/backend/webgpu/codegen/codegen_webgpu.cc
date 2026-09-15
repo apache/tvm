@@ -168,6 +168,7 @@ std::string CodeGenWebGPU::Finish() {
 
 void CodeGenWebGPU::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
+  analyzer_ = arith::Analyzer();
   workgroup_memory_bytes_ = 0;
   // analyze the data;
   for (Var arg : f->params) {
@@ -643,6 +644,9 @@ void CodeGenWebGPU::VisitExpr_(const TensorLoadNode* op, std::ostream& os) {  //
 }
 
 void CodeGenWebGPU::VisitStmt_(const BindNode* op) {
+  if (auto prim_value = op->value.as<PrimExpr>()) {
+    analyzer_->Bind(op->var, prim_value.value());
+  }
   // use ssa form.
   if (print_ssa_form_) {
     std::string value = PrintExpr(op->value);
@@ -721,10 +725,9 @@ void CodeGenWebGPU::VisitStmt_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
   std::string vid = AllocVarID(op->buffer.get());
   size_t constant_size = 1;
-  arith::Analyzer analyzer;
   for (const auto& dim : op->buffer->shape) {
     const auto* dim_imm = dim.as<IntImmNode>();
-    int64_t dim_size = dim_imm ? dim_imm->value : analyzer->const_int_bound(dim)->max_value;
+    int64_t dim_size = dim_imm ? dim_imm->value : analyzer_->const_int_bound(dim)->max_value;
     if (dim_imm == nullptr) {
       const auto* dtype_max = max_value(dim.ty()).as<IntImmNode>();
       // An integer dtype's intrinsic maximum is not a program-derived allocation bound.
