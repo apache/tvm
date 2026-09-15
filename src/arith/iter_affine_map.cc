@@ -321,22 +321,17 @@ class IterMapRewriter : public tvm::ExprMutator {
     return true;
   }
 
-  UnchangedOr<ffi::Any> DirectMutate(ffi::AnyView value,
-                                     InplaceMode inplace_mode = InplaceMode::kDisallow) {
-    return Parent::Mutate(value, inplace_mode);
-  }
-
   TVM_FFI_INLINE UnchangedOr<PrimExpr> DirectMutate(
       const PrimExpr& value, InplaceMode inplace_mode = InplaceMode::kDisallow) {
     return ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
         ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-            DirectMutate(ffi::AnyView(value), inplace_mode)));
+            Parent::Mutate(ffi::AnyView(value), inplace_mode)));
   }
 
   // Qualified parent calls bypass this result guard for their root only.
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView input,
                                InplaceMode inplace_mode = InplaceMode::kDisallow) final {
-    UnchangedOr<ffi::Any> value_u = DirectMutate(input, inplace_mode);
+    UnchangedOr<ffi::Any> value_u = Parent::Mutate(input, inplace_mode);
     try {
       // Unchanged introduces no IterMapExpr replacement, so the result guard is unnecessary.
       if (value_u.IsUnchanged()) return ffi::Unchanged();

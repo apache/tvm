@@ -572,22 +572,17 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
 
   explicit Impl(AnalyzerObj* parent) : Rewriter(parent) {}
 
-  UnchangedOr<ffi::Any> DirectMutate(ffi::AnyView value,
-                                     InplaceMode inplace_mode = InplaceMode::kDisallow) {
-    return Rewriter::Mutate(value, inplace_mode);
-  }
-
   TVM_FFI_INLINE UnchangedOr<PrimExpr> DirectMutate(
       const PrimExpr& value, InplaceMode inplace_mode = InplaceMode::kDisallow) {
     return ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
         ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-            DirectMutate(ffi::AnyView(value), inplace_mode)));
+            Rewriter::Mutate(ffi::AnyView(value), inplace_mode)));
   }
 
   // Normalize replacements; qualified parent calls bypass this root only.
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value,
                                InplaceMode inplace_mode = InplaceMode::kDisallow) final {
-    UnchangedOr<ffi::Any> expr_u = DirectMutate(value, inplace_mode);
+    UnchangedOr<ffi::Any> expr_u = Rewriter::Mutate(value, inplace_mode);
     try {
       // Only replacements need normalization; an unchanged result preserves the input form.
       if (expr_u.IsUnchanged()) return ffi::Unchanged();

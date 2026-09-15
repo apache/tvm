@@ -170,8 +170,10 @@ class RecordMutationEntries : public ExprMutator {
     modes.push_back(inplace_mode);
     return ExprMutator::Mutate(value, inplace_mode);
   }
-  UnchangedOr<ffi::Any> DirectMutate(ffi::AnyView value, InplaceMode inplace_mode) {
-    return ExprMutator::Mutate(value, inplace_mode);
+  UnchangedOr<PrimExpr> DirectMutate(const PrimExpr& value, InplaceMode inplace_mode) {
+    return ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
+        ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
+            ExprMutator::Mutate(ffi::AnyView(value), inplace_mode)));
   }
 };
 
@@ -187,7 +189,7 @@ TEST(ExprMutator, DirectMutationBypassesOnlyCurrentEntry) {
     mutator->modes.clear();
     auto result = mutator->DirectMutate(root, mode);
     EXPECT_TRUE(result.IsUnchanged());
-    EXPECT_TRUE(std::move(result).ValueOrUnchanged(ffi::AnyView(root)).same_as(root));
+    EXPECT_TRUE(std::move(result).ValueOrUnchanged(root).same_as(root));
     EXPECT_EQ(mutator->entered, (std::vector<const ffi::Object*>{add->a.get(), add->b.get()}));
     EXPECT_EQ(mutator->modes, (std::vector<InplaceMode>{mode, mode}));
   }
