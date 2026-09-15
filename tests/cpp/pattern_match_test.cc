@@ -26,7 +26,7 @@ TEST(Pattern, Basic) {
   using namespace tvm;
   using namespace tvm::tirx;
   using namespace tvm::arith;
-  tvm::tirx::PrimVar x("x"), y("y"), z("z");
+  tvm::PrimVar x("x"), y("y"), z("z");
   PrimExpr scalable_lanes = prim::Mul(Call(PrimType::Int(32), prim::builtin::vscale(), {}), 4);
   arith::PVar<PrimExpr> px, py, pz;
   arith::PVar<DLDataType> pt;
@@ -131,7 +131,7 @@ TEST(Pattern, Basic) {
 
 TEST(Pattern, IntImm) {
   using namespace tvm;
-  tirx::PrimVar tx("tx"), ty("ty");
+  PrimVar tx("tx"), ty("ty");
   arith::PVar<IntImm> c;
   arith::PVar<tirx::Var> v;
   {
@@ -151,20 +151,20 @@ TEST(Pattern, MatchWithType) {
   using namespace tvm;
   // match expr with specified dtype
   arith::PVarWithDataType<PrimExpr, arith::PConst<DLDataType>> pat(DLDataType{kDLFloat, 32, 1});
-  tirx::PrimVar x("x", PrimType::Float(32));
-  tirx::PrimVar y("y", PrimType::Float(32));
-  tirx::PrimVar x_int("x", PrimType::Int(32));
-  tirx::PrimVar y_int("y", PrimType::Int(32));
+  PrimVar x("x", PrimType::Float(32));
+  PrimVar y("y", PrimType::Float(32));
+  PrimVar x_int("x", PrimType::Int(32));
+  PrimVar y_int("y", PrimType::Int(32));
   TVM_FFI_ICHECK(pat.Match(x + y * 2.0f));
   TVM_FFI_ICHECK(!pat.Match(x_int + y_int * 2));
 
   // match vectorized expr with specified element dtype
   arith::PVecDataType vec_ty(DLDataType{kDLFloat, 32, 1});
   arith::PVarWithDataType<PrimExpr, arith::PVecDataType> vpat(vec_ty);
-  tirx::PrimVar vx("x", PrimType::Float(32, 8));
-  tirx::PrimVar vy("y", PrimType::Float(32, 8));
-  tirx::PrimVar vx_int("x", PrimType::Int(32, 8));
-  tirx::PrimVar vy_int("y", PrimType::Int(32, 8));
+  PrimVar vx("x", PrimType::Float(32, 8));
+  PrimVar vy("y", PrimType::Float(32, 8));
+  PrimVar vx_int("x", PrimType::Int(32, 8));
+  PrimVar vy_int("y", PrimType::Int(32, 8));
   TVM_FFI_ICHECK(vpat.Match(vx + vy * prim::Broadcast(2.0f, 8)));
   TVM_FFI_ICHECK(!vpat.Match(vx_int + vy_int * prim::Broadcast(2, 8)));
 }

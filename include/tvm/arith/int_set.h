@@ -34,8 +34,6 @@ namespace tvm {
 namespace arith {
 
 using tirx::IterVar;
-using tirx::Var;
-using tirx::VarNode;
 
 class AnalyzerObj;
 class Analyzer;
@@ -201,7 +199,7 @@ IntSet EvalSet(PrimExpr e, const ffi::Map<Var, IntSet>& dom_map);
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-IntSet EvalSet(PrimExpr e, const std::unordered_map<const tirx::VarNode*, IntSet>& dom_map);
+IntSet EvalSet(PrimExpr e, const std::unordered_map<const VarNode*, IntSet>& dom_map);
 /*!
  * \brief Find an symbolic integer set that contains is union over
  *  all the possible conditional values in dom_map.

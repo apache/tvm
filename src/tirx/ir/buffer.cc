@@ -731,7 +731,7 @@ tirx::BufferVar BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType d
                                           std::string memory_scope) {
   PrimExpr elem_offset;
   if (offset_factor != 0) {
-    elem_offset = tirx::PrimVar(name + "_elem_offset", shape[0].ty());
+    elem_offset = PrimVar(name + "_elem_offset", shape[0].ty());
   } else {
     elem_offset = PrimExpr();
   }

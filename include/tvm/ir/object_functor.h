@@ -49,7 +49,7 @@ namespace tvm {
  *     return prefix + "IntImm";
  *   });
  *
- *   tirx::PrimVar x("x");
+ *   PrimVar x("x");
  *   PrimExpr y = x + 1;
  *   // dispatch to IntImm, outputs "MyIntImm"
  *   LOG(INFO) << tostr(IntImm::Int32(1), "My");
