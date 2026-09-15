@@ -114,9 +114,8 @@ static SpatialLayout GetSpatialLayout(const arith::IterMapResult& iter_map_resul
   TVM_FFI_ICHECK(!iter_map_result->indices.empty());
   SpatialLayout result;
   for (const arith::IterSumExpr& index : iter_map_result->indices) {
-    auto index_analyzer_owner = ffi::make_object<IndexAnalyzer>();
-    auto& index_analyzer = *index_analyzer_owner;
-    ffi::Array<tirx::Var> iter_vars = index_analyzer.Analyze(index);
+    auto index_analyzer = ffi::make_object<IndexAnalyzer>();
+    ffi::Array<tirx::Var> iter_vars = index_analyzer->Analyze(index);
     if (iter_vars.size() >= 2) {
       LOG(WARNING) << "[LayoutInference] Unable to get spatial layout of access: "
                    << arith::NormalizeIterMapToExpr(index);
@@ -604,16 +603,15 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
     if (block->writes.size() != 1) return std::nullopt;
     auto write_buffer = block->writes[0]->buffer;
     block_to_buffer_[block].push_back(write_buffer);
-    auto block_analyzer_owner = ffi::make_object<BlockAnalyzer>(
+    auto block_analyzer = ffi::make_object<BlockAnalyzer>(
         block, buffer_transformation_cache_, buffer_transformation_cache_[write_buffer]);
-    auto& block_analyzer = *block_analyzer_owner;
-    block_analyzer.Analyze();
+    block_analyzer->Analyze();
 
-    if (!block_analyzer.CanBeTransformed()) return std::nullopt;
+    if (!block_analyzer->CanBeTransformed()) return std::nullopt;
     // Collect the suggested transformations
-    block_transformations_.Set(block, block_analyzer.GetSBlockTransformation());
+    block_transformations_.Set(block, block_analyzer->GetSBlockTransformation());
 
-    for (const auto& [buffer, index_map] : block_analyzer.GetReadBufferTransformations()) {
+    for (const auto& [buffer, index_map] : block_analyzer->GetReadBufferTransformations()) {
       // BlockAnalyzer makes sure that it does not propose transformation for a buffer for which a
       // transformation has already been proposed by other blocks or by write_transformations which
       // are input to this analysis.
@@ -637,11 +635,9 @@ ffi::Map<tirx::SBlock, ffi::Map<ffi::ObjectRef, tirx::IndexMap>> SuggestLayoutTr
   // No changes to the PrimFunc are required if no transformations on output buffers.
   if (write_buffer_transformations.empty()) return {};
 
-  auto analyzer_owner = ffi::make_object<PrimFuncAnalyzer>(prim_func, write_buffer_transformations);
-
-  auto& analyzer = *analyzer_owner;
-  analyzer.Visit(prim_func->body);
-  return analyzer.GetSuggestedTransforms();
+  auto analyzer = ffi::make_object<PrimFuncAnalyzer>(prim_func, write_buffer_transformations);
+  analyzer->Visit(prim_func->body);
+  return analyzer->GetSuggestedTransforms();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

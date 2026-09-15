@@ -60,8 +60,14 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
 class ExprTouched final : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
-  explicit ExprTouched(const std::unordered_set<const VarNode*>& touched, bool check_write)
-      : touched_var_(touched), check_write_(check_write) {}
+  explicit ExprTouched(const std::unordered_set<const VarNode*>& touched) : touched_var_(touched) {}
+
+  void Reset(bool check_write) {
+    expr_touched_ = false;
+    used_vars_.clear();
+    write_vars_.clear();
+    check_write_ = check_write;
+  }
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView n) final {
     // early stopping
@@ -132,7 +138,7 @@ class ExprTouched final : public StmtExprVisitor {
   std::vector<const VarNode*> used_vars_;
   std::vector<const VarNode*> write_vars_;
   const std::unordered_set<const VarNode*>& touched_var_;
-  bool check_write_;
+  bool check_write_{false};
 };
 
 // Analyze if the buffers are invariant to value of var
@@ -144,43 +150,43 @@ class VarTouchedAnalysis : public StmtExprVisitor {
     return StmtExprVisitor::Visit(value);
   }
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
-    auto tc = ffi::make_object<ExprTouched>(touched_var_, false);
-    tc->Visit(op->value);
-    Record(op->var.get(), *tc);
+    expr_touched_->Reset(false);
+    expr_touched_->Visit(op->value);
+    Record(op->var.get(), *expr_touched_);
     return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
-    auto tc = ffi::make_object<ExprTouched>(touched_var_, false);
-    tc->Visit(op->value);
+    expr_touched_->Reset(false);
+    expr_touched_->Visit(op->value);
     for (const auto& index : op->indices) {
-      tc->Visit(index);
+      expr_touched_->Visit(index);
     }
-    Record(op->buffer.get(), *tc);
+    Record(op->buffer.get(), *expr_touched_);
     return std::nullopt;
   }
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-    auto tc = ffi::make_object<ExprTouched>(touched_var_, false);
-    tc->Visit(op->min);
-    tc->Visit(op->extent);
-    Record(op->loop_var.get(), *tc);
+    expr_touched_->Reset(false);
+    expr_touched_->Visit(op->min);
+    expr_touched_->Visit(op->extent);
+    Record(op->loop_var.get(), *expr_touched_);
     return this->Visit(op->body);
   }
   // external function call
   ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op) final {
-    auto tc = ffi::make_object<ExprTouched>(touched_var_, true);
-    tc->Visit(op->value);
-    for (const VarNode* var : tc->write_vars_) {
-      Record(var, *tc);
+    expr_touched_->Reset(true);
+    expr_touched_->Visit(op->value);
+    for (const VarNode* var : expr_touched_->write_vars_) {
+      Record(var, *expr_touched_);
     }
     return std::nullopt;
   }
   ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
-    auto tc = ffi::make_object<ExprTouched>(touched_var_, false);
+    expr_touched_->Reset(false);
     for (size_t i = 0; i < op->buffer->shape.size(); ++i) {
-      tc->Visit(op->buffer->shape[i]);
+      expr_touched_->Visit(op->buffer->shape[i]);
     }
-    Record(op->buffer.get(), *tc);
+    Record(op->buffer.get(), *expr_touched_);
     return StmtExprVisitor::Visit_(op);
   }
   void Record(const VarNode* var, const ExprTouched& tc) {
@@ -217,6 +223,7 @@ class VarTouchedAnalysis : public StmtExprVisitor {
  private:
   // Whether variable is touched by the thread variable.
   std::unordered_set<const VarNode*> touched_var_;
+  ffi::ObjectPtr<ExprTouched> expr_touched_ = ffi::make_object<ExprTouched>(touched_var_);
   // x -> all the buffers x read from
   std::unordered_map<const VarNode*, std::vector<const VarNode*>> affect_;
 };

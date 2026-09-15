@@ -176,7 +176,9 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     scope_.push_back(StmtEntry());
     // visit subexpr
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->indices));
+    for (const auto& index : op->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
     // Add write access.
     const VarNode* buf = ResolveAlias(op->buffer.get());
     auto it = alloc_info_.find(buf);
@@ -221,7 +223,9 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     // Add read access.
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->indices));
+    for (const auto& index : op->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
     const VarNode* buf = ResolveAlias(op->source.as_or_throw<tvm::tirx::BufferVar>().get());
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.buffer.defined()) {

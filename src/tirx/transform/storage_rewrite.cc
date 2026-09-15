@@ -149,7 +149,9 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     scope_.push_back(StmtEntry());
     // visit subexpr
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->indices));
+    for (const auto& index : op->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
     RecordAccess(op->buffer);
     StmtEntry e = scope_.back();
     scope_.pop_back();
@@ -161,7 +163,9 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->indices));
+    for (const auto& index : op->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
     RecordAccess(op->source.as_or_throw<tvm::tirx::BufferVar>());
     return std::nullopt;
   }
@@ -431,7 +435,9 @@ class InplaceOpVerifier : public StmtExprVisitor {
       }
     }
     ++mem_nest_;
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->indices));
+    for (const auto& index : op->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
     --mem_nest_;
     return std::nullopt;
   }

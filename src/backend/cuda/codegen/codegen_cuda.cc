@@ -237,14 +237,13 @@ class ThreadIdxExtractor : public tirx::StmtExprVisitor {
 };
 
 void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
-  auto extractor_owner = ffi::make_object<ThreadIdxExtractor>();
-  auto& extractor = *extractor_owner;
-  extractor.Visit(f->body);
+  auto extractor = ffi::make_object<ThreadIdxExtractor>();
+  extractor->Visit(f->body);
   arith::Analyzer analyzer;
   PrimExpr threadIdx_ext = analyzer->Simplify(
-      extractor.threadIdx_x_ext * extractor.threadIdx_y_ext * extractor.threadIdx_z_ext);
+      extractor->threadIdx_x_ext * extractor->threadIdx_y_ext * extractor->threadIdx_z_ext);
   PrimExpr cluster_cta_yz_ext =
-      analyzer->Simplify(extractor.clusterCtaIdx_y_ext * extractor.clusterCtaIdx_z_ext);
+      analyzer->Simplify(extractor->clusterCtaIdx_y_ext * extractor->clusterCtaIdx_z_ext);
   if (const IntImmNode* const cluster_cta_yz_ext_int = cluster_cta_yz_ext.as<IntImmNode>()) {
     cluster_cta_x_is_linear_rank_ = cluster_cta_yz_ext_int->value == 1;
   } else {
@@ -256,12 +255,12 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
     TVM_FFI_ICHECK_EQ(required_block_size.value(), 1);
     TVM_FFI_ICHECK(!max_registers.has_value())
         << tirx::attr::kRequiredBlockSize << " cannot be combined with maximum registers";
-    const auto* tx = extractor.threadIdx_x_ext.as<IntImmNode>();
-    const auto* ty = extractor.threadIdx_y_ext.as<IntImmNode>();
-    const auto* tz = extractor.threadIdx_z_ext.as<IntImmNode>();
-    const auto* cx = extractor.clusterCtaIdx_x_ext.as<IntImmNode>();
-    const auto* cy = extractor.clusterCtaIdx_y_ext.as<IntImmNode>();
-    const auto* cz = extractor.clusterCtaIdx_z_ext.as<IntImmNode>();
+    const auto* tx = extractor->threadIdx_x_ext.as<IntImmNode>();
+    const auto* ty = extractor->threadIdx_y_ext.as<IntImmNode>();
+    const auto* tz = extractor->threadIdx_z_ext.as<IntImmNode>();
+    const auto* cx = extractor->clusterCtaIdx_x_ext.as<IntImmNode>();
+    const auto* cy = extractor->clusterCtaIdx_y_ext.as<IntImmNode>();
+    const auto* cz = extractor->clusterCtaIdx_z_ext.as<IntImmNode>();
     TVM_FFI_ICHECK(tx && ty && tz && cx && cy && cz)
         << tirx::attr::kRequiredBlockSize << " requires static thread and cluster dimensions";
     os << " __block_size__((" << tx->value << ", " << ty->value << ", " << tz->value << "), ("

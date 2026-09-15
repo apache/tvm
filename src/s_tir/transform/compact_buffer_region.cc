@@ -120,7 +120,6 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   static std::unordered_map<BufferVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> Collect(
       const PrimFunc& f, bool collect_inbound) {
     auto region_collector = ffi::make_object<BufferAccessRegionCollector>(collect_inbound);
-
     // collect buffer var to aliased buffer mapping
     auto var2buffer_collector = ffi::make_object<Var2BufferCollector>();
     var2buffer_collector->Visit(f->body);
@@ -172,7 +171,10 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     } else {
       VisitBufferAccess(BufferRegion::FromPoint(buffer, op->indices));
     }
-    return Visit(op->indices);
+    for (const auto& index : op->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
+    return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {

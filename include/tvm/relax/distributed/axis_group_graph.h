@@ -68,9 +68,8 @@ Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
 class BufferAxisGraphExtractor : public StmtExprVisitor {
  public:
   static std::vector<std::vector<TIRVarAxis>> GetTIRVarAxisGraph(const PrimFunc& prim_func) {
-    auto extractor_owner = ffi::make_object<BufferAxisGraphExtractor>();
-    auto& extractor = *extractor_owner;
-    extractor.Visit(prim_func->body);
+    auto extractor = ffi::make_object<BufferAxisGraphExtractor>();
+    extractor->Visit(prim_func->body);
     ffi::Map<BufferVar, Var> inverse_buffer_map;
     for (const Var& param : prim_func->params) {
       if (param->ty.as<BufferTypeNode>()) {
@@ -85,9 +84,9 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
       }
       BufferVar buffer(param);
       for (int i = 0; i < static_cast<int>(buffer->shape.size()); i++) {
-        if (extractor.buffer_axis_graph_.count({buffer, i})) {
+        if (extractor->buffer_axis_graph_.count({buffer, i})) {
           std::vector<BufferAxis> buffer_axis_group;
-          extractor.DFSGraph({buffer, i}, &visited, &buffer_axis_group);
+          extractor->DFSGraph({buffer, i}, &visited, &buffer_axis_group);
           if (buffer_axis_group.size() <= 1) {
             continue;
           }

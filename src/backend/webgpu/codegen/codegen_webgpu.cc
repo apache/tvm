@@ -83,10 +83,9 @@ struct WebGPUWorkGroupInfo {
 class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
  public:
   static WebGPUWorkGroupInfo Collect(const Stmt& stmt) {
-    auto collector_owner = ffi::make_object<WebGPUWorkgroupInfoCollector>();
-    auto& collector = *collector_owner;
-    collector.Visit(stmt);
-    return collector.info_;
+    auto collector = ffi::make_object<WebGPUWorkgroupInfoCollector>();
+    collector->Visit(stmt);
+    return collector->info_;
   }
 
  private:

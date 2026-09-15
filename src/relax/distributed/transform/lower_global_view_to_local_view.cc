@@ -282,10 +282,9 @@ class DistributedBufferCompactor : StmtExprMutator {
 
   Stmt VisitStmt_(const SBlockNode* op) final {
     SBlock block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
-    auto collector_owner = ffi::make_object<DistSBlockInfoCollector>();
-    auto& collector = *collector_owner;
-    collector.Visit(block);
-    ffi::Array<IterVar> new_iter_vars = ShardIterVar(block, collector.buffer_access_indices);
+    auto collector = ffi::make_object<DistSBlockInfoCollector>();
+    collector->Visit(block);
+    ffi::Array<IterVar> new_iter_vars = ShardIterVar(block, collector->buffer_access_indices);
     ffi::Array<BufferVar> new_alloc_buffers;
     ffi::Map<BufferVar, BufferVar> buffer_map;
     for (const BufferVar& buffer : block->alloc_buffers) {
@@ -300,7 +299,7 @@ class DistributedBufferCompactor : StmtExprMutator {
     for (const IterVar& iter_var : new_iter_vars) {
       if (iter_var->iter_type == kCommReduce && iter_var_shards_.count(iter_var->var)) {
         TVM_FFI_ICHECK(add_allreduce_kind_ == "");
-        AddAllReduceBlock(collector.reduce_kind);
+        AddAllReduceBlock(collector->reduce_kind);
         break;
       }
     }

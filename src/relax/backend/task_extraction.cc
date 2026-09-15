@@ -58,10 +58,9 @@ class BlockCounter : public tirx::StmtExprVisitor {
   }
 
   static size_t GetSBlockCount(const tirx::PrimFunc& func) {
-    auto counter_owner = ffi::make_object<BlockCounter>();
-    auto& counter = *counter_owner;
-    counter.Visit(func->body);
-    return counter.count;
+    auto counter = ffi::make_object<BlockCounter>();
+    counter->Visit(func->body);
+    return counter->count;
   }
 
  private:

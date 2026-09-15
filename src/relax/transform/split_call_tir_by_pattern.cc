@@ -601,14 +601,13 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   if (num_matched_ops == 0) {
     return {func, std::nullopt};
   }
-  auto partitioner_owner = ffi::make_object<FunctionPartitioner>(num_matched_ops);
-  auto& partitioner = *partitioner_owner;
-  partitioner.Visit(body);
-  if (partitioner.fail) {
+  auto partitioner = ffi::make_object<FunctionPartitioner>(num_matched_ops);
+  partitioner->Visit(body);
+  if (partitioner->fail) {
     return {func, std::nullopt};
   }
   bool has_second_func = false;
-  for (const auto& pr : partitioner.block_partition) {
+  for (const auto& pr : partitioner->block_partition) {
     if (!pr.second) {
       has_second_func = true;
       break;
@@ -619,16 +618,16 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
     return {WithAttr(func, kLibraryKernel, library_code), std::nullopt};
   }
   // Step 2. Split the function into two functions.
-  Stmt body1 = BlockRemover::RemoveBlockByPartition(func->body, partitioner.block_partition,
-                                                    partitioner.allocs1, true);
-  Stmt body2 = BlockRemover::RemoveBlockByPartition(func->body, partitioner.block_partition,
-                                                    partitioner.allocs2, false);
+  Stmt body1 = BlockRemover::RemoveBlockByPartition(func->body, partitioner->block_partition,
+                                                    partitioner->allocs1, true);
+  Stmt body2 = BlockRemover::RemoveBlockByPartition(func->body, partitioner->block_partition,
+                                                    partitioner->allocs2, false);
   // Step 3. Craft the first function.
   ffi::Array<Var> new_params1;
   std::vector<int> arg_partition1;
-  TVM_FFI_ICHECK_LE(func1_args.size(), partitioner.input1.size());
+  TVM_FFI_ICHECK_LE(func1_args.size(), partitioner->input1.size());
   for (const auto& buffer : func1_args) {
-    TVM_FFI_ICHECK(partitioner.input1.find(buffer) != partitioner.input1.end());
+    TVM_FFI_ICHECK(partitioner->input1.find(buffer) != partitioner->input1.end());
     for (size_t i = 0; i < func->params.size(); i++) {
       auto param_buffer = func->params[i].as<tirx::BufferVar>();
       if (param_buffer.has_value() && param_buffer.value().same_as(buffer)) {
@@ -639,17 +638,17 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
     }
   }
   arg_partition->push_back(arg_partition1);
-  new_params1.push_back(partitioner.intermediate_buffer.var());
+  new_params1.push_back(partitioner->intermediate_buffer.var());
   PrimFunc func1 = PrimFunc(new_params1, body1, func->ret_type, func->attrs);
   func1 = WithAttr(func1, kLibraryKernel, library_code);
   // Step 4. Craft the second function.
   ffi::Array<Var> new_params2;
   std::vector<int> arg_partition2;
-  new_params2.push_back(partitioner.intermediate_buffer.var());
+  new_params2.push_back(partitioner->intermediate_buffer.var());
   for (int i = 0; i < static_cast<int>(func->params.size()); i++) {
     Var param = func->params[i];
     auto param_buffer = param.as<tirx::BufferVar>();
-    if (param_buffer.has_value() && partitioner.input2.count(param_buffer.value())) {
+    if (param_buffer.has_value() && partitioner->input2.count(param_buffer.value())) {
       new_params2.push_back(param);
       if (i != static_cast<int>(func->params.size()) - 1) {
         arg_partition2.push_back(i);

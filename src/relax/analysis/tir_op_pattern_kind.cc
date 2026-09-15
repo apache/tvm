@@ -363,10 +363,9 @@ class PatternKindAnalyzer : public StmtExprVisitor {
 };
 
 OpPatternKind AnalyzeOpPatternKind(const PrimFunc& func) {
-  auto analyzer_owner = ffi::make_object<PatternKindAnalyzer>(func);
-  auto& analyzer = *analyzer_owner;
-  analyzer.Visit(func->body);
-  return analyzer.GetResult();
+  auto analyzer = ffi::make_object<PatternKindAnalyzer>(func);
+  analyzer->Visit(func->body);
+  return analyzer->GetResult();
 }
 
 bool HasReshapePattern(const PrimFunc& func) {
@@ -378,10 +377,9 @@ bool HasReshapePattern(const PrimFunc& func) {
     }
 
     static bool Detect(const BufferVar& src_buffer, const BufferVar& dst_buffer, Stmt stmt) {
-      auto detector_owner = ffi::make_object<ReshapeDetector>(src_buffer, dst_buffer);
-      auto& detector = *detector_owner;
-      detector.Visit(stmt);
-      return detector.is_reshape_;
+      auto detector = ffi::make_object<ReshapeDetector>(src_buffer, dst_buffer);
+      detector->Visit(stmt);
+      return detector->is_reshape_;
     }
 
     explicit ReshapeDetector(const BufferVar& src_buffer, const BufferVar& dst_buffer)

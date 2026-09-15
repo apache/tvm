@@ -197,7 +197,10 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const TensorLoadNod
   }
   Update(&read_buffers_, &read_regions_, op->source.as_or_throw<tvm::tirx::BufferVar>(),
          relaxed_region);
-  return Visit(op->indices);
+  for (const auto& index : op->indices) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+  }
+  return std::nullopt;
 }
 
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const ForNode* op) {
@@ -348,7 +351,10 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const BufferStoreNo
   }
   Update(&writes_buffers_, &write_regions_, op->buffer, relaxed_region);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
-  return Visit(op->indices);
+  for (const auto& index : op->indices) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+  }
+  return std::nullopt;
 }
 
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const SBlockRealizeNode* op) {

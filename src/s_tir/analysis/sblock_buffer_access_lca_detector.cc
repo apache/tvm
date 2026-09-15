@@ -276,13 +276,19 @@ class LCADetector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     UpdateBufferLCA(op->source.as_or_throw<tvm::tirx::BufferVar>().get(), ancestor_scopes_.back());
-    return Visit(op->indices);
+    for (const auto& index : op->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
+    return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
     UpdateBufferLCA(op->buffer.get(), ancestor_scopes_.back());
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
-    return Visit(op->indices);
+    for (const auto& index : op->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
+    return std::nullopt;
   }
 
   // Works for Load/Store and opaque access.

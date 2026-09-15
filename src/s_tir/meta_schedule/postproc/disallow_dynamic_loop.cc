@@ -48,7 +48,7 @@ struct DynamicExtentFinder : public StmtExprVisitor {
     if (!loop->extent->IsInstance<IntImmNode>()) {
       found_ = true;
     } else {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
+      return StmtExprVisitor::Visit_(loop);
     }
     return std::nullopt;
   }
@@ -56,7 +56,7 @@ struct DynamicExtentFinder : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView stmt) final {
     if (stmt.as<ExprNode>()) return std::nullopt;
     if (!found_) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(stmt));
+      return StmtExprVisitor::Visit(stmt);
     }
     return std::nullopt;
   }
