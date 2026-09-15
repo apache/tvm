@@ -341,7 +341,10 @@ struct ThreadedTraceApply {
                                     s_tir::ScheduleErrorRenderLevel::kNone);
       trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
       sch->EnterPostproc();
-    } catch (const s_tir::ScheduleError& e) {
+    } catch (const ffi::Error& e) {
+      if (s_tir::GetScheduleErrorContext(e) == nullptr) {
+        throw;
+      }
       TVM_PY_LOG(WARNING, nullptr) << "Trace replay failed with ScheduleError: " << e.what();
       this->trace_fail_counter_++;
       return std::nullopt;
@@ -358,7 +361,10 @@ struct ThreadedTraceApply {
         if (!item.postproc->Apply(sch)) {
           success = false;
         }
-      } catch (const s_tir::ScheduleError& e) {
+      } catch (const ffi::Error& e) {
+        if (s_tir::GetScheduleErrorContext(e) == nullptr) {
+          throw;
+        }
         DLOG(WARNING) << "Postproc #" << i << " failed with ScheduleError: " << e.what();
         success = false;
       } catch (const std::exception& e) {

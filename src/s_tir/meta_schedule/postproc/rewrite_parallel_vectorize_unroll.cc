@@ -477,7 +477,10 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
             int max_step = parsed.unroll_explicit + parsed.unroll_implicit + 1;
             s_tir::RewriteUnroll(sch, unroll_explicit, max_step, block_rv, loop_rvs[0]);
           }
-        } catch (const s_tir::ScheduleError& e) {
+        } catch (const ffi::Error& e) {
+          if (s_tir::GetScheduleErrorContext(e) == nullptr) {
+            throw;
+          }
           DLOG(WARNING) << "Failed to apply parallelization/vectorization: " << e.what();
           return false;
         }

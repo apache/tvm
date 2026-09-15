@@ -38,7 +38,7 @@ and there should be no variables other than the index variables), and f is a bij
 mapping and there should not be predicates in the inlined block. The iter domains of the inlined
 block should be covered by the producer block.)";
 
-class HasInitBlock : public ScheduleError {
+class HasInitBlock : public ScheduleErrorContextObj {
  public:
   explicit HasInitBlock(IRModule mod, SBlock block) : mod_(mod), block_(block) {}
 
@@ -55,7 +55,7 @@ class HasInitBlock : public ScheduleError {
 
   static void Check(const IRModule& mod, const SBlock& block) {
     if (block->init.has_value()) {
-      throw HasInitBlock(mod, block);
+      throw MakeScheduleError<HasInitBlock>(mod, block);
     }
   }
 
@@ -64,7 +64,7 @@ class HasInitBlock : public ScheduleError {
   SBlock block_;
 };
 
-class NotSingleReadWriteBuffer : public ScheduleError {
+class NotSingleReadWriteBuffer : public ScheduleErrorContextObj {
  public:
   explicit NotSingleReadWriteBuffer(IRModule mod, bool is_read, SBlock block)
       : mod_(mod), is_read_(is_read), block_(std::move(block)) {}
@@ -106,26 +106,26 @@ class NotSingleReadWriteBuffer : public ScheduleError {
       }
       if (buffer_writers.count(BufferVar(ffi::GetRef<Var>(buffer))) > 0) {
         if (read_buffer != nullptr) {
-          throw NotSingleReadWriteBuffer(self->mod, true, block);
+          throw MakeScheduleError<NotSingleReadWriteBuffer>(self->mod, true, block);
         }
         read_buffer = buffer;
       }
     }
     if (read_buffer == nullptr) {
-      throw NotSingleReadWriteBuffer(self->mod, true, block);
+      throw MakeScheduleError<NotSingleReadWriteBuffer>(self->mod, true, block);
     }
     return BufferVar(ffi::GetRef<Var>(read_buffer));
   }
 
   static BufferVar GetSingleWrite(const ScheduleState& self, const SBlock& block) {
     if (block->writes.size() != 1) {
-      throw NotSingleReadWriteBuffer(self->mod, false, block);
+      throw MakeScheduleError<NotSingleReadWriteBuffer>(self->mod, false, block);
     }
     return block->writes[0]->buffer;
   }
 };
 
-class BodyAnalysisError : public ScheduleError {
+class BodyAnalysisError : public ScheduleErrorContextObj {
  public:
   explicit BodyAnalysisError(bool is_reverse, IRModule mod, SBlock block)
       : is_reverse_(is_reverse), mod_(mod), block_(std::move(block)) {}
@@ -147,7 +147,7 @@ class BodyAnalysisError : public ScheduleError {
   SBlock block_;
 };
 
-class NonSingleProducerError : public ScheduleError {
+class NonSingleProducerError : public ScheduleErrorContextObj {
  public:
   explicit NonSingleProducerError(IRModule mod, SBlock block)
       : mod_(mod), block_(std::move(block)) {}
@@ -220,7 +220,8 @@ class NonSingleProducerError : public ScheduleError {
             // Check if the producer block is a complete block
             StmtSRef producer_block_sref = self_->stmt2ref.at(node);
             if (!IsCompleteBlock(self_, producer_block_sref, scope_root_sref_)) {
-              throw NonSingleProducerError(self_->mod, ffi::GetRef<SBlock>(node));
+              throw MakeScheduleError<NonSingleProducerError>(self_->mod,
+                                                              ffi::GetRef<SBlock>(node));
             }
             producer_across_scope_.back().push_back(ffi::GetRef<SBlock>(node));
             break;
@@ -235,13 +236,14 @@ class NonSingleProducerError : public ScheduleError {
     std::vector<SBlock> producer_across_scope = ProducerFinder::GetProducer(
         self, scope_root_sref, consumer_buffer, ffi::GetRef<SBlock>(scope_block));
     if (producer_across_scope.size() != 1) {
-      throw NonSingleProducerError(self->mod, ffi::GetRef<SBlock>(consumer_block));
+      throw MakeScheduleError<NonSingleProducerError>(self->mod,
+                                                      ffi::GetRef<SBlock>(consumer_block));
     }
     return self->stmt2ref.at(producer_across_scope[0].get());
   }
 };
 
-class OpaqueAccessError : public ScheduleError {
+class OpaqueAccessError : public ScheduleErrorContextObj {
  public:
   explicit OpaqueAccessError(IRModule mod, StmtSRef scope_root_sref)
       : mod_(mod), scope_root_(nullptr) {
@@ -266,7 +268,7 @@ class OpaqueAccessError : public ScheduleError {
   SBlock scope_root_;
 };
 
-class ProducerHasNonTrivialPredicateError : public ScheduleError {
+class ProducerHasNonTrivialPredicateError : public ScheduleErrorContextObj {
  public:
   explicit ProducerHasNonTrivialPredicateError(IRModule mod, SBlockRealize producer,
                                                PrimExpr new_predicate)
@@ -924,7 +926,7 @@ void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,
   // Step 3. Analyze the block body
   ComputeInliner inliner(inlined_buffer, producer_block, scope_root_sref);
   if (!inliner.BodyPatternAllowInline(producer_block)) {
-    throw BodyAnalysisError(false, self->mod, producer_block);
+    throw MakeScheduleError<BodyAnalysisError>(false, self->mod, producer_block);
   }
   // Step 4. Create a plan that removes the leaf block to be inlined
   LeafBlockRemovalPlan(self, producer_block_sref, &inliner.src_stmt, &inliner.tgt_stmt);
@@ -932,7 +934,7 @@ void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,
   // and update other blocks who read from the removed block
   Stmt tgt_stmt = inliner(ffi::GetRef<Stmt>(scope_root_sref->stmt));
   if (inliner.has_opaque_access) {
-    throw OpaqueAccessError(self->mod, scope_root_sref);
+    throw MakeScheduleError<OpaqueAccessError>(self->mod, scope_root_sref);
   }
   // Step 6. Do the real mutation on the AST and the sref tree in the schedule state
   if (check_only) {
@@ -976,7 +978,7 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
   ReverseComputeInliner inliner(inlined_buffer, producer_block_sref->StmtAs<SBlockNode>(),
                                 consumer_block_realize, scope_root_sref, self->mod);
   if (!inliner.BodyPatternAllowInline(consumer_block_realize)) {
-    throw BodyAnalysisError(true, self->mod, consumer_block);
+    throw MakeScheduleError<BodyAnalysisError>(true, self->mod, consumer_block);
   }
   // Step 5. Create a plan that removes the leaf block to be inlined
   LeafBlockRemovalPlan(self, consumer_block_sref, &inliner.src_stmt, &inliner.tgt_stmt);
@@ -984,7 +986,7 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
   // and update other blocks who read from the removed block
   Stmt tgt_stmt = inliner(ffi::GetRef<Stmt>(scope_root_sref->stmt));
   if (inliner.has_opaque_access) {
-    throw OpaqueAccessError(self->mod, scope_root_sref);
+    throw MakeScheduleError<OpaqueAccessError>(self->mod, scope_root_sref);
   }
   // Step 7. Do the real mutation on the AST and the sref tree in the schedule state
   if (check_only) {
@@ -1736,7 +1738,7 @@ void FuseReductionEpilogueImpl(ScheduleState self, const StmtSRef& reduction_blo
   ReductionEpilogueFuser fuser(reduction_buffer, _reduction_block, epilogue_block_realize,
                                scope_root_sref);
   if (!fuser.BodyPatternAllowFusion(epilogue_block_realize)) {
-    throw BodyAnalysisError(true, self->mod, epilogue_block);
+    throw MakeScheduleError<BodyAnalysisError>(true, self->mod, epilogue_block);
   }
 
   if (check_only) {

@@ -40,7 +40,7 @@ struct OOBLocation {
   arith::IntSet shape_bounds;
 };
 
-class OOBError : public s_tir::ScheduleError {
+class OOBError : public s_tir::ScheduleErrorContextObj {
  public:
   OOBError(IRModule mod, std::vector<OOBLocation> locations) : mod_(mod), locations_(locations) {}
   ffi::String FastErrorString() const final { return "Out of bound memory access"; }

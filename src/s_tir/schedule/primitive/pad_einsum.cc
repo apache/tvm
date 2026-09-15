@@ -69,7 +69,7 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buff
 }
 
 /*! \brief The schedule error class when the padding size is invalid. */
-class InvalidPaddingError : public ScheduleError {
+class InvalidPaddingError : public ScheduleErrorContextObj {
  public:
   InvalidPaddingError(IRModule mod, SBlock block, ffi::Array<int64_t> padding)
       : mod_(std::move(mod)), block_(std::move(block)), padding_(std::move(padding)) {}
@@ -87,11 +87,11 @@ class InvalidPaddingError : public ScheduleError {
 
   static void Check(const ScheduleState& self, const SBlock& block, ffi::Array<int64_t> padding) {
     if (padding.size() != block->iter_vars.size()) {
-      throw InvalidPaddingError(self->mod, block, padding);
+      throw MakeScheduleError<InvalidPaddingError>(self->mod, block, padding);
     }
     for (int64_t pad : padding) {
       if (pad <= 0) {
-        throw InvalidPaddingError(self->mod, block, padding);
+        throw MakeScheduleError<InvalidPaddingError>(self->mod, block, padding);
       }
     }
   }
@@ -103,7 +103,7 @@ class InvalidPaddingError : public ScheduleError {
 };
 
 /*! \brief The schedule error class when the block body is not an Einsum pattern. */
-class NonEinsumError : public ScheduleError {
+class NonEinsumError : public ScheduleErrorContextObj {
  public:
   explicit NonEinsumError(IRModule mod, SBlock block)
       : mod_(std::move(mod)), block_(std::move(block)) {}
@@ -224,34 +224,34 @@ Einsum ExtractEinsum(const ScheduleState& self, const SBlock& block) {
   for (int i = 0; i < n_reads; ++i) {
     const BufferVar& buffer = block->reads[i]->buffer;
     if (buffer_used.count(buffer.get()) != 0) {
-      throw NonEinsumError(self->mod, block);
+      throw MakeScheduleError<NonEinsumError>(self->mod, block);
     }
     buffer_used.insert(buffer.get());
     if (ffi::Optional<ffi::Array<Var>> opt_indices = CheckTrivialBufferAccess(block->reads[i])) {
       result.input_buffers.push_back(buffer);
       result.input_indices.Set(buffer, opt_indices.value());
     } else {
-      throw NonEinsumError(self->mod, block);
+      throw MakeScheduleError<NonEinsumError>(self->mod, block);
     }
   }
   int n_writes = block->writes.size();
   for (int i = 0; i < n_writes; ++i) {
     const BufferVar& buffer = block->writes[i]->buffer;
     if (buffer_used.count(buffer.get()) != 0) {
-      throw NonEinsumError(self->mod, block);
+      throw MakeScheduleError<NonEinsumError>(self->mod, block);
     }
     buffer_used.insert(buffer.get());
     if (ffi::Optional<ffi::Array<Var>> opt_indices = CheckTrivialBufferAccess(block->writes[i])) {
       result.output_buffers.push_back(buffer);
       result.output_indices.Set(buffer, opt_indices.value());
     } else {
-      throw NonEinsumError(self->mod, block);
+      throw MakeScheduleError<NonEinsumError>(self->mod, block);
     }
   }
   return result;
 }
 
-class BufferNotAllocatedInScopeError : public ScheduleError {
+class BufferNotAllocatedInScopeError : public ScheduleErrorContextObj {
  public:
   explicit BufferNotAllocatedInScopeError(IRModule mod, BufferVar buffer)
       : mod_(std::move(mod)), buffer_(std::move(buffer)) {}
@@ -277,7 +277,7 @@ class BufferNotAllocatedInScopeError : public ScheduleError {
 };
 
 /*! \brief The schedule error class when the producer block cannot be padded. */
-class InvalidProducerError : public ScheduleError {
+class InvalidProducerError : public ScheduleErrorContextObj {
  public:
   explicit InvalidProducerError(IRModule mod, SBlock producer)
       : mod_(std::move(mod)), producer_(std::move(producer)) {}

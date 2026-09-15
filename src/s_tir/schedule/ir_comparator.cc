@@ -47,7 +47,7 @@ using namespace tvm::tirx;
 
 /******** Tensorize Comparator ********/
 
-class TensorIntrinMismatchError : public ScheduleError {
+class TensorIntrinMismatchError : public ScheduleErrorContextObj {
  public:
   explicit TensorIntrinMismatchError(IRModule lhs_mod, Stmt lhs_stmt, Stmt rhs_stmt,
                                      std::vector<std::string> error_messages)
@@ -89,7 +89,8 @@ bool TensorizeComparator::VisitStmt(const Stmt& n, const Stmt& other) {
   bool equal = n.same_as(other) ||
                ((n->type_index() == other->type_index()) && StmtComparator::VisitStmt(n, other));
   if (!equal && assert_mode_ && (n->IsInstance<ForNode>() || n->IsInstance<SBlockNode>())) {
-    throw TensorIntrinMismatchError(lhs_mod_, n, other, std::move(error_messages_));
+    throw MakeScheduleError<TensorIntrinMismatchError>(lhs_mod_, n, other,
+                                                       std::move(error_messages_));
   }
   return equal;
 }

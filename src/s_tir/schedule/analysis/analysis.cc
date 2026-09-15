@@ -64,7 +64,7 @@ const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_bl
 
 StmtSRef GetScopeRoot(const ScheduleState& self, const StmtSRef& sref,
                       bool require_stage_pipeline) {
-  class RootBlockError : public ScheduleError {
+  class RootBlockError : public ScheduleErrorContextObj {
    public:
     explicit RootBlockError(IRModule mod) : mod_(mod) {}
     IRModule mod() const final { return mod_; }
@@ -78,7 +78,7 @@ StmtSRef GetScopeRoot(const ScheduleState& self, const StmtSRef& sref,
     IRModule mod_;
   };
 
-  class NotStagePipelineError : public ScheduleError {
+  class NotStagePipelineError : public ScheduleErrorContextObj {
    public:
     explicit NotStagePipelineError(IRModule mod, SBlock block) : mod_(mod), block_(block) {}
     IRModule mod() const final { return mod_; }
@@ -113,7 +113,7 @@ Definition of a scope that is a stage pipeline:
       }
     }
     if (p == nullptr) {
-      throw RootBlockError(self->mod);
+      throw MakeScheduleError<RootBlockError>(self->mod);
     }
   }
   // Step 2. Handle `require_stage_pipeline`
@@ -121,7 +121,7 @@ Definition of a scope that is a stage pipeline:
     bool stage_pipeline = self->GetSBlockInfo(scope_root_sref).stage_pipeline;
     if (stage_pipeline == false) {
       const SBlockNode* block = TVM_SREF_TO_SBLOCK(scope_root_sref);
-      throw NotStagePipelineError(self->mod, ffi::GetRef<SBlock>(block));
+      throw MakeScheduleError<NotStagePipelineError>(self->mod, ffi::GetRef<SBlock>(block));
     }
   }
   return scope_root_sref;
@@ -282,7 +282,7 @@ bool IsCompleteBlock(const ScheduleState& self, const StmtSRef& block_sref,
 
 void CheckCompleteBlock(const ScheduleState& self, const StmtSRef& block_sref,
                         const StmtSRef& scope_root_sref) {
-  class IncompleteBlockError : public ScheduleError {
+  class IncompleteBlockError : public ScheduleErrorContextObj {
    public:
     explicit IncompleteBlockError(IRModule mod, SBlock block, int violated_cond)
         : mod_(std::move(mod)), block_(std::move(block)), violated_cond_(violated_cond) {}
@@ -303,7 +303,8 @@ void CheckCompleteBlock(const ScheduleState& self, const StmtSRef& block_sref,
   int error_code = CheckCompleteBlockErrorCode(self, block_sref, scope_root_sref);
   if (error_code != 0) {
     const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-    throw IncompleteBlockError(self->mod, ffi::GetRef<SBlock>(block), error_code);
+    throw MakeScheduleError<IncompleteBlockError>(self->mod, ffi::GetRef<SBlock>(block),
+                                                  error_code);
   }
 }
 
@@ -356,7 +357,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 void CheckReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
                          const StmtSRef& scope_root_sref) {
-  class NotReductionBlockError : public ScheduleError {
+  class NotReductionBlockError : public ScheduleErrorContextObj {
    public:
     explicit NotReductionBlockError(IRModule mod, SBlock block, int violated_cond)
         : mod_(std::move(mod)), block_(std::move(block)), violated_cond_(violated_cond) {}
@@ -377,13 +378,14 @@ void CheckReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
   int error_code = CheckReductionBlockErrorCode(self, block_sref, scope_root_sref);
   if (error_code != 0) {
     const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-    throw NotReductionBlockError(self->mod, ffi::GetRef<SBlock>(block), error_code);
+    throw MakeScheduleError<NotReductionBlockError>(self->mod, ffi::GetRef<SBlock>(block),
+                                                    error_code);
   }
 }
 
 void CheckCompleteOrReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
                                    const StmtSRef& scope_root_sref) {
-  class NotCompleteOrReductionBlockError : public ScheduleError {
+  class NotCompleteOrReductionBlockError : public ScheduleErrorContextObj {
    public:
     explicit NotCompleteOrReductionBlockError(IRModule mod, SBlock block,
                                               int complete_block_error_code,
@@ -424,12 +426,12 @@ void CheckCompleteOrReductionBlock(const ScheduleState& self, const StmtSRef& bl
     return;
   }
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  throw NotCompleteOrReductionBlockError(self->mod, ffi::GetRef<SBlock>(block),
-                                         complete_block_error_code, reduction_block_error_code);
+  throw MakeScheduleError<NotCompleteOrReductionBlockError>(
+      self->mod, ffi::GetRef<SBlock>(block), complete_block_error_code, reduction_block_error_code);
 }
 
 void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subtree_root) {
-  class NotCompactDataFlowError : public ScheduleError {
+  class NotCompactDataFlowError : public ScheduleErrorContextObj {
    public:
     explicit NotCompactDataFlowError(IRModule mod, Stmt subtree_root, SBlock violate_block,
                                      int local_complete_block_code, int local_reduction_block_code)
@@ -477,9 +479,9 @@ void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subt
         local_reduction_block_code = CheckReductionBlockErrorCode(self, block_sref, subtree_root);
     if (local_complete_block_code != 0 && local_reduction_block_code != 0) {
       const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-      throw NotCompactDataFlowError(self->mod, ffi::GetRef<Stmt>(subtree_root->stmt),
-                                    ffi::GetRef<SBlock>(block), local_complete_block_code,
-                                    local_reduction_block_code);
+      throw MakeScheduleError<NotCompactDataFlowError>(
+          self->mod, ffi::GetRef<Stmt>(subtree_root->stmt), ffi::GetRef<SBlock>(block),
+          local_complete_block_code, local_reduction_block_code);
     }
   }
 }
@@ -503,7 +505,7 @@ bool IsOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
 
 void CheckNotOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
                          const StmtSRef& scope_root_sref) {
-  class OutputBlockError : public ScheduleError {
+  class OutputBlockError : public ScheduleErrorContextObj {
    public:
     explicit OutputBlockError(IRModule mod, SBlock block) : mod_(mod), block_(block) {}
     ffi::String FastErrorString() const final {
@@ -518,7 +520,7 @@ void CheckNotOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
   };
   if (IsOutputBlock(self, block_sref, scope_root_sref)) {
     const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-    throw OutputBlockError(self->mod, ffi::GetRef<SBlock>(block));
+    throw MakeScheduleError<OutputBlockError>(self->mod, ffi::GetRef<SBlock>(block));
   }
 }
 
@@ -589,7 +591,7 @@ bool IsAffineBinding(const SBlockRealize& realize, const ffi::Map<Var, Range>& l
 
 void CheckPartialAffineBinding(const ScheduleState& self, SBlock block,
                                const ffi::Optional<StmtSRef>& high_exclusive) {
-  class NotAffineBindingError : public ScheduleError {
+  class NotAffineBindingError : public ScheduleErrorContextObj {
    public:
     explicit NotAffineBindingError(IRModule mod, SBlock block,
                                    ffi::Optional<StmtSRef> high_exclusive)
@@ -639,7 +641,7 @@ void CheckPartialAffineBinding(const ScheduleState& self, SBlock block,
       return;
     }
   }
-  throw NotAffineBindingError(self->mod, std::move(block), high_exclusive);
+  throw MakeScheduleError<NotAffineBindingError>(self->mod, std::move(block), high_exclusive);
 }
 
 void CheckAffineBinding(const ScheduleState& self, SBlock block) {
@@ -647,7 +649,7 @@ void CheckAffineBinding(const ScheduleState& self, SBlock block) {
 }
 
 void CheckBlockHasTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
-  class NotTrivialBindingError : public ScheduleError {
+  class NotTrivialBindingError : public ScheduleErrorContextObj {
    public:
     explicit NotTrivialBindingError(IRModule mod, SBlock block)
         : mod_(std::move(mod)), block_(std::move(block)) {}
@@ -671,7 +673,8 @@ void CheckBlockHasTrivialBinding(const ScheduleState& self, const StmtSRef& bloc
   };
 
   if (!IsTrivialBinding(self, block_sref)) {
-    throw NotTrivialBindingError(self->mod, ffi::GetRef<SBlock>(block_sref->StmtAs<SBlockNode>()));
+    throw MakeScheduleError<NotTrivialBindingError>(
+        self->mod, ffi::GetRef<SBlock>(block_sref->StmtAs<SBlockNode>()));
   }
 }
 
@@ -756,7 +759,7 @@ bool GetVarsTouchedByBlockIters(const SBlockRealize& block_realize,
 
 void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref,
                              arith::AnalyzerObj* analyzer) {
-  class LoopNotStartWithZeroError : public ScheduleError {
+  class LoopNotStartWithZeroError : public ScheduleErrorContextObj {
    public:
     explicit LoopNotStartWithZeroError(IRModule mod, For loop)
         : mod_(mod), loop_(std::move(loop)) {}
@@ -777,7 +780,7 @@ void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sre
   };
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   if (!analyzer->CanProve(loop->min == 0)) {
-    throw LoopNotStartWithZeroError(self->mod, ffi::GetRef<For>(loop));
+    throw MakeScheduleError<LoopNotStartWithZeroError>(self->mod, ffi::GetRef<For>(loop));
   }
 }
 
@@ -823,7 +826,7 @@ ffi::Array<SBlockRealize> GetChildBlockRealizeOnSRefTree(const StmtSRef& parent_
 
 SBlockRealize CheckGetSingleChildBlockRealizeOnSRefTree(const ScheduleState& self,
                                                         const StmtSRef& parent_sref) {
-  class NonSingleChildBlockError : public ScheduleError {
+  class NonSingleChildBlockError : public ScheduleErrorContextObj {
    public:
     explicit NonSingleChildBlockError(IRModule mod, const StmtSRef& sref)
         : mod_(std::move(mod)), stmt_(ffi::GetRef<Stmt>(sref->stmt)) {
@@ -852,7 +855,7 @@ SBlockRealize CheckGetSingleChildBlockRealizeOnSRefTree(const ScheduleState& sel
 
   ffi::Array<SBlockRealize> child_block_realize = GetChildBlockRealizeOnSRefTree(parent_sref);
   if (child_block_realize.size() != 1) {
-    throw NonSingleChildBlockError(self->mod, parent_sref);
+    throw MakeScheduleError<NonSingleChildBlockError>(self->mod, parent_sref);
   }
   return child_block_realize[0];
 }
@@ -1117,7 +1120,7 @@ ProducerConsumerSplit ProducerConsumerSplit::Find(
     const ffi::Array<StmtSRef>& producer_block_srefs,
     const ffi::Array<StmtSRef>& consumer_block_srefs,
     std::unordered_map<const SBlockNode*, const SBlockRealizeNode*>* block2realize) {
-  class InsertionPointNotFoundError : public ScheduleError {
+  class InsertionPointNotFoundError : public ScheduleErrorContextObj {
    public:
     explicit InsertionPointNotFoundError(IRModule mod, int last_producer_position,
                                          int first_consumer_position)
@@ -1202,7 +1205,8 @@ ProducerConsumerSplit ProducerConsumerSplit::Find(
     }
   }
   if (last_producer_position >= first_consumer_position) {
-    throw InsertionPointNotFoundError(self->mod, last_producer_position, first_consumer_position);
+    throw MakeScheduleError<InsertionPointNotFoundError>(self->mod, last_producer_position,
+                                                         first_consumer_position);
   }
   return ProducerConsumerSplit{last_producer_position,       //
                                first_consumer_position,      //
@@ -1214,7 +1218,7 @@ ProducerConsumerSplit ProducerConsumerSplit::Find(
 
 BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& block, int n,
                                       BufferIndexType index_type) {
-  class BufferIndexOutOfRangeError : public ScheduleError {
+  class BufferIndexOutOfRangeError : public ScheduleErrorContextObj {
    public:
     explicit BufferIndexOutOfRangeError(IRModule mod, SBlock block, int buffer_index,
                                         BufferIndexType index_type)
@@ -1262,7 +1266,7 @@ BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& b
       index_type == BufferIndexType::kWrite ? block->writes : block->reads;
 
   if (n < 0 || static_cast<int>(access_region.size()) <= n) {
-    throw BufferIndexOutOfRangeError(self->mod, block, n, index_type);
+    throw MakeScheduleError<BufferIndexOutOfRangeError>(self->mod, block, n, index_type);
   }
   return access_region[n];
 }
@@ -1455,7 +1459,7 @@ AnalyzeReadWritePattern(const BufferRegion& read_region, const BufferRegion& wri
 /******** Storage Scope ********/
 
 void CheckStorageScope(const ScheduleState& self, ffi::String storage_scope) {
-  class InvalidStorageScopeError : public ScheduleError {
+  class InvalidStorageScopeError : public ScheduleErrorContextObj {
    public:
     explicit InvalidStorageScopeError(IRModule mod, ffi::String storage_scope)
         : mod_(std::move(mod)), storage_scope_(std::move(storage_scope)) {}
@@ -1479,7 +1483,7 @@ void CheckStorageScope(const ScheduleState& self, ffi::String storage_scope) {
   try {
     runtime::StorageScope::Create(std::string(storage_scope));
   } catch (...) {
-    throw InvalidStorageScopeError(self->mod, std::move(storage_scope));
+    throw MakeScheduleError<InvalidStorageScopeError>(self->mod, std::move(storage_scope));
   }
 }
 

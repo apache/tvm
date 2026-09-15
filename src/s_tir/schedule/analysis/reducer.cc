@@ -315,7 +315,7 @@ static const char* kRFactorCrossThreadReductionApplicableBlockDef =
 
 void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleState>& self,
                                                    SBlock block, int violated_cond) {
-  class RFactorNotApplicableError : public ScheduleError {
+  class RFactorNotApplicableError : public ScheduleErrorContextObj {
    public:
     explicit RFactorNotApplicableError(IRModule mod, SBlock block, int violated_cond)
         : mod_(std::move(mod)), block_(std::move(block)), violated_cond_(violated_cond) {}
@@ -342,7 +342,8 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
   };
 
   if (self.has_value()) {
-    throw RFactorNotApplicableError(self.value()->mod, std::move(block), violated_cond);
+    throw MakeScheduleError<RFactorNotApplicableError>(self.value()->mod, std::move(block),
+                                                       violated_cond);
   } else {
     TVM_FFI_THROW(ValueError) << "Cross-thread reduction cannot be applied to the block "
                               << block->name_hint << " because the block violates the condition #"
@@ -603,7 +604,7 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
   return result.has_value() ? result.value()->value.cast<bool>() : true;
 }
 
-class NoMatchedReducerError : public ScheduleError {
+class NoMatchedReducerError : public ScheduleErrorContextObj {
  public:
   explicit NoMatchedReducerError(IRModule mod, ffi::Array<PrimExpr> identities,
                                  ffi::Array<BufferStore> combiners)
@@ -641,7 +642,7 @@ std::tuple<te::CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReduc
       FromIdentityCombiner(identities, combiners, &reducer, &combiner_lhs, &combiner_rhs);
   if (!matched) {
     if (self.has_value()) {
-      throw NoMatchedReducerError(self.value()->mod, identities, combiners);
+      throw MakeScheduleError<NoMatchedReducerError>(self.value()->mod, identities, combiners);
     } else {
       TVM_FFI_THROW(ValueError)
           << "No matched reducer for the identity and the combiner of the "

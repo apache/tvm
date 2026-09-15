@@ -31,7 +31,7 @@ using namespace tvm::tirx;
  * \brief The reorder index is not a valid permutation of
  *   [0, 1, ..., n-1] where n is the number of block iter vars.
  */
-class InvalidReorderIndex : public ScheduleError {
+class InvalidReorderIndex : public ScheduleErrorContextObj {
  public:
   explicit InvalidReorderIndex(IRModule mod, SBlock block, ffi::Array<int64_t> new_order)
       : mod_(mod), block_(block), new_order_(new_order) {}
@@ -101,7 +101,8 @@ void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
     return x >= 0 && x < static_cast<int>(num_block_itervars);
   });
   if (!is_full || !is_unique || !is_within_boundary) {
-    throw InvalidReorderIndex(self->mod, ffi::GetRef<SBlock>(block_n), new_order);
+    throw MakeScheduleError<InvalidReorderIndex>(self->mod, ffi::GetRef<SBlock>(block_n),
+                                                 new_order);
   }
 
   // find parent block
