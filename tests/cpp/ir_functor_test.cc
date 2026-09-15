@@ -156,10 +156,10 @@ TEST(IRF, ExprTransform) {
 
   class MyExprFunctor : public tirx::ExprFunctor<int(const Expr&, int)> {
    public:
-    int VisitExpr_(const VarNode* op, int b) final { return b; }
-    int VisitExpr_(const IntImmNode* op, int b) final { return op->value; }
-    int VisitExpr_(const prim::AddNode* op, int b) final {
-      return VisitExpr(op->a, b) + VisitExpr(op->b, b);
+    int Dispatch_(const VarNode* op, int b) final { return b; }
+    int Dispatch_(const IntImmNode* op, int b) final { return op->value; }
+    int Dispatch_(const prim::AddNode* op, int b) final {
+      return Dispatch(op->a, b) + Dispatch(op->b, b);
     }
   };
   MyExprFunctor f;
@@ -183,13 +183,13 @@ TEST(IRF, ExprVisit) {
    public:
     int count = 0;
     // implementation
-    void VisitExpr_(const VarNode* op) final { ++count; }
-    void VisitExpr_(const IntImmNode* op) final {}
-    void VisitExpr_(const prim::AddNode* op) final {
-      VisitExpr(op->a);
-      VisitExpr(op->b);
+    void Dispatch_(const VarNode* op) final { ++count; }
+    void Dispatch_(const IntImmNode* op) final {}
+    void Dispatch_(const prim::AddNode* op) final {
+      Dispatch(op->a);
+      Dispatch(op->b);
     }
-    void VisitStmt_(const EvaluateNode* op) final { VisitExpr(op->value); }
+    void VisitStmt_(const EvaluateNode* op) final { Dispatch(op->value); }
   };
   MyVisitor v;
   v.VisitStmt(Evaluate(z));

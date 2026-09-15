@@ -456,7 +456,7 @@ void CodeGenOpenCL::VisitStmt_(const AllocBufferNode* op) {
   CodeGenC::VisitStmt_(op);
 }
 
-void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
+void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
   if (op->op.same_as(builtin::address_of())) {
     // Overload tvm_address_of to add storage scope (e.g. __global).
     const TensorLoadNode* load = op->args[0].as<TensorLoadNode>();
@@ -578,14 +578,14 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
       if (func->value == "atomic_add") {
         enable_atomics_ = true;
       }
-      CodeGenC::VisitExpr_(op, os);
+      CodeGenC::Dispatch_(op, os);
     }
   } else {
-    CodeGenC::VisitExpr_(op, os);
+    CodeGenC::Dispatch_(op, os);
   }
 }
 
-void CodeGenOpenCL::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   int lanes = op->ty.as_or_throw<PrimType>().lanes();
   os << "((";
@@ -598,7 +598,7 @@ void CodeGenOpenCL::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) 
   os << "))";
 }
 
-void CodeGenOpenCL::VisitExpr_(const prim::RampNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::Dispatch_(const prim::RampNode* op, std::ostream& os) {  // NOLINT(*)
   os << "((";
   PrintType(op->ty.as_or_throw<PrimType>(), os);
   os << ")(";
@@ -611,7 +611,7 @@ void CodeGenOpenCL::VisitExpr_(const prim::RampNode* op, std::ostream& os) {  //
   os << "))";
 }
 
-void CodeGenOpenCL::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   if (std::isinf(op->value)) {
     if (op->value < 0) {
       os << "-";
@@ -620,7 +620,7 @@ void CodeGenOpenCL::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // N
   } else if (std::isnan(op->value)) {
     os << "NAN";
   } else {
-    CodeGenC::VisitExpr_(op, os);
+    CodeGenC::Dispatch_(op, os);
   }
 }
 
@@ -641,15 +641,15 @@ inline void PrintBinaryExpr(const T* op, const char* opstr, std::ostream& os, Co
   }
 }
 
-void CodeGenOpenCL::VisitExpr_(const prim::MinNode* op, std::ostream& os) {
+void CodeGenOpenCL::Dispatch_(const prim::MinNode* op, std::ostream& os) {
   PrintBinaryExpr(op, "min", os, this);
 }
 
-void CodeGenOpenCL::VisitExpr_(const prim::MaxNode* op, std::ostream& os) {
+void CodeGenOpenCL::Dispatch_(const prim::MaxNode* op, std::ostream& os) {
   PrintBinaryExpr(op, "max", os, this);
 }
 
-void CodeGenOpenCL::VisitExpr_(const prim::ModNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::Dispatch_(const prim::ModNode* op, std::ostream& os) {  // NOLINT(*)
   std::string opstr;
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if (op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
@@ -679,7 +679,7 @@ void CodeGenOpenCL::VisitExpr_(const prim::ModNode* op, std::ostream& os) {  // 
   }
 }
 
-void CodeGenOpenCL::VisitExpr_(const prim::AndNode* op, std::ostream& os) {
+void CodeGenOpenCL::Dispatch_(const prim::AndNode* op, std::ostream& os) {
   std::ostringstream oss;
   os << "(";
   this->PrintExpr(op->a, oss);
@@ -691,7 +691,7 @@ void CodeGenOpenCL::VisitExpr_(const prim::AndNode* op, std::ostream& os) {
   os << ")";
 }
 
-void CodeGenOpenCL::VisitExpr_(const prim::OrNode* op, std::ostream& os) {
+void CodeGenOpenCL::Dispatch_(const prim::OrNode* op, std::ostream& os) {
   std::ostringstream oss;
   os << "(";
   this->PrintExpr(op->a, oss);
@@ -703,7 +703,7 @@ void CodeGenOpenCL::VisitExpr_(const prim::OrNode* op, std::ostream& os) {
   os << ")";
 }
 
-void CodeGenOpenCL::VisitExpr_(const prim::SelectNode* op, std::ostream& os) {
+void CodeGenOpenCL::Dispatch_(const prim::SelectNode* op, std::ostream& os) {
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   std::ostringstream oss;
   os << "select(";
