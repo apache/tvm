@@ -125,14 +125,14 @@ TVMFFIAny PointerTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView val
   // skips: storage_scope (scalar)
   const PointerTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PointerTypeNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_element_type,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_element_type_u,
                                     mutator->MutateExpected(self->element_type));
-  if (mapped_element_type.UnchangedOrSameAs(self->element_type)) {
+  if (mapped_element_type_u.UnchangedOrSameAs(self->element_type)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
   ffi::ObjectPtr<PointerTypeNode> copy = ffi::make_object<PointerTypeNode>(*self);
-  copy->element_type =
-      std::move(mapped_element_type).ValueOrUnchanged(std::move(copy->element_type));
+  if (!mapped_element_type_u.IsUnchanged())
+    copy->element_type = std::move(mapped_element_type_u).ValueUnchecked();
   return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
 }
 
@@ -142,10 +142,10 @@ TVMFFIAny PointerTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   PointerTypeNode* self = const_cast<PointerTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PointerTypeNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<Type>, mapped_element_type,
+      ffi::UnchangedOr<Type>, mapped_element_type_u,
       mutator->MutateExpected(self->element_type, ffi::InplaceMode::kAllow));
-  if (!mapped_element_type.UnchangedOrSameAs(self->element_type)) {
-    self->element_type = std::move(mapped_element_type).ValueUnchecked();
+  if (!mapped_element_type_u.UnchangedOrSameAs(self->element_type)) {
+    self->element_type = std::move(mapped_element_type_u).ValueUnchecked();
   }
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
@@ -161,17 +161,19 @@ TVMFFIAny FuncTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) 
 TVMFFIAny FuncTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   const FuncTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Type>>, mapped_arg_types,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Type>>, mapped_arg_types_u,
                                     mutator->MutateExpected(self->arg_types));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ret_type,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ret_type_u,
                                     mutator->MutateExpected(self->ret_type));
-  if (mapped_arg_types.UnchangedOrSameAs(self->arg_types) &&
-      mapped_ret_type.UnchangedOrSameAs(self->ret_type)) {
+  if (mapped_arg_types_u.UnchangedOrSameAs(self->arg_types) &&
+      mapped_ret_type_u.UnchangedOrSameAs(self->ret_type)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
   ffi::ObjectPtr<FuncTypeNode> copy = ffi::make_object<FuncTypeNode>(*self);
-  copy->arg_types = std::move(mapped_arg_types).ValueOrUnchanged(std::move(copy->arg_types));
-  copy->ret_type = std::move(mapped_ret_type).ValueOrUnchanged(std::move(copy->ret_type));
+  if (!mapped_arg_types_u.IsUnchanged())
+    copy->arg_types = std::move(mapped_arg_types_u).ValueUnchecked();
+  if (!mapped_ret_type_u.IsUnchanged())
+    copy->ret_type = std::move(mapped_ret_type_u).ValueUnchecked();
   return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
 }
 
@@ -180,16 +182,16 @@ TVMFFIAny FuncTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   FuncTypeNode* self = const_cast<FuncTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<ffi::Array<Type>>, mapped_arg_types,
+      ffi::UnchangedOr<ffi::Array<Type>>, mapped_arg_types_u,
       mutator->MutateExpected(self->arg_types, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<Type>, mapped_ret_type,
+      ffi::UnchangedOr<Type>, mapped_ret_type_u,
       mutator->MutateExpected(self->ret_type, ffi::InplaceMode::kAllow));
-  if (!mapped_arg_types.UnchangedOrSameAs(self->arg_types)) {
-    self->arg_types = std::move(mapped_arg_types).ValueUnchecked();
+  if (!mapped_arg_types_u.UnchangedOrSameAs(self->arg_types)) {
+    self->arg_types = std::move(mapped_arg_types_u).ValueUnchecked();
   }
-  if (!mapped_ret_type.UnchangedOrSameAs(self->ret_type)) {
-    self->ret_type = std::move(mapped_ret_type).ValueUnchecked();
+  if (!mapped_ret_type_u.UnchangedOrSameAs(self->ret_type)) {
+    self->ret_type = std::move(mapped_ret_type_u).ValueUnchecked();
   }
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
@@ -204,13 +206,13 @@ TVMFFIAny TupleTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value)
 TVMFFIAny TupleTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   const TupleTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleTypeNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Type>>, mapped_fields,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Type>>, mapped_fields_u,
                                     mutator->MutateExpected(self->fields));
-  if (mapped_fields.UnchangedOrSameAs(self->fields)) {
+  if (mapped_fields_u.UnchangedOrSameAs(self->fields)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
   ffi::ObjectPtr<TupleTypeNode> copy = ffi::make_object<TupleTypeNode>(*self);
-  copy->fields = std::move(mapped_fields).ValueOrUnchanged(std::move(copy->fields));
+  if (!mapped_fields_u.IsUnchanged()) copy->fields = std::move(mapped_fields_u).ValueUnchecked();
   return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
 }
 
@@ -219,10 +221,10 @@ TVMFFIAny TupleTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   TupleTypeNode* self = const_cast<TupleTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleTypeNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<ffi::Array<Type>>, mapped_fields,
+      ffi::UnchangedOr<ffi::Array<Type>>, mapped_fields_u,
       mutator->MutateExpected(self->fields, ffi::InplaceMode::kAllow));
-  if (!mapped_fields.UnchangedOrSameAs(self->fields)) {
-    self->fields = std::move(mapped_fields).ValueUnchecked();
+  if (!mapped_fields_u.UnchangedOrSameAs(self->fields)) {
+    self->fields = std::move(mapped_fields_u).ValueUnchecked();
   }
   return ffi::Unchanged().CopyToTVMFFIAny();
 }

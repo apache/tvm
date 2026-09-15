@@ -31,44 +31,45 @@ namespace arith {
 using detail::EnterConstraintFacts;
 
 UnchangedOr<Expr> SimplifierBase::Mutate_(const TupleNode* op, InplaceMode inplace_mode) {
-  auto fields = Mutate(op->fields, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();
-  if (fields.UnchangedOrSameAs(op->fields)) return ffi::Unchanged();
+  auto fields_u = Mutate(op->fields, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();
+  if (fields_u.UnchangedOrSameAs(op->fields)) return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
-    const_cast<TupleNode*>(op)->fields = std::move(fields).ValueUnchecked();
+    const_cast<TupleNode*>(op)->fields = std::move(fields_u).ValueUnchecked();
     return ffi::Unchanged();
   }
   auto copy = ffi::make_object<TupleNode>(*op);
-  copy->fields = std::move(fields).ValueUnchecked();
+  copy->fields = std::move(fields_u).ValueUnchecked();
   return Tuple(std::move(copy));
 }
 
 UnchangedOr<Expr> SimplifierBase::Mutate_(const TupleGetItemNode* op, InplaceMode inplace_mode) {
-  auto tuple = Mutate(op->tuple, inplace_mode);
-  if (tuple.UnchangedOrSameAs(op->tuple)) return ffi::Unchanged();
+  auto tuple_u = Mutate(op->tuple, inplace_mode);
+  if (tuple_u.UnchangedOrSameAs(op->tuple)) return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
-    const_cast<TupleGetItemNode*>(op)->tuple = std::move(tuple).ValueUnchecked();
+    const_cast<TupleGetItemNode*>(op)->tuple = std::move(tuple_u).ValueUnchecked();
     return ffi::Unchanged();
   }
   auto copy = ffi::make_object<TupleGetItemNode>(*op);
-  copy->tuple = std::move(tuple).ValueUnchecked();
+  copy->tuple = std::move(tuple_u).ValueUnchecked();
   return TupleGetItem(std::move(copy));
 }
 
 UnchangedOr<PrimExpr> SimplifierBase::Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) {
-  auto source = Mutate(op->source, inplace_mode);
-  auto indices = Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-  if (source.UnchangedOrSameAs(op->source) && indices.UnchangedOrSameAs(op->indices)) {
+  auto source_u = Mutate(op->source, inplace_mode);
+  auto indices_u =
+      Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
+  if (source_u.UnchangedOrSameAs(op->source) && indices_u.UnchangedOrSameAs(op->indices)) {
     return ffi::Unchanged();
   }
   if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<TensorLoadNode*>(op);
-    if (!source.IsUnchanged()) writable->source = std::move(source).ValueUnchecked();
-    if (!indices.IsUnchanged()) writable->indices = std::move(indices).ValueUnchecked();
+    if (!source_u.IsUnchanged()) writable->source = std::move(source_u).ValueUnchecked();
+    if (!indices_u.IsUnchanged()) writable->indices = std::move(indices_u).ValueUnchecked();
     return ffi::Unchanged();
   }
   auto copy = ffi::make_object<TensorLoadNode>(*op);
-  copy->source = std::move(source).ValueOrUnchanged(std::move(copy->source));
-  copy->indices = std::move(indices).ValueOrUnchanged(std::move(copy->indices));
+  if (!source_u.IsUnchanged()) copy->source = std::move(source_u).ValueUnchecked();
+  if (!indices_u.IsUnchanged()) copy->indices = std::move(indices_u).ValueUnchecked();
   return TensorLoad(std::move(copy));
 }
 
@@ -82,23 +83,23 @@ UnchangedOr<Expr> SimplifierBase::Mutate_(const CallNode* op, InplaceMode inplac
     const auto* args = op->args.GetArrayObj();
     PrimExpr cond =
         Mutate((*args)[0], inplace_mode_args).ValueOrUnchanged((*args)[0]).as_or_throw<PrimExpr>();
-    Expr true_value = ffi::details::AnyUnsafe::MoveFromAnyAfterCheck<Expr>(
-        constraint_scope_
-            .WithNewScope([&]() {
-              EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, cond);
-              return Mutate((*args)[1], inplace_mode_args);
-            })
-            .ValueOrUnchanged((*args)[1]));
+    Expr true_value = constraint_scope_
+                          .WithNewScope([&]() {
+                            EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, cond);
+                            return Mutate((*args)[1], inplace_mode_args);
+                          })
+                          .ValueOrUnchanged((*args)[1])
+                          .as_or_throw<Expr>();
     Expr false_value;
     {
       PrimExpr not_cond = prim::Not(cond);
-      false_value = ffi::details::AnyUnsafe::MoveFromAnyAfterCheck<Expr>(
-          constraint_scope_
-              .WithNewScope([&]() {
-                constraint_scope_.Current().Emplace(analyzer_, not_cond);
-                return Mutate((*args)[2], inplace_mode_args);
-              })
-              .ValueOrUnchanged((*args)[2]));
+      false_value = constraint_scope_
+                        .WithNewScope([&]() {
+                          constraint_scope_.Current().Emplace(analyzer_, not_cond);
+                          return Mutate((*args)[2], inplace_mode_args);
+                        })
+                        .ValueOrUnchanged((*args)[2])
+                        .as_or_throw<Expr>();
     }
     if (tirx::is_zero(cond)) return false_value;
     if (tirx::is_one(cond)) return true_value;
@@ -109,14 +110,14 @@ UnchangedOr<Expr> SimplifierBase::Mutate_(const CallNode* op, InplaceMode inplac
     }
     return Call(op->ty, op->op, {cond, true_value, false_value}, op->attrs, op->ty_args, op->span);
   }
-  auto args = Mutate(op->args, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();
-  if (args.UnchangedOrSameAs(op->args)) return ffi::Unchanged();
+  auto args_u = Mutate(op->args, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();
+  if (args_u.UnchangedOrSameAs(op->args)) return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
-    const_cast<CallNode*>(op)->args = std::move(args).ValueUnchecked();
+    const_cast<CallNode*>(op)->args = std::move(args_u).ValueUnchecked();
     return ffi::Unchanged();
   }
   auto copy = ffi::make_object<CallNode>(*op);
-  copy->args = std::move(args).ValueUnchecked();
+  copy->args = std::move(args_u).ValueUnchecked();
   return Call(std::move(copy));
 }
 

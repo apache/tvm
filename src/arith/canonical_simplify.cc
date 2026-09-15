@@ -589,13 +589,11 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
       if (expr_u.IsUnchanged()) return ffi::Unchanged();
       ffi::Any expr = std::move(expr_u).ValueUnchecked();
       if (auto prim_expr = expr.as<PrimExpr>()) {
-        return Normalize(prim_expr.value());
+        return Normalize(*std::move(prim_expr));
       }
       return expr;
     } catch (ffi::Error& error) {
-      if (const auto* node = value.as<ffi::Object>()) {
-        ffi::details::UpdateVisitErrorContext(error, ffi::GetRef<ffi::ObjectRef>(node));
-      }
+      ffi::details::UpdateVisitErrorContext(error, value);
       throw;
     }
   }
