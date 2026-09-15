@@ -280,25 +280,25 @@ TVM_REGISTER_OP("tirx.q_multiply_shift")
       PrimExpr q = call->args[2].as_or_throw<PrimExpr>();
       PrimExpr s = call->args[3].as_or_throw<PrimExpr>();
 
-      // Lambda function to extract the int value from PrimExpr
-      auto get_int_value = [](const PrimExpr node) {
-        if (auto int_node = node.as<IntImmNode>()) {
-          return int_node->value;
+      // Probe scalar or broadcast constants without rejecting runtime values.
+      auto get_int_value = [](const PrimExpr& node) {
+        if (const auto* broadcast = node.as<prim::BroadcastNode>()) {
+          return as_const_int(broadcast->value);
         }
-        auto broadcast_node = node.as<prim::BroadcastNode>();
-        TVM_FFI_ICHECK(broadcast_node != nullptr);
-        auto int_node = broadcast_node->value.as<IntImmNode>();
-        TVM_FFI_ICHECK(int_node != nullptr);
-        return int_node->value;
+        return as_const_int(node);
       };
       // Power of 2 is determined by the fixed_point_multiplier == 1 << 30. In case of power of
       // 2, fixed point multiplier will represent a float value of 0.5. In fixed point, this is
       // represented by 1 << 30.
-      if (get_int_value(y) == (1 << 30)) {
+      const int64_t* y_value = get_int_value(y);
+      const int64_t* q_value = get_int_value(q);
+      const int64_t* s_value = get_int_value(s);
+      if (y_value && *y_value == (1 << 30) && q_value && *q_value == 31 && s_value) {
         PrimExpr exp = s - 1;
-        int exp_val = get_int_value(s) - 1;
+        int64_t exp_val = *s_value - 1;
+        if (exp_val == 0) return x;
         if (exp_val > 0) {
-          // power of 2 is greater than 0, apply left shift.
+          // A positive exponent only needs a left shift.
           return x << exp;
         } else {
           // power of 2 is less than 0, round and then apply right shift.
@@ -339,6 +339,7 @@ TVM_REGISTER_OP("tirx.q_multiply_shift_per_axis")
       PrimExpr right_shift = call->args[3].as_or_throw<PrimExpr>();
       PrimExpr q = call->args[4].as_or_throw<PrimExpr>();
       PrimExpr is_lshift_required = call->args[5].as_or_throw<PrimExpr>();
+      is_lshift_required = is_lshift_required != MakeConst(is_lshift_required.ty(), 0);
       // Note, 7th argument is "is_rshift_required" flag, but we don't need that here.
       // PrimExpr is_rshift_required = call->args[6];
 
