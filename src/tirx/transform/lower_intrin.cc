@@ -37,8 +37,8 @@
 #include <limits>
 #include <unordered_set>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../arith/pattern_match.h"
+#include "../ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace tirx {
@@ -124,7 +124,7 @@ static Expr LowerAccessPtr(const CallNode* call,
   return Call(call->ty, builtin::address_of(), {buf_load});
 }
 
-class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
+class IntrinInjecter : public IRMutatorWithAnalyzer {
  public:
   using IRMutatorWithAnalyzer::VisitExpr_;
   using IRMutatorWithAnalyzer::VisitStmt_;

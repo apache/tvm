@@ -26,6 +26,7 @@
 
 #include <tvm/arith/int_set.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/object.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
@@ -192,7 +193,7 @@ class ConstIntBoundAnalyzer {
   struct Entry;
   class Impl;
   /*! \brief Internal impl */
-  Impl* impl_;
+  ffi::ObjectPtr<Impl> impl_;
 };
 
 /*!
@@ -272,7 +273,7 @@ class ModularSetAnalyzer {
   struct Entry;
   class Impl;
   /*! \brief Internal impl */
-  Impl* impl_;
+  ffi::ObjectPtr<Impl> impl_;
 };
 
 /*!
@@ -420,7 +421,7 @@ class RewriteSimplifier {
   void CopyFrom(const RewriteSimplifier& other);
   class Impl;
   /*! \brief Internal impl */
-  Impl* impl_;
+  ffi::ObjectPtr<Impl> impl_;
 };
 
 /*!
@@ -452,7 +453,7 @@ class CanonicalSimplifier {
   void CopyFrom(const CanonicalSimplifier& other);
   class Impl;
   /*! \brief Internal impl */
-  Impl* impl_;
+  ffi::ObjectPtr<Impl> impl_;
 };
 
 /*! \brief Structure for representing result of known
@@ -714,7 +715,7 @@ class Z3Prover {
   TVM_DLL ~Z3Prover();
   void CopyFrom(const Z3Prover& other);
   class Impl;
-  Impl* impl_;
+  ffi::ObjectPtr<Impl> impl_;
 };
 
 /*!

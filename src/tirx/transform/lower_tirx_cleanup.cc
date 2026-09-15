@@ -38,13 +38,13 @@
 #include <utility>
 #include <vector>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
+#include "../ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {
 namespace tirx {
 
-class LayoutApplier : public arith::IRMutatorWithAnalyzer {
+class LayoutApplier : public IRMutatorWithAnalyzer {
  public:
   static std::pair<Stmt, ffi::Array<Var>> Flatten(const Stmt& stmt, const ffi::Array<Var>& params,
                                                   const Target& target) {
@@ -83,7 +83,7 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitStmt_;
 
   explicit LayoutApplier(const arith::Analyzer& analyzer, const Target& target)
-      : arith::IRMutatorWithAnalyzer(analyzer), target_(target) {}
+      : IRMutatorWithAnalyzer(analyzer), target_(target) {}
 
   ffi::Any VisitAny(const ffi::Any& any) {
     if (any == nullptr) {
