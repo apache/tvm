@@ -31,6 +31,9 @@
 #include <tvm/s_tir/schedule/schedule.h>
 
 namespace tvm {
+
+class Target;
+
 namespace s_tir {
 using namespace tvm::prim;
 namespace meta_schedule {
@@ -306,8 +309,11 @@ class ScheduleRule : public ffi::ObjectRef {
   TVM_DLL static ffi::Array<ScheduleRule, void> DefaultHexagon();
   /*! \brief Create default schedule rules for ARM CPU (NEON and DOTPROD) */
   TVM_DLL static ffi::Array<ScheduleRule, void> DefaultARM(const ffi::String& type);
-  /*! \brief Create default schedule rules for RISCV CPU (RVV) */
-  TVM_DLL static ffi::Array<ScheduleRule, void> DefaultRISCV(int vlen);
+  /*!
+   * \brief Create default schedule rules for RISC-V CPU (RVV)
+   * \param target The RISC-V target used to query and register RVV tensor intrinsics
+   */
+  TVM_DLL static ffi::Array<ScheduleRule, void> DefaultRISCV(const Target& target);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScheduleRule, ffi::ObjectRef, ScheduleRuleNode);
 };
