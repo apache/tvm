@@ -1430,5 +1430,14 @@ class TestSymbolicDiagMaskCase:
                         ]
 
 
+def test_unsigned_condition():
+    x = tirx.Var("x", "uint32")
+    func = tirx.PrimFunc([x], tirx.Evaluate(tirx.if_then_else(x != 0, 1, 0)))
+    before = tvm.IRModule.from_expr(func)
+    # Exercise ConditionalBoundsContext without any buffer accesses.
+    after = s_tir.transform.CompactBufferAllocation()(before)
+    tvm.ir.assert_structural_equal(after, before)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
