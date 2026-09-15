@@ -5641,6 +5641,22 @@ class OperatorConverter:
 
         return out
 
+    def _pool2d_static_hw(self, expr, what):
+        """(H, W) of an NHWC Relax tensor, which must be static.
+
+        Pool2D's SAME padding and the quantized average pool's divisor are
+        folded to constants, so they need concrete extents -- read from the
+        Relax expression rather than the serialized TFLite tensor, which is
+        stale once shape_dict overrides the input shape."""
+        shape = self._infer_shape(expr)
+        try:
+            _, h, w, _ = [int(v) for v in shape]
+        except (TypeError, ValueError) as err:
+            raise tvm.error.OpAttributeUnImplemented(
+                f"Pool2D requires a static NHWC {what} shape, got {shape}"
+            ) from err
+        return h, w
+
     @staticmethod
     def _avg_pool2d_valid_counts(in_hw, filter_hw, stride_hw, padding, out_hw):
         """Non-padded taps per output position, as an int32 [1, OH, OW, 1] array.
@@ -5707,7 +5723,11 @@ class OperatorConverter:
 
         in_expr = self.get_expr(input_tensor_idx)
 
-        _, input_h, input_w, _ = to_int_list(self.get_tensor_shape(input_tensor))
+        # Take H and W from the Relax input, not from the serialized TFLite
+        # shape: from_tflite(..., shape_dict=...) can override the input
+        # dimensions, and then the flatbuffer's shapes are stale. SAME padding
+        # and the quantized divisor below both depend on the real extents.
+        input_h, input_w = self._pool2d_static_hw(in_expr, "input")
 
         if padding == Padding.VALID:
             pass
@@ -5775,18 +5795,21 @@ class OperatorConverter:
                 # rounding arithmetic below always meets constants of the same
                 # dtype; without this an 8x8 pool fails to import with "Binary
                 # operators must have the same datatype".
-                acc = relax.op.astype(acc, acc_dtype)
+                acc = self.bb.normalize(relax.op.astype(acc, acc_dtype))
 
                 # TFLite divides by the number of NON-PADDED taps, which varies
                 # per output position once there is padding. The shapes are
                 # static, so the per-position count is folded to a constant
-                # here rather than computed in the graph.
+                # here rather than computed in the graph. Both extents come from
+                # the Relax graph -- the input above and the pooled output here
+                # -- so the constant matches the tensor it divides even when
+                # shape_dict overrides the serialized input shape.
                 counts = self._avg_pool2d_valid_counts(
                     (input_h, input_w),
                     (filter_h, filter_w),
                     (stride_h, stride_w),
                     params["padding"],
-                    to_int_list(self.get_tensor_shape(output_tensor))[1:3],
+                    self._pool2d_static_hw(acc, "pooled output"),
                 )
                 half = relax.const(counts // 2, acc_dtype)
                 out = relax.op.where(

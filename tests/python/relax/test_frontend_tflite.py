@@ -11568,6 +11568,118 @@ def test_quantized_avg_pool2d_large_window_does_not_overflow(tensor_type, dtype,
     np.testing.assert_array_equal(got, np.array([value], dtype=dtype))
 
 
+def _tflite_int_avg_pool2d_reference(x, filter_hw, stride_hw, same_padding):
+    """TFLite's reference integer AveragePool on an NHWC array: divide the sum over
+    the NON-PADDED taps, rounding half away from zero (reference/integer_ops/pooling.h)."""
+    n, in_h, in_w, c = x.shape
+    (f_h, f_w), (s_h, s_w) = filter_hw, stride_hw
+
+    def axis(extent, f, s):
+        if not same_padding:
+            return (extent - f) // s + 1, 0
+        out = -(-extent // s)
+        return out, max((out - 1) * s + f - extent, 0) // 2
+
+    out_h, pad_h = axis(in_h, f_h, s_h)
+    out_w, pad_w = axis(in_w, f_w, s_w)
+    y = np.zeros((n, out_h, out_w, c), dtype=x.dtype)
+    for oy in range(out_h):
+        for ox in range(out_w):
+            y0, x0 = oy * s_h - pad_h, ox * s_w - pad_w
+            win = x[:, max(y0, 0) : min(y0 + f_h, in_h), max(x0, 0) : min(x0 + f_w, in_w), :]
+            count = win.shape[1] * win.shape[2]
+            acc = win.astype("int64").sum(axis=(1, 2))
+            y[:, oy, ox, :] = np.where(
+                acc > 0, (acc + count // 2) // count, -((-acc + count // 2) // count)
+            )
+    return y
+
+
+@pytest.mark.parametrize(
+    "padding, override, want_hw",
+    [
+        # the review's cases: the serialized model is 4x4 -> 2x2
+        (_tfl_padding.VALID, (1, 2, 2, 1), (1, 1)),  # counts tensor used to broadcast to 2x2
+        (_tfl_padding.VALID, (1, 6, 6, 1), (3, 3)),  # used to fail: 3x3 vs a 2x2 counts tensor
+        # SAME: the border windows see fewer taps, and the padding itself must be
+        # derived from the overridden extent, not the serialized 4
+        (_tfl_padding.SAME, (1, 5, 5, 1), (3, 3)),
+        (_tfl_padding.SAME, (1, 7, 3, 1), (4, 2)),
+    ],
+)
+def test_quantized_avg_pool2d_follows_shape_dict_override(padding, override, want_hw):
+    """The quantized AVERAGE_POOL_2D divisor must come from the Relax shapes.
+
+    The per-position counts (and SAME padding) are folded to constants. They used
+    to be built from the SERIALIZED TFLite shapes, which are stale once
+    from_tflite(..., shape_dict=...) overrides the input: a smaller input got a
+    counts tensor that silently broadcast the result back to the old output
+    shape, and a larger one failed to import.
+    """
+    builder = flatbuffers.Builder(1024)
+    qparams = _build_quantization_parameters(
+        builder, scale=[0.5], zero_point=[0], quantized_dimension=0
+    )
+    input_tensor = _build_tensor(
+        builder, 0, [1, 4, 4, 1], tensor_type=_tfl_tensor_type.INT8, quantization=qparams
+    )
+    output_tensor = _build_tensor(
+        builder, 1, [1, 2, 2, 1], tensor_type=_tfl_tensor_type.INT8, quantization=qparams
+    )
+
+    _tfl_pool2d_options.Pool2DOptionsStart(builder)
+    _tfl_pool2d_options.Pool2DOptionsAddPadding(builder, padding)
+    _tfl_pool2d_options.Pool2DOptionsAddStrideH(builder, 2)
+    _tfl_pool2d_options.Pool2DOptionsAddStrideW(builder, 2)
+    _tfl_pool2d_options.Pool2DOptionsAddFilterHeight(builder, 2)
+    _tfl_pool2d_options.Pool2DOptionsAddFilterWidth(builder, 2)
+    _tfl_pool2d_options.Pool2DOptionsAddFusedActivationFunction(builder, _tfl_activation_fn.NONE)
+    pool_opts = _tfl_pool2d_options.Pool2DOptionsEnd(builder)
+
+    avg_pool_op = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options_type=_tfl_builtin_options.Pool2DOptions,
+        builtin_options=pool_opts,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, output_tensor],
+        operators=[avg_pool_op],
+        inputs=[0],
+        outputs=[1],
+    )
+    operator_codes = [_build_operator_code(builder, _tfl_builtin_operator.AVERAGE_POOL_2D)]
+    buf = _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=[_build_buffer(builder), _build_buffer(builder)],
+    )
+
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+    from tvm.relax.frontend.tflite.tflite_frontend import _input_type
+
+    input_name = next(iter(_input_type(tflite_model)[0]))
+    mod = from_tflite(tflite_model, shape_dict={input_name: override})
+
+    dev = tvm.cpu(0)
+    vm = relax.VirtualMachine(tvm.compile(mod, target=tvm.target.Target("llvm")), dev)
+    x = np.random.default_rng(0).integers(-128, 128, size=override, dtype=np.int64).astype("int8")
+    got = vm["main"](tvm.runtime.tensor(x, dev)).numpy()
+
+    assert got.shape == (1, *want_hw, 1)
+    want = _tflite_int_avg_pool2d_reference(
+        x, (2, 2), (2, 2), same_padding=padding == _tfl_padding.SAME
+    )
+    np.testing.assert_array_equal(got, want)
+
+
 def test_quantized_conv2d_per_tensor_uses_qdq():
     """Quantized Conv2D with per-tensor quantization uses DQ -> conv2d -> Q."""
     builder = flatbuffers.Builder(2048)
