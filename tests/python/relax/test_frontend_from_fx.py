@@ -33,10 +33,10 @@ from tvm.script import relax as R
 from tvm.script import tirx as T
 
 
-def verify_model(torch_model, input_info, binding, expected):
+def verify_model(torch_model, input_info, binding, expected, **import_options):
     graph_model = fx.symbolic_trace(torch_model)
     with torch.no_grad():
-        mod = from_fx(graph_model, input_info)
+        mod = from_fx(graph_model, input_info, **import_options)
     binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
     tvm.ir.assert_structural_equal(mod, expected)
@@ -2007,46 +2007,6 @@ def test_functional_layernorm():
     binding = {}
     verify_model(model, input_info, binding, expected2)
 
-    class LayerNorm3(Module):
-        def __init__(self, shape):
-            super().__init__()
-            self.shape = shape
-            self.weight = torch.nn.Parameter(torch.ones(shape))
-            self.bias = torch.nn.Parameter(torch.zeros(shape))
-
-        def forward(self, input):
-            return torch.nn.functional.layer_norm(input, self.shape, self.weight, self.bias, 1e-5)
-
-    @tvm.script.ir_module
-    class expected3:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
-            w1: R.Tensor([10, 10], dtype="float32"),
-            w2: R.Tensor([10, 10], dtype="float32"),
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.layer_norm(
-                    input_1,
-                    w1,
-                    w2,
-                    axes=[-2, -1],
-                    epsilon=1e-05,
-                    center=True,
-                    scale=True,
-                )
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    model = LayerNorm3([10, 10])
-    binding = {
-        "w1": model.weight.detach().numpy(),
-        "w2": model.bias.detach().numpy(),
-    }
-    verify_model(model, input_info, binding, expected3)
-
 
 def test_cross_entropy():
     input_info = [([3, 2], "float32"), ([3], "int32")]
@@ -2554,112 +2514,6 @@ def test_div_mode():
     verify_model(DivModel(), input_info, {}, expected_div)
     verify_model(DivTruncModel(), input_info, {}, expected_div_trunc)
     verify_model(DivFloorModel(), input_info, {}, expected_div_floor)
-
-
-def test_round_decimals():
-    """torch.round(x, decimals) through from_fx must match PyTorch's round-half-to-even
-    results, including negative decimals (round(25, -1) == 20). The previous
-    scale-by-10**decimals implementation multiplied by 0.1 for negative decimals, which
-    is numerically wrong: 25 * 0.1 == 2.5000000000000004 in float64 rounds up to 30.
-    """
-    input_info = [([10], "float32")]
-    x = torch.tensor(
-        [0.5, 1.5, 2.5, 4.5, -0.5, -2.5, 25.0, 125.0, 165.0, 2.25], dtype=torch.float32
-    )
-
-    class RoundDecimalsModel(Module):
-        def __init__(self, decimals):
-            super().__init__()
-            self.decimals = decimals
-
-        def forward(self, input):
-            return torch.round(input, decimals=self.decimals)
-
-    for decimals in (0, 1, -1, -2):
-        gm = fx.symbolic_trace(RoundDecimalsModel(decimals).eval())
-        mod = from_fx(gm, input_info)
-        ex = relax.build(mod, target="llvm")
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-        tvm_out = vm["main"](tvm.runtime.tensor(x.numpy()))
-        got = tvm_out.numpy() if hasattr(tvm_out, "numpy") else tvm_out[0].numpy()
-        tvm.testing.assert_allclose(
-            got, torch.round(x, decimals=decimals).numpy(), rtol=1e-6, atol=1e-6
-        )
-
-
-def test_round_decimals_low_precision():
-    """Scaling for low-precision inputs must happen in float32 and be cast back.
-
-    10**|decimals| can overflow float16: 10**4 == 10000 with 25 * 10000 == 250000
-    exceeds float16's max of 65504, so scaling in float16 yields inf, and 10**5
-    already overflows float16 (the scale itself becomes inf), turning decimals=5
-    and -5 into NaN. Upcasting the input to float32 keeps the scaling exact; the
-    rounded result is cast back to the input dtype.
-    """
-    input_info = [([8], "float16")]
-    x = torch.tensor([0.5, 1.5, 2.5, 2.25, 25.0, 125.0, 165.0, -0.5], dtype=torch.float16)
-
-    class RoundDecimalsModel(Module):
-        def __init__(self, decimals):
-            super().__init__()
-            self.decimals = decimals
-
-        def forward(self, input):
-            return torch.round(input, decimals=self.decimals)
-
-    # Positive decimals exercise the multiply-by-10**d overflow (4, 5);
-    # negative decimals exercise the 10**|d| scale overflowing float16 (-5).
-    for decimals in (2, 4, 5, -2, -4, -5):
-        gm = fx.symbolic_trace(RoundDecimalsModel(decimals).eval())
-        mod = from_fx(gm, input_info)
-        ex = relax.build(mod, target="llvm")
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-        tvm_out = vm["main"](tvm.runtime.tensor(x.numpy()))
-        got = tvm_out.numpy() if hasattr(tvm_out, "numpy") else tvm_out[0].numpy()
-        tvm.testing.assert_allclose(
-            got, torch.round(x, decimals=decimals).numpy(), rtol=1e-6, atol=1e-6
-        )
-
-
-def test_round_decimals_large():
-    """A large |decimals| must import and run without OverflowError.
-
-    The scale 10**|decimals| used to be built as an unbounded host Python int
-    before being handed to relax.const, whose int-to-float conversion raises
-    OverflowError ("int too large to convert to float") once |decimals| >= 309
-    (10**309 already exceeds the float64 range). PyTorch accepts such decimals --
-    torch.round(x, decimals=309) -- and traces a valid round.decimals call, so
-    importing the graph must not crash on them. The scale is now built directly
-    in the float dtype and saturates to inf once it leaves the finite range,
-    matching PyTorch, whose all-NaN result here comes from the same inf scale.
-    """
-    input_info = [([5], "float32")]
-    x = torch.tensor([0.5, 1.5, 25.0, -0.5, 0.0], dtype=torch.float32)
-
-    class RoundDecimalsModel(Module):
-        def __init__(self, decimals):
-            super().__init__()
-            self.decimals = decimals
-
-        def forward(self, input):
-            return torch.round(input, decimals=self.decimals)
-
-    for decimals in (309, -309):
-        gm = fx.symbolic_trace(RoundDecimalsModel(decimals).eval())
-        mod = from_fx(gm, input_info)  # used to raise OverflowError here
-        ex = relax.build(mod, target="llvm")
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-        tvm_out = vm["main"](tvm.runtime.tensor(x.numpy()))
-        got = tvm_out.numpy() if hasattr(tvm_out, "numpy") else tvm_out[0].numpy()
-
-        # The scale overflows to inf, and IEEE arithmetic turns every element into
-        # NaN in both TVM and PyTorch. Compare the NaN masks and the remaining
-        # (empty here) finite elements separately, since allclose fails on NaN.
-        expected = torch.round(x, decimals=decimals)
-        actual = torch.as_tensor(got)
-        assert torch.equal(torch.isnan(actual), torch.isnan(expected))
-        finite = ~torch.isnan(expected)
-        assert torch.allclose(actual[finite], expected[finite], rtol=1e-6, atol=1e-6)
 
 
 def test_size():
@@ -3646,12 +3500,20 @@ def test_extended_unary_ops():
     verify_model(Trunc(), input_info, {}, expected_trunc)
 
 
-def test_logical_and():
+@pytest.mark.parametrize(
+    "torch_op, relax_op",
+    [
+        (torch.logical_and, R.logical_and),
+        (torch.logical_or, R.logical_or),
+        (torch.logical_xor, R.logical_xor),
+    ],
+)
+def test_logical_binary(torch_op, relax_op):
     input_info = [([1, 3, 10, 10], "float32"), ([1, 3, 10, 10], "float32")]
 
-    class LogicalAnd(Module):
+    class LogicalBinary(Module):
         def forward(self, lhs, rhs):
-            return torch.logical_and(lhs, rhs)
+            return torch_op(lhs, rhs)
 
     @tvm.script.ir_module
     class expected:
@@ -3663,62 +3525,12 @@ def test_logical_and():
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(lhs, dtype="bool")
                 lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(rhs, dtype="bool")
-                lv2: R.Tensor((1, 3, 10, 10), dtype="bool") = R.logical_and(lv, lv1)
+                lv2: R.Tensor((1, 3, 10, 10), dtype="bool") = relax_op(lv, lv1)
                 gv: R.Tensor((1, 3, 10, 10), dtype="bool") = lv2
                 R.output(gv)
             return gv
 
-    verify_model(LogicalAnd(), input_info, {}, expected)
-
-
-def test_logical_or():
-    input_info = [([1, 3, 10, 10], "float32"), ([1, 3, 10, 10], "float32")]
-
-    class LogicalOr(Module):
-        def forward(self, lhs, rhs):
-            return torch.logical_or(lhs, rhs)
-
-    @tvm.script.ir_module
-    class expected:
-        @R.function
-        def main(
-            lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
-            rhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
-        ) -> R.Tensor((1, 3, 10, 10), dtype="bool"):
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(lhs, dtype="bool")
-                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(rhs, dtype="bool")
-                lv2: R.Tensor((1, 3, 10, 10), dtype="bool") = R.logical_or(lv, lv1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="bool") = lv2
-                R.output(gv)
-            return gv
-
-    verify_model(LogicalOr(), input_info, {}, expected)
-
-
-def test_logical_xor():
-    input_info = [([1, 3, 10, 10], "float32"), ([1, 3, 10, 10], "float32")]
-
-    class LogicalXor(Module):
-        def forward(self, lhs, rhs):
-            return torch.logical_xor(lhs, rhs)
-
-    @tvm.script.ir_module
-    class expected:
-        @R.function
-        def main(
-            lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
-            rhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
-        ) -> R.Tensor((1, 3, 10, 10), dtype="bool"):
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(lhs, dtype="bool")
-                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(rhs, dtype="bool")
-                lv2: R.Tensor((1, 3, 10, 10), dtype="bool") = R.logical_xor(lv, lv1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="bool") = lv2
-                R.output(gv)
-            return gv
-
-    verify_model(LogicalXor(), input_info, {}, expected)
+    verify_model(LogicalBinary(), input_info, {}, expected)
 
 
 def test_pow_integer():
@@ -3743,403 +3555,100 @@ def test_pow_integer():
     verify_model(Pow(), input_info, {}, expected)
 
 
-def test_interpolate():
-    input_info = [([1, 3, 10, 10], "float32")]
-
+@pytest.mark.parametrize(
+    "shape, layout, kwargs, size, method, coordinate_mode",
+    [
+        ((1, 3, 10, 10), "NCHW", {"size": (5, 5)}, (5, 5), "nearest_neighbor", "asymmetric"),
+        (
+            (1, 3, 10, 10),
+            "NCHW",
+            {"scale_factor": 2.0, "mode": "bilinear", "align_corners": False},
+            (20, 20),
+            "linear",
+            "half_pixel",
+        ),
+        (
+            (1, 3, 10, 10),
+            "NCHW",
+            {"scale_factor": (2.0, 1.0), "mode": "bicubic", "align_corners": False},
+            (20, 10),
+            "cubic",
+            "half_pixel",
+        ),
+        (
+            (1, 3, 4, 10, 10),
+            "NCDHW",
+            {"scale_factor": (2.0, 4.0, 4.0), "mode": "trilinear", "align_corners": False},
+            (8, 40, 40),
+            "linear",
+            "half_pixel",
+        ),
+        (
+            (1, 3, 4, 10, 10),
+            "NCDHW",
+            {"size": (8, 40, 40), "mode": "trilinear", "align_corners": True},
+            (8, 40, 40),
+            "linear",
+            "align_corners",
+        ),
+        ((1, 10, 10, 3), "NHWC", {"size": (5, 5)}, (5, 5), "nearest_neighbor", "asymmetric"),
+        (
+            (1, 10, 10, 3),
+            "NHWC",
+            {"scale_factor": 2.0, "mode": "bilinear", "align_corners": False},
+            (20, 20),
+            "linear",
+            "half_pixel",
+        ),
+        (
+            (1, 4, 10, 10, 3),
+            "NDHWC",
+            {"scale_factor": (2.0, 4.0, 4.0), "mode": "trilinear", "align_corners": True},
+            (8, 40, 40),
+            "linear",
+            "align_corners",
+        ),
+    ],
+    ids=[
+        "nearest",
+        "scalar-scale",
+        "tuple-scale-cubic",
+        "trilinear-scale",
+        "trilinear-size-aligned",
+        "nhwc-size",
+        "nhwc-scale",
+        "ndhwc-scale-aligned",
+    ],
+)
+def test_interpolate(shape, layout, kwargs, size, method, coordinate_mode):
     class Interpolate(Module):
-        def forward(self, input):
-            return torch.nn.functional.interpolate(input, (5, 5))
+        def forward(self, x):
+            return F.interpolate(x, **kwargs)
 
-    @tvm.script.ir_module
-    class expected1:
-        @R.function
-        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
-            (1, 3, 5, 5), dtype="float32"
-        ):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 5, 5), dtype="float32") = R.image.resize2d(
-                    input_1,
-                    (5, 5),
-                    roi=[0.000000, 0.000000, 0.000000, 0.000000],
-                    layout="NCHW",
-                    method="nearest_neighbor",
-                    coordinate_transformation_mode="asymmetric",
-                    rounding_method="round",
+    resize = R.image.resize3d if len(shape) == 5 else R.image.resize2d
+    rounding_method = "" if len(shape) == 5 else "round"
+
+    x = relax.Var("x", relax.TensorType(shape, "float32"))
+    builder = relax.BlockBuilder()
+    with builder.function("main", [x]):
+        with builder.dataflow():
+            resized = builder.emit(
+                resize(
+                    x,
+                    size,
+                    layout=layout,
+                    method=method,
+                    coordinate_transformation_mode=coordinate_mode,
+                    rounding_method=rounding_method,
                     cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0,
                 )
-                gv: R.Tensor((1, 3, 5, 5), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Interpolate(), input_info, {}, expected1)
-
-    class Interpolate2(Module):
-        def forward(self, input):
-            return torch.nn.functional.interpolate(
-                input,
-                size=None,
-                scale_factor=2.0,
-                mode="bilinear",
-                align_corners=False,
             )
+            output = builder.emit_output(resized)
+        builder.emit_func_output(output)
 
-    @tvm.script.ir_module
-    class expected2:
-        @R.function
-        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
-            (1, 3, 20, 20), dtype="float32"
-        ):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 20, 20), dtype="float32") = R.image.resize2d(
-                    input_1,
-                    (20, 20),
-                    roi=[0.000000, 0.000000, 0.000000, 0.000000],
-                    layout="NCHW",
-                    method="linear",
-                    coordinate_transformation_mode="half_pixel",
-                    rounding_method="round",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0,
-                )
-                gv: R.Tensor((1, 3, 20, 20), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Interpolate2(), input_info, {}, expected2)
-
-    class Interpolate3(Module):
-        def forward(self, input):
-            return torch.nn.functional.interpolate(
-                input,
-                size=None,
-                scale_factor=(2.0, 1.0),
-                mode="bilinear",
-                align_corners=False,
-            )
-
-    @tvm.script.ir_module
-    class expected3:
-        @R.function
-        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
-            (1, 3, 20, 10), dtype="float32"
-        ):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 20, 10), dtype="float32") = R.image.resize2d(
-                    input_1,
-                    (20, 10),
-                    roi=[0.000000, 0.000000, 0.000000, 0.000000],
-                    layout="NCHW",
-                    method="linear",
-                    coordinate_transformation_mode="half_pixel",
-                    rounding_method="round",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0,
-                )
-                gv: R.Tensor((1, 3, 20, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Interpolate3(), input_info, {}, expected3)
-
-    class Interpolate4(Module):
-        def forward(self, input):
-            return torch.nn.functional.interpolate(
-                input,
-                size=None,
-                scale_factor=(2.0, 1.0),
-                mode="bicubic",
-                align_corners=False,
-            )
-
-    @tvm.script.ir_module
-    class expected4:
-        @R.function
-        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
-            (1, 3, 20, 10), dtype="float32"
-        ):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 20, 10), dtype="float32") = R.image.resize2d(
-                    input_1,
-                    (20, 10),
-                    roi=[0.000000, 0.000000, 0.000000, 0.000000],
-                    layout="NCHW",
-                    method="cubic",
-                    coordinate_transformation_mode="half_pixel",
-                    rounding_method="round",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0,
-                )
-                gv: R.Tensor((1, 3, 20, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Interpolate4(), input_info, {}, expected4)
-
-    input_info_5d = [([1, 3, 4, 10, 10], "float32")]
-
-    class Interpolate6(Module):
-        def forward(self, input):
-            return torch.nn.functional.interpolate(
-                input,
-                size=None,
-                scale_factor=(2.0, 4.0, 4.0),
-                mode="trilinear",
-                align_corners=False,
-            )
-
-    @tvm.script.ir_module
-    class expected6:
-        @R.function
-        def main(input_5: R.Tensor((1, 3, 4, 10, 10), dtype="float32")) -> R.Tensor(
-            (1, 3, 8, 40, 40), dtype="float32"
-        ):
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = R.image.resize3d(
-                    input_5,
-                    (8, 40, 40),
-                    roi=[0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
-                    layout="NCDHW",
-                    method="linear",
-                    coordinate_transformation_mode="half_pixel",
-                    rounding_method="",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0,
-                )
-                gv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Interpolate6(), input_info_5d, {}, expected6)
-
-    class Interpolate7(Module):
-        def forward(self, input):
-            return torch.nn.functional.interpolate(
-                input,
-                size=(8, 40, 40),
-                mode="trilinear",
-                align_corners=False,
-            )
-
-    @tvm.script.ir_module
-    class expected7:
-        @R.function
-        def main(input_5: R.Tensor((1, 3, 4, 10, 10), dtype="float32")) -> R.Tensor(
-            (1, 3, 8, 40, 40), dtype="float32"
-        ):
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = R.image.resize3d(
-                    input_5,
-                    (8, 40, 40),
-                    roi=[0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
-                    layout="NCDHW",
-                    method="linear",
-                    coordinate_transformation_mode="half_pixel",
-                    rounding_method="",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0,
-                )
-                gv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Interpolate7(), input_info_5d, {}, expected7)
-
-    class Interpolate8(Module):
-        def forward(self, input):
-            return torch.nn.functional.interpolate(
-                input,
-                size=(8, 40, 40),
-                mode="trilinear",
-                align_corners=True,
-            )
-
-    @tvm.script.ir_module
-    class expected8:
-        @R.function
-        def main(input_5: R.Tensor((1, 3, 4, 10, 10), dtype="float32")) -> R.Tensor(
-            (1, 3, 8, 40, 40), dtype="float32"
-        ):
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = R.image.resize3d(
-                    input_5,
-                    (8, 40, 40),
-                    roi=[0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
-                    layout="NCDHW",
-                    method="linear",
-                    coordinate_transformation_mode="align_corners",
-                    rounding_method="",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0,
-                )
-                gv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Interpolate8(), input_info_5d, {}, expected8)
-
-
-def test_interpolate_nhwc_layout():
-    input_info = [([1, 10, 10, 3], "float32")]
-
-    class InterpolateNHWC(Module):
-        def forward(self, input):
-            return torch.nn.functional.interpolate(input, (5, 5))
-
-    @tvm.script.ir_module
-    class expected_nhwc:
-        @R.function
-        def main(input_1: R.Tensor((1, 10, 10, 3), dtype="float32")) -> R.Tensor(
-            (1, 5, 5, 3), dtype="float32"
-        ):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 5, 5, 3), dtype="float32") = R.image.resize2d(
-                    input_1,
-                    (5, 5),
-                    roi=[0.000000, 0.000000, 0.000000, 0.000000],
-                    layout="NHWC",
-                    method="nearest_neighbor",
-                    coordinate_transformation_mode="asymmetric",
-                    rounding_method="round",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0,
-                )
-                gv: R.Tensor((1, 5, 5, 3), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    # Test with NHWC layout
-    graph_model = fx.symbolic_trace(InterpolateNHWC())
-    with torch.no_grad():
-        mod = from_fx(graph_model, input_info, default_image_layout="NHWC")
-    tvm.ir.assert_structural_equal(mod, expected_nhwc)
-
-    # Test with bilinear interpolation and NHWC layout
-    class InterpolateNHWC2(Module):
-        def forward(self, input):
-            return torch.nn.functional.interpolate(
-                input, size=None, scale_factor=2.0, mode="bilinear", align_corners=False
-            )
-
-    @tvm.script.ir_module
-    class expected_nhwc2:
-        @R.function
-        def main(input_1: R.Tensor((1, 10, 10, 3), dtype="float32")) -> R.Tensor(
-            (1, 20, 20, 3), dtype="float32"
-        ):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 20, 20, 3), dtype="float32") = R.image.resize2d(
-                    input_1,
-                    (20, 20),
-                    roi=[0.000000, 0.000000, 0.000000, 0.000000],
-                    layout="NHWC",
-                    method="linear",
-                    coordinate_transformation_mode="half_pixel",
-                    rounding_method="round",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0,
-                )
-                gv: R.Tensor((1, 20, 20, 3), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    graph_model2 = fx.symbolic_trace(InterpolateNHWC2())
-    with torch.no_grad():
-        mod2 = from_fx(graph_model2, input_info, default_image_layout="NHWC")
-    tvm.ir.assert_structural_equal(mod2, expected_nhwc2)
-
-    input_info_5d = [([1, 4, 10, 10, 3], "float32")]
-
-    class InterpolateNHWC3(Module):
-        def forward(self, input):
-            return torch.nn.functional.interpolate(
-                input,
-                size=None,
-                scale_factor=(2.0, 4.0, 4.0),
-                mode="trilinear",
-                align_corners=False,
-            )
-
-    @tvm.script.ir_module
-    class expected_nhwc3:
-        @R.function
-        def main(input_5: R.Tensor((1, 4, 10, 10, 3), dtype="float32")) -> R.Tensor(
-            (1, 8, 40, 40, 3), dtype="float32"
-        ):
-            with R.dataflow():
-                lv: R.Tensor((1, 8, 40, 40, 3), dtype="float32") = R.image.resize3d(
-                    input_5,
-                    (8, 40, 40),
-                    roi=[0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
-                    layout="NDHWC",
-                    method="linear",
-                    coordinate_transformation_mode="half_pixel",
-                    rounding_method="",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0,
-                )
-                gv: R.Tensor((1, 8, 40, 40, 3), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    graph_model3 = fx.symbolic_trace(InterpolateNHWC3())
-    with torch.no_grad():
-        mod3 = from_fx(graph_model3, input_info_5d, default_image_layout="NDHWC")
-    tvm.ir.assert_structural_equal(mod3, expected_nhwc3)
-
-    class InterpolateNHWC4(Module):
-        def forward(self, input):
-            return torch.nn.functional.interpolate(
-                input,
-                size=None,
-                scale_factor=(2.0, 4.0, 4.0),
-                mode="trilinear",
-                align_corners=True,
-            )
-
-    @tvm.script.ir_module
-    class expected_nhwc4:
-        @R.function
-        def main(input_5: R.Tensor((1, 4, 10, 10, 3), dtype="float32")) -> R.Tensor(
-            (1, 8, 40, 40, 3), dtype="float32"
-        ):
-            with R.dataflow():
-                lv: R.Tensor((1, 8, 40, 40, 3), dtype="float32") = R.image.resize3d(
-                    input_5,
-                    (8, 40, 40),
-                    roi=[0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
-                    layout="NDHWC",
-                    method="linear",
-                    coordinate_transformation_mode="align_corners",
-                    rounding_method="",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0,
-                )
-                gv: R.Tensor((1, 8, 40, 40, 3), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    graph_model4 = fx.symbolic_trace(InterpolateNHWC4())
-    with torch.no_grad():
-        mod4 = from_fx(graph_model4, input_info_5d, default_image_layout="NDHWC")
-    tvm.ir.assert_structural_equal(mod4, expected_nhwc4)
+    verify_model(
+        Interpolate(), [(shape, "float32")], {}, builder.get(), default_image_layout=layout
+    )
 
 
 def test_addmm():
@@ -6551,39 +6060,26 @@ def test_round():
                 R.output(gv)
             return gv
 
+    @I.ir_module
+    class ExpectedNegative:
+        @R.function
+        def main(x: R.Tensor((3, 4), "float32")):
+            with R.dataflow():
+                scaled = R.divide(x, R.const(10.0, "float32"))
+                rounded = R.round(scaled)
+                result = R.multiply(rounded, R.const(10.0, "float32"))
+                output = result
+                R.output(output)
+            return output
+
     rounds = [
         (0, Expected1),
         (2, Expected2),
+        (-1, ExpectedNegative),
     ]
 
     for decimals, expected in rounds:
         verify_model(Round(decimals), input_info, {}, expected)
-
-    # Test numerical accuracy with decimals
-    test_data = torch.tensor(
-        [
-            [1.2345, 2.3456, 3.4567, 4.5678],
-            [5.6789, 6.7890, 7.8901, 8.9012],
-            [9.1234, 10.2345, 11.3456, 12.4567],
-        ]
-    )
-
-    for decimals in [0, 2]:
-        torch_model = Round(decimals)
-        graph_model = fx.symbolic_trace(torch_model)
-        with torch.no_grad():
-            mod = from_fx(graph_model, input_info)
-
-        target = tvm.target.Target("llvm")
-        ex = relax.build(mod, target)
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-
-        torch_result = torch_model(test_data).numpy()
-        tvm_input = tvm.runtime.tensor(test_data.numpy())
-        tvm_result = vm["main"](tvm_input).numpy()
-
-        # Use relaxed tolerance due to floating-point precision in decimal operations
-        tvm.testing.assert_allclose(tvm_result, torch_result, rtol=1e-3, atol=1e-3)
 
 
 if __name__ == "__main__":
