@@ -202,52 +202,6 @@ class ExprFunctor<R(const Expr& n, Args...)> {
 #undef EXPR_FUNCTOR_DEFAULT
 
 /*!
- * \brief ExprVisitor
- */
-class TVM_DLL ExprVisitor : public ExprFunctor<void(const Expr&)> {
- public:
-  using ExprFunctor::operator();
-
- protected:
-  using ExprFunctor::VisitExpr;
-  // list of functions to override.
-  void VisitExpr_(const VarNode* op) override;
-  void VisitExpr_(const TensorLoadNode* op) override;
-  void VisitExpr_(const OpaqueExprNode* op) override;
-  void VisitExpr_(const BufferRegionNode* op) override;
-  void VisitExpr_(const TupleNode* op) override;
-  void VisitExpr_(const TupleGetItemNode* op) override;
-  void VisitExpr_(const prim::LetNode* op) override;
-  void VisitExpr_(const CallNode* op) override;
-  void VisitExpr_(const prim::AddNode* op) override;
-  void VisitExpr_(const prim::SubNode* op) override;
-  void VisitExpr_(const prim::MulNode* op) override;
-  void VisitExpr_(const prim::DivNode* op) override;
-  void VisitExpr_(const prim::ModNode* op) override;
-  void VisitExpr_(const prim::FloorDivNode* op) override;
-  void VisitExpr_(const prim::FloorModNode* op) override;
-  void VisitExpr_(const prim::MinNode* op) override;
-  void VisitExpr_(const prim::MaxNode* op) override;
-  void VisitExpr_(const prim::EQNode* op) override;
-  void VisitExpr_(const prim::NENode* op) override;
-  void VisitExpr_(const prim::LTNode* op) override;
-  void VisitExpr_(const prim::LENode* op) override;
-  void VisitExpr_(const prim::GTNode* op) override;
-  void VisitExpr_(const prim::GENode* op) override;
-  void VisitExpr_(const prim::AndNode* op) override;
-  void VisitExpr_(const prim::OrNode* op) override;
-  void VisitExpr_(const prim::CastNode* op) override;
-  void VisitExpr_(const prim::NotNode* op) override;
-  void VisitExpr_(const prim::SelectNode* op) override;
-  void VisitExpr_(const prim::RampNode* op) override;
-  void VisitExpr_(const prim::BroadcastNode* op) override;
-  void VisitExpr_(const prim::ShuffleNode* op) override;
-  void VisitExpr_(const IntImmNode* op) override;
-  void VisitExpr_(const FloatImmNode* op) override;
-  void VisitExpr_(const prim::StringImmNode* op) override;
-};
-
-/*!
  * \brief ExprMutator that mutates expressions.
  */
 class TVM_DLL ExprMutator : protected ExprFunctor<Expr(const Expr&)> {

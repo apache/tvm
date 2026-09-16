@@ -35,178 +35,283 @@
 namespace tvm {
 namespace tirx {
 
-void StmtVisitor::VisitStmt_(const BindNode* op) {
-  // Bind has no body -- only visit the value expression.
-  this->VisitExpr(op->value);
+void StmtExprVisitor::InitVTable(VTable* vtable) {
+  tvm::ExprVisitor::InitVTable(vtable);
+  SetDispatch<StmtExprVisitor, BindNode>(vtable);
+  SetDispatch<StmtExprVisitor, AttrStmtNode>(vtable);
+  SetDispatch<StmtExprVisitor, IfThenElseNode>(vtable);
+  SetDispatch<StmtExprVisitor, ForNode>(vtable);
+  SetDispatch<StmtExprVisitor, WhileNode>(vtable);
+  SetDispatch<StmtExprVisitor, ReturnNode>(vtable);
+  SetDispatch<StmtExprVisitor, BreakNode>(vtable);
+  SetDispatch<StmtExprVisitor, ContinueNode>(vtable);
+  SetDispatch<StmtExprVisitor, AllocBufferNode>(vtable);
+  SetDispatch<StmtExprVisitor, DeclBufferNode>(vtable);
+  SetDispatch<StmtExprVisitor, BufferStoreNode>(vtable);
+  SetDispatch<StmtExprVisitor, AssertStmtNode>(vtable);
+  SetDispatch<StmtExprVisitor, SeqStmtNode>(vtable);
+  SetDispatch<StmtExprVisitor, EvaluateNode>(vtable);
+  SetDispatch<StmtExprVisitor, SBlockNode>(vtable);
+  SetDispatch<StmtExprVisitor, SBlockRealizeNode>(vtable);
+  SetDispatch<StmtExprVisitor, ScopeIdDefStmtNode>(vtable);
+  SetDispatch<StmtExprVisitor, TilePrimitiveCallNode>(vtable);
+  SetDispatch<StmtExprVisitor, BufferRegionNode>(vtable);
 }
 
-void StmtVisitor::VisitStmt_(const AttrStmtNode* op) {
-  this->VisitExpr(op->value);
-  this->VisitStmt(op->body);
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const VarNode* op) { return std::nullopt; }
+
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const OpaqueExprNode* op) {
+  return std::nullopt;
 }
 
-void StmtVisitor::VisitStmt_(const ForNode* op) {
-  this->VisitExpr(op->min);
-  this->VisitExpr(op->extent);
-  if (op->step.has_value()) {
-    this->VisitExpr(*op->step);
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const BreakNode* op) { return std::nullopt; }
+
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const ContinueNode* op) {
+  return std::nullopt;
+}
+
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const TensorLoadNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->source));
+  for (const auto& child : op->indices) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
   }
-  this->VisitStmt(op->body);
+  return std::nullopt;
 }
 
-void StmtVisitor::VisitStmt_(const WhileNode* op) {
-  this->VisitExpr(op->condition);
-  this->VisitStmt(op->body);
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const BufferRegionNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->buffer));
+  for (const auto& range : op->region) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->min));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->extent));
+  }
+  return std::nullopt;
 }
 
-void StmtVisitor::VisitStmt_(const ReturnNode* op) { this->VisitExpr(op->value); }
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const TupleNode* op) {
+  for (const auto& child : op->fields) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
+  }
+  return std::nullopt;
+}
 
-void StmtVisitor::VisitStmt_(const BreakNode* op) {}
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const TupleGetItemNode* op) {
+  return this->Visit(op->tuple);
+}
 
-void StmtVisitor::VisitStmt_(const ContinueNode* op) {}
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const prim::LetNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
+  return this->Visit(op->body);
+}
 
-void StmtVisitor::VisitBufferDef(const BufferVar& buffer, bool alloc_data) {
-  for (const auto& e : buffer->shape) this->VisitExpr(e);
-  for (const auto& e : buffer->strides) this->VisitExpr(e);
-  this->VisitExpr(buffer->elem_offset);
-  for (const auto& e : buffer->allocated_addr) this->VisitExpr(e);
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const CallNode* op) {
+  if (op->op.as<OpaqueExprNode>()) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->op));
+  }
+  for (const auto& child : op->args) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
+  }
+  return std::nullopt;
+}
+
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const prim::RampNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->base));
+  return this->Visit(op->stride);
+}
+
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const prim::BroadcastNode* op) {
+  return this->Visit(op->value);
+}
+
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const prim::ShuffleNode* op) {
+  for (const auto& child : op->indices) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
+  }
+  for (const auto& child : op->vectors) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
+  }
+  return std::nullopt;
+}
+
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const BindNode* op) {
+  // Bind has no body -- only visit the value expression.
+  return this->Visit(op->value);
+}
+
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const AttrStmtNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
+  return this->Visit(op->body);
+}
+
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const ForNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->min));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->extent));
+  if (op->step.has_value()) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(*op->step));
+  }
+  return this->Visit(op->body);
+}
+
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const WhileNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->condition));
+  return this->Visit(op->body);
+}
+
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const ReturnNode* op) {
+  return this->Visit(op->value);
+}
+
+ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBufferMetadata(const BufferVar& buffer) {
+  for (const auto& child : buffer->shape) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
+  }
+  for (const auto& child : buffer->strides) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
+  }
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer->elem_offset));
+  for (const auto& child : buffer->allocated_addr) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
+  }
   if (buffer->layout.has_value()) {
     const auto* layout = buffer->layout.value().as<TileLayoutNode>();
-    if (layout == nullptr) return;
+    if (layout == nullptr) return std::nullopt;
     for (const Iter& iter : layout->shard) {
-      this->VisitExpr(iter->extent);
-      this->VisitExpr(iter->stride);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(iter->extent));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(iter->stride));
     }
     for (const Iter& iter : layout->replica) {
-      this->VisitExpr(iter->extent);
-      this->VisitExpr(iter->stride);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(iter->extent));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(iter->stride));
     }
   }
+  return std::nullopt;
 }
 
-// Default VisitBufferUse is empty: buffer fields (shape, strides, elem_offset)
-// are visited at the definition site (VisitBufferDef) and should not be
-// re-visited at each use site, as the use site may be in a different scope
-// where the buffer's shape variables are not defined.
-void StmtVisitor::VisitBufferUse(const BufferVar& buffer) {}
-
-void StmtExprVisitor::VisitExpr_(const TensorLoadNode* op) {
-  this->VisitBufferUse(op->source.as_or_throw<tvm::tirx::BufferVar>());
-  ExprVisitor::VisitExpr_(op);
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const AllocBufferNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
+      kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->buffer); }));
+  return VisitBufferMetadata(op->buffer);
 }
 
-void StmtExprVisitor::VisitExpr_(const BufferRegionNode* op) {
-  this->VisitBufferUse(op->buffer);
-  ExprVisitor::VisitExpr_(op);
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const DeclBufferNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->data));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
+      kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->buffer); }));
+  return VisitBufferMetadata(op->buffer);
 }
 
-void StmtVisitor::VisitStmt_(const AllocBufferNode* op) {
-  this->VisitBufferDef(op->buffer, /*alloc_data=*/true);
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const BufferStoreNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->buffer));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
+  for (const auto& child : op->indices) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
+  }
+  return std::nullopt;
 }
 
-void StmtVisitor::VisitStmt_(const DeclBufferNode* op) {
-  this->VisitExpr(op->data);
-  this->VisitBufferDef(op->buffer, /*alloc_data=*/false);
-}
-
-void StmtVisitor::VisitStmt_(const BufferStoreNode* op) {
-  this->VisitBufferUse(op->buffer);
-  this->VisitExpr(op->value);
-  VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
-}
-
-void StmtVisitor::VisitStmt_(const IfThenElseNode* op) {
-  this->VisitExpr(op->condition);
-  this->VisitStmt(op->then_case);
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const IfThenElseNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->condition));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->then_case));
   if (op->else_case) {
-    this->VisitStmt(op->else_case.value());
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->else_case.value()));
   }
+  return std::nullopt;
 }
 
-void StmtVisitor::VisitStmt_(const AssertStmtNode* op) {
-  this->VisitExpr(op->condition);
-  this->VisitExpr(op->error_kind);
-  VisitArray(op->message_parts, [this](const prim::StringImm& e) { this->VisitExpr(e); });
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const AssertStmtNode* op) {
+  // Constant message_parts are intentionally skipped.
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->condition));
+  return this->Visit(op->error_kind);
 }
 
-void StmtVisitor::VisitStmt_(const SeqStmtNode* op) {
-  VisitArray(op->seq, [this](const Stmt& s) { this->VisitStmt(s); });
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const SeqStmtNode* op) {
+  for (const auto& child : op->seq) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
+  }
+  return std::nullopt;
 }
 
-void StmtVisitor::VisitStmt_(const EvaluateNode* op) { this->VisitExpr(op->value); }
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const EvaluateNode* op) {
+  return this->Visit(op->value);
+}
 
-void StmtVisitor::VisitStmt_(const SBlockNode* op) {
-  auto fvisit_buffer_region = [this](const BufferRegion& s) {
-    this->VisitBufferUse(s->buffer);
-    for (const auto& range : s->region) {
-      this->VisitExpr(range->min);
-      this->VisitExpr(range->extent);
-    }
-  };
-  VisitArray(op->iter_vars, [this](const IterVar& iter_var) {
-    this->VisitExpr(iter_var->dom->min);
-    this->VisitExpr(iter_var->dom->extent);
-  });
-  VisitArray(op->alloc_buffers,
-             [this](const BufferVar& buf) { this->VisitBufferDef(buf, /*alloc_data=*/true); });
-  VisitArray(op->reads, fvisit_buffer_region);
-  VisitArray(op->writes, fvisit_buffer_region);
-  VisitArray(op->match_buffers,
-             [this, &fvisit_buffer_region](const MatchBufferRegion& match_buffer_region) {
-               this->VisitBufferDef(match_buffer_region->buffer, /*alloc_data=*/true);
-               fvisit_buffer_region(match_buffer_region->source);
-             });
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const SBlockNode* op) {
+  for (const IterVar& iter_var : op->iter_vars) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(iter_var->dom->min));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(iter_var->dom->extent));
+  }
+  for (const BufferVar& buf : op->alloc_buffers) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(
+        this->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(buf); }));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(buf));
+  }
+  for (const BufferRegion& region : op->reads) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(region));
+  }
+  for (const BufferRegion& region : op->writes) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(region));
+  }
+  for (const MatchBufferRegion& match_buffer_region : op->match_buffers) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
+        kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(match_buffer_region->buffer); }));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(match_buffer_region->buffer));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(match_buffer_region->source));
+  }
   if (op->init.has_value()) {
-    this->VisitStmt(op->init.value());
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->init.value()));
   }
-  this->VisitStmt(op->body);
+  return this->Visit(op->body);
 }
 
-void StmtVisitor::VisitStmt_(const SBlockRealizeNode* op) {
-  VisitArray(op->iter_values, [this](const PrimExpr& e) { this->VisitExpr(e); });
-  this->VisitExpr(op->predicate);
-  this->VisitStmt(op->block);
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const SBlockRealizeNode* op) {
+  for (const auto& child : op->iter_values) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
+  }
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->predicate));
+  return this->Visit(op->block);
 }
 
-void StmtVisitor::VisitStmt_(const ScopeIdDefStmtNode* op) {
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const ScopeIdDefStmtNode* op) {
   // Flat stmt -- no body. Visit extents (skip deferred defs whose extents
   // are NullOpt) and any preferred_extents.
   if (op->def->extents.has_value()) {
-    for (const auto& e : op->def->extents.value()) {
-      this->VisitExpr(e);
+    for (const auto& child : op->def->extents.value()) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
     }
   }
   if (op->def->preferred_extents.has_value()) {
-    for (const auto& e : op->def->preferred_extents.value()) {
-      this->VisitExpr(e);
+    for (const auto& child : op->def->preferred_extents.value()) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
     }
   }
+  return std::nullopt;
 }
 
-void StmtVisitor::VisitStmt_(const tirx::TilePrimitiveCallNode* op) {
-  std::function<void(const ffi::Any&)> fvisit;
-  fvisit = [this, &fvisit](const ffi::Any& e) {
-    if (e == nullptr) return;
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const TilePrimitiveCallNode* op) {
+  std::function<ffi::Optional<VisitInterrupt>(const ffi::Any&)> fvisit;
+  fvisit = [this, &fvisit](const ffi::Any& e) -> ffi::Optional<VisitInterrupt> {
+    if (e == nullptr) return std::nullopt;
     if (auto buffer_region = e.as<BufferRegion>()) {
-      this->VisitBufferUse(buffer_region.value()->buffer);
-      for (const auto& range : buffer_region.value()->region) {
-        this->VisitExpr(range->min);
-        this->VisitExpr(range->extent);
-      }
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer_region.value()));
     } else if (auto var = e.as<Var>(); var && var.value()->ty.as<BufferTypeNode>()) {
-      this->VisitBufferUse(BufferVar(var.value()));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(BufferVar(var.value())));
     } else if (auto expr = e.as<PrimExpr>()) {
-      this->VisitExpr(expr.value());
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(expr.value()));
     } else if (auto stmt = e.as<Stmt>()) {
-      this->VisitStmt(stmt.value());
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(stmt.value()));
     } else if (auto array = e.as<ffi::Array<ffi::Any>>()) {
-      for (const ffi::Any& item : array.value()) fvisit(item);
+      for (const ffi::Any& item : array.value()) {
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit(item));
+      }
     }
+    return std::nullopt;
   };
-  VisitArray(op->args, fvisit);
-  for (const auto& [key, value] : op->config) {
-    fvisit(value);
+  for (const ffi::Any& arg : op->args) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit(arg));
   }
+  for (const auto& [key, value] : op->config) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit(value));
+  }
+  return std::nullopt;
 }
 
 class StmtMutator::Internal {

@@ -64,15 +64,17 @@ using LoopInfoMap = std::unordered_map<const ForNode*, LoopInfo>;
 // Traverse loops depth first and assign them a unique number.
 class LoopAnalyzer : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
   LoopInfoMap Analyze(const Stmt& stmt) {
-    this->VisitStmt(stmt);
+    this->Visit(stmt);
     return loops;
   }
-  void VisitStmt_(const ForNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     LoopInfo loop_info(start_id, 0);
     start_id++;
     loop_info.height = TraverseLoop(op->body, 0);
     loops[op] = loop_info;
+    return std::nullopt;
   }
 
   unsigned TraverseLoop(const Stmt& stmt, unsigned parent_depth, bool has_parallel = false) {
@@ -170,8 +172,8 @@ class InstrumentIntrin : public StmtMutator {
         instr_siblings_(instr_siblings) {}
 
   void GetLoopInfo(PrimFuncNode* op) {
-    LoopAnalyzer analzer;
-    loops_ = analzer.Analyze(op->body);
+    auto analzer = ffi::make_object<LoopAnalyzer>();
+    loops_ = analzer->Analyze(op->body);
   }
 
   Stmt VisitStmt_(const SeqStmtNode* op) final {
@@ -224,18 +226,20 @@ class InstrumentIntrin : public StmtMutator {
 
 class CheckParallelLoops : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
   bool HasParallelLoops(const Stmt& stmt) {
-    this->VisitStmt(stmt);
+    this->Visit(stmt);
     return has_parallel;
   }
 
  private:
-  void VisitStmt_(const ForNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     if (op->kind == ForKind::kParallel) {
       has_parallel = true;
     } else {
-      StmtExprVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
+    return std::nullopt;
   }
 
   bool has_parallel = false;

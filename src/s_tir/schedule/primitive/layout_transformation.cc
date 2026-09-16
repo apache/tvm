@@ -72,8 +72,10 @@ using namespace tvm::tirx;
  * to explicitly fill the padding.
  *
  */
-class TransformLayoutPlanner : private StmtExprVisitor {
+class TransformLayoutPlanner : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
   // Statement to be inserted prior to the analyzed block
   struct ProloguePlan {
     Stmt prologue;
@@ -103,9 +105,10 @@ class TransformLayoutPlanner : private StmtExprVisitor {
                             ffi::Optional<IndexMap> pad_value, arith::AnalyzerObj* analyzer) {
     TVM_FFI_ICHECK(!pad_value.has_value() || pad_value.value()->final_indices.size() == 1)
         << "Internal error: Should be caught by ScheduleError checks prior to this point";
-    TransformLayoutPlanner visitor(old_buffer);
-    visitor(block);
-    return visitor.Finalize(new_buffer, index_map, inverse, padding_predicate, pad_value, analyzer);
+    auto visitor = ffi::make_object<TransformLayoutPlanner>(old_buffer);
+    visitor->Visit(block);
+    return visitor->Finalize(new_buffer, index_map, inverse, padding_predicate, pad_value,
+                             analyzer);
   }
 
  private:
@@ -128,26 +131,28 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     bool contains_row_major_traversal{false};
   };
 
+ public:
   explicit TransformLayoutPlanner(BufferVar old_buffer) : old_buffer_(old_buffer) {}
 
-  void VisitStmt_(const ForNode* op) override {
+ private:
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override {
     BindLoopVar context(this, ffi::GetRef<For>(op));
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const BindNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) override {
     BindVariableDefinition context(this, op->var, op->value);
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const SBlockRealizeNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* op) override {
     BindBlockRealize context(this, ffi::GetRef<SBlockRealize>(op));
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const BufferStoreNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) override {
     if (!op->buffer.same_as(old_buffer_)) {
-      return;
+      return std::nullopt;
     }
 
     std::optional<std::pair<size_t, size_t>> loop_dependency_range = std::nullopt;
@@ -211,6 +216,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
     // Don't need to continue recursing, as the entire goal was to
     // find the BufferStore.
+    return std::nullopt;
   }
 
   std::optional<std::pair<size_t, size_t>> LoopDependencyRange(const PrimExpr& expr) const {
@@ -750,31 +756,40 @@ class TransformLayoutPlanner : private StmtExprVisitor {
  * \brief Collect blocks that are part of root block to be passed to ScheduleState::Replace for SRef
  * reuse
  */
-class ReuseBlocksCollector : public tirx::StmtVisitor {
+class ReuseBlocksCollector : public tirx::StmtExprVisitor {
  public:
+  using tirx::StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return tirx::StmtExprVisitor::Visit(value);
+  }
+
   static ffi::Map<SBlock, SBlock> Collect(SBlock result,
                                           ffi::Map<SBlock, SBlock> new_block_to_old) {
-    return ReuseBlocksCollector(new_block_to_old).Run(result);
+    return ffi::make_object<ReuseBlocksCollector>(new_block_to_old)->Run(result);
   }
 
  private:
   /*! \brief Entry point */
   ffi::Map<SBlock, SBlock> Run(const SBlock result) {
-    VisitStmt(result);
+    Visit(result);
     return block_sref_reuse_;
   }
   /*! \brief Constructor */
+ public:
   explicit ReuseBlocksCollector(ffi::Map<SBlock, SBlock> new_block_to_old)
       : new_block_to_old_(new_block_to_old) {}
 
+ private:
   /*! \brief Override the Stmt visiting behaviour */
-  void VisitStmt_(const tirx::SBlockNode* block) override {
+  ffi::Optional<VisitInterrupt> Visit_(const tirx::SBlockNode* block) override {
     SBlock block_ref = ffi::GetRef<SBlock>(block);
     auto it = new_block_to_old_.find(block_ref);
     if (it != new_block_to_old_.end()) {
       block_sref_reuse_.Set((*it).second, (*it).first);
     }
-    StmtVisitor::VisitStmt_(block);
+    return StmtExprVisitor::Visit_(block);
   }
 
   /*! \brief New map to be filled with just blocks from scope block */
@@ -1065,25 +1080,28 @@ class TransformationPaddingTypeError : public ScheduleErrorContextObj {
 class TransformationPaddingExpressionError : public ScheduleErrorContextObj {
  public:
   static void Check(IRModule mod, BufferVar buffer, IndexMap pad_value) {
-    Visitor visitor(buffer);
+    auto visitor = ffi::make_object<Visitor>(buffer);
     TVM_FFI_ICHECK_EQ(pad_value->final_indices.size(), 1)
         << "Internal error: Should be caught by ScheduleError checks prior to this point";
-    visitor(pad_value->final_indices[0]);
-    if (visitor.illegal_load) {
+    visitor->Visit(pad_value->final_indices[0]);
+    if (visitor->illegal_load) {
       throw MakeScheduleError<TransformationPaddingExpressionError>(mod, buffer, pad_value,
-                                                                    visitor.illegal_load.value());
+                                                                    visitor->illegal_load.value());
     }
   }
 
  private:
-  struct Visitor : ExprVisitor {
+  struct Visitor : StmtExprVisitor {
+   public:
+    using StmtExprVisitor::Visit_;
+
     explicit Visitor(const BufferVar& buffer) : buffer_(buffer) {}
 
-    void VisitExpr_(const TensorLoadNode* op) final {
+    ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
       if (!op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
         illegal_load = ffi::GetRef<TensorLoad>(op);
       }
-      ExprVisitor::VisitExpr_(op);
+      return StmtExprVisitor::Visit_(op);
     }
 
     const BufferVar& buffer_;

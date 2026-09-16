@@ -579,11 +579,18 @@ bool AllConsumersUnderStmt(ScheduleState self, BufferVar buffer, StmtSRef scope_
  */
 static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const BufferVar& buffer,
                                              BufferIndexType index_type) {
-  struct Collector : public StmtVisitor {
+  struct Collector : public StmtExprVisitor {
+    using StmtExprVisitor::Visit_;
+
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return StmtExprVisitor::Visit(value);
+    }
+
     Collector(const BufferVar& buf, BufferIndexType idx_type)
         : buffer_(buf), index_type_(idx_type), result_(IntImm::Bool(false)), found_(false) {}
 
-    void VisitStmt_(const SBlockRealizeNode* realize) final {
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* realize) final {
       const SBlockNode* block = realize->block.get();
       const auto& regions = (index_type_ == BufferIndexType::kRead) ? block->reads : block->writes;
       bool accesses_buffer = false;
@@ -617,7 +624,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const BufferVar& 
         found_ = true;
       }
       // Continue recursing into deeper nested blocks.
-      StmtVisitor::VisitStmt_(realize);
+      return StmtExprVisitor::Visit_(realize);
     }
 
     const BufferVar& buffer_;
@@ -626,11 +633,11 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const BufferVar& 
     bool found_;
   };
 
-  Collector collector(buffer, index_type);
-  collector(body);
+  auto collector = ffi::make_object<Collector>(buffer, index_type);
+  collector->Visit(body);
   // If no nested block accessed the buffer, return true (no restriction — the caller
   // will fall back to the original scope-block reads / FullRegion path).
-  return collector.found_ ? collector.result_ : IntImm::Bool(true);
+  return collector->found_ ? collector->result_ : IntImm::Bool(true);
 }
 
 /*!
@@ -684,8 +691,15 @@ BufferRegion RelaxBufferRegion(ScheduleState self, const BufferRegion& buffer_re
 }
 
 /*! \brief Detect the insertion position of the new cache stage */
-class CacheLocDetector : public StmtVisitor {
+class CacheLocDetector : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
   /*!
    * \brief Detect the insertion position of the cache stage, and write the position into the
    * CacheStageInfo
@@ -724,10 +738,11 @@ class CacheLocDetector : public StmtVisitor {
     }
 
     if (!related_blocks.empty()) {
-      CacheLocDetector detector(self, block_sref, scope_sref, related_blocks);
-      detector(ffi::GetRef<Stmt>(scope_sref->stmt));
-      info->loc_sref = detector.loc_sref_;
-      info->loc_pos = detector.loc_pos_;
+      auto detector =
+          ffi::make_object<CacheLocDetector>(self, block_sref, scope_sref, related_blocks);
+      detector->Visit(ffi::GetRef<Stmt>(scope_sref->stmt));
+      info->loc_sref = detector->loc_sref_;
+      info->loc_pos = detector->loc_pos_;
     } else {
       info->loc_sref = scope_sref;
 
@@ -737,7 +752,6 @@ class CacheLocDetector : public StmtVisitor {
     }
   }
 
- private:
   /*!
    * \brief Constructor
    * \param self The state of the schedule
@@ -753,7 +767,8 @@ class CacheLocDetector : public StmtVisitor {
         scope_sref_(scope_sref),
         related_blocks_(related_blocks) {}
 
-  void VisitStmt_(const SeqStmtNode* seq_stmt) final {
+ private:
+  ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final {
     bool previous_visited_block = visited_block_;
     visited_block_ = false;
 
@@ -761,7 +776,7 @@ class CacheLocDetector : public StmtVisitor {
       if (loc_pos_ != -1) {
         break;
       }
-      VisitStmt(seq_stmt->seq[i]);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(seq_stmt->seq[i]));
       // `pos` can be assigned only once when we visited `block_sref`
       if (visited_block_ && visited_related_ && loc_pos_ == -1) {
         // The offset of insert position from the block
@@ -773,13 +788,14 @@ class CacheLocDetector : public StmtVisitor {
       }
     }
     visited_block_ = visited_block_ || previous_visited_block;
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SBlockNode* block) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
     // Only visit the current scope under buffer writer's parent block
     if (block == scope_sref_->stmt) {
       // The block visited is the current parent scope
-      StmtVisitor::VisitStmt_(block);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
       // Handling cases when insert outside any loop or cache_read for input buffer
       if (visited_related_ && !loc_sref_.defined()) {
         loc_sref_ = self_->stmt2ref.at(block);
@@ -788,30 +804,31 @@ class CacheLocDetector : public StmtVisitor {
           loc_pos_ = 0;
         }
       }
-      return;
+      return std::nullopt;
     }
     // Update `visited_block`
     if (block_sref_->stmt == block) {
       visited_block_ = true;
-      return;
+      return std::nullopt;
     }
     // Update `visited_related`
     for (const StmtSRef& related_block : related_blocks_) {
       if (related_block->stmt == block) {
         visited_related_ = true;
-        return;
+        return std::nullopt;
       }
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const ForNode* loop) final {
-    StmtVisitor::VisitStmt_(loop);
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     if (visited_block_ && visited_related_ && !loc_sref_.defined() && loc_pos_ != -1) {
       loc_sref_ = self_->stmt2ref.at(loop);
     }
+    return std::nullopt;
   }
 
- private:
   /*! \brief The schedule class */
   const ScheduleState self_;
   /*! \brief The dominate block which write the buffer */
@@ -831,8 +848,15 @@ class CacheLocDetector : public StmtVisitor {
 };
 
 /*! \brief Detect the insertion position of the new cache stage */
-class CacheInplaceLocDetector : public StmtVisitor {
+class CacheInplaceLocDetector : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
   /*!
    * \brief Detect the insertion position of the cache stage, and write the position into the
    * CacheStageInfo
@@ -843,13 +867,12 @@ class CacheInplaceLocDetector : public StmtVisitor {
    */
   static void Detect(const ScheduleState& self, const StmtSRef& block_sref,
                      const StmtSRef& scope_sref, CacheStageInfo* info) {
-    CacheInplaceLocDetector detector(self, block_sref, scope_sref);
-    detector(ffi::GetRef<Stmt>(scope_sref->stmt));
-    info->loc_sref = detector.loc_sref_;
-    info->loc_pos = detector.loc_pos_;
+    auto detector = ffi::make_object<CacheInplaceLocDetector>(self, block_sref, scope_sref);
+    detector->Visit(ffi::GetRef<Stmt>(scope_sref->stmt));
+    info->loc_sref = detector->loc_sref_;
+    info->loc_pos = detector->loc_pos_;
   }
 
- private:
   /*!
    * \brief Constructor
    * \param self The state of the schedule
@@ -860,26 +883,28 @@ class CacheInplaceLocDetector : public StmtVisitor {
                           const StmtSRef& scope_sref)
       : self_(self), block_sref_(block_sref), scope_sref_(scope_sref) {}
 
-  void VisitStmt_(const SeqStmtNode* seq_stmt) final {
+ private:
+  ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final {
     for (size_t i = 0; i < seq_stmt->size(); ++i) {
       if (loc_pos_ != -1) {
         break;
       }
-      VisitStmt(seq_stmt->seq[i]);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(seq_stmt->seq[i]));
       // `pos` can be assigned only once when we visited `block_sref`
       if (visited_block_ && loc_pos_ == -1) {
         // The offset of insert position from the block
         loc_pos_ = i;
-        return;
+        return std::nullopt;
       }
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SBlockNode* block) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
     // Only visit the current scope under buffer writer's parent block
     if (block == scope_sref_->stmt) {
       // The block visited is the current parent scope
-      StmtVisitor::VisitStmt_(block);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
       // Handling cases when insert outside any loop
       if (visited_block_ && !loc_sref_.defined()) {
         loc_sref_ = self_->stmt2ref.at(block);
@@ -891,19 +916,20 @@ class CacheInplaceLocDetector : public StmtVisitor {
     } else if (block_sref_->stmt == block) {
       visited_block_ = true;
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const ForNode* loop) final {
-    StmtVisitor::VisitStmt_(loop);
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     if (visited_block_ && !loc_sref_.defined()) {
       loc_sref_ = self_->stmt2ref.at(loop);
       if (loc_pos_ == -1) {
         loc_pos_ = 0;
       }
     }
+    return std::nullopt;
   }
 
- private:
   /*! \brief The schedule class */
   const ScheduleState self_;
   /*! \brief The dominate block which write the buffer */
@@ -1552,38 +1578,47 @@ class InvalidBufferAccessError : public ScheduleErrorContextObj {
 /*! \brief Collect the related Load/Store to reindex */
 class ReIndexCollector : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
   static ffi::Array<PrimExpr> Collect(const IRModule& mod, const BufferVar& buffer,
                                       const SBlock& block) {
-    ReIndexCollector collector(mod, buffer, block);
-    collector(block->body);
-    if (!collector.buffer_access_indices_.has_value()) {
+    auto collector = ffi::make_object<ReIndexCollector>(mod, buffer, block);
+    collector->Visit(block->body);
+    if (!collector->buffer_access_indices_.has_value()) {
       throw MakeScheduleError<InvalidBufferAccessError>(
           mod, buffer, block, InvalidBufferAccessError::ErrorKind::kNoAccess);
     }
-    return collector.buffer_access_indices_.value();
+    return collector->buffer_access_indices_.value();
   }
 
- private:
   explicit ReIndexCollector(const IRModule& mod, const BufferVar& buffer, const SBlock& block)
       : mod_(mod), buffer_(buffer), block_(block) {}
 
-  void VisitExpr_(const TensorLoadNode* load) final {
-    StmtExprVisitor::VisitExpr_(load);
+ private:
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
+    for (const PrimExpr& index : load->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
     if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
       CheckAndUpdateBufferAccessIndices(load->indices);
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SBlockNode* block) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
     // no sub-blocks under this block
     throw MakeScheduleError<NotLeafBlockError>(mod_, block_);
   }
 
-  void VisitStmt_(const BufferStoreNode* store) final {
-    StmtExprVisitor::VisitStmt_(store);
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(store->value));
+    for (const PrimExpr& index : store->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
     if (store->buffer.same_as(buffer_)) {
       CheckAndUpdateBufferAccessIndices(store->indices);
     }
+    return std::nullopt;
   }
 
   void CheckAndUpdateBufferAccessIndices(const ffi::Array<PrimExpr> indices) {
@@ -1598,11 +1633,13 @@ class ReIndexCollector : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const VarNode* var) final {
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* var) final {
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
     if (var == buffer_.get()) {
       throw MakeScheduleError<InvalidBufferAccessError>(
           mod_, buffer_, block_, InvalidBufferAccessError::ErrorKind::kOpaqueAccess);
     }
+    return std::nullopt;
   }
   /*! \brief The IR module */
   IRModule mod_;
@@ -2035,24 +2072,24 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
   info->indices = new_indices;
 
   // Step 5. Update CacheTouchedInfo
-  VarUseDefAnalyzer collector_old(/*defined_vars=*/{});
+  auto collector_old = ffi::make_object<VarUseDefAnalyzer>(ffi::Array<Var>{});
   ffi::Array<PrimExpr> old_indices;
   for (const Range& range : cache_region->region) {
-    collector_old(range->min);
+    collector_old->Visit(range->min);
     old_indices.push_back(range->min);
   }
 
-  VarUseDefAnalyzer collector_new(/*defined_vars=*/{});
+  auto collector_new = ffi::make_object<VarUseDefAnalyzer>(ffi::Array<Var>{});
   for (const PrimExpr& idx : new_indices) {
-    collector_new(idx);
+    collector_new->Visit(idx);
   }
 
-  VarUseDefAnalyzer collector_iter_values(/*defined_vars=*/{});
+  auto collector_iter_values = ffi::make_object<VarUseDefAnalyzer>(ffi::Array<Var>{});
   for (size_t i = 0; i < block->iter_vars.size(); ++i) {
     const IterVar& block_iter_var = block->iter_vars[i];
     const PrimExpr& block_iter_value = realize->iter_values[i];
-    bool appears_in_new = collector_new.use_count_.count(block_iter_var->var.get());
-    bool appears_in_old = collector_old.use_count_.count(block_iter_var->var.get());
+    bool appears_in_new = collector_new->use_count_.count(block_iter_var->var.get());
+    bool appears_in_old = collector_old->use_count_.count(block_iter_var->var.get());
     if (appears_in_new != appears_in_old) {
       throw MakeScheduleError<ReindexCacheReadWriteNotMatchError>(
           mod, block, block_iter_var->var, old_indices, new_indices, is_cache_read, appears_in_old);
@@ -2060,13 +2097,13 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
     if (appears_in_new) {
       info->block_iter_vars.push_back(block_iter_var);
       info->block_iter_values.push_back(block_iter_value);
-      collector_iter_values(block_iter_value);
+      collector_iter_values->Visit(block_iter_value);
     }
   }
 
   for (const StmtSRef& loop_sref : GetLoopsUnderScope(block_sref, info->loc_sref)) {
     const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-    if (collector_iter_values.use_count_.count(loop->loop_var.get())) {
+    if (collector_iter_values->use_count_.count(loop->loop_var.get())) {
       info->loop_vars.push_back(loop->loop_var);
       info->loop_ranges.push_back(Range::FromMinExtent(loop->min, loop->extent));
     }

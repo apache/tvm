@@ -204,9 +204,13 @@ TEST(IRF, StmtVisitor) {
    public:
     int count = 0;
     // implementation
-    void VisitExpr_(const VarNode* op) final { ++count; }
+    ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
+      // Buffer variables now share this hook; this fixture counts other Var operands.
+      if (!op->ty.as<BufferTypeNode>()) ++count;
+      return std::nullopt;
+    }
   };
-  MyVisitor v;
+  auto v = ffi::make_object<MyVisitor>();
   auto fmaketest = [&]() {
     auto z = x + 1;
     Stmt eval_body = Evaluate(z);
@@ -215,10 +219,10 @@ TEST(IRF, StmtVisitor) {
     // AllocBuffer is flat (no body). Return as SeqStmt with eval.
     return SeqStmt({AllocBuffer(buf), eval_body});
   };
-  v(fmaketest());
-  // AllocBuffer visits buffer shape via VisitBufferDef.
+  v->Visit(fmaketest());
+  // AllocBuffer visits buffer shape at its definition site.
   // shape = {z, z} where z = x + 1, so x is visited twice from shape + once from eval = 3
-  TVM_FFI_ICHECK_EQ(v.count, 3);
+  TVM_FFI_ICHECK_EQ(v->count, 3);
 
   {
     // tests for block and block_realize
@@ -235,15 +239,13 @@ TEST(IRF, StmtVisitor) {
                           {match_buffer_region});
     Stmt block_realize = SBlockRealize({}, IntImm::Bool(true), block);
 
-    v.count = 0;
-    v(block_realize);
-    // x visited in: reads range (1), writes range (1), match_buffers range (1),
-    // init DeclBuffer(0) + AllocBuffer shape(2) + Evaluate(1) = 3,
-    // body DeclBuffer(0) + AllocBuffer shape(2) + Evaluate(1) = 3.
-    // The block's read/write BufferTypes each visit their dependent shape once,
-    // in addition to the ranges, match buffer, init, and body.
-    // Total: 2 + 2 + 1 + 3 + 3 = 11.
-    TVM_FFI_ICHECK_EQ(v.count, 11);
+    v->count = 0;
+    v->Visit(block_realize);
+    // x visited in: reads range (1), writes range (1), match_buffers range (1).
+    // init: DeclBuffer data b(1) + AllocBuffer shape x,x(2) + Evaluate x(1) = 4.
+    // body: DeclBuffer data b(1) + AllocBuffer shape x,x(2) + Evaluate x(1) = 4.
+    // Total: 1 + 1 + 1 + 4 + 4 = 11.
+    TVM_FFI_ICHECK_EQ(v->count, 11);
   }
 }
 

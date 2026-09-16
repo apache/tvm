@@ -25,16 +25,25 @@ namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
 
-class SRefTreeVerifier : public StmtVisitor {
+class SRefTreeVerifier : public StmtExprVisitor {
  public:
-  static void Verify(const ScheduleStateNode* self) { SRefTreeVerifier(self).Verify(); }
+  using StmtExprVisitor::Visit_;
 
- private:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
+  static void Verify(const ScheduleStateNode* self) {
+    ffi::make_object<SRefTreeVerifier>(self)->Verify();
+  }
+
   /*! \brief Constructor */
   explicit SRefTreeVerifier(const ScheduleStateNode* self) : self_(self) {}
 
+ private:
   void Verify() {
-    VisitPrimFuncs(self_->mod, [this](const PrimFuncNode* func) { this->VisitStmt(func->body); });
+    VisitPrimFuncs(self_->mod, [this](const PrimFuncNode* func) { this->Visit(func->body); });
     TVM_FFI_ICHECK_EQ(n_sref_visited_, static_cast<int>(self_->stmt2ref.size()));
     for (const auto& kv : self_->block_info) {
       const StmtSRef& sref = kv.first;
@@ -51,13 +60,12 @@ class SRefTreeVerifier : public StmtVisitor {
     TVM_FFI_ICHECK_EQ(n_block_sref_visited_, static_cast<int>(self_->block_info.size()));
   }
 
-  void VisitStmt_(const SBlockNode* block) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
     if (init_block_depth_) {
       TVM_FFI_CHECK(!self_->stmt2ref.count(block), InternalError)
           << "A block inside init block has its "
              "corresponding sref, which is not allowed";
-      StmtVisitor::VisitStmt_(block);
-      return;
+      return StmtExprVisitor::Visit_(block);
     }
     TVM_FFI_CHECK(self_->stmt2ref.count(block), InternalError)
         << "A BlockNode should appear in sref map, but it didn't\n"
@@ -78,20 +86,20 @@ class SRefTreeVerifier : public StmtVisitor {
     ancestors_.push_back(sref.operator->());
     if (block->init.has_value()) {
       ++init_block_depth_;
-      VisitStmt(block->init.value());
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(block->init.value()));
       --init_block_depth_;
     }
-    VisitStmt(block->body);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(block->body));
     ancestors_.pop_back();
+    return std::nullopt;
   }
 
-  void VisitStmt_(const ForNode* loop) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
     if (init_block_depth_) {
       TVM_FFI_CHECK(!self_->stmt2ref.count(loop), InternalError)
           << "A loop inside init block has its "
              "corresponding sref, which is not allowed";
-      StmtVisitor::VisitStmt_(loop);
-      return;
+      return StmtExprVisitor::Visit_(loop);
     }
     TVM_FFI_CHECK(self_->stmt2ref.count(loop), InternalError)
         << "A ForNode should appear in sref map, but it didn't\n"
@@ -107,15 +115,15 @@ class SRefTreeVerifier : public StmtVisitor {
         << (sref->parent ? ffi::Optional<Stmt>(ffi::GetRef<Stmt>(sref->parent->stmt))
                          : ffi::Optional<Stmt>(std::nullopt));
     ancestors_.push_back(sref.operator->());
-    StmtVisitor::VisitStmt_(loop);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     ancestors_.pop_back();
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SeqStmtNode* seq_stmt) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final {
     // Verify seq_index
     if (init_block_depth_) {
-      StmtVisitor::VisitStmt_(seq_stmt);
-      return;
+      return StmtExprVisitor::Visit_(seq_stmt);
     }
     int n = static_cast<int>(seq_stmt->seq.size());
     for (int i = 0; i < n; ++i) {
@@ -133,7 +141,7 @@ class SRefTreeVerifier : public StmtVisitor {
       }
       TVM_FFI_CHECK_EQ(sref->seq_index, i, InternalError) << "A StmtSRef has incorrect seq_index";
     }
-    StmtVisitor::VisitStmt_(seq_stmt);
+    return StmtExprVisitor::Visit_(seq_stmt);
   }
 
   /*! \brief The schedule it belongs to */

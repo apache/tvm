@@ -75,6 +75,8 @@ PrimType DeterminePrimType(const arith::IntSet& range) {
 /*! \brief Collect the index info to be cached */
 class IndexInfoCollector : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
   /*!
    * \brief Collect the index info for cache_index and write into the IndexInfo
    * \param self The state of the schedule \param block_sref The sref of the target
@@ -83,14 +85,14 @@ class IndexInfoCollector : public StmtExprVisitor {
    */
   static void Collect(const ScheduleState& self, const StmtSRef& block_sref,
                       const StmtSRef& scope_sref, IndexInfo* info) {
-    IndexInfoCollector collector(self, block_sref, scope_sref, info->cse_thresh);
-    collector(ffi::GetRef<Stmt>(scope_sref->stmt));
-    info->loc_pos = collector.loc_pos_;
-    info->index_exprs = collector.exprs_;
-    info->range_map = collector.range_map_;
+    auto collector =
+        ffi::make_object<IndexInfoCollector>(self, block_sref, scope_sref, info->cse_thresh);
+    collector->Visit(ffi::GetRef<Stmt>(scope_sref->stmt));
+    info->loc_pos = collector->loc_pos_;
+    info->index_exprs = collector->exprs_;
+    info->range_map = collector->range_map_;
   }
 
- private:
   /*!
    * \brief Constructor
    * \param self The state of the schedule
@@ -102,24 +104,26 @@ class IndexInfoCollector : public StmtExprVisitor {
                      const StmtSRef& scope_sref, int cse_thresh)
       : self_(self), block_sref_(block_sref), scope_sref_(scope_sref), cse_thresh_(cse_thresh) {}
 
-  void VisitStmt_(const SeqStmtNode* seq_stmt) final {
+ private:
+  ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final {
     for (size_t i = 0; i < seq_stmt->size(); ++i) {
       if (loc_pos_ != -1) {
         break;
       }
-      VisitStmt(seq_stmt->seq[i]);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(seq_stmt->seq[i]));
       // `pos` can be assigned only once when we visited `block_sref`
       if (visited_block_ && loc_pos_ == -1 && update_seq_pos_) {
         // The offset of insert position from the block
         loc_pos_ = i;
-        return;
+        return std::nullopt;
       }
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SBlockNode* block) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
     visiting_target_sblock = static_cast<bool>(block_sref_->stmt == block);
-    StmtVisitor::VisitStmt_(block);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
     visiting_target_sblock = false;
     if (block == scope_sref_->stmt) {
       // The block vistied is the current parent scope
@@ -134,18 +138,20 @@ class IndexInfoCollector : public StmtExprVisitor {
     if (visited_block_ && self_->stmt2ref.at(block)->parent == scope_sref_.get()) {
       update_seq_pos_ = true;
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const ForNode* loop) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
     range_map_.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
-    StmtVisitor::VisitStmt_(loop);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     // Update seq pos only at top scope
     if (visited_block_ && self_->stmt2ref.at(loop)->parent == scope_sref_.get()) {
       update_seq_pos_ = true;
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const BufferStoreNode* store) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
     // Only analyze the cache candidate for stores in target block
     if (visiting_target_sblock) {
       auto IsEligibleComputation = [](const PrimExpr& expr) {
@@ -194,7 +200,7 @@ class IndexInfoCollector : public StmtExprVisitor {
       };
       std::stable_sort(exprs_.begin(), exprs_.end(), cmp);
     }
-    StmtVisitor::VisitStmt_(store);
+    return StmtExprVisitor::Visit_(store);
   }
 
   /*! \brief The schedule class */

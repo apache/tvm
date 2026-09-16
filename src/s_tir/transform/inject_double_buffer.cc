@@ -79,21 +79,50 @@ TVM_REGISTER_PASS_CONFIG_OPTION("s_tir.InjectDoubleBuffer", InjectDoubleBufferCo
 // Detect double buffer variables.
 class DoubleBufferDetector : public StmtExprVisitor {
  public:
-  void VisitStmt_(const AttrStmtNode* op) final {
+  using StmtExprVisitor::Visit_;
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
     if (op->attr_key == s_tir::attr::double_buffer_scope) {
       if (auto buffer = GetBufferDataVar(op->node)) {
         touched_.insert(buffer.value().get());
       }
-      StmtExprVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     } else {
-      StmtExprVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const VarNode* op) final {
+  // Known loads and stores are not opaque escapes of the buffer variable.
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
+    for (const auto& index : op->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
+    return std::nullopt;
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
+    for (const auto& index : op->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
+    return std::nullopt;
+  }
+
+  // Declared regions carry bounds, not opaque runtime accesses.
+  ffi::Optional<VisitInterrupt> Visit_(const BufferRegionNode* op) final {
+    for (const Range& range : op->region) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->min));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
+    }
+    return std::nullopt;
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
     if (touched_.count(op)) {
       touched_.erase(op);
     }
+    return std::nullopt;
   }
   // The set of touched variable.
   std::unordered_set<const VarNode*> touched_;
@@ -115,10 +144,10 @@ class DoubleBufferInjector : public StmtExprMutator {
   explicit DoubleBufferInjector(int split_loop) : split_loop_(split_loop) {}
 
   Stmt Inject(Stmt stmt) {
-    DoubleBufferDetector detector;
-    detector(stmt);
-    if (detector.touched_.empty()) return stmt;
-    for (const VarNode* v : detector.touched_) {
+    auto detector = ffi::make_object<DoubleBufferDetector>();
+    detector->Visit(stmt);
+    if (detector->touched_.empty()) return stmt;
+    for (const VarNode* v : detector->touched_) {
       dbuffer_info_[v] = StorageEntry();
     }
     return ConvertSSA(operator()(std::move(stmt)));

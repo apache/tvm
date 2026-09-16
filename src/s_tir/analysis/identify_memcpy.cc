@@ -298,12 +298,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     ffi::Array<ffi::ObjectRef> output;
 
     struct Visitor : tirx::IRVisitorWithAnalyzer {
+     public:
+      using tirx::IRVisitorWithAnalyzer::Visit_;
+
       explicit Visitor(ffi::Array<ffi::ObjectRef>* output) : output(output) {}
       ffi::Array<ffi::ObjectRef>* output;
 
      private:
-      using IRVisitorWithAnalyzer::VisitStmt_;
-      void VisitStmt_(const ForNode* op) override {
+      ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override {
         For loop = ffi::GetRef<For>(op);
         auto result = IdentifyMemCpyImpl(loop, Visitor::analyzer_.get());
         if (auto* ptr = std::get_if<MemCpyDetails>(&result)) {
@@ -314,12 +316,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           TVM_FFI_THROW(InternalError) << "Internal error, unhandled std::variant type";
         }
 
-        IRVisitorWithAnalyzer::VisitStmt_(op);
+        return IRVisitorWithAnalyzer::Visit_(op);
       }
     };
 
-    Visitor visitor(&output);
-    visitor(stmt);
+    auto visitor = ffi::make_object<Visitor>(&output);
+    visitor->Visit(stmt);
 
     return output;
   });
