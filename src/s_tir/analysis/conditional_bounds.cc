@@ -18,65 +18,218 @@
  */
 
 /*!
- * \file tvm/arith/solve_linear_inequality.cc
- * \brief Solve linear inequalities.
+ * \file s_tir/analysis/conditional_bounds.cc
+ * \brief Scoped conditional bounds and private inequality support for S-TIR.
  */
+#include "conditional_bounds.h"
+
 #include <tvm/arith/analyzer.h>
-#include <tvm/arith/int_solver.h>
 #include <tvm/arith/pattern.h>
-#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/structural_mutate.h>
-#include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr_functor.h>
-#include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
 
+#include <algorithm>
+#include <functional>
 #include <utility>
 
-#include "int_operator.h"
+#include "../../arith/int_operator.h"
 
 namespace tvm {
-namespace arith {
+namespace s_tir {
 
-using namespace tvm::runtime;
 using namespace tvm::tirx;
+using arith::Analyzer;
+using arith::AnalyzerObj;
+using arith::EvalSet;
+using arith::IntSet;
+
+namespace {
+using arith::ExtendedEuclidean;
+using arith::LeastCommonMultiple;
+
+// The solver's intermediate representations remain local to this analysis.
+struct IntGroupBounds {
+  PrimExpr coef;
+  ffi::Array<PrimExpr> lower;
+  ffi::Array<PrimExpr> equal;
+  ffi::Array<PrimExpr> upper;
+
+  IntGroupBounds(PrimExpr coef, ffi::Array<PrimExpr> lower, ffi::Array<PrimExpr> equal,
+                 ffi::Array<PrimExpr> upper)
+      : coef(std::move(coef)),
+        lower(std::move(lower)),
+        equal(std::move(equal)),
+        upper(std::move(upper)) {
+    TVM_FFI_ICHECK(this->coef.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))
+        << "Coefficient in IntGroupBounds must be integers";
+  }
+
+  Range FindBestRange(const ffi::Map<Var, Range>& vranges_addl) const;
+  IntGroupBounds operator+(const Range& range);
+};
+
+struct IntConstraints {
+  ffi::Array<PrimVar> variables;
+  ffi::Map<Var, Range> ranges;
+  ffi::Array<PrimExpr> relations;
+
+  IntConstraints(ffi::Array<PrimVar> variables, ffi::Map<Var, Range> ranges,
+                 ffi::Array<PrimExpr> relations);
+};
+
+using GroupedBounds =
+    std::unordered_map<Var, IntGroupBounds, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
+using PartialSolvedInequalities = std::pair<GroupedBounds, ffi::Array<PrimExpr>>;
+
+// Rewrite, canonicalize, then rewrite to factor multipliers out.
+constexpr int kSimplifyRewriteCanonicalRewrite = 3;
+
+IntConstraints::IntConstraints(ffi::Array<PrimVar> variables, ffi::Map<Var, Range> ranges,
+                               ffi::Array<PrimExpr> relations) {
+  if (!variables.defined()) {
+    variables = ffi::Array<PrimVar>();
+  }
+  if (!ranges.defined()) {
+    ranges = ffi::Map<Var, Range>();
+  }
+  TVM_FFI_ICHECK(relations.defined());
+  for (const PrimVar& var : variables) {
+    TVM_FFI_CHECK(var.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt), TypeError)
+        << "Variables in IntConstraints must be integers";
+  }
+  this->variables = std::move(variables);
+  this->ranges = std::move(ranges);
+  this->relations = std::move(relations);
+}
+
+ffi::Array<PrimExpr> AsConditions(const ffi::Array<PrimVar>& variables, const GroupedBounds& bounds,
+                                  const ffi::Array<PrimExpr>& relations) {
+  ffi::Array<PrimExpr> res;
+  // use variables to keep the order of iteration
+  // so as to get rid of any non-determinism.
+  TVM_FFI_ICHECK_EQ(variables.size(), bounds.size());
+  for (const auto v : variables) {
+    TVM_FFI_ICHECK(bounds.count(v));
+    const auto& bnds = bounds.at(v);
+    PrimExpr lhs = bnds.coef * v.as_or_throw<PrimExpr>();
+    for (const PrimExpr& rhs : bnds.equal) {
+      res.push_back(lhs == rhs);
+    }
+    for (const PrimExpr& rhs : bnds.lower) {
+      res.push_back(lhs >= rhs);
+    }
+    for (const PrimExpr& rhs : bnds.upper) {
+      res.push_back(lhs <= rhs);
+    }
+  }
+  for (const PrimExpr& e : relations) {
+    res.push_back(e);
+  }
+  return res;
+}
+
+IntGroupBounds IntGroupBounds::operator+(const Range& r) {
+  Analyzer analyzer;
+  ffi::Array<PrimExpr> equal;
+  ffi::Array<PrimExpr> lower;
+  ffi::Array<PrimExpr> upper;
+  const PrimExpr& coef = this->coef;
+  if (tirx::is_one(r->extent)) {
+    equal.push_back(analyzer->Simplify(r->min * coef));
+  } else {
+    lower.push_back(analyzer->Simplify(r->min * coef));
+    upper.push_back(analyzer->Simplify((r->min + r->extent - 1) * coef));
+  }
+  for (const auto& eq : this->equal) equal.push_back(eq);
+  for (const auto& lb : this->lower) lower.push_back(lb);
+  for (const auto& ub : this->upper) upper.push_back(ub);
+  return IntGroupBounds(coef, lower, equal, upper);
+}
+
+Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) const {
+  Analyzer analyzer;
+  analyzer->Bind(vranges_addl);
+
+  std::unordered_map<const VarNode*, IntSet> var_intsets;
+  for (auto kv : vranges_addl) {
+    var_intsets[kv.first.get()] = IntSet::FromRange(kv.second);
+  }
+
+  const ffi::Array<PrimExpr>& equal = this->equal;
+  const PrimExpr& coef = this->coef;
+
+  std::vector<PrimExpr> lowers(equal.begin(), equal.end());
+  std::vector<PrimExpr> uppers(equal.begin(), equal.end());
+  for (const auto& expr : this->lower) {
+    lowers.push_back(expr);
+  }
+  for (const auto& expr : this->upper) {
+    uppers.push_back(expr);
+  }
+
+  if (lowers.size() == 1 && uppers.size() == 1 && tirx::is_one(coef)) {
+    return Range(analyzer->Simplify(lowers[0]), analyzer->Simplify(uppers[0] + 1));
+  }
+
+  // Here we will try all pairs of lower and upper bounds and find the best pair, that is, the
+  // pair with the minimal difference between the upper and the lower.
+  // Note that the bounds are for v, not for v*coef
+
+  // The lower bound of the best pair so far
+  PrimExpr best_lower;
+  // The difference between the upper and the lower of the best pair, maybe overapproximation
+  PrimExpr best_diff_over;
+
+  for (const PrimExpr& low : lowers) {
+    for (const PrimExpr& upp : uppers) {
+      // Since diff may depend on some other variables, we compute its overapproximation
+      ffi::Optional<PrimExpr> diff_over;
+      PrimExpr diff_1 = analyzer->Simplify(floordiv(upp - low, coef), 3);
+      IntSet diff_set1 = EvalSet(diff_1, var_intsets);
+      if (diff_set1.HasUpperBound()) {
+        diff_over = analyzer->Simplify(diff_set1.max(), 3);
+      }
+
+      // low is the lower bound for v*coef, but we need the lower bound for v.
+      // We use rounding-up division to compute it. Since we want to use a single formula
+      PrimExpr low_divided = analyzer->Simplify(floordiv(low + coef - 1, coef), 3);
+
+      // Compute another difference which may be more precise (or not).
+      PrimExpr diff_2 = analyzer->Simplify(floordiv(upp, coef) - low_divided, 3);
+      IntSet diff_set2 = EvalSet(diff_2, var_intsets);
+      if (diff_set2.HasUpperBound()) {
+        PrimExpr diff_over_2 = analyzer->Simplify(diff_set2.max(), 3);
+        diff_over = diff_over.has_value() ? (analyzer->CanProve(diff_over_2 - diff_over.value() < 0)
+                                                 ? diff_over_2
+                                                 : diff_over.value())
+                                          : diff_over_2;
+      }
+
+      // If it is provable that the new one is strictly better than the current best one,
+      // then replace it. Note that we are biased towards earlier pairs which should be simpler.
+      if (diff_over.has_value() && (!best_diff_over.defined() ||
+                                    analyzer->CanProve(diff_over.value() - best_diff_over < 0))) {
+        best_lower = low_divided;
+        best_diff_over = diff_over.value();
+      }
+    }
+  }
+
+  if (!best_lower.defined()) {
+    TVM_FFI_ICHECK(!best_diff_over.defined());
+    return Range();
+  }
+  return Range::FromMinExtent(best_lower, analyzer->Simplify(best_diff_over + 1));
+}
 
 struct ExprLess {
   bool operator()(const PrimExpr& l, const PrimExpr& r) const {
     return CalculateExprComplexity(l) < CalculateExprComplexity(r);
   }
 };
-
-void DebugPrint(const std::vector<PrimExpr>& current_ineq_set,
-                const std::vector<PrimExpr>& next_ineq_set, const std::vector<PrimExpr>& rest,
-                const std::vector<std::pair<int64_t, PrimExpr>>& coef_pos,
-                const std::vector<std::pair<int64_t, PrimExpr>>& coef_neg) {
-  std::cout << "Current ineq set:\n[";
-  for (auto& ineq : current_ineq_set) {
-    std::cout << ineq << ", ";
-  }
-  std::cout << "]\n";
-
-  std::cout << "Next ineq set:\n[";
-  for (auto& ineq : next_ineq_set) {
-    std::cout << ineq << ", ";
-  }
-  std::cout << "]\n";
-
-  std::cout << "coef_pos:\n[";
-  for (auto& coef : coef_pos) {
-    std::cout << "(" << coef.first << ", " << coef.second << "), ";
-  }
-  std::cout << "]\n";
-
-  std::cout << "coef_neg:\n[";
-  for (auto& coef : coef_neg) {
-    std::cout << "(" << coef.first << ", " << coef.second << "), ";
-  }
-  std::cout << "]\n";
-}
 
 /*!
  * \brief normalize to the form `expr <= 0`
@@ -206,7 +359,7 @@ void MoveEquality(std::vector<PrimExpr>* upper_bounds, std::vector<PrimExpr>* lo
 
 PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_to_solve) {
   arith::Analyzer analyzer;
-  analyzer->Bind(system_to_solve->ranges);
+  analyzer->Bind(system_to_solve.ranges);
 
   // The algorithm consists in doing the following things for each variable v
   // - Take formulas from `current_ineq_set_to_solve` and
@@ -231,14 +384,14 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
 
   // Simplify each inequality into the form `expr <= 0` and add to current formulas
   auto normalizer = ffi::make_object<NormalizeComparisons>();
-  for (const PrimExpr& ineq : system_to_solve->relations) {
+  for (const PrimExpr& ineq : system_to_solve.relations) {
     PrimExpr simplified = analyzer->Simplify(ineq, kSimplifyRewriteCanonicalRewrite);
     PrimExpr normalized = normalizer->Mutate(simplified).ValueOrUnchanged(simplified);
     AddInequality(&current_ineq_set_to_solve, normalized, analyzer.get());
   }
 
-  ffi::Map<Var, IntGroupBounds> res_bounds;
-  for (const PrimVar& v : system_to_solve->variables) {
+  GroupedBounds res_bounds;
+  for (const PrimVar& v : system_to_solve.variables) {
     TVM_FFI_ICHECK(!res_bounds.count(v))
         << "Variable " << v
         << " appears more than one time in the `variables` which might be a bug";
@@ -248,8 +401,8 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     coef_neg.clear();
 
     // Add bounds from vranges
-    if (system_to_solve->ranges.count(v)) {
-      const Range& range = system_to_solve->ranges[v];
+    if (system_to_solve.ranges.count(v)) {
+      const Range& range = system_to_solve.ranges[v];
       PrimExpr range_lbound = analyzer->Simplify(range->min, kSimplifyRewriteCanonicalRewrite);
       PrimExpr range_ubound =
           analyzer->Simplify(range->min + range->extent - 1, kSimplifyRewriteCanonicalRewrite);
@@ -352,7 +505,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
                         ffi::Array<PrimExpr>(lower_bounds.begin(), lower_bounds.end()),
                         ffi::Array<PrimExpr>(equal_list.begin(), equal_list.end()),
                         ffi::Array<PrimExpr>(upper_bounds.begin(), upper_bounds.end()));
-    res_bounds.Set(v, bnds);
+    res_bounds.emplace(v, bnds);
 
     std::swap(current_ineq_set_to_solve, next_ineq_set_to_solve);
   }
@@ -384,40 +537,39 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
 #endif
 IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
   // Resulting ranges will contain ranges for the new variables and for the variables that are
-  // not in the inequalities->variables but are in inequalities->ranges
-  // It will be useful when solving Jacobian axes jac_xxx)
+  // not in the inequalities.variables but are in inequalities.ranges
   ffi::Map<Var, Range> res_ranges;
   // we get a set of equality, lower, upper bound of each variable.
   auto solved_system = SolveLinearInequalities(inequalities);
 
-  ffi::Map<Var, IntGroupBounds> solved_bounds = solved_system.first;
+  GroupedBounds solved_bounds = solved_system.first;
   ffi::Array<PrimExpr> solved_other_relations = solved_system.second;
 
   ffi::Array<PrimExpr> res_relations;
 
   // this keeps being updated during determining the range of each variable.
   ffi::Map<Var, Range> vranges;
-  for (std::pair<Var, Range> vr : inequalities->ranges) {
+  for (std::pair<Var, Range> vr : inequalities.ranges) {
     vranges.Set(vr.first, vr.second);
   }
 
   // We process variables in the reverse direction to start with the most independent one.
   // This order is needed to compute new ranges.
-  for (auto it = inequalities->variables.rbegin(); it != inequalities->variables.rend(); ++it) {
+  for (auto it = inequalities.variables.rbegin(); it != inequalities.variables.rend(); ++it) {
     arith::Analyzer analyzer;
     analyzer->Bind(vranges);
 
     const PrimVar& var = *it;
     TVM_FFI_ICHECK(solved_bounds.count(var));
-    auto bnd = solved_bounds[var];
-    if (is_one(bnd->coef) && !bnd->equal.empty()) {
+    auto bnd = solved_bounds.at(var);
+    if (is_one(bnd.coef) && !bnd.equal.empty()) {
       // There is an equation of the form `v == expr`, so this variable can be completely removed.
       // Note that we use the 0-th expression because they are ordered by complexity,
       // so it must be the simplest one.
-      // The MSVC compiler optimization must be disabled for the expression `bnd->equal[0]` which
+      // The MSVC compiler optimization must be disabled for the expression `bnd.equal[0]` which
       // triggers an internal compiler error.
-      Range best_range(bnd->equal[0],
-                       analyzer->Simplify(bnd->equal[0] + 1, kSimplifyRewriteCanonicalRewrite));
+      Range best_range(bnd.equal[0],
+                       analyzer->Simplify(bnd.equal[0] + 1, kSimplifyRewriteCanonicalRewrite));
       res_ranges.Set(var, best_range);
       vranges.Set(var, best_range);
     } else {
@@ -443,14 +595,14 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
   arith::Analyzer analyzer;
   analyzer->Bind(vranges);
   for (const PrimExpr& old_cond :
-       AsConditions(inequalities->variables, solved_bounds, solved_other_relations)) {
+       AsConditions(inequalities.variables, solved_bounds, solved_other_relations)) {
     if (!analyzer->CanProve(old_cond)) {
       // those not represented in vranges (res_ranges)
       res_relations.push_back(old_cond);
     }
   }
 
-  IntConstraints system(inequalities->variables, res_ranges, res_relations);
+  IntConstraints system(inequalities.variables, res_ranges, res_relations);
 
   return system;
 }
@@ -458,171 +610,151 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
 #pragma optimize("g", on)
 #endif
 
-IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequalities) {
-  // Resulting ranges will contain ranges for the new variables and for the variables that are
-  // not in the inequalities->variables but are in inequalities->ranges (jac_xxx)
-  ffi::Map<Var, Range> res_ranges;
-  // we get a set of equality, lower, upper bound of each variable.
-  auto solved_system = SolveLinearInequalities(inequalities);
-  ffi::Map<Var, IntGroupBounds> solved_bounds = solved_system.first;
-  ffi::Array<PrimExpr> solved_other_relations = solved_system.second;
+}  // namespace
 
+ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition() {
+  // extract equations and related vars from condition expression.
+  // currently only extract simple integral equations which could be solvable.
   arith::Analyzer analyzer;
-
-  ffi::Map<Var, PrimExpr> res_src_to_dst;
-  ffi::Map<Var, PrimExpr> res_dst_to_src;
-  ffi::Array<PrimVar> res_variables;
-  ffi::Array<PrimExpr> res_relations;
-
-  // this keeps being updated during determining the range of each variable.
-  ffi::Map<Var, Range> vranges;
-  for (std::pair<Var, Range> vr : inequalities->ranges) {
-    vranges.Set(vr.first, vr.second);
+  PrimExpr condition = analyzer->Simplify(condition_);
+  if (is_const_int(condition)) {
+    return std::nullopt;
   }
-  analyzer->Bind(vranges);
-
-  auto subst = [&res_src_to_dst](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-    if (auto repl = res_src_to_dst.Get(var)) return *std::move(repl);
-    return ffi::Unchanged();
-  };
-  auto f_dst_to_src =
-      [&res_dst_to_src](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-    if (auto repl = res_dst_to_src.Get(var)) return *std::move(repl);
-    return ffi::Unchanged();
-  };
-
-  // We process variables in the reverse direction to start with the most independent one.
-  // This order is needed to compute new ranges.
-  for (auto it = inequalities->variables.rbegin(); it != inequalities->variables.rend(); ++it) {
-    const PrimVar& var = *it;
-    auto bnd = solved_bounds[var];
-    // Note that we replace old vars with new ones
-    bnd = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(bnd, subst).as_or_throw<IntGroupBounds>();
-
-    if (is_one(bnd->coef) && !bnd->equal.empty()) {
-      // There is an equation of the form `v == expr`,
-      // so this variable can be completely removed.
-      // Note that we use the 0-th expression because they are ordered by complexity,
-      // so it must be the simplest one.
-      res_src_to_dst.Set(var, bnd->equal[0]);
-    } else {
-      if (vranges.count(var) > 0) {
-        bnd = bnd + vranges[var];
-      }
-
-      auto best_range = bnd.FindBestRange(vranges);
-
-      PrimVar new_var = var.CopyWithSuffix(".shifted");
-      if (!best_range.defined()) {
-        res_src_to_dst.Set(var, var.as_or_throw<PrimExpr>());
-        res_dst_to_src.Set(var, var.as_or_throw<PrimExpr>());
-        res_variables.push_back(var);
-      } else if (is_const_int(best_range->extent, 1)) {
-        // Don't create an itervar, just replace it everywhere with its min
-        res_src_to_dst.Set(var, best_range->min);
-      } else if (analyzer->CanProveGreaterEqual(-best_range->extent, 0)) {
-        // range.extent <= 0 implies the input inequality system is unsolvable
-        return IntConstraintsTransform(inequalities,
-                                       IntConstraints(
-                                           /*variables=*/{},
-                                           /*ranges=*/{},
-                                           /*relations=*/{IntImm::Bool(false)}),
-                                       {}, {});
-      } else {
-        // created new_var starts from 0
-        res_src_to_dst.Set(var, new_var.as_or_throw<PrimExpr>() + best_range->min);
-        // Note that we are substituting old with new, so best_range contains new var,
-        // that is we have to substitute new with old in best_range here
-        res_dst_to_src.Set(new_var,
-                           analyzer->Simplify(var.as_or_throw<PrimExpr>() -
-                                              ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
-                                                  best_range->min, f_dst_to_src)
-                                                  .as_or_throw<PrimExpr>()));
-
-        // Add the new var to the resulting axis
-        auto range = Range(IntImm(new_var->ty.as_or_throw<PrimType>(), 0), best_range->extent);
-        res_variables.push_back(new_var);
-        res_ranges.Set(new_var, range);
-
-        vranges.Set(new_var, range);
-        analyzer->Bind(new_var, range);
-      }
-    }
-  }
-
-  // Add the original conditions (with variables substituted) to the resulting conditions
-  for (const PrimExpr& old_cond :
-       AsConditions(inequalities->variables, solved_bounds, solved_other_relations)) {
-    PrimExpr new_cond = analyzer->Simplify(
-        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(old_cond, subst).as_or_throw<PrimExpr>());
-    if (!is_const_int(new_cond, 1)) {
-      // those not represented in vranges (res_ranges)
-      res_relations.push_back(new_cond);
-    }
-  }
-
-  // Reverse the axis so that it matches the order of the original variables
-  res_variables = ffi::Array<PrimVar>(res_variables.rbegin(), res_variables.rend());
-
-  IntConstraints new_inequalities(res_variables, res_ranges, res_relations);
-  IntConstraintsTransform transform(inequalities, new_inequalities, res_src_to_dst, res_dst_to_src);
-
-  return transform;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def_packed("arith.SolveInequalitiesAsCondition",
-                  [](ffi::PackedArgs args, ffi::Any* ret) {
-                    IntConstraints problem;
-                    PartialSolvedInequalities ret_ineq;
-                    if (args.size() == 1) {
-                      problem = args[0].cast<IntConstraints>();
-                      ret_ineq = SolveLinearInequalities(problem);
-                    } else if (args.size() == 3) {
-                      problem = IntConstraints(args[0].cast<ffi::Array<PrimVar>>(),
-                                               args[1].cast<ffi::Map<Var, Range>>(),
-                                               args[2].cast<ffi::Array<PrimExpr>>());
-                      ret_ineq = SolveLinearInequalities(problem);
-                    } else {
-                      TVM_FFI_THROW(InternalError)
-                          << "arith.SolveInequalitiesAsCondition expects 1 or 3 arguments, gets "
-                          << args.size();
-                    }
-                    *ret = AsConditions(problem->variables, ret_ineq.first, ret_ineq.second);
-                  })
-      .def_packed("arith.SolveInequalitiesToRange",
-                  [](ffi::PackedArgs args, ffi::Any* ret) {
-                    if (args.size() == 1) {
-                      *ret = SolveInequalitiesToRange(args[0].cast<IntConstraints>());
-                    } else if (args.size() == 3) {
-                      auto opt_map = args[1].cast<ffi::Optional<ffi::Map<Var, Range>>>();
-                      IntConstraints problem(args[0].cast<ffi::Array<PrimVar>>(),
-                                             opt_map.value_or({}),
-                                             args[2].cast<ffi::Array<PrimExpr>>());
-                      *ret = SolveInequalitiesToRange(problem);
-                    } else {
-                      TVM_FFI_THROW(InternalError)
-                          << "arith.SolveInequalitiesToRange expects 1 or 3 arguments, gets "
-                          << args.size();
-                    }
-                  })
-      .def_packed("arith.SolveInequalitiesDeskewRange", [](ffi::PackedArgs args, ffi::Any* ret) {
-        if (args.size() == 1) {
-          *ret = SolveInequalitiesDeskewRange(args[0].cast<IntConstraints>());
-        } else if (args.size() == 3) {
-          auto opt_map = args[1].cast<ffi::Optional<ffi::Map<Var, Range>>>();
-          IntConstraints problem(args[0].cast<ffi::Array<PrimVar>>(), opt_map.value_or({}),
-                                 args[2].cast<ffi::Array<PrimExpr>>());
-          *ret = SolveInequalitiesDeskewRange(problem);
+  ffi::Array<PrimExpr> equations;
+  ffi::Array<PrimVar> vars;
+  std::function<void(const PrimExpr&)> fvisit = [&equations, &vars, &fvisit](const PrimExpr& e) {
+    if (e->IsInstance<prim::GENode>() || e->IsInstance<prim::GTNode>() ||
+        e->IsInstance<prim::LENode>() || e->IsInstance<prim::LTNode>() ||
+        e->IsInstance<prim::EQNode>() || e->IsInstance<prim::NENode>()) {
+      bool is_simple = true;
+      std::vector<PrimVar> cand_vars;
+      auto walk_fn = [&cand_vars, &is_simple,
+                      &e](const PrimExpr& obj) -> ffi::Expected<ffi::WalkResult> {
+        if (obj.same_as(e)) {
+          return ffi::WalkResult::Advance();
+        } else if (const VarNode* var = obj.as<VarNode>()) {
+          PrimType var_ty = var->ty.as_or_throw<PrimType>();
+          if (var_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
+            cand_vars.push_back(ffi::GetRef<Var>(var).as_or_throw<PrimVar>());
+          }
         } else {
-          TVM_FFI_THROW(InternalError)
-              << "arith.SolveInequalitiesDeskewRange expects 1 or 3 arguments, gets "
-              << args.size();
+          is_simple &= obj->IsInstance<prim::AddNode>() || obj->IsInstance<prim::SubNode>() ||
+                       obj->IsInstance<prim::MulNode>() || obj->IsInstance<prim::FloorDivNode>() ||
+                       obj->IsInstance<prim::FloorModNode>() || obj->IsInstance<IntImmNode>();
         }
-      });
+        return ffi::WalkResult::Advance();
+      };
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(e, walk_fn);
+      if (is_simple && !cand_vars.empty()) {
+        for (const PrimVar& new_var : cand_vars) {
+          if (!std::any_of(vars.begin(), vars.end(),
+                           [&new_var](const PrimVar& v) { return v.same_as(new_var); })) {
+            vars.push_back(new_var);
+          }
+        }
+        equations.push_back(e.as_or_throw<PrimExpr>());
+      }
+    } else if (e->IsInstance<prim::AndNode>()) {
+      prim::And op = e.as_or_throw<prim::And>();
+      fvisit(op->a);
+      fvisit(op->b);
+    } else if (e->IsInstance<CallNode>()) {
+      Call op = e.as_or_throw<Call>();
+      if (op->op.same_as(prim::builtin::likely())) {
+        fvisit(op->args[0].as_or_throw<PrimExpr>());
+      }
+    }
+  };
+  fvisit(condition);
+  if (equations.empty() || vars.empty()) {
+    return std::nullopt;
+  }
+  // build dom ranges for related vars
+  ffi::Map<Var, Range> ranges;
+  for (const Var& v : vars) {
+    arith::IntSet dom;
+    auto relax_it = relax_map_->find(v.get());
+    if (relax_it != relax_map_->end()) {
+      dom = relax_it->second;
+    } else {
+      auto hint_it = hint_map_->find(v.get());
+      if (hint_it != hint_map_->end()) {
+        dom = hint_it->second;
+      }
+    }
+    if (dom.defined()) {
+      ranges.Set(v, Range::FromMinExtent(dom.min(), analyzer->Simplify(dom.max() - dom.min() + 1)));
+    }
+  }
+  // solve constraints
+  IntConstraints constraint(vars, ranges, equations);
+  IntConstraints result = SolveInequalitiesToRange(constraint);
+  if (!result.relations.empty()) {
+    return std::nullopt;
+  }
+  return result.ranges;
 }
 
-}  // namespace arith
+ConditionalBoundsContext::ConditionalBoundsContext(
+    const PrimExpr& condition, std::unordered_map<const VarNode*, arith::IntSet>* relax_map,
+    std::unordered_map<const VarNode*, arith::IntSet>* hint_map,
+    std::vector<PrimExpr>* pending_conditions)
+    : condition_(condition),
+      relax_map_(relax_map),
+      hint_map_(hint_map),
+      pending_conditions_(pending_conditions),
+      origin_pending_conditions_num_(pending_conditions->size()) {}
+
+void ConditionalBoundsContext::EnterWithScope() {
+  ffi::Optional<ffi::Map<Var, Range>> constraints = TrySolveCondition();
+  if (!constraints.has_value()) {
+    // fail to process the condition, add to unresolved
+    pending_conditions_->push_back(condition_);
+    return;
+  }
+  // update solved var ranges
+  for (const auto& kv : constraints.value()) {
+    const VarNode* var = kv.first.get();
+    arith::IntSet new_dom = arith::IntSet::FromRange(kv.second);
+    auto relax_it = relax_map_->find(var);
+    if (relax_it != relax_map_->end()) {
+      // this is a bound for relaxed var
+      origin_map_.emplace(var, relax_it->second);
+      relax_it->second = arith::Intersect({relax_it->second, new_dom});
+    } else {
+      // this is a bound for free var
+      auto hint_it = hint_map_->find(var);
+      if (hint_it != hint_map_->end()) {
+        origin_map_.emplace(var, hint_it->second);
+        hint_it->second = arith::Intersect({hint_it->second, new_dom});
+      } else {
+        origin_map_.emplace(var, arith::IntSet::Nothing());
+        hint_map_->insert(hint_it, {var, new_dom});
+      }
+    }
+  }
+}
+
+void ConditionalBoundsContext::ExitWithScope() {
+  pending_conditions_->resize(origin_pending_conditions_num_);
+  for (const auto& p : origin_map_) {
+    const auto* var = p.first;
+    auto relax_it = relax_map_->find(var);
+    if (relax_it != relax_map_->end()) {
+      // recover bound for relaxed var
+      relax_it->second = p.second;
+    } else {
+      // recover bound for free var
+      auto hint_it = hint_map_->find(var);
+      TVM_FFI_ICHECK(hint_it != hint_map_->end());
+      if (p.second.IsNothing()) {
+        hint_map_->erase(hint_it);
+      } else {
+        hint_it->second = p.second;
+      }
+    }
+  }
+}
+
+}  // namespace s_tir
 }  // namespace tvm
