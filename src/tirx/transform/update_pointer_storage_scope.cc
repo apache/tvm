@@ -64,9 +64,12 @@ UpdatePointerStorageScope::UpdatePointerStorageScope(
 
 UnchangedOr<Expr> UpdatePointerStorageScope::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
   if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
-    Expr arg = Mutate(op->args[0]).ValueOrUnchanged(op->args[0]);
-    if (arg.same_as(op->args[0])) return ffi::Unchanged();
-    return arg.as_or_throw<BufferVar>().data();
+    auto arg_u = Mutate(op->args[0]);
+    if (arg_u.UnchangedOrSameAs(op->args[0])) return ffi::Unchanged();
+
+    Expr arg = std::move(arg_u).ValueUnchecked();
+    BufferVar buffer = arg.as_or_throw<BufferVar>();
+    return Call(buffer.DataPointerType(), op->op, {arg}, op->attrs, op->ty_args, op->span);
   }
   return StmtExprMutator::Mutate_(op, inplace_mode);
 }
