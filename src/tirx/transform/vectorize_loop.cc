@@ -855,7 +855,7 @@ class Vectorizer : public StmtExprMutator {
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     auto load = ffi::GetRef<TensorLoad>(op);
 
-    auto fmutate = [this, inplace_mode](const PrimExpr& index) {
+    auto fmutate = [this](const PrimExpr& index) {
       return this->Mutate(index).ValueOrUnchanged(index);
     };
     ffi::Array<PrimExpr> indices = op->indices.Map(fmutate);
@@ -977,7 +977,7 @@ class Vectorizer : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
     auto store = ffi::GetRef<BufferStore>(op);
 
-    auto fmutate = [this, inplace_mode](const PrimExpr& index) {
+    auto fmutate = [this](const PrimExpr& index) {
       return this->Mutate(index).ValueOrUnchanged(index);
     };
     ffi::Array<PrimExpr> indices = op->indices.Map(fmutate);

@@ -123,18 +123,12 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) final {
     if (input.as<BufferType>()) {
-      // Remap type dependencies while preserving the buffer's arithmetic form.
-      bool previous = simplify_prim_expr_;
-      simplify_prim_expr_ = false;
-      auto result = Parent::Mutate(input, inplace_mode);
-      simplify_prim_expr_ = previous;
-      return result;
+      return ffi::Unchanged();
     }
-    if (simplify_prim_expr_ && input.as<PrimExpr>()) {
-      // Apply definition remappings before the analyzer visits expression uses.
-      PrimExpr updated =
-          Parent::Mutate(input, inplace_mode).ValueOrUnchanged(input).as_or_throw<PrimExpr>();
-      return analyzer_->Simplify(updated);
+    if (auto expr = input.as<PrimExpr>()) {
+      PrimExpr simplified = analyzer_->Simplify(*expr);
+      if (simplified.same_as(*expr)) return ffi::Unchanged();
+      return simplified;
     }
     return Parent::Mutate(input, inplace_mode);
   }
@@ -200,34 +194,6 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     }
   }
 
-  UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) override {
-    // Remap the Let first; its binder and arithmetic belong to whole-Let simplification.
-    bool previous = simplify_prim_expr_;
-    simplify_prim_expr_ = false;
-    auto result = StmtExprMutator::Mutate_(op, inplace_mode);
-    simplify_prim_expr_ = previous;
-    return result;
-  }
-
-  UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) override {
-    if (!simplify_prim_expr_) return StmtExprMutator::Mutate_(op, inplace_mode);
-    return Parent::Mutate_(op, inplace_mode);
-  }
-
-  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
-    if (!simplify_prim_expr_) return StmtExprMutator::Mutate_(op, inplace_mode);
-    if (op->op.same_as(prim::builtin::if_then_else())) {
-      if (ffi::Optional<bool> cond = ProveCondition(op->args[0].as_or_throw<PrimExpr>())) {
-        if (cond.value()) {
-          return this->Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<Expr>();
-        } else {
-          return this->Mutate(op->args[2]).ValueOrUnchanged(op->args[2]).as_or_throw<Expr>();
-        }
-      }
-    }
-    return Parent::Mutate_(op, inplace_mode);
-  }
-
   // eliminate useless stores
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) override {
     BufferStore store = Parent::Mutate_(op, inplace_mode)
@@ -276,7 +242,6 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   }
 
   StmtSimplifyConfig config_;
-  bool simplify_prim_expr_{true};
 
   // Pure Bind values kept for substitution into assert conditions.
   // Grows monotonically under SSA — no scope-based cleanup required.
