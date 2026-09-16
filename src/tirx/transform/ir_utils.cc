@@ -937,13 +937,19 @@ std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op) {
 }
 
 /*! \brief Collect storage alignment information from annotations. */
-class StorageAlignCollector : public StmtVisitor {
+class StorageAlignCollector : public StmtExprVisitor {
+ public:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
  private:
   friend std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(
       const Stmt& body);
 
   /*! \brief For s-stir, the alignment annotations reside in block annotations. */
-  void VisitStmt_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     auto it = op->annotations.find(s_tir::attr::buffer_dim_align);
     if (it != op->annotations.end()) {
       auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
@@ -953,11 +959,11 @@ class StorageAlignCollector : public StmtVisitor {
         storage_align_[buffer.var()].push_back(storage_align_tuple);
       }
     }
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   /*! \brief AllocBuffer: check for buffer_dim_align annotations. */
-  void VisitStmt_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
     auto it = op->annotations.find(s_tir::attr::buffer_dim_align);
     if (it != op->annotations.end()) {
       auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
@@ -969,7 +975,7 @@ class StorageAlignCollector : public StmtVisitor {
         storage_align_[op->buffer.var()].push_back(storage_align_tuple);
       }
     }
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   /*! \brief The map from buffer var to its storage alignment information. */
@@ -977,9 +983,9 @@ class StorageAlignCollector : public StmtVisitor {
 };
 
 std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(const Stmt& body) {
-  StorageAlignCollector collector;
-  collector(body);
-  return std::move(collector.storage_align_);
+  auto collector = ffi::make_object<StorageAlignCollector>();
+  collector->Visit(body);
+  return std::move(collector->storage_align_);
 }
 
 int Stoi(const std::string& str) {
