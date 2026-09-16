@@ -1062,7 +1062,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
   // analyzer
   arith::Analyzer analyzer_;
   // deep equal
-  ExprDeepEqual deep_equal_;
+  prim::ExprDeepEqual deep_equal_;
   // variable to be replaced
   Var var_;
   // the lanes.

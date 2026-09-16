@@ -433,7 +433,7 @@ class IterMapRewriter : public tvm::ExprMutator {
 
   static bool IterSplitEqual(const IterSplitExpr& lhs, const IterSplitExpr& rhs,
                              bool check_scale = true) {
-    tirx::ExprDeepEqual equal;
+    prim::ExprDeepEqual equal;
     if (!lhs->source.same_as(rhs->source)) return false;
     if (!equal(lhs->lower_factor, rhs->lower_factor)) return false;
     if (check_scale && !equal(lhs->scale, rhs->scale)) return false;
@@ -443,7 +443,7 @@ class IterMapRewriter : public tvm::ExprMutator {
 
   struct IterSumEqual {
     bool operator()(const IterSumExpr& lhs, const IterSumExpr& rhs) const {
-      tirx::ExprDeepEqual equal;
+      prim::ExprDeepEqual equal;
       if (lhs->args.size() != rhs->args.size()) return false;
       if (!equal(lhs->base, rhs->base)) return false;
       for (size_t i = 0; i < lhs->args.size(); ++i) {
@@ -1251,7 +1251,7 @@ class IterMapRewriter : public tvm::ExprMutator {
   PrimExpr SplitFloorModConst(IterSplitExpr lhs, PrimExpr base, PrimExpr rhs);
 
   static void AddToLhs(IterSumExprNode* lhs, IterSplitExpr rhs, int sign) {
-    tirx::ExprDeepEqual equal;
+    prim::ExprDeepEqual equal;
     for (size_t i = 0; i < lhs->args.size(); ++i) {
       IterSplitExpr lvalue = lhs->args[i];
       if (lvalue->source.same_as(rhs->source) && equal(lvalue->lower_factor, rhs->lower_factor) &&

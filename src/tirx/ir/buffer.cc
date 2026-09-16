@@ -349,7 +349,7 @@ inline std::pair<bool, PrimExpr> MergeMulModInner(arith::AnalyzerObj* analyzer,
   const PrimExpr* search_ptr = inner;
   PrimExpr mult_inner;  // The inner multiplication factor
   PrimExpr no_opt_sum;  // Sum of the exprs that cannot be optimized
-  tirx::ExprDeepEqual expr_equal;
+  prim::ExprDeepEqual expr_equal;
 
   while (true) {
     auto inner_div_ptr = search_ptr->as<IndexDiv>();

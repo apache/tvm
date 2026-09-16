@@ -48,7 +48,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
   std::vector<int> remap_vars_indices;
   auto add_remapped_iter_var = [&](int i) -> bool {
     if (realize && d->cfg->syntax_sugar) {
-      tirx::ExprDeepEqual expr_equal;
+      prim::ExprDeepEqual expr_equal;
       tirx::IterVar iter_var = block->iter_vars[i];
       PrimExpr value = realize->iter_values[i];
       if (iter_var->iter_type == tirx::IterVarType::kDataPar ||

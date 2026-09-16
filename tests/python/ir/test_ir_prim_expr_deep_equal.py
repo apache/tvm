@@ -27,9 +27,9 @@ def test_equal_expr():
     def func2():
         return tvm.tirx.exp(tvm.tirx.truncdiv((x + y + 1) * y, 4))
 
-    assert tvm.tirx.analysis.expr_deep_equal(func1(), func1())
-    assert tvm.tirx.analysis.expr_deep_equal(func2(), func2())
-    assert not tvm.tirx.analysis.expr_deep_equal(func2(), func1())
+    assert tvm.ir.prim.expr_deep_equal(func1(), func1())
+    assert tvm.ir.prim.expr_deep_equal(func2(), func2())
+    assert not tvm.ir.prim.expr_deep_equal(func2(), func1())
 
 
 if __name__ == "__main__":

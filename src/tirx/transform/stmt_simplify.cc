@@ -215,7 +215,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
       BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
       if (buffer.same_as(store->buffer) && ArrayDeepEqual(load->indices, store->indices) &&
-          tirx::ExprDeepEqual()(buffer->elem_offset, store->buffer->elem_offset) &&
+          prim::ExprDeepEqual()(buffer->elem_offset, store->buffer->elem_offset) &&
           ArrayDeepEqual(buffer->shape, store->buffer->shape) &&
           ArrayDeepEqual(buffer->strides, store->buffer->strides)) {
         return Evaluate(0);
@@ -230,7 +230,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
       return false;
     }
     for (size_t i = 0; i < lhs.size(); i++) {
-      if (!tirx::ExprDeepEqual()(lhs[i], rhs[i])) {
+      if (!prim::ExprDeepEqual()(lhs[i], rhs[i])) {
         return false;
       }
     }

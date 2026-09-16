@@ -428,7 +428,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
           << "Store/Load occur to the same buffer " << buf->name
           << " with differing number of indices";
       for (size_t i = 0; i < store_->indices.size(); i++) {
-        if (!tirx::ExprDeepEqual()(store_->indices[i], op->indices[i])) {
+        if (!prim::ExprDeepEqual()(store_->indices[i], op->indices[i])) {
           result_ = false;
           return std::nullopt;
         }
@@ -818,7 +818,7 @@ class StoragePlanRewriter : public StmtExprMutator {
               if (op->buffer->shape.size() != first->buffer->shape.size()) {
                 return false;
               }
-              ExprDeepEqual expr_equal;
+              prim::ExprDeepEqual expr_equal;
               for (size_t i = 0; i < op->buffer->shape.size(); i++) {
                 if (!expr_equal(op->buffer->shape[i], first->buffer->shape[i])) {
                   return false;
