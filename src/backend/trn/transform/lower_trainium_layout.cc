@@ -198,7 +198,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    // Keep the logical layout until indices are converted, before base remapping the buffer.
+    // Index conversion needs the original logical layout after the parent remaps the buffer.
     BufferVar logical_buffer = op->buffer;
     BufferStore store = StmtExprMutator::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
