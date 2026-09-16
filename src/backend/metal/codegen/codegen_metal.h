@@ -24,6 +24,7 @@
 #ifndef TVM_TARGET_METAL_CODEGEN_METAL_H_
 #define TVM_TARGET_METAL_CODEGEN_METAL_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/target/codegen.h>
 
 #include <string>
@@ -63,6 +64,7 @@ class CodeGenMetal final : public CodeGenC {
   using CodeGenC::PrintType;
 
  private:
+  arith::Analyzer analyzer_;
   std::unordered_map<const VarNode*, std::string> simdgroup_dtype_;
   int thread_index_bits_{32};
   int thread_work_dim_{0};

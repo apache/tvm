@@ -27,6 +27,7 @@
 #ifndef TVM_TARGET_WEBGPU_CODEGEN_WEBGPU_H_
 #define TVM_TARGET_WEBGPU_CODEGEN_WEBGPU_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/target/codegen.h>
 
 #include <cstddef>
@@ -86,6 +87,8 @@ class CodeGenWebGPU final : public CodeGenC {
   void VisitStmt_(const ContinueNode* op) final;
 
  private:
+  arith::Analyzer analyzer_;
+
   /*!
    * \brief Enforce value to be U32.
    */

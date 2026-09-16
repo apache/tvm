@@ -66,6 +66,7 @@ Var GetSimdgroupBufferVar(const Expr& data) {
 
 void CodeGenMetal::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
+  analyzer_ = arith::Analyzer();
   // analyze the data;
   for (Var arg : f->params) {
     if (arg->ty.as<PointerTypeNode>()) {
@@ -330,6 +331,9 @@ void CodeGenMetal::PrintStorageScope(const std::string& scope, std::ostream& os)
 }
 
 void CodeGenMetal::VisitStmt_(const BindNode* op) {
+  if (auto prim_value = op->value.as<PrimExpr>()) {
+    analyzer_->Bind(op->var, prim_value.value());
+  }
   const auto* pointer_type = op->var->ty.as<PointerTypeNode>();
   if (pointer_type == nullptr || pointer_type->storage_scope.empty()) {
     return CodeGenC::VisitStmt_(op);
@@ -361,10 +365,9 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
   this->PrintIndent();
   // Compute a compile-time upper bound on the number of buffer elements.
   size_t constant_size = 1;
-  arith::Analyzer analyzer;
   for (const auto& dim : op->buffer->shape) {
     const auto* dim_imm = dim.as<IntImmNode>();
-    int64_t dim_size = dim_imm ? dim_imm->value : analyzer->const_int_bound(dim)->max_value;
+    int64_t dim_size = dim_imm ? dim_imm->value : analyzer_->const_int_bound(dim)->max_value;
     if (dim_imm == nullptr) {
       // An integer dtype's intrinsic maximum is not a program-derived allocation bound.
       TVM_FFI_ICHECK(dim_size != arith::ConstIntBound::kPosInf)
