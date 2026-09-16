@@ -421,13 +421,10 @@ def _validate_wait_until_attrs(scope, space, ptx_type=None):
             if space == "shared"
             else ""
         )
-        raise ValueError(
-            f"invalid space={space!r}; expected one of {_WAIT_UNTIL_SPACE}{detail}"
-        )
+        raise ValueError(f"invalid space={space!r}; expected one of {_WAIT_UNTIL_SPACE}{detail}")
     if ptx_type is not None and ptx_type not in _WAIT_UNTIL_PTX_TYPES:
         raise ValueError(
-            f"invalid ptx_type={ptx_type!r}; expected one of "
-            f"{tuple(sorted(_WAIT_UNTIL_PTX_TYPES))}"
+            f"invalid ptx_type={ptx_type!r}; expected one of {tuple(sorted(_WAIT_UNTIL_PTX_TYPES))}"
         )
 
 

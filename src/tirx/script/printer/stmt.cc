@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/arith/analyzer.h>
+
 #include <algorithm>
 
 #include "../../../tirx/transform/ir_utils.h"  // For `GetPtrStorageScope`

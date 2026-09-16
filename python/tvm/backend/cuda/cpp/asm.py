@@ -35,7 +35,6 @@ from ..codegen.schema import device_intrinsic
 from ..codegen.types import PTXDataType
 from ..codegen.utils import parse_str
 
-
 # =============================================================================
 # Declared synchronization words. The four direct forms emit exactly what their
 # raw PTX spellings do; only the operation's identity differs, which is what
@@ -109,9 +108,10 @@ def _wait_until_word_suffix(ptr, requested, what):
     # A 128-bit word spans two 64-bit elements, so a pointer into the pair is
     # how a kernel names it; asking for `.b128` there is not a respelling of
     # the pointee but the statement that the word is the wider one.
-    if requested == "b128" and _WAIT_UNTIL_PTX_WIDTH.get(
-        _WAIT_UNTIL_SCALARS.get(pointee, "")
-    ) in (32, 64):
+    if requested == "b128" and _WAIT_UNTIL_PTX_WIDTH.get(_WAIT_UNTIL_SCALARS.get(pointee, "")) in (
+        32,
+        64,
+    ):
         return requested
     if pointee in _WAIT_UNTIL_SCALARS:
         return _wait_until_scalar_suffix(pointee, requested)
@@ -191,26 +191,20 @@ def cuda_wait_until(dst, ptr, condition, scope, space, ptx_type, backoff_ns):
     # ISA 8.4.2 puts it and `.relaxed` in one class, and measured they are
     # within 0.1% everywhere -- but `.relaxed.<scope>` says the scope out loud
     # instead of resting on `volatile` meaning `.sys`.
-    load_call, tags = _wait_until_forward(
-        f"ld.relaxed.{scope}.{space}.{suffix}", dst, ptr
-    )
+    load_call, tags = _wait_until_forward(f"ld.relaxed.{scope}.{space}.{suffix}", dst, ptr)
     # The helper is named after the poll, which is the load that repeats; the
     # closing acquire hangs off that name with an `_acquire` suffix.
     load_name = parse_str(load_call.args[0])
     name = load_name.replace("ptx_ld_", "cuda_wait_until_")
     source = load_call.args[-1].value.replace(load_name, name + "_load")
-    acquire_call, _ = _wait_until_forward(
-        f"ld.acquire.{scope}.{space}.{suffix}", dst, ptr
-    )
+    acquire_call, _ = _wait_until_forward(f"ld.acquire.{scope}.{space}.{suffix}", dst, ptr)
     acquire_name = parse_str(acquire_call.args[0])
     acquire_source = acquire_call.args[-1].value.replace(acquire_name, name + "_acquire")
     source += "\n" + acquire_source
     # NVRTC has no `__typeof__`, and `decltype` on the destination yields a
     # reference that cannot be declared uninitialized, so the scratch takes
     # the C type the generated helper already spells in its signature.
-    scratch_type = re.search(
-        rf"void\s+{re.escape(name)}_acquire\(\s*([\w:]+)\s*&", acquire_source
-    )
+    scratch_type = re.search(rf"void\s+{re.escape(name)}_acquire\(\s*([\w:]+)\s*&", acquire_source)
     if scratch_type is None:  # pragma: no cover - the helper shape is fixed
         raise RuntimeError(f"cannot read the destination type of {name}_acquire")
     closing = (
@@ -247,7 +241,7 @@ def cuda_wait_until(dst, ptr, condition, scope, space, ptx_type, backoff_ns):
         source += (
             f"\n#define {name}(dst, ptr, predicate) "
             f"do {{ {name}_load((dst), (ptr)); if (!(predicate)) {{ "
-            f"_Pragma(\"unroll 1\") "
+            f'_Pragma("unroll 1") '
             f"do {{ {name}_load((dst), (ptr)); }} while (!(predicate)); }}"
             f"{closing} }} while (0)\n"
         )
@@ -260,7 +254,7 @@ def cuda_wait_until(dst, ptr, condition, scope, space, ptx_type, backoff_ns):
         source += (
             f"\n#define {name}(dst, ptr, predicate, backoff_ns) "
             f"do {{ {name}_load((dst), (ptr)); if (!(predicate)) {{ "
-            f"_Pragma(\"unroll 1\") "
+            f'_Pragma("unroll 1") '
             f"while (1) {{ __nanosleep(backoff_ns); {name}_load((dst), (ptr)); "
             f"if (predicate) break; }} }}"
             f"{closing} }} while (0)\n"
