@@ -98,7 +98,7 @@ class MatchBufferLower : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  Expr Dispatch_(const VarNode* op) final {
     Var v = ffi::GetRef<Var>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {
@@ -108,7 +108,7 @@ class MatchBufferLower : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
+  Expr Dispatch_(const CallNode* op) final {
     if ((op->op.same_as(tirx::builtin::masked_load()) ||
          op->op.same_as(tirx::builtin::masked_store())) &&
         !op->args.empty()) {
@@ -127,7 +127,7 @@ class MatchBufferLower : public StmtExprMutator {
         }
       }
     }
-    return StmtExprMutator::VisitExpr_(op);
+    return StmtExprMutator::Dispatch_(op);
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
@@ -152,10 +152,10 @@ class MatchBufferLower : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
+  Expr Dispatch_(const TensorLoadNode* op) final {
     // Save the original buffer before base class mutation may remap it
     BufferVar orig_buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
+    PrimExpr expr = StmtExprMutator::Dispatch_(op).as_or_throw<PrimExpr>();
     op = expr.as<TensorLoadNode>();
     TVM_FFI_ICHECK(op != nullptr);
 

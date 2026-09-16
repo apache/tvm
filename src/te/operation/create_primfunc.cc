@@ -76,11 +76,11 @@ class TensorLoadToBufferTransformer : public StmtExprMutator {
       const std::unordered_map<te::Tensor, BufferVar>& tensor2buffers)
       : tensor2buffers_(tensor2buffers) {}
 
-  Expr VisitExpr_(const OpaqueExprNode* op) final {
+  Expr Dispatch_(const OpaqueExprNode* op) final {
     const auto* reduce =
         op->IsInstance<te::ReduceNode>() ? static_cast<const te::ReduceNode*>(op) : nullptr;
     if (reduce == nullptr) {
-      return StmtExprMutator::VisitExpr_(op);
+      return StmtExprMutator::Dispatch_(op);
     }
 
     auto fitervar = [this](const IterVar& iter_var) {
@@ -108,8 +108,8 @@ class TensorLoadToBufferTransformer : public StmtExprMutator {
                       reduce->span);
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
-    Call call = StmtExprMutator::VisitExpr_(op).as_or_throw<Call>();
+  Expr Dispatch_(const CallNode* op) final {
+    Call call = StmtExprMutator::Dispatch_(op).as_or_throw<Call>();
     if (!te::IsTensorLoad(call)) {
       return call;
     }
@@ -132,16 +132,16 @@ class BufferSubstituter : public StmtExprMutator {
                              const std::unordered_map<const VarNode*, BufferVar>& buffer_map)
       : var_map_(var_map), buffer_map_(buffer_map) {}
 
-  Expr VisitExpr_(const VarNode* op) final {
+  Expr Dispatch_(const VarNode* op) final {
     auto it = var_map_.find(op);
     if (it != var_map_.end()) {
       return it->second;
     }
-    return StmtExprMutator::VisitExpr_(op);
+    return StmtExprMutator::Dispatch_(op);
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* op) final {
+    auto load = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     auto it = buffer_map_.find(load->source.as_or_throw<tvm::tirx::BufferVar>().get());
     if (it != buffer_map_.end()) {
       return BufferLoad(it->second, load->indices, load->span);

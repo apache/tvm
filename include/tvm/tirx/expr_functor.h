@@ -97,44 +97,44 @@ class TVM_DLL ExprMutator : protected ExprFunctor<Expr(const Expr&)> {
   using ExprFunctor::operator();
 
  protected:
-  using ExprFunctor::VisitExpr;
+  using ExprFunctor::Dispatch;
   /*! \brief Visit a primitive expression and verify that it remains primitive. */
-  PrimExpr VisitPrimExpr(const PrimExpr& expr) { return VisitExpr(expr).as_or_throw<PrimExpr>(); }
+  PrimExpr VisitPrimExpr(const PrimExpr& expr) { return Dispatch(expr).as_or_throw<PrimExpr>(); }
   // list of functions to override.
-  Expr VisitExpr_(const VarNode* op) override;
-  Expr VisitExpr_(const TensorLoadNode* op) override;
-  Expr VisitExpr_(const OpaqueExprNode* op) override;
-  Expr VisitExpr_(const BufferRegionNode* op) override;
-  Expr VisitExpr_(const TupleNode* op) override;
-  Expr VisitExpr_(const TupleGetItemNode* op) override;
-  Expr VisitExpr_(const prim::LetNode* op) override;
-  Expr VisitExpr_(const CallNode* op) override;
-  Expr VisitExpr_(const prim::AddNode* op) override;
-  Expr VisitExpr_(const prim::SubNode* op) override;
-  Expr VisitExpr_(const prim::MulNode* op) override;
-  Expr VisitExpr_(const prim::DivNode* op) override;
-  Expr VisitExpr_(const prim::ModNode* op) override;
-  Expr VisitExpr_(const prim::FloorDivNode* op) override;
-  Expr VisitExpr_(const prim::FloorModNode* op) override;
-  Expr VisitExpr_(const prim::MinNode* op) override;
-  Expr VisitExpr_(const prim::MaxNode* op) override;
-  Expr VisitExpr_(const prim::EQNode* op) override;
-  Expr VisitExpr_(const prim::NENode* op) override;
-  Expr VisitExpr_(const prim::LTNode* op) override;
-  Expr VisitExpr_(const prim::LENode* op) override;
-  Expr VisitExpr_(const prim::GTNode* op) override;
-  Expr VisitExpr_(const prim::GENode* op) override;
-  Expr VisitExpr_(const prim::AndNode* op) override;
-  Expr VisitExpr_(const prim::OrNode* op) override;
-  Expr VisitExpr_(const prim::CastNode* op) override;
-  Expr VisitExpr_(const prim::NotNode* op) override;
-  Expr VisitExpr_(const prim::SelectNode* op) override;
-  Expr VisitExpr_(const prim::RampNode* op) override;
-  Expr VisitExpr_(const prim::BroadcastNode* op) override;
-  Expr VisitExpr_(const prim::ShuffleNode* op) override;
-  Expr VisitExpr_(const IntImmNode* op) override;
-  Expr VisitExpr_(const FloatImmNode* op) override;
-  Expr VisitExpr_(const prim::StringImmNode* op) override;
+  Expr Dispatch_(const VarNode* op) override;
+  Expr Dispatch_(const TensorLoadNode* op) override;
+  Expr Dispatch_(const OpaqueExprNode* op) override;
+  Expr Dispatch_(const BufferRegionNode* op) override;
+  Expr Dispatch_(const TupleNode* op) override;
+  Expr Dispatch_(const TupleGetItemNode* op) override;
+  Expr Dispatch_(const prim::LetNode* op) override;
+  Expr Dispatch_(const CallNode* op) override;
+  Expr Dispatch_(const prim::AddNode* op) override;
+  Expr Dispatch_(const prim::SubNode* op) override;
+  Expr Dispatch_(const prim::MulNode* op) override;
+  Expr Dispatch_(const prim::DivNode* op) override;
+  Expr Dispatch_(const prim::ModNode* op) override;
+  Expr Dispatch_(const prim::FloorDivNode* op) override;
+  Expr Dispatch_(const prim::FloorModNode* op) override;
+  Expr Dispatch_(const prim::MinNode* op) override;
+  Expr Dispatch_(const prim::MaxNode* op) override;
+  Expr Dispatch_(const prim::EQNode* op) override;
+  Expr Dispatch_(const prim::NENode* op) override;
+  Expr Dispatch_(const prim::LTNode* op) override;
+  Expr Dispatch_(const prim::LENode* op) override;
+  Expr Dispatch_(const prim::GTNode* op) override;
+  Expr Dispatch_(const prim::GENode* op) override;
+  Expr Dispatch_(const prim::AndNode* op) override;
+  Expr Dispatch_(const prim::OrNode* op) override;
+  Expr Dispatch_(const prim::CastNode* op) override;
+  Expr Dispatch_(const prim::NotNode* op) override;
+  Expr Dispatch_(const prim::SelectNode* op) override;
+  Expr Dispatch_(const prim::RampNode* op) override;
+  Expr Dispatch_(const prim::BroadcastNode* op) override;
+  Expr Dispatch_(const prim::ShuffleNode* op) override;
+  Expr Dispatch_(const IntImmNode* op) override;
+  Expr Dispatch_(const FloatImmNode* op) override;
+  Expr Dispatch_(const prim::StringImmNode* op) override;
 };
 
 }  // namespace tirx

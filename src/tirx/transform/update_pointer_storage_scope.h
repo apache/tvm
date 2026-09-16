@@ -39,8 +39,8 @@ class UpdatePointerStorageScope : public StmtExprMutator {
       const std::unordered_map<Var, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>&
           new_storage_scopes);
 
-  virtual Expr VisitExpr_(const VarNode*);
-  virtual Expr VisitExpr_(const TensorLoadNode*);
+  virtual Expr Dispatch_(const VarNode*);
+  virtual Expr Dispatch_(const TensorLoadNode*);
   virtual Stmt VisitStmt_(const AllocBufferNode*);
   virtual Stmt VisitStmt_(const DeclBufferNode*);
   virtual Stmt VisitStmt_(const BufferStoreNode*);

@@ -138,7 +138,7 @@ ReplaceBufferMutator::ReplaceBufferMutator(const ffi::Map<BufferVar, BufferVar>&
   }
 }
 
-Expr ReplaceBufferMutator::VisitExpr_(const VarNode* var) {
+Expr ReplaceBufferMutator::Dispatch_(const VarNode* var) {
   auto it = buffer_var_map_.find(var);
   return it != buffer_var_map_.end() ? it->second.var() : ffi::GetRef<Var>(var);
 }
@@ -148,8 +148,8 @@ Stmt ReplaceBufferMutator::VisitStmt_(const BufferStoreNode* op) {
   return VisitBufferAccess(std::move(node));
 }
 
-Expr ReplaceBufferMutator::VisitExpr_(const TensorLoadNode* op) {
-  auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+Expr ReplaceBufferMutator::Dispatch_(const TensorLoadNode* op) {
+  auto node = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
   return VisitBufferAccess(std::move(node));
 }
 
@@ -472,8 +472,8 @@ Stmt BlockBufferAccessSimplifier::VisitStmt_(const BufferStoreNode* op) {
   return node;
 }
 
-Expr BlockBufferAccessSimplifier::VisitExpr_(const TensorLoadNode* op) {
-  TensorLoad node = tirx::IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<TensorLoad>();
+Expr BlockBufferAccessSimplifier::Dispatch_(const TensorLoadNode* op) {
+  TensorLoad node = tirx::IRMutatorWithAnalyzer::Dispatch_(op).as_or_throw<TensorLoad>();
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
   return node;
 }

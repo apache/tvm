@@ -384,7 +384,7 @@ class BuiltinLower : public StmtExprMutator {
     return IfThenElse(condition, then_case, else_case, op->span);
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
+  Expr Dispatch_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_call_packed())) {
       return MakeCallPackedGeneric(op, 0, builtin::tvm_call_packed_lowered(),
                                    /* use_last_value_as_traced_value*/ false);
@@ -413,7 +413,7 @@ class BuiltinLower : public StmtExprMutator {
     } else if (op->op.same_as(builtin::dma_end_group())) {
       return MakeDMAEndGroup(op);
     } else {
-      return StmtExprMutator::VisitExpr_(op);
+      return StmtExprMutator::Dispatch_(op);
     }
   }
 
@@ -481,7 +481,7 @@ class BuiltinLower : public StmtExprMutator {
     }
     int64_t stack_begin = scope.run_sizes.shape_stack;
     scope.run_sizes.shape_stack += op->args.size();
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+    Expr expr = StmtExprMutator::Dispatch_(op);
     op = expr.as<CallNode>();
     // no need to perform any store for a scalar shape
     for (size_t i = 0; i < op->args.size(); ++i) {
@@ -501,7 +501,7 @@ class BuiltinLower : public StmtExprMutator {
 
     size_t idx = scope.run_sizes.array_stack;
     scope.run_sizes.array_stack += 1;
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+    Expr expr = StmtExprMutator::Dispatch_(op);
     op = expr.as<CallNode>();
 
     prep_seq.emplace_back(
@@ -643,7 +643,7 @@ class BuiltinLower : public StmtExprMutator {
     // The extra one slot is for return value.
     scope.run_sizes.arg_stack += num_args + 1;
     // Specially handle the buffer packed intrinsic
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+    Expr expr = StmtExprMutator::Dispatch_(op);
     op = expr.as<CallNode>();
 
     for (size_t i = 0; i < num_args; ++i) {

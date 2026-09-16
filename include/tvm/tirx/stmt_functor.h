@@ -258,7 +258,7 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
   }
   /*!
    * \brief Internal mutator that everyone calls.
-   * \note To override mutate's behavior, override VisitExpr instead.
+   * \note To override mutate's behavior, override Dispatch instead.
    * \param stmt The input stmt.
    * \return The mutated results.
    */
@@ -279,11 +279,11 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
    *       or have a class sub-class both StmtMutator and ExprMutator
    *       and redirect Mutate to ExprMutator::Mutate(Expr)
    */
-  virtual Expr VisitExpr(const Expr& e) { return e; }
+  virtual Expr Dispatch(const Expr& e) { return e; }
   /*! \brief Mutate a primitive expression and verify that it remains primitive. */
-  PrimExpr VisitPrimExpr(const PrimExpr& e) { return VisitExpr(e).as_or_throw<PrimExpr>(); }
+  PrimExpr VisitPrimExpr(const PrimExpr& e) { return Dispatch(e).as_or_throw<PrimExpr>(); }
   /*!
-   * \brief Visit buffer at definition site. Visits shape/strides/elem_offset via VisitExpr.
+   * \brief Visit buffer at definition site. Visits shape/strides/elem_offset via Dispatch.
    *  If any field changes, creates a new buffer and records it in buffer_remap_.
    * \param buffer The buffer being defined.
    * \param alloc_data If true, the buffer's data pointer is a new allocation (AllocBuffer);
@@ -345,15 +345,15 @@ class TVM_DLL StmtExprMutator : public ExprMutator, public StmtMutator {
   using ExprMutator::operator();
 
  protected:
-  using ExprMutator::VisitExpr;
-  using ExprMutator::VisitExpr_;
+  using ExprMutator::Dispatch;
+  using ExprMutator::Dispatch_;
   using ExprMutator::VisitPrimExpr;
   using StmtMutator::VisitStmt;
 
-  Expr VisitExpr(const Expr& e) override { return ExprMutator::VisitExpr(e); }
-  Expr VisitExpr_(const VarNode* op) override;
-  Expr VisitExpr_(const TensorLoadNode* op) override;
-  Expr VisitExpr_(const BufferRegionNode* op) override;
+  Expr Dispatch(const Expr& e) override { return ExprMutator::Dispatch(e); }
+  Expr Dispatch_(const VarNode* op) override;
+  Expr Dispatch_(const TensorLoadNode* op) override;
+  Expr Dispatch_(const BufferRegionNode* op) override;
 };
 
 /*!

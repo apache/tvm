@@ -140,10 +140,10 @@ class ReplaceBufferMutator : public StmtExprMutator {
                        ffi::Map<SBlock, SBlock>* block_sref_reuse);
 
  protected:
-  using StmtExprMutator::VisitExpr_;
+  using StmtExprMutator::Dispatch_;
   using StmtExprMutator::VisitStmt_;
 
-  Expr VisitExpr_(const VarNode* var) final;
+  Expr Dispatch_(const VarNode* var) final;
 
   template <typename Node>
   Node VisitBufferAccess(Node node) {
@@ -162,7 +162,7 @@ class ReplaceBufferMutator : public StmtExprMutator {
 
   Stmt VisitStmt_(const BufferStoreNode* op) override;
 
-  Expr VisitExpr_(const TensorLoadNode* op) override;
+  Expr Dispatch_(const TensorLoadNode* op) override;
 
   virtual MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer);
 
@@ -253,7 +253,7 @@ class BlockBufferAccessSimplifier : public tirx::IRMutatorWithAnalyzer {
   explicit BlockBufferAccessSimplifier(const arith::Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer) {}
 
-  using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::Dispatch_;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
   void SimplifyAccessRegion(ffi::Array<BufferRegion>* old_access_regions);
@@ -261,7 +261,7 @@ class BlockBufferAccessSimplifier : public tirx::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const SBlockNode* op) final;
   Stmt VisitStmt_(const BufferStoreNode* op) final;
-  Expr VisitExpr_(const TensorLoadNode* op) final;
+  Expr Dispatch_(const TensorLoadNode* op) final;
 };
 
 }  // namespace s_tir

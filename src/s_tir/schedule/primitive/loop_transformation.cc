@@ -57,7 +57,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
       : vmap_(vmap), opaque_blocks_(opaque_blocks) {}
 
  private:
-  Expr VisitExpr_(const VarNode* op) final {
+  Expr Dispatch_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     if (ffi::Optional<Expr> ret = vmap_(var)) {
       return tvm::cast(var->ty.as_or_throw<PrimType>(), ret.value().as_or_throw<PrimExpr>());

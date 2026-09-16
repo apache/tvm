@@ -58,8 +58,8 @@ class DistBufferReplacer : public StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* _load) final {
-    TensorLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* _load) final {
+    TensorLoad load = StmtExprMutator::Dispatch_(_load).as_or_throw<TensorLoad>();
     if (buffer_map_.count(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
       return BufferLoad(buffer_map_[load->source.as_or_throw<tvm::tirx::BufferVar>()],
                         load->indices, load->span);

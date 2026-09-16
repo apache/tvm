@@ -150,8 +150,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) {
-    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* op) {
+    TensorLoad load = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
     if (buffer_map_.count(buffer)) {
       ffi::Array<PrimExpr> indices = load->indices;
@@ -171,7 +171,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
     return load;
   }
 
-  Expr VisitExpr_(const VarNode* op) {
+  Expr Dispatch_(const VarNode* op) {
     if (buffer_var_map_.count(ffi::GetRef<Var>(op))) {
       return buffer_var_map_[ffi::GetRef<Var>(op)];
     }

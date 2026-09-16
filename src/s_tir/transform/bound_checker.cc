@@ -83,11 +83,11 @@ class BoundChecker : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
+  Expr Dispatch_(const CallNode* op) final {
     if (process_store_ && op->op.same_as(prim::builtin::if_then_else())) {
       unsafe_rewritten_ = true;
     }
-    return StmtExprMutator::VisitExpr_(op);
+    return StmtExprMutator::Dispatch_(op);
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
@@ -113,11 +113,11 @@ class BoundChecker : public StmtExprMutator {
     return ffi::GetRef<Stmt>(op);
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
+  Expr Dispatch_(const TensorLoadNode* op) final {
     if (CanInstrument(op->indices, op->source.as_or_throw<tvm::tirx::BufferVar>().var())) {
       Collect(op->indices, op->source.as_or_throw<tvm::tirx::BufferVar>().var());
     }
-    return StmtExprMutator::VisitExpr_(op);
+    return StmtExprMutator::Dispatch_(op);
   }
 
  private:

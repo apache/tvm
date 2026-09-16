@@ -204,7 +204,7 @@ class PrimFuncInliner : StmtExprMutator {
     return VisitStmt(inlined);
   }
 
-  Expr VisitExpr_(const CallNode* call) override {
+  Expr Dispatch_(const CallNode* call) override {
     // Because the current implementation inlines a subroutine inserts
     // the `tirx::Stmt` body at the point of use, replacement must
     // occur in a context where a `tirx::Stmt` can be returned. Support
@@ -222,7 +222,7 @@ class PrimFuncInliner : StmtExprMutator {
     if (auto gvar = call->op.as<GlobalVar>()) {
       removable_funcs_.erase(gvar.value());
     }
-    return StmtExprMutator::VisitExpr_(call);
+    return StmtExprMutator::Dispatch_(call);
   }
 
   Stmt InlineArguments(const GlobalVar& gvar, PrimFunc callee, const ffi::Array<Expr>& args) const {

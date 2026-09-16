@@ -103,8 +103,8 @@ class TextureFlattener : public TextureLoweringBase {
     return stmt;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
+  Expr Dispatch_(const TensorLoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::Dispatch_(op).as_or_throw<PrimExpr>();
     op = expr.as<TensorLoadNode>();
     // Lower to two dimensional access
     std::string storage_scope = GetStorageScope(op->source.as_or_throw<tvm::tirx::BufferVar>());

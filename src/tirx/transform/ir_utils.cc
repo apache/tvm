@@ -202,8 +202,8 @@ class IRConvertSSA final : public StmtExprMutator {
   // undefined SSA-renamed variables.
   BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) override { return buffer; }
 
-  Expr VisitExpr_(const VarNode* op) final { return GetRemappedVar(ffi::GetRef<Var>(op)); }
-  Expr VisitExpr_(const prim::LetNode* op) final {
+  Expr Dispatch_(const VarNode* op) final { return GetRemappedVar(ffi::GetRef<Var>(op)); }
+  Expr Dispatch_(const prim::LetNode* op) final {
     const Var& v = op->var;
     if (defined_.count(v.get())) {
       PrimExpr value = this->VisitPrimExpr(op->value);
@@ -214,12 +214,12 @@ class IRConvertSSA final : public StmtExprMutator {
       return prim::Let(new_var, value, body);
     } else {
       defined_.insert(v.get());
-      return StmtExprMutator::VisitExpr_(op);
+      return StmtExprMutator::Dispatch_(op);
     }
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* op) final {
+    auto node = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     auto output = VisitBufferAccess(std::move(node));
     return output;
   }
@@ -410,7 +410,7 @@ class IRConvertSSA final : public StmtExprMutator {
     // body-carrying statement's scope exits.
     const Var& v = op->var;
     if (defined_.count(v.get())) {
-      Expr value = this->VisitExpr(op->value);
+      Expr value = this->Dispatch(op->value);
       Var new_var = MakeNewVar(v);
       PushVarRemap(v, new_var);
       return Bind(new_var, value);

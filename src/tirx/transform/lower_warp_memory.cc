@@ -318,7 +318,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     return Call(op->ty, op->op, new_args, op->attrs, {}, op->span);
   }
 
-  Expr VisitExpr_(const CallNode* op) override {
+  Expr Dispatch_(const CallNode* op) override {
     static const Op& mma_store_op = Op::Get("tirx.mma_store");
     static const Op& mma_fill_op = Op::Get("tirx.mma_fill");
     static const Op& ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
@@ -352,12 +352,12 @@ class WarpAccessRewriter : protected StmtExprMutator {
       return RewriteIndicesAt(op, {1});
     }
 
-    return StmtExprMutator::VisitExpr_(op);
+    return StmtExprMutator::Dispatch_(op);
   }
 
-  Expr VisitExpr_(const VarNode* op) override {
+  Expr Dispatch_(const VarNode* op) override {
     TVM_FFI_ICHECK(op != buffer_) << "Cannot access address of warp memory directly";
-    return StmtExprMutator::VisitExpr_(op);
+    return StmtExprMutator::Dispatch_(op);
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) override {
@@ -378,8 +378,8 @@ class WarpAccessRewriter : protected StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) override {
-    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* op) override {
+    auto load = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
 
     if (load->source.as_or_throw<tvm::tirx::BufferVar>().get() != buffer_) {
       return load;

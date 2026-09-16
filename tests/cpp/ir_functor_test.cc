@@ -261,9 +261,9 @@ TEST(IRF, StmtMutator) {
 
    protected:
     // implementation
-    Expr VisitExpr_(const prim::AddNode* op) final { return op->a; }
+    Expr Dispatch_(const prim::AddNode* op) final { return op->a; }
     Stmt VisitStmt_(const SeqStmtNode* op) final { return StmtMutator::VisitSeqStmt_(op, true); }
-    Expr VisitExpr(const Expr& expr) final { return ExprMutator::VisitExpr(expr); }
+    Expr Dispatch(const Expr& expr) final { return ExprMutator::Dispatch(expr); }
   };
   auto fmakealloc = [&]() {
     auto z = x + 1;

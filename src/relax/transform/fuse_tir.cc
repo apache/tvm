@@ -207,7 +207,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
   }
 
  private:
-  Expr VisitExpr_(const VarNode* _op) final {
+  Expr Dispatch_(const VarNode* _op) final {
     if (auto it = var_remap_.find(ffi::GetRef<Var>(_op)); it != var_remap_.end()) {
       return (*it).second;
     } else {
@@ -215,8 +215,8 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const TensorLoadNode* _op) final {
-    TensorLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* _op) final {
+    TensorLoad load = StmtExprMutator::Dispatch_(_op).as_or_throw<TensorLoad>();
     const BufferVar& buffer = SubstituteBuffer(load->source.as_or_throw<tvm::tirx::BufferVar>());
     if (buffer.same_as(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
       return load;

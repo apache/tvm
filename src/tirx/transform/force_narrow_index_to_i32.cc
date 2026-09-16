@@ -56,7 +56,7 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
 
   bool ShouldClampShiftAmounts() const final { return true; }
 
-  Expr VisitExpr_(const IntImmNode* op) final {
+  Expr Dispatch_(const IntImmNode* op) final {
     // ignore the enabled condition and always rewrite i64
     if (op->ty.as_or_throw<PrimType>() == PrimType::Int(64)) {
       TVM_FFI_ICHECK_LE(op->value, max_value(target_data_type_).as_or_throw<IntImm>()->value);

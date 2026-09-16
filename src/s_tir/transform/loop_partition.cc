@@ -393,11 +393,11 @@ class ConditionEliminator : public StmtExprMutator {
   explicit ConditionEliminator(const ExpressionSet& ps, bool cond_value = true)
       : ps_(ps), cond_value_(cond_value) {}
 
-  Expr VisitExpr(const Expr& e) final {
+  Expr Dispatch(const Expr& e) final {
     if (auto prim_expr = e.as<PrimExpr>(); prim_expr && ps_.find(prim_expr.value()) != ps_.end()) {
       return cond_value_ ? IntImm::Bool(true) : IntImm::Bool(false);
     }
-    return StmtExprMutator::VisitExpr(e);
+    return StmtExprMutator::Dispatch(e);
   }
 
  private:
@@ -844,15 +844,15 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
 
 class RemoveLikelyTagsAndHints : public StmtExprMutator {
  public:
-  Expr VisitExpr_(const CallNode* op) final {
+  Expr Dispatch_(const CallNode* op) final {
     if (op->op.same_as(prim::builtin::likely())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
-      return StmtExprMutator::VisitExpr(op->args[0].as_or_throw<PrimExpr>());
+      return StmtExprMutator::Dispatch(op->args[0].as_or_throw<PrimExpr>());
     } else if (op->op.same_as(tirx::builtin::ignore_loop_partition())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
-      return StmtExprMutator::VisitExpr(op->args[0].as_or_throw<PrimExpr>());
+      return StmtExprMutator::Dispatch(op->args[0].as_or_throw<PrimExpr>());
     } else {
-      return StmtExprMutator::VisitExpr_(op);
+      return StmtExprMutator::Dispatch_(op);
     }
   }
 

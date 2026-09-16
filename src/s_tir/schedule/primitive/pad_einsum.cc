@@ -363,8 +363,8 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const TensorLoadNode* old_load_ptr) final {
-    TensorLoad load = ExprMutator::VisitExpr_(old_load_ptr).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* old_load_ptr) final {
+    TensorLoad load = ExprMutator::Dispatch_(old_load_ptr).as_or_throw<TensorLoad>();
     if (ffi::Optional<BufferVar> buffer =
             buffer_map_.Get(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
       return BufferLoad(buffer.value(), load->indices);

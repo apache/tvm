@@ -407,19 +407,19 @@ Stmt ReplaceAndSimplify(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
                       ffi::Map<SBlock, SBlock>* block_sref_reuse, arith::AnalyzerObj* analyzer)
         : sub_(sub), block_sref_reuse_(block_sref_reuse), analyzer_(analyzer) {}
 
-    Expr VisitExpr(const Expr& op) final {
-      Expr result = StmtExprMutator::VisitExpr(op);
+    Expr Dispatch(const Expr& op) final {
+      Expr result = StmtExprMutator::Dispatch(op);
       if (auto prim_result = result.as<PrimExpr>(); prim_result && !result.same_as(op)) {
         return analyzer_->Simplify(prim_result.value());
       }
       return result;
     }
 
-    Expr VisitExpr_(const VarNode* op) final {
+    Expr Dispatch_(const VarNode* op) final {
       if (ffi::Optional<PrimExpr> e = sub_.Get(ffi::GetRef<Var>(op))) {
         return e.value();
       }
-      return StmtExprMutator::VisitExpr_(op);
+      return StmtExprMutator::Dispatch_(op);
     }
 
     Stmt VisitStmt_(const SBlockNode* op) final {

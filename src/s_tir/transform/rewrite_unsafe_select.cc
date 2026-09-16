@@ -117,8 +117,8 @@ class UnsafeExprDetector : public tirx::ExprFunctor<bool(const Expr& n)> {
 
 class UnsafeSelectRewriter : public StmtExprMutator {
  public:
-  Expr VisitExpr_(const SelectNode* op) {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
+  Expr Dispatch_(const SelectNode* op) {
+    PrimExpr expr = StmtExprMutator::Dispatch_(op).as_or_throw<PrimExpr>();
     op = expr.as<SelectNode>();
     UnsafeExprDetector unsafe;
     PrimType cond_ty = op->condition.ty();

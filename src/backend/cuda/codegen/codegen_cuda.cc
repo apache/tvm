@@ -1174,10 +1174,10 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     // to the plain ones here.
     class LowerFloorDivMod : public tirx::ExprMutator {
      public:
-      Expr VisitExpr_(const prim::FloorDivNode* op) {
+      Expr Dispatch_(const prim::FloorDivNode* op) {
         return prim::Div(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
       }
-      Expr VisitExpr_(const prim::FloorModNode* op) {
+      Expr Dispatch_(const prim::FloorModNode* op) {
         return prim::Mod(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
       }
     };
@@ -1276,10 +1276,10 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
 
     class LowerFloorDivMod : public tirx::ExprMutator {
      public:
-      Expr VisitExpr_(const prim::FloorDivNode* op) {
+      Expr Dispatch_(const prim::FloorDivNode* op) {
         return prim::Div(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
       }
-      Expr VisitExpr_(const prim::FloorModNode* op) {
+      Expr Dispatch_(const prim::FloorModNode* op) {
         return prim::Mod(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
       }
     };
