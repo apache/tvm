@@ -99,14 +99,6 @@ TVM_DLL ffi::Array<Var> UndefinedVars(const PrimExpr& expr);
 TVM_DLL ffi::Array<Var> UndefinedVars(const PrimExpr& expr, const ffi::Array<Var>& defs);
 
 /*!
- * \brief Analyze the side effect of an expression
- * \param expr The expression to be checked.
- *
- * \return CallEffectKind, can be kPure, kReadState or kUpdateState
- */
-TVM_DLL CallEffectKind SideEffect(const PrimExpr& expr);
-
-/*!
  * \brief Verifies whether the IR stmt or Expr is in SSA form.
  *  That is: each Var is defined and assigned once(in Let/For)
  *

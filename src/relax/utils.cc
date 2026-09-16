@@ -22,11 +22,11 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op_attr_types.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/index.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/utils.h>
-#include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -242,11 +242,11 @@ bool IsImpureCall(const Call& call) {
     if (purity_map.count(op)) {
       return !(purity_map[op]);
     }
-    static auto effect_map = Op::GetAttrMap<tirx::TCallEffectKind>("TCallEffectKind");
+    static auto effect_map = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
     TVM_FFI_ICHECK(effect_map.count(op))
         << "Cannot find the registered purity or call effect of this op: " << op->name;
-    auto effect = static_cast<tirx::CallEffectKind>(effect_map[op]);
-    return effect > tirx::CallEffectKind::kPure;
+    auto effect = static_cast<CallEffectKind>(effect_map[op]);
+    return effect > CallEffectKind::kPure;
   }
   // the Type must be FuncType
   auto func_ty = GetTypeAs<FuncTypeNode>(call->op);
