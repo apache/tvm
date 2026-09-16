@@ -1171,7 +1171,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 actual_dim = dim if dim >= 0 else len(in_shape) + dim
                 dim_expr = in_shape[actual_dim]
                 if tvm.ir.is_prim_expr(dim_expr):
-                    if tvm.tirx.analysis.expr_deep_equal(end_val, dim_expr):
+                    if tvm.ir.prim.expr_deep_equal(end_val, dim_expr):
                         return x
 
         axes = [dim]

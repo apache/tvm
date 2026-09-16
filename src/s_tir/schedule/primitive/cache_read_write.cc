@@ -20,6 +20,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <unordered_set>
 
@@ -1627,7 +1628,7 @@ class ReIndexCollector : public StmtExprVisitor {
       return;
     } else if (!std::equal(buffer_access_indices_.value().begin(),
                            buffer_access_indices_.value().end(), indices.begin(), indices.end(),
-                           ExprDeepEqual())) {
+                           prim::ExprDeepEqual())) {
       throw MakeScheduleError<InvalidBufferAccessError>(
           mod_, buffer_, block_, InvalidBufferAccessError::ErrorKind::kNonUniqueAccess);
     }

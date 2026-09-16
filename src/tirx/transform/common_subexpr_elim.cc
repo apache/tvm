@@ -101,7 +101,7 @@ namespace tirx {
  * Used by CSERewriter to look up whether a visited expression should be
  * replaced by a previously-introduced CSE variable.
  */
-using ExprRemapTable = std::unordered_map<PrimExpr, Var, ffi::StructuralHash, ExprDeepEqual>;
+using ExprRemapTable = std::unordered_map<PrimExpr, Var, ffi::StructuralHash, prim::ExprDeepEqual>;
 
 /*!
  * \brief Map from statement (by pointer identity) to a list of Bind
@@ -188,7 +188,7 @@ class CSEPlanner : public StmtExprVisitor {
    * \brief Node in the expression DAG built during the bottom-up scan.
    *
    * The planner maintains one ExprEntry per structurally-unique eligible
-   * expression (keyed by ExprDeepEqual). Since expressions are recorded
+   * expression (keyed by prim::ExprDeepEqual). Since expressions are recorded
    * bottom-up (children before parents), the DAG children are naturally
    * discovered when a node is first added. Fields like expr_depth are
    * computed incrementally from children — no separate traversal needed.
@@ -243,7 +243,7 @@ class CSEPlanner : public StmtExprVisitor {
   };
 
   /*!
-   * \brief Expression table keyed by structural equality (ExprDeepEqual).
+   * \brief Expression table keyed by structural equality (prim::ExprDeepEqual).
    *
    * An insertion-ordered map so that iteration visits entries in discovery
    * (program) order. This makes the plan — and hence cse_v numbering —
@@ -251,7 +251,8 @@ class CSEPlanner : public StmtExprVisitor {
    * StructuralHash hashes free variables by object identity, which varies
    * between processes (ASLR).
    */
-  using ExprTable = support::OrderedMap<PrimExpr, ExprEntry, ffi::StructuralHash, ExprDeepEqual>;
+  using ExprTable =
+      support::OrderedMap<PrimExpr, ExprEntry, ffi::StructuralHash, prim::ExprDeepEqual>;
 
   // ------------------------------------------------------------------
   // Eligibility predicates
@@ -311,7 +312,7 @@ class CSEPlanner : public StmtExprVisitor {
   /*!
    * \brief Replace all occurrences of `target` in `body` with `replacement`.
    *
-   * Uses structural equality (ExprDeepEqual) to find matches. Stops recursing
+   * Uses structural equality (prim::ExprDeepEqual) to find matches. Stops recursing
    * into a sub-tree once a match is found (the replacement is a leaf Var).
    *
    * \param body The expression to transform.
@@ -322,7 +323,7 @@ class CSEPlanner : public StmtExprVisitor {
   static PrimExpr SubstituteSubexpr(const PrimExpr& body, const PrimExpr& target,
                                     const PrimExpr& replacement) {
     struct Replacer : public ExprMutator {
-      ExprDeepEqual eq;
+      prim::ExprDeepEqual eq;
       PrimExpr target, replacement;
       Expr VisitExpr(const Expr& e) final {
         if (auto prim = e.as<PrimExpr>(); prim && eq(prim.value(), target)) return replacement;
@@ -441,7 +442,7 @@ class CSEPlanner : public StmtExprVisitor {
    * child `x+y` with multiplicity 2). expr_depth is 1 + max child depth.
    */
   void CollectChildren(ExprEntry& entry, std::initializer_list<PrimExpr> ast_children) {
-    ExprDeepEqual eq;
+    prim::ExprDeepEqual eq;
     int max_child_depth = 0;
     for (const PrimExpr& child : ast_children) {
       auto it = table_.find(child);

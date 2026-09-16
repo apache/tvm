@@ -234,7 +234,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
       if (prev_intset.IsSinglePoint() && curr_intset.IsSinglePoint()) {
         PrimExpr prev_index = prev_intset.PointValue();
         PrimExpr curr_index = curr_intset.PointValue();
-        has_same_index = ExprDeepEqual()(prev_index, curr_index);
+        has_same_index = prim::ExprDeepEqual()(prev_index, curr_index);
         if (thread_index_var != nullptr) {
           auto f_uses_thread_index = [=](const tvm::tirx::VarNode* parameter) {
             return parameter == thread_index_var;

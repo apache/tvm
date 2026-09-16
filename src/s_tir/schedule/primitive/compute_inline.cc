@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
@@ -897,7 +898,7 @@ class ReverseComputeInliner : public BaseInliner {
     if (buffer_load_indices_.empty()) {
       buffer_load_indices_ = indices;
     } else if (!std::equal(buffer_load_indices_.begin(), buffer_load_indices_.end(),
-                           indices.begin(), indices.end(), ExprDeepEqual())) {
+                           indices.begin(), indices.end(), prim::ExprDeepEqual())) {
       // Failure: indices are not consistent in different BufferLoads
       return false;
     }

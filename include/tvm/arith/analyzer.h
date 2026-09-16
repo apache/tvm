@@ -496,7 +496,7 @@ class TransitiveComparisonAnalyzer {
    * compared.  If false, only use the known comparison that have been
    * directly provided.  Using `propagate_inequalities = false` is
    * roughly equivalent to comparing against all known inequality
-   * expressions using `ExprDeepEqual`, but also allows for constant
+   * expressions using `prim::ExprDeepEqual`, but also allows for constant
    * offsets on either side of the inequality.
    *
    * \return The most specific result that can be proven about the

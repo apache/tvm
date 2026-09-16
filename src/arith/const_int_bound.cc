@@ -27,6 +27,7 @@
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/builtin.h>
 
 #include <algorithm>
@@ -158,7 +159,7 @@ class ConstIntBoundAnalyzer::Impl
   Entry Dispatch(const Expr& expr) final {
     PrimExpr prim_expr = expr.as_or_throw<PrimExpr>();
     Entry res = ExprFunctor::Dispatch(expr);
-    tirx::ExprDeepEqual equal;
+    prim::ExprDeepEqual equal;
     // a linear search over additional info
     // assume we won't have a lot of conditions
     for (const BoundInfo& info : additional_info_) {

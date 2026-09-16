@@ -25,7 +25,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/expected.h>
 #include <tvm/ir/cow.h>
-#include <tvm/tirx/analysis.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/op.h>
 
 #include "const_fold.h"
@@ -239,7 +239,7 @@ class SplitExpr : public PrimExpr {
 
 inline bool SplitExprNode::IndexEqual(const SplitExpr& other) const {
   if (index.same_as(other->index)) return true;
-  return tirx::ExprDeepEqual()(index, other->index);
+  return prim::ExprDeepEqual()(index, other->index);
 }
 
 inline bool SplitExprNode::DivModeCompatibleTo(DivMode mode) const {
