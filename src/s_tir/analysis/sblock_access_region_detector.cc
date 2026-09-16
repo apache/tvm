@@ -33,6 +33,8 @@
 #include <unordered_set>
 
 #include "../../tirx/transform/ir_utils.h"
+#include "conditional_bounds.h"
+
 namespace tvm {
 namespace tirx {
 
@@ -215,12 +217,14 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const IfThenElseNod
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->condition));
   {
     // Visit then branch
-    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, &pending_conditions_);
+    With<s_tir::ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_,
+                                              &pending_conditions_);
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->then_case));
   }
   if (op->else_case) {
     // Visit else branch
-    With<ConditionalBoundsContext> ctx(!op->condition, &dom_map_, &hint_map_, &pending_conditions_);
+    With<s_tir::ConditionalBoundsContext> ctx(!op->condition, &dom_map_, &hint_map_,
+                                              &pending_conditions_);
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->else_case.value()));
   }
   return std::nullopt;
@@ -316,13 +320,15 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const CallNode* op)
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(condition));
     {
       // Visit then branch
-      With<ConditionalBoundsContext> ctx(condition, &dom_map_, &hint_map_, &pending_conditions_);
+      With<s_tir::ConditionalBoundsContext> ctx(condition, &dom_map_, &hint_map_,
+                                                &pending_conditions_);
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(
           StmtExprVisitor::Visit(op->args[1].as_or_throw<PrimExpr>()));
     }
     {
       // Visit else branch
-      With<ConditionalBoundsContext> ctx(!condition, &dom_map_, &hint_map_, &pending_conditions_);
+      With<s_tir::ConditionalBoundsContext> ctx(!condition, &dom_map_, &hint_map_,
+                                                &pending_conditions_);
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(
           StmtExprVisitor::Visit(op->args[2].as_or_throw<PrimExpr>()));
     }
