@@ -22,6 +22,7 @@
  * \brief Specialize parameters of PrimFunc.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
@@ -210,13 +211,21 @@ class PrimFuncSpecializer : public StmtExprMutator {
   };
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
-      Expr arg = Mutate(op->args[0]).ValueOrUnchanged(op->args[0]);
-      if (arg.same_as(op->args[0])) return ffi::Unchanged();
-      BufferVar buffer = arg.as_or_throw<BufferVar>();
-      return Call(buffer.DataPointerType(), op->op, {arg}, op->attrs, op->ty_args, op->span);
+    auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+    if (!result.IsUnchanged()) {
+      op = ffi::AnyView(result).as<CallNode>();
+      if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    if (!op->op.same_as(builtin::buffer_data()) || op->args.size() != 1) return result;
+    PointerType type = op->args[0].as_or_throw<BufferVar>().DataPointerType();
+    if (ffi::StructuralEqual()(op->ty, type)) return result;
+    if (inplace_mode == InplaceMode::kAllow) {
+      const_cast<CallNode*>(op)->ty = std::move(type);
+      return result;
+    }
+    auto copy = ffi::make_object<CallNode>(*op);
+    copy->ty = std::move(type);
+    return Expr(std::move(copy));
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
