@@ -1236,7 +1236,7 @@ def test_simplify_trivial_let_stride():
 def test_simplify_buffer_identity_well_formed():
     """Regression: Simplify must not diverge buffer identity between DeclBuffer and BufferLoad.
 
-    The simplifier's VisitExpr calls analyzer_->Simplify() directly, bypassing
+    The simplifier's Dispatch calls analyzer_->Simplify() directly, bypassing
     normal ExprMutator dispatch.  If VisitBufferDef remaps a buffer at a DeclBuffer
     site (e.g. inlining n_val -> n in the shape), BufferLoad inside a BufferStore
     value would NOT pick up the remap because VisitBufferUse is never called.
