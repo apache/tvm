@@ -63,6 +63,7 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
 
 // Make these non-inline because of std::unique_ptr. See comment in
 // codegen_llvm.cc for more information.
@@ -288,7 +289,7 @@ std::unique_ptr<llvm::Module> CodeGenCPU::Finish() {
 
 CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(Type type, llvm::Value* buf,
                                                          llvm::Value* index, int kind) {
-  if (kind < builtin::kDLTensorKindBound_) {
+  if (kind < tirx::builtin::kDLTensorKindBound_) {
     if (buf->getType() == t_void_p_) {
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_array_, 0));
     } else {
@@ -296,80 +297,80 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(Type type, llvm::Value*
     }
   }
   switch (kind) {
-    case builtin::kDLTensorAddr: {
+    case tirx::builtin::kDLTensorAddr: {
       return TypedPointer(t_tvm_array_, builder_->CreateInBoundsGEP(t_tvm_array_, buf, index));
     }
-    case builtin::kDLTensorData: {
+    case tirx::builtin::kDLTensorData: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(0);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(0)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kDLTensorShape: {
+    case tirx::builtin::kDLTensorShape: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(4);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(4)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kDLTensorStrides: {
+    case tirx::builtin::kDLTensorStrides: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(5);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(5)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kDLTensorNDim: {
+    case tirx::builtin::kDLTensorNDim: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(2);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(2)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kDLTensorTypeCode: {
+    case tirx::builtin::kDLTensorTypeCode: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(3)->getStructElementType(0);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(3), ConstInt32(0)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kDLTensorTypeBits: {
+    case tirx::builtin::kDLTensorTypeBits: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(3)->getStructElementType(1);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(3), ConstInt32(1)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kDLTensorTypeLanes: {
+    case tirx::builtin::kDLTensorTypeLanes: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(3)->getStructElementType(2);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(3), ConstInt32(2)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kDLTensorByteOffset: {
+    case tirx::builtin::kDLTensorByteOffset: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(6);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(6)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kDLTensorDeviceId: {
+    case tirx::builtin::kDLTensorDeviceId: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(1)->getStructElementType(1);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(1), ConstInt32(1)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kDLTensorDeviceType: {
+    case tirx::builtin::kDLTensorDeviceType: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(1)->getStructElementType(0);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(1), ConstInt32(0)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kTVMFFIAnyTypeIndex: {
+    case tirx::builtin::kTVMFFIAnyTypeIndex: {
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_ffi_any_, 0));
       buf = builder_->CreateInBoundsGEP(t_tvm_ffi_any_, buf, {index, ConstInt32(0)});
       return TypedPointer(t_int32_, buf);
     }
-    case builtin::kTVMFFIAnyZeroPadding: {
+    case tirx::builtin::kTVMFFIAnyZeroPadding: {
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_ffi_any_, 0));
       buf = builder_->CreateInBoundsGEP(t_tvm_ffi_any_, buf, {index, ConstInt32(1)});
       return TypedPointer(t_int32_, buf);
     }
-    case builtin::kTVMFFIAnyUnionValue: {
+    case tirx::builtin::kTVMFFIAnyUnionValue: {
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_ffi_any_, 0));
       // field 2 is the union value
       buf = builder_->CreateInBoundsGEP(t_tvm_ffi_any_, buf, {index, ConstInt32(2)});
@@ -394,7 +395,7 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(Type type, llvm::Value*
       TVM_FFI_THROW(InternalError)
           << "Type " << type << " cannot be stored into a TVMFFIAny's value field";
     }
-    case builtin::kInt64ArrayElem: {
+    case tirx::builtin::kInt64ArrayElem: {
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_int64_, 0));
       llvm::Value* elem_addr = builder_->CreateInBoundsGEP(t_int64_, buf, index);
       return TypedPointer(t_int64_, elem_addr);
@@ -860,7 +861,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<Expr>&
 
 llvm::Value* CodeGenCPU::CreateCallPacked(const CallNode* op) {
   TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
-  bool use_string_lookup = op->op.same_as(builtin::tvm_call_packed_lowered());
+  bool use_string_lookup = op->op.same_as(tirx::builtin::tvm_call_packed_lowered());
   PackedCall pc = MakeCallPackedLowered(op->args, op->ty, op->args[2].as<IntImmNode>()->value,
                                         op->args[3].as<IntImmNode>()->value, use_string_lookup);
   return pc.ret_value;
@@ -1021,27 +1022,27 @@ void CodeGenCPU::AddStartupFunction() {
 
 llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
   const ffi::Array<Expr>& args = op->args;
-  if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
+  if (op->op.same_as(tirx::builtin::tvm_call_packed_lowered())) {
     return CreateCallPacked(op);
-  } else if (op->op.same_as(builtin::tvm_call_trace_packed_lowered())) {
+  } else if (op->op.same_as(tirx::builtin::tvm_call_trace_packed_lowered())) {
     return CreateCallTracePacked(op);
-  } else if (op->op.same_as(builtin::tvm_call_cpacked_lowered())) {
+  } else if (op->op.same_as(tirx::builtin::tvm_call_cpacked_lowered())) {
     return CreateCallPacked(op);
-  } else if (op->op.same_as(builtin::tvm_static_handle())) {
+  } else if (op->op.same_as(tirx::builtin::tvm_static_handle())) {
     return CreateStaticHandle();
-  } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
+  } else if (op->op.same_as(tirx::builtin::tvm_throw_last_error())) {
     builder_->CreateRet(ConstInt32(-1));
     auto next_block = std::next(builder_->GetInsertBlock()->getIterator());
     llvm::BasicBlock* new_bb =
         llvm::BasicBlock::Create(*llvm_target_->GetContext(), "cont", function_, &*next_block);
     builder_->SetInsertPoint(new_bb);
     return ConstInt32(-1);
-  } else if (op->op.same_as(builtin::tvm_struct_get())) {
+  } else if (op->op.same_as(tirx::builtin::tvm_struct_get())) {
     TVM_FFI_ICHECK_EQ(args.size(), 3U);
     int kind = args[2].as<IntImm>().value()->value;
     Type op_type = op->ty;
     TypedPointer ref = CreateStructRefPtr(op_type, MakeValue(args[0]), MakeValue(args[1]), kind);
-    if (kind == builtin::kDLTensorAddr) {
+    if (kind == tirx::builtin::kDLTensorAddr) {
       TVM_FFI_ICHECK(op_type.as<PointerTypeNode>())
           << "The address of a DLTensor must have pointer type, but got " << op_type;
       return builder_->CreatePointerCast(ref.addr, GetLLVMType(op_type));
@@ -1064,18 +1065,18 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     }
 
     return struct_value;
-  } else if (op->op.same_as(builtin::tvm_struct_set())) {
+  } else if (op->op.same_as(tirx::builtin::tvm_struct_set())) {
     TVM_FFI_ICHECK_EQ(args.size(), 4U);
     int kind = args[2].as<IntImm>().value()->value;
     llvm::Value* value = MakeValue(args[3]);
     TypedPointer ref =
         CreateStructRefPtr(args[3]->ty, MakeValue(args[0]), MakeValue(args[1]), kind);
-    TVM_FFI_ICHECK(kind != builtin::kDLTensorAddr);
+    TVM_FFI_ICHECK(kind != tirx::builtin::kDLTensorAddr);
     if (value->getType()->isPointerTy()) {
       value = builder_->CreatePointerCast(value, ref.type);
     }
 
-    if (kind == builtin::kTVMFFIAnyUnionValue) {
+    if (kind == tirx::builtin::kTVMFFIAnyUnionValue) {
       // when we set any union value, we need to be careful to
       // clear off the union value to zero if the set size is less than 64 bits
       if (data_layout_->getTypeAllocSize(ref.type) != 8) {
@@ -1086,7 +1087,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     }
     builder_->CreateStore(value, ref.addr);
     return ConstInt32(0);
-  } else if (op->op.same_as(builtin::tvm_stack_alloca())) {
+  } else if (op->op.same_as(tirx::builtin::tvm_stack_alloca())) {
     TVM_FFI_ICHECK_EQ(args.size(), 2U);
     std::string type = args[0].as<prim::StringImm>().value()->value;
     return WithFunctionEntry([&]() -> llvm::AllocaInst* {

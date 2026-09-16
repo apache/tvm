@@ -17,8 +17,9 @@
 """Register TOPI implementations for TE tensor overload hooks."""
 
 from tvm import te
+from tvm.ir import _overload_prim_expr as _expr
+from tvm.runtime import DataTypeCode
 from tvm.te import _te_tensor_overload as _overload
-from tvm.tirx import expr as _expr
 
 from . import broadcast as _broadcast
 from . import math as _math
@@ -26,7 +27,7 @@ from . import math as _math
 
 def _is_integer(value):
     if isinstance(value, te.Tensor | te.TensorSlice):
-        return value.dtype.matches_code(_expr.DataTypeCode.INT)
+        return value.dtype.matches_code(DataTypeCode.INT)
     return _expr._dtype_is_int(value)
 
 

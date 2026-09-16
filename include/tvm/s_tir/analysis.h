@@ -35,7 +35,6 @@
 
 namespace tvm {
 namespace tirx {
-
 /*!
  * \brief Auto detect the block access region according to its body stmt
  *        It will detect the access region as an array in order of appearance in AST
@@ -96,8 +95,6 @@ class Analyzer;
 }  // namespace arith
 
 namespace s_tir {
-using namespace tvm::prim;
-
 using namespace tvm::tirx;
 
 /*!

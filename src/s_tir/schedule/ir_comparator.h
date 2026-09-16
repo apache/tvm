@@ -30,7 +30,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using ExprComparator = tirx::ExprFunctor<bool(const Expr& n, const PrimExpr& other)>;

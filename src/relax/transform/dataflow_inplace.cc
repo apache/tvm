@@ -39,6 +39,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 // Ops that may return a tensor sharing storage with the first argument.
 // These ops has been verified to share storage with the first argument in

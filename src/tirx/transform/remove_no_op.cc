@@ -42,6 +42,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 struct RemoveNoOpConfigNode : public ffi::Object {
   int64_t max_simplification_steps;

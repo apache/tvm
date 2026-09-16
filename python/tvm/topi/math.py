@@ -764,7 +764,7 @@ def cast(x, dtype, span=None):
     if isinstance(x, te.tensor.Tensor):
         return te.compute(x.shape, lambda *i: x(*i).astype(dtype), tag=tag.ELEMWISE)
     # pylint: disable=import-outside-toplevel
-    from tvm.tirx import _ffi_api
+    from tvm.ir.prim import _ffi_api
 
     return _ffi_api._cast(dtype, x, span)
 

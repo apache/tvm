@@ -84,6 +84,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 // TODO(relax-team): Consider further refactor using
 // Scope Frame to store manage the var context.

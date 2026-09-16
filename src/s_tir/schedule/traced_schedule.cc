@@ -20,7 +20,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 Schedule Schedule::Traced(IRModule mod, LinearCongruentialEngine::TRandState seed, int debug_mask,

@@ -41,6 +41,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 constexpr const char* kLiftTransformConsumeParams = "relax.lift_transform_params.consume_params";
 TVM_REGISTER_PASS_CONFIG_OPTION(kLiftTransformConsumeParams, bool);

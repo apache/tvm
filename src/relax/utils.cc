@@ -31,6 +31,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 /*! \brief Helper to implement bind params.*/
 class ExprBinder : public ExprMutator {

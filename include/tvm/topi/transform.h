@@ -52,7 +52,6 @@
 
 namespace tvm {
 namespace topi {
-
 using namespace tvm::te;
 using namespace topi::detail;
 
@@ -339,8 +338,8 @@ inline Tensor reshape(const Tensor& x, ffi::Array<PrimExpr> newshape,
   if (is_empty_shape(target_shape) || is_empty_shape(x->shape)) {
     return compute(
         target_shape,
-        [&](const ffi::Array<PrimVar>& indices) { return tvm::cast(PrimType(x->dtype), 0); }, name,
-        tag);
+        [&](const ffi::Array<PrimVar>& indices) { return tvm::prim::cast(PrimType(x->dtype), 0); },
+        name, tag);
   } else {
     return compute(
         target_shape,
@@ -970,6 +969,7 @@ inline Tensor strided_slice(const Tensor& x, const ffi::Array<ffi::Optional<IntI
                             const ffi::Array<ffi::Optional<IntImm>>& end,
                             const ffi::Array<IntImm>& strides, std::string slice_mode = "end",
                             std::string name = "T_strided_slice", std::string tag = kInjective) {
+  using namespace tvm::prim;
   size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
   ffi::Array<int64_t> axes;
   for (size_t i = 0; i < src_tensor_dim; ++i) axes.push_back(i);
@@ -1123,8 +1123,8 @@ inline Tensor sequence_mask(const Tensor& data, const Tensor& valid_length, doub
         auto bid = out_index[1 - axis];
         len_index.push_back(bid);
         PrimExpr ret = tvm::if_then_else(
-            tvm::cast(PrimType(valid_length->dtype), tid) >= valid_length(len_index),
-            tvm::tirx::MakeConst(PrimType(data->dtype), mask_value), data(out_index));
+            tvm::prim::cast(PrimType(valid_length->dtype), tid) >= valid_length(len_index),
+            tvm::prim::MakeConst(PrimType(data->dtype), mask_value), data(out_index));
         return ret;
       },
       name, tag);
@@ -1205,12 +1205,11 @@ inline Tensor take(const Tensor& a, ffi::Variant<Tensor, PrimExpr> indices, int 
   auto get_index = [&](const ffi::Array<PrimExpr>& indices_position) -> PrimExpr {
     if (auto tensor = indices.as<Tensor>()) {
       return tensor.value()(indices_position);
-    } else if (auto prim = indices.as<PrimExpr>()) {
-      TVM_FFI_ICHECK_EQ(indices_position.size(), 0);
-      return prim.value();
-    } else {
-      TVM_FFI_THROW(InternalError) << "Variant did not contain either allowed type";
     }
+    auto prim = indices.as<PrimExpr>();
+    TVM_FFI_ICHECK(prim.has_value()) << "Variant did not contain either allowed type";
+    TVM_FFI_ICHECK_EQ(indices_position.size(), 0);
+    return prim.value();
   };
 
   if (mode == "clip") {
@@ -1299,7 +1298,7 @@ inline Tensor take(const Tensor& a, ffi::Variant<Tensor, PrimExpr> indices, int 
           PrimExpr in_bounds = idx >= 0 && idx < axis_dim;
           return tvm::if_then_else(
               in_bounds, a(real_indices),
-              tvm::tirx::MakeConst(PrimType(a->dtype), std::numeric_limits<float>::quiet_NaN()));
+              tvm::prim::MakeConst(PrimType(a->dtype), std::numeric_limits<float>::quiet_NaN()));
         },
         name, tag);
   } else {  // mode == "wrap"
@@ -1450,8 +1449,8 @@ inline Tensor tile(const Tensor& x, ffi::Array<int64_t> reps, std::string name =
   if (is_empty_shape(new_shape)) {
     return compute(
         new_shape,
-        [&](const ffi::Array<PrimVar>& indices) { return tvm::cast(PrimType(x->dtype), 0); }, name,
-        tag);
+        [&](const ffi::Array<PrimVar>& indices) { return tvm::prim::cast(PrimType(x->dtype), 0); },
+        name, tag);
   } else {
     return compute(
         new_shape,
@@ -1486,8 +1485,8 @@ inline Tensor dyn_tile(const Tensor& x, ffi::Array<PrimExpr> new_shape, size_t r
   if (is_empty_shape(new_shape)) {
     return compute(
         new_shape,
-        [&](const ffi::Array<PrimVar>& indices) { return tvm::cast(PrimType(x->dtype), 0); }, name,
-        tag);
+        [&](const ffi::Array<PrimVar>& indices) { return tvm::prim::cast(PrimType(x->dtype), 0); },
+        name, tag);
   } else {
     return compute(
         new_shape,
@@ -1609,7 +1608,8 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
           if (indices_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
             real_indices.push_back(indices(indices_position));
           } else {
-            real_indices.push_back(tvm::cast(tvm::PrimType::Int(32), indices(indices_position)));
+            real_indices.push_back(
+                tvm::prim::cast(tvm::PrimType::Int(32), indices(indices_position)));
           }
         }
         if (real_indices.size() == ndim_d) {
@@ -1644,7 +1644,7 @@ inline tvm::te::Tensor matmul(const tvm::te::Tensor& A, const tvm::te::Tensor& B
   tvm::ffi::Array<tvm::PrimExpr> output_shape{A->shape[trans_a ? 1 : 0], B->shape[trans_b ? 0 : 1]};
   auto k = tvm::te::reduce_axis(tvm::Range{0, A->shape[trans_a ? 0 : 1]}, "k");
   auto l = [&](tvm::PrimVar i, tvm::PrimVar j) {
-    return tvm::sum((trans_a ? A[k][i] : A[i][k]) * (trans_b ? B[j][k] : B[k][j]), {k});
+    return tvm::prim::sum((trans_a ? A[k][i] : A[i][k]) * (trans_b ? B[j][k] : B[k][j]), {k});
   };
   return tvm::te::compute(output_shape, l, name, tag);
 }
@@ -1662,6 +1662,7 @@ inline tvm::te::Tensor matmul(const tvm::te::Tensor& A, const tvm::te::Tensor& B
  */
 inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, int axes = 2,
                         std::string name = "T_tensordot", std::string tag = kMatMul) {
+  using namespace tvm::prim;
   TVM_FFI_ICHECK_GE(A->shape.size(), axes);
   TVM_FFI_ICHECK_GE(B->shape.size(), axes);
 
@@ -1714,6 +1715,7 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, int axes = 2,
 inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, ffi::Array<PrimExpr> A_axes,
                         ffi::Array<PrimExpr> B_axes, std::string name = "T_tensordot",
                         std::string tag = kMatMul) {
+  using namespace tvm::prim;
   TVM_FFI_ICHECK_EQ(A_axes.size(), B_axes.size());
 
   auto A_axes_val = GetConstIntValues(A_axes, "A_axes");
@@ -1776,15 +1778,16 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
     num_elem = tvm::floordiv((start - stop - step - 1), -step);
   } else {
     // fallback path for non-integer or step of unknown sign
-    num_elem = tvm::cast(PrimType(DefaultIndexType()),
-                         tvm::ceil(tvm::cast(tvm::PrimType::Float(32), stop - start) / step));
+    num_elem =
+        tvm::prim::cast(PrimType(DefaultIndexType()),
+                        tvm::ceil(tvm::prim::cast(tvm::PrimType::Float(32), stop - start) / step));
   }
   num_elem = analyzer->Simplify(num_elem);
 
   return compute(
       {num_elem},
       [&](const ffi::Array<PrimVar>& indices) {
-        return tvm::cast(dtype, start + step * indices[0]);
+        return tvm::prim::cast(dtype, start + step * indices[0]);
       },
       name, tag);
 }
@@ -1873,7 +1876,7 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
           in_range = in_range && (src_indices[i] < src->shape[i]);
         }
         return if_then_else(in_range, src(src_indices),
-                            tvm::cast(PrimType(src->dtype), PrimExpr(0)));
+                            tvm::prim::cast(PrimType(src->dtype), PrimExpr(0)));
       },
       name, tag, attrs);
 }
@@ -2023,7 +2026,7 @@ inline Tensor shape(const Tensor& src, PrimType dtype, const std::string name = 
         for (int i = 0; i < ndim; ++i) {
           ret = tvm::if_then_else(idx == i, src->shape[i], ret);
         }
-        return tvm::cast(dtype, ret);
+        return tvm::prim::cast(dtype, ret);
       },
       name, tag);
 }
@@ -2053,7 +2056,7 @@ inline te::Tensor tensor_size(const te::Tensor& src, PrimType dtype,
         for (int i = 0; i < ndim; ++i) {
           ret *= src->shape[i];
         }
-        return tvm::cast(dtype, ret);
+        return tvm::prim::cast(dtype, ret);
       },
       name, tag);
 }
@@ -2095,8 +2098,8 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
     }
   }
 
-  PrimExpr on_value_cast = cast(dtype, on_value);
-  PrimExpr off_value_cast = cast(dtype, off_value);
+  PrimExpr on_value_cast = prim::cast(dtype, on_value);
+  PrimExpr off_value_cast = prim::cast(dtype, off_value);
   return compute(
       oshape,
       [&](const ffi::Array<PrimVar>& iter_vars) {

@@ -29,6 +29,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 namespace {
 class Mutator : public ExprMutator {

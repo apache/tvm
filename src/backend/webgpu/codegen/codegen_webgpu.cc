@@ -50,6 +50,7 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
 
 namespace {
 
@@ -456,11 +457,11 @@ PrimExpr CodeGenWebGPU::EnforceU32(PrimExpr value) {
 }
 
 void CodeGenWebGPU::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
-  TVM_FFI_ICHECK(!op->op.same_as(builtin::masked_load()))
+  TVM_FFI_ICHECK(!op->op.same_as(tirx::builtin::masked_load()))
       << "Predicated buffer load is not supported.";
-  TVM_FFI_ICHECK(!op->op.same_as(builtin::masked_store()))
+  TVM_FFI_ICHECK(!op->op.same_as(tirx::builtin::masked_store()))
       << "Predicated buffer store is not supported.";
-  if (op->op.same_as(builtin::reinterpret())) {
+  if (op->op.same_as(tirx::builtin::reinterpret())) {
     // generate bitcast<TYPE>(ARG)
     os << "bitcast<";
     this->PrintType(op->ty.as_or_throw<PrimType>(), os);
@@ -506,7 +507,7 @@ void CodeGenWebGPU::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT
       this->EndScope(else_scope);
     }
     os << result;
-  } else if (op->op.same_as(builtin::dp4a())) {
+  } else if (op->op.same_as(tirx::builtin::dp4a())) {
     // generate `dot4I8Packed(vec1, vec2) + acc` for the builtin `dp4a`
     os << "dot4I8Packed(";
     this->PrintExpr(op->args[0], os);

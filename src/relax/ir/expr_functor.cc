@@ -85,6 +85,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 // ==================
 // ExprVisitor

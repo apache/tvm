@@ -35,6 +35,8 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
+
 namespace inspect {
 
 TensorType GetTensorArgInfo(const Call& call) {
@@ -273,7 +275,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
                         .as_or_throw<PrimExpr>()),
          tirx::AssertStmt(
              axis.as_or_throw<PrimExpr>() <
-                 tvm::cast(axis->ty.as_or_throw<PrimType>(), ndim.as_or_throw<PrimExpr>()),
+                 tvm::prim::cast(axis->ty.as_or_throw<PrimType>(), ndim.as_or_throw<PrimExpr>()),
              prim::StringImm("RuntimeError"),
              {prim::StringImm(
                  "Specified axis may not be larger than the tensor's dimensionality")}),

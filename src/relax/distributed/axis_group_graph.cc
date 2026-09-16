@@ -30,6 +30,8 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
+
 Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
                             const arith::Analyzer& analyzer) {
   if (auto prim_var = index.as<PrimVar>()) {

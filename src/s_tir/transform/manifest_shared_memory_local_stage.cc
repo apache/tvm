@@ -44,7 +44,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Rewriter for the block storing to the target buffer. Create an intermediate cache stage

@@ -38,6 +38,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   TakeAttrs::RegisterReflection();

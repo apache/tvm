@@ -35,6 +35,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 /*!
  * \brief Lower opaque constructs for TIRX: AllocBuffer, thread bindings, unit loops.
@@ -59,7 +60,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
     PrimExpr extent = this->Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
     if (is_one(extent) && op->annotations.empty()) {
       // handling unit loop
-      VarRemapSet(op->loop_var, cast(op->loop_var.ty(), min));
+      VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
     }
 
     // Step 2. Visit recursively

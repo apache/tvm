@@ -34,6 +34,8 @@
 #include "utils.h"
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
+
 using namespace tvm::relax::distributed;
 
 class DistBufferReplacer : public StmtExprMutator {

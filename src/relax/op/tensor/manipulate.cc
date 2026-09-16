@@ -1335,7 +1335,7 @@ InferLayoutOutput InferLayoutSqueeze(
   } else {
     axis.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      if (tirx::is_one(shape->values[i])) {
+      if (tvm::prim::is_one(shape->values[i])) {
         axis.push_back(i);
       }
     }

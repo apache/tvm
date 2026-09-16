@@ -33,6 +33,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 TensorType MatchTensorType(Expr data) {
   auto _ty = MatchType<TensorType>(data);

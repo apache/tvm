@@ -311,8 +311,8 @@ TEST(IRF, StmtExprMutator) {
   }
 
   {
-    auto body =
-        Evaluate(Call(PrimType::Int(32), builtin::call_extern(), {prim::StringImm("xyz"), x + 1}));
+    auto body = Evaluate(
+        Call(PrimType::Int(32), tirx::builtin::call_extern(), {prim::StringImm("xyz"), x + 1}));
     auto res = v->Mutate(body).ValueOrUnchanged(std::move(body));
     TVM_FFI_ICHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[1].same_as(x));
   }
@@ -719,6 +719,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
 }
 
 TEST(IRF, SubstituteWithDataTypeLegalizationPreservesShiftAmounts) {
+  using namespace tvm::prim;
   using namespace tvm;
   using namespace tvm::tirx;
 

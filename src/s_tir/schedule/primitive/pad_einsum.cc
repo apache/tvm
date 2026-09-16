@@ -25,7 +25,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -53,7 +52,7 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buff
   ffi::Array<Var> indices;
   indices.reserve(buffer_region->region.size());
   for (const Range& range : buffer_region->region) {
-    if (!tirx::is_one(range->extent)) {
+    if (!tvm::prim::is_one(range->extent)) {
       return std::nullopt;
     }
     if (range->min->IsInstance<IntImmNode>()) {
@@ -192,8 +191,8 @@ struct BufferPadding {
         }
       }
       PrimExpr rhs = BufferLoad(buffer, indices);
-      body =
-          BufferStore(padded_buffer, if_then_else(predicate, rhs, MakeConst(rhs.ty(), 0)), indices);
+      body = BufferStore(padded_buffer, if_then_else(predicate, rhs, prim::MakeConst(rhs.ty(), 0)),
+                         indices);
     } else {
       body = BufferStore(buffer, BufferLoad(padded_buffer, indices), indices);
     }

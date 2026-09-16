@@ -34,6 +34,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 using namespace tirx;
 

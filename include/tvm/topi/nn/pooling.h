@@ -52,6 +52,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
                              const ffi::Array<PrimExpr>& padding_size, PoolType pool_type,
                              bool ceil_mode, const size_t height_axis, const size_t width_axis,
                              bool count_include_pad) {
+  using namespace tvm::prim;
   TVM_FFI_ICHECK(out_grad->shape.size() >= 2) << "Pooling grad output must >= 2-D (H, W)";
   TVM_FFI_ICHECK(x->shape.size() >= 2) << "Pooling input must >= 2-D (H, W)";
   TVM_FFI_ICHECK_EQ(kernel_size.size(), 2) << "Pooling kernel_size must have 2 elements";
@@ -118,7 +119,8 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
 
     auto argmax = MakeArgmaxReducer();
     auto pad_x =
-        do_pad ? pad(x, pad_before, pad_after, tvm::min_value(PrimType(x->dtype)), "pad_temp") : x;
+        do_pad ? pad(x, pad_before, pad_after, tvm::prim::min_value(PrimType(x->dtype)), "pad_temp")
+               : x;
 
     auto mp_argmax = tvm::te::compute(
         out_shape,
@@ -155,7 +157,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
               pad_inds[width_axis] < kernel_width, IntImm(pad_inds[width_axis].ty(), 0),
               (pad_inds[width_axis] - kernel_width) / stride_width + 1);
 
-          return tvm::sum(
+          return tvm::prim::sum(
               tvm::if_then_else(prim::And(prim::And(out_idx[height_axis] >= out_idx_lower_h,
                                                     out_idx[width_axis] >= out_idx_lower_w),
                                           mp_inds(out_idx) == idx),
@@ -200,7 +202,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
             w_start = max(w_start, IntImm(w_start.ty(), 0));
             divide_factor = max((h_end - h_start) * (w_end - w_start), IntImm(h_end.ty(), 1));
           }
-          return tvm::sum(
+          return tvm::prim::sum(
               tvm::if_then_else(prim::And(prim::And(out_idx[height_axis] >= out_idx_lower_h,
                                                     out_idx[height_axis] < out_height),
                                           prim::And(out_idx[width_axis] >= out_idx_lower_w,
@@ -379,7 +381,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
           ffi::Array<PrimExpr> indices;
           ffi::Array<tirx::IterVar> reduce_axes;
           std::tie(indices, reduce_axes) = get_iter_vars(output, true);
-          return tvm::sum(x(indices), reduce_axes);
+          return tvm::prim::sum(x(indices), reduce_axes);
         },
         "adaptive_pool_sum", "adaptive_pool_sum");
 
@@ -390,9 +392,9 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
           ffi::Array<tirx::IterVar> reduce_axes;
           std::tie(indices, reduce_axes) = get_iter_vars(output, false);
 
-          PrimExpr divide_factor = tvm::cast(PrimType(x->dtype), 1);
+          PrimExpr divide_factor = tvm::prim::cast(PrimType(x->dtype), 1);
           for (size_t i = 0; i < n_dim; ++i) {
-            divide_factor *= tvm::cast(PrimType::Int(32), reduce_axes[i]->dom->extent);
+            divide_factor *= tvm::prim::cast(PrimType::Int(32), reduce_axes[i]->dom->extent);
           }
 
           return div(pool_sum(indices), divide_factor);
@@ -519,6 +521,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
                            const ffi::Array<PrimExpr>& dilation_size,
                            const ffi::Array<PrimExpr>& padding_size, PoolType pool_type,
                            bool ceil_mode, const std::vector<int>& axis, bool count_include_pad) {
+  using namespace tvm::prim;
   int k_size = kernel_size.size();
   int x_size = x->shape.size();
   TVM_FFI_ICHECK_EQ(stride_size.size(), k_size)
@@ -589,7 +592,8 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
   ffi::Map<ffi::String, ffi::Any> attrs;
   if (pool_type == kMaxPool) {
     auto temp =
-        do_pad ? pad(x, pad_before, pad_after, tvm::min_value(PrimType(x->dtype)), "pad_temp") : x;
+        do_pad ? pad(x, pad_before, pad_after, tvm::prim::min_value(PrimType(x->dtype)), "pad_temp")
+               : x;
     attrs.Set("schedule_rule", tvm::ffi::String("meta_schedule.pool_max"));
     return tvm::te::compute(
         out_shape,
@@ -620,7 +624,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
             int ii = axis[i];
             indices.Set(ii, output[ii] * stride[i] + daxis[i] * dilation[i]);
           }
-          return tvm::sum(temp(indices), daxis);
+          return tvm::prim::sum(temp(indices), daxis);
         },
         "pool_sum", "pool_sum");
 

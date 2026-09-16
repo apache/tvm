@@ -132,8 +132,8 @@ Type InferTypeMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) 
         << n << "` and the given sample_indices tensor has batch size `"
         << sample_indices_shape->values[0] << "`";
   }
-  if (!tirx::is_one(uniform_sample_shape->values[1]) ||
-      !tirx::is_one(sample_indices_shape->values[1])) {
+  if (!tvm::prim::is_one(uniform_sample_shape->values[1]) ||
+      !tvm::prim::is_one(sample_indices_shape->values[1])) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Multinomial_from_uniform op requires the input uniform_sample and "
            "sample_indices to be 2D tensors with the second dimension being 1. "

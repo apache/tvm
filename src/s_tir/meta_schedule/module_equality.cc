@@ -28,7 +28,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 class ModuleEqualityStructural : public ModuleEquality {

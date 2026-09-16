@@ -46,6 +46,7 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
 
 namespace {
 
@@ -1341,7 +1342,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     stream << ": \"l\"((void*)(" << global_buffer << "+" << global_addr << ")), \"r\"((int)"
            << guard << ")\n";
     stream << ");\n";
-  } else if (op->op.same_as(builtin::reinterpret())) {
+  } else if (op->op.same_as(tirx::builtin::reinterpret())) {
     // Compile-time pointer reinterpret of a literal (e.g. a tcgen05 descriptor
     // template encoded at address 0): emit C++-style reinterpret_cast<T*>(...)
     // to match the encoded template. Runtime pointer reinterprets fall through
@@ -1454,7 +1455,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
           << "Invalid number of lanes for float4_e2m1fn reinterpret: " << lanes;
     }
     EndScope(ssa_scope);
-  } else if (op->op.same_as(builtin::print_buffer())) {
+  } else if (op->op.same_as(tirx::builtin::print_buffer())) {
     TVM_FFI_ICHECK_GE(op->args.size(), 5U) << "Print operation expects at least 5 arguments";
 
     Expr arg = op->args[0];
@@ -1604,7 +1605,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(cuda_func_call_op) ||
              (op->op.as<Op>() && op->op.as<Op>().value()->name == "tirx.cuda.func_call")) {
     print_cuda_func_call(op, os);
-  } else if (op->op.same_as(builtin::thread_return())) {
+  } else if (op->op.same_as(tirx::builtin::thread_return())) {
     os << "return";
   } else {
     CodeGenC::Dispatch_(op, os);
@@ -1750,7 +1751,7 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
 void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
   if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
   const CallNode* call = op->value.as<CallNode>();
-  if (call && call->op.same_as(builtin::tvm_global_barrier_kinit())) {
+  if (call && call->op.same_as(tirx::builtin::tvm_global_barrier_kinit())) {
     PrintIndent();
     stream << "__shared__ unsigned " << vid_global_barrier_expect_ << ";\n";
     PrintIndent();

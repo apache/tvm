@@ -36,6 +36,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 using ffi::reflection::AccessPath;
 using ffi::reflection::AccessStep;

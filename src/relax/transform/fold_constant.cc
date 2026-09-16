@@ -32,6 +32,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 class ConstantFolder : public ExprMutator {
  public:

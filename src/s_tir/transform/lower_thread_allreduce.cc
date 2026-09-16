@@ -479,7 +479,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       for (size_t idx = 0; idx < size; ++idx) {
         const VarNode* alloc_key = GetAllocationKey(buffers[idx].get());
         TVM_FFI_ICHECK(!load_remap_.count(alloc_key));
-        PrimExpr pred = MakeConst(PrimType::Bool(static_cast<int16_t>(dtypes[idx].lanes())), true);
+        PrimExpr pred =
+            prim::MakeConst(PrimType::Bool(static_cast<int16_t>(dtypes[idx].lanes())), true);
         TensorLoad load = BufferLoad(
             shared_bufs[idx], {BufIndex(IntImm(reduce_index.ty(), 0), group_index, reduce_extent)});
         TVM_FFI_ICHECK_EQ(load.ty(), dtypes[idx]);

@@ -42,6 +42,8 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
+
 namespace backend {
 namespace contrib {
 

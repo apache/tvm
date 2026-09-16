@@ -29,6 +29,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 /* relax.op.memory.view */
 Expr view(Expr x, ffi::Optional<Expr> shape, ffi::Optional<Expr> dtype,

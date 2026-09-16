@@ -31,7 +31,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref) {
@@ -53,7 +52,6 @@ std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref) {
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 using s_tir::GetSBlockVarTypes;

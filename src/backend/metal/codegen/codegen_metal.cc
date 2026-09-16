@@ -44,6 +44,7 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
 
 namespace {
 
@@ -487,9 +488,9 @@ void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
        << PrintExpr(a) << "[" << PrintExpr(op->args[3]) << "], "  //
        << PrintExpr(b) << "[" << PrintExpr(op->args[5]) << "], "  //
        << PrintExpr(c) << "[" << PrintExpr(op->args[7]) << "])";
-  } else if (op->op.same_as(builtin::ptr_byte_offset()) ||
-             op->op.same_as(builtin::handle_add_byte_offset())) {
-    bool is_typed_offset = op->op.same_as(builtin::ptr_byte_offset());
+  } else if (op->op.same_as(tirx::builtin::ptr_byte_offset()) ||
+             op->op.same_as(tirx::builtin::handle_add_byte_offset())) {
+    bool is_typed_offset = op->op.same_as(tirx::builtin::ptr_byte_offset());
     TVM_FFI_ICHECK_EQ(op->args.size(), is_typed_offset ? 3U : 2U);
     const auto* pointer_type = op->ty.as<PointerTypeNode>();
     TVM_FFI_ICHECK(pointer_type)
@@ -508,7 +509,7 @@ void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
     os << ") + ";
     PrintExpr(op->args[1], os);
     os << "))";
-  } else if (op->op.same_as(builtin::reinterpret())) {
+  } else if (op->op.same_as(tirx::builtin::reinterpret())) {
     if (!op->ty.as<PrimTypeNode>() || !op->args[0]->ty.as<PrimTypeNode>()) {
       return CodeGenC::Dispatch_(op, os);
     }

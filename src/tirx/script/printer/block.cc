@@ -20,6 +20,7 @@
 
 namespace tvm {
 namespace script {
+
 namespace printer {
 
 Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
@@ -85,7 +86,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
                                 << tirx::IterVarType2String(iter_var->iter_type);
     }
     ExprDoc dom{ffi::UnsafeInit()};
-    if (tirx::is_zero(iter_var->dom->min)) {
+    if (tvm::prim::is_zero(iter_var->dom->min)) {
       ExprDoc extent = d->AsDoc<ExprDoc>(iter_var->dom->extent,  //
                                          iter_var_p->Attr("dom")->Attr("extent"));
       dom = extent;
@@ -152,7 +153,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
     PrimType predicate_ty = realize->predicate.ty();
     TVM_FFI_ICHECK(realize->predicate.defined() &&
                    predicate_ty.MatchesCode(DLDataTypeCode::kDLBool));
-    if (!tirx::is_one(realize->predicate)) {
+    if (!tvm::prim::is_one(realize->predicate)) {
       (*frame)->stmts.push_back(ExprStmtDoc(
           TIR(d, "where")
               ->Call({d->AsDoc<ExprDoc>(realize->predicate, realize_p->Attr("predicate"))})));

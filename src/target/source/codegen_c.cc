@@ -35,6 +35,7 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
 
 using namespace tirx;
 
@@ -302,12 +303,12 @@ std::string CodeGenC::GetBufferRef(const PrimType& t, const VarNode* buffer, Pri
 // Print a reference expression to a buffer.
 std::string CodeGenC::GetStructRef(const Type& t, const Expr& buffer, const PrimExpr& index,
                                    int kind) {
-  if (kind < builtin::kDLTensorKindBound_) {
+  if (kind < tirx::builtin::kDLTensorKindBound_) {
     std::ostringstream os;
     os << "(((DLTensor*)";
     this->PrintExpr(buffer, os);
     os << ")";
-    if (kind == builtin::kDLTensorAddr) {
+    if (kind == tirx::builtin::kDLTensorAddr) {
       os << " + ";
       this->PrintExpr(index, os);
       os << ")";
@@ -318,34 +319,34 @@ std::string CodeGenC::GetStructRef(const Type& t, const Expr& buffer, const Prim
     os << "].";
     // other case: get fields.
     switch (kind) {
-      case builtin::kDLTensorData:
+      case tirx::builtin::kDLTensorData:
         os << "data";
         break;
-      case builtin::kDLTensorShape:
+      case tirx::builtin::kDLTensorShape:
         os << "shape";
         break;
-      case builtin::kDLTensorStrides:
+      case tirx::builtin::kDLTensorStrides:
         os << "strides";
         break;
-      case builtin::kDLTensorNDim:
+      case tirx::builtin::kDLTensorNDim:
         os << "ndim";
         break;
-      case builtin::kDLTensorTypeCode:
+      case tirx::builtin::kDLTensorTypeCode:
         os << "dtype.code";
         break;
-      case builtin::kDLTensorTypeBits:
+      case tirx::builtin::kDLTensorTypeBits:
         os << "dtype.bits";
         break;
-      case builtin::kDLTensorByteOffset:
+      case tirx::builtin::kDLTensorByteOffset:
         os << "byte_offset";
         break;
-      case builtin::kDLTensorTypeLanes:
+      case tirx::builtin::kDLTensorTypeLanes:
         os << "dtype.lanes";
         break;
-      case builtin::kDLTensorDeviceId:
+      case tirx::builtin::kDLTensorDeviceId:
         os << "device.device_id";
         break;
-      case builtin::kDLTensorDeviceType:
+      case tirx::builtin::kDLTensorDeviceType:
         os << "device.device_type";
         break;
       default:
@@ -353,19 +354,19 @@ std::string CodeGenC::GetStructRef(const Type& t, const Expr& buffer, const Prim
     }
     os << ')';
     return os.str();
-  } else if (kind == builtin::kTVMFFIAnyTypeIndex) {
+  } else if (kind == tirx::builtin::kTVMFFIAnyTypeIndex) {
     std::ostringstream os;
     os << "(((TVMFFIAny*)";
     this->PrintExpr(buffer, os);
     os << ")[" << index << "].type_index)";
     return os.str();
-  } else if (kind == builtin::kTVMFFIAnyZeroPadding) {
+  } else if (kind == tirx::builtin::kTVMFFIAnyZeroPadding) {
     std::ostringstream os;
     os << "(((TVMFFIAny*)";
     this->PrintExpr(buffer, os);
     os << ")[" << index << "].zero_padding)";
     return os.str();
-  } else if (kind == builtin::kTVMFFIAnyUnionValue) {
+  } else if (kind == tirx::builtin::kTVMFFIAnyUnionValue) {
     std::ostringstream os;
     os << "(((TVMFFIAny*)";
     this->PrintExpr(buffer, os);
@@ -382,7 +383,7 @@ std::string CodeGenC::GetStructRef(const Type& t, const Expr& buffer, const Prim
     }
     os << ")";
     return os.str();
-  } else if (kind == builtin::kInt64ArrayElem) {
+  } else if (kind == tirx::builtin::kInt64ArrayElem) {
     std::ostringstream os;
     os << "(((int64_t*)";
     this->PrintExpr(buffer, os);
@@ -421,7 +422,7 @@ void CodeGenC::RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* v
   }();
   if (!value_dtype.has_value()) return;
   auto* call = value->as<CallNode>();
-  if (call != nullptr && call->op.same_as(builtin::ptr_byte_offset())) {
+  if (call != nullptr && call->op.same_as(tirx::builtin::ptr_byte_offset())) {
     pointer_offset_vars_.insert(var.get());
   }
   RegisterHandleType(var.get(), value_dtype.value());
@@ -671,22 +672,22 @@ void CodeGenC::PrintCallExtern(Type ret_type, ffi::String global_symbol,
 }
 
 void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
-  TVM_FFI_ICHECK(!op->op.same_as(builtin::masked_load()))
+  TVM_FFI_ICHECK(!op->op.same_as(tirx::builtin::masked_load()))
       << "Predicated buffer load is not supported.";
-  TVM_FFI_ICHECK(!op->op.same_as(builtin::masked_store()))
+  TVM_FFI_ICHECK(!op->op.same_as(tirx::builtin::masked_store()))
       << "Predicated buffer store is not supported.";
   if (auto opt_call_op = op->op.as<Op>()) {
     auto call_op = opt_call_op.value();
 
-    if (op->op.same_as(builtin::buffer_data())) {
+    if (op->op.same_as(tirx::builtin::buffer_data())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
       const auto* buffer = op->args[0].as<VarNode>();
       TVM_FFI_ICHECK(buffer && buffer->ty.as<BufferTypeNode>())
           << "buffer_data expects a Var with BufferType";
       os << GetVarID(buffer);
-    } else if (op->op.same_as(builtin::continue_loop())) {
+    } else if (op->op.same_as(tirx::builtin::continue_loop())) {
       os << "continue;";
-    } else if (op->op.same_as(builtin::break_loop())) {
+    } else if (op->op.same_as(tirx::builtin::break_loop())) {
       os << "break;";
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       TVM_FFI_ICHECK_GE(op->args.size(), 1U);
@@ -716,7 +717,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       this->PrintCallExtern(op->ty, op_attr_global_symbol_[call_op], args, false, os);
     } else if (op->op.same_as(prim::builtin::bitwise_and())) {
       PrintBinaryIntrinsic(op, " & ", os, this);
-    } else if (op->op.same_as(builtin::large_uint_imm())) {
+    } else if (op->op.same_as(tirx::builtin::large_uint_imm())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
       uint64_t low = static_cast<uint64_t>(op->args[0].as_or_throw<IntImm>()->value);
       uint64_t high = static_cast<uint64_t>(op->args[1].as_or_throw<IntImm>()->value);
@@ -767,7 +768,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
         this->stream << "}\n";
       }
       os << result;
-    } else if (op->op.same_as(builtin::address_of())) {
+    } else if (op->op.same_as(tirx::builtin::address_of())) {
       const TensorLoadNode* load = op->args[0].as<TensorLoadNode>();
       TVM_FFI_ICHECK(op->args.size() == 1);
       if (load) {
@@ -813,16 +814,16 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
           os << "))";
         }
       }
-    } else if (op->op.same_as(builtin::tvm_struct_get())) {
+    } else if (op->op.same_as(tirx::builtin::tvm_struct_get())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
       os << GetStructRef(op->ty, op->args[0], op->args[1].as_or_throw<PrimExpr>(),
                          op->args[2].as<IntImmNode>()->value);
-    } else if (op->op.same_as(builtin::isnullptr())) {
+    } else if (op->op.same_as(tirx::builtin::isnullptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
       os << "(";
       this->PrintExpr(op->args[0], os);
       os << " == NULL)";
-    } else if (op->op.same_as(builtin::ptr_byte_offset())) {
+    } else if (op->op.same_as(tirx::builtin::ptr_byte_offset())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
       os << "((";
       PrintType(op->args[2].as_or_throw<PrimExpr>().ty(), os);
@@ -831,14 +832,14 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << ") + ";
       this->PrintExpr(op->args[1], os);
       os << "))";
-    } else if (op->op.same_as(builtin::handle_add_byte_offset())) {
+    } else if (op->op.same_as(tirx::builtin::handle_add_byte_offset())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
       os << "((void*)((char*)";
       this->PrintExpr(op->args[0], os);
       os << " + ";
       this->PrintExpr(op->args[1], os);
       os << "))";
-    } else if (op->op.same_as(builtin::reinterpret())) {
+    } else if (op->op.same_as(tirx::builtin::reinterpret())) {
       if (const auto* pointer_type = op->ty.as<PointerTypeNode>()) {
         os << "((";
         if (IsScopePartOfType()) {
@@ -877,18 +878,18 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       this->PrintType(target_dtype, os);
       os << " *)(&(" << rhs << ")))";
       EndScope(ssa_scope);
-    } else if (op->op.same_as(builtin::isnan())) {
+    } else if (op->op.same_as(tirx::builtin::isnan())) {
       os << "(";
       this->PrintExpr(op->args[0], os);
       os << " != ";
       this->PrintExpr(op->args[0], os);
       os << ")";
-    } else if (op->op.same_as(builtin::lookup_param())) {
+    } else if (op->op.same_as(tirx::builtin::lookup_param())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
       const prim::StringImmNode* str = op->args[0].as<prim::StringImmNode>();
       TVM_FFI_ICHECK(str != nullptr);
       os << "__tvm_param__" << str->value;
-    } else if (op->op.same_as(builtin::tvm_thread_invariant())) {
+    } else if (op->op.same_as(tirx::builtin::tvm_thread_invariant())) {
       os << "(";
       this->PrintExpr(op->args[0], os);
       os << ")";
@@ -927,7 +928,7 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimEx
 void CodeGenC::VisitStmt_(const DeclBufferNode* op) {
   const VarNode* source = op->data.as<VarNode>();
   if (const auto* call = op->data.as<CallNode>();
-      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     source = call->args[0].as<VarNode>();
   }
   if (source && var_idmap_.count(source)) {
@@ -955,7 +956,7 @@ void CodeGenC::VisitStmt_(const DeclBufferNode* op) {
   }
   PrintType(op->buffer.DataPointerType(), stream);
   stream << ' ' << AllocVarID(op->buffer.get()) << " = ";
-  PrintExpr(Call(op->buffer.DataPointerType(), builtin::reinterpret(), {op->data}), stream);
+  PrintExpr(Call(op->buffer.DataPointerType(), tirx::builtin::reinterpret(), {op->data}), stream);
   stream << ";\n";
   RegisterHandleType(op->buffer.get(), op->buffer->dtype);
 }
@@ -1454,10 +1455,10 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
   if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
   const CallNode* call = op->value.as<CallNode>();
   if (call) {
-    if (call->op.same_as(builtin::tvm_storage_sync())) {
+    if (call->op.same_as(tirx::builtin::tvm_storage_sync())) {
       this->PrintStorageSync(call);
       return;
-    } else if (call->op.same_as(builtin::tvm_struct_set())) {
+    } else if (call->op.same_as(tirx::builtin::tvm_struct_set())) {
       TVM_FFI_ICHECK_EQ(call->args.size(), 4);
       int kind = call->args[2].as<IntImmNode>()->value;
       Type store_ty = call->args[3]->ty;
@@ -1469,7 +1470,7 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
       auto store_prim_type = store_ty.as<PrimType>();
       bool clears_union = store_ty.as<PointerTypeNode>() ||
                           (store_prim_type && store_prim_type.value().bits() < 64);
-      if (kind == builtin::kTVMFFIAnyUnionValue && clears_union) {
+      if (kind == tirx::builtin::kTVMFFIAnyUnionValue && clears_union) {
         this->PrintIndent();
         // when we set any union value, we need to be careful to
         // clear off the union value to zero if the set size is less than 64 bits
@@ -1478,10 +1479,10 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
                      << " = 0;\n";
       }
 
-      if (kind == builtin::kDLTensorStrides) {
+      if (kind == tirx::builtin::kDLTensorStrides) {
         // cast void* to int64_t*
         cast = store_ty.as<PointerTypeNode>() ? "(int64_t*)" : "";
-      } else if (kind == builtin::kDLTensorDeviceType) {
+      } else if (kind == tirx::builtin::kDLTensorDeviceType) {
         // cast int to enum
         cast = "(DLDeviceType)";
       }

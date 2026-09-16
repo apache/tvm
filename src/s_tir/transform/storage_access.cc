@@ -33,7 +33,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 namespace {
@@ -338,7 +337,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
   } else if (op->op.same_as(tirx::builtin::tvm_storage_sync())) {
     TVM_FFI_ICHECK(allow_append_);
-    const std::string& s = op->args[0].as<StringImmNode>()->value;
+    const std::string& s = op->args[0].as<prim::StringImmNode>()->value;
     if (s != "warp") {
       StorageScope scope = StorageScope::Create(s);
       AccessEntry e;

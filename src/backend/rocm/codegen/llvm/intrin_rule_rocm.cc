@@ -37,6 +37,7 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
 
 inline PrimExpr DispatchPureExternOCML(const PrimExpr& e) {
   // NOTE: OCML dispatch fails to work properly with vectorization, and thus should be used with
@@ -48,7 +49,8 @@ inline PrimExpr DispatchPureExternOCML(const PrimExpr& e) {
   const OpNode* op = call->op.as<OpNode>();
   TVM_FFI_ICHECK(op != nullptr);
   std::string name = op->name;
-  TVM_FFI_ICHECK_EQ(name.substr(0, 5), "tirx.");
+  TVM_FFI_ICHECK(name.substr(0, 5) == "tirx." || name == "prim.ceil" || name == "prim.log2")
+      << "Unexpected intrinsic name: " << name;
 
   std::ostringstream intrinsic_name;
   PrimType call_ty = call->ty.as_or_throw<PrimType>();
@@ -59,7 +61,7 @@ inline PrimExpr DispatchPureExternOCML(const PrimExpr& e) {
     new_args.push_back(arg);
   }
 
-  return Call(call_ty, builtin::call_pure_extern(), new_args).as_or_throw<PrimExpr>();
+  return Call(call_ty, tirx::builtin::call_pure_extern(), new_args).as_or_throw<PrimExpr>();
 }
 
 inline PrimExpr DispatchShuffle(const PrimExpr& e) {
@@ -76,25 +78,25 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
   PrimExpr minus_one = IntImm::Int32(-1);
   PrimExpr zero = IntImm::Int32(0);
   PrimType i32_ty = PrimType::Int(32);
-  PrimExpr lo = Call(i32_ty, builtin::call_pure_extern(),
+  PrimExpr lo = Call(i32_ty, tirx::builtin::call_pure_extern(),
                      ffi::Array<PrimExpr>{prim::StringImm("llvm.amdgcn.mbcnt.lo"), minus_one, zero})
                     .as_or_throw<PrimExpr>();
-  PrimExpr self = Call(i32_ty, builtin::call_pure_extern(),
+  PrimExpr self = Call(i32_ty, tirx::builtin::call_pure_extern(),
                        ffi::Array<PrimExpr>{prim::StringImm("llvm.amdgcn.mbcnt.hi"), minus_one, lo})
                       .as_or_throw<PrimExpr>();
 
   // compute lane to get from
   PrimExpr width = args[3];
   PrimExpr index;
-  if (call->op.same_as(builtin::tvm_warp_shuffle())) {
+  if (call->op.same_as(tirx::builtin::tvm_warp_shuffle())) {
     PrimExpr src_lane = args[2];
     index = src_lane + (self & ~(width - 1));
-  } else if (call->op.same_as(builtin::tvm_warp_shuffle_up())) {
+  } else if (call->op.same_as(tirx::builtin::tvm_warp_shuffle_up())) {
     PrimExpr delta = args[2];
     index = self - delta;
     index = prim::Select(index < (self & ~(width - 1)), self, index);
   } else {
-    TVM_FFI_ICHECK(call->op.same_as(builtin::tvm_warp_shuffle_down()));
+    TVM_FFI_ICHECK(call->op.same_as(tirx::builtin::tvm_warp_shuffle_down()));
     PrimExpr delta = args[2];
     index = self + delta;
     index = prim::Select((self & (width - 1)) + delta >= width, self, index);
@@ -103,7 +105,7 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
   bool is_int32 = var_ty.MatchesElementType(DLDataTypeCode::kDLInt, 32);
   PrimExpr source = is_int32 ? var : reinterpret(PrimType::Int(32), var);
   PrimExpr res =
-      Call(i32_ty, builtin::call_pure_extern(),
+      Call(i32_ty, tirx::builtin::call_pure_extern(),
            ffi::Array<PrimExpr>{prim::StringImm("llvm.amdgcn.ds.bpermute"), index << 2, source})
           .as_or_throw<PrimExpr>();
   if (!is_int32) {
@@ -137,7 +139,7 @@ TVM_REGISTER_OP("tirx.floor")
     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::floor, 1>);
 
-TVM_REGISTER_OP("tirx.ceil")
+TVM_REGISTER_OP("prim.ceil")
     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::ceil, 1>);
 
@@ -173,7 +175,7 @@ TVM_REGISTER_OP("tirx.log")
     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
 
-TVM_REGISTER_OP("tirx.log2")
+TVM_REGISTER_OP("prim.log2")
     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::log2, 1>);
 

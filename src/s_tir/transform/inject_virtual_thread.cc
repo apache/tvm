@@ -330,7 +330,7 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
       visit_touched_var_ = true;
       PrimExpr offset = Mutate(op->args[2]).ValueOrUnchanged(op->args[2]).as_or_throw<PrimExpr>();
       PrimExpr extent = Mutate(op->args[3]).ValueOrUnchanged(op->args[3]).as_or_throw<PrimExpr>();
-      PrimExpr stride = it->second / MakeConst(offset.ty(), dtype.lanes());
+      PrimExpr stride = it->second / prim::MakeConst(offset.ty(), dtype.lanes());
       offset = RewriteIndex(offset, stride);
       Expr data = buffer.value()->ty.as<BufferTypeNode>()
                       ? GetRemappedBuffer(BufferVar(buffer.value()), it->second).data()
@@ -646,7 +646,7 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
       stmt = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(stmt, f_substitute).as_or_throw<Stmt>();
       PrimType idx_dtype = idx->ty.as_or_throw<PrimType>();
       return For(idx.as_or_throw<PrimVar>(), IntImm(idx_dtype, 0),
-                 MakeConst(idx_dtype, num_threads_), ForKind::kSerial, stmt);
+                 prim::MakeConst(idx_dtype, num_threads_), ForKind::kSerial, stmt);
     }
   }
 

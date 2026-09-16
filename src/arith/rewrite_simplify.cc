@@ -1756,10 +1756,10 @@ ffi::Optional<PrimExpr> RewriteSimplifier::Impl::TryMatchLiteralConstraint(
   prim::ExprDeepEqual expr_equal;
   for (const auto& constraint : literal_constraints_) {
     if (expr_equal(constraint, expr)) {
-      return MakeConst(expr.ty(), true);
+      return prim::MakeConst(expr.ty(), true);
     }
     if (expr_equal(constraint, negation)) {
-      return MakeConst(expr.ty(), false);
+      return prim::MakeConst(expr.ty(), false);
     }
   }
   return std::nullopt;
@@ -1790,7 +1790,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(prim::EQ ret, InplaceMode in
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
   PVar<PrimExpr> lanes;
-  PConst<PrimExpr> ctrue(MakeConst(ret->ty.as_or_throw<PrimType>(), true));
+  PConst<PrimExpr> ctrue(prim::MakeConst(ret->ty.as_or_throw<PrimType>(), true));
 
   // vector rule
   if (IsVectorExpr(ret.get())) {
@@ -1800,10 +1800,10 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(prim::EQ ret, InplaceMode in
   if (IsIndexTypedExpr(ret->a)) {
     CompareResult result = TryCompare(ret->a, ret->b);
     if (result == CompareResult::kEQ) {
-      return MakeConst(ret->ty.as_or_throw<PrimType>(), true);
+      return prim::MakeConst(ret->ty.as_or_throw<PrimType>(), true);
     } else if (result == CompareResult::kNE || result == CompareResult::kGT ||
                result == CompareResult::kLT) {
-      return MakeConst(ret->ty.as_or_throw<PrimType>(), false);
+      return prim::MakeConst(ret->ty.as_or_throw<PrimType>(), false);
     }
     TVM_TRY_REWRITE(c1 == x, x == c1);
 
@@ -1839,9 +1839,9 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::NENode* op,
     CompareResult result = TryCompare(op->a, op->b);
     if (result == CompareResult::kNE || result == CompareResult::kGT ||
         result == CompareResult::kLT) {
-      return MakeConst(op->ty.as_or_throw<PrimType>(), true);
+      return prim::MakeConst(op->ty.as_or_throw<PrimType>(), true);
     } else if (result == CompareResult::kEQ) {
-      return MakeConst(op->ty.as_or_throw<PrimType>(), false);
+      return prim::MakeConst(op->ty.as_or_throw<PrimType>(), false);
     } else if (result == CompareResult::kGE) {
       // Known: a >= b
       //
@@ -1886,9 +1886,9 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::LENode* op,
     CompareResult result = TryCompare(op->a, op->b);
     if (result == CompareResult::kLE || result == CompareResult::kLT ||
         result == CompareResult::kEQ) {
-      return MakeConst(op->ty.as_or_throw<PrimType>(), true);
+      return prim::MakeConst(op->ty.as_or_throw<PrimType>(), true);
     } else if (result == CompareResult::kGT) {
-      return MakeConst(op->ty.as_or_throw<PrimType>(), false);
+      return prim::MakeConst(op->ty.as_or_throw<PrimType>(), false);
     } else if (result == CompareResult::kNE) {
       // Known: a != b
       //
@@ -1954,11 +1954,11 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(prim::LT ret, InplaceMode in
   if (IsIndexTypedExpr(ret->a)) {
     CompareResult result = TryCompare(ret->a, ret->b);
     if (result == CompareResult::kLT) {
-      return MakeConst(ret->ty.as_or_throw<PrimType>(), true);
+      return prim::MakeConst(ret->ty.as_or_throw<PrimType>(), true);
     }
     if (result == CompareResult::kEQ || result == CompareResult::kGT ||
         result == CompareResult::kGE) {
-      return MakeConst(ret->ty.as_or_throw<PrimType>(), false);
+      return prim::MakeConst(ret->ty.as_or_throw<PrimType>(), false);
     }
 
     // clang-format off
@@ -2201,7 +2201,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::AndNode* op,
     TVM_TRY_REWRITE(broadcast(x, lanes) && broadcast(y, lanes), broadcast(x && y, lanes));
   }
 
-  auto cfalse = PConst<PrimExpr>(MakeConst(op->ty.as_or_throw<PrimType>(), false));
+  auto cfalse = PConst<PrimExpr>(prim::MakeConst(op->ty.as_or_throw<PrimType>(), false));
   TVM_TRY_REWRITE(x == y && x != y, cfalse);
   TVM_TRY_REWRITE(x != y && x == y, cfalse);
   TVM_TRY_REWRITE(x && !x, cfalse);
@@ -2351,7 +2351,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::OrNode* op,
     TVM_TRY_REWRITE(broadcast(x, lanes) || broadcast(y, lanes), broadcast(x || y, lanes));
   }
 
-  auto ctrue = PConst<PrimExpr>(MakeConst(op->ty.as_or_throw<PrimType>(), true));
+  auto ctrue = PConst<PrimExpr>(prim::MakeConst(op->ty.as_or_throw<PrimType>(), true));
 
   TVM_TRY_REWRITE(x == y || x != y, ctrue);
   TVM_TRY_REWRITE(x != y || x == y, ctrue);
@@ -2410,7 +2410,7 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
   if (op == nullptr) return ret;
 
   if (op->op.same_as(prim::builtin::likely()) &&
-      is_const_int(op->args[0].as_or_throw<PrimExpr>())) {
+      prim::is_const_int(op->args[0].as_or_throw<PrimExpr>())) {
     return op->args[0].as_or_throw<PrimExpr>();
   } else if (op->op.same_as(prim::builtin::shift_right())) {
     if (op->args[0].as<IntImmNode>() && op->args[1].as<IntImmNode>()) {
@@ -2423,17 +2423,17 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
       return op->args[0].as_or_throw<PrimExpr>() << op->args[1].as_or_throw<PrimExpr>();
     }
   }
-  static const Op& ceil_op = Op::Get("tirx.ceil");
-  static const Op& log2_op = Op::Get("tirx.log2");
+  static const Op& ceil_op = prim::builtin::ceil();
+  static const Op& log2_op = prim::builtin::log2();
   static const Op& clz_op = Op::Get("tirx.clz");
   PrimType ret_ty = op->ty.as_or_throw<PrimType>();
   if (op->op.same_as(ceil_op)) {
     PrimExpr ceil_arg = op->args[0].as_or_throw<PrimExpr>();
     if (auto arg_int = op->args[0].as<IntImmNode>()) {
-      return cast(ret_ty, IntImm(arg_int->ty.as_or_throw<PrimType>(), arg_int->value));
+      return prim::cast(ret_ty, IntImm(arg_int->ty.as_or_throw<PrimType>(), arg_int->value));
     } else if (auto arg_float = ceil_arg.as<FloatImmNode>()) {
-      return cast(ret_ty,
-                  FloatImm(arg_float->ty.as_or_throw<PrimType>(), std::ceil(arg_float->value)));
+      return prim::cast(
+          ret_ty, FloatImm(arg_float->ty.as_or_throw<PrimType>(), std::ceil(arg_float->value)));
     } else if (auto arg_call = ceil_arg.as<CallNode>()) {
       // ceil(log2(cast(n,"float64"))) is used as the implementation of
       // topi.math.ceil_log2, and appears in iteration bounds.
@@ -2480,7 +2480,7 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
       PrimExpr inner_then_expr = inner_call->args[1].as_or_throw<PrimExpr>();
       PrimExpr inner_else_expr = inner_call->args[2].as_or_throw<PrimExpr>();
       // Only check constant cases to avoid recursion
-      if (is_const_number(inner_else_expr) && is_const_number(else_expr) &&
+      if (prim::is_const_number(inner_else_expr) && prim::is_const_number(else_expr) &&
           analyzer_->CanProve(inner_else_expr == else_expr)) {
         return Call(ret_ty, op->op, {cond && inner_cond, inner_then_expr, else_expr}, op->attrs,
                     op->ty_args, op->span)
@@ -2520,13 +2520,13 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::CastNode* op,
   PrimExpr ret =
       SimplifierBase::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   op = ret.as<prim::CastNode>();
-  return cast(ret.ty(), op->value);
+  return prim::cast(ret.ty(), op->value);
 }
 
 bool RewriteSimplifier::Impl::CanInlineLet(const prim::LetNode* op) {
   // Only inline trivial bindings to avoid deep expression explosion
   // when we need let to construct complicated expressions.
-  if (is_const_number(op->value)) return true;
+  if (prim::is_const_number(op->value)) return true;
   if (op->value.as<PrimVar>()) return true;
   return false;
 }

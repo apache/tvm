@@ -42,6 +42,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 /************ Op input type getter ************/
 

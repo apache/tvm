@@ -26,7 +26,7 @@
 #include <tvm/ffi/expected.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
 
 #include "const_fold.h"
 #include "pattern_match.h"
@@ -107,8 +107,8 @@ bool CastIsSafe(PrimType dtype, PrimExpr value, AnalyzerObj* analyzer) {
     return false;
   }
   ConstIntBound bound = analyzer->const_int_bound(value);
-  int64_t ubound = max_value(dtype).as_or_throw<IntImm>()->value;
-  int64_t lbound = min_value(dtype).as_or_throw<IntImm>()->value;
+  int64_t ubound = prim::max_value(dtype).as_or_throw<IntImm>()->value;
+  int64_t lbound = prim::min_value(dtype).as_or_throw<IntImm>()->value;
   if (value.ty().bits() <= dtype.bits() ||  // upcast is safe
       (bound->max_value <= ubound && bound->min_value >= lbound)) {
     return true;
@@ -176,8 +176,8 @@ class SplitExprNode : public CanonicalExprNode {
    * \return whether the cast can be safely pushed to children
    */
   bool CanPushCastToChildren(PrimType dtype, AnalyzerObj* analyzer) const {
-    // cast(dtype, index % upper_factor / lower_factor * scale) ==
-    // cast(dtype, index) % upper_factor / lower_factor * scale
+    // prim::cast(dtype, index % upper_factor / lower_factor * scale) ==
+    // prim::cast(dtype, index) % upper_factor / lower_factor * scale
     // iff it is an upcast (dtype.bits >= self.dtype.bits) or all of
     // its intermediate results fit in the range of dtype
     PrimType self_dtype = this->ExprNode::ty.as_or_throw<PrimType>();
@@ -214,11 +214,11 @@ class SplitExprNode : public CanonicalExprNode {
   }
 
   /*!
-   * \brief self = cast(dtype, self)
+   * \brief self = prim::cast(dtype, self)
    * \param dtype The target datatype
    */
   void PushCastToChildren(PrimType dtype) {
-    this->index = cast(dtype, this->index);
+    this->index = prim::cast(dtype, this->index);
     this->ExprNode::ty = dtype;
   }
 
@@ -359,8 +359,8 @@ class SumExprNode : public CanonicalExprNode {
   bool CanPushCastToChildren(PrimType dtype, AnalyzerObj* analyzer) const {
     bool is_min_value = dtype.bits() == 64 ? base == std::numeric_limits<int64_t>::lowest()
                                            : base == -(1LL << (dtype.bits() - 1));
-    // cast(dtype, arg_1 + arg_2 + ... arg_n) ==
-    // cast(dtype, arg_1) + ... + cast(dtype, arg_n)
+    // prim::cast(dtype, arg_1 + arg_2 + ... arg_n) ==
+    // prim::cast(dtype, arg_1) + ... + prim::cast(dtype, arg_n)
     // iff it is an upcast (dtype.bits >= self.dtype.bits) or all of
     // its intermediate results fit in the range of dtype
     PrimType self_dtype = this->ExprNode::ty.as_or_throw<PrimType>();
@@ -406,7 +406,7 @@ class SumExprNode : public CanonicalExprNode {
   }
 
   /*!
-   * \brief self = cast(dtype, self)
+   * \brief self = prim::cast(dtype, self)
    * \param dtype The target datatype
    */
   void PushCastToChildren(PrimType dtype) {

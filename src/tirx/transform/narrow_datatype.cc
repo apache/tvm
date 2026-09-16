@@ -37,6 +37,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 // This pass narrows indexing expressions (like BufferStoreNode::indices)
 // that trivially fit into i32/i16 (denoted by `target_bits_`) to

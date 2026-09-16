@@ -30,6 +30,7 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/te/tensor.h>
 
@@ -814,7 +815,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Range
 Range::Range(PrimExpr begin, PrimExpr end, Span span)
-    : Range(ffi::make_object<RangeNode>(begin, tirx::is_zero(begin) ? end : (end - begin), span)) {}
+    : Range(ffi::make_object<RangeNode>(begin, tvm::prim::is_zero(begin) ? end : (end - begin),
+                                        span)) {}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

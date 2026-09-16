@@ -287,7 +287,7 @@ Pass SimplifyForFeatureExtraction() {
           HasBufferLoad(node->condition)) {
         return ffi::Unchanged();
       }
-      return MakeConst(node->ty.as_or_throw<PrimType>(), 1.0);
+      return prim::MakeConst(node->ty.as_or_throw<PrimType>(), 1.0);
     }
 
     UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
@@ -1402,7 +1402,6 @@ class PerStoreFeatureCollector : public StmtExprVisitor {
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 class PerStoreFeatureNode : public FeatureExtractorNode {

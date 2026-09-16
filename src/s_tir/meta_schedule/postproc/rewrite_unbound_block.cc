@@ -23,7 +23,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Find all the blocks that are not bound */
@@ -95,7 +94,6 @@ class UnboundBlockFinder : public StmtExprVisitor {
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief Add thread binding to unbound blocks */
