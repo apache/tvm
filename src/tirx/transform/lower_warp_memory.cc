@@ -262,8 +262,10 @@ class WarpIndexFinder : public StmtExprVisitor {
   IterVar warp_index_{nullptr};
 };
 // Mutator to change the read pattern
-class WarpAccessRewriter : protected StmtExprMutator {
+class WarpAccessRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   explicit WarpAccessRewriter(int warp_size, arith::AnalyzerObj* analyzer)
       : warp_size_(warp_size), analyzer_(analyzer) {}
   // Rewrite the AllocBuffer statement which transforms
@@ -300,7 +302,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     type->elem_offset = IntImm(op->buffer->elem_offset.ty(), 0);
     BufferVar new_buf = RebuildBufferVar(op->buffer, std::move(type));
     new_buffer_ = new_buf;
-    Stmt rewritten_body = this->VisitStmt(body);
+    Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
     return SeqStmt::Flatten(AllocBuffer(new_buf, op->annotations), rewritten_body);
   }
 
@@ -356,12 +358,23 @@ class WarpAccessRewriter : protected StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) override {
-    TVM_FFI_ICHECK(op != buffer_) << "Cannot access address of warp memory directly";
+    if (def_region_kind() == kTVMFFIDefRegionKindNone) {
+      TVM_FFI_ICHECK(op != buffer_) << "Cannot access address of warp memory directly";
+    }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) override {
-    auto store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
+    // The source is a memory access, not a direct address use checked by the Var hook.
+    auto value = Mutate(op->value, inplace_mode);
+    auto indices =
+        Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
+    BufferStore store = ffi::GetRef<BufferStore>(op);
+    if (!value.UnchangedOrSameAs(op->value) || !indices.UnchangedOrSameAs(op->indices)) {
+      auto* n = store.CopyOnWrite();
+      n->value = std::move(value).ValueOrUnchanged(op->value);
+      n->indices = std::move(indices).ValueOrUnchanged(op->indices);
+    }
 
     if (store->buffer.get() == buffer_) {
       TVM_FFI_ICHECK_EQ(store->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
@@ -379,7 +392,13 @@ class WarpAccessRewriter : protected StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) override {
-    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+    // Keep the memory source opaque to the direct-address check in the Var hook.
+    auto indices =
+        Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
+    TensorLoad load = ffi::GetRef<TensorLoad>(op);
+    if (!indices.UnchangedOrSameAs(op->indices)) {
+      load.CopyOnWrite()->indices = std::move(indices).ValueUnchecked();
+    }
 
     if (load->source.as_or_throw<tvm::tirx::BufferVar>().get() != buffer_) {
       return load;
@@ -499,15 +518,21 @@ class BindVarBoundInfo : public StmtExprVisitor {
 };
 
 // Mutator to change the read pattern
-class WarpMemoryRewriter : private StmtMutator {
+class WarpMemoryRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override {
+    if (input.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(input, inplace_mode);
+  }
   explicit WarpMemoryRewriter(int warp_size) : warp_size_(warp_size) {}
 
   Stmt Rewrite(Stmt stmt) {
     if (warp_size_ == 1) return stmt;
     auto binder = ffi::make_object<BindVarBoundInfo>(analyzer_.get());
     binder->Visit(stmt);
-    stmt = operator()(std::move(stmt));
+    stmt = Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
     return stmt;
   }
 
@@ -529,24 +554,19 @@ class WarpMemoryRewriter : private StmtMutator {
           remaining.push_back(op->seq[j]);
         }
         Stmt body = remaining.empty() ? Stmt(Evaluate(0)) : SeqStmt::Flatten(remaining);
-        WarpAccessRewriter rewriter(warp_size_, analyzer_.get());
-        Stmt rewritten = rewriter.Rewrite(alloc, body);
+        auto rewriter = ffi::make_object<WarpAccessRewriter>(warp_size_, analyzer_.get());
+        Stmt rewritten = rewriter->Rewrite(alloc, body);
         new_seq.push_back(rewritten);
         changed = true;
         break;
       } else {
-        Stmt visited = this->VisitStmt(op->seq[i]);
-        new_seq.push_back(visited);
-        if (!visited.same_as(op->seq[i])) changed = true;
+        auto result = this->Mutate(op->seq[i]);
+        changed |= !result.UnchangedOrSameAs(op->seq[i]);
+        new_seq.push_back(std::move(result).ValueOrUnchanged(op->seq[i]).as_or_throw<Stmt>());
       }
     }
-    if (!changed) return ffi::GetRef<Stmt>(op);
+    if (!changed) return ffi::Unchanged();
     return SeqStmt::Flatten(new_seq);
-  }
-
-  Stmt VisitStmt_(const AllocBufferNode* op) {
-    // Non-warp AllocBuffer: just delegate to base class.
-    return StmtMutator::VisitStmt_(op);
   }
 
   int warp_size_{0};
@@ -563,9 +583,11 @@ Pass LowerWarpMemory() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     TVM_FFI_ICHECK(target.has_value()) << "LowerWarpMemory: Require the target attribute";
     int warp_size = target.value()->GetAttr<int64_t>("thread_warp_size", 1).value();
-    WarpMemoryRewriter warp_memory_rewriter(warp_size);
-    auto stmt = warp_memory_rewriter.Rewrite(std::move(n->body));
-    n->body = UpdatePointerStorageScope(warp_memory_rewriter.new_storage_scopes_)(stmt);
+    auto warp_memory_rewriter = ffi::make_object<WarpMemoryRewriter>(warp_size);
+    auto stmt = warp_memory_rewriter->Rewrite(std::move(n->body));
+    n->body = ffi::make_object<UpdatePointerStorageScope>(warp_memory_rewriter->new_storage_scopes_)
+                  ->Mutate(stmt, InplaceMode::kAllow)
+                  .ValueOrUnchanged(stmt);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.LowerWarpMemory", {});

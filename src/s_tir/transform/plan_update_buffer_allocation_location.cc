@@ -109,6 +109,9 @@ class BufferAllocateOrderCollector : public StmtExprVisitor {
 
 class BufferAllocationLocator : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   explicit BufferAllocationLocator(const PrimFunc& func) {
     ffi::Map<BufferVar, ffi::Optional<Stmt>> buffer_lca = DetectBufferAccessLCA(func);
     // The buffer_alloc_recorder Array is used to keep the buffer allocation order
@@ -145,12 +148,14 @@ class BufferAllocationLocator : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     auto it = alloc_buffers_.find(op);
     if (it == alloc_buffers_.end()) {
-      return StmtMutator::Mutate_(op, inplace_mode);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     for (const BufferVar& buf : it->second) {
       buffer_data_to_buffer_.Set(buf.var(), buf);
     }
-    auto node = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<For>();
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                    .as_or_throw<For>();
 
     ffi::Array<BufferVar> new_block_alloc_bufs;
     for (const BufferVar& buf : it->second) {
@@ -183,7 +188,9 @@ class BufferAllocationLocator : public StmtExprMutator {
       TVM_FFI_ICHECK(buffer_data_to_buffer_.count(source_var));
       buffer_data_to_buffer_.Set(target_var, match_buffer->buffer);
     }
-    Stmt stmt = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    SBlock stmt = StmtExprMutator::Mutate_(op, inplace_mode)
+                      .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                      .as_or_throw<SBlock>();
     op = stmt.as<SBlockNode>();
     TVM_FFI_ICHECK(op != nullptr);
 
@@ -200,12 +207,12 @@ class BufferAllocationLocator : public StmtExprMutator {
       }
     }
 
-    ffi::ObjectPtr<SBlockNode> n = CopyOnWrite(op);
+    SBlockNode* n = stmt.CopyOnWrite();
     n->alloc_buffers = std::move(alloc_buffers);
     // Erase buffer allocated inside the block from access region.
     n->reads = RemoveRedundantBufferRegion(n->reads);
     n->writes = RemoveRedundantBufferRegion(n->writes);
-    return Stmt(n);
+    return stmt;
   }
 
   Stmt InjectOpaqueBlock(Stmt body, const ffi::Array<BufferVar>& alloc_buffers) {
@@ -217,12 +224,12 @@ class BufferAllocationLocator : public StmtExprMutator {
                         /*body=*/std::move(body),
                         /*init=*/std::nullopt,
                         /*alloc_buffers=*/alloc_buffers);
-    ffi::ObjectPtr<SBlockNode> n = CopyOnWrite(opaque_block.get());
+    SBlockNode* n = opaque_block.CopyOnWrite();
     ffi::Array<ffi::Array<BufferRegion>> access =
         GetSBlockReadWriteRegion(opaque_block, buffer_data_to_buffer_);
     n->reads = access[0];
     n->writes = access[1];
-    SBlockRealize realize({}, IntImm::Bool(true), SBlock(n));
+    SBlockRealize realize({}, IntImm::Bool(true), std::move(opaque_block));
     return realize;
   }
 
@@ -250,8 +257,8 @@ namespace transform {
 Pass PlanAndUpdateBufferAllocationLocation() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto fptr = f.CopyOnWrite();
-    BufferAllocationLocator locator(f);
-    fptr->body = locator(fptr->body);
+    auto locator = ffi::make_object<BufferAllocationLocator>(f);
+    fptr->body = locator->Mutate(fptr->body).ValueOrUnchanged(fptr->body);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.PlanAndUpdateBufferAllocationLocation", {});

@@ -193,12 +193,19 @@ class FragmentChecker : public StmtExprVisitor {
 };
 
 // Store the metadata into attributes
-class InferFragmenter : public StmtMutator {
+class InferFragmenter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   explicit InferFragmenter(const FragmentGetter& getter) : fragment_getter(getter) {}
 
   UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    Stmt stmt = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     const VarNode* buffer = op->buffer.get();
     if (fragment_getter.fragments.count(buffer)) {
       FragmentInfo info = fragment_getter.fragments.at(buffer);
@@ -228,7 +235,9 @@ Stmt InferFragment(Stmt stmt) {
   getter->Visit(stmt);
   auto checker = ffi::make_object<FragmentChecker>(*getter);
   checker->Visit(stmt);
-  stmt = InferFragmenter(*getter)(std::move(stmt));
+  stmt = ffi::make_object<InferFragmenter>(*getter)
+             ->Mutate(stmt, InplaceMode::kAllow)
+             .ValueOrUnchanged(std::move(stmt));
   return stmt;
 }
 

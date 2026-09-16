@@ -72,6 +72,9 @@ class BoundCollector : public StmtExprVisitor {
 
 class BoundChecker : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   explicit BoundChecker(
       const std::unordered_map<const VarNode*, ffi::Array<PrimExpr>>& mem_to_shape)
       : mem_to_shape_(mem_to_shape) {}
@@ -94,7 +97,7 @@ class BoundChecker : public StmtExprMutator {
     store_scope_bound_collector_.clear();
     process_store_ = true;
     unsafe_rewritten_ = false;
-    StmtExprMutator::VisitStmt_(op);
+    StmtExprMutator::Mutate_(op, InplaceMode::kDisallow);
     process_store_ = false;
     if (CanInstrument(op->indices, op->buffer.var())) {
       Collect(op->indices, op->buffer.var());
@@ -110,7 +113,7 @@ class BoundChecker : public StmtExprMutator {
         return body;
       }
     }
-    return ffi::GetRef<Stmt>(op);
+    return ffi::Unchanged();
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
@@ -251,7 +254,9 @@ Stmt InstrumentBoundCheckers(Stmt stmt) {
   auto bound_collector = ffi::make_object<BoundCollector>();
   // At first walk recursively and collect bound attributes.
   bound_collector->Visit(stmt);
-  return BoundChecker(bound_collector->mem_to_shape)(std::move(stmt));
+  return ffi::make_object<BoundChecker>(bound_collector->mem_to_shape)
+      ->Mutate(stmt, InplaceMode::kAllow)
+      .ValueOrUnchanged(std::move(stmt));
 }
 
 namespace transform {
@@ -262,7 +267,9 @@ Pass InstrumentBoundCheckers() {
     auto bound_collector = ffi::make_object<BoundCollector>();
     // At first walk recursively and collect bound attributes.
     bound_collector->Visit(n->body);
-    n->body = BoundChecker(bound_collector->mem_to_shape)(std::move(n->body));
+    n->body = ffi::make_object<BoundChecker>(bound_collector->mem_to_shape)
+                  ->Mutate(n->body, InplaceMode::kAllow)
+                  .ValueOrUnchanged(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.InstrumentBoundCheckers", {});

@@ -249,21 +249,15 @@ TEST(IRF, StmtVisitor) {
   }
 }
 
-TEST(IRF, StmtMutator) {
+TEST(IRF, StmtExprMutator) {
   using namespace tvm;
   using namespace tvm::tirx;
   PrimVar x("x");
 
-  class MyVisitor : public tirx::StmtMutator, public tirx::ExprMutator {
+  class MyMutator : public tirx::StmtExprMutator {
    public:
-    using StmtMutator::operator();
-    using ExprMutator::operator();
-
-   protected:
-    // implementation
+    using StmtExprMutator::Mutate_;
     UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* op, InplaceMode) final { return op->a; }
-    Stmt VisitStmt_(const SeqStmtNode* op) final { return StmtMutator::VisitSeqStmt_(op, true); }
-    Expr Dispatch(const Expr& expr) final { return ExprMutator::Dispatch(expr); }
   };
   auto fmakealloc = [&]() {
     auto z = x + 1;
@@ -278,16 +272,16 @@ TEST(IRF, StmtMutator) {
     return IfThenElse(x, Evaluate(0), body);
   };
 
-  MyVisitor v;
+  auto v = ffi::make_object<MyMutator>();
   {
     auto alloc = fmakealloc();
     Stmt body2 = Evaluate(1);
     auto* bufptr = alloc.as<AllocBufferNode>()->buffer.get();
     ffi::Array<Stmt> arr{std::move(alloc), body2, body2};
     auto* arrptr = arr.get();
-    arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
+    arr.MutateByApply([&](Stmt s) { return v->Mutate(s).ValueOrUnchanged(std::move(s)); });
     TVM_FFI_ICHECK(arr.get() == arrptr);
-    // buffer IS mutated now (AllocBuffer mutator visits buffer shape via VisitBufferDef)
+    // buffer IS mutated now (AllocBuffer mutator visits buffer shape at the buffer definition)
     // shape was {1, x+1}, mutator transforms x+1 -> x, so buffer changes
     TVM_FFI_ICHECK(arr[0].as<AllocBufferNode>()->buffer.get() != bufptr);
   }
@@ -296,30 +290,30 @@ TEST(IRF, StmtMutator) {
     // mutate array get reference by another one, trigger copy.
     ffi::Array<Stmt> arr2 = arr;
     auto* arrptr = arr.get();
-    arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
+    arr.MutateByApply([&](Stmt s) { return v->Mutate(s).ValueOrUnchanged(std::move(s)); });
     TVM_FFI_ICHECK(arr.get() != arrptr);
     // buffer is mutated in arr but not in arr2
     TVM_FFI_ICHECK(arr[0].as<AllocBufferNode>()->buffer.get() !=
                    arr2[0].as<AllocBufferNode>()->buffer.get());
     // mutate but no content change.
     arr2 = arr;
-    arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
+    arr.MutateByApply([&](Stmt s) { return v->Mutate(s).ValueOrUnchanged(std::move(s)); });
     TVM_FFI_ICHECK(arr2.get() == arr.get());
   }
   {
     ffi::Array<Stmt> arr{fmakeif()};
-    arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
+    arr.MutateByApply([&](Stmt s) { return v->Mutate(s).ValueOrUnchanged(std::move(s)); });
     TVM_FFI_ICHECK(arr[0].as<IfThenElseNode>()->else_case.as<EvaluateNode>()->value.same_as(x));
     // mutate but no content change.
     auto arr2 = arr;
-    arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
+    arr.MutateByApply([&](Stmt s) { return v->Mutate(s).ValueOrUnchanged(std::move(s)); });
     TVM_FFI_ICHECK(arr2.get() == arr.get());
   }
 
   {
     auto body =
         Evaluate(Call(PrimType::Int(32), builtin::call_extern(), {prim::StringImm("xyz"), x + 1}));
-    auto res = v(std::move(body));
+    auto res = v->Mutate(body).ValueOrUnchanged(std::move(body));
     TVM_FFI_ICHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[1].same_as(x));
   }
   {
@@ -330,10 +324,10 @@ TEST(IRF, StmtMutator) {
     // construct a recursive SeqStmt.
     body = SeqStmt({body, body2});
     body = SeqStmt({body, body2});
-    body = v(std::move(body));
+    body = v->Mutate(body).ValueOrUnchanged(std::move(body));
     // the seq get flattened
     TVM_FFI_ICHECK(body.as<SeqStmtNode>()->size() == 3);
-    // buffer is now mutated (shape x+1 -> x via VisitBufferDef)
+    // buffer is now mutated (shape x+1 -> x at the buffer definition)
     TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocBufferNode>()->buffer.get() != bufptr);
     TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[1].get() == ref2);
   }
@@ -346,10 +340,10 @@ TEST(IRF, StmtMutator) {
     body = SeqStmt({body, body2});
     auto bref = body;
     body = SeqStmt({body, body2});
-    body = v(std::move(body));
+    body = v->Mutate(body).ValueOrUnchanged(std::move(body));
     // the seq get flattened
     TVM_FFI_ICHECK(body.as<SeqStmtNode>()->size() == 3);
-    // buffer is mutated (shape x+1 -> x via VisitBufferDef)
+    // buffer is mutated (shape x+1 -> x at the buffer definition)
     TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocBufferNode>() != nullptr);
     // bref still holds the old SeqStmt (not shared with new one due to copy)
     TVM_FFI_ICHECK(!bref.same_as(body));
@@ -371,7 +365,7 @@ TEST(IRF, StmtMutator) {
     SBlock block = SBlock({}, {buffer_region}, {buffer_region}, "block", body, body, {},
                           {match_buffer_region});
     Stmt block_realize = SBlockRealize({}, IntImm::Bool(true), block);
-    body = v(std::move(block_realize));
+    body = v->Mutate(block_realize).ValueOrUnchanged(std::move(block_realize));
     // the body should be changed
     SBlock new_block = body.as<SBlockRealizeNode>()->block;
     // body is a SeqStmt; the Evaluate(x+1) -> Evaluate(x)

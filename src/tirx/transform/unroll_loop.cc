@@ -97,6 +97,8 @@ class VarLocalAccessMarker : public StmtExprVisitor {
 // the local memory access can be turned into register access.
 class LoopUnroller : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   explicit LoopUnroller(int auto_max_step, int auto_max_depth, int auto_max_extent,
                         bool explicit_unroll, bool unroll_local_access)
       : auto_max_step_(auto_max_step),
@@ -125,8 +127,13 @@ class LoopUnroller : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) {
     // Post order so we can collect more information
-    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    op = stmt.as<ForNode>();
+    auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+    if (!result.IsUnchanged()) {
+      op = ffi::AnyView(result).as<ForNode>();
+      if (!op->unique()) {
+        inplace_mode = InplaceMode::kDisallow;
+      }
+    }
     int value = GetExtent(op);
     // condition for auto unroll
     bool auto_unroll = (op->kind == ForKind::kSerial && value >= 0 && normal_loop_depth_ == 0 &&
@@ -160,12 +167,16 @@ class LoopUnroller : public StmtExprMutator {
     } else {
       if (auto_unroll) {
         if (op->kind != ForKind::kUnrolled) {
-          auto n = CopyOnWrite(op);
+          if (inplace_mode == InplaceMode::kAllow) {
+            const_cast<ForNode*>(op)->kind = ForKind::kUnrolled;
+            return result;
+          }
+          auto n = ffi::make_object<ForNode>(*op);
           n->kind = ForKind::kUnrolled;
           return For(n);
         }
       }
-      return stmt;
+      return result;
     }
   }
 
@@ -181,7 +192,7 @@ class LoopUnroller : public StmtExprMutator {
         }
       }
     }
-    return ffi::GetRef<PrimExpr>(op);
+    return ffi::Unchanged();
   }
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
@@ -205,20 +216,24 @@ class LoopUnroller : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
-    auto fmutate = [this](const Stmt& s) {
+    ffi::Array<Stmt> seq;
+    bool changed = false;
+    for (Stmt child : op->seq) {
       int step_count = step_count_;
       int unroll_depth = unroll_depth_;
       int normal_loop_depth = normal_loop_depth_;
       step_count_ = 0;
       unroll_depth_ = 0;
       normal_loop_depth_ = 0;
-      Stmt ret = this->VisitStmt(s);
+      auto result = this->Mutate(child);
+      changed |= !result.UnchangedOrSameAs(child);
+      seq.push_back(std::move(result).ValueOrUnchanged(child));
       step_count_ += step_count;
       normal_loop_depth_ = std::max(normal_loop_depth, normal_loop_depth_);
       unroll_depth_ = std::max(unroll_depth_, unroll_depth);
-      return ret;
-    };
-    return StmtExprMutator::VisitSeqStmt_(op, false, fmutate);
+    }
+    if (!changed) return ffi::Unchanged();
+    return SeqStmt::Flatten(seq);
   }
 
   Stmt Unroll(const ForNode* op) {
@@ -282,12 +297,15 @@ class LoopUnroller : public StmtExprMutator {
 };
 
 Stmt UnrollLoop(Stmt stmt, UnrollLoopConfig cfg) {
-  Stmt ret = LoopUnroller(cfg->auto_max_step, cfg->auto_max_depth, cfg->auto_max_extent,
-                          cfg->explicit_unroll, cfg->unroll_local_access)(stmt);
-  if (!ret.same_as(stmt)) {
-    return ConvertSSA(ret);
+  // Identity determines whether unrolled definitions require SSA conversion.
+  auto result =
+      ffi::make_object<LoopUnroller>(cfg->auto_max_step, cfg->auto_max_depth, cfg->auto_max_extent,
+                                     cfg->explicit_unroll, cfg->unroll_local_access)
+          ->Mutate(stmt, InplaceMode::kDisallow);
+  if (!result.UnchangedOrSameAs(stmt)) {
+    return ConvertSSA(std::move(result).ValueUnchecked());
   } else {
-    return ret;
+    return stmt;
   }
 }
 

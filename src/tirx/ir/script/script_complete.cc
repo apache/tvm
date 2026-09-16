@@ -36,8 +36,14 @@ namespace tvm {
 namespace tirx {
 
 /*! \brief Generate surrounding loops automatically */
-class ScriptCompleter : public StmtMutator {
+class ScriptCompleter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   explicit ScriptCompleter(ffi::Map<Var, BufferVar>* buffer_var_map, bool s_tir = false)
       : buffer_var_map_(buffer_var_map), s_tir_(s_tir) {}
 
@@ -49,7 +55,7 @@ class ScriptCompleter : public StmtMutator {
       TVM_FFI_ICHECK(value_ty.code() == DLDataTypeCode::kDLInt)
           << "BlockRealize iter_value expected a IntImm, but got " << value_ty->dtype;
     }
-    return StmtMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
@@ -64,7 +70,9 @@ class ScriptCompleter : public StmtMutator {
 
     bool is_root_block = this->is_root_block_;
     this->is_root_block_ = false;
-    SBlock block = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                       .as_or_throw<SBlock>();
     this->is_root_block_ = is_root_block;
 
     // Remove buffers allocated inside block to detect its access region
@@ -91,14 +99,14 @@ class ScriptCompleter : public StmtMutator {
       TVM_FFI_CHECK(opaque.empty(), ValueError)
           << "Can not auto detect buffer access region from tirx.Load, tirx.Store or "
              "direct access by buffer data. Please annotation the access region manually";
-      auto n = CopyOnWrite(block.operator->());
+      auto* n = block.CopyOnWrite();
       if (!is_root_block) {
         if (mask & 1) n->reads = reads;
         if (mask & 2) n->writes = writes;
       }
       n->annotations = op->annotations;
       n->annotations.erase(s_tir::attr::script_parsing_detect_access);
-      return SBlock(n);
+      return block;
     } else {
       return block;
     }
@@ -109,7 +117,7 @@ class ScriptCompleter : public StmtMutator {
     if (!buffer_var_map_->count(op->buffer.var())) {
       buffer_var_map_->Set(op->buffer.var(), op->buffer);
     }
-    return StmtMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
@@ -117,7 +125,7 @@ class ScriptCompleter : public StmtMutator {
     if (!buffer_var_map_->count(op->buffer.var())) {
       buffer_var_map_->Set(op->buffer.var(), op->buffer);
     }
-    return StmtMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   bool is_root_block_ = true;
@@ -160,8 +168,8 @@ PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocat
   }
 
   // generate surrounding loops automatically
-  ScriptCompleter script_completer(&buffer_var_map, s_tir);
-  res = script_completer(std::move(res));
+  auto script_completer = ffi::make_object<ScriptCompleter>(&buffer_var_map, s_tir);
+  res = script_completer->Mutate(res, InplaceMode::kAllow).ValueOrUnchanged(std::move(res));
 
   if (func->body.same_as(res)) {
     return func;

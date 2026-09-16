@@ -44,7 +44,13 @@ namespace tirx {
  */
 class TIRxOpaqueLower : public StmtExprMutator {
  public:
-  static Stmt Rewrite(Stmt body) { return TIRxOpaqueLower()(std::move(body)); }
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  static Stmt Rewrite(Stmt body) {
+    return ffi::make_object<TIRxOpaqueLower>()
+        ->Mutate(body, InplaceMode::kAllow)
+        .ValueOrUnchanged(body);
+  }
 
  private:
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
@@ -53,7 +59,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
     PrimExpr extent = this->Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
     if (is_one(extent) && op->annotations.empty()) {
       // handling unit loop
-      unit_loop_vars_[op->loop_var] = min;
+      VarRemapSet(op->loop_var, cast(op->loop_var.ty(), min));
     }
 
     // Step 2. Visit recursively
@@ -83,23 +89,6 @@ class TIRxOpaqueLower : public StmtExprMutator {
       body = AttrStmt(op->loop_var, it->first, it->second, std::move(body));
     }
     return body;
-  }
-
-  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
-    Var var = ffi::GetRef<Var>(op);
-    auto it = unit_loop_vars_.find(var);
-    if (it == unit_loop_vars_.end()) {
-      // Fall through to the base visitor so buffer-variable remapping from
-      // any rebuild in this pass reaches remaining use sites.
-      return StmtExprMutator::Mutate_(op, inplace_mode);
-    } else {
-      PrimExpr expr = it->second;
-      PrimType var_ty = var->ty.as_or_throw<PrimType>();
-      if (expr.ty() != var_ty) {
-        expr = tvm::cast(var_ty, std::move(expr));
-      }
-      return expr;
-    }
   }
 
   static Stmt MakeLaunchThread(PrimExpr min, PrimExpr extent, Var var, ffi::String thread_tag,
@@ -167,7 +156,6 @@ class TIRxOpaqueLower : public StmtExprMutator {
   }
 
   /*! \brief Record the loop_var and loop start value of unit loops, whose extent is one. */
-  std::unordered_map<Var, PrimExpr> unit_loop_vars_;
 };
 
 namespace transform {

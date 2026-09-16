@@ -100,47 +100,46 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tirx.StmtSimplify", StmtSimplifyConfig);
 
 class StmtSimplifier : public IRMutatorWithAnalyzer {
  public:
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
   static PrimFunc Apply(PrimFunc func, const Analyzer& analyzer,
                         ffi::Optional<StmtSimplifyConfig> config_opt = std::nullopt) {
     auto config = config_opt.value_or(MakeDefaultStmtSimplifyConfig());
     analyzer->rewrite_simplify.SetEnabledExtensions(config->GetEnabledExtensions());
 
-    StmtSimplifier simplifier(analyzer, config);
-    simplifier.MarkBufferParamShapes(func);
-    func.CopyOnWrite()->body = simplifier(func->body);
+    auto simplifier = ffi::make_object<StmtSimplifier>(analyzer, config);
+    simplifier->MarkBufferParamShapes(func);
+    auto* n = func.CopyOnWrite();
+    n->body = simplifier->Mutate(n->body, InplaceMode::kAllow).ValueOrUnchanged(n->body);
     return func;
   }
 
- private:
+ public:
   explicit StmtSimplifier(const Analyzer& analyzer, StmtSimplifyConfig config)
       : IRMutatorWithAnalyzer(analyzer), config_(config) {}
 
+ private:
   using Parent = IRMutatorWithAnalyzer;
-  using Parent::Dispatch_;
-  using Parent::VisitStmt;
-  using Parent::VisitStmt_;
 
-  // Do not simplify buffer definition fields (shape, strides, elem_offset).
-  //
-  // The simplifier's Dispatch override calls analyzer_->Simplify() directly,
-  // bypassing the normal ExprMutator dispatch. This means TensorLoad expressions
-  // inside values (e.g., BufferStore value) skip Dispatch_(TensorLoadNode*) and
-  // thus skip VisitBufferUse. If VisitBufferDef remaps buffers at DeclBuffer sites,
-  // the TensorLoad use sites won't pick up the remap, causing DeclBuffer/BufferLoad
-  // buffer identity divergence and well-formedness violations.
-  //
-  // Instead, we keep buffer definitions unchanged and rely on used_in_buffer_def_
-  // to prevent inlining LetStmt vars that appear in buffer definitions.
-  BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) override { return buffer; }
-
-  Expr Dispatch(const Expr& expr) final {
-    if (auto prim_expr = expr.as<PrimExpr>()) {
-      return analyzer_->Simplify(prim_expr.value());
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) final {
+    if (input.as<BufferType>()) {
+      // Remap type dependencies while preserving the buffer's arithmetic form.
+      bool previous = simplify_prim_expr_;
+      simplify_prim_expr_ = false;
+      auto result = Parent::Mutate(input, inplace_mode);
+      simplify_prim_expr_ = previous;
+      return result;
     }
-    return Parent::Dispatch(expr);
+    if (simplify_prim_expr_ && input.as<PrimExpr>()) {
+      // Apply definition remappings before the analyzer visits expression uses.
+      PrimExpr updated =
+          Parent::Mutate(input, inplace_mode).ValueOrUnchanged(input).as_or_throw<PrimExpr>();
+      return analyzer_->Simplify(updated);
+    }
+    return Parent::Mutate(input, inplace_mode);
   }
 
-  Stmt Simplify(Stmt stmt) { return operator()(std::move(stmt)); }
+  Stmt Simplify(Stmt stmt) { return Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt); }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
@@ -155,7 +154,8 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     if (!prim_value) {
       return Parent::Mutate_(op, inplace_mode);
     }
-    PrimExpr value = this->VisitPrimExpr(prim_value.value());
+    PrimExpr value =
+        this->Mutate(prim_value.value(), inplace_mode).ValueOrUnchanged(prim_value.value());
     // Bind in analyzer for constraint proving and simplification of
     // subsequent expressions.  Don't remove the Bind statement --
     // with flat Bind there's no body to inspect for usage patterns,
@@ -163,7 +163,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     if (SideEffect(value) <= CallEffectKind::kPure) {
       analyzer_->Bind(op->var, value);
       // Record the binding so we can substitute it into assert conditions
-      // (see VisitStmt_(const AssertStmtNode*)).  Under SSA each var is
+      // (see Mutate_(const AssertStmtNode*, InplaceMode)).  Under SSA each var is
       // bound exactly once, so the map grows monotonically without key
       // conflicts.  No scope-based cleanup is needed because vars bound
       // in inner scopes are only referenced within those scopes; stale
@@ -172,9 +172,14 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     }
 
     if (value.same_as(op->value)) {
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     } else {
-      auto n = this->CopyOnWrite(op);
+      if (inplace_mode == InplaceMode::kAllow) {
+        auto* n = const_cast<BindNode*>(op);
+        n->value = std::move(value);
+        return ffi::Unchanged();
+      }
+      auto n = ffi::make_object<BindNode>(*op);
       n->value = std::move(value);
       return Stmt(n);
     }
@@ -185,7 +190,8 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
       if (cond.value()) {
         return this->Mutate(op->then_case, inplace_mode).ValueOrUnchanged(op->then_case);
       } else if (op->else_case) {
-        return this->VisitStmt(op->else_case.value());
+        return this->Mutate(op->else_case.value(), inplace_mode)
+            .ValueOrUnchanged(op->else_case.value());
       } else {
         return Evaluate(0);
       }
@@ -194,24 +200,39 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     }
   }
 
+  UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) override {
+    // Remap the Let first; its binder and arithmetic belong to whole-Let simplification.
+    bool previous = simplify_prim_expr_;
+    simplify_prim_expr_ = false;
+    auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+    simplify_prim_expr_ = previous;
+    return result;
+  }
+
+  UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) override {
+    if (!simplify_prim_expr_) return StmtExprMutator::Mutate_(op, inplace_mode);
+    return Parent::Mutate_(op, inplace_mode);
+  }
+
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
+    if (!simplify_prim_expr_) return StmtExprMutator::Mutate_(op, inplace_mode);
     if (op->op.same_as(prim::builtin::if_then_else())) {
       if (ffi::Optional<bool> cond = ProveCondition(op->args[0].as_or_throw<PrimExpr>())) {
         if (cond.value()) {
-          return this->Dispatch(op->args[1]);
+          return this->Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<Expr>();
         } else {
-          return this->Dispatch(op->args[2]);
+          return this->Mutate(op->args[2]).ValueOrUnchanged(op->args[2]).as_or_throw<Expr>();
         }
       }
     }
     return Parent::Mutate_(op, inplace_mode);
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) override { return Parent::Dispatch_(op); }
-
   // eliminate useless stores
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) override {
-    BufferStore store = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<BufferStore>();
+    BufferStore store = Parent::Mutate_(op, inplace_mode)
+                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                            .as_or_throw<BufferStore>();
     if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
       BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
       if (buffer.same_as(store->buffer) && ArrayDeepEqual(load->indices, store->indices) &&
@@ -223,8 +244,6 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     }
     return store;
   }
-
- private:
   bool ArrayDeepEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Array<PrimExpr>& rhs) {
     if (lhs.size() != rhs.size()) {
       return false;
@@ -257,6 +276,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   }
 
   StmtSimplifyConfig config_;
+  bool simplify_prim_expr_{true};
 
   // Pure Bind values kept for substitution into assert conditions.
   // Grows monotonically under SSA — no scope-based cleanup required.

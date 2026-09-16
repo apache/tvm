@@ -32,11 +32,13 @@ namespace tvm {
 namespace tirx {
 
 // Mutator to change the read pattern
-class ThreadAxisRewriter : private StmtExprMutator {
+class ThreadAxisRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   explicit ThreadAxisRewriter(const std::unordered_map<std::string, IterVar>& tmap) : tmap_(tmap) {}
 
-  Stmt Rewrite(Stmt stmt) { return operator()(std::move(stmt)); }
+  Stmt Rewrite(Stmt stmt) { return Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt); }
 
  private:
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
@@ -46,11 +48,11 @@ class ThreadAxisRewriter : private StmtExprMutator {
       auto it = tmap_.find(iv->thread_tag);
       if (it != tmap_.end()) {
         const IterVar& new_iv = it->second;
-        const VarNode* v = iv->var.get();
-        if (!vmap_.count(v)) {
-          vmap_[v] = new_iv->var;
+        auto mapped = VarRemapGet(iv->var);
+        if (mapped == nullptr) {
+          VarRemapSet(iv->var, new_iv->var);
         } else {
-          TVM_FFI_ICHECK(vmap_[v].same_as(new_iv->var));
+          TVM_FFI_ICHECK(mapped.as_or_throw<Var>().same_as(new_iv->var));
         }
         Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
         return AttrStmt(new_iv, op->attr_key, op->value, body);
@@ -59,15 +61,8 @@ class ThreadAxisRewriter : private StmtExprMutator {
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
-    auto it = vmap_.find(op);
-    if (it != vmap_.end()) return it->second;
-    return StmtExprMutator::Mutate_(op, inplace_mode);
-  }
   // The thread map
   const std::unordered_map<std::string, IterVar>& tmap_;
-  // variable map
-  std::unordered_map<const VarNode*, Var> vmap_;
 };
 
 PrimFunc RemapThreadAxis(PrimFunc func, ffi::Map<ffi::String, IterVar> thread_map) {
@@ -91,7 +86,7 @@ PrimFunc RemapThreadAxis(PrimFunc func, ffi::Map<ffi::String, IterVar> thread_ma
   }
 
   auto* n = func.CopyOnWrite();
-  n->body = ThreadAxisRewriter(tmap).Rewrite(std::move(n->body));
+  n->body = ffi::make_object<ThreadAxisRewriter>(tmap)->Rewrite(std::move(n->body));
   return func;
 }
 

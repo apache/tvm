@@ -351,6 +351,9 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
  */
 class SharedMemoryRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   explicit SharedMemoryRewriter(bool is_dynamic = true) : is_dynamic_{is_dynamic} {}
 
  private:
@@ -447,7 +450,9 @@ class SharedMemoryRewriter : public StmtExprMutator {
       scope.merged_buffer = MakeMergedBuffer(scope.merged_alloc_size);
 
       // 5. Recursively mutate the body — reads scope_stack_.back() for all rewrites.
-      Stmt visited_body = StmtExprMutator::VisitStmt(op->body);
+      Stmt visited_body = StmtExprMutator::Mutate(ffi::AnyView(op->body), inplace_mode)
+                              .ValueOrUnchanged(op->body)
+                              .as_or_throw<Stmt>();
       for (const BufferVar& remapped : scope.buffer_remap_order) {
         // The uint8 merged allocation intentionally supplies storage for
         // typed views; target codegen emits the required pointer cast.
@@ -476,7 +481,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
       return AttrStmt(op->node, op->attr_key, op->value, new_body, op->span);
     }
-    return StmtMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
@@ -507,7 +512,9 @@ class SharedMemoryRewriter : public StmtExprMutator {
       }
     }
 
-    auto node = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<DeclBuffer>();
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                    .as_or_throw<DeclBuffer>();
     if (auto new_buf = GetUpdatedBuffer(node->buffer); !new_buf.same_as(node->buffer)) {
       node.CopyOnWrite()->buffer = new_buf;
     }
@@ -515,12 +522,16 @@ class SharedMemoryRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
-    auto node = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op)).as_or_throw<TensorLoad>();
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
+                    .as_or_throw<TensorLoad>();
     return VisitBufferAccess(std::move(node));
   }
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    auto node = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<BufferStore>();
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                    .as_or_throw<BufferStore>();
     return VisitBufferAccess(std::move(node));
   }
 
@@ -604,8 +615,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
                              ? GetUpdatedBuffer(BufferVar(buffer)).data()
                              : scope_stack_.back().merged_buffer.data();
 
-      PrimExpr offset = this->VisitPrimExpr(op->args[2].as_or_throw<PrimExpr>());
-      PrimExpr extent = this->VisitPrimExpr(op->args[3].as_or_throw<PrimExpr>());
+      PrimExpr offset = Mutate(op->args[2]).ValueOrUnchanged(op->args[2]).as_or_throw<PrimExpr>();
+      PrimExpr extent = Mutate(op->args[3]).ValueOrUnchanged(op->args[3]).as_or_throw<PrimExpr>();
       return Call(op->ty, op->op,
                   {op->args[0], merged_data, extra_offset + offset, extent, op->args[4]});
     } else if (op->op.same_as(ptx_cp_async_op)) {
@@ -634,7 +645,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
         return StmtExprMutator::Mutate_(op, inplace_mode);
       }
       PrimExpr extra_offset = GetBufferOffset(buffer, dtype);
-      PrimExpr offset = this->VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>());
+      PrimExpr offset = Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
       if (buffer->ty.as<BufferTypeNode>()) {
         Expr merged_data = GetUpdatedBuffer(BufferVar(buffer)).data();
         ffi::Array<Expr> args = op->args;
@@ -958,8 +969,8 @@ Stmt MergeSharedMemoryAllocations(Stmt stmt, bool merge_static_smem) {
     auto dyn_probe = ffi::make_object<AllocateCollector>(/*is_dynamic=*/true);
     dyn_probe->Visit(stmt);
     if (dyn_probe->shmem_allocs_.size() > 1) {
-      SharedMemoryRewriter dyn_rewriter(/*is_dynamic=*/true);
-      stmt = dyn_rewriter(std::move(stmt));
+      auto dyn_rewriter = ffi::make_object<SharedMemoryRewriter>(/*is_dynamic=*/true);
+      stmt = dyn_rewriter->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt));
     }
   }
   if (merge_static_smem) {
@@ -967,8 +978,8 @@ Stmt MergeSharedMemoryAllocations(Stmt stmt, bool merge_static_smem) {
     auto static_probe = ffi::make_object<AllocateCollector>(/*is_dynamic=*/false);
     static_probe->Visit(stmt);
     if (static_probe->shmem_allocs_.size() > 1) {
-      SharedMemoryRewriter static_rewriter(/*is_dynamic=*/false);
-      stmt = static_rewriter(std::move(stmt));
+      auto static_rewriter = ffi::make_object<SharedMemoryRewriter>(/*is_dynamic=*/false);
+      stmt = static_rewriter->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt));
     }
   }
   return stmt;

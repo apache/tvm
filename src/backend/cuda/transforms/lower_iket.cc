@@ -633,47 +633,48 @@ class RemoveStrippedIketNoOps : public StmtExprMutator {
     return SideEffect(condition) > CallEffectKind::kReadState ? Evaluate(condition) : Evaluate(0);
   }
 
-  Stmt VisitStmt_(const SeqStmtNode* sequence) final {
-    ffi::Array<Stmt> items;
-    for (const Stmt& item : sequence->seq) {
-      Stmt rewritten = VisitStmt(item);
-      if (!IsEvaluateZero(rewritten)) items.push_back(std::move(rewritten));
-    }
-    return SeqStmt::Flatten(items);
-  }
-
-  Stmt VisitStmt_(const AttrStmtNode* attr_stmt) final {
-    Stmt body = VisitStmt(attr_stmt->body);
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* attr_stmt, InplaceMode inplace_mode) final {
+    auto body_update = Mutate(attr_stmt->body, inplace_mode);
+    bool body_unchanged = body_update.UnchangedOrSameAs(attr_stmt->body);
+    Stmt body = std::move(body_update).ValueOrUnchanged(attr_stmt->body);
     if (IsEvaluateZero(body)) return body;
-    if (body.same_as(attr_stmt->body)) return ffi::GetRef<Stmt>(attr_stmt);
+    if (body_unchanged) return ffi::Unchanged();
     return AttrStmt(attr_stmt->node, attr_stmt->attr_key,
-                    Dispatch(attr_stmt->value).as_or_throw<PrimExpr>(), body, attr_stmt->span);
+                    Mutate(attr_stmt->value, inplace_mode).ValueOrUnchanged(attr_stmt->value), body,
+                    attr_stmt->span);
   }
 
-  Stmt VisitStmt_(const ForNode* loop) final {
-    Stmt body = VisitStmt(loop->body);
+  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
+    auto body_update = Mutate(loop->body, inplace_mode);
+    bool body_unchanged = body_update.UnchangedOrSameAs(loop->body);
+    Stmt body = std::move(body_update).ValueOrUnchanged(loop->body);
     if (IsEvaluateZero(body)) return body;
-    if (body.same_as(loop->body)) return ffi::GetRef<Stmt>(loop);
-    return For(loop->loop_var, Dispatch(loop->min).as_or_throw<PrimExpr>(),
-               Dispatch(loop->extent).as_or_throw<PrimExpr>(), loop->kind, body,
+    if (body_unchanged) return ffi::Unchanged();
+    return For(loop->loop_var, Mutate(loop->min, inplace_mode).ValueOrUnchanged(loop->min),
+               Mutate(loop->extent, inplace_mode).ValueOrUnchanged(loop->extent), loop->kind, body,
                loop->thread_binding, loop->annotations, loop->step, loop->span);
   }
 
   UnchangedOr<Stmt> Mutate_(const WhileNode* loop, InplaceMode inplace_mode) final {
-    Stmt body = VisitStmt(loop->body);
+    auto body_update = Mutate(loop->body, inplace_mode);
+    bool body_unchanged = body_update.UnchangedOrSameAs(loop->body);
+    Stmt body = std::move(body_update).ValueOrUnchanged(loop->body);
     if (IsEvaluateZero(body)) return body;
-    if (body.same_as(loop->body)) return ffi::GetRef<Stmt>(loop);
-    return While(Mutate(loop->condition, inplace_mode).ValueOrUnchanged(loop->condition).as_or_throw<PrimExpr>(), body, loop->span);
+    if (body_unchanged) return ffi::Unchanged();
+    return While(Mutate(loop->condition, inplace_mode).ValueOrUnchanged(loop->condition), body,
+                 loop->span);
   }
 
   UnchangedOr<Stmt> Mutate_(const IfThenElseNode* branch, InplaceMode inplace_mode) final {
-    PrimExpr condition = Mutate(branch->condition, inplace_mode).ValueOrUnchanged(branch->condition).as_or_throw<PrimExpr>();
+    PrimExpr condition =
+        Mutate(branch->condition, inplace_mode).ValueOrUnchanged(branch->condition);
     Stmt then_case = Mutate(branch->then_case, inplace_mode).ValueOrUnchanged(branch->then_case);
     if (!branch->else_case.has_value()) {
       if (IsEvaluateZero(then_case)) return PreserveConditionEffects(condition);
       return IfThenElse(condition, then_case, std::nullopt, branch->span);
     }
-    Stmt else_case = VisitStmt(branch->else_case.value());
+    Stmt else_case =
+        Mutate(branch->else_case.value(), inplace_mode).ValueOrUnchanged(branch->else_case.value());
     bool empty_then = IsEvaluateZero(then_case);
     bool empty_else = IsEvaluateZero(else_case);
     if (empty_then && empty_else) return PreserveConditionEffects(condition);
@@ -1111,7 +1112,8 @@ class InstrumentOfficialKernel : public StmtExprMutator {
 
   PrimFunc Run() {
     PrimFunc result = info_.function;
-    result.CopyOnWrite()->body = operator()(info_.function->body);
+    result.CopyOnWrite()->body =
+        Mutate(info_.function->body).ValueOrUnchanged(info_.function->body);
     return result;
   }
 
@@ -1144,11 +1146,13 @@ class InstrumentOfficialKernel : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* evaluate, InplaceMode inplace_mode) final {
     if (const auto* call = evaluate->value.as<CallNode>();
         call && call->op.same_as(IketRangeEndOp())) {
-      PrimExpr token = Dispatch(call->args[0]).as_or_throw<PrimExpr>();
+      PrimExpr token =
+          Mutate(call->args[0]).ValueOrUnchanged(call->args[0]).as_or_throw<PrimExpr>();
       if (call->args.size() == 2) {
         PayloadType payload_type = ValidatePayload(call->args[1]);
-        PrimExpr payload =
-            NormalizePayload(Dispatch(call->args[1]).as_or_throw<PrimExpr>(), payload_type);
+        PrimExpr payload = NormalizePayload(
+            Mutate(call->args[1]).ValueOrUnchanged(call->args[1]).as_or_throw<PrimExpr>(),
+            payload_type);
         return IfThenElse(token != 0, Evaluate(Event(token, std::move(payload))));
       }
       return Evaluate(Event(token));
@@ -1161,8 +1165,11 @@ class InstrumentOfficialKernel : public StmtExprMutator {
       const Declaration& declaration = Lookup(DeclarationKind::kRange, call);
       PrimExpr event_id = IntImm(PrimType::UInt(32), declaration.event_id);
       if (declaration.has_payload) {
-        return Event(event_id, NormalizePayload(Dispatch(call->args[1]).as_or_throw<PrimExpr>(),
-                                                declaration.payload_type));
+        return Event(
+            event_id,
+            NormalizePayload(
+                Mutate(call->args[1]).ValueOrUnchanged(call->args[1]).as_or_throw<PrimExpr>(),
+                declaration.payload_type));
       }
       return Event(event_id);
     }
@@ -1171,8 +1178,11 @@ class InstrumentOfficialKernel : public StmtExprMutator {
       const Declaration& declaration = Lookup(DeclarationKind::kMark, call);
       PrimExpr event_id = IntImm(PrimType::UInt(32), declaration.event_id);
       if (declaration.has_payload) {
-        return Event(event_id, NormalizePayload(Dispatch(call->args[1]).as_or_throw<PrimExpr>(),
-                                                declaration.payload_type));
+        return Event(
+            event_id,
+            NormalizePayload(
+                Mutate(call->args[1]).ValueOrUnchanged(call->args[1]).as_or_throw<PrimExpr>(),
+                declaration.payload_type));
       }
       return Event(event_id);
     }
@@ -1180,8 +1190,11 @@ class InstrumentOfficialKernel : public StmtExprMutator {
       const Declaration& declaration = Lookup(DeclarationKind::kPush, call);
       PrimExpr event_id = IntImm(PrimType::UInt(32), declaration.event_id);
       if (declaration.has_payload) {
-        return Event(event_id, NormalizePayload(Dispatch(call->args[1]).as_or_throw<PrimExpr>(),
-                                                declaration.payload_type));
+        return Event(
+            event_id,
+            NormalizePayload(
+                Mutate(call->args[1]).ValueOrUnchanged(call->args[1]).as_or_throw<PrimExpr>(),
+                declaration.payload_type));
       }
       return Event(event_id);
     }
@@ -1228,8 +1241,10 @@ IRModule LowerIketImpl(IRModule module) {
         schema_verifier->Visit(function->body);
         ValidateRangeSchemas(collector->declarations);
       }
-      StripIket strip(std::move(tokens));
-      Stmt body = RemoveStrippedIketNoOps()(strip(function->body));
+      auto strip = ffi::make_object<StripIket>(std::move(tokens));
+      Stmt stripped = strip->Mutate(function->body).ValueOrUnchanged(function->body);
+      Stmt body =
+          ffi::make_object<RemoveStrippedIketNoOps>()->Mutate(stripped).ValueOrUnchanged(stripped);
       if (!body.same_as(function->body)) {
         function.CopyOnWrite()->body = body;
         module->Update(global_var, function);
@@ -1320,7 +1335,8 @@ IRModule LowerIketImpl(IRModule module) {
 
   std::string device_source = BuildOfficialDeviceSource(kernels, mode);
   for (const KernelIketInfo& kernel : kernels) {
-    module->Update(kernel.global_var, InstrumentOfficialKernel(kernel, device_source).Run());
+    module->Update(kernel.global_var,
+                   ffi::make_object<InstrumentOfficialKernel>(kernel, device_source)->Run());
   }
   return module;
 }

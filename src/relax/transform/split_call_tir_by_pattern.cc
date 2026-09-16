@@ -522,18 +522,20 @@ class BlockRemover : public StmtExprMutator {
       Stmt stmt, const ffi::Map<SBlock, bool>& block_partition,
       const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
       bool is_library_part) {
-    BlockRemover remover(block_partition, allocs, is_library_part);
-    return remover(stmt);
+    auto remover = ffi::make_object<BlockRemover>(block_partition, allocs, is_library_part);
+    return remover->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
   }
 
- private:
   BlockRemover(const ffi::Map<SBlock, bool>& block_partition,
                const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
                bool is_library_part)
       : block_partition(block_partition), allocs_(allocs), is_library_part_(is_library_part) {}
 
+ private:
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                       .as_or_throw<SBlock>();
     ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block.operator->());
     if (op->name_hint != "root") {
       TVM_FFI_ICHECK(block_partition.count(ffi::GetRef<SBlock>(op)));
@@ -557,7 +559,7 @@ class BlockRemover : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
     ffi::Array<Stmt> seq;
     for (const Stmt& s : op->seq) {
-      Stmt new_s = VisitStmt(s);
+      Stmt new_s = Mutate(s).ValueOrUnchanged(s);
       if (erased_) {
         erased_ = false;
       } else {

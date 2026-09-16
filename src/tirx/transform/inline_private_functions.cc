@@ -147,8 +147,10 @@ ffi::Map<GlobalVar, PrimFunc> CollectInlinablePrimFuncs(const IRModule& mod) {
   return output;
 }
 
-class PrimFuncInliner : StmtExprMutator {
+class PrimFuncInliner : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   explicit PrimFuncInliner(ffi::Map<GlobalVar, PrimFunc> inlinable_funcs)
       : inlinable_funcs_(inlinable_funcs) {
     for (const auto& [gvar, callee] : inlinable_funcs_) {
@@ -158,10 +160,12 @@ class PrimFuncInliner : StmtExprMutator {
 
   PrimFunc VisitFunc(PrimFunc func) {
     current_target_ = func->GetAttr<Target>(tvm::attr::kTarget);
-    auto new_body = VisitStmt(func->body);
+    auto new_body_result = Mutate(func->body, InplaceMode::kDisallow);
+    bool new_body_unchanged = new_body_result.UnchangedOrSameAs(func->body);
+    auto new_body = std::move(new_body_result).ValueOrUnchanged(func->body);
     current_target_ = std::nullopt;
 
-    if (!new_body.same_as(func->body)) {
+    if (!new_body_unchanged) {
       func.CopyOnWrite()->body = new_body;
     }
 
@@ -201,7 +205,7 @@ class PrimFuncInliner : StmtExprMutator {
     if (!is_same_target) return std::nullopt;
 
     Stmt inlined = InlineArguments(gvar.value(), callee, call->args);
-    return VisitStmt(inlined);
+    return Mutate(inlined, InplaceMode::kDisallow).ValueOrUnchanged(inlined);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) override {
@@ -272,12 +276,12 @@ Pass InlinePrivateFunctions() {
       return mod;
     }
 
-    PrimFuncInliner mutator(std::move(inlinable_prim_funcs));
+    auto mutator = ffi::make_object<PrimFuncInliner>(std::move(inlinable_prim_funcs));
     IRModule updates;
 
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<PrimFunc>()) {
-        auto updated = mutator.VisitFunc(opt.value());
+        auto updated = mutator->VisitFunc(opt.value());
         if (!updated.same_as(base_func)) {
           updates->Add(gvar, updated);
         }
@@ -287,7 +291,7 @@ Pass InlinePrivateFunctions() {
     if (updates->functions.size()) {
       auto write_ptr = mod.CopyOnWrite();
       write_ptr->Update(updates);
-      for (const auto& gvar : mutator.GetRemovableFunctions()) {
+      for (const auto& gvar : mutator->GetRemovableFunctions()) {
         write_ptr->Remove(gvar);
       }
       mod = ConvertSSA()(mod);

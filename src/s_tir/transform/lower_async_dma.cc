@@ -46,6 +46,9 @@ using namespace tvm::tirx;
 
 class AsyncDMALowerer : public tirx::IRMutatorWithAnalyzer {
  public:
+  using tirx::IRMutatorWithAnalyzer::Mutate;
+  using tirx::IRMutatorWithAnalyzer::Mutate_;
+
   explicit AsyncDMALowerer(bool dma_bypass_cache, const arith::Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer), dma_bypass_cache_(dma_bypass_cache) {}
 
@@ -92,7 +95,9 @@ class AsyncDMALowerer : public tirx::IRMutatorWithAnalyzer {
 
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     // populate analyzer knowledge of loop iterators
-    auto previsit = tirx::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    auto previsit = tirx::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
 
     // Convert this, for example:
     // attr [0] "async_wait_queue_scope" = 0;
@@ -129,8 +134,13 @@ class AsyncDMALowerer : public tirx::IRMutatorWithAnalyzer {
                                          {PrimExpr(queue_id), async_wait->value})
                                         .as_or_throw<PrimExpr>());
 
+      // The nested attribute is skipped by this descent.
+      InplaceMode body_mode = async_wait->unique() ? inplace_mode : InplaceMode::kDisallow;
       // concatenate the call with the body and return
-      return SeqStmt({call_dma_wait, tirx::IRMutatorWithAnalyzer::VisitStmt(async_wait->body)});
+      return SeqStmt({call_dma_wait,
+                      tirx::IRMutatorWithAnalyzer::Mutate(ffi::AnyView(async_wait->body), body_mode)
+                          .ValueOrUnchanged(async_wait->body)
+                          .as_or_throw<Stmt>()});
 
       // Convert this, for example:
       // attr [0] "async_commit_queue_scope" = 0;
@@ -152,7 +162,8 @@ class AsyncDMALowerer : public tirx::IRMutatorWithAnalyzer {
       auto queue_id_node = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(queue_id_node);
       async_queue_id_ = queue_id_node->value;
-      auto result = tirx::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+      auto result = tirx::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       if (dmas_in_group_ > 1) {
         auto call_dma_start_group =
             Evaluate(Call(PrimType::Int(32), tirx::builtin::dma_start_group(),
@@ -187,7 +198,9 @@ Pass LowerAsyncDMA() {
     arith::Analyzer analyzer;
     bool dma_bypass_cache =
         ctx->GetConfig<bool>("tirx.experimental_dma_bypass_cache", false).value();
-    fptr->body = AsyncDMALowerer(dma_bypass_cache, analyzer)(std::move(fptr->body));
+    fptr->body = ffi::make_object<AsyncDMALowerer>(dma_bypass_cache, analyzer)
+                     ->Mutate(fptr->body, InplaceMode::kAllow)
+                     .ValueOrUnchanged(std::move(fptr->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerAsyncDMA", {});

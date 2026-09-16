@@ -232,8 +232,8 @@ class VarTouchedAnalysis : public StmtExprVisitor {
 // rewrite the buffer access pattern when necessary.
 class VTInjector : public tirx::IRMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::Dispatch_;
-  using IRMutatorWithAnalyzer::VisitStmt_;
+  using tirx::IRMutatorWithAnalyzer::Mutate;
+  using tirx::IRMutatorWithAnalyzer::Mutate_;
 
   // constructor
   VTInjector(arith::AnalyzerObj* analyzer, Var var, int num_threads,
@@ -244,26 +244,39 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
         touched_var_(touched_var),
         allow_share_(allow_share) {}
   // Inject VTLoop when needed.
-  Stmt VisitStmt(const Stmt& s) final {
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value,
+                               InplaceMode inplace_mode = InplaceMode::kDisallow) final {
+    if (!value.as<StmtNode>()) return StmtExprMutator::Mutate(value, inplace_mode);
     TVM_FFI_ICHECK(!visit_touched_var_);
-    auto stmt = StmtExprMutator::VisitStmt(s);
+    auto result = StmtExprMutator::Mutate(value, inplace_mode);
     if (visit_touched_var_ || trigger_base_inject_) {
       if (!vt_loop_injected_) {
-        return InjectVTLoop(stmt, false);
+        Stmt stmt = std::move(result).ValueOrUnchanged(value).as_or_throw<Stmt>();
+        return ffi::Any(InjectVTLoop(stmt, false));
       }
       visit_touched_var_ = false;
       trigger_base_inject_ = false;
     }
-    return stmt;
+    return result;
   }
   // Variable
+  UnchangedOr<Expr> Mutate_(const BufferRegionNode* op, InplaceMode inplace_mode) final {
+    auto region = Mutate(op->region).as_or_throw<UnchangedOr<ffi::Array<Range>>>();
+    if (region.UnchangedOrSameAs(op->region)) return ffi::Unchanged();
+    BufferRegion node = ffi::GetRef<BufferRegion>(op);
+    node.CopyOnWrite()->region = std::move(region).ValueUnchecked();
+    return node;
+  }
+
   UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
-    TVM_FFI_ICHECK(!alloc_remap_.count(op))
-        << "BufferVar address may get rewritten in virtual thread";
-    if (touched_var_.count(op)) {
-      visit_touched_var_ = true;
+    if (def_region_kind() == kTVMFFIDefRegionKindNone) {
+      TVM_FFI_ICHECK(!alloc_remap_.count(op))
+          << "BufferVar address may get rewritten in virtual thread";
+      if (touched_var_.count(op)) {
+        visit_touched_var_ = true;
+      }
     }
-    return ffi::GetRef<Var>(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
   PrimExpr RewriteIndex(PrimExpr index, PrimExpr alloc_extent) const {
     return analyzer_->Simplify(index + var_.as_or_throw<PrimExpr>() * alloc_extent);
@@ -275,12 +288,16 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
       bool is_load = op->op.same_as(tirx::builtin::masked_load());
       BufferVar buffer(op->args[0].as_or_throw<Var>());
       PrimExpr value;
-      if (!is_load) value = this->VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>());
+      if (!is_load)
+        value = Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
       ffi::Array<PrimExpr> indices;
       for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
-        indices.push_back(this->VisitPrimExpr(op->args[i].as_or_throw<PrimExpr>()));
+        indices.push_back(
+            Mutate(op->args[i]).ValueOrUnchanged(op->args[i]).as_or_throw<PrimExpr>());
       }
-      PrimExpr predicate = this->VisitPrimExpr(op->args.back().as_or_throw<PrimExpr>());
+      PrimExpr predicate = Mutate(op->args[op->args.size() - 1])
+                               .ValueOrUnchanged(op->args[op->args.size() - 1])
+                               .as_or_throw<PrimExpr>();
       if (is_load) {
         TensorLoad access = VisitBufferAccess(BufferLoad(buffer, indices, op->span));
         ffi::Array<Expr> args{access->source.as_or_throw<tvm::tirx::BufferVar>().var()};
@@ -311,8 +328,8 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
       auto it = alloc_remap_.find(buffer.value().get());
       if (it == alloc_remap_.end()) return StmtExprMutator::Mutate_(op, inplace_mode);
       visit_touched_var_ = true;
-      PrimExpr offset = this->VisitPrimExpr(op->args[2].as_or_throw<PrimExpr>());
-      PrimExpr extent = this->VisitPrimExpr(op->args[3].as_or_throw<PrimExpr>());
+      PrimExpr offset = Mutate(op->args[2]).ValueOrUnchanged(op->args[2]).as_or_throw<PrimExpr>();
+      PrimExpr extent = Mutate(op->args[3]).ValueOrUnchanged(op->args[3]).as_or_throw<PrimExpr>();
       PrimExpr stride = it->second / MakeConst(offset.ty(), dtype.lanes());
       offset = RewriteIndex(offset, stride);
       Expr data = buffer.value()->ty.as<BufferTypeNode>()
@@ -332,12 +349,23 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
   }
   // BufferLoad
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+    auto indices = Mutate(op->indices).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
+    TensorLoad node = ffi::GetRef<TensorLoad>(op);
+    if (!indices.UnchangedOrSameAs(op->indices)) {
+      node.CopyOnWrite()->indices = std::move(indices).ValueUnchecked();
+    }
     return VisitBufferAccess(std::move(node));
   }
   // BufferStore
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
+    auto value = Mutate(op->value);
+    auto indices = Mutate(op->indices).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
+    BufferStore node = ffi::GetRef<BufferStore>(op);
+    if (!value.UnchangedOrSameAs(op->value) || !indices.UnchangedOrSameAs(op->indices)) {
+      auto* n = node.CopyOnWrite();
+      n->value = std::move(value).ValueOrUnchanged(op->value);
+      n->indices = std::move(indices).ValueOrUnchanged(op->indices);
+    }
     trigger_base_inject_ = !allow_share_;
     return VisitBufferAccess(std::move(node));
   }
@@ -369,15 +397,14 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
     if (it == alloc_remap_.end()) return node;
     TVM_FFI_ICHECK_EQ(node->indices.size(), 1)
         << "InjectVirtualThread expects rewritten allocations to be flat memory.";
-    return BufferLoad(GetRemappedBuffer(buffer, it->second),
-                      {RewriteIndex(node->indices[0], it->second)}, node->span);
+    auto* writer = node.CopyOnWrite();
+    writer->source = GetRemappedBuffer(buffer, it->second);
+    writer->indices = {RewriteIndex(node->indices[0], it->second)};
+    return node;
   }
 
   BufferVar GetRemappedBuffer(BufferVar buf, PrimExpr alloc_extent) {
-    auto it = buf_remap_.find(buf);
-    if (it != buf_remap_.end()) {
-      return it->second;
-    }
+    if (auto replacement = VarRemapGet(buf).as<BufferVar>()) return replacement.value();
     BufferVar original = buf;
 
     TVM_FFI_ICHECK_EQ(buf->shape.size(), 1)
@@ -386,19 +413,23 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
     writer->shape = {buf->shape[0] * alloc_extent};
     buf = RebuildBufferVar(buf, std::move(writer));
 
-    buf_remap_[original] = buf;
+    VarRemapSet(original, buf);
     return buf;
   }
 
   // Attribute
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    PrimExpr value = this->VisitPrimExpr(op->value);
+    auto value_result = this->Mutate(op->value, inplace_mode);
+    bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
+    PrimExpr value = std::move(value_result).ValueOrUnchanged(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     } else {
-      Stmt body = this->VisitStmt(op->body);
-      if (value.same_as(op->value) && body.same_as(op->body)) {
-        return ffi::GetRef<Stmt>(op);
+      auto body_result = this->Mutate(op->body, inplace_mode);
+      bool body_unchanged = body_result.UnchangedOrSameAs(op->body);
+      Stmt body = std::move(body_result).ValueOrUnchanged(op->body);
+      if (value_unchanged && body_unchanged) {
+        return ffi::Unchanged();
       } else {
         return AttrStmt(op->node, op->attr_key, value, body);
       }
@@ -406,13 +437,15 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
   }
   // Bind
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
-    Expr value = this->VisitExpr(op->value);
+    auto value_result = this->Mutate(op->value, inplace_mode);
+    bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
+    Expr value = std::move(value_result).ValueOrUnchanged(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     }
     visit_touched_var_ = false;
-    if (value.same_as(op->value)) {
-      return ffi::GetRef<Stmt>(op);
+    if (value_unchanged) {
+      return ffi::Unchanged();
     } else {
       return Bind(op->var, value);
     }
@@ -420,43 +453,58 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
   // For
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     TVM_FFI_ICHECK(is_zero(op->min));
-    PrimExpr extent = this->VisitPrimExpr(op->extent);
+    auto extent_result = this->Mutate(op->extent, inplace_mode);
+    bool extent_unchanged = extent_result.UnchangedOrSameAs(op->extent);
+    PrimExpr extent = std::move(extent_result).ValueOrUnchanged(op->extent);
     if (visit_touched_var_ && !vt_loop_injected_) {
       Stmt stmt = InjectVTLoop(ffi::GetRef<Stmt>(op), true);
       ++max_loop_depth_;
       return stmt;
     }
     visit_touched_var_ = false;
-    Stmt body = this->VisitStmt(op->body);
+    auto body_result = this->Mutate(op->body, inplace_mode);
+    bool body_unchanged = body_result.UnchangedOrSameAs(op->body);
+    Stmt body = std::move(body_result).ValueOrUnchanged(op->body);
     ++max_loop_depth_;
-    if (extent.same_as(op->extent) && body.same_as(op->body)) {
-      return ffi::GetRef<Stmt>(op);
+    if (extent_unchanged && body_unchanged) {
+      return ffi::Unchanged();
     } else {
-      auto n = CopyOnWrite(op);
-      n->extent = std::move(extent);
-      n->body = std::move(body);
-      return Stmt(n);
+      if (inplace_mode == InplaceMode::kAllow) {
+        auto* writable = const_cast<ForNode*>(op);
+        writable->extent = std::move(extent);
+        writable->body = std::move(body);
+        return ffi::Unchanged();
+      } else {
+        auto copy = ffi::make_object<ForNode>(*op);
+        copy->extent = std::move(extent);
+        copy->body = std::move(body);
+        return For(std::move(copy));
+      }
     }
   }
   // IfThenElse
   UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final {
-    PrimExpr condition = this->VisitPrimExpr(op->condition);
+    auto condition_result = this->Mutate(op->condition, inplace_mode);
+    bool condition_unchanged = condition_result.UnchangedOrSameAs(op->condition);
+    PrimExpr condition = std::move(condition_result).ValueOrUnchanged(op->condition);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     }
     visit_touched_var_ = false;
     TVM_FFI_ICHECK_EQ(max_loop_depth_, 0);
-    Stmt then_case = this->VisitStmt(op->then_case);
+    auto then_case_result = this->Mutate(op->then_case, inplace_mode);
+    bool then_case_unchanged = then_case_result.UnchangedOrSameAs(op->then_case);
+    Stmt then_case = std::move(then_case_result).ValueOrUnchanged(op->then_case);
     ffi::Optional<Stmt> else_case = std::nullopt;
     if (op->else_case) {
       int temp = max_loop_depth_;
       max_loop_depth_ = 0;
-      else_case = this->VisitStmt(op->else_case.value());
+      else_case =
+          this->Mutate(op->else_case.value(), inplace_mode).ValueOrUnchanged(op->else_case.value());
       max_loop_depth_ = std::max(temp, max_loop_depth_);
     }
-    if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
-        else_case.same_as(op->else_case)) {
-      return ffi::GetRef<Stmt>(op);
+    if (condition_unchanged && then_case_unchanged && else_case.same_as(op->else_case)) {
+      return ffi::Unchanged();
     } else {
       return IfThenElse(condition, then_case, else_case);
     }
@@ -489,7 +537,8 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
       if (const auto* bind = op->seq[i].as<BindNode>(); bind && !vt_loop_injected_) {
         // Visit just the value expression to probe for vt_var dependency.
         TVM_FFI_ICHECK(!visit_touched_var_);
-        this->Dispatch(bind->value);
+        // This is a probe: the original Bind is revisited when forming the group.
+        this->Mutate(bind->value, InplaceMode::kDisallow);
         if (visit_touched_var_) {
           // Reset flag (InjectVTLoop will handle it).
           visit_touched_var_ = false;
@@ -512,12 +561,14 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
         visit_touched_var_ = false;
       }
       // Non-Bind child or Bind that does not touch vt_var: visit normally.
-      Stmt child = this->VisitStmt(op->seq[i]);
+      auto child_result = this->Mutate(op->seq[i]);
+      bool child_unchanged = child_result.UnchangedOrSameAs(op->seq[i]);
+      Stmt child = std::move(child_result).ValueOrUnchanged(op->seq[i]).as_or_throw<Stmt>();
       max_loop_depth_ = std::max(max_loop_depth_, temp);
-      if (!child.same_as(op->seq[i])) changed = true;
+      if (!child_unchanged) changed = true;
       new_seq.push_back(child);
     }
-    if (!changed) return ffi::GetRef<Stmt>(op);
+    if (!changed) return ffi::Unchanged();
     if (new_seq.size() == 1) return new_seq[0];
     return SeqStmt(new_seq);
   }
@@ -526,8 +577,10 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     AllocBuffer node = ffi::GetRef<AllocBuffer>(op);
 
-    ffi::Array<PrimExpr> shape =
-        op->buffer->shape.Map([this](const PrimExpr& s) { return this->VisitPrimExpr(s); });
+    ffi::Array<PrimExpr> shape = op->buffer->shape.Map([this](const PrimExpr& s) {
+      // Keep the retained allocation and its buffer type unchanged.
+      return Mutate(s, InplaceMode::kDisallow).ValueOrUnchanged(s);
+    });
 
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
@@ -544,12 +597,12 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
     }
 
     if (shape.same_as(op->buffer->shape)) {
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     } else {
       auto type = CopyBufferType(op->buffer);
       type->shape = shape;
       BufferVar new_buffer = RebuildBufferVar(op->buffer, std::move(type));
-      buf_remap_[op->buffer] = new_buffer;
+      VarRemapSet(op->buffer, new_buffer);
       return AllocBuffer(new_buffer, op->annotations);
     }
   }
@@ -562,7 +615,7 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
     trigger_base_inject_ = false;
     vt_loop_injected_ = true;
     if (before_mutation) {
-      stmt = this->VisitStmt(stmt);
+      stmt = this->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
     }
     // reset the flags after processing.
     vt_loop_injected_ = false;
@@ -628,16 +681,17 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
    * the allocated buffer size, then modifying the indices at which
    * each virtual thread accesses the buffer.
    */
-  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buf_remap_;
 };
 
 class VirtualThreadInjector : public tirx::IRMutatorWithAnalyzer {
  public:
+  using tirx::IRMutatorWithAnalyzer::Mutate;
+  using tirx::IRMutatorWithAnalyzer::Mutate_;
+
   using IRMutatorWithAnalyzer::IRMutatorWithAnalyzer;
-  using IRMutatorWithAnalyzer::VisitStmt_;
 
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    Stmt stmt = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<AttrStmtNode>();
     if (op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iv = op->node.as_or_throw<IterVar>();
@@ -645,8 +699,9 @@ class VirtualThreadInjector : public tirx::IRMutatorWithAnalyzer {
       int nthread = static_cast<int>(op->value.as<IntImmNode>()->value);
       auto vs = ffi::make_object<VarTouchedAnalysis>();
       auto touched = vs->TouchedVar(op->body, iv->var.get());
-      VTInjector injector(analyzer_, iv->var, nthread, touched, allow_share);
-      return injector(op->body);
+      auto injector =
+          ffi::make_object<VTInjector>(analyzer_, iv->var, nthread, touched, allow_share);
+      return injector->Mutate(op->body).ValueOrUnchanged(op->body);
     } else {
       return stmt;
     }
@@ -661,7 +716,9 @@ Pass InjectVirtualThread() {
 
     arith::Analyzer analyzer;
 
-    n->body = VirtualThreadInjector(analyzer)(std::move(n->body));
+    n->body = ffi::make_object<VirtualThreadInjector>(analyzer)
+                  ->Mutate(n->body, InplaceMode::kAllow)
+                  .ValueOrUnchanged(std::move(n->body));
     n->body = ConvertSSA(std::move(n->body));
     return f;
   };

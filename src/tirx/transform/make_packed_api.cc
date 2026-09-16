@@ -46,13 +46,20 @@ namespace tvm {
 namespace tirx {
 
 namespace {
-class ReturnRewriter : public StmtMutator {
+class ReturnRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override {
+    if (input.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(input, inplace_mode);
+  }
   explicit ReturnRewriter(Var ret_var) : ret_var_(ret_var) {}
 
   UnchangedOr<Stmt> Mutate_(const ForNode* node, InplaceMode inplace_mode) override {
     if (node->kind == ForKind::kParallel) in_parallel_ += 1;
-    Stmt ret = StmtMutator::Mutate_(node, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(node));
+    Stmt ret =
+        StmtExprMutator::Mutate_(node, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(node));
     if (node->kind == ForKind::kParallel) in_parallel_ -= 1;
     return ret;
   }
@@ -126,23 +133,28 @@ class ReturnRewriter : public StmtMutator {
 
 class SubroutineCallRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   static ffi::Optional<Stmt> Apply(const ffi::Map<GlobalVar, ffi::String>& packed_func_methods,
                                    Stmt stmt) {
-    SubroutineCallRewriter rewriter(packed_func_methods);
-    stmt = rewriter.VisitStmt(std::move(stmt));
-    if (rewriter.made_change_) {
+    auto rewriter = ffi::make_object<SubroutineCallRewriter>(packed_func_methods);
+    stmt = rewriter->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
+    if (rewriter->made_change_) {
       return stmt;
     } else {
       return std::nullopt;
     }
   }
 
- private:
+ public:
   explicit SubroutineCallRewriter(const ffi::Map<GlobalVar, ffi::String>& packed_func_methods)
       : packed_func_methods(packed_func_methods) {}
 
+ private:
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
-    auto node = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op)).as_or_throw<Call>();
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<Expr>(op))
+                    .as_or_throw<Call>();
 
     if (auto* gvar_ptr = node->op.as<GlobalVarNode>()) {
       auto gvar = ffi::GetRef<GlobalVar>(gvar_ptr);
@@ -249,7 +261,9 @@ PrimFunc MakePackedAPI(PrimFunc func) {
                                      {tvm::attr::kGlobalSymbol,
                                       ffi::symbol::tvm_ffi_symbol_prefix + global_symbol.value()}});
 
-  Stmt body = ReturnRewriter(v_result)(func_ptr->body);
+  Stmt body = ffi::make_object<ReturnRewriter>(v_result)
+                  ->Mutate(func_ptr->body, InplaceMode::kAllow)
+                  .ValueOrUnchanged(func_ptr->body);
   body = AttrStmt(0, attr::compute_scope, prim::StringImm(name_hint + "_compute_"), body);
   // Set device context
   if (need_set_device) {

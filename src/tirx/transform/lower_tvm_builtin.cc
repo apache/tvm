@@ -52,14 +52,16 @@ TVM_FFI_INLINE int GetVectorBytes(const PrimType& dtype) {
 // These information are needed during codegen.
 class BuiltinLower : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   static PrimFunc Build(PrimFunc func) {
     ffi::Optional<PrimExpr> device_type = std::nullopt;
     if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
       device_type = IntImm::Int32(target.value()->kind->default_device_type);
     }
 
-    BuiltinLower mutator(device_type);
-    func.CopyOnWrite()->body = mutator.VisitBodyAndRealizeAlloca(func->body);
+    auto mutator = ffi::make_object<BuiltinLower>(device_type);
+    func.CopyOnWrite()->body = mutator->VisitBodyAndRealizeAlloca(func->body);
     return func;
   }
 
@@ -130,22 +132,22 @@ class BuiltinLower : public StmtExprMutator {
   Stmt Build(Stmt stmt) { return this->VisitBodyAndRealizeAlloca(stmt); }
 
   StackSizes GetMaxStack(Stmt stmt) {
-    BuiltinLower precheck;
-    precheck.is_precheck_ = true;
-    precheck.device_id_ = this->device_id_;
-    precheck.device_type_ = this->device_type_;
+    auto precheck = ffi::make_object<BuiltinLower>();
+    precheck->is_precheck_ = true;
+    precheck->device_id_ = this->device_id_;
+    precheck->device_type_ = this->device_type_;
 
-    precheck.alloca_scope_.emplace_back();
+    precheck->alloca_scope_.emplace_back();
     {
       // NOTE: this scope reference is invalid after any mutation is applied to alloca_scope_.
-      auto& scope = precheck.alloca_scope_.back();
+      auto& scope = precheck->alloca_scope_.back();
       scope.stack_shape = decl_buffer({IntImm::Int64(0)}, PrimType::Int(64), "stack_shape");
     }
 
-    precheck.VisitStmt(stmt);
+    precheck->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
 
-    TVM_FFI_ICHECK_EQ(precheck.alloca_scope_.size(), 1);
-    return precheck.alloca_scope_[0].max_sizes;
+    TVM_FFI_ICHECK_EQ(precheck->alloca_scope_.size(), 1);
+    return precheck->alloca_scope_[0].max_sizes;
   }
 
   // Allcoate stack frames, only at parallel-for or root.
@@ -195,7 +197,7 @@ class BuiltinLower : public StmtExprMutator {
     }
 
     stmt = scope_.WithNewScope([&]() -> Stmt {
-      Stmt visited = this->VisitStmt(stmt);
+      Stmt visited = this->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
       return AppendPendingFrees(visited);
     });
 
@@ -205,12 +207,14 @@ class BuiltinLower : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt(const Stmt& s) final {
-    // allocate space to hold prepare stmts before s
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) final {
+    if (!input.as<StmtNode>()) return StmtExprMutator::Mutate(input, inplace_mode);
+    // Allocate space to hold preparation statements for this statement.
     prep_seq_stack_.emplace_back(std::vector<Stmt>());
 
     auto scope_size = alloca_scope_.size();
-    auto stmt = StmtExprMutator::VisitStmt(s);
+    auto mutated = StmtExprMutator::Mutate(input, inplace_mode);
+    Stmt stmt = std::move(mutated).ValueOrUnchanged(input).as_or_throw<Stmt>();
     {
       // NOTE: this scope reference is invalid after any mutation is applied to alloca_scope_.
       auto& scope = alloca_scope_.back();
@@ -326,7 +330,8 @@ class BuiltinLower : public StmtExprMutator {
       return out;
     } else {
       return scope_.WithNewScope([&]() -> Stmt {
-        Stmt visited = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+        Stmt visited =
+            StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
         if (!scope_.Current().pending_frees.empty()) {
           const auto* attr = visited.as<AttrStmtNode>();
           if (attr) {
@@ -339,8 +344,12 @@ class BuiltinLower : public StmtExprMutator {
     }
   }
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    PrimExpr min = this->VisitPrimExpr(op->min);
-    PrimExpr extent = this->VisitPrimExpr(op->extent);
+    auto min_result = this->Mutate(op->min, inplace_mode);
+    bool min_unchanged = min_result.UnchangedOrSameAs(op->min);
+    PrimExpr min = std::move(min_result).ValueOrUnchanged(op->min);
+    auto extent_result = this->Mutate(op->extent, inplace_mode);
+    bool extent_unchanged = extent_result.UnchangedOrSameAs(op->extent);
+    PrimExpr extent = std::move(extent_result).ValueOrUnchanged(op->extent);
     Stmt body;
 
     if (op->kind == ForKind::kParallel) {
@@ -352,10 +361,17 @@ class BuiltinLower : public StmtExprMutator {
       });
     }
 
-    if (min.same_as(op->min) && extent.same_as(op->extent) && body.same_as(op->body)) {
-      return ffi::GetRef<Stmt>(op);
+    if (min_unchanged && extent_unchanged && body.same_as(op->body)) {
+      return ffi::Unchanged();
     } else {
-      auto n = CopyOnWrite(op);
+      if (inplace_mode == InplaceMode::kAllow) {
+        auto* n = const_cast<ForNode*>(op);
+        n->min = std::move(min);
+        n->extent = std::move(extent);
+        n->body = std::move(body);
+        return ffi::Unchanged();
+      }
+      auto n = ffi::make_object<ForNode>(*op);
       n->min = std::move(min);
       n->extent = std::move(extent);
       n->body = std::move(body);
@@ -364,7 +380,9 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final {
-    PrimExpr condition = this->VisitPrimExpr(op->condition);
+    auto condition_result = this->Mutate(op->condition, inplace_mode);
+    bool condition_unchanged = condition_result.UnchangedOrSameAs(op->condition);
+    PrimExpr condition = std::move(condition_result).ValueOrUnchanged(op->condition);
     // Each branch gets its own scope to prevent frees from leaking across branches.
     Stmt then_case = scope_.WithNewScope([&]() -> Stmt {
       Stmt visited = this->Mutate(op->then_case, inplace_mode).ValueOrUnchanged(op->then_case);
@@ -373,13 +391,14 @@ class BuiltinLower : public StmtExprMutator {
     ffi::Optional<Stmt> else_case;
     if (op->else_case) {
       else_case = scope_.WithNewScope([&]() -> Stmt {
-        Stmt visited = this->VisitStmt(op->else_case.value());
+        Stmt visited = this->Mutate(op->else_case.value(), inplace_mode)
+                           .ValueOrUnchanged(op->else_case.value());
         return AppendPendingFrees(visited);
       });
     }
-    if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
+    if (condition_unchanged && then_case.same_as(op->then_case) &&
         else_case.same_as(op->else_case)) {
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     }
     return IfThenElse(condition, then_case, else_case, op->span);
   }
@@ -441,7 +460,8 @@ class BuiltinLower : public StmtExprMutator {
     auto method_name = GetDeviceMethodName("dma_copy");
     Call call_packed = Call(PrimType::Int(32), builtin::tvm_call_packed(),
                             {method_name, queue_id, dst, src, size, bypass_cache});
-    return VisitPrimExpr(call_packed.as_or_throw<PrimExpr>());
+    return Mutate(call_packed.as_or_throw<PrimExpr>(), InplaceMode::kDisallow)
+        .ValueOrUnchanged(call_packed.as_or_throw<PrimExpr>());
   }
 
   PrimExpr MakeDMAWait(const CallNode* op) {
@@ -451,7 +471,8 @@ class BuiltinLower : public StmtExprMutator {
     auto method_name = GetDeviceMethodName("dma_wait");
     Call call_packed =
         Call(PrimType::Int(32), builtin::tvm_call_packed(), {method_name, queue_id, inflight});
-    return VisitPrimExpr(call_packed.as_or_throw<PrimExpr>());
+    return Mutate(call_packed.as_or_throw<PrimExpr>(), InplaceMode::kDisallow)
+        .ValueOrUnchanged(call_packed.as_or_throw<PrimExpr>());
   }
 
   PrimExpr MakeDMAStartGroup(const CallNode* op) {
@@ -459,7 +480,8 @@ class BuiltinLower : public StmtExprMutator {
 
     auto method_name = GetDeviceMethodName("dma_start_group");
     Call call_packed = Call(PrimType::Int(32), builtin::tvm_call_packed(), {method_name, queue_id});
-    return VisitPrimExpr(call_packed.as_or_throw<PrimExpr>());
+    return Mutate(call_packed.as_or_throw<PrimExpr>(), InplaceMode::kDisallow)
+        .ValueOrUnchanged(call_packed.as_or_throw<PrimExpr>());
   }
 
   PrimExpr MakeDMAEndGroup(const CallNode* op) {
@@ -467,7 +489,8 @@ class BuiltinLower : public StmtExprMutator {
 
     auto method_name = GetDeviceMethodName("dma_end_group");
     Call call_packed = Call(PrimType::Int(32), builtin::tvm_call_packed(), {method_name, queue_id});
-    return VisitPrimExpr(call_packed.as_or_throw<PrimExpr>());
+    return Mutate(call_packed.as_or_throw<PrimExpr>(), InplaceMode::kDisallow)
+        .ValueOrUnchanged(call_packed.as_or_throw<PrimExpr>());
   }
 
   // call shape
@@ -481,7 +504,8 @@ class BuiltinLower : public StmtExprMutator {
     }
     int64_t stack_begin = scope.run_sizes.shape_stack;
     scope.run_sizes.shape_stack += op->args.size();
-    Expr expr = StmtExprMutator::Dispatch_(op);
+    Expr expr = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
+                    .ValueOrUnchanged(ffi::GetRef<Expr>(op));
     op = expr.as<CallNode>();
     // no need to perform any store for a scalar shape
     for (size_t i = 0; i < op->args.size(); ++i) {
@@ -501,7 +525,8 @@ class BuiltinLower : public StmtExprMutator {
 
     size_t idx = scope.run_sizes.array_stack;
     scope.run_sizes.array_stack += 1;
-    Expr expr = StmtExprMutator::Dispatch_(op);
+    Expr expr = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
+                    .ValueOrUnchanged(ffi::GetRef<Expr>(op));
     op = expr.as<CallNode>();
 
     prep_seq.emplace_back(
@@ -643,7 +668,8 @@ class BuiltinLower : public StmtExprMutator {
     // The extra one slot is for return value.
     scope.run_sizes.arg_stack += num_args + 1;
     // Specially handle the buffer packed intrinsic
-    Expr expr = StmtExprMutator::Dispatch_(op);
+    Expr expr = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
+                    .ValueOrUnchanged(ffi::GetRef<Expr>(op));
     op = expr.as<CallNode>();
 
     for (size_t i = 0; i < num_args; ++i) {
@@ -713,11 +739,16 @@ class BuiltinLower : public StmtExprMutator {
     Stmt free_stmt =
         IfThenElse(free_op.as_or_throw<PrimExpr>() != IntImm::Int32(0), throw_last_error);
     // Visit the free_stmt so tvm_call_packed builtins inside it get lowered.
-    free_stmt = StmtExprMutator::VisitStmt(free_stmt);
+    free_stmt = StmtExprMutator::Mutate(ffi::AnyView(free_stmt), InplaceMode::kDisallow)
+                    .ValueOrUnchanged(free_stmt)
+                    .as_or_throw<Stmt>();
     scope_.Current().pending_frees.push_back(free_stmt);
 
     // Re-visit so tvm_call_packed in the Bind value and null_check get lowered.
-    return StmtExprMutator::VisitStmt(SeqStmt({Bind(let->var, call_packed), null_check}));
+    Stmt input = SeqStmt({Bind(let->var, call_packed), null_check});
+    return StmtExprMutator::Mutate(ffi::AnyView(input), InplaceMode::kDisallow)
+        .ValueOrUnchanged(input)
+        .as_or_throw<Stmt>();
   }
 
  private:

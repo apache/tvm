@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -54,64 +55,20 @@ UpdatePointerStorageScope::UpdatePointerStorageScope(
       auto type = CopyBufferType(buffer);
       type->storage_scope = kv.second;
       BufferVar replacement = RebuildBufferVar(buffer, std::move(type));
-      new_var_remap_[kv.first.get()] = replacement.var();
+      VarRemapSet(kv.first, replacement);
     } else {
-      new_var_remap_[kv.first.get()] = WithStorageScope(kv.first.get(), kv.second);
+      VarRemapSet(kv.first, WithStorageScope(kv.first.get(), kv.second));
     }
   }
 }
 
-Expr UpdatePointerStorageScope::Dispatch_(const VarNode* op) {
-  auto it = new_var_remap_.find(op);
-  if (it == new_var_remap_.end()) {
-    return ffi::GetRef<Var>(op);
+UnchangedOr<Expr> UpdatePointerStorageScope::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
+  if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
+    Expr arg = Mutate(op->args[0]).ValueOrUnchanged(op->args[0]);
+    if (arg.same_as(op->args[0])) return ffi::Unchanged();
+    return arg.as_or_throw<BufferVar>().data();
   }
-  return it->second;
-}
-
-template <typename Node>
-Node UpdatePointerStorageScope::UpdateBufferAccess(Node node) {
-  auto new_buffer = GetUpdatedBuffer(node->buffer);
-  if (!new_buffer.same_as(node->buffer)) {
-    auto writer = node.CopyOnWrite();
-    writer->buffer = new_buffer;
-  }
-  return node;
-}
-
-template <>
-TensorLoad UpdatePointerStorageScope::UpdateBufferAccess(TensorLoad node) {
-  BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
-  BufferVar new_buffer = GetUpdatedBuffer(buffer);
-  return new_buffer.same_as(buffer) ? node : BufferLoad(new_buffer, node->indices, node->span);
-}
-
-BufferVar UpdatePointerStorageScope::GetUpdatedBuffer(BufferVar buf) {
-  auto it = new_var_remap_.find(buf.get());
-  if (it != new_var_remap_.end()) {
-    return BufferVar(it->second);
-  }
-  return buf;
-}
-
-Stmt UpdatePointerStorageScope::VisitStmt_(const AllocBufferNode* op) {
-  auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<AllocBuffer>();
-  return UpdateBufferAccess(node);
-}
-
-Stmt UpdatePointerStorageScope::VisitStmt_(const DeclBufferNode* op) {
-  auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<DeclBuffer>();
-  return UpdateBufferAccess(node);
-}
-
-Expr UpdatePointerStorageScope::Dispatch_(const TensorLoadNode* op) {
-  auto node = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
-  return UpdateBufferAccess(node);
-}
-
-Stmt UpdatePointerStorageScope::VisitStmt_(const BufferStoreNode* op) {
-  auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
-  return UpdateBufferAccess(node);
+  return StmtExprMutator::Mutate_(op, inplace_mode);
 }
 
 }  // namespace tirx

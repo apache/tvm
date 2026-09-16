@@ -235,6 +235,9 @@ class PipelineOpaqueAccessRewriter {
  */
 class PipelineBodyRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   /*!
    * \brief Constructor of PipelineBodyRewriter.
    * \param buffer_data_to_buffer The map from buffer data to buffer.
@@ -251,22 +254,21 @@ class PipelineBodyRewriter : public StmtExprMutator {
                        bool access_all_versions,
                        const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info)
       : buffer_data_to_buffer_(buffer_data_to_buffer),
-        buffer_remap_(buffer_remap),
         pipeline_loop_(pipeline_loop),
         access_all_versions_(access_all_versions),
-        opaque_access_rewriter_(buffer_data_to_buffer_, buffer_remap_, pipeline_loop_,
+        opaque_access_rewriter_(buffer_data_to_buffer_, buffer_remap, pipeline_loop_,
                                 fragment_info) {
-    for (const auto& [_, remapped] : buffer_remap_) {
+    for (const auto& [original, remapped] : buffer_remap) {
+      VarRemapSet(original, remapped);
       buffer_data_to_buffer_.Set(remapped.var(), remapped);
     }
   }
 
  private:
-  BufferRegion RewritePipelineBufferRegion(const BufferRegion& buffer_region) const {
-    auto it = buffer_remap_.find(buffer_region->buffer);
-    if (it != buffer_remap_.end()) {
+  BufferRegion RewritePipelineBufferRegion(const BufferRegion& buffer_region) {
+    if (auto replacement = VarRemapGet(buffer_region->buffer).as<BufferVar>()) {
       Region new_region = buffer_region->region;
-      const BufferVar& new_buffer = (*it).second;
+      BufferVar new_buffer = replacement.value();
       // For pipeline buffers, relax the access region of the first dimension to full extent
       // if access_all_versions == true
       Range accessed_version =
@@ -285,27 +287,29 @@ class PipelineBodyRewriter : public StmtExprMutator {
     for (const BufferVar& alloc_buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.Set(alloc_buffer.var(), alloc_buffer);
     }
-    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
-    SBlockNode* n = block.CopyOnWrite();
-    n->reads.MutateByApply([this](const BufferRegion& buffer_region) {
-      return RewritePipelineBufferRegion(buffer_region);
-    });
-    n->writes.MutateByApply([this](const BufferRegion& buffer_region) {
-      return RewritePipelineBufferRegion(buffer_region);
-    });
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                       .as_or_throw<SBlock>();
     for (const BufferVar& alloc_buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.erase(alloc_buffer.var());
     }
     return block;
   }
 
+  UnchangedOr<Expr> Mutate_(const BufferRegionNode* op, InplaceMode inplace_mode) final {
+    BufferRegion region = RewritePipelineBufferRegion(ffi::GetRef<BufferRegion>(op));
+    return StmtExprMutator::Mutate_(region.get(), InplaceMode::kDisallow).ValueOrUnchanged(region);
+  }
+
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    BufferStore store = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<BufferStore>();
-    auto it = buffer_remap_.find(store->buffer);
-    if (it == buffer_remap_.end()) {
+    auto replacement = VarRemapGet(op->buffer).as<BufferVar>();
+    BufferStore store = StmtExprMutator::Mutate_(op, inplace_mode)
+                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                            .as_or_throw<BufferStore>();
+    if (!replacement) {
       return store;
     }
-    const BufferVar& new_buffer = (*it).second;
+    BufferVar new_buffer = replacement.value();
     auto* n = store.CopyOnWrite();
     n->buffer = new_buffer;
     PrimExpr version =
@@ -315,26 +319,24 @@ class PipelineBodyRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
-    TensorLoad load = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op)).as_or_throw<TensorLoad>();
-    auto it = buffer_remap_.find(load->source.as_or_throw<tvm::tirx::BufferVar>());
-    if (it == buffer_remap_.end()) {
-      return load;
-    }
-    const BufferVar& new_buffer = (*it).second;
+    auto replacement = VarRemapGet(op->source).as<BufferVar>();
+    if (!replacement) return StmtExprMutator::Mutate_(op, inplace_mode);
+    auto indices = Mutate(op->indices, inplace_mode)
+                       .ValueOrUnchanged(op->indices)
+                       .as_or_throw<ffi::Array<PrimExpr>>();
+    BufferVar new_buffer = replacement.value();
     PrimExpr version =
         floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_buffer->shape[0]);
-    ffi::Array<PrimExpr> indices = load->indices;
     indices.insert(indices.begin(), version);
-    return BufferLoad(new_buffer, indices, load->span);
+    return BufferLoad(new_buffer, indices, op->span);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    Call call = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op)).as_or_throw<Call>();
-    return opaque_access_rewriter_.Rewrite(call);
+    Call call = opaque_access_rewriter_.Rewrite(ffi::GetRef<Call>(op)).as_or_throw<Call>();
+    return StmtExprMutator::Mutate_(call.get(), InplaceMode::kDisallow).ValueOrUnchanged(call);
   }
 
   ffi::Map<Var, BufferVar> buffer_data_to_buffer_;
-  ffi::Map<BufferVar, BufferVar> buffer_remap_;
   For pipeline_loop_;
   bool access_all_versions_;
   PipelineOpaqueAccessRewriter opaque_access_rewriter_;
@@ -345,6 +347,9 @@ class PipelineBodyRewriter : public StmtExprMutator {
  */
 class PipelineRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   static Stmt Rewrite(
       ffi::Map<Var, BufferVar> buffer_data_to_buffer,
       const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& double_buffers,
@@ -352,12 +357,12 @@ class PipelineRewriter : public StmtExprMutator {
       const PipelineInfo& pipeline_info,
       const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info,
       const ffi::Map<ffi::String, ffi::Any> preserved_annotations) {
-    PipelineRewriter rewriter(buffer_data_to_buffer, double_buffers, pipeline_allocs, pipeline_loop,
-                              pipeline_info, fragment_info, preserved_annotations);
-    return rewriter.BuildPipeline();
+    auto rewriter = ffi::make_object<PipelineRewriter>(
+        buffer_data_to_buffer, double_buffers, pipeline_allocs, pipeline_loop, pipeline_info,
+        fragment_info, preserved_annotations);
+    return rewriter->BuildPipeline();
   }
 
- private:
   PipelineRewriter(
       ffi::Map<Var, BufferVar> buffer_data_to_buffer,
       const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& double_buffers,
@@ -374,6 +379,7 @@ class PipelineRewriter : public StmtExprMutator {
         fragment_info_(fragment_info),
         preserved_annotations_(preserved_annotations) {}
 
+ private:
   Stmt BuildPipeline() {
     // Step 1: Analyze accesses to the buffers in the pipeline and compute the number of versions
     // need to maintain for each buffer.
@@ -432,7 +438,6 @@ class PipelineRewriter : public StmtExprMutator {
     return SBlockRealize({}, IntImm::Bool(true), block);
   }
 
- private:
   /*!
    * \brief Analyze accesses to the buffers in the software pipeline.
    *
@@ -896,9 +901,12 @@ class PipelineRewriter : public StmtExprMutator {
       if (analyzer_->CanProve(!inbound)) {
         continue;
       }
-      SBlock new_block = PipelineBodyRewriter(buffer_data_to_buffer_, buffer_remap_, pipeline_loop_,
-                                              max_stage_ != 1, fragment_info_)(block)
-                             .as_or_throw<SBlock>();
+      SBlock new_block =
+          ffi::make_object<PipelineBodyRewriter>(buffer_data_to_buffer_, buffer_remap_,
+                                                 pipeline_loop_, max_stage_ != 1, fragment_info_)
+              ->Mutate(block)
+              .ValueOrUnchanged(block)
+              .as_or_throw<SBlock>();
 
       PrimExpr delta = start - pipeline_loop_->min;
       // This variable corresponds to
@@ -1076,24 +1084,27 @@ void BuildDependencyGraph(const ffi::Array<SBlock>& blocks,
   }
 }
 
-class PipelineInjector : private StmtExprMutator {
+class PipelineInjector : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   static Stmt Inject(const PrimFunc& func) {
     auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-    PipelineInjector injector(global_symbol);
+    auto injector = ffi::make_object<PipelineInjector>(global_symbol);
     for (const Var& param : func->params) {
       if (auto buffer = param.as<BufferVar>()) {
-        injector.buffer_data_to_buffer_.Set(buffer.value().var(), buffer.value());
+        injector->buffer_data_to_buffer_.Set(buffer.value().var(), buffer.value());
       }
     }
-    injector.fragment_info_ = GetTensorCoreFragmentInfo(func->body);
-    return injector(func->body);
+    injector->fragment_info_ = GetTensorCoreFragmentInfo(func->body);
+    return injector->Mutate(func->body).ValueOrUnchanged(func->body);
   }
 
- private:
   explicit PipelineInjector(ffi::Optional<ffi::String> global_symbol)
       : global_symbol_(global_symbol) {}
 
+ private:
   /*!
    * \brief Check the pipeline satisfies the following conditions:
    * 1. No conflicting order: The order of each statement should be unique.
@@ -1141,7 +1152,9 @@ class PipelineInjector : private StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Step 1: Recursively rewrite the children first.
-    For for_node = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<For>();
+    For for_node = StmtExprMutator::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                       .as_or_throw<For>();
     if (!HasPipelineAnnotation(op)) {
       return for_node;
     }
@@ -1280,7 +1293,9 @@ class PipelineInjector : private StmtExprMutator {
           << buffer_index << " vs. " << op->writes.size() << ")";
       double_buffers.insert(op->writes[buffer_index]->buffer);
     }
-    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                       .as_or_throw<SBlock>();
 
     for (const auto& buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.erase(buffer.var());

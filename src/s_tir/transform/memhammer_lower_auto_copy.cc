@@ -196,24 +196,32 @@ class AutoPadder {
   Stmt RewriteBufferAccess(const Stmt& stmt) {
     class Rewriter : public StmtExprMutator {
      public:
-      explicit Rewriter(const ffi::Map<BufferVar, BufferVar>& buffer_map)
-          : buffer_map_(buffer_map) {}
+      using StmtExprMutator::Mutate;
+      using StmtExprMutator::Mutate_;
+
+      explicit Rewriter(const ffi::Map<BufferVar, BufferVar>& buffer_map) {
+        for (const auto& [buffer, replacement] : buffer_map) VarRemapSet(buffer, replacement);
+      }
 
      private:
       UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* _op, InplaceMode inplace_mode) final {
-        TensorLoad load = StmtExprMutator::Mutate_(_op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(_op)).as_or_throw<TensorLoad>();
+        TensorLoad load = StmtExprMutator::Mutate_(_op, inplace_mode)
+                              .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_op))
+                              .as_or_throw<TensorLoad>();
         BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
-        if (buffer_map_.count(buffer)) {
-          return BufferLoad(buffer_map_[buffer], load->indices, load->span);
+        if (auto replacement = VarRemapGet(buffer).as<BufferVar>()) {
+          return BufferLoad(replacement.value(), load->indices, load->span);
         }
         return load;
       }
 
       UnchangedOr<Stmt> Mutate_(const BufferStoreNode* _op, InplaceMode inplace_mode) final {
-        BufferStore store = StmtExprMutator::Mutate_(_op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(_op)).as_or_throw<BufferStore>();
+        BufferStore store = StmtExprMutator::Mutate_(_op, inplace_mode)
+                                .ValueOrUnchanged(ffi::GetRef<Stmt>(_op))
+                                .as_or_throw<BufferStore>();
         BufferStoreNode* op = store.CopyOnWrite();
-        if (buffer_map_.count(op->buffer)) {
-          op->buffer = buffer_map_[op->buffer];
+        if (auto replacement = VarRemapGet(op->buffer).as<BufferVar>()) {
+          op->buffer = replacement.value();
         }
         return store;
       }
@@ -226,9 +234,9 @@ class AutoPadder {
         // Step 1. Mutate the read region.
         ffi::Array<BufferRegion> reads;
         for (const BufferRegion& read : op->reads) {
-          if (buffer_map_.count(read->buffer)) {
+          if (auto replacement = VarRemapGet(read->buffer).as<BufferVar>()) {
             changed = true;
-            reads.push_back(BufferRegion(buffer_map_[read->buffer], read->region));
+            reads.push_back(BufferRegion(replacement.value(), read->region));
           } else {
             reads.push_back(read);
           }
@@ -236,9 +244,9 @@ class AutoPadder {
         // Step 2. Mutate the write region.
         ffi::Array<BufferRegion> writes;
         for (const BufferRegion& write : op->writes) {
-          if (buffer_map_.count(write->buffer)) {
+          if (auto replacement = VarRemapGet(write->buffer).as<BufferVar>()) {
             changed = true;
-            writes.push_back(BufferRegion(buffer_map_[write->buffer], write->region));
+            writes.push_back(BufferRegion(replacement.value(), write->region));
           } else {
             writes.push_back(write);
           }
@@ -247,9 +255,9 @@ class AutoPadder {
         // MatchBufferRegion, the storage scope of the target buffer also needs to be set.
         ffi::Array<MatchBufferRegion> match_buffers;
         for (const MatchBufferRegion& match_buffer : op->match_buffers) {
-          if (buffer_map_.count(match_buffer->source->buffer)) {
+          if (auto replacement = VarRemapGet(match_buffer->source->buffer).as<BufferVar>()) {
             changed = true;
-            BufferVar new_buffer = buffer_map_[match_buffer->source->buffer];
+            BufferVar new_buffer = replacement.value();
             match_buffers.push_back(MatchBufferRegion(
                 match_buffer->buffer, BufferRegion(new_buffer, match_buffer->source->region)));
           } else {
@@ -257,25 +265,26 @@ class AutoPadder {
           }
         }
         // Step 5. Recursively mutate the block.
-        Stmt res = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+        Stmt res =
+            StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
         if (res.get() != op) {
           changed = true;
         }
 
         if (changed) {
-          ffi::ObjectPtr<SBlockNode> block = CopyOnWrite(res.as<SBlockNode>());
-          block->reads = std::move(reads);
-          block->writes = std::move(writes);
-          block->match_buffers = std::move(match_buffers);
-          return Stmt(block);
+          SBlock block = std::move(res).as_or_throw<SBlock>();
+          SBlockNode* n = block.CopyOnWrite();
+          n->reads = std::move(reads);
+          n->writes = std::move(writes);
+          n->match_buffers = std::move(match_buffers);
+          return block;
         } else {
-          return ffi::GetRef<SBlock>(op);
+          return ffi::Unchanged();
         }
       }
-      const ffi::Map<BufferVar, BufferVar>& buffer_map_;
     };
-    Rewriter rewriter(padded_buffer_map_);
-    return rewriter(stmt);
+    auto rewriter = ffi::make_object<Rewriter>(padded_buffer_map_);
+    return rewriter->Mutate(stmt).ValueOrUnchanged(stmt);
   }
 
   /**
@@ -697,6 +706,9 @@ class AutoPadder {
 
 class AutoCopyMutator : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   explicit AutoCopyMutator(ffi::Map<ffi::String, int64_t> thread_extent)
       : thread_extent_(thread_extent) {}
   /**
@@ -708,7 +720,9 @@ class AutoCopyMutator : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    SBlock block = StmtMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                       .as_or_throw<SBlock>();
     // only rewrite the block annotated with "auto_copy"
     if (!GetAnn<bool>(op, s_tir::attr::auto_copy).value_or(false)) {
       SBlockNode* n = block.CopyOnWrite();
@@ -756,7 +770,8 @@ class AutoCopyMutator : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     outer_loops_.push_back(ffi::GetRef<For>(op));
-    Stmt stmt = StmtMutator::VisitStmt_(op);
+    Stmt stmt = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
+                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     outer_loops_.pop_back();
     return stmt;
   }
@@ -821,9 +836,10 @@ namespace transform {
 Pass LowerAutoCopy() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    AutoCopyMutator mutator(ThreadExtentCollector::CollectThreadExtent(n->body));
-    n->body = mutator(std::move(n->body));
-    n->body = mutator.RewritePaddingBody(n->body);
+    auto mutator =
+        ffi::make_object<AutoCopyMutator>(ThreadExtentCollector::CollectThreadExtent(n->body));
+    n->body = mutator->Mutate(n->body, InplaceMode::kAllow).ValueOrUnchanged(std::move(n->body));
+    n->body = mutator->RewritePaddingBody(n->body);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerAutoCopy", {});

@@ -68,28 +68,38 @@ void RelaxBufferRegions(const ffi::Array<BufferRegion>& buffer_regions,
   }
 }
 
-class ScopeReplacer : public StmtMutator {
+class ScopeReplacer : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   static SBlock Replace(const SBlockNode* scope_block, const BufferVar& dst,
                         const ForNode* old_loop, const ForNode* new_loop) {
     ffi::ObjectPtr<SBlockNode> new_scope_block = ffi::make_object<SBlockNode>(*scope_block);
-    new_scope_block->body = ScopeReplacer(old_loop, new_loop)(std::move(new_scope_block->body));
+    new_scope_block->body = ffi::make_object<ScopeReplacer>(old_loop, new_loop)
+                                ->Mutate(new_scope_block->body, InplaceMode::kAllow)
+                                .ValueOrUnchanged(std::move(new_scope_block->body));
     new_scope_block->alloc_buffers.push_back(dst);
     return SBlock(new_scope_block);
   }
 
- private:
   explicit ScopeReplacer(const ForNode* old_loop, const ForNode* new_loop)
       : old_loop_(old_loop), new_loop_(new_loop), found_(false) {}
 
-  Stmt VisitStmt(const Stmt& stmt) final { return found_ ? stmt : StmtMutator::VisitStmt(stmt); }
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final { return ffi::GetRef<SBlock>(block); }
+ private:
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
+    if (value.as<ExprNode>() || found_) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
+    return ffi::Unchanged();
+  }
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     if (loop == old_loop_) {
       found_ = true;
       return ffi::GetRef<For>(new_loop_);
     }
-    return StmtMutator::Mutate_(loop, inplace_mode);
+    return StmtExprMutator::Mutate_(loop, inplace_mode);
   }
 
   const ForNode* old_loop_;
@@ -99,13 +109,18 @@ class ScopeReplacer : public StmtMutator {
 
 class ReadWriteAtBufferReplacer : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   explicit ReadWriteAtBufferReplacer(const BufferVar& src, const BufferVar& dst,
                                      ffi::Map<SBlock, SBlock>* block_sref_reuse)
       : src_(src), dst_(dst), block_sref_reuse_(block_sref_reuse) {}
 
  private:
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* _store, InplaceMode inplace_mode) final {
-    BufferStore store = StmtExprMutator::Mutate_(_store, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(_store)).as_or_throw<BufferStore>();
+    BufferStore store = StmtExprMutator::Mutate_(_store, inplace_mode)
+                            .ValueOrUnchanged(ffi::GetRef<Stmt>(_store))
+                            .as_or_throw<BufferStore>();
     if (store->buffer.same_as(src_)) {
       ffi::ObjectPtr<BufferStoreNode> new_store = ffi::make_object<BufferStoreNode>(*store.get());
       new_store->buffer = dst_;
@@ -115,7 +130,9 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* _load, InplaceMode inplace_mode) final {
-    TensorLoad load = StmtExprMutator::Mutate_(_load, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(_load)).as_or_throw<TensorLoad>();
+    TensorLoad load = StmtExprMutator::Mutate_(_load, inplace_mode)
+                          .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_load))
+                          .as_or_throw<TensorLoad>();
     if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(src_)) {
       return BufferLoad(dst_, load->indices, load->span);
     }
@@ -124,7 +141,9 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* _block, InplaceMode inplace_mode) final {
     SBlock old_block = ffi::GetRef<SBlock>(_block);
-    SBlock block = StmtExprMutator::VisitStmt_(_block).as_or_throw<SBlock>();
+    SBlock block = StmtExprMutator::Mutate_(_block, InplaceMode::kDisallow)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(_block))
+                       .as_or_throw<SBlock>();
     ffi::ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block.get());
     new_block->reads = ReplaceBuffer(new_block->reads, src_, dst_);
     new_block->writes = ReplaceBuffer(new_block->writes, src_, dst_);
@@ -258,11 +277,12 @@ struct ReadWriteAtImpl {
       domain.push_back(Range::FromMinExtent(min, extent));
     }
     // Step 4. Insert the auto copy block and replace buffers
-    ReadWriteAtBufferReplacer replacer(src_, dst_, &block_sref_reuse_);
+    auto replacer = ffi::make_object<ReadWriteAtBufferReplacer>(src_, dst_, &block_sref_reuse_);
     for (int i = st; i < ed; ++i) {
       Stmt stmt = subtrees[i];
       subtrees.Set(i, Stmt(nullptr));
-      subtrees.Set(i, replacer(std::move(stmt)));
+      subtrees.Set(i,
+                   replacer->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt)));
     }
     SBlockRealize realize =
         is_read

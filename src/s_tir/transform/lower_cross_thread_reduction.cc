@@ -164,8 +164,11 @@ ffi::Array<BufferVar> MakeScratchpads(const ffi::Array<BufferVar>& reduction_buf
  * \brief Substitute given source buffers with given target buffers respectively in the input
  * statement
  */
-class BufferReplacer : private StmtExprMutator {
+class BufferReplacer : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   static Stmt Run(ffi::Array<BufferVar> src_buffers, ffi::Array<BufferVar> tgt_buffers, Stmt stmt) {
     ffi::Map<BufferVar, BufferVar> buffer_map;
     TVM_FFI_ICHECK_EQ(src_buffers.size(), tgt_buffers.size());
@@ -173,37 +176,46 @@ class BufferReplacer : private StmtExprMutator {
     for (int i = 0; i < n_buffers; ++i) {
       buffer_map.Set(src_buffers[i], tgt_buffers[i]);
     }
-    return BufferReplacer(buffer_map)(std::move(stmt));
+    return ffi::make_object<BufferReplacer>(buffer_map)
+        ->Mutate(stmt, InplaceMode::kAllow)
+        .ValueOrUnchanged(std::move(stmt));
+  }
+
+  explicit BufferReplacer(ffi::Map<BufferVar, BufferVar> buffer_map) {
+    for (const auto& [buffer, replacement] : buffer_map) VarRemapSet(buffer, replacement);
   }
 
  private:
-  explicit BufferReplacer(ffi::Map<BufferVar, BufferVar> buffer_map)
-      : buffer_map_(std::move(buffer_map)) {}
-
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* load, InplaceMode inplace_mode) final {
-    auto it = buffer_map_.find(load->source.as_or_throw<tvm::tirx::BufferVar>());
-    return it != buffer_map_.end() ? BufferLoad((*it).second, {0}) : ffi::GetRef<TensorLoad>(load);
+    auto replacement = VarRemapGet(load->source).as<BufferVar>();
+    return replacement ? BufferLoad(replacement.value(), {0}) : ffi::GetRef<TensorLoad>(load);
   }
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) final {
-    auto it = buffer_map_.find(store->buffer);
-    if (it != buffer_map_.end()) {
-      PrimExpr value = StmtExprMutator::VisitPrimExpr(store->value);
-      return BufferStore((*it).second, std::move(value), {0});
+    if (auto replacement = VarRemapGet(store->buffer).as<BufferVar>()) {
+      PrimExpr value = StmtExprMutator::Mutate(ffi::AnyView(store->value), inplace_mode)
+                           .ValueOrUnchanged(store->value)
+                           .as_or_throw<PrimExpr>();
+      return BufferStore(replacement.value(), std::move(value), {0});
     } else {
-      return StmtMutator::Mutate_(store, inplace_mode);
+      return StmtExprMutator::Mutate_(store, inplace_mode);
     }
   }
-
-  ffi::Map<BufferVar, BufferVar> buffer_map_;
 };
 
 /*!
  * \brief Substitute a given source block with a given target block, or remove the source block
  * branch from the AST if the target block is undefined
  */
-class InThreadReducerMaker : private StmtMutator {
+class InThreadReducerMaker : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   /*!
    * \brief Visitor class to collect all reduction block variables under a loop.
    */
@@ -242,24 +254,29 @@ class InThreadReducerMaker : private StmtMutator {
 
   static ffi::Optional<Stmt> Make(const SBlockRealizeNode* src_realize,
                                   ffi::Optional<SBlockRealize> tgt_realize, Stmt stmt) {
-    return InThreadReducerMaker(src_realize, std::move(tgt_realize))(std::move(stmt));
+    return ffi::make_object<InThreadReducerMaker>(src_realize, std::move(tgt_realize))
+        ->Mutate(stmt, InplaceMode::kAllow)
+        .ValueOrUnchanged(std::move(stmt));
   }
 
- private:
   explicit InThreadReducerMaker(const SBlockRealizeNode* src_realize,
                                 ffi::Optional<SBlockRealize> tgt_realize)
       : src_realize_(src_realize), tgt_realize_(tgt_realize) {}
+
+ private:
   UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
     if (realize == src_realize_) {
       return tgt_realize_.has_value()  //
                  ? tgt_realize_.value()
                  : Stmt{nullptr};
     }
-    return ffi::GetRef<SBlockRealize>(realize);
+    return ffi::Unchanged();
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
-    if (std::optional<For> opt_res = StmtMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop)).as<For>()) {
+    if (std::optional<For> opt_res = StmtExprMutator::Mutate_(loop, inplace_mode)
+                                         .ValueOrUnchanged(ffi::GetRef<Stmt>(loop))
+                                         .as<For>()) {
       For res = *opt_res;
       if (res->thread_binding.has_value()) {
         if (!res->body.defined() ||
@@ -279,8 +296,9 @@ class InThreadReducerMaker : private StmtMutator {
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* seq, InplaceMode inplace_mode) final {
     ffi::Array<Stmt> stmts;
     stmts.reserve(seq->size());
-    for (const Stmt& stmt : seq->seq) {
-      if (ffi::Optional<Stmt> opt_res = VisitStmt(stmt)) {
+    for (size_t i = 0; i < seq->seq.size(); ++i) {
+      Stmt stmt = seq->seq[i];
+      if (ffi::Optional<Stmt> opt_res = Mutate(stmt).ValueOrUnchanged(stmt).as_or_throw<Stmt>()) {
         stmts.push_back(opt_res.value());
       }
     }
@@ -559,7 +577,11 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
 /*!
  * \brief Detect cross-thread reduction pattern and then transform
  */
-class CrossThreadReductionTransformer : public StmtMutator {
+class CrossThreadReductionTransformer : public StmtExprMutator {
+ public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
  private:
   // Check if the input block needs cross-thread reduction.
   std::vector<const ForNode*> NeedCrossThreadReduction(const SBlockRealizeNode* realize) {
@@ -748,9 +770,12 @@ class CrossThreadReductionTransformer : public StmtMutator {
                            updates[0]->indices);
   }
 
-  Stmt VisitStmt(const Stmt& stmt) final {
-    statement_stack_.push_back(stmt.get());
-    Stmt result = StmtMutator::VisitStmt(stmt);
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    const auto* stmt = value.as<StmtNode>();
+    if (!stmt) return StmtExprMutator::Mutate(value, inplace_mode);
+    statement_stack_.push_back(stmt);
+    auto result = StmtExprMutator::Mutate(value, inplace_mode);
     statement_stack_.pop_back();
     return result;
   }
@@ -777,7 +802,8 @@ class CrossThreadReductionTransformer : public StmtMutator {
       }
     }
 
-    Stmt result = StmtMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
+    Stmt result =
+        StmtExprMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
     loop_stack_.pop_back();
     loop_range_map_.erase(loop->loop_var);
     if (is_thread_idx) {
@@ -801,10 +827,11 @@ class CrossThreadReductionTransformer : public StmtMutator {
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     ffi::Map<Var, Range> old_loop_range_map;
-
     block_stack_.push_back(block);
     std::swap(old_loop_range_map, loop_range_map_);
-    SBlock new_block = StmtMutator::Mutate_(block, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(block)).as_or_throw<SBlock>();
+    SBlock new_block = StmtExprMutator::Mutate_(block, inplace_mode)
+                           .ValueOrUnchanged(ffi::GetRef<Stmt>(block))
+                           .as_or_throw<SBlock>();
     block_stack_.pop_back();
     std::swap(old_loop_range_map, loop_range_map_);
 
@@ -922,7 +949,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
     }
 
     if (!has_cross_thread_reduction_) {
-      return StmtMutator::Mutate_(realize, inplace_mode);
+      return StmtExprMutator::Mutate_(realize, inplace_mode);
     }
 
     // Part 2. Check if the block needs all-thread broadcasting rewrite.
@@ -933,10 +960,9 @@ class CrossThreadReductionTransformer : public StmtMutator {
       return MakeCrossThreadBroadcast(realize, unbound_thread2range);
     }
 
-    return StmtMutator::Mutate_(realize, inplace_mode);
+    return StmtExprMutator::Mutate_(realize, inplace_mode);
   }
 
- private:
   bool has_cross_thread_reduction_ = false;
   std::vector<const StmtNode*> statement_stack_;
   std::vector<const ForNode*> loop_stack_;
@@ -956,7 +982,9 @@ namespace transform {
 Pass LowerCrossThreadReduction() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     PrimFuncNode* fptr = f.CopyOnWrite();
-    fptr->body = CrossThreadReductionTransformer()(fptr->body);
+    fptr->body = ffi::make_object<CrossThreadReductionTransformer>()
+                     ->Mutate(fptr->body)
+                     .ValueOrUnchanged(fptr->body);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerCrossThreadReduction", {});

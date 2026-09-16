@@ -128,6 +128,9 @@ FindLoopLCA(const Stmt& root) {
  */
 class ThreadBindingLifter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   UnchangedOr<Stmt> Mutate_(const ForNode* _op, InplaceMode inplace_mode) final {
     For op = ffi::GetRef<For>(_op);
     bool is_kernel_root = false;
@@ -137,7 +140,9 @@ class ThreadBindingLifter : public StmtExprMutator {
         SetKernelRoot(_op);
       }
     }
-    For new_op = StmtExprMutator::VisitStmt_(_op).as_or_throw<For>();
+    For new_op = StmtExprMutator::Mutate_(_op, InplaceMode::kDisallow)
+                     .ValueOrUnchanged(ffi::GetRef<Stmt>(_op))
+                     .as_or_throw<For>();
     Stmt body = std::move(new_op.CopyOnWrite()->body);
     if (auto it = iter_lca.find(op); it != iter_lca.end()) {
       for (const auto& [iter_var, annotation] : it->second) {
@@ -150,7 +155,6 @@ class ThreadBindingLifter : public StmtExprMutator {
     }
     if (is_kernel_root) {
       iter_lca.clear();
-      var_subst.clear();
     }
     if (op->kind == ForKind::kThreadBinding) {
       return body;
@@ -163,22 +167,12 @@ class ThreadBindingLifter : public StmtExprMutator {
   void SetKernelRoot(const ForNode* op) {
     auto result = FindLoopLCA(ffi::GetRef<Stmt>(op));
     this->iter_lca = std::move(result.first);
-    this->var_subst = std::move(result.second);
-  }
-
-  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
-    auto it = var_subst.find(ffi::GetRef<Var>(op));
-    if (it != var_subst.end()) {
-      return (*it).second;
-    } else {
-      return ffi::GetRef<Var>(op);
-    }
+    for (const auto& [var, replacement] : result.second) VarRemapSet(var, replacement);
   }
 
   std::unordered_map<Stmt, std::vector<std::pair<IterVar, ffi::Map<ffi::String, ffi::Any>>>,
                      ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       iter_lca;
-  ffi::Map<Var, Var> var_subst;
 };
 
 namespace transform {
@@ -186,7 +180,9 @@ namespace transform {
 Pass LiftThreadBinding() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     PrimFuncNode* fptr = f.CopyOnWrite();
-    fptr->body = ThreadBindingLifter()(std::move(fptr->body));
+    fptr->body = ffi::make_object<ThreadBindingLifter>()
+                     ->Mutate(fptr->body, InplaceMode::kAllow)
+                     .ValueOrUnchanged(std::move(fptr->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.LiftThreadBinding", {});

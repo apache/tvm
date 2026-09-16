@@ -40,6 +40,9 @@ using namespace tvm::tirx;
 
 class LoopCanonicalizer : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   LoopCanonicalizer() = default;
 
  private:
@@ -58,29 +61,28 @@ class LoopCanonicalizer : public StmtExprMutator {
           << "Loop step for " << op->loop_var << " may not be positive: " << step;
     }
 
-    new_iter_info_[loop_var] = std::make_pair(step, op->min);
-    auto n = CopyOnWrite(op);
-    n->body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-    n->min = IntImm(loop_var_ty, 0);
-    n->extent = analyzer_->Simplify(ceildiv(op->extent, step));
-    n->step = std::nullopt;
-    new_iter_info_.erase(loop_var);
-    return For(n);
-  }
-
-  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
-    auto it = new_iter_info_.find(op);
-    if (it != new_iter_info_.end()) {
-      const auto& [stride, offset] = it->second;
-      return ffi::GetRef<Var>(op).as_or_throw<PrimExpr>() * stride + offset;
+    VarRemapSet(op->loop_var, op->loop_var.as_or_throw<PrimExpr>() * step + op->min);
+    Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+    PrimExpr min = IntImm(loop_var_ty, 0);
+    PrimExpr extent = analyzer_->Simplify(ceildiv(op->extent, step));
+    if (inplace_mode == InplaceMode::kAllow) {
+      auto* writable = const_cast<ForNode*>(op);
+      writable->body = std::move(body);
+      writable->min = std::move(min);
+      writable->extent = std::move(extent);
+      writable->step = std::nullopt;
+      return ffi::Unchanged();
+    } else {
+      auto copy = ffi::make_object<ForNode>(*op);
+      copy->body = std::move(body);
+      copy->min = std::move(min);
+      copy->extent = std::move(extent);
+      copy->step = std::nullopt;
+      return For(std::move(copy));
     }
-    return ffi::GetRef<Var>(op);
   }
 
- private:
   arith::Analyzer analyzer_;
-  /*! \brief Map iter variable `x` to `x * stride + offset`. */
-  std::unordered_map<const VarNode*, std::pair<PrimExpr, PrimExpr>> new_iter_info_;
 };
 
 namespace transform {
@@ -88,7 +90,9 @@ namespace transform {
 Pass CanonicalizeLoop() {
   auto pass_func = [=](PrimFunc func, IRModule m, PassContext ctx) {
     PrimFuncNode* fptr = func.CopyOnWrite();
-    fptr->body = LoopCanonicalizer()(std::move(fptr->body));
+    fptr->body = ffi::make_object<LoopCanonicalizer>()
+                     ->Mutate(fptr->body, InplaceMode::kAllow)
+                     .ValueOrUnchanged(std::move(fptr->body));
     return func;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.CanonicalizeLoop", {});

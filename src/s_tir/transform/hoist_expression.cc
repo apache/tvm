@@ -458,21 +458,23 @@ class HoistInfoCollector : public StmtExprVisitor {
 
 class ExpressionHoister : public tirx::IRMutatorWithAnalyzer {
  public:
+  using tirx::IRMutatorWithAnalyzer::Mutate;
+  using tirx::IRMutatorWithAnalyzer::Mutate_;
+
   static Stmt Hoist(Stmt stmt, HoistExpressionConfig config) {
     auto loop_info = HoistInfoCollector::Collect(stmt, config);
 
     arith::Analyzer analyzer;
-    ExpressionHoister hoister(std::move(loop_info), config, analyzer);
-    stmt = hoister(std::move(stmt));
+    auto hoister = ffi::make_object<ExpressionHoister>(std::move(loop_info), config, analyzer);
+    stmt = hoister->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt));
     stmt = ConvertSSA(std::move(stmt));
     return stmt;
   }
 
  private:
   using Parent = tirx::IRMutatorWithAnalyzer;
-  using Parent::Dispatch_;
-  using Parent::VisitStmt_;
 
+ public:
   explicit ExpressionHoister(std::vector<HoistInfoCollector::HoistInfo> loop_info,
                              HoistExpressionConfig config, const arith::Analyzer& analyzer)
       : Parent(analyzer), config_(config) {
@@ -499,6 +501,7 @@ class ExpressionHoister : public tirx::IRMutatorWithAnalyzer {
     }
   }
 
+ private:
   Stmt WrapHoistedStatements(Stmt stmt, const HoistInfoCollector::HoistInfo& info) {
     for (auto cond_it = info.conditions.rbegin(); cond_it != info.conditions.rend(); cond_it++) {
       if (cond_it->IsEnabled(config_)) {

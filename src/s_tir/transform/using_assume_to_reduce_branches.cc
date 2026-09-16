@@ -81,6 +81,10 @@ class AssumeChecker : public StmtExprVisitor {
 };
 
 class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
+ public:
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
+
   /* This class analyzes the complete primfunc.
   It parses the buffer assumptions and eliminates the redundant branch
   introduced due to layout specific padding by leveraging from buffer assumptions.
@@ -118,15 +122,10 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     else_condition_context.
   This class handles all these scenarios.*/
 
- public:
   using Parent = IRMutatorWithAnalyzer;
   explicit ParseAssumeAndOvercompute(const Analyzer& analyzer) : Parent(analyzer) {}
 
  private:
-  using Parent::Dispatch_;
-  using Parent::VisitStmt;
-  using Parent::VisitStmt_;
-
   // This struct stores all the relevant data related to asssume statement
   struct assume_struct {        // Consider the example : T.assume(i < 14 or A[i] == 0)
     PrimExpr buffer_context;    // The context of the assume statement (the bound on the axis)
@@ -222,11 +221,14 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
         return buf_value;
       }
     }
-    return ffi::GetRef<PrimExpr>(op);
+    return ffi::Unchanged();
   }
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    BufferStore store = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<BufferStore>();
+    BufferStore store = Parent::Mutate_(op, inplace_mode)
+                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                            .as_or_throw<BufferStore>();
+    if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
 
     // Eliminate the builtin if_then_else statement
     if (auto* call = op->value.as<CallNode>()) {
@@ -243,31 +245,48 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
           // Simplifying expressions in " then context "
           InternalConstraintContext then_ctx(this, cond);
           // This will call the current class's appropriate VisitStmt function
-          then_clause_in_then_context = (*this)(then_clause).as_or_throw<PrimExpr>();
+          then_clause_in_then_context =
+              Mutate(then_clause, inplace_mode).ValueOrUnchanged(then_clause);
           then_clause_in_then_context = analyzer_->Simplify(then_clause_in_then_context);
 
-          else_clause_in_then_context = (*this)(else_clause).as_or_throw<PrimExpr>();
+          else_clause_in_then_context =
+              Mutate(else_clause, inplace_mode).ValueOrUnchanged(else_clause);
           else_clause_in_then_context = analyzer_->Simplify(else_clause_in_then_context);
         }
         {
           // Simplifying expressions in " else context "
           InternalConstraintContext else_ctx(this, !cond);
           // This will call the current class's appropriate VisitStmt function
-          then_clause_in_else_context = (*this)(then_clause).as_or_throw<PrimExpr>();
+          then_clause_in_else_context =
+              Mutate(then_clause, inplace_mode).ValueOrUnchanged(then_clause);
           then_clause_in_else_context = analyzer_->Simplify(then_clause_in_else_context);
 
-          else_clause_in_else_context = (*this)(else_clause).as_or_throw<PrimExpr>();
+          else_clause_in_else_context =
+              Mutate(else_clause, inplace_mode).ValueOrUnchanged(else_clause);
           else_clause_in_else_context = analyzer_->Simplify(else_clause_in_else_context);
         }
 
-        auto n = this->CopyOnWrite(op);
         if (ffi::StructuralEqual()(then_clause_in_then_context, else_clause_in_then_context)) {
-          n->value = analyzer_->Simplify(else_clause);
-          return Stmt(n);
+          PrimExpr value = analyzer_->Simplify(else_clause);
+          if (inplace_mode == InplaceMode::kAllow) {
+            const_cast<BufferStoreNode*>(op)->value = std::move(value);
+            return ffi::Unchanged();
+          } else {
+            auto copy = ffi::make_object<BufferStoreNode>(*op);
+            copy->value = std::move(value);
+            return BufferStore(std::move(copy));
+          }
         } else if (ffi::StructuralEqual()(then_clause_in_else_context,
                                           else_clause_in_else_context)) {
-          n->value = analyzer_->Simplify(then_clause);
-          return Stmt(n);
+          PrimExpr value = analyzer_->Simplify(then_clause);
+          if (inplace_mode == InplaceMode::kAllow) {
+            const_cast<BufferStoreNode*>(op)->value = std::move(value);
+            return ffi::Unchanged();
+          } else {
+            auto copy = ffi::make_object<BufferStoreNode>(*op);
+            copy->value = std::move(value);
+            return BufferStore(std::move(copy));
+          }
         } else {
           return Parent::Mutate_(op, inplace_mode);
         }
@@ -390,8 +409,9 @@ Pass UseAssumeToReduceBranches() {
 
           if (assume_checker->has_assume) {
             // Leverage from assume and eliminate the branch
-            ParseAssumeAndOvercompute func_analyzer_mutator(analyzer);
-            n->body = func_analyzer_mutator(std::move(n->body));
+            auto func_analyzer_mutator = ffi::make_object<ParseAssumeAndOvercompute>(analyzer);
+            n->body = func_analyzer_mutator->Mutate(n->body, InplaceMode::kAllow)
+                          .ValueOrUnchanged(std::move(n->body));
           }
         }
       }

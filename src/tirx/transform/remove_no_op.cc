@@ -75,24 +75,21 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tirx.RemoveNoOp", RemoveNoOpConfig);
 // Mark the statement of each stage.
 class NoOpRemover : public IRMutatorWithAnalyzer {
  public:
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
   static Stmt Apply(Stmt stmt, const arith::Analyzer& analyzer, bool ignore_profiler_call = false) {
-    NoOpRemover visitor(analyzer, ignore_profiler_call);
-    return visitor(std::move(stmt));
+    auto visitor = ffi::make_object<NoOpRemover>(analyzer, ignore_profiler_call);
+    return visitor->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
   }
 
  private:
   using Parent = IRMutatorWithAnalyzer;
-  using Parent::VisitStmt;
-  using Parent::VisitStmt_;
 
+ public:
   NoOpRemover(const arith::Analyzer& analyzer, bool ignore_profiler_call = false)
       : Parent(analyzer), ignore_profiler_call_(ignore_profiler_call) {}
 
-  Stmt VisitStmt_(const BindNode* op) final {
-    // Simply mutate the value and return.
-    // Unused Bind elimination can be done later via a separate two-pass approach.
-    return Parent::VisitStmt_(op);
-  }
+ private:
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == "pragma_debug_skip_region") {
       return MakeEvaluate(0);
@@ -106,7 +103,10 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
         // We assume that such wait is a nop.
         auto inner = op->body.as<AttrStmtNode>();
         TVM_FFI_ICHECK(inner);
-        return Parent::VisitStmt(inner->body);
+        return Parent::Mutate(ffi::AnyView(inner->body),
+                              inner->unique() ? inplace_mode : InplaceMode::kDisallow)
+            .ValueOrUnchanged(inner->body)
+            .as_or_throw<Stmt>();
       }
     }
 
@@ -158,11 +158,9 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
     return is_no_op(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final { return StmtMutator::VisitStmt_(op); }
-
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     if (HasSideEffect(op->value)) {
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     } else {
       return Evaluate(0);
     }
@@ -188,7 +186,8 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
       for (const auto& index : store->indices) {
         statements.push_back(MakeEvaluate(index));
       }
-      return this->VisitStmt(SeqStmt(statements));
+      Stmt input = SeqStmt(statements);
+      return this->Mutate(input, inplace_mode).ValueOrUnchanged(input);
     };
 
     // A write whose destination is known to already contain the
@@ -215,9 +214,6 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
     return store;
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final { return StmtMutator::VisitStmt_(op); }
-
- private:
   bool ArrayValueEqual(const ffi::Array<PrimExpr>& a, const ffi::Array<PrimExpr>& b) {
     if (a.size() != b.size()) {
       return false;

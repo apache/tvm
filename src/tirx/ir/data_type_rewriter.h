@@ -48,15 +48,20 @@ namespace tirx {
  * base class of such passes to ensure the consistency of data types.
  */
 class DataTypeLegalizer : public StmtExprMutator {
+ public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
  protected:
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
-  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::RampNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::BroadcastNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::ShuffleNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::SubNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::MulNode* op, InplaceMode inplace_mode) override;
@@ -73,20 +78,14 @@ class DataTypeLegalizer : public StmtExprMutator {
   UnchangedOr<PrimExpr> Mutate_(const prim::GTNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::GENode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
-  Expr VisitExpr_(const prim::CastNode* op) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) override;
 
   /*! \brief Whether to clamp shift amounts after narrowing signed integers. */
   virtual bool ShouldClampShiftAmounts() const { return false; }
 
-  using StmtExprMutator::Dispatch_;
-  using StmtExprMutator::VisitStmt_;
-
   // a map from IterVar before rewrite to that after rewrite,
   // ensures one old IterVar maps to exactly one new IterVar
   std::unordered_map<const IterVarNode*, IterVar> ivmap_;
-  // a map from original vars to ones with new dtype
-  std::unordered_map<const VarNode*, Var> var_remap_;
 };
 
 /*!
@@ -99,29 +98,29 @@ class DataTypeLegalizer : public StmtExprMutator {
  * implement different rewriting rules.
  */
 class IndexDataTypeRewriter : public DataTypeLegalizer {
+ public:
+  using DataTypeLegalizer::Mutate;
+  using DataTypeLegalizer::Mutate_;
+
  protected:
   using Parent = DataTypeLegalizer;
-  using Parent::Dispatch_;
-  using Parent::VisitStmt_;
-
-  BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) override;
-  BufferVar VisitBufferUse(const BufferVar& buffer) override;
-  Stmt VisitStmt_(const SBlockRealizeNode* op) override;
-  Stmt VisitStmt_(const SBlockNode* op) override;
-  Stmt VisitStmt_(const BufferStoreNode* op) override;
-  Stmt VisitStmt_(const AttrStmtNode* op) override;
-  Expr Dispatch_(const TensorLoadNode* op) override;
-  ffi::Array<PrimExpr> VisitIndices(ffi::Array<PrimExpr> indices);
-  Stmt VisitStmt_(const IfThenElseNode* op) override;
-  Stmt VisitStmt_(const BindNode* op) override;
-  Expr Dispatch_(const prim::EQNode* op) override;
-  Expr Dispatch_(const prim::NENode* op) override;
-  Expr Dispatch_(const prim::LTNode* op) override;
-  Expr Dispatch_(const prim::LENode* op) override;
-  Expr Dispatch_(const prim::GTNode* op) override;
-  Expr Dispatch_(const prim::GENode* op) override;
-  Expr Dispatch_(const CallNode* op) override;
-  Expr Dispatch_(const prim::SelectNode* op) override;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) override;
+  ffi::Array<PrimExpr> VisitIndices(const ffi::Array<PrimExpr>& indices, InplaceMode inplace_mode);
+  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::EQNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::NENode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LTNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LENode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::GTNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::GENode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) override;
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
 
@@ -144,15 +143,16 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
  */
 class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
  public:
+  using IndexDataTypeRewriter::Mutate;
+  using IndexDataTypeRewriter::Mutate_;
   explicit IndexDataTypeNormalizer(PrimType target_data_type);
   PrimFunc Rewrite(PrimFunc func);
 
  protected:
   using Parent = IndexDataTypeRewriter;
-  using Parent::Dispatch_;
-  using Parent::VisitStmt_;
+
   UnchangedOr<PrimExpr> Mutate_(const IntImmNode* op, InplaceMode inplace_mode) override;
-  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) override;
+
   UnchangedOr<PrimExpr> Mutate_(const prim::CastNode* op, InplaceMode inplace_mode) override;
 
   /*! \brief Specifies which data type we can rewrite */

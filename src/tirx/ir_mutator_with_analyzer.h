@@ -49,11 +49,10 @@ namespace tirx {
  */
 class IRMutatorWithAnalyzer : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   explicit IRMutatorWithAnalyzer(const arith::Analyzer& analyzer) : analyzer_(analyzer.get()) {}
   explicit IRMutatorWithAnalyzer(arith::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
-
-  using StmtExprMutator::Dispatch_;
-  using StmtExprMutator::VisitStmt_;
 
   // override functions that need to populate the context information.
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
@@ -62,7 +61,6 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const AssertStmtNode* op, InplaceMode inplace_mode) override;
-  Stmt VisitStmt_(const SeqStmtNode* op) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;

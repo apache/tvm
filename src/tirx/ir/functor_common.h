@@ -26,6 +26,7 @@
 #define TVM_TIR_IR_FUNCTOR_COMMON_H_
 
 namespace tvm {
+class PrimExpr;
 namespace tirx {
 
 template <typename T, typename F>

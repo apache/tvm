@@ -33,8 +33,15 @@ using namespace tvm::tirx;
  * \brief A helper class to create a new scope that contains decomposed init body
  * and replaced old reduction block.
  */
-class DecomposeReductionBlockReplacer : public StmtMutator {
+class DecomposeReductionBlockReplacer : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   /*!
    * \brief The open interface to users to call the helper class
    * \param old_scope_root The original block scope before decomposition
@@ -45,21 +52,24 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
    */
   static std::pair<SBlock, SBlock> Replace(SBlock old_scope_root, For target_loop,
                                            Stmt decomposed_body, SBlock old_reduction_block) {
-    DecomposeReductionBlockReplacer replacer(std::move(target_loop), std::move(decomposed_body),
-                                             std::move(old_reduction_block));
-    return std::make_pair(replacer(std::move(old_scope_root)).as_or_throw<SBlock>(),
-                          replacer.new_reduction_block_);
+    auto replacer = ffi::make_object<DecomposeReductionBlockReplacer>(
+        std::move(target_loop), std::move(decomposed_body), std::move(old_reduction_block));
+    return std::make_pair(replacer->Mutate(old_scope_root, InplaceMode::kAllow)
+                              .ValueOrUnchanged(std::move(old_scope_root))
+                              .as_or_throw<SBlock>(),
+                          replacer->new_reduction_block_);
   }
 
- private:
   explicit DecomposeReductionBlockReplacer(For target_loop, Stmt decomposed_body,
                                            SBlock old_reduction_block)
       : target_loop_(std::move(target_loop)),
         decomposed_body_(std::move(decomposed_body)),
         old_reduction_block_(std::move(old_reduction_block)) {}
 
+ private:
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
-    Stmt mutated_stmt = StmtMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
+    Stmt mutated_stmt =
+        StmtExprMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
     if (loop == target_loop_.get()) {
       return SeqStmt({decomposed_body_, mutated_stmt});
     } else {
@@ -69,7 +79,7 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     if (block == old_reduction_block_.get()) {
-      ffi::ObjectPtr<SBlockNode> p_new_block = CopyOnWrite(block);
+      auto p_new_block = ffi::make_object<SBlockNode>(*block);
       p_new_block->name_hint = p_new_block->name_hint + "_update";
       p_new_block->init = std::nullopt;
       // Add write regions back to read regions in update block.
@@ -90,20 +100,10 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
       new_reduction_block_ = SBlock(p_new_block);
       return new_reduction_block_;
     } else {
-      return StmtMutator::Mutate_(block, inplace_mode);
+      return StmtExprMutator::Mutate_(block, inplace_mode);
     }
   }
 
-  Stmt VisitStmt_(const SeqStmtNode* seq) final {
-    ffi::Array<Stmt> new_stmts;
-    new_stmts.reserve(seq->seq.size());
-    for (const Stmt& old_stmt : seq->seq) {
-      new_stmts.push_back(VisitStmt(old_stmt));
-    }
-    return SeqStmt::Flatten(new_stmts);
-  }
-
- private:
   For target_loop_;
   Stmt decomposed_body_;
   SBlock old_reduction_block_;
@@ -1250,8 +1250,15 @@ Stmt CreateLoopOutsideRfactorBlock(SBlockRealize rf_block_realize, const ffi::Ar
   return rf_body;
 }
 
-class BlockReplacer : public StmtMutator {
+class BlockReplacer : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   /*!
    * \brief The replace takes the old scope root block as input, and does four things:
    *  1) replace the reduction block with the write-back block,
@@ -1279,11 +1286,13 @@ class BlockReplacer : public StmtMutator {
                         For rf_loop, std::unordered_set<const VarNode*> reduce_loop_vars,
                         std::unordered_map<const VarNode*, For> loop_vars2loop,
                         const ffi::Array<BufferVar>& rf_buffers) {
-    BlockReplacer replacer(std::move(rf_body), std::move(outermost_loop),
-                           std::move(wb_block_realize), std::move(old_block_realize),
-                           std::move(rf_loop), std::move(reduce_loop_vars),
-                           std::move(loop_vars2loop));
-    SBlock new_scope_root = replacer(std::move(scope_root_block)).as_or_throw<SBlock>();
+    auto replacer = ffi::make_object<BlockReplacer>(
+        std::move(rf_body), std::move(outermost_loop), std::move(wb_block_realize),
+        std::move(old_block_realize), std::move(rf_loop), std::move(reduce_loop_vars),
+        std::move(loop_vars2loop));
+    SBlock new_scope_root = replacer->Mutate(scope_root_block, InplaceMode::kAllow)
+                                .ValueOrUnchanged(std::move(scope_root_block))
+                                .as_or_throw<SBlock>();
     SBlockNode* p = new_scope_root.CopyOnWrite();
     for (const BufferVar& rf_buffer : rf_buffers) {
       p->alloc_buffers.push_back(rf_buffer);
@@ -1291,7 +1300,6 @@ class BlockReplacer : public StmtMutator {
     return new_scope_root;
   }
 
- private:
   explicit BlockReplacer(Stmt rf_body, For outermost_loop, SBlockRealize wb_block_realize,
                          SBlockRealize old_block_realize, For rf_loop,
                          std::unordered_set<const VarNode*> reduce_loop_vars,
@@ -1304,23 +1312,31 @@ class BlockReplacer : public StmtMutator {
         reduce_loop_vars_(std::move(reduce_loop_vars)),
         loop_vars2loop_(std::move(loop_vars2loop)) {}
 
+ private:
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     // Step 1. Check whether this loop is outside the reduction block. Given that we've made sure
     // that the scope root block has stage-pipeline property, if this loop is not outside the
     // reduction block, there's no need to recursively mutate.
     if (!loop_vars2loop_.count(loop->loop_var.get())) {
-      return ffi::GetRef<For>(loop);
+      return ffi::Unchanged();
     }
 
     // Step 2. Recursively mutate.
-    Stmt body = StmtMutator::VisitStmt(loop->body);
+    Stmt body = StmtExprMutator::Mutate(ffi::AnyView(loop->body), inplace_mode)
+                    .ValueOrUnchanged(loop->body)
+                    .as_or_throw<Stmt>();
 
     // Step 3. If this loop is the rfactor loop and isn't touched by any reduction block iter, it
     // should be kept outside the write-back block. Otherwise it shouldn't.
     if (loop == rf_loop_.get() || !reduce_loop_vars_.count(loop->loop_var.get())) {
-      ffi::ObjectPtr<ForNode> p_loop = CopyOnWrite(loop);
-      p_loop->body = body;
-      body = Stmt(p_loop);
+      if (inplace_mode == InplaceMode::kAllow) {
+        const_cast<ForNode*>(loop)->body = std::move(body);
+        body = ffi::GetRef<For>(loop);
+      } else {
+        auto copy = ffi::make_object<ForNode>(*loop);
+        copy->body = std::move(body);
+        body = For(std::move(copy));
+      }
     }
 
     // Step 4. If this loop is the outermost loop of the reduction block, return the combination of
@@ -1336,17 +1352,6 @@ class BlockReplacer : public StmtMutator {
     return wb_block_realize_;
   }
 
-  Stmt VisitStmt_(const SeqStmtNode* seq) final {
-    ffi::Array<Stmt> new_stmts;
-    new_stmts.reserve(static_cast<int>(seq->seq.size()));
-
-    for (const Stmt old_stmt : seq->seq) {
-      new_stmts.push_back(VisitStmt(old_stmt));
-    }
-    return SeqStmt::Flatten(new_stmts);
-  }
-
- private:
   Stmt rf_body_;
   For outermost_loop_;
   SBlockRealize wb_block_realize_;

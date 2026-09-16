@@ -75,7 +75,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   ComputeLegalizePlanner(std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash,
                                             ffi::ObjectPtrEqual>* buffer_remap,
                          std::unordered_map<Var, Var>* var_remap, PrimType promote_dtype)
-      : buffer_remap_(buffer_remap), var_remap_(var_remap), promote_dtype_(promote_dtype) {}
+      : buffer_remap_(buffer_remap), compute_var_remap_(var_remap), promote_dtype_(promote_dtype) {}
 
   // run planning to populate buffer remap and var remap.
   void Plan(PrimFunc func) {
@@ -83,9 +83,9 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
     // if there are opaque var access, then we cannot
     // do remap of var and buffer, post-hoc remove these items.
     for (Var var : opaque_var_access_) {
-      auto it = var_remap_->find(var);
-      if (it != var_remap_->end()) {
-        var_remap_->erase(it);
+      auto it = compute_var_remap_->find(var);
+      if (it != compute_var_remap_->end()) {
+        compute_var_remap_->erase(it);
       }
     }
     ffi::Array<BufferVar> drop_buffers;
@@ -98,6 +98,15 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
       auto it = buffer_remap_->find(buffer);
       TVM_FFI_ICHECK(it != buffer_remap_->end());
       buffer_remap_->erase(it);
+    }
+  }
+
+  void SeedRemaps(StmtExprMutator* mutator) const {
+    for (const auto& [var, replacement] : *compute_var_remap_) {
+      mutator->VarRemapSet(var, replacement);
+    }
+    for (const auto& [buffer, replacement] : *buffer_remap_) {
+      mutator->VarRemapSet(buffer, replacement);
     }
   }
 
@@ -122,7 +131,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
       auto type = CopyBufferType(op->buffer);
       type->dtype = dtype;
       BufferVar buffer_var = RebuildBufferVar(op->buffer, std::move(type));
-      (*var_remap_)[op->buffer.var()] = buffer_var.var();
+      (*compute_var_remap_)[op->buffer.var()] = buffer_var.var();
     }
     return StmtExprVisitor::Visit_(op);
   }
@@ -154,15 +163,15 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
 
  private:
   void PopulateBufferRemap(BufferVar buf) {
-    auto var_it = var_remap_->find(buf.var());
-    if (var_it == var_remap_->end()) return;
+    auto var_it = compute_var_remap_->find(buf.var());
+    if (var_it == compute_var_remap_->end()) return;
 
     BufferVar new_buffer(var_it->second);
     (*buffer_remap_)[buf] = new_buffer;
   }
 
   std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap_;
-  std::unordered_map<Var, Var>* var_remap_;
+  std::unordered_map<Var, Var>* compute_var_remap_;
   std::unordered_set<Var> opaque_var_access_;
   PrimType promote_dtype_;
 };
@@ -191,16 +200,18 @@ class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
   }
 };
 
-#define DEFINE_BIOP_EXPR_LEGALIZE(OP, FUNC)                          \
+#define DEFINE_BIOP_EXPR_LEGALIZE(OP, FUNC)                                         \
   UnchangedOr<PrimExpr> Mutate_(const OP* op, InplaceMode inplace_mode) final {     \
-    PrimExpr origin_a = PromoteToTarget(this->Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a)); \
-    PrimExpr origin_b = PromoteToTarget(this->Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b)); \
-                                                                     \
-    if (origin_a.same_as(op->a) && origin_b.same_as(op->b)) {        \
-      return ffi::GetRef<PrimExpr>(op);                              \
-    } else {                                                         \
-      return FUNC(origin_a, origin_b);                               \
-    }                                                                \
+    PrimExpr origin_a =                                                             \
+        PromoteToTarget(this->Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a)); \
+    PrimExpr origin_b =                                                             \
+        PromoteToTarget(this->Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b)); \
+                                                                                    \
+    if (origin_a.same_as(op->a) && origin_b.same_as(op->b)) {                       \
+      return ffi::Unchanged();                                                      \
+    } else {                                                                        \
+      return FUNC(origin_a, origin_b);                                              \
+    }                                                                               \
   }
 
 // NOTE: Legalize the FP8/BF16 computations
@@ -210,12 +221,15 @@ class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
 // point in the TIR lowering phases.
 class ComputeLegalizer : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   explicit ComputeLegalizer(PrimType promote_dtype) : promote_dtype_(promote_dtype) {}
 
   PrimFunc LegalizeWithPlanner(PrimFunc func, ComputeLegalizePlanner* planner) {
     planner->Plan(func);
+    planner->SeedRemaps(this);
     auto* n = func.CopyOnWrite();
-    n->body = this->VisitStmt(std::move(n->body));
+    n->body = this->Mutate(n->body, InplaceMode::kDisallow).ValueOrUnchanged(n->body);
     return func;
   }
 
@@ -225,7 +239,8 @@ class ComputeLegalizer : public StmtExprMutator {
 
  protected:
   UnchangedOr<PrimExpr> Mutate_(const prim::CastNode* op, InplaceMode inplace_mode) final {
-    auto op_val = PromoteToTarget(this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value));
+    auto op_val =
+        PromoteToTarget(this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value));
 
     // all casts to matched data type (fp8/bf16) becomes f32
     PrimType op_ty = op->ty.as_or_throw<PrimType>();
@@ -234,38 +249,44 @@ class ComputeLegalizer : public StmtExprMutator {
     }
 
     if (op_val.same_as(op->value)) {
-      return ffi::GetRef<PrimExpr>(op);
+      return ffi::Unchanged();
     } else {
       return cast(op_ty, op_val);
     }
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) final {
-    PrimExpr condition = this->VisitPrimExpr(op->condition);
-    PrimExpr true_value = PromoteToTarget(this->Mutate(op->true_value, inplace_mode).ValueOrUnchanged(op->true_value));
-    PrimExpr false_value = PromoteToTarget(this->Mutate(op->false_value, inplace_mode).ValueOrUnchanged(op->false_value));
-    if (condition.same_as(op->condition) && true_value.same_as(op->true_value) &&
+    auto condition_result = this->Mutate(op->condition, inplace_mode);
+    bool condition_unchanged = condition_result.UnchangedOrSameAs(op->condition);
+    PrimExpr condition = std::move(condition_result).ValueOrUnchanged(op->condition);
+    PrimExpr true_value = PromoteToTarget(
+        this->Mutate(op->true_value, inplace_mode).ValueOrUnchanged(op->true_value));
+    PrimExpr false_value = PromoteToTarget(
+        this->Mutate(op->false_value, inplace_mode).ValueOrUnchanged(op->false_value));
+    if (condition_unchanged && true_value.same_as(op->true_value) &&
         false_value.same_as(op->false_value)) {
-      return ffi::GetRef<PrimExpr>(op);
+      return ffi::Unchanged();
     } else {
       return prim::Select(condition, true_value, false_value);
     }
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::BroadcastNode* op, InplaceMode inplace_mode) final {
-    PrimExpr value = PromoteToTarget(this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value));
+    PrimExpr value =
+        PromoteToTarget(this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value));
     if (value.same_as(op->value)) {
-      return ffi::GetRef<PrimExpr>(op);
+      return ffi::Unchanged();
     } else {
       return prim::Broadcast(value, op->lanes);
     }
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::ShuffleNode* op, InplaceMode inplace_mode) final {
-    auto fexpr = [this](const PrimExpr& e) { return PromoteToTarget(this->VisitPrimExpr(e)); };
-    auto vectors = op->vectors.Map(fexpr);
+    auto vectors = op->vectors.Map([this](const PrimExpr& value) {
+      return PromoteToTarget(Mutate(value).ValueOrUnchanged(value));
+    });
     if (vectors.same_as(op->vectors)) {
-      return ffi::GetRef<PrimExpr>(op);
+      return ffi::Unchanged();
     } else {
       return prim::Shuffle(vectors, op->indices);
     }
@@ -279,13 +300,16 @@ class ComputeLegalizer : public StmtExprMutator {
       ffi::Array<Expr> args{buffer.var()};
       PrimExpr value;
       if (!is_load) {
-        value = this->VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>());
+        value = this->Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
       }
       ffi::Array<PrimExpr> indices;
       for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
-        indices.push_back(this->VisitPrimExpr(op->args[i].as_or_throw<PrimExpr>()));
+        indices.push_back(
+            this->Mutate(op->args[i]).ValueOrUnchanged(op->args[i]).as_or_throw<PrimExpr>());
       }
-      PrimExpr predicate = this->VisitPrimExpr(op->args.back().as_or_throw<PrimExpr>());
+      PrimExpr predicate = this->Mutate(op->args[op->args.size() - 1])
+                               .ValueOrUnchanged(op->args[op->args.size() - 1])
+                               .as_or_throw<PrimExpr>();
       if (is_load) {
         for (const PrimExpr& index : indices) args.push_back(index);
         args.push_back(predicate);
@@ -313,13 +337,12 @@ class ComputeLegalizer : public StmtExprMutator {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     // update normal computations to return f32 instead.
-    auto fmutate = [this](const Expr& e) -> Expr {
-      if (auto prim = e.as<PrimExpr>()) {
-        return PromoteToTarget(this->VisitPrimExpr(prim.value()));
-      }
-      return this->Dispatch(e);
-    };
-    ffi::Array<Expr> args = op->args.Map(fmutate);
+    auto args = op->args.Map([this](const Expr& before) {
+      bool is_prim = before.as<PrimExpr>().has_value();
+      Expr value = Mutate(before).ValueOrUnchanged(before);
+      if (is_prim) value = PromoteToTarget(value.as_or_throw<PrimExpr>());
+      return value;
+    });
     PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (MatchType(op_ty)) {
       return Call(promote_dtype_.WithLanes(op_ty.lanes()), op->op, args, op->attrs, {}, op->span)
@@ -337,18 +360,7 @@ class ComputeLegalizer : public StmtExprMutator {
     if (MatchType(op->ty.as_or_throw<PrimType>())) {
       return FloatImm(promote_dtype_, op->value);
     }
-    return ffi::GetRef<PrimExpr>(op);
-  }
-
-  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
-    Var var = ffi::GetRef<Var>(op);
-
-    auto itr = var_remap_.find(var);
-    if (itr != var_remap_.end()) {
-      return itr->second;
-    } else {
-      return var;
-    }
+    return ffi::Unchanged();
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final {
@@ -356,13 +368,14 @@ class ComputeLegalizer : public StmtExprMutator {
     Var var = op->var;
     if (value.ty() != op->value.ty()) {
       var = op->var.CopyWithDType(op->value.ty());
-      var_remap_[op->var] = var;
+      VarRemapSet(op->var, var);
     }
+    auto body_result = Mutate(op->body, inplace_mode);
+    bool body_unchanged = body_result.UnchangedOrSameAs(op->body);
+    PrimExpr body = std::move(body_result).ValueOrUnchanged(op->body);
 
-    PrimExpr body = VisitPrimExpr(op->body);
-
-    if (value.same_as(op->value) && var.same_as(op->var) && body.same_as(op->body)) {
-      return ffi::GetRef<PrimExpr>(op);
+    if (value.same_as(op->value) && var.same_as(op->var) && body_unchanged) {
+      return ffi::Unchanged();
     } else {
       return prim::Let(var, value, body);
     }
@@ -390,25 +403,27 @@ class ComputeLegalizer : public StmtExprMutator {
     Var var = op->var;
     if (value.ty() != prim_value.value().ty()) {
       var = op->var.CopyWithDType(prim_value.value().ty());
-      var_remap_[op->var] = var;
+      VarRemapSet(op->var, var);
     }
 
     if (value.same_as(op->value) && var.same_as(op->var)) {
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     } else {
       return Bind(var, value);
     }
   }
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    PrimExpr value = this->VisitPrimExpr(op->value);
-    auto fmutate = [this](const PrimExpr& e) { return this->VisitPrimExpr(e); };
-
-    ffi::Array<PrimExpr> indices = op->indices.Map(fmutate);
+    auto value_result = this->Mutate(op->value, inplace_mode);
+    bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
+    PrimExpr value = std::move(value_result).ValueOrUnchanged(op->value);
+    auto indices = Mutate(op->indices, inplace_mode)
+                       .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
+                       .ValueOrUnchanged(op->indices);
     BufferVar new_buf = GetRemappedBuffer(op->buffer);
 
-    if (value.same_as(op->value) && indices.same_as(op->indices) && new_buf.same_as(op->buffer)) {
-      return ffi::GetRef<Stmt>(op);
+    if (value_unchanged && indices.same_as(op->indices) && new_buf.same_as(op->buffer)) {
+      return ffi::Unchanged();
     } else {
       if (MatchType(new_buf->dtype)) {
         value = CastTargetToDType(value, BufferLoad(new_buf, indices).ty());
@@ -427,49 +442,41 @@ class ComputeLegalizer : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     Stmt ret = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = ret.as<AttrStmtNode>();
-    if (auto buffer = op->node.as<BufferVar>()) {
-      auto it = buffer_remap_.find(buffer.value());
-      if (it != buffer_remap_.end()) {
-        return AttrStmt(it->second, op->attr_key, op->value, op->body);
-      }
-    } else if (auto var = op->node.as<Var>()) {
-      auto it = var_remap_.find(var.value());
-      if (it != var_remap_.end()) {
-        return AttrStmt(it->second, op->attr_key, op->value, op->body);
+    if (auto var = op->node.as<Var>()) {
+      auto mapped = VarRemapGet(var.value());
+      if (mapped != nullptr) {
+        return AttrStmt(mapped.as_or_throw<Var>(), op->attr_key, op->value, op->body);
       }
     } else if (auto reducer = op->node.as<te::CommReducerNode>()) {
-      auto legalized_identity_elements = reducer->identity_element.Map(
-          [this](PrimExpr expr) { return this->VisitPrimExpr(expr); });
+      auto reducer_mode = op->unique() && reducer->unique() ? inplace_mode : InplaceMode::kDisallow;
+      auto legalized_identity_elements = Mutate(reducer->identity_element, reducer_mode)
+                                             .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
+                                             .ValueOrUnchanged(reducer->identity_element);
 
       // Remap input variables
       for (size_t i = 0; i < legalized_identity_elements.size(); i++) {
         Var lhs_var = reducer->lhs[i];
         if (lhs_var->ty.as_or_throw<PrimType>() != legalized_identity_elements[i].ty()) {
-          var_remap_[lhs_var] = lhs_var.CopyWithDType(legalized_identity_elements[i].ty());
+          VarRemapSet(lhs_var, lhs_var.CopyWithDType(legalized_identity_elements[i].ty()));
         }
         Var rhs_var = reducer->rhs[i];
         if (rhs_var->ty.as_or_throw<PrimType>() != legalized_identity_elements[i].ty()) {
-          var_remap_[rhs_var] = rhs_var.CopyWithDType(legalized_identity_elements[i].ty());
+          VarRemapSet(rhs_var, rhs_var.CopyWithDType(legalized_identity_elements[i].ty()));
         }
       }
 
-      auto legalized_results =
-          reducer->result.Map([this](PrimExpr expr) { return this->VisitPrimExpr(expr); });
+      auto legalized_results = Mutate(reducer->result, reducer_mode)
+                                   .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
+                                   .ValueOrUnchanged(reducer->result);
 
       auto legalized_lhs = reducer->lhs.Map([this](PrimVar var) {
-        auto it = var_remap_.find(var);
-        if (it != var_remap_.end()) {
-          return it->second.as_or_throw<PrimVar>();
-        }
-        return var;
+        auto mapped = VarRemapGet(var);
+        return mapped == nullptr ? var : mapped.as_or_throw<PrimVar>();
       });
 
       auto legalized_rhs = reducer->rhs.Map([this](PrimVar var) {
-        auto it = var_remap_.find(var);
-        if (it != var_remap_.end()) {
-          return it->second.as_or_throw<PrimVar>();
-        }
-        return var;
+        auto mapped = VarRemapGet(var);
+        return mapped == nullptr ? var : mapped.as_or_throw<PrimVar>();
       });
       return AttrStmt(te::CommReducer(legalized_lhs, legalized_rhs, legalized_results,
                                       legalized_identity_elements, reducer->span),
@@ -479,10 +486,12 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
-    Expr data = VisitExpr(op->data);
+    auto data_result = Mutate(op->data, inplace_mode);
+    bool data_unchanged = data_result.UnchangedOrSameAs(op->data);
+    Expr data = std::move(data_result).ValueOrUnchanged(op->data);
     BufferVar new_buf = GetRemappedBuffer(op->buffer);
-    if (new_buf.same_as(op->buffer) && data.same_as(op->data)) {
-      return ffi::GetRef<Stmt>(op);
+    if (new_buf.same_as(op->buffer) && data_unchanged) {
+      return ffi::Unchanged();
     }
     return DeclBuffer(new_buf, std::move(data), op->span);
   }
@@ -502,15 +511,14 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
-    PrimExpr ret = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op)).as_or_throw<PrimExpr>();
-    op = ret.as<TensorLoadNode>();
-
-    BufferVar new_buf = GetRemappedBuffer(op->source.as_or_throw<tvm::tirx::BufferVar>());
-    if (new_buf.same_as(op->source.as_or_throw<tvm::tirx::BufferVar>())) {
-      return ret;
-    } else {
-      return BufferLoad(new_buf, op->indices);
+    BufferVar buffer = GetRemappedBuffer(op->source.as_or_throw<BufferVar>());
+    auto indices = Mutate(op->indices, inplace_mode)
+                       .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
+                       .ValueOrUnchanged(op->indices);
+    if (buffer.same_as(op->source) && indices.same_as(op->indices)) {
+      return ffi::Unchanged();
     }
+    return BufferLoad(buffer, indices, op->span);
   }
 
  private:
@@ -542,25 +550,23 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
   BufferVar GetRemappedBuffer(BufferVar buf) {
-    auto buf_it = buffer_remap_.find(buf);
-    if (buf_it != buffer_remap_.end()) {
-      return buf_it->second;
-    }
-    return buf;
+    auto mapped = VarRemapGet(buf);
+    return mapped == nullptr ? buf : mapped.as_or_throw<BufferVar>();
   }
 
  protected:
   PrimType promote_dtype_;
-  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
-  std::unordered_map<Var, Var> var_remap_;
 };
 
 class BF16ComputeLegalizer : public ComputeLegalizer {
  public:
+  using ComputeLegalizer::Mutate;
+  using ComputeLegalizer::Mutate_;
   BF16ComputeLegalizer() : ComputeLegalizer(PrimType::Float(32)) {}
   PrimFunc Legalize(PrimFunc func) {
-    auto planner =
-        ffi::make_object<BF16ComputeLegalizePlanner>(&buffer_remap_, &var_remap_, promote_dtype_);
+    std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_plan;
+    std::unordered_map<Var, Var> var_plan;
+    auto planner = ffi::make_object<BF16ComputeLegalizePlanner>(&buffer_plan, &var_plan, promote_dtype_);
     return LegalizeWithPlanner(func, planner.get());
   }
   bool MatchType(const Type& type) const {
@@ -570,10 +576,13 @@ class BF16ComputeLegalizer : public ComputeLegalizer {
 
 class FP8ComputeLegalizer : public ComputeLegalizer {
  public:
+  using ComputeLegalizer::Mutate;
+  using ComputeLegalizer::Mutate_;
   explicit FP8ComputeLegalizer(PrimType promote_dtype) : ComputeLegalizer(promote_dtype) {}
   PrimFunc Legalize(PrimFunc func) {
-    auto planner =
-        ffi::make_object<FP8ComputeLegalizePlanner>(&buffer_remap_, &var_remap_, promote_dtype_);
+    std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_plan;
+    std::unordered_map<Var, Var> var_plan;
+    auto planner = ffi::make_object<FP8ComputeLegalizePlanner>(&buffer_plan, &var_plan, promote_dtype_);
     return LegalizeWithPlanner(func, planner.get());
   }
   bool MatchType(const Type& type) const {
@@ -590,6 +599,8 @@ class FP8ComputeLegalizer : public ComputeLegalizer {
  */
 class StorageLegalizer : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   PrimFunc Legalize(PrimFunc func) {
     for (const Var& param : func->params) {
       TVM_FFI_ICHECK(!param->ty.as<BufferTypeNode>())
@@ -597,21 +608,11 @@ class StorageLegalizer : public StmtExprMutator {
     }
     auto* n = func.CopyOnWrite();
     n->params = n->params.Map([this](Var var) { return this->RemapVarDef(var); });
-    n->body = this->VisitStmt(std::move(n->body));
+    n->body = this->Mutate(n->body, InplaceMode::kDisallow).ValueOrUnchanged(n->body);
     return func;
   }
 
  private:
-  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
-    Var var = ffi::GetRef<Var>(op);
-    auto itr = var_remap_.find(var);
-    if (itr != var_remap_.end()) {
-      return itr->second;
-    } else {
-      return var;
-    }
-  }
-
   UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     BufferVar buf = GetRemappedBuffer(op->buffer, /*allow_definition=*/true);
     // in a rare case the buffer didn't get remapped
@@ -622,12 +623,11 @@ class StorageLegalizer : public StmtExprMutator {
       auto type = CopyBufferType(buf);
       type->dtype = new_dtype;
       BufferVar new_buf = RebuildBufferVar(buf, std::move(type));
-      var_remap_[buf.var()] = new_buf.var();
+      VarRemapSet(op->buffer, new_buf);
       buf = std::move(new_buf);
-      buffer_remap_[op->buffer] = buf;
     }
     if (buf.same_as(op->buffer)) {
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     } else {
       auto node = ffi::GetRef<AllocBuffer>(op);
       node.CopyOnWrite()->buffer = buf;
@@ -637,7 +637,9 @@ class StorageLegalizer : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
     BufferVar buf = GetRemappedBuffer(op->buffer, /*allow_definition=*/true);
-    Expr data = Dispatch(op->data);
+    auto data_result = Mutate(op->data, inplace_mode);
+    bool data_unchanged = data_result.UnchangedOrSameAs(op->data);
+    Expr data = std::move(data_result).ValueOrUnchanged(op->data);
     // in a rare case the buffer didn't get remapped
     // because the original var is not bfloat*
     // force remap here
@@ -646,44 +648,52 @@ class StorageLegalizer : public StmtExprMutator {
       auto type = CopyBufferType(buf);
       type->dtype = new_dtype;
       buf = RebuildBufferVar(buf, std::move(type));
-      var_remap_[op->buffer.var()] = buf.var();
-      buffer_remap_[op->buffer] = buf;
+      VarRemapSet(op->buffer, buf);
     }
-    if (buf.same_as(op->buffer) && data.same_as(op->data)) {
-      return ffi::GetRef<Stmt>(op);
+    if (buf.same_as(op->buffer) && data_unchanged) {
+      return ffi::Unchanged();
     }
     return DeclBuffer(buf, std::move(data), op->span);
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final {
-    PrimExpr value = VisitPrimExpr(op->value);
+    auto value_result = Mutate(op->value, inplace_mode);
+    bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
+    PrimExpr value = std::move(value_result).ValueOrUnchanged(op->value);
     Var var = RemapVarDef(op->var);
-    PrimExpr body = VisitPrimExpr(op->body);
+    auto body_result = Mutate(op->body, inplace_mode);
+    bool body_unchanged = body_result.UnchangedOrSameAs(op->body);
+    PrimExpr body = std::move(body_result).ValueOrUnchanged(op->body);
 
-    if (value.same_as(op->value) && var.same_as(op->var) && body.same_as(op->body)) {
-      return ffi::GetRef<PrimExpr>(op);
+    if (value_unchanged && var.same_as(op->var) && body_unchanged) {
+      return ffi::Unchanged();
     } else {
       return prim::Let(var, value, body);
     }
   }
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
-    Expr value = VisitExpr(op->value);
+    auto value_result = Mutate(op->value, inplace_mode);
+    bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
+    Expr value = std::move(value_result).ValueOrUnchanged(op->value);
     Var var = RemapVarDef(op->var);
 
-    if (value.same_as(op->value) && var.same_as(op->var)) {
-      return ffi::GetRef<Stmt>(op);
+    if (value_unchanged && var.same_as(op->var)) {
+      return ffi::Unchanged();
     } else {
       return Bind(var, value);
     }
   }
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    PrimExpr value = this->ChangeToUInt(Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value));
+    PrimExpr value =
+        this->ChangeToUInt(Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value));
     BufferVar new_buf = GetRemappedBuffer(op->buffer);
-    auto indices = op->indices.Map([this](PrimExpr expr) { return this->VisitPrimExpr(expr); });
+    auto indices = Mutate(op->indices, inplace_mode)
+                       .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
+                       .ValueOrUnchanged(op->indices);
     if (new_buf.same_as(op->buffer) && indices.same_as(op->indices) && value.same_as(op->value)) {
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     } else {
       if (MatchType(op->value.ty())) {
         TVM_FFI_ICHECK(new_buf->dtype.MatchesCode(DLDataTypeCode::kDLUInt));
@@ -696,29 +706,24 @@ class StorageLegalizer : public StmtExprMutator {
     Stmt ret = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = ret.as<AttrStmtNode>();
 
-    if (auto buffer = op->node.as<BufferVar>()) {
-      auto it = buffer_remap_.find(buffer.value());
-      if (it != buffer_remap_.end()) {
-        return AttrStmt(it->second, op->attr_key, op->value, op->body);
-      }
-    } else if (auto var = op->node.as<Var>()) {
-      auto it = var_remap_.find(var.value());
-      if (it != var_remap_.end()) {
-        return AttrStmt(it->second, op->attr_key, op->value, op->body);
+    if (auto var = op->node.as<Var>()) {
+      auto mapped = VarRemapGet(var.value());
+      if (mapped != nullptr) {
+        return AttrStmt(mapped.as_or_throw<Var>(), op->attr_key, op->value, op->body);
       }
     }
     return ret;
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
-    PrimExpr ret = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op)).as_or_throw<PrimExpr>();
-    op = ret.as<TensorLoadNode>();
-    BufferVar new_buf = GetRemappedBuffer(op->source.as_or_throw<tvm::tirx::BufferVar>());
-    if (new_buf.same_as(op->source.as_or_throw<tvm::tirx::BufferVar>())) {
-      return ret;
-    } else {
-      return BufferLoad(new_buf, op->indices);
+    BufferVar buffer = GetRemappedBuffer(op->source.as_or_throw<BufferVar>());
+    auto indices = Mutate(op->indices, inplace_mode)
+                       .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
+                       .ValueOrUnchanged(op->indices);
+    if (buffer.same_as(op->source) && indices.same_as(op->indices)) {
+      return ffi::Unchanged();
     }
+    return BufferLoad(buffer, indices, op->span);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
@@ -729,7 +734,7 @@ class StorageLegalizer : public StmtExprMutator {
       PrimExpr value;
       if (!is_load) {
         PrimExpr original_value = op->args[1].as_or_throw<PrimExpr>();
-        value = this->ChangeToUInt(this->Mutate(original_value, inplace_mode).ValueOrUnchanged(original_value));
+        value = this->ChangeToUInt(this->Mutate(original_value).ValueOrUnchanged(original_value));
         if (MatchType(original_value.ty())) {
           TVM_FFI_ICHECK(buffer->dtype.MatchesCode(DLDataTypeCode::kDLUInt));
         }
@@ -737,11 +742,14 @@ class StorageLegalizer : public StmtExprMutator {
       }
       ffi::Array<PrimExpr> indices;
       for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
-        PrimExpr index = this->VisitPrimExpr(op->args[i].as_or_throw<PrimExpr>());
+        PrimExpr index =
+            this->Mutate(op->args[i]).ValueOrUnchanged(op->args[i]).as_or_throw<PrimExpr>();
         indices.push_back(index);
         args.push_back(index);
       }
-      args.push_back(this->Dispatch(op->args.back()));
+      args.push_back(this->Mutate(op->args[op->args.size() - 1])
+                         .ValueOrUnchanged(op->args[op->args.size() - 1])
+                         .as_or_throw<Expr>());
       if (is_load) {
         Type type = BufferLoad(buffer, indices).ty();
         return Call(type, op->op, args, op->attrs, op->ty_args, op->span);
@@ -765,7 +773,7 @@ class StorageLegalizer : public StmtExprMutator {
     }
     // remap re-interpret so un-necessary reinterpret can be skipped.
     if (op->op.same_as(builtin::reinterpret())) {
-      PrimExpr value = VisitPrimExpr(op->args[0].as_or_throw<PrimExpr>());
+      PrimExpr value = Mutate(op->args[0]).ValueOrUnchanged(op->args[0]).as_or_throw<PrimExpr>();
       // sometimes the input dtype can change and we can skip.
       PrimType op_dtype = op->ty.as_or_throw<PrimType>();
       if (value.ty() == op_dtype) return value;
@@ -808,7 +816,7 @@ class StorageLegalizer : public StmtExprMutator {
         if (MatchType(elem_prim_type)) {
           Var new_var = Var(
               var->name, PointerType(GetStorageUIntDType(elem_prim_type), ptr_type->storage_scope));
-          var_remap_[var] = new_var;
+          VarRemapSet(var, new_var);
           return new_var;
         }
       }
@@ -817,29 +825,19 @@ class StorageLegalizer : public StmtExprMutator {
   }
 
   BufferVar GetRemappedBuffer(BufferVar buf, bool allow_definition = false) {
-    auto buf_it = buffer_remap_.find(buf);
-    if (buf_it != buffer_remap_.end()) {
-      return buf_it->second;
-    }
-    BufferVar new_buf = buf;
-    auto var_it = var_remap_.find(buf.var());
-    if (var_it != var_remap_.end()) {
-      new_buf = BufferVar(var_it->second);
-    } else if (!allow_definition) {
+    auto mapped = VarRemapGet(buf);
+    if (mapped != nullptr) return mapped.as_or_throw<BufferVar>();
+    if (!allow_definition) {
       TVM_FFI_ICHECK(!MatchType(buf->dtype)) << "Cannot find var remap for " << buf;
     }
-
-    buffer_remap_[buf] = new_buf;
-
-    return new_buf;
+    return buf;
   }
-
-  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
-  std::unordered_map<Var, Var> var_remap_;
 };
 
 class BF16StorageLegalizer : public StorageLegalizer {
  public:
+  using StmtExprMutator::Mutate_;
+  using StorageLegalizer::Mutate;
   bool MatchType(const Type& type) const {
     return MatchPrimType(type, [](const PrimType& prim_type) { return IsBFloat16Type(prim_type); });
   }
@@ -847,6 +845,8 @@ class BF16StorageLegalizer : public StorageLegalizer {
 
 class FP8StorageLegalizer : public StorageLegalizer {
  public:
+  using StmtExprMutator::Mutate_;
+  using StorageLegalizer::Mutate;
   bool MatchType(const Type& type) const {
     return MatchPrimType(type, [](const PrimType& prim_type) { return IsFloat8Type(prim_type); });
   }
@@ -874,7 +874,7 @@ Pass BF16ComputeLegalize() {
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_bf16")) {
       return f;
     }
-    return BF16ComputeLegalizer().Legalize(f);
+    return ffi::make_object<BF16ComputeLegalizer>()->Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.BF16ComputeLegalize", {});
 }
@@ -891,7 +891,7 @@ Pass BF16StorageLegalize() {
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_bf16")) {
       return f;
     }
-    return BF16StorageLegalizer().Legalize(f);
+    return ffi::make_object<BF16StorageLegalizer>()->Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.BF16StorageLegalize", {});
 }
@@ -908,7 +908,8 @@ Pass FP8ComputeLegalize(ffi::String promote_dtype) {
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_fp8")) {
       return f;
     }
-    return FP8ComputeLegalizer(PrimType(ffi::StringToDLDataType(promote_dtype))).Legalize(f);
+    return ffi::make_object<FP8ComputeLegalizer>(PrimType(ffi::StringToDLDataType(promote_dtype)))
+        ->Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.FP8ComputeLegalize", {});
 }
@@ -925,7 +926,7 @@ Pass FP8StorageLegalize() {
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_fp8")) {
       return f;
     }
-    return FP8StorageLegalizer().Legalize(f);
+    return ffi::make_object<FP8StorageLegalizer>()->Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.FP8StorageLegalize", {});
 }

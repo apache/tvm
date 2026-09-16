@@ -35,7 +35,9 @@ inline bool IsVtcmStorage(std::string scope) {
 
 class VtcmAllocator : public StmtExprMutator {
  public:
-  using StmtExprMutator::VisitStmt_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   VtcmAllocator() {}
 
   UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
@@ -62,7 +64,9 @@ class VtcmAllocator : public StmtExprMutator {
 
 PrimFunc LowerVtcmAlloc(PrimFunc func) {
   auto fptr = func.CopyOnWrite();
-  fptr->body = VtcmAllocator()(std::move(fptr->body));
+  fptr->body = ffi::make_object<VtcmAllocator>()
+                   ->Mutate(fptr->body, InplaceMode::kAllow)
+                   .ValueOrUnchanged(std::move(fptr->body));
   return func;
 }
 

@@ -599,19 +599,27 @@ struct BufferAllocInfo {
 /*! \brief Reallocate the buffers with minimal region. */
 class BufferCompactor : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   explicit BufferCompactor(std::unordered_map<Var, BufferAllocInfo> buffer_info)
       : buffer_info_(std::move(buffer_info)) {}
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* _op, InplaceMode inplace_mode) final {
-    BufferStore store = StmtExprMutator::Mutate_(_op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(_op)).as_or_throw<BufferStore>();
+    BufferVar original_buffer = _op->buffer;
+    BufferStore store = StmtExprMutator::Mutate_(_op, inplace_mode)
+                            .ValueOrUnchanged(ffi::GetRef<Stmt>(_op))
+                            .as_or_throw<BufferStore>();
     BufferStoreNode* op = store.CopyOnWrite();
-    RewriteBufferAccess(_op->buffer, &op->buffer, &op->indices);
+    RewriteBufferAccess(original_buffer, &op->buffer, &op->indices);
     return store;
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* _op, InplaceMode inplace_mode) final {
-    TensorLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<TensorLoad>();
     BufferVar original_buffer = _op->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorLoad load = StmtExprMutator::Mutate_(_op, inplace_mode)
+                          .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_op))
+                          .as_or_throw<TensorLoad>();
     BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
     ffi::Array<PrimExpr> indices = load->indices;
     RewriteBufferAccess(original_buffer, &buffer, &indices);
@@ -630,7 +638,9 @@ class BufferCompactor : public StmtExprMutator {
     n->alloc_buffers =
         op->alloc_buffers.Map([this](const BufferVar& buf) { return RewriteAllocBuffer(buf); });
     // Recursively rewrite the body after installing the allocation remaps.
-    return StmtExprMutator::VisitStmt_(block.get());
+    return StmtExprMutator::Mutate_(block.get(),
+                                    block.unique() ? inplace_mode : InplaceMode::kDisallow)
+        .ValueOrUnchanged(block);
   }
 
   UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
@@ -640,7 +650,9 @@ class BufferCompactor : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     RewriteAllocBuffer(op->buffer);
-    AllocBuffer alloc_buf = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<AllocBuffer>();
+    AllocBuffer alloc_buf = StmtExprMutator::Mutate_(op, inplace_mode)
+                                .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                                .as_or_throw<AllocBuffer>();
     auto it = buffer_info_.find(op->buffer.var());
     if (it == buffer_info_.end()) {
       return alloc_buf;
@@ -658,7 +670,7 @@ class BufferCompactor : public StmtExprMutator {
     if (it != buffer_info_.end()) {
       const BufferVar& new_buffer = it->second.new_buffer;
       if (!new_buffer.same_as(buffer)) {
-        buffer_remap_.Set(buffer, new_buffer);
+        VarRemapSet(buffer, new_buffer);
       }
       return new_buffer;
     }
@@ -786,8 +798,8 @@ Stmt BufferCompactorCompact(
     alloc_info.region = region;
     buffer_info.emplace(buffer.var(), std::move(alloc_info));
   }
-  BufferCompactor compactor(std::move(buffer_info));
-  Stmt stmt = compactor(f->body);
+  auto compactor = ffi::make_object<BufferCompactor>(std::move(buffer_info));
+  Stmt stmt = compactor->Mutate(f->body).ValueOrUnchanged(f->body);
   return stmt;
 }
 
