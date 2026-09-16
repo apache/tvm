@@ -568,8 +568,8 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const SBlockNode* op, InplaceMode inp
   // SBlock iteration variables keep their binders; only their domains are expressions here.
   const auto* iters = op->iter_vars.GetArrayObj();
   InplaceMode iter_mode = iters->unique() ? inplace_mode : InplaceMode::kDisallow;
-  std::vector<std::pair<int64_t, IterVar>> replacements;
-  for (int64_t i = 0; i < iters->size(); ++i) {
+  std::vector<std::pair<size_t, IterVar>> replacements;
+  for (size_t i = 0; i < iters->size(); ++i) {
     const auto* iter = (*iters)[i].as<IterVarNode>();
     InplaceMode domain_mode = iter->unique() ? iter_mode : InplaceMode::kDisallow;
     auto domain = Mutate(iter->dom, domain_mode).as_or_throw<UnchangedOr<Range>>();
@@ -664,8 +664,8 @@ UnchangedOr<ffi::Array<T>> MutateTileArray(const ffi::ArrayObj* values, InplaceM
                                            F fmutate) {
   // Borrow both the owning container and its elements throughout recursion.
   if (!values->unique()) mode = InplaceMode::kDisallow;
-  std::vector<std::pair<int64_t, T>> replacements;
-  for (int64_t i = 0; i < values->size(); ++i) {
+  std::vector<std::pair<size_t, T>> replacements;
+  for (size_t i = 0; i < values->size(); ++i) {
     UnchangedOr<ffi::Any> result = fmutate(ffi::AnyView((*values)[i]), mode);
     if (!result.UnchangedOrSameAs((*values)[i])) {
       replacements.emplace_back(i, std::move(result).ValueUnchecked().template as_or_throw<T>());
