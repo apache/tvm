@@ -84,7 +84,7 @@ class ForMatcher : public TensorizeComparator {
   std::vector<BufferVar> evaluated_buffers;
 
  private:
-  using ExprComparator::VisitExpr_;
+  using ExprComparator::Dispatch_;
 
   ffi::Optional<PrimExpr> QueryEvaluatedSymbols(const Var& var) {
     for (const SymbolMap& symbol_map : evaluated_symbols) {
@@ -96,7 +96,7 @@ class ForMatcher : public TensorizeComparator {
     return std::nullopt;
   }
 
-  bool VisitExpr(const Expr& expr, const PrimExpr& rhs) final {
+  bool Dispatch(const Expr& expr, const PrimExpr& rhs) final {
     PrimExpr lhs = expr.as_or_throw<PrimExpr>();
     if (auto rhs_prim_var = rhs.as<PrimVar>()) {
       Var rhs_var = rhs_prim_var.value();
@@ -125,7 +125,7 @@ class ForMatcher : public TensorizeComparator {
         Var pattern_var = operand_a.value();
         // pattern var is on the left
         evaluated_symbols.push_back(SymbolMap());
-        bool match = VisitExpr(lhs, rhs_ptr->b);
+        bool match = Dispatch(lhs, rhs_ptr->b);
         SymbolMap symbol_map = std::move(evaluated_symbols.back());
         evaluated_symbols.pop_back();
         if (match) {
@@ -138,7 +138,7 @@ class ForMatcher : public TensorizeComparator {
         Var pattern_var = operand_b.value();
         // pattern var is on the right
         evaluated_symbols.push_back(SymbolMap());
-        bool match = VisitExpr(lhs, rhs_ptr->a);
+        bool match = Dispatch(lhs, rhs_ptr->a);
         SymbolMap symbol_map = std::move(evaluated_symbols.back());
         evaluated_symbols.pop_back();
         if (match) {
@@ -156,7 +156,7 @@ class ForMatcher : public TensorizeComparator {
         Var pattern_var = operand_a.value();
         // pattern var is on the left
         evaluated_symbols.push_back(SymbolMap());
-        bool match = VisitExpr(lhs, rhs_ptr->b);
+        bool match = Dispatch(lhs, rhs_ptr->b);
         SymbolMap symbol_map = std::move(evaluated_symbols.back());
         evaluated_symbols.pop_back();
         if (match) {
@@ -169,7 +169,7 @@ class ForMatcher : public TensorizeComparator {
         Var pattern_var = operand_b.value();
         // pattern var is on the right
         evaluated_symbols.push_back(SymbolMap());
-        bool match = VisitExpr(lhs, rhs_ptr->a);
+        bool match = Dispatch(lhs, rhs_ptr->a);
         SymbolMap symbol_map = std::move(evaluated_symbols.back());
         evaluated_symbols.pop_back();
         if (match) {
@@ -179,15 +179,15 @@ class ForMatcher : public TensorizeComparator {
         }
       }
     }
-    return TensorizeComparator::VisitExpr(lhs, rhs);
+    return TensorizeComparator::Dispatch(lhs, rhs);
   }
 
-  bool VisitExpr_(const prim::AddNode* add, const PrimExpr& other) final {
+  bool Dispatch_(const prim::AddNode* add, const PrimExpr& other) final {
     const auto* rhs = other.as<prim::AddNode>();
     if (rhs == nullptr) return false;
     {
       this->evaluated_symbols.push_back(SymbolMap());
-      bool match = VisitExpr(add->a, rhs->a) && VisitExpr(add->b, rhs->b);
+      bool match = Dispatch(add->a, rhs->a) && Dispatch(add->b, rhs->b);
       SymbolMap symbol_map = std::move(evaluated_symbols.back());
       this->evaluated_symbols.pop_back();
       if (match) {
@@ -197,7 +197,7 @@ class ForMatcher : public TensorizeComparator {
     }
     {
       this->evaluated_symbols.push_back(SymbolMap());
-      bool match = VisitExpr(add->a, rhs->b) && VisitExpr(add->b, rhs->a);
+      bool match = Dispatch(add->a, rhs->b) && Dispatch(add->b, rhs->a);
       SymbolMap symbol_map = std::move(evaluated_symbols.back());
       this->evaluated_symbols.pop_back();
       if (match) {
@@ -208,12 +208,12 @@ class ForMatcher : public TensorizeComparator {
     return false;
   }
 
-  bool VisitExpr_(const prim::MulNode* mul, const PrimExpr& other) final {
+  bool Dispatch_(const prim::MulNode* mul, const PrimExpr& other) final {
     const auto* rhs = other.as<prim::MulNode>();
     if (rhs == nullptr) return false;
     {
       this->evaluated_symbols.push_back(SymbolMap());
-      bool match = VisitExpr(mul->a, rhs->a) && VisitExpr(mul->b, rhs->b);
+      bool match = Dispatch(mul->a, rhs->a) && Dispatch(mul->b, rhs->b);
       SymbolMap symbol_map = std::move(evaluated_symbols.back());
       this->evaluated_symbols.pop_back();
       if (match) {
@@ -223,7 +223,7 @@ class ForMatcher : public TensorizeComparator {
     }
     {
       this->evaluated_symbols.push_back(SymbolMap());
-      bool match = VisitExpr(mul->a, rhs->b) && VisitExpr(mul->b, rhs->a);
+      bool match = Dispatch(mul->a, rhs->b) && Dispatch(mul->b, rhs->a);
       SymbolMap symbol_map = std::move(evaluated_symbols.back());
       this->evaluated_symbols.pop_back();
       if (match) {
@@ -234,7 +234,7 @@ class ForMatcher : public TensorizeComparator {
     return false;
   }
 
-  bool VisitExpr_(const CallNode* call, const PrimExpr& other) final {
+  bool Dispatch_(const CallNode* call, const PrimExpr& other) final {
     const auto* rhs = other.as<CallNode>();
     if (rhs == nullptr) return false;
     const auto* lhs_op = call->op.as<OpNode>();
@@ -267,7 +267,7 @@ class ForMatcher : public TensorizeComparator {
     if (op->kind != ForKind::kSerial || op->kind != rhs->kind) return false;
     if (!op->annotations.empty() || !rhs->annotations.empty()) return false;
     // Match the extents of loops
-    if (!VisitExpr(op->extent, rhs->extent)) return false;
+    if (!Dispatch(op->extent, rhs->extent)) return false;
     return VisitStmt(op->body, rhs->body);
   }
 
@@ -316,10 +316,10 @@ class ForMatcher : public TensorizeComparator {
 
   bool VisitStmt_(const BufferStoreNode* op, const Stmt& other) {
     const auto* rhs = other.as<BufferStoreNode>();
-    return CompareBufferAccess(op, rhs) && VisitExpr(op->value, rhs->value);
+    return CompareBufferAccess(op, rhs) && Dispatch(op->value, rhs->value);
   }
 
-  bool VisitExpr_(const TensorLoadNode* op, const PrimExpr& other) {
+  bool Dispatch_(const TensorLoadNode* op, const PrimExpr& other) {
     const auto* rhs = other.as<TensorLoadNode>();
     return CompareBufferAccess(op, rhs);
   }
@@ -334,7 +334,7 @@ class ForMatcher : public TensorizeComparator {
       // Compare shape
       if (lhs->shape.size() != rhs->shape.size()) return false;
       for (size_t i = 0; i < lhs->shape.size(); ++i) {
-        if (!VisitExpr(lhs->shape[i], rhs->shape[i])) return false;
+        if (!Dispatch(lhs->shape[i], rhs->shape[i])) return false;
       }
       equal =
           DefEqual(lhs.var(), rhs.var()) && lhs->dtype == rhs->dtype && lhs.scope() == rhs.scope();
@@ -355,7 +355,7 @@ class ForMatcher : public TensorizeComparator {
   template <typename T>
   bool CompareBufferAccess(const T* lhs, const T* rhs) {
     if (!CompareBuffer(lhs->buffer, rhs->buffer)) return false;
-    return CompareArray(lhs->indices, rhs->indices, &ForMatcher::VisitExpr);
+    return CompareArray(lhs->indices, rhs->indices, &ForMatcher::Dispatch);
   }
 
   bool CompareBufferAccess(const TensorLoadNode* lhs, const TensorLoadNode* rhs) {
@@ -364,7 +364,7 @@ class ForMatcher : public TensorizeComparator {
                        rhs->source.as_or_throw<BufferVar>())) {
       return false;
     }
-    return CompareArray(lhs->indices, rhs->indices, &ForMatcher::VisitExpr);
+    return CompareArray(lhs->indices, rhs->indices, &ForMatcher::Dispatch);
   }
 
   template <typename T, typename Self, typename F>

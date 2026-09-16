@@ -204,10 +204,10 @@ std::string CodeGenC::Finish() {
 void CodeGenC::PrintExpr(const PrimExpr& n, std::ostream& os) {  // NOLINT(*)
   if (print_ssa_form_) {
     std::ostringstream temp;
-    VisitExpr(n, temp);
+    Dispatch(n, temp);
     os << SSAGetID(temp.str(), n.ty());
   } else {
-    VisitExpr(n, os);
+    Dispatch(n, os);
   }
 }
 
@@ -215,9 +215,9 @@ void CodeGenC::PrintExpr(const Expr& n, std::ostream& os) {  // NOLINT(*)
   if (auto prim = n.as<PrimExpr>()) {
     PrintExpr(prim.value(), os);
   } else if (auto* var = n.as<VarNode>()) {
-    VisitExpr_(var, os);
+    Dispatch_(var, os);
   } else if (auto* call = n.as<CallNode>()) {
-    VisitExpr_(call, os);
+    Dispatch_(call, os);
   } else {
     TVM_FFI_THROW(TypeError) << "CodeGenC cannot print non-primitive expression " << n.GetTypeKey();
   }
@@ -288,7 +288,7 @@ std::string CodeGenC::GetBufferRef(const PrimType& t, const VarNode* buffer, Pri
     // float4_e2m1fn: sizeof(__nv_fp4_e2m1) = 1 byte, but data is packed
     // 2 elements per byte.  Divide element index by 2 to get byte offset.
     // This returns an lvalue so it works for address_of() and stores.
-    // Nibble extraction (for loads) is handled in VisitExpr_(TensorLoadNode*).
+    // Nibble extraction (for loads) is handled in Dispatch_(TensorLoadNode*).
     os << "*(" << ptr_cast(t) << "(" << vid << " + " << index_str << " / 2))";
   } else if (t == buffer_element_dtype) {
     os << buffer_str << "[" << index_str << "]";
@@ -523,14 +523,14 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenC* p) { 
   }
 }
 
-void CodeGenC::VisitExpr_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
 
-void CodeGenC::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
-void CodeGenC::VisitExpr_(const prim::StringImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::StringImmNode* op, std::ostream& os) {  // NOLINT(*)
   os << "\"" << op->value << "\"";
 }
 
@@ -574,27 +574,27 @@ inline void PrintBinaryIntrinsic(const CallNode* op, const char* opstr,
                         op->args[1].as_or_throw<PrimExpr>(), os);
   }
 }
-void CodeGenC::VisitExpr_(const prim::CastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::CastNode* op, std::ostream& os) {  // NOLINT(*)
   std::stringstream value;
   this->PrintExpr(op->value, value);
   os << CastFromTo(value.str(), op->value.ty(), op->ty.as_or_throw<PrimType>());
 }
-void CodeGenC::VisitExpr_(const VarNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const VarNode* op, std::ostream& os) {  // NOLINT(*)
   os << GetVarID(op);
 }
-void CodeGenC::VisitExpr_(const prim::AddNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::AddNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "+", os, this);
 }
-void CodeGenC::VisitExpr_(const prim::SubNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::SubNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "-", os, this);
 }
-void CodeGenC::VisitExpr_(const prim::MulNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::MulNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "*", os, this);
 }
-void CodeGenC::VisitExpr_(const prim::DivNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::DivNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "/", os, this);
 }
-void CodeGenC::VisitExpr_(const prim::ModNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::ModNode* op, std::ostream& os) {  // NOLINT(*)
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if (op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     PrintBinaryExpr(op, "%", os, this);
@@ -613,37 +613,37 @@ void CodeGenC::VisitExpr_(const prim::ModNode* op, std::ostream& os) {  // NOLIN
     }
   }
 }
-void CodeGenC::VisitExpr_(const prim::MinNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::MinNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "min", os, this);
 }
-void CodeGenC::VisitExpr_(const prim::MaxNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::MaxNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "max", os, this);
 }
-void CodeGenC::VisitExpr_(const prim::EQNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::EQNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "==", os, this);
 }
-void CodeGenC::VisitExpr_(const prim::NENode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::NENode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "!=", os, this);
 }
-void CodeGenC::VisitExpr_(const prim::LTNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::LTNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "<", os, this);
 }
-void CodeGenC::VisitExpr_(const prim::LENode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::LENode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "<=", os, this);
 }
-void CodeGenC::VisitExpr_(const prim::GTNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::GTNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, ">", os, this);
 }
-void CodeGenC::VisitExpr_(const prim::GENode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::GENode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, ">=", os, this);
 }
-void CodeGenC::VisitExpr_(const prim::AndNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::AndNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "&&", os, this);
 }
-void CodeGenC::VisitExpr_(const prim::OrNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::OrNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "||", os, this);
 }
-void CodeGenC::VisitExpr_(const prim::NotNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::NotNode* op, std::ostream& os) {  // NOLINT(*)
   os << '!';
   PrintExpr(op->a, os);
 }
@@ -670,7 +670,7 @@ void CodeGenC::PrintCallExtern(Type ret_type, ffi::String global_symbol,
   }
 }
 
-void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK(!op->op.same_as(builtin::masked_load()))
       << "Predicated buffer load is not supported.";
   TVM_FFI_ICHECK(!op->op.same_as(builtin::masked_store()))
@@ -960,7 +960,7 @@ void CodeGenC::VisitStmt_(const DeclBufferNode* op) {
   RegisterHandleType(op->buffer.get(), op->buffer->dtype);
 }
 
-void CodeGenC::VisitExpr_(const TensorLoadNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
 
   PrimType value_ty = op->ty.as_or_throw<PrimType>();
@@ -1093,7 +1093,7 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
   }
 }
 
-void CodeGenC::VisitExpr_(const prim::LetNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::LetNode* op, std::ostream& os) {  // NOLINT(*)
   auto it = let_binding_.find(op->var);
   if (it != let_binding_.end()) {
     TVM_FFI_ICHECK(deep_equal_(it->second->value, op->value))
@@ -1127,7 +1127,7 @@ void CodeGenC::VisitExpr_(const prim::LetNode* op, std::ostream& os) {  // NOLIN
   TVM_FFI_ICHECK(removed);
 }
 
-void CodeGenC::VisitExpr_(const prim::RampNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::RampNode* op, std::ostream& os) {  // NOLINT(*)
   // NOTE: C have comma expression so cannot use (int2)(v0, v1)
   // instead should use int2(v0, v1)
   PrintType(op->ty.as_or_throw<PrimType>(), os);
@@ -1141,7 +1141,7 @@ void CodeGenC::VisitExpr_(const prim::RampNode* op, std::ostream& os) {  // NOLI
   os << ")";
 }
 
-void CodeGenC::VisitExpr_(const prim::ShuffleNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::ShuffleNode* op, std::ostream& os) {  // NOLINT(*)
   // Shuffle support
   // vec = concat(vectors)
   // result = (vec[indices[0]], vec[indices[1]], ...)
@@ -1212,11 +1212,11 @@ void CodeGenC::VisitExpr_(const prim::ShuffleNode* op, std::ostream& os) {  // N
   }
 }
 
-void CodeGenC::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_THROW(InternalError) << "Broadcast: not supported ";
 }
 
-void CodeGenC::VisitExpr_(const prim::SelectNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::SelectNode* op, std::ostream& os) {  // NOLINT(*)
   os << "(";
   PrintExpr(op->condition, os);
   os << " ? ";

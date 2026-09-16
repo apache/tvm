@@ -439,7 +439,7 @@ void CodeGenWebGPU::PrintVecElemStore(const std::string& vec, const PrimType& t,
   stream << vec << "[" << i << "] = " << value << ";\n";
 }
 
-void CodeGenWebGPU::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenWebGPU::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   int lanes = op->ty.as_or_throw<PrimType>().lanes();
   PrintType(op->ty.as_or_throw<PrimType>(), os);
@@ -455,7 +455,7 @@ PrimExpr CodeGenWebGPU::EnforceU32(PrimExpr value) {
   return cast(PrimType::UInt(32, value.ty().lanes()), value);
 }
 
-void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenWebGPU::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK(!op->op.same_as(builtin::masked_load()))
       << "Predicated buffer load is not supported.";
   TVM_FFI_ICHECK(!op->op.same_as(builtin::masked_store()))
@@ -515,21 +515,21 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
     os << ") + ";
     this->PrintExpr(op->args[2], os);
   } else {
-    CodeGenC::VisitExpr_(op, os);
+    CodeGenC::Dispatch_(op, os);
   }
 }
 
-void CodeGenWebGPU::VisitExpr_(const prim::CastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenWebGPU::Dispatch_(const prim::CastNode* op, std::ostream& os) {  // NOLINT(*)
   PrintType(op->ty.as_or_throw<PrimType>(), os);
   os << "(" << PrintExpr(op->value) << ")";
 }
 
-void CodeGenWebGPU::VisitExpr_(const prim::SelectNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenWebGPU::Dispatch_(const prim::SelectNode* op, std::ostream& os) {  // NOLINT(*)
   os << "select(" << PrintExpr(op->false_value) << ", " << PrintExpr(op->true_value) << ", "
      << PrintExpr(op->condition) << ")";
 }
 
-void CodeGenWebGPU::VisitExpr_(const prim::LetNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenWebGPU::Dispatch_(const prim::LetNode* op, std::ostream& os) {  // NOLINT(*)
   // use ssa form.
   if (print_ssa_form_) {
     std::string value = PrintExpr(op->value);
@@ -550,7 +550,7 @@ void CodeGenWebGPU::VisitExpr_(const prim::LetNode* op, std::ostream& os) {  // 
   TVM_FFI_ICHECK(removed);
 }
 
-void CodeGenWebGPU::VisitExpr_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenWebGPU::Dispatch_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
   if (op->ty.as_or_throw<PrimType>().bits() == 32) {
     std::ostringstream temp;
     if (op->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLInt)) {
@@ -567,7 +567,7 @@ void CodeGenWebGPU::VisitExpr_(const IntImmNode* op, std::ostream& os) {  // NOL
   }
 }
 
-void CodeGenWebGPU::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenWebGPU::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   std::ostringstream temp;
   temp << std::scientific << op->value;
   if (op->ty.as_or_throw<PrimType>().bits() == 32) {
@@ -584,7 +584,7 @@ void CodeGenWebGPU::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // N
   os << temp.str();
 }
 
-void CodeGenWebGPU::VisitExpr_(const TensorLoadNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenWebGPU::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // NOLINT(*)
   // NOTE: direct impl of load/store for correctness
   // Each printing stmt must stand on their own after all preprocessing steps
   // to ensure correctness in the case of nested-expression

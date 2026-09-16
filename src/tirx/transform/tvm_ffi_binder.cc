@@ -284,29 +284,29 @@ class ExprPathRenderer : public ExprFunctor<std::string(const Expr&)> {
   explicit ExprPathRenderer(FVarName f_var_name) : f_var_name_(std::move(f_var_name)) {}
 
  protected:
-  std::string VisitExpr_(const VarNode* op) final { return f_var_name_(op); }
-  std::string VisitExpr_(const IntImmNode* op) final { return std::to_string(op->value); }
-  std::string VisitExpr_(const FloatImmNode* op) final {
+  std::string Dispatch_(const VarNode* op) final { return f_var_name_(op); }
+  std::string Dispatch_(const IntImmNode* op) final { return std::to_string(op->value); }
+  std::string Dispatch_(const FloatImmNode* op) final {
     std::ostringstream os;
     os << op->value;
     return os.str();
   }
-  std::string VisitExpr_(const prim::CastNode* op) final { return VisitExpr(op->value); }
-  std::string VisitExpr_(const prim::AddNode* op) final { return BinOp(op->a, " + ", op->b); }
-  std::string VisitExpr_(const prim::SubNode* op) final { return BinOp(op->a, " - ", op->b); }
-  std::string VisitExpr_(const prim::MulNode* op) final { return BinOp(op->a, " * ", op->b); }
-  std::string VisitExpr_(const prim::DivNode* op) final { return BinOp(op->a, " / ", op->b); }
-  std::string VisitExpr_(const prim::ModNode* op) final { return BinOp(op->a, " % ", op->b); }
-  std::string VisitExpr_(const prim::FloorDivNode* op) final {
+  std::string Dispatch_(const prim::CastNode* op) final { return Dispatch(op->value); }
+  std::string Dispatch_(const prim::AddNode* op) final { return BinOp(op->a, " + ", op->b); }
+  std::string Dispatch_(const prim::SubNode* op) final { return BinOp(op->a, " - ", op->b); }
+  std::string Dispatch_(const prim::MulNode* op) final { return BinOp(op->a, " * ", op->b); }
+  std::string Dispatch_(const prim::DivNode* op) final { return BinOp(op->a, " / ", op->b); }
+  std::string Dispatch_(const prim::ModNode* op) final { return BinOp(op->a, " % ", op->b); }
+  std::string Dispatch_(const prim::FloorDivNode* op) final {
     return FuncOp("floordiv", op->a, op->b);
   }
-  std::string VisitExpr_(const prim::FloorModNode* op) final {
+  std::string Dispatch_(const prim::FloorModNode* op) final {
     return FuncOp("floormod", op->a, op->b);
   }
-  std::string VisitExpr_(const prim::MinNode* op) final { return FuncOp("min", op->a, op->b); }
-  std::string VisitExpr_(const prim::MaxNode* op) final { return FuncOp("max", op->a, op->b); }
+  std::string Dispatch_(const prim::MinNode* op) final { return FuncOp("min", op->a, op->b); }
+  std::string Dispatch_(const prim::MaxNode* op) final { return FuncOp("max", op->a, op->b); }
   // Fallback: use operator<< for unhandled expression types.
-  std::string VisitExprDefault_(const ffi::Object* op) final {
+  std::string DispatchDefault_(const ffi::Object* op) final {
     std::ostringstream os;
     os << ffi::GetRef<Expr>(static_cast<const ExprNode*>(op));
     return os.str();
@@ -314,10 +314,10 @@ class ExprPathRenderer : public ExprFunctor<std::string(const Expr&)> {
 
  private:
   std::string BinOp(const PrimExpr& a, const char* op, const PrimExpr& b) {
-    return VisitExpr(a) + op + VisitExpr(b);
+    return Dispatch(a) + op + Dispatch(b);
   }
   std::string FuncOp(const char* name, const PrimExpr& a, const PrimExpr& b) {
-    return std::string(name) + "(" + VisitExpr(a) + ", " + VisitExpr(b) + ")";
+    return std::string(name) + "(" + Dispatch(a) + ", " + Dispatch(b) + ")";
   }
   FVarName f_var_name_;
 };
@@ -339,7 +339,7 @@ void TVMFFIABIBuilder::RenderPendingAsserts() {
   });
 
   for (auto& pending : pending_const_asserts_) {
-    std::string display_str = renderer.VisitExpr(pending.expected_expr);
+    std::string display_str = renderer.Dispatch(pending.expected_expr);
 
     ffi::String path_str = RenderAccessPath(pending.path);
     int param_index = GetParamIndex(pending.path);
