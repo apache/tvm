@@ -33,6 +33,7 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
 
 // ARM specific code generator, this is used as an example on
 // how to override behavior llvm code generator for specific target

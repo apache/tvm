@@ -28,6 +28,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 std::string ScopeKindToString(ScopeKind kind) {
   switch (kind) {

@@ -25,6 +25,7 @@
 
 namespace tvm {
 namespace script {
+
 namespace printer {
 
 ffi::Map<ffi::String, ExprDoc> BufferAttrs(
@@ -381,7 +382,7 @@ ffi::Array<Doc> BufferSlices(const ffi::Array<Range>& region, const AccessPath& 
     Range range = region[i];
     AccessPath range_p = p->ArrayItem(i);
     ExprDoc min = d->AsDoc<ExprDoc>(range->min, range_p->Attr("min"));
-    if (tirx::is_one(range->extent)) {
+    if (tvm::prim::is_one(range->extent)) {
       indices.push_back(min);
     } else {
       ExprDoc max = d->AsDoc<ExprDoc>(range->min + range->extent, range_p->Attr("extent"));
@@ -407,7 +408,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
         // special case for scalar buffers
         if (store->buffer.IsScalar(true) || store->buffer.IsScalar(false)) {
-          // TVM_FFI_ICHECK(store->indices.size() == 1 && tirx::is_zero(store->indices[0]))
+          // TVM_FFI_ICHECK(store->indices.size() == 1 && tvm::prim::is_zero(store->indices[0]))
           //     << "1-dim buffer with shape (1,) store with indices other than [0] is not "
           //        "supported";
           ffi::Optional<ExprDoc> doc = d->GetVarDoc(store->buffer);
@@ -430,7 +431,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
         // special case for scalar
         if (source.IsScalar(true) || source.IsScalar(false)) {
-          // TVM_FFI_ICHECK(load->indices.size() == 1 && tirx::is_zero(load->indices[0]))
+          // TVM_FFI_ICHECK(load->indices.size() == 1 && tvm::prim::is_zero(load->indices[0]))
           //     << "Scalar buffer load with indices other than [0] is not supported";
           ffi::Optional<ExprDoc> doc = d->GetVarDoc(source);
           TVM_FFI_ICHECK(doc.has_value())

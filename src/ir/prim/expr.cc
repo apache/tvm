@@ -354,7 +354,7 @@ TVMFFIAny LetMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.convert",
+  refl::GlobalDef().def("prim.convert",
                         [](ffi::Variant<PrimExpr, ffi::Array<PrimExpr>> expr) { return expr; });
   // Note: kRepr for VarNode is registered via TVM_REGISTER_SCRIPT_AS_REPR in
   // src/script/printer/tirx/expr.cc (-> ReprPrintTIR which delegates to TVMScriptPrinter).
@@ -378,7 +378,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&StringImmMaybeInplaceMutate));
 
-  refl::GlobalDef().def("ir.prim.StringImm",
+  refl::GlobalDef().def("prim.StringImm",
                         [](ffi::String value, Span span) { return StringImm(value, span); });
 }
 
@@ -403,7 +403,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&CastMaybeInplaceMutate));
 
-  refl::GlobalDef().def("ir.prim.Cast", [](PrimType dtype, PrimExpr value, Span span) {
+  refl::GlobalDef().def("prim.Cast", [](PrimType dtype, PrimExpr value, Span span) {
     return Cast(dtype, value, span);
   });
 }
@@ -414,7 +414,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Add);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   AddNode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.Add",
+  refl::GlobalDef().def("prim.Add",
                         [](PrimExpr a, PrimExpr b, Span span) { return Add(a, b, span); });
   refl::TypeAttrDef<AddNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<AddNode>))
@@ -429,7 +429,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Sub);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   SubNode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.Sub",
+  refl::GlobalDef().def("prim.Sub",
                         [](PrimExpr a, PrimExpr b, Span span) { return Sub(a, b, span); });
   refl::TypeAttrDef<SubNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<SubNode>))
@@ -444,7 +444,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Mul);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   MulNode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.Mul",
+  refl::GlobalDef().def("prim.Mul",
                         [](PrimExpr a, PrimExpr b, Span span) { return Mul(a, b, span); });
   refl::TypeAttrDef<MulNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<MulNode>))
@@ -459,7 +459,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Div);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   DivNode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.Div",
+  refl::GlobalDef().def("prim.Div",
                         [](PrimExpr a, PrimExpr b, Span span) { return Div(a, b, span); });
   refl::TypeAttrDef<DivNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<DivNode>))
@@ -474,7 +474,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Mod);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   ModNode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.Mod",
+  refl::GlobalDef().def("prim.Mod",
                         [](PrimExpr a, PrimExpr b, Span span) { return Mod(a, b, span); });
   refl::TypeAttrDef<ModNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<ModNode>))
@@ -489,7 +489,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(FloorDiv);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   FloorDivNode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.FloorDiv",
+  refl::GlobalDef().def("prim.FloorDiv",
                         [](PrimExpr a, PrimExpr b, Span span) { return FloorDiv(a, b, span); });
   refl::TypeAttrDef<FloorDivNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<FloorDivNode>))
@@ -505,7 +505,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(FloorMod);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   FloorModNode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.FloorMod",
+  refl::GlobalDef().def("prim.FloorMod",
                         [](PrimExpr a, PrimExpr b, Span span) { return FloorMod(a, b, span); });
   refl::TypeAttrDef<FloorModNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<FloorModNode>))
@@ -521,7 +521,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Min);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   MinNode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.Min",
+  refl::GlobalDef().def("prim.Min",
                         [](PrimExpr a, PrimExpr b, Span span) { return Min(a, b, span); });
   refl::TypeAttrDef<MinNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<MinNode>))
@@ -536,7 +536,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Max);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   MaxNode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.Max",
+  refl::GlobalDef().def("prim.Max",
                         [](PrimExpr a, PrimExpr b, Span span) { return Max(a, b, span); });
   refl::TypeAttrDef<MaxNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<MaxNode>))
@@ -551,7 +551,7 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(EQ);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   EQNode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.EQ",
+  refl::GlobalDef().def("prim.EQ",
                         [](PrimExpr a, PrimExpr b, Span span) { return EQ(a, b, span); });
   refl::TypeAttrDef<EQNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<EQNode>))
@@ -566,7 +566,7 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(NE);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   NENode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.NE",
+  refl::GlobalDef().def("prim.NE",
                         [](PrimExpr a, PrimExpr b, Span span) { return NE(a, b, span); });
   refl::TypeAttrDef<NENode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<NENode>))
@@ -581,7 +581,7 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(LT);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   LTNode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.LT",
+  refl::GlobalDef().def("prim.LT",
                         [](PrimExpr a, PrimExpr b, Span span) { return LT(a, b, span); });
   refl::TypeAttrDef<LTNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<LTNode>))
@@ -596,7 +596,7 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(LE);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   LENode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.LE",
+  refl::GlobalDef().def("prim.LE",
                         [](PrimExpr a, PrimExpr b, Span span) { return LE(a, b, span); });
   refl::TypeAttrDef<LENode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<LENode>))
@@ -611,7 +611,7 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(GT);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   GTNode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.GT",
+  refl::GlobalDef().def("prim.GT",
                         [](PrimExpr a, PrimExpr b, Span span) { return GT(a, b, span); });
   refl::TypeAttrDef<GTNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<GTNode>))
@@ -626,7 +626,7 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(GE);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   GENode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.GE",
+  refl::GlobalDef().def("prim.GE",
                         [](PrimExpr a, PrimExpr b, Span span) { return GE(a, b, span); });
   refl::TypeAttrDef<GENode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<GENode>))
@@ -656,7 +656,7 @@ And::And(PrimExpr a, PrimExpr b, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   AndNode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.And",
+  refl::GlobalDef().def("prim.And",
                         [](PrimExpr a, PrimExpr b, Span span) { return And(a, b, span); });
   refl::TypeAttrDef<AndNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<AndNode>))
@@ -686,7 +686,7 @@ Or::Or(PrimExpr a, PrimExpr b, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   OrNode::RegisterReflection();
-  refl::GlobalDef().def("ir.prim.Or",
+  refl::GlobalDef().def("prim.Or",
                         [](PrimExpr a, PrimExpr b, Span span) { return Or(a, b, span); });
   refl::TypeAttrDef<OrNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<OrNode>))
@@ -717,7 +717,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&NotMaybeInplaceMutate));
 
-  refl::GlobalDef().def("ir.prim.Not", [](PrimExpr a, Span span) { return Not(a, span); });
+  refl::GlobalDef().def("prim.Not", [](PrimExpr a, Span span) { return Not(a, span); });
 }
 
 // Select
@@ -753,9 +753,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&SelectMaybeInplaceMutate));
 
-  refl::GlobalDef().def("ir.prim.Select",
-                        [](PrimExpr condition, PrimExpr true_value, PrimExpr false_value,
-                           Span span) { return Select(condition, true_value, false_value, span); });
+  refl::GlobalDef().def(
+      "prim.Select", [](PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Span span) {
+        return Select(condition, true_value, false_value, span);
+      });
 }
 
 // Let
@@ -782,7 +783,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&LetMaybeInplaceMutate));
 
-  refl::GlobalDef().def("ir.prim.Let", [](Var var, PrimExpr value, PrimExpr body, Span span) {
+  refl::GlobalDef().def("prim.Let", [](Var var, PrimExpr value, PrimExpr body, Span span) {
     return Let(var, value, body, span);
   });
 }

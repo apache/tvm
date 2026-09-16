@@ -22,6 +22,7 @@
 
 namespace tvm {
 namespace script {
+
 namespace printer {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -43,7 +44,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             TVM_FFI_ICHECK(l->loop_var.ty() == l->min.ty());
             TVM_FFI_ICHECK(l->loop_var.ty() == l->extent.ty());
             if (l->kind != tirx::ForKind::kSerial ||  //
-                !tirx::is_zero(l->min) ||             //
+                !tvm::prim::is_zero(l->min) ||        //
                 !l->annotations.empty() ||            //
                 !l->HasTrivialStep() || f_var_dep(l->extent)) {
               break;
@@ -75,7 +76,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         ffi::Optional<ExprDoc> max = std::nullopt;
         ffi::Optional<ExprDoc> annotations = std::nullopt;
         ffi::Optional<ExprDoc> thread = std::nullopt;
-        if (tirx::is_zero(loop->min) && loop->HasTrivialStep()) {
+        if (tvm::prim::is_zero(loop->min) && loop->HasTrivialStep()) {
           max = d->AsDoc<ExprDoc>(loop->extent, loop_p->Attr("extent"));
         } else {
           min = d->AsDoc<ExprDoc>(loop->min, loop_p->Attr("min"));

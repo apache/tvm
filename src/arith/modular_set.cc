@@ -38,6 +38,7 @@
 
 namespace tvm {
 namespace arith {
+using namespace tvm::prim;
 
 using namespace tirx;
 

@@ -49,6 +49,7 @@ from .expr import (
     is_prim_expr,
     is_prim_var,
 )
+from . import prim
 from .function import BaseFunc, CallingConv
 from .global_info import GlobalInfo
 from .module import IRModule

@@ -18,4 +18,4 @@
 
 import tvm_ffi
 
-tvm_ffi.init_ffi_api("ir.prim", __name__)
+tvm_ffi.init_ffi_api("prim", __name__)

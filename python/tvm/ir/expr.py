@@ -22,8 +22,8 @@ import tvm_ffi
 
 import tvm
 
-from ..runtime import Object, Scriptable
-from . import _ffi_api, _overload_prim_expr, _tensor_expr_overload
+from ..runtime import Object, Scriptable, const
+from . import _ffi_api, _tensor_expr_overload
 from .base import Node, Span
 
 
@@ -33,7 +33,7 @@ def _convert_subscript_index(index):
     def convert(value):
         if value is None or is_prim_expr(value):
             return value
-        return tvm.tirx.const(value)
+        return const(value)
 
     if isinstance(index, slice):
         return (convert(index.start), convert(index.stop), convert(index.step))
@@ -612,3 +612,8 @@ class Range(Node, Scriptable):
 
     def __ne__(self, other: Object) -> bool:
         return not self.__eq__(other)
+
+
+# Primitive overloads also initialize the concrete primitive nodes, whose bases
+# must be defined before importing them.
+from . import _overload_prim_expr  # noqa: E402  # pylint: disable=wrong-import-position

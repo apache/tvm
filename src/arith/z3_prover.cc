@@ -58,6 +58,7 @@
 #include "z3++.h"
 
 namespace tvm::arith {
+using namespace tvm::prim;
 
 using namespace tirx;
 using namespace ffi;
@@ -434,9 +435,9 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
     //    test is_const_int on min and extent individually and add the two constants
     //    in C++. Otherwise this fast path is never taken and we always emit the more expensive
     //    symbolic constraint below.
-    if (tirx::is_const_int(min) && tirx::is_const_int(extent)) {
-      int64_t min_value = *tirx::as_const_int(min);
-      int64_t extent_value = *tirx::as_const_int(extent);
+    if (prim::is_const_int(min) && prim::is_const_int(extent)) {
+      int64_t min_value = *prim::as_const_int(min);
+      int64_t extent_value = *prim::as_const_int(extent);
       int64_t max_value = min_value + extent_value;
       if (min_value < max_value) {
         solver->add(ctx->int_val(min_value) <= var_expr);

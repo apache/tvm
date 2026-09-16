@@ -37,6 +37,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 TVM_FFI_STATIC_INIT_BLOCK() { IndexMapNode::RegisterReflection(); }
 
@@ -273,8 +274,8 @@ ffi::Array<Range> IndexMapNode::MapRanges(const ffi::Array<Range>& ranges,
   }();
   output.MutateByApply([&](const Range& range) {
     if (range->min.ty() != output_dtype || range->extent.ty() != output_dtype) {
-      return Range::FromMinExtent(cast(output_dtype, range->min),
-                                  cast(output_dtype, range->extent));
+      return Range::FromMinExtent(prim::cast(output_dtype, range->min),
+                                  prim::cast(output_dtype, range->extent));
     } else {
       return range;
     }

@@ -26,6 +26,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 std::pair<TileLayout, std::vector<int64_t>> Group(TileLayout layout,
                                                   const ffi::Array<PrimExpr>& shape) {

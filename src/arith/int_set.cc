@@ -29,8 +29,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/op.h>
 
 #include <algorithm>
 #include <unordered_map>
@@ -44,15 +44,13 @@
 
 namespace tvm {
 namespace arith {
+using namespace tvm::prim;
 
-using tirx::is_one;
-using tirx::is_zero;
-using tirx::MakeConst;
+using prim::is_one;
+using prim::is_zero;
+using prim::MakeConst;
 
 TVM_FFI_STATIC_INIT_BLOCK() { IntervalSetNode::RegisterReflection(); }
-
-PrimExpr SymbolicLimits::pos_inf_ = PrimVar("pos_inf", PrimType::Int(64));
-PrimExpr SymbolicLimits::neg_inf_ = PrimVar("neg_inf", PrimType::Int(64));
 
 IntervalSet::IntervalSet(PrimExpr min_value, PrimExpr max_value) {
   auto node = ffi::make_object<IntervalSetNode>();
@@ -261,7 +259,7 @@ inline IntervalSet Combine<prim::Mod>(AnalyzerObj* analyzer, IntervalSet a, Inte
     if (analyzer->CanProveGreaterEqual(divisor, 0)) {
       return IntervalSet(IntImm(divisor.ty(), 0), divisor - 1);
     } else {
-      PrimExpr bound = abs(divisor) - 1;
+      PrimExpr bound = prim::IntegerAbs(divisor) - 1;
       return IntervalSet(-bound, bound);
     }
   }
@@ -358,7 +356,7 @@ inline IntervalSet Combine<prim::FloorMod>(AnalyzerObj* analyzer, IntervalSet a,
       }
       return IntervalSet(IntImm(divisor.ty(), 0), divisor - 1);
     } else {
-      PrimExpr bound = abs(divisor) - 1;
+      PrimExpr bound = prim::IntegerAbs(divisor) - 1;
       return IntervalSet(-bound, bound);
     }
   }
@@ -534,13 +532,13 @@ class IntervalSetEvaluator : public tvm::ExprFunctor<IntervalSet(const Expr&)> {
       if (op->lanes->IsInstance<IntImmNode>()) {
         int lanes = static_cast<int>(op->lanes.as_or_throw<IntImm>()->value);
         if (vstride > 0) {
-          PrimExpr stride_expr = MakeConst(t, vstride * (lanes - 1));
+          PrimExpr stride_expr = prim::MakeConst(t, vstride * (lanes - 1));
           auto add_op = prim::Add(op->base, stride_expr);
           auto add_node = add_op.as<prim::AddNode>();
           return Combine<prim::Add>(analyzer_, base, IntervalSet(IntImm(t, 0), stride_expr),
                                     add_node);
         } else {
-          PrimExpr stride_expr = MakeConst(t, vstride * (lanes - 1));
+          PrimExpr stride_expr = prim::MakeConst(t, vstride * (lanes - 1));
           auto add_op = prim::Add(op->base, stride_expr);
           auto add_node = add_op.as<prim::AddNode>();
           return Combine<prim::Add>(analyzer_, base, IntervalSet(stride_expr, IntImm(t, 0)),
@@ -568,13 +566,14 @@ class IntervalSetEvaluator : public tvm::ExprFunctor<IntervalSet(const Expr&)> {
     // short cut for the int set.
     if (value_set->min_value.same_as(value_set->max_value)) {
       if (value_set->IsEmpty()) return value_set;
-      return IntervalSet::SinglePoint(cast(op->ty.as_or_throw<PrimType>(), value_set->min_value));
+      return IntervalSet::SinglePoint(
+          prim::cast(op->ty.as_or_throw<PrimType>(), value_set->min_value));
     }
     PrimExpr min_value = value_set->HasLowerBound()
-                             ? cast(op->ty.as_or_throw<PrimType>(), value_set->min_value)
+                             ? prim::cast(op->ty.as_or_throw<PrimType>(), value_set->min_value)
                              : neg_inf();
     PrimExpr max_value = value_set->HasUpperBound()
-                             ? cast(op->ty.as_or_throw<PrimType>(), value_set->max_value)
+                             ? prim::cast(op->ty.as_or_throw<PrimType>(), value_set->max_value)
                              : pos_inf();
     return IntervalSet(min_value, max_value);
   }

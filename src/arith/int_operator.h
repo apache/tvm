@@ -24,8 +24,12 @@
 #ifndef TVM_ARITH_INT_OPERATOR_H_
 #define TVM_ARITH_INT_OPERATOR_H_
 
+#include <tvm/ir/prim/expr.h>
+
 #include <limits>
 #include <utility>
+
+#include "../ir/prim/int_operator.h"
 
 namespace tvm {
 namespace arith {
@@ -81,46 +85,10 @@ inline bool WillOverflow<prim::ModNode>(int64_t x, int64_t y, int64_t min_value,
   return y == 0;
 }
 
-/*!
- * \brief Perform trunc division of two integers.
- * \param x The left operand.
- * \param y The right operand.
- * \return the result.
- */
-inline int64_t truncdiv(int64_t x, int64_t y) { return x / y; }
-
-/*!
- * \brief Compute the truncdiv remainder of two integers.
- * \param x The left operand.
- * \param y The right operand.
- * \return the result.
- */
-inline int64_t truncmod(int64_t x, int64_t y) { return x % y; }
-
-/*!
- * \brief Perform floor division of two integers.
- * \param x The left operand.
- * \param y The right operand.
- * \return the result.
- */
-inline int64_t floordiv(int64_t x, int64_t y) {
-  int64_t rdiv = x / y;
-  int64_t rmod = x % y;
-  bool is_floor_div = (y >= 0 && rmod >= 0) || (y < 0 && rmod <= 0);
-  return is_floor_div ? rdiv : (rdiv - 1);
-}
-
-/*!
- * \brief Compute the floordiv remainder of two integers.
- * \param x The left operand.
- * \param y The right operand.
- * \return the result.
- */
-inline int64_t floormod(int64_t x, int64_t y) {
-  int64_t rmod = x % y;
-  bool is_floor_div = (y >= 0 && rmod >= 0) || (y < 0 && rmod <= 0);
-  return is_floor_div ? rmod : rmod + y;
-}
+using prim::detail::floordiv;
+using prim::detail::floormod;
+using prim::detail::truncdiv;
+using prim::detail::truncmod;
 
 /*!
  * \brief Use Extended Euclidean algorithm to solve ax + by = gcd(a, b)

@@ -166,7 +166,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
         }
 
         // push an empty handle to be compatible with current cpacked convention
-        cpacked_args.push_back(tirx::ConstHandle(0));
+        cpacked_args.push_back(tvm::prim::ConstHandle(0));
         made_change_ = true;
         return Call(node->ty, tirx::builtin::tvm_call_cpacked(), cpacked_args);
       }

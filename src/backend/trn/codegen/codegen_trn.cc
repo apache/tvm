@@ -39,6 +39,8 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
+
 namespace {
 std::string PrintShapeAsList(const ffi::Array<PrimExpr>& shape) {
   std::ostringstream os;
@@ -618,7 +620,7 @@ void CodeGenTrainium::VisitStmt_(const DeclBufferNode* op) {
   }
   const VarNode* data = op->data.as<VarNode>();
   if (const auto* call = op->data.as<CallNode>();
-      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     data = call->args[0].as<VarNode>();
   }
   TVM_FFI_ICHECK(data) << "Trainium codegen expects DeclBuffer data to be a buffer variable";

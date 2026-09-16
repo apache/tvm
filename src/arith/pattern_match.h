@@ -68,6 +68,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/builtin.h>
 
 #include <cmath>
@@ -379,7 +380,7 @@ class PConstWithTypeLike : public Pattern<PConstWithTypeLike<TA>> {
     }
   }
 
-  PrimExpr Eval() const { return tirx::MakeConst(ref_.Eval().ty(), value_); }
+  PrimExpr Eval() const { return prim::MakeConst(ref_.Eval().ty(), value_); }
 
  private:
   typename TA::Nested ref_;
