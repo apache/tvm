@@ -43,10 +43,35 @@ def test_tensor():
     assert d[T] == 1
     load = T[0][0][0].asobject()
     assert isinstance(load, tvm.ir.Call)
-    assert load.op.same_as(T)
-    assert list(load.args) == [0, 0, 0]
+    assert load.op.same_as(tvm.ir.Op.get("te.tensor_load"))
+    assert load.args[0].same_as(T)
+    assert list(load.args[1:]) == [0, 0, 0]
     assert load.ty == T.dtype
     assert load.astype("float16").ty == tvm.ir.PrimType("float16")
+
+
+def test_tensor_load_roundtrip():
+    source = te.placeholder((8,), name="source")
+    load = source[0].asobject()
+    restored = tvm.ir.load_json(tvm.ir.save_json(load))
+    assert restored.op.same_as(tvm.ir.Op.get("te.tensor_load"))
+    assert isinstance(restored.args[0], te.Tensor)
+    assert len(restored.args) == 2
+    assert restored.args[1].value == 0
+    assert restored.ty == source.dtype
+    assert "te.tensor_load" in str(restored)
+
+    k = te.reduce_axis((0, 8), name="k")
+    result = te.compute((), lambda: te.sum(source[k], axis=k), name="result")
+    restored_result = tvm.ir.load_json(tvm.ir.save_json(result))
+    restored_inputs = restored_result.op.input_tensors
+    assert len(restored_inputs) == 1
+    assert restored_inputs[0].op.name == source.op.name
+    assert list(restored_inputs[0].shape) == list(source.shape)
+    assert restored_inputs[0].dtype == source.dtype
+    expected = te.create_prim_func([source, result])
+    actual = te.create_prim_func([restored_inputs[0], restored_result])
+    tvm.ir.assert_structural_equal(expected, actual)
 
 
 def test_rank_zero():
