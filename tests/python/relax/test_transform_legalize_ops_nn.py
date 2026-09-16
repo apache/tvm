@@ -2113,7 +2113,7 @@ def test_cross_entropy_with_logits():
                         T_multiply_red[()] = T.float32(0.0)
                     T_multiply_red[()] = T_multiply_red[()] + T_multiply_1[v_k0]
             with T.sblock("T_multiply_1"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(T_multiply_red[()])
                 T.writes(T_multiply[()])
                 T_multiply[()] = T_multiply_red[()] * T.float32(-1.0)
@@ -2160,12 +2160,12 @@ def test_cross_entropy_with_logits_batch():
                         T_multiply_red[()] = T.float32(0.0)
                     T_multiply_red[()] = T_multiply_red[()] + T_multiply[v_k0, v_k1]
             with T.sblock("T_multiply_1"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(T_multiply_red[()])
                 T.writes(T_multiply_1[()])
                 T_multiply_1[()] = T_multiply_red[()] * T.float32(-1.0)
             with T.sblock("T_divide"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(T_multiply_1[()])
                 T.writes(T_divide[()])
                 T_divide[()] = T_multiply_1[()] / T.float32(2)
@@ -2217,12 +2217,12 @@ def test_cross_entropy_with_logits_batch_symbolic():
                         T_multiply_red[()] = T.float32(0.0)
                     T_multiply_red[()] = T_multiply_red[()] + T_multiply[v_k0, v_k1]
             with T.sblock("T_multiply_1"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(T_multiply_red[()])
                 T.writes(T_multiply_1[()])
                 T_multiply_1[()] = T_multiply_red[()] * T.float32(-1.0)
             with T.sblock("T_divide"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(T_multiply_1[()])
                 T.writes(T_divide[()])
                 T_divide[()] = T_multiply_1[()] / T.Cast("float32", n)
@@ -2905,7 +2905,7 @@ def test_layer_norm_1d():
                         x_sum[()] = T.float32(0.0)
                     x_sum[()] = x_sum[()] + x[v_k0]
             with T.sblock("x_mean"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(x_sum[()])
                 T.writes(x_mean[()])
                 x_mean[()] = x_sum[()] / T.float32(3.0)
@@ -3931,7 +3931,7 @@ def test_nll_loss():
                         nll_loss_red_1[()] = T.float32(0)
                     nll_loss_red_1[()] = nll_loss_red_1[()] + nll_loss_1[v_k0, v_k1, v_k2]
             with T.sblock("T_divide"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(nll_loss_red[()], nll_loss_red_1[()])
                 T.writes(output[()])
                 output[()] = nll_loss_red[()] / nll_loss_red_1[()]
@@ -4003,7 +4003,7 @@ def test_nll_no_weight():
                         nll_loss_red_1[()] = T.float32(0)
                     nll_loss_red_1[()] = nll_loss_red_1[()] + nll_loss_1[v_k0, v_k1, v_k2]
             with T.sblock("T_divide"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(nll_loss_red[()], nll_loss_red_1[()])
                 T.writes(T_divide[()])
                 T_divide[()] = nll_loss_red[()] / nll_loss_red_1[()]
@@ -4050,7 +4050,7 @@ def test_nll_no_batch():
                 T.writes(nll_loss_1[()])
                 nll_loss_1[()] = T.Select(rxplaceholder[()] != T.int64(1), rxplaceholder_2[rxplaceholder[()]], T.float32(0))
             with T.sblock("T_divide"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(nll_loss[()], nll_loss_1[()])
                 T.writes(T_divide[()])
                 T_divide[()] = nll_loss[()] / nll_loss_1[()]
@@ -4123,7 +4123,7 @@ def test_nll_loss_symbolic():
                         nll_loss_red_1[()] = T.float32(0)
                     nll_loss_red_1[()] = nll_loss_red_1[()] + nll_loss_1[v_k0, v_k1, v_k2]
             with T.sblock("T_divide"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(nll_loss_red[()], nll_loss_red_1[()])
                 T.writes(T_divide[()])
                 T_divide[()] = nll_loss_red[()] / nll_loss_red_1[()]

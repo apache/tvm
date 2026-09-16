@@ -783,8 +783,11 @@ class SRefUpdater : public StmtExprVisitor {
  * where the subtree `child_src_stmt` is replaced with the subtree `child_tgt_stmt`.
  * \note The visitor assumes `child_src_stmt` is the child of `parent_stmt` in the sref tree.
  */
-class ChildReplacer : private StmtMutator {
+class ChildReplacer : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   static Stmt Replace(const StmtNode* parent_stmt, const StmtNode* child_src_stmt,
                       const Stmt& child_tgt_stmt, int seq_index, bool allow_copy_on_write) {
     // Check the invariant
@@ -793,29 +796,33 @@ class ChildReplacer : private StmtMutator {
     TVM_FFI_ICHECK(child_tgt_stmt->IsInstance<SBlockNode>() ||  //
                    child_tgt_stmt->IsInstance<ForNode>() ||     //
                    child_tgt_stmt->IsInstance<SBlockRealizeNode>());
-    ChildReplacer replacer(child_src_stmt, child_tgt_stmt, seq_index);
-    replacer.allow_copy_on_write_ = allow_copy_on_write;
-    return replacer.CopyOnWriteAndVisit(parent_stmt);
+    auto replacer = ffi::make_object<ChildReplacer>(child_src_stmt, child_tgt_stmt, seq_index);
+    // ScheduleState has proved the complete ancestor chain. Check the borrowed
+    // parent before creating an owning result handle.
+    auto mode =
+        allow_copy_on_write && parent_stmt->unique() ? InplaceMode::kAllow : InplaceMode::kDisallow;
+    return replacer->CopyOnWriteAndMutate(parent_stmt, mode);
   }
 
- private:
   explicit ChildReplacer(const StmtNode* src_stmt, const Stmt& tgt_stmt, int seq_index)
       : src_stmt_(src_stmt), tgt_stmt_(tgt_stmt), seq_index_(seq_index) {}
 
-  Stmt VisitStmt(const Stmt& stmt) final {
-    if (stmt.get() == src_stmt_) {
-      // If the statement matches the `src_stmt` to be replaced, just return the `tgt_stmt`
-      return tgt_stmt_;
-    } else {
-      return StmtMutator::VisitStmt(stmt);
-    }
+ private:
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    if (value.as<StmtNode>() == src_stmt_) return ffi::Any(tgt_stmt_);
+    return StmtExprMutator::Mutate(value, inplace_mode);
   }
 
   // Skipping sibling blocks and loops other than `src_stmt_`
-  Stmt VisitStmt_(const SBlockNode* op) final { return ffi::GetRef<Stmt>(op); }
-  Stmt VisitStmt_(const ForNode* op) final { return ffi::GetRef<Stmt>(op); }
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    return ffi::Unchanged();
+  }
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    return ffi::Unchanged();
+  }
 
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
     int i = this->seq_index_;
     int n = static_cast<int>(op->seq.size());
     if (0 <= i && i < n) {
@@ -842,29 +849,46 @@ class ChildReplacer : private StmtMutator {
       }
       // Move new_stmt to position i
       if (new_stmt.has_value()) {
-        ffi::ObjectPtr<SeqStmtNode> new_seq_stmt = CopyOnWrite(op);
-        new_seq_stmt->seq.Set(i, new_stmt.value());
-        return SeqStmt(std::move(new_seq_stmt));
+        if (inplace_mode == InplaceMode::kAllow) {
+          const_cast<SeqStmtNode*>(op)->seq.Set(i, new_stmt.value());
+          return ffi::Unchanged();
+        } else {
+          auto copy = ffi::make_object<SeqStmtNode>(*op);
+          copy->seq.Set(i, new_stmt.value());
+          return SeqStmt(std::move(copy));
+        }
       }
     }
-    return StmtMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Stmt CopyOnWriteAndVisit(const StmtNode* parent_stmt) {
+  Stmt CopyOnWriteAndMutate(const StmtNode* parent_stmt, InplaceMode inplace_mode) {
     // Step 1. Copy-on-write the `parent_stmt` and extract its `body`,
     // where `body` means the body of either a block or a loop
     // Step 2. Mutate the `block/loop->body`, searching for `child_old_stmt`
     // and replace it with `child_tgt_stmt`
     if (parent_stmt->IsInstance<SBlockNode>()) {
-      auto* block = const_cast<SBlockNode*>(static_cast<const SBlockNode*>(parent_stmt));
-      ffi::ObjectPtr<SBlockNode> new_block = CopyOnWrite(block);
-      new_block->body = this->VisitStmt(new_block->body);
-      return SBlock(std::move(new_block));
+      auto* block = static_cast<const SBlockNode*>(parent_stmt);
+      if (inplace_mode == InplaceMode::kAllow) {
+        auto* writable = const_cast<SBlockNode*>(block);
+        writable->body = this->Mutate(block->body, inplace_mode).ValueOrUnchanged(block->body);
+        return ffi::GetRef<SBlock>(block);
+      } else {
+        auto copy = ffi::make_object<SBlockNode>(*block);
+        copy->body = this->Mutate(copy->body, inplace_mode).ValueOrUnchanged(copy->body);
+        return SBlock(std::move(copy));
+      }
     } else if (parent_stmt->IsInstance<ForNode>()) {
-      auto* loop = const_cast<ForNode*>(static_cast<const ForNode*>(parent_stmt));
-      ffi::ObjectPtr<ForNode> new_loop = CopyOnWrite(loop);
-      new_loop->body = this->VisitStmt(new_loop->body);
-      return For(std::move(new_loop));
+      auto* loop = static_cast<const ForNode*>(parent_stmt);
+      if (inplace_mode == InplaceMode::kAllow) {
+        auto* writable = const_cast<ForNode*>(loop);
+        writable->body = this->Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
+        return ffi::GetRef<For>(loop);
+      } else {
+        auto copy = ffi::make_object<ForNode>(*loop);
+        copy->body = this->Mutate(copy->body, inplace_mode).ValueOrUnchanged(copy->body);
+        return For(std::move(copy));
+      }
     }
     TVM_FFI_THROW(TypeError) << "Unexpected type: " << parent_stmt->GetTypeKey();
     throw;

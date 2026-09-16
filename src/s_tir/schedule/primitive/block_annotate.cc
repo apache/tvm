@@ -188,8 +188,11 @@ class StorageAlignInvalidAnnotationError : public ScheduleErrorContextObj {
  * \brief A helper mutator which recursively mutates the old buffer's storage scope and collects
  * the block sref reuse information for the following replacement.
  */
-class StorageScopeMutator : private ReplaceBufferMutator {
+class StorageScopeMutator : public ReplaceBufferMutator {
  public:
+  using ReplaceBufferMutator::Mutate;
+  using ReplaceBufferMutator::Mutate_;
+
   /*!
    * \param allocate_site The block where `old_buffer` was allocated.
    * \param old_buffer The old buffer
@@ -201,23 +204,23 @@ class StorageScopeMutator : private ReplaceBufferMutator {
                        const ffi::String& storage_scope,
                        ffi::Map<SBlock, SBlock>* block_sref_reuse) {
     BufferVar new_buffer = WithScope(old_buffer, storage_scope);
-    StorageScopeMutator mutator(old_buffer, new_buffer, storage_scope, block_sref_reuse);
-    Stmt new_block = mutator.VisitStmt(allocate_site);
+    auto mutator = ffi::make_object<StorageScopeMutator>(old_buffer, new_buffer, storage_scope,
+                                                         block_sref_reuse);
+    Stmt new_block = mutator->Mutate(allocate_site).ValueOrUnchanged(allocate_site);
     return new_block.as_or_throw<SBlock>();
   }
 
- private:
   StorageScopeMutator(const BufferVar& old_buffer, BufferVar new_buffer, ffi::String storage_scope,
                       ffi::Map<SBlock, SBlock>* block_sref_reuse)
       : ReplaceBufferMutator(old_buffer, std::move(new_buffer), block_sref_reuse) {}
 
+ private:
   MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer) final {
-    auto it = buffer_var_map_.find(match_buffer->source->buffer.get());
-    if (it != buffer_var_map_.end()) {
-      BufferVar new_target_buffer = WithScope(match_buffer->buffer, it->second.scope());
-      buffer_var_map_[match_buffer->buffer.get()] = new_target_buffer;
+    if (auto replacement = VarRemapGet(match_buffer->source->buffer).as<BufferVar>()) {
+      BufferVar new_target_buffer = WithScope(match_buffer->buffer, replacement.value().scope());
+      VarRemapSet(match_buffer->buffer, new_target_buffer);
       return MatchBufferRegion(new_target_buffer,
-                               BufferRegion(it->second, match_buffer->source->region));
+                               BufferRegion(replacement.value(), match_buffer->source->region));
     } else {
       return match_buffer;
     }
@@ -290,8 +293,11 @@ void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
  * \brief A helper mutator which recursively mutates the old buffer's data type, inserts data type
  * conversions, and collecte the block sref reuse information for the following replacement.
  */
-class DTypeMutator : private ReplaceBufferMutator {
+class DTypeMutator : public ReplaceBufferMutator {
  public:
+  using ReplaceBufferMutator::Mutate;
+  using ReplaceBufferMutator::Mutate_;
+
   /*!
    * \param allocate_site The block where `old_buffer` was allocated.
    * \param old_buffer The old buffer
@@ -302,45 +308,48 @@ class DTypeMutator : private ReplaceBufferMutator {
   static SBlock Mutate(const SBlock& allocate_site, const BufferVar& old_buffer, PrimType dtype,
                        ffi::Map<SBlock, SBlock>* block_sref_reuse) {
     BufferVar new_buffer = WithDType(old_buffer, dtype);
-    DTypeMutator mutator(old_buffer, new_buffer, dtype, block_sref_reuse);
-    Stmt new_block = mutator.VisitStmt(allocate_site);
+    auto mutator = ffi::make_object<DTypeMutator>(old_buffer, new_buffer, dtype, block_sref_reuse);
+    Stmt new_block = mutator->Mutate(allocate_site).ValueOrUnchanged(allocate_site);
     return new_block.as_or_throw<SBlock>();
   }
 
- private:
   DTypeMutator(const BufferVar& old_buffer, BufferVar new_buffer, PrimType dtype,
                ffi::Map<SBlock, SBlock>* block_sref_reuse)
       : ReplaceBufferMutator(old_buffer, std::move(new_buffer), block_sref_reuse),
         src_dtype_(old_buffer->dtype),
         tgt_dtype_(dtype) {}
 
+ private:
   MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer) final {
-    auto it = buffer_var_map_.find(match_buffer->source->buffer.get());
-    if (it != buffer_var_map_.end()) {
-      BufferVar new_target_buffer = WithDType(match_buffer->buffer, it->second->dtype);
-      buffer_var_map_[match_buffer->buffer.get()] = new_target_buffer;
+    if (auto replacement = VarRemapGet(match_buffer->source->buffer).as<BufferVar>()) {
+      BufferVar new_target_buffer = WithDType(match_buffer->buffer, replacement.value()->dtype);
+      VarRemapSet(match_buffer->buffer, new_target_buffer);
       return MatchBufferRegion(new_target_buffer,
-                               BufferRegion(it->second, match_buffer->source->region));
+                               BufferRegion(replacement.value(), match_buffer->source->region));
     } else {
       return match_buffer;
     }
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore node = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
-    auto it = buffer_var_map_.find(node->buffer.get());
-    if (it != buffer_var_map_.end()) {
-      node.CopyOnWrite()->buffer = it->second;
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    BufferVar original_buffer = op->buffer;
+    BufferStore node = StmtExprMutator::Mutate_(op, inplace_mode)
+                           .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                           .as_or_throw<BufferStore>();
+    if (auto replacement = VarRemapGet(original_buffer).as<BufferVar>()) {
+      node.CopyOnWrite()->buffer = replacement.value();
       node.CopyOnWrite()->value = Cast(tgt_dtype_, node->value);
     }
     return node;
   }
 
-  Expr Dispatch_(const TensorLoadNode* op) final {
-    TensorLoad node = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
-    auto it = buffer_var_map_.find(node->source.as_or_throw<tvm::tirx::BufferVar>().get());
-    if (it != buffer_var_map_.end()) {
-      return Cast(src_dtype_, BufferLoad(it->second, node->indices));
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    Expr original_buffer = op->source;
+    TensorLoad node = StmtExprMutator::Mutate_(op, inplace_mode)
+                          .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
+                          .as_or_throw<TensorLoad>();
+    if (auto replacement = VarRemapGet(original_buffer).as<BufferVar>()) {
+      return Cast(src_dtype_, BufferLoad(replacement.value(), node->indices));
     }
     return node;
   }

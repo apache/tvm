@@ -44,20 +44,26 @@ namespace tirx {
  */
 class TIRxOpaqueLower : public StmtExprMutator {
  public:
-  static Stmt Rewrite(Stmt body) { return TIRxOpaqueLower()(std::move(body)); }
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  static Stmt Rewrite(Stmt body) {
+    return ffi::make_object<TIRxOpaqueLower>()
+        ->Mutate(body, InplaceMode::kAllow)
+        .ValueOrUnchanged(body);
+  }
 
  private:
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Step 1. Update unit loop info.
-    PrimExpr min = this->VisitPrimExpr(op->min);
-    PrimExpr extent = this->VisitPrimExpr(op->extent);
+    PrimExpr min = this->Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min);
+    PrimExpr extent = this->Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
     if (is_one(extent) && op->annotations.empty()) {
       // handling unit loop
-      unit_loop_vars_[op->loop_var] = min;
+      VarRemapSet(op->loop_var, cast(op->loop_var.ty(), min));
     }
 
     // Step 2. Visit recursively
-    Stmt body = this->VisitStmt(op->body);
+    Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
 
     // Step 3. Handle annotations
     std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
@@ -83,23 +89,6 @@ class TIRxOpaqueLower : public StmtExprMutator {
       body = AttrStmt(op->loop_var, it->first, it->second, std::move(body));
     }
     return body;
-  }
-
-  Expr Dispatch_(const VarNode* op) final {
-    Var var = ffi::GetRef<Var>(op);
-    auto it = unit_loop_vars_.find(var);
-    if (it == unit_loop_vars_.end()) {
-      // Fall through to the base visitor so buffer-variable remapping from
-      // any rebuild in this pass reaches remaining use sites.
-      return StmtExprMutator::Dispatch_(op);
-    } else {
-      PrimExpr expr = it->second;
-      PrimType var_ty = var->ty.as_or_throw<PrimType>();
-      if (expr.ty() != var_ty) {
-        expr = tvm::cast(var_ty, std::move(expr));
-      }
-      return expr;
-    }
   }
 
   static Stmt MakeLaunchThread(PrimExpr min, PrimExpr extent, Var var, ffi::String thread_tag,
@@ -167,7 +156,6 @@ class TIRxOpaqueLower : public StmtExprMutator {
   }
 
   /*! \brief Record the loop_var and loop start value of unit loops, whose extent is one. */
-  std::unordered_map<Var, PrimExpr> unit_loop_vars_;
 };
 
 namespace transform {

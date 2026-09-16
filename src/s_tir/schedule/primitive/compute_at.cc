@@ -241,12 +241,17 @@ struct BlockVarDomainInfo {
  * \brief A helper to reconstruct the block scope where the given block is moved under the given
  * loop, and the given block's induced loop nest is regenerated to satisfy the required region.
  */
-class ScopeReconstructor : private StmtMutator {
+class ScopeReconstructor : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   explicit ScopeReconstructor(SBlock scope_root, SBlock block, For loop)
       : scope_root_(scope_root), block_(block), loop_(loop) {}
-
-  using StmtMutator::operator();
 
   /*!
    * \brief Create the loop nest on top of the block, induced by the given block var's domain
@@ -316,24 +321,26 @@ class ScopeReconstructor : private StmtMutator {
   }
 
  private:
-  Stmt VisitStmt_(const SBlockNode* block) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     if (block != scope_root_.get()) {
       return ffi::GetRef<SBlock>(block);
     }
     if (block == rm_src_stmt_.get()) {
       block = TVM_TYPE_AS(rm_tgt_stmt_, SBlockNode);
     }
-    return StmtMutator::VisitStmt_(block);
+    return StmtExprMutator::Mutate_(block, block->unique() ? inplace_mode : InplaceMode::kDisallow)
+        .ValueOrUnchanged(ffi::GetRef<Stmt>(block));
   }
 
-  Stmt VisitStmt_(const ForNode* loop) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     if (loop == rm_src_stmt_.get()) {
       loop = TVM_TYPE_AS(rm_tgt_stmt_, ForNode);
     }
     if (loop == loop_.get()) {
       return new_loop_;
     }
-    return StmtMutator::VisitStmt_(loop);
+    return StmtExprMutator::Mutate_(loop, loop->unique() ? inplace_mode : InplaceMode::kDisallow)
+        .ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
   }
 
  public:
@@ -734,8 +741,10 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
     CheckNotOutputBlock(self, block_sref, scope_root_sref);
   }
   // Step 2. Plan for the removal of `block`
-  ScopeReconstructor reconstructor(scope_root, ffi::GetRef<SBlock>(block), ffi::GetRef<For>(loop));
-  LeafBlockRemovalPlan(self, block_sref, &reconstructor.rm_src_stmt_, &reconstructor.rm_tgt_stmt_);
+  auto reconstructor = ffi::make_object<ScopeReconstructor>(scope_root, ffi::GetRef<SBlock>(block),
+                                                            ffi::GetRef<For>(loop));
+  LeafBlockRemovalPlan(self, block_sref, &reconstructor->rm_src_stmt_,
+                       &reconstructor->rm_tgt_stmt_);
   // Step 3. Find the insertion point under `loop`
   // Check condition 5): all the required block are under the given loop
   std::unordered_map<const SBlockNode*, const SBlockRealizeNode*> block2realize;
@@ -765,9 +774,11 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
                               /*required_regions=*/std::move(required_regions),
                               /*analyzer=*/analyzer);
   // Step 6. Create the new scope according to the iteration domain
-  reconstructor.MakeNewLoop(/*insert_position=*/insert_position, /*iter_doms=*/std::move(iter_doms),
-                            /*analyzer=*/analyzer, /*preserve_unit_loops=*/preserve_unit_loops);
-  SBlock new_scope_root = reconstructor(scope_root).as_or_throw<SBlock>();
+  reconstructor->MakeNewLoop(/*insert_position=*/insert_position,
+                             /*iter_doms=*/std::move(iter_doms),
+                             /*analyzer=*/analyzer, /*preserve_unit_loops=*/preserve_unit_loops);
+  SBlock new_scope_root =
+      reconstructor->Mutate(scope_root).ValueOrUnchanged(scope_root).as_or_throw<SBlock>();
 
   // Step 7. Do the actual replacement
   if (check_only) {
@@ -777,7 +788,7 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
   // Step 8. Update the cached flags
   SBlockInfo& block_info = self->block_info[block_sref];
   block_info.affine_binding = IsAffineBinding(
-      /*realize=*/reconstructor.new_block_realize_,
+      /*realize=*/reconstructor->new_block_realize_,
       /*loop_var_ranges=*/LoopDomainOfSRefTreePath(ffi::GetRef<StmtSRef>(block_sref->parent)),
       /*analyzer=*/analyzer);
 }

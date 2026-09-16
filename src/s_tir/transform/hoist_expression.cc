@@ -458,21 +458,23 @@ class HoistInfoCollector : public StmtExprVisitor {
 
 class ExpressionHoister : public tirx::IRMutatorWithAnalyzer {
  public:
+  using tirx::IRMutatorWithAnalyzer::Mutate;
+  using tirx::IRMutatorWithAnalyzer::Mutate_;
+
   static Stmt Hoist(Stmt stmt, HoistExpressionConfig config) {
     auto loop_info = HoistInfoCollector::Collect(stmt, config);
 
     arith::Analyzer analyzer;
-    ExpressionHoister hoister(std::move(loop_info), config, analyzer);
-    stmt = hoister(std::move(stmt));
+    auto hoister = ffi::make_object<ExpressionHoister>(std::move(loop_info), config, analyzer);
+    stmt = hoister->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt));
     stmt = ConvertSSA(std::move(stmt));
     return stmt;
   }
 
  private:
   using Parent = tirx::IRMutatorWithAnalyzer;
-  using Parent::Dispatch_;
-  using Parent::VisitStmt_;
 
+ public:
   explicit ExpressionHoister(std::vector<HoistInfoCollector::HoistInfo> loop_info,
                              HoistExpressionConfig config, const arith::Analyzer& analyzer)
       : Parent(analyzer), config_(config) {
@@ -499,6 +501,7 @@ class ExpressionHoister : public tirx::IRMutatorWithAnalyzer {
     }
   }
 
+ private:
   Stmt WrapHoistedStatements(Stmt stmt, const HoistInfoCollector::HoistInfo& info) {
     for (auto cond_it = info.conditions.rbegin(); cond_it != info.conditions.rend(); cond_it++) {
       if (cond_it->IsEnabled(config_)) {
@@ -525,8 +528,8 @@ class ExpressionHoister : public tirx::IRMutatorWithAnalyzer {
     return stmt;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
-    Stmt stmt = Parent::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
 
     auto it = loop_info_lookup.find(op);
     TVM_FFI_ICHECK(it != loop_info_lookup.end())
@@ -534,8 +537,8 @@ class ExpressionHoister : public tirx::IRMutatorWithAnalyzer {
     return WrapHoistedStatements(stmt, it->second);
   }
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    Stmt stmt = Parent::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
 
     auto it = loop_info_lookup.find(op);
     if (it == loop_info_lookup.end()) {
@@ -545,20 +548,20 @@ class ExpressionHoister : public tirx::IRMutatorWithAnalyzer {
     }
   }
 
-  Stmt VisitStmt_(const BindNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (hoisted_let_bindings.count(op->var.get())) {
       // The binding was hoisted; remove it from this location.
       return Evaluate(0);
     } else {
-      return Parent::VisitStmt_(op);
+      return Parent::Mutate_(op, inplace_mode);
     }
   }
 
-  Expr Dispatch_(const LetNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const LetNode* op, InplaceMode inplace_mode) final {
     if (hoisted_let_bindings.count(op->var.get())) {
-      return this->Dispatch(op->body);
+      return this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else {
-      return Parent::Dispatch_(op);
+      return Parent::Mutate_(op, inplace_mode);
     }
   }
 

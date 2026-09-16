@@ -187,12 +187,12 @@ def test_nll_loss_backward_no_batch():
                 T.writes(all_weights[()])
                 all_weights[()] = rxplaceholder_3[rxplaceholder_2[()]]
             with T.sblock("T_broadcast_to"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(rxplaceholder[()])
                 T.writes(T_broadcast_to[()])
                 T_broadcast_to[()] = rxplaceholder[()]
             with T.sblock("T_divide"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(T_broadcast_to[()], all_weights[()])
                 T.writes(T_divide[()])
                 T_divide[()] = T_broadcast_to[()] / all_weights[()]

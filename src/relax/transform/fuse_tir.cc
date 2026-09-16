@@ -171,140 +171,39 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
 /*!
  * \brief Substitute a given source buffer with a given target buffer in statements or expressions.
  */
-class FuseTIRBufferSubstitutor : private StmtExprMutator {
+class FuseTIRBufferSubstitutor : public StmtExprMutator {
  public:
   explicit FuseTIRBufferSubstitutor(const ffi::Map<BufferVar, BufferVar>& buffer_map,
                                     const ffi::Map<Var, PrimExpr>& var_map) {
-    buffer_remap_ = buffer_map;
     for (const auto& [var, value] : var_map) {
-      var_remap_.Set(var, value);
+      VarRemapSet(var, value);
     }
     for (const auto& [src, tgt] : buffer_map) {
-      var_remap_.Set(src.var(), tgt.var());
+      VarRemapSet(src, tgt);
     }
   }
-
-  Stmt Substitute(Stmt stmt) { return this->VisitStmt(std::move(stmt)); }
 
   BufferVar SubstituteAllocatedBuffer(BufferVar buffer) {
-    TVM_FFI_ICHECK(buffer_remap_.find(buffer) == buffer_remap_.end());
-    ffi::Array<PrimExpr> shape = MutateArray(
-        buffer->shape, [this](const PrimExpr& expr) { return this->VisitPrimExpr(expr); });
-    ffi::Array<PrimExpr> strides = MutateArray(
-        buffer->strides, [this](const PrimExpr& expr) { return this->VisitPrimExpr(expr); });
-    PrimExpr elem_offset = this->VisitPrimExpr(buffer->elem_offset);
-    if (shape.same_as(buffer->shape) && strides.same_as(buffer->strides) &&
-        elem_offset.same_as(buffer->elem_offset)) {
-      return buffer;
-    } else {
-      BufferType new_type(buffer->storage_scope, buffer->dtype, std::move(shape),
-                          std::move(strides), std::move(elem_offset), buffer->data_alignment,
-                          buffer->offset_factor, buffer->layout, buffer->allocated_addr);
-      BufferVar new_buffer(buffer.name(), std::move(new_type), buffer.span());
-      this->buffer_remap_.Set(buffer, new_buffer);
-      return new_buffer;
-    }
+    TVM_FFI_ICHECK(VarRemapGet(buffer).type_index() == ffi::TypeIndex::kTVMFFINone);
+    return WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
+      return Mutate(buffer).as_or_throw<UnchangedOr<BufferVar>>().ValueOrUnchanged(buffer);
+    });
   }
 
  private:
-  Expr Dispatch_(const VarNode* _op) final {
-    if (auto it = var_remap_.find(ffi::GetRef<Var>(_op)); it != var_remap_.end()) {
-      return (*it).second;
-    } else {
-      return ffi::GetRef<Var>(_op);
-    }
-  }
-
-  Expr Dispatch_(const TensorLoadNode* _op) final {
-    TensorLoad load = StmtExprMutator::Dispatch_(_op).as_or_throw<TensorLoad>();
-    const BufferVar& buffer = SubstituteBuffer(load->source.as_or_throw<tvm::tirx::BufferVar>());
-    if (buffer.same_as(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
-      return load;
-
-    } else {
-      return BufferLoad(buffer, load->indices, load->span);
-    }
-  }
-
-  Stmt VisitStmt_(const BufferStoreNode* _op) final {
-    BufferStore store = StmtExprMutator::VisitStmt_(_op).as_or_throw<BufferStore>();
-    const BufferVar& buffer = SubstituteBuffer(store->buffer);
-    if (buffer.same_as(store->buffer)) {
-      return store;
-
-    } else {
-      auto n = ffi::make_object<BufferStoreNode>(*store.get());
-      n->buffer = buffer;
-      return BufferStore(n);
-    }
-  }
-
-  Stmt VisitStmt_(const SBlockNode* _op) final {
-    SBlock block = StmtMutator::VisitStmt_(_op).as_or_throw<SBlock>();
-
-    // Define the mutation functions.
-
-    auto f_mutate_match_buffers = [this](const MatchBufferRegion& match_buffer) {
-      const BufferVar& src_buffer = SubstituteBuffer(match_buffer->source->buffer);
-      const BufferVar& tgt_buffer = SubstituteAllocatedBuffer(match_buffer->buffer);
-      ffi::Array<Range> region = MutateRegion(match_buffer->source->region);
-      if (src_buffer.same_as(match_buffer->source->buffer) &&
-          tgt_buffer.same_as(match_buffer->buffer) &&
-          region.same_as(match_buffer->source->region)) {
-        return match_buffer;
-      } else {
-        auto n = ffi::make_object<MatchBufferRegionNode>(*match_buffer.get());
-        n->buffer = tgt_buffer;
-        n->source = BufferRegion(src_buffer, region);
-        return MatchBufferRegion(n);
-      }
-    };
-
-    auto f_mutate_read_write_region = [this](const BufferRegion& buffer_region) {
-      const BufferVar& buffer = SubstituteBuffer(buffer_region->buffer);
-      const ffi::Array<Range>& region = MutateRegion(buffer_region->region);
-      if (buffer.same_as(buffer_region->buffer) && region.same_as(buffer_region->region)) {
-        return buffer_region;
-      } else {
-        return BufferRegion(buffer, region);
-      }
-    };
-
-    // Step 1. Mutate `match_buffers`.
-    ffi::Array<MatchBufferRegion> match_buffers =
-        MutateArray(block->match_buffers, f_mutate_match_buffers);
-    // Step 2. Mutate the read/write region.
-    ffi::Array<BufferRegion> reads = MutateArray(block->reads, f_mutate_read_write_region);
-    ffi::Array<BufferRegion> writes = MutateArray(block->writes, f_mutate_read_write_region);
-    // Step 3. Mutate the Allocate Buffers.
-    ffi::Array<BufferVar> alloc_buffers =
-        MutateArray(block->alloc_buffers,
-                    [this](const BufferVar& buffer) { return SubstituteAllocatedBuffer(buffer); });
-
-    reads = UnionAccessRegion(reads);
-    writes = UnionAccessRegion(writes);
-
-    if (reads.same_as(block->reads) &&    //
-        writes.same_as(block->writes) &&  //
-        match_buffers.same_as(block->match_buffers) &&
-        alloc_buffers.same_as(block->alloc_buffers)) {
-      return block;
-
-    } else {
-      auto n = CopyOnWrite(block.get());
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                       .as_or_throw<SBlock>();
+    ffi::Array<BufferRegion> reads = UnionAccessRegion(block->reads);
+    ffi::Array<BufferRegion> writes = UnionAccessRegion(block->writes);
+    if (!reads.same_as(block->reads) || !writes.same_as(block->writes)) {
+      auto* n = block.CopyOnWrite();
       n->reads = std::move(reads);
       n->writes = std::move(writes);
-      n->match_buffers = std::move(match_buffers);
-      n->alloc_buffers = std::move(alloc_buffers);
-      return SBlock(n);
     }
+    return block;
   }
-
- private:
-  /*! \brief Mapping from src buffer to tgt buffer. */
-  ffi::Map<tirx::BufferVar, tirx::BufferVar> buffer_remap_;
-  /*! \brief Mapping from src tirx var to tgt var. */
-  ffi::Map<tirx::Var, Expr> var_remap_;
 
   ffi::Array<tirx::BufferRegion> UnionAccessRegion(const ffi::Array<BufferRegion>& regions) const {
     // For now we only allow buffers to access the same elements.
@@ -328,34 +227,22 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
       return ret;
     }
   }
-
-  inline BufferVar SubstituteBuffer(const BufferVar& buffer) const {
-    auto it = buffer_remap_.find(buffer);
-    if (it != buffer_remap_.end()) {
-      return (*it).second;
-    } else {
-      return buffer;
-    }
-  }
-
-  inline ffi::Array<Range> MutateRegion(const ffi::Array<Range>& region) {
-    return MutateArray(region, [this](const Range& range) {
-      PrimExpr min = this->VisitPrimExpr(range->min);
-      PrimExpr extent = this->VisitPrimExpr(range->extent);
-      if (min.same_as(range->min) && extent.same_as(range->extent)) {
-        return range;
-      } else {
-        return Range::FromMinExtent(min, extent);
-      }
-    });
-  }
 };
 
 /*! \brief A mutator which detect block name duplication and deduplicate the names. */
-class SBlockNameDeduplicator : public tirx::StmtMutator {
+class SBlockNameDeduplicator : public tirx::StmtExprMutator {
+ public:
+  using StmtExprMutator::Mutate;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
  private:
-  Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = tirx::StmtMutator::VisitStmt_(op).as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    SBlock block = tirx::StmtExprMutator::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                       .as_or_throw<SBlock>();
 
     ffi::String name = GetUniqueName(block->name_hint);
 
@@ -363,9 +250,9 @@ class SBlockNameDeduplicator : public tirx::StmtMutator {
       return block;
 
     } else {
-      ffi::ObjectPtr<SBlockNode> n = CopyOnWrite(block.get());
+      auto* n = block.CopyOnWrite();
       n->name_hint = std::move(name);
-      return Stmt(n);
+      return block;
     }
   }
 
@@ -977,19 +864,20 @@ class FusedTIRConstructor : public ExprVisitor {
     ffi::Map<ffi::String, Any> attr_map;
     attr_map.Set(tirx::attr::kNoAlias, true);
     attr_map.Set(tvm::attr::kSTir, true);
-    tirx::FuseTIRBufferSubstitutor subst(func_info_.buffer_subst_map,
-                                         func_info_.symbolic_var_remap);
+    auto subst = ffi::make_object<tirx::FuseTIRBufferSubstitutor>(func_info_.buffer_subst_map,
+                                                                  func_info_.symbolic_var_remap);
     TVM_FFI_ICHECK(func_info_.global_name != "fused");
     // Remove output buffers from func_info_.alloc_buffers
     ffi::Array<tirx::BufferVar> alloc_buffers;
     for (const tirx::BufferVar& buf : func_info_.alloc_buffers) {
       if (func_info_.output_buffers.count(buf.get()) == 0) {
-        alloc_buffers.push_back(subst.SubstituteAllocatedBuffer(buf));
+        alloc_buffers.push_back(subst->SubstituteAllocatedBuffer(buf));
       }
     }
-    tirx::Stmt body = tirx::SBlockNameDeduplicator()(tirx::SeqStmt::Flatten(func_info_.bodies));
+    tirx::Stmt body = tirx::SeqStmt::Flatten(func_info_.bodies);
+    body = ffi::make_object<tirx::SBlockNameDeduplicator>()->Mutate(body).ValueOrUnchanged(body);
 
-    body = subst.Substitute(body);
+    body = subst->Mutate(body).ValueOrUnchanged(body);
     body = tirx::SBlock({}, {}, {}, "root", std::move(body), std::nullopt, alloc_buffers);
     body = tirx::SBlockRealize({}, IntImm::Bool(true), body.as_or_throw<tirx::SBlock>());
     ffi::Array<tirx::Var> params = func_info_.params.Map([&](const tirx::Var& param) {

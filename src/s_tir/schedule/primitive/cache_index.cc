@@ -392,6 +392,9 @@ Stmt InsertIndexStage(const Stmt& stmt, int pos, const Stmt& stage) {
 /*! \brief Mutator for CacheIndex. */
 class CacheIndexRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   /*!
    * \brief Rewrite the AST and add stages of writting precomputed index
    * \param scope_sref The parent scope of this mutation
@@ -399,11 +402,11 @@ class CacheIndexRewriter : public StmtExprMutator {
    * \return The new AST rooting at the original parent scope
    */
   static Stmt Rewrite(const StmtSRef& scope_sref, IndexInfo* info) {
-    CacheIndexRewriter rewriter(scope_sref, info);
-    return rewriter(ffi::GetRef<Stmt>(scope_sref->stmt));
+    auto rewriter = ffi::make_object<CacheIndexRewriter>(scope_sref, info);
+    return rewriter->Mutate(ffi::GetRef<Stmt>(scope_sref->stmt))
+        .ValueOrUnchanged(ffi::GetRef<Stmt>(scope_sref->stmt));
   }
 
- private:
   explicit CacheIndexRewriter(const StmtSRef& scope_sref, IndexInfo* info)
       : scope_sref_(scope_sref), info_(info) {
     cache_indices_.reserve(info_->origin_block_vars.size());
@@ -415,11 +418,14 @@ class CacheIndexRewriter : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const SBlockNode* block) final {
+ private:
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     SBlock old_stmt = ffi::GetRef<SBlock>(block);
     // Mutate the body
     visiting_target_sblock = static_cast<bool>(block == info_->target_sblock->stmt);
-    SBlock stmt = StmtMutator::VisitStmt_(block).as_or_throw<SBlock>();
+    SBlock stmt = StmtExprMutator::Mutate_(block, inplace_mode)
+                      .ValueOrUnchanged(ffi::GetRef<Stmt>(block))
+                      .as_or_throw<SBlock>();
     visiting_target_sblock = false;
 
     // Check if it is the block corresponding to the parent scope
@@ -436,8 +442,9 @@ class CacheIndexRewriter : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* store) final {
-    Stmt ret_stmt = StmtMutator::VisitStmt_(store);
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) final {
+    Stmt ret_stmt =
+        StmtExprMutator::Mutate_(store, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(store));
     // Replace common sub expr for target block, with cached buffer load
     if (visiting_target_sblock) {
       for (size_t i = 0; i < info_->index_exprs.size(); i++) {
@@ -455,7 +462,6 @@ class CacheIndexRewriter : public StmtExprMutator {
     return ret_stmt;
   }
 
- private:
   /*! \brief The parent scope of the insertion */
   const StmtSRef& scope_sref_;
   /*! \brief The info for inserting cache stage */

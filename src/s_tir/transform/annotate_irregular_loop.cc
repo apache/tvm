@@ -33,17 +33,28 @@ namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
 
-class IrregularLoopAnnotator : public StmtMutator {
+class IrregularLoopAnnotator : public StmtExprMutator {
  public:
-  static Stmt Annotate(const Stmt& body) { return IrregularLoopAnnotator().VisitStmt(body); }
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
 
- private:
+  static Stmt Annotate(const Stmt& body) {
+    return ffi::make_object<IrregularLoopAnnotator>()->Mutate(body).ValueOrUnchanged(body);
+  }
+
   IrregularLoopAnnotator() = default;
 
-  Stmt VisitStmt_(const ForNode* op) final {
+ private:
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     bool cur_has_jump = has_jump_;
     has_jump_ = false;
-    For res = StmtMutator::VisitStmt_(op).as_or_throw<For>();
+    For res = StmtExprMutator::Mutate_(op, inplace_mode)
+                  .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                  .as_or_throw<For>();
     if (has_jump_) {
       TVM_FFI_ICHECK(op->kind == ForKind::kSerial)
           << "Loop kind " << op->kind << " is invalid for irregular loop " << op->loop_var;
@@ -59,22 +70,22 @@ class IrregularLoopAnnotator : public StmtMutator {
     return res;
   }
 
-  Stmt VisitStmt_(const WhileNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode) final {
     bool cur_has_jump = has_jump_;
     has_jump_ = false;
-    Stmt res = StmtMutator::VisitStmt_(op);
+    Stmt res = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     std::swap(cur_has_jump, has_jump_);
     return res;
   }
 
-  Stmt VisitStmt_(const EvaluateNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     if (const CallNode* call = op->value.as<CallNode>()) {
       if (call->op.same_as(tirx::builtin::continue_loop()) ||
           call->op.same_as(tirx::builtin::break_loop())) {
         has_jump_ = true;
       }
     }
-    return ffi::GetRef<Evaluate>(op);
+    return ffi::Unchanged();
   }
 
   bool has_jump_{false};

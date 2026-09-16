@@ -40,73 +40,72 @@ using namespace tvm::tirx;
  */
 class OpaqueBlockConverter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   static Stmt Convert(const PrimFunc& f) {
-    OpaqueBlockConverter substituter;
-    return substituter.VisitStmt(f->body);
+    auto substituter = ffi::make_object<OpaqueBlockConverter>();
+    return substituter->Mutate(f->body).ValueOrUnchanged(f->body);
   }
 
- private:
   OpaqueBlockConverter() = default;
 
-  Expr Dispatch_(const VarNode* var) final {
-    TVM_FFI_ICHECK(!forbidden_iter_vars_.count(var))
-        << "Variable " << var->name << " occurs in the predicate or iter_values of a block, "
-        << "but isn't defined until the body of the block";
-
-    auto it = var_substitutes_.find(var);
-    if (it != var_substitutes_.end()) {
-      return it->second;
+ private:
+  UnchangedOr<Expr> Mutate_(const VarNode* var, InplaceMode inplace_mode) final {
+    if (def_region_kind() == kTVMFFIDefRegionKindNone) {
+      TVM_FFI_ICHECK(!forbidden_iter_vars_.count(var))
+          << "Variable " << var->name << " occurs in the predicate or iter_values of a block, "
+          << "but isn't defined until the body of the block";
     }
-    return ffi::GetRef<Var>(var);
+    return StmtExprMutator::Mutate_(var, inplace_mode);
   }
 
-  Stmt VisitStmt_(const SBlockNode* block) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     TVM_FFI_ICHECK(!block->init.has_value())
         << "Block Init part is not allowed in pass ConvertBlocksToOpaque";
-    SBlock new_block = StmtExprMutator::VisitStmt_(block).as_or_throw<SBlock>();
-    if (!new_block->iter_vars.empty()) {
-      new_block.CopyOnWrite()->iter_vars.clear();
-    }
-    return new_block;
+    auto node = ffi::make_object<SBlockNode>(*block);
+    node->iter_vars.clear();
+    return StmtExprMutator::Mutate_(node.get(), inplace_mode)
+        .ValueOrUnchanged(SBlock(std::move(node)));
   }
 
-  Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
     const auto* block_op = realize->block.get();
     TVM_FFI_ICHECK(!block_op->init.has_value());
 
     // Step 1. Visit the predicate and iter_values, without any variable bindings
     for (const auto& iter : block_op->iter_vars) forbidden_iter_vars_.insert(iter->var.get());
-    PrimExpr predicate = VisitPrimExpr(realize->predicate);
-    ffi::Array<PrimExpr> iter_values = realize->iter_values;
-    iter_values.MutateByApply([this](PrimExpr expr) { return VisitPrimExpr(std::move(expr)); });
+    auto predicate_result = Mutate(realize->predicate, inplace_mode);
+    bool predicate_unchanged = predicate_result.UnchangedOrSameAs(realize->predicate);
+    PrimExpr predicate = std::move(predicate_result).ValueOrUnchanged(realize->predicate);
+    ffi::Array<PrimExpr> iter_values = Mutate(ffi::AnyView(realize->iter_values), inplace_mode)
+                                           .ValueOrUnchanged(realize->iter_values)
+                                           .as_or_throw<ffi::Array<PrimExpr>>();
     for (const auto& iter : block_op->iter_vars) forbidden_iter_vars_.erase(iter->var.get());
 
     // Step 2. Update "block vars => binding values" for substitution.
     TVM_FFI_ICHECK_EQ(block_op->iter_vars.size(), iter_values.size());
     for (int i = 0, n = block_op->iter_vars.size(); i < n; ++i) {
       IterVar block_var = block_op->iter_vars[i];
-      PrimExpr v = this->VisitPrimExpr(iter_values[i]);
-      var_substitutes_.emplace(block_var->var.get(), v);
+      PrimExpr value = iter_values[i];
+      PrimExpr v = Mutate(value).ValueOrUnchanged(value);
+      VarRemapSet(block_var->var, v);
     }
     // Step 3. Visit recursively.
-    SBlock new_block = VisitStmt(realize->block).as_or_throw<SBlock>();
+    auto new_block_result = Mutate(realize->block, inplace_mode);
+    bool new_block_unchanged = new_block_result.UnchangedOrSameAs(realize->block);
+    SBlock new_block =
+        std::move(new_block_result).ValueOrUnchanged(realize->block).as_or_throw<SBlock>();
 
-    // Step 4. Clear the variable bindings
-    for (const auto& block_var : block_op->iter_vars) {
-      var_substitutes_.erase(block_var->var.get());
-    }
-
-    // Step 5. Return
-    if (predicate.same_as(realize->predicate) && iter_values.same_as(realize->iter_values) &&
-        new_block.same_as(realize->block) && realize->iter_values.size() == 0) {
-      return ffi::GetRef<SBlockRealize>(realize);
+    // Step 4. Return
+    if (predicate_unchanged && iter_values.same_as(realize->iter_values) && new_block_unchanged &&
+        realize->iter_values.size() == 0) {
+      return ffi::Unchanged();
     } else {
       return SBlockRealize({}, predicate, new_block);
     }
   }
 
-  /*! \brief The map from block vars to their binding values. */
-  std::unordered_map<const VarNode*, PrimExpr> var_substitutes_;
   /* \brief Variables that may not occur in the current context */
   std::unordered_set<const VarNode*> forbidden_iter_vars_;
 };

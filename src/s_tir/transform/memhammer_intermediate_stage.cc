@@ -210,14 +210,17 @@ class IndexPatternFinder : public StmtExprVisitor {
 
 class BufferLoadReplacer : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   BufferLoadReplacer(const BufferVar& tgt_buffer, const TensorLoad& new_buffer_load)
       : tgt_buffer_(tgt_buffer), new_buffer_load_(new_buffer_load) {}
 
-  Expr Dispatch_(const TensorLoadNode* op) {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) {
     if (op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(tgt_buffer_)) {
       return new_buffer_load_;
     }
-    return StmtExprMutator::Dispatch_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  private:
@@ -391,8 +394,10 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
     // copy from wmma to new cache buffer
     TensorLoad new_buffer_load = BufferLoad(new_buffer, cache_indices);
     generate_body =
-        BufferLoadReplacer(target_buffer_load->source.as_or_throw<tvm::tirx::BufferVar>(),
-                           new_buffer_load)(ffi::GetRef<Stmt>(buf_store));
+        ffi::make_object<BufferLoadReplacer>(
+            target_buffer_load->source.as_or_throw<tvm::tirx::BufferVar>(), new_buffer_load)
+            ->Mutate(ffi::GetRef<Stmt>(buf_store))
+            .ValueOrUnchanged(ffi::GetRef<Stmt>(buf_store));
     generate_body =
         ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(generate_body, map_var).as_or_throw<Stmt>();
   } else {

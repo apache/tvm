@@ -33,18 +33,34 @@ namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
 
-class InitBlockLower : public StmtMutator {
+class InitBlockLower : public StmtExprMutator {
+ public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
  private:
-  Stmt VisitStmt_(const SBlockNode* block) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     if (!block->init.has_value()) {
-      return StmtMutator::VisitStmt_(block);
+      return StmtExprMutator::Mutate_(block, inplace_mode);
     }
     Stmt init = DoLowering(block->init.value(), block->iter_vars);
-    Stmt body = VisitStmt(block->body);
-    auto n = CopyOnWrite(block);
-    n->init = std::nullopt;
-    n->body = SeqStmt::Flatten(init, body);
-    return SBlock(n);
+    Stmt body = Mutate(block->body, inplace_mode).ValueOrUnchanged(block->body);
+    body = SeqStmt::Flatten(init, body);
+    if (inplace_mode == InplaceMode::kAllow) {
+      auto* writable = const_cast<SBlockNode*>(block);
+      writable->init = std::nullopt;
+      writable->body = std::move(body);
+      return ffi::Unchanged();
+    } else {
+      auto copy = ffi::make_object<SBlockNode>(*block);
+      copy->init = std::nullopt;
+      copy->body = std::move(body);
+      return SBlock(std::move(copy));
+    }
   }
 
   static Stmt DoLowering(const Stmt& init, const ffi::Array<IterVar>& iter_vars) {
@@ -72,7 +88,9 @@ namespace transform {
 Pass LowerInitBlock() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto fptr = f.CopyOnWrite();
-    fptr->body = InitBlockLower()(std::move(fptr->body));
+    fptr->body = ffi::make_object<InitBlockLower>()
+                     ->Mutate(fptr->body, InplaceMode::kAllow)
+                     .ValueOrUnchanged(std::move(fptr->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerInitBlock", {});

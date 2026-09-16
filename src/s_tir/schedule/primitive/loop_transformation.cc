@@ -28,8 +28,15 @@ using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Append a new predicate to the each child of type BlockRealize (not recursively) */
-class BlockPredicateAppender : public StmtMutator {
+class BlockPredicateAppender : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   /*!
    * \brief Constructor
    * \param to_append The predicate to be appended to BlockRealizeNode
@@ -38,11 +45,17 @@ class BlockPredicateAppender : public StmtMutator {
 
  private:
   // For each direct child of type BlockRealizeNode, append the predicate
-  Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
     // We do not recursively do this
-    ffi::ObjectPtr<SBlockRealizeNode> n = CopyOnWrite(realize);
-    n->predicate = n->predicate && to_append_;
-    return SBlockRealize(n);
+    PrimExpr predicate = realize->predicate && to_append_;
+    if (inplace_mode == InplaceMode::kAllow) {
+      const_cast<SBlockRealizeNode*>(realize)->predicate = std::move(predicate);
+      return ffi::Unchanged();
+    } else {
+      auto copy = ffi::make_object<SBlockRealizeNode>(*realize);
+      copy->predicate = std::move(predicate);
+      return SBlockRealize(std::move(copy));
+    }
   }
 
   /*! \brief The predicate to be appended */
@@ -52,30 +65,28 @@ class BlockPredicateAppender : public StmtMutator {
 /*! \brief Substitute vars and collect the reuse mapping of opaque blocks */
 class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
  public:
-  explicit SubstituteVarAndCollectOpaqueBlock(std::function<ffi::Optional<Expr>(const Var&)> vmap,
-                                              ffi::Map<SBlock, SBlock>* opaque_blocks)
-      : vmap_(vmap), opaque_blocks_(opaque_blocks) {}
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
- private:
-  Expr Dispatch_(const VarNode* op) final {
-    Var var = ffi::GetRef<Var>(op);
-    if (ffi::Optional<Expr> ret = vmap_(var)) {
-      return tvm::cast(var->ty.as_or_throw<PrimType>(), ret.value().as_or_throw<PrimExpr>());
-    } else {
-      return var;
+  explicit SubstituteVarAndCollectOpaqueBlock(const ffi::Map<Var, PrimExpr>& substitutions,
+                                              ffi::Map<SBlock, SBlock>* opaque_blocks)
+      : opaque_blocks_(opaque_blocks) {
+    for (const auto& [var, replacement] : substitutions) {
+      VarRemapSet(var, tvm::cast(var->ty.as_or_throw<PrimType>(), replacement));
     }
   }
 
-  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
-    SBlockRealize realize = StmtMutator::VisitStmt_(op).as_or_throw<SBlockRealize>();
+ private:
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
+    SBlockRealize realize = StmtExprMutator::Mutate_(op, inplace_mode)
+                                .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                                .as_or_throw<SBlockRealize>();
     if (realize->block->iter_vars.empty()) {
       opaque_blocks_->Set(op->block, realize->block);
     }
     return realize;
   }
 
-  /*! \brief The substitute function */
-  std::function<ffi::Optional<Expr>(const Var&)> vmap_;
   /*! \brief The reuse mapping of opaque blocks */
   ffi::Map<SBlock, SBlock>* opaque_blocks_;
 };
@@ -83,6 +94,9 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
 /*! \brief Simplify the binding of block realize and update the opaque block reuse mapping */
 class IterMapSimplifyBlockBinding : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   explicit IterMapSimplifyBlockBinding(ffi::MapObj* opaque_blocks,
                                        ffi::Map<PrimVar, Range> loop_var2extent,
                                        bool preserve_unit_iters)
@@ -97,24 +111,28 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
       const ForNode* loop = TVM_SREF_TO_FOR(sref);
       loop_var2extent.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     }
-    return IterMapSimplifyBlockBinding(opaque_blocks, std::move(loop_var2extent),
-                                       preserve_unit_iters)(std::move(stmt))
+    return ffi::make_object<IterMapSimplifyBlockBinding>(opaque_blocks, std::move(loop_var2extent),
+                                                         preserve_unit_iters)
+        ->Mutate(stmt, InplaceMode::kAllow)
+        .ValueOrUnchanged(std::move(stmt))
         .as_or_throw<For>();
   }
 
  private:
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     loop_var2extent_.Set(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-    Stmt res = StmtMutator::VisitStmt_(op);
+    Stmt res = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     loop_var2extent_.erase(op->loop_var);
     return res;
   }
 
-  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     // skip opaque block and update mapping
     if (op->iter_values.empty()) {
       SBlock block = op->block;
-      SBlockRealize realize = StmtMutator::VisitStmt_(op).as_or_throw<SBlockRealize>();
+      SBlockRealize realize = StmtExprMutator::Mutate_(op, inplace_mode)
+                                  .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                                  .as_or_throw<SBlockRealize>();
       for (const auto& entry : *opaque_blocks_) {
         if (entry.second.same_as(block)) {
           opaque_blocks_->at(entry.first) = realize->block;
@@ -131,11 +149,16 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
                                /*analyzer=*/analzyer_,
                                /*simplify_trivial_iterators=*/!preserve_unit_iters_);
     if (v.same_as(op->iter_values)) {
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     } else {
-      ffi::ObjectPtr<SBlockRealizeNode> n = CopyOnWrite(op);
-      n->iter_values = std::move(v);
-      return Stmt(n);
+      if (inplace_mode == InplaceMode::kAllow) {
+        const_cast<SBlockRealizeNode*>(op)->iter_values = std::move(v);
+        return ffi::Unchanged();
+      } else {
+        auto copy = ffi::make_object<SBlockRealizeNode>(*op);
+        copy->iter_values = std::move(v);
+        return SBlockRealize(std::move(copy));
+      }
     }
   }
 
@@ -442,20 +465,17 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   }
   ffi::Map<SBlock, SBlock> opaque_block_reuse;
   Stmt new_stmt = loop->body;
-  new_stmt = SubstituteVarAndCollectOpaqueBlock(
-      [&](const Var& v) -> ffi::Optional<Expr> {
-        if (v.same_as(loop->loop_var)) {
-          return substitute_value;
-        } else {
-          return std::nullopt;
-        }
-      },
-      &opaque_block_reuse)(std::move(new_stmt));
+  new_stmt = ffi::make_object<SubstituteVarAndCollectOpaqueBlock>(
+                 ffi::Map<Var, PrimExpr>{{loop->loop_var, substitute_value}}, &opaque_block_reuse)
+                 ->Mutate(new_stmt, InplaceMode::kAllow)
+                 .ValueOrUnchanged(std::move(new_stmt));
   // Step 3. Update predicate to guard the loop
   PrimExpr predicate = substitute_value < loop->extent;
   if (!disable_predication &&
       !analyzer->CanProve(predicate, arith::ProofStrength::kSymbolicBound)) {
-    new_stmt = BlockPredicateAppender(/*predicate=*/predicate)(std::move(new_stmt));
+    new_stmt = ffi::make_object<BlockPredicateAppender>(/*predicate=*/predicate)
+                   ->Mutate(new_stmt, InplaceMode::kAllow)
+                   .ValueOrUnchanged(std::move(new_stmt));
   }
   // Step 4. Generate nested loops to replace the original loop and simplify the binding
   for (int i = n - 1; i >= 0; i--) {
@@ -550,12 +570,17 @@ ffi::Array<BufferRegion> MutateBufferRegion(
 
 class BlockMutator : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   explicit BlockMutator(Var new_loop_var, PrimExpr min, PrimExpr extent)
       : new_loop_var_(new_loop_var), min_(min), extent_(extent) {}
 
  private:
-  Stmt VisitStmt_(const SBlockNode* _op) final {
-    SBlock new_block = StmtMutator::VisitStmt_(_op).as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* _op, InplaceMode inplace_mode) final {
+    SBlock new_block = StmtExprMutator::Mutate_(_op, inplace_mode)
+                           .ValueOrUnchanged(ffi::GetRef<Stmt>(_op))
+                           .as_or_throw<SBlock>();
 
     // If iter_vars.size() is 0, then the block most probably be an Opaque block
     if (new_block->iter_vars.size() == 0 || inner_iter_var_index == -1) {
@@ -629,7 +654,7 @@ class BlockMutator : public StmtExprMutator {
     return block_stmt;
   }
 
-  Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
     ffi::Array<PrimExpr> iter_values = realize->iter_values;
     for (size_t i = 0; i < iter_values.size(); i++) {
       if (new_loop_var_.same_as(iter_values[i])) {
@@ -638,12 +663,16 @@ class BlockMutator : public StmtExprMutator {
         break;
       }
     }
-    SBlockRealize stmt = StmtExprMutator::VisitStmt_(realize).as_or_throw<SBlockRealize>();
+    SBlockRealize stmt = StmtExprMutator::Mutate_(realize, inplace_mode)
+                             .ValueOrUnchanged(ffi::GetRef<Stmt>(realize))
+                             .as_or_throw<SBlockRealize>();
     return stmt;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
-    For res = StmtMutator::VisitStmt_(op).as_or_throw<For>();
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    For res = StmtExprMutator::Mutate_(op, inplace_mode)
+                  .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                  .as_or_throw<For>();
     Var new_var = Var(op->loop_var->name, op->loop_var.ty());
 
     if (!op->loop_var.same_as(new_var)) {
@@ -719,7 +748,9 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
         ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(loop->body, f_substitute).as_or_throw<Stmt>();
 
     // Create new block with new reference to each variable/stmt/expr in the existing block
-    loop_body = BlockMutator(new_loop_var, min_value, extent_value)(std::move(loop_body));
+    loop_body = ffi::make_object<BlockMutator>(new_loop_var, min_value, extent_value)
+                    ->Mutate(loop_body, InplaceMode::kAllow)
+                    .ValueOrUnchanged(std::move(loop_body));
     // Create new for loop with appropriate range
     auto for_node = For(new_loop_var.as_or_throw<PrimVar>(), min_value, extent_value - min_value,
                         ForKind::kSerial, loop_body);
@@ -757,12 +788,17 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
   return partition_srefs;
 }
 
-class LoopReconstructor : private StmtMutator {
+class LoopReconstructor : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   explicit LoopReconstructor(SBlock scope_root, const std::vector<std::vector<For>>& loops)
       : scope_root_(scope_root), loops_(loops) {}
-
-  using StmtMutator::operator();
 
   /*!
    * \brief Create the new nest loops induced by the given loops
@@ -807,39 +843,21 @@ class LoopReconstructor : private StmtMutator {
   }
 
  private:
-  Stmt VisitStmt_(const SBlockNode* block) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     if (block != scope_root_.get()) {
-      return ffi::GetRef<SBlock>(block);
+      return ffi::Unchanged();
     }
-    return StmtMutator::VisitStmt_(block);
+    return StmtExprMutator::Mutate_(block, inplace_mode);
   }
 
-  Stmt VisitStmt_(const ForNode* loop) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     if (ffi::GetRef<For>(loop) == need_remove_loop_.back()) {
       return new_outer_loop_;
     } else if (std::count(need_remove_loop_.begin(), need_remove_loop_.end(),
                           ffi::GetRef<For>(loop))) {
       return Evaluate(0);
     }
-    return StmtMutator::VisitStmt_(loop);
-  }
-
-  Stmt VisitStmt_(const SeqStmtNode* seq_stmt) final {
-    auto ret = StmtMutator::VisitSeqStmt_(seq_stmt, true).as_or_throw<SeqStmt>();
-    ffi::Array<Stmt> filtered;
-    for (Stmt stmt : ret->seq) {
-      if (!is_no_op(stmt)) {
-        filtered.push_back(std::move(stmt));
-      }
-    }
-    ret = SeqStmt(filtered);
-    if (ret->size() == 0) {
-      return Evaluate(0);
-    } else if (ret->size() == 1) {
-      return ret->seq[0];
-    } else {
-      return ret;
-    }
+    return StmtExprMutator::Mutate_(loop, inplace_mode);
   }
 
  public:
@@ -917,12 +935,13 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
   }
   // Step 2. Create merged loops and replace the original loops
   SBlock scope_root = ffi::GetRef<SBlock>(scope_root_sref->StmtAs<SBlockNode>());
-  LoopReconstructor reconstructor(scope_root, lca_nest_loops);
-  reconstructor.MakeNewLoop();
-  SBlock new_scope_root = reconstructor(scope_root).as_or_throw<SBlock>();
+  auto reconstructor = ffi::make_object<LoopReconstructor>(scope_root, lca_nest_loops);
+  reconstructor->MakeNewLoop();
+  SBlock new_scope_root =
+      reconstructor->Mutate(scope_root).ValueOrUnchanged(scope_root).as_or_throw<SBlock>();
   // Step 3. Do the actual replacement
   self->Replace(scope_root_sref, new_scope_root, {{scope_root, new_scope_root}});
-  return self->stmt2ref.at(reconstructor.new_inner_loop_.get());
+  return self->stmt2ref.at(reconstructor->new_inner_loop_.get());
 }
 
 StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
@@ -996,16 +1015,12 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
                               : floordiv(fused_var.as_or_throw<PrimExpr>(), lower));
   Stmt new_stmt = loops.back()->body;
   ffi::Map<SBlock, SBlock> opaque_block_reuse;
-  auto f_substitute = [&](const Var& v) -> ffi::Optional<Expr> {
-    for (int i = 0; i < n; i++) {
-      if (v.same_as(loops[i]->loop_var)) {
-        return substitute_value[i];
-      }
-    }
-    return std::nullopt;
-  };
+  ffi::Map<Var, PrimExpr> substitutions;
+  for (int i = 0; i < n; ++i) substitutions.Set(loops[i]->loop_var, substitute_value[i]);
   new_stmt =
-      SubstituteVarAndCollectOpaqueBlock(f_substitute, &opaque_block_reuse)(std::move(new_stmt));
+      ffi::make_object<SubstituteVarAndCollectOpaqueBlock>(substitutions, &opaque_block_reuse)
+          ->Mutate(new_stmt, InplaceMode::kAllow)
+          .ValueOrUnchanged(std::move(new_stmt));
   // Step 3. Generate a loop to replace the original loops
   PrimExpr fused_extent = 1;
   for (int i = 0; i < n; i++) {
@@ -1206,17 +1221,24 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
     self->Replace(sref, new_loop, {});
     return self->stmt2ref.at(new_loop.get());
   }
-  class NewLoopCreator : public StmtMutator {
+  class NewLoopCreator : public StmtExprMutator {
    public:
+    using StmtExprMutator::Mutate;
+    using StmtExprMutator::Mutate_;
+    UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+      if (value.as<ExprNode>()) return ffi::Unchanged();
+      return StmtExprMutator::Mutate(value, inplace_mode);
+    }
+
     explicit NewLoopCreator(const StmtNode* src_block) : src_block_(src_block) {}
 
-    Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
+    UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
       if (realize->block.get() == src_block_) {
         new_loop_ = For(PrimVar("u", PrimType::Int(32)), 0, 1, ForKind::kSerial,
                         ffi::GetRef<SBlockRealize>(realize));
         return new_loop_;
       }
-      return StmtMutator::VisitStmt_(realize);
+      return StmtExprMutator::Mutate_(realize, inplace_mode);
     }
 
     const StmtNode* src_block_;
@@ -1225,8 +1247,9 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
 
   TVM_FFI_CHECK(sref->parent != nullptr, ValueError) << "Cannot add loops on top of the root block";
   StmtSRef parent_sref = ffi::GetRef<StmtSRef>(sref->parent);
-  NewLoopCreator creator(sref->stmt);
-  Stmt new_stmt = creator(ffi::GetRef<Stmt>(parent_sref->stmt));
+  auto creator = ffi::make_object<NewLoopCreator>(sref->stmt);
+  Stmt new_stmt = creator->Mutate(ffi::GetRef<Stmt>(parent_sref->stmt))
+                      .ValueOrUnchanged(ffi::GetRef<Stmt>(parent_sref->stmt));
   if (new_stmt->IsInstance<ForNode>()) {
     self->Replace(parent_sref, std::move(new_stmt), {});
   } else {
@@ -1234,7 +1257,7 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
     SBlock new_parent_block = new_stmt.as_or_throw<SBlock>();
     self->Replace(parent_sref, new_stmt, {{old_parent_block, new_parent_block}});
   }
-  return self->stmt2ref.at(creator.new_loop_.get());
+  return self->stmt2ref.at(creator->new_loop_.get());
 }
 
 /******** InstructionKind Registration ********/

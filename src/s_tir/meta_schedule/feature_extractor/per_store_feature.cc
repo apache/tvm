@@ -262,9 +262,16 @@ namespace transform {
  * \return The pass created
  */
 Pass SimplifyForFeatureExtraction() {
-  class Simplifier : private StmtExprMutator {
+  class Simplifier : public StmtExprMutator {
    public:
-    static Stmt Run(Stmt stmt) { return Simplifier()(std::move(stmt)); }
+    using StmtExprMutator::Mutate;
+    using StmtExprMutator::Mutate_;
+
+    static Stmt Run(Stmt stmt) {
+      return ffi::make_object<Simplifier>()
+          ->Mutate(stmt, InplaceMode::kAllow)
+          .ValueOrUnchanged(std::move(stmt));
+    }
 
    private:
     static bool HasBufferLoad(const PrimExpr& expr) {
@@ -275,35 +282,26 @@ Pass SimplifyForFeatureExtraction() {
       return result.has_value() ? result.value()->value.cast<bool>() : false;
     }
 
-    Expr Dispatch_(const SelectNode* node) final {
+    UnchangedOr<PrimExpr> Mutate_(const SelectNode* node, InplaceMode inplace_mode) final {
       if (HasBufferLoad(node->true_value) || HasBufferLoad(node->false_value) ||
           HasBufferLoad(node->condition)) {
-        return ffi::GetRef<Select>(node);
+        return ffi::Unchanged();
       }
       return MakeConst(node->ty.as_or_throw<PrimType>(), 1.0);
     }
 
-    Expr Dispatch_(const VarNode* var) final {
-      if (unit_vars_.count(ffi::GetRef<Var>(var))) {
-        return MakeConst(var->ty.as_or_throw<PrimType>(), 0.0);
-      }
-      return ffi::GetRef<Var>(var);
-    }
-
-    Stmt VisitStmt_(const ForNode* loop) final {
+    UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
       if (is_zero(loop->extent)) {
         return Evaluate(0);
       }
       if (is_zero(loop->min) && is_one(loop->extent) && loop->kind == ForKind::kSerial &&
           loop->annotations.empty()) {
-        unit_vars_.insert(loop->loop_var);
-        return VisitStmt(loop->body);
+        VarRemapSet(loop->loop_var, MakeConst(loop->loop_var.ty(), 0.0));
+        return Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
       } else {
-        return StmtExprMutator::VisitStmt_(loop);
+        return StmtExprMutator::Mutate_(loop, inplace_mode);
       }
     }
-
-    std::unordered_set<Var> unit_vars_;
   };
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     PrimFuncNode* n = f.CopyOnWrite();

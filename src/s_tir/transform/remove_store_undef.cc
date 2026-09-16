@@ -133,31 +133,36 @@ class StoreUndefLocator : public StmtExprVisitor {
 // indices is already caught eagerly in the locator phase.
 class StoreUndefRemover : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   static Stmt Apply(Stmt stmt) {
     auto info = StoreUndefLocator::Locate(stmt);
-    StoreUndefRemover mutator(info);
-    return mutator(std::move(stmt));
+    auto mutator = ffi::make_object<StoreUndefRemover>(info);
+    return mutator->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt));
   }
 
  private:
   using Parent = StmtExprMutator;
 
+ public:
   explicit StoreUndefRemover(const UndefInfo& info)
       : stores_to_remove_(info.undef_stores), bind_vars_to_remove_(info.undef_bind_vars) {}
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
+ private:
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
     if (stores_to_remove_.count(op)) {
       return Evaluate(0);
     } else {
-      return Parent::VisitStmt_(op);
+      return Parent::Mutate_(op, inplace_mode);
     }
   }
 
-  Stmt VisitStmt_(const BindNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (bind_vars_to_remove_.count(op->var.get())) {
       return Evaluate(0);
     } else {
-      return Parent::VisitStmt_(op);
+      return Parent::Mutate_(op, inplace_mode);
     }
   }
 

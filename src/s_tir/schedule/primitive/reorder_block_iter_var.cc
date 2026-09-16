@@ -53,8 +53,15 @@ class InvalidReorderIndex : public ScheduleErrorContextObj {
   ffi::Array<int64_t> new_order_;
 };
 
-class BlockIterVarRewriter : public StmtMutator {
+class BlockIterVarRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   ffi::Map<SBlock, SBlock> block_map;
   explicit BlockIterVarRewriter(const SBlockNode* block_n, std::vector<int> order)
       : order_(std::move(order)), block_to_rewrite(block_n) {}
@@ -62,9 +69,9 @@ class BlockIterVarRewriter : public StmtMutator {
  private:
   std::vector<int> order_;
   const SBlockNode* block_to_rewrite;
-  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     if (op->block.get() == block_to_rewrite) {
-      auto block_n = CopyOnWrite(op->block.get());
+      bool inplace_block = inplace_mode == InplaceMode::kAllow && op->block.unique();
       SBlock block = op->block;
       ffi::Array<IterVar> new_iter_vars;
       ffi::Array<PrimExpr> new_iter_values;
@@ -72,15 +79,28 @@ class BlockIterVarRewriter : public StmtMutator {
         new_iter_vars.push_back(block->iter_vars[idx]);
         new_iter_values.push_back(op->iter_values[idx]);
       }
-      block_n->iter_vars = new_iter_vars;
-      SBlock new_block(block_n);
+      SBlock new_block = block;
+      if (inplace_block) {
+        const_cast<SBlockNode*>(block.get())->iter_vars = std::move(new_iter_vars);
+      } else {
+        auto copy = ffi::make_object<SBlockNode>(*block.get());
+        copy->iter_vars = std::move(new_iter_vars);
+        new_block = SBlock(std::move(copy));
+      }
       block_map.Set(block, new_block);
-      auto block_realize_n = CopyOnWrite(op);
-      block_realize_n->block = new_block;
-      block_realize_n->iter_values = new_iter_values;
-      return SBlockRealize(block_realize_n);
+      if (inplace_mode == InplaceMode::kAllow) {
+        auto* writable = const_cast<SBlockRealizeNode*>(op);
+        writable->block = std::move(new_block);
+        writable->iter_values = std::move(new_iter_values);
+        return ffi::Unchanged();
+      } else {
+        auto copy = ffi::make_object<SBlockRealizeNode>(*op);
+        copy->block = std::move(new_block);
+        copy->iter_values = std::move(new_iter_values);
+        return SBlockRealize(std::move(copy));
+      }
     } else {
-      return StmtMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 };
@@ -119,10 +139,11 @@ void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
   const SBlock& parent_block = ffi::GetRef<SBlock>(parent_block_n);
 
   // rewrite block and blockrealize
-  BlockIterVarRewriter rewriter(block_n, std::move(new_order_vec));
-  SBlock new_parent_block = rewriter(parent_block).as_or_throw<SBlock>();
-  rewriter.block_map.Set(parent_block, new_parent_block);
-  self->Replace(parent_block_sref, new_parent_block, rewriter.block_map);
+  auto rewriter = ffi::make_object<BlockIterVarRewriter>(block_n, std::move(new_order_vec));
+  SBlock new_parent_block =
+      rewriter->Mutate(parent_block).ValueOrUnchanged(parent_block).as_or_throw<SBlock>();
+  rewriter->block_map.Set(parent_block, new_parent_block);
+  self->Replace(parent_block_sref, new_parent_block, rewriter->block_map);
 }
 
 struct ReorderBlockIterVarTraits : public UnpackedInstTraits<ReorderBlockIterVarTraits> {

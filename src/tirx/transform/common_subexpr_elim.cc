@@ -40,7 +40,7 @@
  *     Consumes the plan and performs two kinds of edits:
  *       - Inserts `Bind(cse_var, expr)` statements at the planned insertion points.
  *       - Replaces every occurrence of a CSE'd expression with its variable.
- *     Insertions are handled by overriding VisitStmt and wrapping in SeqStmt;
+ *     Insertions are handled at statement entry and wrapped in SeqStmt;
  *     SeqStmt flattening handles correct nesting.
  *
  * Eligibility rules
@@ -322,18 +322,20 @@ class CSEPlanner : public StmtExprVisitor {
    */
   static PrimExpr SubstituteSubexpr(const PrimExpr& body, const PrimExpr& target,
                                     const PrimExpr& replacement) {
-    struct Replacer : public ExprMutator {
+    struct Replacer : public StmtExprMutator {
+      using StmtExprMutator::Mutate;
+      using StmtExprMutator::Mutate_;
       prim::ExprDeepEqual eq;
       PrimExpr target, replacement;
-      Expr Dispatch(const Expr& e) final {
-        if (auto prim = e.as<PrimExpr>(); prim && eq(prim.value(), target)) return replacement;
-        return ExprMutator::Dispatch(e);
+      UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) final {
+        if (auto prim = input.as<PrimExpr>(); prim && eq(prim.value(), target)) return replacement;
+        return StmtExprMutator::Mutate(input, inplace_mode);
       }
     };
-    Replacer r;
-    r.target = target;
-    r.replacement = replacement;
-    return r.Dispatch(body).as_or_throw<PrimExpr>();
+    auto r = ffi::make_object<Replacer>();
+    r->target = target;
+    r->replacement = replacement;
+    return r->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
   }
 
   // ------------------------------------------------------------------
@@ -729,7 +731,7 @@ class CSEPlanner : public StmtExprVisitor {
  *   - **Substitution**: Replace every expression listed in ExprRemapTable
  *     with the corresponding CSE variable.
  *
- * Insertions are handled uniformly by overriding VisitStmt: when a
+ * Insertions are handled uniformly at statement entry: when a
  * statement has insert_before entries, the visited statement is wrapped
  * in a SeqStmt with the Bind stmts prepended. SeqStmt's constructor
  * flattens nested SeqStmts, so this works correctly for both SeqStmt
@@ -737,6 +739,8 @@ class CSEPlanner : public StmtExprVisitor {
  */
 class CSERewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   /*!
    * \brief Construct a rewriter from the plan tables.
    * \param insert_before Map from stmt → list of Bind stmts to insert before it.
@@ -750,28 +754,15 @@ class CSERewriter : public StmtExprMutator {
    * \param body The original function body.
    * \return The rewritten body with CSE bindings inserted and expressions replaced.
    */
-  Stmt Rewrite(const Stmt& body) { return VisitStmt(body); }
-
- protected:
-  using StmtExprMutator::Dispatch;
-  using StmtExprMutator::Dispatch_;
-
-  /*!
-   * \brief Visit an expression, replacing it with its CSE variable if planned.
-   *
-   * Checks the remap table before recursing — if the full expression matches,
-   * it is replaced without visiting children.
-   */
-  Expr Dispatch(const Expr& e) override {
-    if (auto prim_expr = e.as<PrimExpr>()) {
-      auto it = expr_remap_.find(prim_expr.value());
-      if (it != expr_remap_.end()) return it->second;
-    }
-    return StmtExprMutator::Dispatch(e);
+  Stmt Rewrite(const Stmt& body) {
+    return Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
   }
 
+ protected:
   /*!
-   * \brief Visit a statement, prepending planned Bind insertions.
+   * \brief Replace planned expressions and prepend planned Bind insertions.
+   *
+   * Expression matches are replaced before visiting their children.
    *
    * Looks up the original statement (by pointer identity) in insert_before_
    * before recursing. If insertions are planned, wraps the visited result
@@ -786,41 +777,45 @@ class CSERewriter : public StmtExprMutator {
    * occurrences bind fresh vars and substitute them through both the Bind
    * values and their copy of the subtree.
    */
-  Stmt VisitStmt(const Stmt& stmt) override {
-    auto it = insert_before_.find(stmt);
-    Stmt visited = StmtExprMutator::VisitStmt(stmt);
-    if (it != insert_before_.end()) {
-      ffi::Array<Stmt> new_stmts;
-      if (materialized_.insert(stmt.get()).second) {
-        new_stmts = ffi::Array<Stmt>(it->second.begin(), it->second.end());
-      } else {
-        std::unordered_map<const VarNode*, PrimExpr> remap;
-        auto lookup = [&remap](
-                          const Var& v,
-                          TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-          if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
-          auto rit = remap.find(v.get());
-          if (rit != remap.end()) return ffi::Any(Expr(rit->second));
-          return ffi::Unchanged();
-        };
-        for (const Stmt& s : it->second) {
-          const BindNode* bind = s.as<BindNode>();
-          TVM_FFI_ICHECK(bind != nullptr);
-          // Deeper Bind values may reference shallower cse vars of this same
-          // insertion point; route them through the fresh vars as well.
-          Expr value = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(bind->value, lookup)
-                           .as_or_throw<Expr>();
-          Var fresh(bind->var->name, bind->var->ty.as_or_throw<PrimType>());
-          remap[bind->var.get()] = fresh.as_or_throw<PrimExpr>();
-          new_stmts.push_back(Bind(fresh, value));
-        }
-        visited =
-            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(visited, lookup).as_or_throw<Stmt>();
-      }
-      new_stmts.push_back(visited);
-      return SeqStmt(new_stmts);
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override {
+    if (auto prim_expr = input.as<PrimExpr>()) {
+      auto it = expr_remap_.find(prim_expr.value());
+      if (it != expr_remap_.end()) return it->second;
     }
-    return visited;
+    auto* stmt_node = input.as<StmtNode>();
+    if (!stmt_node) return StmtExprMutator::Mutate(input, inplace_mode);
+    auto it = insert_before_.find(ffi::GetRef<Stmt>(stmt_node));
+    auto result = StmtExprMutator::Mutate(input, inplace_mode);
+    if (it == insert_before_.end()) return result;
+    Stmt visited = std::move(result).ValueOrUnchanged(input).as_or_throw<Stmt>();
+    ffi::Array<Stmt> new_stmts;
+    if (materialized_.insert(stmt_node).second) {
+      new_stmts = ffi::Array<Stmt>(it->second.begin(), it->second.end());
+    } else {
+      std::unordered_map<const VarNode*, PrimExpr> remap;
+      auto lookup = [&remap](
+                        const Var& v,
+                        TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
+        auto rit = remap.find(v.get());
+        if (rit != remap.end()) return ffi::Any(Expr(rit->second));
+        return ffi::Unchanged();
+      };
+      for (const Stmt& s : it->second) {
+        const BindNode* bind = s.as<BindNode>();
+        TVM_FFI_ICHECK(bind != nullptr);
+        // Deeper Bind values may reference shallower cse vars of this same
+        // insertion point; route them through the fresh vars as well.
+        Expr value =
+            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(bind->value, lookup).as_or_throw<Expr>();
+        Var fresh(bind->var->name, bind->var->ty.as_or_throw<PrimType>());
+        remap[bind->var.get()] = fresh.as_or_throw<PrimExpr>();
+        new_stmts.push_back(Bind(fresh, value));
+      }
+      visited = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(visited, lookup).as_or_throw<Stmt>();
+    }
+    new_stmts.push_back(visited);
+    return SeqStmt(new_stmts);
   }
 
  private:
@@ -851,7 +846,8 @@ Pass CommonSubexprElim() {
     auto [insert_before, expr_remap] = CSEPlanner::Plan(f->body);
     if (!insert_before.empty()) {
       auto* n = f.CopyOnWrite();
-      n->body = CSERewriter(std::move(insert_before), std::move(expr_remap)).Rewrite(f->body);
+      n->body = ffi::make_object<CSERewriter>(std::move(insert_before), std::move(expr_remap))
+                    ->Rewrite(f->body);
     }
     return f;
   };

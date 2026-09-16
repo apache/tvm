@@ -210,51 +210,47 @@ class DataTypeVisitor final : public StmtExprVisitor {
 
 class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
  public:
+  using IndexDataTypeRewriter::Mutate;
+  using IndexDataTypeRewriter::Mutate_;
   using Parent = IndexDataTypeRewriter;
   explicit NarrowDataTypeRewriter(int target_bits)
       : visitor_(ffi::make_object<DataTypeVisitor>(target_bits)) {}
 
-  Stmt operator()(Stmt s) {
+  Stmt Rewrite(Stmt s) {
     visitor_->Visit(s);
     for (auto i = visitor_->vmap.begin(), last = visitor_->vmap.end(); i != last;) {
       PrimExpr e = ffi::GetRef<Expr>(i->first).as_or_throw<PrimExpr>();
       if (e.ty() == i->second) {
         i = visitor_->vmap.erase(i);
       } else {
+        if (auto var = e.as<Var>()) {
+          VarRemapSet(var.value(), Var(var.value()->name, i->second));
+        }
         ++i;
       }
     }
-    return VisitStmt(s);
+    return Mutate(s, InplaceMode::kDisallow).ValueOrUnchanged(s);
   }
 
  protected:
-  // This class adds some overrides of `VisitStmt_` and `Dispatch_` that
+  // This class adds typed `Mutate_` overrides that
   // are *not* present in the parent class.
   // These `using` statements ensure that all of the *other* overrides
   // provided by the parent class are fully visible to users of this class.
   // (Discussed further in https://github.com/apache/tvm/pull/13267)
-  using Parent::Dispatch_;
-  using Parent::VisitStmt_;
 
-  Expr Dispatch_(const VarNode* op) final {
-    if (auto it = visitor_->vmap.find(op); !var_remap_.count(op) && it != visitor_->vmap.end()) {
-      var_remap_[op] = Var(op->name, it->second);
-    }
-    return Parent::Dispatch_(op);
-  }
-
-  Expr Dispatch_(const IntImmNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const IntImmNode* op, InplaceMode inplace_mode) final {
     if (is_enabled_) {
       if (visitor_->vmap.find(op) != visitor_->vmap.end()) {
         return IntImm(visitor_->vmap.at(op), op->value);
       }
     }
-    return Parent::Dispatch_(op);
+    return Parent::Mutate_(op, inplace_mode);
   }
 
-  Expr Dispatch_(const prim::CastNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::CastNode* op, InplaceMode inplace_mode) final {
     if (is_enabled_ && visitor_->vmap.find(op) != visitor_->vmap.end()) {
-      PrimExpr e = Parent::Dispatch_(op).as_or_throw<PrimExpr>();
+      PrimExpr e = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
       const prim::CastNode* new_op = e.as<prim::CastNode>();
       TVM_FFI_ICHECK(new_op != nullptr) << "Expected type to be CastNode"
                                         << ", but get " << e->GetTypeKey();
@@ -265,27 +261,31 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
       }
       return new_value;
     }
-    return Parent::Dispatch_(op);
+    return Parent::Mutate_(op, inplace_mode);
   }
 
-#define TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)       \
-  Expr Dispatch_(const OP* op) {                                    \
-    PrimExpr a = this->VisitPrimExpr(op->a);                        \
-    PrimExpr b = this->VisitPrimExpr(op->b);                        \
-    if (op->a.same_as(a) && op->b.same_as(b) && a.ty() == b.ty()) { \
-      return ffi::GetRef<PrimExpr>(op);                             \
-    } else {                                                        \
-      if (a.ty() != b.ty()) {                                       \
-        bool is_enabled = is_enabled_;                              \
-        is_enabled_ = true;                                         \
-        PrimExpr lhs = this->VisitPrimExpr(op->a);                  \
-        PrimExpr rhs = this->VisitPrimExpr(op->b);                  \
-        is_enabled_ = is_enabled;                                   \
-        return FUNC(lhs, rhs);                                      \
-      } else {                                                      \
-        return FUNC(a, b);                                          \
-      }                                                             \
-    }                                                               \
+#define TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)                     \
+  UnchangedOr<PrimExpr> Mutate_(const OP* op, InplaceMode inplace_mode) {         \
+    auto a_result = this->Mutate(op->a, inplace_mode);                            \
+    bool a_unchanged = a_result.UnchangedOrSameAs(op->a);                         \
+    PrimExpr a = std::move(a_result).ValueOrUnchanged(op->a);                     \
+    auto b_result = this->Mutate(op->b, inplace_mode);                            \
+    bool b_unchanged = b_result.UnchangedOrSameAs(op->b);                         \
+    PrimExpr b = std::move(b_result).ValueOrUnchanged(op->b);                     \
+    if (a_unchanged && b_unchanged && a.ty() == b.ty()) {                         \
+      return ffi::Unchanged();                                                    \
+    } else {                                                                      \
+      if (a.ty() != b.ty()) {                                                     \
+        bool is_enabled = is_enabled_;                                            \
+        is_enabled_ = true;                                                       \
+        PrimExpr lhs = this->Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a); \
+        PrimExpr rhs = this->Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b); \
+        is_enabled_ = is_enabled;                                                 \
+        return FUNC(lhs, rhs);                                                    \
+      } else {                                                                    \
+        return FUNC(a, b);                                                        \
+      }                                                                           \
+    }                                                                             \
   }
 
   TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::AddNode, operator+);
@@ -312,7 +312,7 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
 };
 
 Stmt NarrowDataType(Stmt stmt, int target_bits) {
-  return NarrowDataTypeRewriter(target_bits)(stmt);
+  return ffi::make_object<NarrowDataTypeRewriter>(target_bits)->Rewrite(stmt);
 }
 
 namespace transform {
@@ -320,7 +320,7 @@ namespace transform {
 Pass NarrowDataType(int target_bits) {
   auto pass_func = [target_bits](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = NarrowDataTypeRewriter(target_bits)(std::move(n->body));
+    n->body = ffi::make_object<NarrowDataTypeRewriter>(target_bits)->Rewrite(n->body);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.NarrowDataType", {});

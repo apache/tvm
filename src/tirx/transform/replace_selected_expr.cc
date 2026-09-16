@@ -50,8 +50,9 @@ namespace tirx {
 PrimExpr ReplaceSelectedExpr::ReplaceSelectedExprInExpr(
     const PrimExpr& expr, std::function<bool(const PrimExpr&)> predicate_selector,
     const PrimExpr& new_expr, std::function<bool(const PrimExpr&)> can_replace_inside) {
-  ReplaceSelectedExpr replace_expr_selected(predicate_selector, new_expr, can_replace_inside);
-  return replace_expr_selected.VisitPrimExpr(expr);
+  auto replace_expr_selected =
+      ffi::make_object<ReplaceSelectedExpr>(predicate_selector, new_expr, can_replace_inside);
+  return replace_expr_selected->Mutate(expr, InplaceMode::kDisallow).ValueOrUnchanged(expr);
 }
 
 /*!
@@ -66,8 +67,9 @@ PrimExpr ReplaceSelectedExpr::ReplaceSelectedExprInExpr(
 Stmt ReplaceSelectedExpr::ReplaceSelectedExprInStmt(
     const Stmt& stmt, std::function<bool(const PrimExpr&)> predicate_selector,
     const PrimExpr& new_expr, std::function<bool(const PrimExpr&)> can_replace_inside) {
-  ReplaceSelectedExpr replace_expr_selected(predicate_selector, new_expr, can_replace_inside);
-  return replace_expr_selected.VisitStmt(stmt);
+  auto replace_expr_selected =
+      ffi::make_object<ReplaceSelectedExpr>(predicate_selector, new_expr, can_replace_inside);
+  return replace_expr_selected->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
 }
 
 /*!
@@ -88,25 +90,12 @@ ReplaceSelectedExpr::ReplaceSelectedExpr(std::function<bool(const PrimExpr&)> pr
  * \brief The method which overrides the generic dispatcher of StmtExprMutator
  * \param expr The expression to mutate
  */
-Expr ReplaceSelectedExpr::Dispatch(const Expr& expr) {
-  auto prim_expr = expr.as<PrimExpr>();
-  if (!prim_expr) {
-    return StmtExprMutator::Dispatch(expr);
+UnchangedOr<ffi::Any> ReplaceSelectedExpr::Mutate(ffi::AnyView input, InplaceMode inplace_mode) {
+  if (auto prim_expr = input.as<PrimExpr>()) {
+    if (predicate_selector_(prim_expr.value())) return new_expr_;
+    if (!can_replace_inside_(prim_expr.value())) return ffi::Unchanged();
   }
-  // If the current expression is selected by the predicate
-  if (predicate_selector_(prim_expr.value())) {
-    // Then simply return the new expression
-    return new_expr_;
-  } else {
-    // If replacing inside the current expression is allowed
-    if (can_replace_inside_(prim_expr.value())) {
-      // then we continue the exploration recursively
-      return StmtExprMutator::Dispatch(expr);
-    } else {
-      // otherwise we simply return the current expression
-      return expr;
-    }
-  }
+  return StmtExprMutator::Mutate(input, inplace_mode);
 }
 
 }  // namespace tirx

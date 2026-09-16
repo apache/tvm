@@ -403,39 +403,43 @@ Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realiz
 Stmt ReplaceAndSimplify(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
                         ffi::Map<SBlock, SBlock>* block_sref_reuse, arith::AnalyzerObj* analyzer) {
   struct Replacer : public StmtExprMutator {
+   public:
+    using StmtExprMutator::Mutate;
+    using StmtExprMutator::Mutate_;
+
     explicit Replacer(const ffi::Map<Var, PrimExpr>& sub,
                       ffi::Map<SBlock, SBlock>* block_sref_reuse, arith::AnalyzerObj* analyzer)
-        : sub_(sub), block_sref_reuse_(block_sref_reuse), analyzer_(analyzer) {}
-
-    Expr Dispatch(const Expr& op) final {
-      Expr result = StmtExprMutator::Dispatch(op);
-      if (auto prim_result = result.as<PrimExpr>(); prim_result && !result.same_as(op)) {
-        return analyzer_->Simplify(prim_result.value());
-      }
-      return result;
+        : block_sref_reuse_(block_sref_reuse), analyzer_(analyzer) {
+      for (const auto& [var, replacement] : sub) VarRemapSet(var, replacement);
     }
 
-    Expr Dispatch_(const VarNode* op) final {
-      if (ffi::Optional<PrimExpr> e = sub_.Get(ffi::GetRef<Var>(op))) {
-        return e.value();
+    UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
+      auto result = StmtExprMutator::Mutate(value, inplace_mode);
+      if (!value.as<ExprNode>() || result.UnchangedOrSameAs(value)) return result;
+      auto replacement = std::move(result).ValueOrUnchanged(value);
+      if (auto prim_result = replacement.as<PrimExpr>()) {
+        return ffi::Any(analyzer_->Simplify(prim_result.value()));
       }
-      return StmtExprMutator::Dispatch_(op);
+      return replacement;
     }
 
-    Stmt VisitStmt_(const SBlockNode* op) final {
+    UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
       SBlock src = ffi::GetRef<SBlock>(op);
-      SBlock tgt = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
+      SBlock tgt = StmtExprMutator::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                       .as_or_throw<SBlock>();
       if (!src.same_as(tgt)) {
         block_sref_reuse_->Set(src, tgt);
       }
       return tgt;
     }
 
-    const ffi::Map<Var, PrimExpr>& sub_;
     ffi::Map<SBlock, SBlock>* block_sref_reuse_;
     arith::AnalyzerObj* analyzer_;
   };
-  return Replacer(sub, block_sref_reuse, analyzer)(stmt);
+  return ffi::make_object<Replacer>(sub, block_sref_reuse, analyzer)
+      ->Mutate(stmt)
+      .ValueOrUnchanged(stmt);
 }
 
 /*!
@@ -700,19 +704,27 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
              /*init=*/ffi::Optional<Stmt>(std::nullopt)));
 }
 
-class BlockizeRewriter : public StmtMutator {
+class BlockizeRewriter : public StmtExprMutator {
  public:
-  static Stmt Rewrite(const StmtSRef& lca, const ffi::Array<StmtSRef>& blocks,
-                      const SBlockRealize& blockized) {
-    BlockizeRewriter rewriter(lca, blocks, blockized);
-    return rewriter(ffi::GetRef<Stmt>(lca->stmt));
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
   }
 
- private:
+  static Stmt Rewrite(const StmtSRef& lca, const ffi::Array<StmtSRef>& blocks,
+                      const SBlockRealize& blockized) {
+    auto rewriter = ffi::make_object<BlockizeRewriter>(lca, blocks, blockized);
+    return rewriter->Mutate(ffi::GetRef<Stmt>(lca->stmt))
+        .ValueOrUnchanged(ffi::GetRef<Stmt>(lca->stmt));
+  }
+
   explicit BlockizeRewriter(const StmtSRef& lca, const ffi::Array<StmtSRef>& blocks,
                             const SBlockRealize& blockized)
       : lca_(lca), blocks_(blocks), blockized_(blockized) {}
 
+ private:
   Stmt RewriteSeq(const Stmt& stmt) {
     const SeqStmtNode* seq = stmt.as<SeqStmtNode>();
     TVM_FFI_ICHECK(seq) << "Target blocks must not be nested with each other!";
@@ -722,7 +734,9 @@ class BlockizeRewriter : public StmtMutator {
     ffi::Array<Stmt> new_seq;
     for (const Stmt& it : seq->seq) {
       target_in_ = false;
-      Stmt stmt = StmtMutator::VisitStmt(it);
+      Stmt stmt = StmtExprMutator::Mutate(ffi::AnyView(it), InplaceMode::kDisallow)
+                      .ValueOrUnchanged(it)
+                      .as_or_throw<Stmt>();
       if (target_in_) {
         if (idx_start == -1) {
           idx_start = cur_idx;
@@ -740,15 +754,15 @@ class BlockizeRewriter : public StmtMutator {
     return SeqStmt(new_seq, seq->span);
   }
 
-  Stmt VisitStmt_(const ForNode* loop) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     if (loop == lca_->stmt) {
       return For(loop->loop_var, loop->min, loop->extent, loop->kind, RewriteSeq(loop->body),
                  loop->thread_binding, loop->annotations, loop->step, loop->span);
     }
-    return StmtMutator::VisitStmt_(loop);
+    return StmtExprMutator::Mutate_(loop, inplace_mode);
   }
 
-  Stmt VisitStmt_(const SBlockNode* block) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     if (block == lca_->stmt) {
       return SBlock(block->iter_vars, block->reads, block->writes, block->name_hint,
                     RewriteSeq(block->body), block->init, block->alloc_buffers,
@@ -760,7 +774,7 @@ class BlockizeRewriter : public StmtMutator {
         break;
       }
     }
-    return ffi::GetRef<Stmt>(block);
+    return ffi::Unchanged();
   }
 
   StmtSRef lca_;
@@ -817,7 +831,8 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   f_update_max_dtype_bits_from_region(block_realize->block->reads);
   f_update_max_dtype_bits_from_region(block_realize->block->writes);
   TVM_FFI_ICHECK(index_dtype_bits > 0);
-  intrin_impl = IndexDataTypeNormalizer(PrimType::Int(index_dtype_bits)).Rewrite(intrin_impl);
+  intrin_impl = ffi::make_object<IndexDataTypeNormalizer>(PrimType::Int(index_dtype_bits))
+                    ->Rewrite(intrin_impl);
   // Step 2: Structural pattern matching
   TensorizeComparator comparator(self->mod, /*assert_mode=*/true);
   comparator.VisitStmt(block_realize, intrin_desc->body);

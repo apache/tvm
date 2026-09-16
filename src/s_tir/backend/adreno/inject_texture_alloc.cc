@@ -45,25 +45,23 @@ using runtime::IsTextureStorage;
  */
 class TextureAllocInjector : public tirx::IRMutatorWithAnalyzer {
  public:
+  using tirx::IRMutatorWithAnalyzer::Mutate;
+  using tirx::IRMutatorWithAnalyzer::Mutate_;
+
   static PrimFunc Inject(PrimFunc func) {
     arith::Analyzer ana;
-    auto pass = TextureAllocInjector(ana);
+    auto pass = ffi::make_object<TextureAllocInjector>(ana);
     auto writer = func.CopyOnWrite();
-    pass.MarkBufferParamShapes(func);
-    writer->body = pass.VisitStmt(func->body);
+    pass->MarkBufferParamShapes(func);
+    writer->body = pass->Mutate(func->body).ValueOrUnchanged(func->body);
     return func;
   }
 
- private:
-  using IRMutatorWithAnalyzer::Dispatch;
-  using IRMutatorWithAnalyzer::Dispatch_;
-  using IRMutatorWithAnalyzer::VisitStmt;
-  using IRMutatorWithAnalyzer::VisitStmt_;
-
   explicit TextureAllocInjector(const arith::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+ private:
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     std::string storage_scope = op->buffer.scope();
     if (IsTextureStorage(storage_scope)) {
       op = stmt.as<AllocBufferNode>();
