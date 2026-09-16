@@ -210,7 +210,7 @@ ffi::Optional<ExprDoc> PrintToVDevice(const Call& n, const AccessPath& n_p, cons
   ffi::Array<ExprDoc> kwargs_values;
   TVM_FFI_ICHECK(n->attrs.defined());
   if (const auto* attrs = n->attrs.as<relax::ToVDeviceAttrs>()) {
-    VDevice vdev = attrs->dst_vdevice;
+    relax::VDevice vdev = attrs->dst_vdevice;
     std::string dev_kind = vdev->target->kind->name;
     int dev_index = FindVDeviceIndexByTargetKind(vdev, d);
     kwargs_keys.push_back("dst_vdevice");

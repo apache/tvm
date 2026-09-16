@@ -29,9 +29,10 @@ import tvm_ffi
 from tvm_ffi import Array, Map
 
 import tvm
+from tvm.relax.global_info import VDevice
 
 from .. import tirx
-from ..ir import Attrs, Type, VDevice
+from ..ir import Attrs, Type
 from ..te import Tensor as te_Tensor
 from ..te import create_prim_func
 from . import _ffi_api
