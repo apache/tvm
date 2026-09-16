@@ -217,27 +217,6 @@ namespace transform {
 
 namespace {
 
-/*! \brief Helper: add or remove an attribute on a BaseFunc */
-BaseFunc BaseFuncWithAttr(BaseFunc func, const std::string& attr_key, Any attr_value) {
-  if (auto tirx = func.as<tirx::PrimFunc>()) {
-    return WithAttr(tirx.value(), attr_key, attr_value);
-  } else if (auto relax_fn = func.as<relax::Function>()) {
-    return WithAttr(relax_fn.value(), attr_key, attr_value);
-  } else {
-    return func;
-  }
-}
-
-BaseFunc BaseFuncWithoutAttr(BaseFunc func, const std::string& attr_key) {
-  if (auto tirx = func.as<tirx::PrimFunc>()) {
-    return WithoutAttr(tirx.value(), attr_key);
-  } else if (auto relax_fn = func.as<relax::Function>()) {
-    return WithoutAttr(relax_fn.value(), attr_key);
-  } else {
-    return func;
-  }
-}
-
 /*!
  * \brief Apply a pass to a single named function within an IRModule.
  *
@@ -258,7 +237,7 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
           // Mark internal functions as externally-exposed so that
           // call-tracing transforms inside the pass do not remove them.
           internal_functions.insert(gvar->name_hint);
-          func = BaseFuncWithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);
+          func = WithAttr(std::move(func), tvm::attr::kGlobalSymbol, gvar->name_hint);
         }
       } else {
         // Replace non-target functions with stubs to keep references intact.
@@ -282,7 +261,7 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
           write_ptr->Remove((*it).second);
         }
         if (internal_functions.count(gvar->name_hint)) {
-          func = BaseFuncWithoutAttr(func, tvm::attr::kGlobalSymbol);
+          func = WithoutAttr(std::move(func), tvm::attr::kGlobalSymbol);
         }
         write_ptr->Add(gvar, func);
       }
