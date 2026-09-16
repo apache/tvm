@@ -23,7 +23,6 @@
  */
 
 #include <tvm/arith/int_set.h>
-#include <tvm/arith/int_solver.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -38,6 +37,7 @@
 #include "../../support/arena.h"
 #include "../../support/utils.h"
 #include "../../tirx/transform/ir_utils.h"
+#include "../analysis/conditional_bounds.h"
 #include "../schedule/utils.h"
 #include "../support/nd_int_set.h"
 

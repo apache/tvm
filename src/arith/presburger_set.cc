@@ -24,7 +24,6 @@
 #include "presburger_set.h"
 
 #include <tvm/arith/int_set.h>
-#include <tvm/arith/int_solver.h>
 #include <tvm/arith/pattern.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
