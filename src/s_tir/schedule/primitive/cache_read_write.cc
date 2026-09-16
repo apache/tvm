@@ -1106,6 +1106,7 @@ class CacheReadRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
+    // Cache remapping can change pointer storage scope; the base Call hook preserves its type.
     if (op->op.same_as(tirx::builtin::buffer_data()) && op->args.size() == 1) {
       Expr arg = Mutate(op->args[0]).ValueOrUnchanged(op->args[0]);
       if (arg.same_as(op->args[0])) return ffi::Unchanged();
@@ -1437,6 +1438,7 @@ class CacheWriteRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
+    // Cache remapping can change pointer storage scope; the base Call hook preserves its type.
     if (op->op.same_as(tirx::builtin::buffer_data()) && op->args.size() == 1) {
       Expr arg = Mutate(op->args[0]).ValueOrUnchanged(op->args[0]);
       if (arg.same_as(op->args[0])) return ffi::Unchanged();
