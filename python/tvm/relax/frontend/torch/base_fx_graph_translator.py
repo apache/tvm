@@ -29,7 +29,7 @@ from functools import reduce
 import tvm_ffi
 
 import tvm
-from tvm import relax, tirx, topi
+from tvm import relax, tirx
 from tvm.ir import PrimType
 from tvm.runtime import DataTypeCode
 
@@ -322,78 +322,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             }
         )
         assert not missing_func_types, f"Unsupported function types {missing_func_types}"
-
-    @staticmethod
-    def _has_impure_ops(graph_module) -> bool:
-        from torch import fx
-
-        return any(
-            (node.target if node.op == "call_method" else getattr(node.target, "__name__", ""))
-            in {
-                "exponential_",
-                "exponential.default",
-                "exponential_.default",
-                "_assert_async.default",
-                "_assert_async.msg",
-            }
-            for module in graph_module.modules()
-            if isinstance(module, fx.GraphModule)
-            for node in module.graph.nodes
-        )
-
-    def _exponential(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        rate = node.args[1] if len(node.args) > 1 else node.kwargs.get("lambd", 1.0)
-        if not rate > 0:
-            raise ValueError("exponential_ expects lambda > 0")
-        if node.kwargs.get("generator") is not None:
-            raise ValueError("Export a model using the default random generator")
-        if not x.ty.dtype.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
-            raise ValueError("exponential_ requires a floating-point tensor")
-        dtype = "float64" if str(x.ty.dtype) == "float64" else "float32"
-        result = self.block_builder.emit(
-            relax.Call(
-                relax.ExternFunc("tvm.contrib.random.exponential"),
-                [x, relax.prim_value(tirx.const(rate, "float64"))],
-                ty_args=[relax.TensorType(self.shape_of(x), dtype)],
-            )
-        )
-        if dtype != str(x.ty.dtype):
-            result = self.block_builder.emit(relax.op.astype(result, x.ty.dtype))
-        if (
-            node.target == "exponential_"
-            or getattr(node.target, "__name__", "") == "exponential_.default"
-        ):
-            self.env[node.args[0]] = result
-        return result
-
-    def _resize_antialias(
-        self, x, size, scale_factor, align_corners, method, recompute_scale_factor=False
-    ):
-        if x.ty.ndim != 4 or method not in ("bilinear", "bicubic"):
-            raise ValueError("Antialias requires a 4D tensor and bilinear or bicubic interpolation")
-        if not isinstance(scale_factor, tuple | list):
-            scale_factor = (scale_factor, scale_factor)
-        if size is None:
-            size = [
-                int(int(dim) * scale)
-                if isinstance(dim, tirx.IntImm)
-                else tirx.Cast("int64", tirx.floor(tirx.Cast("float64", dim) * scale))
-                for dim, scale in zip(list(self.shape_of(x))[-2:], scale_factor)
-            ]
-        elif isinstance(size, int):
-            size = (size, size)
-        if recompute_scale_factor:
-            scale_factor = (None, None)
-        return self.block_builder.emit_te(
-            topi.image.resize2d_antialias,
-            x,
-            size,
-            scale_factor,
-            bool(align_corners),
-            method,
-            primfunc_name_hint="resize2d_antialias",
-        )
 
     ########## Unary Ops ##########
 
@@ -1068,22 +996,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding: int | None = 0,
         ceil_mode: bool | None = False,
         count_include_pad: bool | None = True,
-        divisor_override: int | None = None,
     ) -> relax.Var:
-        if divisor_override is not None:
-            if divisor_override == 0:
-                raise ValueError("divisor_override must not be zero")
-            return self.block_builder.emit_te(
-                topi.nn.avg_pool_divisor,
-                x,
-                2,
-                kernel_size,
-                stride,
-                padding,
-                ceil_mode,
-                divisor_override,
-                primfunc_name_hint="avg_pool2d_divisor",
-            )
         # Expand to 4D by adding batch dim if input is 3D
         x_ndim = x.ty.ndim
         if x_ndim == 3:
@@ -1115,9 +1028,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         ceil_mode = args[4] if len(args) > 4 else kwargs.get("ceil_mode", False)
         count_include_pad = args[5] if len(args) > 5 else kwargs.get("count_include_pad", True)
         divisor = args[6] if len(args) > 6 else kwargs.get("divisor_override")
-        return self._avg_pool2d_impl(
-            x, kernel_size, stride, padding, ceil_mode, count_include_pad, divisor
-        )
+        if divisor is not None:
+            raise NotImplementedError("avg_pool divisor_override is not supported")
+        return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode, count_include_pad)
 
     def _avg_pool3d_impl(
         self,
@@ -1127,22 +1040,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding: int | None = 0,
         ceil_mode: bool | None = False,
         count_include_pad: bool | None = True,
-        divisor_override: int | None = None,
     ) -> relax.Var:
-        if divisor_override is not None:
-            if divisor_override == 0:
-                raise ValueError("divisor_override must not be zero")
-            return self.block_builder.emit_te(
-                topi.nn.avg_pool_divisor,
-                x,
-                3,
-                kernel_size,
-                stride,
-                padding,
-                ceil_mode,
-                divisor_override,
-                primfunc_name_hint="avg_pool3d_divisor",
-            )
         # Expand to 5D by adding batch dim if input is 4D
         x_ndim = x.ty.ndim
         if x_ndim == 4:
@@ -1175,9 +1073,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         count_include_pad = args[5] if len(args) > 5 else kwargs.get("count_include_pad", True)
 
         divisor = args[6] if len(args) > 6 else kwargs.get("divisor_override")
-        return self._avg_pool3d_impl(
-            x, kernel_size, stride, padding, ceil_mode, count_include_pad, divisor
-        )
+        if divisor is not None:
+            raise NotImplementedError("avg_pool divisor_override is not supported")
+        return self._avg_pool3d_impl(x, kernel_size, stride, padding, ceil_mode, count_include_pad)
 
     def _baddbmm(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]

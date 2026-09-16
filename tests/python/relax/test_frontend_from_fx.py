@@ -175,83 +175,6 @@ def activation_cases(*, exported=False):
     return cases
 
 
-class PoolDivisorModel(torch.nn.Module):
-    """Cover padded partial windows, signed divisors, and an unbatched input."""
-
-    def __init__(self, ndim):
-        super().__init__()
-        self.pool = getattr(torch.nn, f"AvgPool{ndim}d")(
-            3, stride=2, padding=1, ceil_mode=True, divisor_override=-7
-        )
-        self.functional = getattr(torch.nn.functional, f"avg_pool{ndim}d")
-
-    def forward(self, x):
-        return (
-            self.pool(x),
-            self.functional(x, 3, 2, 1, True, False, 5),
-            self.functional(x[0], 2, divisor_override=3),
-        )
-
-
-class AntialiasedResizeModel(torch.nn.Module):
-    def forward(self, x):
-        resize = torch.nn.functional.interpolate
-        return (
-            resize(x, (3, 4), mode="bilinear", antialias=True),
-            resize(x, (3, 4), mode="bilinear", align_corners=True, antialias=True),
-            resize(x, (1, 1), mode="bilinear", align_corners=True, antialias=True),
-            resize(x, (3, 4), mode="bicubic", antialias=True),
-            resize(x, (10, 11), mode="bicubic", align_corners=True, antialias=True),
-            resize(x, scale_factor=(0.6, 1.4), mode="bilinear", antialias=True),
-            resize(
-                x,
-                scale_factor=(0.6, 1.4),
-                recompute_scale_factor=True,
-                mode="bilinear",
-                antialias=True,
-            ),
-        )
-
-
-class ExponentialModel(torch.nn.Module):
-    def forward(self, x):
-        first = x.exponential_().clone()
-        second = x.exponential_(2.0)
-        return first, second, x
-
-
-def verify_exponential(mod, dtype):
-    """Check distribution and effect ordering without demanding identical RNG streams."""
-    if not env.has_llvm():
-        pytest.skip("need llvm")
-    if tvm.get_global_func("tvm.contrib.random.exponential", allow_missing=True) is None:
-        pytest.skip("need USE_RANDOM")
-    vm = relax.VirtualMachine(relax.build(mod, target="llvm"), tvm.cpu())
-    data = tvm.runtime.tensor(np.zeros(32768, dtype=dtype))
-    previous = None
-    for _ in range(2):
-        first, second, alias = [value.numpy() for value in vm["main"](data)]
-        np.testing.assert_array_equal(second, alias)
-        assert not np.array_equal(first, second)
-        if previous is not None:
-            assert not np.array_equal(first, previous)
-        previous = first.copy()
-        for result, rate in ((first, 1.0), (second, 2.0)):
-            assert result.dtype == np.dtype(dtype)
-            assert result.shape == (32768,)
-            assert np.isfinite(result).all() and (result >= 0).all()
-            reference = torch.empty(32768, dtype=getattr(torch, dtype)).exponential_(rate).numpy()
-            # Generous statistical bounds avoid dependence on either implementation's seed.
-            assert abs(result.mean() * rate - 1) < 0.05
-            assert abs(result.var() * rate**2 - 1) < 0.12
-            assert abs(np.mean(result <= 1 / rate) - (1 - math.exp(-1))) < 0.02
-            np.testing.assert_allclose(
-                np.quantile(result, [0.25, 0.5, 0.75]),
-                np.quantile(reference, [0.25, 0.5, 0.75]),
-                rtol=0.12,
-            )
-
-
 def verify_model(torch_model, input_info, binding, expected, **import_options):
     graph_model = fx.symbolic_trace(torch_model)
     with torch.no_grad():
@@ -3987,13 +3910,16 @@ def test_round():
         verify_model(Round(decimals), input_info, {}, expected)
 
 
-@pytest.mark.parametrize("ndim,dtype", [(2, "float32"), (3, "float64")])
-def test_pool_divisor_override(ndim, dtype):
-    model = PoolDivisorModel(ndim)
-    shape = (2, 2) + (6,) * ndim
-    args = (torch.linspace(-3, 4, int(np.prod(shape)), dtype=getattr(torch, dtype)).reshape(shape),)
-    mod = from_fx(fx.symbolic_trace(model), [(shape, dtype)])
-    verify_numerically(mod, model, args, rtol=1e-6, atol=1e-6)
+@pytest.mark.parametrize("as_module", [False, True])
+def test_pool_divisor_override(as_module):
+    op = (
+        torch.nn.AvgPool2d(2, divisor_override=3)
+        if as_module
+        else lambda x: torch.nn.functional.avg_pool2d(x, 2, divisor_override=3)
+    )
+    model = UnaryModule(op)
+    with pytest.raises(NotImplementedError, match="divisor_override"):
+        from_fx(fx.symbolic_trace(model), [((1, 1, 4, 4), "float32")])
 
 
 def test_numeric_semantics():
@@ -4019,42 +3945,6 @@ def test_numeric_semantics():
     args = (torch.tensor([[-1.0, 1.0, 3.0], [2.0, -2.0, 4.0]]),)
     mod = from_fx(fx.symbolic_trace(model), [((2, 3), "float32")])
     verify_numerically(mod, model, args, rtol=1e-5, atol=1e-6)
-
-
-@pytest.mark.parametrize("dtype", ["float32", "float64", "uint8"])
-def test_interpolate_antialiased(dtype):
-    model = AntialiasedResizeModel()
-    x = ((torch.arange(112).reshape(1, 2, 7, 8) * 53) % 251).to(getattr(torch, dtype))
-    if dtype != "uint8":
-        x /= 251
-    tolerance = 1e-6 if dtype == "float32" else 1e-10 if dtype == "float64" else 0
-    shape = (
-        (1, 2, tvm.tirx.Var("height", "int64"), tvm.tirx.Var("width", "int64"))
-        if dtype == "float32"
-        else x.shape
-    )
-    inputs = [(x,), (torch.rand(1, 2, 11, 10),)] if dtype == "float32" else None
-    mod = from_fx(fx.symbolic_trace(model), [(shape, dtype)])
-    verify_numerically(mod, model, (x,), rtol=tolerance, atol=tolerance, input_sets=inputs)
-
-
-@pytest.mark.parametrize("dtype", ["float32", "float64", "float16"])
-def test_exponential(dtype):
-    model = ExponentialModel()
-    mod = from_fx(fx.symbolic_trace(model), [((32768,), dtype)])
-    verify_exponential(mod, dtype)
-
-
-@pytest.mark.parametrize(
-    "op,message",
-    [
-        (lambda x: F.avg_pool2d(x, 2, divisor_override=0), "divisor_override"),
-        (lambda x: x.exponential_(0), "lambda > 0"),
-    ],
-)
-def test_invalid_pool_divisor_and_exponential_rate(op, message):
-    with pytest.raises(ValueError, match=message):
-        from_fx(fx.symbolic_trace(UnaryModule(op)), [((1, 1, 4, 4), "float32")])
 
 
 if __name__ == "__main__":

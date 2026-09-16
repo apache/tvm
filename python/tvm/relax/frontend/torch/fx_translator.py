@@ -20,7 +20,6 @@
 """PyTorch FX frontend of Relax."""
 
 from collections.abc import Callable
-from contextlib import nullcontext
 from functools import partial, reduce
 
 import tvm
@@ -270,14 +269,10 @@ class TorchFXImporter(BaseFXGraphImporter):
         stride = module.stride
         padding = module.padding
         ceil_mode = module.ceil_mode
+        if getattr(module, "divisor_override", None) is not None:
+            raise NotImplementedError("avg_pool divisor_override is not supported")
         return self._avg_pool2d_impl(
-            x,
-            kernel_size,
-            stride,
-            padding,
-            ceil_mode,
-            module.count_include_pad,
-            module.divisor_override,
+            x, kernel_size, stride, padding, ceil_mode, module.count_include_pad
         )
 
     def _avg_pool3d_module(self, node: fx.Node) -> relax.Var:
@@ -287,14 +282,10 @@ class TorchFXImporter(BaseFXGraphImporter):
         stride = module.stride
         padding = module.padding
         ceil_mode = module.ceil_mode
+        if getattr(module, "divisor_override", None) is not None:
+            raise NotImplementedError("avg_pool divisor_override is not supported")
         return self._avg_pool3d_impl(
-            x,
-            kernel_size,
-            stride,
-            padding,
-            ceil_mode,
-            module.count_include_pad,
-            module.divisor_override,
+            x, kernel_size, stride, padding, ceil_mode, module.count_include_pad
         )
 
     def _batch_norm_2d_module(self, node: fx.Node) -> relax.Var:
@@ -536,16 +527,8 @@ class TorchFXImporter(BaseFXGraphImporter):
             else (node.kwargs["antialias"] if "antialias" in node.kwargs else False)
         )
 
-        if antialias:
-            if self.default_image_layout == "NHWC":
-                data = self.block_builder.emit(relax.op.permute_dims(data, [0, 3, 1, 2]))
-            result = self._resize_antialias(
-                data, size, scale_factor, align_corners, method, recompute_scale_factor
-            )
-            if self.default_image_layout == "NHWC":
-                result = self.block_builder.emit(relax.op.permute_dims(result, [0, 2, 3, 1]))
-            return result
         assert recompute_scale_factor is None
+        assert antialias is False
 
         if size is None:
             shape = self.shape_of(data)
@@ -1059,7 +1042,6 @@ class TorchFXImporter(BaseFXGraphImporter):
             "clone": lambda node: self.env[node.args[0]],
             "empty": self._empty,
             "empty_like": self._empty_like,
-            "exponential_": self._exponential,
             "eye": self._eye,
             "fill": self._fill,
             "fill_": self._inplace_fill,
@@ -1141,13 +1123,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             v.name: v for shape, _ in input_info for v in shape if isinstance(v, tvm.ir.Var)
         }
 
-        has_effects = self._has_impure_ops(model)
-        emit_output = self.block_builder.emit if has_effects else self.block_builder.emit_output
-        with self.block_builder.function(
-            name=func_name, params=inputs.copy(), attrs=func_attrs, pure=not has_effects
-        ):
+        with self.block_builder.function(name=func_name, params=inputs.copy(), attrs=func_attrs):
             output = None
-            with nullcontext() if has_effects else self.block_builder.dataflow():
+            with self.block_builder.dataflow():
                 # Translate model parameters.
                 for _, param in model.named_parameters():
                     shape = param.data.shape
@@ -1176,14 +1154,14 @@ class TorchFXImporter(BaseFXGraphImporter):
                         if isinstance(args[0], tuple | list | relax.Tuple):
                             # unit tuple
                             if unwrap_unit_return_tuple and len(args[0]) == 1:
-                                output = emit_output(args[0][0])
+                                output = self.block_builder.emit_output(args[0][0])
                             elif no_bind_return_tuple:
                                 output = []
                                 for ret in args[0]:
-                                    output.append(emit_output(ret))
+                                    output.append(self.block_builder.emit_output(ret))
 
                         if output is None:
-                            output = emit_output(args[0])
+                            output = self.block_builder.emit_output(args[0])
                         break
                     elif node.op == "get_attr":
                         self.env[node] = self._fetch_attr(model, node.target)

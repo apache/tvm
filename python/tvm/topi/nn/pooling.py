@@ -16,8 +16,6 @@
 # under the License.
 """TVM operator pooling compute."""
 
-from tvm import te, tirx
-
 from .. import cpp
 
 POOL_TYPE_CODE = {"avg": 0, "max": 1}
@@ -405,49 +403,4 @@ def pool3d(
         ceil_mode,
         layout,
         count_include_pad,
-    )
-
-
-def avg_pool_divisor(data, ndim, kernel, stride, padding, ceil_mode, divisor):
-    """Average-pool the final ``ndim`` axes with a fixed, nonzero divisor.
-
-    ``kernel``, ``stride`` and symmetric ``padding`` accept scalars or per-axis
-    sequences. An omitted ``stride`` uses ``kernel``. Following PyTorch's
-    ``ceil_mode`` semantics, trailing windows must start before the right padding.
-    Values outside the input contribute zero; ``divisor`` replaces the element count.
-    """
-
-    def expand(value):
-        values = (value,) if isinstance(value, int) else tuple(value)
-        return values * ndim if len(values) == 1 else values
-
-    kernel = expand(kernel)
-    stride = kernel if stride is None or stride == [] else expand(stride)
-    padding = expand(padding)
-    spatial = list(data.shape)[-ndim:]
-    output = []
-    for length, k, s, p in zip(spatial, kernel, stride, padding):
-        extent = (length + 2 * p - k + (s - 1 if ceil_mode else 0)) // s + 1
-        if ceil_mode:
-            extent = tirx.min(extent, (length + p + s - 1) // s)
-        output.append(extent)
-    shape = list(data.shape)[:-ndim] + output
-    axes = [te.reduce_axis((0, k), f"r{i}") for i, k in enumerate(kernel)]
-    dtype = "float32" if data.dtype in ("float16", "bfloat16") else data.dtype
-
-    def window(*indices):
-        positions = [indices[-ndim + i] * stride[i] - padding[i] + axes[i] for i in range(ndim)]
-        valid = tirx.all(
-            *[tirx.all(pos >= 0, pos < length) for pos, length in zip(positions, spatial)]
-        )
-        value = tirx.if_then_else(
-            valid, data[(*indices[:-ndim], *positions)].astype(dtype), tirx.const(0, dtype)
-        )
-        return te.sum(value, axis=axes)
-
-    sums = te.compute(shape, window, name="pool_sum")
-    return te.compute(
-        shape,
-        lambda *i: (sums[i] / tirx.const(divisor, dtype)).astype(data.dtype),
-        name="pool_divisor",
     )
