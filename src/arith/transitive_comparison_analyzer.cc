@@ -558,7 +558,7 @@ std::function<void()> TransitiveComparisonAnalyzer::EnterConstraint(const PrimEx
 void TransitiveComparisonAnalyzer::Impl::AddKnown(const PrimExpr& expr,
                                                   std::vector<Comparison>* vec) {
   for (const auto& subexpr : ExtractConstraints(expr, false)) {
-    if (tirx::SideEffect(expr) <= tirx::CallEffectKind::kPure) {
+    if (SideEffect(expr) <= CallEffectKind::kPure) {
       if (auto cmp = FromExpr(subexpr)) {
         vec->push_back(cmp.value());
       }
