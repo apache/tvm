@@ -83,14 +83,12 @@ struct WebGPUWorkGroupInfo {
 class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
  public:
   static WebGPUWorkGroupInfo Collect(const Stmt& stmt) {
-    WebGPUWorkgroupInfoCollector collector;
-    collector(stmt);
-    return collector.info_;
+    auto collector = ffi::make_object<WebGPUWorkgroupInfoCollector>();
+    collector->Visit(stmt);
+    return collector->info_;
   }
 
  private:
-  using StmtExprVisitor::VisitExpr_;
-
   static ffi::Optional<Var> GetBufferDataVar(const Expr& data) {
     if (auto var = data.as<Var>()) {
       return var;
@@ -107,28 +105,32 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
     return it == buffer_aliases_.end() ? buffer_var : it->second;
   }
 
-  void VisitExpr_(const VarNode* op) final {
-    StmtExprVisitor::VisitExpr_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     Var buffer_var = ffi::GetRef<Var>(op);
     if (buffer_var->ty.as<PointerTypeNode>()) {
       info_.write_access_set.insert(buffer_var);
     }
+
+    return std::nullopt;
   }
 
-  void VisitStmt_(const BufferStoreNode* op) final {
-    StmtExprVisitor::VisitStmt_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     info_.write_access_set.insert(ResolveBuffer(op->buffer.var()));
+
+    return std::nullopt;
   }
 
-  void VisitStmt_(const DeclBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
     if (auto source = GetBufferDataVar(op->data)) {
       buffer_aliases_.insert_or_assign(op->buffer.get(), ResolveBuffer(source.value()));
-      return;
+      return std::nullopt;
     }
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const AttrStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
     // record workgroup size
     if (op->attr_key == tirx::attr::thread_extent) {
       IterVar iv = op->node.as_or_throw<IterVar>();
@@ -149,7 +151,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
       }
     }
     // normal operation
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
   WebGPUWorkGroupInfo info_;
   std::unordered_map<const VarNode*, Var> buffer_aliases_;
