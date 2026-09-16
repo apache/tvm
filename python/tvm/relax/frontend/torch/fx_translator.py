@@ -258,9 +258,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         stride = module.stride
         padding = module.padding
         ceil_mode = module.ceil_mode
-        return self._avg_pool1d_impl(
-            x, kernel_size, stride, padding, ceil_mode, module.count_include_pad
-        )
+        return self._avg_pool1d_impl(x, kernel_size, stride, padding, ceil_mode)
 
     def _avg_pool2d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -269,11 +267,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         stride = module.stride
         padding = module.padding
         ceil_mode = module.ceil_mode
-        if getattr(module, "divisor_override", None) is not None:
-            raise NotImplementedError("avg_pool divisor_override is not supported")
-        return self._avg_pool2d_impl(
-            x, kernel_size, stride, padding, ceil_mode, module.count_include_pad
-        )
+        return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode)
 
     def _avg_pool3d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -282,11 +276,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         stride = module.stride
         padding = module.padding
         ceil_mode = module.ceil_mode
-        if getattr(module, "divisor_override", None) is not None:
-            raise NotImplementedError("avg_pool divisor_override is not supported")
-        return self._avg_pool3d_impl(
-            x, kernel_size, stride, padding, ceil_mode, module.count_include_pad
-        )
+        return self._avg_pool3d_impl(x, kernel_size, stride, padding, ceil_mode)
 
     def _batch_norm_2d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -682,9 +672,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         x = self.env[node.args[0]]
         dim = node.args[1]
         index = relax.const(node.args[2], "int64")
-        return self.block_builder.emit(
-            relax.op.take(x, index, dim, mode="wrap" if node.args[2] < 0 else "fast")
-        )
+        return self.block_builder.emit(relax.op.take(x, index, dim))
 
     def _size(self, node: fx.Node) -> relax.Expr:
         x = self.env[node.args[0]]

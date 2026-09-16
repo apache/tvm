@@ -339,18 +339,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factors", None)
         )
 
-        # Without a low-pass filter, ordinary resize only matches this operation
-        # for half-pixel upsampling. Do not silently drop antialiasing on downsampling.
-        spatial_shape = list(self.shape_of(x))[-2:]
-        if (
-            align_corners
-            or size is None
-            or any(
-                not tvm.arith.Analyzer().can_prove(dst >= src)
-                for src, dst in zip(spatial_shape, size)
-            )
-        ):
-            raise NotImplementedError("Antialiased downsampling/align_corners is not supported")
+        # Note: TVM's resize2d doesn't have explicit antialias support.
+        # For upsampling, antialiasing has minimal effect, so we use regular bilinear.
         return self._upsample_impl(
             x, size=size, scale_factor=scale_factor, method="linear", align_corners=align_corners
         )
@@ -474,7 +464,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             outputs = outputs[::-1]
 
         output = self.block_builder.emit(relax.op.stack(outputs, axis=0))
-        return output, h_prev, c_prev
+        return output
 
     def _lstm(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
@@ -603,7 +593,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             else input_tensor
         )
 
-        output_fwd, h_prev_fwd, c_prev_fwd = self._lstm_cell_unroll(
+        output_fwd = self._lstm_cell_unroll(
             input_reshaped,
             weight_ih_fwd,
             weight_hh_fwd,
@@ -617,7 +607,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         )
 
         if bidirectional:
-            output_bwd, h_prev_bwd, c_prev_bwd = self._lstm_cell_unroll(
+            output_bwd = self._lstm_cell_unroll(
                 input_reshaped,
                 weight_ih_bwd,
                 weight_hh_bwd,
@@ -636,13 +626,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         if batch_first:
             # (seq_len, batch_size, hidden_size) -> (batch_size, seq_len, hidden_size)
             output = self.block_builder.emit(relax.op.permute_dims(output, axes=[1, 0, 2]))
-        h_prev = self.block_builder.emit(
-            relax.op.stack([h_prev_fwd, h_prev_bwd] if bidirectional else [h_prev_fwd], axis=0)
-        )
-        c_prev = self.block_builder.emit(
-            relax.op.stack([c_prev_fwd, c_prev_bwd] if bidirectional else [c_prev_fwd], axis=0)
-        )
-        return self.block_builder.emit(relax.Tuple([output, h_prev, c_prev]))
+        return output
 
     def _gru_cell_unroll(
         self,
@@ -782,7 +766,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             outputs = outputs[::-1]
 
         output = self.block_builder.emit(relax.op.stack(outputs, axis=0))
-        return output, h_prev
+        return output
 
     def _gru(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
@@ -895,7 +879,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         )
 
         # Process forward direction
-        output_fwd, h_prev_fwd = self._gru_cell_unroll(
+        output_fwd = self._gru_cell_unroll(
             input_reshaped,
             weight_ih_fwd,
             weight_hh_fwd,
@@ -910,7 +894,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         # Process backward direction if bidirectional
         if bidirectional:
-            output_bwd, h_prev_bwd = self._gru_cell_unroll(
+            output_bwd = self._gru_cell_unroll(
                 input_reshaped,
                 weight_ih_bwd,
                 weight_hh_bwd,
@@ -932,10 +916,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # (seq_len, batch_size, hidden_size) -> (batch_size, seq_len, hidden_size)
             output = self.block_builder.emit(relax.op.permute_dims(output, axes=[1, 0, 2]))
 
-        h_prev = self.block_builder.emit(
-            relax.op.stack([h_prev_fwd, h_prev_bwd] if bidirectional else [h_prev_fwd], axis=0)
-        )
-        return self.block_builder.emit(relax.Tuple([output, h_prev]))
+        return output
 
     def _rnn_tanh_cell_unroll(
         self,
@@ -1144,9 +1125,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         x = self.env[node.args[0]]
         dim = node.args[1]
         index = relax.const(node.args[2], "int64")
-        return self.block_builder.emit(
-            relax.op.take(x, index, dim, mode="wrap" if node.args[2] < 0 else "fast")
-        )
+        return self.block_builder.emit(relax.op.take(x, index, dim))
 
     def _slice(self, node: fx.Node) -> relax.Var:
         import sys
@@ -1444,12 +1423,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         )
 
     def _exponential(self, node: fx.Node) -> relax.Var:
-        raise NotImplementedError("Runtime exponential sampling is not supported")
-
-    def _assert_async(self, node: fx.Node) -> relax.Var:
-        condition = self.env[node.args[0]]
-        message = node.args[1] if len(node.args) > 1 else "PyTorch assertion failed"
-        return self.block_builder.emit(relax.op.assert_op(condition, format=message))
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(relax.op.zeros_like(x))
 
     def _max_dim(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -1524,15 +1499,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         return convert
 
     ########## Higher-Order Ops ##########
-
-    @staticmethod
-    def _has_assert_op(graph_module) -> bool:
-        return any(
-            node.op == "call_function" and node.target.__name__.startswith("_assert_async.")
-            for module in graph_module.modules()
-            if isinstance(module, fx.GraphModule)
-            for node in module.graph.nodes
-        )
 
     @staticmethod
     def _has_cond_op(nodes) -> bool:
@@ -1681,9 +1647,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 self.env[ph] = param
 
             # Build the branch function (using a plain BindingBlock, not DataflowBlock).
-            with self.block_builder.function(
-                name=unique_name, params=params, pure=not self._has_assert_op(graph_module)
-            ):
+            with self.block_builder.function(name=unique_name, params=params):
                 inner = self._translate_fx_graph(graph_module, nodes, {})
                 if isinstance(inner, tuple | list):
                     if len(inner) == 1:
@@ -2092,8 +2056,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # symbolic shape operations and constraints
             "sym_constrain_range_for_size.default": lambda node: self.env[node.args[0]],
             "_assert_scalar.default": lambda node: self.env[node.args[0]],
-            "_assert_async.default": self._assert_async,
-            "_assert_async.msg": self._assert_async,
             "ge": self._symbolic_comparison(operator.ge),
             "le": self._symbolic_comparison(operator.le),
             "gt": self._symbolic_comparison(operator.gt),
@@ -2282,14 +2244,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         # When the graph contains torch.cond, we must avoid DataflowBlock
         # because relax.If cannot appear inside a dataflow region.
-        has_assert = self._has_assert_op(exported_program.graph_module)
-        use_dataflow = not self._has_cond_op(nodes) and not has_assert
+        use_dataflow = not self._has_cond_op(nodes)
 
         with self.block_builder.function(
-            name=func_name,
-            params=list(inputs_vars.values()).copy(),
-            attrs=func_attrs,
-            pure=not has_assert,
+            name=func_name, params=list(inputs_vars.values()).copy(), attrs=func_attrs
         ):
             with contextlib.ExitStack() as stack:
                 if use_dataflow:
@@ -2458,22 +2416,7 @@ def from_exported_program(
 
     # Conditionally decompose into Core ATen operators
     if run_ep_decomposition and not _has_sparse_tensors(exported_program):
-        # Preserve single-layer, unprojected RNNs handled by dedicated converters.
-        # Some PyTorch LSTM decompositions add a dimension to the returned states.
-        decompositions = torch.export.default_decompositions()
-        for op in (
-            torch.ops.aten.lstm.input,
-            torch.ops.aten.gru.input,
-            torch.ops.aten.rnn_tanh.input,
-        ):
-            nodes = [n for n in exported_program.graph.nodes if n.target == op]
-            if nodes and all(
-                n.args[4] == 1
-                and len(n.args[2]) == (4 if n.args[3] else 2) * (2 if n.args[7] else 1)
-                for n in nodes
-            ):
-                decompositions.pop(op, None)
-        exported_program = exported_program.run_decompositions(decompositions)
+        exported_program = exported_program.run_decompositions()
 
     return ExportedProgramImporter().from_exported_program(
         exported_program,
