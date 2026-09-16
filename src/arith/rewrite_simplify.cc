@@ -29,6 +29,8 @@
 #include <tvm/ffi/expected.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
@@ -387,7 +389,7 @@ void RewriteSimplifier::Impl::Update(const Var& var, const PrimExpr& info, bool 
   if (!can_override) {
     auto it = var_map_.find(var);
     if (it != var_map_.end()) {
-      TVM_FFI_ICHECK(ExprDeepEqual()(it->second, info))
+      TVM_FFI_ICHECK(prim::ExprDeepEqual()(it->second, info))
           << "Trying to update var \'" << var << "\'"
           << " with a different value: "
           << "original=" << it->second << ", new=" << info;
@@ -1751,7 +1753,7 @@ ffi::Optional<PrimExpr> RewriteSimplifier::Impl::TryMatchLiteralConstraint(
     const PrimExpr& expr) const {
   PrimExpr negation = prim::Not(expr);
 
-  ExprDeepEqual expr_equal;
+  prim::ExprDeepEqual expr_equal;
   for (const auto& constraint : literal_constraints_) {
     if (expr_equal(constraint, expr)) {
       return MakeConst(expr.ty(), true);
