@@ -5838,6 +5838,26 @@ def test_one_hot():
     verify_model(OneHot(), [([5], "int32")], {}, Expected)
 
 
+def test_one_hot_invalid_num_classes():
+    input_info = [([5], "int32")]
+
+    class OneHot(Module):
+        def __init__(self, num_classes):
+            super().__init__()
+            self.num_classes = num_classes
+
+        def forward(self, indices):
+            return torch.nn.functional.one_hot(indices, num_classes=self.num_classes)
+
+    # torch only rejects a non-positive num_classes when the model is executed, and
+    # fx.symbolic_trace does not execute it, so the invalid value reaches the frontend and
+    # has to be rejected there instead of failing an internal `depth > 0` check in
+    # relax.op.one_hot that never mentions num_classes.
+    for num_classes in (0, -1, -2):
+        with pytest.raises(ValueError, match="num_classes must be a positive integer"):
+            from_fx(fx.symbolic_trace(OneHot(num_classes)), input_info)
+
+
 def test_empty_like():
     class EmptyLike(Module):
         def forward(self, data):
