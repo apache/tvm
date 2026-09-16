@@ -17,14 +17,19 @@
 import math
 import operator
 
+import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
 from frontend_torch_utils import (
+    AntialiasedResizeModel,
+    ExponentialModel,
+    PoolDivisorModel,
     UnaryModule,
     activation_cases,
     constants,
     make_expected,
+    verify_exponential,
     verify_numerically,
 )
 from torch import fx
@@ -3775,16 +3780,13 @@ def test_round():
         verify_model(Round(decimals), input_info, {}, expected)
 
 
-@pytest.mark.parametrize("as_module", [False, True])
-def test_pool_divisor_override(as_module):
-    op = (
-        torch.nn.AvgPool2d(2, divisor_override=3)
-        if as_module
-        else lambda x: torch.nn.functional.avg_pool2d(x, 2, divisor_override=3)
-    )
-    model = UnaryModule(op)
-    with pytest.raises(NotImplementedError, match="divisor_override"):
-        from_fx(fx.symbolic_trace(model), [((1, 1, 4, 4), "float32")])
+@pytest.mark.parametrize("ndim,dtype", [(2, "float32"), (3, "float64")])
+def test_pool_divisor_override(ndim, dtype):
+    model = PoolDivisorModel(ndim)
+    shape = (2, 2) + (6,) * ndim
+    args = (torch.linspace(-3, 4, int(np.prod(shape)), dtype=getattr(torch, dtype)).reshape(shape),)
+    mod = from_fx(fx.symbolic_trace(model), [(shape, dtype)])
+    verify_numerically(mod, model, args, rtol=1e-6, atol=1e-6)
 
 
 def test_numeric_semantics():
@@ -3810,6 +3812,42 @@ def test_numeric_semantics():
     args = (torch.tensor([[-1.0, 1.0, 3.0], [2.0, -2.0, 4.0]]),)
     mod = from_fx(fx.symbolic_trace(model), [((2, 3), "float32")])
     verify_numerically(mod, model, args, rtol=1e-5, atol=1e-6)
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float64", "uint8"])
+def test_interpolate_antialiased(dtype):
+    model = AntialiasedResizeModel()
+    x = ((torch.arange(112).reshape(1, 2, 7, 8) * 53) % 251).to(getattr(torch, dtype))
+    if dtype != "uint8":
+        x /= 251
+    tolerance = 1e-6 if dtype == "float32" else 1e-10 if dtype == "float64" else 0
+    shape = (
+        (1, 2, tvm.tirx.Var("height", "int64"), tvm.tirx.Var("width", "int64"))
+        if dtype == "float32"
+        else x.shape
+    )
+    inputs = [(x,), (torch.rand(1, 2, 11, 10),)] if dtype == "float32" else None
+    mod = from_fx(fx.symbolic_trace(model), [(shape, dtype)])
+    verify_numerically(mod, model, (x,), rtol=tolerance, atol=tolerance, input_sets=inputs)
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float64", "float16"])
+def test_exponential(dtype):
+    model = ExponentialModel()
+    mod = from_fx(fx.symbolic_trace(model), [((32768,), dtype)])
+    verify_exponential(mod, dtype)
+
+
+@pytest.mark.parametrize(
+    "op,message",
+    [
+        (lambda x: F.avg_pool2d(x, 2, divisor_override=0), "divisor_override"),
+        (lambda x: x.exponential_(0), "lambda > 0"),
+    ],
+)
+def test_invalid_pool_divisor_and_exponential_rate(op, message):
+    with pytest.raises(ValueError, match=message):
+        from_fx(fx.symbolic_trace(UnaryModule(op)), [((1, 1, 4, 4), "float32")])
 
 
 if __name__ == "__main__":

@@ -21,10 +21,14 @@ import numpy as np
 import pytest
 import torch
 from frontend_torch_utils import (
+    AntialiasedResizeModel,
+    ExponentialModel,
+    PoolDivisorModel,
     UnaryModule,
     activation_cases,
     constants,
     make_expected,
+    verify_exponential,
     verify_numerically,
 )
 from torch import nn
@@ -2493,17 +2497,27 @@ def test_interpolate(mode, method):
     verify_model(model, (torch.randn(shape),), {}, expected, run_ep_decomposition=False)
 
 
-def test_interpolate_antialiased():
-    args = (torch.arange(12.0).reshape(1, 1, 3, 4),)
-    model = UnaryModule(
-        lambda x: torch.nn.functional.interpolate(x, (6, 8), mode="bilinear", antialias=True)
+@pytest.mark.parametrize("dtype", ["float32", "float64", "uint8"])
+def test_interpolate_antialiased(dtype):
+    model = AntialiasedResizeModel()
+    x = ((torch.arange(112).reshape(1, 2, 7, 8) * 53) % 251).to(getattr(torch, dtype))
+    if dtype != "uint8":
+        x /= 251
+    tolerance = 1e-6 if dtype == "float32" else 1e-10 if dtype == "float64" else 0
+    dynamic = (
+        {
+            "x": {
+                2: torch.export.Dim("height", min=4, max=16),
+                3: torch.export.Dim("width", min=4, max=16),
+            }
+        }
+        if dtype == "float32"
+        else None
     )
-    verify_model_numerically(model, args, rtol=1e-5, atol=1e-5)
-    downsample = UnaryModule(
-        lambda x: torch.nn.functional.interpolate(x, (2, 2), mode="bilinear", antialias=True)
+    inputs = [(x,), (torch.rand(1, 2, 11, 10),)] if dynamic else None
+    verify_model_numerically(
+        model, (x,), rtol=tolerance, atol=tolerance, dynamic_shapes=dynamic, input_sets=inputs
     )
-    with pytest.raises(NotImplementedError, match="Antialiased"):
-        from_exported_program(export(downsample, args))
 
 
 @pytest.mark.parametrize("dim", [None, 1])
@@ -4930,10 +4944,11 @@ def test_sym_size_int():
     )
 
 
-def test_exponential_unsupported():
-    model = UnaryModule(lambda x: x.exponential_())
-    with pytest.raises(NotImplementedError, match="exponential sampling"):
-        from_exported_program(export(model, (torch.ones(2, 3),)))
+@pytest.mark.parametrize("dtype", ["float32", "float64", "float16"])
+def test_exponential(dtype):
+    model = ExponentialModel()
+    mod = from_exported_program(export(model, (torch.zeros(32768, dtype=getattr(torch, dtype)),)))
+    verify_exponential(mod, dtype)
 
 
 def test_max_dim():
@@ -5438,16 +5453,12 @@ def test_affine_grid_numerically():
     )
 
 
-@pytest.mark.parametrize("as_module", [False, True])
-def test_pool_divisor_override(as_module):
-    op = (
-        torch.nn.AvgPool2d(2, divisor_override=3)
-        if as_module
-        else lambda x: torch.nn.functional.avg_pool2d(x, 2, divisor_override=3)
-    )
-    model = UnaryModule(op)
-    with pytest.raises(NotImplementedError, match="divisor_override"):
-        from_exported_program(export(model, (torch.ones(1, 1, 4, 4),)))
+@pytest.mark.parametrize("ndim,dtype", [(2, "float32"), (3, "float64")])
+def test_pool_divisor_override(ndim, dtype):
+    model = PoolDivisorModel(ndim)
+    shape = (2, 2) + (6,) * ndim
+    args = (torch.linspace(-3, 4, int(np.prod(shape)), dtype=getattr(torch, dtype)).reshape(shape),)
+    verify_model_numerically(model, args, rtol=1e-6, atol=1e-6)
 
 
 def test_numeric_semantics():

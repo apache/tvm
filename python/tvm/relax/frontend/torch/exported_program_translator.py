@@ -329,31 +329,19 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             x, size=size, scale_factor=scale_factor, method="linear", align_corners=align_corners
         )
 
-    def _upsample_bilinear2d_aa(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        size = node.args[1] if len(node.args) > 1 else node.kwargs.get("output_size", None)
+    def _upsample_2d_aa(self, node: fx.Node) -> relax.Var:
+        size = self._retrieve_args(
+            node.args[1] if len(node.args) > 1 else node.kwargs.get("output_size")
+        )
         align_corners = (
             node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", False)
         )
-        scale_factor = (
-            node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factors", None)
+        scales = (
+            node.args[3] if len(node.args) > 3 else node.kwargs.get("scales_h"),
+            node.args[4] if len(node.args) > 4 else node.kwargs.get("scales_w"),
         )
-
-        # Without a low-pass filter, ordinary resize only matches this operation
-        # for half-pixel upsampling. Do not silently drop antialiasing on downsampling.
-        spatial_shape = list(self.shape_of(x))[-2:]
-        if (
-            align_corners
-            or size is None
-            or any(
-                not tvm.arith.Analyzer().can_prove(dst >= src)
-                for src, dst in zip(spatial_shape, size)
-            )
-        ):
-            raise NotImplementedError("Antialiased downsampling/align_corners is not supported")
-        return self._upsample_impl(
-            x, size=size, scale_factor=scale_factor, method="linear", align_corners=align_corners
-        )
+        method = "bicubic" if "bicubic" in node.target.__name__ else "bilinear"
+        return self._resize_antialias(self.env[node.args[0]], size, scales, align_corners, method)
 
     def _upsample_nearest2d(self, node: fx.node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -1443,9 +1431,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             )
         )
 
-    def _exponential(self, node: fx.Node) -> relax.Var:
-        raise NotImplementedError("Runtime exponential sampling is not supported")
-
     def _assert_async(self, node: fx.Node) -> relax.Var:
         condition = self.env[node.args[0]]
         message = node.args[1] if len(node.args) > 1 else "PyTorch assertion failed"
@@ -1524,15 +1509,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         return convert
 
     ########## Higher-Order Ops ##########
-
-    @staticmethod
-    def _has_assert_op(graph_module) -> bool:
-        return any(
-            node.op == "call_function" and node.target.__name__.startswith("_assert_async.")
-            for module in graph_module.modules()
-            if isinstance(module, fx.GraphModule)
-            for node in module.graph.nodes
-        )
 
     @staticmethod
     def _has_cond_op(nodes) -> bool:
@@ -1682,7 +1658,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
             # Build the branch function (using a plain BindingBlock, not DataflowBlock).
             with self.block_builder.function(
-                name=unique_name, params=params, pure=not self._has_assert_op(graph_module)
+                name=unique_name, params=params, pure=not self._has_impure_ops(graph_module)
             ):
                 inner = self._translate_fx_graph(graph_module, nodes, {})
                 if isinstance(inner, tuple | list):
@@ -1775,6 +1751,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "erf.default": self._unary_op(relax.op.erf),
             "exp.default": self._unary_op(relax.op.exp),
             "exponential.default": self._exponential,
+            "exponential_.default": self._exponential,
             "expm1.default": lambda node: self.block_builder.emit(
                 relax.op.subtract(
                     relax.op.exp(self.env[node.args[0]]),
@@ -1964,7 +1941,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "scaled_dot_product_attention.default": self._scaled_dot_product_attention,
             "unbind.int": self._unbind,
             "upsample_bilinear2d.vec": self._upsample_bilinear2d,
-            "_upsample_bilinear2d_aa.default": self._upsample_bilinear2d_aa,
+            "_upsample_bilinear2d_aa.default": self._upsample_2d_aa,
+            "_upsample_bicubic2d_aa.default": self._upsample_2d_aa,
             "upsample_nearest2d.vec": self._upsample_nearest2d,
             "upsample_bicubic2d.vec": self._upsample_bicubic2d,
             # statistical
@@ -2090,6 +2068,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "sym_size.int": self._sym_size_int,
             "_local_scalar_dense.default": self._item,
             # symbolic shape operations and constraints
+            "sym_float": lambda node: tvm.tirx.Cast("float64", self.env[node.args[0]]),
+            "trunc": lambda node: tvm.tirx.Cast("int64", self.env[node.args[0]]),
             "sym_constrain_range_for_size.default": lambda node: self.env[node.args[0]],
             "_assert_scalar.default": lambda node: self.env[node.args[0]],
             "_assert_async.default": self._assert_async,
@@ -2282,14 +2262,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         # When the graph contains torch.cond, we must avoid DataflowBlock
         # because relax.If cannot appear inside a dataflow region.
-        has_assert = self._has_assert_op(exported_program.graph_module)
-        use_dataflow = not self._has_cond_op(nodes) and not has_assert
+        has_effects = self._has_impure_ops(exported_program.graph_module)
+        use_dataflow = not self._has_cond_op(nodes) and not has_effects
 
         with self.block_builder.function(
             name=func_name,
             params=list(inputs_vars.values()).copy(),
             attrs=func_attrs,
-            pure=not has_assert,
+            pure=not has_effects,
         ):
             with contextlib.ExitStack() as stack:
                 if use_dataflow:

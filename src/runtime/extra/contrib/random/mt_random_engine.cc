@@ -129,6 +129,31 @@ class RandomEngine {
     }
   }
 
+  /*! \brief Sample exponential values on the host, copying to the output device if needed. */
+  void SampleExponential(DLTensor* data, double rate) {
+    TVM_FFI_ICHECK_GT(rate, 0.0) << "exponential expects rate > 0";
+    TVM_FFI_ICHECK(ffi::IsContiguous(*data));
+    TVM_FFI_ICHECK(data->dtype.code == kDLFloat && data->dtype.lanes == 1 &&
+                   (data->dtype.bits == 32 || data->dtype.bits == 64));
+    if (data->device.device_type != kDLCPU) {
+      runtime::Tensor local = runtime::Tensor::Empty(
+          std::vector<int64_t>{data->shape, data->shape + data->ndim}, data->dtype, {kDLCPU, 0});
+      SampleExponential(const_cast<DLTensor*>(local.GetDLTensorPtr()), rate);
+      runtime::Tensor::CopyFromTo(local.GetDLTensorPtr(), data);
+      return;
+    }
+    int64_t size = 1;
+    for (int i = 0; i < data->ndim; ++i) size *= data->shape[i];
+    std::exponential_distribution<double> distribution(rate);
+    if (data->dtype.bits == 64) {
+      std::generate_n(static_cast<double*>(data->data), size,
+                      [&]() { return distribution(rnd_engine_); });
+    } else {
+      std::generate_n(static_cast<float*>(data->data), size,
+                      [&]() { return static_cast<float>(distribution(rnd_engine_)); });
+    }
+  }
+
   void RandomFillForMeasure(DLTensor* data) {
     if (data->device.device_type == kDLCPU) {
       FillDataForMeasure(data);

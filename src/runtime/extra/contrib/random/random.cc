@@ -120,6 +120,14 @@ RandomEngine* GetRandomEngineForArgs(const ffi::PackedArgs& args, int seed_idx, 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
+      .def("tvm.contrib.random.exponential",
+           [](runtime::Tensor like, double rate) {
+             DLDataType dtype{kDLFloat, static_cast<uint8_t>(like->dtype.bits == 64 ? 64 : 32), 1};
+             runtime::Tensor output = runtime::Tensor::Empty(like.Shape(), dtype, like->device);
+             RandomThreadLocalEntry::ThreadLocal()->random_engine.SampleExponential(
+                 const_cast<DLTensor*>(output.GetDLTensorPtr()), rate);
+             return output;
+           })
       .def_packed("tvm.contrib.random.randint",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
                     RandomThreadLocalEntry* entry = RandomThreadLocalEntry::ThreadLocal();

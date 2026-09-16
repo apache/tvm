@@ -164,3 +164,80 @@ def activation_cases(*, exported=False):
         add("triu-inplace", lambda x: x.triu_(1), lambda x: op.triu(x, 1))
         add("trunc", torch.trunc, op.trunc)
     return cases
+
+
+class PoolDivisorModel(torch.nn.Module):
+    """Cover padded partial windows, signed divisors, and an unbatched input."""
+
+    def __init__(self, ndim):
+        super().__init__()
+        self.pool = getattr(torch.nn, f"AvgPool{ndim}d")(
+            3, stride=2, padding=1, ceil_mode=True, divisor_override=-7
+        )
+        self.functional = getattr(torch.nn.functional, f"avg_pool{ndim}d")
+
+    def forward(self, x):
+        return (
+            self.pool(x),
+            self.functional(x, 3, 2, 1, True, False, 5),
+            self.functional(x[0], 2, divisor_override=3),
+        )
+
+
+class AntialiasedResizeModel(torch.nn.Module):
+    def forward(self, x):
+        resize = torch.nn.functional.interpolate
+        return (
+            resize(x, (3, 4), mode="bilinear", antialias=True),
+            resize(x, (3, 4), mode="bilinear", align_corners=True, antialias=True),
+            resize(x, (1, 1), mode="bilinear", align_corners=True, antialias=True),
+            resize(x, (3, 4), mode="bicubic", antialias=True),
+            resize(x, (10, 11), mode="bicubic", align_corners=True, antialias=True),
+            resize(x, scale_factor=(0.6, 1.4), mode="bilinear", antialias=True),
+            resize(
+                x,
+                scale_factor=(0.6, 1.4),
+                recompute_scale_factor=True,
+                mode="bilinear",
+                antialias=True,
+            ),
+        )
+
+
+class ExponentialModel(torch.nn.Module):
+    def forward(self, x):
+        first = x.exponential_().clone()
+        second = x.exponential_(2.0)
+        return first, second, x
+
+
+def verify_exponential(mod, dtype):
+    """Check distribution and effect ordering without demanding identical RNG streams."""
+    if not env.has_llvm():
+        pytest.skip("need llvm")
+    if tvm.get_global_func("tvm.contrib.random.exponential", allow_missing=True) is None:
+        pytest.skip("need USE_RANDOM")
+    vm = relax.VirtualMachine(relax.build(mod, target="llvm"), tvm.cpu())
+    data = tvm.runtime.tensor(np.zeros(32768, dtype=dtype))
+    previous = None
+    for _ in range(2):
+        first, second, alias = [value.numpy() for value in vm["main"](data)]
+        np.testing.assert_array_equal(second, alias)
+        assert not np.array_equal(first, second)
+        if previous is not None:
+            assert not np.array_equal(first, previous)
+        previous = first.copy()
+        for result, rate in ((first, 1.0), (second, 2.0)):
+            assert result.dtype == np.dtype(dtype)
+            assert result.shape == (32768,)
+            assert np.isfinite(result).all() and (result >= 0).all()
+            reference = torch.empty(32768, dtype=getattr(torch, dtype)).exponential_(rate).numpy()
+            # Generous statistical bounds avoid dependence on either implementation's seed.
+            assert abs(result.mean() * rate - 1) < 0.05
+            assert abs(result.var() * rate**2 - 1) < 0.12
+            assert abs(np.mean(result <= 1 / rate) - (1 - math.exp(-1))) < 0.02
+            np.testing.assert_allclose(
+                np.quantile(result, [0.25, 0.5, 0.75]),
+                np.quantile(reference, [0.25, 0.5, 0.75]),
+                rtol=0.12,
+            )
