@@ -167,6 +167,7 @@ const DeviceIntrinsicRegistration kDeviceIntrinsics[] = {
     TIRX_DEVICE_INTRIN_ALIAS(cuda_any_sync, cuda, kPure),
     TIRX_DEVICE_INTRIN_ALIAS(cuda_atomic_add, cuda, kOpaque),
     TIRX_DEVICE_INTRIN_ALIAS(cuda_atomic_cas, cuda, kOpaque),
+    TIRX_DEVICE_INTRIN_ALIAS(cuda_wait_until, cuda, kOpaque),
     TIRX_DEVICE_INTRIN_ALIAS(cuda_ballot_sync, cuda, kOpaque),
     TIRX_DEVICE_INTRIN_ALIAS(cuda_bfloat1622float2, cuda, kOpaque),
     TIRX_DEVICE_INTRIN_ALIAS(cuda_bfloat162float, cuda, kOpaque),
