@@ -43,9 +43,6 @@
 
 namespace tvm {
 
-// Forward-declare VirtualDevice to avoid circular imports.
-class VirtualDevice;
-
 /*! \brief Tuple container */
 class TupleNode : public ExprNode {
  public:

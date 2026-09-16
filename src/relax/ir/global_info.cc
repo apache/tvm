@@ -18,13 +18,14 @@
  */
 
 /*!
- * \file src/ir/global_info.cc
+ * \file src/relax/ir/global_info.cc
  * \brief Module global info.
  */
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/global_info.h>
+#include <tvm/relax/global_info.h>
 namespace tvm {
+namespace relax {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   VDeviceNode::RegisterReflection();
@@ -33,7 +34,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.DummyGlobalInfo", []() {
+  refl::GlobalDef().def("relax.DummyGlobalInfo", []() {
     auto n = DummyGlobalInfo(ffi::make_object<DummyGlobalInfoNode>());
     return n;
   });
@@ -49,8 +50,9 @@ VDevice::VDevice(Target tgt, int dev_id, MemoryScope mem_scope) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.VDevice", [](Target tgt, int dev_id, MemoryScope mem_scope) {
+  refl::GlobalDef().def("relax.VDevice", [](Target tgt, int dev_id, MemoryScope mem_scope) {
     return VDevice(tgt, dev_id, mem_scope);
   });
 }
+}  // namespace relax
 }  // namespace tvm

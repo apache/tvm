@@ -14,26 +14,39 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F821
-"""Python bindings for creating VirtualDevices."""
+"""Global information used by Relax."""
 
 import tvm_ffi
+
+import tvm
+from tvm.ir import GlobalInfo
+from tvm.runtime import Device
 
 from . import _ffi_api
 
 
-@tvm_ffi.register_object("target.VirtualDevice")
-class VirtualDevice(tvm_ffi.core.Object):
-    """A compile time representation for where data is to be stored at runtime,
-    and how to compile code to compute it."""
+@tvm_ffi.register_object("relax.DummyGlobalInfo")
+class DummyGlobalInfo(GlobalInfo):
+    """DummyGlobalInfo"""
 
-    def __init__(self, device=None, target=None, memory_scope="") -> None:
-        if device is None:
-            # The 'unconstrained' device has device type -1 and device id -1.
-            device = tvm.device(-1, -1)
+    def __init__(self) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.VirtualDevice_ForDeviceTargetAndMemoryScope, device, target, memory_scope
+            _ffi_api.DummyGlobalInfo,
         )
 
-    def dlpack_device_type(self) -> int:
-        return self.device_type_int
+
+@tvm_ffi.register_object("relax.VDevice")
+class VDevice(GlobalInfo):
+    """VDevice"""
+
+    def __init__(
+        self,
+        target=None,
+        vdevice_id: int = 0,
+        memory_scope: str = "global",
+    ) -> None:
+        if isinstance(target, dict | str):
+            target = tvm.target.Target(tvm.runtime.convert(target))
+        if isinstance(target, Device):
+            target = tvm.target.Target.from_device(target)
+        self.__init_handle_by_constructor__(_ffi_api.VDevice, target, vdevice_id, memory_scope)
