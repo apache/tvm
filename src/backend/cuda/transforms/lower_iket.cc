@@ -634,53 +634,43 @@ class RemoveStrippedIketNoOps : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* attr_stmt, InplaceMode inplace_mode) final {
-    auto body_update = Mutate(attr_stmt->body, inplace_mode);
-    bool body_unchanged = body_update.UnchangedOrSameAs(attr_stmt->body);
-    Stmt body = std::move(body_update).ValueOrUnchanged(attr_stmt->body);
-    if (IsEvaluateZero(body)) return body;
-    if (body_unchanged) return ffi::Unchanged();
-    return AttrStmt(attr_stmt->node, attr_stmt->attr_key,
-                    Mutate(attr_stmt->value, inplace_mode).ValueOrUnchanged(attr_stmt->value), body,
-                    attr_stmt->span);
+    auto result = StmtExprMutator::Mutate_(attr_stmt, inplace_mode);
+    if (!result.IsUnchanged()) attr_stmt = ffi::AnyView(result).as<AttrStmtNode>();
+    if (IsEvaluateZero(attr_stmt->body)) return attr_stmt->body;
+    return result;
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
-    auto body_update = Mutate(loop->body, inplace_mode);
-    bool body_unchanged = body_update.UnchangedOrSameAs(loop->body);
-    Stmt body = std::move(body_update).ValueOrUnchanged(loop->body);
-    if (IsEvaluateZero(body)) return body;
-    if (body_unchanged) return ffi::Unchanged();
-    return For(loop->loop_var, Mutate(loop->min, inplace_mode).ValueOrUnchanged(loop->min),
-               Mutate(loop->extent, inplace_mode).ValueOrUnchanged(loop->extent), loop->kind, body,
-               loop->thread_binding, loop->annotations, loop->step, loop->span);
+    auto result = StmtExprMutator::Mutate_(loop, inplace_mode);
+    if (!result.IsUnchanged()) loop = ffi::AnyView(result).as<ForNode>();
+    if (IsEvaluateZero(loop->body)) return loop->body;
+    return result;
   }
 
   UnchangedOr<Stmt> Mutate_(const WhileNode* loop, InplaceMode inplace_mode) final {
-    auto body_update = Mutate(loop->body, inplace_mode);
-    bool body_unchanged = body_update.UnchangedOrSameAs(loop->body);
-    Stmt body = std::move(body_update).ValueOrUnchanged(loop->body);
-    if (IsEvaluateZero(body)) return body;
-    if (body_unchanged) return ffi::Unchanged();
-    return While(Mutate(loop->condition, inplace_mode).ValueOrUnchanged(loop->condition), body,
-                 loop->span);
+    auto result = StmtExprMutator::Mutate_(loop, inplace_mode);
+    if (!result.IsUnchanged()) loop = ffi::AnyView(result).as<WhileNode>();
+    if (IsEvaluateZero(loop->body)) return loop->body;
+    return result;
   }
 
   UnchangedOr<Stmt> Mutate_(const IfThenElseNode* branch, InplaceMode inplace_mode) final {
-    PrimExpr condition =
-        Mutate(branch->condition, inplace_mode).ValueOrUnchanged(branch->condition);
-    Stmt then_case = Mutate(branch->then_case, inplace_mode).ValueOrUnchanged(branch->then_case);
+    auto result = StmtExprMutator::Mutate_(branch, inplace_mode);
+    if (!result.IsUnchanged()) branch = ffi::AnyView(result).as<IfThenElseNode>();
     if (!branch->else_case.has_value()) {
-      if (IsEvaluateZero(then_case)) return PreserveConditionEffects(condition);
-      return IfThenElse(condition, then_case, std::nullopt, branch->span);
+      if (IsEvaluateZero(branch->then_case)) return PreserveConditionEffects(branch->condition);
+      return result;
     }
-    Stmt else_case =
-        Mutate(branch->else_case.value(), inplace_mode).ValueOrUnchanged(branch->else_case.value());
-    bool empty_then = IsEvaluateZero(then_case);
-    bool empty_else = IsEvaluateZero(else_case);
-    if (empty_then && empty_else) return PreserveConditionEffects(condition);
-    if (empty_else) return IfThenElse(condition, then_case, std::nullopt, branch->span);
-    if (empty_then) return IfThenElse(!condition, else_case, std::nullopt, branch->span);
-    return IfThenElse(condition, then_case, else_case, branch->span);
+    bool empty_then = IsEvaluateZero(branch->then_case);
+    bool empty_else = IsEvaluateZero(branch->else_case.value());
+    if (empty_then && empty_else) return PreserveConditionEffects(branch->condition);
+    if (empty_else) {
+      return IfThenElse(branch->condition, branch->then_case, std::nullopt, branch->span);
+    }
+    if (empty_then) {
+      return IfThenElse(!branch->condition, branch->else_case.value(), std::nullopt, branch->span);
+    }
+    return result;
   }
 };
 
