@@ -2556,71 +2556,6 @@ def test_div_mode():
     verify_model(DivFloorModel(), input_info, {}, expected_div_floor)
 
 
-def test_round_decimals():
-    """torch.round(x, decimals) through from_fx must match PyTorch's round-half-to-even
-    results, including negative decimals (round(25, -1) == 20). The previous
-    scale-by-10**decimals implementation multiplied by 0.1 for negative decimals, which
-    is numerically wrong: 25 * 0.1 == 2.5000000000000004 in float64 rounds up to 30.
-    """
-    input_info = [([10], "float32")]
-    x = torch.tensor(
-        [0.5, 1.5, 2.5, 4.5, -0.5, -2.5, 25.0, 125.0, 165.0, 2.25], dtype=torch.float32
-    )
-
-    class RoundDecimalsModel(Module):
-        def __init__(self, decimals):
-            super().__init__()
-            self.decimals = decimals
-
-        def forward(self, input):
-            return torch.round(input, decimals=self.decimals)
-
-    for decimals in (0, 1, -1, -2):
-        gm = fx.symbolic_trace(RoundDecimalsModel(decimals).eval())
-        mod = from_fx(gm, input_info)
-        ex = relax.build(mod, target="llvm")
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-        tvm_out = vm["main"](tvm.runtime.tensor(x.numpy()))
-        got = tvm_out.numpy() if hasattr(tvm_out, "numpy") else tvm_out[0].numpy()
-        tvm.testing.assert_allclose(
-            got, torch.round(x, decimals=decimals).numpy(), rtol=1e-6, atol=1e-6
-        )
-
-
-def test_round_decimals_low_precision():
-    """Scaling for low-precision inputs must happen in float32 and be cast back.
-
-    10**|decimals| can overflow float16: 10**4 == 10000 with 25 * 10000 == 250000
-    exceeds float16's max of 65504, so scaling in float16 yields inf, and 10**5
-    already overflows float16 (the scale itself becomes inf), turning decimals=5
-    and -5 into NaN. Upcasting the input to float32 keeps the scaling exact; the
-    rounded result is cast back to the input dtype.
-    """
-    input_info = [([8], "float16")]
-    x = torch.tensor([0.5, 1.5, 2.5, 2.25, 25.0, 125.0, 165.0, -0.5], dtype=torch.float16)
-
-    class RoundDecimalsModel(Module):
-        def __init__(self, decimals):
-            super().__init__()
-            self.decimals = decimals
-
-        def forward(self, input):
-            return torch.round(input, decimals=self.decimals)
-
-    # Positive decimals exercise the multiply-by-10**d overflow (4, 5);
-    # negative decimals exercise the 10**|d| scale overflowing float16 (-5).
-    for decimals in (2, 4, 5, -2, -4, -5):
-        gm = fx.symbolic_trace(RoundDecimalsModel(decimals).eval())
-        mod = from_fx(gm, input_info)
-        ex = relax.build(mod, target="llvm")
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-        tvm_out = vm["main"](tvm.runtime.tensor(x.numpy()))
-        got = tvm_out.numpy() if hasattr(tvm_out, "numpy") else tvm_out[0].numpy()
-        tvm.testing.assert_allclose(
-            got, torch.round(x, decimals=decimals).numpy(), rtol=1e-6, atol=1e-6
-        )
-
-
 def test_size():
     input_info = [([1, 3, 10, 10], "float32")]
 
@@ -6463,12 +6398,12 @@ def test_round():
     input_info = [([3, 4], "float32")]
 
     class Round(Module):
-        def __init__(self, decimals=0):
+        def __init__(self, decimals=None):
             super().__init__()
             self.decimals = decimals
 
         def forward(self, x):
-            if self.decimals == 0:
+            if self.decimals is None:
                 return torch.round(x)
             else:
                 return torch.round(x, decimals=self.decimals)
@@ -6500,38 +6435,29 @@ def test_round():
             return gv
 
     rounds = [
-        (0, Expected1),
+        (None, Expected1),
         (2, Expected2),
     ]
 
     for decimals, expected in rounds:
         verify_model(Round(decimals), input_info, {}, expected)
 
-    # Test numerical accuracy with decimals
-    test_data = torch.tensor(
-        [
-            [1.2345, 2.3456, 3.4567, 4.5678],
-            [5.6789, 6.7890, 7.8901, 8.9012],
-            [9.1234, 10.2345, 11.3456, 12.4567],
-        ]
-    )
-
-    for decimals in [0, 2]:
-        torch_model = Round(decimals)
-        graph_model = fx.symbolic_trace(torch_model)
-        with torch.no_grad():
-            mod = from_fx(graph_model, input_info)
-
-        target = tvm.target.Target("llvm")
-        ex = relax.build(mod, target)
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-
-        torch_result = torch_model(test_data).numpy()
-        tvm_input = tvm.runtime.tensor(test_data.numpy())
-        tvm_result = vm["main"](tvm_input).numpy()
-
-        # Use relaxed tolerance due to floating-point precision in decimal operations
-        tvm.testing.assert_allclose(tvm_result, torch_result, rtol=1e-3, atol=1e-3)
+    # Float16 needs float32 scaling to avoid intermediate overflow.
+    cases = [
+        (torch.float32, (0, 1, -1, -2)),
+        (torch.float16, (2, 4, 5, -2, -4, -5)),
+    ]
+    for dtype, decimals_values in cases:
+        x = torch.tensor(
+            [0.5, 1.5, 2.5, 4.5, -0.5, -2.5, 25.0, 125.0, 165.0, 2.25, 0.0], dtype=dtype
+        )
+        for decimals in decimals_values:
+            model = Round(decimals).eval()
+            mod = from_fx(fx.symbolic_trace(model), [(x.shape, dtype)])
+            ex = relax.build(mod, target="llvm")
+            vm = relax.VirtualMachine(ex, tvm.cpu())
+            actual = vm["main"](tvm.runtime.tensor(x.numpy())).numpy()
+            tvm.testing.assert_allclose(actual, model(x).numpy(), rtol=1e-6, atol=1e-6)
 
 
 if __name__ == "__main__":
