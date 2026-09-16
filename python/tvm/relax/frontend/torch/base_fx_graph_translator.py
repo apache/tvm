@@ -335,7 +335,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _celu(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("alpha", 1.0)
+        alpha = (
+            self.named_modules[node.target].alpha
+            if node.op == "call_module"
+            else node.args[1]
+            if len(node.args) > 1
+            else node.kwargs.get("alpha", 1.0)
+        )
         dtype = x.ty.dtype
 
         if isinstance(alpha, int | float):
@@ -353,7 +359,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                     relax.op.minimum(
                         zero,
                         relax.op.subtract(
-                            relax.op.divide(relax.op.exp(x), alpha), relax.const(1, dtype)
+                            relax.op.exp(relax.op.divide(x, alpha)), relax.const(1, dtype)
                         ),
                     ),
                 ),
@@ -454,8 +460,19 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _elu(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("alpha", 1.0)
+        alpha = (
+            self.named_modules[node.target].alpha
+            if node.op == "call_module"
+            else node.args[1]
+            if len(node.args) > 1
+            else node.kwargs.get("alpha", 1.0)
+        )
         dtype = x.ty.dtype
+        # ATen ELU also carries the output/input scales used by SELU decomposition.
+        aten_elu = getattr(node.target, "__name__", "") == "elu.default"
+        scale = node.args[2] if aten_elu and len(node.args) > 2 else 1.0
+        input_scale = node.args[3] if aten_elu and len(node.args) > 3 else 1.0
+        scaled_x = x if input_scale == 1 else relax.op.multiply(x, relax.const(input_scale, dtype))
 
         if isinstance(alpha, int | float):
             alpha = relax.const(-alpha, dtype)
@@ -464,15 +481,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 alpha = self.block_builder.emit(relax.const(-alpha, dtype))
 
         # alpha * ReLU(1 - exp(x)) + ReLU(x)
-        return self.block_builder.emit(
-            relax.op.add(
-                relax.op.multiply(
-                    alpha,
-                    relax.op.nn.relu(relax.op.subtract(relax.const(1, dtype), relax.op.exp(x))),
-                ),
-                relax.op.nn.relu(x),
-            )
+        result = relax.op.add(
+            relax.op.multiply(
+                alpha,
+                relax.op.nn.relu(relax.op.subtract(relax.const(1, dtype), relax.op.exp(scaled_x))),
+            ),
+            relax.op.nn.relu(x),
         )
+        if scale != 1:
+            result = relax.op.multiply(result, relax.const(scale, dtype))
+        return self.block_builder.emit(result)
 
     def _gelu(self, node: fx.Node) -> relax.Expr:
         approximate = node.kwargs.get("approximate", "none")
@@ -760,7 +778,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         # Handle scalar cases
         if isinstance(inp_2, int | float):
-            inp_2 = relax.const(inp_2)
+            if isinstance(inp_2, float) and not inp_1.ty.dtype.matches_code(
+                DataTypeCode.FLOAT, DataTypeCode.BFLOAT
+            ):
+                inp_1 = self.block_builder.emit(relax.op.astype(inp_1, "float32"))
+            inp_2 = relax.const(inp_2, inp_1.ty.dtype)
 
         # Get rounding_mode from node kwargs
         rounding_mode = args[2] if len(node.args) > 2 else node.kwargs.get("rounding_mode", None)
@@ -1005,6 +1027,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding = args[3] if len(args) > 3 else kwargs.get("padding", 0)
         ceil_mode = args[4] if len(args) > 4 else kwargs.get("ceil_mode", False)
         count_include_pad = args[5] if len(args) > 5 else kwargs.get("count_include_pad", True)
+        divisor = args[6] if len(args) > 6 else kwargs.get("divisor_override")
+        if divisor is not None:
+            raise NotImplementedError("avg_pool divisor_override is not supported")
         return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode, count_include_pad)
 
     def _avg_pool3d_impl(
@@ -1047,6 +1072,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         ceil_mode = args[4] if len(args) > 4 else kwargs.get("ceil_mode", False)
         count_include_pad = args[5] if len(args) > 5 else kwargs.get("count_include_pad", True)
 
+        divisor = args[6] if len(args) > 6 else kwargs.get("divisor_override")
+        if divisor is not None:
+            raise NotImplementedError("avg_pool divisor_override is not supported")
         return self._avg_pool3d_impl(x, kernel_size, stride, padding, ceil_mode, count_include_pad)
 
     def _baddbmm(self, node: fx.Node) -> relax.Var:
@@ -1906,8 +1934,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         data = self.env[node.args[0]]
         dtype = data.ty.dtype
         order = node.args[1] if len(node.args) > 1 else node.kwargs.get("p", 2)
-        axis = node.args[2] if len(node.args) > 2 else None
-        keepdims = node.args[3] if len(node.args) > 3 else False
+        axis = node.args[2] if len(node.args) > 2 else node.kwargs.get("dim", None)
+        keepdims = node.args[3] if len(node.args) > 3 else node.kwargs.get("keepdim", False)
 
         if order == float("inf"):
             return self.block_builder.emit(
@@ -1950,11 +1978,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(relax.op.prod(x, dim, keepdims=keepdim))
 
     def _std(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        x = args[0]
-        dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
-        keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
-        return self.block_builder.emit(relax.op.std(x, dim, keepdims=keepdim))
+        return self.block_builder.emit(relax.op.sqrt(self._var(node)))
 
     def _sum(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
@@ -1980,30 +2004,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(relax.op.sum(x, dim, keepdims=keepdim))
 
     def _var(self, node: fx.Node) -> relax.Var:
-        # `aten.var.correction` (and decomposed `aten.std.*`) carries an
-        # optional `correction` kwarg whose `None` default means 1 (Bessel).
-        # Legacy fx `tensor.var(...)` calls go through the original path
-        # below to keep this fix narrowly scoped.
-        target = node.target
-        if (
-            getattr(target, "_overloadname", None) == "correction"
-            or getattr(target, "overload_name", None) == "correction"
-        ):
-            return self._var_correction(node)
         args = self.retrieve_args(node)
         x = args[0]
-        dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
-        keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
-        return self.block_builder.emit(relax.op.variance(x, dim, keepdims=keepdim))
-
-    def _var_correction(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        x = args[0]
-        dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
-        keepdim = node.kwargs.get("keepdim", False)
+        dim = args[1] if len(args) > 1 else node.kwargs.get("dim", None)
+        unbiased = args[2] if len(args) > 2 else node.kwargs.get("unbiased", True)
+        if isinstance(dim, bool):  # var(input, unbiased)
+            dim, unbiased = None, dim
+        keepdim = args[3] if len(args) > 3 else node.kwargs.get("keepdim", False)
         correction = node.kwargs.get("correction", None)
         if correction is None:
-            correction = 1
+            correction = int(unbiased)
         var = self.block_builder.emit(relax.op.variance(x, dim, keepdims=keepdim))
         if correction == 0:
             return var
@@ -2012,12 +2022,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             raise NotImplementedError(
                 "var/std with non-zero correction requires statically known reduction-axis sizes."
             )
-        # PyTorch returns NaN (with a warning) when `n - correction <= 0`;
-        # mirror that semantics rather than failing the import.
-        if n - correction <= 0:
-            scale = float("nan")
-        else:
-            scale = float(n) / float(n - correction)
+        # A zero denominator gives inf for nonzero variance and NaN for zero variance.
+        scale = float(n) / (n - correction) if n > correction else float("inf")
         return self.block_builder.emit(relax.op.multiply(var, relax.const(scale, x.ty.dtype)))
 
     @staticmethod
@@ -3052,7 +3058,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 return self.block_builder.emit(relax.TupleGetItem(x, node.args[1]))
 
             assert isinstance(x.ty, relax.TensorType)
-            if isinstance(node.args[1], int):
+            # Some ATen normalizations lower only the tensor (first) tuple field.
+            # Distinguish that projection from indexing the tensor itself.
+            source_value = node.args[0].meta.get("val")
+            if isinstance(source_value, tuple | list) and isinstance(node.args[1], int):
+                if node.args[1] != 0:
+                    raise NotImplementedError("Auxiliary normalization outputs are not supported")
                 return x
             if not isinstance(node.args[1], list | tuple):
                 indices = [node.args[1]]
@@ -3065,6 +3076,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             stride = []
             stride_axes = []
             expand_dim = []
+            integer_axes = []
             i = 0
             shape = self.shape_of(x)
             non_ellipsis_cnt = 0
@@ -3073,6 +3085,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                     non_ellipsis_cnt += 1
             for index in indices:
                 if isinstance(index, int):
+                    integer_axes.append(i)
+                    if index < 0:
+                        index += shape[i]
                     stride_begin.append(index)
                     stride_end.append(index + 1)
                     stride.append(1)
@@ -3085,7 +3100,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                     stride_axes.append(i)
                     i = i + 1
                 elif index is None:
-                    expand_dim.append(len(stride_axes) + len(expand_dim))
+                    expand_dim.append(i - len(integer_axes) + len(expand_dim))
                 elif index is Ellipsis:
                     for _ in range(len(shape) - non_ellipsis_cnt):
                         stride_begin.append(0)
@@ -3118,7 +3133,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             sliced = self.block_builder.emit(
                 relax.op.strided_slice(taken, stride_axes, stride_begin, stride_end, stride)
             )
-            sliced_shape = list(self.shape_of(sliced))
+            sliced_shape = [
+                d for axis, d in enumerate(self.shape_of(sliced)) if axis not in integer_axes
+            ]
             for i in expand_dim:
                 sliced_shape.insert(i, 1)
             return self.block_builder.emit(relax.op.reshape(sliced, sliced_shape))
