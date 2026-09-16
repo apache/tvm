@@ -1322,21 +1322,21 @@ class TestIfThenElse(BaseCompare):
 
 class TestCLZ(BaseCompare):
     test_case = tvm.testing.parameter(
-        TestCase(tvm.tirx.call_intrin("int32", "tirx.clz", 0), T.int32(32)),
-        TestCase(tvm.tirx.call_intrin("int32", "tirx.clz", 1), T.int32(31)),
-        TestCase(tvm.tirx.call_intrin("int32", "tirx.clz", 2), T.int32(30)),
-        TestCase(tvm.tirx.call_intrin("int32", "tirx.clz", 128), T.int32(24)),
+        TestCase(tvm.tirx.call_intrin("int32", "prim.clz", 0), T.int32(32)),
+        TestCase(tvm.tirx.call_intrin("int32", "prim.clz", 1), T.int32(31)),
+        TestCase(tvm.tirx.call_intrin("int32", "prim.clz", 2), T.int32(30)),
+        TestCase(tvm.tirx.call_intrin("int32", "prim.clz", 128), T.int32(24)),
         TestCase(
-            tvm.tirx.call_intrin("int32", "tirx.clz", tvm.tirx.IntImm("int64", 0)), T.int32(64)
+            tvm.tirx.call_intrin("int32", "prim.clz", tvm.tirx.IntImm("int64", 0)), T.int32(64)
         ),
         TestCase(
-            tvm.tirx.call_intrin("int32", "tirx.clz", tvm.tirx.IntImm("int64", 1)), T.int32(63)
+            tvm.tirx.call_intrin("int32", "prim.clz", tvm.tirx.IntImm("int64", 1)), T.int32(63)
         ),
         TestCase(
-            tvm.tirx.call_intrin("int32", "tirx.clz", tvm.tirx.IntImm("int64", 2)), T.int32(62)
+            tvm.tirx.call_intrin("int32", "prim.clz", tvm.tirx.IntImm("int64", 2)), T.int32(62)
         ),
         TestCase(
-            tvm.tirx.call_intrin("int32", "tirx.clz", tvm.tirx.IntImm("int64", 128)), T.int32(56)
+            tvm.tirx.call_intrin("int32", "prim.clz", tvm.tirx.IntImm("int64", 128)), T.int32(56)
         ),
     )
 

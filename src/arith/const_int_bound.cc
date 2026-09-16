@@ -28,7 +28,6 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/builtin.h>
 
 #include <algorithm>
 #include <optional>
@@ -39,8 +38,6 @@
 
 namespace tvm {
 namespace arith {
-
-using namespace tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() { ConstIntBoundNode::RegisterReflection(); }
 

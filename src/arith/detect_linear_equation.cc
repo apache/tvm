@@ -27,14 +27,13 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
+
+#include <unordered_set>
 
 namespace tvm {
 namespace arith {
 using namespace tvm::prim;
-
-using namespace tirx;
 
 // Linear equation, the components can be undefined.
 struct LinearEqEntry {

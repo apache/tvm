@@ -69,7 +69,6 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/tirx/builtin.h>
 
 #include <cmath>
 #include <tuple>

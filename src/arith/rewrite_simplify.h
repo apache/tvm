@@ -40,8 +40,6 @@
 namespace tvm {
 namespace arith {
 
-using namespace tirx;
-
 /* \brief Usage counters for RewriteSimplifier
  *
  * These are intended for debug and testing purposes, to ensure that

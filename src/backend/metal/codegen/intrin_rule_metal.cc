@@ -58,7 +58,7 @@ static PrimExpr DispatchMetalShuffle(const PrimExpr& e) {
 
 void RegisterMetalIntrinRules() {
   // clang-format off
-TVM_REGISTER_OP("tirx.clz")
+TVM_REGISTER_OP("prim.clz")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tirx.floor")

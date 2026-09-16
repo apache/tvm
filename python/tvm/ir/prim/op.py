@@ -19,7 +19,7 @@
 from typing import Any
 
 from ..base import Span
-from ..expr import Expr
+from ..expr import Call, Expr
 from . import _ffi_api
 
 
@@ -64,3 +64,20 @@ def max_value(dtype: str, span: Span | None = None) -> Any:
         The maximum value of dtype.
     """
     return _ffi_api.max_value(dtype, span)  # type: ignore
+
+
+def clz(x):
+    """Count leading zero bits of an integer x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input 32 or 64 bit integer.
+        The result is undefined if the input is 0.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return Call("prim.clz", [x], ret_ty="int32")

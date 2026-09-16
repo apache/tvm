@@ -169,7 +169,7 @@ TVM_REGISTER_OP("tirx.atanh")
       return (log(one + x) - log(one - x)) * MakeConst(x_ty, 0.5);
     });
 
-TVM_REGISTER_OP("tirx.clz")
+TVM_REGISTER_OP("prim.clz")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);

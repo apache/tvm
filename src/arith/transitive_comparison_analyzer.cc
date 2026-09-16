@@ -22,9 +22,9 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/analysis.h>
 
 #include <optional>
+#include <unordered_set>
 #include <vector>
 
 #include "constraint_extract.h"
@@ -35,8 +35,6 @@ namespace arith {
 using namespace tvm::prim;
 
 using prim::is_const_int;
-
-using namespace tirx;
 
 class TransitiveComparisonAnalyzer::Impl {
  public:

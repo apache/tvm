@@ -27,8 +27,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/builtin.h>
-#include <tvm/tirx/builtin.h>
-#include <tvm/tirx/op.h>
 
 #include <limits>
 #include <unordered_map>
@@ -39,8 +37,6 @@
 namespace tvm {
 namespace arith {
 using namespace tvm::prim;
-
-using namespace tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() { ModularSetNode::RegisterReflection(); }
 

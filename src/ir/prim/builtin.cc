@@ -73,6 +73,9 @@ PRIM_DEFINE_BUILTIN_FUNC(log2)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
     .set_attr<bool>("TVectorizable", true);
 
+PRIM_DEFINE_BUILTIN_FUNC(clz).set_num_inputs(1).set_attr<TCallEffectKind>(
+    "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
 #undef PRIM_DEFINE_BUILTIN_FUNC
 }  // namespace builtin
 }  // namespace prim

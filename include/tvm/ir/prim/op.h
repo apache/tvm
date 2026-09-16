@@ -433,6 +433,8 @@ TVM_DLL PrimExpr ceil(PrimExpr x, Span span = Span());
 /*! \brief Construct a base-two logarithm with the input's primitive type. */
 TVM_DLL PrimExpr log2(PrimExpr x, Span span = Span());
 namespace prim {
+/*! \brief Count leading zero bits, preserving the input primitive type. */
+TVM_DLL PrimExpr clz(PrimExpr x, Span span = Span());
 /*!
  * Query the minimum possible value of dtype.
  * \param dtype The primitive type.
