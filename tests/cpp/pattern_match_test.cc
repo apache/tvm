@@ -20,7 +20,7 @@
 #include "../src/arith/pattern_match.h"
 
 #include <gtest/gtest.h>
-#include <tvm/tirx/analysis.h>
+#include <tvm/ir/prim/expr.h>
 
 TEST(Pattern, Basic) {
   using namespace tvm;
@@ -43,12 +43,12 @@ TEST(Pattern, Basic) {
     TVM_FFI_ICHECK((px + (py + px)).Match(r));
     auto rr = (px + py).Eval();
 
-    TVM_FFI_ICHECK(tirx::ExprDeepEqual()(rr, 1 + y));
-    TVM_FFI_ICHECK(tirx::ExprDeepEqual()(px.Eval() + py.Eval(), 1 + y));
+    TVM_FFI_ICHECK(prim::ExprDeepEqual()(rr, 1 + y));
+    TVM_FFI_ICHECK(prim::ExprDeepEqual()(px.Eval() + py.Eval(), 1 + y));
   }
   {
     TVM_FFI_ICHECK((px + max(py, px)).Match((x + 1) + max(y, (x + 1))));
-    TVM_FFI_ICHECK(tirx::ExprDeepEqual()(px.Eval(), x + 1));
+    TVM_FFI_ICHECK(prim::ExprDeepEqual()(px.Eval(), x + 1));
   }
   TVM_FFI_ICHECK(!(px + min(py, px)).Match((x + 1) + max(y, (x + 1))));
 
@@ -68,7 +68,7 @@ TEST(Pattern, Basic) {
   TVM_FFI_ICHECK((!(px > py || px != py)).Match(!(x > y || x != y)));
   {
     TVM_FFI_ICHECK(select(px >= pz, py, py + pz).Match(prim::Select((x + 1) >= 1, y, y + 1)));
-    TVM_FFI_ICHECK(tirx::ExprDeepEqual()(px.Eval(), x + 1));
+    TVM_FFI_ICHECK(prim::ExprDeepEqual()(px.Eval(), x + 1));
   }
   // bit intrinsics
   {
@@ -90,7 +90,7 @@ TEST(Pattern, Basic) {
   TVM_FFI_ICHECK(!select(px > pz, py, py).Match(prim::Select(x > 2, y, y + 1)));
   {
     TVM_FFI_ICHECK(select(px, py, pz).Match(prim::Select(x > 2, y, y + 1)));
-    TVM_FFI_ICHECK(tirx::ExprDeepEqual()(pz.Eval(), y + 1));
+    TVM_FFI_ICHECK(prim::ExprDeepEqual()(pz.Eval(), y + 1));
   }
   // if_then_else
   {

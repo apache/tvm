@@ -24,6 +24,7 @@
 #ifndef TVM_TIR_ANALYSIS_VAR_USE_DEF_ANALYSIS_H_
 #define TVM_TIR_ANALYSIS_VAR_USE_DEF_ANALYSIS_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -53,7 +54,7 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
   std::unordered_map<const VarNode*, int> buffer_def_count_;
 
  private:
-  ExprDeepEqual deep_equal_;
+  prim::ExprDeepEqual deep_equal_;
   std::unordered_map<const VarNode*, const prim::LetNode*> let_binding_;
   ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final;
 

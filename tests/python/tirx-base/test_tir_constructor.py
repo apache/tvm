@@ -20,8 +20,8 @@ import tvm_ffi
 
 import tvm
 from tvm import te, topi
+from tvm.ir.prim import expr_deep_equal
 from tvm.script import tirx as T
-from tvm.tirx.analysis import expr_deep_equal
 
 
 def test_expr_constructor():

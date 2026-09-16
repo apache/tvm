@@ -130,7 +130,7 @@ class SSAVerifier final : public StmtExprVisitor {
   // whether we are in match scope, where a var can occur multiple times.
   bool match_scope_{false};
   // deep equal
-  ExprDeepEqual deep_equal_;
+  prim::ExprDeepEqual deep_equal_;
   // def map, for let, maps to the bind value, for others maps to self.
   std::unordered_map<Var, Expr> def_map_;
 };

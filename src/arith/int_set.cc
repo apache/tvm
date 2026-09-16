@@ -709,12 +709,12 @@ void IntSetAnalyzer::Impl::Update(const Var& var, const IntSet& info, bool can_o
     if (it != dom_map_.end()) {
       const IntSet& old_info = (*it).second;
 
-      TVM_FFI_ICHECK(ExprDeepEqual()(old_info.min(), info.min()))
+      TVM_FFI_ICHECK(prim::ExprDeepEqual()(old_info.min(), info.min()))
           << "Trying to update var \'" << var << "\'"
           << " with a different minimum value: "
           << "original=" << old_info.min() << ", new=" << info.min();
 
-      TVM_FFI_ICHECK(ExprDeepEqual()(old_info.max(), info.max()))
+      TVM_FFI_ICHECK(prim::ExprDeepEqual()(old_info.max(), info.max()))
           << "Trying to update var \'" << var << "\'"
           << " with a different maximum value: "
           << "original=" << old_info.max() << ", new=" << info.max();

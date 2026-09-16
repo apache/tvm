@@ -48,7 +48,7 @@ class TransitiveComparisonAnalyzer::Impl {
    * compared.  If false, only use the known comparison that have been
    * directly provided.  Using `propagate_inequalities = false` is
    * roughly equivalent to comparing against all known values with
-   * `ExprDeepEqual`, but also allowing for constant offsets on either
+   * `prim::ExprDeepEqual`, but also allowing for constant offsets on either
    * side of the inequality.
    *
    * \return The most specific result that can be proven about the
@@ -96,8 +96,8 @@ class TransitiveComparisonAnalyzer::Impl {
    *
    * 1. Providing efficiency, as compared to a PrimExpr.  Two keys are
    *    equal if and only if the corresponding PrimExprs would satisfy
-   *    ExprDeepEqual.  This allows two expressions to be checked for
-   *    equivalency, without requiring a call to ExprDeepEqual for
+   *    prim::ExprDeepEqual.  This allows two expressions to be checked for
+   *    equivalency, without requiring a call to prim::ExprDeepEqual for
    *    each comparison.
    *
    * 2. Providing type-safety, as compared to using `size_t` directly.
@@ -570,7 +570,7 @@ void TransitiveComparisonAnalyzer::Impl::Bind(const Var& var, const Range& range
                                               bool allow_override) {
   auto it = prev_bindings_.find(var);
   if (it != prev_bindings_.end()) {
-    ExprDeepEqual expr_equal;
+    prim::ExprDeepEqual expr_equal;
     bool differs_from_previous = !expr_equal(range->min, (*it).second->min) ||
                                  !expr_equal(range->extent, (*it).second->extent);
     if (differs_from_previous) {

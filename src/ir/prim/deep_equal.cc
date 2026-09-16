@@ -18,17 +18,17 @@
  */
 
 /*!
- * \file tirx/analysis/deep_equal.cc
+ * \file ir/prim/deep_equal.cc
  * \brief Deep equality checking.
  */
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr_functor.h>
+#include <tvm/ir/expr_functor.h>
+#include <tvm/ir/prim/expr.h>
 
 namespace tvm {
-namespace tirx {
+namespace prim {
 
 #define DEFINE_DEEP_EQUAL_BIN_EXPR(OpNode)                                         \
   bool Dispatch_(const OpNode* plhs, const PrimExpr& rhs) final {                  \
@@ -44,7 +44,7 @@ namespace tirx {
            plhs->value == prhs->value;                                             \
   }
 
-class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExpr&)> {
+class ExprDeepEqualChecker : private tvm::ExprFunctor<bool(const Expr&, const PrimExpr&)> {
  public:
   static bool Check(const PrimExpr& lhs, const PrimExpr& rhs) {
     // quick path without constructing the object
@@ -117,15 +117,6 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExp
     return true;
   }
 
-  bool ArrayDeepEqual(const ffi::Array<IterVar>& lhs, const ffi::Array<IterVar>& rhs) {
-    // for iter var, we require pointer equality
-    if (lhs.size() != rhs.size()) return false;
-    for (size_t i = 0; i < lhs.size(); i++) {
-      if (!lhs[i].same_as(rhs[i])) return true;
-    }
-    return true;
-  }
-
   bool OptionalDeepEqual(const ffi::Optional<PrimExpr>& lhs, const ffi::Optional<PrimExpr>& rhs) {
     if (lhs.same_as(rhs)) return true;
     if (!lhs.has_value() && rhs.has_value()) return false;
@@ -140,11 +131,9 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExp
 
   bool Dispatch_(const TensorLoadNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<TensorLoadNode>();
-    // we run pointer comparison of the buffer
+    // we run pointer comparison of the source
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
-           plhs->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
-               prhs->source.as_or_throw<tvm::tirx::BufferVar>()) &&
-           ArrayDeepEqual(plhs->indices, prhs->indices);
+           plhs->source.same_as(prhs->source) && ArrayDeepEqual(plhs->indices, prhs->indices);
   }
 
   bool Dispatch_(const prim::LetNode* plhs, const PrimExpr& rhs) final {
@@ -229,10 +218,10 @@ bool ExprDeepEqual::operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "tirx.analysis.expr_deep_equal",
-      [](const PrimExpr& lhs, const PrimExpr& rhs) { return ExprDeepEqual()(lhs, rhs); });
+  refl::GlobalDef().def("ir.prim.expr_deep_equal", [](const PrimExpr& lhs, const PrimExpr& rhs) {
+    return ExprDeepEqual()(lhs, rhs);
+  });
 }
 
-}  // namespace tirx
+}  // namespace prim
 }  // namespace tvm

@@ -28,7 +28,7 @@
 #include <tvm/arith/analyzer.h>  // For the arith::Analyzer::Simplify() method simplifying terms
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/analysis.h>  // For the ExprDeepEqual analysis
+#include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -399,7 +399,7 @@ ffi::Optional<VisitInterrupt> DirectSubexpr::Visit(ffi::AnyView expr_value) {
  * \brief Decides if two terms are equal syntactically
  */
 bool EqualTerms(const PrimExpr& a, const PrimExpr& b) {
-  ExprDeepEqual deep_equal_;
+  prim::ExprDeepEqual deep_equal_;
   return deep_equal_(a, b);
 }
 
@@ -439,7 +439,8 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
     return result;
   }
 
-  support::OrderedMap<PrimExpr, std::pair<PrimExpr, size_t>, ffi::StructuralHash, ExprDeepEqual>
+  support::OrderedMap<PrimExpr, std::pair<PrimExpr, size_t>, ffi::StructuralHash,
+                      prim::ExprDeepEqual>
       norm_table;
 
   norm_table.reserve(table.size());

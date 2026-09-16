@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
 
 #include "../utils.h"
@@ -674,7 +675,7 @@ bool MatchReducer(const te::CommReducer& reducer, const ffi::Array<PrimExpr>& id
                   const ffi::Array<PrimExpr>& combined_values,
                   const ffi::Array<TensorLoad>& buf_loads, ffi::Array<PrimExpr>* lhs,
                   ffi::Array<PrimExpr>* rhs) {
-  ExprDeepEqual equal;
+  prim::ExprDeepEqual equal;
   TVM_FFI_ICHECK_EQ(identities.size(), combined_values.size());
   int n_buffers = identities.size();
   for (int i = 0; i < n_buffers; ++i) {

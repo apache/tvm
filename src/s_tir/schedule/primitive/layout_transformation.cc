@@ -21,6 +21,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 
 #include <optional>
@@ -202,7 +203,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
         PrimExpr index = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(op->indices[i], f_substitute)
                              .as_or_throw<PrimExpr>();
         bool is_loop_over_axis = index.same_as(loop->loop_var) && is_const_int(loop->min, 0) &&
-                                 ExprDeepEqual()(loop->extent, buffer_dim) &&
+                                 prim::ExprDeepEqual()(loop->extent, buffer_dim) &&
                                  loop->kind == ForKind::kSerial;
         if (!is_loop_over_axis) {
           return false;
@@ -372,7 +373,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
         const ffi::Array<PrimExpr>& old_indices = info.store->indices;
 
         TVM_FFI_ICHECK_EQ(old_indices.size(), op->indices.size());
-        ExprDeepEqual expr_equal;
+        prim::ExprDeepEqual expr_equal;
         for (size_t i = 0; i < old_indices.size(); i++) {
           if (!expr_equal(old_indices[i], op->indices[i])) {
             return false;
