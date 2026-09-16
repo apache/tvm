@@ -456,7 +456,7 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const SBlockNode* op, InplaceMo
   if (!new_init.same_as(op->init) || !new_body_unchanged ||
       !new_alloc_buffers.same_as(op->alloc_buffers) ||
       !new_match_buffers.same_as(op->match_buffers) || !new_reads.same_as(op->reads) ||
-      !new_writes.same_as(op->writes) || new_iter_vars.same_as(op->iter_vars) ||
+      !new_writes.same_as(op->writes) || !new_iter_vars.same_as(op->iter_vars) ||
       !new_annotations.same_as(op->annotations)) {
     SBlock new_block = ffi::GetRef<SBlock>(op);
     SBlockNode* n = new_block.CopyOnWrite();
