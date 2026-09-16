@@ -33,7 +33,7 @@ namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
 
-using ExprComparator = ExprFunctor<bool(const Expr& n, const PrimExpr& other)>;
+using ExprComparator = tirx::ExprFunctor<bool(const Expr& n, const PrimExpr& other)>;
 using StmtComparator = StmtFunctor<bool(const Stmt& n, const Stmt& other)>;
 
 /*! \brief Deep comparison to check if two IR ASTs are equivalent for tensorization*/

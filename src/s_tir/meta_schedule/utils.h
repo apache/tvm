@@ -613,11 +613,18 @@ inline double Sum(const ffi::Array<FloatImm>& arr) {
 }
 
 /*! \brief Collecting all the blocks */
-class SBlockCollector : public tirx::StmtVisitor {
+class SBlockCollector : public tirx::StmtExprVisitor {
  public:
+  using tirx::StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return tirx::StmtExprVisitor::Visit(value);
+  }
+
   static ffi::Array<s_tir::SBlockRV> Collect(const s_tir::Schedule& sch,
                                              const ffi::Function f_block_filter = nullptr) {  //
-    return SBlockCollector(sch, f_block_filter).Run();
+    return ffi::make_object<SBlockCollector>(sch, f_block_filter)->Run();
   }
 
  private:
@@ -628,7 +635,7 @@ class SBlockCollector : public tirx::StmtVisitor {
       func_name_ = func_name;
       block_names_.clear();
       blocks_to_collect_.clear();
-      VisitStmt(func->body);
+      Visit(func->body);
       for (const ffi::String& name : blocks_to_collect_) {
         results.push_back(sch_->GetSBlock(name, func_name_));
       }
@@ -650,11 +657,14 @@ class SBlockCollector : public tirx::StmtVisitor {
     return results;
   }
   /*! \brief Constructor */
+ public:
   explicit SBlockCollector(const s_tir::Schedule& sch, const ffi::Function f_block_filter = nullptr)
       : sch_(sch), f_block_filter_(f_block_filter) {}
+
+ private:
   /*! \brief Override the Stmt visiting behaviour */
-  void VisitStmt_(const tirx::SBlockNode* block) override {
-    tirx::StmtVisitor::VisitStmt_(block);
+  ffi::Optional<VisitInterrupt> Visit_(const tirx::SBlockNode* block) override {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(tirx::StmtExprVisitor::Visit_(block));
     TVM_FFI_ICHECK(block_names_.count(block->name_hint) == 0)
         << "Duplicated block name " << block->name_hint << " in function " << func_name_
         << " not supported!";
@@ -669,6 +679,7 @@ class SBlockCollector : public tirx::StmtVisitor {
     if (collect_block) {
       blocks_to_collect_.push_back(block->name_hint);
     }
+    return std::nullopt;
   }
 
   /*! \brief The schedule to be collected */

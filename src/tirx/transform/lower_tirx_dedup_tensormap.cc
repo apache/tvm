@@ -91,34 +91,37 @@ class CuTensorMapDedupAnalyzer : public StmtExprVisitor {
     canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
   }
 
-  void VisitStmt_(const ForNode* op) final {
-    StmtExprVisitor::VisitExpr(op->min);
-    StmtExprVisitor::VisitExpr(op->extent);
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->min));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->extent));
     canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
-    StmtExprVisitor::VisitStmt(op->body);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->body));
     canonical_list_.pop_back();
+    return std::nullopt;
   }
 
-  void VisitStmt_(const WhileNode* op) final {
-    StmtExprVisitor::VisitExpr(op->condition);
+  ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->condition));
     canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
-    StmtExprVisitor::VisitStmt(op->body);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->body));
     canonical_list_.pop_back();
+    return std::nullopt;
   }
 
-  void VisitStmt_(const IfThenElseNode* op) final {
-    StmtExprVisitor::VisitExpr(op->condition);
+  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->condition));
     canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
-    StmtExprVisitor::VisitStmt(op->then_case);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->then_case));
     canonical_list_.pop_back();
     if (op->else_case) {
       canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
-      StmtExprVisitor::VisitStmt(op->else_case.value());
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->else_case.value()));
       canonical_list_.pop_back();
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const EvaluateNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op) final {
     if (const CallNode* call = AsCuTensorMapEncode(op)) {
       auto [maybe_var, key] = ExtractEncodeKey(call);
       if (maybe_var.has_value()) {
@@ -141,7 +144,7 @@ class CuTensorMapDedupAnalyzer : public StmtExprVisitor {
         if (!found) canonical_list_.back().emplace_back(std::move(key), v);
       }
     }
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& var_remap() const {
@@ -301,13 +304,13 @@ namespace transform {
 Pass LowerTIRxDedupCuTensorMaps() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     // Analyze usage to find duplicates
-    CuTensorMapDedupAnalyzer analyzer;
-    analyzer(f->body);
-    if (analyzer.var_remap().empty()) {
+    auto analyzer = ffi::make_object<CuTensorMapDedupAnalyzer>();
+    analyzer->Visit(f->body);
+    if (analyzer->var_remap().empty()) {
       return f;
     }
     auto* n = f.CopyOnWrite();
-    n->body = CuTensorMapDedupRewriter(analyzer.var_remap())(n->body);
+    n->body = CuTensorMapDedupRewriter(analyzer->var_remap())(n->body);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.LowerTIRxDedupCuTensorMaps", {});

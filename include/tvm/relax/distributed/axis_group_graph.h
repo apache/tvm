@@ -68,8 +68,8 @@ Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
 class BufferAxisGraphExtractor : public StmtExprVisitor {
  public:
   static std::vector<std::vector<TIRVarAxis>> GetTIRVarAxisGraph(const PrimFunc& prim_func) {
-    BufferAxisGraphExtractor extractor;
-    extractor(prim_func->body);
+    auto extractor = ffi::make_object<BufferAxisGraphExtractor>();
+    extractor->Visit(prim_func->body);
     ffi::Map<BufferVar, Var> inverse_buffer_map;
     for (const Var& param : prim_func->params) {
       if (param->ty.as<BufferTypeNode>()) {
@@ -84,9 +84,9 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
       }
       BufferVar buffer(param);
       for (int i = 0; i < static_cast<int>(buffer->shape.size()); i++) {
-        if (extractor.buffer_axis_graph_.count({buffer, i})) {
+        if (extractor->buffer_axis_graph_.count({buffer, i})) {
           std::vector<BufferAxis> buffer_axis_group;
-          extractor.DFSGraph({buffer, i}, &visited, &buffer_axis_group);
+          extractor->DFSGraph({buffer, i}, &visited, &buffer_axis_group);
           if (buffer_axis_group.size() <= 1) {
             continue;
           }
@@ -118,14 +118,18 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
   }
 
  private:
-  void VisitStmt_(const BufferStoreNode* op) final {
-    StmtExprVisitor::VisitStmt_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     buffer_access_indices_.push_back({op->buffer, op->indices});
+
+    return std::nullopt;
   }
 
-  void VisitExpr_(const TensorLoadNode* op) final {
-    StmtExprVisitor::VisitExpr_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     buffer_access_indices_.push_back({op->source.as_or_throw<tvm::tirx::BufferVar>(), op->indices});
+
+    return std::nullopt;
   }
 
   bool Match(PrimExpr a, PrimExpr buffer_shape_a, PrimExpr b, PrimExpr buffer_shape_b,
@@ -154,13 +158,12 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
     return true;
   }
 
-  void VisitStmt_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     if (op->name_hint == "root") {
-      StmtExprVisitor::VisitStmt_(op);
-      return;
+      return StmtExprVisitor::Visit_(op);
     }
     buffer_access_indices_.clear();
-    StmtExprVisitor::VisitStmt_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     iter_var_range_.clear();
     for (const auto& iter_var : op->iter_vars) {
       iter_var_range_.Set(iter_var->var, iter_var->dom);
@@ -185,6 +188,8 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
         }
       }
     }
+
+    return std::nullopt;
   }
 
   void JoinBufferAxis(BufferAxis axis1, BufferAxis axis2) {

@@ -26,15 +26,16 @@ using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Check if an IRModule has any dynamic loop. */
-struct DynamicExtentFinder : private StmtVisitor {
- public:
+struct DynamicExtentFinder : public StmtExprVisitor {
+  using StmtExprVisitor::Visit_;
+
   static bool Find(const IRModule& mod) {
-    DynamicExtentFinder finder;
+    auto finder = ffi::make_object<DynamicExtentFinder>();
     for (const auto& kv : mod->functions) {
       const BaseFunc& func = kv.second;
       if (const auto* prim_func = func.as<PrimFuncNode>()) {
-        finder(prim_func->body);
-        if (finder.found_) {
+        finder->Visit(prim_func->body);
+        if (finder->found_) {
           return true;
         }
       }
@@ -43,18 +44,21 @@ struct DynamicExtentFinder : private StmtVisitor {
   }
 
  private:
-  void VisitStmt_(const ForNode* loop) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
     if (!loop->extent->IsInstance<IntImmNode>()) {
       found_ = true;
     } else {
-      StmtVisitor::VisitStmt_(loop);
+      return StmtExprVisitor::Visit_(loop);
     }
+    return std::nullopt;
   }
 
-  void VisitStmt(const Stmt& stmt) final {
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView stmt) final {
+    if (stmt.as<ExprNode>()) return std::nullopt;
     if (!found_) {
-      StmtVisitor::VisitStmt(stmt);
+      return StmtExprVisitor::Visit(stmt);
     }
+    return std::nullopt;
   }
 
   bool found_ = false;

@@ -144,8 +144,15 @@ class StmtSRef : public ffi::ObjectRef {
   TVM_DLL static StmtSRef RootMark();
 };
 
-class SRefTreeCreator : private StmtVisitor {
+class SRefTreeCreator : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
   /*!
    * \brief StmtSRef Tree Creator
    * \param mod The module being scheduled.
@@ -153,20 +160,20 @@ class SRefTreeCreator : private StmtVisitor {
    */
   static std::unordered_map<const StmtNode*, StmtSRef> Create(IRModule mod,
                                                               bool include_loops = true) {
-    SRefTreeCreator creator(include_loops);
+    auto creator = ffi::make_object<SRefTreeCreator>(include_loops);
     for (const auto& kv : mod->functions) {
       const BaseFunc& base_func = kv.second;
       if (auto opt = base_func.as<PrimFunc>()) {
         auto func = opt.value();
-        creator.VisitStmt(func->body);
+        creator->Visit(func->body);
       }
     }
-    return std::move(creator.stmt2ref_);
+    return std::move(creator->stmt2ref_);
   }
 
- private:
   explicit SRefTreeCreator(bool include_loops) : include_loops_(include_loops) {}
 
+ private:
   /*!
    * \brief Add a new statement to the stack, which becomes the current scope
    * \param stmt A for-loop statement or a block statement
@@ -176,11 +183,11 @@ class SRefTreeCreator : private StmtVisitor {
   /*! \brief Pop the top of the scope and record it in stmt2ref map */
   void PopAndRecordSRef();
 
-  void VisitStmt_(const ForNode* loop) final;
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final;
 
-  void VisitStmt_(const SBlockRealizeNode* realize) final;
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* realize) final;
 
-  void VisitStmt_(const SeqStmtNode* seq_stmt) final;
+  ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final;
 
   bool include_loops_;
   /*! \brief The result ScheduleStateNode */

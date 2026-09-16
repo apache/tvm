@@ -28,14 +28,6 @@
 namespace tvm {
 namespace tirx {
 
-// Implementation of Visitors
-template <typename T, typename F>
-inline void VisitArray(const ffi::Array<T>& arr, F fvisit) {
-  for (size_t i = 0; i < arr.size(); i++) {
-    fvisit(arr[i]);
-  }
-}
-
 template <typename T, typename F>
 inline ffi::Array<T> MutateArray(ffi::Array<T> arr, F fmutate) {
   return arr.Map(fmutate);

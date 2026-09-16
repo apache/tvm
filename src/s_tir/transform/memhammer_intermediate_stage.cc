@@ -75,8 +75,9 @@ std::pair<Stmt, For> LiftThreadBindingLoops(Stmt stmt) {
  * will be in the form of floormod(floordiv(x, a), b).
  * Rank promotion removes strided access, thus enabling further buffer compacting
  */
-class IndexPatternFinder : public ExprVisitor {
+class IndexPatternFinder : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
   IndexPatternFinder(const ffi::Map<Var, Range>& var_range, ffi::Array<PrimExpr>* resulting_index)
       : var_range_(var_range), resulting_index_(resulting_index) {}
   struct Operator {
@@ -100,12 +101,12 @@ class IndexPatternFinder : public ExprVisitor {
     ffi::Array<PrimExpr> new_shape;
     for (const PrimExpr& expr : indices) {
       ffi::Array<PrimExpr> indices_dim;
-      IndexPatternFinder extractor(var_range, &indices_dim);
-      extractor(expr);
-      if (!extractor.success_) {
+      auto extractor = ffi::make_object<IndexPatternFinder>(var_range, &indices_dim);
+      extractor->Visit(expr);
+      if (!extractor->success_) {
         return {};
       }
-      ffi::Array<PrimExpr> access_shape = extractor.access_shape_;
+      ffi::Array<PrimExpr> access_shape = extractor->access_shape_;
       PrimExpr product_shape = 1;
       for (PrimExpr e : access_shape) {
         product_shape *= e;
@@ -121,9 +122,9 @@ class IndexPatternFinder : public ExprVisitor {
   }
 
  private:
-  void VisitExpr_(const VarNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     if (!success_) {
-      return;
+      return std::nullopt;
     }
     if (ffi::Optional<Range> range = var_range_.Get(ffi::GetRef<Var>(op))) {
       PrimExpr index = ffi::GetRef<Var>(op).as_or_throw<PrimExpr>();
@@ -139,7 +140,7 @@ class IndexPatternFinder : public ExprVisitor {
           case Operator::OpKind::FloorDiv:
             if (max % o.operand != 0 && o.operand % max != 0) {
               success_ = false;
-              return;
+              return std::nullopt;
             }
             max = max / o.operand;
             if (extent > max) {
@@ -147,7 +148,7 @@ class IndexPatternFinder : public ExprVisitor {
             }
             if (max % extent != 0) {
               success_ = false;
-              return;
+              return std::nullopt;
             }
             index = floordiv(index, IntImm::Int32(o.operand));
             break;
@@ -155,7 +156,7 @@ class IndexPatternFinder : public ExprVisitor {
             int64_t step = max / extent;
             if (step % o.operand != 0 && o.operand % step != 0) {
               success_ = false;
-              return;
+              return std::nullopt;
             }
             if (step % o.operand == 0) {
               extent = 1;
@@ -173,27 +174,31 @@ class IndexPatternFinder : public ExprVisitor {
         resulting_index_->push_back(floordiv(index, max / extent));
       }
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const FloorDivNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const FloorDivNode* op) final {
     int64_t b = op->b.as<IntImmNode>()->value;
     operator_stack.push_back(Operator{Operator::OpKind::FloorDiv, b});
-    ExprVisitor::VisitExpr_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     operator_stack.pop_back();
+    return std::nullopt;
   }
 
-  void VisitExpr_(const FloorModNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const FloorModNode* op) final {
     int64_t b = op->b.as<IntImmNode>()->value;
     operator_stack.push_back(Operator{Operator::OpKind::FloorMod, b});
-    ExprVisitor::VisitExpr_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     operator_stack.pop_back();
+    return std::nullopt;
   }
 
-  void VisitExpr_(const MulNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const MulNode* op) final {
     int64_t b = op->b.as<IntImmNode>()->value;
     operator_stack.push_back(Operator{Operator::OpKind::Mul, b});
-    ExprVisitor::VisitExpr_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     operator_stack.pop_back();
+    return std::nullopt;
   }
 
   ffi::Map<Var, Range> var_range_;

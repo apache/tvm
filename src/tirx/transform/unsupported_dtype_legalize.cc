@@ -79,7 +79,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
 
   // run planning to populate buffer remap and var remap.
   void Plan(PrimFunc func) {
-    this->VisitStmt(func->body);
+    this->Visit(func->body);
     // if there are opaque var access, then we cannot
     // do remap of var and buffer, post-hoc remove these items.
     for (Var var : opaque_var_access_) {
@@ -103,17 +103,19 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
 
   virtual bool MatchType(const Type& type) const = 0;
 
-  void VisitStmt_(const BufferStoreNode* op) final {
-    StmtExprVisitor::VisitStmt_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     this->PopulateBufferRemap(op->buffer);
+    return std::nullopt;
   }
 
-  void VisitExpr_(const TensorLoadNode* op) final {
-    StmtExprVisitor::VisitExpr_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     this->PopulateBufferRemap(op->source.as_or_throw<tvm::tirx::BufferVar>());
+    return std::nullopt;
   }
 
-  void VisitStmt_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
     // remap all intermediate constant buffer to promote data types (fp16/fp32)
     if (MatchType(op->buffer->dtype)) {
       PrimType dtype = promote_dtype_.WithLanes(op->buffer->dtype.lanes());
@@ -122,31 +124,32 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
       BufferVar buffer_var = RebuildBufferVar(op->buffer, std::move(type));
       (*var_remap_)[op->buffer.var()] = buffer_var.var();
     }
-    return StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const DeclBufferNode* op) final {
-    StmtExprVisitor::VisitStmt_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     this->PopulateBufferRemap(op->buffer);
+    return std::nullopt;
   }
 
-  void VisitExpr_(const CallNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
       if (auto buffer = op->args[0].as<Var>()) {
         opaque_var_access_.insert(buffer.value());
       }
     }
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitExpr_(const VarNode* op) final {
-    StmtExprVisitor::VisitExpr_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     Var buffer_var = ffi::GetRef<Var>(op);
     if (buffer_var->ty.as<BufferTypeNode>()) {
       this->PopulateBufferRemap(BufferVar(buffer_var));
     } else if (buffer_var->ty.as<PointerTypeNode>()) {
       opaque_var_access_.insert(buffer_var);
     }
+    return std::nullopt;
   }
 
  private:
@@ -556,8 +559,9 @@ class BF16ComputeLegalizer : public ComputeLegalizer {
  public:
   BF16ComputeLegalizer() : ComputeLegalizer(PrimType::Float(32)) {}
   PrimFunc Legalize(PrimFunc func) {
-    BF16ComputeLegalizePlanner planner(&buffer_remap_, &var_remap_, promote_dtype_);
-    return LegalizeWithPlanner(func, &planner);
+    auto planner =
+        ffi::make_object<BF16ComputeLegalizePlanner>(&buffer_remap_, &var_remap_, promote_dtype_);
+    return LegalizeWithPlanner(func, planner.get());
   }
   bool MatchType(const Type& type) const {
     return MatchPrimType(type, [](const PrimType& prim_type) { return IsBFloat16Type(prim_type); });
@@ -568,8 +572,9 @@ class FP8ComputeLegalizer : public ComputeLegalizer {
  public:
   explicit FP8ComputeLegalizer(PrimType promote_dtype) : ComputeLegalizer(promote_dtype) {}
   PrimFunc Legalize(PrimFunc func) {
-    FP8ComputeLegalizePlanner planner(&buffer_remap_, &var_remap_, promote_dtype_);
-    return LegalizeWithPlanner(func, &planner);
+    auto planner =
+        ffi::make_object<FP8ComputeLegalizePlanner>(&buffer_remap_, &var_remap_, promote_dtype_);
+    return LegalizeWithPlanner(func, planner.get());
   }
   bool MatchType(const Type& type) const {
     return MatchPrimType(type, [](const PrimType& prim_type) { return IsFloat8Type(prim_type); });

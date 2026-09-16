@@ -194,9 +194,15 @@ void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const
   CodeGenC::PrintFunctionSignature(function_name, func, os);
 }
 
-class ThreadIdxExtractor : public tirx::StmtVisitor {
+class ThreadIdxExtractor : public tirx::StmtExprVisitor {
+ public:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<tvm::ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
  private:
-  void VisitStmt_(const AttrStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
     if (op->attr_key == tirx::attr::thread_extent) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       if (iv->var->name == "threadIdx.x" || iv->thread_tag == "threadIdx.x") {
@@ -218,7 +224,7 @@ class ThreadIdxExtractor : public tirx::StmtVisitor {
         clusterCtaIdx_z_ext = op->value;
       }
     }
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
  public:
@@ -231,13 +237,13 @@ class ThreadIdxExtractor : public tirx::StmtVisitor {
 };
 
 void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
-  ThreadIdxExtractor extractor;
-  extractor(f->body);
+  auto extractor = ffi::make_object<ThreadIdxExtractor>();
+  extractor->Visit(f->body);
   arith::Analyzer analyzer;
   PrimExpr threadIdx_ext = analyzer->Simplify(
-      extractor.threadIdx_x_ext * extractor.threadIdx_y_ext * extractor.threadIdx_z_ext);
+      extractor->threadIdx_x_ext * extractor->threadIdx_y_ext * extractor->threadIdx_z_ext);
   PrimExpr cluster_cta_yz_ext =
-      analyzer->Simplify(extractor.clusterCtaIdx_y_ext * extractor.clusterCtaIdx_z_ext);
+      analyzer->Simplify(extractor->clusterCtaIdx_y_ext * extractor->clusterCtaIdx_z_ext);
   if (const IntImmNode* const cluster_cta_yz_ext_int = cluster_cta_yz_ext.as<IntImmNode>()) {
     cluster_cta_x_is_linear_rank_ = cluster_cta_yz_ext_int->value == 1;
   } else {
@@ -249,12 +255,12 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
     TVM_FFI_ICHECK_EQ(required_block_size.value(), 1);
     TVM_FFI_ICHECK(!max_registers.has_value())
         << tirx::attr::kRequiredBlockSize << " cannot be combined with maximum registers";
-    const auto* tx = extractor.threadIdx_x_ext.as<IntImmNode>();
-    const auto* ty = extractor.threadIdx_y_ext.as<IntImmNode>();
-    const auto* tz = extractor.threadIdx_z_ext.as<IntImmNode>();
-    const auto* cx = extractor.clusterCtaIdx_x_ext.as<IntImmNode>();
-    const auto* cy = extractor.clusterCtaIdx_y_ext.as<IntImmNode>();
-    const auto* cz = extractor.clusterCtaIdx_z_ext.as<IntImmNode>();
+    const auto* tx = extractor->threadIdx_x_ext.as<IntImmNode>();
+    const auto* ty = extractor->threadIdx_y_ext.as<IntImmNode>();
+    const auto* tz = extractor->threadIdx_z_ext.as<IntImmNode>();
+    const auto* cx = extractor->clusterCtaIdx_x_ext.as<IntImmNode>();
+    const auto* cy = extractor->clusterCtaIdx_y_ext.as<IntImmNode>();
+    const auto* cz = extractor->clusterCtaIdx_z_ext.as<IntImmNode>();
     TVM_FFI_ICHECK(tx && ty && tz && cx && cy && cz)
         << tirx::attr::kRequiredBlockSize << " requires static thread and cluster dimensions";
     os << " __block_size__((" << tx->value << ", " << ty->value << ", " << tz->value << "), ("
@@ -1166,7 +1172,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // "//" and "%" in the index map are translated to FloorDiv/Mod, but the plain Div/Mod are fine.
     // FloorDiv/Mod are supposed to be lowered before they reach codegen, so manually replace them
     // to the plain ones here.
-    class LowerFloorDivMod : public ExprMutator {
+    class LowerFloorDivMod : public tirx::ExprMutator {
      public:
       Expr VisitExpr_(const prim::FloorDivNode* op) {
         return prim::Div(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
@@ -1268,7 +1274,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         IndexMap::FromFunc(2, *index_map_func).Inverse({Range(0, m), Range(0, n)}, analyzer);
     auto indices_16x16 = inverse_index_map->final_indices;
 
-    class LowerFloorDivMod : public ExprMutator {
+    class LowerFloorDivMod : public tirx::ExprMutator {
      public:
       Expr VisitExpr_(const prim::FloorDivNode* op) {
         return prim::Div(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));

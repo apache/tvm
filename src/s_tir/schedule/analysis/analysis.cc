@@ -128,8 +128,15 @@ Definition of a scope that is a stage pipeline:
 }
 
 ScopeBlockLoopInfo GetScopeBlockLoopInfo(const SBlock& scope_block) {
-  struct Collector : public StmtVisitor {
-    void VisitStmt_(const SBlockRealizeNode* realize) final {
+  struct Collector : public StmtExprVisitor {
+    using StmtExprVisitor::Visit_;
+
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return StmtExprVisitor::Visit(value);
+    }
+
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* realize) final {
       result.realizes.push_back(ffi::GetRef<SBlockRealize>(realize));
       const ffi::Array<IterVar>& iter_vars = realize->block->iter_vars;
       const ffi::Array<PrimExpr>& iter_values = realize->iter_values;
@@ -152,12 +159,14 @@ ScopeBlockLoopInfo GetScopeBlockLoopInfo(const SBlock& scope_block) {
         };
         ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(iter_value, walk_fn);
       }
+      return std::nullopt;
     }
 
     ScopeBlockLoopInfo result;
-  } visitor;
-  visitor(scope_block->body);
-  return std::move(visitor.result);
+  };
+  auto visitor = ffi::make_object<Collector>();
+  visitor->Visit(scope_block->body);
+  return std::move(visitor->result);
 }
 
 /*!
@@ -799,15 +808,23 @@ ffi::Array<StmtSRef> GetChildBlockSRefOnSRefTree(const ScheduleState& self,
 }
 
 ffi::Array<SBlockRealize> GetChildBlockRealizeOnSRefTree(const StmtSRef& parent_sref) {
-  struct Collector : public StmtVisitor {
-    static ffi::Array<SBlockRealize> Collect(const Stmt& stmt) {
-      Collector collector;
-      collector(stmt);
-      return std::move(collector.result_);
+  struct Collector : public StmtExprVisitor {
+    using StmtExprVisitor::Visit_;
+
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return StmtExprVisitor::Visit(value);
     }
 
-    void VisitStmt_(const SBlockRealizeNode* block_realize) final {
+    static ffi::Array<SBlockRealize> Collect(const Stmt& stmt) {
+      auto collector = ffi::make_object<Collector>();
+      collector->Visit(stmt);
+      return std::move(collector->result_);
+    }
+
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* block_realize) final {
       result_.push_back(ffi::GetRef<SBlockRealize>(block_realize));
+      return std::nullopt;
     }
 
     ffi::Array<SBlockRealize> result_;
@@ -861,22 +878,26 @@ SBlockRealize CheckGetSingleChildBlockRealizeOnSRefTree(const ScheduleState& sel
 }
 
 SBlockRealize GetSBlockRealize(const ScheduleState& self, const StmtSRef& block_sref) {
-  struct BlockRealizeFinder : public StmtVisitor {
+  struct BlockRealizeFinder : public StmtExprVisitor {
+    using StmtExprVisitor::Visit_;
+
     explicit BlockRealizeFinder(const SBlockNode* target_sblock)
         : target_sblock(target_sblock), result(nullptr) {}
 
-    void VisitStmt(const Stmt& stmt) final {
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView stmt) final {
+      if (stmt.as<ExprNode>()) return std::nullopt;
       if (result != nullptr) {
-        return;
+        return std::nullopt;
       }
-      StmtVisitor::VisitStmt(stmt);
+      return StmtExprVisitor::Visit(stmt);
     }
 
-    void VisitStmt_(const SBlockRealizeNode* block_realize) final {
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* block_realize) final {
       if (block_realize->block.get() == target_sblock) {
         result = block_realize;
       }
       // No need to visit recursively, since the deeper BlockRealizes must not be the result.
+      return std::nullopt;
     }
 
     const SBlockNode* target_sblock;
@@ -888,11 +909,11 @@ SBlockRealize GetSBlockRealize(const ScheduleState& self, const StmtSRef& block_
     const PrimFuncNode* func = GetRootPrimFunc(self->mod, block, nullptr);
     return func->body.as_or_throw<SBlockRealize>();
   } else {
-    BlockRealizeFinder finder(block);
-    finder(ffi::GetRef<Stmt>(block_sref->parent->stmt));
-    TVM_FFI_CHECK(finder.result != nullptr, InternalError)
+    auto finder = ffi::make_object<BlockRealizeFinder>(block);
+    finder->Visit(ffi::GetRef<Stmt>(block_sref->parent->stmt));
+    TVM_FFI_CHECK(finder->result != nullptr, InternalError)
         << "Cannot find the BlockRealize of block " << ffi::GetRef<SBlock>(block);
-    return ffi::GetRef<SBlockRealize>(finder.result);
+    return ffi::GetRef<SBlockRealize>(finder->result);
   }
 }
 
@@ -1089,10 +1110,17 @@ ffi::Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const SBlockScope&
 }
 
 ffi::Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const SBlockNode* scope_block) {
-  struct OutputSBlockCollector : public StmtVisitor {
+  struct OutputSBlockCollector : public StmtExprVisitor {
+    using StmtExprVisitor::Visit_;
+
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return StmtExprVisitor::Visit(value);
+    }
+
     explicit OutputSBlockCollector(const ScheduleState& self) : self_(self) {}
 
-    void VisitStmt_(const SBlockNode* block) override {
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) override {
       auto it = self_->stmt2ref.find(block);
       TVM_FFI_ICHECK(it != self_->stmt2ref.end());
       auto block_sref = it->second;
@@ -1103,15 +1131,15 @@ ffi::Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const SBlockNode
           results_.push_back(block_sref);
         }
       }
-      StmtVisitor::VisitStmt_(block);
+      return StmtExprVisitor::Visit_(block);
     }
 
     const ScheduleState& self_;
     ffi::Array<StmtSRef> results_;
   };
-  OutputSBlockCollector collector(self);
-  collector(scope_block->body);
-  auto results = collector.results_;
+  auto collector = ffi::make_object<OutputSBlockCollector>(self);
+  collector->Visit(scope_block->body);
+  auto results = collector->results_;
   return results;
 }
 
@@ -1151,9 +1179,16 @@ ProducerConsumerSplit ProducerConsumerSplit::Find(
     int first_consumer_position_;
   };
 
-  class Finder : public StmtVisitor {
+  class Finder : public StmtExprVisitor {
    public:
-    void VisitStmt_(const SBlockRealizeNode* realize) final {
+    using StmtExprVisitor::Visit_;
+
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return StmtExprVisitor::Visit(value);
+    }
+
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* realize) final {
       const SBlockNode* block = realize->block.get();
       if (block2realize_) {
         block2realize_->emplace(block, realize);
@@ -1164,6 +1199,7 @@ ProducerConsumerSplit ProducerConsumerSplit::Find(
       if (consumer_blocks_.count(block)) {
         ++this->n_consumers_visited_;
       }
+      return std::nullopt;
     }
 
     std::unordered_map<const SBlockNode*, const SBlockRealizeNode*>* block2realize_;
@@ -1173,32 +1209,32 @@ ProducerConsumerSplit ProducerConsumerSplit::Find(
     int n_consumers_visited_ = 0;
   };
 
-  Finder finder;
-  finder.block2realize_ = block2realize;
+  auto finder = ffi::make_object<Finder>();
+  finder->block2realize_ = block2realize;
   // Set up the lookup table for producers
-  finder.producer_blocks_.reserve(producer_block_srefs.size());
+  finder->producer_blocks_.reserve(producer_block_srefs.size());
   for (const StmtSRef& block_sref : producer_block_srefs) {
-    finder.producer_blocks_.insert(block_sref->stmt);
+    finder->producer_blocks_.insert(block_sref->stmt);
   }
   // Set up the lookup table for consumers
-  finder.consumer_blocks_.reserve(consumer_block_srefs.size());
+  finder->consumer_blocks_.reserve(consumer_block_srefs.size());
   for (const StmtSRef& block_sref : consumer_block_srefs) {
-    finder.consumer_blocks_.insert(block_sref->stmt);
+    finder->consumer_blocks_.insert(block_sref->stmt);
   }
   // Visit the subtrees
   int n = subtrees.size();
   int last_producer_position = -1;
   int first_consumer_position = n;
   for (int i = 0; i < n; ++i) {
-    int n_producers_visited_before = finder.n_producers_visited_;
-    int n_consumers_visited_before = finder.n_consumers_visited_;
-    finder(subtrees[i]);
+    int n_producers_visited_before = finder->n_producers_visited_;
+    int n_consumers_visited_before = finder->n_consumers_visited_;
+    finder->Visit(subtrees[i]);
     // Check if the subtree contains at least a producer
-    if (finder.n_producers_visited_ != n_producers_visited_before) {
+    if (finder->n_producers_visited_ != n_producers_visited_before) {
       last_producer_position = i;
     }
     // Check if the subtree contains at least a consumer
-    if (finder.n_consumers_visited_ != n_consumers_visited_before) {
+    if (finder->n_consumers_visited_ != n_consumers_visited_before) {
       if (first_consumer_position == n) {
         first_consumer_position = i;
       }
@@ -1208,10 +1244,10 @@ ProducerConsumerSplit ProducerConsumerSplit::Find(
     throw MakeScheduleError<InsertionPointNotFoundError>(self->mod, last_producer_position,
                                                          first_consumer_position);
   }
-  return ProducerConsumerSplit{last_producer_position,       //
-                               first_consumer_position,      //
-                               finder.n_producers_visited_,  //
-                               finder.n_consumers_visited_};
+  return ProducerConsumerSplit{last_producer_position,        //
+                               first_consumer_position,       //
+                               finder->n_producers_visited_,  //
+                               finder->n_consumers_visited_};
 }
 
 /******** Block-buffer relation ********/

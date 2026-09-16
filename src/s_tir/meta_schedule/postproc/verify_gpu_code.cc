@@ -29,51 +29,58 @@ namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
 
-class ThreadExtentChecker : private StmtVisitor {
+class ThreadExtentChecker : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
   static bool Check(const Stmt& stmt, int thread_warp_size) {
     try {
       TVM_FFI_ICHECK(thread_warp_size > 0);
-      ThreadExtentChecker checker(thread_warp_size);
-      checker.VisitStmt(stmt);
+      auto checker = ffi::make_object<ThreadExtentChecker>(thread_warp_size);
+      checker->Visit(stmt);
       return true;
     } catch (const std::exception&) {
       return false;
     }
   }
 
- private:
   explicit ThreadExtentChecker(int thread_warp_size) : thread_warp_size_(thread_warp_size) {}
 
-  void VisitStmt_(const ForNode* loop) {
+ private:
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) {
     runtime::ThreadScope thread_scope = GetThreadScope(loop);
     if (IsThreadIdx(thread_scope)) {
       if (const int64_t* p_ext = GetLoopIntExtent(loop)) {
         int64_t ext = *p_ext;
         if (thread_scope.dim_index == 0) {
           std::swap(thread_idx_x, ext);
-          StmtVisitor::VisitStmt_(loop);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
           std::swap(thread_idx_x, ext);
         } else if (thread_scope.dim_index == 1) {
           std::swap(thread_idx_y, ext);
-          StmtVisitor::VisitStmt_(loop);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
           std::swap(thread_idx_y, ext);
         } else if (thread_scope.dim_index == 2) {
           std::swap(thread_idx_z, ext);
-          StmtVisitor::VisitStmt_(loop);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
           std::swap(thread_idx_z, ext);
         } else {
-          StmtVisitor::VisitStmt_(loop);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
         }
-        return;
+        return std::nullopt;
       } else {
         throw std::runtime_error("Dynamic thread extent");
       }
     }
-    StmtVisitor::VisitStmt_(loop);
+    return StmtExprVisitor::Visit_(loop);
   }
 
-  void VisitStmt_(const SBlockNode* block) {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) {
     int old_thread_idx_x = thread_idx_x;
     if (block->annotations.count(s_tir::attr::warp_execution)) {
       thread_idx_x = thread_warp_size_;
@@ -90,8 +97,9 @@ class ThreadExtentChecker : private StmtVisitor {
         }
       }
     }
-    StmtVisitor::VisitStmt_(block);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
     thread_idx_x = old_thread_idx_x;
+    return std::nullopt;
   }
 
   int64_t thread_idx_x = 1;

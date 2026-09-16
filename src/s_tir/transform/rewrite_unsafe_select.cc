@@ -37,7 +37,7 @@ using namespace tvm::tirx;
 
 // For now, rewrite unsafe select expression to if_then_else
 // TODO(tqchen) pattern matching to support masked load
-class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
+class UnsafeExprDetector : public tirx::ExprFunctor<bool(const Expr& n)> {
  public:
   // select itself is always considered safe if condition is safe
   // Because we will issue guard to make sure it is.

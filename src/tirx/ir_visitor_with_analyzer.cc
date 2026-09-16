@@ -32,101 +32,105 @@
 namespace tvm {
 namespace tirx {
 
-void IRVisitorWithAnalyzer::VisitStmt_(const ForNode* op) {
-  constraint_scope_.WithNewScope([&]() {
+ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const ForNode* op) {
+  return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-    this->VisitExpr(op->min);
-    this->VisitExpr(op->extent);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->min));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->extent));
     if (op->step.has_value()) {
-      this->VisitExpr(*op->step);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(*op->step));
     }
-    constraint_scope_.WithNewScope([&]() {
+    return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
       constraint_scope_.Current().Emplace(analyzer_, op->extent > IntImm(op->extent.ty(), 0));
-      this->VisitStmt(op->body);
+      return this->Visit(op->body);
     });
   });
 }
 
-void IRVisitorWithAnalyzer::VisitStmt_(const SBlockNode* op) {
-  constraint_scope_.WithNewScope([&]() {
+ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const SBlockNode* op) {
+  return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
     for (const auto& iter_var : op->iter_vars) {
       analyzer_->Bind(iter_var->var, iter_var->dom);
     }
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   });
 }
 
-void IRVisitorWithAnalyzer::VisitStmt_(const BindNode* op) {
-  this->VisitExpr(op->value);
+ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const BindNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
   if (ffi::Optional<PrimExpr> value = op->value.as<PrimExpr>()) {
     analyzer_->Bind(op->var, value.value());
   }
+  return std::nullopt;
 }
 
-void IRVisitorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
-  constraint_scope_.WithNewScope([&]() {
-    this->VisitExpr(op->condition);
+ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const IfThenElseNode* op) {
+  return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->condition));
 
     PrimExpr real_condition = ExtractRealCondition(op->condition);
 
-    constraint_scope_.WithNewScope([&]() {
-      constraint_scope_.Current().Emplace(analyzer_, real_condition);
-      this->VisitStmt(op->then_case);
-    });
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(
+        constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
+          constraint_scope_.Current().Emplace(analyzer_, real_condition);
+          return this->Visit(op->then_case);
+        }));
     if (op->else_case) {
-      constraint_scope_.WithNewScope([&]() {
-        constraint_scope_.Current().Emplace(analyzer_,
-                                            analyzer_->rewrite_simplify(prim::Not(real_condition)));
-        this->VisitStmt(op->else_case.value());
-      });
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(
+          constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
+            constraint_scope_.Current().Emplace(
+                analyzer_, analyzer_->rewrite_simplify(prim::Not(real_condition)));
+            return this->Visit(op->else_case.value());
+          }));
     }
+    return std::nullopt;
   });
 }
 
-void IRVisitorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
-  constraint_scope_.WithNewScope([&]() {
+ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const AttrStmtNode* op) {
+  return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
     if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       analyzer_->Bind(iv->var, Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value));
     }
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   });
 }
 
-void IRVisitorWithAnalyzer::VisitStmt_(const AssertStmtNode* op) {
-  this->VisitExpr(op->condition);
+ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const AssertStmtNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->condition));
   constraint_scope_.Current().Emplace(analyzer_, op->condition);
+  return std::nullopt;
 }
 
-void IRVisitorWithAnalyzer::VisitStmt_(const SeqStmtNode* op) {
-  // SeqStmt does NOT get WithNewScope — constraints accumulate across siblings.
-  StmtExprVisitor::VisitStmt_(op);
-}
-
-void IRVisitorWithAnalyzer::VisitExpr_(const CallNode* op) {
+ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const CallNode* op) {
   // add condition context to if_then_else
   static const Op& if_then_else_op = Op::Get("ir.prim.if_then_else");
   if (op->op.same_as(if_then_else_op)) {
     PrimExpr cond = op->args[0].as_or_throw<PrimExpr>();
-    this->VisitExpr(cond);
-    constraint_scope_.WithNewScope([&]() {
-      constraint_scope_.Current().Emplace(analyzer_, cond);
-      this->VisitExpr(op->args[1]);
-    });
-    constraint_scope_.WithNewScope([&]() {
-      constraint_scope_.Current().Emplace(analyzer_, analyzer_->rewrite_simplify(prim::Not(cond)));
-      this->VisitExpr(op->args[2]);
-    });
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(cond));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(
+        constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
+          constraint_scope_.Current().Emplace(analyzer_, cond);
+          return this->Visit(op->args[1]);
+        }));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(
+        constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
+          constraint_scope_.Current().Emplace(analyzer_,
+                                              analyzer_->rewrite_simplify(prim::Not(cond)));
+          return this->Visit(op->args[2]);
+        }));
   } else {
-    StmtExprVisitor::VisitExpr_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
   }
+  return std::nullopt;
 }
 
-void IRVisitorWithAnalyzer::VisitExpr_(const prim::LetNode* op) {
-  this->VisitExpr(op->value);
+ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const prim::LetNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
   analyzer_->Bind(op->var, op->value);
-  this->VisitExpr(op->body);
+  return this->Visit(op->body);
 }
 
 PrimExpr IRVisitorWithAnalyzer::ExtractRealCondition(PrimExpr condition) const {

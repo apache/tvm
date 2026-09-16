@@ -382,6 +382,148 @@ def cuda_float8tohalf8(src_addr, dst_addr):
     return call_intrin("", "tirx.cuda.float8tohalf8", src_addr, dst_addr)
 
 
+_WAIT_UNTIL_SCOPE = ("cta", "cluster", "gpu", "sys")
+# Global only, and that is the whole surface a declared word needs. A protocol
+# that waits inside a CTA or a cluster has `mbarrier`, which is the hardware's
+# own primitive for it and which the checker already models by generation; a
+# polled flag in shared memory would be a worse spelling of the same thing. The
+# shared-memory reads that look like a protocol in practice -- fetching a TMEM
+# allocation address out of a mailbox -- are ordinary reads after a barrier,
+# with no spin and no predicate, so they are not protocols at all.
+_WAIT_UNTIL_SPACE = ("global",)
+_WAIT_UNTIL_DTYPE = ("int32", "uint32", "int64", "uint64")
+# Widths, so a requested PTX type can be checked against the word it accesses.
+# Which spellings an instruction actually takes is the instruction table's
+# business: `add` has no `.b32` form, so a bit-typed arrival is rejected there
+# rather than listed as illegal here.
+_WAIT_UNTIL_PTX_TYPES = {
+    "b32": 32,
+    "s32": 32,
+    "u32": 32,
+    "b64": 64,
+    "s64": 64,
+    "u64": 64,
+    # A 128-bit word is a 16-byte naturally aligned span, moved by the `.b128`
+    # forms of `ld`/`st` (PTX ISA 8.3, sm_70). It carries a value no scalar
+    # predicate can test, so `wait` rejects it; `store` and `load` take it.
+    "b128": 128,
+}
+
+
+def _validate_wait_until_attrs(scope, space, ptx_type=None):
+    """The attributes a declared synchronization-word wait still carries."""
+    if scope not in _WAIT_UNTIL_SCOPE:
+        raise ValueError(f"invalid scope={scope!r}; expected one of {_WAIT_UNTIL_SCOPE}")
+    if space not in _WAIT_UNTIL_SPACE:
+        detail = (
+            "; a protocol that waits within a CTA or cluster belongs on an "
+            "`mbarrier`, which the checker models by generation"
+            if space == "shared"
+            else ""
+        )
+        raise ValueError(
+            f"invalid space={space!r}; expected one of {_WAIT_UNTIL_SPACE}{detail}"
+        )
+    if ptx_type is not None and ptx_type not in _WAIT_UNTIL_PTX_TYPES:
+        raise ValueError(
+            f"invalid ptx_type={ptx_type!r}; expected one of "
+            f"{tuple(sorted(_WAIT_UNTIL_PTX_TYPES))}"
+        )
+
+
+def _reject_wide_word_for_predicate(ptx_type, what):
+    """A predicate tests one scalar, so a 128-bit word cannot be waited on.
+
+    The exit value of a 16-byte word is not a number the loop can compare, and
+    the checker's record of a declared word's writes holds one scalar per
+    write. A kernel that has to read one spells the `ld` itself.
+    """
+    if ptx_type is not None and _WAIT_UNTIL_PTX_TYPES[ptx_type] > 64:
+        raise ValueError(
+            f"{what} does not take a {_WAIT_UNTIL_PTX_TYPES[ptx_type]}-bit word: "
+            "its exit value is not a scalar a predicate can test; read it with "
+            "a plain `ld` instead"
+        )
+
+
+def cuda_wait_until(
+    dst,
+    ptr,
+    predicate,
+    scope="gpu",
+    space="global",
+    ptx_type=None,
+    backoff_ns=None,
+):
+    """Read the global word at ``ptr`` into ``dst`` until ``predicate`` holds,
+    and leave the exit value there.
+
+    Waiting on an address this way is also what declares it a synchronization
+    word: the checker judges every access to that address against the protocol
+    the wait names, rather than as an ordinary pair of memory accesses.
+
+    ``dst`` is an initialized thread-local scalar; its current value is tested
+    first, so an already satisfied predicate performs no load. ``predicate`` is
+    a trace-time callable taking the current value, or the boolean expression
+    itself. It is re-evaluated on every iteration, so it may test ``dst``
+    against a loop-carried scalar such as a barrier's phase: the loop body only
+    loads, and nothing it does can move that scalar.
+
+    The wait always synchronizes with the contributions that made the
+    predicate hold, so data those threads published elsewhere is visible when
+    it returns. It polls ``ld.relaxed.<scope>`` and closes with one
+    ``ld.acquire.<scope>`` into a discarded register, which is the cheapest
+    spelling of that edge rather than a separate mode: paying acquire on every
+    poll costs more, and closing with an ``acq_rel``/``sc`` fence instead costs
+    far more, because the fence loses the loop's fast-path exit.
+
+    There is no way to ask for less. A wait whose exit value is the whole
+    message does take an edge it has no use for, and the two such waits in the
+    kernel corpus were measured against this form on three shapes: every ratio
+    landed inside the band that identical code measured against itself, and
+    the two smaller shapes disagreed on the sign. So a relaxed mode would buy
+    nothing here, while what it asks for is a promise made at the call site --
+    that nothing the word guards is read afterwards -- which the call site
+    cannot show and the next edit can silently break.
+
+    ``T.nvshmem.wait_until`` shares this name deliberately: both block until a
+    value satisfies a condition. They differ in what they wait on and how the
+    condition is written -- that one names a symmetric object across PEs and
+    takes an enumerated comparison; this one names an address in this device's
+    global memory and takes a predicate. A protocol that waits within a CTA or
+    cluster belongs on an ``mbarrier`` instead, which is why ``space`` admits
+    only ``global``.
+
+    ``backoff_ns`` puts a ``__nanosleep`` before each retry, as a contended
+    wait is ordinarily written. It goes before the load, so a predicate that
+    holds on entry still performs no load and no sleep, and a wait whose first
+    poll succeeds pays nothing. A kernel that spells the backoff itself writes
+    ``ld`` once and then waits, which is the same instruction sequence.
+
+    The backoff is the only thing a wait carries besides its own load, and it
+    stays a scalar for a reason: it runs every iteration, touches no memory,
+    and cannot move what the predicate reads, so it changes nothing the
+    checker concludes. A timeout that has to print and trap is not that, and
+    belongs to a loop the kernel writes itself.
+    """
+    _validate_wait_until_attrs(scope, space, ptx_type)
+    _reject_wide_word_for_predicate(ptx_type, "wait_until")
+    if tirx.is_buffer_var(dst):
+        dst = dst[0]
+    condition = tirx.convert(predicate(dst) if callable(predicate) else predicate)
+    return call_intrin(
+        "",
+        "tirx.cuda.wait_until",
+        dst,
+        ptr,
+        condition,
+        scope,
+        space,
+        ptx_type or "",
+        tirx.convert(0 if backoff_ns is None else backoff_ns),
+    )
+
+
 def _validate_mbarrier_arrive_attrs(sem, scope, space, remote):
     if (sem == "") != (scope == ""):
         raise ValueError("mbarrier.arrive sem and scope must be specified together")

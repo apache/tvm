@@ -184,26 +184,33 @@ class NonSingleProducerError : public ScheduleErrorContextObj {
     const SBlockNode* consumer_block = TVM_SREF_TO_SBLOCK(consumer_block_sref);
     BufferVar consumer_buffer = NotSingleReadWriteBuffer::GetSingleRead(
         self, ffi::GetRef<SBlock>(consumer_block), scope_root_sref);
-    class ProducerFinder : public StmtVisitor {
+    class ProducerFinder : public StmtExprVisitor {
      public:
+      using StmtExprVisitor::Visit_;
+
+      ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+        if (value.as<ExprNode>()) return std::nullopt;
+        return StmtExprVisitor::Visit(value);
+      }
+
       static std::vector<SBlock> GetProducer(const ScheduleState& self,
                                              const StmtSRef& scope_root_sref,
                                              const BufferVar& buffer, const SBlock& scope_block) {
-        ProducerFinder finder(self, scope_root_sref, buffer);
-        finder(scope_block);
-        return finder.producer_across_scope_.back();
+        auto finder = ffi::make_object<ProducerFinder>(self, scope_root_sref, buffer);
+        finder->Visit(scope_block);
+        return finder->producer_across_scope_.back();
       }
 
-     private:
       explicit ProducerFinder(const ScheduleState& self, const StmtSRef& scope_root_sref,
                               const BufferVar& buffer)
           : self_(self), scope_root_sref_(scope_root_sref), buffer_(buffer) {
         producer_across_scope_.push_back({});
       }
 
-      void VisitStmt_(const SBlockNode* node) final {
+     private:
+      ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* node) final {
         producer_across_scope_.push_back({});
-        StmtVisitor::VisitStmt_(node);
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
         // not a leaf block
         if (!producer_across_scope_.back().empty()) {
           auto producer_under_block = producer_across_scope_.back();
@@ -211,7 +218,7 @@ class NonSingleProducerError : public ScheduleErrorContextObj {
           producer_across_scope_.back().insert(producer_across_scope_.back().end(),
                                                producer_under_block.begin(),
                                                producer_under_block.end());
-          return;
+          return std::nullopt;
         }
         // leaf block
         producer_across_scope_.pop_back();
@@ -227,6 +234,7 @@ class NonSingleProducerError : public ScheduleErrorContextObj {
             break;
           }
         }
+        return std::nullopt;
       }
       ScheduleState self_;
       StmtSRef scope_root_sref_;
@@ -809,9 +817,9 @@ class ReverseComputeInliner : public BaseInliner {
    * \return Whether the consumer block iter domains are covered
    */
   bool CheckConsumerCovered() {
-    ffi::Map<IterVar, arith::IntSet> producer_iter_doms;
+    ffi::Map<Var, arith::IntSet> producer_iter_doms;
     for (const IterVar& iter_var : producer_block_->iter_vars) {
-      producer_iter_doms.Set(iter_var, arith::IntSet::FromRange(iter_var->dom));
+      producer_iter_doms.Set(iter_var->var, arith::IntSet::FromRange(iter_var->dom));
     }
     // For each block iter in the consumer block, find the corresponding expression in the producer
     for (const IterVar& iter : consumer_block_->iter_vars) {
@@ -857,22 +865,25 @@ class ReverseComputeInliner : public BaseInliner {
    */
   static std::vector<const TensorLoadNode*> ExtractBufferLoad(const BufferVar& buffer,
                                                               const BufferStoreNode* from) {
-    struct Extractor : public ExprVisitor {
-      void VisitExpr_(const TensorLoadNode* load) final {
+    struct Extractor : public StmtExprVisitor {
+      using StmtExprVisitor::Visit_;
+
+      ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
         if (load->source.as_or_throw<tvm::tirx::BufferVar>().get() == buffer) {
           result.push_back(load);
         }
-        ExprVisitor::VisitExpr_(load);
+        return StmtExprVisitor::Visit_(load);
       }
       const VarNode* buffer;
       std::vector<const TensorLoadNode*> result;
-    } extractor;
-    extractor.buffer = buffer.get();
+    };
+    auto extractor = ffi::make_object<Extractor>();
+    extractor->buffer = buffer.get();
     for (const PrimExpr& expr : from->indices) {
-      extractor(expr);
+      extractor->Visit(expr);
     }
-    extractor(from->value);
-    return std::move(extractor.result);
+    extractor->Visit(from->value);
+    return std::move(extractor->result);
   }
 
   /*!
@@ -1053,25 +1064,28 @@ class ReductionEpilogueFuser : public BaseInliner {
   // Helper function to extract TensorLoad nodes from BufferStore
   static std::vector<const TensorLoadNode*> ExtractBufferLoad(const BufferVar& buffer,
                                                               const BufferStoreNode* from) {
-    struct Extractor : public ExprVisitor {
-      void VisitExpr_(const TensorLoadNode* load) final {
+    struct Extractor : public StmtExprVisitor {
+      using StmtExprVisitor::Visit_;
+
+      ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
         if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
           result.push_back(load);
         }
         // Continue visiting child nodes (indices)
-        ExprVisitor::VisitExpr_(load);
+        return StmtExprVisitor::Visit_(load);
       }
       BufferVar buffer;
       std::vector<const TensorLoadNode*> result;
-    } extractor;
-    extractor.buffer = buffer;
+    };
+    auto extractor = ffi::make_object<Extractor>();
+    extractor->buffer = buffer;
     // Visit indices first (though they typically don't contain BufferLoad)
     for (const PrimExpr& expr : from->indices) {
-      extractor(expr);
+      extractor->Visit(expr);
     }
     // Visit the value expression (e.g., max(temp + C, 0) for ReLU)
-    extractor(from->value);
-    return std::move(extractor.result);
+    extractor->Visit(from->value);
+    return std::move(extractor->result);
   }
 
   const SBlockNode* reduction_block_;
@@ -1123,82 +1137,84 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
   // 5. Reject epilogues that scale the reduction result with non-additive ops
   // For example, (reduce_out * 2.0) + C[i] is not a valid bias-style epilogue.
   // We only allow the reduction result to be combined via Add/Min/Max shells.
-  class ScalingDetector : public ExprVisitor {
+  class ScalingDetector : public StmtExprVisitor {
    public:
-    explicit ScalingDetector(const BufferVar& buffer) : buffer_(buffer) {}
+    using StmtExprVisitor::Visit_;
+
+    explicit ScalingDetector(const BufferVar& buffer)
+        : finder_(ffi::make_object<TargetFinder>(buffer)) {}
 
     bool HasScaling(const PrimExpr& expr) {
       has_scaling_ = false;
-      VisitExpr(expr);
+      Visit(expr);
       return has_scaling_;
     }
 
    private:
+    class TargetFinder : public StmtExprVisitor {
+     public:
+      using StmtExprVisitor::Visit_;
+
+      explicit TargetFinder(const BufferVar& buffer) : buffer_(buffer) {}
+
+      bool Find(const PrimExpr& e) {
+        found_ = false;
+        Visit(e);
+        return found_;
+      }
+
+     private:
+      ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
+        if (op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
+          found_ = true;
+          return std::nullopt;
+        }
+        return StmtExprVisitor::Visit_(op);
+      }
+
+      BufferVar buffer_;
+      bool found_{false};
+    };
+
     // Helper to check if a subtree contains a load from the reduction buffer
-    bool ContainsTarget(const PrimExpr& expr) {
-      class TargetFinder : public ExprVisitor {
-       public:
-        explicit TargetFinder(const BufferVar& buffer) : buffer_(buffer) {}
+    bool ContainsTarget(const PrimExpr& expr) { return finder_->Find(expr); }
 
-        bool Find(const PrimExpr& e) {
-          found_ = false;
-          VisitExpr(e);
-          return found_;
-        }
-
-       private:
-        void VisitExpr_(const TensorLoadNode* op) final {
-          if (op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
-            found_ = true;
-            return;
-          }
-          ExprVisitor::VisitExpr_(op);
-        }
-
-        BufferVar buffer_;
-        bool found_{false};
-      };
-
-      TargetFinder finder(buffer_);
-      return finder.Find(expr);
-    }
-
-    void VisitExpr_(const MulNode* op) final {
-      if (has_scaling_) return;
+    ffi::Optional<VisitInterrupt> Visit_(const MulNode* op) final {
+      if (has_scaling_) return std::nullopt;
       // If either operand subtree contains the reduction buffer load,
       // we treat this as invalid scaling of the reduction result.
       if (ContainsTarget(op->a) || ContainsTarget(op->b)) {
         has_scaling_ = true;
-        return;
+        return std::nullopt;
       }
-      ExprVisitor::VisitExpr_(op);
+      return StmtExprVisitor::Visit_(op);
     }
 
-    void VisitExpr_(const DivNode* op) final {
-      if (has_scaling_) return;
+    ffi::Optional<VisitInterrupt> Visit_(const DivNode* op) final {
+      if (has_scaling_) return std::nullopt;
       if (ContainsTarget(op->a) || ContainsTarget(op->b)) {
         has_scaling_ = true;
-        return;
+        return std::nullopt;
       }
-      ExprVisitor::VisitExpr_(op);
+      return StmtExprVisitor::Visit_(op);
     }
 
-    void VisitExpr_(const ModNode* op) final {
-      if (has_scaling_) return;
+    ffi::Optional<VisitInterrupt> Visit_(const ModNode* op) final {
+      if (has_scaling_) return std::nullopt;
       if (ContainsTarget(op->a) || ContainsTarget(op->b)) {
         has_scaling_ = true;
-        return;
+        return std::nullopt;
       }
-      ExprVisitor::VisitExpr_(op);
+      return StmtExprVisitor::Visit_(op);
     }
 
-    BufferVar buffer_;
+    ffi::ObjectPtr<TargetFinder> finder_;
     bool has_scaling_{false};
   };
 
   {
-    ScalingDetector detector(inlined_buffer_);
-    if (detector.HasScaling(inlined_store_->value)) {
+    auto detector = ffi::make_object<ScalingDetector>(inlined_buffer_);
+    if (detector->HasScaling(inlined_store_->value)) {
       // Failure: Non-additive scaling of the reduction result is not supported
       return false;
     }
@@ -1241,23 +1257,26 @@ void ReductionEpilogueFuser::ExtractEpilogueInfo() {
 
   // Generalized approach: extract all non-reduction buffers from epilogue expression
   // Find all buffers in epilogue expression (except the reduction buffer)
-  struct BufferExtractor : public ExprVisitor {
-    void VisitExpr_(const TensorLoadNode* load) final {
+  struct BufferExtractor : public StmtExprVisitor {
+    using StmtExprVisitor::Visit_;
+
+    ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
       if (!load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(reduction_buffer)) {
         other_buffers.insert(load->source.as_or_throw<tvm::tirx::BufferVar>().get());
       }
-      ExprVisitor::VisitExpr_(load);
+      return StmtExprVisitor::Visit_(load);
     }
     BufferVar reduction_buffer;
     std::unordered_set<const VarNode*> other_buffers;
-  } extractor;
-  extractor.reduction_buffer = inlined_buffer_;
-  extractor(epilogue_expression_);
+  };
+  auto extractor = ffi::make_object<BufferExtractor>();
+  extractor->reduction_buffer = inlined_buffer_;
+  extractor->Visit(epilogue_expression_);
 
   // Extract the first non-reduction buffer and its region
   // In most cases, there's one additional buffer (e.g., bias buffer)
-  if (!extractor.other_buffers.empty()) {
-    const VarNode* first_buffer = *extractor.other_buffers.begin();
+  if (!extractor->other_buffers.empty()) {
+    const VarNode* first_buffer = *extractor->other_buffers.begin();
     epilogue_addend_buffer_ = BufferVar(ffi::GetRef<Var>(first_buffer));
     // Find the read region from epilogue block reads
     for (const BufferRegion& read : epilogue_block_->reads) {
@@ -1561,36 +1580,41 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
  * \brief Check if a buffer is still referenced by other blocks in the scope
  */
 static bool CheckBufferStillUsed(const SBlock& scope_root, const BufferVar& buffer) {
-  class BufferUsageChecker : public StmtVisitor {
+  class BufferUsageChecker : public StmtExprVisitor {
    public:
+    using StmtExprVisitor::Visit_;
+
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return StmtExprVisitor::Visit(value);
+    }
+
     explicit BufferUsageChecker(const BufferVar& buffer) : buffer_(buffer) {}
 
     bool CheckStmt(const Stmt& stmt) {
       found_usage_ = false;
-      VisitStmt(stmt);
+      Visit(stmt);
       return found_usage_;
     }
 
    private:
-    void VisitStmt_(const SBlockRealizeNode* op) final {
-      if (found_usage_) return;
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* op) final {
+      if (found_usage_) return std::nullopt;
 
       if (!op || !op->block.defined()) {
-        StmtVisitor::VisitStmt_(op);
-        return;
+        return StmtExprVisitor::Visit_(op);
       }
 
       const SBlockNode* block = op->block.get();
       if (!block) {
-        StmtVisitor::VisitStmt_(op);
-        return;
+        return StmtExprVisitor::Visit_(op);
       }
 
       // Check reads
       for (const BufferRegion& read : block->reads) {
         if (read->buffer.same_as(buffer_)) {
           found_usage_ = true;
-          return;
+          return std::nullopt;
         }
       }
 
@@ -1598,27 +1622,27 @@ static bool CheckBufferStillUsed(const SBlock& scope_root, const BufferVar& buff
       for (const BufferRegion& write : block->writes) {
         if (write->buffer.same_as(buffer_)) {
           found_usage_ = true;
-          return;
+          return std::nullopt;
         }
       }
 
       // Continue visiting nested blocks
-      StmtVisitor::VisitStmt_(op);
+      return StmtExprVisitor::Visit_(op);
     }
 
-    void VisitStmt_(const SBlockNode* op) final {
-      if (found_usage_) return;
-      if (!op) return;
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
+      if (found_usage_) return std::nullopt;
+      if (!op) return std::nullopt;
 
       // Check alloc_buffers
       for (const BufferVar& buf : op->alloc_buffers) {
         if (buf.same_as(buffer_)) {
           found_usage_ = true;
-          return;
+          return std::nullopt;
         }
       }
 
-      StmtVisitor::VisitStmt_(op);
+      return StmtExprVisitor::Visit_(op);
     }
 
     const BufferVar& buffer_;
@@ -1629,8 +1653,8 @@ static bool CheckBufferStillUsed(const SBlock& scope_root, const BufferVar& buff
     return false;
   }
 
-  BufferUsageChecker checker(buffer);
-  return checker.CheckStmt(scope_root->body);
+  auto checker = ffi::make_object<BufferUsageChecker>(buffer);
+  return checker->CheckStmt(scope_root->body);
 }
 
 /*!

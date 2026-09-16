@@ -78,6 +78,8 @@ struct ComputationCache {
  */
 class ComputationsDoneBy : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
   // Toplevel (static) methods
   static ComputationTable GetComputationsDoneBy(
       const PrimExpr& expr, std::function<bool(const PrimExpr&)> is_eligible_computation,
@@ -86,17 +88,16 @@ class ComputationsDoneBy : public StmtExprVisitor {
       const Stmt& stmt, std::function<bool(const PrimExpr&)> is_eligible_computation,
       std::function<bool(const PrimExpr&)> can_contain_computations);
 
- protected:
   // Constructor
   ComputationsDoneBy(std::function<bool(const PrimExpr&)> is_eligible_computation,
                      std::function<bool(const PrimExpr&)> can_contain_computations);
 
-  void VisitExpr(const Expr& expr) override;
-  void VisitStmt(const Stmt& stmt) override;
+ protected:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView expr) override;
 
-  void VisitStmt_(const IfThenElseNode* op) override;
-  void VisitStmt_(const ForNode* op) override;
-  void VisitStmt_(const WhileNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) override;
 
  private:
   static ComputationTable ComputationsDoneByChildrenOf(
@@ -110,7 +111,7 @@ class ComputationsDoneBy : public StmtExprVisitor {
   std::function<bool(const PrimExpr&)> is_eligible_computation_;
   // The predicate used for knowing in which nodes we can search for eligible computations
   std::function<bool(const PrimExpr&)> can_contain_computations_;
-  // The object being constructed and "returned" by the VisitExpr()/VisitStmt() methods
+  // The object being constructed and "returned" by the Visit() method
   ComputationTable table_of_computations_;
   // Cache for preventing to compute repeatedly the computations done by the same stmt or expr
   static ComputationCache cache_;
@@ -122,19 +123,21 @@ class ComputationsDoneBy : public StmtExprVisitor {
           So for instance, for (A+(B+C)) it will return A and (B+C) if they are eligible,
           but not B and C.
  */
-class DirectSubexpr : public ExprVisitor {
+class DirectSubexpr : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
   // Toplevel (static) function
   static std::vector<PrimExpr> GetDirectSubexpressions(
       const PrimExpr& expr, std::function<bool(const PrimExpr&)> is_eligible_computation,
       std::function<bool(const PrimExpr&)> can_contain_computations);
 
- protected:
   // Constructor
   DirectSubexpr(std::function<bool(const PrimExpr&)> is_eligible_computation,
                 std::function<bool(const PrimExpr&)> can_contain_computations);
 
-  void VisitExpr(const Expr& expr) override;
+ protected:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView expr) override;
 
  private:
   // The predicate used for knowing which computations are eligible
@@ -142,7 +145,7 @@ class DirectSubexpr : public ExprVisitor {
   // The predicate used for knowing in which nodes we can search for eligible subexpressions
   std::function<bool(const PrimExpr&)> can_contain_computations_;
 
-  // We haven't entered the VisitExpr() method yet
+  // We haven't entered the Visit() method yet
   bool entered_ = false;
   // The vector of direct subexpressions that we are building
   std::vector<PrimExpr> direct_subexpr_;

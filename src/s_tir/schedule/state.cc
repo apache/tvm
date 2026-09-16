@@ -153,19 +153,26 @@ void UpdateSRef(ScheduleStateNode* self, StmtSRefNode* sref, const StmtNode* new
 
 /**************** Creation ****************/
 /*! \brief A helper class to update SBlockInfo for a ScheduleStateNode */
-class SBlockInfoCollector : private StmtVisitor {
+class SBlockInfoCollector : public StmtExprVisitor {
  public:
-  static void Collect(ScheduleStateNode* self, const Stmt& stmt) {
-    SBlockInfoCollector collector(self);
-    collector.VisitStmt(stmt);
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
   }
 
- private:
+  static void Collect(ScheduleStateNode* self, const Stmt& stmt) {
+    auto collector = ffi::make_object<SBlockInfoCollector>(self);
+    collector->Visit(stmt);
+  }
+
   explicit SBlockInfoCollector(ScheduleStateNode* self)
       : self_(self), srefs_{}, block2realize_{}, block_frames_{} {
     block_frames_.emplace_back();
   }
 
+ private:
   /*!
    * \brief Add a new statement to the stack, which becomes the current scope
    * \param stmt A for-loop statement or a block statement
@@ -356,32 +363,35 @@ class SBlockInfoCollector : private StmtVisitor {
     return stage_pipeline;
   }
 
-  void VisitStmt_(const ForNode* loop) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
     analyzer_->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     PushSRef(loop);
-    VisitStmt(loop->body);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(loop->body));
     PopSRef();
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SBlockRealizeNode* realize) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* realize) final {
     block_frames_.emplace_back();
     const SBlockNode* block = realize->block.get();
     block2realize_.emplace(block, ffi::GetRef<SBlockRealize>(realize));
     // Recursive visit
     PushSRef(block);
-    VisitStmt(block->body);  // `block->init` is not visited
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(block->body));  // `block->init` is not visited
     StmtSRef sref = PopSRef();
     // Create SBlockInfo for the block
     MakeSBlockInfo(sref);
     // Update parent scope
     block_frames_.pop_back();
     block_frames_.back().push_back(sref);
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SeqStmtNode* seq_stmt) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final {
     // Set `seq_index` information for SeqStmtNode
-    StmtVisitor::VisitStmt_(seq_stmt);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(seq_stmt));
     SetSeqIndexInChildren(self_->stmt2ref, seq_stmt);
+    return std::nullopt;
   }
 
   /*! \brief The ScheduleStateNode we are operating on */
@@ -492,38 +502,47 @@ struct ReuseInfo {
  * and there is correspondence between them,
  * which makes us to reuse the sref pointing to `src`, and changes it to point to `tgt`,
  */
-class ReuseCollector : public StmtVisitor {
+class ReuseCollector : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
   static ReuseInfo Collect(const ScheduleStateNode* self, const Stmt& tgt_stmt) {
-    ReuseCollector collector(self);
-    collector.VisitStmt(tgt_stmt);
+    auto collector = ffi::make_object<ReuseCollector>(self);
+    collector->Visit(tgt_stmt);
     ReuseInfo result;
-    result.intact = {collector.intact_.begin(), collector.intact_.end()};
-    result.loop_sref_possible_reuse = {collector.loop_vars_.begin(), collector.loop_vars_.end()};
+    result.intact = {collector->intact_.begin(), collector->intact_.end()};
+    result.loop_sref_possible_reuse = {collector->loop_vars_.begin(), collector->loop_vars_.end()};
     // `result.block_reuse ` is not set here because ReuseCollector doesn't collect it,
     // and it is supposed to be properly set by the caller.
     return result;
   }
 
- private:
   explicit ReuseCollector(const ScheduleStateNode* self) : self_(self) {}
 
-  void VisitStmt_(const ForNode* op) final {
+ private:
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     if (self_->stmt2ref.count(op)) {
       intact_.push_back(op);
     } else {
       // Collect loop vars for detecting reuse of loop sref
       loop_vars_.push_back(op->loop_var.get());
-      StmtVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     if (self_->stmt2ref.count(op)) {
       intact_.push_back(op);
     } else {
-      StmtVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
+    return std::nullopt;
   }
 
   /*! \brief The schedule state to be worked on */
@@ -542,8 +561,15 @@ class ReuseCollector : public StmtVisitor {
  * 1) delete those srefs that are not reused.
  * 2) return the sref objects that are loop/block sref reuses, but not intact reuses
  */
-class SRefTreePruner : public StmtVisitor {
+class SRefTreePruner : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
   /*!
    * \brief The entry function
    * \param self The schedule class
@@ -558,18 +584,18 @@ class SRefTreePruner : public StmtVisitor {
   static std::unordered_map<const ffi::Object*, StmtSRef> Prune(ScheduleStateNode* self,
                                                                 const ReuseInfo& reuse_info,
                                                                 const Stmt& src_stmt) {
-    SRefTreePruner pruner(self, reuse_info);
-    pruner.VisitStmt(src_stmt);
-    return std::move(pruner.reused_srefs_);
+    auto pruner = ffi::make_object<SRefTreePruner>(self, reuse_info);
+    pruner->Visit(src_stmt);
+    return std::move(pruner->reused_srefs_);
   }
 
- private:
   explicit SRefTreePruner(ScheduleStateNode* self, const ReuseInfo& reuse_info)
       : self_(self), reuse_info_(reuse_info) {}
 
-  void VisitStmt_(const ForNode* op) final {
+ private:
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     if (reuse_info_.intact.count(op)) {
-      return;
+      return std::nullopt;
     }
     auto it = self_->stmt2ref.find(op);
     TVM_FFI_CHECK(it != self_->stmt2ref.end(), IndexError)
@@ -587,12 +613,12 @@ class SRefTreePruner : public StmtVisitor {
     // erase the statement
     self_->stmt2ref.erase(it);
     // detect recursively
-    VisitStmt(op->body);
+    return Visit(op->body);
   }
 
-  void VisitStmt_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     if (reuse_info_.intact.count(op)) {
-      return;
+      return std::nullopt;
     }
     auto it = self_->stmt2ref.find(op);
     TVM_FFI_CHECK(it != self_->stmt2ref.end(), IndexError)
@@ -613,7 +639,7 @@ class SRefTreePruner : public StmtVisitor {
     self_->stmt2ref.erase(it);
     // detect recursively
     // op->init is omitted
-    VisitStmt(op->body);
+    return Visit(op->body);
   }
 
   /*! \brief The schedule state we are working on */
@@ -636,28 +662,35 @@ class SRefTreePruner : public StmtVisitor {
  * 2) all `StmtSRefNode::seq_index`s are correct, except for the root
  * 3) all `StmtSRefNode::stmt`s are correct, except for the root
  */
-class SRefUpdater : public StmtVisitor {
+class SRefUpdater : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
   static void Update(ScheduleStateNode* self, StmtSRefNode* src_stmt_parent,
                      const std::unordered_map<const ffi::Object*, StmtSRef>& reused_srefs,
                      const Stmt& tgt_stmt) {
-    SRefUpdater(self, src_stmt_parent, reused_srefs).VisitStmt(tgt_stmt);
+    ffi::make_object<SRefUpdater>(self, src_stmt_parent, reused_srefs)->Visit(tgt_stmt);
   }
 
- private:
   explicit SRefUpdater(ScheduleStateNode* self, StmtSRefNode* src_stmt_parent,
                        const std::unordered_map<const ffi::Object*, StmtSRef>& reused_srefs)
       : self_(ffi::GetRef<ScheduleState>(self)),
         ancestors_{src_stmt_parent},
         reused_srefs_(reused_srefs) {}
 
-  void VisitStmt_(const ForNode* op) final {
+ private:
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     StmtSRef& sref = self_->stmt2ref[op];
     // Detect intact reuse
     if (sref.defined()) {
       sref->parent = ancestors_.back();
       sref->seq_index = -1;  // `seq_index` will be set properly in SetSeqIndex
-      return;
+      return std::nullopt;
     }
     // Detect loop reuse
     auto it = reused_srefs_.find(op->loop_var.get());
@@ -674,17 +707,18 @@ class SRefUpdater : public StmtVisitor {
     }
     // Recursive visit
     ancestors_.push_back(sref.get());
-    VisitStmt(op->body);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
     ancestors_.pop_back();
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     StmtSRef& sref = self_->stmt2ref[op];
     // Detect intact
     if (sref.defined()) {
       sref->parent = ancestors_.back();
       sref->seq_index = -1;  // `seq_index` will be set properly in SetSeqIndex
-      return;
+      return std::nullopt;
     }
     // Detect block reuse
     auto it = reused_srefs_.find(op);
@@ -701,15 +735,17 @@ class SRefUpdater : public StmtVisitor {
     }
     // Recursive visit
     ancestors_.push_back(sref.get());
-    VisitStmt(op->body);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
     ancestors_.pop_back();
     // Additionally, need to update the scope because the block is changed
     UpdateSBlockInfo(sref);
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SeqStmtNode* seq_stmt) final {
-    StmtVisitor::VisitStmt_(seq_stmt);
+  ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(seq_stmt));
     SetSeqIndexInChildren(self_->stmt2ref, seq_stmt);
+    return std::nullopt;
   }
 
   void UpdateSBlockInfo(const StmtSRef& block_sref) {

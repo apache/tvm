@@ -59,21 +59,24 @@ using namespace tvm::tirx;
 using namespace arith;
 
 class AssumeChecker : public StmtExprVisitor {
+ public:
+  using StmtExprVisitor::Visit_;
+
   /* This class checks if the primfunc has assume statement.
   If yes, then only the FuncAnanlyzerMutator class runs. This is to ensure speedup in the pass.*/
- public:
   bool has_assume = false;
 
-  void VisitStmt(const Stmt& stmt) final {
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView stmt) final {
     if (has_assume) {
-      return;
+      return std::nullopt;
     }
-    StmtVisitor::VisitStmt(stmt);
+    return StmtExprVisitor::Visit(stmt);
   }
-  void VisitExpr_(const CallNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) override {
     if (op->op.same_as(tirx::builtin::assume())) {
       has_assume = true;
     }
+    return std::nullopt;
   }
 };
 
@@ -382,10 +385,10 @@ Pass UseAssumeToReduceBranches() {
         if (pattern == relax::OpPatternKind::kElemWise ||
             pattern == relax::OpPatternKind::kBroadcast) {
           // If the primfunc contains assume statement then, run the mutator pass.
-          AssumeChecker assume_checker;
-          assume_checker(std::move(n->body));
+          auto assume_checker = ffi::make_object<AssumeChecker>();
+          assume_checker->Visit(std::move(n->body));
 
-          if (assume_checker.has_assume) {
+          if (assume_checker->has_assume) {
             // Leverage from assume and eliminate the branch
             ParseAssumeAndOvercompute func_analyzer_mutator(analyzer);
             n->body = func_analyzer_mutator(std::move(n->body));

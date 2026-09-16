@@ -48,22 +48,23 @@ PMap<GlobalVar, PSet<GlobalVar>> CollectCallMap(const IRModule& mod) {
     GlobalVar current;
     PMap<GlobalVar, PSet<GlobalVar>> caller_lookup;
 
-    void VisitExpr_(const CallNode* op) {
+    ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
       if (auto gvar = op->op.as<GlobalVar>()) {
         caller_lookup[gvar.value()].insert(current);
       }
-      StmtExprVisitor::VisitExpr_(op);
+      return StmtExprVisitor::Visit_(op);
     }
-  } visitor;
+  };
+  auto visitor = ffi::make_object<Visitor>();
 
   for (const auto& [gvar, base_func] : mod->functions) {
     if (auto prim_func = base_func.as<PrimFuncNode>()) {
-      visitor.current = gvar;
-      visitor(prim_func->body);
+      visitor->current = gvar;
+      visitor->Visit(prim_func->body);
     }
   }
 
-  return visitor.caller_lookup;
+  return visitor->caller_lookup;
 }
 
 PSet<GlobalVar> CollectRecursiveFunctions(const IRModule& mod) {

@@ -207,28 +207,33 @@ class InThreadReducerMaker : private StmtMutator {
   /*!
    * \brief Visitor class to collect all reduction block variables under a loop.
    */
-  class UnderLoopReductionBlockVarCollector : public StmtVisitor {
+  class UnderLoopReductionBlockVarCollector : public StmtExprVisitor {
    public:
+    using StmtExprVisitor::Visit_;
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return StmtExprVisitor::Visit(value);
+    }
     /*!
      * \brief Check if the given statement has any reduction blocks.
      * \param stmt The statement to check.
      * \return True if the statement has reduction blocks, false otherwise.
      */
     static bool CheckHasReductionBlocks(const Stmt& stmt) {
-      UnderLoopReductionBlockVarCollector collector;
-      collector(stmt);
-      return collector.reduction_block_vars_.size() > 0;
+      auto collector = ffi::make_object<UnderLoopReductionBlockVarCollector>();
+      collector->Visit(stmt);
+      return collector->reduction_block_vars_.size() > 0;
     }
 
    private:
-    void VisitStmt_(const SBlockNode* block) final {
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
       ffi::Array<IterVar> iter_vars = block->iter_vars;
       for (const IterVar& iter_var : block->iter_vars) {
         if (iter_var->iter_type == kCommReduce) {
           reduction_block_vars_.push_back(iter_var);
         }
       }
-      StmtVisitor::VisitStmt_(block);
+      return StmtExprVisitor::Visit_(block);
     }
 
     /*! \brief the map from thread tag to its extent */
@@ -257,8 +262,8 @@ class InThreadReducerMaker : private StmtMutator {
     if (std::optional<For> opt_res = StmtMutator::VisitStmt_(loop).as<For>()) {
       For res = *opt_res;
       if (res->thread_binding.has_value()) {
-        UnderLoopReductionBlockVarCollector collector;
-        if (!res->body.defined() || collector.CheckHasReductionBlocks(res)) {
+        if (!res->body.defined() ||
+            UnderLoopReductionBlockVarCollector::CheckHasReductionBlocks(res)) {
           return res->body;
         }
         return res;

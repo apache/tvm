@@ -1026,14 +1026,6 @@ IntSet Intersect(const ffi::Array<IntSet>& sets) {
   return IntervalSet(ana->Simplify(x->min_value), ana->Simplify(x->max_value));
 }
 
-ffi::Map<Var, IntSet> ConvertDomMap(const ffi::Map<IterVar, IntSet>& dom_map) {
-  ffi::Map<Var, IntSet> dmap;
-  for (auto kv : dom_map) {
-    dmap.Set(kv.first->var, kv.second);
-  }
-  return dmap;
-}
-
 ffi::Map<Var, IntSet> ConvertDomMap(const std::unordered_map<const VarNode*, IntSet>& dom_map) {
   ffi::Map<Var, IntSet> dmap;
   for (auto kv : dom_map) {
@@ -1057,10 +1049,6 @@ IntSet IntSet::Vector(PrimExpr x) {
     ffi::Map<Var, IntSet> dmap;
     return IntervalSetEvaluator(ana.get(), dmap, {}, true).Eval(x);
   }
-}
-
-IntSet EvalSet(PrimExpr e, const ffi::Map<IterVar, IntSet>& dom_map) {
-  return EvalSet(e, ConvertDomMap(dom_map));
 }
 
 IntSet EvalSet(PrimExpr e, const std::unordered_map<const VarNode*, IntSet>& dom_map) {
@@ -1128,10 +1116,6 @@ ExprIntSetMap EvalSetForEachSubExpr(PrimExpr e,
   SubExprIntervalSetEvaluator m(ana.get(), dmap);
   m.Eval(e);
   return m.expr_map;
-}
-
-IntSet EvalSet(Range r, const ffi::Map<IterVar, IntSet>& dom_map) {
-  return EvalSet(r, ConvertDomMap(dom_map));
 }
 
 ffi::Map<Var, arith::IntSet> AsIntSet(const ffi::Map<Var, Range>& var_dom) {
