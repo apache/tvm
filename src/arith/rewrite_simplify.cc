@@ -36,7 +36,6 @@
 #include <tuple>
 #include <utility>
 
-#include "../tirx/analysis/check_contains.h"
 #include "conjunctive_normal_form.h"
 #include "const_fold.h"
 #include "constraint_extract.h"
@@ -46,33 +45,9 @@ namespace tvm {
 namespace arith {
 
 namespace {
-// File-local helper: true if `expr` is a call to prim::builtin::vscale().
-bool IsVScaleCall(const PrimExpr& expr) {
-  if (const auto* call = expr.as<CallNode>()) {
-    return call->op.same_as(prim::builtin::vscale());
-  }
-  return false;
-}
-
-// File-local helper: true if `expr` contains a call to prim::builtin::vscale().
-bool ContainsVscaleCall(const PrimExpr& expr) {
-  return tirx::CheckContains::ExprContains(expr, IsVScaleCall);
-}
-
 TVM_FFI_INLINE bool IsVectorExpr(const ExprNode* expr) {
   PrimType ty = expr->ty.as_or_throw<PrimType>();
   return ty.IsScalableVector() || ty.IsFixedLengthVector();
-}
-
-// File-local helper: returns the vscale multiplier if `lanes` is of the form
-// `multiplier * vscale()` or `vscale() * multiplier`, nullopt otherwise.
-std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes) {
-  PVar<IntImm> multiplier;
-  PCallExpr<PVscaleOp> vscale;
-  if (PMatchesOneOf(multiplier * vscale, vscale * multiplier).Match(lanes)) {
-    return multiplier.Eval()->value;
-  }
-  return std::nullopt;
 }
 }  // namespace
 
@@ -833,11 +808,11 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::DivNode* op,
         return ramp(div(b1, c2), div(c1, c2), lanes).Eval();
       }
       // If all possible indices in ramp are the same.
-      if (CanProveGreaterEqual(b1.Eval(), 0) && !ExtractVscaleFactor(lanes.Eval())) {
+      if (const auto* lanes_int = lanes.Eval().as<IntImmNode>();
+          lanes_int && CanProveGreaterEqual(b1.Eval(), 0)) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
         int64_t ramp_min = bmod->base / c2val;
-        auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
-        int64_t ramp_max = (bmod->base + (lanes_int - 1) * c1val) / c2val;
+        int64_t ramp_max = (bmod->base + (lanes_int->value - 1) * c1val) / c2val;
         if (bmod->coeff % c2val == 0 && ramp_min == ramp_max) {
           return broadcast(div(b1, c2), lanes).Eval();
         }
@@ -992,23 +967,15 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::ModNode* op,
       // If all possible indices in ramp are the same.
       if (CanProveGreaterEqual(b1.Eval(), 0)) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
-        if (!ExtractVscaleFactor(lanes.Eval())) {
-          auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
+        if (const auto* lanes_int = lanes.Eval().as<IntImmNode>()) {
           int64_t ramp_min = bmod->base / c2val;
-          int64_t ramp_max = (bmod->base + (lanes_int - 1) * c1val) / c2val;
-          if (bmod->coeff % c2val == 0) {
-            if (ramp_min == ramp_max) {
-              return ramp(truncmod(bmod->base, c2), c1, lanes).Eval();
-            } else {
-              return truncmod(ramp(truncmod(bmod->base, c2), c1, lanes), broadcast(c2, lanes))
-                  .Eval();
-            }
+          int64_t ramp_max = (bmod->base + (lanes_int->value - 1) * c1val) / c2val;
+          if (bmod->coeff % c2val == 0 && ramp_min == ramp_max) {
+            return ramp(truncmod(bmod->base, c2), c1, lanes).Eval();
           }
-        } else { /* Special case for scalable vectors */
-          ModularSet bmod = analyzer_->modular_set(b1.Eval());
-          if (bmod->coeff % c2val == 0) {
-            return truncmod(ramp(truncmod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
-          }
+        }
+        if (bmod->coeff % c2val == 0) {
+          return truncmod(ramp(truncmod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
         }
       }
     }
@@ -1081,18 +1048,18 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode*
         return ramp(floordiv(b1, c2), floordiv(c1, c2), lanes).Eval();
       }
       // If all possible indices in ramp are the same.
-      if (!ExtractVscaleFactor(lanes.Eval())) {
+      if (const auto* lanes_int = lanes.Eval().as<IntImmNode>()) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
         int64_t ramp_min = floordiv(bmod->base, c2val);
-        auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
-        int64_t ramp_max = floordiv(bmod->base + (lanes_int - 1) * c1val, c2val);
+        int64_t ramp_max = floordiv(bmod->base + (lanes_int->value - 1) * c1val, c2val);
         if (ramp_min == ramp_max) {
           // If b1 can divide c2
           if (bmod->coeff % c2val == 0) {
             return broadcast(floordiv(b1, c2), lanes).Eval();
           }
           // If all indices can be guaranteed to settle inside a coeff range
-          if (c2val % bmod->coeff == 0 && bmod->base + (lanes_int - 1) * c1val < bmod->coeff) {
+          if (c2val % bmod->coeff == 0 &&
+              bmod->base + (lanes_int->value - 1) * c1val < bmod->coeff) {
             return broadcast(floordiv(b1, c2), lanes).Eval();
           }
         }
@@ -1199,11 +1166,6 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode*
                        CanProveGreaterEqual(z.Eval() * c1.Eval(), 0));
 
     TVM_TRY_REWRITE_IF(floordiv(x - floormod(x, c1), c1), floordiv(x, c1), c1.Eval()->value != 0);
-
-    // Scalable divisor
-    TVM_TRY_REWRITE_IF(floordiv(x, y), ZeroWithTypeLike(x),
-                       ContainsVscaleCall(y.Eval()) && CanProveGreaterEqual(x.Eval(), 0) &&
-                           CanProveGreaterEqual(y.Eval(), 0) && CanProve(x.Eval() < y.Eval()));
   }
 
   // Unsigned (uint32/uint64): the signed IsIndexType block above is skipped for
@@ -1288,28 +1250,24 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
       }
       // If all possible indices in ramp are the same.
       ModularSet bmod = analyzer_->modular_set(b1.Eval());
-      if (!ExtractVscaleFactor(lanes.Eval())) {
+      if (const auto* lanes_int = lanes.Eval().as<IntImmNode>()) {
         int64_t ramp_min = floordiv(bmod->base, c2val);
-        auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
-        int64_t ramp_max = floordiv(bmod->base + (lanes_int - 1) * c1val, c2val);
+        int64_t ramp_max = floordiv(bmod->base + (lanes_int->value - 1) * c1val, c2val);
         if (ramp_min == ramp_max) {
           // If b1 can divide c2
           if (bmod->coeff % c2val == 0) {
             return ramp(floormod(bmod->base, c2), c1, lanes).Eval();
           }
           // If all indices can be guaranteed to settle inside a coeff range
-          if (c2val % bmod->coeff == 0 && bmod->base + (lanes_int - 1) * c1val < bmod->coeff) {
+          if (c2val % bmod->coeff == 0 &&
+              bmod->base + (lanes_int->value - 1) * c1val < bmod->coeff) {
             return ramp(floormod(b1, c2), c1, lanes).Eval();
           }
         }
-        // If b1 can divide c2
-        if (bmod->coeff % c2val == 0) {
-          return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
-        }
-      } else { /* scalable vectors */
-        if (bmod->coeff % c2val == 0) {
-          return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
-        }
+      }
+      // If b1 can divide c2, simplify the base independently of the number of lanes.
+      if (bmod->coeff % c2val == 0) {
+        return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
       }
     }
   }
@@ -1351,11 +1309,6 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
 
     TVM_TRY_REWRITE_IF(floormod(x * z * c1 + y, z * c1), floormod(y, z * c1),
                        CanProveGreaterEqual(z.Eval() * c1.Eval(), 0));
-
-    // Scalable divisor
-    TVM_TRY_REWRITE_IF(floormod(x, y), x,
-                       ContainsVscaleCall(y.Eval()) && CanProveGreaterEqual(x.Eval(), 0) &&
-                           CanProveGreaterEqual(y.Eval(), 0) && CanProve(x.Eval() < y.Eval()));
 
     if (floormod(x, c1).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
@@ -1599,16 +1552,6 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::MinNode* op,
       }
     }
 
-    // vscale expression comparison
-    if (ContainsVscaleCall(op->a) || ContainsVscaleCall(op->b)) {
-      if (analyzer_->CanProve(op->a <= op->b)) {
-        return op->a;
-      }
-      if (analyzer_->CanProve(op->b <= op->a)) {
-        return op->b;
-      }
-    }
-
     // canonicalization
     TVM_TRY_RECURSIVE_REWRITE(min(min(x, c1), y), min(min(x, y), c1));
     TVM_TRY_RECURSIVE_REWRITE_IF(min(c1 - x, c2), c1 - max(x, c1 - c2), c2.Eval()->value != 0);
@@ -1791,16 +1734,6 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::MaxNode* op,
         } else {
           return (min(x, c2val / c1val) * c1val).Eval();
         }
-      }
-    }
-
-    // vscale expression comparison
-    if (ContainsVscaleCall(op->a) || ContainsVscaleCall(op->b)) {
-      if (analyzer_->CanProve(op->a >= op->b)) {
-        return op->a;
-      }
-      if (analyzer_->CanProve(op->b >= op->a)) {
-        return op->b;
       }
     }
 
