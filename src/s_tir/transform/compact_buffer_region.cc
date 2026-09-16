@@ -304,7 +304,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
     // Step 3. Record relax position of ancestor_loops_
     for (const BufferVar& buffer : op->alloc_buffers) {
-      VisitBufferDef(buffer.var());
+      RecordBufferDefinition(buffer.var());
     }
     // Step 4. Visit match buffers
     for (const MatchBufferRegion& region : op->match_buffers) {
@@ -339,7 +339,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
     // AllocBuffer is flat: register the buffer def and track for post-scope compaction.
-    VisitBufferDef(op->buffer.var());
+    RecordBufferDefinition(op->buffer.var());
     pending_flat_alloc_buffers_.push_back(op->buffer);
     return StmtExprVisitor::Visit_(op);
   }
@@ -367,7 +367,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   /**************** Helper functions ****************/
 
   /*! \brief Record information on the buffer defining point. */
-  void VisitBufferDef(const Var& buffer_data) {
+  void RecordBufferDefinition(const Var& buffer_data) {
     auto it = buffer_scope_depth_.find(buffer_data);
     TVM_FFI_ICHECK(it == buffer_scope_depth_.end()) << buffer_data << " has duplicate definitions";
     buffer_scope_depth_.insert(it, {buffer_data, ancestor_iters_.size()});

@@ -135,8 +135,8 @@ class PrimFuncSpecializer : public StmtExprMutator {
       }
     }
 
-    BufferPlanner planner(specializer.get());
-    planner(f->body);
+    auto planner = ffi::make_object<BufferPlanner>(specializer.get());
+    planner->Visit(f->body);
 
     auto body_result =
         specializer->Mutate(f->body, f.unique() ? InplaceMode::kAllow : InplaceMode::kDisallow);
@@ -153,44 +153,57 @@ class PrimFuncSpecializer : public StmtExprMutator {
  private:
   class BufferPlanner : public StmtExprVisitor {
    public:
+    using StmtExprVisitor::Visit_;
+
     explicit BufferPlanner(PrimFuncSpecializer* specializer) : specializer_(specializer) {}
 
    private:
-    void VisitBufferDef(const BufferVar& buffer, bool alloc_data) final {
-      specializer_->MutateAllocBuffer(buffer);
-      StmtExprVisitor::VisitBufferDef(buffer, alloc_data);
-    }
-
-    void VisitBufferUse(const BufferVar& buffer) final { specializer_->ValidateBufferUse(buffer); }
-
-    void VisitExpr_(const VarNode* op) final {
+    ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
       if (op->ty.as<BufferTypeNode>()) {
-        specializer_->ValidateBufferUse(GetBufferVar(op));
+        if (def_region_kind() == kTVMFFIDefRegionKindSimple) {
+          specializer_->MutateAllocBuffer(GetBufferVar(op));
+        } else {
+          specializer_->ValidateBufferUse(GetBufferVar(op));
+        }
       }
-      StmtExprVisitor::VisitExpr_(op);
+      return StmtExprVisitor::Visit_(op);
     }
 
-    void VisitStmt_(const DeclBufferNode* op) final {
+    ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
       // The declaration establishes the buffer before visiting its data expression.
-      VisitBufferDef(op->buffer, false);
-      VisitExpr(op->data);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
+          kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->buffer); }));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(op->buffer));
+      return Visit(op->data);
     }
 
-    void VisitStmt_(const SBlockNode* op) final {
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
       // Block allocations were planned before all other block children by the specializer.
-      for (const BufferVar& buffer : op->alloc_buffers) VisitBufferDef(buffer, true);
+      for (const BufferVar& buffer : op->alloc_buffers) {
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
+            kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(buffer); }));
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(buffer));
+      }
       for (const IterVar& iter : op->iter_vars) {
-        VisitExpr(iter->dom->min);
-        VisitExpr(iter->dom->extent);
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(iter->dom->min));
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(iter->dom->extent));
       }
-      for (const BufferRegion& region : op->reads) VisitExpr(region);
-      for (const BufferRegion& region : op->writes) VisitExpr(region);
+      for (const BufferRegion& region : op->reads) {
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(region));
+      }
+      for (const BufferRegion& region : op->writes) {
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(region));
+      }
       for (const MatchBufferRegion& match : op->match_buffers) {
-        VisitBufferDef(match->buffer, true);
-        VisitExpr(match->source);
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
+            kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(match->buffer); }));
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(match->buffer));
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(match->source));
       }
-      if (op->init.has_value()) VisitStmt(op->init.value());
-      VisitStmt(op->body);
+      if (op->init.has_value()) {
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->init.value()));
+      }
+      return Visit(op->body);
     }
 
     PrimFuncSpecializer* specializer_;

@@ -287,23 +287,26 @@ TVM_DLL PrimExpr SubstituteWithDataTypeLegalization(
  */
 template <typename Node, typename = std::enable_if_t<std::is_base_of_v<StmtNode, Node>>>
 bool ContainsNode(const Stmt& stmt) {
-  struct Visitor : StmtVisitor {
-    // Early bail-out, if we already found the node.
-    void VisitStmt(const Stmt& stmt) final {
-      if (contains_node) {
-        return;
+  struct Visitor : StmtExprVisitor {
+    // Early bail-out, if we already found the node. Skip expression operands.
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
+      if (contains_node || value.as<ExprNode>()) {
+        return std::nullopt;
       }
-      StmtVisitor::VisitStmt(stmt);
+      return StmtExprVisitor::Visit(value);
     }
 
-    void VisitStmt_(const Node* block) override { contains_node = true; }
+    ffi::Optional<VisitInterrupt> Visit_(const Node* block) override {
+      contains_node = true;
+      return std::nullopt;
+    }
 
     bool contains_node{false};
   };
 
-  Visitor visitor;
-  visitor(stmt);
-  return visitor.contains_node;
+  auto visitor = ffi::make_object<Visitor>();
+  visitor->Visit(stmt);
+  return visitor->contains_node;
 }
 
 }  // namespace tirx
