@@ -31,6 +31,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/base_expr.h>
 #include <tvm/ir/cow.h>
+#include <tvm/ir/op_attr_types.h>
 #include <tvm/ir/source_map.h>
 
 #include <algorithm>
@@ -666,6 +667,22 @@ class Range : public ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Range, ffi::ObjectRef, RangeNode);
 };
 
+/*!
+ * \brief Analyze the runtime effects of an expression.
+ *
+ * Accumulates effects of evaluated expression children, excluding type and vector
+ * lane-count metadata. Non-operator callees are conservatively opaque. Missing
+ * operator effect attributes are errors unless an earlier update effect stops
+ * traversal. Returns kPure, kReadState, or kUpdateState.
+ *
+ * Shared IR contains only minimal analyses of expression properties. Arithmetic
+ * reasoning, constraint solving, and target- or dialect-specific analyses belong
+ * in their respective modules.
+ * \param expr The expression to inspect.
+ * \return The strongest runtime effect of the expression.
+ */
+TVM_DLL CallEffectKind SideEffect(const Expr& expr);
+
 namespace ffi {
 
 template <>
@@ -740,6 +757,7 @@ struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, d
   }
 };
 }  // namespace ffi
+
 }  // namespace tvm
 
 /* \brief Allow tvm.Var and tvm.GlobalVar as keys in STL tables

@@ -32,8 +32,6 @@
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 
-#include <ostream>
-
 namespace tvm {
 namespace tirx {
 /*!
@@ -98,75 +96,6 @@ using TIRxOpCategory = ffi::String;
  * Expected values include "cuda", "ptx", "nvshmem", "nki", and "metal".
  */
 using TDeviceIntrinsicNamespace = ffi::String;
-
-/*!
- * \brief The effect type of the call.
- */
-enum class CallEffectKind : int {
-  /*! \brief Function corresponds to an annotation(e.g. likely) and can translate to identity. */
-  kExprAnnotation = 0,
-  /*!
-   * \brief Pure function that do not interacts
-   *        with any external state.
-   */
-  kPure = 1,
-  /*!
-   * \brief Function's that may read from states(e.g. RAM)
-   */
-  kReadState = 2,
-  /*!
-   * \brief Function that may read/write from states(e.g. RAM).
-   */
-  kUpdateState = 3,
-  /*!
-   * \brief Opaque function, cannot make any assumption
-   */
-  kOpaque = kUpdateState,
-  /*!
-   * \brief Special intrinsic to annotate call arguments info
-   *        only valid as a direct argument to a call.
-   */
-  kSpecialCallArg = 4,
-  /*!
-   * \brief Embed opaque information in the Expr, cannot be codegen.
-   */
-  kEmbedInfo = 5,
-  /*!
-   * \brief Function that changes control flow
-   */
-  kControlJump = 6,
-};
-
-inline std::ostream& operator<<(std::ostream& os, CallEffectKind side_effect) {
-  switch (side_effect) {
-    case CallEffectKind::kExprAnnotation:
-      return os << "kExprAnnotation";
-
-    case CallEffectKind::kPure:
-      return os << "kPure";
-
-    case CallEffectKind::kReadState:
-      return os << "kReadState";
-
-    case CallEffectKind::kUpdateState:
-      return os << "kUpdateState";
-
-    case CallEffectKind::kSpecialCallArg:
-      return os << "kSpecialCallArg";
-
-    case CallEffectKind::kEmbedInfo:
-      return os << "kEmbedInfo";
-
-    case CallEffectKind::kControlJump:
-      return os << "kControlJump";
-
-    default:
-      TVM_FFI_THROW(InternalError) << "Unknown CallEffectKind: " << static_cast<int>(side_effect);
-  }
-}
-
-/*! \brief Use integer to record the kind. */
-using TCallEffectKind = int64_t;
 
 }  // namespace tirx
 }  // namespace tvm

@@ -19,8 +19,8 @@
 
 #include "simplify_base.h"
 
+#include <tvm/ir/expr.h>
 #include <tvm/ir/prim/builtin.h>
-#include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
 
 #include "constraint_helpers.h"
@@ -123,7 +123,7 @@ UnchangedOr<Expr> SimplifierBase::Mutate_(const CallNode* op, InplaceMode inplac
 
 UnchangedOr<PrimExpr> SimplifierBase::Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) {
   PrimExpr value = Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
-  if (tirx::SideEffect(value) <= tirx::CallEffectKind::kPure) {
+  if (SideEffect(value) <= CallEffectKind::kPure) {
     analyzer_->Bind(op->var, value);
   }
   PrimExpr body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
