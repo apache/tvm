@@ -69,60 +69,26 @@ bool MatchPrimType(const Type& type, F f) {
 // - constant allocation size
 // - do not have raw pointer access to the buffer
 //
-// populate the buffer_remap and var_remap accordingly.
+// populate candidate variable replacements before opaque-access filtering.
 class ComputeLegalizePlanner : public StmtExprVisitor {
  public:
-  ComputeLegalizePlanner(std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash,
-                                            ffi::ObjectPtrEqual>* buffer_remap,
-                         std::unordered_map<Var, Var>* var_remap, PrimType promote_dtype)
-      : buffer_remap_(buffer_remap), compute_var_remap_(var_remap), promote_dtype_(promote_dtype) {}
+  explicit ComputeLegalizePlanner(PrimType promote_dtype) : promote_dtype_(promote_dtype) {}
 
-  // run planning to populate buffer remap and var remap.
   void Plan(PrimFunc func) {
     this->Visit(func->body);
-    // if there are opaque var access, then we cannot
-    // do remap of var and buffer, post-hoc remove these items.
-    for (Var var : opaque_var_access_) {
-      auto it = compute_var_remap_->find(var);
-      if (it != compute_var_remap_->end()) {
-        compute_var_remap_->erase(it);
-      }
-    }
-    ffi::Array<BufferVar> drop_buffers;
-    for (auto kv : *buffer_remap_) {
-      if (opaque_var_access_.count(kv.first.var())) {
-        drop_buffers.push_back(kv.first);
-      }
-    }
-    for (BufferVar buffer : drop_buffers) {
-      auto it = buffer_remap_->find(buffer);
-      TVM_FFI_ICHECK(it != buffer_remap_->end());
-      buffer_remap_->erase(it);
+    // A later opaque access can veto an earlier allocation candidate.
+    for (const Var& var : opaque_var_access_) {
+      compute_var_remap_.erase(var);
     }
   }
 
   void SeedRemaps(StmtExprMutator* mutator) const {
-    for (const auto& [var, replacement] : *compute_var_remap_) {
+    for (const auto& [var, replacement] : compute_var_remap_) {
       mutator->VarRemapSet(var, replacement);
-    }
-    for (const auto& [buffer, replacement] : *buffer_remap_) {
-      mutator->VarRemapSet(buffer, replacement);
     }
   }
 
   virtual bool MatchType(const Type& type) const = 0;
-
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    this->PopulateBufferRemap(op->buffer);
-    return std::nullopt;
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    this->PopulateBufferRemap(op->source.as_or_throw<tvm::tirx::BufferVar>());
-    return std::nullopt;
-  }
 
   ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
     // remap all intermediate constant buffer to promote data types (fp16/fp32)
@@ -131,15 +97,9 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
       auto type = CopyBufferType(op->buffer);
       type->dtype = dtype;
       BufferVar buffer_var = RebuildBufferVar(op->buffer, std::move(type));
-      (*compute_var_remap_)[op->buffer.var()] = buffer_var.var();
+      compute_var_remap_[op->buffer.var()] = buffer_var.var();
     }
     return StmtExprVisitor::Visit_(op);
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    this->PopulateBufferRemap(op->buffer);
-    return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
@@ -152,37 +112,21 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
-    Var buffer_var = ffi::GetRef<Var>(op);
-    if (buffer_var->ty.as<BufferTypeNode>()) {
-      this->PopulateBufferRemap(BufferVar(buffer_var));
-    } else if (buffer_var->ty.as<PointerTypeNode>()) {
-      opaque_var_access_.insert(buffer_var);
+    if (op->ty.as<PointerTypeNode>()) {
+      opaque_var_access_.insert(ffi::GetRef<Var>(op));
     }
     return std::nullopt;
   }
 
  private:
-  void PopulateBufferRemap(BufferVar buf) {
-    auto var_it = compute_var_remap_->find(buf.var());
-    if (var_it == compute_var_remap_->end()) return;
-
-    BufferVar new_buffer(var_it->second);
-    (*buffer_remap_)[buf] = new_buffer;
-  }
-
-  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap_;
-  std::unordered_map<Var, Var>* compute_var_remap_;
+  std::unordered_map<Var, Var> compute_var_remap_;
   std::unordered_set<Var> opaque_var_access_;
   PrimType promote_dtype_;
 };
 
 class BF16ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
-  explicit BF16ComputeLegalizePlanner(std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash,
-                                                         ffi::ObjectPtrEqual>* buffer_remap,
-                                      std::unordered_map<Var, Var>* var_remap,
-                                      PrimType promote_dtype)
-      : ComputeLegalizePlanner(buffer_remap, var_remap, promote_dtype) {}
+  using ComputeLegalizePlanner::ComputeLegalizePlanner;
   bool MatchType(const Type& type) const {
     return MatchPrimType(type, [](const PrimType& prim_type) { return IsBFloat16Type(prim_type); });
   }
@@ -190,11 +134,7 @@ class BF16ComputeLegalizePlanner : public ComputeLegalizePlanner {
 
 class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
-  explicit FP8ComputeLegalizePlanner(std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash,
-                                                        ffi::ObjectPtrEqual>* buffer_remap,
-                                     std::unordered_map<Var, Var>* var_remap,
-                                     PrimType promote_dtype)
-      : ComputeLegalizePlanner(buffer_remap, var_remap, promote_dtype) {}
+  using ComputeLegalizePlanner::ComputeLegalizePlanner;
   bool MatchType(const Type& type) const {
     return MatchPrimType(type, [](const PrimType& prim_type) { return IsFloat8Type(prim_type); });
   }
@@ -564,9 +504,7 @@ class BF16ComputeLegalizer : public ComputeLegalizer {
   using ComputeLegalizer::Mutate_;
   BF16ComputeLegalizer() : ComputeLegalizer(PrimType::Float(32)) {}
   PrimFunc Legalize(PrimFunc func) {
-    std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_plan;
-    std::unordered_map<Var, Var> var_plan;
-    auto planner = ffi::make_object<BF16ComputeLegalizePlanner>(&buffer_plan, &var_plan, promote_dtype_);
+    auto planner = ffi::make_object<BF16ComputeLegalizePlanner>(promote_dtype_);
     return LegalizeWithPlanner(func, planner.get());
   }
   bool MatchType(const Type& type) const {
@@ -580,9 +518,7 @@ class FP8ComputeLegalizer : public ComputeLegalizer {
   using ComputeLegalizer::Mutate_;
   explicit FP8ComputeLegalizer(PrimType promote_dtype) : ComputeLegalizer(promote_dtype) {}
   PrimFunc Legalize(PrimFunc func) {
-    std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_plan;
-    std::unordered_map<Var, Var> var_plan;
-    auto planner = ffi::make_object<FP8ComputeLegalizePlanner>(&buffer_plan, &var_plan, promote_dtype_);
+    auto planner = ffi::make_object<FP8ComputeLegalizePlanner>(promote_dtype_);
     return LegalizeWithPlanner(func, planner.get());
   }
   bool MatchType(const Type& type) const {
