@@ -842,12 +842,6 @@ inline PCallExpr<PIfThenElseOp, TCond, TA, TB> if_then_else(const Pattern<TCond>
                                                  false_value.derived());
 }
 
-// vscale
-struct PVscaleOp {
-  static PrimExpr Eval() { return Call(PrimType::Int(32), GetOp(), {}).as_or_throw<PrimExpr>(); }
-  static const Op& GetOp() { return prim::builtin::vscale(); }
-};
-
 template <typename... TPattern>
 class PMatchesOneOf {
  public:

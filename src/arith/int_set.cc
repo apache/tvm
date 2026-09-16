@@ -546,18 +546,6 @@ class IntervalSetEvaluator : public tvm::ExprFunctor<IntervalSet(const Expr&)> {
           return Combine<prim::Add>(analyzer_, base, IntervalSet(stride_expr, IntImm(t, 0)),
                                     add_node);
         }
-      } else { /* Scalable vector */
-        if (vstride > 0) {
-          auto add_op = prim::Add(op->base, IntImm(t, 0));
-          auto add_node = add_op.as<prim::AddNode>();
-          return Combine<prim::Add>(analyzer_, base, IntervalSet(IntImm(t, 0), pos_inf()),
-                                    add_node);
-        } else {
-          auto add_op = prim::Add(op->base, IntImm(t, 0));
-          auto add_node = add_op.as<prim::AddNode>();
-          return Combine<prim::Add>(analyzer_, base, IntervalSet(neg_inf(), IntImm(t, 0)),
-                                    add_node);
-        }
       }
     }
     DLOG(WARNING) << "cannot evaluate set on expression " << ffi::GetRef<PrimExpr>(op);
@@ -613,13 +601,7 @@ class IntervalSetEvaluator : public tvm::ExprFunctor<IntervalSet(const Expr&)> {
     return IntervalSet::SinglePoint(ffi::GetRef<PrimExpr>(op));
   }
 
-  IntervalSet Dispatch_(const CallNode* op) final {
-    if (op->op.same_as(prim::builtin::vscale())) {
-      PrimExpr call = ffi::GetRef<Call>(op).as_or_throw<PrimExpr>();
-      return IntervalSet(call, call);
-    }
-    return IntervalSet::Everything();
-  }
+  IntervalSet Dispatch_(const CallNode* op) final { return IntervalSet::Everything(); }
 
   IntervalSet DispatchDefault_(const ffi::Object* op) final {
     DLOG(WARNING) << "cannot evaluate set type " << op->GetTypeKey();
