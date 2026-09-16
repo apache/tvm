@@ -6771,6 +6771,7 @@ def test_empty_like():
     verify_model(EmptyLike(), example_args, {}, Expected)
 
 
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_one_hot():
     class OneHot(Module):
         def forward(self, indices):
@@ -6783,19 +6784,17 @@ def test_one_hot():
             indices: R.Tensor((5,), dtype="int64"),
         ) -> R.Tuple(R.Tensor((5, 10), dtype="int64")):
             with R.dataflow():
-                lv: R.Tensor((10,), dtype="int64") = R.arange(
-                    R.prim_value(0), R.prim_value(10), R.prim_value(1), dtype="int64"
+                lv: R.Tensor((5, 10), dtype="int64") = R.one_hot(
+                    indices, R.prim_value(1), R.prim_value(0), depth=10, axis=-1
                 )
-                lv1: R.Tensor((5, 1), dtype="int64") = R.expand_dims(indices, axis=[-1])
-                lv2: R.Tensor((5, 10), dtype="bool") = R.equal(lv1, lv)
-                lv3: R.Tensor((5, 10), dtype="int64") = R.astype(lv2, dtype="int64")
-                gv: R.Tuple(R.Tensor((5, 10), dtype="int64")) = (lv3,)
+                gv: R.Tuple(R.Tensor((5, 10), dtype="int64")) = (lv,)
                 R.output(gv)
             return gv
 
-    example_args = (torch.randint(0, 10, (5,), dtype=torch.int64),)
+    example_args = (torch.tensor([0, 1, 5, 8, 9], dtype=torch.int64),)
 
-    verify_model(OneHot(), example_args, {}, Expected)
+    verify_model(OneHot(), example_args, {}, Expected, run_ep_decomposition=False)
+    verify_model_numerically(OneHot(), example_args)
 
 
 def test_one_hot_invalid_num_classes():
@@ -8826,6 +8825,48 @@ def test_from_exported_program_sparse_csr_buffer():
     exported_program = export(model, (x,))
     mod = from_exported_program(exported_program)
     assert isinstance(mod, tvm.IRModule)
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+@pytest.mark.parametrize("with_message,in_cond", [(False, False), (True, False), (True, True)])
+def test_assert_async(with_message, in_cond):
+    class AssertAsync(Module):
+        def forward(self, x):
+            def checked(value):
+                if with_message:
+                    torch.ops.aten._assert_async.msg(
+                        value.clamp(min=0), assert_msg="Positive required: {value}"
+                    )
+                else:
+                    torch.ops.aten._assert_async.default(value)
+                return value.clone()
+
+            if in_cond:
+                return torch.cond(x >= 0, checked, lambda value: value.clone(), (x,))
+            return checked(x)
+
+    # Also cover non-boolean conditions and one-element, non-scalar tensors.
+    example_args = (torch.tensor(0.5) if with_message else torch.tensor([True]),)
+    model = AssertAsync()
+    # PyTorch's decomposition removes the message-less overload.
+    mod = from_exported_program(export(model, args=example_args), run_ep_decomposition=with_message)
+    assert not mod["main"].is_pure
+    vm = relax.VirtualMachine(relax.build(mod, target="llvm"), tvm.cpu())
+    actual = vm["main"](tvm.runtime.tensor(example_args[0].numpy()))
+    np.testing.assert_array_equal(actual[0].numpy(), model(*example_args).numpy())
+
+    invalid = torch.zeros_like(example_args[0])
+    with pytest.raises(RuntimeError):
+        model(invalid)
+    message = "Positive required: [{]value[}]" if with_message else "Assertion Failed"
+    with pytest.raises(AssertionError, match=message):
+        vm["main"](tvm.runtime.tensor(invalid.numpy()))
+
+    if in_cond:
+        # The unchecked branch must not execute the other branch's assertion.
+        negative = -example_args[0]
+        actual = vm["main"](tvm.runtime.tensor(negative.numpy()))
+        np.testing.assert_array_equal(actual[0].numpy(), model(negative).numpy())
 
 
 def test_cond_basic():
