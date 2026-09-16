@@ -20,67 +20,38 @@
 /*! \file side_effect.cc
  *  \brief Runtime effect properties of shared expressions.
  */
-#include <tvm/ir/expr_functor.h>
+#include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
 
+#include <algorithm>
+
 namespace tvm {
-namespace {
-
-class ExprSideEffect : public ExprVisitor {
- public:
-  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
-    // Effects describe evaluated expressions, not expressions embedded in types.
-    if (value.as<const TypeNode*>()) return std::nullopt;
-    return ExprVisitor::Visit(value);
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* node) final {
-    UpdateEffect(CallEffectKind::kReadState);
-    return ExprVisitor::Visit_(node);
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const CallNode* node) final {
-    static auto effects = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
-    if (auto op = node->op.as<Op>()) {
-      UpdateEffect(static_cast<CallEffectKind>(effects[*op]));
-    } else {
-      UpdateEffect(CallEffectKind::kOpaque);
-    }
-    if (kind == CallEffectKind::kUpdateState) return VisitInterrupt();
-    return ExprVisitor::Visit_(node);
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const prim::RampNode* node) final {
-    // Lane counts are type metadata rather than evaluated expression children.
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(node->base));
-    return this->Visit(node->stride);
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const prim::BroadcastNode* node) final {
-    return this->Visit(node->value);
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const prim::ShuffleNode* node) final {
-    // Preserve indices-first effect/error order, including nonconstant indices.
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(node->indices));
-    return this->Visit(node->vectors);
-  }
-
-  CallEffectKind kind{CallEffectKind::kPure};
-
- private:
-  void UpdateEffect(CallEffectKind effect) {
-    if (effect > CallEffectKind::kUpdateState) effect = CallEffectKind::kUpdateState;
-    if (effect > kind) kind = effect;
-  }
-};
-
-}  // namespace
 
 CallEffectKind SideEffect(const Expr& expr) {
-  ExprSideEffect visitor;
-  visitor.Visit(expr);
-  return visitor.kind;
+  static auto effects = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
+  CallEffectKind kind = CallEffectKind::kPure;
+  ffi::StructuralVisit(
+      expr,
+      [&](const CallNode* node,
+          ffi::StructuralVisitorObj* visitor) -> ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> {
+        auto effect = static_cast<CallEffectKind>(
+            effects.get(node->op, static_cast<TCallEffectKind>(CallEffectKind::kOpaque)));
+        kind = std::max(kind, std::min(effect, CallEffectKind::kUpdateState));
+        if (kind == CallEffectKind::kUpdateState) return ffi::VisitInterrupt();
+        return visitor->DefaultVisitExpected(node);
+      },
+      [&](const TensorLoadNode* node,
+          ffi::StructuralVisitorObj* visitor) -> ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> {
+        kind = std::max(kind, CallEffectKind::kReadState);
+        return visitor->DefaultVisitExpected(node);
+      },
+      [](const TypeNode*,
+         ffi::StructuralVisitorObj*) -> ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> {
+        // Effects describe evaluated expressions, not expressions embedded in types.
+        return std::nullopt;
+      });
+  return kind;
 }
 
 }  // namespace tvm
