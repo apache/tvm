@@ -1172,17 +1172,21 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     // "//" and "%" in the index map are translated to FloorDiv/Mod, but the plain Div/Mod are fine.
     // FloorDiv/Mod are supposed to be lowered before they reach codegen, so manually replace them
     // to the plain ones here.
-    class LowerFloorDivMod : public tirx::ExprMutator {
+    class LowerFloorDivMod : public tirx::StmtExprMutator {
      public:
-      Expr Dispatch_(const prim::FloorDivNode* op) {
-        return prim::Div(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
+      UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) {
+        return prim::Div(this->Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a),
+                         this->Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b));
       }
-      Expr Dispatch_(const prim::FloorModNode* op) {
-        return prim::Mod(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
+      UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) {
+        return prim::Mod(this->Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a),
+                         this->Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b));
       }
     };
 
-    auto dst_ind = LowerFloorDivMod()(indices_16x16[0] * stride + indices_16x16[1]);
+    PrimExpr dst_expr = indices_16x16[0] * stride + indices_16x16[1];
+    auto dst_ind =
+        ffi::make_object<LowerFloorDivMod>()->Mutate(dst_expr).ValueOrUnchanged(dst_expr);
 
     var_idmap_[inverse_index_map->initial_indices[0].get()] = "threadIdx.x";
     var_idmap_[inverse_index_map->initial_indices[1].get()] = "local_id";
@@ -1274,17 +1278,21 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
         IndexMap::FromFunc(2, *index_map_func).Inverse({Range(0, m), Range(0, n)}, analyzer);
     auto indices_16x16 = inverse_index_map->final_indices;
 
-    class LowerFloorDivMod : public tirx::ExprMutator {
+    class LowerFloorDivMod : public tirx::StmtExprMutator {
      public:
-      Expr Dispatch_(const prim::FloorDivNode* op) {
-        return prim::Div(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
+      UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) {
+        return prim::Div(this->Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a),
+                         this->Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b));
       }
-      Expr Dispatch_(const prim::FloorModNode* op) {
-        return prim::Mod(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
+      UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) {
+        return prim::Mod(this->Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a),
+                         this->Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b));
       }
     };
 
-    auto dst_ind = LowerFloorDivMod()(indices_16x16[0] * stride + indices_16x16[1]);
+    PrimExpr dst_expr = indices_16x16[0] * stride + indices_16x16[1];
+    auto dst_ind =
+        ffi::make_object<LowerFloorDivMod>()->Mutate(dst_expr).ValueOrUnchanged(dst_expr);
 
     var_idmap_[inverse_index_map->initial_indices[0].get()] = "threadIdx.x";
     var_idmap_[inverse_index_map->initial_indices[1].get()] = "local_id";

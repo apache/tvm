@@ -611,7 +611,6 @@ UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::ShuffleNode* node,
 }
 
 UnchangedOr<Expr> ExprMutator::Mutate_(const VarNode* node, InplaceMode inplace_mode) {
-  if (node->ty.as<PrimTypeNode>()) return ffi::Unchanged();
   if (TVM_FFI_PREDICT_TRUE(var_remap_.empty() && def_region_kind() == kTVMFFIDefRegionKindNone)) {
     return ffi::Unchanged();
   }

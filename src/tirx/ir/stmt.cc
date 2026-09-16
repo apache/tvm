@@ -36,6 +36,8 @@
 #include <vector>
 
 #include "buffer_common.h"
+#include "functor_common.h"
+#include "seq_stmt_mutate.h"
 
 namespace tvm {
 namespace tirx {
@@ -480,180 +482,27 @@ TVMFFIAny SeqStmtVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) n
   return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
 
-bool IsSeqStmtNoOp(ffi::AnyView stmt) {
-  const auto* evaluate = stmt.as<EvaluateNode>();
-  const auto* value = evaluate == nullptr ? nullptr : evaluate->value.as<IntImmNode>();
-  return value != nullptr && value->value == 0;
-}
-
-// Move the non-None slots to the front, preserving order; return the compacted size.
-size_t SeqStmtCompactNop(ffi::Any* begin, size_t current_size) {
-  size_t write = 0;
-  for (size_t read = 0; read < current_size; ++read) {
-    if (begin[read].type_index() == ffi::TypeIndex::kTVMFFINone) {
-      continue;
-    }
-    if (write != read) {
-      begin[write] = std::move(begin[read]);
-    }
-    ++write;
-  }
-  return write;
-}
-
-// Expand each nested SeqStmt in [0, current_size) into its final position in [0, target_size).
-// Walk backward so a destination is never below its source; requires every nested SeqStmt to be
-// non-empty and target_size slots to exist.
-void SeqStmtExpandNested(ffi::Any* begin, size_t current_size, size_t target_size) {
-  size_t write = target_size;
-  for (size_t read = current_size; read-- > 0;) {
-    if (const auto* nested = begin[read].as<SeqStmtNode>()) {
-      for (size_t i = nested->seq.size(); i-- > 0;) {
-        begin[--write] = ffi::Any(nested->seq[i]);
-      }
-    } else {
-      --write;
-      if (write != read) {
-        begin[write] = std::move(begin[read]);
-      }
-    }
-  }
-}
-
-TVMFFIAny MutateSeqStmtChanged(ffi::StructuralMutatorObj* mutator, const SeqStmtNode* self,
-                               size_t index, Stmt mapped) noexcept {
-  const size_t size = self->seq.size();
-  std::vector<Stmt> results;
-  results.reserve(size);
-  results.assign(self->seq.begin(), self->seq.begin() + index);
-  auto append = [&](Stmt stmt) {
-    if (IsSeqStmtNoOp(stmt)) {
-      return;
-    }
-    if (const auto* nested = stmt.as<SeqStmtNode>()) {
-      for (const Stmt& child : nested->seq) {
-        results.emplace_back(child);
-      }
-    } else {
-      results.emplace_back(std::move(stmt));
-    }
-  };
-  append(std::move(mapped));
-  for (size_t i = index + 1; i < size; ++i) {
-    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, element,
-                                      mutator->MutateExpected(self->seq[i]));
-    append(element.IsUnchanged() ? self->seq[i] : std::move(element).ValueUnchecked());
-  }
-  if (results.empty()) {
-    return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(Evaluate(0)));
-  }
-  if (results.size() == 1) {
-    return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(results[0])));
-  }
-  ffi::ObjectPtr<SeqStmtNode> copy = ffi::make_object<SeqStmtNode>(*self);
-  copy->seq = ffi::Array<Stmt>(std::make_move_iterator(results.begin()),
-                               std::make_move_iterator(results.end()));
-  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
-}
-
-TVMFFIAny MutateSeqStmtRaw(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  const SeqStmtNode* self =
+TVMFFIAny MutateSeqStmtStructural(ffi::StructuralMutatorObj* mutator, ffi::AnyView value,
+                                  ffi::InplaceMode inplace_mode) noexcept {
+  const auto* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const SeqStmtNode>(value);
-  const size_t size = self->seq.size();
-  for (size_t i = 0; i < size; ++i) {
+  auto mutate = [mutator](ffi::AnyView element,
+                          ffi::InplaceMode mode) -> ffi::Expected<ffi::UnchangedOr<Stmt>> {
     TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped,
-                                      mutator->MutateExpected(self->seq[i]));
-    if (!mapped.UnchangedOrSameAs(self->seq[i])) {
-      return MutateSeqStmtChanged(mutator, self, i, std::move(mapped).ValueUnchecked());
-    }
-  }
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
-TVMFFIAny MaybeInplaceMutateSeqStmtRaw(ffi::StructuralMutatorObj* mutator,
-                                       ffi::AnyView value) noexcept {
-  SeqStmtNode* self = const_cast<SeqStmtNode*>(
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const SeqStmtNode>(value));
-  // The engine establishes ownership of the SeqStmt, but seq is a field and needs its own check.
-  if (!self->seq.unique()) {
-    return MutateSeqStmtRaw(mutator, value);
-  }
-  ffi::ArrayObj* seq = self->seq.GetArrayObj();
-  ffi::Any* slots = const_cast<ffi::Any*>(seq->begin());
-  const size_t size = seq->size();
-  size_t delete_count = 0;
-  size_t nested_extra = 0;
-
-  // Pass 1: rebuild each element in place and classify the final slot contents.
-  for (size_t i = 0; i < size; ++i) {
-    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped,
-                                      mutator->MutateExpected(slots[i], ffi::InplaceMode::kAllow));
-    if (!mapped.UnchangedOrSameAs(slots[i].cast<Stmt>())) {
-      slots[i] = ffi::Any(std::move(mapped).ValueUnchecked());
-    }
-    if (IsSeqStmtNoOp(slots[i])) {
-      slots[i] = ffi::Any();  // A None slot is the delete marker consumed by compaction.
-      ++delete_count;
-      continue;
-    }
-    if (const auto* nested = slots[i].as<SeqStmtNode>()) {
-      if (nested->seq.empty()) {
-        slots[i] = ffi::Any();
-        ++delete_count;
-      } else {
-        nested_extra += nested->seq.size() - 1;
-      }
-    }
-  }
-
-  const size_t final_size = size - delete_count + nested_extra;
-  if (delete_count == 0 && nested_extra == 0) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
-  }
-
-  // Splice in place when the result fits: compact out None slots, resize once, then expand.
-  if (final_size <= seq->SeqBaseObj::capacity()) {
-    size_t compacted = SeqStmtCompactNop(slots, size);
-    seq->resize(final_size);
-    SeqStmtExpandNested(slots, compacted, final_size);
-  } else {
-    // Splice beyond capacity: flatten into one exact-size array with pointer moves.
-    std::vector<Stmt> results;
-    results.reserve(final_size);
-    for (size_t i = 0; i < size; ++i) {
-      if (slots[i].type_index() == ffi::TypeIndex::kTVMFFINone) {
-        continue;
-      }
-      if (const auto* nested = slots[i].as<SeqStmtNode>()) {
-        for (const Stmt& child : nested->seq) {
-          results.emplace_back(child);
-        }
-      } else {
-        results.emplace_back(
-            ffi::details::AnyUnsafe::MoveFromAnyAfterCheck<Stmt>(std::move(slots[i])));
-      }
-    }
-    self->seq = ffi::Array<Stmt>(std::make_move_iterator(results.begin()),
-                                 std::make_move_iterator(results.end()));
-    seq = self->seq.GetArrayObj();
-  }
-
-  if (final_size == 0) {
-    return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(Evaluate(0)));
-  }
-  if (final_size == 1) {
-    return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(seq->begin()[0].cast<Stmt>()));
-  }
-  return ffi::Unchanged().CopyToTVMFFIAny();
+                                      mutator->MutateExpected(element, mode));
+    return mapped;
+  };
+  return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(
+      detail::MutateSeqStmt(self, inplace_mode, mutate));
 }
 
 TVMFFIAny SeqStmtMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  return MutateSeqStmtRaw(mutator, value);
+  return MutateSeqStmtStructural(mutator, value, ffi::InplaceMode::kDisallow);
 }
 
 TVMFFIAny SeqStmtMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
                                     ffi::AnyView value) noexcept {
-  return MaybeInplaceMutateSeqStmtRaw(mutator, value);
+  return MutateSeqStmtStructural(mutator, value, ffi::InplaceMode::kAllow);
 }
 
 TVMFFIAny IfThenElseVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
@@ -1553,11 +1402,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-// A direct child that mutates into a SeqStmt is spliced into this sequence in the same pass,
-// matching StmtMutator's normalized result without a second scan and allocation. A well-formed
-// mapped SeqStmt already holds no SeqStmt child, so this single-level splice is sufficient and an
-// unchanged element never needs splicing.
-
 // IfThenElse
 IfThenElse::IfThenElse(PrimExpr condition, Stmt then_case, ffi::Optional<Stmt> else_case,
                        Span span) {
@@ -1794,8 +1638,6 @@ MatchBufferRegion::MatchBufferRegion(BufferVar buffer, BufferRegion source) {
     }
   }
   // Note that we do not check elem_offset and strides in this function
-
-  // Construction
   ffi::ObjectPtr<MatchBufferRegionNode> node = ffi::make_object<MatchBufferRegionNode>();
   node->buffer = std::move(buffer);
   node->source = std::move(source);

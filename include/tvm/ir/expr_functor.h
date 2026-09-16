@@ -357,7 +357,7 @@ class TVM_DLL ExprVisitor : public ObjectVisitor {
  *
  * Prefer StructuralMap for common cases; use ExprMutator for extensive per-kind
  * customization or optimization.
- * The default Var hook leaves PrimType variables unchanged before remap lookup.
+ * The default Var hook consults the inherited remap before visiting definition types.
  *
  * Native hooks match exact node types; derived node types need their own registrations.
  * Existing hooks only require overriding. For an extra MyExprNode derived from
