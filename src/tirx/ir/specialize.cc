@@ -53,7 +53,7 @@ inline bool IsParam(const PrimFunc& func, const Var& param) {
 
 // Try fold constants if op's child get specialized to constant.
 #define DEFINE_SPECIALIZER_BINARY_OP_MUTATE(BinaryNode, BinaryFunc) \
-  Expr VisitExpr_(const BinaryNode* op) final {                     \
+  Expr Dispatch_(const BinaryNode* op) final {                      \
     PrimExpr a = VisitPrimExpr(op->a);                              \
     PrimExpr b = VisitPrimExpr(op->b);                              \
     if (a.same_as(op->a) && b.same_as(op->b)) {                     \
@@ -63,7 +63,7 @@ inline bool IsParam(const PrimFunc& func, const Var& param) {
     }                                                               \
   }
 #define DEFINE_SPECIALIZER_UNARY_OP_MUTATE(UnaryNode, UnaryFunc) \
-  Expr VisitExpr_(const UnaryNode* op) final {                   \
+  Expr Dispatch_(const UnaryNode* op) final {                    \
     PrimExpr a = VisitPrimExpr(op->a);                           \
     if (a.same_as(op->a)) {                                      \
       return ffi::GetRef<PrimExpr>(op);                          \
@@ -173,14 +173,14 @@ class PrimFuncSpecializer : public StmtExprMutator {
   // Override VisitBufferUse to use our own buffer_map_ instead of base class field visiting.
   BufferVar VisitBufferUse(const BufferVar& buffer) final { return GetNewBuffer(buffer); }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  Expr Dispatch_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     if (constrained_buffer_params_.count(op)) {
       return var;
     }
     auto it = var_map_.find(var);
     if (it == var_map_.end()) {
-      return StmtExprMutator::VisitExpr_(op);
+      return StmtExprMutator::Dispatch_(op);
     } else {
       return it->second;
     }

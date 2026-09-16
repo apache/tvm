@@ -86,7 +86,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
   }
 
  protected:
-  using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::Dispatch_;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
   explicit TrainiumLayoutApplier(const arith::Analyzer& analyzer)
@@ -120,7 +120,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    Expr data = VisitExpr(op->data);
+    Expr data = Dispatch(op->data);
     auto buffer = GetFlattenedBuffer(op->buffer);
     if (buffer.same_as(op->buffer) && data.same_as(op->data)) {
       return ffi::GetRef<Stmt>(op);
@@ -209,10 +209,10 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     return std::move(store);
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
+  Expr Dispatch_(const TensorLoadNode* op) final {
     PrimType load_ty = op->ty.as_or_throw<PrimType>();
     bool load_returns_bool = load_ty.MatchesCode(DLDataTypeCode::kDLBool);
-    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+    TensorLoad load = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     load = VisitBufferAccess(load);
     if (load_returns_bool) {
       TVM_FFI_ICHECK_EQ(load->source.as_or_throw<tvm::tirx::BufferVar>()->dtype->dtype,
@@ -300,19 +300,19 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
   static Stmt Remove(const Stmt& stmt) { return TrainiumBufferOffsetRemover()(stmt); }
 
  private:
-  Expr VisitExpr_(const CallNode* call) final {
+  Expr Dispatch_(const CallNode* call) final {
     if (call->op.same_as(tirx::builtin::buffer_offset())) {
       auto buffer_load = call->args[0].as_or_throw<TensorLoad>();
       TVM_FFI_ICHECK_EQ(buffer_load->indices.size(), 1) << "Expected a single index";
       return buffer_load->indices[0];
     }
-    return StmtExprMutator::VisitExpr_(call);
+    return StmtExprMutator::Dispatch_(call);
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) {
     auto buffer = op->buffer;
     auto elem_offset = this->VisitPrimExpr(buffer->elem_offset);
-    Expr data = VisitExpr(op->data);
+    Expr data = Dispatch(op->data);
     if (!elem_offset.same_as(buffer->elem_offset)) {
       auto type = CopyBufferType(buffer);
       type->elem_offset = std::move(elem_offset);
@@ -325,7 +325,7 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
     return DeclBuffer(buffer, std::move(data), op->span);
   }
 
-  using StmtExprMutator::VisitExpr_;
+  using StmtExprMutator::Dispatch_;
   using StmtExprMutator::VisitStmt_;
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
@@ -334,8 +334,8 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
     return std::move(store);
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* op) final {
+    TensorLoad load = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     load = VisitBufferAccess(load);
     return std::move(load);
   }

@@ -228,33 +228,33 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
   }
 
  protected:
-  // This class adds some overrides of `VisitStmt_` and `VisitExpr_` that
+  // This class adds some overrides of `VisitStmt_` and `Dispatch_` that
   // are *not* present in the parent class.
   // These `using` statements ensure that all of the *other* overrides
   // provided by the parent class are fully visible to users of this class.
   // (Discussed further in https://github.com/apache/tvm/pull/13267)
-  using Parent::VisitExpr_;
+  using Parent::Dispatch_;
   using Parent::VisitStmt_;
 
-  Expr VisitExpr_(const VarNode* op) final {
+  Expr Dispatch_(const VarNode* op) final {
     if (auto it = visitor_->vmap.find(op); !var_remap_.count(op) && it != visitor_->vmap.end()) {
       var_remap_[op] = Var(op->name, it->second);
     }
-    return Parent::VisitExpr_(op);
+    return Parent::Dispatch_(op);
   }
 
-  Expr VisitExpr_(const IntImmNode* op) final {
+  Expr Dispatch_(const IntImmNode* op) final {
     if (is_enabled_) {
       if (visitor_->vmap.find(op) != visitor_->vmap.end()) {
         return IntImm(visitor_->vmap.at(op), op->value);
       }
     }
-    return Parent::VisitExpr_(op);
+    return Parent::Dispatch_(op);
   }
 
-  Expr VisitExpr_(const prim::CastNode* op) final {
+  Expr Dispatch_(const prim::CastNode* op) final {
     if (is_enabled_ && visitor_->vmap.find(op) != visitor_->vmap.end()) {
-      PrimExpr e = Parent::VisitExpr_(op).as_or_throw<PrimExpr>();
+      PrimExpr e = Parent::Dispatch_(op).as_or_throw<PrimExpr>();
       const prim::CastNode* new_op = e.as<prim::CastNode>();
       TVM_FFI_ICHECK(new_op != nullptr) << "Expected type to be CastNode"
                                         << ", but get " << e->GetTypeKey();
@@ -265,11 +265,11 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
       }
       return new_value;
     }
-    return Parent::VisitExpr_(op);
+    return Parent::Dispatch_(op);
   }
 
 #define TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)       \
-  Expr VisitExpr_(const OP* op) {                                   \
+  Expr Dispatch_(const OP* op) {                                    \
     PrimExpr a = this->VisitPrimExpr(op->a);                        \
     PrimExpr b = this->VisitPrimExpr(op->b);                        \
     if (op->a.same_as(a) && op->b.same_as(b) && a.ty() == b.ty()) { \
