@@ -24,6 +24,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
@@ -355,7 +356,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
 void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const BufferVar& specific_buf,
                             VarMap* var_map) {
   // preliminaries
-  tirx::ExprDeepEqual equal;
+  prim::ExprDeepEqual equal;
 
   auto opt_buffer = param.as<BufferVar>();
   TVM_FFI_CHECK(opt_buffer, ValueError)

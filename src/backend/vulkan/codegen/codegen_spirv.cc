@@ -501,7 +501,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     PrimExpr index_d = op->args[1].as_or_throw<PrimExpr>();
     PrimExpr index_a = op->args[3].as_or_throw<PrimExpr>();
     PrimExpr index_b = op->args[5].as_or_throw<PrimExpr>();
-    tvm::tirx::ExprDeepEqual expr_equal;
+    tvm::prim::ExprDeepEqual expr_equal;
     PrimExpr index_c = op->args[7].as_or_throw<PrimExpr>();
     bool is_equal = ((buffer_d == buffer_c) && expr_equal(index_d, index_c));
     spirv::SType& fragment_type_d = fragment_info_[buffer_d].stype;

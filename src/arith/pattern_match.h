@@ -68,7 +68,6 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 
 #include <cmath>
@@ -160,7 +159,7 @@ class PEqualChecker<PrimExpr> {
  public:
   bool operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
     if (lhs.same_as(rhs)) return true;
-    return tirx::ExprDeepEqual()(lhs, rhs);
+    return prim::ExprDeepEqual()(lhs, rhs);
   }
 };
 

@@ -125,7 +125,7 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
 
   /// @brief Memoized PrimExpr -> slot in z3_pool_. Holds no Z3 handles, so
   /// its pointer-hashed bucket order cannot affect Z3 object lifetime.
-  std::unordered_map<PrimExpr, size_t, StructuralHash, ExprDeepEqual> memo_;
+  std::unordered_map<PrimExpr, size_t, StructuralHash, prim::ExprDeepEqual> memo_;
 
   /// @brief Slots owning the memoized Z3 handles, plus a free-slot stack.
   /// Handles are created and released only at fixed points of the execution
