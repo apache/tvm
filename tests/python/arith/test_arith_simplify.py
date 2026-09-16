@@ -21,7 +21,6 @@ import tvm
 import tvm.ir
 import tvm.testing
 from tvm import tirx
-from tvm.script import tirx as T
 
 
 def test_simplify_reshape_flattened_index():
@@ -88,49 +87,6 @@ def test_simplify_symbolic_comparison():
     assert ana.can_prove(i0 * 32 + i1 + 1 <= (n + 31) // 32 * 32, PS.SYMBOLIC_BOUND)
     assert ana.can_prove((n + 31) // 32 * 32 >= i0 * 32 + i1 + 1, PS.SYMBOLIC_BOUND)
     assert ana.can_prove((n + 31) // 32 * 32 >= i0 * 32 + i1, PS.SYMBOLIC_BOUND)
-
-
-# These tests exercised arith::CanProve's substitution-based proof loop for
-# vscale-bearing expressions (iterating over known vscale values for a VLA target).
-# That loop has been removed -- arith no longer attempts target-dependent proofs
-# about scalable-vector lengths. The LOG(WARNING) for non-VLA targets is also gone.
-@pytest.mark.xfail(reason="arith no longer proves vscale-bearing inequalities via substitution")
-@pytest.mark.parametrize(
-    "expression",
-    [
-        T.vscale() * 32 < T.vscale() * 64,
-        T.vscale() * 2 * (T.vscale() * 2) >= T.vscale() * 4,
-        (T.vscale() * 4 + 114) // (T.vscale() * 4) * (T.vscale() * 4) >= 115,
-        64 % T.vscale() <= T.vscale(),
-    ],
-)
-def test_simplify_vscale_comparison_with_sve_target(expression):
-    ana = tvm.arith.Analyzer()
-
-    with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
-        assert ana.can_prove(expression)
-
-
-@pytest.mark.xfail(
-    reason="arith no longer emits a LOG(WARNING) for vscale proofs on non-VLA targets"
-)
-def test_simplify_vscale_comparison_without_sve_target(capfd):
-    ana = tvm.arith.Analyzer()
-    vs = tvm.tirx.vscale()
-
-    with pytest.raises(AssertionError):
-        with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu"}):
-            assert ana.can_prove(vs * 32 < vs * 64)
-
-    warning_prefix = (
-        "Warning: The expression contains scalable values. An attempt to prove by substituting "
-        "with known values of vscale was not performed. This proof currently only supports "
-        "VLA targets, but the target was "
-    )
-    capture = capfd.readouterr().err
-    assert warning_prefix in capture
-    assert '"kind":"llvm"' in capture
-    assert '"mtriple":"aarch64-linux-gnu"' in capture
 
 
 def test_regression_simplify_inf_recursion():

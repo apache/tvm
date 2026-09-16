@@ -899,6 +899,8 @@ class TestMaxIndex(BaseCompare):
     x, y, z = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32"), tvm.tirx.Var("z", "int32")
 
     test_case = tvm.testing.parameter(
+        # Identical operands simplify even when they contain an opaque call.
+        TestCase(tvm.tirx.max(x + tirx.vscale() * 4, x + tirx.vscale() * 4), x + tirx.vscale() * 4),
         # const int bound
         TestCase(tvm.tirx.max(tmod(x, 2), tmod(y, 2) + 10), tmod(y, 2) + 10),
         TestCase(tvm.tirx.max(flm(x, 2), flm(y, 2) + 10), flm(y, 2) + 10),
@@ -976,44 +978,6 @@ class TestMaxIndex(BaseCompare):
         TestCase(tvm.tirx.max(fld(x, 4) * 4, x), x),
         TestCase(tvm.tirx.max(x, fld(x, 4) * 4), x),
     )
-
-
-# These simplifications relied on arith::CanProve being able to prove
-# vscale-bearing inequalities (e.g. vscale() > 0) by substituting known
-# vscale values for the current VLA target. That proof loop has been removed
-# from the arith layer -- arith no longer attempts to reason about scalable
-# vector lengths at the target level. The simplifications are correct in
-# principle but can no longer be proven without the substitution loop.
-@pytest.mark.xfail(reason="arith no longer proves vscale-bearing inequalities via substitution")
-class TestScalableIndex(BaseCompare):
-    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
-    test_case = tvm.testing.parameter(
-        # MinNode
-        TestCase(tvm.tirx.min(x + tirx.vscale() * 4, x), x),
-        TestCase(tvm.tirx.min(x - tirx.vscale() * 4, x), x + tirx.vscale() * -4),
-        TestCase(tvm.tirx.min(x + tirx.vscale() * 4, x + tirx.vscale() * 8), tirx.vscale() * 4 + x),
-        TestCase(tvm.tirx.min(x + tirx.vscale() * 4 - flm(4, tirx.vscale() * 4), x), x),
-        TestCase(tvm.tirx.min(tirx.vscale() * x, tirx.vscale() * y), tirx.vscale() * x, x < y),
-        # MaxNode
-        TestCase(tvm.tirx.max(x + tirx.vscale() * 4, x), x + tirx.vscale() * 4),
-        TestCase(tvm.tirx.max(x - tirx.vscale() * 4, x), x),
-        TestCase(tvm.tirx.max(x + tirx.vscale() * 4, x + tirx.vscale() * 4), x + tirx.vscale() * 4),
-        TestCase(
-            tvm.tirx.max(x + tirx.vscale() * 4 - flm(4, tirx.vscale() * 4), x),
-            x + tirx.vscale() * 4 - flm(4, tirx.vscale() * 4),
-        ),
-        TestCase(tvm.tirx.max(tirx.vscale() * x, tirx.vscale() * y), tirx.vscale() * x, x > y),
-        # FloorDiv
-        TestCase(fld(x * tirx.vscale() * 4 + y, tirx.vscale() * 4), x + fld(y, tirx.vscale() * 4)),
-        TestCase(fld(x, tirx.vscale() * 4), 0, [x >= 0, x < tirx.vscale() * 4]),
-        # FloorMod
-        TestCase(flm(x * tirx.vscale() * 4 + y, tirx.vscale() * 4), flm(y, tirx.vscale() * 4)),
-        TestCase(flm(x, tirx.vscale() * 4), x, [x >= 0, x < tirx.vscale() * 4]),
-    )
-
-    def test_simplify(self, test_case):
-        with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
-            super().test_simplify(test_case)
 
 
 class TestComparisons(BaseCompare):
