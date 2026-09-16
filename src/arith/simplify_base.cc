@@ -21,7 +21,7 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/prim/builtin.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
 
 #include "constraint_helpers.h"
 

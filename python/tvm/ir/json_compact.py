@@ -19,33 +19,54 @@
 import json
 
 _PRIM_TYPE_KEY_RENAMES = {
-    "tirx.StringImm": "ir.prim.StringImm",
-    "tirx.Cast": "ir.prim.Cast",
-    "tirx.Add": "ir.prim.Add",
-    "tirx.Sub": "ir.prim.Sub",
-    "tirx.Mul": "ir.prim.Mul",
-    "tirx.Div": "ir.prim.Div",
-    "tirx.Mod": "ir.prim.Mod",
-    "tirx.FloorDiv": "ir.prim.FloorDiv",
-    "tirx.FloorMod": "ir.prim.FloorMod",
-    "tirx.Min": "ir.prim.Min",
-    "tirx.Max": "ir.prim.Max",
-    "tirx.EQ": "ir.prim.EQ",
-    "tirx.NE": "ir.prim.NE",
-    "tirx.LT": "ir.prim.LT",
-    "tirx.LE": "ir.prim.LE",
-    "tirx.GT": "ir.prim.GT",
-    "tirx.GE": "ir.prim.GE",
-    "tirx.And": "ir.prim.And",
-    "tirx.Or": "ir.prim.Or",
-    "tirx.Not": "ir.prim.Not",
-    "tirx.Select": "ir.prim.Select",
-    "tirx.Let": "ir.prim.Let",
-    "tirx.Ramp": "ir.prim.Ramp",
-    "tirx.Broadcast": "ir.prim.Broadcast",
-    "tirx.Shuffle": "ir.prim.Shuffle",
+    "tirx.StringImm": "prim.StringImm",
+    "tirx.Cast": "prim.Cast",
+    "tirx.Add": "prim.Add",
+    "tirx.Sub": "prim.Sub",
+    "tirx.Mul": "prim.Mul",
+    "tirx.Div": "prim.Div",
+    "tirx.Mod": "prim.Mod",
+    "tirx.FloorDiv": "prim.FloorDiv",
+    "tirx.FloorMod": "prim.FloorMod",
+    "tirx.Min": "prim.Min",
+    "tirx.Max": "prim.Max",
+    "tirx.EQ": "prim.EQ",
+    "tirx.NE": "prim.NE",
+    "tirx.LT": "prim.LT",
+    "tirx.LE": "prim.LE",
+    "tirx.GT": "prim.GT",
+    "tirx.GE": "prim.GE",
+    "tirx.And": "prim.And",
+    "tirx.Or": "prim.Or",
+    "tirx.Not": "prim.Not",
+    "tirx.Select": "prim.Select",
+    "tirx.Let": "prim.Let",
+    "tirx.Ramp": "prim.Ramp",
+    "tirx.Broadcast": "prim.Broadcast",
+    "tirx.Shuffle": "prim.Shuffle",
     "tirx.CommReducer": "te.CommReducer",
     "tirx.Reduce": "te.Reduce",
+}
+_PRIM_TYPE_KEY_RENAMES.update(
+    {
+        f"ir.{target}": target
+        for target in _PRIM_TYPE_KEY_RENAMES.values()
+        if target.startswith("prim.")
+    }
+)
+
+_PRIM_OP_RENAMES = {
+    "ir.prim.likely": "prim.likely",
+    "ir.prim.bitwise_and": "prim.bitwise_and",
+    "ir.prim.bitwise_or": "prim.bitwise_or",
+    "ir.prim.bitwise_xor": "prim.bitwise_xor",
+    "ir.prim.bitwise_not": "prim.bitwise_not",
+    "ir.prim.shift_left": "prim.shift_left",
+    "ir.prim.shift_right": "prim.shift_right",
+    "ir.prim.if_then_else": "prim.if_then_else",
+    "ir.prim.vscale": "prim.vscale",
+    "tirx.ceil": "prim.ceil",
+    "tirx.log2": "prim.log2",
 }
 
 
@@ -121,6 +142,8 @@ def upgrade_json(json_str):
     # nodes in place preserves node indices and shared references.
     for node in data.get("nodes", []):
         node["type"] = _PRIM_TYPE_KEY_RENAMES.get(node.get("type"), node.get("type"))
+        if node.get("type") == "ir.Op":
+            node["data"] = _PRIM_OP_RENAMES.get(node["data"], node["data"])
         if node.get("type") == "relax.expr.Var":
             node["type"] = "ir.Var"
         elif node.get("type") == "tirx.Var":

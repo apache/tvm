@@ -25,7 +25,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
 
 #include <optional>
 #include <unordered_map>

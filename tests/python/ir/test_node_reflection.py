@@ -109,7 +109,7 @@ def test_var_name_legacy_json_graph_rewrite(legacy_json, expected_type, var_inde
     expected = copy.deepcopy(original)
     for node in expected["nodes"]:
         if node["type"] == "tirx.Add":
-            node["type"] = "ir.prim.Add"
+            node["type"] = "prim.Add"
     expected["nodes"][var_index]["type"] = expected_type
     fields = expected["nodes"][var_index]["data"]
     if "name_hint" in fields:
@@ -146,7 +146,7 @@ def test_var_exact_base_legacy_relax_json_load():
 
 
 def test_var_exact_base_legacy_tirx_json_load():
-    restored = tvm.ir.load_json(_LEGACY_TIRX_VAR_JSON.replace("tirx.Add", "prim.Add"))
+    restored = tvm.ir.load_json(_LEGACY_TIRX_VAR_JSON)
     assert isinstance(restored, tvm.tirx.Add)
     assert restored.a.same_as(restored.b)
     _check_legacy_var(restored.a, "legacy_tirx.py", 7, 9, 2, 14)

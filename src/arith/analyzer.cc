@@ -25,8 +25,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/op.h>
 
 #include "const_fold.h"
 #include "product_normal_form.h"

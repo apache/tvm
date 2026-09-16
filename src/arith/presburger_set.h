@@ -35,7 +35,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/cow.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
 
 #include <limits>
 #include <vector>

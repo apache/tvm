@@ -31,7 +31,6 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/op.h>
 
 #include <algorithm>
 #include <unordered_map>
