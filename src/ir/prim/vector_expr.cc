@@ -24,7 +24,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
 
 #include <optional>
 
@@ -209,7 +209,7 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
   TVM_FFI_ICHECK(base_ty.IsScalar());
   TVM_FFI_ICHECK(stride_ty.IsScalar());
   if (stride_ty != base_ty) {
-    stride = cast(base_ty, stride);
+    stride = prim::cast(base_ty, stride);
   }
 
   ffi::ObjectPtr<RampNode> node = ffi::make_object<RampNode>();
@@ -245,8 +245,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&RampMaybeInplaceMutate));
 
-  refl::GlobalDef().def("ir.prim.Ramp", [](PrimExpr base, PrimExpr stride, PrimExpr lanes,
-                                           Span span) { return Ramp(base, stride, lanes, span); });
+  refl::GlobalDef().def("prim.Ramp", [](PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
+    return Ramp(base, stride, lanes, span);
+  });
 }
 
 // Broadcast
@@ -287,7 +288,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&BroadcastMaybeInplaceMutate));
 
-  refl::GlobalDef().def("ir.prim.Broadcast", [](PrimExpr value, PrimExpr lanes, Span span) {
+  refl::GlobalDef().def("prim.Broadcast", [](PrimExpr value, PrimExpr lanes, Span span) {
     return Broadcast(value, lanes, span);
   });
 }
@@ -324,7 +325,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&ShuffleMaybeInplaceMutate));
 
-  refl::GlobalDef().def("ir.prim.Shuffle",
+  refl::GlobalDef().def("prim.Shuffle",
                         [](ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Span span) {
                           return Shuffle(vectors, indices, span);
                         });

@@ -211,7 +211,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
       TVM_FFI_ICHECK_EQ(store->buffer->dtype->dtype, (DLDataType{kDLInt, 8, 1}))
           << "Expected int8 backing array for boolean tensor";
       auto writer = store.CopyOnWrite();
-      writer->value = tvm::cast(PrimType::Int(8), store->value);
+      writer->value = tvm::prim::cast(PrimType::Int(8), store->value);
       return std::move(store);
     }
     return std::move(store);
@@ -230,7 +230,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
                         (DLDataType{kDLInt, 8, 1}))
           << "Expected int8 backing array for boolean tensor";
       load.CopyOnWrite()->ExprNode::ty = PrimType::Int(8);
-      return tvm::cast(PrimType::Bool(), load);
+      return tvm::prim::cast(PrimType::Bool(), load);
     } else {
       return std::move(load);
     }

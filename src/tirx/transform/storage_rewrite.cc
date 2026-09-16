@@ -50,6 +50,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 using runtime::StorageRank;
 using runtime::StorageScope;

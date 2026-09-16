@@ -37,6 +37,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 /*!
  * \brief Flatten each n-d buffer ``buf`` into a 1-d storage view ``buf'``,

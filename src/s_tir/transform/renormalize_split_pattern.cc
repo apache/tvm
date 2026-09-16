@@ -34,7 +34,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using namespace arith;
@@ -58,7 +57,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
 
   explicit SplitPatternReNormalizer(const Analyzer& analyzer) : IRMutatorWithAnalyzer(analyzer) {}
 
-  UnchangedOr<PrimExpr> Mutate_(const FloorDivNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) final {
     PrimExpr a = Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a);
     PrimExpr b = Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b);
     PrimExpr ret = floordiv(a, b);
@@ -99,10 +98,10 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
         if (c3 > 1) {
           IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
           IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
-          return RecursiveRewrite(
-              floordiv(x.Eval() * Broadcast(c1_div, lanes.Eval()) +
-                           floordiv(y.Eval(), Broadcast(IntImm(c1.Eval().ty(), c3), lanes.Eval())),
-                       Broadcast(c2_div, lanes.Eval())));
+          return RecursiveRewrite(floordiv(
+              x.Eval() * prim::Broadcast(c1_div, lanes.Eval()) +
+                  floordiv(y.Eval(), prim::Broadcast(IntImm(c1.Eval().ty(), c3), lanes.Eval())),
+              prim::Broadcast(c2_div, lanes.Eval())));
         }
       }
     }
@@ -130,10 +129,10 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
           IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
           IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
           return RecursiveRewrite(
-              floordiv(x.Eval() * Broadcast(c1_div, lanes.Eval()) +
+              floordiv(x.Eval() * prim::Broadcast(c1_div, lanes.Eval()) +
                            floordiv(y.Eval() + z.Eval(),
-                                    Broadcast(IntImm(c1.Eval().ty(), c3), lanes.Eval())),
-                       Broadcast(c2_div, lanes.Eval())));
+                                    prim::Broadcast(IntImm(c1.Eval().ty(), c3), lanes.Eval())),
+                       prim::Broadcast(c2_div, lanes.Eval())));
         }
       }
     }
@@ -141,22 +140,22 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     return ret;
   }
 
-  UnchangedOr<PrimExpr> Mutate_(const LENode* op, InplaceMode inplace_mode) {
-    PrimExpr rewritten = Not(op->b < op->a);
+  UnchangedOr<PrimExpr> Mutate_(const prim::LENode* op, InplaceMode inplace_mode) {
+    PrimExpr rewritten = prim::Not(op->b < op->a);
     return Mutate(rewritten, inplace_mode).ValueOrUnchanged(std::move(rewritten));
   }
 
-  UnchangedOr<PrimExpr> Mutate_(const GTNode* op, InplaceMode inplace_mode) {
+  UnchangedOr<PrimExpr> Mutate_(const prim::GTNode* op, InplaceMode inplace_mode) {
     PrimExpr rewritten = op->b < op->a;
     return Mutate(rewritten, inplace_mode).ValueOrUnchanged(std::move(rewritten));
   }
 
-  UnchangedOr<PrimExpr> Mutate_(const GENode* op, InplaceMode inplace_mode) {
-    PrimExpr rewritten = Not(op->a < op->b);
+  UnchangedOr<PrimExpr> Mutate_(const prim::GENode* op, InplaceMode inplace_mode) {
+    PrimExpr rewritten = prim::Not(op->a < op->b);
     return Mutate(rewritten, inplace_mode).ValueOrUnchanged(std::move(rewritten));
   }
 
-  UnchangedOr<PrimExpr> Mutate_(const LTNode* op, InplaceMode inplace_mode) {
+  UnchangedOr<PrimExpr> Mutate_(const prim::LTNode* op, InplaceMode inplace_mode) {
     PrimExpr a = Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a);
     PrimExpr b = Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b);
     PrimExpr ret = prim::LT(a, b);
@@ -169,7 +168,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     return ret;
   }
 
-  UnchangedOr<PrimExpr> Mutate_(const NotNode* op, InplaceMode inplace_mode) {
+  UnchangedOr<PrimExpr> Mutate_(const prim::NotNode* op, InplaceMode inplace_mode) {
     PrimExpr ret = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     // Pattern var to match any expression

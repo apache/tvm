@@ -54,7 +54,7 @@ class RampNode : public ExprNode {
         .def_ro("stride", &RampNode::stride)
         .def_ro("lanes", &RampNode::lanes);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.prim.Ramp", RampNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("prim.Ramp", RampNode, ExprNode);
 };
 
 /*!
@@ -82,7 +82,7 @@ class BroadcastNode : public ExprNode {
         .def_ro("value", &BroadcastNode::value)
         .def_ro("lanes", &BroadcastNode::lanes);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.prim.Broadcast", BroadcastNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("prim.Broadcast", BroadcastNode, ExprNode);
 };
 
 /*!
@@ -114,7 +114,7 @@ class ShuffleNode : public ExprNode {
         .def_ro("vectors", &ShuffleNode::vectors)
         .def_ro("indices", &ShuffleNode::indices);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.prim.Shuffle", ShuffleNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("prim.Shuffle", ShuffleNode, ExprNode);
 };
 
 /*!

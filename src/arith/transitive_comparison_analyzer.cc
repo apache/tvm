@@ -32,6 +32,9 @@
 
 namespace tvm {
 namespace arith {
+using namespace tvm::prim;
+
+using prim::is_const_int;
 
 using namespace tirx;
 

@@ -40,6 +40,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
   // use reverse iteration

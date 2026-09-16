@@ -39,6 +39,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 namespace {
 
@@ -291,8 +292,8 @@ class BuiltinLower : public StmtExprMutator {
     static const Op& free_workspace_op = Op::Get("tirx.TVMBackendFreeWorkspace");
     static const Op& alloc_workspace_op = Op::Get("tirx.TVMBackendAllocWorkspace");
     PrimExpr free_op = Call(PrimType::Int(32), free_workspace_op,
-                            {cast(PrimType::Int(32), device_type_.value()),
-                             cast(PrimType::Int(32), device_id_.value()), op->buffer.data()})
+                            {prim::cast(PrimType::Int(32), device_type_.value()),
+                             prim::cast(PrimType::Int(32), device_id_.value()), op->buffer.data()})
                            .as_or_throw<PrimExpr>();
     Stmt free_stmt = IfThenElse(free_op != IntImm::Int32(0), throw_last_error);
 
@@ -302,8 +303,8 @@ class BuiltinLower : public StmtExprMutator {
     Stmt alloc_bind = DeclBuffer(
         op->buffer,
         Call(op->buffer.DataPointerType(), alloc_workspace_op,
-             {cast(PrimType::Int(32), device_type_.value()),
-              cast(PrimType::Int(32), device_id_.value()), total_bytes,
+             {prim::cast(PrimType::Int(32), device_type_.value()),
+              prim::cast(PrimType::Int(32), device_id_.value()), total_bytes,
               IntImm::Int32(op->buffer->dtype.code()), IntImm::Int32(op->buffer->dtype.bits())}));
 
     return SeqStmt({alloc_bind, alloc_nullptr_check});
@@ -510,7 +511,7 @@ class BuiltinLower : public StmtExprMutator {
     // no need to perform any store for a scalar shape
     for (size_t i = 0; i < op->args.size(); ++i) {
       prep_seq.emplace_back(BufferStore(
-          scope.stack_shape, cast(PrimType::Int(64), op->args[i].as_or_throw<PrimExpr>()),
+          scope.stack_shape, prim::cast(PrimType::Int(64), op->args[i].as_or_throw<PrimExpr>()),
           {ConstInt32(stack_begin + i)}));
     }
     PrimExpr offset = ConstInt32(stack_begin);
@@ -557,13 +558,13 @@ class BuiltinLower : public StmtExprMutator {
       byte_offset = elem_offset;
     }
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorByteOffset,
-                                       cast(PrimType::UInt(64), byte_offset)));
+                                       prim::cast(PrimType::UInt(64), byte_offset)));
     TVM_FFI_ICHECK(device_type_) << "Unknown device type in current IR";
     TVM_FFI_ICHECK(device_id_) << "Unknown device id in current IR";
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorDeviceId,
-                                       cast(PrimType::Int(32), device_id_.value())));
+                                       prim::cast(PrimType::Int(32), device_id_.value())));
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorDeviceType,
-                                       cast(PrimType::Int(32), device_type_.value())));
+                                       prim::cast(PrimType::Int(32), device_type_.value())));
     return TVMStructGet(PointerType::VoidPointerTy(), scope.stack_array, idx,
                         builtin::kDLTensorAddr);
   }

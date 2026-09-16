@@ -30,6 +30,8 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
+
 namespace intrin {
 using tirx::FLowerIntrinsic;
 
@@ -63,7 +65,7 @@ TVM_REGISTER_OP("tirx.erf")
 TVM_REGISTER_OP("tirx.log")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tirx.log2")
+TVM_REGISTER_OP("prim.log2")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tirx.log10")
@@ -132,7 +134,7 @@ TVM_REGISTER_OP("tirx.sqrt")
 TVM_REGISTER_OP("tirx.floor")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tirx.ceil")
+TVM_REGISTER_OP("prim.ceil")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tirx.round")
@@ -163,7 +165,7 @@ PrimExpr DispatchFastErf(const PrimExpr& e) {
 }
 
 PrimExpr DispatchNumericalStableTanh(const PrimExpr& e) {
-  using tirx::MakeConst;
+  using tvm::prim::MakeConst;
   const CallNode* call = e.as<CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
   PrimExpr x = call->args[0].as_or_throw<PrimExpr>();
@@ -270,7 +272,7 @@ static PrimExpr QMultiplyShift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr left
 
 TVM_REGISTER_OP("tirx.q_multiply_shift")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::MakeConst;
+      using tvm::prim::MakeConst;
 
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);

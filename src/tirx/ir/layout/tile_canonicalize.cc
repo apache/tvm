@@ -24,6 +24,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 // Forward declarations for helpers used before their definitions
 TileLayout SortReplicaIters(TileLayout layout);

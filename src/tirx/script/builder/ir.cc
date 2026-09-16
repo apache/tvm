@@ -37,6 +37,8 @@
 
 namespace tvm {
 namespace script {
+using namespace tvm::prim;
+
 namespace ir_builder {
 namespace tirx {
 
@@ -831,7 +833,7 @@ void BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices)
                                    << ": LHS is `" << lhs_dtype << "`, RHS is `" << rhs_dtype
                                    << "`, indexing lanes: " << index_lanes;
     }
-    value = tvm::cast(lhs_dtype, value);
+    value = tvm::prim::cast(lhs_dtype, value);
   }
   tvm::tirx::Stmt store = tvm::tirx::BufferStore(buffer, value, indices);
   if (lhs_dtype != rhs_dtype) {

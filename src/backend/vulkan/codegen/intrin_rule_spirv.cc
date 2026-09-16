@@ -74,7 +74,7 @@ void RegisterVulkanLowerIntrinRules() {
 TVM_REGISTER_OP("tirx.floor")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Floor>);
 
-TVM_REGISTER_OP("tirx.ceil")
+TVM_REGISTER_OP("prim.ceil")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Ceil>);
 
 TVM_REGISTER_OP("tirx.round")
@@ -139,7 +139,7 @@ TVM_REGISTER_OP("tirx.atan2")
 TVM_REGISTER_OP("tirx.log")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Log>);
 
-TVM_REGISTER_OP("tirx.log2")
+TVM_REGISTER_OP("prim.log2")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Log2>);
 
 TVM_REGISTER_OP("tirx.sqrt")

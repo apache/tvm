@@ -529,7 +529,7 @@ inline Var TensorMap() { return tvm::tirx::Var("", PointerType(TensorMapType()))
 #define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                      \
   inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {        \
     PrimType dtype = DType;                                                      \
-    return expr.has_value() ? tvm::cast(dtype, expr.value())                     \
+    return expr.has_value() ? tvm::prim::cast(dtype, expr.value())               \
                             : tvm::tirx::Var("", dtype).as_or_throw<PrimExpr>(); \
   }
 
