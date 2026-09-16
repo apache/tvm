@@ -190,7 +190,7 @@ void CodeGenCHost::PrintType(const PrimType& type, std::ostream& os) {  // NOLIN
   TVM_FFI_THROW(InternalError) << "Cannot convert type " << type->dtype << " to C type";
 }
 
-void CodeGenCHost::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCHost::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   int lanes = op->ty.as_or_throw<PrimType>().lanes();
   os << "((";
@@ -285,7 +285,7 @@ std::string CodeGenCHost::GetPackedName(const CallNode* op) {
   return unique_name;
 }
 
-void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCHost::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (op->op.same_as(builtin::tvm_stack_alloca())) {
     std::string stack_name = name_supply_->FreshName("stack");
     const std::string& type = op->args[0].as<prim::StringImmNode>()->value;
@@ -316,7 +316,7 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     this->PrintIndent();
     this->stream << "return -1;\n";
   } else {
-    CodeGenC::VisitExpr_(op, os);
+    CodeGenC::Dispatch_(op, os);
   }
 }
 
@@ -346,11 +346,11 @@ void CodeGenCHost::VisitStmt_(const AssertStmtNode* op) {  // NOLINT(*)
   }
 }
 
-void CodeGenCHost::VisitExpr_(const prim::MinNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCHost::Dispatch_(const prim::MinNode* op, std::ostream& os) {  // NOLINT(*)
   PrintTernaryCondExpr(op, "<", os);
 }
 
-void CodeGenCHost::VisitExpr_(const prim::MaxNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCHost::Dispatch_(const prim::MaxNode* op, std::ostream& os) {  // NOLINT(*)
   PrintTernaryCondExpr(op, ">", os);
 }
 
@@ -358,10 +358,10 @@ template <typename T>
 inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
                                                std::ostream& os) {  // NOLINT(*)
   std::ostringstream temp_a;
-  VisitExpr(op->a, temp_a);
+  Dispatch(op->a, temp_a);
   std::string a_id = SSAGetID(temp_a.str(), op->a.ty());
   std::ostringstream temp_b;
-  VisitExpr(op->b, temp_b);
+  Dispatch(op->b, temp_b);
   std::string b_id = SSAGetID(temp_b.str(), op->b.ty());
 
   os << "((" << a_id << ") " << compare << " (" << b_id << ") "

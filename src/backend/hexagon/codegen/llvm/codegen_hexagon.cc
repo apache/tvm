@@ -80,7 +80,7 @@ class CodeGenHexagon final : public CodeGenCPU {
   void InitTarget() final;
 
   using CodeGenCPU::VisitStmt_;
-  llvm::Value* VisitExpr_(const TensorLoadNode* op) override;
+  llvm::Value* Dispatch_(const TensorLoadNode* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
 
   llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
@@ -199,7 +199,7 @@ llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, ffi::String global_
   return CodeGenCPU::CreateCallExtern(ret_type, global_symbol, args, skip_first_arg);
 }
 
-llvm::Value* CodeGenHexagon::VisitExpr_(const TensorLoadNode* op) {
+llvm::Value* CodeGenHexagon::Dispatch_(const TensorLoadNode* op) {
   // Check if we can generate a vector lookup.
   if (!op->indices[0].as<prim::RampNode>()) {
     if (auto* vlut = VectorLookupLoad(op->source.as_or_throw<tvm::tirx::BufferVar>(),
@@ -207,7 +207,7 @@ llvm::Value* CodeGenHexagon::VisitExpr_(const TensorLoadNode* op) {
       return vlut;
     }
   }
-  return CodeGenCPU::VisitExpr_(op);
+  return CodeGenCPU::Dispatch_(op);
 }
 
 llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {

@@ -126,7 +126,7 @@ static Expr LowerAccessPtr(const CallNode* call,
 
 class IntrinInjecter : public IRMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::Dispatch_;
   using IRMutatorWithAnalyzer::VisitStmt_;
   using FLowerGeneral = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
@@ -174,9 +174,9 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     return result;
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
+  Expr Dispatch_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
-      return this->VisitExpr(LowerAccessPtr(op, &access_ptr_buffer_aliases_));
+      return this->Dispatch(LowerAccessPtr(op, &access_ptr_buffer_aliases_));
     }
     if (auto* ptr_op = op->op.as<OpNode>()) {
       Op op_ref = ffi::GetRef<Op>(ptr_op);
@@ -197,23 +197,23 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
         }
       }
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
+    return IRMutatorWithAnalyzer::Dispatch_(op);
   }
 
-  Expr VisitExpr_(const prim::AddNode* op) final {
+  Expr Dispatch_(const prim::AddNode* op) final {
     if (const prim::MulNode* mb = op->b.as<prim::MulNode>()) {
       return MakeFMA(mb->a, mb->b, op->a, op);
     } else if (const prim::MulNode* ma = op->a.as<prim::MulNode>()) {
       return MakeFMA(ma->a, ma->b, op->b, op);
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
+    return IRMutatorWithAnalyzer::Dispatch_(op);
   }
 
   // We use floordiv for integer analysis,
   // but will need to lower them to native truncdiv instructions
-  Expr VisitExpr_(const prim::FloorDivNode* op) final {
+  Expr Dispatch_(const prim::FloorDivNode* op) final {
     auto e = ffi::GetRef<PrimExpr>(op);
-    PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<PrimExpr>();
+    PrimExpr ret = IRMutatorWithAnalyzer::Dispatch_(op).as_or_throw<PrimExpr>();
     op = ret.as<prim::FloorDivNode>();
     if (op == nullptr) return ret;
     int shift;
@@ -254,7 +254,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     } else {
       if (dtype.code() == DLDataTypeCode::kDLFloat) {
         // floor(a / b)
-        return VisitExpr_(tvm::floor(op->a / op->b).as<CallNode>());
+        return Dispatch_(tvm::floor(op->a / op->b).as<CallNode>());
       } else {
         // uncommon case
         DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divisor";
@@ -271,8 +271,8 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     }
   }
 
-  Expr VisitExpr_(const prim::FloorModNode* op) final {
-    PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<PrimExpr>();
+  Expr Dispatch_(const prim::FloorModNode* op) final {
+    PrimExpr ret = IRMutatorWithAnalyzer::Dispatch_(op).as_or_throw<PrimExpr>();
     op = ret.as<prim::FloorModNode>();
     if (op == nullptr) return ret;
     // Lower floordiv to native truncdiv.
@@ -317,7 +317,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
       if (dtype.code() == DLDataTypeCode::kDLFloat) {
         // a - floor(a / b) * b
         return op->a -
-               (VisitExpr_(tvm::floor(op->a / op->b).as<CallNode>()).as_or_throw<PrimExpr>() *
+               (Dispatch_(tvm::floor(op->a / op->b).as<CallNode>()).as_or_throw<PrimExpr>() *
                 op->b);
       } else {
         // uncommon case
@@ -334,7 +334,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     }
   }
 
-  Expr VisitExpr_(const prim::MaxNode* op) final {
+  Expr Dispatch_(const prim::MaxNode* op) final {
     using namespace arith;
     PVar<PrimExpr> x, y;
     PVar<IntImm> c;
@@ -343,27 +343,27 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
         analyzer_->CanProveGreaterEqual(y.Eval(), 0)) {
       return max(VisitPrimExpr(truncdiv(x, y).Eval()), c.Eval());
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
+    return IRMutatorWithAnalyzer::Dispatch_(op);
   }
 
-  Expr VisitExpr_(const prim::EQNode* op) final {
+  Expr Dispatch_(const prim::EQNode* op) final {
     using namespace arith;
     PVar<PrimExpr> x, y;
     auto e = ffi::GetRef<PrimExpr>(op);
     if ((floormod(x, y) == 0).Match(e)) {
       return VisitPrimExpr((truncmod(x, y) == 0).Eval());
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
+    return IRMutatorWithAnalyzer::Dispatch_(op);
   }
 
-  Expr VisitExpr_(const prim::NENode* op) final {
+  Expr Dispatch_(const prim::NENode* op) final {
     using namespace arith;
     PVar<PrimExpr> x, y;
     auto e = ffi::GetRef<PrimExpr>(op);
     if ((floormod(x, y) != 0).Match(e)) {
       return VisitPrimExpr((truncmod(x, y) != 0).Eval());
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
+    return IRMutatorWithAnalyzer::Dispatch_(op);
   }
 
  private:
@@ -419,7 +419,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
         return prim::Add(mul, this->VisitPrimExpr(c));
       }
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<PrimExpr>();
+    return IRMutatorWithAnalyzer::Dispatch_(op).as_or_throw<PrimExpr>();
   }
 
   /*!

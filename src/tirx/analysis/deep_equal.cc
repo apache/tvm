@@ -31,14 +31,14 @@ namespace tvm {
 namespace tirx {
 
 #define DEFINE_DEEP_EQUAL_BIN_EXPR(OpNode)                                         \
-  bool VisitExpr_(const OpNode* plhs, const PrimExpr& rhs) final {                 \
+  bool Dispatch_(const OpNode* plhs, const PrimExpr& rhs) final {                  \
     const auto* prhs = rhs.as<OpNode>();                                           \
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() && \
-           VisitExpr(plhs->a, prhs->a) && VisitExpr(plhs->b, prhs->b);             \
+           Dispatch(plhs->a, prhs->a) && Dispatch(plhs->b, prhs->b);               \
   }
 
 #define DEFINE_DEEP_EQUAL_IMM_EXPR(OpNode)                                         \
-  bool VisitExpr_(const OpNode* plhs, const PrimExpr& rhs) final {                 \
+  bool Dispatch_(const OpNode* plhs, const PrimExpr& rhs) final {                  \
     const auto* prhs = rhs.as<OpNode>();                                           \
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() && \
            plhs->value == prhs->value;                                             \
@@ -57,25 +57,25 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExp
       return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
              plhs->value == prhs->value;
     }
-    return ExprDeepEqualChecker().VisitExpr(lhs, rhs);
+    return ExprDeepEqualChecker().Dispatch(lhs, rhs);
   }
 
-  bool VisitExpr(const Expr& expr, const PrimExpr& rhs) final {
+  bool Dispatch(const Expr& expr, const PrimExpr& rhs) final {
     PrimExpr lhs = expr.as_or_throw<PrimExpr>();
     if (lhs.same_as(rhs)) return true;
     if (!lhs.defined() && rhs.defined()) return false;
     if (!rhs.defined() && lhs.defined()) return false;
     if (lhs->type_index() != rhs->type_index()) return false;
-    return ExprFunctor::VisitExpr(lhs, rhs);
+    return ExprFunctor::Dispatch(lhs, rhs);
   }
 
-  bool VisitExpr(const Expr& lhs, const Expr& rhs) {
+  bool Dispatch(const Expr& lhs, const Expr& rhs) {
     if (lhs.same_as(rhs)) return true;
     if (!lhs.defined() || !rhs.defined()) return false;
     if (lhs->type_index() != rhs->type_index()) return false;
     if (auto lhs_prim = lhs.as<PrimExpr>()) {
       auto rhs_prim = rhs.as<PrimExpr>();
-      return rhs_prim && VisitExpr(lhs_prim.value(), rhs_prim.value());
+      return rhs_prim && Dispatch(lhs_prim.value(), rhs_prim.value());
     }
     if (lhs.as<VarNode>()) {
       return false;
@@ -89,7 +89,7 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExp
       auto* rhs_get_item = rhs.as<TupleGetItemNode>();
       return lhs_get_item->index == rhs_get_item->index &&
              ffi::StructuralEqual()(lhs_get_item->ty, rhs_get_item->ty) &&
-             VisitExpr(lhs_get_item->tuple, rhs_get_item->tuple);
+             Dispatch(lhs_get_item->tuple, rhs_get_item->tuple);
     }
     if (auto* lhs_call = lhs.as<CallNode>()) {
       auto* rhs_call = rhs.as<CallNode>();
@@ -104,7 +104,7 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExp
   bool ArrayDeepEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Array<PrimExpr>& rhs) {
     if (lhs.size() != rhs.size()) return false;
     for (size_t i = 0; i < lhs.size(); i++) {
-      if (!VisitExpr(lhs[i], rhs[i])) return false;
+      if (!Dispatch(lhs[i], rhs[i])) return false;
     }
     return true;
   }
@@ -112,7 +112,7 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExp
   bool ArrayDeepEqual(const ffi::Array<Expr>& lhs, const ffi::Array<Expr>& rhs) {
     if (lhs.size() != rhs.size()) return false;
     for (size_t i = 0; i < lhs.size(); i++) {
-      if (!VisitExpr(lhs[i], rhs[i])) return false;
+      if (!Dispatch(lhs[i], rhs[i])) return false;
     }
     return true;
   }
@@ -130,15 +130,15 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExp
     if (lhs.same_as(rhs)) return true;
     if (!lhs.has_value() && rhs.has_value()) return false;
     if (lhs.has_value() && !rhs.has_value()) return false;
-    return VisitExpr(*lhs, *rhs);
+    return Dispatch(*lhs, *rhs);
   }
 
-  bool VisitExpr_(const VarNode* plhs, const PrimExpr& rhs) final {
+  bool Dispatch_(const VarNode* plhs, const PrimExpr& rhs) final {
     // for var, we require pointer equality
     return plhs == rhs.get();
   }
 
-  bool VisitExpr_(const TensorLoadNode* plhs, const PrimExpr& rhs) final {
+  bool Dispatch_(const TensorLoadNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<TensorLoadNode>();
     // we run pointer comparison of the buffer
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
@@ -147,58 +147,58 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExp
            ArrayDeepEqual(plhs->indices, prhs->indices);
   }
 
-  bool VisitExpr_(const prim::LetNode* plhs, const PrimExpr& rhs) final {
+  bool Dispatch_(const prim::LetNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<prim::LetNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
-           VisitExpr(plhs->var, prhs->var) && VisitExpr(plhs->value, prhs->value) &&
-           VisitExpr(plhs->body, prhs->body);
+           Dispatch(plhs->var, prhs->var) && Dispatch(plhs->value, prhs->value) &&
+           Dispatch(plhs->body, prhs->body);
   }
 
-  bool VisitExpr_(const CallNode* plhs, const PrimExpr& rhs) final {
+  bool Dispatch_(const CallNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<CallNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
            plhs->op.same_as(prhs->op) && ArrayDeepEqual(plhs->args, prhs->args) &&
            ffi::StructuralEqual()(plhs->attrs, prhs->attrs);
   }
 
-  bool VisitExpr_(const prim::CastNode* plhs, const PrimExpr& rhs) final {
+  bool Dispatch_(const prim::CastNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<prim::CastNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
-           VisitExpr(plhs->value, prhs->value);
+           Dispatch(plhs->value, prhs->value);
   }
 
-  bool VisitExpr_(const prim::NotNode* plhs, const PrimExpr& rhs) final {
+  bool Dispatch_(const prim::NotNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<prim::NotNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
-           VisitExpr(plhs->a, prhs->a);
+           Dispatch(plhs->a, prhs->a);
   }
 
-  bool VisitExpr_(const prim::SelectNode* plhs, const PrimExpr& rhs) final {
+  bool Dispatch_(const prim::SelectNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<prim::SelectNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
-           VisitExpr(plhs->condition, prhs->condition) &&
-           VisitExpr(plhs->true_value, prhs->true_value) &&
-           VisitExpr(plhs->false_value, prhs->false_value);
+           Dispatch(plhs->condition, prhs->condition) &&
+           Dispatch(plhs->true_value, prhs->true_value) &&
+           Dispatch(plhs->false_value, prhs->false_value);
   }
 
-  bool VisitExpr_(const prim::RampNode* plhs, const PrimExpr& rhs) final {
+  bool Dispatch_(const prim::RampNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<prim::RampNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
-           VisitExpr(plhs->base, prhs->base) && VisitExpr(plhs->stride, prhs->stride) &&
-           VisitExpr(plhs->lanes, prhs->lanes);
+           Dispatch(plhs->base, prhs->base) && Dispatch(plhs->stride, prhs->stride) &&
+           Dispatch(plhs->lanes, prhs->lanes);
   }
 
-  bool VisitExpr_(const prim::ShuffleNode* plhs, const PrimExpr& rhs) final {
+  bool Dispatch_(const prim::ShuffleNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<prim::ShuffleNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
            ArrayDeepEqual(plhs->vectors, prhs->vectors) &&
            ArrayDeepEqual(plhs->indices, prhs->indices);
   }
 
-  bool VisitExpr_(const prim::BroadcastNode* plhs, const PrimExpr& rhs) final {
+  bool Dispatch_(const prim::BroadcastNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<prim::BroadcastNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
-           VisitExpr(plhs->value, prhs->value) && VisitExpr(plhs->lanes, prhs->lanes);
+           Dispatch(plhs->value, prhs->value) && Dispatch(plhs->lanes, prhs->lanes);
   }
 
   DEFINE_DEEP_EQUAL_BIN_EXPR(prim::AddNode)

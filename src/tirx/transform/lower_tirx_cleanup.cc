@@ -79,7 +79,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
   }
 
  protected:
-  using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::Dispatch_;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
   explicit LayoutApplier(const arith::Analyzer& analyzer, const Target& target)
@@ -99,15 +99,15 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     return any;
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  Expr Dispatch_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     if (auto it = var_remap_.find(var); it != var_remap_.end()) {
       return it->second;
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
+    return IRMutatorWithAnalyzer::Dispatch_(op);
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
+  Expr Dispatch_(const CallNode* op) final {
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
@@ -122,7 +122,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
         return BufferVar(root).data();
       }
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
+    return IRMutatorWithAnalyzer::Dispatch_(op);
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
@@ -144,7 +144,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
     RegisterBufferAlias(op->buffer, op->data);
-    Expr data = VisitExpr(op->data);
+    Expr data = Dispatch(op->data);
     auto buffer = GetFlattenedBuffer(op->buffer);
     if (buffer.same_as(op->buffer) && data.same_as(op->data)) {
       return ffi::GetRef<Stmt>(op);
@@ -230,8 +230,8 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     return std::move(store);
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* op) final {
+    TensorLoad load = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     load = VisitBufferAccess(load);
     return std::move(load);
   }
@@ -333,26 +333,26 @@ class BufferOffsetRemover : public StmtExprMutator {
   static Stmt Remove(const Stmt& stmt) { return BufferOffsetRemover()(stmt); }
 
  private:
-  Expr VisitExpr_(const VarNode* op) final {
+  Expr Dispatch_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     if (auto it = var_remap_.find(var); it != var_remap_.end()) {
       return it->second;
     }
-    return StmtExprMutator::VisitExpr_(op);
+    return StmtExprMutator::Dispatch_(op);
   }
 
-  Expr VisitExpr_(const CallNode* call) final {
+  Expr Dispatch_(const CallNode* call) final {
     if (call->op.same_as(tirx::builtin::buffer_offset())) {
       auto buffer_load = call->args[0].as_or_throw<TensorLoad>();
       TVM_FFI_ICHECK_EQ(buffer_load->indices.size(), 1) << "Expected a single index";
       return buffer_load->indices[0];
     }
-    return StmtExprMutator::VisitExpr_(call);
+    return StmtExprMutator::Dispatch_(call);
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) {
     auto buffer = op->buffer;
-    Expr data = VisitExpr(op->data);
+    Expr data = Dispatch(op->data);
     auto elem_offset = this->VisitPrimExpr(buffer->elem_offset);
     if (!elem_offset.same_as(buffer->elem_offset)) {
       auto type = CopyBufferType(buffer);
@@ -366,7 +366,7 @@ class BufferOffsetRemover : public StmtExprMutator {
     return DeclBuffer(buffer, std::move(data), op->span);
   }
 
-  using StmtExprMutator::VisitExpr_;
+  using StmtExprMutator::Dispatch_;
   using StmtExprMutator::VisitStmt_;
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
@@ -375,8 +375,8 @@ class BufferOffsetRemover : public StmtExprMutator {
     return std::move(store);
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* op) final {
+    TensorLoad load = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     load = VisitBufferAccess(load);
     return std::move(load);
   }

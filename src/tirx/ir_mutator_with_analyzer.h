@@ -52,7 +52,7 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
   explicit IRMutatorWithAnalyzer(const arith::Analyzer& analyzer) : analyzer_(analyzer.get()) {}
   explicit IRMutatorWithAnalyzer(arith::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
-  using StmtExprMutator::VisitExpr_;
+  using StmtExprMutator::Dispatch_;
   using StmtExprMutator::VisitStmt_;
 
   // override functions that need to populate the context information.
@@ -63,9 +63,9 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) override;
   Stmt VisitStmt_(const AssertStmtNode* op) override;
   Stmt VisitStmt_(const SeqStmtNode* op) override;
-  Expr VisitExpr_(const prim::LetNode* op) override;
-  Expr VisitExpr_(const prim::SelectNode* op) override;
-  Expr VisitExpr_(const CallNode* op) override;
+  Expr Dispatch_(const prim::LetNode* op) override;
+  Expr Dispatch_(const prim::SelectNode* op) override;
+  Expr Dispatch_(const CallNode* op) override;
 
  protected:
   /*!

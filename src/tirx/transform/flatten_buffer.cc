@@ -92,8 +92,8 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
   }
 
  private:
-  using IRMutatorWithAnalyzer::VisitExpr;
-  using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::Dispatch;
+  using IRMutatorWithAnalyzer::Dispatch_;
   using IRMutatorWithAnalyzer::VisitStmt;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
@@ -224,7 +224,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
       }
     }
     if (!is_extern_buffer_source) {
-      data = VisitExpr(op->data);
+      data = Dispatch(op->data);
     }
     const FlatInfo& info = Define(op->buffer);
     if (info.flattened.same_as(op->buffer) && data.same_as(op->data)) {
@@ -240,17 +240,17 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     return store;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
+  Expr Dispatch_(const TensorLoadNode* op) final {
     BufferVar original_buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
     // Mutate the indices while keeping the original source opaque.  The base
     // statement mutator remaps buffer sources immediately, but this pass also
     // changes their rank, so reconstruction must wait until after FoldIndices.
-    TensorLoad load = ExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+    TensorLoad load = ExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     load = VisitBufferAccess(load, original_buffer);
     return load;
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
+  Expr Dispatch_(const CallNode* op) final {
     if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
       bool is_load = op->op.same_as(builtin::masked_load());
       BufferVar original(op->args[0].as_or_throw<Var>());
@@ -261,9 +261,9 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
       buffers_used_.insert(original);
       const FlatInfo& info = Lookup(original);
       ffi::Array<Expr> args{info.flattened.var()};
-      if (!is_load) args.push_back(this->VisitExpr(op->args[1]));
+      if (!is_load) args.push_back(this->Dispatch(op->args[1]));
       for (const PrimExpr& index : FoldIndices(info, indices)) args.push_back(index);
-      args.push_back(this->VisitExpr(op->args.back()));
+      args.push_back(this->Dispatch(op->args.back()));
       return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
     }
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
@@ -275,7 +275,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
         }
       }
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
+    return IRMutatorWithAnalyzer::Dispatch_(op);
   }
 
   ffi::Array<PrimExpr> FoldIndices(const FlatInfo& info, const ffi::Array<PrimExpr>& indices) {

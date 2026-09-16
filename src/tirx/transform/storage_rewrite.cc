@@ -546,12 +546,12 @@ class StoragePlanRewriter : public StmtExprMutator {
     return VisitBufferAccess(std::move(node));
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* op) final {
+    auto node = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     return VisitBufferAccess(std::move(node));
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  Expr Dispatch_(const VarNode* op) final {
     const VarNode* root = op;
     if (op->ty.as<BufferTypeNode>()) {
       Var var = ffi::GetRef<Var>(op);
@@ -567,7 +567,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       return ffi::GetRef<Var>(op);
     }
   }
-  Expr VisitExpr_(const CallNode* op) final {
+  Expr Dispatch_(const CallNode* op) final {
     if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
       bool is_load = op->op.same_as(builtin::masked_load());
       BufferVar buffer(op->args[0].as_or_throw<Var>());
@@ -582,14 +582,14 @@ class StoragePlanRewriter : public StmtExprMutator {
         access = VisitBufferAccess(std::move(access));
         ffi::Array<Expr> args{access->source.as_or_throw<BufferVar>().var()};
         for (const PrimExpr& index : access->indices) args.push_back(index);
-        args.push_back(this->VisitExpr(op->args.back()));
+        args.push_back(this->Dispatch(op->args.back()));
         return Call(access->ty, op->op, args, op->attrs, op->ty_args, op->span);
       } else {
         BufferStore access(buffer, value, indices, op->span);
         access = VisitBufferAccess(std::move(access));
         ffi::Array<Expr> args{access->buffer.var(), access->value};
         for (const PrimExpr& index : access->indices) args.push_back(index);
-        args.push_back(this->VisitExpr(op->args.back()));
+        args.push_back(this->Dispatch(op->args.back()));
         return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
       }
     } else if (op->op.same_as(builtin::tvm_access_ptr())) {
@@ -598,7 +598,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       PrimType dtype = dtype_marker.ty();
       auto buffer_var = GetBufferDataVar(op->args[1]);
       if (!buffer_var.has_value()) {
-        return StmtExprMutator::VisitExpr_(op);
+        return StmtExprMutator::Dispatch_(op);
       }
       const VarNode* buffer = buffer_var.value().get();
       if (buffer->ty.as<BufferTypeNode>()) {
@@ -607,7 +607,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       }
       auto it = alloc_map_.find(buffer);
       if (it == alloc_map_.end()) {
-        return StmtExprMutator::VisitExpr_(op);
+        return StmtExprMutator::Dispatch_(op);
       }
       const StorageEntry* se = it->second;
       PrimExpr offset = this->VisitPrimExpr(op->args[2].as_or_throw<PrimExpr>());
@@ -622,7 +622,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           {dtype_marker, se->alloc_var, offset, extent, op->args[4].as_or_throw<PrimExpr>()},
           op->attrs, {}, op->span);
     } else {
-      return StmtExprMutator::VisitExpr_(op);
+      return StmtExprMutator::Dispatch_(op);
     }
   }
 
@@ -1771,8 +1771,8 @@ class VectorTypeRewriter : public StmtExprMutator {
     return {BufferLoad(RemapBuffer(buffer), indices, node->span), shuffle_index};
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* op) final {
+    auto node = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     auto [modified, shuffle_index] = VisitBufferAccess(node);
 
     // Not needed for BufferStoreNode, so we can't just call
@@ -1808,7 +1808,7 @@ class VectorTypeRewriter : public StmtExprMutator {
           << "A masked vector load cannot be rewritten into a scalar shuffle.";
       ffi::Array<Expr> args{modified->source.as_or_throw<BufferVar>().var()};
       for (const PrimExpr& index : modified->indices) args.push_back(index);
-      args.push_back(this->VisitExpr(op->args.back()));
+      args.push_back(this->Dispatch(op->args.back()));
       return Call(modified->ty, op->op, args, op->attrs, op->ty_args, op->span);
     }
     if (op->op.same_as(builtin::masked_store())) {
@@ -1824,7 +1824,7 @@ class VectorTypeRewriter : public StmtExprMutator {
           << "A masked vector store cannot be rewritten into a scalar shuffle.";
       ffi::Array<Expr> args{modified->buffer.var(), modified->value};
       for (const PrimExpr& index : modified->indices) args.push_back(index);
-      args.push_back(this->VisitExpr(op->args.back()));
+      args.push_back(this->Dispatch(op->args.back()));
       return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
     }
     return std::nullopt;
@@ -1832,7 +1832,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
   Stmt VisitStmt_(const BindNode* op) final {
     auto it = rewrite_map_.find(op->var.get());
-    Expr value = this->VisitExpr(op->value);
+    Expr value = this->Dispatch(op->value);
     Var var = (it == rewrite_map_.end()) ? op->var : it->second.new_buffer_var;
     if (!ffi::StructuralEqual()(value->ty, var->ty)) {
       auto call = value.as_or_throw<Call>();
@@ -1894,7 +1894,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     return buf;
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
+  Expr Dispatch_(const CallNode* op) final {
     if (auto rewritten = RewriteMaskedCall(op)) {
       return rewritten.value();
     }
@@ -1905,7 +1905,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       }
     }
     if (op->op.same_as(builtin::tvm_access_ptr())) {
-      Expr expr = StmtExprMutator::VisitExpr_(op);
+      Expr expr = StmtExprMutator::Dispatch_(op);
       op = expr.as<CallNode>();
 
       if (!rewrite_indices_) {
@@ -1941,7 +1941,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       return Call(new_pointer_type, builtin::tvm_access_ptr(), acc_args);
 
     } else {
-      return StmtExprMutator::VisitExpr_(op);
+      return StmtExprMutator::Dispatch_(op);
     }
   }
 
@@ -1967,9 +1967,9 @@ class VectorTypeRewriter : public StmtExprMutator {
           : var_remap_(var_remap) {}
 
      private:
-      using StmtExprMutator::VisitExpr_;
+      using StmtExprMutator::Dispatch_;
 
-      Expr VisitExpr_(const VarNode* op) final {
+      Expr Dispatch_(const VarNode* op) final {
         if (auto it = var_remap_.find(op); it != var_remap_.end()) {
           return it->second;
         }
