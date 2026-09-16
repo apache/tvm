@@ -56,25 +56,25 @@ class CodeGenTrainium final : public CodeGenC {
   void PrintArgUnionDecl();
   void AddFunction(const GlobalVar& gvar, const PrimFunc& func) final;
   void InitFuncState(const PrimFunc& f) final;
-  std::string GetStorageScopeStr(const std::string& scope);               // NOLINT(*)
-  void Dispatch_(const VarNode* op, std::ostream& os) final;              // NOLINT(*)
-  void PrintType(const PrimType& t, std::ostream& os) final;              // NOLINT(*)
-  void VisitStmt_(const AllocBufferNode* op) final;                       // NOLINT(*)
-  void VisitStmt_(const AttrStmtNode* op) final;                          // NOLINT(*)
-  void VisitStmt_(const ForNode* op) final;                               // NOLINT(*)
-  void VisitStmt_(const BufferStoreNode* op) final;                       // NOLINT(*)=
-  void VisitStmt_(const EvaluateNode* op) final;                          // NOLINT(*)
-  std::string PrintIndices(const ffi::Array<PrimExpr>& indices);          // NOLINT(*)
-  void Dispatch_(const TensorLoadNode* op, std::ostream& os) final;       // NOLINT(*)
-  void Dispatch_(const CallNode* op, std::ostream& os) final;             // NOLINT(*)
-  void Dispatch_(const FloatImmNode* op, std::ostream& os) final;         // NOLINT(*)
-  void Dispatch_(const prim::CastNode* op, std::ostream& os) final;       // NOLINT(*)
-  void Dispatch_(const prim::FloorDivNode* op, std::ostream& os) final;   // NOLINT(*)
-  void Dispatch_(const prim::FloorModNode* op, std::ostream& os) final;   // NOLINT(*)
-  void VisitStmt_(const DeclBufferNode* op) final;                        // NOLINT(*)
-  void VisitStmt_(const IfThenElseNode* op) final;                        // NOLINT(*)
-  void Dispatch_(const prim::AndNode* op, std::ostream& os) final;        // NOLINT(*)
-  void Dispatch_(const prim::OrNode* op, std::ostream& os) final;         // NOLINT(*)
+  std::string GetStorageScopeStr(const std::string& scope);              // NOLINT(*)
+  void Dispatch_(const VarNode* op, std::ostream& os) final;             // NOLINT(*)
+  void PrintType(const PrimType& t, std::ostream& os) final;             // NOLINT(*)
+  void VisitStmt_(const AllocBufferNode* op) final;                      // NOLINT(*)
+  void VisitStmt_(const AttrStmtNode* op) final;                         // NOLINT(*)
+  void VisitStmt_(const ForNode* op) final;                              // NOLINT(*)
+  void VisitStmt_(const BufferStoreNode* op) final;                      // NOLINT(*)=
+  void VisitStmt_(const EvaluateNode* op) final;                         // NOLINT(*)
+  std::string PrintIndices(const ffi::Array<PrimExpr>& indices);         // NOLINT(*)
+  void Dispatch_(const TensorLoadNode* op, std::ostream& os) final;      // NOLINT(*)
+  void Dispatch_(const CallNode* op, std::ostream& os) final;            // NOLINT(*)
+  void Dispatch_(const FloatImmNode* op, std::ostream& os) final;        // NOLINT(*)
+  void Dispatch_(const prim::CastNode* op, std::ostream& os) final;      // NOLINT(*)
+  void Dispatch_(const prim::FloorDivNode* op, std::ostream& os) final;  // NOLINT(*)
+  void Dispatch_(const prim::FloorModNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitStmt_(const DeclBufferNode* op) final;                       // NOLINT(*)
+  void VisitStmt_(const IfThenElseNode* op) final;                       // NOLINT(*)
+  void Dispatch_(const prim::AndNode* op, std::ostream& os) final;       // NOLINT(*)
+  void Dispatch_(const prim::OrNode* op, std::ostream& os) final;        // NOLINT(*)
 
  private:
   Target target_;
