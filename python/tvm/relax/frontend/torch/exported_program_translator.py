@@ -1647,7 +1647,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 self.env[ph] = param
 
             # Build the branch function (using a plain BindingBlock, not DataflowBlock).
-            with self.block_builder.function(name=unique_name, params=params):
+            with self.block_builder.function(
+                name=unique_name, params=params, pure=not self._has_assert_async(graph_module)
+            ):
                 inner = self._translate_fx_graph(graph_module, nodes, {})
                 if isinstance(inner, tuple | list):
                     if len(inner) == 1:
@@ -1709,6 +1711,32 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         return self.block_builder.emit(if_expr, name_hint="cond_result")
 
     ########## Others ##########
+
+    @staticmethod
+    def _has_assert_async(graph_module) -> bool:
+        return any(
+            node.op == "call_function"
+            and node.target
+            in (torch.ops.aten._assert_async.default, torch.ops.aten._assert_async.msg)
+            for module in graph_module.modules()
+            if isinstance(module, fx.GraphModule)
+            for node in module.graph.nodes
+        )
+
+    def _assert_async(self, node: fx.Node) -> relax.Var:
+        condition = self.env[node.args[0]]
+        if condition.ty.dtype.dtype != "bool":
+            condition = self.block_builder.emit(relax.op.astype(condition, "bool"))
+        if condition.ty.ndim != 0:
+            condition = self.block_builder.emit(relax.op.reshape(condition, []))
+        message = (
+            node.args[1]
+            if len(node.args) > 1
+            else node.kwargs.get("assert_msg", "Assertion Failed")
+        )
+        return self.block_builder.emit(
+            relax.op.assert_op(condition, [relax.StringImm(message)], format="{}")
+        )
 
     def create_convert_map(
         self,
@@ -2049,6 +2077,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "to.dtype_layout": self._to,
             "type_as.default": self._type_as,
             # other
+            "_assert_async.default": self._assert_async,
+            "_assert_async.msg": self._assert_async,
             "getitem": self._getitem,
             "item.default": self._item,
             "sym_size.int": self._sym_size_int,
@@ -2242,12 +2272,13 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # Find all the missing function types
         self._check_unsupported_func_type(nodes)
 
-        # When the graph contains torch.cond, we must avoid DataflowBlock
-        # because relax.If cannot appear inside a dataflow region.
-        use_dataflow = not self._has_cond_op(nodes)
+        # Assertions have side effects, including when they occur in a cond branch.
+        # Neither these effects nor relax.If may appear inside a dataflow region.
+        is_pure = not self._has_assert_async(exported_program.graph_module)
+        use_dataflow = is_pure and not self._has_cond_op(nodes)
 
         with self.block_builder.function(
-            name=func_name, params=list(inputs_vars.values()).copy(), attrs=func_attrs
+            name=func_name, params=list(inputs_vars.values()).copy(), attrs=func_attrs, pure=is_pure
         ):
             with contextlib.ExitStack() as stack:
                 if use_dataflow:
