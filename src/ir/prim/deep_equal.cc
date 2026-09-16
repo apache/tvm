@@ -218,7 +218,7 @@ bool ExprDeepEqual::operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.prim.expr_deep_equal", [](const PrimExpr& lhs, const PrimExpr& rhs) {
+  refl::GlobalDef().def("prim.expr_deep_equal", [](const PrimExpr& lhs, const PrimExpr& rhs) {
     return ExprDeepEqual()(lhs, rhs);
   });
 }

@@ -44,6 +44,7 @@ static const constexpr char* kCSourceFmt = "c_source_fmt";
 static const constexpr char* kCSourceFmtCuda = "cu";
 
 namespace tirx {
+using namespace tvm::prim;
 
 using relax::FCodegen;
 using relax::MatchResult;

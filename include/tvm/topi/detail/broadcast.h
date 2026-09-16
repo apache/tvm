@@ -57,7 +57,7 @@ inline BroadcastHelper BroadcastShape(const tvm::ffi::Array<tvm::PrimExpr>& shap
   int i;
 
   auto cast_if_needed = [](PrimType to_type, PrimExpr expr) {
-    return to_type == expr.ty() ? expr : cast(to_type, expr);
+    return to_type == expr.ty() ? expr : prim::cast(to_type, expr);
   };
 
   for (i = 1; i <= std::min(s1_size, s2_size); ++i) {

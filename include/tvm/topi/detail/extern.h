@@ -100,6 +100,7 @@ inline ffi::Array<Tensor> make_extern(const ffi::Array<ffi::Array<PrimExpr>>& ou
  * \return An expression representing the pack operation
  */
 inline Expr pack_buffer(BufferVar buf) {
+  using namespace tvm::prim;
   TVM_FFI_ICHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
   Expr shape =
       Call(PointerType(PrimType::Int(64)), tvm::tirx::builtin::tvm_stack_make_shape(), buf->shape);

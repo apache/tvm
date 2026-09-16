@@ -22,7 +22,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Check if an IRModule has any dynamic loop. */
@@ -67,7 +66,6 @@ struct DynamicExtentFinder : public StmtExprVisitor {
 }  // namespace s_tir
 
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief Check if the IRModule has any loop with non-constant extent. */

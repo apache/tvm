@@ -40,6 +40,7 @@
 
 namespace tvm {
 namespace arith {
+using namespace tvm::prim;
 
 using namespace tirx;
 
@@ -67,7 +68,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 IterSplitExpr::IterSplitExpr(IterMark source) {
   auto n = ffi::make_object<IterSplitExprNode>();
-  auto one = MakeConst(source->source.ty(), 1);
+  auto one = prim::MakeConst(source->source.ty(), 1);
   n->ExprNode::ty = source->source.ty();
   n->source = std::move(source);
   n->extent = n->source->extent;
@@ -78,7 +79,7 @@ IterSplitExpr::IterSplitExpr(IterMark source) {
 
 IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr scale) {
   auto n = ffi::make_object<IterSplitExprNode>();
-  auto one = MakeConst(source->source.ty(), 1);
+  auto one = prim::MakeConst(source->source.ty(), 1);
   n->ExprNode::ty = source->source.ty();
   n->source = std::move(source);
   n->extent = n->source->extent;
@@ -2678,7 +2679,7 @@ class InverseAffineIterMapTransformer {
     // Case 1: Propagate to the input node directly when the sum expression has only one components
     if (iter_map_expr->args.size() == 1) {
       const auto& source = iter_map_expr->args[0];
-      TVM_FFI_ICHECK(analyzer_->CanProveEqual(abs(source->scale), 1));
+      TVM_FFI_ICHECK(analyzer_->CanProveEqual(prim::IntegerAbs(source->scale), 1));
       backprop_.Set(source, (backprop_.at(source) + input) * source->scale);
       return;
     }

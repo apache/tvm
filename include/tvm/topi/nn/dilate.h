@@ -69,6 +69,7 @@ PrimExpr all(ffi::Array<PrimExpr> args) {
  */
 inline Tensor dilate(const Tensor& x, ffi::Array<PrimExpr> strides, double dilation_value,
                      std::string name = "tensor", std::string tag = kInjective) {
+  using namespace tvm::prim;
   auto n = x->shape.size();
   TVM_FFI_ICHECK_EQ(n, strides.size())
       << "strides size (" << strides.size() << ") must match dimension of x (" << n << ")";

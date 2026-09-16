@@ -50,6 +50,8 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
+
 namespace contrib {
 
 /*! \brief Attributes to store the compiler options for TensorRT. */

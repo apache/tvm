@@ -53,6 +53,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 using tvm::arith::Analyzer;
 using tvm::arith::AnalyzerObj;
@@ -484,7 +485,7 @@ static bool ShapeEqual(AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& lhs,
                        const ffi::Array<PrimExpr>& rhs) {
   if (lhs.size() != rhs.size()) return false;
   for (size_t i = 0; i < lhs.size(); ++i)
-    if (!tirx::is_one(analyzer->Simplify(lhs[i] == rhs[i]))) return false;
+    if (!tvm::prim::is_one(analyzer->Simplify(lhs[i] == rhs[i]))) return false;
   return true;
 }
 

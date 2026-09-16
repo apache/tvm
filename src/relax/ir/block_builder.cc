@@ -53,6 +53,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 //---------------------------------------
 // ctx and scope management.

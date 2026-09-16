@@ -32,6 +32,7 @@
 
 namespace tvm {
 namespace arith {
+using namespace tvm::prim;
 
 using namespace tirx;
 
@@ -102,7 +103,7 @@ class LinearEqDetector : public tvm::ExprFunctor<LinearEqEntry(const Expr&, cons
     LinearEqEntry ret;
     if (op == var_.get()) {
       PrimType dtype = op->ty.as_or_throw<PrimType>();
-      ret.coeff = MakeConst(PrimType::Int(dtype.bits(), dtype.lanes()), 1);
+      ret.coeff = prim::MakeConst(PrimType::Int(dtype.bits(), dtype.lanes()), 1);
     } else {
       ret.base = e;
     }
@@ -206,14 +207,14 @@ bool DetectClipBound(const PrimExpr& cond,
   if (const prim::LTNode* op = cond.as<prim::LTNode>()) {
     PrimType a_ty = op->a.ty();
     if (!a_ty.MatchesCode(DLDataTypeCode::kDLInt)) return false;
-    canonical = op->b - op->a - MakeConst(a_ty, 1);
+    canonical = op->b - op->a - prim::MakeConst(a_ty, 1);
   } else if (const prim::LENode* op = cond.as<prim::LENode>()) {
     if (!op->a.ty().MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->b - op->a;
   } else if (const prim::GTNode* op = cond.as<prim::GTNode>()) {
     PrimType a_ty = op->a.ty();
     if (!a_ty.MatchesCode(DLDataTypeCode::kDLInt)) return false;
-    canonical = op->a - op->b - MakeConst(a_ty, 1);
+    canonical = op->a - op->b - prim::MakeConst(a_ty, 1);
   } else if (const prim::GENode* op = cond.as<prim::GENode>()) {
     if (!op->a.ty().MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->a - op->b;

@@ -93,6 +93,7 @@ inline ffi::Array<PrimExpr> StridedSliceCanonicalizeBegin(const ffi::Array<PrimE
                                                           const ffi::Array<int64_t>& axes,
                                                           PrimType dtype,
                                                           std::string slice_mode = "end") {
+  using namespace tvm::prim;
   ffi::Array<PrimExpr> begin_expr;
   for (size_t i = 0; i < axes.size(); ++i) {
     int64_t ax = axes[i];
@@ -140,7 +141,7 @@ inline ffi::Array<PrimExpr> StridedSliceOutputShape(
           static_cast<int>((interval + std::abs(strides[i]) - 1) / std::abs(strides[i]));
       TVM_FFI_ICHECK(strides[i] < 0 ? (end_i <= begin_i) : (begin_i <= end_i))
           << ": Input [Begin=" << begin[i] << ", End=" << end[i] << "] is invalid for axis=" << i;
-      out_shape.Set(ax, cast(out_shape[i].ty(), PrimExpr(slice_size)));
+      out_shape.Set(ax, prim::cast(out_shape[i].ty(), PrimExpr(slice_size)));
     } else {
       out_shape.Set(ax, tvm::PrimVar("dim", out_shape[i].ty()));
     }

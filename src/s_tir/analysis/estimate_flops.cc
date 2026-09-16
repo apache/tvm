@@ -24,7 +24,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 int32_t DataType2Int(DLDataType dtype) {
@@ -100,22 +99,22 @@ class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
     result.Add(op->ty.as_or_throw<PrimType>()->dtype); \
     return result;                                     \
   }
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(AddNode);
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(SubNode);
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(MulNode);
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(DivNode);
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(ModNode);
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(FloorDivNode);
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(FloorModNode);
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(MinNode);
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(MaxNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::AddNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::SubNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::MulNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::DivNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::ModNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::FloorDivNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::FloorModNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::MinNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::MaxNode);
 #undef TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY
-  TResult Dispatch_(const EQNode* op) override { return TResult(); }
-  TResult Dispatch_(const NENode* op) override { return TResult(); }
-  TResult Dispatch_(const LTNode* op) override { return TResult(); }
-  TResult Dispatch_(const LENode* op) override { return TResult(); }
-  TResult Dispatch_(const GTNode* op) override { return TResult(); }
-  TResult Dispatch_(const GENode* op) override { return TResult(); }
+  TResult Dispatch_(const prim::EQNode* op) override { return TResult(); }
+  TResult Dispatch_(const prim::NENode* op) override { return TResult(); }
+  TResult Dispatch_(const prim::LTNode* op) override { return TResult(); }
+  TResult Dispatch_(const prim::LENode* op) override { return TResult(); }
+  TResult Dispatch_(const prim::GTNode* op) override { return TResult(); }
+  TResult Dispatch_(const prim::GENode* op) override { return TResult(); }
 
   int64_t GetLoopExtent(const ForNode* node, const arith::Analyzer& ana) {
     int64_t bound = ana->const_int_bound(node->extent)->max_value;
@@ -126,13 +125,13 @@ class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
     }
   }
 
-  TResult Dispatch_(const NotNode* op) override { return Dispatch(op->a); }
-  TResult Dispatch_(const AndNode* op) final {
+  TResult Dispatch_(const prim::NotNode* op) override { return Dispatch(op->a); }
+  TResult Dispatch_(const prim::AndNode* op) final {
     TResult result = Dispatch(op->a);
     result += Dispatch(op->b);
     return result;
   }
-  TResult Dispatch_(const OrNode* op) final {
+  TResult Dispatch_(const prim::OrNode* op) final {
     TResult result = Dispatch(op->a);
     result += Dispatch(op->b);
     return result;
@@ -186,7 +185,7 @@ class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
     return TResult();
   }
 
-  TResult Dispatch_(const SelectNode* op) override {
+  TResult Dispatch_(const prim::SelectNode* op) override {
     TResult cond = Dispatch(op->condition);
     cond += Dispatch(op->true_value).MaxWith(Dispatch(op->false_value));
     return cond;
@@ -200,8 +199,8 @@ class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
   TResult Dispatch_(const VarNode* op) override { return TResult(); }
   TResult Dispatch_(const IntImmNode* op) override { return TResult(); }
   TResult Dispatch_(const FloatImmNode* op) override { return TResult(); }
-  TResult Dispatch_(const StringImmNode* op) override { return TResult(); }
-  TResult Dispatch_(const CastNode* op) override { return Dispatch(op->value); }
+  TResult Dispatch_(const prim::StringImmNode* op) override { return TResult(); }
+  TResult Dispatch_(const prim::CastNode* op) override { return Dispatch(op->value); }
   TResult VisitStmt_(const AllocBufferNode* op) override { return TResult(); }
   TResult VisitStmt_(const DeclBufferNode* op) override { return TResult(); }
   TResult VisitStmt_(const EvaluateNode* op) override { return TResult(); }

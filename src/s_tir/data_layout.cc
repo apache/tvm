@@ -39,6 +39,7 @@
 
 namespace tvm {
 namespace tirx {
+
 using tirx::IterVar;
 using tirx::IterVarNode;
 using tirx::Var;
@@ -509,7 +510,7 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
     } else {
       bind_map[orig_axis->var.get()] = orig_axis->var.ty() == orig_shape.ty()
                                            ? orig_shape
-                                           : cast(orig_axis->var.ty(), orig_shape);
+                                           : prim::cast(orig_axis->var.ty(), orig_shape);
     }
   }
   auto f_substitute = [&bind_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {

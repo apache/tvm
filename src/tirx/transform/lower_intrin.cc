@@ -42,6 +42,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 struct AccessPtrBufferAlias {
   BufferVar buffer;
@@ -260,7 +261,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     } else {
       if (dtype.code() == DLDataTypeCode::kDLFloat) {
         // floor(a / b)
-        PrimExpr lowered = tvm::floor(op->a / op->b);
+        PrimExpr lowered = tvm::prim::floor(op->a / op->b);
         return Mutate(lowered, inplace_mode).ValueOrUnchanged(lowered);
       } else {
         // uncommon case
@@ -324,7 +325,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     } else {
       if (dtype.code() == DLDataTypeCode::kDLFloat) {
         // a - floor(a / b) * b
-        PrimExpr lowered = tvm::floor(op->a / op->b);
+        PrimExpr lowered = tvm::prim::floor(op->a / op->b);
         return op->a - (Mutate(lowered, inplace_mode).ValueOrUnchanged(lowered) * op->b);
       } else {
         // uncommon case
@@ -378,7 +379,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
 
  private:
   PrimExpr SwapBroadcastCast(const PrimExpr& e) {
-    // Try to change broadcast(cast(x)) to cast(broadcast(x))
+    // Try to change broadcast(prim::cast(x)) to prim::cast(broadcast(x))
     // For some targets, LLVM will generate more efficient FMA
     // instruction with the latter. For example, vmla vs. vmlal
     // on ARM.
@@ -456,7 +457,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     PrimType a_ty = a.ty();
     // This overflow check is scalar element based. Lane count is intentionally ignored.
     const int64_t max_value_of_dtype =
-        tvm::max_value(PrimType(a_ty.code(), a_ty.bits())).as_or_throw<IntImm>()->value;
+        tvm::prim::max_value(PrimType(a_ty.code(), a_ty.bits())).as_or_throw<IntImm>()->value;
 
     // NOTE: ensures that (b-1) - a_min does not overflow
     // also note: max_value_of_dtype + const_int_bound_a->min_value won't overflow

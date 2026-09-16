@@ -29,6 +29,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 class ToNonDFMutator : public ExprMutator {
  public:

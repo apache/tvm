@@ -62,12 +62,12 @@ using namespace tvm::tirx;
  * of those write stages writes to all pre-transformation indices
  * following a row-major traversal.  These write stage is rewritten to
  * be row-major traversals of the post-transformation indices, with a
- * `tirx::if_then_else` call to write either the specified `pad_value`
+ * `tvm::if_then_else` call to write either the specified `pad_value`
  * into padding or the computed value into non-padding.
  *
  * 4. EpiloguePlan.  The transformation introduces padding, has at
  * least one write stage for the transformed buffer, but no write
- * stage can be rewritten to use `tirx::if_then_else`.  The
+ * stage can be rewritten to use `tvm::if_then_else`.  The
  * transformation still requires the `pad_value` to be written into
  * the padding, so a new block is inserted after the last write stage
  * to explicitly fill the padding.
@@ -125,7 +125,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
     // contribute, but the first and last must.
     std::vector<For> dependent_loopnest;
 
-    // Whether the padding could be represented as a tirx::if_then_else
+    // Whether the padding could be represented as a tvm::if_then_else
     // node.  This requires that the surrounding loop iterators
     // iterate over all pre-transformation buffer axes, that there are
     // no data dependencies between loop iterations, and that
@@ -1220,7 +1220,7 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const ffi::Array<PrimE
     auto final_indices = index_map->final_indices.Map([&](PrimExpr index) {
       if (auto* ptr = index.as<IntImmNode>()) {
         TVM_FFI_ICHECK(index_dtype.has_value());
-        return tirx::MakeConst(PrimType(*index_dtype), ptr->value);
+        return tvm::prim::MakeConst(PrimType(*index_dtype), ptr->value);
       } else {
         return SubstituteWithDataTypeLegalization(index,
                                                   [&](const Var& var) { return var_map.Get(var); });

@@ -106,7 +106,7 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const AssertStmtNode
 
 ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const CallNode* op) {
   // add condition context to if_then_else
-  static const Op& if_then_else_op = Op::Get("ir.prim.if_then_else");
+  static const Op& if_then_else_op = Op::Get("prim.if_then_else");
   if (op->op.same_as(if_then_else_op)) {
     PrimExpr cond = op->args[0].as_or_throw<PrimExpr>();
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(cond));

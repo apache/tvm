@@ -40,6 +40,7 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
                          int num_groups, int channel_axis, const ffi::Array<int64_t>& axes,
                          double epsilon, std::string name = "T_group_norm",
                          std::string tag = kInjective) {
+  using namespace tvm::prim;
   const auto& data_type = data->dtype;
   const auto& gamma_type = gamma.defined() ? gamma->dtype : data_type;
   const auto& beta_type = beta.defined() ? beta->dtype : data_type;
@@ -143,7 +144,7 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
     auto mean = temp_x(non_reduce_indices) / reduce_extent;
     auto var = temp_x2(non_reduce_indices) / reduce_extent - mean * mean;
     PrimExpr group_norm = (data_reshaped(indices) - mean) *
-                          tvm::rsqrt(var + MakeConst(PrimType(data->dtype), epsilon));
+                          tvm::prim::rsqrt(var + MakeConst(PrimType(data->dtype), epsilon));
     if (is_float16) {
       group_norm = prim::Cast(PrimType::Float(16), group_norm);
     }

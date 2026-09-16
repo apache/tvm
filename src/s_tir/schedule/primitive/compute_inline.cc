@@ -1395,7 +1395,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
   };
 
   // Identity element for reduction (assumed to be 0 for addition-based reductions)
-  PrimExpr identity_elem = MakeConst(epilogue_output_buffer_->dtype, 0);
+  PrimExpr identity_elem = prim::MakeConst(epilogue_output_buffer_->dtype, 0);
 
   // Substitute reduction buffer load with identity element
   auto init_subst = ffi::make_object<InitSubstituter>(inlined_buffer_, identity_elem);

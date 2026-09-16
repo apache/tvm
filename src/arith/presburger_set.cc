@@ -41,6 +41,7 @@
 
 namespace tvm {
 namespace arith {
+using namespace tvm::prim;
 
 #if defined(TVM_MLIR_VERSION) && TVM_MLIR_VERSION >= 150
 

@@ -46,6 +46,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 namespace {
 int GetLanesOrVScaleFactor(const PrimType& ty) {

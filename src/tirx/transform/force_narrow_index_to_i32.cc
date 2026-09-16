@@ -32,6 +32,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 class Int32DTypeNarrower : public IndexDataTypeNormalizer {
  public:

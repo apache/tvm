@@ -39,6 +39,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 
 using namespace tvm::tirx;
 using arith::Analyzer;
@@ -137,7 +138,7 @@ IntGroupBounds IntGroupBounds::operator+(const Range& r) {
   ffi::Array<PrimExpr> lower;
   ffi::Array<PrimExpr> upper;
   const PrimExpr& coef = this->coef;
-  if (tirx::is_one(r->extent)) {
+  if (tvm::prim::is_one(r->extent)) {
     equal.push_back(analyzer->Simplify(r->min * coef));
   } else {
     lower.push_back(analyzer->Simplify(r->min * coef));
@@ -170,7 +171,7 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
     uppers.push_back(expr);
   }
 
-  if (lowers.size() == 1 && uppers.size() == 1 && tirx::is_one(coef)) {
+  if (lowers.size() == 1 && uppers.size() == 1 && tvm::prim::is_one(coef)) {
     return Range(analyzer->Simplify(lowers[0]), analyzer->Simplify(uppers[0] + 1));
   }
 
@@ -419,7 +420,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
       for (const auto& neg : coef_neg) {
         auto first_gcd = ExtendedEuclidean(pos.first, -neg.first, &gcd_x, &gcd_y);
         PrimType v_ty = v.ty();
-        PrimExpr c_pos = MakeConst(v_ty, neg.first / first_gcd);
+        PrimExpr c_pos = prim::MakeConst(v_ty, neg.first / first_gcd);
         PrimExpr c_neg = IntImm(v_ty, pos.first / first_gcd);
         // eliminate the current variable
         PrimExpr new_lhs = c_neg * neg.second - c_pos * pos.second;
@@ -452,7 +453,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     lower_bounds.reserve(coef_neg.size());
 
     for (const auto& pos : coef_pos) {
-      PrimExpr bound = MakeConst(v.ty(), -coef_lcm / pos.first) * pos.second;
+      PrimExpr bound = prim::MakeConst(v.ty(), -coef_lcm / pos.first) * pos.second;
       bound = analyzer->Simplify(bound, kSimplifyRewriteCanonicalRewrite);
       // Don't add if any of the existing bounds is better
       if (std::any_of(upper_bounds.begin(), upper_bounds.end(),
@@ -473,7 +474,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
       upper_bounds.push_back(bound);
     }
     for (const auto& neg : coef_neg) {
-      PrimExpr bound = MakeConst(v.ty(), -coef_lcm / neg.first) * neg.second;
+      PrimExpr bound = prim::MakeConst(v.ty(), -coef_lcm / neg.first) * neg.second;
       bound = analyzer->Simplify(bound, kSimplifyRewriteCanonicalRewrite);
       // Don't add if any of the existing bounds is better
       if (std::any_of(lower_bounds.begin(), lower_bounds.end(),
@@ -501,7 +502,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     std::sort(equal_list.begin(), equal_list.end(), ExprLess());
 
     // Write it to the result.
-    IntGroupBounds bnds(MakeConst(v->ty.as_or_throw<PrimType>(), coef_lcm),
+    IntGroupBounds bnds(prim::MakeConst(v->ty.as_or_throw<PrimType>(), coef_lcm),
                         ffi::Array<PrimExpr>(lower_bounds.begin(), lower_bounds.end()),
                         ffi::Array<PrimExpr>(equal_list.begin(), equal_list.end()),
                         ffi::Array<PrimExpr>(upper_bounds.begin(), upper_bounds.end()));

@@ -45,6 +45,7 @@
 
 namespace tvm {
 namespace tirx {
+
 namespace transform {
 
 namespace {
@@ -1118,14 +1119,14 @@ class InstrumentOfficialKernel : public StmtExprMutator {
   PrimExpr Event(PrimExpr event_id) const {
     static const Op& event_op = Op::Get("tirx.cuda.iket_official_event");
     return Call(PrimType::UInt(32), event_op,
-                {cast(PrimType::UInt(32), event_id), prim::StringImm(device_source_)});
+                {prim::cast(PrimType::UInt(32), event_id), prim::StringImm(device_source_)});
   }
 
   PrimExpr Event(PrimExpr event_id, PrimExpr payload) const {
     static const Op& event_op = Op::Get("tirx.cuda.iket_official_event");
-    return Call(
-        PrimType::UInt(32), event_op,
-        {cast(PrimType::UInt(32), event_id), prim::StringImm(device_source_), std::move(payload)});
+    return Call(PrimType::UInt(32), event_op,
+                {prim::cast(PrimType::UInt(32), event_id), prim::StringImm(device_source_),
+                 std::move(payload)});
   }
 
   PrimExpr NormalizePayload(PrimExpr payload, PayloadType type) const {
@@ -1143,7 +1144,7 @@ class InstrumentOfficialKernel : public StmtExprMutator {
         PrimExpr payload = NormalizePayload(
             Mutate(call->args[1]).ValueOrUnchanged(call->args[1]).as_or_throw<PrimExpr>(),
             payload_type);
-        return IfThenElse(token != 0, Evaluate(Event(token, std::move(payload))));
+        return IfThenElse(not_equal(token, 0), Evaluate(Event(token, std::move(payload))));
       }
       return Evaluate(Event(token));
     }

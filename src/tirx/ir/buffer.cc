@@ -43,6 +43,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 namespace {
 
@@ -764,9 +765,9 @@ PrimExpr BufferVar::OffsetOf_p(const Array<PrimExpr>& indices) const {
 bool BufferVar::IsScalar(bool alloc_or_decl) const {
   // TODO(@bohan): logical scope is not considered
   return (*this)->shape.size() == 1 && is_one((*this)->shape[0]) && (*this)->strides.size() == 0 &&
-         (!alloc_or_decl || tirx::is_zero((*this)->elem_offset)) && (*this)->data_alignment == 64 &&
-         (*this)->offset_factor == 1 && (*this)->allocated_addr.size() == 0 &&
-         (*this)->layout.has_value() &&
+         (!alloc_or_decl || tvm::prim::is_zero((*this)->elem_offset)) &&
+         (*this)->data_alignment == 64 && (*this)->offset_factor == 1 &&
+         (*this)->allocated_addr.size() == 0 && (*this)->layout.has_value() &&
          ffi::StructuralEqual()((*this)->layout.value(), TileLayoutNode::DefaultLayout({1}));
 }
 

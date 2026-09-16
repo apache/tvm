@@ -34,6 +34,8 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
+
 namespace llvm {
 using tirx::FLowerIntrinsic;
 
@@ -142,9 +144,9 @@ TVM_REGISTER_OP("tirx.tanh")
         return TVMExternCall(call, tvm_wrapper);
       }
 #endif
-      PrimExpr one = tirx::MakeConst(x_ty, 1);
-      PrimExpr two = tirx::MakeConst(x_ty, 2);
-      PrimExpr neg_two = tirx::MakeConst(x_ty, -2);
+      PrimExpr one = tvm::prim::MakeConst(x_ty, 1);
+      PrimExpr two = tvm::prim::MakeConst(x_ty, 2);
+      PrimExpr neg_two = tvm::prim::MakeConst(x_ty, -2);
 
       PrimExpr exp_neg2x = exp(neg_two * x);
       PrimExpr exp_pos2x = exp(two * x);
@@ -152,7 +154,7 @@ TVM_REGISTER_OP("tirx.tanh")
       PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
       PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
       // MakeConst can handle both vector and scalar types.
-      PrimExpr tanh_x = prim::Select(x >= tirx::MakeConst(x_ty, 0), tanh_pos, tanh_neg);
+      PrimExpr tanh_x = prim::Select(x >= tvm::prim::MakeConst(x_ty, 0), tanh_pos, tanh_neg);
       return tanh_x;
     });
 
@@ -205,8 +207,8 @@ TVM_REGISTER_OP("tirx.sigmoid")
         useqhl = tstring.find("+hvx-qfloat") != std::string::npos;
       }
 
-      PrimExpr MinBound = tirx::MakeConst(x_ty, -8);
-      PrimExpr MaxBound = tirx::MakeConst(x_ty, 8);
+      PrimExpr MinBound = tvm::prim::MakeConst(x_ty, -8);
+      PrimExpr MaxBound = tvm::prim::MakeConst(x_ty, 8);
       const PrimExpr v1 = prim::Max(x, MinBound);
       const PrimExpr v2 = prim::Min(v1, MaxBound);
 
@@ -221,11 +223,14 @@ TVM_REGISTER_OP("tirx.sigmoid")
         return TVMExternCall(new_call.get(), tvm_wrapper);
       }
 #endif
-      PrimExpr one = tirx::MakeConst(x_ty, 1);
+      PrimExpr one = tvm::prim::MakeConst(x_ty, 1);
       return one / (one + exp(-x));
     });
 
-TVM_REGISTER_QHL_OP_FP16(ceil, 1)
+TVM_REGISTER_OP("prim.ceil")
+    .set_attr<FLowerIntrinsic>(
+        "hexagon.FLowerIntrinsic",
+        DispatchTVMQHLWrapperFp16<tvm_qhl_ahf_ceil, ::llvm::Intrinsic::ceil, 1>);
 
 TVM_REGISTER_QHL_OP_FP16(cos, 1)
 

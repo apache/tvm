@@ -37,6 +37,7 @@ from tvm import tirx as tir
 from tvm.ir import Call, TensorLoad, Type, is_prim_expr
 from tvm.ir import register_op_attr as _register_op_attr
 from tvm.ir.base import deprecated
+from tvm.ir.prim import _ffi_api as _prim_ffi_api
 from tvm.runtime import convert
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.ir import meta_var
@@ -45,7 +46,6 @@ from tvm.target import Target
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
 from tvm.tirx import Buffer, BufferRegion, Expr, IndexMap, is_buffer_var, type_annotation
-from tvm.tirx import _ffi_api as _tirx_ffi_api
 from tvm.tirx import op as _tir_op
 from tvm.tirx.exec_scope import ExecScope, ScopeIdDef, Var
 
@@ -101,7 +101,7 @@ from .external_kernel import call_kernel
 
 def cast(value, dtype, span=None):
     """Cast an expression to the requested data type."""
-    return _tirx_ffi_api._cast(dtype, value, span)  # type: ignore[attr-defined]
+    return _prim_ffi_api._cast(dtype, value, span)  # type: ignore[attr-defined]
 
 
 def _current_s_tir() -> bool:
@@ -1601,7 +1601,7 @@ class DtypeConstructor:
 
     def __call__(
         self,
-        expr: "None | Expr | Literal['inf', '-inf', 'nan'] | int | float" = None,
+        expr: "Expr | Literal['inf', '-inf', 'nan'] | int | float | None" = None,
     ) -> "Expr":
         if isinstance(expr, str):
             expr = float(expr)

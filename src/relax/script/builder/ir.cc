@@ -26,6 +26,8 @@
 
 namespace tvm {
 namespace script {
+using namespace tvm::prim;
+
 namespace ir_builder {
 namespace relax {
 

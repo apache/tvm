@@ -26,7 +26,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 class ThreadExtentChecker : public StmtExprVisitor {
@@ -113,7 +112,6 @@ class ThreadExtentChecker : public StmtExprVisitor {
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief Extract attribute from a target. */

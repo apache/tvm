@@ -28,6 +28,8 @@
 
 namespace tvm {
 namespace te {
+using namespace tvm::prim;
+
 using namespace tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() { ScanOpNode::RegisterReflection(); }

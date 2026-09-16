@@ -36,6 +36,8 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
+
 namespace llvm {
 namespace intrin {
 using tirx::FLowerIntrinsic;
@@ -60,7 +62,7 @@ TVM_REGISTER_OP("tirx.log")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
 
-TVM_REGISTER_OP("tirx.log2")
+TVM_REGISTER_OP("prim.log2")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::log2, 1>);
 
@@ -76,7 +78,7 @@ TVM_REGISTER_OP("tirx.floor")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::floor, 1>);
 
-TVM_REGISTER_OP("tirx.ceil")
+TVM_REGISTER_OP("prim.ceil")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::ceil, 1>);
 
@@ -122,7 +124,7 @@ using tirx::FLegalize;
 
 TVM_REGISTER_OP("tirx.exp10")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::MakeConst;
+      using tvm::prim::MakeConst;
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       PrimExpr x = call->args[0].as_or_throw<PrimExpr>();
@@ -158,7 +160,7 @@ TVM_REGISTER_OP("tirx.acos")
 
 TVM_REGISTER_OP("tirx.atanh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::MakeConst;
+      using tvm::prim::MakeConst;
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in atanh legalization";
       PrimExpr x = call->args[0].as_or_throw<PrimExpr>();

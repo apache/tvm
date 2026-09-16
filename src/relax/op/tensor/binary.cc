@@ -31,6 +31,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 template <typename FType>
 Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compute_out_dtype) {

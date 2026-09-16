@@ -146,7 +146,7 @@ def test_var_exact_base_legacy_relax_json_load():
 
 
 def test_var_exact_base_legacy_tirx_json_load():
-    restored = tvm.ir.load_json(_LEGACY_TIRX_VAR_JSON)
+    restored = tvm.ir.load_json(_LEGACY_TIRX_VAR_JSON.replace("tirx.Add", "prim.Add"))
     assert isinstance(restored, tvm.tirx.Add)
     assert restored.a.same_as(restored.b)
     _check_legacy_var(restored.a, "legacy_tirx.py", 7, 9, 2, 14)

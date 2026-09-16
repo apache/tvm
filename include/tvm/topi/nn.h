@@ -38,7 +38,6 @@
 
 namespace tvm {
 namespace topi {
-
 using namespace tvm::te;
 
 /*!
@@ -57,7 +56,7 @@ inline tvm::te::Tensor relu(const tvm::te::Tensor& t, T threshold = static_cast<
   return tvm::te::compute(
       t->shape,
       [&](const tvm::ffi::Array<tvm::PrimVar>& i) {
-        auto threshold_const = tvm::tirx::MakeConst(tvm::PrimType(t->dtype), threshold);
+        auto threshold_const = tvm::prim::MakeConst(tvm::PrimType(t->dtype), threshold);
         return tvm::max(t(i), threshold_const);
       },
       name, tag);
@@ -80,7 +79,7 @@ inline tvm::te::Tensor leaky_relu(const tvm::te::Tensor& t, double alpha = 0.1,
       t->shape,
       [&](const tvm::ffi::Array<tvm::PrimVar>& i) {
         auto value = t(i);
-        auto calpha = tvm::tirx::MakeConst(value.ty(), alpha);
+        auto calpha = tvm::prim::MakeConst(value.ty(), alpha);
         return tvm::prim::Select(value > 0, value, value * calpha);
       },
       name, tag);
@@ -158,6 +157,7 @@ inline tvm::te::Tensor pad(
     tvm::ffi::Array<tvm::PrimExpr> pad_after = tvm::ffi::Array<tvm::PrimExpr>(),
     PrimExpr pad_value = PrimExpr(), std::string name = "T_pad", std::string tag = kElementWise,
     std::string pad_mode = "constant", const ffi::Array<PrimExpr>* dyn_output_shape = nullptr) {
+  using namespace tvm::prim;
   if (pad_after.size() < pad_before.size()) {
     for (size_t i = pad_after.size(); i < pad_before.size(); ++i) {
       pad_after.push_back(pad_before[i]);
@@ -171,10 +171,10 @@ inline tvm::te::Tensor pad(
   tvm::ffi::Array<tvm::PrimExpr> pad_after_int32;
 
   for (const auto& ele : pad_before) {
-    pad_before_int32.push_back(tvm::cast(tvm::PrimType::Int(32), ele));
+    pad_before_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), ele));
   }
   for (const auto& ele : pad_after) {
-    pad_after_int32.push_back(tvm::cast(tvm::PrimType::Int(32), ele));
+    pad_after_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), ele));
   }
 
   tvm::ffi::Array<tvm::PrimExpr> output_shape;
@@ -194,7 +194,7 @@ inline tvm::te::Tensor pad(
   }
 
   if (!pad_value.defined()) {
-    pad_value = tvm::tirx::MakeConst(tvm::PrimType(t->dtype), 0);
+    pad_value = tvm::prim::MakeConst(tvm::PrimType(t->dtype), 0);
   }
 
   auto l = [&](tvm::ffi::Array<tvm::PrimVar> ovars) {
@@ -287,7 +287,8 @@ inline tvm::te::Tensor conv2d_nchw(const tvm::te::Tensor& I, const tvm::te::Tens
   auto T =
       (pad_h == 0 && pad_w == 0) ? I : pad(I, {tvm::PrimExpr(0), tvm::PrimExpr(0), pad_h, pad_w});
   auto l = [&](tvm::PrimVar b, tvm::PrimVar o, tvm::PrimVar h, tvm::PrimVar w) {
-    return tvm::sum(T(b, i, stride_h * h + kh, stride_w * w + kw) * W(o, i, kh, kw), {i, kh, kw});
+    return tvm::prim::sum(T(b, i, stride_h * h + kh, stride_w * w + kw) * W(o, i, kh, kw),
+                          {i, kh, kw});
   };
   return tvm::te::compute(output_shape, l, name, tag);
 }
@@ -330,7 +331,8 @@ inline tvm::te::Tensor conv2d_hwcn(const tvm::te::Tensor& I, const tvm::te::Tens
   auto kw = tvm::te::reduce_axis(tvm::Range{0, W->shape[1]}, "kw");
   auto T = (pad_h == 0 && pad_w == 0) ? I : pad(I, {pad_h, pad_w});
   auto l = [&](tvm::PrimVar b, tvm::PrimVar o, tvm::PrimVar h, tvm::PrimVar w) {
-    return tvm::sum(T(stride_h * h + kh, stride_w * w + kw, i, b) * W(kh, kw, i, o), {i, kh, kw});
+    return tvm::prim::sum(T(stride_h * h + kh, stride_w * w + kw, i, b) * W(kh, kw, i, o),
+                          {i, kh, kw});
   };
   return tvm::te::compute(output_shape, l, name, tag);
 }
@@ -377,9 +379,9 @@ inline tvm::te::Tensor depthwise_conv2d_nchw(const tvm::te::Tensor& I, const tvm
   auto T =
       (pad_h == 0 && pad_w == 0) ? I : pad(I, {tvm::PrimExpr(0), tvm::PrimExpr(0), pad_h, pad_w});
   auto l = [&](tvm::PrimVar b, tvm::PrimVar o, tvm::PrimVar h, tvm::PrimVar w) {
-    return tvm::sum(T(b, indexdiv(i, pCM), stride_h * h + kh, stride_w * w + kw) *
-                        W(indexdiv(i, pCM), indexmod(o, pCM), kh, kw),
-                    {i, kh, kw});
+    return tvm::prim::sum(T(b, indexdiv(i, pCM), stride_h * h + kh, stride_w * w + kw) *
+                              W(indexdiv(i, pCM), indexmod(o, pCM), kh, kw),
+                          {i, kh, kw});
   };
   return tvm::te::compute(output_shape, l, name, tag);
 }
@@ -406,9 +408,9 @@ inline tvm::te::Tensor depthwise_conv2d_nhwc(const tvm::te::Tensor& I, const tvm
   auto T =
       (pad_h == 0 && pad_w == 0) ? I : pad(I, {tvm::PrimExpr(0), pad_h, pad_w, tvm::PrimExpr(0)});
   auto l = [&](tvm::PrimVar b, tvm::PrimVar h, tvm::PrimVar w, tvm::PrimVar o) {
-    return tvm::sum(T(b, stride_h * h + kh, stride_w * w + kw, indexdiv(i, pCM)) *
-                        W(kh, kw, indexdiv(i, pCM), indexmod(o, pCM)),
-                    {kh, kw, i});
+    return tvm::prim::sum(T(b, stride_h * h + kh, stride_w * w + kw, indexdiv(i, pCM)) *
+                              W(kh, kw, indexdiv(i, pCM), indexmod(o, pCM)),
+                          {kh, kw, i});
   };
   return tvm::te::compute(output_shape, l, name, tag);
 }
@@ -462,8 +464,8 @@ inline tvm::te::Tensor group_conv2d_ngchw(const tvm::te::Tensor& I, const tvm::t
     tvm::PrimVar o = args[2];
     tvm::PrimVar h = args[3];
     tvm::PrimVar w = args[4];
-    return tvm::sum(I(b, g, i, stride_h * h + kh, stride_w * w + kw) * W(g, i, o, kh, kw),
-                    {i, kh, kw});
+    return tvm::prim::sum(I(b, g, i, stride_h * h + kh, stride_w * w + kw) * W(g, i, o, kh, kw),
+                          {i, kh, kw});
   };
   return tvm::te::compute(output_shape, l, name, tag);
 }
@@ -496,19 +498,19 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
   tvm::ffi::Array<tvm::PrimExpr> pad_after_int32;
 
   // pad size for batch dimension is 0
-  pad_before_int32.push_back(tvm::cast(tvm::PrimType::Int(32), 0));
-  pad_after_int32.push_back(tvm::cast(tvm::PrimType::Int(32), 0));
+  pad_before_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), 0));
+  pad_after_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), 0));
   // insert pad sizes given for spatial dimensions
   for (const auto& ele : pad_before) {
-    pad_before_int32.push_back(tvm::cast(tvm::PrimType::Int(32), ele));
+    pad_before_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), ele));
   }
   for (const auto& ele : pad_after) {
-    pad_after_int32.push_back(tvm::cast(tvm::PrimType::Int(32), ele));
+    pad_after_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), ele));
   }
 
   // pad the input with paddings provided
   if (!pad_value.defined()) {
-    pad_value = tvm::tirx::MakeConst(tvm::PrimType(data->dtype), 0);
+    pad_value = tvm::prim::MakeConst(tvm::PrimType(data->dtype), 0);
   }
   padded_t = pad(data, pad_before_int32, pad_after_int32, pad_value);
 
@@ -678,7 +680,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
         [&](const tvm::ffi::Array<tvm::PrimVar>& target_indices) {
           auto c = targets();
           return tvm::prim::Select(c != ignore_index, -predictions(c) * weights(c),
-                                   tvm::tirx::MakeConst(tvm::PrimType(predictions->dtype), 0));
+                                   tvm::prim::MakeConst(tvm::PrimType(predictions->dtype), 0));
         },
         name, tag);
     if (reduction == "mean") {
@@ -687,7 +689,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
           [&](const tvm::ffi::Array<tvm::PrimVar>& target_indices) {
             auto c = targets();
             return tvm::prim::Select(c != ignore_index, weights(c),
-                                     tvm::tirx::MakeConst(tvm::PrimType(predictions->dtype), 0));
+                                     tvm::prim::MakeConst(tvm::PrimType(predictions->dtype), 0));
           },
           name, tag);
       return topi::divide(T, W);
@@ -706,7 +708,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
           pred_indices.push_back(target_indices[i]);  // indices for multidimensional loss
         }
         return tvm::prim::Select(c != ignore_index, -predictions(pred_indices) * weights(c),
-                                 tvm::tirx::MakeConst(tvm::PrimType(predictions->dtype), 0));
+                                 tvm::prim::MakeConst(tvm::PrimType(predictions->dtype), 0));
       },
       name, tag);
   TVM_FFI_ICHECK(T->shape.size() != 0);
@@ -716,7 +718,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
         [&](const tvm::ffi::Array<tvm::PrimVar>& target_indices) {
           auto c = targets(target_indices);
           return tvm::prim::Select(c != ignore_index, weights(c),
-                                   tvm::tirx::MakeConst(tvm::PrimType(predictions->dtype), 0));
+                                   tvm::prim::MakeConst(tvm::PrimType(predictions->dtype), 0));
         },
         name, tag);
     return topi::divide(topi::sum(T, tvm::ffi::Array<int64_t>(nullptr)),

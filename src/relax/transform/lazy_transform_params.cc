@@ -33,6 +33,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 namespace {
 std::optional<int64_t> GetNumInputParams(const FunctionNode* func) {

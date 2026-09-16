@@ -22,7 +22,7 @@ from contextlib import contextmanager
 
 import tvm_ffi
 
-from tvm import ir, tirx
+from tvm import ir
 from tvm.arith import IntSet
 from tvm.runtime import Object
 
@@ -161,7 +161,7 @@ class Analyzer(Object):
                 "Rebuild TVM with USE_Z3=ON to use Z3-specific Analyzer APIs."
             )
 
-    def get_smtlib2(self, expr: tirx.Expr | None = None) -> str:
+    def get_smtlib2(self, expr: ir.Expr | None = None) -> str:
         """Get the current Z3 problem in SMT-LIB2 format.
 
         Raises
@@ -229,7 +229,7 @@ class Analyzer(Object):
         self._check_z3_enabled()
         return _ffi_api.AnalyzerGetZ3Stats(self)
 
-    def const_int_bound(self, expr: tirx.Expr) -> ConstIntBound:
+    def const_int_bound(self, expr: ir.Expr) -> ConstIntBound:
         """Find constant integer bound for expr.
 
         Parameters
@@ -244,12 +244,12 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerConstIntBound(self, expr)
 
-    def const_int_bound_is_bound(self, var: tirx.Var) -> bool:
+    def const_int_bound_is_bound(self, var: ir.Var) -> bool:
         """Check if a variable is bound to a range.
 
         Parameters
         ----------
-        var : tvm.tirx.Var
+        var : tvm.ir.Var
             The variable.
 
         Returns
@@ -259,7 +259,7 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerConstIntBoundIsBound(self, var)
 
-    def modular_set(self, expr: tirx.Expr) -> ModularSet:
+    def modular_set(self, expr: ir.Expr) -> ModularSet:
         """Find a modular set that expr belongs to.
 
         Parameters
@@ -274,7 +274,7 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerModularSet(self, expr)
 
-    def simplify(self, expr: tirx.Expr, steps: int = 2) -> tirx.Expr:
+    def simplify(self, expr: ir.Expr, steps: int = 2) -> ir.Expr:
         """Simplify expression via both rewrite and canonicalization.
 
         Parameters
@@ -312,7 +312,7 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerClone(self)
 
-    def rewrite_simplify(self, expr: tirx.Expr) -> tirx.Expr:
+    def rewrite_simplify(self, expr: ir.Expr) -> ir.Expr:
         """Simplify expression via rewriting rules.
 
         Parameters
@@ -334,7 +334,7 @@ class Analyzer(Object):
     def reset_rewrite_simplify_stats(self):
         _ffi_api.AnalyzerResetRewriteSimplifyStats(self)
 
-    def canonical_simplify(self, expr: tirx.Expr) -> tirx.Expr:
+    def canonical_simplify(self, expr: ir.Expr) -> ir.Expr:
         """Simplify expression via canonicalization.
 
         Parameters
@@ -349,7 +349,7 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerCanonicalSimplify(self, expr)
 
-    def int_set(self, expr: tirx.Expr, dom_map: dict[tirx.Var, IntSet] | None = None) -> IntSet:
+    def int_set(self, expr: ir.Expr, dom_map: dict[ir.Var, IntSet] | None = None) -> IntSet:
         """Compute a symbolic IntSet that covers expr for all values in dom_map.
 
         Parameters
@@ -357,7 +357,7 @@ class Analyzer(Object):
         expr : Expr
             The expression.
 
-        dom_map : Optional[Dict[tvm.tirx.Var, tvm.arith.IntSet]]
+        dom_map : Optional[Dict[tvm.ir.Var, tvm.arith.IntSet]]
             The domain for variables to be relaxed.  When omitted, the analyzer
             uses the domains of the variables already bound to it.
 
@@ -368,7 +368,7 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerIntSet(self, expr, dom_map)
 
-    def can_prove(self, expr: tirx.Expr, strength: ProofStrength = ProofStrength.DEFAULT) -> bool:
+    def can_prove(self, expr: ir.Expr, strength: ProofStrength = ProofStrength.DEFAULT) -> bool:
         """Check whether we can prove expr to be true.
 
         Parameters
@@ -405,18 +405,18 @@ class Analyzer(Object):
 
     def bind(
         self,
-        var: tirx.Var,
-        expr: tirx.Expr | ir.Range,
+        var: ir.Var,
+        expr: ir.Expr | ir.Range,
         allow_override: bool = False,
     ) -> None:
         """Bind a variable to the expression.
 
         Parameters
         ----------
-        var : tvm.tirx.Var
+        var : tvm.ir.Var
             The variable.
 
-        expr : Union[tirx.Expr, ir.Range]
+        expr : Union[ir.Expr, ir.Range]
             The expression or the range to bind to.
 
         allow_override : bool
@@ -424,7 +424,7 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerBind(self, var, expr, allow_override)
 
-    def constraint_scope(self, constraint: tirx.Expr) -> ConstraintScope:
+    def constraint_scope(self, constraint: ir.Expr) -> ConstraintScope:
         """Create a constraint scope.
 
         Parameters
@@ -456,13 +456,13 @@ class Analyzer(Object):
         return ConstraintScope(_fenter)
 
     def update(
-        self, var: tirx.Var, info: ConstIntBound | ModularSet | IntSet, override: bool = False
+        self, var: ir.Var, info: ConstIntBound | ModularSet | IntSet, override: bool = False
     ) -> None:
         """Update information about var.
 
         Parameters
         ----------
-        var : tvm.tirx.Var
+        var : tvm.ir.Var
             The variable.
 
         info : Union[ConstIntBound, ModularSet, IntSet]
@@ -482,7 +482,7 @@ class Analyzer(Object):
         else:
             raise TypeError(f"Do not know how to handle type {type(info)}")
 
-    def can_prove_equal(self, lhs: tirx.Expr, rhs: tirx.Expr) -> bool:
+    def can_prove_equal(self, lhs: ir.Expr, rhs: ir.Expr) -> bool:
         """Whether we can prove that lhs == rhs
 
         Parameters
@@ -501,7 +501,7 @@ class Analyzer(Object):
         return _ffi_api.AnalyzerCanProveEqual(self, lhs, rhs)
 
     def try_compare(
-        self, lhs: tirx.Expr, rhs: tirx.Expr, propagate_inequalities: bool = True
+        self, lhs: ir.Expr, rhs: ir.Expr, propagate_inequalities: bool = True
     ) -> CompareResult:
         """Compare lhs and rhs using previously provided known comparisons.
 

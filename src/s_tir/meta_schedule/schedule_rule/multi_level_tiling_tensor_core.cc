@@ -31,7 +31,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 using s_tir::GetSBlockVarTypes;
@@ -831,7 +830,7 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     std::vector<PrimExpr> sub_index_map_tgt;
     const tirx::BufferVar& rhs_buffer = mapping_info->lhs_buffer_map[lhs_buffer];
     for (const Range& range : lhs_region) {
-      TVM_FFI_ICHECK(tirx::is_one(range->extent));
+      TVM_FFI_ICHECK(tvm::prim::is_one(range->extent));
       auto var = range->min.as<PrimVar>();
       TVM_FFI_ICHECK(var.has_value());
       const PrimVar& lhs_representer = lhs_to_index_map_src[var.value()];

@@ -33,6 +33,7 @@
 
 namespace tvm {
 namespace script {
+
 namespace ir_builder {
 namespace tirx {
 
@@ -145,7 +146,7 @@ void PrimFuncFrameNode::ExitWithScope() {
       tvm::Expr data = buffer.data();
       param_replacements.Set(arg, ffi::StructuralEqual()(arg->ty, data->ty)
                                       ? data
-                                      : tvm::reinterpret(arg->ty, std::move(data)));
+                                      : tvm::prim::reinterpret(arg->ty, std::move(data)));
     }
   }
   if (!normalizer->Empty()) {

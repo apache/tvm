@@ -35,6 +35,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 /*!
  * \brief Match symbolic vars according to the given PrimExpr, and update the var_remap.

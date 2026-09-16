@@ -40,6 +40,8 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
+
 namespace distributed {
 
 class DistIRSharder : public ExprMutator {

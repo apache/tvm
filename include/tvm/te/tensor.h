@@ -36,7 +36,6 @@
 
 namespace tvm {
 namespace te {
-
 using arith::IntSet;
 using namespace tvm::tirx;
 

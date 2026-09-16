@@ -27,6 +27,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 ffi::Array<Expr> GetCallArgs(const Call& call) {
   static const Op& call_tir_op = Op::Get("relax.call_tir");
@@ -218,7 +219,7 @@ bool CanProveLayoutTransform(const SLayout& input_layout, const SLayout& desired
     ffi::Array<PrimExpr> back_shape = todesired.BackwardShape(desired_shape);
     arith::Analyzer analyzer;
     for (size_t i = 0; i < shape.size(); ++i) {
-      if (tirx::is_const_int(shape[i])) {
+      if (tvm::prim::is_const_int(shape[i])) {
         if (!analyzer->CanProveEqual(shape[i], back_shape[i])) {
           can_prove = false;
           break;

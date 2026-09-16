@@ -360,7 +360,7 @@ struct ReducerRegistry {
                                               y[0].as_or_throw<PrimExpr>()};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), 0)};
+                  return ffi::Array<PrimExpr>{prim::MakeConst(values[0].ty(), 0)};
                 }),
             CreateReducerGetter(
                 /*n_buffers=*/1,
@@ -369,7 +369,7 @@ struct ReducerRegistry {
                                               y[0].as_or_throw<PrimExpr>()};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), 1)};
+                  return ffi::Array<PrimExpr>{prim::MakeConst(values[0].ty(), 1)};
                 }),
             CreateReducerGetter(
                 /*n_buffers=*/1,
@@ -397,8 +397,8 @@ struct ReducerRegistry {
                       x[1].as_or_throw<PrimExpr>() + y[1].as_or_throw<PrimExpr>()};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), 0),
-                                              MakeConst(values[1].ty(), 0)};
+                  return ffi::Array<PrimExpr>{prim::MakeConst(values[0].ty(), 0),
+                                              prim::MakeConst(values[1].ty(), 0)};
                 }),
             CreateReducerGetter(
                 /*n_buffers=*/2,
@@ -412,7 +412,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), -1),
+                  return ffi::Array<PrimExpr>{prim::MakeConst(values[0].ty(), -1),
                                               min_value(values[1].ty())};
                 }),
             CreateReducerGetter(
@@ -429,7 +429,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), -1),
+                  return ffi::Array<PrimExpr>{prim::MakeConst(values[0].ty(), -1),
                                               min_value(values[1].ty())};
                 }),
             CreateReducerGetter(
@@ -444,7 +444,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), -1),
+                  return ffi::Array<PrimExpr>{prim::MakeConst(values[0].ty(), -1),
                                               max_value(values[1].ty())};
                 }),
             CreateReducerGetter(
@@ -461,7 +461,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), -1),
+                  return ffi::Array<PrimExpr>{prim::MakeConst(values[0].ty(), -1),
                                               max_value(values[1].ty())};
                 }),
             // argmax with `lhs_val > rhs_val` and tie-break `lhs_idx > rhs_idx`, which corresponds
@@ -480,7 +480,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), -1),
+                  return ffi::Array<PrimExpr>{prim::MakeConst(values[0].ty(), -1),
                                               min_value(values[1].ty())};
                 }),
             // argmin with `lhs_val < rhs_val` and tie-break `lhs_idx > rhs_idx`, which corresponds
@@ -499,7 +499,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), -1),
+                  return ffi::Array<PrimExpr>{prim::MakeConst(values[0].ty(), -1),
                                               max_value(values[1].ty())};
                 })} {}
 
@@ -1182,7 +1182,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
       ffi::Array<Range> region;
       region.reserve(buf_load->indices.size());
       for (const PrimExpr& index : buf_load->indices) {
-        region.push_back(Range::FromMinExtent(index, MakeConst(index.ty(), 1)));
+        region.push_back(Range::FromMinExtent(index, prim::MakeConst(index.ty(), 1)));
       }
       buf_regions.push_back(
           BufferRegion(buf_load->source.as_or_throw<tvm::tirx::BufferVar>(), std::move(region)));

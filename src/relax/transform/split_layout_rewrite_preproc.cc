@@ -34,6 +34,8 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
+
 class SplitPrimFuncLayoutRewrite : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;

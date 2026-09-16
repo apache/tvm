@@ -39,7 +39,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 const VarNode* GetBufferVarFromData(const Expr& data) {
@@ -72,7 +71,7 @@ class FragmentGetter : public StmtExprVisitor {
       const IntImmNode* m = op->args[1].as<IntImmNode>();
       const IntImmNode* n = op->args[2].as<IntImmNode>();
       const IntImmNode* k = op->args[3].as<IntImmNode>();
-      const StringImmNode* layout = op->args[7].as<StringImmNode>();
+      const prim::StringImmNode* layout = op->args[7].as<prim::StringImmNode>();
       TVM_FFI_ICHECK(m);
       TVM_FFI_ICHECK(n);
       TVM_FFI_ICHECK(k);
@@ -141,7 +140,6 @@ std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const
 }  // namespace tirx
 
 namespace s_tir {
-using namespace tvm::prim;
 
 // Check shape of fragment making sure it is a valid shape for tvm_mma_sync
 class FragmentChecker : public StmtExprVisitor {
@@ -212,11 +210,11 @@ class InferFragmenter : public StmtExprMutator {
 
       std::string shape =
           std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k);
-      PrimExpr shape_expr = StringImm(shape);
+      PrimExpr shape_expr = prim::StringImm(shape);
       Stmt shape_attr = AttrStmt(op->buffer.var(), s_tir::attr::fragment_shape, shape_expr, stmt);
       if (info.layout != "") {
         Stmt layout_attr = AttrStmt(op->buffer.var(), s_tir::attr::fragment_layout,
-                                    StringImm(info.layout), shape_attr);
+                                    prim::StringImm(info.layout), shape_attr);
         return layout_attr;
       } else {
         return shape_attr;

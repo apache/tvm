@@ -238,7 +238,7 @@ class AlterOpImplMutator : public ExprMutator {
     auto [inverse_index_map, padding_predicate] =
         index_map.NonSurjectiveInverse(initial_ranges, analyzer);
 
-    if (tirx::is_zero(padding_predicate)) {
+    if (tvm::prim::is_zero(padding_predicate)) {
       return TransformLayout(expr, inverse_index_map);
     } else {
       auto padded_expr = builder_->Normalize(TransformLayout(expr, inverse_index_map));

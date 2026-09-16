@@ -27,6 +27,7 @@
 #include <tvm/tirx/builtin.h>
 
 TEST(SimplePasses, SideEffect) {
+  using namespace tvm::prim;
   using namespace tvm;
   auto buf = tirx::decl_buffer({16}, PrimType::Float(32));
   auto i = PrimVar("i", PrimType::Int(32));

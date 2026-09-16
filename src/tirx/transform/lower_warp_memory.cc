@@ -51,6 +51,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 // Rewrite Rule
 //

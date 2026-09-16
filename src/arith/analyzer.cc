@@ -58,7 +58,7 @@ void AnalyzerObj::Bind(const Var& var, const PrimExpr& expr, bool allow_override
 
 void AnalyzerObj::Bind(const Var& var, const Range& range, bool allow_override) {
   TVM_FFI_ICHECK(range.defined());
-  if (tirx::is_one(range->extent)) {
+  if (prim::is_one(range->extent)) {
     this->Bind(var, range->min, allow_override);
   } else {
     this->const_int_bound.Bind(var, range, allow_override);
@@ -74,7 +74,7 @@ void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
   // decompose value as symbol * scale + offset
   int64_t offset = 0;
   PrimType value_ty = value.ty();
-  PrimExpr symbol_scale = tirx::MakeConst(value_ty, 0);
+  PrimExpr symbol_scale = prim::MakeConst(value_ty, 0);
 
   auto fcollect_sum = [&](PrimExpr val, int sign) {
     if (const auto* intimm = val.as<IntImmNode>()) {
@@ -91,7 +91,7 @@ void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
 
   // split out the symbol and non-symbolic part
   int64_t cscale = 1;
-  PrimExpr symbol = tirx::MakeConst(value_ty, 1);
+  PrimExpr symbol = prim::MakeConst(value_ty, 1);
   auto fcollect_prod = [&](PrimExpr val) {
     if (const auto* intimm = val.as<IntImmNode>()) {
       cscale *= intimm->value;
@@ -181,7 +181,7 @@ bool AnalyzerObj::CanProveLessEqualThanSymbolicShapeValue(const PrimExpr& lhs,
                                                           const PrimExpr& shape) {
   if (this->CanProve(lhs <= shape, ProofStrength::kSymbolicBound)) return true;
   // no need to do further attempt if shape is already a constant.
-  if (tirx::is_const_int(shape)) return false;
+  if (prim::is_const_int(shape)) return false;
   // collect constant scale and ignore symbolic part
   // so 32 * n => cscale = 32
   int64_t cscale = 1;
@@ -202,7 +202,7 @@ bool AnalyzerObj::CanProve(const PrimExpr& expr, ProofStrength strength) {
     return ptr->value != 0;
   }
   PrimExpr simplified = Simplify(expr);
-  const int64_t* as_int = tirx::as_const_int(simplified);
+  const int64_t* as_int = prim::as_const_int(simplified);
   if (as_int && *as_int) return true;
   if (strength >= ProofStrength::kSymbolicBound) {
     // NOTE: we intentionally only pattern match common bound predicate i < bound
@@ -254,7 +254,7 @@ PrimExpr AnalyzerObj::Simplify(const PrimExpr& expr, int steps) {
   res = this->canonical_simplify(res);
 
   for (int i = 0; i < steps; ++i) {
-    if (tirx::is_const_int(res)) {
+    if (prim::is_const_int(res)) {
       return res;
     }
     if (i % 2 == 0) {

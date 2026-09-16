@@ -40,6 +40,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 /*! \brief A slot used in PrimExpr lowering. */
 struct PrimExprSlot {

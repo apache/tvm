@@ -24,6 +24,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 Layout TileLayoutNode::DirectSum(const TileLayout& left_in, const Array<PrimExpr>& left_shape,
                                  const Array<PrimExpr>& right_shape) const {

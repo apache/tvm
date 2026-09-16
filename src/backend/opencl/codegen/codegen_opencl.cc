@@ -43,7 +43,8 @@ const VarNode* TryUnwrapTextureVar(const Expr& texture) {
   if (const auto* var = texture.as<VarNode>()) {
     return var;
   }
-  if (const auto* call = texture.as<CallNode>(); call && call->op.same_as(builtin::buffer_data())) {
+  if (const auto* call = texture.as<CallNode>();
+      call && call->op.same_as(tirx::builtin::buffer_data())) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1U);
     const auto* buffer = call->args[0].as<VarNode>();
     TVM_FFI_ICHECK(buffer && buffer->ty.as<BufferTypeNode>())
@@ -99,11 +100,11 @@ class InferTextureAccess : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(builtin::texture2d_load())) {
+    if (op->op.same_as(tirx::builtin::texture2d_load())) {
       const VarNode* texture = UnwrapTextureArgument(op->args[0]).var;
       auto it = buffer_data_map_.find(texture);
       var_access_map_[it == buffer_data_map_.end() ? texture : it->second] |= kReadAccess;
-    } else if (op->op.same_as(builtin::texture2d_store())) {
+    } else if (op->op.same_as(tirx::builtin::texture2d_store())) {
       const VarNode* texture = UnwrapTextureArgument(op->args[0]).var;
       auto it = buffer_data_map_.find(texture);
       var_access_map_[it == buffer_data_map_.end() ? texture : it->second] |= kWriteAccess;
@@ -457,7 +458,7 @@ void CodeGenOpenCL::VisitStmt_(const AllocBufferNode* op) {
 }
 
 void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
-  if (op->op.same_as(builtin::address_of())) {
+  if (op->op.same_as(tirx::builtin::address_of())) {
     // Overload tvm_address_of to add storage scope (e.g. __global).
     const TensorLoadNode* load = op->args[0].as<TensorLoadNode>();
     TVM_FFI_ICHECK(op->args.size() == 1 && load);
@@ -472,7 +473,7 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
     os << " *)" << this->GetVarID(load->source.as_or_throw<tvm::tirx::BufferVar>().get()) << " + ";
     this->PrintExpr(load->indices[0], os);
     os << ')';
-  } else if (op->op.same_as(builtin::texture2d_store())) {
+  } else if (op->op.same_as(tirx::builtin::texture2d_store())) {
     TextureArgument texture = UnwrapTextureArgument(op->args[0]);
     const int channel_size = op->args[4].as_or_throw<IntImm>()->value;
     TVM_FFI_ICHECK(channel_size == 64 || channel_size == 128)
@@ -506,7 +507,7 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
     this->PrintType(channel_type, os);
     os << "(" << value << ")";
     os << ")";
-  } else if (op->op.same_as(builtin::texture2d_load())) {
+  } else if (op->op.same_as(tirx::builtin::texture2d_load())) {
     TextureArgument texture = UnwrapTextureArgument(op->args[0]);
     enable_compliant_texture_reads_ = true;
     std::stringstream ss;
@@ -540,13 +541,13 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
 
     std::string rhs = SSAGetID(ss.str(), op_ty.WithLanes(data_lanes));
     if (auto ramp = op->args.back().as<prim::RampNode>()) {
-      if (ramp->base.as<IntImmNode>() && *tirx::as_const_int(ramp->base) == 0 &&
-          *tirx::as_const_int(ramp->lanes) == data_lanes &&
-          *tirx::as_const_int(ramp->stride) == 1) {
+      if (ramp->base.as<IntImmNode>() && *tvm::prim::as_const_int(ramp->base) == 0 &&
+          *tvm::prim::as_const_int(ramp->lanes) == data_lanes &&
+          *tvm::prim::as_const_int(ramp->stride) == 1) {
         os << rhs;
-      } else if (*tirx::as_const_int(ramp->stride) == 1) {
+      } else if (*tvm::prim::as_const_int(ramp->stride) == 1) {
         os << "(*(";
-        this->PrintType(op_ty.WithLanes(*tirx::as_const_int(ramp->lanes)), os);
+        this->PrintType(op_ty.WithLanes(*tvm::prim::as_const_int(ramp->lanes)), os);
         os << "*)";
         os << "((";
         this->PrintType(op_ty.WithLanes(1), os);

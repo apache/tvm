@@ -42,7 +42,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 enum class HoistedConditionals : int {
@@ -245,13 +244,13 @@ class HoistInfoCollector : public StmtExprVisitor {
     }
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AndNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const prim::AndNode* op) final {
     AttemptHoistConditional(op->a, HoistedConditionals::kBooleanExpression);
     AttemptHoistConditional(op->b, HoistedConditionals::kBooleanExpression);
     return Parent::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const OrNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const prim::OrNode* op) final {
     AttemptHoistConditional(op->a, HoistedConditionals::kBooleanExpression);
     AttemptHoistConditional(op->b, HoistedConditionals::kBooleanExpression);
     return Parent::Visit_(op);
@@ -366,7 +365,7 @@ class HoistInfoCollector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const LetNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op) final {
     VisitBinding(op->var, op->value, HoistedLetBindings::kLetExpr);
 
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Parent::Visit_(op));
@@ -557,7 +556,7 @@ class ExpressionHoister : public tirx::IRMutatorWithAnalyzer {
     }
   }
 
-  UnchangedOr<PrimExpr> Mutate_(const LetNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final {
     if (hoisted_let_bindings.count(op->var.get())) {
       return this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else {
