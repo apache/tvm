@@ -710,9 +710,6 @@ def test_linear():
 
     # matmul
     class MatMul1(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x, y):
             return torch.matmul(x, y)
 
@@ -742,9 +739,6 @@ def test_linear():
 
 def test_bmm():
     class BMM(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x, y):
             return torch.bmm(x, y)
 
@@ -774,16 +768,10 @@ def test_bmm():
 
 def test_baddbmm():
     class BAddBMM1(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, c, x, y):
             return torch.baddbmm(c, x, y)
 
     class BAddBMM2(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, c, x, y):
             return torch.baddbmm(c, x, y, alpha=2, beta=0)
 
@@ -836,16 +824,10 @@ def test_baddbmm():
 
 def test_einsum():
     class Einsum1(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x):
             return torch.einsum("ii", x)
 
     class Einsum2(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x, y):
             return torch.einsum("i,j->ij", x, y)
 
@@ -1008,9 +990,6 @@ def test_maxpool1d():
             return self.pool(input)
 
     class MaxPool1d_functional(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, input):
             return torch.nn.functional.max_pool1d(input, kernel_size=2)
 
@@ -1108,9 +1087,6 @@ def test_maxpool2d():
             return self.pool(input)
 
     class MaxPool2d_functional(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, input):
             return torch.nn.functional.max_pool2d(input, kernel_size=[1, 1])
 
@@ -1211,9 +1187,6 @@ def test_maxpool3d():
             return self.pool(input)
 
     class MaxPool3d_functional(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, input):
             return torch.nn.functional.max_pool3d(input, kernel_size=[1, 1, 1])
 
@@ -2017,35 +1990,12 @@ def test_functional_layernorm():
         def forward(self, input):
             return torch.nn.functional.layer_norm(input, self.shape, self.weight, self.bias, 1e-5)
 
-    @tvm.script.ir_module
-    class expected3:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
-            w1: R.Tensor([10, 10], dtype="float32"),
-            w2: R.Tensor([10, 10], dtype="float32"),
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.layer_norm(
-                    input_1,
-                    w1,
-                    w2,
-                    axes=[-2, -1],
-                    epsilon=1e-05,
-                    center=True,
-                    scale=True,
-                )
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
     model = LayerNorm3([10, 10])
     binding = {
         "w1": model.weight.detach().numpy(),
         "w2": model.bias.detach().numpy(),
     }
-    verify_model(model, input_info, binding, expected3)
+    verify_model(model, input_info, binding, expected1)
 
 
 def test_cross_entropy():
@@ -3824,30 +3774,7 @@ def test_interpolate():
                 align_corners=False,
             )
 
-    @tvm.script.ir_module
-    class expected7:
-        @R.function
-        def main(input_5: R.Tensor((1, 3, 4, 10, 10), dtype="float32")) -> R.Tensor(
-            (1, 3, 8, 40, 40), dtype="float32"
-        ):
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = R.image.resize3d(
-                    input_5,
-                    (8, 40, 40),
-                    roi=[0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
-                    layout="NCDHW",
-                    method="linear",
-                    coordinate_transformation_mode="half_pixel",
-                    rounding_method="",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0,
-                )
-                gv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Interpolate7(), input_info_5d, {}, expected7)
+    verify_model(Interpolate7(), input_info_5d, {}, expected6)
 
     class Interpolate8(Module):
         def forward(self, input):
@@ -4044,16 +3971,10 @@ def test_addmm():
     ]
 
     class Addmm1(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x1, x2, x3):
             return torch.addmm(x1, x2, x3)
 
     class Addmm2(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x1, x2, x3):
             return torch.addmm(x1, x2, x3, beta=0.8, alpha=0.5)
 
@@ -4913,9 +4834,6 @@ def test_keep_params():
 
 def test_unwrap_unit_return_tuple():
     class Identity(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x):
             return (x,)
 
@@ -4937,9 +4855,6 @@ def test_unwrap_unit_return_tuple():
 
 def test_no_bind_return_tuple():
     class Identity(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x, y):
             return (x, y)
 
@@ -4965,16 +4880,10 @@ def test_no_bind_return_tuple():
 
 def test_argmax():
     class Argmax1(Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, input):
             return torch.argmax(input, dim=-1)
 
     class Argmax2(Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, input):
             return torch.argmax(input, dim=-1, keepdim=True)
 
@@ -5004,16 +4913,10 @@ def test_argmax():
 
 def test_argmin():
     class Argmin1(Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, input):
             return torch.argmin(input)
 
     class Argmin2(Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, input):
             return torch.argmin(input, keepdim=True)
 
@@ -5511,11 +5414,7 @@ def test_slice_scatter():
 
 
 def test_masked_scatter():
-    class MaskedScatter1(Module):
-        def forward(self, data, mask, src):
-            return data.masked_scatter(mask, src)
-
-    class MaskedScatter2(Module):
+    class MaskedScatter(Module):
         def forward(self, data, mask, src):
             return data.masked_scatter(mask, src)
 
@@ -5561,10 +5460,10 @@ def test_masked_scatter():
             return gv
 
     verify_model(
-        MaskedScatter1(), [([5], "float32"), ([5], "bool"), ([10], "float32")], {}, expected1
+        MaskedScatter(), [([5], "float32"), ([5], "bool"), ([10], "float32")], {}, expected1
     )
     verify_model(
-        MaskedScatter2(),
+        MaskedScatter(),
         [([2, 5], "float32"), ([2, 5], "bool"), ([3, 5], "float32")],
         {},
         expected2,
@@ -5888,7 +5787,7 @@ def test_select():
 
 
 def test_inplace_copy():
-    class Inplace_Copy(Module):
+    class Copy(Module):
         def forward(self, x, y):
             x.copy_(y)
             return x
@@ -5908,11 +5807,6 @@ def test_inplace_copy():
                 R.output(gv)
             return gv
 
-    class CopyBroadcast(Module):
-        def forward(self, x, src):
-            x.copy_(src)
-            return x
-
     @tvm.script.ir_module
     class expected_copy:
         @R.function
@@ -5927,12 +5821,12 @@ def test_inplace_copy():
             return gv
 
     verify_model(
-        Inplace_Copy(),
+        Copy(),
         [((1, 2, 3, 4), "float32"), ((1, 2, 3, 4), "float32")],
         {},
         Expected,
     )
-    verify_model(CopyBroadcast(), [((2, 3), "float32"), ((), "int64")], {}, expected_copy)
+    verify_model(Copy(), [((2, 3), "float32"), ((), "int64")], {}, expected_copy)
 
 
 def test_clone():
