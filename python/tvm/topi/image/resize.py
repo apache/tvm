@@ -743,6 +743,124 @@ def _resize_2d(
     return _cast_output(value, data.dtype, out_dtype=out_dtype)
 
 
+def resize2d_antialias(data, size, scales, align_corners, method):
+    """Antialiased bilinear/bicubic resize of NCHW data with PyTorch semantics.
+
+    ``size`` gives the output height and width. Each entry of ``scales`` is an
+    explicit output/input scale or ``None`` to infer it from the sizes;
+    ``align_corners`` takes precedence. ``method`` is ``bilinear`` or ``bicubic``.
+    Filters widen for downsampling and normalize weights at the boundaries.
+    Floating-point inputs retain their dtype; uint8 rounds after each axis.
+    """
+    uint8 = data.dtype == "uint8"
+    dtype = "float64" if data.dtype == "float64" or uint8 else "float32"
+    if data.dtype not in ("float16", "bfloat16", "float32", "float64", "uint8"):
+        raise ValueError("Antialiased resize requires floating-point or uint8 input")
+    cubic = method == "bicubic"
+    # Match PyTorch's horizontal-then-vertical accumulation order.
+    for axis in (3, 2):
+        length, output_length = data.shape[axis], size[axis - 2]
+        if tvm.arith.Analyzer().can_prove_equal(length, output_length):
+            continue
+        if align_corners:
+            scale = tvm.tirx.if_then_else(
+                output_length > 1,
+                (length - 1).astype(dtype) / tvm.tirx.Cast(dtype, output_length - 1),
+                tvm.tirx.const(0, dtype),
+            )
+        elif scales[axis - 2] is not None:
+            scale = tvm.tirx.const(1 / scales[axis - 2], dtype)
+        else:
+            scale = length.astype(dtype) / tvm.tirx.Cast(dtype, output_length)
+        width = tvm.tirx.max(scale, tvm.tirx.const(1, dtype))
+        support = width * (2 if cubic else 1)
+        taps = tvm.arith.Analyzer().simplify(tvm.tirx.Cast("int64", tvm.tirx.ceil(support)) * 2 + 1)
+
+        def center(i):
+            return scale * (tvm.tirx.Cast(dtype, i) + 0.5)
+
+        def start(i):
+            return tvm.tirx.max(tvm.tirx.Cast("int64", center(i) - support + 0.5), 0)
+
+        def weight(i, k):
+            distance = tvm.tirx.abs((tvm.tirx.Cast(dtype, start(i) + k) - center(i) + 0.5) / width)
+            if cubic:
+                value = tvm.tirx.if_then_else(
+                    distance < 1,
+                    ((1.5 * distance - 2.5) * distance) * distance + 1,
+                    tvm.tirx.if_then_else(
+                        distance < 2, ((-0.5 * distance + 2.5) * distance - 4) * distance + 2, 0
+                    ),
+                )
+            else:
+                value = tvm.tirx.max(1 - distance, tvm.tirx.const(0, dtype))
+            return tvm.tirx.if_then_else(start(i) + k < length, value, tvm.tirx.const(0, dtype))
+
+        weights = te.compute((output_length, taps), weight, name=f"weights_{axis}")
+        r = te.reduce_axis((0, taps), "tap")
+        totals = te.compute(
+            (output_length,), lambda i: te.sum(weights[i, r], axis=r), name="weight_sum"
+        )
+        normalized = te.compute(
+            (output_length, taps), lambda i, k: weights[i, k] / totals[i], name="normalized_weights"
+        )
+        if uint8:
+            # PyTorch rounds uint8 pixels after each pass using int16 filter coefficients.
+            y, k = te.reduce_axis((0, output_length), "y"), te.reduce_axis((0, taps), "k")
+            maximum = te.compute(
+                (), lambda: te.max(normalized[y, k], axis=[y, k]), name="max_weight"
+            )
+            precision = tvm.tirx.const(22, "int32")
+            for bits in reversed(range(22)):
+                precision = tvm.tirx.if_then_else(
+                    maximum[()] * (1 << (bits + 1)) + 0.5 >= (1 << 15), bits, precision
+                )
+            shift = te.compute((), lambda: precision, name="weight_precision")
+
+            def quantize(i, k):
+                value = normalized[i, k] * (1 << shift[()])
+                return tvm.tirx.Cast("int32", value + tvm.tirx.if_then_else(value < 0, -0.5, 0.5))
+
+            coefficients = te.compute((output_length, taps), quantize, name="integer_weights")
+        else:
+            coefficients = normalized
+        shape = list(data.shape)
+        shape[axis] = output_length
+
+        def resample(*indices):
+            source = list(indices)
+            position = start(indices[axis]) + r
+            source[axis] = tvm.tirx.min(position, length - 1)
+            stop = tvm.tirx.min(
+                tvm.tirx.Cast("int64", center(indices[axis]) + support + 0.5), length
+            )
+            acc_dtype = "int32" if uint8 else dtype
+            return te.sum(
+                tvm.tirx.if_then_else(
+                    position < stop,
+                    data[tuple(source)].astype(acc_dtype) * coefficients[indices[axis], r],
+                    tvm.tirx.const(0, acc_dtype),
+                ),
+                axis=r,
+            )
+
+        result = te.compute(shape, resample, name=f"resample_{axis}")
+
+        def convert(*i):
+            value = result[i]
+            if uint8:
+                value = (value + (1 << (shift[()] - 1))) >> shift[()]
+                value = tvm.tirx.min(tvm.tirx.max(value, 0), 255)
+            source = list(i)
+            source[axis] = tvm.tirx.min(source[axis], length - 1)
+            return tvm.tirx.if_then_else(
+                length == output_length, data[tuple(source)], value.astype(data.dtype)
+            )
+
+        data = te.compute(shape, convert, name="resized")
+    return data
+
+
 def resize2d(
     data,
     roi,
