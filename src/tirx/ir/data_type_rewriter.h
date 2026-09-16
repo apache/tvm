@@ -54,32 +54,32 @@ class DataTypeLegalizer : public StmtExprMutator {
   Stmt VisitStmt_(const SBlockRealizeNode* op) override;
   Stmt VisitStmt_(const SBlockNode* op) override;
   Stmt VisitStmt_(const BindNode* op) override;
-  Expr VisitExpr_(const VarNode* op) override;
-  Expr VisitExpr_(const prim::SelectNode* op) override;
-  Expr VisitExpr_(const prim::RampNode* op) override;
-  Expr VisitExpr_(const prim::AddNode* op) override;
-  Expr VisitExpr_(const prim::SubNode* op) override;
-  Expr VisitExpr_(const prim::MulNode* op) override;
-  Expr VisitExpr_(const prim::DivNode* op) override;
-  Expr VisitExpr_(const prim::ModNode* op) override;
-  Expr VisitExpr_(const prim::FloorDivNode* op) override;
-  Expr VisitExpr_(const prim::FloorModNode* op) override;
-  Expr VisitExpr_(const prim::MinNode* op) override;
-  Expr VisitExpr_(const prim::MaxNode* op) override;
-  Expr VisitExpr_(const prim::EQNode* op) override;
-  Expr VisitExpr_(const prim::NENode* op) override;
-  Expr VisitExpr_(const prim::LTNode* op) override;
-  Expr VisitExpr_(const prim::LENode* op) override;
-  Expr VisitExpr_(const prim::GTNode* op) override;
-  Expr VisitExpr_(const prim::GENode* op) override;
-  Expr VisitExpr_(const CallNode* op) override;
-  Expr VisitExpr_(const prim::CastNode* op) override;
-  Expr VisitExpr_(const prim::LetNode* op) override;
+  Expr Dispatch_(const VarNode* op) override;
+  Expr Dispatch_(const prim::SelectNode* op) override;
+  Expr Dispatch_(const prim::RampNode* op) override;
+  Expr Dispatch_(const prim::AddNode* op) override;
+  Expr Dispatch_(const prim::SubNode* op) override;
+  Expr Dispatch_(const prim::MulNode* op) override;
+  Expr Dispatch_(const prim::DivNode* op) override;
+  Expr Dispatch_(const prim::ModNode* op) override;
+  Expr Dispatch_(const prim::FloorDivNode* op) override;
+  Expr Dispatch_(const prim::FloorModNode* op) override;
+  Expr Dispatch_(const prim::MinNode* op) override;
+  Expr Dispatch_(const prim::MaxNode* op) override;
+  Expr Dispatch_(const prim::EQNode* op) override;
+  Expr Dispatch_(const prim::NENode* op) override;
+  Expr Dispatch_(const prim::LTNode* op) override;
+  Expr Dispatch_(const prim::LENode* op) override;
+  Expr Dispatch_(const prim::GTNode* op) override;
+  Expr Dispatch_(const prim::GENode* op) override;
+  Expr Dispatch_(const CallNode* op) override;
+  Expr Dispatch_(const prim::CastNode* op) override;
+  Expr Dispatch_(const prim::LetNode* op) override;
 
   /*! \brief Whether to clamp shift amounts after narrowing signed integers. */
   virtual bool ShouldClampShiftAmounts() const { return false; }
 
-  using StmtExprMutator::VisitExpr_;
+  using StmtExprMutator::Dispatch_;
   using StmtExprMutator::VisitStmt_;
 
   // a map from IterVar before rewrite to that after rewrite,
@@ -101,7 +101,7 @@ class DataTypeLegalizer : public StmtExprMutator {
 class IndexDataTypeRewriter : public DataTypeLegalizer {
  protected:
   using Parent = DataTypeLegalizer;
-  using Parent::VisitExpr_;
+  using Parent::Dispatch_;
   using Parent::VisitStmt_;
 
   BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) override;
@@ -110,18 +110,18 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   Stmt VisitStmt_(const SBlockNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
   Stmt VisitStmt_(const AttrStmtNode* op) override;
-  Expr VisitExpr_(const TensorLoadNode* op) override;
+  Expr Dispatch_(const TensorLoadNode* op) override;
   ffi::Array<PrimExpr> VisitIndices(ffi::Array<PrimExpr> indices);
   Stmt VisitStmt_(const IfThenElseNode* op) override;
   Stmt VisitStmt_(const BindNode* op) override;
-  Expr VisitExpr_(const prim::EQNode* op) override;
-  Expr VisitExpr_(const prim::NENode* op) override;
-  Expr VisitExpr_(const prim::LTNode* op) override;
-  Expr VisitExpr_(const prim::LENode* op) override;
-  Expr VisitExpr_(const prim::GTNode* op) override;
-  Expr VisitExpr_(const prim::GENode* op) override;
-  Expr VisitExpr_(const CallNode* op) override;
-  Expr VisitExpr_(const prim::SelectNode* op) override;
+  Expr Dispatch_(const prim::EQNode* op) override;
+  Expr Dispatch_(const prim::NENode* op) override;
+  Expr Dispatch_(const prim::LTNode* op) override;
+  Expr Dispatch_(const prim::LENode* op) override;
+  Expr Dispatch_(const prim::GTNode* op) override;
+  Expr Dispatch_(const prim::GENode* op) override;
+  Expr Dispatch_(const CallNode* op) override;
+  Expr Dispatch_(const prim::SelectNode* op) override;
 
   Stmt VisitStmt_(const ForNode* op) override;
 
@@ -149,11 +149,11 @@ class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
 
  protected:
   using Parent = IndexDataTypeRewriter;
-  using Parent::VisitExpr_;
+  using Parent::Dispatch_;
   using Parent::VisitStmt_;
-  Expr VisitExpr_(const IntImmNode* op) override;
-  Expr VisitExpr_(const VarNode* op) override;
-  Expr VisitExpr_(const prim::CastNode* op) override;
+  Expr Dispatch_(const IntImmNode* op) override;
+  Expr Dispatch_(const VarNode* op) override;
+  Expr Dispatch_(const prim::CastNode* op) override;
 
   /*! \brief Specifies which data type we can rewrite */
   virtual bool CanRewriteDType(PrimType dtype) const;

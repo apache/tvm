@@ -609,8 +609,8 @@ class BufferCompactor : public StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* _op) final {
-    TensorLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* _op) final {
+    TensorLoad load = StmtExprMutator::Dispatch_(_op).as_or_throw<TensorLoad>();
     BufferVar original_buffer = _op->source.as_or_throw<tvm::tirx::BufferVar>();
     BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
     ffi::Array<PrimExpr> indices = load->indices;

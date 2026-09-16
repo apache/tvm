@@ -1090,7 +1090,7 @@ class CacheReadRewriter : public StmtExprMutator {
     return ret;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* load) override {
+  Expr Dispatch_(const TensorLoadNode* load) override {
     if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->read_buffer) &&
         current_block_consumes) {
       ffi::Array<PrimExpr> indices = load->indices;
@@ -1099,10 +1099,10 @@ class CacheReadRewriter : public StmtExprMutator {
       }
       return BufferLoad(info_->write_buffer, indices, load->span);
     }
-    return ExprMutator::VisitExpr_(load);
+    return ExprMutator::Dispatch_(load);
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  Expr Dispatch_(const VarNode* op) final {
     if (op == info_->read_buffer.get()) {
       return info_->write_buffer.var();
     }
@@ -1183,12 +1183,12 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
     };
   }
 
-  Expr VisitExpr_(const TensorLoadNode* load) final {
+  Expr Dispatch_(const TensorLoadNode* load) final {
     if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->read_buffer) &&
         current_block_consumes) {
       return BufferLoad(info_->write_buffer, new_indices_, load->span);
     }
-    return ExprMutator::VisitExpr_(load);
+    return ExprMutator::Dispatch_(load);
   }
 
   /*! \brief The indices to use for new buffer. */
@@ -1372,7 +1372,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const TensorLoadNode* load) override {
+  Expr Dispatch_(const TensorLoadNode* load) override {
     if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->write_buffer)) {
       ffi::Array<PrimExpr> indices = load->indices;
       if (!cache_full_region_) {
@@ -1380,10 +1380,10 @@ class CacheWriteRewriter : public StmtExprMutator {
       }
       return BufferLoad(info_->read_buffer, indices, load->span);
     }
-    return ExprMutator::VisitExpr_(load);
+    return ExprMutator::Dispatch_(load);
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  Expr Dispatch_(const VarNode* op) final {
     if (op == info_->write_buffer.get()) {
       return info_->read_buffer.var();
     }
@@ -1481,11 +1481,11 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
     }
   }
 
-  Expr VisitExpr_(const TensorLoadNode* load) final {
+  Expr Dispatch_(const TensorLoadNode* load) final {
     if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->write_buffer)) {
       return BufferLoad(info_->read_buffer, new_indices_, load->span);
     }
-    return ExprMutator::VisitExpr_(load);
+    return ExprMutator::Dispatch_(load);
   }
 
   /*! \brief The indices to use for new buffer. */
@@ -1732,8 +1732,8 @@ class ReIndexRewriter : public StmtExprMutator {
     return VisitBufferAccess(std::move(buffer_store));
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    TensorLoad buffer_load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* op) final {
+    TensorLoad buffer_load = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     return VisitBufferAccess(std::move(buffer_load));
   }
 

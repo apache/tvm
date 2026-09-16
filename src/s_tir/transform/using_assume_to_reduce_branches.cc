@@ -123,7 +123,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   explicit ParseAssumeAndOvercompute(const Analyzer& analyzer) : Parent(analyzer) {}
 
  private:
-  using Parent::VisitExpr_;
+  using Parent::Dispatch_;
   using Parent::VisitStmt;
   using Parent::VisitStmt_;
 
@@ -201,7 +201,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     return Parent::VisitStmt_(op);
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) override {
+  Expr Dispatch_(const TensorLoadNode* op) override {
     if (map_buffer_assumption.find(op->source.as_or_throw<tvm::tirx::BufferVar>()) !=
         map_buffer_assumption.end()) {
       PrimExpr buf_value;
@@ -276,11 +276,11 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     return Parent::VisitStmt_(op);
   }
 
-  Expr VisitExpr_(const CallNode* op) override {
+  Expr Dispatch_(const CallNode* op) override {
     if (op->op.same_as(tirx::builtin::assume())) {
       Assume(op->args[0].as_or_throw<PrimExpr>());
     }
-    return Parent::VisitExpr_(op);
+    return Parent::Dispatch_(op);
   }
 
   void Assume(PrimExpr assumption) {

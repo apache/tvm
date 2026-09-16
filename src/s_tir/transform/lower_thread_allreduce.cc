@@ -150,7 +150,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
+  Expr Dispatch_(const TensorLoadNode* op) final {
     const VarNode* allocation =
         GetAllocationKey(op->source.as_or_throw<tvm::tirx::BufferVar>().get());
     if (auto it = load_remap_.find(allocation); it != load_remap_.end()) {
@@ -160,7 +160,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       return it->second;
     }
 
-    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+    TensorLoad load = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     op = load.get();
 
     if (auto opt = GetRemappedBuffer(load->source.as_or_throw<tvm::tirx::BufferVar>())) {

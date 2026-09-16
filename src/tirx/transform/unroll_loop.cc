@@ -169,7 +169,7 @@ class LoopUnroller : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
+  Expr Dispatch_(const TensorLoadNode* op) final {
     if (unroll_local_access_) {
       auto storage_scope =
           runtime::StorageScope::Create(op->source.as_or_throw<tvm::tirx::BufferVar>().scope());

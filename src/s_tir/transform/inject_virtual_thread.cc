@@ -232,7 +232,7 @@ class VarTouchedAnalysis : public StmtExprVisitor {
 // rewrite the buffer access pattern when necessary.
 class VTInjector : public tirx::IRMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::Dispatch_;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
   // constructor
@@ -257,7 +257,7 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
     return stmt;
   }
   // Variable
-  Expr VisitExpr_(const VarNode* op) final {
+  Expr Dispatch_(const VarNode* op) final {
     TVM_FFI_ICHECK(!alloc_remap_.count(op))
         << "BufferVar address may get rewritten in virtual thread";
     if (touched_var_.count(op)) {
@@ -269,7 +269,7 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
     return analyzer_->Simplify(index + var_.as_or_throw<PrimExpr>() * alloc_extent);
   }
   // Expression.
-  Expr VisitExpr_(const CallNode* op) final {
+  Expr Dispatch_(const CallNode* op) final {
     if (op->op.same_as(tirx::builtin::masked_load()) ||
         op->op.same_as(tirx::builtin::masked_store())) {
       bool is_load = op->op.same_as(tirx::builtin::masked_load());
@@ -297,7 +297,7 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
       auto buffer = GetBufferDataVar(ffi::GetRef<Call>(op)).value();
       auto it = alloc_remap_.find(buffer.get());
       if (it == alloc_remap_.end()) {
-        return StmtExprMutator::VisitExpr_(op);
+        return StmtExprMutator::Dispatch_(op);
       }
       visit_touched_var_ = true;
       return GetRemappedBuffer(BufferVar(buffer), it->second).data();
@@ -306,10 +306,10 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
       PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
       auto buffer = GetBufferDataVar(op->args[1]);
       if (!buffer.has_value()) {
-        return StmtExprMutator::VisitExpr_(op);
+        return StmtExprMutator::Dispatch_(op);
       }
       auto it = alloc_remap_.find(buffer.value().get());
-      if (it == alloc_remap_.end()) return StmtExprMutator::VisitExpr_(op);
+      if (it == alloc_remap_.end()) return StmtExprMutator::Dispatch_(op);
       visit_touched_var_ = true;
       PrimExpr offset = this->VisitPrimExpr(op->args[2].as_or_throw<PrimExpr>());
       PrimExpr extent = this->VisitPrimExpr(op->args[3].as_or_throw<PrimExpr>());
@@ -323,7 +323,7 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
     } else if (op->op.same_as(tirx::builtin::tvm_context_id())) {
       return allow_share_ ? Expr(ffi::GetRef<Call>(op)) : Expr(var_);
     } else {
-      return StmtExprMutator::VisitExpr_(op);
+      return StmtExprMutator::Dispatch_(op);
     }
   }
   Stmt VisitStmt_(const EvaluateNode* op) final {
@@ -331,8 +331,8 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
     return StmtExprMutator::VisitStmt_(op);
   }
   // BufferLoad
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* op) final {
+    auto node = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     return VisitBufferAccess(std::move(node));
   }
   // BufferStore
@@ -406,7 +406,7 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
   }
   // Bind
   Stmt VisitStmt_(const BindNode* op) final {
-    Expr value = this->VisitExpr(op->value);
+    Expr value = this->Dispatch(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     }
@@ -489,7 +489,7 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
       if (const auto* bind = op->seq[i].as<BindNode>(); bind && !vt_loop_injected_) {
         // Visit just the value expression to probe for vt_var dependency.
         TVM_FFI_ICHECK(!visit_touched_var_);
-        this->VisitExpr(bind->value);
+        this->Dispatch(bind->value);
         if (visit_touched_var_) {
           // Reset flag (InjectVTLoop will handle it).
           visit_touched_var_ = false;

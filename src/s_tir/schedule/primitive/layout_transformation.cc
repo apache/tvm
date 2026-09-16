@@ -426,7 +426,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
       return mutated;
     }
 
-    Expr VisitExpr_(const VarNode* op) final {
+    Expr Dispatch_(const VarNode* op) final {
       Var var = ffi::GetRef<Var>(op);
       if (auto opt = var_remap.Get(var)) {
         return opt.value();
@@ -856,7 +856,7 @@ class TransformLayoutRewriter : private tirx::IRMutatorWithAnalyzer {
   }
 
   using Parent = tirx::IRMutatorWithAnalyzer;
-  using Parent::VisitExpr_;
+  using Parent::Dispatch_;
   using Parent::VisitStmt_;
 
   Stmt VisitStmt(const Stmt& stmt) final {
@@ -884,8 +884,8 @@ class TransformLayoutRewriter : private tirx::IRMutatorWithAnalyzer {
     return Parent::VisitStmt_(op);
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    TensorLoad buffer_load = Parent::VisitExpr_(op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* op) final {
+    TensorLoad buffer_load = Parent::Dispatch_(op).as_or_throw<TensorLoad>();
     if (buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)) {
       BufferVar buffer = buffer_load->source.as_or_throw<tvm::tirx::BufferVar>();
       ffi::Array<PrimExpr> indices = buffer_load->indices;

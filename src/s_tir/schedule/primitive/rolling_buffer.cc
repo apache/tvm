@@ -391,8 +391,8 @@ class RollingBufferRewriter : public StmtExprMutator {
     return stmt;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    TensorLoad stmt = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* op) final {
+    TensorLoad stmt = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     if (stmt->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->old_buffer)) {
       BufferVar buffer = stmt->source.as_or_throw<tvm::tirx::BufferVar>();
       ffi::Array<PrimExpr> indices = stmt->indices;

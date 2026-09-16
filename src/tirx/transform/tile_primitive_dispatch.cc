@@ -542,7 +542,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& buffer_root)
         : buffer_root_(buffer_root) {}
 
-    Expr VisitExpr_(const CallNode* op) final {
+    Expr Dispatch_(const CallNode* op) final {
       if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
         if (auto var = op->args[0].as<Var>();
             var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
@@ -552,7 +552,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
           }
         }
       }
-      return StmtExprMutator::VisitExpr_(op);
+      return StmtExprMutator::Dispatch_(op);
     }
 
     const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& buffer_root_;

@@ -85,13 +85,13 @@ class TIRxOpaqueLower : public StmtExprMutator {
     return body;
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  Expr Dispatch_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     auto it = unit_loop_vars_.find(var);
     if (it == unit_loop_vars_.end()) {
       // Fall through to the base visitor so buffer-variable remapping from
       // any rebuild in this pass reaches remaining use sites.
-      return StmtExprMutator::VisitExpr_(op);
+      return StmtExprMutator::Dispatch_(op);
     } else {
       PrimExpr expr = it->second;
       PrimType var_ty = var->ty.as_or_throw<PrimType>();

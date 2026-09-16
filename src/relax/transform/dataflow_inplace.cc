@@ -772,8 +772,8 @@ tirx::Stmt RemapBuffers(const tirx::Stmt& stmt,
 
     tirx::Stmt Remap(const tirx::Stmt& stmt) { return VisitStmt(stmt); }
 
-    Expr VisitExpr_(const TensorLoadNode* op) final {
-      auto node = tirx::StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+    Expr Dispatch_(const TensorLoadNode* op) final {
+      auto node = tirx::StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
       return tirx::BufferLoad(AttemptRemap(node->source.as_or_throw<tirx::BufferVar>()),
                               node->indices, node->span);
     }

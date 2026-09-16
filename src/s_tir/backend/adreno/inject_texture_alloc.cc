@@ -55,8 +55,8 @@ class TextureAllocInjector : public tirx::IRMutatorWithAnalyzer {
   }
 
  private:
-  using IRMutatorWithAnalyzer::VisitExpr;
-  using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::Dispatch;
+  using IRMutatorWithAnalyzer::Dispatch_;
   using IRMutatorWithAnalyzer::VisitStmt;
   using IRMutatorWithAnalyzer::VisitStmt_;
 

@@ -422,7 +422,7 @@ class StmtMutator::Internal {
 
 Stmt StmtMutator::VisitStmt_(const BindNode* op) {
   // Bind has no body -- only mutate the value expression.
-  Expr value = this->VisitExpr(op->value);
+  Expr value = this->Dispatch(op->value);
   if (value.same_as(op->value)) {
     return ffi::GetRef<Stmt>(op);
   } else {
@@ -480,7 +480,7 @@ Stmt StmtMutator::VisitStmt_(const WhileNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const ReturnNode* op) {
-  Expr value = this->VisitExpr(op->value);
+  Expr value = this->Dispatch(op->value);
   if (value.same_as(op->value)) {
     return ffi::GetRef<Stmt>(op);
   } else {
@@ -553,7 +553,7 @@ BufferVar StmtMutator::VisitBufferUse(const BufferVar& buffer) {
   return buffer;
 }
 
-Expr StmtExprMutator::VisitExpr_(const VarNode* op) {
+Expr StmtExprMutator::Dispatch_(const VarNode* op) {
   Var var = ffi::GetRef<Var>(op);
   if (var->ty.as<BufferTypeNode>()) {
     return VisitBufferUse(BufferVar(var)).var();
@@ -561,10 +561,10 @@ Expr StmtExprMutator::VisitExpr_(const VarNode* op) {
   return var;
 }
 
-Expr StmtExprMutator::VisitExpr_(const TensorLoadNode* op) {
+Expr StmtExprMutator::Dispatch_(const TensorLoadNode* op) {
   BufferVar old_buf = op->source.as_or_throw<tvm::tirx::BufferVar>();
   BufferVar new_buf = this->VisitBufferUse(old_buf);
-  PrimExpr expr = ExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
+  PrimExpr expr = ExprMutator::Dispatch_(op).as_or_throw<PrimExpr>();
   op = expr.as<TensorLoadNode>();
   TVM_FFI_ICHECK(op != nullptr);
   if (!new_buf.same_as(old_buf)) {
@@ -573,7 +573,7 @@ Expr StmtExprMutator::VisitExpr_(const TensorLoadNode* op) {
   return expr;
 }
 
-Expr StmtExprMutator::VisitExpr_(const BufferRegionNode* op) {
+Expr StmtExprMutator::Dispatch_(const BufferRegionNode* op) {
   BufferVar new_buf = this->VisitBufferUse(op->buffer);
   ffi::Array<Range> new_region = op->region.Map([this](const Range& range) {
     PrimExpr min = this->VisitPrimExpr(range->min);
@@ -601,7 +601,7 @@ Stmt StmtMutator::VisitStmt_(const AllocBufferNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const DeclBufferNode* op) {
-  Expr data = this->VisitExpr(op->data);
+  Expr data = this->Dispatch(op->data);
   BufferVar new_buf = this->VisitBufferDef(op->buffer, /*alloc_data=*/false);
 
   if (new_buf.same_as(op->buffer) && data.same_as(op->data)) {
@@ -724,7 +724,7 @@ Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const EvaluateNode* op) {
-  Expr value = this->VisitExpr(op->value);
+  Expr value = this->Dispatch(op->value);
   if (value.same_as(op->value)) {
     return ffi::GetRef<Stmt>(op);
   } else {
@@ -853,16 +853,16 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
   explicit IRSubstituteWithDataTypeLegalization(std::function<ffi::Optional<Expr>(const Var&)> vmap)
       : vmap_(vmap) {}
 
-  using DataTypeLegalizer::VisitExpr_;
+  using DataTypeLegalizer::Dispatch_;
   using DataTypeLegalizer::VisitStmt_;
 
-  Expr VisitExpr_(const VarNode* op) final {
+  Expr Dispatch_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     auto ret = vmap_(var);
     if (ret.has_value()) {
       return ret.value();
     }
-    return StmtExprMutator::VisitExpr_(op);
+    return StmtExprMutator::Dispatch_(op);
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {

@@ -200,8 +200,8 @@ class AutoPadder {
           : buffer_map_(buffer_map) {}
 
      private:
-      Expr VisitExpr_(const TensorLoadNode* _op) final {
-        TensorLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<TensorLoad>();
+      Expr Dispatch_(const TensorLoadNode* _op) final {
+        TensorLoad load = StmtExprMutator::Dispatch_(_op).as_or_throw<TensorLoad>();
         BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
         if (buffer_map_.count(buffer)) {
           return BufferLoad(buffer_map_[buffer], load->indices, load->span);

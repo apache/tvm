@@ -61,7 +61,7 @@ UpdatePointerStorageScope::UpdatePointerStorageScope(
   }
 }
 
-Expr UpdatePointerStorageScope::VisitExpr_(const VarNode* op) {
+Expr UpdatePointerStorageScope::Dispatch_(const VarNode* op) {
   auto it = new_var_remap_.find(op);
   if (it == new_var_remap_.end()) {
     return ffi::GetRef<Var>(op);
@@ -104,8 +104,8 @@ Stmt UpdatePointerStorageScope::VisitStmt_(const DeclBufferNode* op) {
   return UpdateBufferAccess(node);
 }
 
-Expr UpdatePointerStorageScope::VisitExpr_(const TensorLoadNode* op) {
-  auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+Expr UpdatePointerStorageScope::Dispatch_(const TensorLoadNode* op) {
+  auto node = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
   return UpdateBufferAccess(node);
 }
 

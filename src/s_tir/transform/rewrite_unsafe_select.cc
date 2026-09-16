@@ -41,25 +41,25 @@ class UnsafeExprDetector : public tirx::ExprFunctor<bool(const Expr& n)> {
  public:
   // select itself is always considered safe if condition is safe
   // Because we will issue guard to make sure it is.
-  bool VisitExpr_(const SelectNode* op) { return VisitExpr(op->condition); }
-  bool VisitExpr_(const CallNode* op) {
+  bool Dispatch_(const SelectNode* op) { return Dispatch(op->condition); }
+  bool Dispatch_(const CallNode* op) {
     if (op->op.same_as(prim::builtin::if_then_else())) {
-      return VisitExpr(op->args[0].as_or_throw<PrimExpr>());
+      return Dispatch(op->args[0].as_or_throw<PrimExpr>());
     } else if (op->op.same_as(tirx::builtin::address_of())) {
       if (const auto* load = op->args[0].as<TensorLoadNode>()) {
         for (const auto& index : load->indices) {
-          if (VisitExpr(index)) {
+          if (Dispatch(index)) {
             return true;
           }
         }
         return false;
       }
-      return VisitExpr(op->args[0]);
+      return Dispatch(op->args[0]);
     } else if (auto opt = op->op.as<Op>()) {
       auto effect_kind = static_cast<CallEffectKind>(op_call_effect_[opt.value()]);
       if (effect_kind == CallEffectKind::kPure || effect_kind == CallEffectKind::kExprAnnotation) {
         for (const Expr& arg : op->args) {
-          if (VisitExpr(arg)) return true;
+          if (Dispatch(arg)) return true;
         }
         return false;
       } else {
@@ -69,47 +69,47 @@ class UnsafeExprDetector : public tirx::ExprFunctor<bool(const Expr& n)> {
       return true;
     }
   }
-  bool VisitExpr_(const TensorLoadNode* op) {
+  bool Dispatch_(const TensorLoadNode* op) {
     // Load is considered unsafe.
     return true;
   }
-  bool VisitExpr_(const AddNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const SubNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const MulNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const DivNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const ModNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const FloorDivNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const FloorModNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const MinNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const MaxNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const EQNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const NENode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const LTNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const LENode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const GTNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const GENode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const AndNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const OrNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const NotNode* op) final { return VisitExpr(op->a); }
-  bool VisitExpr_(const LetNode* op) final { return VisitExpr(op->body) || VisitExpr(op->value); }
-  bool VisitExpr_(const CastNode* op) final { return VisitExpr(op->value); }
-  bool VisitExpr_(const BroadcastNode* op) final { return VisitExpr(op->value); }
-  bool VisitExpr_(const RampNode* op) final { return VisitExpr(op->base) && VisitExpr(op->stride); }
-  bool VisitExpr_(const ShuffleNode* op) final {
+  bool Dispatch_(const AddNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const SubNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const MulNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const DivNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const ModNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const FloorDivNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const FloorModNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const MinNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const MaxNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const EQNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const NENode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const LTNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const LENode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const GTNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const GENode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const AndNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const OrNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const NotNode* op) final { return Dispatch(op->a); }
+  bool Dispatch_(const LetNode* op) final { return Dispatch(op->body) || Dispatch(op->value); }
+  bool Dispatch_(const CastNode* op) final { return Dispatch(op->value); }
+  bool Dispatch_(const BroadcastNode* op) final { return Dispatch(op->value); }
+  bool Dispatch_(const RampNode* op) final { return Dispatch(op->base) && Dispatch(op->stride); }
+  bool Dispatch_(const ShuffleNode* op) final {
     for (PrimExpr e : op->vectors) {
-      if (VisitExpr(e)) return true;
+      if (Dispatch(e)) return true;
     }
     return false;
   }
-  bool VisitExpr_(const VarNode* op) final { return false; }
-  bool VisitExpr_(const IntImmNode* op) final { return false; }
-  bool VisitExpr_(const FloatImmNode* op) final { return false; }
-  bool VisitExpr_(const StringImmNode* op) final { return false; }
+  bool Dispatch_(const VarNode* op) final { return false; }
+  bool Dispatch_(const IntImmNode* op) final { return false; }
+  bool Dispatch_(const FloatImmNode* op) final { return false; }
+  bool Dispatch_(const StringImmNode* op) final { return false; }
 
  private:
   template <typename T>
   bool BinaryOp(const T* op) {
-    return VisitExpr(op->a) || VisitExpr(op->b);
+    return Dispatch(op->a) || Dispatch(op->b);
   }
 
   OpAttrMap<TCallEffectKind> op_call_effect_ = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
@@ -117,13 +117,13 @@ class UnsafeExprDetector : public tirx::ExprFunctor<bool(const Expr& n)> {
 
 class UnsafeSelectRewriter : public StmtExprMutator {
  public:
-  Expr VisitExpr_(const SelectNode* op) {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
+  Expr Dispatch_(const SelectNode* op) {
+    PrimExpr expr = StmtExprMutator::Dispatch_(op).as_or_throw<PrimExpr>();
     op = expr.as<SelectNode>();
     UnsafeExprDetector unsafe;
     PrimType cond_ty = op->condition.ty();
     bool cond_is_scalar_bool = cond_ty.MatchesCode(DLDataTypeCode::kDLBool) && cond_ty.IsScalar();
-    if ((unsafe.VisitExpr(op->true_value) || unsafe.VisitExpr(op->false_value)) &&
+    if ((unsafe.Dispatch(op->true_value) || unsafe.Dispatch(op->false_value)) &&
         cond_is_scalar_bool) {
       return Call(op->ty.as_or_throw<PrimType>(), prim::builtin::if_then_else(),
                   {op->condition, op->true_value, op->false_value})

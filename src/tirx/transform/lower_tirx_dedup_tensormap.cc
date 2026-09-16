@@ -166,7 +166,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
   }
 
  private:
-  using StmtExprMutator::VisitExpr_;
+  using StmtExprMutator::Dispatch_;
   using StmtExprMutator::VisitStmt_;
 
   Stmt VisitStmt_(const SeqStmtNode* op) final {
@@ -194,7 +194,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
     return SeqStmt::Flatten(seq);
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  Expr Dispatch_(const VarNode* op) final {
     Var v = ffi::GetRef<Var>(op);
     auto it = var_remap_.find(v);
     if (it != var_remap_.end()) {
@@ -259,7 +259,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BindNode* op) final {
-    Expr value = VisitExpr(op->value);
+    Expr value = Dispatch(op->value);
     if (IsTensorMapAlloca(op)) {
       // If this bind allocates a tensormap that is remapped to a canonical var, drop it.
       auto it = var_remap_.find(op->var);

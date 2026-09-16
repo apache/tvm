@@ -59,7 +59,7 @@ class ReturnRewriter : public StmtMutator {
 
   Stmt VisitStmt_(const ReturnNode* node) override {
     TVM_FFI_ICHECK_EQ(in_parallel_, 0) << "Return cannot be used in parallel scope.";
-    return WriteToOut(this->VisitExpr(node->value));
+    return WriteToOut(this->Dispatch(node->value));
   }
 
  private:
@@ -141,8 +141,8 @@ class SubroutineCallRewriter : public StmtExprMutator {
   explicit SubroutineCallRewriter(const ffi::Map<GlobalVar, ffi::String>& packed_func_methods)
       : packed_func_methods(packed_func_methods) {}
 
-  Expr VisitExpr_(const CallNode* op) override {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<Call>();
+  Expr Dispatch_(const CallNode* op) override {
+    auto node = StmtExprMutator::Dispatch_(op).as_or_throw<Call>();
 
     if (auto* gvar_ptr = node->op.as<GlobalVarNode>()) {
       auto gvar = ffi::GetRef<GlobalVar>(gvar_ptr);

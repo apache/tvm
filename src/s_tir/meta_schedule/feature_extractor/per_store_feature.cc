@@ -275,7 +275,7 @@ Pass SimplifyForFeatureExtraction() {
       return result.has_value() ? result.value()->value.cast<bool>() : false;
     }
 
-    Expr VisitExpr_(const SelectNode* node) final {
+    Expr Dispatch_(const SelectNode* node) final {
       if (HasBufferLoad(node->true_value) || HasBufferLoad(node->false_value) ||
           HasBufferLoad(node->condition)) {
         return ffi::GetRef<Select>(node);
@@ -283,7 +283,7 @@ Pass SimplifyForFeatureExtraction() {
       return MakeConst(node->ty.as_or_throw<PrimType>(), 1.0);
     }
 
-    Expr VisitExpr_(const VarNode* var) final {
+    Expr Dispatch_(const VarNode* var) final {
       if (unit_vars_.count(ffi::GetRef<Var>(var))) {
         return MakeConst(var->ty.as_or_throw<PrimType>(), 0.0);
       }

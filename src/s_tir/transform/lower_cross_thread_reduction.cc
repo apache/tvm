@@ -180,7 +180,7 @@ class BufferReplacer : private StmtExprMutator {
   explicit BufferReplacer(ffi::Map<BufferVar, BufferVar> buffer_map)
       : buffer_map_(std::move(buffer_map)) {}
 
-  Expr VisitExpr_(const TensorLoadNode* load) final {
+  Expr Dispatch_(const TensorLoadNode* load) final {
     auto it = buffer_map_.find(load->source.as_or_throw<tvm::tirx::BufferVar>());
     return it != buffer_map_.end() ? BufferLoad((*it).second, {0}) : ffi::GetRef<TensorLoad>(load);
   }

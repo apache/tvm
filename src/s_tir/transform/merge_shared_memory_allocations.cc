@@ -514,8 +514,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
     return node;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* op) final {
+    auto node = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     return VisitBufferAccess(std::move(node));
   }
 
@@ -582,14 +582,14 @@ class SharedMemoryRewriter : public StmtExprMutator {
     return buffer;
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
+  Expr Dispatch_(const CallNode* op) final {
     static const Op& ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
     if (op->op.same_as(tirx::builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       DLDataType dtype = op->args[0].as_or_throw<PrimExpr>().ty()->dtype;
       auto buffer_opt = GetBufferDataVar(op->args[1]);
       if (!buffer_opt.has_value()) {
-        return StmtExprMutator::VisitExpr_(op);
+        return StmtExprMutator::Dispatch_(op);
       }
       Var buffer = buffer_opt.value();
       bool is_shared = buffer->ty.as<BufferTypeNode>()
@@ -597,7 +597,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
                            : IsAppropriateSharedMemory(buffer);
       if (!is_shared || scope_stack_.empty() ||
           !ResolveAllocation(buffer.get(), scope_stack_.back())) {
-        return StmtExprMutator::VisitExpr_(op);
+        return StmtExprMutator::Dispatch_(op);
       }
       PrimExpr extra_offset = GetBufferOffset(buffer, dtype);
       Expr merged_data = buffer->ty.as<BufferTypeNode>()
@@ -612,7 +612,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       TVM_FFI_ICHECK((op->args.size() == 5U) || (op->args.size() == 6U));
       auto buffer_opt = GetBufferDataVar(op->args[0]);
       if (!buffer_opt.has_value()) {
-        return StmtExprMutator::VisitExpr_(op);
+        return StmtExprMutator::Dispatch_(op);
       }
       Var buffer = buffer_opt.value();
       DLDataType dtype;
@@ -631,7 +631,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       }
       if (!is_shared || scope_stack_.empty() ||
           !ResolveAllocation(buffer.get(), scope_stack_.back())) {
-        return StmtExprMutator::VisitExpr_(op);
+        return StmtExprMutator::Dispatch_(op);
       }
       PrimExpr extra_offset = GetBufferOffset(buffer, dtype);
       PrimExpr offset = this->VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>());
@@ -660,7 +660,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
                      op->args[5].as_or_throw<PrimExpr>()})
             .as_or_throw<PrimExpr>();
     } else {
-      return StmtExprMutator::VisitExpr_(op);
+      return StmtExprMutator::Dispatch_(op);
     }
   }
 

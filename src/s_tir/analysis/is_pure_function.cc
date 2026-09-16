@@ -64,8 +64,8 @@ class PurityChecker : TIRVisitorWithPath {
     }
   }
 
-  void VisitExpr_(const CallNode* call, ffi::reflection::AccessPath path) override {
-    TIRVisitorWithPath::VisitExpr_(call, path);
+  void Dispatch_(const CallNode* call, ffi::reflection::AccessPath path) override {
+    TIRVisitorWithPath::Dispatch_(call, path);
 
     static auto op_call_effect = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
     CallEffectKind effect = [&]() {

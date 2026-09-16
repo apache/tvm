@@ -314,8 +314,8 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* op) final {
+    TensorLoad load = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     auto it = buffer_remap_.find(load->source.as_or_throw<tvm::tirx::BufferVar>());
     if (it == buffer_remap_.end()) {
       return load;
@@ -328,8 +328,8 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return BufferLoad(new_buffer, indices, load->span);
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
-    Call call = StmtExprMutator::VisitExpr_(op).as_or_throw<Call>();
+  Expr Dispatch_(const CallNode* op) final {
+    Call call = StmtExprMutator::Dispatch_(op).as_or_throw<Call>();
     return opaque_access_rewriter_.Rewrite(call);
   }
 

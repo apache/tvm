@@ -275,8 +275,8 @@ class DoubleBufferInjector : public StmtExprMutator {
     return node;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* op) final {
+    auto node = StmtExprMutator::Dispatch_(op).as_or_throw<TensorLoad>();
     BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
 
     auto it = dbuffer_info_.find(buffer.get());
@@ -319,7 +319,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     return buf;
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  Expr Dispatch_(const VarNode* op) final {
     TVM_FFI_ICHECK(!dbuffer_info_.count(op));
     return ffi::GetRef<Var>(op);
   }

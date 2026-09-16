@@ -611,11 +611,11 @@ class StripIket : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(evaluate);
   }
 
-  Expr VisitExpr_(const CallNode* call) final {
+  Expr Dispatch_(const CallNode* call) final {
     if (call->op.same_as(IketRangeStartOp()) || call->op.same_as(IketSentinelOp())) {
       return IntImm(PrimType::UInt(32), 0);
     }
-    return StmtExprMutator::VisitExpr_(call);
+    return StmtExprMutator::Dispatch_(call);
   }
 
   TokenBufferSet token_buffers_;
@@ -647,15 +647,15 @@ class RemoveStrippedIketNoOps : public StmtExprMutator {
     if (IsEvaluateZero(body)) return body;
     if (body.same_as(attr_stmt->body)) return ffi::GetRef<Stmt>(attr_stmt);
     return AttrStmt(attr_stmt->node, attr_stmt->attr_key,
-                    VisitExpr(attr_stmt->value).as_or_throw<PrimExpr>(), body, attr_stmt->span);
+                    Dispatch(attr_stmt->value).as_or_throw<PrimExpr>(), body, attr_stmt->span);
   }
 
   Stmt VisitStmt_(const ForNode* loop) final {
     Stmt body = VisitStmt(loop->body);
     if (IsEvaluateZero(body)) return body;
     if (body.same_as(loop->body)) return ffi::GetRef<Stmt>(loop);
-    return For(loop->loop_var, VisitExpr(loop->min).as_or_throw<PrimExpr>(),
-               VisitExpr(loop->extent).as_or_throw<PrimExpr>(), loop->kind, body,
+    return For(loop->loop_var, Dispatch(loop->min).as_or_throw<PrimExpr>(),
+               Dispatch(loop->extent).as_or_throw<PrimExpr>(), loop->kind, body,
                loop->thread_binding, loop->annotations, loop->step, loop->span);
   }
 
@@ -663,11 +663,11 @@ class RemoveStrippedIketNoOps : public StmtExprMutator {
     Stmt body = VisitStmt(loop->body);
     if (IsEvaluateZero(body)) return body;
     if (body.same_as(loop->body)) return ffi::GetRef<Stmt>(loop);
-    return While(VisitExpr(loop->condition).as_or_throw<PrimExpr>(), body, loop->span);
+    return While(Dispatch(loop->condition).as_or_throw<PrimExpr>(), body, loop->span);
   }
 
   Stmt VisitStmt_(const IfThenElseNode* branch) final {
-    PrimExpr condition = VisitExpr(branch->condition).as_or_throw<PrimExpr>();
+    PrimExpr condition = Dispatch(branch->condition).as_or_throw<PrimExpr>();
     Stmt then_case = VisitStmt(branch->then_case);
     if (!branch->else_case.has_value()) {
       if (IsEvaluateZero(then_case)) return PreserveConditionEffects(condition);
@@ -1144,11 +1144,11 @@ class InstrumentOfficialKernel : public StmtExprMutator {
   Stmt VisitStmt_(const EvaluateNode* evaluate) final {
     if (const auto* call = evaluate->value.as<CallNode>();
         call && call->op.same_as(IketRangeEndOp())) {
-      PrimExpr token = VisitExpr(call->args[0]).as_or_throw<PrimExpr>();
+      PrimExpr token = Dispatch(call->args[0]).as_or_throw<PrimExpr>();
       if (call->args.size() == 2) {
         PayloadType payload_type = ValidatePayload(call->args[1]);
         PrimExpr payload =
-            NormalizePayload(VisitExpr(call->args[1]).as_or_throw<PrimExpr>(), payload_type);
+            NormalizePayload(Dispatch(call->args[1]).as_or_throw<PrimExpr>(), payload_type);
         return IfThenElse(token != 0, Evaluate(Event(token, std::move(payload))));
       }
       return Evaluate(Event(token));
@@ -1156,12 +1156,12 @@ class InstrumentOfficialKernel : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(evaluate);
   }
 
-  Expr VisitExpr_(const CallNode* call) final {
+  Expr Dispatch_(const CallNode* call) final {
     if (call->op.same_as(IketRangeStartOp())) {
       const Declaration& declaration = Lookup(DeclarationKind::kRange, call);
       PrimExpr event_id = IntImm(PrimType::UInt(32), declaration.event_id);
       if (declaration.has_payload) {
-        return Event(event_id, NormalizePayload(VisitExpr(call->args[1]).as_or_throw<PrimExpr>(),
+        return Event(event_id, NormalizePayload(Dispatch(call->args[1]).as_or_throw<PrimExpr>(),
                                                 declaration.payload_type));
       }
       return Event(event_id);
@@ -1171,7 +1171,7 @@ class InstrumentOfficialKernel : public StmtExprMutator {
       const Declaration& declaration = Lookup(DeclarationKind::kMark, call);
       PrimExpr event_id = IntImm(PrimType::UInt(32), declaration.event_id);
       if (declaration.has_payload) {
-        return Event(event_id, NormalizePayload(VisitExpr(call->args[1]).as_or_throw<PrimExpr>(),
+        return Event(event_id, NormalizePayload(Dispatch(call->args[1]).as_or_throw<PrimExpr>(),
                                                 declaration.payload_type));
       }
       return Event(event_id);
@@ -1180,7 +1180,7 @@ class InstrumentOfficialKernel : public StmtExprMutator {
       const Declaration& declaration = Lookup(DeclarationKind::kPush, call);
       PrimExpr event_id = IntImm(PrimType::UInt(32), declaration.event_id);
       if (declaration.has_payload) {
-        return Event(event_id, NormalizePayload(VisitExpr(call->args[1]).as_or_throw<PrimExpr>(),
+        return Event(event_id, NormalizePayload(Dispatch(call->args[1]).as_or_throw<PrimExpr>(),
                                                 declaration.payload_type));
       }
       return Event(event_id);
@@ -1191,7 +1191,7 @@ class InstrumentOfficialKernel : public StmtExprMutator {
     if (call->op.same_as(IketRangeEndOp())) {
       TVM_FFI_THROW(ValueError) << "range_end must be emitted in statement position";
     }
-    return StmtExprMutator::VisitExpr_(call);
+    return StmtExprMutator::Dispatch_(call);
   }
 
   const KernelIketInfo& info_;

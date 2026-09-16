@@ -114,8 +114,8 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* _load) final {
-    TensorLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* _load) final {
+    TensorLoad load = StmtExprMutator::Dispatch_(_load).as_or_throw<TensorLoad>();
     if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(src_)) {
       return BufferLoad(dst_, load->indices, load->span);
     }

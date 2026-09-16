@@ -55,9 +55,9 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
  public:
   explicit SplitPatternReNormalizer(const Analyzer& analyzer) : IRMutatorWithAnalyzer(analyzer) {}
 
-  using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::Dispatch_;
 
-  Expr VisitExpr_(const FloorDivNode* op) final {
+  Expr Dispatch_(const FloorDivNode* op) final {
     PrimExpr a = VisitPrimExpr(op->a);
     PrimExpr b = VisitPrimExpr(op->b);
     PrimExpr ret = floordiv(a, b);
@@ -140,13 +140,13 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     return ret;
   }
 
-  Expr VisitExpr_(const LENode* op) { return this->VisitExpr(Not(op->b < op->a)); }
+  Expr Dispatch_(const LENode* op) { return this->Dispatch(Not(op->b < op->a)); }
 
-  Expr VisitExpr_(const GTNode* op) { return this->VisitExpr(op->b < op->a); }
+  Expr Dispatch_(const GTNode* op) { return this->Dispatch(op->b < op->a); }
 
-  Expr VisitExpr_(const GENode* op) { return this->VisitExpr(Not(op->a < op->b)); }
+  Expr Dispatch_(const GENode* op) { return this->Dispatch(Not(op->a < op->b)); }
 
-  Expr VisitExpr_(const LTNode* op) {
+  Expr Dispatch_(const LTNode* op) {
     PrimExpr a = VisitPrimExpr(op->a);
     PrimExpr b = VisitPrimExpr(op->b);
     PrimExpr ret = prim::LT(a, b);
@@ -159,8 +159,8 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     return ret;
   }
 
-  Expr VisitExpr_(const NotNode* op) {
-    PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<PrimExpr>();
+  Expr Dispatch_(const NotNode* op) {
+    PrimExpr ret = IRMutatorWithAnalyzer::Dispatch_(op).as_or_throw<PrimExpr>();
     // Pattern var to match any expression
     PVar<PrimExpr> x, y;
     TRY_REWRITE(!(!x), x);

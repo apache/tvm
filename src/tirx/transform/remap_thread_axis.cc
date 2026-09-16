@@ -59,10 +59,10 @@ class ThreadAxisRewriter : private StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  Expr Dispatch_(const VarNode* op) final {
     auto it = vmap_.find(op);
     if (it != vmap_.end()) return it->second;
-    return StmtExprMutator::VisitExpr_(op);
+    return StmtExprMutator::Dispatch_(op);
   }
   // The thread map
   const std::unordered_map<std::string, IterVar>& tmap_;

@@ -470,7 +470,7 @@ class ExpressionHoister : public tirx::IRMutatorWithAnalyzer {
 
  private:
   using Parent = tirx::IRMutatorWithAnalyzer;
-  using Parent::VisitExpr_;
+  using Parent::Dispatch_;
   using Parent::VisitStmt_;
 
   explicit ExpressionHoister(std::vector<HoistInfoCollector::HoistInfo> loop_info,
@@ -554,11 +554,11 @@ class ExpressionHoister : public tirx::IRMutatorWithAnalyzer {
     }
   }
 
-  Expr VisitExpr_(const LetNode* op) final {
+  Expr Dispatch_(const LetNode* op) final {
     if (hoisted_let_bindings.count(op->var.get())) {
-      return this->VisitExpr(op->body);
+      return this->Dispatch(op->body);
     } else {
-      return Parent::VisitExpr_(op);
+      return Parent::Dispatch_(op);
     }
   }
 

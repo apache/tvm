@@ -52,7 +52,7 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
     }
   }
   void Match(const PrimExpr& param, const PrimExpr& arg) {
-    VisitExpr(param, arg);
+    Dispatch(param, arg);
     auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       if (auto repl = var_remap_->Get(var)) return ffi::Any(*std::move(repl));
       return ffi::Unchanged();
@@ -64,7 +64,7 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
   }
 
  private:
-  void VisitExpr(const Expr& expr, const PrimExpr& other) final {
+  void Dispatch(const Expr& expr, const PrimExpr& other) final {
     PrimExpr node = expr.as_or_throw<PrimExpr>();
     if (node.same_as(other)) {
       return;
@@ -73,16 +73,16 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
           << "Parameter expression " << node << " with dtype " << node.ty()->dtype
           << " cannot match to argument " << other << " with dtype " << other.ty()->dtype;
     } else {
-      ExprFunctor::VisitExpr(expr, other);
+      ExprFunctor::Dispatch(expr, other);
     }
   }
 
 #define TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(OpName)                       \
-  void VisitExpr_(const OpName* op, const PrimExpr& other) {             \
+  void Dispatch_(const OpName* op, const PrimExpr& other) {              \
     const auto* rhs = other.as<OpName>();                                \
     if (rhs) {                                                           \
-      VisitExpr(op->a, rhs->a);                                          \
-      VisitExpr(op->b, rhs->b);                                          \
+      Dispatch(op->a, rhs->a);                                           \
+      Dispatch(op->b, rhs->b);                                           \
     } else {                                                             \
       must_prove_ = must_prove_ && (ffi::GetRef<PrimExpr>(op) == other); \
     }                                                                    \
@@ -106,7 +106,7 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
   TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::FloorDivNode);
   TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::FloorModNode);
 
-  void VisitExpr_(const IntImmNode* op, const PrimExpr& other) {
+  void Dispatch_(const IntImmNode* op, const PrimExpr& other) {
     const auto* rhs = other.as<IntImmNode>();
     if (!rhs || (op->value != rhs->value)) {
       TVM_FFI_THROW(InternalError)
@@ -116,7 +116,7 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
     }
   }
 
-  void VisitExpr_(const FloatImmNode* op, const PrimExpr& other) {
+  void Dispatch_(const FloatImmNode* op, const PrimExpr& other) {
     const auto* rhs = other.as<FloatImmNode>();
     if (!rhs || (op->value != rhs->value)) {
       TVM_FFI_THROW(InternalError) << "Parameter expression " << ffi::GetRef<PrimExpr>(op)
@@ -125,7 +125,7 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
     }
   }
 
-  void VisitExpr_(const prim::CastNode* op, const PrimExpr& other) {
+  void Dispatch_(const prim::CastNode* op, const PrimExpr& other) {
     const auto* rhs = other.as<prim::CastNode>();
     if (!rhs) {
       TVM_FFI_THROW(InternalError)
@@ -133,10 +133,10 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
           << op->ty.as_or_throw<PrimType>()->dtype << " as the argument, "
           << "but was provided with the argument " << other;
     }
-    VisitExpr(op->value, rhs->value);
+    Dispatch(op->value, rhs->value);
   }
 
-  void VisitExpr_(const VarNode* op, const PrimExpr& rhs) {
+  void Dispatch_(const VarNode* op, const PrimExpr& rhs) {
     auto lhs = ffi::GetRef<Var>(op);
     PrimType lhs_ty = op->ty.as_or_throw<PrimType>();
 
@@ -147,17 +147,17 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
           << "Parameter expression " << lhs << " with dtype " << lhs_ty->dtype
           << " cannot match to argument " << rhs << " with dtype " << rhs.ty()->dtype;
     } else if (auto it = var_remap_->find(lhs); it != var_remap_->end()) {
-      VisitExpr((*it).second, rhs);
+      Dispatch((*it).second, rhs);
     } else {
       var_remap_->Set(lhs, rhs);
     }
   }
 
-  void VisitExpr_(const prim::SelectNode* op, const PrimExpr& other) {
+  void Dispatch_(const prim::SelectNode* op, const PrimExpr& other) {
     const auto* rhs = other.as<prim::SelectNode>();
     if (rhs) {
-      VisitExpr(op->true_value, rhs->true_value);
-      VisitExpr(op->false_value, rhs->false_value);
+      Dispatch(op->true_value, rhs->true_value);
+      Dispatch(op->false_value, rhs->false_value);
     } else {
       must_prove_ = must_prove_ && (ffi::GetRef<PrimExpr>(op) == other);
     }
@@ -207,7 +207,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
   }
 
  private:
-  Expr VisitExpr_(const VarNode* _op) final {
+  Expr Dispatch_(const VarNode* _op) final {
     if (auto it = var_remap_.find(ffi::GetRef<Var>(_op)); it != var_remap_.end()) {
       return (*it).second;
     } else {
@@ -215,8 +215,8 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const TensorLoadNode* _op) final {
-    TensorLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<TensorLoad>();
+  Expr Dispatch_(const TensorLoadNode* _op) final {
+    TensorLoad load = StmtExprMutator::Dispatch_(_op).as_or_throw<TensorLoad>();
     const BufferVar& buffer = SubstituteBuffer(load->source.as_or_throw<tvm::tirx::BufferVar>());
     if (buffer.same_as(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
       return load;
