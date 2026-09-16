@@ -572,7 +572,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   // set of volatile buffer.
   std::unordered_set<const VarNode*> volatile_buf_;
   // deep comparison of PrimExpr
-  ExprDeepEqual deep_equal_;
+  prim::ExprDeepEqual deep_equal_;
   // binding of let variables. Enables duplicate var defs that map to same value
   std::unordered_map<Var, const prim::LetNode*> let_binding_;
   // debug info for function being compiled

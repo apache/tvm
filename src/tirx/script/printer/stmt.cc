@@ -315,7 +315,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
   if (!parent_doc.has_value()) return std::nullopt;
   ExprDoc pdoc = parent_doc.value();
 
-  tirx::ExprDeepEqual expr_equal;
+  prim::ExprDeepEqual expr_equal;
 
   // Check elem_offset equality
   bool same_elem_offset = expr_equal(child->elem_offset, parent->elem_offset);

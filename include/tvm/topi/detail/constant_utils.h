@@ -28,7 +28,6 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/analysis.h>
 
 #include <string>
 #include <vector>
@@ -130,7 +129,7 @@ inline std::vector<int64_t> GetConstInt64Values(ffi::Array<PrimExpr> exprs,
  * \return result True if both expressions are equal, else false
  */
 inline bool EqualCheck(PrimExpr lhs, PrimExpr rhs) {
-  tvm::tirx::ExprDeepEqual expr_equal;
+  tvm::prim::ExprDeepEqual expr_equal;
   bool result = expr_equal(lhs, rhs);
   if (!result) {
     PrimExpr t = tvm::arith::Analyzer()->Simplify(lhs - rhs);

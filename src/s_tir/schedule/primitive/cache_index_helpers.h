@@ -29,7 +29,6 @@
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/analysis.h>  // For the ExprDeepEqual analysis
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>  // For the class StmtExprVisitor
@@ -48,10 +47,12 @@ namespace tirx {
           a number (which is the number of time that it is computed)
           It is important to note that the hash used is a ffi::StructuralHash (and not an
  ffi::ObjectPtrHash) as we need to hash similarly deeply equal terms. The comparison used is
- ExprDeepEqual, which is stricter than ffi::StructuralEqual (as it does not do variables remapping),
- so it is compatible with ffi::StructuralHash (intended to be used with ffi::StructuralEqual).
+ prim::ExprDeepEqual, which is stricter than ffi::StructuralEqual (as it does not do variables
+ remapping), so it is compatible with ffi::StructuralHash (intended to be used with
+ ffi::StructuralEqual).
  */
-using ComputationTable = support::OrderedMap<PrimExpr, size_t, ffi::StructuralHash, ExprDeepEqual>;
+using ComputationTable =
+    support::OrderedMap<PrimExpr, size_t, ffi::StructuralHash, prim::ExprDeepEqual>;
 
 /*!
  * \brief A cache of computations is made of a pair of two hashtables, which respectively associate
