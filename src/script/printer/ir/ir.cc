@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ir/type.h>
+#include <tvm/relax/global_info.h>
 
 #include "./utils.h"
 
@@ -171,15 +172,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<DummyGlobalInfo>(
+  IRDocsifier::vtable().set_dispatch<relax::DummyGlobalInfo>(
       "", [](GlobalInfo ginfo, AccessPath p, IRDocsifier d) -> Doc {
         return IR(d, "dummy_global_info")->Call({});
       });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<VDevice>(
-      "", [](VDevice vdev, AccessPath p, IRDocsifier d) -> Doc {
+  IRDocsifier::vtable().set_dispatch<relax::VDevice>(
+      "", [](relax::VDevice vdev, AccessPath p, IRDocsifier d) -> Doc {
         d->AddGlobalInfo("vdevice", vdev);
         ffi::Map<ffi::String, ffi::Any> config = vdev->target->ToConfig();
         return IR(d, "vdevice")

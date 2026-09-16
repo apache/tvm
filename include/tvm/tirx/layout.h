@@ -29,6 +29,7 @@
 #include <tvm/ffi/object.h>
 #include <tvm/ir/attr_registry_map.h>
 #include <tvm/ir/module.h>
+#include <tvm/target/target.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/var.h>
 
