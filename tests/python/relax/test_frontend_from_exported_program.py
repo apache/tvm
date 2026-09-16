@@ -74,14 +74,40 @@ def verify_model_numerically(
     example_args,
     rtol=1e-7,
     atol=1e-7,
-    *,
     dynamic_shapes=None,
+    *,
     input_sets=None,
     run_ep_decomposition=True,
 ):
+    """Verify model by comparing numerical outputs between PyTorch and TVM."""
+    if not env.has_llvm():
+        pytest.skip("need llvm")
     exported_program = export(torch_model, args=example_args, dynamic_shapes=dynamic_shapes)
     mod = from_exported_program(exported_program, run_ep_decomposition=run_ep_decomposition)
-    verify_numerically(mod, torch_model, example_args, input_sets=input_sets, rtol=rtol, atol=atol)
+    target = tvm.target.Target("llvm")
+    ex = relax.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    for args in (example_args,) if input_sets is None else input_sets:
+        with torch.no_grad():
+            pytorch_output = torch_model(*(arg.clone() for arg in args))
+
+        tvm_args = [tvm.runtime.tensor(arg.detach().numpy()) for arg in args]
+        tvm_output = vm["main"](*tvm_args)
+
+        tvm_outputs = (
+            [tvm_output] if isinstance(tvm_output, tvm.runtime.Tensor) else list(tvm_output)
+        )
+        pytorch_outputs = torch.utils._pytree.tree_leaves(pytorch_output)
+        assert len(pytorch_outputs) == len(tvm_outputs)
+        for pytorch_output, tvm_output in zip(pytorch_outputs, tvm_outputs):
+            pytorch_output_np = pytorch_output.numpy()
+            tvm_output_np = tvm_output.numpy()
+            assert pytorch_output_np.shape == tvm_output_np.shape, (
+                f"Shape mismatch: PyTorch {pytorch_output_np.shape} vs TVM {tvm_output_np.shape}"
+            )
+            assert pytorch_output_np.dtype == tvm_output_np.dtype
+            tvm.testing.assert_allclose(tvm_output_np, pytorch_output_np, rtol=rtol, atol=atol)
     return mod
 
 
