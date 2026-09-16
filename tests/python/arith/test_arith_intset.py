@@ -58,7 +58,7 @@ def test_scalable_vector():
     base = 5
     s = tvm.arith.IntSet.vector(tvm.tirx.Ramp(base, 2, tvm.tirx.vscale() * 4))
 
-    assert s.min_value.value == base
+    assert s.min_value.same_as(tvm.arith.int_set.neg_inf())
     assert s.max_value.same_as(tvm.arith.int_set.pos_inf())
 
 
