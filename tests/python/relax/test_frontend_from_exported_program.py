@@ -3298,19 +3298,13 @@ def test_pixel_shuffle():
 
 
 def test_einsum():
-    class Einsum1(Module):
-        def __init__(self):
+    class Einsum(Module):
+        def __init__(self, subscripts):
             super().__init__()
+            self.subscripts = subscripts
 
-        def forward(self, x):
-            return torch.einsum("ii", x)
-
-    class Einsum2(Module):
-        def __init__(self):
-            super().__init__()
-
-        def forward(self, x, y):
-            return torch.einsum("i,j->ij", x, y)
+        def forward(self, *args):
+            return torch.einsum(self.subscripts, *args)
 
     @tvm.script.ir_module
     class Expected1:
@@ -3339,34 +3333,12 @@ def test_einsum():
             return gv
 
     example_args = (torch.randn(4, 4, dtype=torch.float32),)
-    verify_model(Einsum1(), example_args, {}, Expected1, run_ep_decomposition=False)
+    verify_model(Einsum("ii"), example_args, {}, Expected1, run_ep_decomposition=False)
 
     example_args = (torch.randn(5, dtype=torch.float32), torch.randn(4, dtype=torch.float32))
-    verify_model(Einsum2(), example_args, {}, Expected2, run_ep_decomposition=False)
+    verify_model(Einsum("i,j->ij"), example_args, {}, Expected2, run_ep_decomposition=False)
 
-
-def test_einsum_repeated_subscript():
-    """einsum with repeated subscripts (diagonal / trace) on the default
-    decomposition path.
-
-    ``run_decompositions`` (default) lowers repeated-subscript einsum to
-    ``aten.diagonal`` + ``permute`` (+ ``sum`` for the trace), which the
-    frontend converts with the ``_diagonal`` lowering. For the zero-offset
-    square case (e.g. ``torch.einsum("ii->i")`` on an ``N x N`` input) the
-    frontend emits a single repeated-subscript einsum that reads the diagonal
-    directly; otherwise it permutes the diagonal dims to the trailing two axes,
-    slices each to the diagonal length, and runs an einsum ``...zz->...z``.
-    This used to raise ``AssertionError: Unsupported function types
-    ['diagonal.default']``.
-    """
-
-    class EinsumDiag(Module):
-        def __init__(self):
-            super().__init__()
-
-        def forward(self, x):
-            return torch.einsum("ii->i", x)
-
+    # Default decomposition lowers repeated subscripts through aten.diagonal.
     @tvm.script.ir_module
     class Expected:
         @R.function
@@ -3380,28 +3352,19 @@ def test_einsum_repeated_subscript():
             return gv
 
     example_args = (torch.randn(3, 3, dtype=torch.float32),)
-    verify_model(EinsumDiag(), example_args, {}, Expected)
+    verify_model(Einsum("ii->i"), example_args, {}, Expected)
 
-    class TraceEinsum(Module):
-        def forward(self, x):
-            return torch.einsum("ii->", x)
-
-    class BatchedDiagEinsum(Module):
-        def forward(self, x):
-            return torch.einsum("...ii->...i", x)
-
-    class AttentionEinsum(Module):
-        def forward(self, x, y):
-            return torch.einsum("abca,abcb->c", x, y)
-
-    verify_model_numerically(TraceEinsum(), (torch.randn(4, 4),))
-    verify_model_numerically(BatchedDiagEinsum(), (torch.randn(2, 3, 3),))
-    verify_model_numerically(AttentionEinsum(), (torch.randn(3, 3, 4, 3), torch.randn(3, 3, 4, 3)))
+    for subscripts, shapes in [
+        ("ii->", [(4, 4)]),
+        ("...ii->...i", [(2, 3, 3)]),
+        ("abca,abcb->c", [(3, 3, 4, 3), (3, 3, 4, 3)]),
+    ]:
+        verify_model_numerically(Einsum(subscripts), tuple(torch.randn(*shape) for shape in shapes))
 
     class DirectDiagonal(Module):
-        def __init__(self):
+        def __init__(self, offset):
             super().__init__()
-            self.offset = 1
+            self.offset = offset
 
         def forward(self, x):
             return torch.diagonal(x, self.offset, 0, 1)
@@ -3410,46 +3373,16 @@ def test_einsum_repeated_subscript():
         def forward(self, x):
             return torch.trace(x)
 
-    verify_model_numerically(DirectDiagonal(), (torch.randn(3, 4),))
-    verify_model_numerically(DirectTrace(), (torch.randn(4, 4),))
-
     # For a 3x4 input, 4 and -3 are the first empty diagonals. Larger offsets
     # in either direction check that negative diagonal lengths are clamped to zero.
-    class DirectDiagonalOutOfRange(Module):
-        def __init__(self, offset):
-            super().__init__()
-            self.offset = offset
+    for offset in [1, 4, 6, -3, -6]:
+        verify_model_numerically(DirectDiagonal(offset), (torch.randn(3, 4),))
+    verify_model_numerically(DirectTrace(), (torch.randn(4, 4),))
 
-        def forward(self, x):
-            return torch.diagonal(x, self.offset, 0, 1)
-
-    for offset in [4, 6, -3, -6]:
-        verify_model_numerically(DirectDiagonalOutOfRange(offset), (torch.randn(3, 4),))
-
-
-def test_einsum_diagonal_lowers_without_full_size_intermediate():
-    """Regression test: a zero-offset square diagonal must not materialize
-    full-size intermediates.
-
-    ``torch.einsum("ii->i")`` on an ``N x N`` input is decomposed to
-    ``aten.diagonal`` by ``run_decompositions``. Lowering that diagonal by
-    permuting the diagonal dims to the trailing axes, slicing each to the
-    diagonal length, and running the ``...zz->...z`` einsum materializes three
-    full-size ``N x N`` intermediates (an identity permute and two identity
-    strided slices) and hence three O(N^2) copy loops before the final O(N)
-    diagonal loop. The ``_diagonal`` fast path instead emits a single
-    repeated-subscript einsum that reads the diagonal directly, so no full-size
-    intermediate exists in the frontend graph (and therefore neither in the
-    lowered TIR). Assert that every intermediate produced by a call is at most
-    O(N), both before and after legalization.
-    """
-
-    class EinsumDiag(Module):
-        def forward(self, x):
-            return torch.einsum("ii->i", x)
-
+    # A square diagonal must read the input directly without O(N^2) copies,
+    # both before and after legalization.
     n = 8
-    exported_program = export(EinsumDiag(), args=(torch.randn(n, n),))
+    exported_program = export(Einsum("ii->i"), args=(torch.randn(n, n),))
     mod = from_exported_program(exported_program)
 
     def rank2_call_results(ir_mod):
