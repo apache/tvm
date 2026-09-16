@@ -50,7 +50,7 @@ from .expr import (
     is_prim_var,
 )
 from .function import BaseFunc, CallingConv
-from .global_info import GlobalInfo, DummyGlobalInfo, VDevice
+from .global_info import GlobalInfo
 from .module import IRModule
 from .op import Op, register_intrin_lowering, register_op_attr
 
