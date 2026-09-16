@@ -20,7 +20,7 @@ import operator
 import numpy as np
 import pytest
 import torch
-from frontend_torch_utils import (
+from test_frontend_from_fx import (
     AntialiasedResizeModel,
     ExponentialModel,
     PoolDivisorModel,
