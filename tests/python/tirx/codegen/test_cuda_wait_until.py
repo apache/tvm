@@ -95,9 +95,7 @@ def packed_contribution():
 
 def _wait_macro(source):
     return next(
-        line
-        for line in source.splitlines()
-        if line.startswith("#define") and "wait_until" in line
+        line for line in source.splitlines() if line.startswith("#define") and "wait_until" in line
     )
 
 
@@ -327,9 +325,7 @@ def test_a_declared_word_is_global_and_says_where_a_shared_wait_belongs():
     """
 
     with pytest.raises(ValueError, match="mbarrier"):
-        T.cuda.wait_until(
-            None, None, None, scope="cta", space="shared", ptx_type="b32"
-        )
+        T.cuda.wait_until(None, None, None, scope="cta", space="shared", ptx_type="b32")
 
 
 def test_the_four_direct_forms_are_gone():
