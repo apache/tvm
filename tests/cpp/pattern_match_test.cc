@@ -115,7 +115,7 @@ TEST(Pattern, Basic) {
     TVM_FFI_ICHECK(ramp(px, PConst<PrimExpr>(1), planes).Match(prim::Ramp(x, 1, 10)));
     TVM_FFI_ICHECK(planes.Eval().as<IntImmNode>()->value == 10);
     TVM_FFI_ICHECK(ramp(px, PConst<PrimExpr>(1), planes).Match(prim::Ramp(x, 1, scalable_lanes)));
-    TVM_FFI_ICHECK(tirx::ExprDeepEqual()(planes.Eval(), scalable_lanes));
+    TVM_FFI_ICHECK(prim::ExprDeepEqual()(planes.Eval(), scalable_lanes));
     TVM_FFI_ICHECK(!ramp(px, PConst<PrimExpr>(1), planes).Match(prim::Ramp(x, 2, 10)));
   }
   // broadcast pattern
@@ -124,7 +124,7 @@ TEST(Pattern, Basic) {
     TVM_FFI_ICHECK(planes.Eval().as<IntImmNode>()->value == 10);
     TVM_FFI_ICHECK(broadcast(px * py, planes).Match(prim::Broadcast(x * 10, 10)));
     TVM_FFI_ICHECK(broadcast(px, planes).Match(prim::Broadcast(x, scalable_lanes)));
-    TVM_FFI_ICHECK(tirx::ExprDeepEqual()(planes.Eval(), scalable_lanes));
+    TVM_FFI_ICHECK(prim::ExprDeepEqual()(planes.Eval(), scalable_lanes));
   }
 }
 
