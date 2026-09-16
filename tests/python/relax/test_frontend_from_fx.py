@@ -2721,6 +2721,46 @@ def test_squeeze():
     verify_model(Squeeze2(), input_info, {}, Expected2)
 
 
+def test_squeeze_out_of_range_dim():
+    input_info = [([1, 2, 1], "float32")]
+
+    class Squeeze(Module):
+        def __init__(self, dim):
+            super().__init__()
+            self.dim = dim
+
+        def forward(self, input):
+            return input.squeeze(self.dim)
+
+    # torch rejects an out-of-range dim with IndexError, but only when the model is
+    # executed, and fx.symbolic_trace does not execute it, so the invalid axis reaches the
+    # frontend and has to be rejected there. Note that a tuple whose axes are all out of
+    # range used to be filtered down to an empty list and silently reinterpreted as
+    # squeeze(None), removing every size-1 dim instead of reporting the bad axis.
+    for dim in ((5,), 3, -4, (-4,), (0, 5)):
+        with pytest.raises(ValueError, match="squeeze dim .* is out of range"):
+            from_fx(fx.symbolic_trace(Squeeze(dim)), input_info)
+
+    # In-range dims, including the tuple form, still convert.
+    class SqueezeTuple(Module):
+        def forward(self, input):
+            return input.squeeze((0, 2))
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 2, 1), dtype="float32"),
+        ) -> R.Tensor((2,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((2,), dtype="float32") = R.squeeze(inp_0, axis=[0, 2])
+                gv: R.Tensor((2,), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(SqueezeTuple(), input_info, {}, Expected)
+
+
 def test_unsqueeze():
     input_info = [([1, 3, 10, 10], "float32")]
 
