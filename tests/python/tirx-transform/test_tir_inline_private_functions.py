@@ -186,7 +186,7 @@ class TestInlineCallOccurringInExpression(BaseTestCase):
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer(16, "float32")):
             for i in range(16):
-                A[i] = tvm.tirx.call_tir(Before.subroutine, i)
+                A[i] = Before.subroutine(i)
 
         @T.prim_func(private=True, s_tir=True)
         def subroutine(i: T.int32) -> T.float32:

@@ -2936,7 +2936,7 @@ def subroutine_call_returning_int():
     class mod:
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer(2, "float32")):
-            tvm.tirx.call_tir(mod.subroutine, A[0]) + tvm.tirx.call_tir(mod.subroutine, A[1])
+            mod.subroutine(A[0]) + mod.subroutine(A[1])
 
         @T.prim_func(s_tir=True)
         def subroutine(x: T.float32) -> T.float32:
@@ -3003,10 +3003,7 @@ def subroutine_call_without_arguments():
     class mod:
         @T.prim_func(s_tir=True)
         def main():
-            # Should be equivalent to the bare "mod.subroutine()", but
-            # that relies on `GlobalVar.__call__` returning the
-            # correct IR type.
-            tirx.call_tir(mod.subroutine)
+            mod.subroutine()
 
         @T.prim_func(s_tir=True)
         def subroutine():

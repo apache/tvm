@@ -244,12 +244,10 @@ def test_bind_target_with_device_host_call_same_func():
             C: T.Buffer((128, 128), "int32"),
         ):
             T.func_attr({"global_symbol": "main"})
-            length: T.let[T.int32] = tvm.tirx.call_tir(Before.add, 64, 64)  # Call from host
+            length: T.let[T.int32] = Before.add(64, 64)  # Call from host
             for bx in T.thread_binding(length, "blockIdx.x"):
                 for tx in T.thread_binding(length, "threadIdx.x"):
-                    C[bx, tx] = tvm.tirx.call_tir(
-                        Before.add, A[bx, tx], B[bx, tx]
-                    )  # Call from device
+                    C[bx, tx] = Before.add(A[bx, tx], B[bx, tx])  # Call from device
 
     @I.ir_module
     class Expected:
@@ -275,12 +273,10 @@ def test_bind_target_with_device_host_call_same_func():
                     "target": T.target("cuda", host={"kind": "llvm", "opt-level": 0}),
                 }
             )
-            length: T.let[T.int32] = tvm.tirx.call_tir(Expected.add_host, 64, 64)  # Call from host
+            length: T.let[T.int32] = Expected.add_host(64, 64)  # Call from host
             for bx in T.thread_binding(length, "blockIdx.x"):
                 for tx in T.thread_binding(length, "threadIdx.x"):
-                    C[bx, tx] = tvm.tirx.call_tir(
-                        Expected.add, A[bx, tx], B[bx, tx]
-                    )  # Call from device
+                    C[bx, tx] = Expected.add(A[bx, tx], B[bx, tx])  # Call from device
 
     After = tvm.tirx.transform.BindTarget(
         tvm.target.Target("cuda", host={"kind": "llvm", "opt-level": 0})
@@ -300,10 +296,10 @@ def test_bind_target_with_tirx_device_entry():
         @T.prim_func
         def main(A: T.Buffer((1,), "int32")):
             T.func_attr({"global_symbol": "main"})
-            host_value: T.let[T.int32] = tvm.tirx.call_tir(Before.add, 1, 2)
+            host_value: T.let[T.int32] = Before.add(1, 2)
             T.device_entry()
             tx = T.thread_id([1])
-            A[tx] = tvm.tirx.call_tir(Before.add, host_value, 3)
+            A[tx] = Before.add(host_value, 3)
 
     @I.ir_module
     class Expected:
@@ -331,10 +327,10 @@ def test_bind_target_with_tirx_device_entry():
                     ),
                 }
             )
-            host_value: T.let[T.int32] = tvm.tirx.call_tir(Expected.add_host, 1, 2)
+            host_value: T.let[T.int32] = Expected.add_host(1, 2)
             T.device_entry()
             tx = T.thread_id([1])
-            A[tx] = tvm.tirx.call_tir(Expected.add, host_value, 3)
+            A[tx] = Expected.add(host_value, 3)
 
     target = tvm.target.Target(
         {"kind": "cuda", "arch": "sm_100a"}, host={"kind": "llvm", "opt-level": 0}

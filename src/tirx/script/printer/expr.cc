@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
@@ -349,6 +350,16 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
                                 "types, but got "
                              << call->ty;
   };
+  auto get_call_return_type_doc = [&]() -> ExprDoc {
+    if (call->ty.IsMissing()) {
+      return IdDoc("tvm")->Attr("ir")->Attr("Type")->Attr("missing")->Call({});
+    }
+    if (call_prim_type || call->ty.as<PointerTypeNode>()) {
+      return get_call_type_doc(call_p->Attr("ty"));
+    }
+    // Annotation spellings such as None for an empty tuple are not type values.
+    return d->AddMetadata(call->ty);
+  };
   if (call->attrs.defined()) {
     ffi::Array<ExprDoc> call_args;
     int n_args = call->args.size();
@@ -359,7 +370,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     ExprDoc op_doc = call->op.as<Op>()
                          ? LiteralDoc::Str(call->op.as<Op>().value()->name, call_p->Attr("op"))
                          : d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
-    ExprDoc ret_ty_doc = get_call_type_doc(call_p->Attr("ty"));
+    ExprDoc ret_ty_doc = get_call_return_type_doc();
     return TIR(d, "Call")->Call(
         {op_doc, ListDoc(call_args)}, {"attrs", "ret_ty"},
         {d->AsDoc<ExprDoc>(call->attrs, call_p->Attr("attrs")), ret_ty_doc});
@@ -450,11 +461,43 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
   if (dtype_print_location == tirx::ScriptDtypePrintLocation::kLast) {
     args.push_back(get_call_type_doc(call_p->Attr("dtype")));
   }
-  if (call->op.as<GlobalVarNode>() && !call->ty.IsMissing()) {
-    // GlobalVar call syntax uses the shared Call default of a missing return type.
-    // Retain explicit result types when printing a typed PrimFunc call.
-    return TIR(d, "Call")->Call({prefix.value(), ListDoc(args)}, {"ret_ty"},
-                                {get_call_type_doc(call_p->Attr("ty"))});
+  if (call->op.as<GlobalVarNode>()) {
+    // Match shared Call construction across the existing function signatures.
+    Type declared_ret_type = Type::Missing();
+    const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(call->op->ty->type_index());
+    for (const char* name : {"ret_type", "ret"}) {
+      bool found = ffi::reflection::ForEachFieldInfoWithEarlyStop(
+          type_info, [&](const TVMFFIFieldInfo* field) {
+            if (std::string_view(field->name.data, field->name.size) == name) {
+              auto value = ffi::reflection::FieldGetter(field)(call->op->ty).as<Type>();
+              if (value.has_value()) {
+                if (std::string_view(name) == "ret") {
+                  const auto* tuple = value.value().as<TupleTypeNode>();
+                  if (!value.value().as<PrimTypeNode>() && !value.value().as<PointerTypeNode>() &&
+                      !(tuple && tuple->fields.empty())) {
+                    return false;
+                  }
+                  bool derives_result = ffi::reflection::ForEachFieldInfoWithEarlyStop(
+                      type_info, [&](const TVMFFIFieldInfo* signature_field) {
+                        return std::string_view(signature_field->name.data,
+                                                signature_field->name.size) == "derive_func" &&
+                               !ffi::reflection::FieldGetter(signature_field)(call->op->ty)
+                                    .as<std::nullptr_t>();
+                      });
+                  if (derives_result) return false;
+                }
+                declared_ret_type = value.value();
+                return true;
+              }
+            }
+            return false;
+          });
+      if (found) break;
+    }
+    if (!ffi::StructuralEqual()(call->ty, declared_ret_type)) {
+      ExprDoc ret_type_doc = get_call_return_type_doc();
+      return TIR(d, "Call")->Call({prefix.value(), ListDoc(args)}, {"ret_ty"}, {ret_type_doc});
+    }
   }
   return prefix.value()->Call(args);
 }

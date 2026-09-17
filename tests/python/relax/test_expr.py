@@ -355,6 +355,7 @@ def test_call():
     func = rx.Var("func", rx.FuncType([dtype], dtype))
     arg = rx.Var("arg", dtype)
     call = rx.Call(func, [arg])
+    assert call.ty == dtype
     assert call.op.same_as(func)
     assert len(call.args) == 1
     assert call.args[0].same_as(arg)

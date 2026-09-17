@@ -1076,7 +1076,7 @@ def test_cuda_device_func_call():
         ):
             for bx in T.thread_binding(1024, "blockIdx.x"):
                 for tx in T.thread_binding(1024, "threadIdx.x"):
-                    C[bx, tx] = tvm.tirx.call_tir(Module.add, A[bx, tx], B[bx, tx])
+                    C[bx, tx] = Module.add(A[bx, tx], B[bx, tx])
 
     lib = tvm.compile(Module, target="cuda")
     cuda_code = lib.mod.imports[0].inspect_source()
@@ -1118,12 +1118,10 @@ def test_device_host_call_same_func():
             B: T.Buffer((128, 128), "int32"),
             C: T.Buffer((128, 128), "int32"),
         ):
-            length: T.let[T.int32] = tvm.tirx.call_tir(Module.add, 64, 64)  # Call from host
+            length: T.let[T.int32] = Module.add(64, 64)  # Call from host
             for bx in T.thread_binding(length, "blockIdx.x"):
                 for tx in T.thread_binding(length, "threadIdx.x"):
-                    C[bx, tx] = tvm.tirx.call_tir(
-                        Module.add, A[bx, tx], B[bx, tx]
-                    )  # Call from device
+                    C[bx, tx] = Module.add(A[bx, tx], B[bx, tx])  # Call from device
 
     # 1. If we set host to llvm, it will raise an error of
     #    "Return should be transformed to return zero before LLVM code generation."
