@@ -121,8 +121,9 @@ bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
     if (param->ty.as<BufferTypeNode>()) return false;
   }
 
-  // Extension statement roots may introduce binder or naming rules that this
-  // pass cannot preserve. Only inline roots supported by native TIRX traversal.
+  // Generalize the old SBlockRealize exclusion to all non-native statement roots:
+  // they may introduce binder or naming rules that this pass cannot preserve.
+  // Only inline roots supported by native TIRX traversal.
   struct NativeStmtTable : StmtExprVisitor {
     static VTable Make() {
       VTable table;

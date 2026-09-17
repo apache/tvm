@@ -57,6 +57,9 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlock(tirx::StmtExprVisitor*
         kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(buf); }));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitBufferMetadata(buf));
   }
+  // Define match-buffer targets before visiting reads/writes that may use them.
+  // This differs from the old TIRX native order (reads/writes before matches)
+  // and agrees with structural traversal's definition-before-use contract.
   for (const MatchBufferRegion& match_buffer_region : op->match_buffers) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
         kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(match_buffer_region->buffer); }));
