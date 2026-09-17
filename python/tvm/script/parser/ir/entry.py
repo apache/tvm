@@ -61,7 +61,7 @@ def ir_module(
         extra_vars = utils.inspect_class_capture(mod)
         # Resolve closure variables hidden by PEP 563 (annotation-only names)
         utils.resolve_closure_vars(mod, extra_vars, outer_stack)
-        m = parse(mod, extra_vars, check_well_formed=check_well_formed, s_tir=s_tir)
+        m = parse(mod, extra_vars, check_well_formed=check_well_formed)
 
         if base_py_module_inherited:
             # Lazy import: tvm.relax cannot be imported at module level in tvm.script.parser

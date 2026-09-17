@@ -504,7 +504,7 @@ def test_conditional_inequality_access_regions(case):
     )
     for var, (minimum, extent) in reversed(list(zip(variables, domains))):
         body = tirx.For(var, minimum, extent, tirx.ForKind.SERIAL, body)
-    block = tirx.SBlock([], [], [], "conditional", body)
+    block = s_tir.SBlock([], [], [], "conditional", body)
     # Unbounded access sets conservatively cover the whole buffer.
     outside_expected = [(0, 256)] if case == "unbounded" else domains
     reads, writes, opaque = s_tir.analysis.get_sblock_access_region(

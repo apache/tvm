@@ -115,7 +115,7 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread ||
+    if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread ||
         op->attr_key == attr::kDeviceEntry) {
       // Enter GPU scope for thread extent and virtual thread attributes
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
@@ -204,7 +204,7 @@ class CallSubstitutor : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread ||
+    if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread ||
         op->attr_key == attr::kDeviceEntry) {
       // Enter GPU scope for thread extent and virtual thread attributes
       bool last_is_under_gpu_scope = is_under_gpu_scope_;

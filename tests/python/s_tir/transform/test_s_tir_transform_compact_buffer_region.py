@@ -37,7 +37,7 @@ class BaseCompactTest:
         before = tvm.IRModule.from_expr(self.before.with_attr("global_symbol", "main"))
         expected = tvm.IRModule.from_expr(self.expected.with_attr("global_symbol", "main"))
         simplify = tvm.transform.Sequential(
-            [tirx.transform.StmtSimplify(), tirx.transform.RemoveNoOp()]
+            [s_tir.transform.StmtSimplify(), tirx.transform.RemoveNoOp()]
         )
         after = simplify(s_tir.transform.CompactBufferAllocation(is_strict=is_strict)(before))
         expected = simplify(expected)
@@ -1300,7 +1300,7 @@ def test_loop_var_does_not_escape_compacted_buffer_extent():
                 tmp[j] = A[j]
 
     after = s_tir.transform.CompactBufferAllocation()(tvm.IRModule.from_expr(before))
-    assert tirx.analysis.verify_well_formed(after)
+    assert s_tir.analysis.verify_well_formed(after)
 
 
 class TestCompactSymbolicBound0:

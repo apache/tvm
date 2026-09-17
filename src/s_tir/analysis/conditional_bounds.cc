@@ -28,6 +28,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
 

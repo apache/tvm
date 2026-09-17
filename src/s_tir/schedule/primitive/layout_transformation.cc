@@ -23,11 +23,12 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <optional>
 #include <variant>
 
-#include "../../../tirx/ir/ir_mutator_with_analyzer.h"
+#include "../../../s_tir/ir/ir_mutator_with_analyzer.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -761,13 +762,13 @@ class TransformLayoutPlanner : public StmtExprVisitor {
  * \brief Collect blocks that are part of root block to be passed to ScheduleState::Replace for SRef
  * reuse
  */
-class ReuseBlocksCollector : public tirx::StmtExprVisitor {
+class ReuseBlocksCollector : public s_tir::StmtExprVisitor {
  public:
-  using tirx::StmtExprVisitor::Visit_;
+  using s_tir::StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return tirx::StmtExprVisitor::Visit(value);
+    return s_tir::StmtExprVisitor::Visit(value);
   }
 
   static ffi::Map<SBlock, SBlock> Collect(SBlock result,
@@ -788,7 +789,7 @@ class ReuseBlocksCollector : public tirx::StmtExprVisitor {
 
  private:
   /*! \brief Override the Stmt visiting behaviour */
-  ffi::Optional<VisitInterrupt> Visit_(const tirx::SBlockNode* block) override {
+  ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* block) override {
     SBlock block_ref = ffi::GetRef<SBlock>(block);
     auto it = new_block_to_old_.find(block_ref);
     if (it != new_block_to_old_.end()) {
@@ -803,10 +804,10 @@ class ReuseBlocksCollector : public tirx::StmtExprVisitor {
   ffi::Map<SBlock, SBlock> new_block_to_old_;
 };
 
-class TransformLayoutRewriter : public tirx::IRMutatorWithAnalyzer {
+class TransformLayoutRewriter : public s_tir::IRMutatorWithAnalyzer {
  public:
-  using tirx::IRMutatorWithAnalyzer::Mutate;
-  using tirx::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::IRMutatorWithAnalyzer::Mutate;
+  using s_tir::IRMutatorWithAnalyzer::Mutate_;
 
   /*!
    * \brief Rewrite the access to the buffer after the transformation
@@ -864,7 +865,7 @@ class TransformLayoutRewriter : public tirx::IRMutatorWithAnalyzer {
     *indices = this->IterMapSimplifyWithContext(*indices, true);
   }
 
-  using Parent = tirx::IRMutatorWithAnalyzer;
+  using Parent = s_tir::IRMutatorWithAnalyzer;
 
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
     const auto* stmt = value.as<StmtNode>();

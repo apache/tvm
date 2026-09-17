@@ -26,7 +26,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
@@ -161,7 +160,12 @@ class PrimFuncSpecializer : public StmtExprMutator {
     ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
       if (op->ty.as<BufferTypeNode>()) {
         if (def_region_kind() == kTVMFFIDefRegionKindSimple) {
-          specializer_->MutateAllocBuffer(GetBufferVar(op));
+          const BufferVar buffer = GetBufferVar(op);
+          specializer_->MutateAllocBuffer(buffer);
+          // Structural extension nodes expose buffer definitions without a native
+          // statement hook. Plan their metadata as uses after defining the buffer.
+          return this->WithDefRegionKind(kTVMFFIDefRegionKindNone,
+                                         [&]() { return VisitBufferMetadata(buffer); });
         } else {
           specializer_->ValidateBufferUse(GetBufferVar(op));
         }
@@ -169,41 +173,16 @@ class PrimFuncSpecializer : public StmtExprMutator {
       return StmtExprVisitor::Visit_(op);
     }
 
+    ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
+      return this->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
+                                     [&]() { return this->Visit(op->buffer); });
+    }
+
     ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
       // The declaration establishes the buffer before visiting its data expression.
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
           kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->buffer); }));
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(op->buffer));
       return Visit(op->data);
-    }
-
-    ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
-      // Block allocations were planned before all other block children by the specializer.
-      for (const BufferVar& buffer : op->alloc_buffers) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
-            kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(buffer); }));
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(buffer));
-      }
-      for (const IterVar& iter : op->iter_vars) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(iter->dom->min));
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(iter->dom->extent));
-      }
-      for (const TensorRegion& region : op->reads) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(region));
-      }
-      for (const TensorRegion& region : op->writes) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(region));
-      }
-      for (const MatchBufferRegion& match : op->match_buffers) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
-            kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(match->buffer); }));
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(match->buffer));
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(match->source));
-      }
-      if (op->init.has_value()) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->init.value()));
-      }
-      return Visit(op->body);
     }
 
     PrimFuncSpecializer* specializer_;
@@ -347,7 +326,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
         << "(see discussion on https://github.com/apache/tvm/pull/14565 for more details).  "
         << "Please add a definition for this buffer, "
         << "either as a BufferType-annotated PrimFunc parameter, "
-        << "in a tirx::SBlock's alloc_buffer, "
+        << "in a block's buffer allocations, "
         << "or in a DeclBuffer statement.";
   }
 

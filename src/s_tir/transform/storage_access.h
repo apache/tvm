@@ -27,7 +27,7 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/stmt_functor.h>
+#include <tvm/s_tir/stmt_functor.h>
 
 #include <unordered_map>
 #include <vector>

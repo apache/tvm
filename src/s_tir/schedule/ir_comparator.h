@@ -20,6 +20,7 @@
 #define TVM_S_TIR_SCHEDULE_IR_COMPARATOR_H_
 
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <string>
 #include <unordered_map>

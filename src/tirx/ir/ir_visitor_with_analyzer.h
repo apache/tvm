@@ -36,12 +36,13 @@ namespace tirx {
 
 class IRVisitorWithAnalyzer : public StmtExprVisitor {
  public:
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IRVisitorWithAnalyzer, StmtExprVisitor)
+
   PrimExpr Simplify(const PrimExpr& expr) { return analyzer_->Simplify(expr); }
 
   using StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op);
-  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op);
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op);
   ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op);
   ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op);
@@ -54,6 +55,8 @@ class IRVisitorWithAnalyzer : public StmtExprVisitor {
   // condition.
 
  protected:
+  static void InitVTable(VTable* vtable);
+  explicit IRVisitorWithAnalyzer(const VTable* vtable) : StmtExprVisitor(vtable) {}
   /*! \brief internal analyzer field. */
   arith::Analyzer analyzer_;
 

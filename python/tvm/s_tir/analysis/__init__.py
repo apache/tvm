@@ -23,7 +23,7 @@ from typing import Optional, Union
 import tvm
 from tvm.ir import IRModule, TensorRegion
 from tvm.tirx.expr import Var
-from tvm.tirx.stmt import SBlock
+from tvm.s_tir import SBlock
 
 from tvm.tirx import Buffer, Stmt
 from tvm.tirx.function import PrimFunc
@@ -38,7 +38,7 @@ def get_sblock_access_region(
 
     Parameters
     ----------
-    block: tvm.tirx.SBlock
+    block: tvm.s_tir.SBlock
         The block in which we are detecting read/write regions.
 
     buffer_var_map : Dict[Var, Buffer]
@@ -63,7 +63,7 @@ def get_sblock_read_write_region(
 
     Parameters
     ----------
-    block: tvm.tirx.SBlock
+    block: tvm.s_tir.SBlock
         The block in which we are detecting read/write regions.
 
     buffer_var_map : Dict[Var, Buffer]
@@ -214,3 +214,13 @@ def is_pure_function(func: PrimFunc) -> bool:
 def assert_pure_function(func: PrimFunc) -> bool:
     """Asserts that the function is a pure function"""
     return _ffi_api.is_pure_function(func, True)  # type: ignore # pylint: disable=no-member
+
+
+def verify_well_formed(obj: PrimFunc | IRModule, assert_mode: bool = True) -> bool:
+    """Verify definitions, buffer loads and S-TIR block boundaries.
+
+    Modules may contain both S-TIR and ordinary PrimFuncs.  Shared variable
+    identities are checked across function boundaries.  Use the TIRX-specific
+    verifier separately for execution-scope restrictions on ordinary PrimFuncs.
+    """
+    return _ffi_api.VerifyWellFormed(obj, assert_mode)

@@ -27,14 +27,14 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
 
-#include "../../tirx/ir/ir_mutator_with_analyzer.h"
-#include "../../tirx/transform/ir_utils.h"
+#include "../../s_tir/ir/ir_mutator_with_analyzer.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -230,10 +230,10 @@ class VarTouchedAnalysis : public StmtExprVisitor {
 
 // Inject virtual thread loop
 // rewrite the buffer access pattern when necessary.
-class VTInjector : public tirx::IRMutatorWithAnalyzer {
+class VTInjector : public s_tir::IRMutatorWithAnalyzer {
  public:
-  using tirx::IRMutatorWithAnalyzer::Mutate;
-  using tirx::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::IRMutatorWithAnalyzer::Mutate;
+  using s_tir::IRMutatorWithAnalyzer::Mutate_;
 
   // constructor
   VTInjector(arith::AnalyzerObj* analyzer, Var var, int num_threads,
@@ -686,10 +686,10 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
    */
 };
 
-class VirtualThreadInjector : public tirx::IRMutatorWithAnalyzer {
+class VirtualThreadInjector : public s_tir::IRMutatorWithAnalyzer {
  public:
-  using tirx::IRMutatorWithAnalyzer::Mutate;
-  using tirx::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::IRMutatorWithAnalyzer::Mutate;
+  using s_tir::IRMutatorWithAnalyzer::Mutate_;
 
   using IRMutatorWithAnalyzer::IRMutatorWithAnalyzer;
 
@@ -722,7 +722,7 @@ Pass InjectVirtualThread() {
     n->body = ffi::make_object<VirtualThreadInjector>(analyzer)
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(std::move(n->body));
-    n->body = ConvertSSA(std::move(n->body));
+    n->body = s_tir::ConvertSSA(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectVirtualThread", {});

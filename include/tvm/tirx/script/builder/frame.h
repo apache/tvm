@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
 #define TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
 
+#include <tvm/s_tir/stmt.h>
 #include <tvm/script/ir_builder/base.h>
 #include <tvm/script/ir_builder/ir/frame.h>
 #include <tvm/tirx/exec_scope.h>
@@ -87,7 +88,7 @@ class PrimFuncFrameNode : public TIRFrameNode {
   ffi::Array<tvm::tirx::BufferVar> root_alloc_buffers;
 
   // TIR utils
-  /*! \brief Whether this PrimFunc uses s_tir semantics (root SBlock wrap,
+  /*! \brief Whether this PrimFunc uses s_tir semantics (root s_tir::SBlock wrap,
    *  parser layout default = None). Default (false) = tirx semantics. */
   bool s_tir;
   /*! \brief Whether it is a persistent kernel. */
@@ -152,7 +153,7 @@ class SBlockFrameNode : public TIRFrameNode {
   /*! \brief The buffer allocated in the block. */
   ffi::Array<tvm::tirx::BufferVar> alloc_buffers;
   /*! \brief The match buffer regions. */
-  ffi::Array<tvm::tirx::MatchBufferRegion> match_buffers;
+  ffi::Array<tvm::s_tir::MatchBufferRegion> match_buffers;
   /*! \brief The annotation of the block. */
   ffi::Optional<ffi::Map<ffi::String, Any>> annotations;
   /*! \brief The corresponding values of the iter vars. */

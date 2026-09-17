@@ -43,7 +43,7 @@ class Matmul:
 
 
 @tvm.register_global_func("s_tir.meta_schedule.cpu.test_apply_custom_rule")
-def sch_fn(sch: tvm.s_tir.Schedule, block: tvm.tirx.SBlock) -> list[tvm.s_tir.Schedule]:
+def sch_fn(sch: tvm.s_tir.Schedule, block: tvm.s_tir.SBlock) -> list[tvm.s_tir.Schedule]:
     raise ValueError("Intended for s_tir.meta_schedule.cpu.test_apply_custom_rule")
 
 

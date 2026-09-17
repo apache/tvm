@@ -27,6 +27,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/sblock_scope.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/function.h>
 
 #include <unordered_map>

@@ -369,7 +369,7 @@ std::vector<State> MultiLevelTilingNode::AddAsyncPipeline(State state) const {
 void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
                                                        const s_tir::SBlockRV& block) const {
   // Filter out invalid vector lanes according to the data type.
-  const tirx::SBlockNode* block_node = (*sch)->GetSRef(block)->StmtAs<tirx::SBlockNode>();
+  const s_tir::SBlockNode* block_node = (*sch)->GetSRef(block)->StmtAs<s_tir::SBlockNode>();
   TVM_FFI_ICHECK_EQ(block_node->writes.size(), 1);
   const DLDataType dtype =
       block_node->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>()->dtype->dtype;

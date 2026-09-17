@@ -26,9 +26,10 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <queue>
 #include <unordered_map>
@@ -37,8 +38,8 @@
 
 #include "../../arith/interval_set.h"
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tirx/ir/ir_mutator_with_analyzer.h"
-#include "../../tirx/transform/ir_utils.h"
+#include "../../s_tir/ir/ir_mutator_with_analyzer.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -455,10 +456,10 @@ class HoistInfoCollector : public StmtExprVisitor {
   std::unordered_set<const VarNode*> active_loop_vars;
 };
 
-class ExpressionHoister : public tirx::IRMutatorWithAnalyzer {
+class ExpressionHoister : public s_tir::IRMutatorWithAnalyzer {
  public:
-  using tirx::IRMutatorWithAnalyzer::Mutate;
-  using tirx::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::IRMutatorWithAnalyzer::Mutate;
+  using s_tir::IRMutatorWithAnalyzer::Mutate_;
 
   static Stmt Hoist(Stmt stmt, HoistExpressionConfig config) {
     auto loop_info = HoistInfoCollector::Collect(stmt, config);
@@ -466,12 +467,12 @@ class ExpressionHoister : public tirx::IRMutatorWithAnalyzer {
     arith::Analyzer analyzer;
     auto hoister = ffi::make_object<ExpressionHoister>(std::move(loop_info), config, analyzer);
     stmt = hoister->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt));
-    stmt = ConvertSSA(std::move(stmt));
+    stmt = s_tir::ConvertSSA(std::move(stmt));
     return stmt;
   }
 
  private:
-  using Parent = tirx::IRMutatorWithAnalyzer;
+  using Parent = s_tir::IRMutatorWithAnalyzer;
 
  public:
   explicit ExpressionHoister(std::vector<HoistInfoCollector::HoistInfo> loop_info,
@@ -592,7 +593,7 @@ Pass HoistExpression() {
   return tvm::transform::Sequential(
       {
           insertion_pass,
-          tirx::transform::StmtSimplify(),
+          s_tir::transform::StmtSimplify(),
           tirx::transform::RemoveNoOp(),
       },
       "s_tir.HoistExpression");
@@ -630,7 +631,7 @@ static Pass HoistIfThenElseImpl() {
   return tvm::transform::Sequential(
       {
           insertion_pass,
-          tirx::transform::StmtSimplify(),
+          s_tir::transform::StmtSimplify(),
           tirx::transform::RemoveNoOp(),
       },
       "s_tir.HoistIfThenElse");
@@ -648,7 +649,7 @@ static Pass HoistIfThenElseBasicImpl() {
   return tvm::transform::Sequential(
       {
           insertion_pass,
-          tirx::transform::StmtSimplify(),
+          s_tir::transform::StmtSimplify(),
           tirx::transform::RemoveNoOp(),
       },
       "s_tir.HoistIfThenElseBasic");

@@ -27,6 +27,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
@@ -157,12 +158,12 @@ BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
     TVM_FFI_THROW(InternalError) << "ValueError: Can not bind non-input param to buffer.";
   } else if (const auto* buffer_load = param.as<TensorLoadNode>()) {
     SBlockFrame frame = FindSBlockFrame("T.match_buffer");
-    frame->match_buffers.push_back(tvm::tirx::MatchBufferRegion(
+    frame->match_buffers.push_back(tvm::s_tir::MatchBufferRegion(
         buffer, BufferRegionFromLoad(ffi::GetRef<tvm::TensorLoad>(buffer_load))));
   } else if (const auto* buffer_region = param.as<tvm::TensorRegionNode>()) {
     SBlockFrame frame = FindSBlockFrame("T.match_buffer");
     frame->match_buffers.push_back(
-        tvm::tirx::MatchBufferRegion(buffer, ffi::GetRef<tvm::TensorRegion>(buffer_region)));
+        tvm::s_tir::MatchBufferRegion(buffer, ffi::GetRef<tvm::TensorRegion>(buffer_region)));
   } else {
     TVM_FFI_THROW(InternalError) << "ValueError: Unexpected type for TIR MatchBuffer.";
   }
@@ -399,7 +400,7 @@ ffi::Variant<BufferVar, AllocBufferFrame> SBlockAllocBuffer(
            "Use `T.alloc_buffer()` inside default (tirx) PrimFuncs.";
   }
 
-  // Walk up the frame stack: attach to the innermost enclosing SBlock (lifting
+  // Walk up the frame stack: attach to the innermost enclosing s_tir::SBlock (lifting
   // the allocation past any intermediate For/If/While frames). Fall back to the
   // PrimFunc root when no sblock is in scope. When neither is present (raw
   // IRBuilder construction used by tests), just return the buffer.
@@ -685,7 +686,8 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
   }
   n->iter_var = iter_var;
   n->extent = extent;
-  n->attr_key = iter_var->thread_tag == "vthread" ? "virtual_thread" : "thread_extent";
+  n->attr_key =
+      iter_var->thread_tag == "vthread" ? tvm::tirx::attr::virtual_thread : "thread_extent";
   return LaunchThreadFrame(n);
 }
 

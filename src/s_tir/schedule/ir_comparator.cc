@@ -20,6 +20,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/builtin.h>
 
 #include "../../tirx/analysis/check_contains.h"

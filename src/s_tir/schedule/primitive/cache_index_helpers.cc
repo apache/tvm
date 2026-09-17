@@ -28,10 +28,11 @@
 #include <tvm/arith/analyzer.h>  // For the arith::Analyzer::Simplify() method simplifying terms
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>      // For std::find_if
 #include <unordered_map>  // For the hashtable datatype
@@ -214,7 +215,7 @@ ffi::Optional<VisitInterrupt> ComputationsDoneBy::Visit(ffi::AnyView expr_value)
 
   auto opt_expr = expr_value.as<PrimExpr>();
   if (!opt_expr) {
-    return StmtExprVisitor::Visit(expr_value);
+    return s_tir::StmtExprVisitor::Visit(expr_value);
   }
   PrimExpr expr = opt_expr.value();
   if (expr.as<IntImmNode>() != nullptr || expr.as<FloatImmNode>() != nullptr ||
@@ -322,7 +323,7 @@ ComputationTable ComputationsDoneBy::ComputationsDoneByChildrenOf(
     std::function<bool(const PrimExpr&)> can_contain_computations) {
   auto computations_done_by =
       ffi::make_object<ComputationsDoneBy>(is_eligible_computation, can_contain_computations);
-  computations_done_by->StmtExprVisitor::Visit(expr);
+  computations_done_by->s_tir::StmtExprVisitor::Visit(expr);
   cache_.cache_expr_table_computations_[expr] = computations_done_by->table_of_computations_;
 
   return computations_done_by->table_of_computations_;
@@ -336,7 +337,7 @@ ComputationTable ComputationsDoneBy::ComputationsDoneByChildrenOf(
     std::function<bool(const PrimExpr&)> can_contain_computations) {
   auto computations_done_by =
       ffi::make_object<ComputationsDoneBy>(is_eligible_computation, can_contain_computations);
-  computations_done_by->StmtExprVisitor::Visit(stmt);
+  computations_done_by->s_tir::StmtExprVisitor::Visit(stmt);
   cache_.cache_stmt_table_computations_[stmt] = computations_done_by->table_of_computations_;
 
   return computations_done_by->table_of_computations_;
@@ -371,7 +372,7 @@ DirectSubexpr::DirectSubexpr(std::function<bool(const PrimExpr&)> is_eligible_co
  */
 ffi::Optional<VisitInterrupt> DirectSubexpr::Visit(ffi::AnyView expr_value) {
   auto opt_expr = expr_value.as<PrimExpr>();
-  if (!opt_expr) return StmtExprVisitor::Visit(expr_value);
+  if (!opt_expr) return s_tir::StmtExprVisitor::Visit(expr_value);
   PrimExpr expr = opt_expr.value();
   if (entered_) {
     if (is_eligible_computation_(expr)) {
@@ -379,7 +380,7 @@ ffi::Optional<VisitInterrupt> DirectSubexpr::Visit(ffi::AnyView expr_value) {
       return std::nullopt;
     } else {
       if (can_contain_computations_(expr)) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(expr));
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit(expr));
       }
       return std::nullopt;
     }
@@ -387,7 +388,7 @@ ffi::Optional<VisitInterrupt> DirectSubexpr::Visit(ffi::AnyView expr_value) {
 
   if (can_contain_computations_(expr)) {
     entered_ = true;
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(expr));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit(expr));
   }
   return std::nullopt;
 }

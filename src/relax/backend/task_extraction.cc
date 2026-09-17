@@ -22,9 +22,10 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/s_tir/meta_schedule/extracted_task.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../s_tir/meta_schedule/module_equality.h"
 
@@ -50,11 +51,11 @@ using s_tir::meta_schedule::ModuleHash;
  *   Then we will have a ExtractedTask for all three functions, whose weight
  *   is 5 + 3 + 2 = 10.
  */
-class BlockCounter : public tirx::StmtExprVisitor {
+class BlockCounter : public s_tir::StmtExprVisitor {
  public:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<tvm::ExprNode>()) return std::nullopt;
-    return tirx::StmtExprVisitor::Visit(value);
+    return s_tir::StmtExprVisitor::Visit(value);
   }
 
   static size_t GetSBlockCount(const tirx::PrimFunc& func) {
@@ -64,9 +65,9 @@ class BlockCounter : public tirx::StmtExprVisitor {
   }
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const tirx::SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* op) final {
     ++count;
-    return tirx::StmtExprVisitor::Visit_(op);
+    return s_tir::StmtExprVisitor::Visit_(op);
   }
   size_t count{0};
 };

@@ -27,8 +27,8 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -53,11 +53,11 @@ const VarNode* GetBufferVarFromData(const Expr& data) {
 }
 
 // Get fragment information from tensor intrinsics
-class FragmentGetter : public StmtExprVisitor {
+class FragmentGetter : public s_tir::StmtExprVisitor {
  public:
-  using StmtExprVisitor::Visit_;
+  using s_tir::StmtExprVisitor::Visit_;
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
 
     static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
     static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
@@ -145,13 +145,13 @@ std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const
 namespace s_tir {
 
 // Check shape of fragment making sure it is a valid shape for tvm_mma_sync
-class FragmentChecker : public StmtExprVisitor {
+class FragmentChecker : public s_tir::StmtExprVisitor {
  public:
-  using StmtExprVisitor::Visit_;
+  using s_tir::StmtExprVisitor::Visit_;
   explicit FragmentChecker(const FragmentGetter& getter) : fragment_getter(getter) {}
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     // Check shape when calling tvm_mma_sync
     static const Op& tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
     static const Op& tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
@@ -194,19 +194,20 @@ class FragmentChecker : public StmtExprVisitor {
 };
 
 // Store the metadata into attributes
-class InferFragmenter : public StmtExprMutator {
+class InferFragmenter : public s_tir::StmtExprMutator {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using s_tir::StmtExprMutator::Mutate;
+  using s_tir::StmtExprMutator::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
   }
 
   explicit InferFragmenter(const FragmentGetter& getter) : fragment_getter(getter) {}
 
   UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    Stmt stmt =
+        s_tir::StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     const VarNode* buffer = op->buffer.get();
     if (fragment_getter.fragments.count(buffer)) {
       FragmentInfo info = fragment_getter.fragments.at(buffer);

@@ -27,11 +27,11 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
-#include "../../tirx/transform/ir_utils.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -161,7 +161,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     for (const VarNode* v : detector->touched_) {
       dbuffer_info_[v] = StorageEntry();
     }
-    return ConvertSSA(Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt)));
+    return s_tir::ConvertSSA(Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt)));
   }
 
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {

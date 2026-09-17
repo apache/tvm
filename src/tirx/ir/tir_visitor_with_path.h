@@ -45,12 +45,17 @@ namespace tirx {
 class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflection::AccessPath)>,
                            protected StmtFunctor<void(const Stmt&, ffi::reflection::AccessPath)> {
  public:
+  TIRVisitorWithPath() = default;
   template <typename TObjectRef>
   void operator()(TObjectRef&& obj) {
     Visit(std::forward<TObjectRef>(obj), ffi::reflection::AccessPath::Root());
   }
 
  protected:
+  using StmtVisitor = StmtFunctor<void(const Stmt&, ffi::reflection::AccessPath)>;
+  using VTable = StmtVisitor::VTable;
+  explicit TIRVisitorWithPath(const VTable* vtable) : StmtVisitor(vtable) {}
+  static void InitVTable(VTable* vtable) { StmtVisitor::InitVTable(vtable); }
   // Delegate to ExprFunctor::Dispatch for PrimExpr, and any subclasses
   virtual inline void Visit(const PrimExpr& obj, ffi::reflection::AccessPath path) {
     Dispatch(obj, path);
@@ -93,7 +98,6 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   virtual void Visit(const GlobalVar& obj, ffi::reflection::AccessPath path) {}
   virtual void Visit(const Range& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const TensorRegion& obj, ffi::reflection::AccessPath path);
-  virtual void Visit(const MatchBufferRegion& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const IterVar& obj, ffi::reflection::AccessPath path);
 
   // Called when entering/exiting the scope of a GlobalVar definition.
@@ -147,8 +151,6 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   void Dispatch_(const AssertStmtNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const SeqStmtNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const EvaluateNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const SBlockNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const tirx::TilePrimitiveCallNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const ScopeIdDefStmtNode* op, ffi::reflection::AccessPath path) override;
 
@@ -306,8 +308,8 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
 
 namespace {
 
-template <typename DerivedVerifier>
-class Verifier : protected TIRVisitorWithPath {
+template <typename DerivedVerifier, typename PathVisitor = TIRVisitorWithPath>
+class Verifier : protected PathVisitor {
  public:
   template <typename TirNodeRef>
   static bool Verify(const TirNodeRef& node, bool assert_on_error) {
@@ -318,6 +320,10 @@ class Verifier : protected TIRVisitorWithPath {
 
  protected:
   explicit Verifier(bool assert_on_error) : assert_on_error_(assert_on_error) {}
+  void DispatchDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
+    Verify(false) << "TIR verifier does not support statement " << op->GetTypeKey() << " at "
+                  << path;
+  }
 
   /* \brief Helper class to handle the bool-or-assert handles
    *

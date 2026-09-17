@@ -406,7 +406,7 @@ def get_root_block(sch: Schedule, func_name: str = "main") -> SBlockRV:
 
 
 def collect_block_iter_vars_used_in_access_region(
-    block: tirx.SBlock, region: list[ir.Range]
+    block: s_tir.SBlock, region: list[ir.Range]
 ) -> set[tirx.Var]:
     """Collect the block iter variables used in the access region of a buffer region."""
     tir_vars = set()
@@ -428,7 +428,7 @@ def collect_vars_used_in_prim_expr(expr: tirx.Expr) -> set[tirx.Var]:
     return tir_vars
 
 
-def detect_dominant_read(block: tirx.SBlock) -> tirx.Expr:
+def detect_dominant_read(block: s_tir.SBlock) -> tirx.Expr:
     """Detect the dominant read indices in the block."""
     dominant_read = None
     num_read_iters = -1

@@ -19,6 +19,11 @@
 import json
 
 _PRIM_TYPE_KEY_RENAMES = {
+    "tirx.BufferRegion": "ir.TensorRegion",
+    "tirx.SBlock": "s_tir.SBlock",
+    "tirx.SBlockRealize": "s_tir.SBlockRealize",
+    "tirx.MatchBufferRegion": "s_tir.MatchBufferRegion",
+    "tirx.TensorIntrin": "s_tir.TensorIntrin",
     "tirx.StringImm": "ir.prim.StringImm",
     "tirx.Cast": "ir.prim.Cast",
     "tirx.Add": "ir.prim.Add",
@@ -119,7 +124,23 @@ def upgrade_json(json_str):
     # compatible with the pre-unification Relax/TIRx schemas and with graphs
     # written before the canonical Var field was renamed to `name`.  Rewriting
     # nodes in place preserves node indices and shared references.
-    for node in data.get("nodes", []):
+    nodes = data.get("nodes", [])
+    buffer_region_type = None
+    for node in nodes:
+        if node.get("type") == "tirx.BufferRegion":
+            fields = node.get("data")
+            if not isinstance(fields, dict) or "buffer" not in fields:
+                raise ValueError("Legacy tirx.BufferRegion requires a buffer field")
+            fields["source"] = fields.pop("buffer")
+            # Typed BufferRegion already carries type/span.  Before it became
+            # an Expr, it had only buffer/region; supply that form's defaults
+            # by appending a type node so existing graph indices stay intact.
+            if "ty" not in fields:
+                if buffer_region_type is None:
+                    buffer_region_type = len(nodes)
+                    nodes.append({"type": "tirx.BufferRegionType", "data": {"span": 0}})
+                fields["ty"] = buffer_region_type
+            fields.setdefault("span", 0)
         node["type"] = _PRIM_TYPE_KEY_RENAMES.get(node.get("type"), node.get("type"))
         if node.get("type") == "relax.expr.Var":
             node["type"] = "ir.Var"

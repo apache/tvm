@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/runtime/device_api.h>  // For `kAllocAlignment`
+#include <tvm/s_tir/stmt.h>
 
 #include <algorithm>
 #include <utility>
@@ -575,8 +576,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::MatchBufferRegion>(
-      "", [](tirx::MatchBufferRegion stmt, AccessPath p, IRDocsifier d) -> Doc {
+  IRDocsifier::vtable().set_dispatch<s_tir::MatchBufferRegion>(
+      "", [](s_tir::MatchBufferRegion stmt, AccessPath p, IRDocsifier d) -> Doc {
         Frame frame = d->frames.back();
         ExprDoc lhs = DefineBuffer(stmt->buffer, frame, d);
         ExprDoc src_buffer = d->AsDoc<ExprDoc>(stmt->source, p->Attr("source"));
@@ -593,7 +594,7 @@ TVM_SCRIPT_REPR(tirx::BufferTypeNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::IterNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::TileLayoutNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::ComposeLayoutNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::MatchBufferRegionNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(s_tir::MatchBufferRegionNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

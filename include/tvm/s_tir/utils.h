@@ -20,6 +20,7 @@
 #define TVM_S_TIR_UTILS_H_
 
 #include <tvm/s_tir/sblock_scope.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/stmt.h>
 
 #include <unordered_map>
@@ -32,7 +33,7 @@ namespace tirx {
  * then check if the downcasting succeeded.
  * \param Result The result variable, used for checking
  * \param SRef The SRef to be cast
- * \param Type The type to be cast to, can be SBlock or For
+ * \param Type The type to be cast to, can be s_tir::SBlock or For
  */
 #define TVM_SREF_AS_OR_ERR(Result, SRef, Type) \
   SRef->StmtAs<Type>();                        \
@@ -48,7 +49,7 @@ namespace tirx {
  */
 #define TVM_SREF_TO_SBLOCK(SRef)                                                        \
   [&]() {                                                                               \
-    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::tirx::SBlockNode)           \
+    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::s_tir::SBlockNode)          \
                   << "Expects StmtSRef `" << #SRef << "` points to `Block`, but gets: " \
                   << ((SRef)->stmt ? (SRef)->stmt->GetTypeKey() : "None");              \
     return result;                                                                      \
@@ -101,15 +102,15 @@ namespace tirx {
  * \param stmt The statement, or the realize node of the statement whose sref to be set
  * \param seq_index The seq_index to be set
  * \param include_loops Ignore ForNodes if this value is false
- * \note The method is NOP for statements that are not schedulable, i.e. not For or SBlock
+ * \note The method is NOP for statements that are not schedulable, i.e. not For or s_tir::SBlock
  */
 inline void SetSeqIndex(std::unordered_map<const StmtNode*, StmtSRef>& stmt2ref,  // NOLINT(*)
                         const Stmt& stmt, int seq_index, bool include_loops = true) {
-  if (const auto* realize = stmt.as<SBlockRealizeNode>()) {
-    const SBlockNode* block = realize->block.get();
+  if (const auto* realize = stmt.as<s_tir::SBlockRealizeNode>()) {
+    const s_tir::SBlockNode* block = realize->block.get();
     TVM_FFI_ICHECK(stmt2ref.count(block));
     stmt2ref.at(block)->seq_index = seq_index;
-  } else if (const auto* block = stmt.as<SBlockNode>()) {
+  } else if (const auto* block = stmt.as<s_tir::SBlockNode>()) {
     TVM_FFI_ICHECK(stmt2ref.count(block));
     stmt2ref.at(block)->seq_index = seq_index;
   } else if (const auto* loop = stmt.as<ForNode>()) {

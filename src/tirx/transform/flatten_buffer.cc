@@ -178,37 +178,6 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     return it->second;
   }
 
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    TVM_FFI_ICHECK_EQ(op->match_buffers.size(), 0)
-        << "Unexpected MatchBufferRegion found during tirx.transform.FlattenBuffer.  "
-        << "All MatchBufferRegion should be removed in tirx.transform.LowerMatchBuffer.";
-
-    SBlock block = ffi::GetRef<SBlock>(op);
-
-    ffi::Array<BufferVar> alloc_buffers = op->alloc_buffers;
-    alloc_buffers.MutateByApply([this](BufferVar buf) { return Define(buf).flattened; });
-    if (!alloc_buffers.same_as(op->alloc_buffers)) {
-      block.CopyOnWrite()->alloc_buffers = alloc_buffers;
-    }
-
-    ffi::Array<TensorRegion> reads = op->reads;
-    reads.MutateByApply([this](TensorRegion region) { return MutateBufferRegion(region); });
-    if (!reads.same_as(op->reads)) {
-      block.CopyOnWrite()->reads = reads;
-    }
-
-    ffi::Array<TensorRegion> writes = op->writes;
-    writes.MutateByApply([this](TensorRegion region) { return MutateBufferRegion(region); });
-    if (!writes.same_as(op->writes)) {
-      block.CopyOnWrite()->writes = writes;
-    }
-
-    // The retained or rebuilt block bypasses the generic entry's current-node check.
-    return StmtExprMutator::Mutate_(block.get(),
-                                    block.unique() ? inplace_mode : InplaceMode::kDisallow)
-        .ValueOrUnchanged(block);
-  }
-
   UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     const FlatInfo& info = Define(op->buffer);
     if (info.flattened.same_as(op->buffer)) {
@@ -321,31 +290,6 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     buffers_used_.insert(original_buffer);
     const FlatInfo& info = Lookup(original_buffer);
     return BufferLoad(info.flattened, FoldIndices(info, node->indices), node->span);
-  }
-
-  TensorRegion MutateBufferRegion(TensorRegion region) {
-    const FlatInfo& info = Lookup(region->source.as_or_throw<tvm::tirx::BufferVar>());
-    if (info.flattened.same_as(region->source.as_or_throw<tvm::tirx::BufferVar>())) {
-      return region;
-    }
-
-    ffi::Array<PrimExpr> min_values;
-    ffi::Array<PrimExpr> max_values;
-    for (const auto& range : region->region) {
-      min_values.push_back(range->min);
-      max_values.push_back(range->min + range->extent - 1);
-    }
-
-    ffi::Array<PrimExpr> flattened_min = FoldIndices(info, min_values);
-    ffi::Array<PrimExpr> flattened_max = FoldIndices(info, max_values);
-
-    ffi::Array<Range> flattened_ranges;
-    TVM_FFI_ICHECK_EQ(flattened_min.size(), flattened_max.size());
-    for (size_t i = 0; i < flattened_min.size(); i++) {
-      flattened_ranges.push_back(Range(flattened_min[i], flattened_max[i] + 1));
-    }
-
-    return BufferRegion(info.flattened, flattened_ranges);
   }
 
   /*! \brief Set of buffers accessed during visitation (used to emit DeclBuffer for param buffers).

@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/s_tir/stmt.h>
+
 #include "./utils.h"
 
 namespace tvm {
@@ -23,12 +25,12 @@ namespace script {
 
 namespace printer {
 
-Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
-               ffi::Optional<tirx::SBlockRealize> opt_realize,
+Doc PrintBlock(IRDocsifier d, s_tir::SBlock block, AccessPath block_p,  //
+               ffi::Optional<s_tir::SBlockRealize> opt_realize,
                ffi::Optional<AccessPath> opt_realize_p) {
   With<TIRFrame> frame(d, block);
   TVM_FFI_ICHECK_EQ(opt_realize.has_value(), opt_realize_p.has_value());
-  const tirx::SBlockRealizeNode* realize =
+  const s_tir::SBlockRealizeNode* realize =
       opt_realize.has_value() ? opt_realize.value().get() : nullptr;
   AccessPath realize_p = *opt_realize_p;
 
@@ -189,7 +191,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
   }
   // Step 6. Handle `match_buffer`
   for (int i = 0, n = block->match_buffers.size(); i < n; ++i) {
-    tirx::MatchBufferRegion buffer_region = block->match_buffers[i];
+    s_tir::MatchBufferRegion buffer_region = block->match_buffers[i];
     AccessPath buffer_region_p = block_p->Attr("match_buffers")->ArrayItem(i);
     StmtDoc doc = d->AsDoc<StmtDoc>(buffer_region, buffer_region_p);
     (*frame)->stmts.push_back(doc);
@@ -218,8 +220,8 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::SBlockRealize>(
-      "", [](tirx::SBlockRealize realize, AccessPath p, IRDocsifier d) -> Doc {
+  IRDocsifier::vtable().set_dispatch<s_tir::SBlockRealize>(
+      "", [](s_tir::SBlockRealize realize, AccessPath p, IRDocsifier d) -> Doc {
         Doc doc = PrintBlock(d, realize->block, p->Attr("block"), realize, p);
         // since we do not have d->AsDoc for realize->block,
         // we should add possible doc decoration manually.
@@ -229,14 +231,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::SBlock>(
-      "", [](tirx::SBlock block, AccessPath p, IRDocsifier d) -> Doc {
+  IRDocsifier::vtable().set_dispatch<s_tir::SBlock>(
+      "", [](s_tir::SBlock block, AccessPath p, IRDocsifier d) -> Doc {
         return PrintBlock(d, block, p, std::nullopt, std::nullopt);
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::SBlockNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::SBlockRealizeNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(s_tir::SBlockNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(s_tir::SBlockRealizeNode, ReprPrintTIR);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<tirx::ScopeIdDefStmt>(

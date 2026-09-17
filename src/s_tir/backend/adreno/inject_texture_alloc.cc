@@ -22,12 +22,13 @@
  */
 
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../../backend/opencl/runtime/texture.h"
-#include "../../../tirx/ir/ir_mutator_with_analyzer.h"
+#include "../../../s_tir/ir/ir_mutator_with_analyzer.h"
 #include "../../../tirx/transform/ir_utils.h"
 
 namespace tvm {
@@ -42,10 +43,10 @@ using runtime::IsTextureStorage;
 /*!
  * \brief Inject Texture Alloc Intrinsic right after AllocBufferNode are realized.
  */
-class TextureAllocInjector : public tirx::IRMutatorWithAnalyzer {
+class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
  public:
-  using tirx::IRMutatorWithAnalyzer::Mutate;
-  using tirx::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::IRMutatorWithAnalyzer::Mutate;
+  using s_tir::IRMutatorWithAnalyzer::Mutate_;
 
   static PrimFunc Inject(PrimFunc func) {
     arith::Analyzer ana;

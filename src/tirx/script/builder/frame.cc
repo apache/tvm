@@ -20,13 +20,14 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/script/ir_builder/ir/ir.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/script/builder/frame.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../../tirx/ir/script/script_complete.h"
 #include "./utils.h"
@@ -50,7 +51,7 @@ namespace {
 //
 // This normalizer runs at PrimFunc construction time: it strips any defined
 // layout from buffers in `buffer_map` / `root_alloc_buffers` and rewrites
-// matching body references through the StmtExprMutator's built-in
+// matching body references through the s_tir::StmtExprMutator's built-in
 // variable remapping, so the body remains well-formed.
 class STirBufferLayoutNormalizer : public tvm::tirx::StmtExprMutator {
  public:
@@ -202,7 +203,7 @@ void PrimFuncFrameNode::ExitWithScope() {
 void SBlockFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
 
-  // Allow SBlock construction in raw IRBuilder context (no enclosing PrimFuncFrame)
+  // Allow s_tir::SBlock construction in raw IRBuilder context (no enclosing PrimFuncFrame)
   // so test fixtures can construct blocks/block-realizes directly.
 
   ffi::Array<tvm::tirx::BufferVar> tir_alloc_buffers;
@@ -213,9 +214,9 @@ void SBlockFrameNode::ExitWithScope() {
   if (int detect_access = (!reads.has_value()) | (!writes.has_value() << 1)) {
     attrs.Set("tirx.script_parsing_detect_access", tvm::IntImm::Int64(detect_access));
   }
-  tvm::tirx::SBlock block(iter_vars, reads.value_or(ffi::Array<tvm::TensorRegion>()),
-                          writes.value_or(ffi::Array<tvm::TensorRegion>()), name, AsStmt(stmts),
-                          init, tir_alloc_buffers, match_buffers, attrs, tvm::Span());
+  tvm::s_tir::SBlock block(iter_vars, reads.value_or(ffi::Array<tvm::TensorRegion>()),
+                           writes.value_or(ffi::Array<tvm::TensorRegion>()), name, AsStmt(stmts),
+                           init, tir_alloc_buffers, match_buffers, attrs, tvm::Span());
   if (no_realize) {
     TVM_FFI_CHECK(iter_values.empty(), ValueError)
         << "Block bindings are not allowed when `no_realize=True`";
@@ -224,7 +225,7 @@ void SBlockFrameNode::ExitWithScope() {
     AddToParent(block);
   } else {
     AddToParent(
-        tvm::tirx::SBlockRealize(iter_values, predicate.value_or(IntImm::Bool(true)), block));
+        tvm::s_tir::SBlockRealize(iter_values, predicate.value_or(IntImm::Bool(true)), block));
   }
 }
 

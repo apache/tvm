@@ -1707,7 +1707,7 @@ bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
         return false;
       }
     } else {
-      const auto* block_realize = loop_i->body.as<tirx::SBlockRealizeNode>();
+      const auto* block_realize = loop_i->body.as<s_tir::SBlockRealizeNode>();
       if (!block_realize || block_realize->block.get() != block) {
         return false;
       }
@@ -1791,7 +1791,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
                                                      const tirx::PrimFunc& desc_func,
                                                      bool allow_padding) {
   arith::Analyzer analyzer;
-  const tirx::SBlockRealize& block = GetSBlockRealize(self, block_sref);
+  const s_tir::SBlockRealize& block = GetSBlockRealize(self, block_sref);
   // Step 1. Analyze desc_func, extract its block, loops and loop vars
   TensorIntrinDescInfo desc_info = ExtractTensorIntrinDescInfo(analyzer.get(), desc_func);
   // Step 2. Collect loops from block_sref

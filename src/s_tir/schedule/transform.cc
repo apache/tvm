@@ -20,6 +20,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/tensor_intrin.h>
 #include <tvm/tirx/builtin.h>
 
 #include "../../tirx/transform/ir_utils.h"
@@ -316,7 +318,7 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
                                            const ffi::String& intrin_name, bool allow_padding) {
   ffi::Optional<TensorizeInfo> opt_tensorize_info =
       GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block_rv),
-                              tirx::TensorIntrin::Get(intrin_name).value()->desc, allow_padding);
+                              TensorIntrin::Get(intrin_name).value()->desc, allow_padding);
   if (!opt_tensorize_info) return std::nullopt;
   const TensorizeInfoNode* info = opt_tensorize_info.value().get();
   if (info->block_iter_paddings.has_value()) {
@@ -468,7 +470,7 @@ void BlockBufferAccessSimplifier::SimplifyBufferIndices(ffi::Array<PrimExpr>* in
 
 UnchangedOr<Stmt> BlockBufferAccessSimplifier::Mutate_(const SBlockNode* op,
                                                        InplaceMode inplace_mode) {
-  SBlock block = tirx::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+  SBlock block = s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                      .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                      .as_or_throw<SBlock>();
   auto* n = block.CopyOnWrite();
@@ -479,7 +481,7 @@ UnchangedOr<Stmt> BlockBufferAccessSimplifier::Mutate_(const SBlockNode* op,
 
 UnchangedOr<Stmt> BlockBufferAccessSimplifier::Mutate_(const BufferStoreNode* op,
                                                        InplaceMode inplace_mode) {
-  BufferStore node = tirx::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+  BufferStore node = s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                          .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                          .as_or_throw<BufferStore>();
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
@@ -488,7 +490,7 @@ UnchangedOr<Stmt> BlockBufferAccessSimplifier::Mutate_(const BufferStoreNode* op
 
 UnchangedOr<PrimExpr> BlockBufferAccessSimplifier::Mutate_(const TensorLoadNode* op,
                                                            InplaceMode inplace_mode) {
-  TensorLoad node = tirx::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+  TensorLoad node = s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                         .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                         .as_or_throw<TensorLoad>();
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);

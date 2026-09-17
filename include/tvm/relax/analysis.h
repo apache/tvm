@@ -29,6 +29,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/index_map.h>
 
@@ -646,7 +647,7 @@ TVM_DLL bool CheckWellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty
  * from the object (block or buffer) to it's index map transformation.
  */
 
-TVM_DLL ffi::Map<tirx::SBlock, ffi::Map<ffi::ObjectRef, tirx::IndexMap>> SuggestLayoutTransforms(
+TVM_DLL ffi::Map<s_tir::SBlock, ffi::Map<ffi::ObjectRef, tirx::IndexMap>> SuggestLayoutTransforms(
     const Function& fn, ffi::Array<tirx::IndexMap> write_buffer_transformations);
 
 /* \brief Collect variables whose value can be computed at compile-time

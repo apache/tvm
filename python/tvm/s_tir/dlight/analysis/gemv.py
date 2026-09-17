@@ -28,7 +28,7 @@ from .common_analysis import (
 )
 
 
-def get_reduction_expr(block: tirx.SBlock) -> tirx.Expr | None:
+def get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     """Extracts the reduction expression from a TIR block.
 
     This function checks whether the given TIR block follows a reduction pattern
@@ -36,7 +36,7 @@ def get_reduction_expr(block: tirx.SBlock) -> tirx.Expr | None:
 
     Parameters:
     ----------
-    block : tirx.SBlock
+    block : s_tir.SBlock
         The TIR block to analyze.
 
     Returns:
@@ -106,7 +106,7 @@ def normalize(
     block_info: SBlockInfo,
 ) -> bool | None:
     """Normalize the main block."""
-    block_stmt: tirx.SBlock = sch.get(block_info.block_rv)
+    block_stmt: s_tir.SBlock = sch.get(block_info.block_rv)
     access = arith.normalize_to_iter_sum(
         detect_dominant_read(block_stmt),
         input_iters={i.var: i.dom for i in block_stmt.iter_vars},

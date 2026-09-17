@@ -22,6 +22,16 @@ import tvm_ffi as _ffi
 from . import _ffi_api
 
 
+def ConvertSSA():
+    """De-duplicate definitions, including schedulable block iterators, across PrimFuncs."""
+    return _ffi_api.ConvertSSA()
+
+
+def StmtSimplify():
+    """Simplify schedulable TIR with block constraints and tirx.StmtSimplify options."""
+    return _ffi_api.StmtSimplify()
+
+
 def CanonicalizeLoop():
     """Canonicalize the loop to start from zero and use trivial step
 

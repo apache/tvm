@@ -21,11 +21,13 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/tensor_intrin.h>
 
 #include <functional>
 
-#include "../../../tirx/ir/data_type_rewriter.h"
-#include "../../../tirx/transform/stmt_simplify.h"
+#include "../../ir/data_type_rewriter.h"
+#include "../../transform/stmt_simplify.h"
 #include "../ir_comparator.h"
 #include "../utils.h"
 
@@ -817,7 +819,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   }
 
   arith::Analyzer analyzer;
-  PrimFunc intrin_desc = StmtSimplify(intrin->desc, analyzer);
+  PrimFunc intrin_desc = s_tir::StmtSimplify(intrin->desc, analyzer);
   PrimFunc intrin_impl = DeepCopy(intrin->impl);
 
   int index_dtype_bits = -1;

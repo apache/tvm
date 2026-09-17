@@ -24,6 +24,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/state.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/index_map.h>
 

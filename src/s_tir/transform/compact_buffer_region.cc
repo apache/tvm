@@ -27,19 +27,19 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <numeric>
 #include <stack>
 
 #include "../../support/arena.h"
 #include "../../support/utils.h"
-#include "../../tirx/transform/ir_utils.h"
 #include "../analysis/conditional_bounds.h"
 #include "../schedule/utils.h"
 #include "../support/nd_int_set.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {

@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/transform.h>
 
@@ -326,11 +327,11 @@ tvm::transform::Sequential PassListForPerStoreFeature() {
       s_tir::transform::PlanAndUpdateBufferAllocationLocation(),
       s_tir::transform::ConvertBlocksToOpaque(),
       s_tir::transform::CompactBufferAllocation(),
-      tirx::transform::StmtSimplify(),
+      s_tir::transform::StmtSimplify(),
       s_tir::transform::LowerAutoCopy(),
       s_tir::transform::UnifyThreadBinding(),
       s_tir::transform::LowerMatchBuffer(),
-      tirx::transform::StmtSimplify(),
+      s_tir::transform::StmtSimplify(),
   });
 }
 

@@ -439,7 +439,7 @@ def test_reorder_fail_block():
     with pytest.raises(tvm.s_tir.ScheduleError) as execinfo:
         sch.reorder(l, i)
     expected_sub_error_message = (
-        "                            # tirx.SBlock#0\n"
+        "                            # s_tir.SBlock#0\n"
         '                            with T.sblock("B"):\n'
         "                            ^^^^^^^^^^^^^^^^^^^\n"
     )
@@ -482,7 +482,7 @@ def test_report_error_root_block():
     with pytest.raises(tvm.s_tir.ScheduleError) as execinfo:
         sch.compute_inline(root)
     expected_sub_error_message = (
-        '        # tirx.SBlock#0\n        with T.sblock("root"):\n        ^^^^^^^^^^^^^^^^^^^^^^\n'
+        '        # s_tir.SBlock#0\n        with T.sblock("root"):\n        ^^^^^^^^^^^^^^^^^^^^^^\n'
     )
     assert expected_sub_error_message in str(execinfo.value)
 

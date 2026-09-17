@@ -26,7 +26,9 @@
 
 #include <tvm/arith/int_set.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
 
@@ -36,12 +38,12 @@ namespace tvm {
 namespace tirx {
 
 /*! \brief Generate surrounding loops automatically */
-class ScriptCompleter : public StmtExprMutator {
+class ScriptCompleter : public s_tir::StmtExprMutator {
  public:
-  using StmtExprMutator::Mutate;
+  using s_tir::StmtExprMutator::Mutate;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
   }
 
   explicit ScriptCompleter(ffi::Map<Var, BufferVar>* buffer_var_map, bool s_tir = false)
@@ -49,16 +51,16 @@ class ScriptCompleter : public StmtExprMutator {
 
  private:
   ffi::Map<Var, BufferVar>* buffer_var_map_;
-  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const s_tir::SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     for (const PrimExpr& value : op->iter_values) {
       PrimType value_ty = value.ty();
       TVM_FFI_ICHECK(value_ty.code() == DLDataTypeCode::kDLInt)
           << "BlockRealize iter_value expected a IntImm, but got " << value_ty->dtype;
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
     // Buffers allocated in the block can be accessed by its body.
     for (const auto& alloc_buffer : op->alloc_buffers) {
       buffer_var_map_->Set(alloc_buffer.var(), alloc_buffer);
@@ -70,9 +72,9 @@ class ScriptCompleter : public StmtExprMutator {
 
     bool is_root_block = this->is_root_block_;
     this->is_root_block_ = false;
-    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
-                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                       .as_or_throw<SBlock>();
+    s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
+                              .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                              .as_or_throw<s_tir::SBlock>();
     this->is_root_block_ = is_root_block;
 
     // Remove buffers allocated inside block to detect its access region
@@ -117,7 +119,7 @@ class ScriptCompleter : public StmtExprMutator {
     if (!buffer_var_map_->count(op->buffer.var())) {
       buffer_var_map_->Set(op->buffer.var(), op->buffer);
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
@@ -125,7 +127,7 @@ class ScriptCompleter : public StmtExprMutator {
     if (!buffer_var_map_->count(op->buffer.var())) {
       buffer_var_map_->Set(op->buffer.var(), op->buffer);
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   bool is_root_block_ = true;
@@ -152,19 +154,19 @@ PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocat
     if (root_allocates.size()) {
       return true;
     }
-    auto* block_realize = func->body.as<SBlockRealizeNode>();
+    auto* block_realize = func->body.as<s_tir::SBlockRealizeNode>();
     if (block_realize && block_realize->block->iter_vars.size()) {
       return true;
     }
-    if (!block_realize && ContainsNode<SBlockRealizeNode>(func->body)) {
+    if (!block_realize && ContainsNode<s_tir::SBlockRealizeNode>(func->body)) {
       return true;
     }
     return false;
   }();
 
   if (s_tir && should_insert_root) {
-    SBlock root_block({}, {}, {}, "root", std::move(res), std::nullopt, root_allocates);
-    res = SBlockRealize({}, IntImm::Bool(true), std::move(root_block));
+    s_tir::SBlock root_block({}, {}, {}, "root", std::move(res), std::nullopt, root_allocates);
+    res = s_tir::SBlockRealize({}, IntImm::Bool(true), std::move(root_block));
   }
 
   // generate surrounding loops automatically

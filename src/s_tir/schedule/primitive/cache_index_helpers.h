@@ -29,9 +29,9 @@
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt_functor.h>  // For the class s_tir::StmtExprVisitor
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>  // For the class StmtExprVisitor
 
 #include <unordered_map>
 #include <utility>  // For pairs datatype
@@ -77,9 +77,9 @@ struct ComputationCache {
  * \note Computations here are considered syntactically, meaning that semantically equivalent
           computations that are not syntactically the same are not merged together.
  */
-class ComputationsDoneBy : public StmtExprVisitor {
+class ComputationsDoneBy : public s_tir::StmtExprVisitor {
  public:
-  using StmtExprVisitor::Visit_;
+  using s_tir::StmtExprVisitor::Visit_;
 
   // Toplevel (static) methods
   static ComputationTable GetComputationsDoneBy(
@@ -124,9 +124,9 @@ class ComputationsDoneBy : public StmtExprVisitor {
           So for instance, for (A+(B+C)) it will return A and (B+C) if they are eligible,
           but not B and C.
  */
-class DirectSubexpr : public StmtExprVisitor {
+class DirectSubexpr : public s_tir::StmtExprVisitor {
  public:
-  using StmtExprVisitor::Visit_;
+  using s_tir::StmtExprVisitor::Visit_;
 
   // Toplevel (static) function
   static std::vector<PrimExpr> GetDirectSubexpressions(

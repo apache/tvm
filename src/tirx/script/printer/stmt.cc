@@ -809,7 +809,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         ffi::Optional<tirx::Var> define_var = std::nullopt;
         tirx::Stmt body = stmt->body;
         AccessPath body_p = stmt_p->Attr("body");
-        if (stmt->attr_key == "thread_extent" || stmt->attr_key == "virtual_thread") {
+        if (stmt->attr_key == "thread_extent" ||
+            stmt->attr_key == tvm::tirx::attr::virtual_thread) {
           if (stmt->node.as<tirx::IterVarNode>()) {
             rhs = DocsifyLaunchThread(stmt, stmt_p, &define_var, d);
           }
