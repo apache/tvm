@@ -25,7 +25,6 @@
 #define TVM_TIR_TRANSFORM_IR_UTILS_H_
 
 #include <tvm/arith/int_set.h>
-#include <tvm/ffi/container/tuple.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/with_context.h>
@@ -275,16 +274,6 @@ std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const
 // s_tir::attr::async_wait_queue_scope annotation.
 std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op);
 
-/*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */
-using StorageAlignTuple = ffi::Tuple<int32_t, int32_t, int32_t, int32_t>;
-/*! \brief A list of StorageAlignTuple, used by StorageAlign */
-using StorageAlignAnnotation = ffi::Array<StorageAlignTuple>;
-/*!
- * \brief Collect storage alignment annotations for all buffer vars within body.
- * \param body The stmt to collect.
- * \return The result dict from buffer var to storage align annotations.
- */
-std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(const Stmt& body);
 /*!
  * \brief Split string separated by "," to get wmma fragment dimension size.
  * \param  shape_str The string to split.

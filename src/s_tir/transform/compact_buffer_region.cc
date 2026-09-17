@@ -36,10 +36,10 @@
 
 #include "../../support/arena.h"
 #include "../../support/utils.h"
-#include "../../tirx/transform/ir_utils.h"
 #include "../analysis/conditional_bounds.h"
 #include "../schedule/utils.h"
 #include "../support/nd_int_set.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {

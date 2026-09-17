@@ -110,21 +110,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       return StmtExprVisitor::VisitBlock(self, block);
     });
   });
-  tirx::StorageAlignVisitor::RegisterExtension([](tirx::StorageAlignVisitor::VTable* table) {
-    table->ClearDispatch<SBlockNode>();
-    table->SetDispatch<SBlockNode>([](const ffi::Object* node, ObjectVisitor* base) {
-      auto* self = static_cast<tirx::StorageAlignVisitor*>(base);
-      auto* block = static_cast<const SBlockNode*>(node);
-      auto it = block->annotations.find(attr::buffer_dim_align);
-      if (it != block->annotations.end()) {
-        auto annotation = (*it).second.as_or_throw<tirx::StorageAlignAnnotation>();
-        for (const auto& item : annotation) {
-          self->RecordAlignment(block->writes[item.get<0>()]->buffer.var(), item);
-        }
-      }
-      return StmtExprVisitor::VisitBlock(self, block);
-    });
-  });
 }
 
 }  // namespace

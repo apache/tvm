@@ -27,7 +27,6 @@
 #include <vector>
 
 #include "../ir_mutator_with_analyzer.h"
-#include "ir_utils.h"
 
 namespace tvm {
 namespace tirx {
@@ -102,35 +101,6 @@ class IndexDomainVisitor : public StmtExprVisitor {
   static void RegisterExtension(void (*init)(VTable*)) { Extensions().push_back(init); }
   IndexDomainVisitor() : StmtExprVisitor(GlobalVTable()) {}
   virtual void BindDomain(const Var& var, const Range& domain) = 0;
-
- protected:
-  static void InitVTable(VTable* table) {
-    StmtExprVisitor::InitVTable(table);
-    for (auto init : Extensions()) init(table);
-  }
-
- private:
-  static std::vector<void (*)(VTable*)>& Extensions() {
-    static std::vector<void (*)(VTable*)> extensions;
-    return extensions;
-  }
-  static const VTable* GlobalVTable() {
-    static const VTable table = [] {
-      VTable table;
-      InitVTable(&table);
-      table.Finalize();
-      return table;
-    }();
-    return &table;
-  }
-};
-
-class StorageAlignVisitor : public StmtExprVisitor {
- public:
-  using StmtExprVisitor::VTable;
-  static void RegisterExtension(void (*init)(VTable*)) { Extensions().push_back(init); }
-  StorageAlignVisitor() : StmtExprVisitor(GlobalVTable()) {}
-  virtual void RecordAlignment(const Var& buffer, const StorageAlignTuple& annotation) = 0;
 
  protected:
   static void InitVTable(VTable* table) {

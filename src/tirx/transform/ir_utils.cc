@@ -770,48 +770,6 @@ std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op) {
   return std::make_pair(op->value, inner->value);
 }
 
-/*! \brief Collect storage alignment information from annotations. */
-class StorageAlignCollector : public StorageAlignVisitor {
- public:
-  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
-    if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitor::Visit(value);
-  }
-
- private:
-  friend std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(
-      const Stmt& body);
-
-  void RecordAlignment(const Var& buffer, const StorageAlignTuple& annotation) final {
-    storage_align_[buffer].push_back(annotation);
-  }
-
-  /*! \brief AllocBuffer: check for buffer_dim_align annotations. */
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
-    auto it = op->annotations.find("buffer_dim_align");
-    if (it != op->annotations.end()) {
-      auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
-      for (const auto& storage_align_tuple : storage_align_annotation) {
-        int buffer_index = storage_align_tuple.get<0>();
-        // the first buffer idx info is meaningless for alloc
-        // stmt and should set as negative intentionally.
-        TVM_FFI_ICHECK_EQ(buffer_index, -1);
-        storage_align_[op->buffer.var()].push_back(storage_align_tuple);
-      }
-    }
-    return StmtExprVisitor::Visit_(op);
-  }
-
-  /*! \brief The map from buffer var to its storage alignment information. */
-  std::unordered_map<Var, StorageAlignAnnotation> storage_align_;
-};
-
-std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(const Stmt& body) {
-  auto collector = ffi::make_object<StorageAlignCollector>();
-  collector->Visit(body);
-  return std::move(collector->storage_align_);
-}
-
 int Stoi(const std::string& str) {
   try {
     return std::stoi(str);

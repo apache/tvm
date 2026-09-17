@@ -20,7 +20,10 @@
 #ifndef TVM_S_TIR_TRANSFORM_IR_UTILS_H_
 #define TVM_S_TIR_TRANSFORM_IR_UTILS_H_
 
+#include <tvm/ffi/container/tuple.h>
 #include <tvm/s_tir/stmt.h>
+
+#include <unordered_map>
 
 #include "../../tirx/transform/ir_utils.h"
 
@@ -41,6 +44,18 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
  * \return The region of source buffer.
  */
 tirx::Region ConvertRegion(const MatchBufferRegion& match_buffer, const tirx::Region& region);
+
+/*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */
+using StorageAlignTuple = ffi::Tuple<int32_t, int32_t, int32_t, int32_t>;
+/*! \brief A list of StorageAlignTuple, used by StorageAlign */
+using StorageAlignAnnotation = ffi::Array<StorageAlignTuple>;
+/*!
+ * \brief Collect storage alignment annotations for all buffer vars within body.
+ * \param body The stmt to collect.
+ * \return The result dict from buffer var to storage align annotations.
+ */
+std::unordered_map<tirx::Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(
+    const tirx::Stmt& body);
 
 }  // namespace s_tir
 }  // namespace tvm

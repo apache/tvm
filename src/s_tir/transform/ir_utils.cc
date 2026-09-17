@@ -20,6 +20,7 @@
 #include "ir_utils.h"
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/op.h>
 
 namespace tvm {
@@ -71,6 +72,56 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
         Range::FromMinExtent(source_range->min + target_range->min, target_range->extent));
   }
   return result;
+}
+
+/*! \brief Collect storage alignment information from annotations. */
+class StorageAlignCollector : public StmtExprVisitor {
+ public:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
+ private:
+  friend std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(
+      const Stmt& body);
+
+  /*! \brief SBlock: resolve each annotation's buffer index through the write regions. */
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
+    auto it = op->annotations.find(attr::buffer_dim_align);
+    if (it != op->annotations.end()) {
+      auto annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
+      for (const auto& item : annotation) {
+        storage_align_[op->writes[item.get<0>()]->buffer.var()].push_back(item);
+      }
+    }
+    return StmtExprVisitor::Visit_(op);
+  }
+
+  /*! \brief AllocBuffer: check for buffer_dim_align annotations. */
+  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
+    auto it = op->annotations.find(attr::buffer_dim_align);
+    if (it != op->annotations.end()) {
+      auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
+      for (const auto& storage_align_tuple : storage_align_annotation) {
+        int buffer_index = storage_align_tuple.get<0>();
+        // the first buffer idx info is meaningless for alloc
+        // stmt and should set as negative intentionally.
+        TVM_FFI_ICHECK_EQ(buffer_index, -1);
+        storage_align_[op->buffer.var()].push_back(storage_align_tuple);
+      }
+    }
+    return StmtExprVisitor::Visit_(op);
+  }
+
+  /*! \brief The map from buffer var to its storage alignment information. */
+  std::unordered_map<Var, StorageAlignAnnotation> storage_align_;
+};
+
+std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(const Stmt& body) {
+  auto collector = ffi::make_object<StorageAlignCollector>();
+  collector->Visit(body);
+  return std::move(collector->storage_align_);
 }
 
 }  // namespace s_tir

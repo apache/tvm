@@ -21,7 +21,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
-#include "../../../tirx/transform/ir_utils.h"
+#include "../../transform/ir_utils.h"
 #include "../utils.h"
 
 namespace tvm {
