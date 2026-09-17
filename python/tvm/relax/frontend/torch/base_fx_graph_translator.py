@@ -247,6 +247,38 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return x
 
     @staticmethod
+    def _scalar_result_dtype(tensor_dtype, scalar) -> str | None:
+        """Return the dtype torch gives ``tensor <op> scalar`` for a Python scalar operand.
+
+        A Python scalar takes part in type promotion at a lower priority than a tensor: it
+        widens the tensor only when it belongs to a higher category. So a float scalar
+        promotes an integer or bool tensor to the default float dtype, an int scalar
+        promotes only a bool tensor (to int64), and otherwise the tensor's dtype wins.
+        Casting the scalar down to the tensor's dtype instead turns ``x * 0.5`` on an
+        integer tensor into ``x * 0``. Returns None for a dtype torch cannot map.
+        """
+        import torch  # type: ignore
+
+        if not isinstance(scalar, bool | int | float):
+            return None
+        torch_dtype = {
+            "float64": torch.float64,
+            "float32": torch.float32,
+            "float16": torch.float16,
+            "bfloat16": torch.bfloat16,
+            "int64": torch.int64,
+            "int32": torch.int32,
+            "int16": torch.int16,
+            "int8": torch.int8,
+            "uint8": torch.uint8,
+            "bool": torch.bool,
+        }.get(str(tensor_dtype))
+        if torch_dtype is None:
+            return None
+        promoted = torch.result_type(torch.empty(0, dtype=torch_dtype), scalar)
+        return str(promoted).replace("torch.", "")
+
+    @staticmethod
     def _promote_common_dtype(lhs_dtype: str | None, rhs_dtype: str | None) -> str | None:
         """Return the promoted dtype following PyTorch rules, or None if unsupported."""
         import torch  # type: ignore
@@ -707,12 +739,24 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                     return lhs, rhs
                 elif isinstance(lhs, relax.Expr):
                     assert isinstance(lhs.ty, relax.TensorType)
-                    return lhs, relax.const(rhs, lhs.ty.dtype)
+                    lhs, rhs = promote_scalar_operand(lhs, rhs)
+                    return lhs, rhs
                 elif isinstance(rhs, relax.Expr):
                     assert isinstance(rhs.ty, relax.TensorType)
-                    return relax.const(lhs, rhs.ty.dtype), rhs
+                    rhs, lhs = promote_scalar_operand(rhs, lhs)
+                    return lhs, rhs
                 else:
                     assert False
+
+            def promote_scalar_operand(tensor, scalar):
+                # torch.result_type decides who wins; the tensor is only widened when the
+                # scalar's category is higher (float scalar vs int tensor, int scalar vs
+                # bool tensor). The constant is then built in that dtype rather than
+                # truncated to the tensor's.
+                target = self._scalar_result_dtype(tensor.ty.dtype, scalar) or tensor.ty.dtype
+                if str(tensor.ty.dtype) != str(target):
+                    tensor = self.block_builder.emit(relax.op.astype(tensor, target))
+                return tensor, relax.const(scalar, target)
 
             def call_binary_op(op, lhs, rhs):
                 lhs, rhs = promote_binary_op_args(lhs, rhs)
@@ -725,9 +769,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             ):
                 return call_binary_op(relax_op, lhs, rhs)
             elif isinstance(lhs, relax.expr.Constant) and not isinstance(rhs, relax.expr.Constant):
-                return call_binary_op(relax_op, lhs, relax.const(rhs, dtype=lhs.ty.dtype))
+                return call_binary_op(relax_op, lhs, rhs)
             elif isinstance(rhs, relax.expr.Constant) and not isinstance(lhs, relax.expr.Constant):
-                return call_binary_op(relax_op, relax.const(lhs, dtype=rhs.ty.dtype), rhs)
+                return call_binary_op(relax_op, lhs, rhs)
             return intrinsic_op(lhs, rhs)
 
         return convert
