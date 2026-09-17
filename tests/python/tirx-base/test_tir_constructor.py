@@ -140,7 +140,7 @@ def test_expr_constructor():
     script = tvm.tirx.Evaluate(x_with_attrs).script()
     assert "attrs" in script
     assert "disable_tma" in script
-    func = tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(x_with_attrs))
+    func = tvm.tirx.PrimFunc([attr_arg], tvm.tirx.Evaluate(x_with_attrs))
     assert tvm.script.from_source(func.script()).script() == func.script()
 
     y = tvm.tirx.Var("y", "float32")
