@@ -28,7 +28,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
 #include <tvm/ir/transform.h>
-#include <tvm/relax/expr.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 

@@ -229,18 +229,6 @@ TVMFFIAny TupleTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
-TVMFFIAny TensorMapTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
-}
-
-TVMFFIAny TensorMapTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
-TVMFFIAny TensorMapTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
 }  // namespace
 
 Type Type::Missing() {
@@ -427,23 +415,5 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TupleType TupleType::Empty() { return TupleType(ffi::Array<Type>()); }
-
-TensorMapType::TensorMapType(Span span) : Type(ffi::UnsafeInit{}) {
-  ffi::ObjectPtr<TensorMapTypeNode> n = ffi::make_object<TensorMapTypeNode>();
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  TensorMapTypeNode::RegisterReflection();
-  refl::TypeAttrDef<TensorMapTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TensorMapTypeVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TensorMapTypeMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&TensorMapTypeMaybeInplaceMutate));
-
-  refl::GlobalDef().def("ir.TensorMapType", [](Span span) { return TensorMapType(span); });
-}
 
 }  // namespace tvm

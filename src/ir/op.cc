@@ -27,7 +27,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/type.h>
-#include <tvm/tirx/op_attr_types.h>
 
 #include <memory>
 
@@ -57,7 +56,6 @@ TVM_FFI_STATIC_INIT_BLOCK() { ArgumentInfoNode::RegisterReflection(); }
 using ffi::Any;
 using ffi::Function;
 using ffi::PackedArgs;
-using tirx::FLowerIntrinsic;
 
 using OpRegistry = AttrRegistry<OpRegEntry, Op>;
 
@@ -182,11 +180,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              } else {
                reg.set_attr(attr_key, value, plevel);
              }
-           })
-      .def("ir.RegisterOpLowerIntrinsic",
-           [](ffi::String name, ffi::Function f, ffi::String target, int plevel) {
-             tvm::OpRegEntry::RegisterOrGet(name).set_attr<FLowerIntrinsic>(
-                 target + ".FLowerIntrinsic", f, plevel);
            });
   // override OpNode to use name as the repr
 }

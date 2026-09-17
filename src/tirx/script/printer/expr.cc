@@ -19,6 +19,7 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
+#include <tvm/tirx/type.h>
 
 #include "./utils.h"
 
@@ -72,7 +73,7 @@ ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IR
                           kwargs_keys, kwargs_values);
         }
       }
-    } else if (ptr_type->element_type->IsInstance<TensorMapTypeNode>()) {
+    } else if (ptr_type->element_type->IsInstance<tirx::TensorMapTypeNode>()) {
       rhs = TIR(d, "TensorMap")->Call({}, {}, {});
     }
   } else {
@@ -348,6 +349,16 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
                                 "types, but got "
                              << call->ty;
   };
+  auto get_call_return_type_doc = [&]() -> ExprDoc {
+    if (call->ty.IsMissing()) {
+      return IdDoc("tvm")->Attr("ir")->Attr("Type")->Attr("missing")->Call({});
+    }
+    if (call_prim_type || call->ty.as<PointerTypeNode>()) {
+      return get_call_type_doc(call_p->Attr("ty"));
+    }
+    // Annotation spellings such as None for an empty tuple are not type values.
+    return d->AddMetadata(call->ty);
+  };
   if (call->attrs.defined()) {
     ffi::Array<ExprDoc> call_args;
     int n_args = call->args.size();
@@ -358,7 +369,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     ExprDoc op_doc = call->op.as<Op>()
                          ? LiteralDoc::Str(call->op.as<Op>().value()->name, call_p->Attr("op"))
                          : d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
-    ExprDoc ret_ty_doc = get_call_type_doc(call_p->Attr("ty"));
+    ExprDoc ret_ty_doc = get_call_return_type_doc();
     return TIR(d, "Call")->Call(
         {op_doc, ListDoc(call_args)}, {"attrs", "ret_ty"},
         {d->AsDoc<ExprDoc>(call->attrs, call_p->Attr("attrs")), ret_ty_doc});
