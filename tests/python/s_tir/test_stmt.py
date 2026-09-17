@@ -23,6 +23,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import s_tir, tirx
+from tvm.ir.json_compact import upgrade_json
 
 
 @pytest.mark.parametrize("legacy", [False, True])
@@ -88,6 +89,63 @@ def test_sblock_serialization(legacy, legacy_region):
         }
         for node in canonical["nodes"]
     )
+
+
+def test_untyped_buffer_region_serialization():
+    source = tirx.decl_buffer((4,), "float32", name="source")
+    region = [tvm.ir.Range(0, 4)]
+    graph = json.loads(tvm.ir.save_json([source, region]))
+    nodes = graph["nodes"]
+    source_index, region_index = nodes[graph["root_index"]]["data"]
+    # Before c836e8c942, BufferRegion inherited PrimExprConvertible (an Object),
+    # and reflection registered exactly buffer/region, with no type or span.
+    # Construct that historical schema directly, independently of TensorRegion
+    # serialization, while using current buffer/range schemas for dependencies.
+    legacy_index = len(nodes)
+    for _ in range(2):
+        nodes.append(
+            {
+                "type": "tirx.BufferRegion",
+                "data": {"buffer": source_index, "region": region_index},
+            }
+        )
+    graph["root_index"] = len(nodes)
+    nodes.append({"type": "ffi.Array", "data": [legacy_index, legacy_index, legacy_index + 1]})
+    legacy_json = json.dumps(graph)
+    upgraded = json.loads(upgrade_json(legacy_json))
+    assert upgraded["root_index"] == graph["root_index"]
+    assert len(upgraded["nodes"]) == len(nodes) + 1
+    assert upgraded["nodes"][:legacy_index] == nodes[:legacy_index]
+    assert upgraded["nodes"][graph["root_index"]] == nodes[graph["root_index"]]
+    for index in (legacy_index, legacy_index + 1):
+        assert upgraded["nodes"][index] == {
+            "type": "ir.TensorRegion",
+            "data": {
+                "source": source_index,
+                "region": region_index,
+                "ty": len(nodes),
+                "span": 0,
+            },
+        }
+    first, repeated, second = tvm.ir.load_json(legacy_json)
+    assert first.same_as(repeated)
+    assert not first.same_as(second)
+    assert first.source.same_as(second.source)
+    assert first.region.same_as(second.region)
+    assert first.ty.same_as(second.ty)
+    assert isinstance(first.ty, tirx.BufferRegionType)
+    assert first.span is None
+    expected = tvm.ir.TensorRegion(source, region, tirx.BufferRegionType())
+    tvm.ir.assert_structural_equal(first, expected, map_free_vars=True)
+
+
+@pytest.mark.parametrize("data", [None, {"region": 0}])
+def test_malformed_legacy_buffer_region(data):
+    node = {"type": "tirx.BufferRegion"}
+    if data is not None:
+        node["data"] = data
+    with pytest.raises(ValueError, match="requires a buffer field"):
+        upgrade_json(json.dumps({"nodes": [{"type": "None"}, node], "root_index": 1}))
 
 
 @pytest.mark.parametrize("field", ["reads", "writes", "match_source"])
