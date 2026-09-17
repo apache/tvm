@@ -26,15 +26,17 @@
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/schedule/instruction.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/state.h>
 #include <tvm/s_tir/schedule/trace.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/utils.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <string>
 #include <unordered_map>
@@ -369,15 +371,15 @@ inline ffi::String BufferIndexType2Str(BufferIndexType buffer_index_type) {
 
 /*! \brief Returns the names of the blocks in the provided module. */
 inline std::unordered_set<std::string> GetSBlockNames(const IRModule& mod) {
-  struct BlockNameCollector : public tirx::StmtExprVisitor {
-    using tirx::StmtExprVisitor::Visit_;
+  struct BlockNameCollector : public s_tir::StmtExprVisitor {
+    using s_tir::StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
       if (value.as<ExprNode>()) return std::nullopt;
-      return tirx::StmtExprVisitor::Visit(value);
+      return s_tir::StmtExprVisitor::Visit(value);
     }
 
-    ffi::Optional<VisitInterrupt> Visit_(const tirx::SBlockNode* block) override {
+    ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* block) override {
       block_names.insert(block->name_hint);
       return StmtExprVisitor::Visit(block->body);
     }

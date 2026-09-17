@@ -52,7 +52,7 @@ from .stmt import BufferStore, AllocBuffer, AttrStmt, DeclBuffer
 
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
-from .stmt import BufferRegion, BufferRegionType, MatchBufferRegion, SBlock, SBlockRealize
+from .stmt import BufferRegion, BufferRegionType
 from .stmt import ScopeIdDefStmt
 from .tile_primitive import DispatchContext, LambdaExpr, TilePrimitiveCall
 

@@ -27,10 +27,11 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../tirx/transform/ir_utils.h"

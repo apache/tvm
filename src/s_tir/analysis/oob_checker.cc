@@ -24,7 +24,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/transform.h>
 
-#include "../../tirx/ir/ir_visitor_with_analyzer.h"
+#include "../../s_tir/ir/ir_visitor_with_analyzer.h"
 #include "../schedule/error.h"
 
 namespace tvm {
@@ -69,9 +69,9 @@ class OOBError : public s_tir::ScheduleErrorContextObj {
   IRModule mod_;
   std::vector<OOBLocation> locations_;
 };
-class OOBCheckerVisitor final : public tirx::IRVisitorWithAnalyzer {
+class OOBCheckerVisitor final : public s_tir::IRVisitorWithAnalyzer {
  public:
-  using tirx::IRVisitorWithAnalyzer::Visit_;
+  using s_tir::IRVisitorWithAnalyzer::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* node) final {
     for (size_t i = 0; i < node->buffer->shape.size(); i++) {

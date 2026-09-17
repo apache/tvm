@@ -26,6 +26,7 @@
 
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/transform.h>
 

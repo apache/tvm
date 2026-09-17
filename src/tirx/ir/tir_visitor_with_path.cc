@@ -24,7 +24,6 @@
 #include "tir_visitor_with_path.h"
 
 #include <tvm/ffi/reflection/access_path.h>
-#include <tvm/s_tir/stmt.h>
 
 #include <algorithm>
 #include <optional>
@@ -34,6 +33,26 @@
 
 namespace tvm {
 namespace tirx {
+namespace {
+std::vector<void (*)(TIRVisitorWithPath::VTable*)>& PathVisitorExtensions() {
+  static std::vector<void (*)(TIRVisitorWithPath::VTable*)> extensions;
+  return extensions;
+}
+}  // namespace
+void TIRVisitorWithPath::RegisterExtension(void (*init)(VTable*)) {
+  PathVisitorExtensions().push_back(init);
+}
+TIRVisitorWithPath::TIRVisitorWithPath()
+    : StmtVisitor([] {
+        static const VTable table = [] {
+          VTable table;
+          StmtVisitor::InitVTable(&table);
+          for (auto init : PathVisitorExtensions()) init(&table);
+          table.Finalize();
+          return table;
+        }();
+        return &table;
+      }()) {}
 
 using AccessPath = ffi::reflection::AccessPath;
 
@@ -159,14 +178,6 @@ void TIRVisitorWithPath::Visit(const TensorRegion& region, AccessPath path) {
   Visit(region->region, path->Attr("region"));
 }
 
-void TIRVisitorWithPath::Visit(const MatchBufferRegion& match, AccessPath path) {
-  Visit(match->source, path->Attr("source"));
-
-  // MatchBufferRegion define the match->buffer, but do not own the
-  // body in which the match->buffer is defined.  Therefore, the
-  // definitions are handled in the BlockNode visitor.
-}
-
 void TIRVisitorWithPath::Visit(const IterVar& iter_var, AccessPath path) {
   if (iter_var->dom.defined()) {
     Visit(iter_var->dom, path->Attr("dom"));
@@ -191,8 +202,7 @@ void TIRVisitorWithPath::Dispatch_(const AttrStmtNode* op, AccessPath path) {
 
   std::vector<std::variant<DefContext<IterVar>, DefContext<Var>, DefContext<BufferVar>>> context;
   if (auto iter_var = op->node.as<IterVar>();
-      iter_var &&
-      (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread)) {
+      iter_var && (op->attr_key == attr::thread_extent || op->attr_key == "virtual_thread")) {
     // Some attributes serve as a source of definition for the
     // tirx::Var they annotate.
     context.push_back(WithDef(iter_var.value(), path->Attr("node")));
@@ -268,58 +278,7 @@ void TIRVisitorWithPath::Dispatch_(const EvaluateNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
 }
 
-void TIRVisitorWithPath::Dispatch_(const SBlockNode* op, AccessPath path) {
-  std::vector<std::variant<DefContext<Var>, DefContext<IterVar>, DefContext<BufferVar>>> context;
-
-  {
-    auto iter_path = path->Attr("iter_vars");
-    for (size_t i = 0; i < op->iter_vars.size(); i++) {
-      context.push_back(WithDef(op->iter_vars[i], iter_path->ArrayItem(i)));
-    }
-  }
-
-  // Define alloc_buffers before visiting reads/writes, since reads/writes
-  // may reference buffers from alloc_buffers (e.g. after transform_layout).
-  {
-    auto alloc_path = path->Attr("alloc_buffers");
-    for (size_t i = 0; i < op->alloc_buffers.size(); i++) {
-      auto buffer_path = alloc_path->ArrayItem(i);
-      auto buf = op->alloc_buffers[i];
-      context.push_back(WithDef(buf, buffer_path));
-    }
-  }
-
-  Visit(op->reads, path->Attr("reads"));
-  Visit(op->writes, path->Attr("writes"));
-
-  {
-    auto match_path = path->Attr("match_buffers");
-    Visit(op->match_buffers, match_path);
-
-    for (size_t i = 0; i < op->match_buffers.size(); i++) {
-      auto buf = op->match_buffers[i]->buffer;
-      auto buffer_path = match_path->ArrayItem(i)->Attr("buffer");
-
-      for (auto& def : WithMatchBufferDefs(buf, buffer_path)) {
-        context.push_back(std::move(def));
-      }
-      context.push_back(WithDef(buf, buffer_path));
-    }
-  }
-
-  bind_scope_.WithNewScope([&]() { Visit(op->init, path->Attr("init")); });
-  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
-
-  while (context.size()) context.pop_back();
-}
-
-void TIRVisitorWithPath::Dispatch_(const SBlockRealizeNode* op, AccessPath path) {
-  Visit(op->iter_values, path->Attr("iter_values"));
-  Visit(op->predicate, path->Attr("predicate"));
-  Visit(op->block, path->Attr("block"));
-}
-
-void TIRVisitorWithPath::Dispatch_(const tirx::TilePrimitiveCallNode* op, AccessPath path) {
+void TIRVisitorWithPath::VisitStmt_(const tirx::TilePrimitiveCallNode* op, AccessPath path) {
   for (size_t i = 0; i < op->args.size(); i++) {
     if (op->args[i] == nullptr) {
       continue;

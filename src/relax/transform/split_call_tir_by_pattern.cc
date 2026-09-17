@@ -29,10 +29,11 @@
 #include <tvm/relax/tir_pattern.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../s_tir/schedule/ir_comparator.h"
 
@@ -65,7 +66,8 @@ class ForMatcher : public TensorizeComparator {
   }
 
   bool Match(const For& top) {
-    const ForNode* pattern_top = pattern_->body.as<SBlockRealizeNode>()->block->body.as<ForNode>();
+    const ForNode* pattern_top =
+        pattern_->body.as<s_tir::SBlockRealizeNode>()->block->body.as<ForNode>();
     TVM_FFI_ICHECK(pattern_top) << "Invalid pattern function";
     if (!Dispatch(top, ffi::GetRef<Stmt>(pattern_top))) {
       return false;
@@ -254,10 +256,10 @@ class ForMatcher : public TensorizeComparator {
     loop_stack_lhs_.push_back(ffi::GetRef<For>(op));
     loop_stack_rhs_.push_back(ffi::GetRef<For>(rhs));
     // The body of loop must be loop or BlockRealize
-    if (!op->body->IsInstance<SBlockRealizeNode>() && !op->body->IsInstance<ForNode>()) {
+    if (!op->body->IsInstance<s_tir::SBlockRealizeNode>() && !op->body->IsInstance<ForNode>()) {
       return false;
     }
-    if (!rhs->body->IsInstance<SBlockRealizeNode>() && !rhs->body->IsInstance<ForNode>()) {
+    if (!rhs->body->IsInstance<s_tir::SBlockRealizeNode>() && !rhs->body->IsInstance<ForNode>()) {
       return false;
     }
     // Build mapping between the loop vars
@@ -272,8 +274,8 @@ class ForMatcher : public TensorizeComparator {
     return Dispatch(op->body, rhs->body);
   }
 
-  bool Dispatch_(const tirx::SBlockNode* op, const Stmt& other) final {
-    const auto* rhs = other.as<SBlockNode>();
+  bool VisitStmt_(const s_tir::SBlockNode* op, const Stmt& other) final {
+    const auto* rhs = other.as<s_tir::SBlockNode>();
     // Check block equality.
     // All iter vars and buffer regions including the order should match.
     // When checking iter vars, DefEqual is used to remap variables.
@@ -301,8 +303,8 @@ class ForMatcher : public TensorizeComparator {
     return Dispatch(op->body, rhs->body);
   }
 
-  bool Dispatch_(const SBlockRealizeNode* op, const Stmt& other) final {
-    const auto* rhs = other.as<SBlockRealizeNode>();
+  bool VisitStmt_(const s_tir::SBlockRealizeNode* op, const Stmt& other) final {
+    const auto* rhs = other.as<s_tir::SBlockRealizeNode>();
     // Only allow trivial bindings
     for (size_t i = 0; i < op->iter_values.size(); ++i) {
       if (!op->iter_values[i].same_as(loop_stack_lhs_[i]->loop_var)) return false;
@@ -463,7 +465,7 @@ class TIRPatternMatcher {
 
 /*! \brief helper class to partition a function into 2 parts. Return function information which we
  * can use to construct the two partitioned parts.*/
-class FunctionPartitioner : public StmtExprVisitor {
+class FunctionPartitioner : public s_tir::StmtExprVisitor {
  public:
   explicit FunctionPartitioner(int num_matched_ops) : num_matched_ops_(num_matched_ops) {}
   /*! \brief alloc_buffers for the first function */
@@ -471,7 +473,7 @@ class FunctionPartitioner : public StmtExprVisitor {
   /*! \brief alloc_buffers for the second function */
   std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs2;
   /*! \brief whether the current block is in the first function */
-  ffi::Map<SBlock, bool> block_partition;
+  ffi::Map<s_tir::SBlock, bool> block_partition;
   /*! \brief input buffers for the first function */
   std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input1;
   /*! \brief input buffers for the second function */
@@ -484,7 +486,7 @@ class FunctionPartitioner : public StmtExprVisitor {
   bool fail = false;
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* op) final {
     block_counter_++;
     bool is_matching_ = block_counter_ <= num_matched_ops_;
     if (block_counter_ == num_matched_ops_) {
@@ -512,7 +514,7 @@ class FunctionPartitioner : public StmtExprVisitor {
         input2.insert(write->source.as_or_throw<tvm::tirx::BufferVar>());
       }
     }
-    block_partition.Set(ffi::GetRef<SBlock>(op), is_matching_);
+    block_partition.Set(ffi::GetRef<s_tir::SBlock>(op), is_matching_);
 
     return std::nullopt;
   }
@@ -522,30 +524,30 @@ class FunctionPartitioner : public StmtExprVisitor {
 };
 
 /*! \brief remove parts according to block partition, and update the alloc_buffers for blocks */
-class BlockRemover : public StmtExprMutator {
+class BlockRemover : public s_tir::StmtExprMutator {
  public:
   static Stmt RemoveBlockByPartition(
-      Stmt stmt, const ffi::Map<SBlock, bool>& block_partition,
+      Stmt stmt, const ffi::Map<s_tir::SBlock, bool>& block_partition,
       const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
       bool is_library_part) {
     auto remover = ffi::make_object<BlockRemover>(block_partition, allocs, is_library_part);
     return remover->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
   }
 
-  BlockRemover(const ffi::Map<SBlock, bool>& block_partition,
+  BlockRemover(const ffi::Map<s_tir::SBlock, bool>& block_partition,
                const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
                bool is_library_part)
       : block_partition(block_partition), allocs_(allocs), is_library_part_(is_library_part) {}
 
  private:
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
-                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                       .as_or_throw<SBlock>();
-    ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block.operator->());
+  UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
+    s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
+                              .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                              .as_or_throw<s_tir::SBlock>();
+    ffi::ObjectPtr<s_tir::SBlockNode> n = ffi::make_object<s_tir::SBlockNode>(*block.operator->());
     if (op->name_hint != "root") {
-      TVM_FFI_ICHECK(block_partition.count(ffi::GetRef<SBlock>(op)));
-      bool block_is_library = block_partition[ffi::GetRef<SBlock>(op)];
+      TVM_FFI_ICHECK(block_partition.count(ffi::GetRef<s_tir::SBlock>(op)));
+      bool block_is_library = block_partition[ffi::GetRef<s_tir::SBlock>(op)];
       if (!(is_library_part_ ^ block_is_library)) {
         n->body = block->body;
       } else {
@@ -559,7 +561,7 @@ class BlockRemover : public StmtExprMutator {
       }
     }
     n->alloc_buffers = alloc_buffers;
-    return SBlock(n);
+    return s_tir::SBlock(n);
   }
 
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
@@ -576,7 +578,7 @@ class BlockRemover : public StmtExprMutator {
   }
 
   bool erased_ = false;
-  ffi::Map<SBlock, bool> block_partition;
+  ffi::Map<s_tir::SBlock, bool> block_partition;
   std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs_;
   bool is_library_part_ = false;
 };
@@ -595,9 +597,9 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
     PrimFunc func, std::vector<std::vector<int>>* arg_partition, ffi::Array<TIRPattern> patterns,
     FCodegen f_codegen) {
   // Step 1. Find the library kernel and the rest.
-  Stmt body = func->body.as<SBlockRealizeNode>()->block->body;
+  Stmt body = func->body.as<s_tir::SBlockRealizeNode>()->block->body;
   ffi::Array<MatchResult> match_results =
-      TIRPatternMatcher::Match(patterns, func->body.as<SBlockRealizeNode>()->block->body);
+      TIRPatternMatcher::Match(patterns, func->body.as<s_tir::SBlockRealizeNode>()->block->body);
   if (match_results.empty()) {
     return {func, std::nullopt};
   }

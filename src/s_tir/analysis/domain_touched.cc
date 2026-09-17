@@ -27,14 +27,14 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/te/tensor.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../tirx/ir/ir_visitor_with_analyzer.h"
+#include "../../s_tir/ir/ir_visitor_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
@@ -63,9 +63,9 @@ using BufferDomainAccess = std::tuple<LoadAccess, StoreAccess, CombinedAccess>;
 }  // namespace
 
 // Find Read region of the tensor in the stmt.
-class BufferTouchedDomain final : public tirx::IRVisitorWithAnalyzer {
+class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
  public:
-  using tirx::IRVisitorWithAnalyzer::Visit_;
+  using s_tir::IRVisitorWithAnalyzer::Visit_;
 
   std::unordered_map<const VarNode*, BufferDomainAccess>& GetAccessedBufferRegions() {
     return buffer_access_map_;
@@ -99,7 +99,7 @@ class BufferTouchedDomain final : public tirx::IRVisitorWithAnalyzer {
   }
 
  private:
-  using Parent = tirx::IRVisitorWithAnalyzer;
+  using Parent = s_tir::IRVisitorWithAnalyzer;
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();

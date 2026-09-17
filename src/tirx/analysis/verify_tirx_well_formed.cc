@@ -50,12 +50,10 @@ class ExecScopeVerifier : public Verifier<ExecScopeVerifier> {
  private:
   using Verifier::Visit;
 
-  void Dispatch_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlock is not allowed in tirx=True mode at " << path;
-  }
-
-  void Dispatch_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path;
+  bool EnterExtensionStmt(const ffi::Object* op, ffi::reflection::AccessPath path) override {
+    Verify(false) << "TIRxError: " << op->GetTypeKey() << " is not allowed in tirx=True mode at "
+                  << path;
+    return false;
   }
 
   void Dispatch_(const tirx::TilePrimitiveCallNode* op, ffi::reflection::AccessPath path) override {
@@ -132,12 +130,10 @@ class LayoutVerifier : public Verifier<LayoutVerifier> {
  private:
   using Verifier::Visit;
 
-  void Dispatch_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlock is not allowed in tirx=True mode at " << path;
-  }
-
-  void Dispatch_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path;
+  bool EnterExtensionStmt(const ffi::Object* op, ffi::reflection::AccessPath path) override {
+    Verify(false) << "TIRxError: " << op->GetTypeKey() << " is not allowed in tirx=True mode at "
+                  << path;
+    return false;
   }
 };
 
@@ -148,12 +144,10 @@ class AsyncStructsVerifier : public Verifier<AsyncStructsVerifier> {
  private:
   using Verifier::Visit;
 
-  void Dispatch_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlock is not allowed in tirx=True mode at " << path;
-  }
-
-  void Dispatch_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path;
+  bool EnterExtensionStmt(const ffi::Object* op, ffi::reflection::AccessPath path) override {
+    Verify(false) << "TIRxError: " << op->GetTypeKey() << " is not allowed in tirx=True mode at "
+                  << path;
+    return false;
   }
 };
 
@@ -164,12 +158,10 @@ class DeviceFuncVerifier : public Verifier<DeviceFuncVerifier> {
  private:
   using Verifier::Visit;
 
-  void Dispatch_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlock is not allowed in tirx=True mode at " << path;
-  }
-
-  void Dispatch_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path;
+  bool EnterExtensionStmt(const ffi::Object* op, ffi::reflection::AccessPath path) override {
+    Verify(false) << "TIRxError: " << op->GetTypeKey() << " is not allowed in tirx=True mode at "
+                  << path;
+    return false;
   }
 };
 

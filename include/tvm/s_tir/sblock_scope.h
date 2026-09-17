@@ -26,9 +26,10 @@
 #define TVM_S_TIR_SBLOCK_SCOPE_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 #include <utility>
@@ -41,7 +42,7 @@ namespace tirx {
  * \brief An object that refers to schedulable elements (block/for-loop) in TensorIR, aka "sref".
  *
  * Glossary
- * - SBlock sref: A StmtSRef that points to a TensorIR SBlock.
+ * - s_tir::SBlock sref: A StmtSRef that points to a TensorIR s_tir::SBlock.
  * - Loop sref: A StmtSRef that points to a TensorIR for loop.
  * - Parent sref: The parent reference of an sref is the block or loop reference to the closest
  schedulable statement. We define closest to be the nearest schedulable statement of an ancestor in
@@ -87,7 +88,7 @@ class StmtSRefNode : public ffi::Object {
    * It serves the same purpose as `ffi::ObjectRef::as`, but does not acquire strong reference to
    * `stmt`
    * \tparam StmtType The type that `this->stmt` to be downcasted to. Presumably
-   * tvm::tirx::SBlockNode or tvm::tirx::ForNode
+   * tvm::s_tir::SBlockNode or tvm::tirx::ForNode
    * \return nullptr if type check fails, otherwise the casted result for `this->stmt`
    */
   template <typename StmtType>
@@ -144,13 +145,13 @@ class StmtSRef : public ffi::ObjectRef {
   TVM_DLL static StmtSRef RootMark();
 };
 
-class SRefTreeCreator : public StmtExprVisitor {
+class SRefTreeCreator : public s_tir::StmtExprVisitor {
  public:
-  using StmtExprVisitor::Visit_;
+  using s_tir::StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitor::Visit(value);
+    return s_tir::StmtExprVisitor::Visit(value);
   }
 
   /*!
@@ -185,7 +186,7 @@ class SRefTreeCreator : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final;
 
-  ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* realize) final;
+  ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockRealizeNode* realize) final;
 
   ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final;
 
@@ -251,7 +252,7 @@ class Dependency : public ffi::ObjectRef {
  * For example even leaf nodes have a scope node, even though they have no dependencies.
  *
  * Glossary:
- * - SBlock scope: A contiguous subtree of the sref tree, rooted at each SBlock sref,
+ * - s_tir::SBlock scope: A contiguous subtree of the sref tree, rooted at each s_tir::SBlock sref,
  * whose components are:
  *   - scope root: a block sref
  *   - internal srefs: loop srefs

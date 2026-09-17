@@ -95,7 +95,7 @@ def block_in_opaque_block(a: T.handle, b: T.handle) -> None:
 def replace_ir_builder(deep_copy=False, realize=False):
     new_func = tvm.script.from_source(elementwise.script())
     s = tvm.s_tir.ScheduleState(new_func, debug_mask="all")
-    target = tvm.tirx.SBlock(
+    target = tvm.s_tir.SBlock(
         iter_vars=[],
         reads=[],
         writes=[],
@@ -107,7 +107,7 @@ def replace_ir_builder(deep_copy=False, realize=False):
         annotations=None,
     )
     if realize:
-        target = tvm.tirx.SBlockRealize(
+        target = tvm.s_tir.SBlockRealize(
             iter_values=[],
             predicate=True,
             block=target,
@@ -123,7 +123,7 @@ def replace_ir_builder_module(deep_copy=False, realize=False):
     other_func = tvm.script.from_source(elementwise.script())
     mod = IRModule(functions={"main": new_func, "other": other_func})
     s = tvm.s_tir.ScheduleState(mod, debug_mask="all")
-    target = tvm.tirx.SBlock(
+    target = tvm.s_tir.SBlock(
         iter_vars=[],
         reads=[],
         writes=[],
@@ -135,7 +135,7 @@ def replace_ir_builder_module(deep_copy=False, realize=False):
         annotations=None,
     )
     if realize:
-        target = tvm.tirx.SBlockRealize(
+        target = tvm.s_tir.SBlockRealize(
             iter_values=[],
             predicate=True,
             block=target,

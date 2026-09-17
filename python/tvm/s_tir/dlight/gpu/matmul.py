@@ -166,12 +166,12 @@ def make_iter_fusion_index_map(
     return tirx.IndexMap(input_iters, final_indices, None)
 
 
-def detect_iter_traits(block: tirx.SBlock) -> tuple[list[IterTrait]] | None:
+def detect_iter_traits(block: s_tir.SBlock) -> tuple[list[IterTrait]] | None:
     """Detect iter traits based on the pattern C[S, I, J] += A[S, I, K] * B[S, J, K]
 
     Parameters
     ----------
-    block : tirx.SBlock
+    block : s_tir.SBlock
         The block to be analyzed
 
     Returns
@@ -236,12 +236,12 @@ def detect_iter_traits(block: tirx.SBlock) -> tuple[list[IterTrait]] | None:
     return A_traits, B_traits, C_traits, block_traits
 
 
-def get_index_map(block: tirx.SBlock) -> tuple[tirx.IndexMap, ...] | None:
+def get_index_map(block: s_tir.SBlock) -> tuple[tirx.IndexMap, ...] | None:
     """Get index maps for the block
 
     Parameters
     ----------
-    block : tirx.SBlock
+    block : s_tir.SBlock
         The block to be analyzed
 
     Returns
@@ -326,7 +326,7 @@ def get_reduction_blocks(sch, blocks) -> bool:
     return reduction_blocks
 
 
-def get_in_out_dtypes(block: tirx.SBlock) -> tuple[str]:
+def get_in_out_dtypes(block: s_tir.SBlock) -> tuple[str]:
     """
     Detect In/Out data types for the given block based on the analysis if read/write buffers.
     """

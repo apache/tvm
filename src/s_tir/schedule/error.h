@@ -23,6 +23,7 @@
 #include <tvm/ffi/memory.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/schedule/state.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <string>
 #include <type_traits>

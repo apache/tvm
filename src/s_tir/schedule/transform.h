@@ -22,12 +22,13 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/state.h>
-#include <tvm/tirx/stmt_functor.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 
 #include <unordered_map>
 #include <utility>
 
-#include "../../tirx/ir/ir_mutator_with_analyzer.h"
+#include "../../s_tir/ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
@@ -210,10 +211,10 @@ ffi::Optional<s_tir::LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
 /*!
  * \brief Simplifier for indices of buffer access and block buffer access regions.
  */
-class BlockBufferAccessSimplifier : public tirx::IRMutatorWithAnalyzer {
+class BlockBufferAccessSimplifier : public s_tir::IRMutatorWithAnalyzer {
  public:
-  using tirx::IRMutatorWithAnalyzer::Mutate;
-  using tirx::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::IRMutatorWithAnalyzer::Mutate;
+  using s_tir::IRMutatorWithAnalyzer::Mutate_;
 
   /*!
    * \brief Simplify indices of buffer access and block buffer access regions in the statement

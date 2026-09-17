@@ -23,7 +23,8 @@ from typing import Optional, Union
 import tvm
 from tvm.ir import IRModule, TensorRegion
 from tvm.tirx.expr import Var
-from tvm.tirx.stmt import SBlock
+from tvm.tirx.stmt import BufferRegion
+from tvm.s_tir import SBlock
 
 from tvm.tirx import Buffer, Stmt
 from tvm.tirx.function import PrimFunc
@@ -38,7 +39,7 @@ def get_sblock_access_region(
 
     Parameters
     ----------
-    block: tvm.tirx.SBlock
+    block: tvm.s_tir.SBlock
         The block in which we are detecting read/write regions.
 
     buffer_var_map : Dict[Var, Buffer]
@@ -63,7 +64,7 @@ def get_sblock_read_write_region(
 
     Parameters
     ----------
-    block: tvm.tirx.SBlock
+    block: tvm.s_tir.SBlock
         The block in which we are detecting read/write regions.
 
     buffer_var_map : Dict[Var, Buffer]

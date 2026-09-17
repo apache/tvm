@@ -25,19 +25,20 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace tirx {
 
-Stmt GetEnclosingLoop(const SBlockNode* block, Stmt func_body) {
-  struct GetRootSeqStmt : public StmtExprVisitor {
-    using StmtExprVisitor::Visit_;
+Stmt GetEnclosingLoop(const s_tir::SBlockNode* block, Stmt func_body) {
+  struct GetRootSeqStmt : public s_tir::StmtExprVisitor {
+    using s_tir::StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
       if (value.as<ExprNode>()) return std::nullopt;
-      return StmtExprVisitor::Visit(value);
+      return s_tir::StmtExprVisitor::Visit(value);
     }
 
     ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq) override {
@@ -47,24 +48,24 @@ Stmt GetEnclosingLoop(const SBlockNode* block, Stmt func_body) {
     const SeqStmtNode* result;
   };
 
-  struct BlockFinder : public StmtExprVisitor {
-    using StmtExprVisitor::Visit_;
+  struct BlockFinder : public s_tir::StmtExprVisitor {
+    using s_tir::StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
       if (value.as<ExprNode>()) return std::nullopt;
-      return StmtExprVisitor::Visit(value);
+      return s_tir::StmtExprVisitor::Visit(value);
     }
 
-    explicit BlockFinder(const SBlockNode* tgt) : target(tgt) {}
+    explicit BlockFinder(const s_tir::SBlockNode* tgt) : target(tgt) {}
 
-    ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) override {
+    ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* block) override {
       if (block == target) {
         found = true;
       }
       return std::nullopt;
     }
 
-    const SBlockNode* target;
+    const s_tir::SBlockNode* target;
     bool found = false;
   };
 
@@ -84,26 +85,26 @@ Stmt GetEnclosingLoop(const SBlockNode* block, Stmt func_body) {
   }
 
   TVM_FFI_THROW(InternalError) << "Enclosing loop not found for a block "
-                               << ffi::GetRef<SBlock>(block);
+                               << ffi::GetRef<s_tir::SBlock>(block);
   TVM_FFI_UNREACHABLE();
 }
 
-const SBlockNode* FindAnchorBlock(const IRModule& mod) {
-  struct ReductionSBlockCollector : public StmtExprVisitor {
-    using StmtExprVisitor::Visit_;
+const s_tir::SBlockNode* FindAnchorBlock(const IRModule& mod) {
+  struct ReductionSBlockCollector : public s_tir::StmtExprVisitor {
+    using s_tir::StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
       if (value.as<ExprNode>()) return std::nullopt;
-      return StmtExprVisitor::Visit(value);
+      return s_tir::StmtExprVisitor::Visit(value);
     }
 
-    ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) override {
+    ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* block) override {
       if (block->init) {
         blocks.push_back(block);
       }
-      return StmtExprVisitor::Visit(block->body);
+      return s_tir::StmtExprVisitor::Visit(block->body);
     }
-    std::vector<const SBlockNode*> blocks;
+    std::vector<const s_tir::SBlockNode*> blocks;
   };
 
   if (auto prim_func = FindEntryFunc(mod, nullptr)) {
@@ -138,9 +139,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("s_tir.analysis.find_anchor_sblock", [](const IRModule& mod) {
     auto ret = FindAnchorBlock(mod);
     if (ret) {
-      return ffi::Optional<SBlock>(ffi::GetRef<SBlock>(ret));
+      return ffi::Optional<s_tir::SBlock>(ffi::GetRef<s_tir::SBlock>(ret));
     }
-    return ffi::Optional<SBlock>(std::nullopt);
+    return ffi::Optional<s_tir::SBlock>(std::nullopt);
   });
 }
 

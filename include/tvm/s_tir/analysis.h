@@ -27,6 +27,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
@@ -47,8 +48,8 @@ namespace tirx {
  *           - second: write regions
  *           - third: opaque regions
  */
-TVM_DLL ffi::Array<ffi::Array<TensorRegion>> GetSBlockAccessRegion(
-    const SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map);
+TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
+    const s_tir::SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map);
 
 /*!
  * \brief Auto detect the block read/write region according to its body stmt. An opaque access will
@@ -58,8 +59,8 @@ TVM_DLL ffi::Array<ffi::Array<TensorRegion>> GetSBlockAccessRegion(
  *                       It is a map from buffer var to the buffer
  * \return An array only consisting of the read regions and write regions of the input block
  */
-TVM_DLL ffi::Array<ffi::Array<TensorRegion>> GetSBlockReadWriteRegion(
-    const SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map);
+TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockReadWriteRegion(
+    const s_tir::SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map);
 
 /*!
  * \brief Detect the lowest common ancestor(LCA) of buffer access, including both high-level
@@ -85,7 +86,7 @@ TVM_DLL ffi::Map<BufferVar, ffi::Optional<Stmt>> DetectBufferAccessLCA(const Pri
  * \param mod The input TIR module.
  * \return The anchor block if found, nullptr otherwise.
  */
-const tirx::SBlockNode* FindAnchorBlock(const IRModule& mod);
+const s_tir::SBlockNode* FindAnchorBlock(const IRModule& mod);
 
 }  // namespace tirx
 

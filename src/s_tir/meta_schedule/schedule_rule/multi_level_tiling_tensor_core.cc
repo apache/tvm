@@ -448,10 +448,10 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
 
   // Get the shape of the wmma accumulator
   auto [frag_shape_m, frag_shape_n] = [&]() {
-    tirx::SBlock intrin_block = TensorIntrin::Get(state->intrin_group.init_intrin)
-                                    .value()
-                                    ->desc->body.as_or_throw<tirx::SBlockRealize>()
-                                    ->block;
+    s_tir::SBlock intrin_block = TensorIntrin::Get(state->intrin_group.init_intrin)
+                                     .value()
+                                     ->desc->body.as_or_throw<s_tir::SBlockRealize>()
+                                     ->block;
     tirx::For loop_m = intrin_block->body.as_or_throw<tirx::For>();
     tirx::For loop_n = loop_m->body.as_or_throw<tirx::For>();
     return std::make_tuple(loop_m->extent, loop_n->extent);
@@ -628,9 +628,10 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
     const s_tir::SBlockRV cache_read = state->read_reuse.at(i);
     // Inline the reindex / padding block
     sch->ComputeInline(sch->GetProducers(cache_read)[0]);
-    const tirx::SBlockNode* cache_read_block = sch->GetSRef(cache_read)->StmtAs<tirx::SBlockNode>();
+    const s_tir::SBlockNode* cache_read_block =
+        sch->GetSRef(cache_read)->StmtAs<s_tir::SBlockNode>();
     tirx::BufferVar cache_read_buffer =
-        s_tir::GetNthAccessBuffer(sch->state(), ffi::GetRef<tirx::SBlock>(cache_read_block), 0,
+        s_tir::GetNthAccessBuffer(sch->state(), ffi::GetRef<s_tir::SBlock>(cache_read_block), 0,
                                   s_tir::BufferIndexType::kWrite);
     const DLDataType dtype = cache_read_buffer->dtype->dtype;
     // Storage alignment is chosen from element storage width; this schedule rule uses scalar
@@ -783,9 +784,9 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   tirx::StmtSRef block_sref = state->sch->GetSRef(state->block_rv);
 
   // Add reindex stages
-  const tirx::SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+  const s_tir::SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   // Hold the reference of the block before reindex
-  const tirx::SBlock block_before_reindex = ffi::GetRef<tirx::SBlock>(block);
+  const s_tir::SBlock block_before_reindex = ffi::GetRef<s_tir::SBlock>(block);
   if (block->reads.size() != 2 || block->writes.size() != 1) {
     // only matmul-like computation is allowed
     return std::nullopt;
@@ -867,8 +868,8 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     visited_buffers.insert(lhs_buffer);
     // Refresh block pointer (block sref is not invalidated)
     block = TVM_SREF_TO_SBLOCK(block_sref);
-    const tvm::TensorRegion& reindexed_buffer_region = s_tir::GetNthAccessBufferRegion(
-        state->sch->state(), ffi::GetRef<tirx::SBlock>(block), buffer_index, index_type);
+    const tirx::BufferRegion& reindexed_buffer_region = s_tir::GetNthAccessBufferRegion(
+        state->sch->state(), ffi::GetRef<s_tir::SBlock>(block), buffer_index, index_type);
     auto sub_index_map = f_get_sub_index_map(lhs_buffer, reindexed_buffer_region->region);
     buffer_sub_index_map.Set(lhs_buffer, sub_index_map);
     state->sch->TransformLayout(state->block_rv, buffer_index, index_type, sub_index_map,

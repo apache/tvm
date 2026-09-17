@@ -29,7 +29,8 @@ from tvm import IRModule, tirx
 from tvm.ir import Call, Type
 from tvm.relax.expr import Binding, DataflowBlock, Expr, Function, GlobalVar, Var
 from tvm.relax.type import FuncType
-from tvm.tirx import Buffer, IndexMap, PrimFunc, SBlock
+from tvm.s_tir import SBlock
+from tvm.tirx import Buffer, IndexMap, PrimFunc
 
 from . import _ffi_api
 

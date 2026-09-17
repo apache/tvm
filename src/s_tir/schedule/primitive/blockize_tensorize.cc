@@ -22,6 +22,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/function.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <functional>
 

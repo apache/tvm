@@ -19,6 +19,7 @@
 """S-TIR namespace for scheduable TensorIR"""
 
 from .function import TensorIntrin
+from .stmt import MatchBufferRegion, SBlock, SBlockRealize
 
 # dlight depends on compiler-only C++ functions (e.g. s_tir.schedule.GetSBlockRealize),
 # so skip it in runtime-only builds.

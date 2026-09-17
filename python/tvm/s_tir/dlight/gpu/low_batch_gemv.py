@@ -37,7 +37,7 @@ from ..base import auto_vectorize, get_bytes, get_extent, try_inline_contiguous_
 from .base import GPUScheduleRule
 
 
-def _get_reduction_expr(block: tirx.SBlock) -> tirx.Expr | None:
+def _get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     # Detect and return `Y` in `X[...] = X[...] + Y`
     buffer_store = block.body
     if not isinstance(buffer_store, tirx.BufferStore):
@@ -53,7 +53,7 @@ def _get_reduction_expr(block: tirx.SBlock) -> tirx.Expr | None:
     return buffer_store.value.b
 
 
-def _has_pad_einsum_compatible_access(block: tirx.SBlock) -> bool:
+def _has_pad_einsum_compatible_access(block: s_tir.SBlock) -> bool:
     """Check the point-access restriction required by ``Schedule.pad_einsum``."""
     return all(
         isinstance(dim.extent, tirx.IntImm)
@@ -126,7 +126,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
     return ret if 0 < len(ret) < len(block_stmt.reads) else None
 
 
-def detect_dominant_read(block: tirx.SBlock, const_iter_vars: set[tirx.Var]) -> tirx.Expr:
+def detect_dominant_read(block: s_tir.SBlock, const_iter_vars: set[tirx.Var]) -> tirx.Expr:
     """Detect the dominant read indices in the block."""
     dominant_read = None
     num_read_iters = -1
@@ -148,7 +148,7 @@ def normalize(
     block_info: SBlockInfo,
 ) -> bool | None:
     """Normalize the main block."""
-    block_stmt: tirx.SBlock = sch.get(block_info.block_rv)
+    block_stmt: s_tir.SBlock = sch.get(block_info.block_rv)
     const_iter_vars = set(
         iter_var.var
         for iter_var in block_stmt.iter_vars

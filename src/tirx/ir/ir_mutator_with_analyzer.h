@@ -34,6 +34,7 @@
 
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 namespace tirx {
@@ -49,14 +50,20 @@ namespace tirx {
  */
 class IRMutatorWithAnalyzer : public StmtExprMutator {
  public:
+  using StmtExprMutator::VTable;
+  // Dialect-owned handlers use nested access to the active traversal context.
+  class Extension;
+  // Extensions register during library initialization, before constructing a visitor.
+  static void RegisterExtension(void (*init)(VTable*));
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
-  explicit IRMutatorWithAnalyzer(const arith::Analyzer& analyzer) : analyzer_(analyzer.get()) {}
-  explicit IRMutatorWithAnalyzer(arith::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
+  explicit IRMutatorWithAnalyzer(const arith::Analyzer& analyzer)
+      : IRMutatorWithAnalyzer(analyzer.get()) {}
+  explicit IRMutatorWithAnalyzer(arith::AnalyzerObj* analyzer)
+      : IRMutatorWithAnalyzer(analyzer, GlobalVTable()) {}
 
   // override functions that need to populate the context information.
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
@@ -66,6 +73,10 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
 
  protected:
+  static void InitVTable(VTable* vtable);
+  IRMutatorWithAnalyzer(arith::AnalyzerObj* analyzer, const VTable* vtable)
+      : StmtExprMutator(vtable), analyzer_(analyzer) {}
+  static const VTable* GlobalVTable();
   /*!
    * \brief Mark all buffer-parameter shape values as positive values.
    *

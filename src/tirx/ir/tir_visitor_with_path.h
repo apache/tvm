@@ -45,12 +45,23 @@ namespace tirx {
 class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflection::AccessPath)>,
                            protected StmtFunctor<void(const Stmt&, ffi::reflection::AccessPath)> {
  public:
+  using StmtVisitor = StmtFunctor<void(const Stmt&, ffi::reflection::AccessPath)>;
+  using VTable = StmtVisitor::VTable;
+  // Dialect-owned handlers use nested access to the active traversal context.
+  class Extension;
+  TIRVisitorWithPath();
+  // Extensions register at library initialization, before first visitor construction.
+  static void RegisterExtension(void (*init)(VTable*));
   template <typename TObjectRef>
   void operator()(TObjectRef&& obj) {
     Visit(std::forward<TObjectRef>(obj), ffi::reflection::AccessPath::Root());
   }
 
  protected:
+  // A dialect restriction can reject extension statements without knowing concrete node types.
+  virtual bool EnterExtensionStmt(const ffi::Object* op, ffi::reflection::AccessPath path) {
+    return true;
+  }
   // Delegate to ExprFunctor::Dispatch for PrimExpr, and any subclasses
   virtual inline void Visit(const PrimExpr& obj, ffi::reflection::AccessPath path) {
     Dispatch(obj, path);
@@ -92,8 +103,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   virtual void Visit(const PrimFunc& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const GlobalVar& obj, ffi::reflection::AccessPath path) {}
   virtual void Visit(const Range& obj, ffi::reflection::AccessPath path);
-  virtual void Visit(const TensorRegion& obj, ffi::reflection::AccessPath path);
-  virtual void Visit(const MatchBufferRegion& obj, ffi::reflection::AccessPath path);
+  virtual void Visit(const BufferRegion& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const IterVar& obj, ffi::reflection::AccessPath path);
 
   // Called when entering/exiting the scope of a GlobalVar definition.
@@ -132,25 +142,23 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
     }
   }
 
-  using StmtFunctor::Dispatch;
-  void Dispatch_(const BindNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const AttrStmtNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const IfThenElseNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const ForNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const WhileNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const ReturnNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const BreakNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const ContinueNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const DeclBufferNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const AssertStmtNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const SeqStmtNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const EvaluateNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const SBlockNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const tirx::TilePrimitiveCallNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const ScopeIdDefStmtNode* op, ffi::reflection::AccessPath path) override;
+  using StmtFunctor::VisitStmt;
+  void VisitStmt_(const BindNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const AttrStmtNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const IfThenElseNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const ForNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const WhileNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const ReturnNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const BreakNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const ContinueNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const DeclBufferNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const AssertStmtNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const SeqStmtNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const EvaluateNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const tirx::TilePrimitiveCallNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const ScopeIdDefStmtNode* op, ffi::reflection::AccessPath path) override;
 
   using ExprFunctor::Dispatch;
   void Dispatch_(const VarNode* op, ffi::reflection::AccessPath path) override;

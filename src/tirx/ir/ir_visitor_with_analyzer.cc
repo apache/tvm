@@ -24,13 +24,27 @@
 
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 namespace tvm {
 namespace tirx {
+namespace {
+std::vector<void (*)(IRVisitorWithAnalyzer::VTable*)>& IRVisitorWithAnalyzerExtensions() {
+  static std::vector<void (*)(IRVisitorWithAnalyzer::VTable*)> extensions;
+  return extensions;
+}
+}  // namespace
+
+void IRVisitorWithAnalyzer::RegisterExtension(void (*init)(VTable*)) {
+  IRVisitorWithAnalyzerExtensions().push_back(init);
+}
+
+void IRVisitorWithAnalyzer::InitVTable(VTable* vtable) {
+  StmtExprVisitor::InitVTable(vtable);
+  for (auto init : IRVisitorWithAnalyzerExtensions()) init(vtable);
+}
 
 ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const ForNode* op) {
   return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
@@ -44,15 +58,6 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const ForNode* op) {
       constraint_scope_.Current().Emplace(analyzer_, op->extent > IntImm(op->extent.ty(), 0));
       return this->Visit(op->body);
     });
-  });
-}
-
-ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const SBlockNode* op) {
-  return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
-    for (const auto& iter_var : op->iter_vars) {
-      analyzer_->Bind(iter_var->var, iter_var->dom);
-    }
-    return StmtExprVisitor::Visit_(op);
   });
 }
 
@@ -89,7 +94,7 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const IfThenElseNode
 
 ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const AttrStmtNode* op) {
   return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
-    if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
+    if (op->attr_key == tirx::attr::thread_extent || op->attr_key == "virtual_thread") {
       IterVar iv = op->node.as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       analyzer_->Bind(iv->var, Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value));

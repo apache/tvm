@@ -52,123 +52,111 @@ namespace tirx {
 template <typename FType>
 class StmtFunctor;
 
+#define STMT_FUNCTOR_DEFAULT                                   \
+  {                                                            \
+    return VisitStmtDefault_(op, std::forward<Args>(args)...); \
+  }
+
+#define IR_STMT_FUNCTOR_DISPATCH(OP)                                                        \
+  vtable->template SetDispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
+    return self->VisitStmt_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...);  \
+  });
+
 template <typename R, typename... Args>
 class StmtFunctor<R(const Stmt&, Args...)> {
  private:
-  using TSelf = StmtFunctor<R(const Stmt&, Args...)>;
+  using TSelf = StmtFunctor<R(const Stmt& n, Args... args)>;
 
  public:
   /*! \brief The result type of this functor. */
   using result_type = R;
-  /*! \brief Construct a functor with the TIRx statement hooks. */
   StmtFunctor() : StmtFunctor(GlobalVTable()) {}
-  /*! \brief Destroy through the statement functor base. */
-  virtual ~StmtFunctor() = default;
-  /*! \brief Dispatch a statement, forwarding additional arguments to its hook. */
-  TVM_FFI_INLINE R operator()(const Stmt& node, Args... args) {
-    return Dispatch(node, std::forward<Args>(args)...);
+  /*! \brief virtual destructor */
+  virtual ~StmtFunctor() {}
+  /*!
+   * \brief Same as call.
+   * \param n The stmt node.
+   * \param args Additional arguments.
+   * \return The result of the call
+   */
+  R operator()(const Stmt& n, Args... args) { return VisitStmt(n, std::forward<Args>(args)...); }
+  /*!
+   * \brief The functor call.
+   * \param n The stmt node.
+   * \param args Additional arguments.
+   * \return The result of the call
+   */
+  virtual R VisitStmt(const Stmt& n, Args... args) {
+    return (*vtable_)(n, this, std::forward<Args>(args)...);
   }
-  /*! \brief Dispatch to a node hook, including registered ancestor hooks. */
-  TVM_FFI_INLINE virtual R Dispatch(const Stmt& node, Args... args) {
-    TVM_FFI_ICHECK(node.defined()) << "Cannot dispatch a null statement";
-    return (*vtable_)(node, this, std::forward<Args>(args)...);
-  }
-
-  virtual R Dispatch_(const BindNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const AttrStmtNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const IfThenElseNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const ForNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const WhileNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const ReturnNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const BreakNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const ContinueNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const AllocBufferNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const DeclBufferNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const BufferStoreNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const AssertStmtNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const SeqStmtNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const EvaluateNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const SBlockNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const SBlockRealizeNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const ScopeIdDefStmtNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const tirx::TilePrimitiveCallNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  /*! \brief Default behavior for statement hooks not overridden by a subclass. */
-  virtual R DispatchDefault_(const ffi::Object* node, Args...) {
-    TVM_FFI_THROW(InternalError) << "Do not have a default for " << node->GetTypeKey();
+  // Functions that can be overriden by subclass
+  virtual R VisitStmt_(const BindNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const AttrStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const IfThenElseNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const ForNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const WhileNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const ReturnNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const BreakNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const ContinueNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const AllocBufferNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const DeclBufferNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const BufferStoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const AssertStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const SeqStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const EvaluateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const ScopeIdDefStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const tirx::TilePrimitiveCallNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmtDefault_(const ffi::Object* op, Args...) {
+    TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     TVM_FFI_UNREACHABLE();
   }
 
  protected:
-  /*! \brief Dispatch table shared by this signature and its subclasses. */
   using VTable = ObjectFunctor<R(const ffi::ObjectRef&, TSelf*, Args...)>;
-  /*! \brief Construct with a finalized table that outlives the functor. */
+
   explicit StmtFunctor(const VTable* vtable) : vtable_(vtable) {}
-  /*! \brief Register statement hooks in a fresh mutable table. */
+
+  // Register inherited hooks in a fresh table before adding dialect nodes.
   static void InitVTable(VTable* vtable) {
-    SetDispatch<TSelf, BindNode>(vtable);
-    SetDispatch<TSelf, AttrStmtNode>(vtable);
-    SetDispatch<TSelf, IfThenElseNode>(vtable);
-    SetDispatch<TSelf, ForNode>(vtable);
-    SetDispatch<TSelf, WhileNode>(vtable);
-    SetDispatch<TSelf, ReturnNode>(vtable);
-    SetDispatch<TSelf, BreakNode>(vtable);
-    SetDispatch<TSelf, ContinueNode>(vtable);
-    SetDispatch<TSelf, AllocBufferNode>(vtable);
-    SetDispatch<TSelf, DeclBufferNode>(vtable);
-    SetDispatch<TSelf, BufferStoreNode>(vtable);
-    SetDispatch<TSelf, AssertStmtNode>(vtable);
-    SetDispatch<TSelf, SeqStmtNode>(vtable);
-    SetDispatch<TSelf, EvaluateNode>(vtable);
-    SetDispatch<TSelf, SBlockNode>(vtable);
-    SetDispatch<TSelf, SBlockRealizeNode>(vtable);
-    SetDispatch<TSelf, ScopeIdDefStmtNode>(vtable);
-    SetDispatch<TSelf, tirx::TilePrimitiveCallNode>(vtable);
+    IR_STMT_FUNCTOR_DISPATCH(BindNode);
+    IR_STMT_FUNCTOR_DISPATCH(AttrStmtNode);
+    IR_STMT_FUNCTOR_DISPATCH(IfThenElseNode);
+    IR_STMT_FUNCTOR_DISPATCH(ForNode);
+    IR_STMT_FUNCTOR_DISPATCH(WhileNode);
+    IR_STMT_FUNCTOR_DISPATCH(ReturnNode);
+    IR_STMT_FUNCTOR_DISPATCH(BreakNode);
+    IR_STMT_FUNCTOR_DISPATCH(ContinueNode);
+    IR_STMT_FUNCTOR_DISPATCH(AllocBufferNode);
+    IR_STMT_FUNCTOR_DISPATCH(DeclBufferNode);
+    IR_STMT_FUNCTOR_DISPATCH(AssertStmtNode);
+    IR_STMT_FUNCTOR_DISPATCH(SeqStmtNode);
+    IR_STMT_FUNCTOR_DISPATCH(EvaluateNode);
+    IR_STMT_FUNCTOR_DISPATCH(BufferStoreNode);
+    IR_STMT_FUNCTOR_DISPATCH(ScopeIdDefStmtNode);
+    IR_STMT_FUNCTOR_DISPATCH(tirx::TilePrimitiveCallNode);
   }
-  /*! \brief Register an additional node hook implemented by Self. */
+
   template <typename Self, typename Node>
   static void SetDispatch(VTable* vtable) {
-    vtable->template SetDispatch<Node>(
-        [](const ffi::ObjectRef& node, TSelf* self, Args... args) -> R {
-          return static_cast<Self*>(self)->Dispatch_(static_cast<const Node*>(node.get()),
-                                                     std::forward<Args>(args)...);
-        });
+    vtable->template SetDispatch<Node>([](const ffi::ObjectRef& node, TSelf* self, Args... args) {
+      return static_cast<Self*>(self)->VisitStmt_(static_cast<const Node*>(node.get()),
+                                                  std::forward<Args>(args)...);
+    });
   }
+
+ private:
+  static const VTable* GlobalVTable() {
+    static const VTable table = [] {
+      VTable table;
+      InitVTable(&table);
+      table.Finalize();
+      return table;
+    }();
+    return &table;
+  }
+
+  const VTable* const vtable_;
+};
 
  private:
   static const VTable* GlobalVTable() {
@@ -197,6 +185,9 @@ class StmtFunctor<R(const Stmt&, Args...)> {
  */
 class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
  public:
+  using tvm::ExprVisitor::VTable;
+  // Register dialect hooks during library initialization, before first table use.
+  static void RegisterExtension(void (*init)(VTable*));
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprVisitor, tvm::ExprVisitor)
 
   using tvm::ExprVisitor::Visit;
@@ -216,8 +207,6 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
   virtual ffi::Optional<VisitInterrupt> Visit_(const AssertStmtNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op);
-  virtual ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op);
-  virtual ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const ScopeIdDefStmtNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const TilePrimitiveCallNode* op);
 
@@ -233,10 +222,10 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const prim::BroadcastNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const prim::ShuffleNode* op) override;
 
- protected:
-  // Visit definition metadata as uses, separately from the buffer Var definition.
+  /*! \brief Visit definition metadata as uses, separately from the buffer Var definition. */
   ffi::Optional<VisitInterrupt> VisitBufferMetadata(const BufferVar& buffer);
 
+ protected:
   explicit StmtExprVisitor(const VTable* vtable) : tvm::ExprVisitor(vtable) {}
   static void InitVTable(VTable* vtable);
 };
@@ -251,6 +240,9 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
  */
 class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
  public:
+  using tvm::ExprMutator::VTable;
+  // Register dialect hooks during library initialization, before first table use.
+  static void RegisterExtension(void (*init)(VTable*));
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprMutator, tvm::ExprMutator)
   using tvm::ExprMutator::Mutate;
   using tvm::ExprMutator::Mutate_;
@@ -282,8 +274,6 @@ class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
   virtual UnchangedOr<Stmt> Mutate_(const AssertStmtNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode);
-  virtual UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode);
-  virtual UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const ScopeIdDefStmtNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const TilePrimitiveCallNode* op, InplaceMode inplace_mode);
 
@@ -334,12 +324,11 @@ bool ContainsNode(const Stmt& stmt) {
       if (contains_node || value.as<ExprNode>()) {
         return std::nullopt;
       }
+      if (value.as<Node>()) {
+        contains_node = true;
+        return std::nullopt;
+      }
       return StmtExprVisitor::Visit(value);
-    }
-
-    ffi::Optional<VisitInterrupt> Visit_(const Node* block) override {
-      contains_node = true;
-      return std::nullopt;
     }
 
     bool contains_node{false};

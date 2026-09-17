@@ -20,6 +20,7 @@
 #define TVM_S_TIR_SCHEDULE_TRACED_SCHEDULE_H_
 
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "./concrete_schedule.h"
 

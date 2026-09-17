@@ -27,13 +27,13 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
 #include "../ir/data_type_rewriter.h"
+#include "stmt_extension.h"
 
 namespace tvm {
 namespace tirx {
@@ -75,7 +75,7 @@ using arith::ConstIntBound;
 // then we narrow `var` into `target_bits_`. That is,
 // `vmap[var] = min(target_bits_, var.dtype.bits())`
 // Otherwise, `var` is not narrowed, that is, `vmap[var] = var.dtype.bits()`
-class DataTypeVisitor final : public StmtExprVisitor {
+class DataTypeVisitor final : public IndexDomainVisitor {
  public:
   explicit DataTypeVisitor(int target_bits) : bits_(target_bits), target_bits_(target_bits) {}
 
@@ -124,16 +124,13 @@ class DataTypeVisitor final : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) {
-    for (const IterVar& iter : op->iter_vars) {
-      analyzer_->Bind(iter->var, Range::FromMinExtent(iter->dom->min, iter->dom->extent));
-      vextent_.insert_or_assign(iter->var.as<VarNode>(), iter->dom->extent.ty());
-    }
-    return StmtExprVisitor::Visit_(op);
+  void BindDomain(const Var& var, const Range& domain) final {
+    analyzer_->Bind(var, domain);
+    vextent_.insert_or_assign(var.as<VarNode>(), domain->extent.ty());
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) {
-    if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
+    if (op->attr_key == attr::thread_extent || op->attr_key == "virtual_thread") {
       IterVar iv = op->node.as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));

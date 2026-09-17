@@ -18,6 +18,8 @@
  */
 #include "./traced_schedule.h"
 
+#include <tvm/s_tir/stmt.h>
+
 namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;

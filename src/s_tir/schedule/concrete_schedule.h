@@ -22,6 +22,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <memory>
 #include <utility>

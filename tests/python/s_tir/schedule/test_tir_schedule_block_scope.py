@@ -85,12 +85,12 @@ def _get_sblock(s: s_tir.ScheduleState, name_hint: str) -> s_tir.StmtSRef:
 
     def f_visit(node):
         nonlocal result
-        if isinstance(node, tvm.tirx.SBlock) and node.name_hint == name_hint:
+        if isinstance(node, tvm.s_tir.SBlock) and node.name_hint == name_hint:
             result = node
 
     func = s.mod["main"]
     structural_walk(func.body, f_visit, order="post")
-    assert result is not None and isinstance(result, tvm.tirx.SBlock)
+    assert result is not None and isinstance(result, tvm.s_tir.SBlock)
     return s.get_sref(result)
 
 

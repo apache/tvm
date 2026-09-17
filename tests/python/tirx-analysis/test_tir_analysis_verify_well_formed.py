@@ -54,7 +54,7 @@ def test_buffer_region_bounds_are_visited():
     buffer = tvm.tirx.decl_buffer([4], "int32", data=data)
     undefined = tvm.tirx.Var("undefined", "int32")
     region = tvm.tirx.BufferRegion(buffer, [tvm.ir.Range.from_min_extent(undefined, 4)])
-    block = tvm.tirx.SBlock([], [region], [], "region", tvm.tirx.Evaluate(0))
+    block = tvm.s_tir.SBlock([], [region], [], "region", tvm.tirx.Evaluate(0))
     func = tvm.tirx.PrimFunc([buffer], block)
     assert not tvm.tirx.analysis.verify_well_formed(func, assert_mode=False)
 
@@ -465,14 +465,14 @@ def test_error_undeclared_buffer_in_schedulable_tir():
 
     # Build a block that writes to B without any declaration of B.
     bi = tvm.tirx.Var("bi", "int32")
-    block = tvm.tirx.SBlock(
+    block = tvm.s_tir.SBlock(
         iter_vars=[tvm.tirx.IterVar(tvm.ir.Range(0, n), bi, 0)],  # 0 = kDataPar
         reads=[tvm.tirx.BufferRegion(A, [tvm.ir.Range(bi, bi + 1)])],
         writes=[tvm.tirx.BufferRegion(B, [tvm.ir.Range(bi, bi + 1)])],
         body=tvm.tirx.BufferStore(B, tvm.tirx.BufferLoad(A, [bi]), [bi]),
         name_hint="write_B",
     )
-    block_realize = tvm.tirx.SBlockRealize(
+    block_realize = tvm.s_tir.SBlockRealize(
         iter_values=[i],
         predicate=tvm.tirx.const(True),
         block=block,

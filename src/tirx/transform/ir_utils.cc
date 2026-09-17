@@ -28,7 +28,6 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/scope_stack.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -37,6 +36,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+
+#include "stmt_extension.h"
 
 namespace tvm {
 namespace tirx {
@@ -88,7 +89,7 @@ Stmt MergeNest(const std::vector<std::vector<Stmt>>& nest, Stmt body) {
   return body;
 }
 
-class IRConvertSSA final : public StmtExprMutator {
+class IRConvertSSA final : public SSAStmtMutator {
  public:
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
@@ -253,42 +254,19 @@ class IRConvertSSA final : public StmtExprMutator {
     return decl;
   }
 
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    SBlock block = ffi::GetRef<SBlock>(op);
+  Stmt WithScope(const std::function<Stmt()>& body) final { return scope_.WithNewScope(body); }
 
-    // The SBlockNode is the point of definition for the IterVar
-    // instances.  These re-defines must be present before visiting
-    // the body of the SBlockNode.
-    return scope_.WithNewScope([&]() -> Stmt {
-      ffi::Array<IterVar> iter_vars = op->iter_vars.Map([&](IterVar iter_var) {
-        if (defined_.count(iter_var->var.get())) {
-          Var new_var = MakeNewVar(iter_var->var);
-          PushVarRemap(iter_var->var, new_var);
-          iter_var.CopyOnWrite()->var = new_var.as_or_throw<PrimVar>();
-        } else {
-          defined_.insert(iter_var->var.get());
-        }
-        return iter_var;
-      });
-      ffi::Array<TensorRegion> reads =
-          block->reads.Map([&](const auto& region) { return VisitBufferAccess(region); });
-      ffi::Array<TensorRegion> writes =
-          block->writes.Map([&](const auto& region) { return VisitBufferAccess(region); });
-
-      if (!reads.same_as(block->reads) || !writes.same_as(block->writes) ||
-          !iter_vars.same_as(op->iter_vars)) {
-        auto write_ptr = block.CopyOnWrite();
-        write_ptr->reads = reads;
-        write_ptr->writes = writes;
-        write_ptr->iter_vars = iter_vars;
-      }
-
-      return StmtExprMutator::Mutate_(block.get(),
-                                      block.unique() ? inplace_mode : InplaceMode::kDisallow)
-          .ValueOrUnchanged(block)
-          .as_or_throw<SBlock>();
-    });
+  Var DefineVar(Var var) final {
+    if (defined_.count(var.get())) {
+      Var new_var = MakeNewVar(var);
+      PushVarRemap(var, new_var);
+      return new_var;
+    }
+    defined_.insert(var.get());
+    return var;
   }
+
+  BufferVar RemapBuffer(BufferVar buffer) final { return GetRemappedBuffer(buffer); }
 
   template <typename Node>
   Node VisitBufferAccess(Node node) {
@@ -784,61 +762,16 @@ ffi::Array<PrimExpr> GetBufferAllocationShape(const BufferVar& buffer) {
   return alloc_shape;
 }
 
-ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
-                                    const ffi::Array<PrimExpr>& indices) {
-  const BufferVar& target = match_buffer->buffer;
-  const TensorRegion& source = match_buffer->source;
-  TVM_FFI_ICHECK_EQ(indices.size(), target->shape.size());
-
-  arith::Analyzer analyzer;
-  ffi::Array<PrimExpr> result;
-  result.reserve(source->region.size());
-  size_t offset = source->region.size() - indices.size();
-  for (size_t i = 0; i < offset; ++i) {
-    const Range& range = source->region[i];
-    TVM_FFI_ICHECK(analyzer->CanProve(range->extent == 1));
-    result.push_back(range->min);
-  }
-  for (size_t i = 0; i < indices.size(); ++i) {
-    const Range& range = source->region[i + offset];
-    const PrimExpr& index = indices[i];
-    result.push_back(range->min + index);
-  }
-  return result;
-}
-
-Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region) {
-  const BufferVar& target = match_buffer->buffer;
-  const TensorRegion& source = match_buffer->source;
-  TVM_FFI_ICHECK_EQ(region.size(), target->shape.size());
-
-  arith::Analyzer analyzer;
-  Region result;
-  result.reserve(source->region.size());
-  size_t offset = source->region.size() - region.size();
-  for (size_t i = 0; i < offset; ++i) {
-    const Range& source_range = source->region[i];
-    TVM_FFI_ICHECK(analyzer->CanProve(source_range->extent == 1));
-    result.push_back(Range::FromMinExtent(source_range->min, 1));
-  }
-  for (size_t i = 0; i < region.size(); ++i) {
-    const Range& source_range = source->region[i + offset];
-    const Range& target_range = region[i];
-    result.push_back(
-        Range::FromMinExtent(source_range->min + target_range->min, target_range->extent));
-  }
-  return result;
-}
-
+// Attribute strings are the metadata protocol shared by lowered and schedulable statements.
 std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op) {
-  TVM_FFI_ICHECK(op && op->attr_key == s_tir::attr::async_wait_queue_scope);
+  TVM_FFI_ICHECK(op && op->attr_key == "async_wait_queue_scope");
   auto inner = op->body.as<AttrStmtNode>();
-  TVM_FFI_ICHECK(inner && inner->attr_key == s_tir::attr::async_wait_inflight_count);
+  TVM_FFI_ICHECK(inner && inner->attr_key == "async_wait_inflight_count");
   return std::make_pair(op->value, inner->value);
 }
 
 /*! \brief Collect storage alignment information from annotations. */
-class StorageAlignCollector : public StmtExprVisitor {
+class StorageAlignCollector : public StorageAlignVisitor {
  public:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
@@ -849,24 +782,13 @@ class StorageAlignCollector : public StmtExprVisitor {
   friend std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(
       const Stmt& body);
 
-  /*! \brief For s-stir, the alignment annotations reside in block annotations. */
-  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
-    auto it = op->annotations.find(s_tir::attr::buffer_dim_align);
-    if (it != op->annotations.end()) {
-      auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
-      for (const auto& storage_align_tuple : storage_align_annotation) {
-        int buffer_index = storage_align_tuple.get<0>();
-        const BufferVar& buffer =
-            op->writes[buffer_index]->source.as_or_throw<tvm::tirx::BufferVar>();
-        storage_align_[buffer.var()].push_back(storage_align_tuple);
-      }
-    }
-    return StmtExprVisitor::Visit_(op);
+  void RecordAlignment(const Var& buffer, const StorageAlignTuple& annotation) final {
+    storage_align_[buffer].push_back(annotation);
   }
 
   /*! \brief AllocBuffer: check for buffer_dim_align annotations. */
   ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
-    auto it = op->annotations.find(s_tir::attr::buffer_dim_align);
+    auto it = op->annotations.find("buffer_dim_align");
     if (it != op->annotations.end()) {
       auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
       for (const auto& storage_align_tuple : storage_align_annotation) {

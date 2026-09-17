@@ -19,7 +19,7 @@
 import pytest
 
 import tvm.testing
-from tvm import relax, tirx
+from tvm import relax, s_tir, tirx
 from tvm.script import tirx as T
 
 
@@ -28,7 +28,7 @@ def apply_transformations(func, suggested_transfoms, print_transformation=False)
     for block, per_block_transformations in suggested_transfoms.items():
         blockrv = sch.get_sblock(block.name_hint)
         for obj, index_map in per_block_transformations.items():
-            if isinstance(obj, tirx.SBlock):
+            if isinstance(obj, s_tir.SBlock):
                 block_name = obj.name_hint
                 if print_transformation:
                     print("Block transformation: ", block_name, " :: ", index_map)

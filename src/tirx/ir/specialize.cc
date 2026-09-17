@@ -21,12 +21,13 @@
  * \file src/tirx/ir/specialize.cc
  * \brief Specialize parameters of PrimFunc.
  */
+#include "specialize.h"
+
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
@@ -35,6 +36,7 @@
 
 #include <functional>
 #include <unordered_set>
+#include <vector>
 
 #include "../transform/ir_utils.h"
 
@@ -42,6 +44,17 @@ namespace tvm {
 namespace tirx {
 
 using VarMap = std::unordered_map<Var, Expr>;
+
+namespace {
+std::vector<void (*)(SpecializeVisitorVTable*)>& BufferPlannerExtensions() {
+  static std::vector<void (*)(SpecializeVisitorVTable*)> extensions;
+  return extensions;
+}
+}  // namespace
+
+void RegisterSpecializeBufferPlannerExtension(void (*init)(SpecializeVisitorVTable*)) {
+  BufferPlannerExtensions().push_back(init);
+}
 
 /**************** Helper functions ****************/
 
@@ -155,9 +168,21 @@ class PrimFuncSpecializer : public StmtExprMutator {
    public:
     using StmtExprVisitor::Visit_;
 
-    explicit BufferPlanner(PrimFuncSpecializer* specializer) : specializer_(specializer) {}
+    explicit BufferPlanner(PrimFuncSpecializer* specializer)
+        : StmtExprVisitor(GlobalVTable()), specializer_(specializer) {}
 
    private:
+    static const VTable* GlobalVTable() {
+      static const VTable table = [] {
+        VTable table;
+        StmtExprVisitor::InitVTable(&table);
+        for (auto init : BufferPlannerExtensions()) init(&table);
+        table.Finalize();
+        return table;
+      }();
+      return &table;
+    }
+
     ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
       if (op->ty.as<BufferTypeNode>()) {
         if (def_region_kind() == kTVMFFIDefRegionKindSimple) {
@@ -175,35 +200,6 @@ class PrimFuncSpecializer : public StmtExprMutator {
           kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->buffer); }));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(op->buffer));
       return Visit(op->data);
-    }
-
-    ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
-      // Block allocations were planned before all other block children by the specializer.
-      for (const BufferVar& buffer : op->alloc_buffers) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
-            kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(buffer); }));
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(buffer));
-      }
-      for (const IterVar& iter : op->iter_vars) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(iter->dom->min));
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(iter->dom->extent));
-      }
-      for (const TensorRegion& region : op->reads) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(region));
-      }
-      for (const TensorRegion& region : op->writes) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(region));
-      }
-      for (const MatchBufferRegion& match : op->match_buffers) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
-            kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(match->buffer); }));
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(match->buffer));
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(match->source));
-      }
-      if (op->init.has_value()) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->init.value()));
-      }
-      return Visit(op->body);
     }
 
     PrimFuncSpecializer* specializer_;
@@ -347,7 +343,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
         << "(see discussion on https://github.com/apache/tvm/pull/14565 for more details).  "
         << "Please add a definition for this buffer, "
         << "either as a BufferType-annotated PrimFunc parameter, "
-        << "in a tirx::SBlock's alloc_buffer, "
+        << "in a block's buffer allocations, "
         << "or in a DeclBuffer statement.";
   }
 

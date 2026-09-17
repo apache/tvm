@@ -69,19 +69,12 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
     return ffi::Unchanged();
   }
 
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
-    SBlock block_ = IndexDataTypeNormalizer::Mutate_(block, inplace_mode)
-                        .ValueOrUnchanged(ffi::GetRef<Stmt>(block))
-                        .as_or_throw<SBlock>();
-    // Check if the allocated integer buffers have dtype other than int32.
-    for (const BufferVar& buf : block_->alloc_buffers) {
-      if (buf->dtype.MatchesCode(DLDataTypeCode::kDLInt) && buf->dtype.bits() > 32) {
-        TVM_FFI_THROW(InternalError)
-            << "The buffer " << buf << " allocated in the function has dtype " << buf->dtype
-            << ". The function is " << func_;
-      }
+  void ValidateAllocation(const BufferVar& buf) final {
+    if (buf->dtype.MatchesCode(DLDataTypeCode::kDLInt) && buf->dtype.bits() > 32) {
+      TVM_FFI_THROW(InternalError)
+          << "The buffer " << buf << " allocated in the function has dtype " << buf->dtype
+          << ". The function is " << func_;
     }
-    return block_;
   }
 
   PrimFunc func_;

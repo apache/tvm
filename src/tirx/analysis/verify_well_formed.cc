@@ -22,6 +22,8 @@
  * \brief Check if schedulable tirx is well-formed.
  */
 
+#include "verify_well_formed.h"
+
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -41,111 +43,15 @@ namespace tirx {
 
 using AccessPath = ffi::reflection::AccessPath;
 
-/*! \brief Verify all Expr inside the block does not contain:
- *    1. loop vars outside the current block.
- *    2. block vars of parent blocks.
- */
-class BlockVarAccessVerifier : public StmtExprVisitor {
- public:
-  static bool Verify(const PrimFunc& func, bool assert_mode) {
-    auto verifier = ffi::make_object<BlockVarAccessVerifier>(assert_mode);
-    verifier->Visit(func->body);
-    return !verifier->has_error_;
-  }
-
-  explicit BlockVarAccessVerifier(bool assert_mode) : assert_mode_(assert_mode) {}
-
- private:
-  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView stmt) final {
-    if (!has_error_) {
-      return StmtExprVisitor::Visit(stmt);
-    }
-    return std::nullopt;
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
-    auto it = loop_vars_.find(op);
-    if (it != loop_vars_.end() && it->second < block_stack_.size()) {
-      has_error_ = true;
-      if (assert_mode_) {
-        if (it->second == 0) {
-          TVM_FFI_THROW(InternalError)
-              << "Well-formedness check failed: "
-              << "Loop iterator var " << op->name << " is defined outside of any block, "
-              << "but is used inside the non-opaque current block \""
-              << block_stack_.back()->name_hint << "\".";
-        } else {
-          TVM_FFI_THROW(InternalError)
-              << "Well-formedness check failed: "
-              << "Loop iterator var " << op->name << " is defined in block \""
-              << block_stack_[it->second - 1]->name_hint << "\", "
-              << "but is used inside the non-opaque current block \""
-              << block_stack_.back()->name_hint << "\".";
-        }
-      }
-    }
-    return std::nullopt;
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-    TVM_FFI_ICHECK(loop_vars_.find(op->loop_var.get()) == loop_vars_.end());
-    loop_vars_[op->loop_var.get()] = block_stack_.size();
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    loop_vars_.erase(op->loop_var.get());
-    return std::nullopt;
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
-    // Do not check boundary if it's a opaque block.
-    bool is_non_opaque = op->iter_vars.size();
-    if (is_non_opaque) {
-      block_stack_.push_back(op);
-    }
-
-    // Step 0. Skip block iter var's domain
-
-    // Step 1. Visit read/write regions
-    auto fvisit_buffer_region = [this](const TensorRegion& s) -> ffi::Optional<VisitInterrupt> {
-      for (const auto& range : s->region) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->min));
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->extent));
-      }
-      return std::nullopt;
-    };
-    for (const auto& region : op->reads) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit_buffer_region(region));
-    }
-    for (const auto& region : op->writes) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit_buffer_region(region));
-    }
-
-    // Step 2. Visit match buffers
-    for (const auto& match_buffer_region : op->match_buffers) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit_buffer_region(match_buffer_region->source));
-    }
-
-    // Step 3. Visit init and body
-    if (op->init.has_value()) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->init.value()));
-    }
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->body));
-
-    if (is_non_opaque) {
-      block_stack_.pop_back();
-    }
-    return std::nullopt;
-  }
-
- private:
-  /*! \brief The map from outside loop vars to its corresponding block level. */
-  std::unordered_map<const VarNode*, size_t> loop_vars_;
-  /*! \brief Whether it's in assert mode. */
-  bool assert_mode_;
-  /*! \brief Current nested block stack level. */
-  std::vector<const SBlockNode*> block_stack_;
-  /*! \brief Whether there is error. */
-  bool has_error_{false};
-};
+namespace {
+std::vector<bool (*)(const PrimFunc&, bool)>& WellFormedExtensions() {
+  static std::vector<bool (*)(const PrimFunc&, bool)> extensions;
+  return extensions;
+}
+}  // namespace
+void RegisterWellFormedExtension(bool (*verify)(const PrimFunc&, bool)) {
+  WellFormedExtensions().push_back(verify);
+}
 
 class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
  public:
@@ -421,8 +327,8 @@ class SingleEnvThreadVerifier : public Verifier<SingleEnvThreadVerifier> {
 };
 
 bool VerifyWellFormed(const PrimFunc& func, bool assert_mode) {
-  if (!BlockVarAccessVerifier::Verify(func, assert_mode)) {
-    return false;
+  for (auto verify : WellFormedExtensions()) {
+    if (!verify(func, assert_mode)) return false;
   }
 
   if (!UndefinedVarVerifier::Verify(func, assert_mode)) return false;

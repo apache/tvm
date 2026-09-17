@@ -29,9 +29,10 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/data_layout.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/var.h>
 
 #include <algorithm>

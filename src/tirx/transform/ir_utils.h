@@ -30,7 +30,6 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/with_context.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
@@ -231,21 +230,6 @@ Stmt ConvertSSA(Stmt stmt);
  * \return A string representing the storage scope of this buffer variable.
  */
 ffi::String GetPtrStorageScope(Var buffer_var);
-
-/*!
- * \brief Convert match buffer target buffer access indices to original one.
- * \param indices The indices of the target buffer
- * \return The indices of source buffer.
- */
-ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
-                                    const ffi::Array<PrimExpr>& indices);
-
-/*!
- * \brief Convert match buffer target buffer region to original one.
- * \param region The sub-region of the target buffer
- * \return The region of source buffer.
- */
-Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region);
 
 /*!
  * \brief Get stride aware buffer allocation shape from buffer.

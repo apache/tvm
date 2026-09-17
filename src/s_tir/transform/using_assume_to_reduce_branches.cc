@@ -40,16 +40,16 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr_types.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 
 #include "../../arith/constraint_extract.h"
-#include "../../tirx/ir/ir_mutator_with_analyzer.h"
+#include "../../s_tir/ir/ir_mutator_with_analyzer.h"
 #include "tvm/ir/expr.h"
 namespace tvm {
 namespace s_tir {

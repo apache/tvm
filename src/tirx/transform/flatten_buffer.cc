@@ -34,6 +34,7 @@
 
 #include "../ir/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
+#include "stmt_extension.h"
 
 namespace tvm {
 namespace tirx {
@@ -58,7 +59,7 @@ using namespace tvm::prim;
  *  Every use site then only looks the pair up; a use before its definition is
  *  a hard error instead of a silently stale reference.
  */
-class BufferFlattener : public IRMutatorWithAnalyzer {
+class BufferFlattener : public FlattenStmtMutator {
  public:
   using IRMutatorWithAnalyzer::Mutate;
   using IRMutatorWithAnalyzer::Mutate_;
@@ -98,7 +99,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
   }
 
  public:
-  explicit BufferFlattener(const arith::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
+  explicit BufferFlattener(const arith::Analyzer& ana) : FlattenStmtMutator(ana) {}
 
  private:
   struct FlatInfo {
@@ -178,36 +179,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     return it->second;
   }
 
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    TVM_FFI_ICHECK_EQ(op->match_buffers.size(), 0)
-        << "Unexpected MatchBufferRegion found during tirx.transform.FlattenBuffer.  "
-        << "All MatchBufferRegion should be removed in tirx.transform.LowerMatchBuffer.";
-
-    SBlock block = ffi::GetRef<SBlock>(op);
-
-    ffi::Array<BufferVar> alloc_buffers = op->alloc_buffers;
-    alloc_buffers.MutateByApply([this](BufferVar buf) { return Define(buf).flattened; });
-    if (!alloc_buffers.same_as(op->alloc_buffers)) {
-      block.CopyOnWrite()->alloc_buffers = alloc_buffers;
-    }
-
-    ffi::Array<TensorRegion> reads = op->reads;
-    reads.MutateByApply([this](TensorRegion region) { return MutateBufferRegion(region); });
-    if (!reads.same_as(op->reads)) {
-      block.CopyOnWrite()->reads = reads;
-    }
-
-    ffi::Array<TensorRegion> writes = op->writes;
-    writes.MutateByApply([this](TensorRegion region) { return MutateBufferRegion(region); });
-    if (!writes.same_as(op->writes)) {
-      block.CopyOnWrite()->writes = writes;
-    }
-
-    // The retained or rebuilt block bypasses the generic entry's current-node check.
-    return StmtExprMutator::Mutate_(block.get(),
-                                    block.unique() ? inplace_mode : InplaceMode::kDisallow)
-        .ValueOrUnchanged(block);
-  }
+  BufferVar DefineBuffer(BufferVar buffer) final { return Define(buffer).flattened; }
 
   UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     const FlatInfo& info = Define(op->buffer);
@@ -323,9 +295,9 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     return BufferLoad(info.flattened, FoldIndices(info, node->indices), node->span);
   }
 
-  TensorRegion MutateBufferRegion(TensorRegion region) {
-    const FlatInfo& info = Lookup(region->source.as_or_throw<tvm::tirx::BufferVar>());
-    if (info.flattened.same_as(region->source.as_or_throw<tvm::tirx::BufferVar>())) {
+  BufferRegion RewriteRegion(BufferRegion region) final {
+    const FlatInfo& info = Lookup(region->buffer);
+    if (info.flattened.same_as(region->buffer)) {
       return region;
     }
 

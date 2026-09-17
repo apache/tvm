@@ -25,7 +25,8 @@ from tvm_ffi import register_object as _register_object
 from tvm.error import register_error
 from tvm.ir import Expr, GlobalVar, IRModule, is_prim_expr
 from tvm.runtime import DataTypeCode, Object
-from tvm.tirx import Buffer, FloatImm, For, IntImm, PrimFunc, SBlock, is_buffer_var
+from tvm.s_tir import SBlock
+from tvm.tirx import Buffer, FloatImm, For, IntImm, PrimFunc, is_buffer_var
 from tvm.tirx.function import IndexMap
 
 from . import _ffi_api

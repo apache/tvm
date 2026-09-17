@@ -25,7 +25,6 @@
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/op.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
@@ -34,6 +33,32 @@
 
 namespace tvm {
 namespace tirx {
+namespace {
+std::vector<void (*)(IRMutatorWithAnalyzer::VTable*)>& IRMutatorWithAnalyzerExtensions() {
+  static std::vector<void (*)(IRMutatorWithAnalyzer::VTable*)> extensions;
+  return extensions;
+}
+}  // namespace
+
+void IRMutatorWithAnalyzer::RegisterExtension(void (*init)(VTable*)) {
+  IRMutatorWithAnalyzerExtensions().push_back(init);
+}
+
+void IRMutatorWithAnalyzer::InitVTable(VTable* vtable) {
+  StmtExprMutator::InitVTable(vtable);
+  for (auto init : IRMutatorWithAnalyzerExtensions()) init(vtable);
+}
+
+const IRMutatorWithAnalyzer::VTable* IRMutatorWithAnalyzer::GlobalVTable() {
+  static const VTable table = [] {
+    VTable table;
+    InitVTable(&table);
+    table.Finalize();
+    return table;
+  }();
+  return &table;
+}
+
 using namespace tvm::prim;
 
 using arith::detail::EnterConstraintFacts;
@@ -110,16 +135,6 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const ForNode* op, InplaceMode 
       n->body = std::move(body);
       return Stmt(n);
     }
-  });
-}
-
-UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
-  return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
-    for (const auto& iter_var : op->iter_vars) {
-      analyzer_->Bind(iter_var->var, iter_var->dom);
-      iter_vars_.Set(iter_var->var, iter_var->dom);
-    }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
   });
 }
 
@@ -201,7 +216,7 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const IfThenElseNode* op,
 
 UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
   return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
-    if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
+    if (op->attr_key == tirx::attr::thread_extent || op->attr_key == "virtual_thread") {
       IterVar iv = op->node.as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       Range dom = Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value);

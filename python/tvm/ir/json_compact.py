@@ -19,6 +19,9 @@
 import json
 
 _PRIM_TYPE_KEY_RENAMES = {
+    "tirx.SBlock": "s_tir.SBlock",
+    "tirx.SBlockRealize": "s_tir.SBlockRealize",
+    "tirx.MatchBufferRegion": "s_tir.MatchBufferRegion",
     "tirx.TensorIntrin": "s_tir.TensorIntrin",
     "tirx.StringImm": "ir.prim.StringImm",
     "tirx.Cast": "ir.prim.Cast",
