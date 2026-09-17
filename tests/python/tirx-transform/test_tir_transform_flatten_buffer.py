@@ -352,7 +352,7 @@ def test_boolean():
     tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
-def test_flatten_lowered_block():
+def test_flatten_inside_block():
     """Flatten allocations and accesses after lowering a schedulable block."""
 
     @I.ir_module(s_tir=True)

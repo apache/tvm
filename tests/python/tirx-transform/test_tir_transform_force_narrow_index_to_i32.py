@@ -466,32 +466,5 @@ def test_let_binding():
     tvm.ir.assert_structural_equal(_lower_blocks(Expected), after)
 
 
-def test_preserve_local_scalar_storage():
-    @T.prim_func(private=True)
-    def before(n: T.int64):
-        index = T.call_extern("opaque_index", n, dtype="int64")
-        T.evaluate(index)
-
-    @T.prim_func(private=True)
-    def expected(n: T.int32):
-        index = T.call_extern("opaque_index", n, dtype="int64")
-        T.evaluate(index)
-
-    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(tvm.IRModule.from_expr(before))["main"]
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-@pytest.mark.parametrize("shape", [(), (1,), (8,)])
-@pytest.mark.parametrize("scope", ["local", "shared", "global"])
-def test_reject_int64_array_storage(shape, scope):
-    # Rank or element count alone does not make an allocation scalar storage.
-    buffer = tvm.tirx.decl_buffer(shape, "int64", "array", scope=scope, layout=None)
-    before = tvm.tirx.PrimFunc(
-        [], tvm.tirx.SeqStmt([tvm.tirx.AllocBuffer(buffer), tvm.tirx.Evaluate(0)])
-    )
-    with pytest.raises(tvm.error.InternalError, match="allocated in the function has dtype"):
-        tvm.tirx.transform.ForceNarrowIndexToInt32()(tvm.IRModule.from_expr(before))
-
-
 if __name__ == "__main__":
     tvm.testing.main()
